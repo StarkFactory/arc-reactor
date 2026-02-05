@@ -7,7 +7,8 @@ data class McpServer(
     val name: String,
     val description: String? = null,
     val transportType: McpTransportType,
-    val connectionConfig: Map<String, Any> = emptyMap(),
+    val config: Map<String, Any> = emptyMap(),
+    val version: String? = null,
     val autoConnect: Boolean = false
 )
 
@@ -31,6 +32,9 @@ enum class McpTransportType {
 enum class McpServerStatus {
     /** 등록됨, 연결 전 */
     PENDING,
+
+    /** 연결 중 */
+    CONNECTING,
 
     /** 연결됨 */
     CONNECTED,

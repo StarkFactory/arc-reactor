@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "com.arc"
-version = "0.1.0-SNAPSHOT"
+version = "0.2.0-SNAPSHOT"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -38,8 +38,11 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-model")
     implementation("org.springframework.ai:spring-ai-client-chat")
 
-    // Spring AI MCP (Model Context Protocol)
-    implementation("org.springframework.ai:spring-ai-mcp")
+    // MCP (Model Context Protocol) SDK
+    implementation("io.modelcontextprotocol.sdk:mcp:0.10.0")
+
+    // Spring AI MCP Client Starter (optional - for auto-configuration)
+    compileOnly("org.springframework.ai:spring-ai-starter-mcp-client")
 
     // Kotlin
     implementation("org.jetbrains.kotlin:kotlin-reflect")
@@ -58,8 +61,13 @@ dependencies {
     compileOnly("org.springframework.ai:spring-ai-starter-model-vertex-ai-gemini")
     compileOnly("org.springframework.ai:spring-ai-starter-model-anthropic")
 
-    // Optional: Vector Store (RAG) - New naming in 1.1.x
+    // Spring AI Vector Store Core (for RAG)
+    implementation("org.springframework.ai:spring-ai-vector-store")
+
+    // Optional: Vector Store Providers (사용자가 선택)
     compileOnly("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
+    compileOnly("org.springframework.ai:spring-ai-starter-vector-store-pinecone")
+    compileOnly("org.springframework.ai:spring-ai-starter-vector-store-chroma")
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")

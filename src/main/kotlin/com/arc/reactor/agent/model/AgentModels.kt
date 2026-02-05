@@ -89,7 +89,6 @@ data class AgentResult(
  */
 data class TokenUsage(
     val promptTokens: Int,
-    val completionTokens: Int
-) {
-    val totalTokens: Int get() = promptTokens + completionTokens
-}
+    val completionTokens: Int,
+    val totalTokens: Int = promptTokens + completionTokens
+)

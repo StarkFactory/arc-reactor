@@ -39,6 +39,21 @@ interface MemoryStore {
     fun getOrCreate(sessionId: String): ConversationMemory
     fun remove(sessionId: String)
     fun clear()
+
+    /**
+     * 세션에 메시지 추가
+     */
+    fun addMessage(sessionId: String, role: String, content: String) {
+        val memory = getOrCreate(sessionId)
+        val messageRole = when (role.lowercase()) {
+            "user" -> MessageRole.USER
+            "assistant" -> MessageRole.ASSISTANT
+            "system" -> MessageRole.SYSTEM
+            "tool" -> MessageRole.TOOL
+            else -> MessageRole.USER
+        }
+        memory.add(Message(messageRole, content))
+    }
 }
 
 /**

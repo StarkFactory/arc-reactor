@@ -22,7 +22,15 @@ import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
+import com.arc.reactor.rag.DocumentRetriever
+import com.arc.reactor.rag.DocumentReranker
+import com.arc.reactor.rag.RagPipeline
+import com.arc.reactor.rag.impl.DefaultRagPipeline
+import com.arc.reactor.rag.impl.InMemoryDocumentRetriever
+import com.arc.reactor.rag.impl.SimpleScoreReranker
+import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -111,6 +119,55 @@ class ArcReactorAutoConfiguration {
     }
 
     /**
+     * RAG Configuration
+     */
+    @Configuration
+    @ConditionalOnProperty(prefix = "arc.reactor.rag", name = ["enabled"], havingValue = "true", matchIfMissing = false)
+    class RagConfiguration {
+
+        /**
+         * Document Retriever (Spring AI VectorStore 사용 시)
+         */
+        @Bean
+        @ConditionalOnBean(VectorStore::class)
+        @ConditionalOnMissingBean
+        fun documentRetriever(
+            vectorStore: VectorStore,
+            properties: AgentProperties
+        ): DocumentRetriever = SpringAiVectorStoreRetriever(
+            vectorStore = vectorStore,
+            defaultSimilarityThreshold = properties.rag.similarityThreshold
+        )
+
+        /**
+         * Document Retriever (VectorStore 없을 때 - 인메모리)
+         */
+        @Bean
+        @ConditionalOnMissingBean(VectorStore::class, DocumentRetriever::class)
+        fun inMemoryDocumentRetriever(): DocumentRetriever = InMemoryDocumentRetriever()
+
+        /**
+         * Document Reranker (기본: 단순 점수 기반)
+         */
+        @Bean
+        @ConditionalOnMissingBean
+        fun documentReranker(): DocumentReranker = SimpleScoreReranker()
+
+        /**
+         * RAG Pipeline
+         */
+        @Bean
+        @ConditionalOnMissingBean
+        fun ragPipeline(
+            retriever: DocumentRetriever,
+            reranker: DocumentReranker
+        ): RagPipeline = DefaultRagPipeline(
+            retriever = retriever,
+            reranker = reranker
+        )
+    }
+
+    /**
      * Agent Executor
      */
     @Bean
@@ -124,6 +181,7 @@ class ArcReactorAutoConfiguration {
         toolSelector: ToolSelector,
         requestGuard: RequestGuard?,
         hookExecutor: HookExecutor,
+        memoryStore: MemoryStore,
         mcpManager: McpManager
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
@@ -133,6 +191,7 @@ class ArcReactorAutoConfiguration {
         toolSelector = toolSelector,
         guard = requestGuard,
         hookExecutor = hookExecutor,
+        memoryStore = memoryStore,
         mcpToolCallbacks = { mcpManager.getAllToolCallbacks() }
     )
 }
