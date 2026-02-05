@@ -1,0 +1,70 @@
+# Arc Reactor Configuration Example
+# 이 파일을 application.yml로 복사하여 사용하세요.
+
+# ============================================
+# LLM Provider 설정 (택 1)
+# ============================================
+
+# OpenAI 사용 시
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o-mini
+
+# Anthropic Claude 사용 시
+#spring:
+#  ai:
+#    anthropic:
+#      api-key: ${ANTHROPIC_API_KEY}
+#      chat:
+#        options:
+#          model: claude-sonnet-4-20250514
+
+# Google Gemini 사용 시
+#spring:
+#  ai:
+#    vertex-ai:
+#      gemini:
+#        project-id: ${GCP_PROJECT_ID}
+#        location: us-central1
+#        chat:
+#          options:
+#            model: gemini-1.5-flash
+
+# ============================================
+# Arc Reactor 설정
+# ============================================
+arc:
+  reactor:
+    # LLM 파라미터
+    llm:
+      temperature: 0.3           # 응답 창의성 (0.0 ~ 1.0)
+      max-output-tokens: 4096    # 최대 출력 토큰
+      timeout-ms: 60000          # LLM 호출 타임아웃
+
+    # Guard (5단계 가드레일)
+    guard:
+      enabled: true
+      rate-limit-per-minute: 10   # 분당 요청 제한
+      rate-limit-per-hour: 100    # 시간당 요청 제한
+      max-input-length: 10000     # 최대 입력 길이
+      injection-detection-enabled: true  # Prompt Injection 탐지
+
+    # 동시성
+    max-concurrent-requests: 10   # 동시 요청 수
+    request-timeout-ms: 120000    # 전체 요청 타임아웃
+
+    # Tool
+    max-tools-per-request: 20     # 요청당 최대 Tool 수
+    max-tool-calls: 10            # 최대 Tool 호출 횟수
+
+# ============================================
+# 로깅
+# ============================================
+logging:
+  level:
+    com.arc.reactor: DEBUG
+    org.springframework.ai: DEBUG

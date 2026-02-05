@@ -1,0 +1,17 @@
+# Arc Reactor Default Configuration
+arc:
+  reactor:
+    llm:
+      temperature: 0.3
+      max-output-tokens: 4096
+      timeout-ms: 60000
+    guard:
+      enabled: true
+      rate-limit-per-minute: 10
+      rate-limit-per-hour: 100
+      max-input-length: 10000
+      injection-detection-enabled: true
+    max-concurrent-requests: 10
+    request-timeout-ms: 120000
+    max-tools-per-request: 20
+    max-tool-calls: 10
