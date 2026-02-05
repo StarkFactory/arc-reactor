@@ -14,53 +14,124 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * MCP (Model Context Protocol) 서버 관리자
+ * MCP (Model Context Protocol) Server Manager
  *
- * 동적 Tool 로딩을 위한 MCP 서버 연결 관리.
- * MCP SDK 클라이언트와 통합.
+ * Manages connections to MCP servers for dynamic tool loading.
+ * Integrates with the official MCP SDK for protocol compliance.
+ *
+ * ## What is MCP?
+ * Model Context Protocol is a standard for connecting AI agents to external tools
+ * and data sources. It enables:
+ * - Dynamic tool discovery and loading
+ * - Standardized tool invocation
+ * - Cross-platform tool sharing
+ *
+ * ## Supported Transports
+ * - **STDIO**: Local process communication (most common)
+ * - **SSE**: Server-Sent Events over HTTP
+ * - **HTTP**: Streamable HTTP transport
+ *
+ * ## Example Usage
+ * ```kotlin
+ * val manager = DefaultMcpManager()
+ *
+ * // Register an MCP server
+ * manager.register(McpServer(
+ *     name = "filesystem",
+ *     transportType = McpTransportType.STDIO,
+ *     config = mapOf(
+ *         "command" to "npx",
+ *         "args" to listOf("-y", "@anthropic/mcp-server-filesystem")
+ *     )
+ * ))
+ *
+ * // Connect and load tools
+ * manager.connect("filesystem")
+ *
+ * // Get tools for agent
+ * val tools = manager.getAllToolCallbacks()
+ * ```
+ *
+ * @see McpServer for server configuration
+ * @see McpServerStatus for connection states
  */
 interface McpManager {
     /**
-     * MCP 서버 등록
+     * Register an MCP server configuration.
+     *
+     * Does not connect immediately - use [connect] to establish connection.
+     *
+     * @param server Server configuration including transport settings
      */
     fun register(server: McpServer)
 
     /**
-     * MCP 서버 연결
+     * Connect to a registered MCP server.
+     *
+     * Establishes connection and loads available tools.
+     *
+     * @param serverName Name of the registered server
+     * @return true if connection successful, false otherwise
      */
     suspend fun connect(serverName: String): Boolean
 
     /**
-     * MCP 서버 연결 해제
+     * Disconnect from an MCP server.
+     *
+     * Releases resources and clears cached tools.
+     *
+     * @param serverName Name of the server to disconnect
      */
     suspend fun disconnect(serverName: String)
 
     /**
-     * 모든 MCP Tool Callback 조회
-     * Spring AI ToolCallback 반환
+     * Get all tool callbacks from connected MCP servers.
+     *
+     * Returns tools as framework-agnostic callbacks.
+     *
+     * @return List of tool callbacks from all connected servers
      */
     fun getAllToolCallbacks(): List<Any>
 
     /**
-     * 특정 서버의 Tool Callback 조회
+     * Get tool callbacks from a specific MCP server.
+     *
+     * @param serverName Name of the server
+     * @return List of tool callbacks, empty if not connected
      */
     fun getToolCallbacks(serverName: String): List<Any>
 
     /**
-     * 등록된 서버 목록
+     * List all registered servers.
+     *
+     * @return List of server configurations (connected and disconnected)
      */
     fun listServers(): List<McpServer>
 
     /**
-     * 서버 상태 조회
+     * Get the connection status of a server.
+     *
+     * @param serverName Name of the server
+     * @return Current status, null if server not registered
      */
     fun getStatus(serverName: String): McpServerStatus?
 }
 
 /**
- * MCP SDK 기반 구현
+ * Default MCP Manager Implementation
  *
- * STDIO, SSE, HTTP 트랜스포트 지원.
+ * Uses the official MCP SDK for protocol compliance.
+ * Supports STDIO transport fully, with SSE/HTTP as placeholders.
+ *
+ * ## Connection Flow
+ * 1. Register server with [register]
+ * 2. Connect with [connect] → initializes transport and loads tools
+ * 3. Use tools via [getAllToolCallbacks] or [getToolCallbacks]
+ * 4. Disconnect with [disconnect] when done
+ *
+ * ## Thread Safety
+ * This implementation is NOT thread-safe. For concurrent access,
+ * use external synchronization or a thread-safe wrapper.
  */
 class DefaultMcpManager : McpManager {
 
@@ -234,7 +305,20 @@ class DefaultMcpManager : McpManager {
 }
 
 /**
- * MCP Tool을 ToolCallback으로 래핑
+ * MCP Tool Callback Wrapper
+ *
+ * Wraps an MCP tool as an Arc Reactor ToolCallback for unified tool handling.
+ *
+ * ## How It Works
+ * 1. Receives tool call arguments as a Map
+ * 2. Converts to MCP CallToolRequest
+ * 3. Invokes tool via MCP client
+ * 4. Extracts and returns text content
+ *
+ * @param client The MCP client connection
+ * @param name Tool identifier
+ * @param description Tool description for LLM
+ * @param inputSchema JSON Schema for tool parameters (optional)
  */
 class McpToolCallback(
     private val client: McpSyncClient,

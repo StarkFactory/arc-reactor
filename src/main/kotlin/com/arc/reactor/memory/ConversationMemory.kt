@@ -5,43 +5,123 @@ import com.arc.reactor.agent.model.MessageRole
 import java.time.Instant
 
 /**
- * 대화 메모리 인터페이스
+ * Conversation Memory Interface
  *
- * Multi-turn 대화를 위한 컨텍스트 관리.
+ * Manages conversation history for multi-turn interactions with the AI agent.
+ * Enables context retention across multiple exchanges.
+ *
+ * ## Features
+ * - Message storage and retrieval
+ * - Token-aware history truncation
+ * - Automatic oldest message eviction
+ *
+ * ## Example Usage
+ * ```kotlin
+ * val memory = InMemoryConversationMemory(maxMessages = 50)
+ *
+ * // Add messages
+ * memory.addUserMessage("Hello!")
+ * memory.addAssistantMessage("Hi! How can I help?")
+ *
+ * // Get history for next LLM call
+ * val history = memory.getHistoryWithinTokenLimit(maxTokens = 4000)
+ * ```
+ *
+ * @see MemoryStore for session-based memory management
+ * @see InMemoryConversationMemory for default implementation
  */
 interface ConversationMemory {
     /**
-     * 메시지 추가
+     * Add a message to the conversation history.
+     *
+     * @param message The message to add
      */
     fun add(message: Message)
 
     /**
-     * 대화 기록 조회
+     * Get the complete conversation history.
+     *
+     * @return All messages in chronological order
      */
     fun getHistory(): List<Message>
 
     /**
-     * 대화 기록 초기화
+     * Clear all messages from the conversation history.
      */
     fun clear()
 
     /**
-     * 토큰 제한에 맞게 기록 가져오기
+     * Get conversation history within a token limit.
+     *
+     * Returns the most recent messages that fit within the specified token budget.
+     * Useful for staying within LLM context window limits.
+     *
+     * @param maxTokens Maximum approximate token count
+     * @return Most recent messages within the token limit
      */
     fun getHistoryWithinTokenLimit(maxTokens: Int): List<Message>
 }
 
 /**
- * 세션 ID 기반 메모리 저장소
+ * Session-Based Memory Store Interface
+ *
+ * Manages multiple conversation memories indexed by session ID.
+ * Enables concurrent users with isolated conversation histories.
+ *
+ * ## Example Usage
+ * ```kotlin
+ * val store = InMemoryMemoryStore(maxSessions = 1000)
+ *
+ * // Get or create session memory
+ * val memory = store.getOrCreate("user-123-session-456")
+ * memory.addUserMessage("Hello!")
+ *
+ * // Add message via store (convenience method)
+ * store.addMessage("user-123-session-456", "assistant", "Hi there!")
+ *
+ * // Clean up old session
+ * store.remove("old-session-id")
+ * ```
+ *
+ * @see InMemoryMemoryStore for default implementation
  */
 interface MemoryStore {
+    /**
+     * Get conversation memory for a session.
+     *
+     * @param sessionId Unique session identifier
+     * @return ConversationMemory if exists, null otherwise
+     */
     fun get(sessionId: String): ConversationMemory?
+
+    /**
+     * Get existing or create new conversation memory for a session.
+     *
+     * @param sessionId Unique session identifier
+     * @return Existing or newly created ConversationMemory
+     */
     fun getOrCreate(sessionId: String): ConversationMemory
+
+    /**
+     * Remove conversation memory for a session.
+     *
+     * @param sessionId Session to remove
+     */
     fun remove(sessionId: String)
+
+    /**
+     * Clear all session memories.
+     */
     fun clear()
 
     /**
-     * 세션에 메시지 추가
+     * Add a message to a session's conversation memory.
+     *
+     * Convenience method that creates the session if it doesn't exist.
+     *
+     * @param sessionId Session identifier
+     * @param role Message role (user, assistant, system, tool)
+     * @param content Message content
      */
     fun addMessage(sessionId: String, role: String, content: String) {
         val memory = getOrCreate(sessionId)
@@ -57,7 +137,18 @@ interface MemoryStore {
 }
 
 /**
- * 인메모리 대화 메모리 구현
+ * In-Memory Conversation Memory Implementation
+ *
+ * Simple memory implementation that stores messages in a mutable list.
+ * Automatically evicts oldest messages when exceeding the maximum limit.
+ *
+ * ## Characteristics
+ * - Fast O(1) add operations
+ * - FIFO eviction when full
+ * - Approximate token counting (chars / 4)
+ * - Not persistent (lost on restart)
+ *
+ * @param maxMessages Maximum messages to retain (default: 50)
  */
 class InMemoryConversationMemory(
     private val maxMessages: Int = 50
@@ -98,7 +189,22 @@ class InMemoryConversationMemory(
 }
 
 /**
- * 인메모리 메모리 저장소
+ * In-Memory Memory Store Implementation
+ *
+ * Session-based memory store using LinkedHashMap for LRU eviction.
+ *
+ * ## Characteristics
+ * - LRU eviction when session limit reached
+ * - Fast O(1) session lookup
+ * - Not persistent (lost on restart)
+ *
+ * ## For Production
+ * Consider implementing MemoryStore with:
+ * - Redis for distributed sessions
+ * - PostgreSQL for persistence
+ * - Custom TTL for automatic cleanup
+ *
+ * @param maxSessions Maximum concurrent sessions (default: 1000)
  */
 class InMemoryMemoryStore(
     private val maxSessions: Int = 1000
@@ -127,15 +233,31 @@ class InMemoryMemoryStore(
     }
 }
 
-// Extension functions
+// Extension Functions for ConversationMemory
+
+/**
+ * Add a user message to the conversation.
+ *
+ * @param content Message content
+ */
 fun ConversationMemory.addUserMessage(content: String) {
     add(Message(MessageRole.USER, content))
 }
 
+/**
+ * Add an assistant message to the conversation.
+ *
+ * @param content Message content
+ */
 fun ConversationMemory.addAssistantMessage(content: String) {
     add(Message(MessageRole.ASSISTANT, content))
 }
 
+/**
+ * Add a system message to the conversation.
+ *
+ * @param content Message content
+ */
 fun ConversationMemory.addSystemMessage(content: String) {
     add(Message(MessageRole.SYSTEM, content))
 }

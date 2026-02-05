@@ -1,22 +1,42 @@
 package com.arc.reactor.tool
 
 /**
- * Tool 카테고리
+ * Tool Category Interface
  *
- * 동적 Tool 로딩에서 요청별 필요한 도구만 선택하기 위한 분류.
- * 프로젝트별로 확장 가능한 인터페이스 제공.
+ * Classification system for dynamic tool loading.
+ * Enables selecting only relevant tools based on user request,
+ * reducing context window usage and improving tool selection accuracy.
  *
- * @see ToolSelector 카테고리 기반 Tool 선택기
+ * ## Why Categories?
+ * - LLMs perform better with fewer, relevant tools
+ * - Reduces token usage (tool descriptions consume context)
+ * - Enables domain-specific tool groupings
+ *
+ * ## Custom Categories
+ * ```kotlin
+ * enum class MyProjectCategory(
+ *     override val keywords: Set<String>
+ * ) : ToolCategory {
+ *     HR(setOf("employee", "hiring", "recruitment")),
+ *     FINANCE(setOf("budget", "expense", "invoice"))
+ * }
+ * ```
+ *
+ * @see ToolSelector for category-based tool filtering
+ * @see DefaultToolCategory for built-in categories
  */
 interface ToolCategory {
-    /** 카테고리 이름 */
+    /** Category identifier */
     val name: String
 
-    /** 매칭 키워드들 (소문자) */
+    /** Keywords that trigger this category (lowercase) */
     val keywords: Set<String>
 
     /**
-     * 프롬프트에 이 카테고리와 매칭되는 키워드가 있는지 확인
+     * Check if the prompt contains keywords matching this category.
+     *
+     * @param prompt User's request text
+     * @return true if any keyword matches
      */
     fun matches(prompt: String): Boolean {
         val lowerPrompt = prompt.lowercase()
@@ -25,29 +45,35 @@ interface ToolCategory {
 }
 
 /**
- * 기본 제공 카테고리
+ * Default Tool Categories
+ *
+ * Built-in categories for common tool types.
+ * Use these or define custom categories for your domain.
  */
 enum class DefaultToolCategory(
     override val keywords: Set<String>
 ) : ToolCategory {
-    /** 검색 도구 */
+    /** Search and retrieval tools */
     SEARCH(setOf("검색", "search", "찾아", "find", "조회", "query")),
 
-    /** 생성 도구 */
+    /** Content creation tools */
     CREATE(setOf("생성", "create", "만들어", "작성", "write")),
 
-    /** 분석 도구 */
+    /** Analysis and reporting tools */
     ANALYZE(setOf("분석", "analyze", "요약", "summary", "리포트", "report")),
 
-    /** 통신 도구 */
+    /** Communication and notification tools */
     COMMUNICATE(setOf("전송", "send", "메일", "email", "알림", "notify")),
 
-    /** 데이터 도구 */
+    /** Data management tools */
     DATA(setOf("데이터", "data", "저장", "save", "업데이트", "update"));
 
     companion object {
         /**
-         * 프롬프트에서 매칭되는 카테고리들 추출
+         * Extract all categories matching keywords in the prompt.
+         *
+         * @param prompt User's request text
+         * @return Set of matching categories
          */
         fun matchCategories(prompt: String): Set<DefaultToolCategory> {
             return entries.filter { it.matches(prompt) }.toSet()

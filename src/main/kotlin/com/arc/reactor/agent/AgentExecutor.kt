@@ -4,26 +4,71 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 
 /**
- * AI Agent 실행기 인터페이스
+ * AI Agent Executor Interface
  *
- * ReAct 패턴 기반 Agent Loop 실행.
+ * Executes AI agents using the ReAct (Reasoning + Acting) pattern.
+ * The agent autonomously reasons about the task, selects and executes tools,
+ * observes results, and iterates until completing the task.
  *
+ * ## ReAct Loop
  * ```
  * Goal → [Thought] → [Action] → [Observation] → ... → Final Answer
  * ```
+ *
+ * ## Execution Flow
+ * 1. Guard Pipeline - Security checks (rate limit, injection detection, etc.)
+ * 2. BeforeAgentStart Hook - Pre-processing and validation
+ * 3. Agent Loop - LLM reasoning with tool execution
+ * 4. AfterAgentComplete Hook - Post-processing and audit
+ *
+ * ## Example Usage
+ * ```kotlin
+ * @Service
+ * class MyService(private val agentExecutor: AgentExecutor) {
+ *
+ *     suspend fun chat(message: String): String {
+ *         val result = agentExecutor.execute(
+ *             AgentCommand(
+ *                 systemPrompt = "You are a helpful assistant.",
+ *                 userPrompt = message,
+ *                 userId = "user-123"
+ *             )
+ *         )
+ *         return result.content ?: "Error: ${result.errorMessage}"
+ *     }
+ * }
+ * ```
+ *
+ * @see AgentCommand for input parameters
+ * @see AgentResult for output structure
+ * @see com.arc.reactor.agent.impl.SpringAiAgentExecutor for default implementation
  */
 interface AgentExecutor {
 
     /**
-     * Agent 실행
+     * Executes the agent with the given command.
      *
-     * @param command 실행 명령
-     * @return 실행 결과
+     * This method orchestrates the full agent execution pipeline including:
+     * - Guard validation (if userId is provided)
+     * - Hook execution (before/after)
+     * - LLM interaction with tool calling
+     * - Conversation memory management
+     *
+     * @param command The agent command containing prompt, mode, and configuration
+     * @return AgentResult with success status, response content, and metadata
+     *
+     * @throws Nothing - All exceptions are caught and returned in AgentResult.errorMessage
      */
     suspend fun execute(command: AgentCommand): AgentResult
 
     /**
-     * 간단한 실행 (시스템 프롬프트 + 사용자 프롬프트)
+     * Simplified execution with just system and user prompts.
+     *
+     * Convenience method for simple use cases without advanced configuration.
+     *
+     * @param systemPrompt The system prompt defining agent behavior
+     * @param userPrompt The user's input message
+     * @return AgentResult with the agent's response
      */
     suspend fun execute(
         systemPrompt: String,

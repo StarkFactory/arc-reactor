@@ -1,27 +1,68 @@
 package com.arc.reactor.tool
 
 /**
- * Tool 선택 전략 인터페이스
+ * Tool Selection Strategy Interface
  *
- * 사용자 요청에 따라 적절한 Tool만 선택하여 LLM에 전달.
- * Context Window 절약 및 도구 선택 정확도 향상.
+ * Filters and selects appropriate tools based on user request.
+ * Optimizes context window usage and improves tool selection accuracy.
+ *
+ * ## Why Tool Selection Matters
+ * - LLMs have limited context windows
+ * - Sending all tools increases token usage and costs
+ * - Too many tools can confuse the LLM's tool selection
+ * - Relevant tools improve response quality
+ *
+ * ## Example Usage
+ * ```kotlin
+ * val selector = KeywordBasedToolSelector(toolCategoryMap)
+ * val relevantTools = selector.select(
+ *     prompt = "Search for company information",
+ *     availableTools = allTools
+ * )
+ * // Only SEARCH category tools returned
+ * ```
+ *
+ * @see KeywordBasedToolSelector for keyword-based filtering
+ * @see AllToolSelector for no filtering (pass-through)
+ * @see ToolCategory for defining tool categories
  */
 interface ToolSelector {
     /**
-     * 프롬프트에 맞는 Tool 선택
+     * Select relevant tools based on the user prompt.
      *
-     * @param prompt 사용자 요청
-     * @param availableTools 사용 가능한 모든 Tool
-     * @return 선택된 Tool 목록
+     * @param prompt User's request text
+     * @param availableTools All registered tools
+     * @return Filtered list of tools relevant to the prompt
      */
     fun select(prompt: String, availableTools: List<ToolCallback>): List<ToolCallback>
 }
 
 /**
- * 키워드 기반 Tool 선택기 (기본 구현)
+ * Keyword-Based Tool Selector
  *
- * Tool의 카테고리 키워드와 프롬프트를 매칭하여 선택.
- * 매칭되는 카테고리가 없으면 모든 Tool 반환.
+ * Matches tool categories against keywords in the user prompt.
+ * Falls back to returning all tools if no categories match.
+ *
+ * ## Matching Logic
+ * 1. Extract categories that match keywords in the prompt
+ * 2. If matches found: return tools in matched categories + uncategorized tools
+ * 3. If no matches: return all tools (safe fallback)
+ *
+ * ## Example
+ * ```kotlin
+ * val selector = KeywordBasedToolSelector(mapOf(
+ *     "search_company" to ToolCategory.SEARCH,
+ *     "send_email" to ToolCategory.EMAIL
+ * ))
+ *
+ * // Prompt contains "search" → returns SEARCH tools
+ * selector.select("Search for Samsung", tools)
+ *
+ * // Prompt contains no keywords → returns all tools
+ * selector.select("Hello", tools)
+ * ```
+ *
+ * @param toolCategoryMap Mapping of tool names to their categories
  */
 class KeywordBasedToolSelector(
     private val toolCategoryMap: Map<String, ToolCategory> = emptyMap()
@@ -32,17 +73,17 @@ class KeywordBasedToolSelector(
             return availableTools
         }
 
-        // 프롬프트에서 매칭되는 카테고리 추출
+        // Extract categories matching keywords in the prompt
         val matchedCategories = toolCategoryMap.values
             .filter { it.matches(prompt) }
             .toSet()
 
-        // 매칭된 카테고리가 없으면 전체 반환
+        // No matches → return all tools (safe fallback)
         if (matchedCategories.isEmpty()) {
             return availableTools
         }
 
-        // 매칭된 카테고리의 Tool + 카테고리 없는 Tool
+        // Return tools in matched categories + uncategorized tools
         return availableTools.filter { callback ->
             val category = toolCategoryMap[callback.name]
             category == null || category in matchedCategories
@@ -51,7 +92,15 @@ class KeywordBasedToolSelector(
 }
 
 /**
- * 모든 Tool 선택 (필터링 없음)
+ * Pass-Through Tool Selector
+ *
+ * Returns all tools without filtering.
+ * Use when tool selection is not needed or handled elsewhere.
+ *
+ * ## Use Cases
+ * - Development/testing with all tools available
+ * - Small tool sets where filtering overhead isn't worth it
+ * - Custom selection logic implemented in agent
  */
 class AllToolSelector : ToolSelector {
     override fun select(prompt: String, availableTools: List<ToolCallback>): List<ToolCallback> {

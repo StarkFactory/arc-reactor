@@ -1,32 +1,55 @@
 package com.arc.reactor.tool
 
 /**
- * 로컬 Tool 마커 인터페이스
+ * Local Tool Marker Interface
  *
- * 이 인터페이스를 구현하는 @Component는 자동으로 Agent에 등록된다.
+ * Classes implementing this interface and annotated with @Component
+ * are automatically registered with the Agent.
  *
- * ## 사용법
+ * ## Features
+ * - Auto-discovery via Spring component scanning
+ * - Category-based filtering for context window optimization
+ * - Integration with Spring AI's @Tool annotation
  *
+ * ## Example Usage
  * ```kotlin
  * @Component
- * class MyTool : LocalTool {
+ * class CompanySearchTool : LocalTool {
  *     override val category = ToolCategory.SEARCH
  *
- *     @Tool(description = "회사 정보를 검색합니다")
- *     fun searchCompany(@ToolParam("회사명") name: String): CompanyInfo {
- *         // 구현
+ *     @Tool(description = "Search company information by name")
+ *     fun searchCompany(@ToolParam("Company name") name: String): CompanyInfo {
+ *         return companyService.search(name)
  *     }
  * }
  * ```
  *
- * @see ToolCategory Tool 카테고리
- * @see ToolResult Tool 실행 결과
+ * ## Category Usage
+ * ```kotlin
+ * // Always loaded (essential tool)
+ * class CoreTool : LocalTool {
+ *     override val category = null  // or omit entirely
+ * }
+ *
+ * // Conditionally loaded based on user request
+ * class SearchTool : LocalTool {
+ *     override val category = ToolCategory.SEARCH
+ * }
+ * ```
+ *
+ * @see ToolCategory for available tool categories
+ * @see ToolSelector for category-based tool filtering
+ * @see ToolResult for tool execution results
  */
 interface LocalTool {
     /**
-     * Tool이 속한 카테고리
+     * The category this tool belongs to.
      *
-     * null이면 항상 로딩됨 (필수 도구)
+     * Used by [ToolSelector] to filter tools based on user request.
+     * - `null`: Always loaded (essential/core tools)
+     * - Non-null: Loaded only when category matches user intent
+     *
+     * @return The tool category, or null if always required
      */
     val category: ToolCategory?
         get() = null

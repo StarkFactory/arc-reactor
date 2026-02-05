@@ -7,59 +7,153 @@ import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
 
 /**
- * Agent Hook 시스템
+ * Agent Hook System
  *
- * Agent 실행 라이프사이클의 주요 지점에서 호출되는 확장 포인트.
+ * Extension points called at key moments in the agent execution lifecycle.
+ * Hooks enable cross-cutting concerns like logging, authorization, audit,
+ * and custom business logic without modifying the core agent.
  *
- * ## Hook 종류
- * - [BeforeAgentStartHook]: Agent 시작 전 (권한 확인, 예산 체크)
- * - [BeforeToolCallHook]: Tool 호출 전 (승인 요청, 파라미터 검증)
- * - [AfterToolCallHook]: Tool 호출 후 (결과 로깅, 알림)
- * - [AfterAgentCompleteHook]: Agent 완료 후 (감사 로그, 비용 정산)
+ * ## Hook Types
+ * - [BeforeAgentStartHook]: Before agent starts (auth, budget check, logging)
+ * - [BeforeToolCallHook]: Before each tool call (approval, parameter validation)
+ * - [AfterToolCallHook]: After each tool call (result logging, notifications)
+ * - [AfterAgentCompleteHook]: After agent completes (audit, billing, analytics)
  *
- * ## 실행 순서
- * Hook은 [order] 값에 따라 오름차순 실행 (낮을수록 먼저)
+ * ## Execution Flow
+ * ```
+ * BeforeAgentStart → [Agent Loop] → (BeforeToolCall → Tool → AfterToolCall)* → AfterAgentComplete
+ * ```
+ *
+ * ## Execution Order
+ * Hooks execute in ascending order by [order] value (lower = earlier)
+ *
+ * ## Example Usage
+ * ```kotlin
+ * @Component
+ * class AuditHook : AfterAgentCompleteHook {
+ *     override val order = 100
+ *
+ *     override suspend fun afterAgentComplete(context: HookContext, response: AgentResponse) {
+ *         auditService.log(
+ *             userId = context.userId,
+ *             prompt = context.userPrompt,
+ *             success = response.success,
+ *             toolsUsed = response.toolsUsed
+ *         )
+ *     }
+ * }
+ * ```
  */
 interface AgentHook {
-    /** Hook 실행 순서 (낮을수록 먼저) */
+    /**
+     * Hook execution order (lower values execute first)
+     *
+     * Recommended ranges:
+     * - 1-99: Critical/early hooks (auth, security)
+     * - 100-199: Standard hooks (logging, audit)
+     * - 200+: Late hooks (cleanup, notifications)
+     */
     val order: Int get() = 0
 
-    /** Hook 활성화 여부 */
+    /** Whether this hook is enabled */
     val enabled: Boolean get() = true
 }
 
 /**
- * Agent 시작 전 Hook
+ * Before Agent Start Hook
  *
- * 권한 확인, 예산 체크, 감사 로깅 시작 등에 사용.
+ * Called before the agent begins processing. Use for:
+ * - Authorization and permission checks
+ * - Budget/quota validation
+ * - Request enrichment (add context, metadata)
+ * - Audit logging start
+ *
+ * ## Return Values
+ * - [HookResult.Continue]: Allow agent to proceed
+ * - [HookResult.Reject]: Block execution with error message
+ * - [HookResult.PendingApproval]: Request manual approval
+ *
+ * @see HookContext for available request information
  */
 interface BeforeAgentStartHook : AgentHook {
+    /**
+     * Called before agent execution starts.
+     *
+     * @param context Request context including userId, prompt, and metadata
+     * @return HookResult indicating whether to continue, reject, or await approval
+     */
     suspend fun beforeAgentStart(context: HookContext): HookResult
 }
 
 /**
- * Tool 호출 전 Hook
+ * Before Tool Call Hook
  *
- * 승인 요청, 파라미터 검증/변환, 민감 작업 차단 등에 사용.
+ * Called before each tool execution. Use for:
+ * - Tool-level authorization
+ * - Parameter validation and sanitization
+ * - Sensitive operation approval
+ * - Tool execution logging
+ *
+ * ## Return Values
+ * - [HookResult.Continue]: Allow tool execution
+ * - [HookResult.Reject]: Block this specific tool call
+ * - [HookResult.PendingApproval]: Request manual approval for dangerous operations
+ *
+ * @see ToolCallContext for tool call information
  */
 interface BeforeToolCallHook : AgentHook {
+    /**
+     * Called before each tool execution.
+     *
+     * @param context Tool call context including tool name and parameters
+     * @return HookResult indicating whether to continue, reject, or await approval
+     */
     suspend fun beforeToolCall(context: ToolCallContext): HookResult
 }
 
 /**
- * Tool 호출 후 Hook
+ * After Tool Call Hook
  *
- * 결과 로깅, 알림 전송, 메트릭 수집 등에 사용.
+ * Called after each tool execution completes. Use for:
+ * - Result logging and monitoring
+ * - Performance metrics collection
+ * - Error tracking and alerting
+ * - Tool usage analytics
+ *
+ * Note: This hook cannot modify the result or stop execution.
+ *
+ * @see ToolCallResult for tool execution results
  */
 interface AfterToolCallHook : AgentHook {
+    /**
+     * Called after each tool execution completes.
+     *
+     * @param context Tool call context
+     * @param result Tool execution result including success status and output
+     */
     suspend fun afterToolCall(context: ToolCallContext, result: ToolCallResult)
 }
 
 /**
- * Agent 완료 후 Hook
+ * After Agent Complete Hook
  *
- * 감사 로그 완료, 비용 정산, 대시보드 업데이트 등에 사용.
+ * Called after the agent finishes processing (success or failure). Use for:
+ * - Audit log finalization
+ * - Billing and usage tracking
+ * - Dashboard/analytics updates
+ * - Notification sending
+ * - Cleanup operations
+ *
+ * Note: This hook is called even when the agent fails.
+ *
+ * @see AgentResponse for complete response information
  */
 interface AfterAgentCompleteHook : AgentHook {
+    /**
+     * Called after agent execution completes.
+     *
+     * @param context Original request context
+     * @param response Agent response including success status, content, and metadata
+     */
     suspend fun afterAgentComplete(context: HookContext, response: AgentResponse)
 }

@@ -4,52 +4,102 @@ import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
 
 /**
- * Request Guard 인터페이스
+ * Request Guard Interface
  *
- * 요청을 검사하여 허용 또는 거부 결과를 반환.
+ * Validates incoming requests and returns allowed/rejected results.
+ * The guard pipeline provides security guardrails to protect the AI agent
+ * from abuse, injection attacks, and unauthorized access.
  *
- * ## 5단계 가드레일 파이프라인
+ * ## 5-Stage Guardrail Pipeline
  *
  * ```
  * Request → [1.RateLimit] → [2.InputValidation] → [3.InjectionDetection]
  *        → [4.Classification] → [5.Permission] → Allowed/Rejected
  * ```
+ *
+ * ## Example Usage
+ * ```kotlin
+ * val guard = GuardPipeline(listOf(
+ *     DefaultRateLimitStage(requestsPerMinute = 10),
+ *     DefaultInputValidationStage(maxLength = 10000),
+ *     DefaultInjectionDetectionStage()
+ * ))
+ *
+ * val result = guard.guard(GuardCommand(userId = "user-123", text = "Hello"))
+ * when (result) {
+ *     is GuardResult.Allowed -> processRequest()
+ *     is GuardResult.Rejected -> handleRejection(result.reason)
+ * }
+ * ```
+ *
+ * @see GuardStage for implementing custom stages
+ * @see com.arc.reactor.guard.impl.GuardPipeline for default implementation
  */
 interface RequestGuard {
     /**
-     * 요청 검사
+     * Validates the request against all guard stages.
      *
-     * @param command 검사할 요청
-     * @return 검사 결과 (Allowed 또는 Rejected)
+     * @param command The request to validate
+     * @return GuardResult.Allowed if validation passes, GuardResult.Rejected otherwise
      */
     suspend fun guard(command: GuardCommand): GuardResult
 }
 
 /**
- * 가드레일 단계 인터페이스
+ * Guard Stage Interface
  *
- * 각 단계는 요청을 검사하고 다음 단계로 전달하거나 거부.
+ * Represents a single stage in the guard pipeline.
+ * Each stage checks a specific aspect of the request (rate limit, input size, etc.)
+ * and either allows it to proceed or rejects it.
+ *
+ * ## Implementing Custom Stages
+ * ```kotlin
+ * @Component
+ * class CustomBusinessRuleStage : GuardStage {
+ *     override val stageName = "BusinessRule"
+ *     override val order = 35  // After InjectionDetection (30)
+ *
+ *     override suspend fun check(command: GuardCommand): GuardResult {
+ *         if (!isAllowedByBusinessRules(command.text)) {
+ *             return GuardResult.Rejected(
+ *                 reason = "Request violates business rules",
+ *                 category = RejectionCategory.UNAUTHORIZED,
+ *                 stage = stageName
+ *             )
+ *         }
+ *         return GuardResult.Allowed.DEFAULT
+ *     }
+ * }
+ * ```
+ *
+ * @property stageName Unique identifier for this stage
+ * @property order Execution order (lower values execute first)
+ * @property enabled Whether this stage is active (default: true)
  */
 interface GuardStage {
-    /** 단계 이름 */
+    /** Stage identifier used in rejection messages */
     val stageName: String
 
-    /** 단계 순서 (낮을수록 먼저) */
+    /** Execution priority - lower values execute first */
     val order: Int
 
-    /** 단계 활성화 여부 */
+    /** Whether this stage is enabled */
     val enabled: Boolean get() = true
 
     /**
-     * 검사 실행
+     * Validates the request.
      *
-     * @return Continue면 다음 단계, Reject면 중단
+     * @param command The request to validate
+     * @return GuardResult.Allowed to continue, GuardResult.Rejected to stop pipeline
      */
     suspend fun check(command: GuardCommand): GuardResult
 }
 
 /**
- * 1단계: Rate Limiting
+ * Stage 1: Rate Limiting
+ *
+ * Prevents abuse by limiting request frequency per user.
+ * Default order: 1 (executes first)
  */
 interface RateLimitStage : GuardStage {
     override val stageName: String get() = "RateLimit"
@@ -57,7 +107,10 @@ interface RateLimitStage : GuardStage {
 }
 
 /**
- * 2단계: Input Validation
+ * Stage 2: Input Validation
+ *
+ * Validates input format, length, and structure.
+ * Default order: 2
  */
 interface InputValidationStage : GuardStage {
     override val stageName: String get() = "InputValidation"
@@ -65,7 +118,11 @@ interface InputValidationStage : GuardStage {
 }
 
 /**
- * 3단계: Prompt Injection Detection
+ * Stage 3: Prompt Injection Detection
+ *
+ * Detects and blocks prompt injection attacks.
+ * Uses pattern matching and heuristics to identify malicious inputs.
+ * Default order: 3
  */
 interface InjectionDetectionStage : GuardStage {
     override val stageName: String get() = "InjectionDetection"
@@ -73,7 +130,11 @@ interface InjectionDetectionStage : GuardStage {
 }
 
 /**
- * 4단계: Content Classification
+ * Stage 4: Content Classification
+ *
+ * Classifies content for topic filtering or routing.
+ * Can be used to detect off-topic requests or route to specialized handlers.
+ * Default order: 4
  */
 interface ClassificationStage : GuardStage {
     override val stageName: String get() = "Classification"
@@ -81,7 +142,11 @@ interface ClassificationStage : GuardStage {
 }
 
 /**
- * 5단계: Permission Check
+ * Stage 5: Permission Check
+ *
+ * Verifies user authorization for the requested operation.
+ * Integrates with RBAC or custom permission systems.
+ * Default order: 5 (executes last)
  */
 interface PermissionStage : GuardStage {
     override val stageName: String get() = "Permission"
