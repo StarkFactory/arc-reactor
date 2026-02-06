@@ -5,7 +5,6 @@ plugins {
     kotlin("plugin.spring") version "2.3.0"
     id("org.springframework.boot") version "3.5.9"
     id("io.spring.dependency-management") version "1.1.7"
-    `maven-publish`
 }
 
 group = "com.arc"
@@ -29,6 +28,7 @@ val springAiVersion = "1.1.2"
 dependencies {
     // Spring Boot Core
     implementation("org.springframework.boot:spring-boot-starter")
+    implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-validation")
 
     // Spring AI BOM (platform for version management)
@@ -59,7 +59,10 @@ dependencies {
     // Optional: Micrometer (for metrics/observability)
     compileOnly("io.micrometer:micrometer-core")
 
-    // Optional: LLM Providers (사용자가 선택) - New naming in 1.1.x
+    // LLM Provider (기본: Gemini API Key 방식)
+    implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
+
+    // Optional: 다른 LLM 제공자 (필요시 위의 Gemini를 교체)
     compileOnly("org.springframework.ai:spring-ai-starter-model-openai")
     compileOnly("org.springframework.ai:spring-ai-starter-model-vertex-ai-gemini")
     compileOnly("org.springframework.ai:spring-ai-starter-model-anthropic")
@@ -85,34 +88,11 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
-// Disable bootJar (this is a library, not an application)
+// Application mode - fork해서 자신만의 도구를 추가하며 사용
 tasks.bootJar {
-    enabled = false
+    enabled = true
 }
 
 tasks.jar {
-    enabled = true
-    archiveClassifier.set("")
-}
-
-// Publishing
-publishing {
-    publications {
-        create<MavenPublication>("maven") {
-            from(components["java"])
-
-            pom {
-                name.set("Arc Reactor")
-                description.set("Lightweight AI Agent Core Framework")
-                url.set("https://github.com/StarkFactory/arc-reactor")
-
-                licenses {
-                    license {
-                        name.set("Apache License, Version 2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0")
-                    }
-                }
-            }
-        }
-    }
+    enabled = false
 }

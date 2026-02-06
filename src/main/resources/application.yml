@@ -1,0 +1,51 @@
+# ===========================================
+# Arc Reactor - AI Agent Application
+# ===========================================
+
+server:
+  port: 8080
+
+# ----- LLM Provider (Gemini API Key) -----
+# API 키 설정: export GEMINI_API_KEY=your-api-key
+# API 키 발급: https://aistudio.google.com/apikey
+spring:
+  ai:
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY}
+        chat:
+          options:
+            model: gemini-2.0-flash
+
+# ----- Arc Reactor Agent 설정 -----
+arc:
+  reactor:
+    # 도구 호출 제한
+    max-tool-calls: 10
+    max-tools-per-request: 20
+
+    # LLM 파라미터
+    llm:
+      temperature: 0.7
+      max-output-tokens: 4096
+
+    # 동시성 제어
+    concurrency:
+      max-concurrent-requests: 20
+      request-timeout-ms: 30000
+
+    # 가드 (보안)
+    guard:
+      enabled: true
+      rate-limit-per-minute: 60
+      rate-limit-per-hour: 500
+      max-input-length: 10000
+
+    # RAG (사용하려면 enabled: true로 변경)
+    rag:
+      enabled: false
+
+# ----- Logging -----
+logging:
+  level:
+    com.arc.reactor: DEBUG
