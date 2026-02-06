@@ -11,7 +11,8 @@ arc:
       rate-limit-per-hour: 100
       max-input-length: 10000
       injection-detection-enabled: true
-    max-concurrent-requests: 10
-    request-timeout-ms: 120000
+    concurrency:
+      max-concurrent-requests: 10
+      request-timeout-ms: 120000
     max-tools-per-request: 20
     max-tool-calls: 10

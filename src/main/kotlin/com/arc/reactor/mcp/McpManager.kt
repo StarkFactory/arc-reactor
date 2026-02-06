@@ -93,7 +93,7 @@ interface McpManager {
      *
      * @return List of tool callbacks from all connected servers
      */
-    fun getAllToolCallbacks(): List<Any>
+    fun getAllToolCallbacks(): List<ToolCallback>
 
     /**
      * Get tool callbacks from a specific MCP server.
@@ -101,7 +101,7 @@ interface McpManager {
      * @param serverName Name of the server
      * @return List of tool callbacks, empty if not connected
      */
-    fun getToolCallbacks(serverName: String): List<Any>
+    fun getToolCallbacks(serverName: String): List<ToolCallback>
 
     /**
      * List all registered servers.
@@ -310,12 +310,11 @@ class DefaultMcpManager(
         }
     }
 
-    override fun getAllToolCallbacks(): List<Any> {
-        // Tools from manually connected MCP servers
+    override fun getAllToolCallbacks(): List<ToolCallback> {
         return toolCallbacksCache.values.flatten()
     }
 
-    override fun getToolCallbacks(serverName: String): List<Any> {
+    override fun getToolCallbacks(serverName: String): List<ToolCallback> {
         return toolCallbacksCache[serverName] ?: emptyList()
     }
 

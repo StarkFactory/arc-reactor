@@ -41,12 +41,3 @@ data class RagContext(
         )
     }
 }
-
-/**
- * Document chunk
- */
-data class DocumentChunk(
-    val content: String,
-    val index: Int,
-    val metadata: Map<String, Any> = emptyMap()
-)

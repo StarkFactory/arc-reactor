@@ -21,7 +21,8 @@ class DefaultRagPipeline(
     private val queryTransformer: QueryTransformer? = null,
     private val retriever: DocumentRetriever,
     private val reranker: DocumentReranker? = null,
-    private val contextBuilder: ContextBuilder = SimpleContextBuilder()
+    private val contextBuilder: ContextBuilder = SimpleContextBuilder(),
+    private val maxContextTokens: Int = 4000
 ) : RagPipeline {
 
     override suspend fun retrieve(query: RagQuery): RagContext {
@@ -49,8 +50,8 @@ class DefaultRagPipeline(
             documents.take(query.topK / 2)
         }
 
-        // 4. Build Context
-        val context = contextBuilder.build(rerankedDocs)
+        // 4. Build Context (with token limit)
+        val context = contextBuilder.build(rerankedDocs, maxContextTokens)
 
         return RagContext(
             context = context,

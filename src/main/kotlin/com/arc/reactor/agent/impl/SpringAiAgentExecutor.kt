@@ -43,6 +43,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.reactive.asFlow
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeout
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -72,11 +75,13 @@ class SpringAiAgentExecutor(
     private val guard: RequestGuard? = null,
     private val hookExecutor: HookExecutor? = null,
     private val memoryStore: MemoryStore? = null,
-    private val mcpToolCallbacks: () -> List<Any> = { emptyList() },
+    private val mcpToolCallbacks: () -> List<ToolCallback> = { emptyList() },
     private val errorMessageResolver: ErrorMessageResolver = DefaultErrorMessageResolver(),
     private val agentMetrics: AgentMetrics = NoOpAgentMetrics(),
     private val ragPipeline: RagPipeline? = null
 ) : AgentExecutor {
+
+    private val concurrencySemaphore = Semaphore(properties.concurrency.maxConcurrentRequests)
 
     override suspend fun execute(command: AgentCommand): AgentResult {
         val startTime = System.currentTimeMillis()
@@ -97,107 +102,29 @@ class SpringAiAgentExecutor(
         )
 
         try {
-            // 1. Guard check
-            if (guard != null && command.userId != null) {
-                val guardResult = guard.guard(
-                    GuardCommand(
-                        userId = command.userId,
-                        text = command.userPrompt
-                    )
-                )
-                if (guardResult is GuardResult.Rejected) {
-                    agentMetrics.recordGuardRejection(
-                        stage = guardResult.stage ?: "unknown",
-                        reason = guardResult.reason
-                    )
-                    val failResult = AgentResult.failure(
-                        errorMessage = guardResult.reason,
-                        durationMs = System.currentTimeMillis() - startTime
-                    )
-                    agentMetrics.recordExecution(failResult)
-                    return failResult
+            return concurrencySemaphore.withPermit {
+                withTimeout(properties.concurrency.requestTimeoutMs) {
+                    executeInternal(command, hookContext, toolsUsed, startTime)
                 }
             }
-
-            // 2. Before Agent Start Hook
-            if (hookExecutor != null) {
-                when (val hookResult = hookExecutor.executeBeforeAgentStart(hookContext)) {
-                    is HookResult.Reject -> {
-                        val failResult = AgentResult.failure(
-                            errorMessage = hookResult.reason,
-                            durationMs = System.currentTimeMillis() - startTime
-                        )
-                        agentMetrics.recordExecution(failResult)
-                        return failResult
-                    }
-                    is HookResult.PendingApproval -> {
-                        val failResult = AgentResult.failure(
-                            errorMessage = "Pending approval: ${hookResult.message}",
-                            durationMs = System.currentTimeMillis() - startTime
-                        )
-                        agentMetrics.recordExecution(failResult)
-                        return failResult
-                    }
-                    else -> { /* continue */ }
-                }
-            }
-
-            // 3. Load conversation history
-            val conversationHistory = loadConversationHistory(command)
-
-            // 4. RAG: Retrieve context if enabled
-            val ragContext = retrieveRagContext(command.userPrompt)
-
-            // 5. Select and prepare tools (respecting AgentMode)
-            val selectedTools = if (command.mode == AgentMode.STANDARD) {
-                emptyList() // STANDARD mode: no tools
-            } else {
-                selectAndPrepareTools(command.userPrompt)
-            }
-            logger.debug { "Selected ${selectedTools.size} tools for execution (mode=${command.mode})" }
-
-            // 6. Agent execution (Spring AI Function Calling)
-            val result = executeWithTools(
-                command = command,
-                tools = selectedTools,
-                conversationHistory = conversationHistory,
-                hookContext = hookContext,
-                toolsUsed = toolsUsed,
-                ragContext = ragContext
-            )
-
-            // 7. Save conversation history
-            saveConversationHistory(command, result)
-
-            // 8. After Agent Complete Hook
-            hookExecutor?.executeAfterAgentComplete(
-                context = hookContext,
-                response = AgentResponse(
-                    success = result.success,
-                    response = result.content,
-                    errorMessage = result.errorMessage,
-                    toolsUsed = toolsUsed
-                )
-            )
-
-            val finalResult = result.copy(
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            logger.warn { "Request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
+            val failResult = AgentResult.failure(
+                errorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, e.message),
                 durationMs = System.currentTimeMillis() - startTime
             )
-            agentMetrics.recordExecution(finalResult)
-            return finalResult
-
-        } catch (e: Exception) {
-            logger.error(e) { "Agent execution failed" }
-
-            // Error Hook
             hookExecutor?.executeAfterAgentComplete(
                 context = hookContext,
-                response = AgentResponse(
-                    success = false,
-                    errorMessage = e.message
-                )
+                response = AgentResponse(success = false, errorMessage = failResult.errorMessage)
             )
-
+            agentMetrics.recordExecution(failResult)
+            return failResult
+        } catch (e: Exception) {
+            logger.error(e) { "Agent execution failed" }
+            hookExecutor?.executeAfterAgentComplete(
+                context = hookContext,
+                response = AgentResponse(success = false, errorMessage = e.message)
+            )
             val failResult = AgentResult.failure(
                 errorMessage = e.message ?: "Unknown error",
                 durationMs = System.currentTimeMillis() - startTime
@@ -209,6 +136,97 @@ class SpringAiAgentExecutor(
             MDC.remove("userId")
             MDC.remove("sessionId")
         }
+    }
+
+    private suspend fun executeInternal(
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        startTime: Long
+    ): AgentResult {
+        // 1. Guard check
+        if (guard != null && command.userId != null) {
+            val guardResult = guard.guard(
+                GuardCommand(userId = command.userId, text = command.userPrompt)
+            )
+            if (guardResult is GuardResult.Rejected) {
+                agentMetrics.recordGuardRejection(
+                    stage = guardResult.stage ?: "unknown",
+                    reason = guardResult.reason
+                )
+                val failResult = AgentResult.failure(
+                    errorMessage = guardResult.reason,
+                    durationMs = System.currentTimeMillis() - startTime
+                )
+                agentMetrics.recordExecution(failResult)
+                return failResult
+            }
+        }
+
+        // 2. Before Agent Start Hook
+        if (hookExecutor != null) {
+            when (val hookResult = hookExecutor.executeBeforeAgentStart(hookContext)) {
+                is HookResult.Reject -> {
+                    val failResult = AgentResult.failure(
+                        errorMessage = hookResult.reason,
+                        durationMs = System.currentTimeMillis() - startTime
+                    )
+                    agentMetrics.recordExecution(failResult)
+                    return failResult
+                }
+                is HookResult.PendingApproval -> {
+                    val failResult = AgentResult.failure(
+                        errorMessage = "Pending approval: ${hookResult.message}",
+                        durationMs = System.currentTimeMillis() - startTime
+                    )
+                    agentMetrics.recordExecution(failResult)
+                    return failResult
+                }
+                else -> { /* continue */ }
+            }
+        }
+
+        // 3. Load conversation history
+        val conversationHistory = loadConversationHistory(command)
+
+        // 4. RAG: Retrieve context if enabled
+        val ragContext = retrieveRagContext(command.userPrompt)
+
+        // 5. Select and prepare tools (respecting AgentMode)
+        val selectedTools = if (command.mode == AgentMode.STANDARD) {
+            emptyList()
+        } else {
+            selectAndPrepareTools(command.userPrompt)
+        }
+        logger.debug { "Selected ${selectedTools.size} tools for execution (mode=${command.mode})" }
+
+        // 6. Agent execution (Spring AI Function Calling)
+        val result = executeWithTools(
+            command = command,
+            tools = selectedTools,
+            conversationHistory = conversationHistory,
+            hookContext = hookContext,
+            toolsUsed = toolsUsed,
+            ragContext = ragContext
+        )
+
+        // 7. Save conversation history
+        saveConversationHistory(command, result)
+
+        // 8. After Agent Complete Hook
+        hookExecutor?.executeAfterAgentComplete(
+            context = hookContext,
+            response = AgentResponse(
+                success = result.success,
+                response = result.content,
+                errorMessage = result.errorMessage,
+                toolsUsed = toolsUsed
+            )
+        )
+
+        val finalResult = result.copy(durationMs = System.currentTimeMillis() - startTime)
+        agentMetrics.recordExecution(finalResult)
+        return finalResult
     }
 
     override fun executeStream(command: AgentCommand): Flow<String> = flow {
@@ -368,8 +386,7 @@ class SpringAiAgentExecutor(
         val localToolInstances = localTools.toList()
 
         // 2. Collect all ToolCallback instances (custom + MCP)
-        val mcpCallbacks = mcpToolCallbacks().filterIsInstance<ToolCallback>()
-        val allCallbacks = toolCallbacks + mcpCallbacks
+        val allCallbacks = toolCallbacks + mcpToolCallbacks()
 
         // 3. Apply ToolSelector filtering
         val selectedCallbacks = if (toolSelector != null && allCallbacks.isNotEmpty()) {
@@ -467,7 +484,7 @@ class SpringAiAgentExecutor(
                     requestSpec = requestSpec.tools(*tools.toTypedArray())
                 }
 
-                val response = requestSpec.call()
+                val response = kotlinx.coroutines.runInterruptible { requestSpec.call() }
                 val chatResponse = response.chatResponse()
 
                 // Accumulate token usage
@@ -591,6 +608,8 @@ class SpringAiAgentExecutor(
                     logger.info { "maxToolCalls limit reached ($totalToolCalls/$maxToolCalls), requesting final answer" }
                 }
             }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e // Rethrow to support withTimeout and structured concurrency
         } catch (e: Exception) {
             logger.error(e) { "LLM call with tools failed" }
             return AgentResult.failure(errorMessage = translateError(e))

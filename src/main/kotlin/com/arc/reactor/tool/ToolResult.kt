@@ -43,25 +43,6 @@ interface ToolResult {
 }
 
 /**
- * Countable Tool Result Interface
- *
- * Extension for results that return collections of items.
- * Provides convenience methods for checking result counts.
- *
- * @property totalCount Number of items in the result
- */
-interface CountableToolResult : ToolResult {
-    /** Total number of items returned */
-    val totalCount: Int
-
-    /** Check if any items were returned */
-    fun hasItems(): Boolean = totalCount > 0
-
-    /** Check if no items were returned */
-    fun isEmpty(): Boolean = totalCount == 0
-}
-
-/**
  * Simple Tool Result Implementation
  *
  * Basic data class implementing ToolResult.
