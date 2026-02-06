@@ -1,7 +1,7 @@
 package com.arc.reactor.mcp.model
 
 /**
- * MCP 서버 정보
+ * MCP server configuration
  */
 data class McpServer(
     val name: String,
@@ -13,10 +13,10 @@ data class McpServer(
 )
 
 /**
- * MCP 전송 타입
+ * MCP transport type
  */
 enum class McpTransportType {
-    /** Standard I/O (로컬 프로세스) */
+    /** Standard I/O (local process) */
     STDIO,
 
     /** Server-Sent Events */
@@ -27,24 +27,24 @@ enum class McpTransportType {
 }
 
 /**
- * MCP 서버 상태
+ * MCP server status
  */
 enum class McpServerStatus {
-    /** 등록됨, 연결 전 */
+    /** Registered, not yet connected */
     PENDING,
 
-    /** 연결 중 */
+    /** Connecting */
     CONNECTING,
 
-    /** 연결됨 */
+    /** Connected */
     CONNECTED,
 
-    /** 연결 해제됨 */
+    /** Disconnected */
     DISCONNECTED,
 
-    /** 연결 실패 */
+    /** Connection failed */
     FAILED,
 
-    /** 비활성화됨 */
+    /** Disabled */
     DISABLED
 }

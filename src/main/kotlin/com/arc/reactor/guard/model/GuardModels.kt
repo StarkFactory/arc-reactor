@@ -1,7 +1,7 @@
 package com.arc.reactor.guard.model
 
 /**
- * Guard 검사 요청
+ * Guard check request
  */
 data class GuardCommand(
     val userId: String,
@@ -11,11 +11,11 @@ data class GuardCommand(
 )
 
 /**
- * Guard 검사 결과
+ * Guard check result
  */
 sealed class GuardResult {
     /**
-     * 요청 허용
+     * Request allowed
      */
     data class Allowed(
         val hints: List<String> = emptyList()
@@ -26,7 +26,7 @@ sealed class GuardResult {
     }
 
     /**
-     * 요청 거부
+     * Request rejected
      */
     data class Rejected(
         val reason: String,
@@ -36,24 +36,24 @@ sealed class GuardResult {
 }
 
 /**
- * 거부 카테고리
+ * Rejection category
  */
 enum class RejectionCategory {
-    /** Rate Limit 초과 */
+    /** Rate limit exceeded */
     RATE_LIMITED,
 
-    /** 잘못된 입력 */
+    /** Invalid input */
     INVALID_INPUT,
 
-    /** Prompt Injection 탐지 */
+    /** Prompt injection detected */
     PROMPT_INJECTION,
 
-    /** 업무 외 요청 */
+    /** Off-topic request */
     OFF_TOPIC,
 
-    /** 권한 없음 */
+    /** Unauthorized */
     UNAUTHORIZED,
 
-    /** 시스템 오류 */
+    /** System error */
     SYSTEM_ERROR
 }

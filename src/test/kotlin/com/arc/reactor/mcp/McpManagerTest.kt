@@ -129,6 +129,36 @@ class McpManagerTest {
     }
 
     @Test
+    fun `should fail SSE connection when url not provided`() = runBlocking {
+        val manager = DefaultMcpManager()
+        val server = McpServer(
+            name = "sse-server",
+            transportType = McpTransportType.SSE,
+            config = emptyMap() // Missing url
+        )
+        manager.register(server)
+        val connected = manager.connect("sse-server")
+
+        assertFalse(connected)
+        assertEquals(McpServerStatus.FAILED, manager.getStatus("sse-server"))
+    }
+
+    @Test
+    fun `should fail HTTP connection with unsupported transport`() = runBlocking {
+        val manager = DefaultMcpManager()
+        val server = McpServer(
+            name = "http-server",
+            transportType = McpTransportType.HTTP,
+            config = mapOf("url" to "http://localhost:8080")
+        )
+        manager.register(server)
+        val connected = manager.connect("http-server")
+
+        assertFalse(connected)
+        assertEquals(McpServerStatus.FAILED, manager.getStatus("http-server"))
+    }
+
+    @Test
     fun `should handle disconnect for unconnected server gracefully`() = runBlocking {
         val manager = DefaultMcpManager()
 

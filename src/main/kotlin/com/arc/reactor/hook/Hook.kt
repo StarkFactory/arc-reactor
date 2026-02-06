@@ -57,6 +57,17 @@ interface AgentHook {
 
     /** Whether this hook is enabled */
     val enabled: Boolean get() = true
+
+    /**
+     * Whether hook failures should abort execution.
+     *
+     * - `false` (default): Fail-open - log error and continue to next hook
+     * - `true`: Fail-close - propagate exception, aborting execution
+     *
+     * Use `true` for critical hooks (auth, security) where failure
+     * should prevent agent execution.
+     */
+    val failOnError: Boolean get() = false
 }
 
 /**

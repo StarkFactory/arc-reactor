@@ -13,7 +13,7 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * 기본 RAG 파이프라인 구현
+ * Default RAG Pipeline Implementation
  *
  * Query → Transform → Retrieve → Rerank → Build Context
  */
@@ -61,7 +61,7 @@ class DefaultRagPipeline(
 }
 
 /**
- * 단순 Context Builder
+ * Simple Context Builder
  */
 class SimpleContextBuilder(
     private val separator: String = "\n\n---\n\n"
@@ -81,7 +81,7 @@ class SimpleContextBuilder(
                 sb.append(separator)
             }
 
-            // 소스 정보 추가
+            // Append source information
             doc.source?.let {
                 sb.append("[Source: $it]\n")
             }
@@ -95,7 +95,7 @@ class SimpleContextBuilder(
 }
 
 /**
- * 패스스루 Query Transformer (변환 없음)
+ * Passthrough Query Transformer (no transformation)
  */
 class PassthroughQueryTransformer : QueryTransformer {
     override suspend fun transform(query: String): List<String> = listOf(query)

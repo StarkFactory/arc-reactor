@@ -96,38 +96,50 @@ data class ToolParameter(
 class SpringAiToolCallbackAdapter(
     private val springAiCallback: Any  // org.springframework.ai.tool.ToolCallback
 ) : ToolCallback {
-    override val name: String
-        get() {
-            // Reflection으로 Spring AI ToolCallback의 name 접근
-            return try {
-                val method = springAiCallback::class.java.getMethod("getName")
-                method.invoke(springAiCallback) as String
-            } catch (e: Exception) {
-                "unknown"
-            }
-        }
 
-    override val description: String
-        get() {
-            return try {
-                val method = springAiCallback::class.java.getMethod("getDescription")
-                method.invoke(springAiCallback) as String
-            } catch (e: Exception) {
-                ""
-            }
+    private val nameMethod by lazy {
+        runCatching { springAiCallback::class.java.getMethod("getName") }.getOrNull()
+    }
+
+    private val descriptionMethod by lazy {
+        runCatching { springAiCallback::class.java.getMethod("getDescription") }.getOrNull()
+    }
+
+    private val callMethod by lazy {
+        runCatching { springAiCallback::class.java.getMethod("call", String::class.java) }.getOrNull()
+    }
+
+    override val name: String by lazy {
+        try {
+            nameMethod?.invoke(springAiCallback) as? String ?: "unknown"
+        } catch (e: Exception) {
+            "unknown"
         }
+    }
+
+    override val description: String by lazy {
+        try {
+            descriptionMethod?.invoke(springAiCallback) as? String ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
 
     override suspend fun call(arguments: Map<String, Any?>): Any? {
+        val method = callMethod
+            ?: throw RuntimeException("Tool call failed: 'call' method not found on ${springAiCallback::class.java}")
         return try {
-            val method = springAiCallback::class.java.getMethod("call", String::class.java)
-            val jsonArgs = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
-                .writeValueAsString(arguments)
+            val jsonArgs = objectMapper.writeValueAsString(arguments)
             method.invoke(springAiCallback, jsonArgs)
         } catch (e: Exception) {
             throw RuntimeException("Tool call failed: ${e.message}", e)
         }
     }
 
-    /** 원본 Spring AI ToolCallback 반환 (필요시) */
+    /** Returns the original Spring AI ToolCallback (if needed) */
     fun unwrap(): Any = springAiCallback
+
+    companion object {
+        private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
+    }
 }

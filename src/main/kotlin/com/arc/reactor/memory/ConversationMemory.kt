@@ -3,6 +3,7 @@ package com.arc.reactor.memory
 import com.arc.reactor.agent.model.Message
 import com.arc.reactor.agent.model.MessageRole
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Conversation Memory Interface
@@ -151,14 +152,15 @@ interface MemoryStore {
  * @param maxMessages Maximum messages to retain (default: 50)
  */
 class InMemoryConversationMemory(
-    private val maxMessages: Int = 50
+    private val maxMessages: Int = 50,
+    private val tokenEstimator: TokenEstimator = DefaultTokenEstimator()
 ) : ConversationMemory {
 
     private val messages = mutableListOf<Message>()
 
     override fun add(message: Message) {
         messages.add(message)
-        // 최대 개수 초과 시 오래된 메시지 제거
+        // Evict oldest messages when exceeding max count
         while (messages.size > maxMessages) {
             messages.removeFirst()
         }
@@ -174,9 +176,9 @@ class InMemoryConversationMemory(
         var totalTokens = 0
         val result = mutableListOf<Message>()
 
-        // 최신 메시지부터 역순으로
+        // Iterate in reverse from newest messages
         for (message in messages.reversed()) {
-            val tokens = message.content.length / 4  // 대략적 토큰 추정
+            val tokens = tokenEstimator.estimate(message.content)
             if (totalTokens + tokens > maxTokens) {
                 break
             }
@@ -191,11 +193,11 @@ class InMemoryConversationMemory(
 /**
  * In-Memory Memory Store Implementation
  *
- * Session-based memory store using LinkedHashMap for LRU eviction.
+ * Session-based memory store using ConcurrentHashMap for thread-safe access.
  *
  * ## Characteristics
  * - LRU eviction when session limit reached
- * - Fast O(1) session lookup
+ * - Thread-safe concurrent access
  * - Not persistent (lost on restart)
  *
  * ## For Production
@@ -210,26 +212,40 @@ class InMemoryMemoryStore(
     private val maxSessions: Int = 1000
 ) : MemoryStore {
 
-    private val sessions = LinkedHashMap<String, ConversationMemory>()
+    private val sessions = ConcurrentHashMap<String, ConversationMemory>()
+    private val insertionOrder = java.util.concurrent.ConcurrentLinkedQueue<String>()
+    private val lock = Any()
 
     override fun get(sessionId: String): ConversationMemory? = sessions[sessionId]
 
     override fun getOrCreate(sessionId: String): ConversationMemory {
-        return sessions.getOrPut(sessionId) {
+        sessions[sessionId]?.let { return it }
+
+        synchronized(lock) {
+            // Double-check after acquiring lock
+            sessions[sessionId]?.let { return it }
+
             // LRU eviction
-            if (sessions.size >= maxSessions) {
-                sessions.remove(sessions.keys.first())
+            while (sessions.size >= maxSessions) {
+                val oldest = insertionOrder.poll() ?: break
+                sessions.remove(oldest)
             }
-            InMemoryConversationMemory()
+
+            val memory = InMemoryConversationMemory()
+            sessions[sessionId] = memory
+            insertionOrder.add(sessionId)
+            return memory
         }
     }
 
     override fun remove(sessionId: String) {
         sessions.remove(sessionId)
+        insertionOrder.remove(sessionId)
     }
 
     override fun clear() {
         sessions.clear()
+        insertionOrder.clear()
     }
 }
 

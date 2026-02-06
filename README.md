@@ -358,11 +358,7 @@ arc-reactor/
 
 ## Examples
 
-See the [examples](./examples) directory for complete working examples:
-
-- `simple-chatbot` - Basic chatbot with tools
-- `customer-service` - Customer service agent with RAG
-- `multi-agent` - Multiple agents with different roles
+See the [Quick Start](#quick-start) section above for a step-by-step integration guide. More examples including chatbot, customer service agent, and multi-agent setups will be added in future releases.
 
 ## Contributing
 
