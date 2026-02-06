@@ -455,6 +455,84 @@ class SpringAiAgentExecutorTest {
     }
 
     @Test
+    fun `should preserve success result when afterAgentComplete hook throws`() = runBlocking {
+        // Arrange
+        val throwingAfterHook = object : AfterAgentCompleteHook {
+            override val order = 1
+            override suspend fun afterAgentComplete(context: HookContext, response: AgentResponse) {
+                throw RuntimeException("Hook explosion!")
+            }
+        }
+
+        val hookExecutor = HookExecutor(afterCompleteHooks = listOf(throwingAfterHook))
+
+        every { responseSpec.content() } returns "Successful response"
+        every { responseSpec.chatResponse() } returns null
+
+        val executor = SpringAiAgentExecutor(
+            chatClient = chatClient,
+            properties = properties,
+            hookExecutor = hookExecutor
+        )
+
+        // Act
+        val result = executor.execute(
+            AgentCommand(
+                systemPrompt = "You are helpful.",
+                userPrompt = "Hello!"
+            )
+        )
+
+        // Assert - result should be success despite hook throwing
+        assertTrue(result.success, "Hook exception should not mask successful result")
+        assertEquals("Successful response", result.content)
+    }
+
+    @Test
+    fun `should save memory with non-String sessionId type`() = runBlocking {
+        // Arrange
+        val memoryStore = InMemoryMemoryStore()
+        every { responseSpec.content() } returns "Response"
+        every { responseSpec.chatResponse() } returns null
+
+        val executor = SpringAiAgentExecutor(
+            chatClient = chatClient,
+            properties = properties,
+            memoryStore = memoryStore
+        )
+
+        // Act - sessionId is an Integer, not String
+        executor.execute(
+            AgentCommand(
+                systemPrompt = "You are helpful.",
+                userPrompt = "Hi!",
+                metadata = mapOf("sessionId" to 12345)
+            )
+        )
+
+        // Assert - should be saved via ?.toString()
+        val memory = memoryStore.get("12345")
+        assertNotNull(memory, "Memory should be saved even with non-String sessionId")
+        assertEquals(2, memory!!.getHistory().size)
+    }
+
+    @Test
+    fun `should reject invalid context window config`() {
+        // maxContextWindowTokens < maxOutputTokens should throw
+        assertThrows(IllegalArgumentException::class.java) {
+            SpringAiAgentExecutor(
+                chatClient = chatClient,
+                properties = properties.copy(
+                    llm = LlmProperties(
+                        maxContextWindowTokens = 1000,
+                        maxOutputTokens = 2000
+                    )
+                )
+            )
+        }
+    }
+
+    @Test
     fun `should respect maxToolsPerRequest limit`() = runBlocking {
         // Arrange
         val manyTools = (1..30).map { i ->

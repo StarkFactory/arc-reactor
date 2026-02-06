@@ -211,6 +211,32 @@ class RetryTest {
     }
 
     @Test
+    fun `should make at least one attempt when maxAttempts is zero`() = runBlocking {
+        val callCount = AtomicInteger(0)
+
+        every { requestSpec.call() } answers {
+            callCount.incrementAndGet()
+            responseSpec
+        }
+        every { responseSpec.content() } returns "OK"
+        every { responseSpec.chatResponse() } returns null
+
+        val executor = SpringAiAgentExecutor(
+            chatClient = chatClient,
+            properties = properties.copy(
+                retry = RetryProperties(maxAttempts = 0, initialDelayMs = 10, multiplier = 2.0, maxDelayMs = 100)
+            )
+        )
+
+        val result = executor.execute(
+            AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
+        )
+
+        assertTrue(result.success, "Should succeed with at least 1 attempt even when maxAttempts=0")
+        assertEquals(1, callCount.get(), "Should have made exactly 1 attempt")
+    }
+
+    @Test
     fun `should retry on timeout error`() = runBlocking {
         val callCount = AtomicInteger(0)
 

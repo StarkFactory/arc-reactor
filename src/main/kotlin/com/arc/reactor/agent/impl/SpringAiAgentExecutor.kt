@@ -332,6 +332,7 @@ class SpringAiAgentExecutor(
         )
 
         var streamSuccess = false
+        var streamErrorMessage: String? = null
         var streamStarted = false
         val collectedContent = StringBuilder()
         var lastIterationContent = StringBuilder()
@@ -471,12 +472,14 @@ class SpringAiAgentExecutor(
             }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             logger.warn { "Streaming request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
-            emit("[error] ${errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, e.message)}")
+            streamErrorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, e.message)
+            emit("[error] $streamErrorMessage")
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e // Rethrow to support structured concurrency
         } catch (e: Exception) {
             logger.error(e) { "Streaming execution failed" }
-            emit("[error] ${translateError(e)}")
+            streamErrorMessage = translateError(e)
+            emit("[error] $streamErrorMessage")
         } finally {
             // Save conversation history (only on success, outside withTimeout for atomicity)
             if (streamSuccess) {
@@ -502,7 +505,7 @@ class SpringAiAgentExecutor(
                         response = AgentResponse(
                             success = streamSuccess,
                             response = if (streamSuccess) collectedContent.toString() else null,
-                            errorMessage = if (!streamSuccess) "Streaming failed" else null,
+                            errorMessage = if (!streamSuccess) (streamErrorMessage ?: "Streaming failed") else null,
                             toolsUsed = toolsUsed.toList()
                         )
                     )
@@ -521,7 +524,7 @@ class SpringAiAgentExecutor(
                 )
             } else {
                 AgentResult.failure(
-                    errorMessage = "Streaming failed",
+                    errorMessage = streamErrorMessage ?: "Streaming failed",
                     durationMs = durationMs
                 )
             }
