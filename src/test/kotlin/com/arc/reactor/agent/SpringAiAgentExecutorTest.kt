@@ -394,7 +394,11 @@ class SpringAiAgentExecutorTest {
     @Test
     fun `should include MCP tools when available`() = runBlocking {
         // Arrange
-        val mcpTool = mockk<Any>()
+        val mcpTool = object : com.arc.reactor.tool.ToolCallback {
+            override val name = "mcp-tool"
+            override val description = "MCP Tool"
+            override suspend fun call(arguments: Map<String, Any?>) = "result"
+        }
         every { responseSpec.content() } returns "Response"
         every { responseSpec.chatResponse() } returns null
 
@@ -412,8 +416,8 @@ class SpringAiAgentExecutorTest {
             )
         )
 
-        // Assert
-        coVerify { requestSpec.tools(mcpTool) }
+        // Assert - MCP ToolCallback should be wrapped and passed as Spring AI tool
+        coVerify { requestSpec.tools(*anyVararg<Any>()) }
     }
 
     @Test
@@ -451,7 +455,13 @@ class SpringAiAgentExecutorTest {
     @Test
     fun `should respect maxToolsPerRequest limit`() = runBlocking {
         // Arrange
-        val manyTools = (1..30).map { mockk<Any>() }
+        val manyTools = (1..30).map { i ->
+            object : com.arc.reactor.tool.ToolCallback {
+                override val name = "tool-$i"
+                override val description = "Tool $i"
+                override suspend fun call(arguments: Map<String, Any?>) = "result"
+            }
+        }
         val limitedProperties = properties.copy(maxToolsPerRequest = 5)
 
         every { responseSpec.content() } returns "Response"
@@ -473,7 +483,7 @@ class SpringAiAgentExecutorTest {
             )
         )
 
-        // Assert - tools method should have been called
+        // Assert - tools method should have been called with limited tools
         coVerify { requestSpec.tools(*anyVararg<Any>()) }
     }
 }

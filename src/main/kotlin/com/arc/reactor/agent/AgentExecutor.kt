@@ -2,6 +2,8 @@ package com.arc.reactor.agent
 
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * AI Agent Executor Interface
@@ -79,4 +81,17 @@ interface AgentExecutor {
             userPrompt = userPrompt
         )
     )
+
+    /**
+     * Executes the agent in streaming mode, returning chunks as a Flow.
+     *
+     * Runs the same guard and hook pipeline as [execute], but streams
+     * the LLM response token-by-token via Kotlin Flow.
+     *
+     * If a guard rejects or a hook blocks, a single error chunk is emitted.
+     *
+     * @param command The agent command
+     * @return Flow of response text chunks
+     */
+    fun executeStream(command: AgentCommand): Flow<String> = flowOf()
 }
