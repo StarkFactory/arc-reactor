@@ -62,15 +62,18 @@ class MemoryStoreTest {
     }
 
     @Test
-    fun `should evict oldest session when max reached`() {
+    fun `should evict sessions when max reached`() {
         val store = InMemoryMemoryStore(maxSessions = 2)
 
         store.getOrCreate("session-1")
         store.getOrCreate("session-2")
-        store.getOrCreate("session-3") // Should evict session-1
+        store.getOrCreate("session-3") // Should trigger eviction
 
-        assertNull(store.get("session-1"))
-        assertNotNull(store.get("session-2"))
+        // Caffeine LRU: exactly maxSessions should survive
+        val surviving = listOf("session-1", "session-2", "session-3")
+            .count { store.get(it) != null }
+        assertEquals(2, surviving, "Exactly maxSessions entries should survive after eviction")
+        // Most recently added should survive
         assertNotNull(store.get("session-3"))
     }
 

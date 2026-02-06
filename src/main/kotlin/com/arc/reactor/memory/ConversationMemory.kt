@@ -2,8 +2,8 @@ package com.arc.reactor.memory
 
 import com.arc.reactor.agent.model.Message
 import com.arc.reactor.agent.model.MessageRole
+import com.github.benmanes.caffeine.cache.Caffeine
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Conversation Memory Interface
@@ -212,40 +212,24 @@ class InMemoryMemoryStore(
     private val maxSessions: Int = 1000
 ) : MemoryStore {
 
-    private val sessions = ConcurrentHashMap<String, ConversationMemory>()
-    private val insertionOrder = java.util.concurrent.ConcurrentLinkedQueue<String>()
-    private val lock = Any()
+    private val sessions = Caffeine.newBuilder()
+        .maximumSize(maxSessions.toLong())
+        .build<String, ConversationMemory>()
 
-    override fun get(sessionId: String): ConversationMemory? = sessions[sessionId]
+    override fun get(sessionId: String): ConversationMemory? = sessions.getIfPresent(sessionId)
 
     override fun getOrCreate(sessionId: String): ConversationMemory {
-        sessions[sessionId]?.let { return it }
-
-        synchronized(lock) {
-            // Double-check after acquiring lock
-            sessions[sessionId]?.let { return it }
-
-            // LRU eviction
-            while (sessions.size >= maxSessions) {
-                val oldest = insertionOrder.poll() ?: break
-                sessions.remove(oldest)
-            }
-
-            val memory = InMemoryConversationMemory()
-            sessions[sessionId] = memory
-            insertionOrder.add(sessionId)
-            return memory
-        }
+        val memory = sessions.get(sessionId) { InMemoryConversationMemory() }
+        sessions.cleanUp()
+        return memory
     }
 
     override fun remove(sessionId: String) {
-        sessions.remove(sessionId)
-        insertionOrder.remove(sessionId)
+        sessions.invalidate(sessionId)
     }
 
     override fun clear() {
-        sessions.clear()
-        insertionOrder.clear()
+        sessions.invalidateAll()
     }
 }
 

@@ -23,6 +23,7 @@ import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
 import mu.KotlinLogging
+import org.slf4j.MDC
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
@@ -58,6 +59,11 @@ class SpringAiAgentExecutor(
         val startTime = System.currentTimeMillis()
         val runId = UUID.randomUUID().toString()
         val toolsUsed = mutableListOf<String>()
+
+        // Set MDC context for structured logging
+        MDC.put("runId", runId)
+        MDC.put("userId", command.userId ?: "anonymous")
+        command.metadata["sessionId"]?.toString()?.let { MDC.put("sessionId", it) }
 
         // Create hook context
         val hookContext = HookContext(
@@ -153,6 +159,10 @@ class SpringAiAgentExecutor(
                 errorMessage = e.message ?: "Unknown error",
                 durationMs = System.currentTimeMillis() - startTime
             )
+        } finally {
+            MDC.remove("runId")
+            MDC.remove("userId")
+            MDC.remove("sessionId")
         }
     }
 
@@ -274,7 +284,7 @@ class SpringAiAgentExecutor(
 
             // Track tool calls (extract from ChatResponse)
             for (generation in chatResponse?.results.orEmpty()) {
-                for (toolCall in generation.output?.toolCalls.orEmpty()) {
+                for (toolCall in generation.output.toolCalls.orEmpty()) {
                     val toolName = toolCall.name()
                     toolsUsed.add(toolName)
 

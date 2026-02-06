@@ -135,7 +135,9 @@ interface McpManager {
  * This implementation uses ConcurrentHashMap for thread-safe access.
  * Per-server locks ensure atomic connect/disconnect operations for the same server.
  */
-class DefaultMcpManager : McpManager {
+class DefaultMcpManager(
+    private val connectionTimeoutMs: Long = 30_000
+) : McpManager {
 
     private val servers = ConcurrentHashMap<String, McpServer>()
     private val clients = ConcurrentHashMap<String, McpSyncClient>()
@@ -193,7 +195,10 @@ class DefaultMcpManager : McpManager {
      * Connect via STDIO transport.
      */
     private fun connectStdio(server: McpServer): McpSyncClient? {
-        val command = server.config["command"] as? String ?: return null
+        val command = server.config["command"] as? String ?: run {
+            logger.warn { "STDIO transport requires 'command' in config for server: ${server.name}" }
+            return null
+        }
         val args = (server.config["args"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
 
         return try {
@@ -221,10 +226,15 @@ class DefaultMcpManager : McpManager {
      * Connect via SSE transport.
      */
     private fun connectSse(server: McpServer): McpSyncClient? {
-        val url = server.config["url"] as? String ?: return null
+        val url = server.config["url"] as? String ?: run {
+            logger.warn { "SSE transport requires 'url' in config for server: ${server.name}" }
+            return null
+        }
 
         return try {
-            val transport = HttpClientSseClientTransport.builder(url).build()
+            val transport = HttpClientSseClientTransport.builder(url)
+                .customizeClient { it.connectTimeout(java.time.Duration.ofMillis(connectionTimeoutMs)) }
+                .build()
 
             val client = McpClient.sync(transport)
                 .clientInfo(McpSchema.Implementation(server.name, server.version ?: "1.0.0"))
@@ -286,7 +296,12 @@ class DefaultMcpManager : McpManager {
                 try {
                     client.closeGracefully()
                 } catch (e: Exception) {
-                    logger.warn(e) { "Error during graceful shutdown of $serverName" }
+                    logger.warn(e) { "Error during graceful shutdown of $serverName, attempting force close" }
+                    try {
+                        client.close()
+                    } catch (closeEx: Exception) {
+                        logger.error(closeEx) { "Force close also failed for $serverName" }
+                    }
                 }
             }
 

@@ -56,6 +56,9 @@ dependencies {
     // Cache (for Rate Limiting)
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.3")
 
+    // Optional: Micrometer (for metrics/observability)
+    compileOnly("io.micrometer:micrometer-core")
+
     // Optional: LLM Providers (사용자가 선택) - New naming in 1.1.x
     compileOnly("org.springframework.ai:spring-ai-starter-model-openai")
     compileOnly("org.springframework.ai:spring-ai-starter-model-vertex-ai-gemini")

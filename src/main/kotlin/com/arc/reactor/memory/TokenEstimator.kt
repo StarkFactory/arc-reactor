@@ -38,24 +38,30 @@ class DefaultTokenEstimator : TokenEstimator {
 
         var latinChars = 0
         var cjkChars = 0
+        var emojiChars = 0
         var otherChars = 0
 
-        for (char in text) {
+        text.codePoints().forEach { cp ->
             when {
-                char.code in 0x4E00..0x9FFF ||  // CJK Unified Ideographs
-                char.code in 0xAC00..0xD7AF ||  // Hangul Syllables
-                char.code in 0x3040..0x309F ||  // Hiragana
-                char.code in 0x30A0..0x30FF     // Katakana
+                cp in 0x1F300..0x1FAFF ||  // Emoticons, symbols, pictographs
+                cp in 0x2600..0x27BF ||    // Miscellaneous symbols, dingbats
+                cp in 0xFE00..0xFE0F       // Variation selectors
+                    -> emojiChars++
+                cp in 0x4E00..0x9FFF ||    // CJK Unified Ideographs
+                cp in 0xAC00..0xD7AF ||    // Hangul Syllables
+                cp in 0x3040..0x309F ||    // Hiragana
+                cp in 0x30A0..0x30FF       // Katakana
                     -> cjkChars++
-                char.code <= 0x7F -> latinChars++
+                cp <= 0x7F -> latinChars++
                 else -> otherChars++
             }
         }
 
         val latinTokens = latinChars / 4
         val cjkTokens = (cjkChars * 2 + 1) / 3  // ~1.5 chars per token
+        val emojiTokens = emojiChars             // ~1 token per emoji
         val otherTokens = otherChars / 3
 
-        return maxOf(1, latinTokens + cjkTokens + otherTokens)
+        return maxOf(1, latinTokens + cjkTokens + emojiTokens + otherTokens)
     }
 }
