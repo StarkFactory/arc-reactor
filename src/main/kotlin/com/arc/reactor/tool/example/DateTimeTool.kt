@@ -1,7 +1,6 @@
 package com.arc.reactor.tool.example
 
 import com.arc.reactor.tool.ToolCallback
-import org.springframework.stereotype.Component
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -11,8 +10,10 @@ import java.time.format.DateTimeFormatter
  *
  * LLM이 현재 날짜/시간을 알아야 할 때 이 도구를 호출합니다.
  * 타임존을 지정하면 해당 지역의 시간을 반환합니다.
+ *
+ * 이 클래스는 예시이므로 @Component가 붙어있지 않습니다.
+ * 사용하려면 직접 빈으로 등록하거나 @Component를 추가하세요.
  */
-@Component
 class DateTimeTool : ToolCallback {
 
     override val name = "current_datetime"

@@ -186,11 +186,11 @@ class InMemoryConversationMemory(
             if (totalTokens + tokens > maxTokens) {
                 break
             }
-            result.add(0, message)
+            result.add(message)
             totalTokens += tokens
         }
 
-        result
+        result.reversed()
     }
 }
 
@@ -224,7 +224,7 @@ class InMemoryMemoryStore(
 
     override fun getOrCreate(sessionId: String): ConversationMemory {
         val memory = sessions.get(sessionId) { InMemoryConversationMemory() }
-        sessions.cleanUp()
+        sessions.cleanUp() // Ensure maximumSize eviction is applied promptly
         return memory
     }
 

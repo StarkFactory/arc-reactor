@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-02-07
+
+### Added
+- **Context Window Management**: Token-based message trimming that preserves the current user prompt and maintains AssistantMessage + ToolResponseMessage pair integrity
+- **LLM Retry**: Exponential backoff with +-25% jitter for transient errors (rate limit, timeout, 5xx). Configurable via `RetryProperties` with custom `transientErrorClassifier` support
+- **Parallel Tool Execution**: Concurrent tool calls via `coroutineScope { async {} }.awaitAll()` with preserved result ordering and per-tool Hook lifecycle
+- **Structured Output**: JSON response mode via system prompt injection (provider-independent). Supports optional `responseSchema` for guided output
+- **PostgreSQL MemoryStore**: `JdbcMemoryStore` with Flyway migration, FIFO eviction per session, TTL-based session cleanup. Auto-configured when `DataSource` is available
+- `TokenEstimator` interface with CJK-aware default implementation
+- `ResponseFormat` enum (TEXT, JSON) on `AgentCommand`
+
+### Changed
+- Guard pipeline pre-sorts stages at construction time (previously sorted on every call)
+- Hook executor pre-sorts hooks at construction time (previously sorted on every call)
+- Injection detection patterns moved to companion object (avoid per-instance allocation)
+- Sensitive parameter masking uses word-boundary regex instead of substring matching
+- Vector store retriever sorts by score before deduplication (keeps highest-scored version)
+- Example tools (`CalculatorTool`, `DateTimeTool`) no longer have `@Component` (prevents unintended auto-registration in production)
+
+### Fixed
+- **Security**: Guard was skipped entirely when `userId` was null — now uses "anonymous" fallback
+- `CancellationException` was caught as generic `Exception` in execute/executeStream — now correctly rethrown for structured concurrency
+- `maxToolCalls` reached only logged a warning but didn't remove tools — now sets `activeTools = emptyList()` to force final answer
+- Context trimming removed the current user prompt (oldest message) — now protects the last `UserMessage`
+- Streaming memory saved accumulated content from all ReAct iterations — now saves only the final iteration
+- Streaming memory save was inside `withTimeout` — moved to `finally` block for atomicity
+- `saveConversationHistory` exception could lose a successful LLM result — now wrapped in try-catch
+- `saveConversationHistory` saved user message even on failure — now skips on `!result.success`
+- `executeAfterAgentComplete` hook exception in catch/finally blocks could mask the original error — now wrapped in try-catch
+- `executeToolCallsInParallel` used the original `tools` list instead of `activeTools` — fixed to use `activeTools`
+- `toolsUsed` recorded tool names before confirming the adapter exists (hallucinated tool names) — now adds only after lookup
+- Streaming controller dropped `responseFormat`/`responseSchema` from request — now passes through
+- RAG pipeline `topK / 2` halved the requested document count (topK=1 returned 0 documents) — removed division
+- `getHistoryWithinTokenLimit` used O(n^2) `add(0, msg)` — changed to O(n) collect-then-reverse
+
 ## [0.2.0] - 2025-01-15
 
 ### Added

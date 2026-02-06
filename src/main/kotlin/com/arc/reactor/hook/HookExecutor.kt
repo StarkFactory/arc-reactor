@@ -15,11 +15,16 @@ private val logger = KotlinLogging.logger {}
  * Executes registered hooks in order and processes results.
  */
 class HookExecutor(
-    private val beforeStartHooks: List<BeforeAgentStartHook> = emptyList(),
-    private val beforeToolCallHooks: List<BeforeToolCallHook> = emptyList(),
-    private val afterToolCallHooks: List<AfterToolCallHook> = emptyList(),
-    private val afterCompleteHooks: List<AfterAgentCompleteHook> = emptyList()
+    beforeStartHooks: List<BeforeAgentStartHook> = emptyList(),
+    beforeToolCallHooks: List<BeforeToolCallHook> = emptyList(),
+    afterToolCallHooks: List<AfterToolCallHook> = emptyList(),
+    afterCompleteHooks: List<AfterAgentCompleteHook> = emptyList()
 ) {
+
+    private val sortedBeforeStartHooks = beforeStartHooks.filter { it.enabled }.sortedBy { it.order }
+    private val sortedBeforeToolCallHooks = beforeToolCallHooks.filter { it.enabled }.sortedBy { it.order }
+    private val sortedAfterToolCallHooks = afterToolCallHooks.filter { it.enabled }.sortedBy { it.order }
+    private val sortedAfterCompleteHooks = afterCompleteHooks.filter { it.enabled }.sortedBy { it.order }
 
     /**
      * Execute hooks before agent starts.
@@ -28,7 +33,7 @@ class HookExecutor(
      */
     suspend fun executeBeforeAgentStart(context: HookContext): HookResult {
         return executeHooks(
-            hooks = beforeStartHooks.filter { it.enabled }.sortedBy { it.order },
+            hooks = sortedBeforeStartHooks,
             context = context
         ) { hook, ctx ->
             hook.beforeAgentStart(ctx)
@@ -40,7 +45,7 @@ class HookExecutor(
      */
     suspend fun executeBeforeToolCall(context: ToolCallContext): HookResult {
         return executeHooks(
-            hooks = beforeToolCallHooks.filter { it.enabled }.sortedBy { it.order },
+            hooks = sortedBeforeToolCallHooks,
             context = context
         ) { hook, ctx ->
             hook.beforeToolCall(ctx)
@@ -51,7 +56,7 @@ class HookExecutor(
      * Execute hooks after tool call.
      */
     suspend fun executeAfterToolCall(context: ToolCallContext, result: ToolCallResult) {
-        for (hook in afterToolCallHooks.filter { it.enabled }.sortedBy { it.order }) {
+        for (hook in sortedAfterToolCallHooks) {
             try {
                 hook.afterToolCall(context, result)
             } catch (e: Exception) {
@@ -65,7 +70,7 @@ class HookExecutor(
      * Execute hooks after agent completes.
      */
     suspend fun executeAfterAgentComplete(context: HookContext, response: AgentResponse) {
-        for (hook in afterCompleteHooks.filter { it.enabled }.sortedBy { it.order }) {
+        for (hook in sortedAfterCompleteHooks) {
             try {
                 hook.afterAgentComplete(context, response)
             } catch (e: Exception) {

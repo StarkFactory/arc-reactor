@@ -95,37 +95,10 @@ class DefaultInputValidationStage(
  */
 class DefaultInjectionDetectionStage : InjectionDetectionStage {
 
-    private val suspiciousPatterns = listOf(
-        // Role change attempts
-        Regex("(?i)(ignore|forget|disregard).*(previous|above|prior|all).*instructions?"),
-        Regex("(?i)you are now"),
-        Regex("(?i)act as"),
-        Regex("(?i)pretend (to be|you're|you are)"),
-        Regex("(?i)new (role|persona|character|identity)"),
-
-        // System prompt extraction attempts
-        Regex("(?i)(show|reveal|print|display|output).*(system|initial|original).*(prompt|instruction)"),
-        Regex("(?i)what (are|were) your (instructions|rules)"),
-
-        // Output manipulation
-        Regex("(?i)(always|only|must).*(respond|reply|say|output)"),
-        Regex("(?i)from now on"),
-
-        // Encoding/obfuscation attempts
-        Regex("(?i)base64"),
-        Regex("(?i)\\\\x[0-9a-f]{2}"),
-
-        // Delimiter injection
-        Regex("```system"),
-        Regex("\\[SYSTEM\\]"),
-        Regex("<\\|im_start\\|>"),
-        Regex("<\\|endoftext\\|>")
-    )
-
     override suspend fun check(command: GuardCommand): GuardResult {
         val text = command.text
 
-        for (pattern in suspiciousPatterns) {
+        for (pattern in SUSPICIOUS_PATTERNS) {
             if (pattern.containsMatchIn(text)) {
                 logger.warn { "Injection pattern detected: ${pattern.pattern}" }
                 return GuardResult.Rejected(
@@ -136,6 +109,35 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage {
         }
 
         return GuardResult.Allowed.DEFAULT
+    }
+
+    companion object {
+        private val SUSPICIOUS_PATTERNS = listOf(
+            // Role change attempts
+            Regex("(?i)(ignore|forget|disregard).*(previous|above|prior|all).*instructions?"),
+            Regex("(?i)you are now"),
+            Regex("(?i)act as"),
+            Regex("(?i)pretend (to be|you're|you are)"),
+            Regex("(?i)new (role|persona|character|identity)"),
+
+            // System prompt extraction attempts
+            Regex("(?i)(show|reveal|print|display|output).*(system|initial|original).*(prompt|instruction)"),
+            Regex("(?i)what (are|were) your (instructions|rules)"),
+
+            // Output manipulation
+            Regex("(?i)(always|only|must).*(respond|reply|say|output)"),
+            Regex("(?i)from now on"),
+
+            // Encoding/obfuscation attempts
+            Regex("(?i)base64"),
+            Regex("(?i)\\\\x[0-9a-f]{2}"),
+
+            // Delimiter injection
+            Regex("```system"),
+            Regex("\\[SYSTEM\\]"),
+            Regex("<\\|im_start\\|>"),
+            Regex("<\\|endoftext\\|>")
+        )
     }
 }
 

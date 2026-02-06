@@ -28,10 +28,10 @@ class SpringAiVectorStoreRetriever(
             searchWithQuery(query, topK)
         }
 
-        // Deduplicate (by ID) and sort by score
+        // Sort by score first, then deduplicate (keeps highest-scored version per ID)
         return allDocuments
-            .distinctBy { it.id }
             .sortedByDescending { it.score }
+            .distinctBy { it.id }
             .take(topK)
     }
 

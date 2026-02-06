@@ -1,7 +1,6 @@
 package com.arc.reactor.tool.example
 
 import com.arc.reactor.tool.ToolCallback
-import org.springframework.stereotype.Component
 
 /**
  * 계산기 도구 (예시)
@@ -14,8 +13,10 @@ import org.springframework.stereotype.Component
  * 2. name, description, inputSchema를 정의합니다
  * 3. call() 메서드에 실제 로직을 작성합니다
  * 4. @Component를 붙이면 자동 등록됩니다
+ *
+ * 이 클래스는 예시이므로 @Component가 붙어있지 않습니다.
+ * 사용하려면 직접 빈으로 등록하거나 @Component를 추가하세요.
  */
-@Component
 class CalculatorTool : ToolCallback {
 
     override val name = "calculator"

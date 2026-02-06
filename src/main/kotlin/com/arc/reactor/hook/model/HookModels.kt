@@ -51,10 +51,16 @@ data class ToolCallContext(
 ) {
     /** Mask sensitive parameters */
     fun maskedParams(): Map<String, Any?> {
-        val sensitiveKeys = setOf("password", "token", "secret", "key", "credential", "apikey")
         return toolParams.mapValues { (key, value) ->
-            if (sensitiveKeys.any { key.lowercase().contains(it) }) "***" else value
+            if (SENSITIVE_KEY_PATTERN.containsMatchIn(key)) "***" else value
         }
+    }
+
+    companion object {
+        private val SENSITIVE_KEY_PATTERN = Regex(
+            "(^|[_\\-.])(password|token|secret|key|credential|apikey)([_\\-.]|\$)",
+            RegexOption.IGNORE_CASE
+        )
     }
 }
 

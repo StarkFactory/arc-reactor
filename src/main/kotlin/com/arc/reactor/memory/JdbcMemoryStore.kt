@@ -160,11 +160,11 @@ class JdbcMemoryStore(
             for (message in cachedMessages.reversed()) {
                 val tokens = tokenEstimator.estimate(message.content)
                 if (totalTokens + tokens > maxTokens) break
-                result.add(0, message)
+                result.add(message)
                 totalTokens += tokens
             }
 
-            return result
+            return result.reversed()
         }
     }
 }

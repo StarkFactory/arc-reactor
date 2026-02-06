@@ -29,14 +29,14 @@ private val logger = KotlinLogging.logger {}
  * ```
  */
 class GuardPipeline(
-    private val stages: List<GuardStage> = emptyList()
+    stages: List<GuardStage> = emptyList()
 ) : RequestGuard {
 
-    override suspend fun guard(command: GuardCommand): GuardResult {
-        val sortedStages = stages
-            .filter { it.enabled }
-            .sortedBy { it.order }
+    private val sortedStages: List<GuardStage> = stages
+        .filter { it.enabled }
+        .sortedBy { it.order }
 
+    override suspend fun guard(command: GuardCommand): GuardResult {
         if (sortedStages.isEmpty()) {
             logger.debug { "No guard stages enabled, allowing request" }
             return GuardResult.Allowed.DEFAULT

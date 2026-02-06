@@ -48,9 +48,9 @@ class DefaultRagPipeline(
 
         // 3. Rerank
         val rerankedDocs = if (query.rerank && reranker != null) {
-            reranker.rerank(query.query, documents, query.topK / 2)
+            reranker.rerank(query.query, documents, query.topK)
         } else {
-            documents.take(query.topK / 2)
+            documents.take(query.topK)
         }
 
         // 4. Build Context (with token limit)

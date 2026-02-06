@@ -11,12 +11,16 @@ Arc Reactor is a production-ready AI Agent framework built on Spring AI. It prov
 
 ## Features
 
-- **ReAct Pattern** - Autonomous Thought → Action → Observation execution loop
-- **5-Stage Guard** - Rate Limit → Input Validation → Injection Detection → Classification → Permission
+- **ReAct Pattern** - Autonomous Thought -> Action -> Observation execution loop
+- **5-Stage Guard** - Rate Limit -> Input Validation -> Injection Detection -> Classification -> Permission
 - **Dynamic Tools** - Local Tools with `@Tool` annotation + MCP (Model Context Protocol) support
 - **Hook System** - 4 lifecycle extension points for logging, audit, and customization
-- **RAG Pipeline** - Query Transform → Retrieve → Rerank → Context Build
-- **Memory** - Multi-turn conversation context management
+- **RAG Pipeline** - Query Transform -> Retrieve -> Rerank -> Context Build
+- **Memory** - Multi-turn conversation context management with In-Memory and PostgreSQL backends
+- **Context Window Management** - Token-based message trimming to prevent context overflow
+- **LLM Retry** - Exponential backoff with jitter for transient errors (rate limit, timeout, 5xx)
+- **Parallel Tool Execution** - Concurrent tool calls via Kotlin coroutines
+- **Structured Output** - JSON response mode with optional schema validation
 - **Spring Boot Auto-Configuration** - Zero-config setup with sensible defaults
 
 ## Quick Start
@@ -26,7 +30,7 @@ Arc Reactor is a production-ready AI Agent framework built on Spring AI. It prov
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("com.arc:arc-reactor:0.2.0")
+    implementation("com.arc:arc-reactor:1.0.0")
 
     // Choose your LLM provider
     implementation("org.springframework.ai:spring-ai-starter-model-openai")
@@ -120,10 +124,10 @@ class AgentService(
 ┌─────────────────────────────────────────────────────────────────┐
 │  AGENT EXECUTOR (ReAct Loop)                                     │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ 1. Load Memory (conversation history)                        ││
+│  │ 1. Load Memory + Context Window Trimming                     ││
 │  │ 2. Select Tools (LocalTool + MCP)                           ││
-│  │ 3. Call LLM with tools                                       ││
-│  │ 4. Execute tool calls (with BeforeToolCall/AfterToolCall)   ││
+│  │ 3. Call LLM (with retry on transient errors)                ││
+│  │ 4. Execute tool calls in parallel (with Hook lifecycle)     ││
 │  │ 5. Return response or continue loop                          ││
 │  └─────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────┘
@@ -203,6 +207,94 @@ class AuditHook : AfterAgentCompleteHook {
 }
 ```
 
+### Context Window Management
+
+Automatically trims conversation history to stay within the LLM's context window:
+
+```yaml
+arc:
+  reactor:
+    llm:
+      max-context-window-tokens: 128000  # Default: 128K
+      max-output-tokens: 4096
+```
+
+- Token budget = `maxContextWindowTokens - systemPromptTokens - maxOutputTokens`
+- Removes oldest messages first (FIFO) when budget exceeded
+- Preserves the current user prompt (never trimmed)
+- Maintains AssistantMessage + ToolResponseMessage pair integrity
+
+### LLM Retry
+
+Automatic retry with exponential backoff for transient errors:
+
+```yaml
+arc:
+  reactor:
+    retry:
+      max-attempts: 3           # Default: 3
+      initial-delay-ms: 1000    # Default: 1s
+      multiplier: 2.0           # Default: 2x
+      max-delay-ms: 10000       # Default: 10s
+```
+
+- Retries on: rate limit (429), timeout, 5xx, connection errors
+- No retry on: auth errors, invalid request, context too long
+- Jitter (+-25%) prevents thundering herd
+- Respects `CancellationException` for structured concurrency
+
+```kotlin
+// Custom transient error classifier
+val executor = SpringAiAgentExecutor(
+    chatClient = chatClient,
+    properties = properties,
+    transientErrorClassifier = { e ->
+        e.message?.contains("429") == true
+    }
+)
+```
+
+### Parallel Tool Execution
+
+When the LLM requests multiple tool calls in a single response, they execute concurrently:
+
+```
+Sequential (before):  Tool A (2s) → Tool B (2s) → Tool C (2s) = 6s
+Parallel (now):       Tool A (2s) ┐
+                      Tool B (2s) ├ = 2s
+                      Tool C (2s) ┘
+```
+
+- Powered by `coroutineScope { map { async {} }.awaitAll() }`
+- Result order preserved (matches tool call order)
+- Hook lifecycle (BeforeToolCall/AfterToolCall) runs per tool
+- One tool failure doesn't cancel others
+
+### Structured Output
+
+Request JSON responses from the LLM:
+
+```kotlin
+val result = agentExecutor.execute(
+    AgentCommand(
+        systemPrompt = "You are a data extraction agent.",
+        userPrompt = "Extract the company info from: Arc Reactor Inc, founded 2024",
+        responseFormat = ResponseFormat.JSON,
+        responseSchema = """
+            {
+                "name": "string",
+                "founded": "number"
+            }
+        """
+    )
+)
+// result.content = {"name": "Arc Reactor Inc", "founded": 2024}
+```
+
+- Provider-independent (works via system prompt injection, not API-specific JSON mode)
+- Optional `responseSchema` guides the output structure
+- Not supported in streaming mode (partial JSON has no utility)
+
 ### MCP (Model Context Protocol)
 
 Connect external tools dynamically via MCP:
@@ -235,15 +327,16 @@ class McpSetup(private val mcpManager: McpManager) {
 
 Retrieval-Augmented Generation with pluggable components:
 
-```kotlin
-// Enable RAG in configuration
+```yaml
 arc:
   reactor:
     rag:
       enabled: true
       similarity-threshold: 0.7
       top-k: 10
+```
 
+```kotlin
 // Custom retriever with Spring AI VectorStore
 @Bean
 fun documentRetriever(vectorStore: VectorStore): DocumentRetriever {
@@ -256,12 +349,11 @@ fun documentRetriever(vectorStore: VectorStore): DocumentRetriever {
 
 ### Memory
 
-Session-based conversation memory:
+Session-based conversation memory with pluggable backends:
+
+**In-Memory** (default, no config needed):
 
 ```kotlin
-// Memory is automatically injected into AgentExecutor
-// Use sessionId in metadata to track conversations
-
 val result = agentExecutor.execute(
     AgentCommand(
         systemPrompt = "You are a helpful assistant.",
@@ -270,6 +362,30 @@ val result = agentExecutor.execute(
     )
 )
 ```
+
+**PostgreSQL** (auto-detected when DataSource is available):
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    runtimeOnly("org.postgresql:postgresql")
+    // Flyway migration creates the table automatically
+    implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-database-postgresql")
+}
+```
+
+```yaml
+# application.yml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/arcreactor
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+```
+
+No code changes needed. When a `DataSource` bean exists, `JdbcMemoryStore` is auto-configured instead of `InMemoryMemoryStore`.
 
 ## Configuration Reference
 
@@ -280,8 +396,15 @@ arc:
     llm:
       temperature: 0.3
       max-output-tokens: 4096
-      timeout-ms: 60000
       max-conversation-turns: 10
+      max-context-window-tokens: 128000    # Context window management
+
+    # Retry Settings
+    retry:
+      max-attempts: 3
+      initial-delay-ms: 1000
+      multiplier: 2.0
+      max-delay-ms: 10000
 
     # Guard Settings
     guard:
@@ -302,7 +425,7 @@ arc:
     # Concurrency Settings
     concurrency:
       max-concurrent-requests: 20
-      request-timeout-seconds: 30
+      request-timeout-ms: 30000
 
     # Tool Settings
     max-tools-per-request: 20
@@ -322,7 +445,7 @@ arc-reactor/
 │   ├── LocalTool.kt
 │   ├── ToolSelector.kt
 │   ├── ToolCallback.kt
-│   └── ToolCategory.kt
+│   └── example/        # Example tools (not auto-registered)
 ├── hook/               # Lifecycle Hooks
 │   ├── Hooks.kt (4 interfaces)
 │   ├── HookExecutor.kt
@@ -341,7 +464,8 @@ arc-reactor/
 │       ├── SpringAiVectorStoreRetriever.kt
 │       └── *Reranker.kt
 ├── memory/             # Conversation Memory
-│   └── ConversationMemory.kt
+│   ├── ConversationMemory.kt
+│   └── JdbcMemoryStore.kt
 ├── mcp/                # MCP Support
 │   ├── McpManager.kt
 │   └── model/McpModels.kt
@@ -358,7 +482,9 @@ arc-reactor/
 
 ## Examples
 
-See the [Quick Start](#quick-start) section above for a step-by-step integration guide. More examples including chatbot, customer service agent, and multi-agent setups will be added in future releases.
+See the [Quick Start](#quick-start) section above for a step-by-step integration guide.
+
+The `tool/example/` directory contains reference implementations (`CalculatorTool`, `DateTimeTool`) showing how to build custom tools. These are not auto-registered; copy and add `@Component` to use them in your project.
 
 ## Contributing
 
