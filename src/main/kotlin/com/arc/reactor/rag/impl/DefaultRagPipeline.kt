@@ -1,5 +1,7 @@
 package com.arc.reactor.rag.impl
 
+import com.arc.reactor.memory.DefaultTokenEstimator
+import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.rag.ContextBuilder
 import com.arc.reactor.rag.DocumentReranker
 import com.arc.reactor.rag.DocumentRetriever
@@ -22,7 +24,8 @@ class DefaultRagPipeline(
     private val retriever: DocumentRetriever,
     private val reranker: DocumentReranker? = null,
     private val contextBuilder: ContextBuilder = SimpleContextBuilder(),
-    private val maxContextTokens: Int = 4000
+    private val maxContextTokens: Int = 4000,
+    private val tokenEstimator: TokenEstimator = DefaultTokenEstimator()
 ) : RagPipeline {
 
     override suspend fun retrieve(query: RagQuery): RagContext {
@@ -56,7 +59,7 @@ class DefaultRagPipeline(
         return RagContext(
             context = context,
             documents = rerankedDocs,
-            totalTokens = context.length / 4
+            totalTokens = tokenEstimator.estimate(context)
         )
     }
 }

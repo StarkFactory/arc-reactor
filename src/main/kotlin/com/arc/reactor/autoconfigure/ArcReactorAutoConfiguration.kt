@@ -162,7 +162,7 @@ class ArcReactorAutoConfiguration {
          * Document Retriever (without VectorStore - in-memory fallback)
          */
         @Bean
-        @ConditionalOnMissingBean(VectorStore::class, DocumentRetriever::class)
+        @ConditionalOnMissingBean(DocumentRetriever::class)
         fun inMemoryDocumentRetriever(): DocumentRetriever = InMemoryDocumentRetriever()
 
         /**

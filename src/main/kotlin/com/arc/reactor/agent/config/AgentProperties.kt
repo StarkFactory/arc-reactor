@@ -33,9 +33,6 @@ data class LlmProperties(
     /** Maximum output tokens */
     val maxOutputTokens: Int = 4096,
 
-    /** Timeout (ms) */
-    val timeoutMs: Long = 60000,
-
     /** Maximum conversation history turns */
     val maxConversationTurns: Int = 10
 )

@@ -15,6 +15,9 @@ build/
 *.swp
 *.swo
 
+# AI Tools
+.claude/
+
 # Kotlin
 *.class
 *.jar
