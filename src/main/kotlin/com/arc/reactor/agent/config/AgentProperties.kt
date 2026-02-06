@@ -61,8 +61,8 @@ data class ConcurrencyProperties(
     /** Maximum concurrent requests */
     val maxConcurrentRequests: Int = 20,
 
-    /** Request wait timeout (seconds) */
-    val requestTimeoutSeconds: Long = 30
+    /** Request timeout (milliseconds) */
+    val requestTimeoutMs: Long = 30000
 )
 
 data class RagProperties(

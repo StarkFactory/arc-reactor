@@ -61,38 +61,6 @@ interface ToolCallback {
 }
 
 /**
- * Tool Definition Metadata
- *
- * Describes a tool's interface for documentation and schema generation.
- *
- * @property name Tool identifier
- * @property description Tool purpose and usage
- * @property parameters List of input parameters
- */
-data class ToolDefinition(
-    val name: String,
-    val description: String,
-    val parameters: List<ToolParameter> = emptyList()
-)
-
-/**
- * Tool Parameter Definition
- *
- * Describes a single parameter for a tool.
- *
- * @property name Parameter name (used as JSON key)
- * @property description Parameter purpose (shown to LLM)
- * @property type JSON Schema type (string, number, boolean, object, array)
- * @property required Whether the parameter is mandatory
- */
-data class ToolParameter(
-    val name: String,
-    val description: String,
-    val type: String,
-    val required: Boolean = true
-)
-
-/**
  * Spring AI ToolCallback Adapter
  *
  * Wraps Spring AI's ToolCallback to provide framework-agnostic access.

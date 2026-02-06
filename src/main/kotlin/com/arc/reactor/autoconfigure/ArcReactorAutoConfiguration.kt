@@ -179,10 +179,12 @@ class ArcReactorAutoConfiguration {
         @ConditionalOnMissingBean
         fun ragPipeline(
             retriever: DocumentRetriever,
-            reranker: DocumentReranker
+            reranker: DocumentReranker,
+            properties: AgentProperties
         ): RagPipeline = DefaultRagPipeline(
             retriever = retriever,
-            reranker = reranker
+            reranker = reranker,
+            maxContextTokens = properties.rag.maxContextTokens
         )
     }
 
