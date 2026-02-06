@@ -13,7 +13,103 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-class ConcurrencyTest {
+class ConversationMemoryConcurrencyTest {
+
+    @Test
+    fun `concurrent add should not lose messages`() {
+        val memory = InMemoryConversationMemory(maxMessages = 500)
+        val threadCount = 100
+        val executor = Executors.newFixedThreadPool(threadCount)
+        val readyLatch = CountDownLatch(threadCount)
+        val startLatch = CountDownLatch(1)
+
+        try {
+            val futures = (1..threadCount).map { i ->
+                executor.submit {
+                    readyLatch.countDown()
+                    startLatch.await()
+                    memory.add(Message(MessageRole.USER, "Message $i"))
+                }
+            }
+
+            readyLatch.await(5, TimeUnit.SECONDS)
+            startLatch.countDown()
+
+            futures.forEach { it.get(10, TimeUnit.SECONDS) }
+
+            assertEquals(threadCount, memory.getHistory().size)
+        } finally {
+            executor.shutdown()
+            executor.awaitTermination(5, TimeUnit.SECONDS)
+        }
+    }
+
+    @Test
+    fun `concurrent add with eviction should maintain max size`() {
+        val maxMessages = 10
+        val memory = InMemoryConversationMemory(maxMessages = maxMessages)
+        val threadCount = 100
+        val executor = Executors.newFixedThreadPool(20)
+        val readyLatch = CountDownLatch(threadCount)
+        val startLatch = CountDownLatch(1)
+
+        try {
+            val futures = (1..threadCount).map { i ->
+                executor.submit {
+                    readyLatch.countDown()
+                    startLatch.await()
+                    memory.add(Message(MessageRole.USER, "Message $i"))
+                }
+            }
+
+            readyLatch.await(5, TimeUnit.SECONDS)
+            startLatch.countDown()
+
+            futures.forEach { it.get(10, TimeUnit.SECONDS) }
+
+            val history = memory.getHistory()
+            assertTrue(
+                history.size <= maxMessages,
+                "History size (${history.size}) should not exceed maxMessages ($maxMessages)"
+            )
+        } finally {
+            executor.shutdown()
+            executor.awaitTermination(5, TimeUnit.SECONDS)
+        }
+    }
+
+    @Test
+    fun `concurrent read and write should not throw`() = runBlocking {
+        val memory = InMemoryConversationMemory(maxMessages = 50)
+
+        // Pre-populate
+        for (i in 1..20) {
+            memory.add(Message(MessageRole.USER, "Initial $i"))
+        }
+
+        val writers = (1..50).map { i ->
+            async(Dispatchers.Default) {
+                memory.add(Message(MessageRole.USER, "New $i"))
+            }
+        }
+
+        val readers = (1..50).map {
+            async(Dispatchers.Default) {
+                memory.getHistory()
+            }
+        }
+
+        writers.awaitAll()
+        val snapshots = readers.awaitAll()
+
+        snapshots.forEach { snapshot ->
+            assertNotNull(snapshot)
+            assertTrue(snapshot.isNotEmpty())
+        }
+    }
+}
+
+class MemoryStoreConcurrencyTest {
 
     @Test
     fun `concurrent getOrCreate with different session IDs should not lose sessions`() {

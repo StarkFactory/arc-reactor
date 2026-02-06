@@ -137,7 +137,7 @@ interface McpManager {
  */
 class DefaultMcpManager(
     private val connectionTimeoutMs: Long = 30_000
-) : McpManager {
+) : McpManager, AutoCloseable {
 
     private val servers = ConcurrentHashMap<String, McpServer>()
     private val clients = ConcurrentHashMap<String, McpSyncClient>()
@@ -325,6 +325,19 @@ class DefaultMcpManager(
 
     override fun getStatus(serverName: String): McpServerStatus? {
         return statuses[serverName]
+    }
+
+    /**
+     * Close all connected MCP servers and release resources.
+     */
+    override fun close() {
+        logger.info { "Closing MCP Manager, disconnecting all servers" }
+        for (serverName in clients.keys.toList()) {
+            kotlinx.coroutines.runBlocking { disconnect(serverName) }
+        }
+        servers.clear()
+        statuses.clear()
+        serverLocks.clear()
     }
 }
 

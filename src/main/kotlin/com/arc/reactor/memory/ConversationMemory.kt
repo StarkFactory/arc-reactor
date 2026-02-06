@@ -4,6 +4,9 @@ import com.arc.reactor.agent.model.Message
 import com.arc.reactor.agent.model.MessageRole
 import com.github.benmanes.caffeine.cache.Caffeine
 import java.time.Instant
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 
 /**
  * Conversation Memory Interface
@@ -144,9 +147,9 @@ interface MemoryStore {
  * Automatically evicts oldest messages when exceeding the maximum limit.
  *
  * ## Characteristics
- * - Fast O(1) add operations
+ * - Thread-safe via ReentrantReadWriteLock
  * - FIFO eviction when full
- * - Approximate token counting (chars / 4)
+ * - Token-aware history truncation
  * - Not persistent (lost on restart)
  *
  * @param maxMessages Maximum messages to retain (default: 50)
@@ -157,26 +160,27 @@ class InMemoryConversationMemory(
 ) : ConversationMemory {
 
     private val messages = mutableListOf<Message>()
+    private val lock = ReentrantReadWriteLock()
 
-    override fun add(message: Message) {
+    override fun add(message: Message) = lock.write {
         messages.add(message)
-        // Evict oldest messages when exceeding max count
         while (messages.size > maxMessages) {
             messages.removeFirst()
         }
     }
 
-    override fun getHistory(): List<Message> = messages.toList()
+    override fun getHistory(): List<Message> = lock.read {
+        messages.toList()
+    }
 
-    override fun clear() {
+    override fun clear() = lock.write {
         messages.clear()
     }
 
-    override fun getHistoryWithinTokenLimit(maxTokens: Int): List<Message> {
+    override fun getHistoryWithinTokenLimit(maxTokens: Int): List<Message> = lock.read {
         var totalTokens = 0
         val result = mutableListOf<Message>()
 
-        // Iterate in reverse from newest messages
         for (message in messages.reversed()) {
             val tokens = tokenEstimator.estimate(message.content)
             if (totalTokens + tokens > maxTokens) {
@@ -186,7 +190,7 @@ class InMemoryConversationMemory(
             totalTokens += tokens
         }
 
-        return result
+        result
     }
 }
 

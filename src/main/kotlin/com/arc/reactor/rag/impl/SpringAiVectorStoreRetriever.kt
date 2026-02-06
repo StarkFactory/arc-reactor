@@ -73,7 +73,7 @@ class SpringAiVectorStoreRetriever(
  * For testing and development use.
  */
 class InMemoryDocumentRetriever(
-    private val documents: MutableList<RetrievedDocument> = mutableListOf()
+    private val documents: MutableList<RetrievedDocument> = java.util.concurrent.CopyOnWriteArrayList()
 ) : DocumentRetriever {
 
     fun addDocument(document: RetrievedDocument) {
