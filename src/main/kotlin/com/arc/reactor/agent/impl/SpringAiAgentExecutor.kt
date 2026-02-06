@@ -250,70 +250,276 @@ class SpringAiAgentExecutor(
         return finalResult
     }
 
+    /**
+     * Full Streaming ReAct Loop.
+     *
+     * Implements the same ReAct pattern as [execute] but with real-time streaming:
+     * 1. Guard + Hook checks
+     * 2. Stream LLM response via ChatResponse chunks (not plain text)
+     * 3. Emit text chunks to the caller in real-time
+     * 4. Detect tool calls from streamed ChatResponse
+     * 5. Execute tools with BeforeToolCallHook / AfterToolCallHook
+     * 6. Re-stream LLM with tool results → repeat until no tool calls
+     * 7. Save conversation history, record metrics, run AfterAgentComplete hook
+     */
     override fun executeStream(command: AgentCommand): Flow<String> = flow {
+        val startTime = System.currentTimeMillis()
         val runId = UUID.randomUUID().toString()
+        val toolsUsed = java.util.concurrent.CopyOnWriteArrayList<String>()
+
+        // Set MDC context for structured logging
+        MDC.put("runId", runId)
+        MDC.put("userId", command.userId ?: "anonymous")
+        command.metadata["sessionId"]?.toString()?.let { MDC.put("sessionId", it) }
+
         val hookContext = HookContext(
             runId = runId,
             userId = command.userId ?: "anonymous",
             userPrompt = command.userPrompt,
-            toolsUsed = mutableListOf()
+            toolsUsed = toolsUsed
         )
 
-        // 1. Guard check
-        checkGuard(command)?.let { rejection ->
-            agentMetrics.recordGuardRejection(
-                stage = rejection.stage ?: "unknown",
-                reason = rejection.reason
-            )
-            emit(rejection.reason)
-            return@flow
-        }
+        var streamSuccess = false
+        var streamStarted = false
+        val collectedContent = StringBuilder()
 
-        // 2. Before hook
-        checkBeforeHooks(hookContext)?.let { hookResult ->
-            val message = when (hookResult) {
-                is HookResult.Reject -> hookResult.reason
-                is HookResult.PendingApproval -> "Pending approval: ${hookResult.message}"
-                else -> "Blocked by hook"
-            }
-            emit(message)
-            return@flow
-        }
-
-        // 3. Build request
-        var requestSpec = chatClient.prompt()
-
-        // RAG context
-        val ragContext = retrieveRagContext(command.userPrompt)
-        val systemPrompt = buildSystemPrompt(command.systemPrompt, ragContext)
-        if (systemPrompt.isNotBlank()) {
-            requestSpec = requestSpec.system(systemPrompt)
-        }
-
-        // Conversation history
-        val conversationHistory = loadConversationHistory(command)
-        if (conversationHistory.isNotEmpty()) {
-            requestSpec = requestSpec.messages(conversationHistory)
-        }
-
-        requestSpec = requestSpec.user(command.userPrompt)
-
-        // Tools (same as non-streaming, for models that support tool use in streaming)
-        if (command.mode != AgentMode.STANDARD) {
-            val selectedTools = selectAndPrepareTools(command.userPrompt)
-            if (selectedTools.isNotEmpty()) {
-                requestSpec = requestSpec.tools(*selectedTools.toTypedArray())
-            }
-        }
-
-        // 4. Stream LLM response
         try {
-            val flux = requestSpec.stream().content()
-            val reactiveFlow = flux.asFlow()
-            emitAll(reactiveFlow)
+            concurrencySemaphore.withPermit {
+                withTimeout(properties.concurrency.requestTimeoutMs) {
+                    // 1. Guard check
+                    checkGuard(command)?.let { rejection ->
+                        agentMetrics.recordGuardRejection(
+                            stage = rejection.stage ?: "unknown",
+                            reason = rejection.reason
+                        )
+                        emit(rejection.reason)
+                        return@withTimeout
+                    }
+
+                    // 2. Before hooks
+                    checkBeforeHooks(hookContext)?.let { hookResult ->
+                        val message = when (hookResult) {
+                            is HookResult.Reject -> hookResult.reason
+                            is HookResult.PendingApproval -> "Pending approval: ${hookResult.message}"
+                            else -> "Blocked by hook"
+                        }
+                        emit(message)
+                        return@withTimeout
+                    }
+
+                    streamStarted = true
+
+                    // 3. Setup
+                    val conversationHistory = loadConversationHistory(command)
+                    val ragContext = retrieveRagContext(command.userPrompt)
+                    val systemPrompt = buildSystemPrompt(command.systemPrompt, ragContext)
+                    val selectedTools = if (command.mode == AgentMode.STANDARD) {
+                        emptyList()
+                    } else {
+                        selectAndPrepareTools(command.userPrompt)
+                    }
+                    val chatOptions = buildChatOptions(command, selectedTools.isNotEmpty())
+
+                    logger.debug { "Streaming ReAct: ${selectedTools.size} tools selected (mode=${command.mode})" }
+
+                    // 4. Build message list for ReAct loop
+                    val messages = mutableListOf<Message>()
+                    if (conversationHistory.isNotEmpty()) {
+                        messages.addAll(conversationHistory)
+                    }
+                    messages.add(UserMessage(command.userPrompt))
+
+                    val maxToolCallLimit = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
+                    var totalToolCalls = 0
+
+                    // 5. Streaming ReAct Loop: Stream → Detect Tool Calls → Execute → Re-Stream
+                    while (true) {
+                        var requestSpec = chatClient.prompt()
+                        if (systemPrompt.isNotBlank()) {
+                            requestSpec = requestSpec.system(systemPrompt)
+                        }
+                        requestSpec = requestSpec.messages(messages)
+                        requestSpec = requestSpec.options(chatOptions)
+                        if (selectedTools.isNotEmpty()) {
+                            requestSpec = requestSpec.tools(*selectedTools.toTypedArray())
+                        }
+
+                        // Stream ChatResponse chunks (structured, not plain text)
+                        val flux = requestSpec.stream().chatResponse()
+                        var pendingToolCalls: List<AssistantMessage.ToolCall> = emptyList()
+                        val currentChunkText = StringBuilder()
+
+                        // Emit text in real-time, detect tool calls from chunks
+                        flux.asFlow().collect { chunk ->
+                            val text = chunk.result?.output?.text
+                            if (!text.isNullOrEmpty()) {
+                                emit(text)
+                                currentChunkText.append(text)
+                                collectedContent.append(text)
+                            }
+
+                            // Capture tool calls (typically present on the final chunk)
+                            val chunkToolCalls = chunk.result?.output?.toolCalls
+                            if (!chunkToolCalls.isNullOrEmpty()) {
+                                pendingToolCalls = chunkToolCalls
+                            }
+                        }
+
+                        // No tool calls or no tools → streaming complete
+                        if (pendingToolCalls.isEmpty() || selectedTools.isEmpty()) {
+                            streamSuccess = true
+                            break
+                        }
+
+                        // Add assistant message (with tool calls) to conversation
+                        val assistantMsg = AssistantMessage.builder()
+                            .content(currentChunkText.toString())
+                            .toolCalls(pendingToolCalls)
+                            .build()
+                        messages.add(assistantMsg)
+
+                        // Execute each tool call with hooks
+                        val toolResponses = mutableListOf<ToolResponseMessage.ToolResponse>()
+
+                        for (toolCall in pendingToolCalls) {
+                            if (totalToolCalls >= maxToolCallLimit) {
+                                logger.warn { "maxToolCalls ($maxToolCallLimit) reached in streaming, stopping tool execution" }
+                                toolResponses.add(
+                                    ToolResponseMessage.ToolResponse(
+                                        toolCall.id(), toolCall.name(),
+                                        "Error: Maximum tool call limit ($maxToolCallLimit) reached"
+                                    )
+                                )
+                                continue
+                            }
+
+                            val toolName = toolCall.name()
+                            val toolParams = parseJsonToMap(toolCall.arguments())
+
+                            val toolCallContext = ToolCallContext(
+                                agentContext = hookContext,
+                                toolName = toolName,
+                                toolParams = toolParams,
+                                callIndex = totalToolCalls
+                            )
+
+                            // BeforeToolCallHook
+                            if (hookExecutor != null) {
+                                when (val hookResult = hookExecutor.executeBeforeToolCall(toolCallContext)) {
+                                    is HookResult.Reject -> {
+                                        logger.info { "Tool call $toolName rejected by hook in streaming: ${hookResult.reason}" }
+                                        toolResponses.add(
+                                            ToolResponseMessage.ToolResponse(
+                                                toolCall.id(), toolName,
+                                                "Tool call rejected: ${hookResult.reason}"
+                                            )
+                                        )
+                                        continue
+                                    }
+                                    else -> { /* continue */ }
+                                }
+                            }
+
+                            // Execute the tool
+                            val toolStartTime = System.currentTimeMillis()
+                            val adapter = findToolAdapter(toolName, selectedTools)
+                            val toolOutput = if (adapter != null) {
+                                try {
+                                    adapter.call(toolCall.arguments() ?: "{}")
+                                } catch (e: Exception) {
+                                    logger.error(e) { "Tool $toolName execution failed in streaming" }
+                                    "Error: ${e.message}"
+                                }
+                            } else {
+                                "Error: Tool '$toolName' not found"
+                            }
+                            val toolDurationMs = System.currentTimeMillis() - toolStartTime
+
+                            totalToolCalls++
+                            toolsUsed.add(toolName)
+
+                            // AfterToolCallHook
+                            hookExecutor?.executeAfterToolCall(
+                                context = toolCallContext,
+                                result = ToolCallResult(
+                                    success = !toolOutput.startsWith("Error:"),
+                                    output = toolOutput,
+                                    durationMs = toolDurationMs
+                                )
+                            )
+
+                            agentMetrics.recordToolCall(toolName, toolDurationMs, !toolOutput.startsWith("Error:"))
+                            logger.debug { "Streaming tool $toolName executed in ${toolDurationMs}ms" }
+
+                            toolResponses.add(
+                                ToolResponseMessage.ToolResponse(toolCall.id(), toolName, toolOutput)
+                            )
+                        }
+
+                        // Add tool results to conversation and loop back to LLM
+                        messages.add(
+                            ToolResponseMessage.builder()
+                                .responses(toolResponses)
+                                .build()
+                        )
+
+                        if (totalToolCalls >= maxToolCallLimit) {
+                            logger.info { "maxToolCalls limit reached in streaming ($totalToolCalls/$maxToolCallLimit), requesting final answer" }
+                        }
+                    }
+
+                    // 6. Save conversation history
+                    val sessionId = command.metadata["sessionId"] as? String
+                    if (sessionId != null && memoryStore != null) {
+                        memoryStore.addMessage(sessionId = sessionId, role = "user", content = command.userPrompt)
+                        val content = collectedContent.toString()
+                        if (content.isNotEmpty()) {
+                            memoryStore.addMessage(sessionId = sessionId, role = "assistant", content = content)
+                        }
+                    }
+                }
+            }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            logger.warn { "Streaming request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
+            emit("[error] ${errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, e.message)}")
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e // Rethrow to support structured concurrency
         } catch (e: Exception) {
             logger.error(e) { "Streaming execution failed" }
             emit("[error] ${translateError(e)}")
+        } finally {
+            // AfterAgentComplete hook (only if stream passed guard/hook checks)
+            if (streamStarted) {
+                hookExecutor?.executeAfterAgentComplete(
+                    context = hookContext,
+                    response = AgentResponse(
+                        success = streamSuccess,
+                        response = if (streamSuccess) collectedContent.toString() else null,
+                        errorMessage = if (!streamSuccess) "Streaming failed" else null,
+                        toolsUsed = toolsUsed.toList()
+                    )
+                )
+            }
+
+            // Record execution metrics
+            val durationMs = System.currentTimeMillis() - startTime
+            val result = if (streamSuccess) {
+                AgentResult.success(
+                    content = collectedContent.toString(),
+                    toolsUsed = toolsUsed.toList(),
+                    durationMs = durationMs
+                )
+            } else {
+                AgentResult.failure(
+                    errorMessage = "Streaming failed",
+                    durationMs = durationMs
+                )
+            }
+            agentMetrics.recordExecution(result)
+
+            MDC.remove("runId")
+            MDC.remove("userId")
+            MDC.remove("sessionId")
         }
     }
 
