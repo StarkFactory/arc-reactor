@@ -33,7 +33,10 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.SystemMessage
+import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.prompt.ChatOptions
+import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.tool.definition.ToolDefinition
 import org.springframework.ai.tool.metadata.ToolMetadata
 import kotlinx.coroutines.flow.Flow
@@ -383,7 +386,42 @@ class SpringAiAgentExecutor(
     }
 
     /**
-     * Execute tools with Spring AI ChatClient.
+     * Build ChatOptions from command and properties.
+     */
+    private fun buildChatOptions(command: AgentCommand, hasTools: Boolean): ChatOptions {
+        val temperature = command.temperature ?: properties.llm.temperature
+        val maxTokens = properties.llm.maxOutputTokens
+
+        return if (hasTools) {
+            ToolCallingChatOptions.builder()
+                .temperature(temperature)
+                .maxTokens(maxTokens)
+                .internalToolExecutionEnabled(false) // We manage the tool loop ourselves
+                .build()
+        } else {
+            ChatOptions.builder()
+                .temperature(temperature)
+                .maxTokens(maxTokens)
+                .build()
+        }
+    }
+
+    /**
+     * Find a tool adapter by name from the registered tools.
+     */
+    private fun findToolAdapter(toolName: String, tools: List<Any>): ArcToolCallbackAdapter? {
+        return tools.filterIsInstance<ArcToolCallbackAdapter>().firstOrNull { it.arcCallback.name == toolName }
+    }
+
+    /**
+     * Execute tools with Spring AI ChatClient using a manual ReAct loop.
+     *
+     * When tools are present, disables Spring AI's internal tool execution
+     * and manages the loop directly. This enables:
+     * - maxToolCalls enforcement
+     * - BeforeToolCallHook invocation before each tool call
+     * - AfterToolCallHook invocation after each tool call
+     * - Per-tool metrics recording
      */
     private suspend fun executeWithTools(
         command: AgentCommand,
@@ -393,8 +431,9 @@ class SpringAiAgentExecutor(
         toolsUsed: MutableList<String>,
         ragContext: String? = null
     ): AgentResult {
-        return try {
-            var requestSpec = chatClient.prompt()
+        try {
+            val maxToolCalls = command.maxToolCalls.coerceAtLeast(1)
+            var totalToolCalls = 0
 
             // System prompt (with RAG context if available)
             val systemPrompt = if (ragContext != null) {
@@ -402,68 +441,159 @@ class SpringAiAgentExecutor(
             } else {
                 command.systemPrompt
             }
-            if (systemPrompt.isNotBlank()) {
-                requestSpec = requestSpec.system(systemPrompt)
-            }
 
-            // Conversation history
+            // Build initial messages
+            val messages = mutableListOf<Message>()
             if (conversationHistory.isNotEmpty()) {
-                requestSpec = requestSpec.messages(conversationHistory)
+                messages.addAll(conversationHistory)
             }
+            messages.add(UserMessage(command.userPrompt))
 
-            // User prompt
-            requestSpec = requestSpec.user(command.userPrompt)
+            val chatOptions = buildChatOptions(command, tools.isNotEmpty())
+            var totalTokenUsage: TokenUsage? = null
 
-            // Register tools
-            if (tools.isNotEmpty()) {
-                requestSpec = requestSpec.tools(*tools.toTypedArray())
-            }
+            // ReAct loop: call LLM → execute tools → repeat until done or maxToolCalls
+            while (true) {
+                var requestSpec = chatClient.prompt()
 
-            // LLM call
-            val response = requestSpec.call()
-            val content = response.content() ?: ""
+                if (systemPrompt.isNotBlank()) {
+                    requestSpec = requestSpec.system(systemPrompt)
+                }
 
-            // Extract token usage
-            val chatResponse = response.chatResponse()
-            val tokenUsage = chatResponse?.metadata?.usage?.let {
-                TokenUsage(
-                    promptTokens = it.promptTokens.toInt(),
-                    completionTokens = it.completionTokens.toInt(),
-                    totalTokens = it.totalTokens.toInt()
-                )
-            }
+                requestSpec = requestSpec.messages(messages)
+                requestSpec = requestSpec.options(chatOptions)
 
-            // Track tool calls
-            for (generation in chatResponse?.results.orEmpty()) {
-                for (toolCall in generation.output.toolCalls.orEmpty()) {
+                if (tools.isNotEmpty()) {
+                    requestSpec = requestSpec.tools(*tools.toTypedArray())
+                }
+
+                val response = requestSpec.call()
+                val chatResponse = response.chatResponse()
+
+                // Accumulate token usage
+                chatResponse?.metadata?.usage?.let {
+                    val current = TokenUsage(
+                        promptTokens = it.promptTokens.toInt(),
+                        completionTokens = it.completionTokens.toInt(),
+                        totalTokens = it.totalTokens.toInt()
+                    )
+                    totalTokenUsage = totalTokenUsage?.let { prev ->
+                        TokenUsage(
+                            promptTokens = prev.promptTokens + current.promptTokens,
+                            completionTokens = prev.completionTokens + current.completionTokens,
+                            totalTokens = prev.totalTokens + current.totalTokens
+                        )
+                    } ?: current
+                }
+
+                // Check for tool calls in the response
+                val assistantOutput = chatResponse?.results?.firstOrNull()?.output
+                val pendingToolCalls = assistantOutput?.toolCalls.orEmpty()
+
+                if (pendingToolCalls.isEmpty() || tools.isEmpty()) {
+                    // No tool calls — return final content
+                    return AgentResult.success(
+                        content = response.content() ?: "",
+                        toolsUsed = ArrayList(toolsUsed),
+                        tokenUsage = totalTokenUsage
+                    )
+                }
+
+                // Add assistant message (with tool calls) to conversation
+                messages.add(assistantOutput!!)
+
+                // Execute each tool call
+                val toolResponses = mutableListOf<ToolResponseMessage.ToolResponse>()
+
+                for (toolCall in pendingToolCalls) {
+                    if (totalToolCalls >= maxToolCalls) {
+                        logger.warn { "maxToolCalls ($maxToolCalls) reached, stopping tool execution" }
+                        val exhaustedResponse = ToolResponseMessage.ToolResponse(
+                            toolCall.id(), toolCall.name(),
+                            "Error: Maximum tool call limit ($maxToolCalls) reached"
+                        )
+                        toolResponses.add(exhaustedResponse)
+                        continue
+                    }
+
                     val toolName = toolCall.name()
-                    toolsUsed.add(toolName)
+                    val toolParams = parseToolArguments(toolCall.arguments())
 
                     val toolCallContext = ToolCallContext(
                         agentContext = hookContext,
                         toolName = toolName,
-                        toolParams = parseToolArguments(toolCall.arguments()),
-                        callIndex = toolsUsed.size - 1
+                        toolParams = toolParams,
+                        callIndex = totalToolCalls
                     )
 
+                    // BeforeToolCallHook
+                    if (hookExecutor != null) {
+                        when (val hookResult = hookExecutor.executeBeforeToolCall(toolCallContext)) {
+                            is HookResult.Reject -> {
+                                logger.info { "Tool call $toolName rejected by hook: ${hookResult.reason}" }
+                                toolResponses.add(
+                                    ToolResponseMessage.ToolResponse(
+                                        toolCall.id(), toolName,
+                                        "Tool call rejected: ${hookResult.reason}"
+                                    )
+                                )
+                                continue
+                            }
+                            else -> { /* continue */ }
+                        }
+                    }
+
+                    // Execute the tool
+                    val toolStartTime = System.currentTimeMillis()
+                    val adapter = findToolAdapter(toolName, tools)
+                    val toolOutput = if (adapter != null) {
+                        try {
+                            adapter.call(toolCall.arguments() ?: "{}")
+                        } catch (e: Exception) {
+                            logger.error(e) { "Tool $toolName execution failed" }
+                            "Error: ${e.message}"
+                        }
+                    } else {
+                        "Error: Tool '$toolName' not found"
+                    }
+                    val toolDurationMs = System.currentTimeMillis() - toolStartTime
+
+                    totalToolCalls++
+                    toolsUsed.add(toolName)
+
+                    // AfterToolCallHook
                     hookExecutor?.executeAfterToolCall(
                         context = toolCallContext,
-                        result = ToolCallResult(success = true, output = "Tool executed", durationMs = 0)
+                        result = ToolCallResult(
+                            success = !toolOutput.startsWith("Error:"),
+                            output = toolOutput,
+                            durationMs = toolDurationMs
+                        )
                     )
 
-                    agentMetrics.recordToolCall(toolName, 0, true)
-                    logger.debug { "Tool called: $toolName" }
+                    agentMetrics.recordToolCall(toolName, toolDurationMs, !toolOutput.startsWith("Error:"))
+                    logger.debug { "Tool $toolName executed in ${toolDurationMs}ms" }
+
+                    toolResponses.add(
+                        ToolResponseMessage.ToolResponse(toolCall.id(), toolName, toolOutput)
+                    )
+                }
+
+                // Add tool results to conversation and loop back to LLM
+                messages.add(
+                    ToolResponseMessage.builder()
+                        .responses(toolResponses)
+                        .build()
+                )
+
+                // Safety: if all tool calls hit maxToolCalls limit, break to get final answer
+                if (totalToolCalls >= maxToolCalls) {
+                    logger.info { "maxToolCalls limit reached ($totalToolCalls/$maxToolCalls), requesting final answer" }
                 }
             }
-
-            AgentResult.success(
-                content = content,
-                toolsUsed = ArrayList(toolsUsed),
-                tokenUsage = tokenUsage
-            )
         } catch (e: Exception) {
             logger.error(e) { "LLM call with tools failed" }
-            AgentResult.failure(errorMessage = translateError(e))
+            return AgentResult.failure(errorMessage = translateError(e))
         }
     }
 
@@ -501,13 +631,13 @@ class SpringAiAgentExecutor(
  * tool calling system, enabling integration with ChatClient.tools().
  */
 internal class ArcToolCallbackAdapter(
-    private val arcCallback: ToolCallback
+    val arcCallback: ToolCallback
 ) : org.springframework.ai.tool.ToolCallback {
 
     private val toolDefinition = ToolDefinition.builder()
         .name(arcCallback.name)
         .description(arcCallback.description)
-        .inputSchema("""{"type": "object", "properties": {}}""")
+        .inputSchema(arcCallback.inputSchema)
         .build()
 
     override fun getToolDefinition(): ToolDefinition = toolDefinition
@@ -521,7 +651,7 @@ internal class ArcToolCallbackAdapter(
         } catch (e: Exception) {
             emptyMap<String, Any?>()
         }
-        return kotlinx.coroutines.runBlocking {
+        return kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
             arcCallback.call(args)?.toString() ?: ""
         }
     }

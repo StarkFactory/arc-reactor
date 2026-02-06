@@ -36,6 +36,22 @@ interface ToolCallback {
     val description: String
 
     /**
+     * JSON Schema describing the tool's input parameters.
+     * Used by the LLM to generate correct tool call arguments.
+     *
+     * Override this to specify parameters:
+     * ```kotlin
+     * override val inputSchema: String get() = """
+     *   {"type":"object","properties":{"location":{"type":"string","description":"City name"}},"required":["location"]}
+     * """
+     * ```
+     *
+     * Default: empty object (no parameters).
+     */
+    val inputSchema: String
+        get() = """{"type":"object","properties":{}}"""
+
+    /**
      * Execute the tool with the given arguments.
      *
      * @param arguments Key-value pairs of tool parameters (parsed from LLM's JSON)

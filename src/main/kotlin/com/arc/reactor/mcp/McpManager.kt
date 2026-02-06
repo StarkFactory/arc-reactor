@@ -278,7 +278,7 @@ class DefaultMcpManager(
                     client = client,
                     name = tool.name(),
                     description = tool.description() ?: "",
-                    inputSchema = tool.inputSchema()
+                    mcpInputSchema = tool.inputSchema()
                 )
             }
         } catch (e: Exception) {
@@ -361,8 +361,17 @@ class McpToolCallback(
     private val client: McpSyncClient,
     override val name: String,
     override val description: String,
-    private val inputSchema: McpSchema.JsonSchema?
+    private val mcpInputSchema: McpSchema.JsonSchema?
 ) : ToolCallback {
+
+    override val inputSchema: String
+        get() = mcpInputSchema?.let {
+            try {
+                com.fasterxml.jackson.module.kotlin.jacksonObjectMapper().writeValueAsString(it)
+            } catch (e: Exception) {
+                """{"type":"object","properties":{}}"""
+            }
+        } ?: """{"type":"object","properties":{}}"""
 
     override suspend fun call(arguments: Map<String, Any?>): Any? {
         return try {

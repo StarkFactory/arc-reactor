@@ -63,6 +63,7 @@ class AgentIntegrationTest {
         every { requestSpec.user(any<String>()) } returns requestSpec
         every { requestSpec.messages(any<List<org.springframework.ai.chat.messages.Message>>()) } returns requestSpec
         every { requestSpec.tools(*anyVararg<Any>()) } returns requestSpec
+        every { requestSpec.options(any<org.springframework.ai.chat.prompt.ChatOptions>()) } returns requestSpec
         every { requestSpec.call() } returns responseSpec
     }
 
