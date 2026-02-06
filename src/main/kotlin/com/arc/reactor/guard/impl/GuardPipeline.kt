@@ -10,10 +10,10 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * 5단계 가드레일 파이프라인
+ * 5-Stage Guardrail Pipeline
  *
- * 등록된 GuardStage들을 순서대로 실행.
- * 각 단계에서 Rejected 반환 시 즉시 중단.
+ * Executes registered GuardStages in order.
+ * Stops immediately if any stage returns Rejected.
  *
  * ```
  * [RateLimit] → [InputValidation] → [InjectionDetection]
@@ -51,7 +51,7 @@ class GuardPipeline(
                 }
             } catch (e: Exception) {
                 logger.error(e) { "Guard stage ${stage.stageName} failed" }
-                // fail-close: 에러 시 거부
+                // fail-close: reject on error
                 return GuardResult.Rejected(
                     reason = "Security check failed",
                     category = RejectionCategory.SYSTEM_ERROR,

@@ -17,9 +17,9 @@ import java.util.concurrent.atomic.AtomicInteger
 private val logger = KotlinLogging.logger {}
 
 /**
- * 기본 Rate Limit 구현
+ * Default Rate Limit Implementation
  *
- * Caffeine 캐시 기반 분당/시간당 제한.
+ * Caffeine cache-based per-minute and per-hour limits.
  */
 class DefaultRateLimitStage(
     private val requestsPerMinute: Int = 10,
@@ -37,7 +37,7 @@ class DefaultRateLimitStage(
     override suspend fun check(command: GuardCommand): GuardResult {
         val userId = command.userId
 
-        // 분당 체크
+        // Per-minute check
         val minuteCount = minuteCache.get(userId) { AtomicInteger(0) }
         if (minuteCount.incrementAndGet() > requestsPerMinute) {
             return GuardResult.Rejected(
@@ -46,7 +46,7 @@ class DefaultRateLimitStage(
             )
         }
 
-        // 시간당 체크
+        // Per-hour check
         val hourCount = hourCache.get(userId) { AtomicInteger(0) }
         if (hourCount.incrementAndGet() > requestsPerHour) {
             return GuardResult.Rejected(
@@ -60,7 +60,7 @@ class DefaultRateLimitStage(
 }
 
 /**
- * 기본 Input Validation 구현
+ * Default Input Validation Implementation
  */
 class DefaultInputValidationStage(
     private val maxLength: Int = 10000,
@@ -89,33 +89,33 @@ class DefaultInputValidationStage(
 }
 
 /**
- * 기본 Prompt Injection Detection 구현
+ * Default Prompt Injection Detection Implementation
  *
- * 규칙 기반 탐지 (기본). LLM 기반 탐지는 확장 가능.
+ * Rule-based detection (default). Extensible to LLM-based detection.
  */
 class DefaultInjectionDetectionStage : InjectionDetectionStage {
 
     private val suspiciousPatterns = listOf(
-        // 역할 변경 시도
+        // Role change attempts
         Regex("(?i)(ignore|forget|disregard).*(previous|above|prior|all).*instructions?"),
         Regex("(?i)you are now"),
         Regex("(?i)act as"),
         Regex("(?i)pretend (to be|you're|you are)"),
         Regex("(?i)new (role|persona|character|identity)"),
 
-        // 시스템 프롬프트 추출 시도
+        // System prompt extraction attempts
         Regex("(?i)(show|reveal|print|display|output).*(system|initial|original).*(prompt|instruction)"),
         Regex("(?i)what (are|were) your (instructions|rules)"),
 
-        // 출력 조작
+        // Output manipulation
         Regex("(?i)(always|only|must).*(respond|reply|say|output)"),
         Regex("(?i)from now on"),
 
-        // 인코딩/난독화 시도
+        // Encoding/obfuscation attempts
         Regex("(?i)base64"),
         Regex("(?i)\\\\x[0-9a-f]{2}"),
 
-        // 구분자 주입
+        // Delimiter injection
         Regex("```system"),
         Regex("\\[SYSTEM\\]"),
         Regex("<\\|im_start\\|>"),
@@ -140,27 +140,27 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage {
 }
 
 /**
- * 기본 Classification 구현 (패스스루)
+ * Default Classification Implementation (pass-through)
  *
- * 실제 구현에서는 LLM 기반 분류 또는 규칙 기반 분류 사용.
+ * In production, use LLM-based or rule-based classification.
  */
 class DefaultClassificationStage : ClassificationStage {
     override suspend fun check(command: GuardCommand): GuardResult {
-        // 기본 구현은 모든 요청 허용
-        // 실제 사용 시 LLM 분류 또는 규칙 기반 분류 구현
+        // Default implementation allows all requests
+        // Override with LLM-based or rule-based classification in production
         return GuardResult.Allowed.DEFAULT
     }
 }
 
 /**
- * 기본 Permission 구현 (패스스루)
+ * Default Permission Implementation (pass-through)
  *
- * 실제 구현에서는 사용자 권한 확인.
+ * In production, verify user permissions.
  */
 class DefaultPermissionStage : PermissionStage {
     override suspend fun check(command: GuardCommand): GuardResult {
-        // 기본 구현은 모든 사용자 허용
-        // 실제 사용 시 권한 시스템과 연동
+        // Default implementation allows all users
+        // Override with permission system integration in production
         return GuardResult.Allowed.DEFAULT
     }
 }

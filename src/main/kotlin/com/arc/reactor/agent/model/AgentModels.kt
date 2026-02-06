@@ -3,21 +3,21 @@ package com.arc.reactor.agent.model
 import java.time.Instant
 
 /**
- * Agent 실행 모드
+ * Agent execution mode
  */
 enum class AgentMode {
-    /** 기본 모드 (단일 응답) */
+    /** Standard mode (single response) */
     STANDARD,
 
-    /** ReAct 모드 (Thought-Action-Observation 루프) */
+    /** ReAct mode (Thought-Action-Observation loop) */
     REACT,
 
-    /** 스트리밍 모드 */
+    /** Streaming mode (planned for future implementation) */
     STREAMING
 }
 
 /**
- * Agent 실행 명령
+ * Agent execution command
  */
 data class AgentCommand(
     val systemPrompt: String,
@@ -31,7 +31,7 @@ data class AgentCommand(
 )
 
 /**
- * 메시지 (대화 기록용)
+ * Message (for conversation history)
  */
 data class Message(
     val role: MessageRole,
@@ -47,7 +47,7 @@ enum class MessageRole {
 }
 
 /**
- * Agent 실행 결과
+ * Agent execution result
  */
 data class AgentResult(
     val success: Boolean,
@@ -85,7 +85,7 @@ data class AgentResult(
 }
 
 /**
- * 토큰 사용량
+ * Token usage
  */
 data class TokenUsage(
     val promptTokens: Int,

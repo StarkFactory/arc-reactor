@@ -49,7 +49,7 @@ Please be respectful and constructive in all interactions. We're building someth
 
 ```bash
 # Clone
-git clone https://github.com/user/arc-reactor.git
+git clone https://github.com/StarkFactory/arc-reactor.git
 cd arc-reactor
 
 # Build
@@ -183,7 +183,7 @@ When proposing significant changes, please:
 
 ## Questions?
 
-- Open a [Discussion](https://github.com/user/arc-reactor/discussions)
+- Open a [Discussion](https://github.com/StarkFactory/arc-reactor/discussions)
 - Check existing issues and PRs
 
 ## License

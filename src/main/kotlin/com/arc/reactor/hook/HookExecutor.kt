@@ -10,9 +10,9 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Hook 실행 오케스트레이터
+ * Hook Execution Orchestrator
  *
- * 등록된 Hook들을 순서대로 실행하고 결과를 처리.
+ * Executes registered hooks in order and processes results.
  */
 class HookExecutor(
     private val beforeStartHooks: List<BeforeAgentStartHook> = emptyList(),
@@ -22,9 +22,9 @@ class HookExecutor(
 ) {
 
     /**
-     * Agent 시작 전 Hook 실행
+     * Execute hooks before agent starts.
      *
-     * @return Continue면 진행, Reject면 중단
+     * @return Continue to proceed, Reject to abort
      */
     suspend fun executeBeforeAgentStart(context: HookContext): HookResult {
         return executeHooks(
@@ -36,7 +36,7 @@ class HookExecutor(
     }
 
     /**
-     * Tool 호출 전 Hook 실행
+     * Execute hooks before tool call.
      */
     suspend fun executeBeforeToolCall(context: ToolCallContext): HookResult {
         return executeHooks(
@@ -48,41 +48,37 @@ class HookExecutor(
     }
 
     /**
-     * Tool 호출 후 Hook 실행
+     * Execute hooks after tool call.
      */
     suspend fun executeAfterToolCall(context: ToolCallContext, result: ToolCallResult) {
-        afterToolCallHooks
-            .filter { it.enabled }
-            .sortedBy { it.order }
-            .forEach { hook ->
-                try {
-                    hook.afterToolCall(context, result)
-                } catch (e: Exception) {
-                    logger.error(e) { "AfterToolCallHook failed: ${hook::class.simpleName}" }
-                }
+        for (hook in afterToolCallHooks.filter { it.enabled }.sortedBy { it.order }) {
+            try {
+                hook.afterToolCall(context, result)
+            } catch (e: Exception) {
+                logger.error(e) { "AfterToolCallHook failed: ${hook::class.simpleName}" }
+                if (hook.failOnError) throw e
             }
+        }
     }
 
     /**
-     * Agent 완료 후 Hook 실행
+     * Execute hooks after agent completes.
      */
     suspend fun executeAfterAgentComplete(context: HookContext, response: AgentResponse) {
-        afterCompleteHooks
-            .filter { it.enabled }
-            .sortedBy { it.order }
-            .forEach { hook ->
-                try {
-                    hook.afterAgentComplete(context, response)
-                } catch (e: Exception) {
-                    logger.error(e) { "AfterAgentCompleteHook failed: ${hook::class.simpleName}" }
-                }
+        for (hook in afterCompleteHooks.filter { it.enabled }.sortedBy { it.order }) {
+            try {
+                hook.afterAgentComplete(context, response)
+            } catch (e: Exception) {
+                logger.error(e) { "AfterAgentCompleteHook failed: ${hook::class.simpleName}" }
+                if (hook.failOnError) throw e
             }
+        }
     }
 
     /**
-     * Hook 실행 공통 로직
+     * Common hook execution logic.
      */
-    private suspend fun <T, C> executeHooks(
+    private suspend fun <T : AgentHook, C> executeHooks(
         hooks: List<T>,
         context: C,
         execute: suspend (T, C) -> HookResult
@@ -105,8 +101,11 @@ class HookExecutor(
                     }
                 }
             } catch (e: Exception) {
-                logger.error(e) { "Hook execution failed" }
-                // fail-open: 에러 시 계속 진행 (fail-close 원하면 Reject 반환)
+                logger.error(e) { "Hook execution failed: ${hook::class.simpleName}" }
+                if (hook.failOnError) {
+                    return HookResult.Reject("Hook execution failed: ${e.message}")
+                }
+                // fail-open: continue on error
             }
         }
         return HookResult.Continue

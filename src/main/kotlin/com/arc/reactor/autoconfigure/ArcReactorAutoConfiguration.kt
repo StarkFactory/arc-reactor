@@ -3,6 +3,8 @@ package com.arc.reactor.autoconfigure
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
+import com.arc.reactor.agent.model.DefaultErrorMessageResolver
+import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.guard.GuardStage
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.impl.DefaultInjectionDetectionStage
@@ -42,25 +44,32 @@ import org.springframework.context.annotation.Configuration
 /**
  * Arc Reactor Auto Configuration
  *
- * Spring Boot 자동 설정.
+ * Spring Boot auto-configuration for Arc Reactor components.
  */
 @AutoConfiguration
 @EnableConfigurationProperties(AgentProperties::class)
 class ArcReactorAutoConfiguration {
 
     /**
-     * Tool Selector (기본: 전체 선택)
+     * Tool Selector (default: select all)
      */
     @Bean
     @ConditionalOnMissingBean
     fun toolSelector(): ToolSelector = AllToolSelector()
 
     /**
-     * Memory Store (기본: 인메모리)
+     * Memory Store (default: in-memory)
      */
     @Bean
     @ConditionalOnMissingBean
     fun memoryStore(): MemoryStore = InMemoryMemoryStore()
+
+    /**
+     * Error Message Resolver (default: English messages)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun errorMessageResolver(): ErrorMessageResolver = DefaultErrorMessageResolver()
 
     /**
      * MCP Manager
@@ -126,7 +135,7 @@ class ArcReactorAutoConfiguration {
     class RagConfiguration {
 
         /**
-         * Document Retriever (Spring AI VectorStore 사용 시)
+         * Document Retriever (when using Spring AI VectorStore)
          */
         @Bean
         @ConditionalOnBean(VectorStore::class)
@@ -140,14 +149,14 @@ class ArcReactorAutoConfiguration {
         )
 
         /**
-         * Document Retriever (VectorStore 없을 때 - 인메모리)
+         * Document Retriever (without VectorStore - in-memory fallback)
          */
         @Bean
         @ConditionalOnMissingBean(VectorStore::class, DocumentRetriever::class)
         fun inMemoryDocumentRetriever(): DocumentRetriever = InMemoryDocumentRetriever()
 
         /**
-         * Document Reranker (기본: 단순 점수 기반)
+         * Document Reranker (default: simple score-based)
          */
         @Bean
         @ConditionalOnMissingBean
@@ -182,7 +191,8 @@ class ArcReactorAutoConfiguration {
         requestGuard: RequestGuard?,
         hookExecutor: HookExecutor,
         memoryStore: MemoryStore,
-        mcpManager: McpManager
+        mcpManager: McpManager,
+        errorMessageResolver: ErrorMessageResolver
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         properties = properties,
@@ -192,6 +202,7 @@ class ArcReactorAutoConfiguration {
         guard = requestGuard,
         hookExecutor = hookExecutor,
         memoryStore = memoryStore,
-        mcpToolCallbacks = { mcpManager.getAllToolCallbacks() }
+        mcpToolCallbacks = { mcpManager.getAllToolCallbacks() },
+        errorMessageResolver = errorMessageResolver
     )
 }

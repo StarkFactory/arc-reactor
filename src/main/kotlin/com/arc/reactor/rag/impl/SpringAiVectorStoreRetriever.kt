@@ -10,10 +10,10 @@ import org.springframework.ai.vectorstore.VectorStore
 private val logger = KotlinLogging.logger {}
 
 /**
- * Spring AI VectorStore 기반 문서 검색기
+ * Spring AI VectorStore-Based Document Retriever
  *
- * Spring AI의 VectorStore 인터페이스를 사용하여 벡터 검색 수행.
- * PGVector, Pinecone, Milvus, Chroma 등 다양한 VectorStore 지원.
+ * Performs vector search using Spring AI's VectorStore interface.
+ * Supports PGVector, Pinecone, Milvus, Chroma, and other VectorStore implementations.
  */
 class SpringAiVectorStoreRetriever(
     private val vectorStore: VectorStore,
@@ -23,12 +23,12 @@ class SpringAiVectorStoreRetriever(
     override suspend fun retrieve(queries: List<String>, topK: Int): List<RetrievedDocument> {
         logger.debug { "Retrieving documents for ${queries.size} queries, topK=$topK" }
 
-        // 여러 쿼리에 대해 검색 후 중복 제거
+        // Search across multiple queries and deduplicate
         val allDocuments = queries.flatMap { query ->
             searchWithQuery(query, topK)
         }
 
-        // 중복 제거 (ID 기반) 및 점수 순 정렬
+        // Deduplicate (by ID) and sort by score
         return allDocuments
             .distinctBy { it.id }
             .sortedByDescending { it.score }
@@ -67,10 +67,10 @@ class SpringAiVectorStoreRetriever(
 }
 
 /**
- * 인메모리 문서 검색기
+ * In-Memory Document Retriever
  *
- * VectorStore 없이 간단한 키워드 매칭으로 검색.
- * 테스트 및 개발용.
+ * Simple keyword-matching search without VectorStore.
+ * For testing and development use.
  */
 class InMemoryDocumentRetriever(
     private val documents: MutableList<RetrievedDocument> = mutableListOf()
@@ -89,7 +89,7 @@ class InMemoryDocumentRetriever(
     }
 
     override suspend fun retrieve(queries: List<String>, topK: Int): List<RetrievedDocument> {
-        // 간단한 키워드 매칭 기반 검색
+        // Simple keyword-matching search
         val queryTerms = queries.flatMap { it.lowercase().split(" ") }.toSet()
 
         return documents

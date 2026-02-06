@@ -216,6 +216,65 @@ class HookExecutorTest {
     }
 
     @Test
+    fun `should fail-close when hook has failOnError true`() = runBlocking {
+        val hook = object : BeforeAgentStartHook {
+            override val order = 1
+            override val failOnError = true
+            override suspend fun beforeAgentStart(context: HookContext): HookResult {
+                throw RuntimeException("Critical hook failed")
+            }
+        }
+
+        val executor = HookExecutor(
+            beforeStartHooks = listOf(hook),
+            beforeToolCallHooks = emptyList(),
+            afterToolCallHooks = emptyList(),
+            afterCompleteHooks = emptyList()
+        )
+
+        val result = executor.executeBeforeAgentStart(
+            HookContext(runId = "run-1", userId = "user-1", userPrompt = "test")
+        )
+
+        assertTrue(result is HookResult.Reject)
+        assertTrue((result as HookResult.Reject).reason.contains("Critical hook failed"))
+    }
+
+    @Test
+    fun `should fail-open when hook has failOnError false`() = runBlocking {
+        val executionOrder = mutableListOf<Int>()
+
+        val failingHook = object : BeforeAgentStartHook {
+            override val order = 1
+            override suspend fun beforeAgentStart(context: HookContext): HookResult {
+                throw RuntimeException("Non-critical hook failed")
+            }
+        }
+
+        val successHook = object : BeforeAgentStartHook {
+            override val order = 2
+            override suspend fun beforeAgentStart(context: HookContext): HookResult {
+                executionOrder.add(2)
+                return HookResult.Continue
+            }
+        }
+
+        val executor = HookExecutor(
+            beforeStartHooks = listOf(failingHook, successHook),
+            beforeToolCallHooks = emptyList(),
+            afterToolCallHooks = emptyList(),
+            afterCompleteHooks = emptyList()
+        )
+
+        val result = executor.executeBeforeAgentStart(
+            HookContext(runId = "run-1", userId = "user-1", userPrompt = "test")
+        )
+
+        assertTrue(result is HookResult.Continue)
+        assertEquals(listOf(2), executionOrder)
+    }
+
+    @Test
     fun `should mask sensitive params in ToolCallContext`() {
         val agentContext = HookContext(runId = "run-1", userId = "user-1", userPrompt = "Test")
         val toolContext = ToolCallContext(

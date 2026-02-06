@@ -7,10 +7,10 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * 단순 점수 기반 Reranker
+ * Simple Score-Based Reranker
  *
- * 검색 점수를 그대로 사용하여 재정렬.
- * 실제 운영에서는 CrossEncoder 모델이나 LLM 기반 Reranker 사용 권장.
+ * Re-ranks using raw search scores.
+ * For production, consider CrossEncoder models or LLM-based rerankers.
  */
 class SimpleScoreReranker : DocumentReranker {
 
@@ -21,7 +21,7 @@ class SimpleScoreReranker : DocumentReranker {
     ): List<RetrievedDocument> {
         logger.debug { "Reranking ${documents.size} documents, topK=$topK" }
 
-        // 단순히 점수 기준 정렬
+        // Sort by score descending
         return documents
             .sortedByDescending { it.score }
             .take(topK)
@@ -29,9 +29,9 @@ class SimpleScoreReranker : DocumentReranker {
 }
 
 /**
- * 키워드 가중치 기반 Reranker
+ * Keyword-Weighted Reranker
  *
- * 쿼리 키워드 출현 빈도를 가중치로 사용하여 재정렬.
+ * Re-ranks using query keyword frequency as weight.
  */
 class KeywordWeightedReranker(
     private val keywordWeight: Double = 0.3
@@ -65,13 +65,13 @@ class KeywordWeightedReranker(
 }
 
 /**
- * 다양성 기반 Reranker (MMR - Maximal Marginal Relevance)
+ * Diversity-Based Reranker (MMR - Maximal Marginal Relevance)
  *
- * 관련성과 다양성을 균형있게 고려하여 재정렬.
- * 중복 문서를 피하고 다양한 정보를 제공.
+ * Balances relevance and diversity when re-ranking.
+ * Avoids duplicate documents and provides diverse information.
  */
 class DiversityReranker(
-    private val lambda: Double = 0.5  // 관련성(1.0) vs 다양성(0.0) 균형
+    private val lambda: Double = 0.5  // Relevance (1.0) vs Diversity (0.0) balance
 ) : DocumentReranker {
 
     override suspend fun rerank(
@@ -86,12 +86,12 @@ class DiversityReranker(
         val selected = mutableListOf<RetrievedDocument>()
         val remaining = documents.toMutableList()
 
-        // 첫 번째 문서: 가장 높은 점수
+        // First document: highest score
         val firstDoc = remaining.maxByOrNull { it.score } ?: return emptyList()
         selected.add(firstDoc)
         remaining.remove(firstDoc)
 
-        // 나머지 문서: MMR 방식으로 선택
+        // Remaining documents: select using MMR
         while (selected.size < topK && remaining.isNotEmpty()) {
             val nextDoc = remaining.maxByOrNull { candidate ->
                 val relevance = candidate.score
@@ -111,7 +111,7 @@ class DiversityReranker(
     }
 
     private fun calculateSimilarity(content1: String, content2: String): Double {
-        // 간단한 Jaccard 유사도
+        // Simple Jaccard similarity
         val words1 = content1.lowercase().split(" ").toSet()
         val words2 = content2.lowercase().split(" ").toSet()
 

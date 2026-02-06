@@ -101,7 +101,7 @@ publishing {
             pom {
                 name.set("Arc Reactor")
                 description.set("Lightweight AI Agent Core Framework")
-                url.set("https://github.com/user/arc-reactor")
+                url.set("https://github.com/StarkFactory/arc-reactor")
 
                 licenses {
                     license {

@@ -1,21 +1,23 @@
 package com.arc.reactor.hook.model
 
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * Hook 실행 결과
+ * Hook execution result
  */
 sealed class HookResult {
-    /** 계속 진행 */
+    /** Continue processing */
     data object Continue : HookResult()
 
-    /** 실행 거부 */
+    /** Reject execution */
     data class Reject(val reason: String) : HookResult()
 
-    /** 파라미터 수정 후 계속 */
+    /** Continue after modifying parameters */
     data class Modify(val modifiedParams: Map<String, Any>) : HookResult()
 
-    /** 승인 대기 (비동기 승인 워크플로우) */
+    /** Pending approval (async approval workflow) */
     data class PendingApproval(
         val approvalId: String,
         val message: String
@@ -23,7 +25,7 @@ sealed class HookResult {
 }
 
 /**
- * Agent 실행 Hook 컨텍스트
+ * Agent execution hook context
  */
 data class HookContext(
     val runId: String,
@@ -32,14 +34,14 @@ data class HookContext(
     val userPrompt: String,
     val channel: String? = null,
     val startedAt: Instant = Instant.now(),
-    val toolsUsed: MutableList<String> = mutableListOf(),
-    val metadata: MutableMap<String, Any> = mutableMapOf()
+    val toolsUsed: MutableList<String> = CopyOnWriteArrayList(),
+    val metadata: MutableMap<String, Any> = ConcurrentHashMap()
 ) {
     fun durationMs(): Long = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
 }
 
 /**
- * Tool 호출 Hook 컨텍스트
+ * Tool call hook context
  */
 data class ToolCallContext(
     val agentContext: HookContext,
@@ -47,7 +49,7 @@ data class ToolCallContext(
     val toolParams: Map<String, Any?>,
     val callIndex: Int
 ) {
-    /** 민감정보 마스킹 */
+    /** Mask sensitive parameters */
     fun maskedParams(): Map<String, Any?> {
         val sensitiveKeys = setOf("password", "token", "secret", "key", "credential", "apikey")
         return toolParams.mapValues { (key, value) ->
@@ -57,7 +59,7 @@ data class ToolCallContext(
 }
 
 /**
- * Tool 호출 결과
+ * Tool call result
  */
 data class ToolCallResult(
     val success: Boolean,
@@ -67,7 +69,7 @@ data class ToolCallResult(
 )
 
 /**
- * Agent 응답 결과
+ * Agent response result
  */
 data class AgentResponse(
     val success: Boolean,

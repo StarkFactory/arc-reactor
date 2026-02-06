@@ -7,7 +7,9 @@ import com.arc.reactor.agent.config.LlmProperties
 import com.arc.reactor.agent.config.RagProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentMode
+import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
@@ -363,7 +365,7 @@ class SpringAiAgentExecutorTest {
 
         // Assert
         assertFalse(result.success)
-        assertTrue(result.errorMessage!!.contains("요청 한도"))
+        assertTrue(result.errorMessage!!.contains("Rate limit exceeded"))
     }
 
     @Test
@@ -386,7 +388,7 @@ class SpringAiAgentExecutorTest {
 
         // Assert
         assertFalse(result.success)
-        assertTrue(result.errorMessage!!.contains("시간이 초과"))
+        assertTrue(result.errorMessage!!.contains("Request timed out"))
     }
 
     @Test
@@ -412,6 +414,38 @@ class SpringAiAgentExecutorTest {
 
         // Assert
         coVerify { requestSpec.tools(mcpTool) }
+    }
+
+    @Test
+    fun `should use custom error message resolver`() = runBlocking {
+        // Arrange
+        every { requestSpec.call() } throws RuntimeException("Rate limit exceeded")
+
+        val koreanResolver = ErrorMessageResolver { code, _ ->
+            when (code) {
+                AgentErrorCode.RATE_LIMITED -> "요청 한도를 초과했습니다."
+                AgentErrorCode.TIMEOUT -> "요청 시간이 초과되었습니다."
+                else -> code.defaultMessage
+            }
+        }
+
+        val executor = SpringAiAgentExecutor(
+            chatClient = chatClient,
+            properties = properties,
+            errorMessageResolver = koreanResolver
+        )
+
+        // Act
+        val result = executor.execute(
+            AgentCommand(
+                systemPrompt = "You are helpful.",
+                userPrompt = "Hello!"
+            )
+        )
+
+        // Assert
+        assertFalse(result.success)
+        assertTrue(result.errorMessage!!.contains("요청 한도"))
     }
 
     @Test

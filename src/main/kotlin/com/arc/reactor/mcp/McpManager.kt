@@ -6,10 +6,12 @@ import com.arc.reactor.mcp.model.McpTransportType
 import com.arc.reactor.tool.ToolCallback
 import io.modelcontextprotocol.client.McpClient
 import io.modelcontextprotocol.client.McpSyncClient
+import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport
 import io.modelcontextprotocol.client.transport.ServerParameters
 import io.modelcontextprotocol.client.transport.StdioClientTransport
 import io.modelcontextprotocol.spec.McpSchema
 import mu.KotlinLogging
+import java.util.concurrent.ConcurrentHashMap
 
 private val logger = KotlinLogging.logger {}
 
@@ -121,7 +123,7 @@ interface McpManager {
  * Default MCP Manager Implementation
  *
  * Uses the official MCP SDK for protocol compliance.
- * Supports STDIO transport fully, with SSE/HTTP as placeholders.
+ * Supports STDIO and SSE transports. HTTP (Streamable) awaits SDK support.
  *
  * ## Connection Flow
  * 1. Register server with [register]
@@ -130,15 +132,16 @@ interface McpManager {
  * 4. Disconnect with [disconnect] when done
  *
  * ## Thread Safety
- * This implementation is NOT thread-safe. For concurrent access,
- * use external synchronization or a thread-safe wrapper.
+ * This implementation uses ConcurrentHashMap for thread-safe access.
+ * Per-server locks ensure atomic connect/disconnect operations for the same server.
  */
 class DefaultMcpManager : McpManager {
 
-    private val servers = mutableMapOf<String, McpServer>()
-    private val clients = mutableMapOf<String, McpSyncClient>()
-    private val toolCallbacksCache = mutableMapOf<String, List<ToolCallback>>()
-    private val statuses = mutableMapOf<String, McpServerStatus>()
+    private val servers = ConcurrentHashMap<String, McpServer>()
+    private val clients = ConcurrentHashMap<String, McpSyncClient>()
+    private val toolCallbacksCache = ConcurrentHashMap<String, List<ToolCallback>>()
+    private val statuses = ConcurrentHashMap<String, McpServerStatus>()
+    private val serverLocks = ConcurrentHashMap<String, Any>()
 
     override fun register(server: McpServer) {
         logger.info { "Registering MCP server: ${server.name}" }
@@ -152,39 +155,42 @@ class DefaultMcpManager : McpManager {
             return false
         }
 
-        return try {
-            logger.info { "Connecting to MCP server: $serverName" }
-            statuses[serverName] = McpServerStatus.CONNECTING
+        val lock = serverLocks.getOrPut(serverName) { Any() }
+        return synchronized(lock) {
+            try {
+                logger.info { "Connecting to MCP server: $serverName" }
+                statuses[serverName] = McpServerStatus.CONNECTING
 
-            val client = when (server.transportType) {
-                McpTransportType.STDIO -> connectStdio(server)
-                McpTransportType.SSE -> connectSse(server)
-                McpTransportType.HTTP -> connectHttp(server)
-            }
+                val client = when (server.transportType) {
+                    McpTransportType.STDIO -> connectStdio(server)
+                    McpTransportType.SSE -> connectSse(server)
+                    McpTransportType.HTTP -> connectHttp(server)
+                }
 
-            if (client != null) {
-                clients[serverName] = client
+                if (client != null) {
+                    clients[serverName] = client
 
-                // Tool Callbacks 로드
-                val tools = loadToolCallbacks(client, serverName)
-                toolCallbacksCache[serverName] = tools
+                    // Load tool callbacks
+                    val tools = loadToolCallbacks(client, serverName)
+                    toolCallbacksCache[serverName] = tools
 
-                statuses[serverName] = McpServerStatus.CONNECTED
-                logger.info { "MCP server connected: $serverName with ${tools.size} tools" }
-                true
-            } else {
+                    statuses[serverName] = McpServerStatus.CONNECTED
+                    logger.info { "MCP server connected: $serverName with ${tools.size} tools" }
+                    true
+                } else {
+                    statuses[serverName] = McpServerStatus.FAILED
+                    false
+                }
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to connect MCP server: $serverName" }
                 statuses[serverName] = McpServerStatus.FAILED
                 false
             }
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to connect MCP server: $serverName" }
-            statuses[serverName] = McpServerStatus.FAILED
-            false
         }
     }
 
     /**
-     * STDIO 트랜스포트로 연결
+     * Connect via STDIO transport.
      */
     private fun connectStdio(server: McpServer): McpSyncClient? {
         val command = server.config["command"] as? String ?: return null
@@ -201,7 +207,7 @@ class DefaultMcpManager : McpManager {
                 .clientInfo(McpSchema.Implementation(server.name, server.version ?: "1.0.0"))
                 .build()
 
-            // 초기화
+            // Initialize connection
             client.initialize()
 
             client
@@ -212,17 +218,20 @@ class DefaultMcpManager : McpManager {
     }
 
     /**
-     * SSE 트랜스포트로 연결
+     * Connect via SSE transport.
      */
     private fun connectSse(server: McpServer): McpSyncClient? {
         val url = server.config["url"] as? String ?: return null
 
         return try {
-            // SSE 트랜스포트는 HttpClientSseClientTransport 사용
-            logger.info { "SSE transport configured for URL: $url" }
-            // HttpClientSseClientTransport.builder(url).build()로 생성 가능
-            // 하지만 현재는 STDIO만 완전 지원
-            null
+            val transport = HttpClientSseClientTransport.builder(url).build()
+
+            val client = McpClient.sync(transport)
+                .clientInfo(McpSchema.Implementation(server.name, server.version ?: "1.0.0"))
+                .build()
+
+            client.initialize()
+            client
         } catch (e: Exception) {
             logger.error(e) { "Failed to create SSE transport for ${server.name}" }
             null
@@ -230,24 +239,22 @@ class DefaultMcpManager : McpManager {
     }
 
     /**
-     * HTTP 트랜스포트로 연결
+     * Connect via HTTP (Streamable) transport.
+     *
+     * Note: Streamable HTTP transport is not available in MCP SDK 0.10.0.
+     * Use SSE transport as an alternative. This will be implemented when
+     * the SDK is upgraded to a version that includes HttpClientStreamableHttpTransport.
      */
     private fun connectHttp(server: McpServer): McpSyncClient? {
-        val url = server.config["url"] as? String ?: return null
-
-        return try {
-            // HTTP 트랜스포트는 HttpClientStreamableHttpTransport 사용
-            logger.info { "HTTP transport configured for URL: $url" }
-            // HttpClientStreamableHttpTransport.builder(url).build()로 생성 가능
-            null
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to create HTTP transport for ${server.name}" }
-            null
+        logger.warn {
+            "HTTP (Streamable) transport is not yet supported in MCP SDK 0.10.0. " +
+            "Use SSE transport instead for server: ${server.name}"
         }
+        return null
     }
 
     /**
-     * MCP 서버에서 Tool Callbacks 로드
+     * Load tool callbacks from MCP server.
      */
     private fun loadToolCallbacks(client: McpSyncClient, serverName: String): List<ToolCallback> {
         return try {
@@ -255,7 +262,7 @@ class DefaultMcpManager : McpManager {
             val tools = toolsResult.tools()
             logger.info { "Loaded ${tools.size} tools from $serverName" }
 
-            // MCP Tool을 ToolCallback으로 변환
+            // Convert MCP tools to ToolCallback
             tools.map { tool ->
                 McpToolCallback(
                     client = client,
@@ -271,23 +278,25 @@ class DefaultMcpManager : McpManager {
     }
 
     override suspend fun disconnect(serverName: String) {
-        logger.info { "Disconnecting MCP server: $serverName" }
+        val lock = serverLocks.getOrPut(serverName) { Any() }
+        synchronized(lock) {
+            logger.info { "Disconnecting MCP server: $serverName" }
 
-        clients[serverName]?.let { client ->
-            try {
-                client.closeGracefully()
-            } catch (e: Exception) {
-                logger.warn(e) { "Error during graceful shutdown of $serverName" }
+            clients.remove(serverName)?.let { client ->
+                try {
+                    client.closeGracefully()
+                } catch (e: Exception) {
+                    logger.warn(e) { "Error during graceful shutdown of $serverName" }
+                }
             }
-        }
 
-        clients.remove(serverName)
-        toolCallbacksCache.remove(serverName)
-        statuses[serverName] = McpServerStatus.DISCONNECTED
+            toolCallbacksCache.remove(serverName)
+            statuses[serverName] = McpServerStatus.DISCONNECTED
+        }
     }
 
     override fun getAllToolCallbacks(): List<Any> {
-        // 수동 연결된 MCP 서버의 Tools
+        // Tools from manually connected MCP servers
         return toolCallbacksCache.values.flatten()
     }
 
@@ -332,7 +341,7 @@ class McpToolCallback(
             val request = McpSchema.CallToolRequest(name, arguments)
             val result = client.callTool(request)
 
-            // 결과를 문자열로 변환
+            // Convert result to string
             result.content().joinToString("\n") { content ->
                 when (content) {
                     is McpSchema.TextContent -> content.text()

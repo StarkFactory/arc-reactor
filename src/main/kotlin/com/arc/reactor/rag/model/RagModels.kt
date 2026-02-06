@@ -1,7 +1,7 @@
 package com.arc.reactor.rag.model
 
 /**
- * RAG 쿼리
+ * RAG query
  */
 data class RagQuery(
     val query: String,
@@ -11,7 +11,7 @@ data class RagQuery(
 )
 
 /**
- * 검색된 문서
+ * Retrieved document
  */
 data class RetrievedDocument(
     val id: String,
@@ -20,12 +20,12 @@ data class RetrievedDocument(
     val score: Double = 0.0,
     val source: String? = null
 ) {
-    /** 토큰 추정 (대략 4글자 = 1토큰) */
+    /** Estimated token count (approximately 4 chars = 1 token) */
     val estimatedTokens: Int get() = content.length / 4
 }
 
 /**
- * RAG 컨텍스트 (LLM에 전달)
+ * RAG context (passed to LLM)
  */
 data class RagContext(
     val context: String,
@@ -43,7 +43,7 @@ data class RagContext(
 }
 
 /**
- * 문서 청크
+ * Document chunk
  */
 data class DocumentChunk(
     val content: String,

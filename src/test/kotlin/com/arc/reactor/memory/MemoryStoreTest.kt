@@ -147,6 +147,41 @@ class ConversationMemoryTest {
     }
 
     @Test
+    fun `should use custom token estimator`() {
+        val fixedEstimator = TokenEstimator { 10 }  // Always 10 tokens
+        val memory = InMemoryConversationMemory(tokenEstimator = fixedEstimator)
+
+        memory.add(Message(MessageRole.USER, "Short"))
+        memory.add(Message(MessageRole.USER, "Medium message"))
+        memory.add(Message(MessageRole.USER, "Longer message content"))
+
+        val limited = memory.getHistoryWithinTokenLimit(25)
+        assertEquals(2, limited.size) // 2 messages * 10 tokens = 20, 3 would be 30 > 25
+    }
+
+    @Test
+    fun `default estimator should handle CJK characters`() {
+        val estimator = DefaultTokenEstimator()
+        val koreanText = "안녕하세요"  // 5 Hangul characters
+        val latinText = "Hello"        // 5 ASCII characters
+
+        val koreanTokens = estimator.estimate(koreanText)
+        val latinTokens = estimator.estimate(latinText)
+
+        assertTrue(koreanTokens > latinTokens,
+            "CJK text should produce more tokens: $koreanTokens vs $latinTokens")
+    }
+
+    @Test
+    fun `default estimator should return at least 1 for non-empty text`() {
+        val estimator = DefaultTokenEstimator()
+
+        assertTrue(estimator.estimate("a") >= 1)
+        assertTrue(estimator.estimate("한") >= 1)
+        assertEquals(0, estimator.estimate(""))
+    }
+
+    @Test
     fun `should use extension functions`() {
         val memory = InMemoryConversationMemory()
 
