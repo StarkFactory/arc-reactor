@@ -78,7 +78,7 @@ class SpringAiAgentExecutor(
     override suspend fun execute(command: AgentCommand): AgentResult {
         val startTime = System.currentTimeMillis()
         val runId = UUID.randomUUID().toString()
-        val toolsUsed = mutableListOf<String>()
+        val toolsUsed = java.util.concurrent.CopyOnWriteArrayList<String>()
 
         // Set MDC context for structured logging
         MDC.put("runId", runId)
