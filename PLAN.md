@@ -87,6 +87,80 @@
 
 ---
 
+## 실전 검증 (8.5+ 목표)
+
+### E2E-1. 실제 MCP 서버 연동 테스트
+
+현재 MCP 관련 테스트는 전부 mock 수준. 실제 MCP 서버를 띄워서 STDIO/SSE 연결을 검증해야 함.
+
+**STDIO 테스트**
+- `@anthropic/mcp-server-filesystem` 또는 간단한 echo MCP 서버 사용
+- `DefaultMcpManager.connect()` → `listTools()` → `callTool()` 전체 흐름 검증
+- 연결 실패, 타임아웃, 서버 종료 시 graceful 처리 확인
+
+**SSE 테스트**
+- 로컬 SSE MCP 서버 띄워서 `HttpClientSseClientTransport` 연동 확인
+- 네트워크 끊김, 재연결 시나리오
+
+**통합 시나리오**
+- MCP 서버에서 로드한 도구를 `SpringAiAgentExecutor`의 ReAct 루프에서 실제 호출
+- `BeforeToolCallHook` → MCP 도구 실행 → `AfterToolCallHook` 전체 파이프라인 검증
+
+### E2E-2. AutoConfiguration 통합 테스트
+
+- `@SpringBootTest`로 전체 빈 조립 검증
+- `ChatClient` 없을 때 `AgentExecutor` 빈 미생성 확인
+- `@ConditionalOnProperty`로 Guard 비활성화 시 Guard 빈 미생성 확인
+- 커스텀 빈 등록 시 `@ConditionalOnMissingBean` 동작 확인
+
+### E2E-3. 부하 테스트
+
+- 동시 100+ 요청으로 Semaphore 동작 검증
+- 메모리 누수 확인 (Caffeine 캐시 eviction, ConversationMemory 정리)
+- 장시간 실행 시 스레드 풀 상태 모니터링
+
+---
+
+## 예제 앱 (오픈소스 공개용)
+
+### Example-1. 기본 챗봇 (`examples/basic-chatbot/`)
+
+간단한 Spring Boot 앱으로 Arc Reactor 사용법 시연:
+- `application.yml` 설정 예시
+- 커스텀 `ToolCallback` 구현 (날씨 조회 등)
+- Guard + Hook 설정
+- 멀티턴 대화 (메모리)
+
+```
+examples/basic-chatbot/
+├── build.gradle.kts
+├── src/main/kotlin/
+│   ├── Application.kt
+│   ├── WeatherTool.kt          # ToolCallback 구현 예시
+│   ├── AuditHook.kt            # AfterAgentCompleteHook 예시
+│   └── ChatController.kt       # REST API 엔드포인트
+├── src/main/resources/
+│   └── application.yml          # 전체 설정 키 예시
+└── README.md
+```
+
+### Example-2. MCP 도구 연동 (`examples/mcp-tools/`)
+
+MCP 서버 연결하여 외부 도구 사용:
+- STDIO 방식 MCP 서버 등록 및 연결
+- MCP 도구를 Agent에서 자동 로드하여 사용
+- `ToolSelector`로 도구 필터링 예시
+
+### Example-3. RAG 챗봇 (`examples/rag-chatbot/`)
+
+문서 기반 Q&A 시스템:
+- Spring AI VectorStore 연동
+- `RagPipeline` 설정 (retriever + reranker)
+- `maxContextTokens` 제한 예시
+- 커스텀 `QueryTransformer` 구현
+
+---
+
 ## 실행 순서 제안
 
 ```
