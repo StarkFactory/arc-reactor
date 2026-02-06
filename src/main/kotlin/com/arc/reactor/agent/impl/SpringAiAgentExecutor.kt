@@ -125,6 +125,13 @@ class SpringAiAgentExecutor(
     private val transientErrorClassifier: (Exception) -> Boolean = ::defaultTransientErrorClassifier
 ) : AgentExecutor {
 
+    init {
+        val llm = properties.llm
+        require(llm.maxContextWindowTokens > llm.maxOutputTokens) {
+            "maxContextWindowTokens (${llm.maxContextWindowTokens}) must be greater than maxOutputTokens (${llm.maxOutputTokens})"
+        }
+    }
+
     private val concurrencySemaphore = Semaphore(properties.concurrency.maxConcurrentRequests)
 
     override suspend fun execute(command: AgentCommand): AgentResult {
@@ -276,15 +283,19 @@ class SpringAiAgentExecutor(
         saveConversationHistory(command, result)
 
         // 8. After Agent Complete Hook
-        hookExecutor?.executeAfterAgentComplete(
-            context = hookContext,
-            response = AgentResponse(
-                success = result.success,
-                response = result.content,
-                errorMessage = result.errorMessage,
-                toolsUsed = toolsUsed
+        try {
+            hookExecutor?.executeAfterAgentComplete(
+                context = hookContext,
+                response = AgentResponse(
+                    success = result.success,
+                    response = result.content,
+                    errorMessage = result.errorMessage,
+                    toolsUsed = toolsUsed
+                )
             )
-        )
+        } catch (e: Exception) {
+            logger.error(e) { "AfterAgentComplete hook failed" }
+        }
 
         val finalResult = result.copy(durationMs = System.currentTimeMillis() - startTime)
         agentMetrics.recordExecution(finalResult)
@@ -470,7 +481,7 @@ class SpringAiAgentExecutor(
             // Save conversation history (only on success, outside withTimeout for atomicity)
             if (streamSuccess) {
                 try {
-                    val sessionId = command.metadata["sessionId"] as? String
+                    val sessionId = command.metadata["sessionId"]?.toString()
                     if (sessionId != null && memoryStore != null) {
                         memoryStore.addMessage(sessionId = sessionId, role = "user", content = command.userPrompt)
                         val content = lastIterationContent.toString()
@@ -708,7 +719,7 @@ class SpringAiAgentExecutor(
             return command.conversationHistory.map { toSpringAiMessage(it) }
         }
 
-        val sessionId = command.metadata["sessionId"] as? String ?: return emptyList()
+        val sessionId = command.metadata["sessionId"]?.toString() ?: return emptyList()
         val memory = memoryStore?.get(sessionId) ?: return emptyList()
 
         return memory.getHistory().takeLast(properties.llm.maxConversationTurns * 2)
@@ -720,7 +731,7 @@ class SpringAiAgentExecutor(
      */
     private fun saveConversationHistory(command: AgentCommand, result: AgentResult) {
         if (!result.success) return // Only save on success to prevent orphaned user messages
-        val sessionId = command.metadata["sessionId"] as? String ?: return
+        val sessionId = command.metadata["sessionId"]?.toString() ?: return
         if (memoryStore == null) return
 
         try {
@@ -1012,16 +1023,17 @@ class SpringAiAgentExecutor(
      */
     private suspend fun <T> callWithRetry(block: suspend () -> T): T {
         val retry = properties.retry
+        val maxAttempts = retry.maxAttempts.coerceAtLeast(1)
         var lastException: Exception? = null
 
-        repeat(retry.maxAttempts) { attempt ->
+        repeat(maxAttempts) { attempt ->
             try {
                 return block()
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                 throw e // Never retry cancellation (respects withTimeout)
             } catch (e: Exception) {
                 lastException = e
-                if (!isTransientError(e) || attempt == retry.maxAttempts - 1) {
+                if (!isTransientError(e) || attempt == maxAttempts - 1) {
                     throw e
                 }
                 val baseDelay = minOf(
@@ -1031,7 +1043,7 @@ class SpringAiAgentExecutor(
                 // Add ±25% jitter to prevent thundering herd
                 val jitter = (baseDelay * 0.25 * (Math.random() * 2 - 1)).toLong()
                 val delayMs = (baseDelay + jitter).coerceAtLeast(0)
-                logger.warn { "Transient error (attempt ${attempt + 1}/${retry.maxAttempts}), retrying in ${delayMs}ms: ${e.message}" }
+                logger.warn { "Transient error (attempt ${attempt + 1}/${maxAttempts}), retrying in ${delayMs}ms: ${e.message}" }
                 delay(delayMs)
             }
         }
