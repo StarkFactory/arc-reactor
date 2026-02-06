@@ -55,7 +55,7 @@ class SpringAiVectorStoreRetriever(
     private fun Document.toRetrievedDocument(): RetrievedDocument {
         val meta = this.metadata
         return RetrievedDocument(
-            id = this.id ?: java.util.UUID.randomUUID().toString(),
+            id = this.id,
             content = this.text ?: "",
             metadata = meta,
             score = meta["distance"]?.toString()?.toDoubleOrNull()

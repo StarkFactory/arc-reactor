@@ -122,9 +122,10 @@ class SpringAiAgentExecutorTest {
     }
 
     @Test
-    fun `should skip guard when userId is null`() = runBlocking {
+    fun `should run guard with anonymous userId when userId is null`() = runBlocking {
         // Arrange
         val guard = mockk<RequestGuard>()
+        coEvery { guard.guard(any()) } returns com.arc.reactor.guard.model.GuardResult.Allowed.DEFAULT
         every { responseSpec.content() } returns "Response"
         every { responseSpec.chatResponse() } returns null
 
@@ -139,13 +140,13 @@ class SpringAiAgentExecutorTest {
             AgentCommand(
                 systemPrompt = "You are helpful.",
                 userPrompt = "Hello!",
-                userId = null  // No userId
+                userId = null  // No userId — should still pass through guard as "anonymous"
             )
         )
 
         // Assert
         assertTrue(result.success)
-        coVerify(exactly = 0) { guard.guard(any()) }
+        coVerify(exactly = 1) { guard.guard(match { it.userId == "anonymous" }) }
     }
 
     @Test
@@ -317,10 +318,10 @@ class SpringAiAgentExecutorTest {
 
         // Assert
         assertTrue(result.success)
-        assertNotNull(result.tokenUsage)
-        assertEquals(100, result.tokenUsage!!.promptTokens)
-        assertEquals(50, result.tokenUsage!!.completionTokens)
-        assertEquals(150, result.tokenUsage!!.totalTokens)
+        val tokenUsage = requireNotNull(result.tokenUsage)
+        assertEquals(100, tokenUsage.promptTokens)
+        assertEquals(50, tokenUsage.completionTokens)
+        assertEquals(150, tokenUsage.totalTokens)
     }
 
     @Test

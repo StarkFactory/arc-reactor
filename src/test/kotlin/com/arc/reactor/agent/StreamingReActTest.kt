@@ -758,9 +758,9 @@ class StreamingReActTest {
                 )
             ).toList()
 
-            // 검증: 두 라운드의 텍스트가 합쳐져서 저장됨
+            // 검증: 최종 라운드의 텍스트만 저장됨 (중간 도구 관련 텍스트 제외)
             verify(exactly = 1) { memoryStore.addMessage("session-456", "user", "해줘") }
-            verify(exactly = 1) { memoryStore.addMessage("session-456", "assistant", "확인 중...결과: 완료") }
+            verify(exactly = 1) { memoryStore.addMessage("session-456", "assistant", "결과: 완료") }
         }
 
         @Test

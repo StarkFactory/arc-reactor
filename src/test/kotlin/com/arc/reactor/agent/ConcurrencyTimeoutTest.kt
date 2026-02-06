@@ -93,11 +93,11 @@ class ConcurrencyTimeoutTest {
         )
 
         assertFalse(result.success, "Request should fail due to timeout")
-        assertNotNull(result.errorMessage)
+        val errorMessage = requireNotNull(result.errorMessage)
         assertTrue(
-            result.errorMessage!!.contains("timed out", ignoreCase = true) ||
-            result.errorMessage!!.contains("timeout", ignoreCase = true),
-            "Error message should mention timeout, got: ${result.errorMessage}"
+            errorMessage.contains("timed out", ignoreCase = true) ||
+            errorMessage.contains("timeout", ignoreCase = true),
+            "Error message should mention timeout, got: $errorMessage"
         )
     }
 

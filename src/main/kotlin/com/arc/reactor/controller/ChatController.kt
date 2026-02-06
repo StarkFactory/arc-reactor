@@ -2,6 +2,9 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.ResponseFormat
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.reactor.asFlux
 import org.springframework.http.MediaType
@@ -36,13 +39,15 @@ class ChatController(
      * ```
      */
     @PostMapping
-    suspend fun chat(@RequestBody request: ChatRequest): ChatResponse {
+    suspend fun chat(@Valid @RequestBody request: ChatRequest): ChatResponse {
         val result = agentExecutor.execute(
             AgentCommand(
                 systemPrompt = request.systemPrompt ?: DEFAULT_SYSTEM_PROMPT,
                 userPrompt = request.message,
                 userId = request.userId,
-                metadata = request.metadata ?: emptyMap()
+                metadata = request.metadata ?: emptyMap(),
+                responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
+                responseSchema = request.responseSchema
             )
         )
         return ChatResponse(
@@ -64,13 +69,15 @@ class ChatController(
      * ```
      */
     @PostMapping("/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun chatStream(@RequestBody request: ChatRequest): Flux<String> {
+    fun chatStream(@Valid @RequestBody request: ChatRequest): Flux<String> {
         val flow: Flow<String> = agentExecutor.executeStream(
             AgentCommand(
                 systemPrompt = request.systemPrompt ?: DEFAULT_SYSTEM_PROMPT,
                 userPrompt = request.message,
                 userId = request.userId,
-                metadata = request.metadata ?: emptyMap()
+                metadata = request.metadata ?: emptyMap(),
+                responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
+                responseSchema = request.responseSchema
             )
         )
         return flow.asFlux()
@@ -86,10 +93,13 @@ class ChatController(
  * 채팅 요청
  */
 data class ChatRequest(
+    @field:NotBlank(message = "message must not be blank")
     val message: String,
     val systemPrompt: String? = null,
     val userId: String? = null,
-    val metadata: Map<String, Any>? = null
+    val metadata: Map<String, Any>? = null,
+    val responseFormat: ResponseFormat? = null,
+    val responseSchema: String? = null
 )
 
 /**

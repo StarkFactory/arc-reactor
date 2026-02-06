@@ -75,8 +75,16 @@ dependencies {
     compileOnly("org.springframework.ai:spring-ai-starter-vector-store-pinecone")
     compileOnly("org.springframework.ai:spring-ai-starter-vector-store-chroma")
 
+    // Optional: JDBC + PostgreSQL (for JdbcMemoryStore)
+    compileOnly("org.springframework.boot:spring-boot-starter-jdbc")
+    compileOnly("org.postgresql:postgresql")
+    compileOnly("org.flywaydb:flyway-core")
+    compileOnly("org.flywaydb:flyway-database-postgresql")
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-jdbc")
+    testImplementation("com.h2database:h2")
     testImplementation("io.kotest:kotest-runner-junit5:5.9.1")
     testImplementation("io.kotest:kotest-assertions-core:5.9.1")
     testImplementation("io.kotest.extensions:kotest-extensions-spring:1.3.0")

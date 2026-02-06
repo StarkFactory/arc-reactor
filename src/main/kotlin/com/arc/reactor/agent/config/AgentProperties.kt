@@ -19,6 +19,9 @@ data class AgentProperties(
     /** Concurrency configuration */
     val concurrency: ConcurrencyProperties = ConcurrencyProperties(),
 
+    /** Retry configuration */
+    val retry: RetryProperties = RetryProperties(),
+
     /** Maximum tools per request */
     val maxToolsPerRequest: Int = 20,
 
@@ -34,7 +37,24 @@ data class LlmProperties(
     val maxOutputTokens: Int = 4096,
 
     /** Maximum conversation history turns */
-    val maxConversationTurns: Int = 10
+    val maxConversationTurns: Int = 10,
+
+    /** Maximum context window tokens (for token-based message trimming) */
+    val maxContextWindowTokens: Int = 128000
+)
+
+data class RetryProperties(
+    /** Maximum number of retry attempts */
+    val maxAttempts: Int = 3,
+
+    /** Initial delay between retries (milliseconds) */
+    val initialDelayMs: Long = 1000,
+
+    /** Backoff multiplier */
+    val multiplier: Double = 2.0,
+
+    /** Maximum delay between retries (milliseconds) */
+    val maxDelayMs: Long = 10000
 )
 
 data class GuardProperties(

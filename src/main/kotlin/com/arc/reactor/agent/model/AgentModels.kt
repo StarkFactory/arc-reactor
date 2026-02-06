@@ -3,6 +3,17 @@ package com.arc.reactor.agent.model
 import java.time.Instant
 
 /**
+ * Response format for structured output
+ */
+enum class ResponseFormat {
+    /** Plain text response (default) */
+    TEXT,
+
+    /** JSON response (system prompt instructs LLM to output valid JSON) */
+    JSON
+}
+
+/**
  * Agent execution mode
  */
 enum class AgentMode {
@@ -27,7 +38,9 @@ data class AgentCommand(
     val temperature: Double? = null,
     val maxToolCalls: Int = 10,
     val userId: String? = null,
-    val metadata: Map<String, Any> = emptyMap()
+    val metadata: Map<String, Any> = emptyMap(),
+    val responseFormat: ResponseFormat = ResponseFormat.TEXT,
+    val responseSchema: String? = null
 )
 
 /**

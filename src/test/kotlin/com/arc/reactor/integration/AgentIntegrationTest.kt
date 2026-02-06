@@ -173,8 +173,9 @@ class AgentIntegrationTest {
 
         // Assert
         assertFalse(result.success)
-        assertTrue(result.errorMessage!!.contains("Suspicious", ignoreCase = true) ||
-                   result.errorMessage!!.contains("pattern", ignoreCase = true))
+        val errorMessage = requireNotNull(result.errorMessage)
+        assertTrue(errorMessage.contains("Suspicious", ignoreCase = true) ||
+                   errorMessage.contains("pattern", ignoreCase = true))
 
         // Hook should NOT be called when guard rejects
         assertTrue(hookCalled.isEmpty())
@@ -239,8 +240,9 @@ class AgentIntegrationTest {
 
         // Assert
         assertFalse(result.success)
-        assertTrue(result.errorMessage!!.contains("too long", ignoreCase = true) ||
-                   result.errorMessage!!.contains("max", ignoreCase = true))
+        val errorMessage = requireNotNull(result.errorMessage)
+        assertTrue(errorMessage.contains("too long", ignoreCase = true) ||
+                   errorMessage.contains("max", ignoreCase = true))
     }
 
     @Test

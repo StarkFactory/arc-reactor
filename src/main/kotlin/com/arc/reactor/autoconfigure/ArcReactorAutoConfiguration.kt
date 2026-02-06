@@ -3,6 +3,7 @@ package com.arc.reactor.autoconfigure
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
+import com.arc.reactor.agent.impl.defaultTransientErrorClassifier
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
@@ -20,8 +21,11 @@ import com.arc.reactor.hook.BeforeToolCallHook
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.mcp.DefaultMcpManager
 import com.arc.reactor.mcp.McpManager
+import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.InMemoryMemoryStore
+import com.arc.reactor.memory.JdbcMemoryStore
 import com.arc.reactor.memory.MemoryStore
+import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
@@ -38,11 +42,14 @@ import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.jdbc.core.JdbcTemplate
+import javax.sql.DataSource
 
 /**
  * Arc Reactor Auto Configuration
@@ -61,7 +68,17 @@ class ArcReactorAutoConfiguration {
     fun toolSelector(): ToolSelector = AllToolSelector()
 
     /**
-     * Memory Store (default: in-memory)
+     * Memory Store: JDBC-backed (when DataSource is available)
+     */
+    @Bean
+    @ConditionalOnClass(JdbcTemplate::class)
+    @ConditionalOnBean(DataSource::class)
+    @ConditionalOnMissingBean
+    fun jdbcMemoryStore(jdbcTemplate: JdbcTemplate, tokenEstimator: TokenEstimator): MemoryStore =
+        JdbcMemoryStore(jdbcTemplate = jdbcTemplate, tokenEstimator = tokenEstimator)
+
+    /**
+     * Memory Store: In-memory fallback (when no DataSource)
      */
     @Bean
     @ConditionalOnMissingBean
@@ -80,6 +97,13 @@ class ArcReactorAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun agentMetrics(): AgentMetrics = NoOpAgentMetrics()
+
+    /**
+     * Token Estimator (default: character-type-aware heuristic)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun tokenEstimator(): TokenEstimator = DefaultTokenEstimator()
 
     /**
      * MCP Manager
@@ -206,7 +230,8 @@ class ArcReactorAutoConfiguration {
         mcpManager: McpManager,
         errorMessageResolver: ErrorMessageResolver,
         agentMetrics: AgentMetrics,
-        ragPipelineProvider: ObjectProvider<RagPipeline>
+        ragPipelineProvider: ObjectProvider<RagPipeline>,
+        tokenEstimator: TokenEstimator
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         properties = properties,
@@ -219,6 +244,7 @@ class ArcReactorAutoConfiguration {
         mcpToolCallbacks = { mcpManager.getAllToolCallbacks() },
         errorMessageResolver = errorMessageResolver,
         agentMetrics = agentMetrics,
-        ragPipeline = ragPipelineProvider.ifAvailable
+        ragPipeline = ragPipelineProvider.ifAvailable,
+        tokenEstimator = tokenEstimator
     )
 }
