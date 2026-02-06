@@ -10,6 +10,8 @@ import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport
 import io.modelcontextprotocol.client.transport.ServerParameters
 import io.modelcontextprotocol.client.transport.StdioClientTransport
 import io.modelcontextprotocol.spec.McpSchema
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
 import java.util.concurrent.ConcurrentHashMap
 
@@ -133,7 +135,7 @@ interface McpManager {
  *
  * ## Thread Safety
  * This implementation uses ConcurrentHashMap for thread-safe access.
- * Per-server locks ensure atomic connect/disconnect operations for the same server.
+ * Per-server Mutex ensures atomic connect/disconnect operations for the same server.
  */
 class DefaultMcpManager(
     private val connectionTimeoutMs: Long = 30_000
@@ -143,7 +145,9 @@ class DefaultMcpManager(
     private val clients = ConcurrentHashMap<String, McpSyncClient>()
     private val toolCallbacksCache = ConcurrentHashMap<String, List<ToolCallback>>()
     private val statuses = ConcurrentHashMap<String, McpServerStatus>()
-    private val serverLocks = ConcurrentHashMap<String, Any>()
+    private val serverMutexes = ConcurrentHashMap<String, Mutex>()
+
+    private fun mutexFor(serverName: String): Mutex = serverMutexes.getOrPut(serverName) { Mutex() }
 
     override fun register(server: McpServer) {
         logger.info { "Registering MCP server: ${server.name}" }
@@ -157,8 +161,7 @@ class DefaultMcpManager(
             return false
         }
 
-        val lock = serverLocks.getOrPut(serverName) { Any() }
-        return synchronized(lock) {
+        return mutexFor(serverName).withLock {
             try {
                 logger.info { "Connecting to MCP server: $serverName" }
                 statuses[serverName] = McpServerStatus.CONNECTING
@@ -288,26 +291,32 @@ class DefaultMcpManager(
     }
 
     override suspend fun disconnect(serverName: String) {
-        val lock = serverLocks.getOrPut(serverName) { Any() }
-        synchronized(lock) {
-            logger.info { "Disconnecting MCP server: $serverName" }
+        mutexFor(serverName).withLock {
+            disconnectInternal(serverName)
+        }
+    }
 
-            clients.remove(serverName)?.let { client ->
+    /**
+     * Internal disconnect logic (non-suspend, safe for use in close()).
+     */
+    private fun disconnectInternal(serverName: String) {
+        logger.info { "Disconnecting MCP server: $serverName" }
+
+        clients.remove(serverName)?.let { client ->
+            try {
+                client.closeGracefully()
+            } catch (e: Exception) {
+                logger.warn(e) { "Error during graceful shutdown of $serverName, attempting force close" }
                 try {
-                    client.closeGracefully()
-                } catch (e: Exception) {
-                    logger.warn(e) { "Error during graceful shutdown of $serverName, attempting force close" }
-                    try {
-                        client.close()
-                    } catch (closeEx: Exception) {
-                        logger.error(closeEx) { "Force close also failed for $serverName" }
-                    }
+                    client.close()
+                } catch (closeEx: Exception) {
+                    logger.error(closeEx) { "Force close also failed for $serverName" }
                 }
             }
-
-            toolCallbacksCache.remove(serverName)
-            statuses[serverName] = McpServerStatus.DISCONNECTED
         }
+
+        toolCallbacksCache.remove(serverName)
+        statuses[serverName] = McpServerStatus.DISCONNECTED
     }
 
     override fun getAllToolCallbacks(): List<ToolCallback> {
@@ -328,15 +337,16 @@ class DefaultMcpManager(
 
     /**
      * Close all connected MCP servers and release resources.
+     * Uses non-suspend disconnectInternal() to avoid runBlocking deadlock risk.
      */
     override fun close() {
         logger.info { "Closing MCP Manager, disconnecting all servers" }
         for (serverName in clients.keys.toList()) {
-            kotlinx.coroutines.runBlocking { disconnect(serverName) }
+            disconnectInternal(serverName)
         }
         servers.clear()
         statuses.clear()
-        serverLocks.clear()
+        serverMutexes.clear()
     }
 }
 

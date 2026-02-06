@@ -27,6 +27,8 @@ import com.arc.reactor.rag.model.RagQuery
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
+import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import mu.KotlinLogging
 import org.slf4j.MDC
 import org.springframework.ai.chat.client.ChatClient
@@ -49,6 +51,18 @@ import kotlinx.coroutines.withTimeout
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
+private val objectMapper = jacksonObjectMapper()
+private val mapTypeRef = object : TypeReference<Map<String, Any?>>() {}
+
+private fun parseJsonToMap(json: String?): Map<String, Any?> {
+    if (json.isNullOrBlank()) return emptyMap()
+    return try {
+        objectMapper.readValue(json, mapTypeRef)
+    } catch (e: Exception) {
+        logger.warn(e) { "Failed to parse JSON arguments" }
+        emptyMap()
+    }
+}
 
 /**
  * Spring AI-Based Agent Executor
@@ -138,6 +152,26 @@ class SpringAiAgentExecutor(
         }
     }
 
+    /**
+     * Run guard check. Returns rejection result if rejected, null if allowed.
+     */
+    private suspend fun checkGuard(command: AgentCommand): GuardResult.Rejected? {
+        if (guard == null || command.userId == null) return null
+        val result = guard.guard(GuardCommand(userId = command.userId, text = command.userPrompt))
+        return result as? GuardResult.Rejected
+    }
+
+    /**
+     * Run before-agent-start hooks. Returns rejection/pending result if blocked, null if continue.
+     */
+    private suspend fun checkBeforeHooks(hookContext: HookContext): HookResult? {
+        if (hookExecutor == null) return null
+        return when (val result = hookExecutor.executeBeforeAgentStart(hookContext)) {
+            is HookResult.Reject, is HookResult.PendingApproval -> result
+            else -> null
+        }
+    }
+
     private suspend fun executeInternal(
         command: AgentCommand,
         hookContext: HookContext,
@@ -145,45 +179,32 @@ class SpringAiAgentExecutor(
         startTime: Long
     ): AgentResult {
         // 1. Guard check
-        if (guard != null && command.userId != null) {
-            val guardResult = guard.guard(
-                GuardCommand(userId = command.userId, text = command.userPrompt)
+        checkGuard(command)?.let { rejection ->
+            agentMetrics.recordGuardRejection(
+                stage = rejection.stage ?: "unknown",
+                reason = rejection.reason
             )
-            if (guardResult is GuardResult.Rejected) {
-                agentMetrics.recordGuardRejection(
-                    stage = guardResult.stage ?: "unknown",
-                    reason = guardResult.reason
-                )
-                val failResult = AgentResult.failure(
-                    errorMessage = guardResult.reason,
-                    durationMs = System.currentTimeMillis() - startTime
-                )
-                agentMetrics.recordExecution(failResult)
-                return failResult
-            }
+            val failResult = AgentResult.failure(
+                errorMessage = rejection.reason,
+                durationMs = System.currentTimeMillis() - startTime
+            )
+            agentMetrics.recordExecution(failResult)
+            return failResult
         }
 
         // 2. Before Agent Start Hook
-        if (hookExecutor != null) {
-            when (val hookResult = hookExecutor.executeBeforeAgentStart(hookContext)) {
-                is HookResult.Reject -> {
-                    val failResult = AgentResult.failure(
-                        errorMessage = hookResult.reason,
-                        durationMs = System.currentTimeMillis() - startTime
-                    )
-                    agentMetrics.recordExecution(failResult)
-                    return failResult
-                }
-                is HookResult.PendingApproval -> {
-                    val failResult = AgentResult.failure(
-                        errorMessage = "Pending approval: ${hookResult.message}",
-                        durationMs = System.currentTimeMillis() - startTime
-                    )
-                    agentMetrics.recordExecution(failResult)
-                    return failResult
-                }
-                else -> { /* continue */ }
+        checkBeforeHooks(hookContext)?.let { hookResult ->
+            val message = when (hookResult) {
+                is HookResult.Reject -> hookResult.reason
+                is HookResult.PendingApproval -> "Pending approval: ${hookResult.message}"
+                else -> "Blocked by hook"
             }
+            val failResult = AgentResult.failure(
+                errorMessage = message,
+                durationMs = System.currentTimeMillis() - startTime
+            )
+            agentMetrics.recordExecution(failResult)
+            return failResult
         }
 
         // 3. Load conversation history
@@ -239,33 +260,24 @@ class SpringAiAgentExecutor(
         )
 
         // 1. Guard check
-        if (guard != null && command.userId != null) {
-            val guardResult = guard.guard(
-                GuardCommand(userId = command.userId, text = command.userPrompt)
+        checkGuard(command)?.let { rejection ->
+            agentMetrics.recordGuardRejection(
+                stage = rejection.stage ?: "unknown",
+                reason = rejection.reason
             )
-            if (guardResult is GuardResult.Rejected) {
-                agentMetrics.recordGuardRejection(
-                    stage = guardResult.stage ?: "unknown",
-                    reason = guardResult.reason
-                )
-                emit(guardResult.reason)
-                return@flow
-            }
+            emit(rejection.reason)
+            return@flow
         }
 
         // 2. Before hook
-        if (hookExecutor != null) {
-            when (val hookResult = hookExecutor.executeBeforeAgentStart(hookContext)) {
-                is HookResult.Reject -> {
-                    emit(hookResult.reason)
-                    return@flow
-                }
-                is HookResult.PendingApproval -> {
-                    emit("Pending approval: ${hookResult.message}")
-                    return@flow
-                }
-                else -> { /* continue */ }
+        checkBeforeHooks(hookContext)?.let { hookResult ->
+            val message = when (hookResult) {
+                is HookResult.Reject -> hookResult.reason
+                is HookResult.PendingApproval -> "Pending approval: ${hookResult.message}"
+                else -> "Blocked by hook"
             }
+            emit(message)
+            return@flow
         }
 
         // 3. Build request
@@ -273,11 +285,7 @@ class SpringAiAgentExecutor(
 
         // RAG context
         val ragContext = retrieveRagContext(command.userPrompt)
-        val systemPrompt = if (ragContext != null) {
-            "${command.systemPrompt}\n\n[Retrieved Context]\n$ragContext"
-        } else {
-            command.systemPrompt
-        }
+        val systemPrompt = buildSystemPrompt(command.systemPrompt, ragContext)
         if (systemPrompt.isNotBlank()) {
             requestSpec = requestSpec.system(systemPrompt)
         }
@@ -331,6 +339,17 @@ class SpringAiAgentExecutor(
     }
 
     /**
+     * Build system prompt with optional RAG context.
+     */
+    private fun buildSystemPrompt(basePrompt: String, ragContext: String?): String {
+        return if (ragContext != null) {
+            "$basePrompt\n\n[Retrieved Context]\n$ragContext"
+        } else {
+            basePrompt
+        }
+    }
+
+    /**
      * Convert MessageRole to Spring AI Message.
      */
     private fun toSpringAiMessage(msg: com.arc.reactor.agent.model.Message): Message {
@@ -338,7 +357,9 @@ class SpringAiAgentExecutor(
             MessageRole.USER -> UserMessage(msg.content)
             MessageRole.ASSISTANT -> AssistantMessage(msg.content)
             MessageRole.SYSTEM -> SystemMessage(msg.content)
-            MessageRole.TOOL -> UserMessage(msg.content)
+            MessageRole.TOOL -> ToolResponseMessage.builder()
+                .responses(listOf(ToolResponseMessage.ToolResponse("", "tool", msg.content)))
+                .build()
         }
     }
 
@@ -449,15 +470,11 @@ class SpringAiAgentExecutor(
         ragContext: String? = null
     ): AgentResult {
         try {
-            val maxToolCalls = command.maxToolCalls.coerceAtLeast(1)
+            val maxToolCalls = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
             var totalToolCalls = 0
 
             // System prompt (with RAG context if available)
-            val systemPrompt = if (ragContext != null) {
-                "${command.systemPrompt}\n\n[Retrieved Context]\n$ragContext"
-            } else {
-                command.systemPrompt
-            }
+            val systemPrompt = buildSystemPrompt(command.systemPrompt, ragContext)
 
             // Build initial messages
             val messages = mutableListOf<Message>()
@@ -534,7 +551,7 @@ class SpringAiAgentExecutor(
                     }
 
                     val toolName = toolCall.name()
-                    val toolParams = parseToolArguments(toolCall.arguments())
+                    val toolParams = parseJsonToMap(toolCall.arguments())
 
                     val toolCallContext = ToolCallContext(
                         agentContext = hookContext,
@@ -616,21 +633,6 @@ class SpringAiAgentExecutor(
         }
     }
 
-    private fun parseToolArguments(arguments: String?): Map<String, Any?> {
-        if (arguments.isNullOrBlank()) return emptyMap()
-        return try {
-            val typeRef = object : com.fasterxml.jackson.core.type.TypeReference<Map<String, Any?>>() {}
-            objectMapper.readValue(arguments, typeRef)
-        } catch (e: Exception) {
-            logger.warn(e) { "Failed to parse tool arguments" }
-            emptyMap()
-        }
-    }
-
-    companion object {
-        private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
-    }
-
     private fun translateError(e: Exception): String {
         val code = when {
             e.message?.contains("rate limit", ignoreCase = true) == true -> AgentErrorCode.RATE_LIMITED
@@ -664,18 +666,10 @@ internal class ArcToolCallbackAdapter(
     override fun getToolMetadata(): ToolMetadata = ToolMetadata.builder().build()
 
     override fun call(toolInput: String): String {
-        val args = try {
-            val typeRef = object : com.fasterxml.jackson.core.type.TypeReference<Map<String, Any?>>() {}
-            objectMapper.readValue(toolInput, typeRef)
-        } catch (e: Exception) {
-            emptyMap<String, Any?>()
-        }
+        val args = parseJsonToMap(toolInput)
+        // Bridge suspend call to blocking for Spring AI compatibility (runs on IO dispatcher)
         return kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
             arcCallback.call(args)?.toString() ?: ""
         }
-    }
-
-    companion object {
-        private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
     }
 }
