@@ -3,6 +3,8 @@ package com.arc.reactor.autoconfigure
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
+import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.guard.GuardStage
@@ -33,6 +35,7 @@ import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.vectorstore.VectorStore
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -70,6 +73,13 @@ class ArcReactorAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun errorMessageResolver(): ErrorMessageResolver = DefaultErrorMessageResolver()
+
+    /**
+     * Agent Metrics (default: no-op)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun agentMetrics(): AgentMetrics = NoOpAgentMetrics()
 
     /**
      * MCP Manager
@@ -192,7 +202,9 @@ class ArcReactorAutoConfiguration {
         hookExecutor: HookExecutor,
         memoryStore: MemoryStore,
         mcpManager: McpManager,
-        errorMessageResolver: ErrorMessageResolver
+        errorMessageResolver: ErrorMessageResolver,
+        agentMetrics: AgentMetrics,
+        ragPipelineProvider: ObjectProvider<RagPipeline>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         properties = properties,
@@ -203,6 +215,8 @@ class ArcReactorAutoConfiguration {
         hookExecutor = hookExecutor,
         memoryStore = memoryStore,
         mcpToolCallbacks = { mcpManager.getAllToolCallbacks() },
-        errorMessageResolver = errorMessageResolver
+        errorMessageResolver = errorMessageResolver,
+        agentMetrics = agentMetrics,
+        ragPipeline = ragPipelineProvider.ifAvailable
     )
 }
