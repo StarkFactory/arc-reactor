@@ -27,13 +27,17 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec
 import org.springframework.ai.chat.client.ChatClient.StreamResponseSpec
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
+import org.springframework.ai.chat.prompt.ChatOptions
 import reactor.core.publisher.Flux
 
 /**
  * TDD tests for Streaming support (Tier 1-5).
  *
  * Tests the AgentExecutor.executeStream() method which returns
- * a Kotlin Flow<String> from Spring AI's Flux<String> streaming API.
+ * a Kotlin Flow<String> from Spring AI's streaming ChatResponse API.
  */
 class StreamingTest {
 
@@ -59,7 +63,13 @@ class StreamingTest {
         every { requestSpec.user(any<String>()) } returns requestSpec
         every { requestSpec.messages(any<List<org.springframework.ai.chat.messages.Message>>()) } returns requestSpec
         every { requestSpec.tools(*anyVararg<Any>()) } returns requestSpec
+        every { requestSpec.options(any<ChatOptions>()) } returns requestSpec
         every { requestSpec.stream() } returns streamResponseSpec
+    }
+
+    /** Helper: Create a ChatResponse chunk with text content */
+    private fun textChunk(text: String): ChatResponse {
+        return ChatResponse(listOf(Generation(AssistantMessage(text))))
     }
 
     @Nested
@@ -67,7 +77,9 @@ class StreamingTest {
 
         @Test
         fun `should return flow of string chunks`() = runBlocking {
-            every { streamResponseSpec.content() } returns Flux.just("Hello", " ", "World")
+            every { streamResponseSpec.chatResponse() } returns Flux.just(
+                textChunk("Hello"), textChunk(" "), textChunk("World")
+            )
 
             val executor = SpringAiAgentExecutor(
                 chatClient = chatClient,
@@ -83,7 +95,7 @@ class StreamingTest {
 
         @Test
         fun `should apply system prompt in streaming mode`() = runBlocking {
-            every { streamResponseSpec.content() } returns Flux.just("Response")
+            every { streamResponseSpec.chatResponse() } returns Flux.just(textChunk("Response"))
 
             val executor = SpringAiAgentExecutor(
                 chatClient = chatClient,
@@ -99,7 +111,7 @@ class StreamingTest {
 
         @Test
         fun `should use STREAMING mode by default for executeStream`() = runBlocking {
-            every { streamResponseSpec.content() } returns Flux.just("chunk")
+            every { streamResponseSpec.chatResponse() } returns Flux.just(textChunk("chunk"))
 
             val executor = SpringAiAgentExecutor(
                 chatClient = chatClient,
@@ -120,7 +132,7 @@ class StreamingTest {
 
         @Test
         fun `should handle empty stream`() = runBlocking {
-            every { streamResponseSpec.content() } returns Flux.empty()
+            every { streamResponseSpec.chatResponse() } returns Flux.empty()
 
             val executor = SpringAiAgentExecutor(
                 chatClient = chatClient,
@@ -143,7 +155,7 @@ class StreamingTest {
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Allowed.DEFAULT
 
-            every { streamResponseSpec.content() } returns Flux.just("OK")
+            every { streamResponseSpec.chatResponse() } returns Flux.just(textChunk("OK"))
 
             val executor = SpringAiAgentExecutor(
                 chatClient = chatClient,
@@ -192,7 +204,7 @@ class StreamingTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
 
-            every { streamResponseSpec.content() } returns Flux.just("Response")
+            every { streamResponseSpec.chatResponse() } returns Flux.just(textChunk("Response"))
 
             val executor = SpringAiAgentExecutor(
                 chatClient = chatClient,
@@ -232,7 +244,7 @@ class StreamingTest {
 
         @Test
         fun `should handle stream error gracefully`() = runBlocking {
-            every { streamResponseSpec.content() } returns Flux.error(RuntimeException("Stream failed"))
+            every { streamResponseSpec.chatResponse() } returns Flux.error(RuntimeException("Stream failed"))
 
             val executor = SpringAiAgentExecutor(
                 chatClient = chatClient,
