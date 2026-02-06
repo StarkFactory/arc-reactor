@@ -15,6 +15,14 @@ private val logger = KotlinLogging.logger {}
  * Executes registered GuardStages in order.
  * Stops immediately if any stage returns Rejected.
  *
+ * ## Error Handling Policy: Fail-Close
+ * If any guard stage throws an exception, the pipeline **rejects** the request
+ * with a system error. This fail-close behavior ensures security is never
+ * bypassed by a malfunctioning stage.
+ *
+ * This contrasts with the [com.arc.reactor.hook.HookExecutor], which defaults to
+ * fail-open (configurable via [com.arc.reactor.hook.AgentHook.failOnError]).
+ *
  * ```
  * [RateLimit] → [InputValidation] → [InjectionDetection]
  *            → [Classification] → [Permission] → Allowed

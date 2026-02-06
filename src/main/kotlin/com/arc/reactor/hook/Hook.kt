@@ -24,6 +24,12 @@ import com.arc.reactor.hook.model.ToolCallResult
  * BeforeAgentStart → [Agent Loop] → (BeforeToolCall → Tool → AfterToolCall)* → AfterAgentComplete
  * ```
  *
+ * ## Error Handling Policy
+ * Hooks default to **fail-open**: errors are logged and the next hook continues.
+ * Set [AgentHook.failOnError] to `true` for critical hooks that must fail-close.
+ * This contrasts with [com.arc.reactor.guard.impl.GuardPipeline], which is always
+ * **fail-close** (any guard stage error rejects the request).
+ *
  * ## Execution Order
  * Hooks execute in ascending order by [order] value (lower = earlier)
  *
