@@ -24,6 +24,8 @@ enum class AgentErrorCode(val defaultMessage: String) {
     TIMEOUT("Request timed out."),
     CONTEXT_TOO_LONG("Input is too long. Please reduce the content."),
     TOOL_ERROR("An error occurred during tool execution."),
+    GUARD_REJECTED("Request rejected by guard."),
+    HOOK_REJECTED("Request rejected by hook."),
     UNKNOWN("An unknown error occurred.")
 }
 

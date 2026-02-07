@@ -9,7 +9,6 @@ import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
-import com.arc.reactor.agent.model.MessageRole
 import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
@@ -22,6 +21,8 @@ import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
+import com.arc.reactor.memory.ConversationManager
+import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.model.RagQuery
@@ -122,7 +123,8 @@ class SpringAiAgentExecutor(
     private val agentMetrics: AgentMetrics = NoOpAgentMetrics(),
     private val ragPipeline: RagPipeline? = null,
     private val tokenEstimator: TokenEstimator = DefaultTokenEstimator(),
-    private val transientErrorClassifier: (Exception) -> Boolean = ::defaultTransientErrorClassifier
+    private val transientErrorClassifier: (Exception) -> Boolean = ::defaultTransientErrorClassifier,
+    private val conversationManager: ConversationManager = DefaultConversationManager(memoryStore, properties)
 ) : AgentExecutor {
 
     init {
@@ -162,6 +164,7 @@ class SpringAiAgentExecutor(
             logger.warn { "Request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
             val failResult = AgentResult.failure(
                 errorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, e.message),
+                errorCode = AgentErrorCode.TIMEOUT,
                 durationMs = System.currentTimeMillis() - startTime
             )
             try {
@@ -186,8 +189,10 @@ class SpringAiAgentExecutor(
             } catch (hookEx: Exception) {
                 logger.error(hookEx) { "AfterAgentComplete hook failed during error handling" }
             }
+            val errorCode = classifyError(e)
             val failResult = AgentResult.failure(
-                errorMessage = e.message ?: "Unknown error",
+                errorMessage = errorMessageResolver.resolve(errorCode, e.message),
+                errorCode = errorCode,
                 durationMs = System.currentTimeMillis() - startTime
             )
             agentMetrics.recordExecution(failResult)
@@ -234,6 +239,7 @@ class SpringAiAgentExecutor(
             )
             val failResult = AgentResult.failure(
                 errorMessage = rejection.reason,
+                errorCode = AgentErrorCode.GUARD_REJECTED,
                 durationMs = System.currentTimeMillis() - startTime
             )
             agentMetrics.recordExecution(failResult)
@@ -249,14 +255,15 @@ class SpringAiAgentExecutor(
             }
             val failResult = AgentResult.failure(
                 errorMessage = message,
+                errorCode = AgentErrorCode.HOOK_REJECTED,
                 durationMs = System.currentTimeMillis() - startTime
             )
             agentMetrics.recordExecution(failResult)
             return failResult
         }
 
-        // 3. Load conversation history
-        val conversationHistory = loadConversationHistory(command)
+        // 3. Load conversation history (via ConversationManager)
+        val conversationHistory = conversationManager.loadHistory(command)
 
         // 4. RAG: Retrieve context if enabled
         val ragContext = retrieveRagContext(command.userPrompt)
@@ -279,8 +286,8 @@ class SpringAiAgentExecutor(
             ragContext = ragContext
         )
 
-        // 7. Save conversation history
-        saveConversationHistory(command, result)
+        // 7. Save conversation history (via ConversationManager)
+        conversationManager.saveHistory(command, result)
 
         // 8. After Agent Complete Hook
         try {
@@ -332,6 +339,7 @@ class SpringAiAgentExecutor(
         )
 
         var streamSuccess = false
+        var streamErrorCode: AgentErrorCode? = null
         var streamErrorMessage: String? = null
         var streamStarted = false
         val collectedContent = StringBuilder()
@@ -369,8 +377,8 @@ class SpringAiAgentExecutor(
 
                     streamStarted = true
 
-                    // 3. Setup
-                    val conversationHistory = loadConversationHistory(command)
+                    // 3. Setup (conversation via ConversationManager)
+                    val conversationHistory = conversationManager.loadHistory(command)
                     val ragContext = retrieveRagContext(command.userPrompt)
                     val systemPrompt = buildSystemPrompt(command.systemPrompt, ragContext)
                     var activeTools = if (command.mode == AgentMode.STANDARD) {
@@ -472,29 +480,21 @@ class SpringAiAgentExecutor(
             }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             logger.warn { "Streaming request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
+            streamErrorCode = AgentErrorCode.TIMEOUT
             streamErrorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, e.message)
             emit("[error] $streamErrorMessage")
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e // Rethrow to support structured concurrency
         } catch (e: Exception) {
             logger.error(e) { "Streaming execution failed" }
-            streamErrorMessage = translateError(e)
+            val errorCode = classifyError(e)
+            streamErrorCode = errorCode
+            streamErrorMessage = errorMessageResolver.resolve(errorCode, e.message)
             emit("[error] $streamErrorMessage")
         } finally {
-            // Save conversation history (only on success, outside withTimeout for atomicity)
+            // Save conversation history via ConversationManager (only on success, outside withTimeout)
             if (streamSuccess) {
-                try {
-                    val sessionId = command.metadata["sessionId"]?.toString()
-                    if (sessionId != null && memoryStore != null) {
-                        memoryStore.addMessage(sessionId = sessionId, role = "user", content = command.userPrompt)
-                        val content = lastIterationContent.toString()
-                        if (content.isNotEmpty()) {
-                            memoryStore.addMessage(sessionId = sessionId, role = "assistant", content = content)
-                        }
-                    }
-                } catch (e: Exception) {
-                    logger.error(e) { "Failed to save streaming conversation history" }
-                }
+                conversationManager.saveStreamingHistory(command, lastIterationContent.toString())
             }
 
             // AfterAgentComplete hook (only if stream passed guard/hook checks)
@@ -525,6 +525,7 @@ class SpringAiAgentExecutor(
             } else {
                 AgentResult.failure(
                     errorMessage = streamErrorMessage ?: "Streaming failed",
+                    errorCode = streamErrorCode ?: AgentErrorCode.UNKNOWN,
                     durationMs = durationMs
                 )
             }
@@ -697,53 +698,6 @@ class SpringAiAgentExecutor(
             is SystemMessage -> tokenEstimator.estimate(message.text)
             is ToolResponseMessage -> message.responses.sumOf { tokenEstimator.estimate(it.responseData()) }
             else -> tokenEstimator.estimate(message.text ?: "")
-        }
-    }
-
-    /**
-     * Convert MessageRole to Spring AI Message.
-     */
-    private fun toSpringAiMessage(msg: com.arc.reactor.agent.model.Message): Message {
-        return when (msg.role) {
-            MessageRole.USER -> UserMessage(msg.content)
-            MessageRole.ASSISTANT -> AssistantMessage(msg.content)
-            MessageRole.SYSTEM -> SystemMessage(msg.content)
-            MessageRole.TOOL -> ToolResponseMessage.builder()
-                .responses(listOf(ToolResponseMessage.ToolResponse("", "tool", msg.content)))
-                .build()
-        }
-    }
-
-    /**
-     * Load conversation history.
-     */
-    private fun loadConversationHistory(command: AgentCommand): List<Message> {
-        if (command.conversationHistory.isNotEmpty()) {
-            return command.conversationHistory.map { toSpringAiMessage(it) }
-        }
-
-        val sessionId = command.metadata["sessionId"]?.toString() ?: return emptyList()
-        val memory = memoryStore?.get(sessionId) ?: return emptyList()
-
-        return memory.getHistory().takeLast(properties.llm.maxConversationTurns * 2)
-            .map { toSpringAiMessage(it) }
-    }
-
-    /**
-     * Save conversation history.
-     */
-    private fun saveConversationHistory(command: AgentCommand, result: AgentResult) {
-        if (!result.success) return // Only save on success to prevent orphaned user messages
-        val sessionId = command.metadata["sessionId"]?.toString() ?: return
-        if (memoryStore == null) return
-
-        try {
-            memoryStore.addMessage(sessionId = sessionId, role = "user", content = command.userPrompt)
-            if (result.content != null) {
-                memoryStore.addMessage(sessionId = sessionId, role = "assistant", content = result.content)
-            }
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to save conversation history for session $sessionId" }
         }
     }
 
@@ -1017,7 +971,11 @@ class SpringAiAgentExecutor(
             throw e // Rethrow to support withTimeout and structured concurrency
         } catch (e: Exception) {
             logger.error(e) { "LLM call with tools failed" }
-            return AgentResult.failure(errorMessage = translateError(e))
+            val errorCode = classifyError(e)
+            return AgentResult.failure(
+                errorMessage = errorMessageResolver.resolve(errorCode, e.message),
+                errorCode = errorCode
+            )
         }
     }
 
@@ -1056,15 +1014,18 @@ class SpringAiAgentExecutor(
 
     private fun isTransientError(e: Exception): Boolean = transientErrorClassifier(e)
 
-    private fun translateError(e: Exception): String {
-        val code = when {
+    private fun classifyError(e: Exception): AgentErrorCode {
+        return when {
             e.message?.contains("rate limit", ignoreCase = true) == true -> AgentErrorCode.RATE_LIMITED
             e.message?.contains("timeout", ignoreCase = true) == true -> AgentErrorCode.TIMEOUT
             e.message?.contains("context length", ignoreCase = true) == true -> AgentErrorCode.CONTEXT_TOO_LONG
             e.message?.contains("tool", ignoreCase = true) == true -> AgentErrorCode.TOOL_ERROR
             else -> AgentErrorCode.UNKNOWN
         }
-        return errorMessageResolver.resolve(code, e.message)
+    }
+
+    private fun translateError(e: Exception): String {
+        return errorMessageResolver.resolve(classifyError(e), e.message)
     }
 }
 
