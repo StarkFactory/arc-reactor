@@ -1,6 +1,8 @@
 package com.arc.reactor.agent
 
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 
@@ -26,5 +28,12 @@ fun AgentResult.assertErrorContains(expected: String) {
     assertFailure()
     assertTrue(errorMessage?.contains(expected, ignoreCase = true) == true) {
         "Expected error containing '$expected' but got: $errorMessage"
+    }
+}
+
+fun AgentResult.assertErrorCode(expected: AgentErrorCode) {
+    assertFailure()
+    assertEquals(expected, errorCode) {
+        "Expected errorCode $expected but got: $errorCode (errorMessage=$errorMessage)"
     }
 }

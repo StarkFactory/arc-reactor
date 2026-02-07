@@ -65,6 +65,7 @@ enum class MessageRole {
 data class AgentResult(
     val success: Boolean,
     val content: String?,
+    val errorCode: AgentErrorCode? = null,
     val errorMessage: String? = null,
     val toolsUsed: List<String> = emptyList(),
     val tokenUsage: TokenUsage? = null,
@@ -87,10 +88,12 @@ data class AgentResult(
 
         fun failure(
             errorMessage: String,
+            errorCode: AgentErrorCode? = null,
             durationMs: Long = 0
         ) = AgentResult(
             success = false,
             content = null,
+            errorCode = errorCode,
             errorMessage = errorMessage,
             durationMs = durationMs
         )

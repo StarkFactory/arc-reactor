@@ -21,6 +21,8 @@ import com.arc.reactor.hook.BeforeToolCallHook
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.mcp.DefaultMcpManager
 import com.arc.reactor.mcp.McpManager
+import com.arc.reactor.memory.ConversationManager
+import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.InMemoryMemoryStore
 import com.arc.reactor.memory.JdbcMemoryStore
@@ -104,6 +106,16 @@ class ArcReactorAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun tokenEstimator(): TokenEstimator = DefaultTokenEstimator()
+
+    /**
+     * Conversation Manager (manages conversation history lifecycle)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun conversationManager(
+        memoryStore: MemoryStore,
+        properties: AgentProperties
+    ): ConversationManager = DefaultConversationManager(memoryStore, properties)
 
     /**
      * MCP Manager
@@ -231,7 +243,8 @@ class ArcReactorAutoConfiguration {
         errorMessageResolver: ErrorMessageResolver,
         agentMetrics: AgentMetrics,
         ragPipelineProvider: ObjectProvider<RagPipeline>,
-        tokenEstimator: TokenEstimator
+        tokenEstimator: TokenEstimator,
+        conversationManager: ConversationManager
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         properties = properties,
@@ -245,6 +258,7 @@ class ArcReactorAutoConfiguration {
         errorMessageResolver = errorMessageResolver,
         agentMetrics = agentMetrics,
         ragPipeline = ragPipelineProvider.ifAvailable,
-        tokenEstimator = tokenEstimator
+        tokenEstimator = tokenEstimator,
+        conversationManager = conversationManager
     )
 }

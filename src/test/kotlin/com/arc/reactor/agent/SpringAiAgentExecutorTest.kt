@@ -145,6 +145,7 @@ class SpringAiAgentExecutorTest {
             // Assert
             result.assertFailure()
             assertEquals("Rate limit exceeded", result.errorMessage)
+            result.assertErrorCode(AgentErrorCode.GUARD_REJECTED)
         }
 
         @Test
@@ -254,6 +255,7 @@ class SpringAiAgentExecutorTest {
             // Assert
             result.assertFailure()
             assertEquals("Not allowed", result.errorMessage)
+            result.assertErrorCode(AgentErrorCode.HOOK_REJECTED)
         }
 
         @Test
@@ -428,6 +430,7 @@ class SpringAiAgentExecutorTest {
 
             // Assert
             result.assertFailure()
+            result.assertErrorCode(AgentErrorCode.RATE_LIMITED)
             assertTrue(result.errorMessage!!.contains("Rate limit exceeded")) {
                 "Expected error to contain 'Rate limit exceeded', got: ${result.errorMessage}"
             }
@@ -453,6 +456,7 @@ class SpringAiAgentExecutorTest {
 
             // Assert
             result.assertFailure()
+            result.assertErrorCode(AgentErrorCode.TIMEOUT)
             assertTrue(result.errorMessage!!.contains("Request timed out")) {
                 "Expected error to contain 'Request timed out', got: ${result.errorMessage}"
             }
@@ -487,6 +491,7 @@ class SpringAiAgentExecutorTest {
 
             // Assert
             result.assertFailure()
+            result.assertErrorCode(AgentErrorCode.RATE_LIMITED)
             assertTrue(result.errorMessage!!.contains("요청 한도")) {
                 "Expected Korean rate limit message containing '요청 한도', got: ${result.errorMessage}"
             }
