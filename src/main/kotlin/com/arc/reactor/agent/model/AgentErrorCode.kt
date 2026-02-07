@@ -6,7 +6,7 @@ package com.arc.reactor.agent.model
  * Provides standardized error codes for common failure scenarios.
  * Use [ErrorMessageResolver] to customize messages (e.g., localization).
  *
- * ## Example: Korean Error Messages
+ * ## Example: Korean Error Messages (i18n)
  * ```kotlin
  * val koreanResolver = ErrorMessageResolver { code, originalMessage ->
  *     when (code) {

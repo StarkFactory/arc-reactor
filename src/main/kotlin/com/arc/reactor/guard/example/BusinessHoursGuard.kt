@@ -8,34 +8,34 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * 업무 시간 Guard (예시) — 커스텀 GuardStage 구현
+ * Business Hours Guard (example) — Custom GuardStage implementation
  *
- * 지정된 시간대에만 에이전트 사용을 허용합니다.
- * GuardStage를 직접 구현하는 방법을 보여줍니다.
+ * Allows agent usage only during specified hours.
+ * Demonstrates how to implement GuardStage directly.
  *
- * ## Guard Pipeline 동작 원리
- * Guard는 순서대로 실행되며, 하나라도 Rejected를 반환하면 즉시 중단됩니다:
+ * ## How the Guard Pipeline works
+ * Guards are executed in order; if any returns Rejected, execution stops immediately:
  * ```
  * [1.RateLimit] → [2.InputValidation] → [3.InjectionDetection]
- *              → [3.5 BusinessHours ← 이 Guard] → [4.Classification] → [5.Permission]
+ *              → [3.5 BusinessHours ← this Guard] → [4.Classification] → [5.Permission]
  * ```
  *
- * ## order 값 가이드
- * - 1: RateLimit (기본)
- * - 2: InputValidation (기본)
- * - 3: InjectionDetection (기본)
- * - 4: Classification (사용자 구현)
- * - 5: Permission (사용자 구현)
- * - 원하는 위치에 숫자로 삽입 가능 (예: 35 = InjectionDetection 이후)
+ * ## Order value guide
+ * - 1: RateLimit (built-in)
+ * - 2: InputValidation (built-in)
+ * - 3: InjectionDetection (built-in)
+ * - 4: Classification (user-implemented)
+ * - 5: Permission (user-implemented)
+ * - Can be inserted at any position using a numeric value (e.g., 35 = after InjectionDetection)
  *
- * ## 활성화 방법
- * @Component를 추가하면 GuardPipeline이 자동으로 이 Stage를 포함합니다.
+ * ## How to activate
+ * Adding @Component will cause GuardPipeline to automatically include this Stage.
  *
- * @param startHour 업무 시작 시간 (0-23, 기본 9시)
- * @param endHour 업무 종료 시간 (0-23, 기본 18시)
- * @param timezone 시간대 (기본 Asia/Seoul)
+ * @param startHour Business start hour (0-23, default 9)
+ * @param endHour Business end hour (0-23, default 18)
+ * @param timezone Timezone (default Asia/Seoul)
  */
-// @Component  ← 주석 해제하면 자동 등록
+// @Component  ← Uncomment to auto-register
 class BusinessHoursGuard(
     private val startHour: Int = 9,
     private val endHour: Int = 18,
@@ -44,7 +44,7 @@ class BusinessHoursGuard(
 
     override val stageName = "BusinessHours"
 
-    // InjectionDetection(3) 이후, Classification(4) 이전
+    // After InjectionDetection(3), before Classification(4)
     override val order = 35
 
     override suspend fun check(command: GuardCommand): GuardResult {

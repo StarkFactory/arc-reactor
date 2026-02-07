@@ -6,35 +6,35 @@ import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
 /**
- * 날씨 도구 (예시) — LocalTool + @Tool 어노테이션 방식
+ * Weather tool (example) — LocalTool + @Tool annotation approach
  *
- * CalculatorTool이 ToolCallback 인터페이스를 직접 구현하는 예시라면,
- * 이 클래스는 LocalTool + @Tool 어노테이션 방식을 보여줍니다.
+ * While CalculatorTool demonstrates direct ToolCallback interface implementation,
+ * this class showcases the LocalTool + @Tool annotation approach.
  *
- * ## ToolCallback vs LocalTool 차이
- * - **ToolCallback**: name, description, inputSchema, call()을 직접 구현. JSON 스키마를 수동 작성.
- * - **LocalTool + @Tool**: 어노테이션으로 선언. 스키마 자동 생성. Spring DI 주입 가능.
+ * ## ToolCallback vs LocalTool differences
+ * - **ToolCallback**: Directly implement name, description, inputSchema, call(). Manually write JSON schema.
+ * - **LocalTool + @Tool**: Declared via annotations. Schema auto-generated. Supports Spring DI injection.
  *
- * ## Spring DI 활용 패턴
- * 실제 프로젝트에서는 Service나 Repository를 생성자 주입받아 사용합니다:
+ * ## Spring DI usage pattern
+ * In real projects, inject Services or Repositories via constructor injection:
  * ```kotlin
  * @Component
  * class OrderTool(
- *     private val orderService: OrderService  // Spring DI 주입
+ *     private val orderService: OrderService  // Spring DI injection
  * ) : LocalTool {
  *     override val category = DefaultToolCategory.SEARCH
  *
- *     @Tool(description = "주문 상태를 조회합니다")
- *     fun getOrderStatus(@ToolParam(description = "주문 번호") orderId: String): String {
- *         return orderService.findById(orderId)?.status ?: "주문을 찾을 수 없습니다"
+ *     @Tool(description = "Retrieves order status")
+ *     fun getOrderStatus(@ToolParam(description = "Order ID") orderId: String): String {
+ *         return orderService.findById(orderId)?.status ?: "Order not found"
  *     }
  * }
  * ```
  *
- * ## 활성화 방법
- * 이 클래스에 @Component를 추가하면 자동 등록됩니다.
+ * ## How to activate
+ * Add @Component to this class to auto-register it.
  */
-// @Component  ← 주석 해제하면 자동 등록
+// @Component  ← Uncomment to auto-register
 class WeatherTool : LocalTool {
 
     override val category = DefaultToolCategory.SEARCH
@@ -43,7 +43,7 @@ class WeatherTool : LocalTool {
     fun getWeather(
         @ToolParam(description = "City name (e.g., Seoul, Tokyo, New York)") city: String
     ): String {
-        // 실제 프로젝트에서는 외부 API를 호출합니다:
+        // In a real project, call an external API:
         // return weatherApiClient.getCurrentWeather(city)
         return "Weather in $city: Sunny, 22°C, Humidity 45%"
     }

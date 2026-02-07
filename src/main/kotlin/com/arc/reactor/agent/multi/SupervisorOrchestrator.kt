@@ -8,35 +8,35 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Supervisor 오케스트레이터
+ * Supervisor orchestrator.
  *
- * 매니저 에이전트가 워커 에이전트들에게 작업을 위임합니다.
+ * A manager agent delegates tasks to worker agents.
  *
- * ## 핵심 설계 원리
- * 기존 SpringAiAgentExecutor를 전혀 수정하지 않습니다!
- * 각 워커 에이전트를 [WorkerAgentTool]로 감싸서 Supervisor의 도구 목록에 등록합니다.
- * Supervisor의 ReAct 루프가 자연스럽게 워커를 "도구처럼" 호출합니다.
+ * ## Core Design Principle
+ * Does not modify the existing SpringAiAgentExecutor at all!
+ * Each worker agent is wrapped with [WorkerAgentTool] and registered in the Supervisor's tool list.
+ * The Supervisor's ReAct loop naturally calls workers "as tools."
  *
- * ## 동작 방식
+ * ## How It Works
  * ```
- * 사용자: "주문 환불해주세요"
- *          ↓
+ * User: "Please refund my order"
+ *          |
  * [Supervisor Agent]
- *   시스템 프롬프트: "적절한 전문 에이전트에게 작업을 위임하라"
- *   도구 목록:
- *     - delegate_to_order_agent     ← WorkerAgentTool
- *     - delegate_to_refund_agent    ← WorkerAgentTool
- *     - delegate_to_shipping_agent  ← WorkerAgentTool
- *          ↓ (Supervisor가 refund_agent 도구를 호출)
+ *   System prompt: "Delegate tasks to the appropriate specialist agent"
+ *   Tool list:
+ *     - delegate_to_order_agent     <- WorkerAgentTool
+ *     - delegate_to_refund_agent    <- WorkerAgentTool
+ *     - delegate_to_shipping_agent  <- WorkerAgentTool
+ *          | (Supervisor calls the refund_agent tool)
  * [Refund Agent]
- *   시스템 프롬프트: "환불 정책에 따라 처리하라"
- *   도구: checkOrder, processRefund
- *          ↓ (환불 결과)
+ *   System prompt: "Process according to refund policy"
+ *   Tools: checkOrder, processRefund
+ *          | (refund result)
  * [Supervisor Agent]
- *   → 결과를 받아 최종 응답 생성
+ *   -> Receives the result and generates the final response
  * ```
  *
- * @param supervisorSystemPrompt Supervisor 에이전트의 시스템 프롬프트 (커스텀 가능)
+ * @param supervisorSystemPrompt System prompt for the Supervisor agent (customizable)
  */
 class SupervisorOrchestrator(
     private val supervisorSystemPrompt: String? = null
@@ -57,7 +57,7 @@ class SupervisorOrchestrator(
 
         val startTime = System.currentTimeMillis()
 
-        // 1. 각 워커 노드를 WorkerAgentTool로 변환
+        // 1. Convert each worker node to a WorkerAgentTool
         val workerTools = nodes.map { node ->
             val workerAgent = agentFactory(node)
             WorkerAgentTool(node, workerAgent)
@@ -65,18 +65,18 @@ class SupervisorOrchestrator(
 
         logger.info { "Supervisor: created ${workerTools.size} worker tools: ${workerTools.map { it.name }}" }
 
-        // 2. Supervisor용 시스템 프롬프트 생성
+        // 2. Generate system prompt for the Supervisor
         val systemPrompt = supervisorSystemPrompt ?: buildDefaultSupervisorPrompt(nodes)
 
-        // 3. Supervisor 에이전트 노드 생성 (워커 도구들을 장착)
+        // 3. Create the Supervisor agent node (equipped with worker tools)
         val supervisorNode = AgentNode(
             name = "supervisor",
             systemPrompt = systemPrompt,
             tools = workerTools,
-            maxToolCalls = nodes.size * 2 // 워커 수의 2배 (재시도 여유)
+            maxToolCalls = nodes.size * 2 // 2x number of workers (allows for retries)
         )
 
-        // 4. Supervisor 에이전트 실행 (기존 SpringAiAgentExecutor 그대로 사용)
+        // 4. Execute the Supervisor agent (using existing SpringAiAgentExecutor as-is)
         val supervisorAgent = agentFactory(supervisorNode)
         val result = supervisorAgent.execute(
             command.copy(systemPrompt = systemPrompt)

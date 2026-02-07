@@ -8,21 +8,21 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * 워커 에이전트를 도구로 감싸는 어댑터
+ * Adapter that wraps a worker agent as a tool.
  *
- * Supervisor 패턴의 핵심 구현입니다.
- * 다른 에이전트를 ToolCallback으로 감싸서, Supervisor의 도구 목록에 등록합니다.
- * Supervisor의 ReAct 루프가 이 도구를 호출하면 → 워커 에이전트가 실행됩니다.
+ * This is the core implementation of the Supervisor pattern.
+ * Wraps another agent as a ToolCallback and registers it in the Supervisor's tool list.
+ * When the Supervisor's ReAct loop calls this tool, the worker agent is executed.
  *
- * ## 기존 코드 수정 없이 동작하는 원리
+ * ## How It Works Without Modifying Existing Code
  * ```
- * SpringAiAgentExecutor (기존 코드, 수정 없음)
- *   └── 도구 목록에 WorkerAgentTool이 포함됨
- *         └── call() 시 워커 AgentExecutor.execute() 호출
+ * SpringAiAgentExecutor (existing code, no modifications)
+ *   +-- WorkerAgentTool is included in the tool list
+ *         +-- On call(), invokes worker AgentExecutor.execute()
  * ```
  *
- * @param node 워커 에이전트 노드 정의
- * @param agentExecutor 워커 에이전트의 실행기
+ * @param node Worker agent node definition
+ * @param agentExecutor Executor for the worker agent
  */
 class WorkerAgentTool(
     private val node: AgentNode,

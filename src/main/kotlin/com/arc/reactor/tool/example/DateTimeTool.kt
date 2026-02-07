@@ -6,13 +6,13 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * 현재 시간 조회 도구 (예시)
+ * Current date/time tool (example)
  *
- * LLM이 현재 날짜/시간을 알아야 할 때 이 도구를 호출합니다.
- * 타임존을 지정하면 해당 지역의 시간을 반환합니다.
+ * Called by the LLM when it needs to know the current date/time.
+ * If a timezone is specified, returns the time for that region.
  *
- * 이 클래스는 예시이므로 @Component가 붙어있지 않습니다.
- * 사용하려면 직접 빈으로 등록하거나 @Component를 추가하세요.
+ * This class is an example and is not annotated with @Component.
+ * To use it, register it as a bean manually or add @Component.
  */
 class DateTimeTool : ToolCallback {
 

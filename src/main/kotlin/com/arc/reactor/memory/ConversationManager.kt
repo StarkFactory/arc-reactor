@@ -14,35 +14,35 @@ import org.springframework.ai.chat.messages.UserMessage
 private val logger = KotlinLogging.logger {}
 
 /**
- * 대화 히스토리 생명주기를 관리합니다.
+ * Manages the conversation history lifecycle.
  *
- * - MemoryStore에서 대화 기록 로드
- * - 에이전트 실행 후 대화 기록 저장
- * - Arc Reactor ↔ Spring AI 메시지 변환
+ * - Loads conversation history from MemoryStore
+ * - Saves conversation history after agent execution
+ * - Converts messages between Arc Reactor and Spring AI formats
  */
 interface ConversationManager {
 
     /**
-     * 커맨드의 대화 히스토리를 Spring AI 메시지 목록으로 로드합니다.
-     * conversationHistory가 직접 제공되면 이를 우선 사용하고,
-     * 없으면 sessionId로 MemoryStore에서 조회합니다.
+     * Loads the command's conversation history as a list of Spring AI messages.
+     * If conversationHistory is directly provided, it takes priority;
+     * otherwise, retrieves from MemoryStore using the sessionId.
      */
     fun loadHistory(command: AgentCommand): List<Message>
 
     /**
-     * 성공적인 에이전트 실행 결과를 MemoryStore에 저장합니다.
-     * 실패한 결과는 저장하지 않습니다.
+     * Saves a successful agent execution result to the MemoryStore.
+     * Failed results are not saved.
      */
     fun saveHistory(command: AgentCommand, result: AgentResult)
 
     /**
-     * 스트리밍 결과를 MemoryStore에 저장합니다.
+     * Saves streaming results to the MemoryStore.
      */
     fun saveStreamingHistory(command: AgentCommand, content: String)
 }
 
 /**
- * MemoryStore 기반 기본 구현.
+ * Default implementation based on MemoryStore.
  */
 class DefaultConversationManager(
     private val memoryStore: MemoryStore?,

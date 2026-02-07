@@ -6,10 +6,10 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * ChatClient 빈 설정
+ * ChatClient bean configuration
  *
- * Spring AI가 자동 구성하는 ChatClient.Builder를 사용하여 ChatClient를 생성합니다.
- * 이 빈이 있어야 AgentExecutor가 자동으로 생성됩니다.
+ * Creates a ChatClient using the ChatClient.Builder auto-configured by Spring AI.
+ * This bean must be present for AgentExecutor to be auto-created.
  */
 @Configuration
 class ChatClientConfig {

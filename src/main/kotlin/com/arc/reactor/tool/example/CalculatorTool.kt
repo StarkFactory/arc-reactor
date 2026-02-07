@@ -3,19 +3,19 @@ package com.arc.reactor.tool.example
 import com.arc.reactor.tool.ToolCallback
 
 /**
- * 계산기 도구 (예시)
+ * Calculator tool (example)
  *
- * LLM이 수학 계산이 필요할 때 이 도구를 호출합니다.
- * ToolCallback 인터페이스를 구현하고 @Component로 등록하면 자동으로 에이전트에 연결됩니다.
+ * Called by the LLM when it needs to perform math calculations.
+ * Implement the ToolCallback interface and register with @Component to auto-connect to the agent.
  *
- * ## 자신만의 도구를 만들려면?
- * 1. ToolCallback 인터페이스를 구현합니다
- * 2. name, description, inputSchema를 정의합니다
- * 3. call() 메서드에 실제 로직을 작성합니다
- * 4. @Component를 붙이면 자동 등록됩니다
+ * ## How to create your own tool
+ * 1. Implement the ToolCallback interface
+ * 2. Define name, description, and inputSchema
+ * 3. Write the actual logic in the call() method
+ * 4. Add @Component for auto-registration
  *
- * 이 클래스는 예시이므로 @Component가 붙어있지 않습니다.
- * 사용하려면 직접 빈으로 등록하거나 @Component를 추가하세요.
+ * This class is an example and is not annotated with @Component.
+ * To use it, register it as a bean manually or add @Component.
  */
 class CalculatorTool : ToolCallback {
 

@@ -5,16 +5,16 @@ import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 
 /**
- * 멀티에이전트 노드 정의
+ * Multi-agent node definition.
  *
- * 하나의 에이전트 역할을 정의합니다. 각 노드는 고유한 시스템 프롬프트와 도구를 가집니다.
+ * Defines a single agent role. Each node has its own system prompt and tools.
  *
- * @param name 노드 이름 (예: "researcher", "writer", "reviewer")
- * @param systemPrompt 이 에이전트의 역할을 정의하는 시스템 프롬프트
- * @param description 이 에이전트가 하는 일 (Supervisor 패턴에서 라우팅 시 참조)
- * @param tools ToolCallback 방식 도구 목록
- * @param localTools LocalTool 방식 도구 목록
- * @param maxToolCalls 이 에이전트의 최대 도구 호출 횟수
+ * @param name Node name (e.g., "researcher", "writer", "reviewer")
+ * @param systemPrompt System prompt that defines this agent's role
+ * @param description What this agent does (referenced for routing in the Supervisor pattern)
+ * @param tools List of ToolCallback-based tools
+ * @param localTools List of LocalTool-based tools
+ * @param maxToolCalls Maximum number of tool calls for this agent
  */
 data class AgentNode(
     val name: String,
@@ -26,12 +26,12 @@ data class AgentNode(
 )
 
 /**
- * 멀티에이전트 실행 결과
+ * Multi-agent execution result.
  *
- * @param success 전체 실행 성공 여부
- * @param finalResult 최종 결과 (마지막 노드 또는 합산 결과)
- * @param nodeResults 각 노드별 실행 결과 (순서 보장)
- * @param totalDurationMs 전체 실행 시간
+ * @param success Whether the overall execution succeeded
+ * @param finalResult Final result (last node output or merged result)
+ * @param nodeResults Execution results for each node (order preserved)
+ * @param totalDurationMs Total execution time
  */
 data class MultiAgentResult(
     val success: Boolean,
@@ -41,7 +41,7 @@ data class MultiAgentResult(
 )
 
 /**
- * 개별 노드 실행 결과
+ * Individual node execution result.
  */
 data class NodeResult(
     val nodeName: String,
@@ -50,24 +50,24 @@ data class NodeResult(
 )
 
 /**
- * 병렬 실행 결과 병합 전략
+ * Merge strategy for parallel execution results.
  */
 fun interface ResultMerger {
     /**
-     * 여러 노드의 결과를 하나로 병합합니다.
+     * Merges results from multiple nodes into one.
      *
-     * @param results 각 노드의 실행 결과
-     * @return 병합된 최종 콘텐츠
+     * @param results Execution results from each node
+     * @return Merged final content
      */
     fun merge(results: List<NodeResult>): String
 
     companion object {
-        /** 줄바꿈으로 구분하여 결합 */
+        /** Join with newline separator */
         val JOIN_WITH_NEWLINE = ResultMerger { results ->
             results.joinToString("\n\n") { "[${it.nodeName}]\n${it.result.content ?: ""}" }
         }
 
-        /** 마지막 성공 결과만 사용 */
+        /** Use only the last successful result */
         val LAST_SUCCESS = ResultMerger { results ->
             results.lastOrNull { it.result.success }?.result?.content ?: "No successful results"
         }

@@ -33,7 +33,7 @@ class SupervisorOrchestratorTest {
                 agent
             }
 
-            // Supervisor의 시스템 프롬프트에 워커 목록이 포함되어야 함
+            // Supervisor's system prompt should contain the worker list
             val supervisorPrompt = commandSlot.captured.systemPrompt
             assertTrue(
                 supervisorPrompt.contains("delegate_to_order"),

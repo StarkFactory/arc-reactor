@@ -15,13 +15,13 @@ import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Flux
 
 /**
- * 채팅 API 컨트롤러
+ * Chat API Controller
  *
- * AI 에이전트와 대화하기 위한 REST API를 제공합니다.
+ * Provides REST APIs for conversing with the AI agent.
  *
- * ## 엔드포인트
- * - POST /api/chat        : 일반 응답 (한 번에 전체 응답)
- * - POST /api/chat/stream  : 스트리밍 응답 (SSE, 실시간 토큰 단위)
+ * ## Endpoints
+ * - POST /api/chat        : Standard response (full response at once)
+ * - POST /api/chat/stream  : Streaming response (SSE, real-time token-by-token)
  */
 @RestController
 @RequestMapping("/api/chat")
@@ -30,7 +30,7 @@ class ChatController(
 ) {
 
     /**
-     * 일반 채팅 - 전체 응답을 한 번에 반환
+     * Standard chat - returns the full response at once
      *
      * ```bash
      * curl -X POST http://localhost:8080/api/chat \
@@ -59,7 +59,7 @@ class ChatController(
     }
 
     /**
-     * 스트리밍 채팅 - SSE로 실시간 응답
+     * Streaming chat - real-time response via SSE
      *
      * ```bash
      * curl -X POST http://localhost:8080/api/chat/stream \
@@ -91,7 +91,7 @@ class ChatController(
 }
 
 /**
- * 채팅 요청
+ * Chat request
  */
 data class ChatRequest(
     @field:NotBlank(message = "message must not be blank")
@@ -104,7 +104,7 @@ data class ChatRequest(
 )
 
 /**
- * 채팅 응답
+ * Chat response
  */
 data class ChatResponse(
     val content: String?,

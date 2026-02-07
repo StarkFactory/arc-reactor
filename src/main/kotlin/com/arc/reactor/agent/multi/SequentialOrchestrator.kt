@@ -8,24 +8,24 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * 순차 실행 오케스트레이터 (Sequential)
+ * Sequential execution orchestrator.
  *
- * 에이전트를 A → B → C 순서로 실행합니다.
- * 이전 에이전트의 출력이 다음 에이전트의 입력이 됩니다.
+ * Executes agents in A -> B -> C order.
+ * The output of the previous agent becomes the input for the next agent.
  *
- * ## 동작 방식
+ * ## How It Works
  * ```
- * [Researcher] "AI 트렌드 조사해줘"
- *       ↓ (조사 결과)
- * [Writer] "위 자료를 바탕으로 리포트를 작성해줘"
- *       ↓ (리포트 초안)
- * [Reviewer] "위 리포트를 검토하고 개선해줘"
- *       ↓
- *   최종 리포트
+ * [Researcher] "Research AI trends"
+ *       | (research results)
+ * [Writer] "Write a report based on the above material"
+ *       | (report draft)
+ * [Reviewer] "Review and improve the above report"
+ *       |
+ *   Final report
  * ```
  *
- * ## 실패 처리
- * 중간 노드가 실패하면 즉시 중단하고 실패 결과를 반환합니다.
+ * ## Failure Handling
+ * If an intermediate node fails, execution stops immediately and a failure result is returned.
  */
 class SequentialOrchestrator : MultiAgentOrchestrator {
 
@@ -71,7 +71,7 @@ class SequentialOrchestrator : MultiAgentOrchestrator {
                 )
             }
 
-            // 이전 노드의 출력을 다음 노드의 입력으로 전달
+            // Pass the previous node's output as input to the next node
             currentInput = result.content ?: ""
             logger.info { "Sequential: node '${node.name}' completed in ${nodeDuration}ms" }
         }
