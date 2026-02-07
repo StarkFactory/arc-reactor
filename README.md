@@ -62,18 +62,45 @@ class OrderTool : LocalTool {
 
 ### 4. 실행
 
+#### IntelliJ에서 실행
+
+1. `ArcReactorApplication.kt`의 `main()` 옆 ▶ 버튼 클릭
+2. **Run/Debug Configuration → Environment variables**에 입력:
+   ```
+   GEMINI_API_KEY=AIzaSy_your_actual_key
+   ```
+3. Run
+
+> PostgreSQL도 사용하려면: `GEMINI_API_KEY=your_key;SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor;SPRING_DATASOURCE_USERNAME=arc;SPRING_DATASOURCE_PASSWORD=arc`
+
+#### CLI에서 실행
+
 ```bash
+export GEMINI_API_KEY=your-api-key
 ./gradlew bootRun
 ```
 
+#### Docker Compose로 실행
+
 ```bash
-# 채팅 API
+cp .env.example .env
+# .env 파일에서 GEMINI_API_KEY를 실제 키로 수정
+
+docker-compose up -d          # 백엔드 + PostgreSQL 시작
+docker-compose up app          # PostgreSQL 없이 백엔드만 시작
+docker-compose down            # 중지
+```
+
+#### API 테스트
+
+```bash
+# 일반 응답
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "주문 ORD-123 상태 알려줘", "userId": "user-1"}'
+  -d '{"message": "3 + 5는 얼마야?", "userId": "user-1"}'
 
 # 스트리밍
-curl -N http://localhost:8080/api/chat/stream \
+curl -N -X POST http://localhost:8080/api/chat/stream \
   -H "Content-Type: application/json" \
   -d '{"message": "안녕하세요", "userId": "user-1"}'
 ```
@@ -348,8 +375,9 @@ src/main/kotlin/com/arc/reactor/
 
 ## 문서
 
-- [예시 앱 & 도구 추가 가이드](docs/example-app.md)
-- [멀티에이전트 가이드](docs/multi-agent.md) — 3가지 패턴과 Supervisor 설계
+- [도구(Tool) 가이드](docs/tools.md) — 3가지 도구 유형, 등록 방법, MCP 연결
+- [멀티에이전트 가이드](docs/multi-agent.md) — Sequential / Parallel / Supervisor 패턴
+- [Supervisor 패턴 Deep Dive](docs/supervisor-pattern.md) — WorkerAgentTool 원리, 실제 사용법
 - [아키텍처 가이드](docs/architecture.md) — 내부 구조와 에러 처리 체계
 - [배포 가이드](docs/deployment.md) — Docker, 환경 변수, 프로덕션 체크리스트
 
