@@ -215,6 +215,104 @@ class WorkerAgentTool(node, agentExecutor) : ToolCallback {
 
 ---
 
+## 도구의 3가지 종류
+
+에이전트가 사용하는 도구는 3가지가 있습니다. **에이전트 입장에서는 셋 다 똑같은 도구**입니다.
+이름을 보고, 설명을 읽고, `call()`을 호출하면 결과가 돌아옵니다.
+
+차이는 **안에서 뭐가 돌아가는지**입니다:
+
+```
+에이전트의 도구 목록:
+  - calculator            ← 로컬 도구 (함수 1개 실행)
+  - file_read             ← MCP 도구 (외부 서버에 요청)
+  - delegate_to_refund    ← WorkerAgentTool (에이전트가 통째로 실행)
+```
+
+| | 로컬 도구 | MCP 도구 | WorkerAgentTool |
+|---|---|---|---|
+| **내부 동작** | 함수 1개 실행 | 외부 서버에 네트워크 요청 | 에이전트 통째로 실행 (자체 LLM + 도구) |
+| **LLM 호출** | 없음 | 없음 | **있음** (자체 ReAct 루프) |
+| **실행 위치** | 같은 프로세스 | 외부 MCP 서버 | 같은 프로세스 |
+| **예시** | `3+5` 계산 → `"8"` | MCP서버에 파일 읽기 요청 → 파일 내용 | 환불 에이전트가 알아서 처리 → `"환불 완료"` |
+
+**MCP는 "도구를 어디서 가져오느냐"** (로컬 vs 외부 서버)이고,
+**WorkerAgentTool은 "도구 안에서 뭐가 돌아가느냐"** (단순 로직 vs LLM 에이전트)입니다.
+서로 다른 축의 개념이며, 함께 조합할 수도 있습니다:
+
+```
+Supervisor 에이전트:
+  도구: [MCP에서 가져온 도구들, WorkerAgentTool들]
+
+Refund Worker 에이전트:
+  도구: [MCP에서 가져온 결제 API 도구, 로컬 DB 조회 도구]
+```
+
+### LLM 호출 횟수 예시
+
+Supervisor 패턴에서는 **LLM이 여러 번 호출**됩니다:
+
+```
+사용자: "주문 환불해주세요"
+
+[Supervisor LLM 호출 #1]
+  "delegate_to_refund를 호출하자"
+      ↓
+  [Refund Worker LLM 호출 #1] ← 별도 LLM 호출!
+    → checkOrder 도구 사용
+  [Refund Worker LLM 호출 #2] ← 별도 LLM 호출!
+    → processRefund 도구 사용
+  [Refund Worker LLM 호출 #3]
+    → "주문 #1234 환불 완료"
+      ↓ (이 문자열이 Supervisor에게 도구 결과로 돌아감)
+
+[Supervisor LLM 호출 #2]
+  → "고객님의 주문 #1234 환불이 완료되었습니다"
+```
+
+총 LLM 5번 호출. Supervisor 2번 + Worker 3번.
+Supervisor는 Worker 내부에서 LLM이 몇 번 호출되는지 모릅니다.
+
+---
+
+## 자주 묻는 질문
+
+### Q: WorkerAgentTool을 워커마다 새로 만들어야 하나?
+
+**아닙니다.** `WorkerAgentTool`은 범용 래퍼 클래스 1개입니다. 인스턴스만 여러 개 만듭니다:
+
+```kotlin
+// 클래스는 1개, 인스턴스가 3개
+WorkerAgentTool(refundNode, refundAgent)    // name = "delegate_to_refund"
+WorkerAgentTool(orderNode, orderAgent)      // name = "delegate_to_order"
+WorkerAgentTool(shippingNode, shippingAgent) // name = "delegate_to_shipping"
+```
+
+그리고 DSL 빌더를 쓰면 이것마저도 자동입니다:
+
+```kotlin
+// 개발자가 작성하는 코드 — 이게 전부
+MultiAgent.supervisor()
+    .node("refund") { systemPrompt = "환불 전문 에이전트" }
+    .node("shipping") { systemPrompt = "배송 전문 에이전트" }
+    .execute(command, agentFactory)
+
+// 내부에서 자동으로 WorkerAgentTool 인스턴스를 생성하고 Supervisor에 등록합니다.
+```
+
+### Q: 사용자 API가 바뀌나?
+
+**바뀌지 않습니다.** 사용자는 동일한 엔드포인트(`POST /api/chat`)에 요청하고, 단일 응답을 받습니다.
+싱글 에이전트 → 멀티에이전트 전환은 순수하게 서버 내부 구현 변경입니다.
+
+### Q: 어떤 패턴을 써야 하나?
+
+- 작업 A의 결과가 B에 필요하면 → **Sequential**
+- 독립적 작업을 빠르게 하고 싶으면 → **Parallel**
+- 요청 종류에 따라 전문가가 다르면 → **Supervisor**
+
+---
+
 ## AgentNode 설정
 
 각 노드(에이전트)에 설정할 수 있는 항목:
