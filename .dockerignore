@@ -1,0 +1,12 @@
+.git
+.github
+.gradle
+.idea
+.claude
+.env
+.env.local
+build
+docs
+examples
+*.md
+!README.md
