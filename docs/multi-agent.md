@@ -313,6 +313,83 @@ MultiAgent.supervisor()
 
 ---
 
+## 실제 사용법: 어디서 node를 정의하고 어떻게 연결하나?
+
+> 전체 예시 코드: [`CustomerServiceExample.kt`](../src/main/kotlin/com/arc/reactor/agent/multi/example/CustomerServiceExample.kt)
+
+### 1단계: 서비스 클래스에서 node 정의 + 실행
+
+```kotlin
+class CustomerService(
+    private val chatClient: ChatClient,
+    private val properties: AgentProperties
+) {
+    suspend fun handle(message: String): MultiAgentResult {
+        return MultiAgent.supervisor()
+            // 여기서 node를 정의합니다
+            .node("order") {
+                systemPrompt = "주문 전문 에이전트"
+                description = "주문 조회, 변경, 취소"  // Supervisor가 이걸 보고 판단
+                tools = listOf(orderLookupTool)        // 이 워커가 쓸 도구
+            }
+            .node("refund") {
+                systemPrompt = "환불 전문 에이전트"
+                description = "환불 신청, 상태 확인"
+                tools = listOf(refundProcessTool)
+            }
+            // agentFactory: node → 실제 AgentExecutor 생성
+            .execute(
+                command = AgentCommand(userPrompt = message),
+                agentFactory = { node ->
+                    SpringAiAgentExecutor(
+                        chatClient = chatClient,
+                        properties = properties,
+                        toolCallbacks = node.tools,    // 노드별 도구가 여기로 전달됨
+                        localTools = node.localTools
+                    )
+                }
+            )
+    }
+}
+```
+
+### 2단계: Controller에서 호출
+
+```kotlin
+@RestController
+class SupportController(private val customerService: CustomerService) {
+
+    @PostMapping("/api/support")
+    suspend fun support(@RequestBody request: ChatRequest): ChatResponse {
+        val result = customerService.handle(request.message)
+        return ChatResponse(
+            content = result.finalResult.content,
+            success = result.success
+        )
+    }
+}
+```
+
+### 흐름 요약
+
+```
+사용자 → POST /api/support
+  → SupportController.support()
+    → CustomerService.handle()
+      → MultiAgent.supervisor()
+        → node 정의 (order, refund)
+        → agentFactory로 각 node를 AgentExecutor로 변환
+        → Supervisor 에이전트 실행 (WorkerAgentTool 자동 생성됨)
+      → MultiAgentResult 반환
+    → ChatResponse 반환
+  → 사용자에게 응답
+```
+
+**핵심: `node()`로 워커를 정의하고, `agentFactory`로 실제 executor를 만들고, `execute()`로 실행합니다.**
+별도의 WorkerAgentTool 클래스를 만들 필요 없이, 오케스트레이터가 내부에서 자동으로 처리합니다.
+
+---
+
 ## AgentNode 설정
 
 각 노드(에이전트)에 설정할 수 있는 항목:
