@@ -13,14 +13,14 @@ class McpManagerTypeTest {
     fun `getAllToolCallbacks should return List of ToolCallback`() {
         val manager = DefaultMcpManager()
         val result: List<ToolCallback> = manager.getAllToolCallbacks()
-        assertTrue(result.isEmpty())
+        assertTrue(result.isEmpty()) { "Expected empty tool callbacks list, got: ${result.size}" }
     }
 
     @Test
     fun `getToolCallbacks should return List of ToolCallback`() {
         val manager = DefaultMcpManager()
         val result: List<ToolCallback> = manager.getToolCallbacks("nonexistent")
-        assertTrue(result.isEmpty())
+        assertTrue(result.isEmpty()) { "Expected empty tool callbacks for nonexistent server, got: ${result.size}" }
     }
 
     @Test

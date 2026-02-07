@@ -46,7 +46,8 @@ class SpringAiToolCallbackAdapterTest {
             }
         }
 
-        assertTrue(exception.message!!.contains("'call' method not found"))
+        assertTrue(exception.message!!.contains("'call' method not found"),
+            "Exception should mention missing 'call' method")
     }
 
     @Test
@@ -61,7 +62,8 @@ class SpringAiToolCallbackAdapterTest {
             adapter.call(mapOf("query" to "hello"))
         }
 
-        assertTrue((result as String).startsWith("Result: "))
+        assertTrue((result as String).startsWith("Result: "),
+            "Result should start with 'Result: ', got: $result")
     }
 
     @Test
@@ -83,10 +85,10 @@ class SpringAiToolCallbackAdapterTest {
 
         // The fake callback returns "Result: <json>", so extract the JSON part
         val json = result.removePrefix("Result: ")
-        assertTrue(json.contains("\"name\""))
-        assertTrue(json.contains("\"arc\""))
-        assertTrue(json.contains("\"count\""))
-        assertTrue(json.contains("42"))
+        assertTrue(json.contains("\"name\""), "JSON should contain 'name' key, got: $json")
+        assertTrue(json.contains("\"arc\""), "JSON should contain 'arc' value, got: $json")
+        assertTrue(json.contains("\"count\""), "JSON should contain 'count' key, got: $json")
+        assertTrue(json.contains("42"), "JSON should contain 42 value, got: $json")
     }
 
     @Test

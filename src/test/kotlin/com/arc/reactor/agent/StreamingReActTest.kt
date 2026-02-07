@@ -1,28 +1,20 @@
 package com.arc.reactor.agent
 
-import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.agent.AgentTestFixture.Companion.textChunk
+import com.arc.reactor.agent.AgentTestFixture.Companion.toolCallChunk
 import com.arc.reactor.agent.config.ConcurrencyProperties
-import com.arc.reactor.agent.config.GuardProperties
-import com.arc.reactor.agent.config.LlmProperties
-import com.arc.reactor.agent.config.RagProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentMode
-import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.hook.HookExecutor
-import com.arc.reactor.hook.model.AgentResponse
-import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
-import com.arc.reactor.hook.model.ToolCallContext
-import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.tool.ToolCallback
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -30,13 +22,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec
-import org.springframework.ai.chat.client.ChatClient.StreamResponseSpec
 import org.springframework.ai.chat.messages.AssistantMessage
-import org.springframework.ai.chat.model.ChatResponse
-import org.springframework.ai.chat.model.Generation
-import org.springframework.ai.chat.prompt.ChatOptions
 import reactor.core.publisher.Flux
 
 /**
@@ -55,74 +41,12 @@ import reactor.core.publisher.Flux
  */
 class StreamingReActTest {
 
-    private lateinit var chatClient: ChatClient
-    private lateinit var requestSpec: ChatClientRequestSpec
-    private lateinit var streamResponseSpec: StreamResponseSpec
-    private lateinit var properties: AgentProperties
+    private lateinit var fixture: AgentTestFixture
+    private val properties = AgentTestFixture.defaultProperties()
 
     @BeforeEach
     fun setup() {
-        chatClient = mockk()
-        requestSpec = mockk(relaxed = true)
-        streamResponseSpec = mockk()
-        properties = AgentProperties(
-            llm = LlmProperties(),
-            guard = GuardProperties(),
-            rag = RagProperties(),
-            concurrency = ConcurrencyProperties()
-        )
-
-        every { chatClient.prompt() } returns requestSpec
-        every { requestSpec.system(any<String>()) } returns requestSpec
-        every { requestSpec.user(any<String>()) } returns requestSpec
-        every { requestSpec.messages(any<List<org.springframework.ai.chat.messages.Message>>()) } returns requestSpec
-        every { requestSpec.tools(*anyVararg<Any>()) } returns requestSpec
-        every { requestSpec.options(any<ChatOptions>()) } returns requestSpec
-        every { requestSpec.stream() } returns streamResponseSpec
-    }
-
-    // =========================================================================
-    // Helpers
-    // =========================================================================
-    private fun textChunk(text: String): ChatResponse {
-        return ChatResponse(listOf(Generation(AssistantMessage(text))))
-    }
-
-    private fun toolCallChunk(
-        toolCalls: List<AssistantMessage.ToolCall>,
-        text: String = ""
-    ): ChatResponse {
-        val msg = AssistantMessage.builder()
-            .content(text)
-            .toolCalls(toolCalls)
-            .build()
-        return ChatResponse(listOf(Generation(msg)))
-    }
-
-    /**
-     * Tracking ToolCallback: 호출 횟수, 전달된 인자를 기록
-     */
-    private fun trackingToolCallback(
-        name: String,
-        result: String = "tool result"
-    ): TrackingTool {
-        return TrackingTool(name, result)
-    }
-
-    class TrackingTool(
-        override val name: String,
-        private val result: String
-    ) : ToolCallback {
-        override val description = "Test tool: $name"
-        var callCount = 0
-            private set
-        val capturedArgs = mutableListOf<Map<String, Any?>>()
-
-        override suspend fun call(arguments: Map<String, Any?>): Any {
-            callCount++
-            capturedArgs.add(arguments)
-            return result
-        }
+        fixture = AgentTestFixture()
     }
 
     // =========================================================================
@@ -135,15 +59,15 @@ class StreamingReActTest {
         fun `도구 호출 감지 후 실행하고 다시 스트리밍해야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "weather", """{"city":"Seoul"}""")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall), "확인할게요")),
                 Flux.just(textChunk("서울은 맑고 25도입니다."))
             )
 
-            val tool = trackingToolCallback("weather", "맑음, 25도")
+            val tool = TrackingTool("weather", "맑음, 25도")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool)
             )
@@ -156,7 +80,7 @@ class StreamingReActTest {
             assertEquals(1, tool.callCount, "도구는 정확히 1번 호출되어야 한다")
 
             // 검증 2: ReAct 루프가 2번 돌았음 (도구 호출 → 최종 응답)
-            verify(exactly = 2) { requestSpec.stream() }
+            verify(exactly = 2) { fixture.requestSpec.stream() }
 
             // 검증 3: 첫 번째 스트림 텍스트 + 두 번째 스트림 텍스트 모두 포함
             val fullText = chunks.joinToString("")
@@ -171,15 +95,15 @@ class StreamingReActTest {
                 """{"city":"Seoul","unit":"celsius"}"""
             )
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall))),
                 Flux.just(textChunk("결과입니다."))
             )
 
-            val tool = trackingToolCallback("weather", "25도")
+            val tool = TrackingTool("weather", "25도")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool)
             )
@@ -198,7 +122,7 @@ class StreamingReActTest {
         fun `텍스트 청크가 올바른 순서로 전달되어야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "calc", """{}""")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(
                     textChunk("A"),
                     textChunk("B"),
@@ -210,10 +134,10 @@ class StreamingReActTest {
                 )
             )
 
-            val tool = trackingToolCallback("calc", "42")
+            val tool = TrackingTool("calc", "42")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool)
             )
@@ -231,16 +155,16 @@ class StreamingReActTest {
             val toolCall1 = AssistantMessage.ToolCall("call-1", "function", "weather", """{"city":"Seoul"}""")
             val toolCall2 = AssistantMessage.ToolCall("call-2", "function", "time", """{"tz":"KST"}""")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall1, toolCall2))),
                 Flux.just(textChunk("서울: 맑음. 시간: 3pm."))
             )
 
-            val weatherTool = trackingToolCallback("weather", "맑음")
-            val timeTool = trackingToolCallback("time", "3pm KST")
+            val weatherTool = TrackingTool("weather", "맑음")
+            val timeTool = TrackingTool("time", "3pm KST")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(weatherTool, timeTool)
             )
@@ -256,11 +180,11 @@ class StreamingReActTest {
 
         @Test
         fun `도구가 없으면 ReAct 루프 없이 바로 스트리밍해야 한다`() = runBlocking {
-            every { streamResponseSpec.chatResponse() } returns
+            every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("Hello"), textChunk(" World"))
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties
             )
 
@@ -272,18 +196,18 @@ class StreamingReActTest {
             assertEquals(listOf("Hello", " World"), chunks)
 
             // 검증 2: 스트리밍은 1번만 (ReAct 루프 안 돎)
-            verify(exactly = 1) { requestSpec.stream() }
+            verify(exactly = 1) { fixture.requestSpec.stream() }
         }
 
         @Test
         fun `STANDARD 모드에서는 도구 호출 안 해야 한다`() = runBlocking {
-            every { streamResponseSpec.chatResponse() } returns
+            every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("직접 응답"))
 
-            val tool = trackingToolCallback("my_tool")
+            val tool = TrackingTool("my_tool")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool)
             )
@@ -300,7 +224,7 @@ class StreamingReActTest {
             assertEquals(0, tool.callCount, "STANDARD 모드에서는 도구가 호출되면 안 된다")
 
             // 검증: 스트리밍 1번만
-            verify(exactly = 1) { requestSpec.stream() }
+            verify(exactly = 1) { fixture.requestSpec.stream() }
         }
     }
 
@@ -315,7 +239,7 @@ class StreamingReActTest {
             val toolCall1 = AssistantMessage.ToolCall("call-1", "function", "search", """{"q":"서울 날씨"}""")
             val toolCall2 = AssistantMessage.ToolCall("call-2", "function", "search", """{"q":"서울 맛집"}""")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 // 1라운드: 첫 번째 검색
                 Flux.just(toolCallChunk(listOf(toolCall1), "검색 중...")),
                 // 2라운드: 두 번째 검색
@@ -324,10 +248,10 @@ class StreamingReActTest {
                 Flux.just(textChunk("서울은 맑고, 강남 맛집은 OOO입니다."))
             )
 
-            val tool = trackingToolCallback("search", "검색 결과")
+            val tool = TrackingTool("search", "검색 결과")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool)
             )
@@ -340,7 +264,7 @@ class StreamingReActTest {
             assertEquals(2, tool.callCount, "search 도구는 정확히 2번 호출되어야 한다")
 
             // 검증 2: ReAct 루프가 3번 돌았음
-            verify(exactly = 3) { requestSpec.stream() }
+            verify(exactly = 3) { fixture.requestSpec.stream() }
 
             // 검증 3: 모든 라운드의 텍스트가 포함됨
             val fullText = chunks.joinToString("")
@@ -368,15 +292,15 @@ class StreamingReActTest {
 
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", """{"key":"value"}""")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall))),
                 Flux.just(textChunk("Done"))
             )
 
-            val tool = trackingToolCallback("my_tool")
+            val tool = TrackingTool("my_tool")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool),
                 hookExecutor = hookExecutor
@@ -405,15 +329,15 @@ class StreamingReActTest {
 
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall))),
                 Flux.just(textChunk("Done"))
             )
 
-            val tool = trackingToolCallback("my_tool", "my output 123")
+            val tool = TrackingTool("my_tool", "my output 123")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool),
                 hookExecutor = hookExecutor
@@ -444,15 +368,15 @@ class StreamingReActTest {
 
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "dangerous_tool", "{}")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall))),
                 Flux.just(textChunk("도구가 차단됨"))
             )
 
-            val tool = trackingToolCallback("dangerous_tool", "이게 호출되면 안 됨")
+            val tool = TrackingTool("dangerous_tool", "이게 호출되면 안 됨")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool),
                 hookExecutor = hookExecutor
@@ -480,17 +404,17 @@ class StreamingReActTest {
         fun `maxToolCalls=2일 때 도구가 정확히 2번만 호출되어야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall))),  // 1라운드
                 Flux.just(toolCallChunk(listOf(toolCall))),  // 2라운드
                 Flux.just(toolCallChunk(listOf(toolCall))),  // 3라운드 (제한 걸림)
                 Flux.just(textChunk("최종 응답"))              // 4라운드
             )
 
-            val tool = trackingToolCallback("my_tool")
+            val tool = TrackingTool("my_tool")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool)
             )
@@ -507,16 +431,16 @@ class StreamingReActTest {
         fun `maxToolCalls=1일 때 도구가 정확히 1번만 호출되어야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall))),  // 1라운드
                 Flux.just(toolCallChunk(listOf(toolCall))),  // 2라운드 (제한 걸림)
                 Flux.just(textChunk("끝"))
             )
 
-            val tool = trackingToolCallback("my_tool")
+            val tool = TrackingTool("my_tool")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool)
             )
@@ -541,11 +465,11 @@ class StreamingReActTest {
                 concurrency = ConcurrencyProperties(requestTimeoutMs = 100)
             )
 
-            every { streamResponseSpec.chatResponse() } returns Flux.just(textChunk("시작"))
+            every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(textChunk("시작"))
                 .concatWith(Flux.never())
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = props
             )
 
@@ -573,11 +497,11 @@ class StreamingReActTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
 
-            every { streamResponseSpec.chatResponse() } returns
+            every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("Hello"), textChunk(" World"))
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 hookExecutor = hookExecutor
             )
@@ -606,15 +530,15 @@ class StreamingReActTest {
 
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall))),
                 Flux.just(textChunk("Done"))
             )
 
-            val tool = trackingToolCallback("my_tool")
+            val tool = TrackingTool("my_tool")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool),
                 hookExecutor = hookExecutor
@@ -640,11 +564,11 @@ class StreamingReActTest {
         fun `스트리밍 후 실행 Metrics가 기록되어야 한다`() = runBlocking {
             val metrics = mockk<AgentMetrics>(relaxed = true)
 
-            every { streamResponseSpec.chatResponse() } returns
+            every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("Response"))
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 agentMetrics = metrics
             )
@@ -669,15 +593,15 @@ class StreamingReActTest {
 
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall))),
                 Flux.just(textChunk("Done"))
             )
 
-            val tool = trackingToolCallback("my_tool")
+            val tool = TrackingTool("my_tool")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool),
                 agentMetrics = metrics
@@ -708,11 +632,11 @@ class StreamingReActTest {
         fun `스트리밍 완료 후 user와 assistant 메시지가 정확히 저장되어야 한다`() = runBlocking {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
 
-            every { streamResponseSpec.chatResponse() } returns
+            every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("Hello"), textChunk(" World"))
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 memoryStore = memoryStore
             )
@@ -736,15 +660,15 @@ class StreamingReActTest {
 
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall), "확인 중...")),
                 Flux.just(textChunk("결과: 완료"))
             )
 
-            val tool = trackingToolCallback("my_tool")
+            val tool = TrackingTool("my_tool")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool),
                 memoryStore = memoryStore
@@ -767,11 +691,11 @@ class StreamingReActTest {
         fun `sessionId가 없으면 히스토리 저장하지 않아야 한다`() = runBlocking {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
 
-            every { streamResponseSpec.chatResponse() } returns
+            every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("Response"))
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 memoryStore = memoryStore
             )
@@ -797,7 +721,7 @@ class StreamingReActTest {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "failing_tool", "{}")
             val metrics = mockk<AgentMetrics>(relaxed = true)
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall))),
                 Flux.just(textChunk("도구가 실패했습니다."))
             )
@@ -811,7 +735,7 @@ class StreamingReActTest {
             }
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(failingTool),
                 agentMetrics = metrics
@@ -825,7 +749,7 @@ class StreamingReActTest {
             assertTrue(chunks.isNotEmpty(), "스트림이 결과를 반환해야 한다")
 
             // 검증 2: ReAct 루프가 계속 돌았음 (LLM에 에러 전달 후 응답 받음)
-            verify(exactly = 2) { requestSpec.stream() }
+            verify(exactly = 2) { fixture.requestSpec.stream() }
 
             // 검증 3: Metrics에 실패로 기록됨
             verify(exactly = 1) { metrics.recordToolCall("failing_tool", any(), false) }
@@ -835,15 +759,15 @@ class StreamingReActTest {
         fun `존재하지 않는 도구 호출 시에도 정상 스트리밍해야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "nonexistent", "{}")
 
-            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+            every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(toolCallChunk(listOf(toolCall))),
                 Flux.just(textChunk("도구를 못 찾았습니다."))
             )
 
-            val tool = trackingToolCallback("other_tool")
+            val tool = TrackingTool("other_tool")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool)
             )
@@ -856,8 +780,8 @@ class StreamingReActTest {
             assertEquals(0, tool.callCount, "다른 도구가 호출되면 안 된다")
 
             // 검증 2: 스트림은 정상 완료
-            assertTrue(chunks.isNotEmpty())
-            verify(exactly = 2) { requestSpec.stream() }
+            assertTrue(chunks.isNotEmpty(), "Stream should produce at least one chunk")
+            verify(exactly = 2) { fixture.requestSpec.stream() }
         }
     }
 }

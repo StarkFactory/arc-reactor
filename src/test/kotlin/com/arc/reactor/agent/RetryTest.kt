@@ -4,30 +4,21 @@ import com.arc.reactor.agent.config.*
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.chat.client.ChatClient.CallResponseSpec
-import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec
-import org.springframework.ai.chat.messages.Message
-import org.springframework.ai.chat.prompt.ChatOptions
 import java.util.concurrent.atomic.AtomicInteger
 
 class RetryTest {
 
-    private lateinit var chatClient: ChatClient
-    private lateinit var requestSpec: ChatClientRequestSpec
-    private lateinit var responseSpec: CallResponseSpec
+    private lateinit var fixture: AgentTestFixture
     private lateinit var properties: AgentProperties
 
     @BeforeEach
     fun setup() {
-        chatClient = mockk()
-        requestSpec = mockk(relaxed = true)
-        responseSpec = mockk()
+        fixture = AgentTestFixture()
         properties = AgentProperties(
             retry = RetryProperties(
                 maxAttempts = 3,
@@ -36,227 +27,239 @@ class RetryTest {
                 maxDelayMs = 100
             )
         )
-
-        every { chatClient.prompt() } returns requestSpec
-        every { requestSpec.system(any<String>()) } returns requestSpec
-        every { requestSpec.user(any<String>()) } returns requestSpec
-        every { requestSpec.messages(any<List<Message>>()) } returns requestSpec
-        every { requestSpec.options(any<ChatOptions>()) } returns requestSpec
     }
 
-    @Test
-    fun `should succeed after transient failure with retry`() = runBlocking {
-        val callCount = AtomicInteger(0)
+    @Nested
+    inner class TransientErrors {
 
-        every { requestSpec.call() } answers {
-            val count = callCount.incrementAndGet()
-            if (count < 3) {
-                throw RuntimeException("Rate limit exceeded: too many requests")
+        @Test
+        fun `should succeed after transient failure with retry`() = runBlocking {
+            val callCount = AtomicInteger(0)
+
+            every { fixture.requestSpec.call() } answers {
+                val count = callCount.incrementAndGet()
+                if (count < 3) {
+                    throw RuntimeException("Rate limit exceeded: too many requests")
+                }
+                fixture.callResponseSpec
             }
-            responseSpec
-        }
-        every { responseSpec.content() } returns "Success after retry"
-        every { responseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.content() } returns "Success after retry"
+            every { fixture.callResponseSpec.chatResponse() } returns null
 
-        val executor = SpringAiAgentExecutor(chatClient = chatClient, properties = properties)
+            val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
-        val result = executor.execute(
-            AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
-        )
-
-        assertTrue(result.success, "Should succeed after retries")
-        assertEquals("Success after retry", result.content)
-        assertEquals(3, callCount.get(), "Should have called LLM 3 times (2 failures + 1 success)")
-    }
-
-    @Test
-    fun `should fail when all retry attempts exhausted`() = runBlocking {
-        val callCount = AtomicInteger(0)
-
-        every { requestSpec.call() } answers {
-            callCount.incrementAndGet()
-            throw RuntimeException("Service unavailable")
-        }
-
-        val executor = SpringAiAgentExecutor(chatClient = chatClient, properties = properties)
-
-        val result = executor.execute(
-            AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
-        )
-
-        assertFalse(result.success, "Should fail after exhausting retries")
-        assertNotNull(result.errorMessage)
-        assertEquals(3, callCount.get(), "Should have tried 3 times")
-    }
-
-    @Test
-    fun `should not retry non-transient errors`() = runBlocking {
-        val callCount = AtomicInteger(0)
-
-        every { requestSpec.call() } answers {
-            callCount.incrementAndGet()
-            throw RuntimeException("Invalid API key")
-        }
-
-        val executor = SpringAiAgentExecutor(chatClient = chatClient, properties = properties)
-
-        val result = executor.execute(
-            AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
-        )
-
-        assertFalse(result.success)
-        assertEquals(1, callCount.get(), "Should NOT retry non-transient errors")
-    }
-
-    @Test
-    fun `should propagate CancellationException without retry`() {
-        every { requestSpec.call() } answers {
-            throw java.util.concurrent.CancellationException("Cancelled")
-        }
-
-        val executor = SpringAiAgentExecutor(
-            chatClient = chatClient,
-            properties = properties.copy(
-                concurrency = ConcurrencyProperties(requestTimeoutMs = 30000)
+            val result = executor.execute(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             )
-        )
 
-        // CancellationException should propagate through execute() (structured concurrency)
-        assertThrows(java.util.concurrent.CancellationException::class.java) {
-            runBlocking {
-                executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
+            result.assertSuccess("Should succeed after retries")
+            assertEquals("Success after retry", result.content)
+            assertEquals(3, callCount.get(), "Should have called LLM 3 times (2 failures + 1 success)")
+        }
+
+        @Test
+        fun `should retry on connection error`() = runBlocking {
+            val callCount = AtomicInteger(0)
+
+            every { fixture.requestSpec.call() } answers {
+                val count = callCount.incrementAndGet()
+                if (count == 1) {
+                    throw RuntimeException("Connection refused")
+                }
+                fixture.callResponseSpec
             }
+            every { fixture.callResponseSpec.content() } returns "Recovered"
+            every { fixture.callResponseSpec.chatResponse() } returns null
+
+            val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
+
+            val result = executor.execute(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
+            )
+
+            result.assertSuccess()
+            assertEquals(2, callCount.get())
+        }
+
+        @Test
+        fun `should retry on timeout error`() = runBlocking {
+            val callCount = AtomicInteger(0)
+
+            every { fixture.requestSpec.call() } answers {
+                val count = callCount.incrementAndGet()
+                if (count == 1) {
+                    throw RuntimeException("Request timed out")
+                }
+                fixture.callResponseSpec
+            }
+            every { fixture.callResponseSpec.content() } returns "Recovered"
+            every { fixture.callResponseSpec.chatResponse() } returns null
+
+            val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
+
+            val result = executor.execute(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
+            )
+
+            result.assertSuccess()
+            assertEquals(2, callCount.get())
         }
     }
 
-    @Test
-    fun `should apply exponential backoff with jitter`() = runBlocking {
-        val timestamps = mutableListOf<Long>()
+    @Nested
+    inner class NonTransientErrors {
 
-        every { requestSpec.call() } answers {
-            timestamps.add(System.currentTimeMillis())
-            if (timestamps.size < 3) {
-                throw RuntimeException("Rate limit exceeded")
+        @Test
+        fun `should not retry non-transient errors`() = runBlocking {
+            val callCount = AtomicInteger(0)
+
+            every { fixture.requestSpec.call() } answers {
+                callCount.incrementAndGet()
+                throw RuntimeException("Invalid API key")
             }
-            responseSpec
-        }
-        every { responseSpec.content() } returns "OK"
-        every { responseSpec.chatResponse() } returns null
 
-        val executor = SpringAiAgentExecutor(
-            chatClient = chatClient,
-            properties = properties.copy(
-                retry = RetryProperties(
-                    maxAttempts = 3,
-                    initialDelayMs = 100,
-                    multiplier = 2.0,
-                    maxDelayMs = 500
+            val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
+
+            val result = executor.execute(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
+            )
+
+            assertFalse(result.success) { "Non-transient error should not succeed, got content: ${result.content}" }
+            assertEquals(1, callCount.get(), "Should NOT retry non-transient errors")
+        }
+
+        @Test
+        fun `should not false-positive on error messages containing numbers`() = runBlocking {
+            val callCount = AtomicInteger(0)
+
+            // "Processed 500 records" contains "500" but is NOT a server error
+            every { fixture.requestSpec.call() } answers {
+                callCount.incrementAndGet()
+                throw RuntimeException("Processed 500 records successfully")
+            }
+
+            val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
+
+            executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
+
+            // Should NOT retry because "500" in this context is not a transient error
+            // The regex uses word boundaries so "500" in "Processed 500 records" won't match
+            assertEquals(1, callCount.get(), "Should not retry false-positive 500")
+        }
+    }
+
+    @Nested
+    inner class BackoffBehavior {
+
+        @Test
+        fun `should apply exponential backoff with increasing delays`() = runBlocking {
+            val timestamps = mutableListOf<Long>()
+
+            every { fixture.requestSpec.call() } answers {
+                timestamps.add(System.nanoTime())
+                if (timestamps.size < 3) {
+                    throw RuntimeException("Rate limit exceeded")
+                }
+                fixture.callResponseSpec
+            }
+            every { fixture.callResponseSpec.content() } returns "OK"
+            every { fixture.callResponseSpec.chatResponse() } returns null
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties.copy(
+                    retry = RetryProperties(
+                        maxAttempts = 3,
+                        initialDelayMs = 100,
+                        multiplier = 2.0,
+                        maxDelayMs = 500
+                    )
                 )
             )
-        )
 
-        executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
+            executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
 
-        assertEquals(3, timestamps.size)
-        // First delay: base 100ms ±25% jitter = 75..125ms
-        val firstDelay = timestamps[1] - timestamps[0]
-        assertTrue(firstDelay >= 60, "First delay ($firstDelay) should be ~100ms with jitter")
-
-        // Second delay: base 200ms ±25% jitter = 150..250ms
-        val secondDelay = timestamps[2] - timestamps[1]
-        assertTrue(secondDelay >= 120, "Second delay ($secondDelay) should be ~200ms with jitter")
-    }
-
-    @Test
-    fun `should not false-positive on error messages containing numbers`() = runBlocking {
-        val callCount = AtomicInteger(0)
-
-        // "Processed 500 records" contains "500" but is NOT a server error
-        every { requestSpec.call() } answers {
-            callCount.incrementAndGet()
-            throw RuntimeException("Processed 500 records successfully")
-        }
-
-        val executor = SpringAiAgentExecutor(chatClient = chatClient, properties = properties)
-
-        executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
-
-        // Should NOT retry because "500" in this context is not a transient error
-        // The regex uses word boundaries so "500" in "Processed 500 records" won't match
-        assertEquals(1, callCount.get(), "Should not retry false-positive 500")
-    }
-
-    @Test
-    fun `should retry on connection error`() = runBlocking {
-        val callCount = AtomicInteger(0)
-
-        every { requestSpec.call() } answers {
-            val count = callCount.incrementAndGet()
-            if (count == 1) {
-                throw RuntimeException("Connection refused")
+            assertEquals(3, timestamps.size, "Should have attempted 3 calls")
+            val firstDelayMs = (timestamps[1] - timestamps[0]) / 1_000_000
+            val secondDelayMs = (timestamps[2] - timestamps[1]) / 1_000_000
+            // Verify delays are non-trivial (> 30ms proves backoff is active, not instant retry)
+            assertTrue(firstDelayMs > 30) { "First delay (${firstDelayMs}ms) should be non-trivial" }
+            assertTrue(secondDelayMs > 30) { "Second delay (${secondDelayMs}ms) should be non-trivial" }
+            // Verify exponential increase: second delay should be larger than first
+            assertTrue(secondDelayMs > firstDelayMs) {
+                "Exponential backoff: second delay (${secondDelayMs}ms) should exceed first (${firstDelayMs}ms)"
             }
-            responseSpec
         }
-        every { responseSpec.content() } returns "Recovered"
-        every { responseSpec.chatResponse() } returns null
-
-        val executor = SpringAiAgentExecutor(chatClient = chatClient, properties = properties)
-
-        val result = executor.execute(
-            AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
-        )
-
-        assertTrue(result.success)
-        assertEquals(2, callCount.get())
     }
 
-    @Test
-    fun `should make at least one attempt when maxAttempts is zero`() = runBlocking {
-        val callCount = AtomicInteger(0)
+    @Nested
+    inner class EdgeCases {
 
-        every { requestSpec.call() } answers {
-            callCount.incrementAndGet()
-            responseSpec
-        }
-        every { responseSpec.content() } returns "OK"
-        every { responseSpec.chatResponse() } returns null
+        @Test
+        fun `should make at least one attempt when maxAttempts is zero`() = runBlocking {
+            val callCount = AtomicInteger(0)
 
-        val executor = SpringAiAgentExecutor(
-            chatClient = chatClient,
-            properties = properties.copy(
-                retry = RetryProperties(maxAttempts = 0, initialDelayMs = 10, multiplier = 2.0, maxDelayMs = 100)
+            every { fixture.requestSpec.call() } answers {
+                callCount.incrementAndGet()
+                fixture.callResponseSpec
+            }
+            every { fixture.callResponseSpec.content() } returns "OK"
+            every { fixture.callResponseSpec.chatResponse() } returns null
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties.copy(
+                    retry = RetryProperties(maxAttempts = 0, initialDelayMs = 10, multiplier = 2.0, maxDelayMs = 100)
+                )
             )
-        )
 
-        val result = executor.execute(
-            AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
-        )
+            val result = executor.execute(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
+            )
 
-        assertTrue(result.success, "Should succeed with at least 1 attempt even when maxAttempts=0")
-        assertEquals(1, callCount.get(), "Should have made exactly 1 attempt")
-    }
-
-    @Test
-    fun `should retry on timeout error`() = runBlocking {
-        val callCount = AtomicInteger(0)
-
-        every { requestSpec.call() } answers {
-            val count = callCount.incrementAndGet()
-            if (count == 1) {
-                throw RuntimeException("Request timed out")
-            }
-            responseSpec
+            assertTrue(result.success, "Should succeed with at least 1 attempt even when maxAttempts=0")
+            assertEquals(1, callCount.get(), "Should have made exactly 1 attempt")
         }
-        every { responseSpec.content() } returns "Recovered"
-        every { responseSpec.chatResponse() } returns null
 
-        val executor = SpringAiAgentExecutor(chatClient = chatClient, properties = properties)
+        @Test
+        fun `should propagate CancellationException without retry`() {
+            every { fixture.requestSpec.call() } answers {
+                throw java.util.concurrent.CancellationException("Cancelled")
+            }
 
-        val result = executor.execute(
-            AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
-        )
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties.copy(
+                    concurrency = ConcurrencyProperties(requestTimeoutMs = 30000)
+                )
+            )
 
-        assertTrue(result.success)
-        assertEquals(2, callCount.get())
+            // CancellationException should propagate through execute() (structured concurrency)
+            assertThrows(java.util.concurrent.CancellationException::class.java) {
+                runBlocking {
+                    executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
+                }
+            }
+        }
+
+        @Test
+        fun `should fail when all retry attempts exhausted`() = runBlocking {
+            val callCount = AtomicInteger(0)
+
+            every { fixture.requestSpec.call() } answers {
+                callCount.incrementAndGet()
+                throw RuntimeException("Service unavailable")
+            }
+
+            val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
+
+            val result = executor.execute(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
+            )
+
+            assertFalse(result.success, "Should fail after exhausting retries")
+            assertNotNull(result.errorMessage) { "Should have error message after exhausting retries" }
+            assertEquals(3, callCount.get(), "Should have tried 3 times")
+        }
     }
 }

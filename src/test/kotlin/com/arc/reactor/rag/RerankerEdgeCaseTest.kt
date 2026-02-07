@@ -15,7 +15,7 @@ class RerankerEdgeCaseTest {
     fun `SimpleScoreReranker should handle empty list`() = runBlocking {
         val reranker = SimpleScoreReranker()
         val result = reranker.rerank("query", emptyList(), 5)
-        assertTrue(result.isEmpty())
+        assertTrue(result.isEmpty()) { "Expected empty result for empty input, got: ${result.size} documents" }
     }
 
     @Test
@@ -43,7 +43,7 @@ class RerankerEdgeCaseTest {
     fun `KeywordWeightedReranker should handle empty documents`() = runBlocking {
         val reranker = KeywordWeightedReranker()
         val result = reranker.rerank("test query", emptyList(), 5)
-        assertTrue(result.isEmpty())
+        assertTrue(result.isEmpty()) { "Expected empty result for empty input, got: ${result.size} documents" }
     }
 
     @Test
@@ -61,7 +61,7 @@ class RerankerEdgeCaseTest {
     fun `DiversityReranker should handle empty list`() = runBlocking {
         val reranker = DiversityReranker()
         val result = reranker.rerank("query", emptyList(), 5)
-        assertTrue(result.isEmpty())
+        assertTrue(result.isEmpty()) { "Expected empty result for empty input, got: ${result.size} documents" }
     }
 
     @Test
@@ -110,8 +110,8 @@ class RerankerEdgeCaseTest {
         ))
 
         val results = retriever.retrieve(listOf("kotlin", "java"), 10)
-        assertTrue(results.any { it.id == "1" })
-        assertTrue(results.any { it.id == "2" })
+        assertTrue(results.any { it.id == "1" }) { "Results should contain doc id '1', got ids: ${results.map { it.id }}" }
+        assertTrue(results.any { it.id == "2" }) { "Results should contain doc id '2', got ids: ${results.map { it.id }}" }
     }
 
     @Test
@@ -120,7 +120,7 @@ class RerankerEdgeCaseTest {
         retriever.addDocument(RetrievedDocument(id = "1", content = "kotlin language"))
 
         val results = retriever.retrieve(listOf("xyz"), 10)
-        assertTrue(results.isEmpty())
+        assertTrue(results.isEmpty()) { "Expected no results for non-matching query 'xyz', got: ${results.size} documents" }
     }
 
     @Test

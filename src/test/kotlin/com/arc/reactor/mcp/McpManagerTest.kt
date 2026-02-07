@@ -51,7 +51,7 @@ class McpManagerTest {
         val manager = DefaultMcpManager()
 
         val status = manager.getStatus("unknown-server")
-        assertNull(status)
+        assertNull(status, "Unknown server should return null status")
     }
 
     @Test
@@ -59,7 +59,7 @@ class McpManagerTest {
         val manager = DefaultMcpManager()
 
         val callbacks = manager.getAllToolCallbacks()
-        assertTrue(callbacks.isEmpty())
+        assertTrue(callbacks.isEmpty()) { "Expected no callbacks when no servers connected, got: ${callbacks.size}" }
     }
 
     @Test
@@ -75,7 +75,7 @@ class McpManagerTest {
         manager.register(server)
         val connected = manager.connect("invalid-server")
 
-        assertFalse(connected)
+        assertFalse(connected) { "Connection should fail for server with missing command config" }
         assertEquals(McpServerStatus.FAILED, manager.getStatus("invalid-server"))
     }
 
@@ -85,7 +85,7 @@ class McpManagerTest {
 
         val connected = manager.connect("nonexistent-server")
 
-        assertFalse(connected)
+        assertFalse(connected) { "Connection should fail for unregistered server" }
     }
 
     @Test
@@ -125,7 +125,7 @@ class McpManagerTest {
         ))
 
         val callbacks = manager.getToolCallbacks("test-server")
-        assertTrue(callbacks.isEmpty())
+        assertTrue(callbacks.isEmpty()) { "Expected no callbacks for unconnected server, got: ${callbacks.size}" }
     }
 
     @Test
@@ -139,7 +139,7 @@ class McpManagerTest {
         manager.register(server)
         val connected = manager.connect("sse-server")
 
-        assertFalse(connected)
+        assertFalse(connected) { "SSE connection should fail when url is not provided" }
         assertEquals(McpServerStatus.FAILED, manager.getStatus("sse-server"))
     }
 
@@ -154,7 +154,7 @@ class McpManagerTest {
         manager.register(server)
         val connected = manager.connect("http-server")
 
-        assertFalse(connected)
+        assertFalse(connected) { "HTTP connection should fail with unsupported transport" }
         assertEquals(McpServerStatus.FAILED, manager.getStatus("http-server"))
     }
 

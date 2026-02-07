@@ -4,15 +4,11 @@ import com.arc.reactor.agent.config.*
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.chat.client.ChatClient.CallResponseSpec
-import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec
-import org.springframework.ai.chat.prompt.ChatOptions
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -20,107 +16,103 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class ConcurrencyTimeoutTest {
 
-    private lateinit var chatClient: ChatClient
-    private lateinit var requestSpec: ChatClientRequestSpec
-    private lateinit var responseSpec: CallResponseSpec
+    private lateinit var fixture: AgentTestFixture
 
     @BeforeEach
     fun setup() {
-        chatClient = mockk()
-        requestSpec = mockk(relaxed = true)
-        responseSpec = mockk()
-
-        every { chatClient.prompt() } returns requestSpec
-        every { requestSpec.system(any<String>()) } returns requestSpec
-        every { requestSpec.user(any<String>()) } returns requestSpec
-        every { requestSpec.messages(any<List<org.springframework.ai.chat.messages.Message>>()) } returns requestSpec
-        every { requestSpec.options(any<ChatOptions>()) } returns requestSpec
-        every { requestSpec.call() } returns responseSpec
-        every { responseSpec.content() } returns "Response"
-        every { responseSpec.chatResponse() } returns null
+        fixture = AgentTestFixture()
+        fixture.mockCallResponse()
     }
 
-    @Test
-    fun `should enforce maxConcurrentRequests limit`() = runBlocking {
-        val currentConcurrent = AtomicInteger(0)
-        val maxConcurrentObserved = AtomicInteger(0)
+    @Nested
+    inner class ConcurrencyLimiting {
 
-        val properties = AgentProperties(
-            concurrency = ConcurrencyProperties(
-                maxConcurrentRequests = 2,
-                requestTimeoutMs = 5000
+        @Test
+        fun `should enforce maxConcurrentRequests limit`() = runBlocking {
+            val currentConcurrent = AtomicInteger(0)
+            val maxConcurrentObserved = AtomicInteger(0)
+
+            val properties = AgentProperties(
+                concurrency = ConcurrencyProperties(
+                    maxConcurrentRequests = 2,
+                    requestTimeoutMs = 5000
+                )
             )
-        )
-        val executor = SpringAiAgentExecutor(chatClient = chatClient, properties = properties)
+            val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
-        every { requestSpec.call() } answers {
-            val concurrent = currentConcurrent.incrementAndGet()
-            maxConcurrentObserved.updateAndGet { max -> maxOf(max, concurrent) }
-            Thread.sleep(200)
-            currentConcurrent.decrementAndGet()
-            responseSpec
-        }
-
-        val jobs = List(5) { index ->
-            async {
-                executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Request $index"))
+            every { fixture.requestSpec.call() } answers {
+                val concurrent = currentConcurrent.incrementAndGet()
+                maxConcurrentObserved.updateAndGet { max -> maxOf(max, concurrent) }
+                Thread.sleep(200)
+                currentConcurrent.decrementAndGet()
+                fixture.callResponseSpec
             }
+
+            val jobs = List(5) { index ->
+                async {
+                    executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Request $index"))
+                }
+            }
+
+            jobs.awaitAll()
+
+            assertTrue(maxConcurrentObserved.get() <= 2,
+                "Max concurrent (${maxConcurrentObserved.get()}) should not exceed 2")
         }
-
-        jobs.awaitAll()
-
-        assertTrue(maxConcurrentObserved.get() <= 2,
-            "Max concurrent (${maxConcurrentObserved.get()}) should not exceed 2")
     }
 
-    @Test
-    fun `should timeout when request exceeds requestTimeoutMs`() = runBlocking {
-        val properties = AgentProperties(
-            concurrency = ConcurrencyProperties(
-                maxConcurrentRequests = 20,
-                requestTimeoutMs = 50
-            )
-        )
-        val executor = SpringAiAgentExecutor(chatClient = chatClient, properties = properties)
+    @Nested
+    inner class RequestTimeout {
 
-        every { requestSpec.call() } answers {
-            Thread.sleep(500)
-            responseSpec
+        @Test
+        fun `should timeout when request exceeds requestTimeoutMs`() = runBlocking {
+            val properties = AgentProperties(
+                concurrency = ConcurrencyProperties(
+                    maxConcurrentRequests = 20,
+                    requestTimeoutMs = 50
+                )
+            )
+            val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
+
+            every { fixture.requestSpec.call() } answers {
+                Thread.sleep(500)
+                fixture.callResponseSpec
+            }
+
+            val result = executor.execute(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
+            )
+
+            assertFalse(result.success, "Request should fail due to timeout")
+            val errorMessage = requireNotNull(result.errorMessage)
+            assertTrue(
+                errorMessage.contains("timed out", ignoreCase = true) ||
+                errorMessage.contains("timeout", ignoreCase = true),
+                "Error message should mention timeout, got: $errorMessage"
+            )
         }
 
-        val result = executor.execute(
-            AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
-        )
-
-        assertFalse(result.success, "Request should fail due to timeout")
-        val errorMessage = requireNotNull(result.errorMessage)
-        assertTrue(
-            errorMessage.contains("timed out", ignoreCase = true) ||
-            errorMessage.contains("timeout", ignoreCase = true),
-            "Error message should mention timeout, got: $errorMessage"
-        )
-    }
-
-    @Test
-    fun `should allow requests within timeout`() = runBlocking {
-        val properties = AgentProperties(
-            concurrency = ConcurrencyProperties(
-                maxConcurrentRequests = 20,
-                requestTimeoutMs = 2000
+        @Test
+        fun `should allow requests within timeout`() = runBlocking {
+            val properties = AgentProperties(
+                concurrency = ConcurrencyProperties(
+                    maxConcurrentRequests = 20,
+                    requestTimeoutMs = 2000
+                )
             )
-        )
-        val executor = SpringAiAgentExecutor(chatClient = chatClient, properties = properties)
+            val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
-        every { requestSpec.call() } answers {
-            Thread.sleep(50)
-            responseSpec
+            every { fixture.requestSpec.call() } answers {
+                Thread.sleep(50)
+                fixture.callResponseSpec
+            }
+
+            val result = executor.execute(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
+            )
+
+            assertTrue(result.success, "Request should succeed within timeout")
+            assertNull(result.errorMessage, "Successful request should have no error message")
         }
-
-        val result = executor.execute(
-            AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
-        )
-
-        assertTrue(result.success, "Request should succeed within timeout")
-        assertNull(result.errorMessage)
     }
 }

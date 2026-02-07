@@ -9,81 +9,47 @@ import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.tool.ToolCallback
 import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.chat.client.ChatClient.CallResponseSpec
-import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec
 import org.springframework.ai.chat.messages.AssistantMessage
-import org.springframework.ai.chat.messages.Message
-import org.springframework.ai.chat.model.ChatResponse
-import org.springframework.ai.chat.model.Generation
-import org.springframework.ai.chat.prompt.ChatOptions
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 
 class ParallelToolExecutionTest {
 
-    private lateinit var chatClient: ChatClient
-    private lateinit var requestSpec: ChatClientRequestSpec
-    private lateinit var properties: AgentProperties
+    private lateinit var fixture: AgentTestFixture
+    private val properties = AgentTestFixture.defaultProperties()
 
     @BeforeEach
     fun setup() {
-        chatClient = mockk()
-        requestSpec = mockk(relaxed = true)
-        properties = AgentProperties()
-
-        every { chatClient.prompt() } returns requestSpec
-        every { requestSpec.system(any<String>()) } returns requestSpec
-        every { requestSpec.user(any<String>()) } returns requestSpec
-        every { requestSpec.messages(any<List<Message>>()) } returns requestSpec
-        every { requestSpec.options(any<ChatOptions>()) } returns requestSpec
-        every { requestSpec.tools(*anyVararg<Any>()) } returns requestSpec
+        fixture = AgentTestFixture()
     }
 
-    private fun createToolCallback(name: String, delayMs: Long = 0, result: String = "result-$name"): ToolCallback {
-        return object : ToolCallback {
-            override val name = name
-            override val description = "Tool $name"
-            override suspend fun call(arguments: Map<String, Any?>): Any {
-                if (delayMs > 0) Thread.sleep(delayMs)
-                return result
+    @Nested
+    inner class Parallelism {
+
+        @Test
+        fun `should execute tools in parallel - concurrency verification`() = runBlocking {
+        // Track the max number of concurrently executing tools
+        val concurrent = AtomicInteger(0)
+        val maxConcurrent = AtomicInteger(0)
+
+        val tools = listOf("tool-a", "tool-b", "tool-c").map { name ->
+            object : ToolCallback {
+                override val name = name
+                override val description = "Test tool: $name"
+                override suspend fun call(arguments: Map<String, Any?>): Any {
+                    val current = concurrent.incrementAndGet()
+                    maxConcurrent.updateAndGet { max -> maxOf(max, current) }
+                    kotlinx.coroutines.delay(100) // hold slot to allow overlap
+                    concurrent.decrementAndGet()
+                    return "result"
+                }
             }
         }
-    }
-
-    private fun mockResponseWithToolCalls(toolCalls: List<AssistantMessage.ToolCall>): CallResponseSpec {
-        val assistantMsg = AssistantMessage.builder()
-            .content("")
-            .toolCalls(toolCalls)
-            .build()
-        val generation = Generation(assistantMsg)
-        val chatResponse = ChatResponse(listOf(generation))
-        val responseSpec = mockk<CallResponseSpec>()
-        every { responseSpec.chatResponse() } returns chatResponse
-        every { responseSpec.content() } returns ""
-        return responseSpec
-    }
-
-    private fun mockFinalResponse(content: String): CallResponseSpec {
-        val responseSpec = mockk<CallResponseSpec>()
-        every { responseSpec.chatResponse() } returns null
-        every { responseSpec.content() } returns content
-        return responseSpec
-    }
-
-    @Test
-    fun `should execute tools in parallel - time verification`() = runBlocking {
-        // 3 tools, each takes 200ms. Sequential = ~600ms, Parallel = ~200ms
-        val tools = listOf(
-            createToolCallback("tool-a", delayMs = 200),
-            createToolCallback("tool-b", delayMs = 200),
-            createToolCallback("tool-c", delayMs = 200)
-        )
 
         val toolCalls = listOf(
             AssistantMessage.ToolCall("id-1", "function", "tool-a", "{}"),
@@ -92,37 +58,36 @@ class ParallelToolExecutionTest {
         )
 
         val callCount = AtomicInteger(0)
-        every { requestSpec.call() } answers {
+        every { fixture.requestSpec.call() } answers {
             if (callCount.getAndIncrement() == 0) {
-                mockResponseWithToolCalls(toolCalls)
+                fixture.mockToolCallResponse(toolCalls)
             } else {
-                mockFinalResponse("Done")
+                fixture.mockFinalResponse("Done")
             }
         }
 
         val executor = SpringAiAgentExecutor(
-            chatClient = chatClient,
+            chatClient = fixture.chatClient,
             properties = properties,
             toolCallbacks = tools
         )
 
-        val startTime = System.currentTimeMillis()
         val result = executor.execute(
             AgentCommand(systemPrompt = "Test", userPrompt = "Use all tools")
         )
-        val elapsed = System.currentTimeMillis() - startTime
 
-        assertTrue(result.success)
-        // Parallel should be ~200ms, not ~600ms. Allow generous margin.
-        assertTrue(elapsed < 500, "Parallel execution took ${elapsed}ms, expected < 500ms (sequential would be ~600ms)")
+        result.assertSuccess()
+        // If parallel, max concurrent should be > 1 (ideally 3)
+        assertTrue(maxConcurrent.get() > 1,
+            "Expected concurrent execution > 1, but was ${maxConcurrent.get()} (tools ran sequentially)")
     }
 
     @Test
     fun `should preserve result order regardless of execution time`() = runBlocking {
         // tool-slow takes longer but should still be first in results
         val tools = listOf(
-            createToolCallback("tool-slow", delayMs = 150, result = "SLOW"),
-            createToolCallback("tool-fast", delayMs = 10, result = "FAST")
+            AgentTestFixture.delayingToolCallback("tool-slow", delayMs = 150, result = "SLOW"),
+            AgentTestFixture.delayingToolCallback("tool-fast", delayMs = 10, result = "FAST")
         )
 
         val toolCalls = listOf(
@@ -131,16 +96,16 @@ class ParallelToolExecutionTest {
         )
 
         val callCount = AtomicInteger(0)
-        every { requestSpec.call() } answers {
+        every { fixture.requestSpec.call() } answers {
             if (callCount.getAndIncrement() == 0) {
-                mockResponseWithToolCalls(toolCalls)
+                fixture.mockToolCallResponse(toolCalls)
             } else {
-                mockFinalResponse("Done")
+                fixture.mockFinalResponse("Done")
             }
         }
 
         val executor = SpringAiAgentExecutor(
-            chatClient = chatClient,
+            chatClient = fixture.chatClient,
             properties = properties,
             toolCallbacks = tools
         )
@@ -149,14 +114,18 @@ class ParallelToolExecutionTest {
             AgentCommand(systemPrompt = "Test", userPrompt = "Use tools")
         )
 
-        assertTrue(result.success)
+        result.assertSuccess()
         // Both tools should be recorded
-        assertTrue(result.toolsUsed.contains("tool-slow"))
-        assertTrue(result.toolsUsed.contains("tool-fast"))
+        assertTrue(result.toolsUsed.contains("tool-slow"), "tool-slow should be in toolsUsed")
+        assertTrue(result.toolsUsed.contains("tool-fast"), "tool-fast should be in toolsUsed")
+    }
     }
 
-    @Test
-    fun `should execute hooks for parallel tool calls`() = runBlocking {
+    @Nested
+    inner class Integration {
+
+        @Test
+        fun `should execute hooks for parallel tool calls`() = runBlocking {
         val hookedTools = CopyOnWriteArrayList<String>()
 
         val beforeHook = object : BeforeToolCallHook {
@@ -170,8 +139,8 @@ class ParallelToolExecutionTest {
         val hookExecutor = HookExecutor(beforeToolCallHooks = listOf(beforeHook))
 
         val tools = listOf(
-            createToolCallback("tool-x"),
-            createToolCallback("tool-y")
+            AgentTestFixture.toolCallback("tool-x"),
+            AgentTestFixture.toolCallback("tool-y")
         )
 
         val toolCalls = listOf(
@@ -180,16 +149,16 @@ class ParallelToolExecutionTest {
         )
 
         val callCount = AtomicInteger(0)
-        every { requestSpec.call() } answers {
+        every { fixture.requestSpec.call() } answers {
             if (callCount.getAndIncrement() == 0) {
-                mockResponseWithToolCalls(toolCalls)
+                fixture.mockToolCallResponse(toolCalls)
             } else {
-                mockFinalResponse("Done")
+                fixture.mockFinalResponse("Done")
             }
         }
 
         val executor = SpringAiAgentExecutor(
-            chatClient = chatClient,
+            chatClient = fixture.chatClient,
             properties = properties,
             toolCallbacks = tools,
             hookExecutor = hookExecutor
@@ -213,7 +182,7 @@ class ParallelToolExecutionTest {
                 throw RuntimeException("Tool crashed")
             }
         }
-        val successTool = createToolCallback("success-tool", result = "OK")
+        val successTool = AgentTestFixture.toolCallback("success-tool", result = "OK")
 
         val toolCalls = listOf(
             AssistantMessage.ToolCall("id-1", "function", "failing-tool", "{}"),
@@ -221,16 +190,16 @@ class ParallelToolExecutionTest {
         )
 
         val callCount = AtomicInteger(0)
-        every { requestSpec.call() } answers {
+        every { fixture.requestSpec.call() } answers {
             if (callCount.getAndIncrement() == 0) {
-                mockResponseWithToolCalls(toolCalls)
+                fixture.mockToolCallResponse(toolCalls)
             } else {
-                mockFinalResponse("Final answer")
+                fixture.mockFinalResponse("Final answer")
             }
         }
 
         val executor = SpringAiAgentExecutor(
-            chatClient = chatClient,
+            chatClient = fixture.chatClient,
             properties = properties,
             toolCallbacks = listOf(failingTool, successTool)
         )
@@ -240,16 +209,20 @@ class ParallelToolExecutionTest {
         )
 
         // Should still succeed overall (LLM gets error from one tool, success from another)
-        assertTrue(result.success)
+        result.assertSuccess()
         assertEquals("Final answer", result.content)
     }
+    }
 
-    @Test
-    fun `should respect maxToolCalls across parallel execution`() = runBlocking {
+    @Nested
+    inner class Limits {
+
+        @Test
+        fun `should respect maxToolCalls across parallel execution`() = runBlocking {
         val tools = listOf(
-            createToolCallback("t1"),
-            createToolCallback("t2"),
-            createToolCallback("t3")
+            AgentTestFixture.toolCallback("t1"),
+            AgentTestFixture.toolCallback("t2"),
+            AgentTestFixture.toolCallback("t3")
         )
 
         val toolCalls = listOf(
@@ -259,17 +232,17 @@ class ParallelToolExecutionTest {
         )
 
         val callCount = AtomicInteger(0)
-        every { requestSpec.call() } answers {
+        every { fixture.requestSpec.call() } answers {
             if (callCount.getAndIncrement() == 0) {
-                mockResponseWithToolCalls(toolCalls)
+                fixture.mockToolCallResponse(toolCalls)
             } else {
-                mockFinalResponse("Done")
+                fixture.mockFinalResponse("Done")
             }
         }
 
         // maxToolCalls = 2, but 3 tools requested
         val executor = SpringAiAgentExecutor(
-            chatClient = chatClient,
+            chatClient = fixture.chatClient,
             properties = properties.copy(maxToolCalls = 2),
             toolCallbacks = tools
         )
@@ -278,8 +251,9 @@ class ParallelToolExecutionTest {
             AgentCommand(systemPrompt = "Test", userPrompt = "Use tools", maxToolCalls = 2)
         )
 
-        assertTrue(result.success)
+        result.assertSuccess()
         // At most 2 tools should have been executed successfully
         assertTrue(result.toolsUsed.size <= 2, "Should respect maxToolCalls limit: ${result.toolsUsed}")
+    }
     }
 }

@@ -5,171 +5,171 @@
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-green.svg)](https://spring.io/projects/spring-boot)
 [![Spring AI](https://img.shields.io/badge/Spring%20AI-1.1.2-orange.svg)](https://spring.io/projects/spring-ai)
 
-**Lightweight AI Agent Framework for Spring Boot**
+**Fork해서 바로 쓰는 AI Agent 오픈소스 프로젝트**
 
-Arc Reactor is a production-ready AI Agent framework built on Spring AI. It provides a complete toolkit for building autonomous AI agents with guardrails, tools, memory, and RAG capabilities.
+Arc Reactor는 Spring AI 기반의 AI Agent 프로젝트입니다. Guard, Hook, Memory, RAG, MCP, ReAct 루프 등 프로덕션에 필요한 패턴이 이미 구조화되어 있습니다. Fork하고, 도구를 붙이고, 배포하세요.
 
-## Features
+> **이것은 라이브러리나 프레임워크가 아닙니다.** `implementation(...)` 으로 가져다 쓰는 게 아니라, Fork해서 내 프로젝트로 만드는 구조입니다.
 
-- **ReAct Pattern** - Autonomous Thought -> Action -> Observation execution loop
-- **5-Stage Guard** - Rate Limit -> Input Validation -> Injection Detection -> Classification -> Permission
-- **Dynamic Tools** - Local Tools with `@Tool` annotation + MCP (Model Context Protocol) support
-- **Hook System** - 4 lifecycle extension points for logging, audit, and customization
-- **RAG Pipeline** - Query Transform -> Retrieve -> Rerank -> Context Build
-- **Memory** - Multi-turn conversation context management with In-Memory and PostgreSQL backends
-- **Context Window Management** - Token-based message trimming to prevent context overflow
-- **LLM Retry** - Exponential backoff with jitter for transient errors (rate limit, timeout, 5xx)
-- **Parallel Tool Execution** - Concurrent tool calls via Kotlin coroutines
-- **Structured Output** - JSON response mode with optional schema validation
-- **Spring Boot Auto-Configuration** - Zero-config setup with sensible defaults
+## 시작하기
 
-## Quick Start
+### 1. Fork & Clone
 
-### 1. Add Dependency
-
-```kotlin
-// build.gradle.kts
-dependencies {
-    implementation("com.arc:arc-reactor:1.0.0")
-
-    // Choose your LLM provider
-    implementation("org.springframework.ai:spring-ai-starter-model-openai")
-    // or
-    implementation("org.springframework.ai:spring-ai-starter-model-anthropic")
-    // or
-    implementation("org.springframework.ai:spring-ai-starter-model-vertex-ai-gemini")
-}
+```bash
+# GitHub에서 Fork 후
+git clone https://github.com/<your-username>/arc-reactor.git
+cd arc-reactor
 ```
 
-### 2. Configure
+### 2. LLM Provider 설정
+
+`application.yml`에 사용할 LLM API 키를 설정합니다:
 
 ```yaml
-# application.yml
 spring:
   ai:
     openai:
       api-key: ${OPENAI_API_KEY}
-
-arc:
-  reactor:
-    guard:
-      enabled: true
-      rate-limit-per-minute: 10
+    # 또는 Anthropic, Google Gemini, Vertex AI 등
 ```
 
-### 3. Create Tools
+`build.gradle.kts`에서 사용할 provider의 주석을 해제합니다:
+
+```kotlin
+// 기본: Google Gemini (이미 활성화됨)
+implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
+
+// 필요한 것만 활성화
+// compileOnly("org.springframework.ai:spring-ai-starter-model-openai")
+// compileOnly("org.springframework.ai:spring-ai-starter-model-anthropic")
+```
+
+### 3. 도구 만들기
+
+`tool/` 패키지에 비즈니스 로직을 도구로 추가합니다:
 
 ```kotlin
 @Component
-class CustomerTools : LocalTool {
+class OrderTool : LocalTool {
     override val category = DefaultToolCategory.SEARCH
 
-    @Tool(description = "Search customer information by ID")
-    fun searchCustomer(@ToolParam("Customer ID") id: String): Customer {
-        return customerRepository.findById(id)
-    }
-
-    @Tool(description = "Send email to customer")
-    fun sendEmail(
-        @ToolParam("Recipient email") to: String,
-        @ToolParam("Email subject") subject: String,
-        @ToolParam("Email body") body: String
-    ): EmailResult {
-        return emailService.send(to, subject, body)
+    @Tool(description = "주문 상태를 조회합니다")
+    fun getOrderStatus(@ToolParam("주문 번호") orderId: String): String {
+        return orderRepository.findById(orderId)?.status ?: "주문을 찾을 수 없습니다"
     }
 }
 ```
 
-### 4. Execute Agent
+### 4. 실행
+
+```bash
+./gradlew bootRun
+```
+
+```bash
+# 채팅 API
+curl -X POST http://localhost:8080/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "주문 ORD-123 상태 알려줘", "userId": "user-1"}'
+
+# 스트리밍
+curl -N http://localhost:8080/api/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "안녕하세요", "userId": "user-1"}'
+```
+
+## 프로젝트가 제공하는 것
+
+| 기능 | 설명 | 커스터마이징 |
+|------|------|-------------|
+| **ReAct 루프** | Think -> Act -> Observe 자율 실행 | `maxToolCalls`로 루프 제한 |
+| **Guard (5단계)** | Rate Limit -> 입력검증 -> 인젝션탐지 -> 분류 -> 권한 | 각 단계 교체/추가 가능 |
+| **Hook (4 라이프사이클)** | 에이전트 시작/종료, 도구 호출 전/후 | `@Component`로 Hook 추가 |
+| **Memory** | 세션별 대화 기록 (InMemory / PostgreSQL) | `MemoryStore` 구현으로 교체 |
+| **RAG** | Query변환 -> 검색 -> 재순위 -> 컨텍스트빌드 | 4단계 각각 교체 가능 |
+| **MCP** | Model Context Protocol (STDIO/SSE) | 외부 MCP 서버 연결 |
+| **컨텍스트 윈도우 관리** | 토큰 기반 메시지 트리밍 | 토큰 예산 설정 |
+| **LLM 재시도** | 지수 백오프 + 지터 | 재시도 조건/횟수 설정 |
+| **병렬 도구 실행** | 코루틴 기반 동시 실행 | 자동 (설정 불필요) |
+| **Structured Output** | JSON 응답 모드 | `responseFormat = JSON` |
+
+## 아키텍처
+
+```
+User Request
+     │
+     ▼
+┌─────────────────────────────────────────────────┐
+│  GUARD PIPELINE                                 │
+│  RateLimit → InputValid → InjDetect → Classify → Permission │
+└─────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────┐
+│  HOOK: BeforeAgentStart                         │
+└─────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────┐
+│  AGENT EXECUTOR (ReAct Loop)                    │
+│  1. Memory 로드 + 컨텍스트 윈도우 트리밍       │
+│  2. 도구 선택 (Local + MCP)                     │
+│  3. LLM 호출 (재시도 포함)                      │
+│  4. 도구 병렬 실행 (Hook 포함)                  │
+│  5. 응답 반환 또는 루프 계속                    │
+└─────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────┐
+│  HOOK: AfterAgentComplete                       │
+└─────────────────────────────────────────────────┘
+     │
+     ▼
+  Response
+```
+
+## 어디를 수정하면 되나요?
+
+Fork 후 수정이 필요한 부분과 건드릴 필요 없는 부분을 구분했습니다:
+
+### 수정할 곳 (내 비즈니스 로직)
+
+| 파일/패키지 | 할 일 |
+|-------------|-------|
+| `tool/` | **도구 추가** — `LocalTool` + `@Tool` 어노테이션으로 비즈니스 로직 연결 |
+| `application.yml` | **설정 변경** — LLM provider, Guard 임계값, RAG on/off 등 |
+| `guard/impl/` | **커스텀 Guard** — 비즈니스 규칙에 맞는 분류/권한 단계 구현 |
+| `hook/` | **커스텀 Hook** — 감사 로그, 빌링, 알림 등 `@Component`로 추가 |
+| `controller/` | **API 수정** — 인증 추가, 엔드포인트 변경 등 |
+
+### 건드릴 필요 없는 곳 (이미 구조화됨)
+
+| 파일/패키지 | 역할 |
+|-------------|------|
+| `agent/impl/SpringAiAgentExecutor.kt` | ReAct 루프, 재시도, 컨텍스트 관리 — 그대로 사용 |
+| `guard/impl/GuardPipeline.kt` | Guard 파이프라인 오케스트레이션 — 그대로 사용 |
+| `hook/HookExecutor.kt` | Hook 실행 엔진 — 그대로 사용 |
+| `memory/` | 대화 기록 관리 — InMemory/JDBC 자동 선택 |
+| `rag/impl/` | RAG 파이프라인 — 설정으로 제어 |
+| `autoconfigure/` | Spring Boot 자동 설정 — 그대로 사용 |
+
+## 커스터마이징 예시
+
+### Guard 단계 추가
 
 ```kotlin
-@Service
-class AgentService(
-    private val agentExecutor: AgentExecutor
-) {
-    suspend fun chat(userMessage: String): String {
-        val result = agentExecutor.execute(
-            AgentCommand(
-                systemPrompt = "You are a helpful customer service agent.",
-                userPrompt = userMessage,
-                mode = AgentMode.REACT
-            )
-        )
-        return result.content ?: "Sorry, I couldn't process your request."
-    }
-}
-```
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         User Request                             │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  GUARD PIPELINE (5 Stages)                                       │
-│  ┌──────────┐ ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌───────┐│
-│  │RateLimit │→│InputValid│→│InjDetect  │→│Classify  │→│Permis.││
-│  └──────────┘ └──────────┘ └───────────┘ └──────────┘ └───────┘│
-└─────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  HOOK: BeforeAgentStart                                          │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  AGENT EXECUTOR (ReAct Loop)                                     │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ 1. Load Memory + Context Window Trimming                     ││
-│  │ 2. Select Tools (LocalTool + MCP)                           ││
-│  │ 3. Call LLM (with retry on transient errors)                ││
-│  │ 4. Execute tool calls in parallel (with Hook lifecycle)     ││
-│  │ 5. Return response or continue loop                          ││
-│  └─────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  HOOK: AfterAgentComplete                                        │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                         Response                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Components
-
-### Guard Pipeline
-
-5-stage security guardrail that protects your agent from abuse:
-
-| Stage | Purpose | Default Behavior |
-|-------|---------|------------------|
-| **RateLimit** | Prevent abuse | 10/min, 100/hour per user |
-| **InputValidation** | Validate input | Max 10,000 characters |
-| **InjectionDetection** | Block prompt injection | Pattern-based detection |
-| **Classification** | Categorize request | Override for custom logic |
-| **Permission** | Check authorization | Override for RBAC |
-
-```kotlin
-// Custom Guard Stage
 @Component
-class CustomClassificationStage : GuardStage {
-    override val stageName = "classification"
-    override val order = 30
+class BusinessHoursGuard : GuardStage {
+    override val stageName = "business-hours"
+    override val order = 35  // InjectionDetection(30) 이후
 
     override suspend fun check(command: GuardCommand): GuardResult {
-        if (isOffTopic(command.text)) {
+        val hour = LocalTime.now().hour
+        if (hour < 9 || hour >= 18) {
             return GuardResult.Rejected(
-                reason = "Off-topic request",
-                category = RejectionCategory.OFF_TOPIC,
-                stageName = stageName
+                reason = "업무 시간(09-18시)에만 이용 가능합니다",
+                category = RejectionCategory.UNAUTHORIZED,
+                stage = stageName
             )
         }
         return GuardResult.Allowed.DEFAULT
@@ -177,135 +177,45 @@ class CustomClassificationStage : GuardStage {
 }
 ```
 
-### Hook System
-
-4 lifecycle hooks for extensibility:
-
-| Hook | When | Use Case |
-|------|------|----------|
-| `BeforeAgentStartHook` | Before agent execution | Logging, validation, enrichment |
-| `BeforeToolCallHook` | Before each tool call | Authorization, audit |
-| `AfterToolCallHook` | After each tool call | Logging, metrics |
-| `AfterAgentCompleteHook` | After agent completes | Audit, notification |
+### Hook 추가 (감사 로그)
 
 ```kotlin
 @Component
 class AuditHook : AfterAgentCompleteHook {
     override val order = 100
 
-    override suspend fun afterAgentComplete(
-        context: HookContext,
-        response: AgentResponse
-    ) {
-        auditService.log(
-            userId = context.userId,
-            prompt = context.userPrompt,
-            response = response.response,
-            toolsUsed = response.toolsUsed
-        )
+    override suspend fun afterAgentComplete(context: HookContext, response: AgentResponse) {
+        logger.info("User=${context.userId} prompt='${context.userPrompt}' " +
+            "tools=${context.toolsUsed} success=${response.success}")
     }
 }
 ```
 
-### Context Window Management
-
-Automatically trims conversation history to stay within the LLM's context window:
-
-```yaml
-arc:
-  reactor:
-    llm:
-      max-context-window-tokens: 128000  # Default: 128K
-      max-output-tokens: 4096
-```
-
-- Token budget = `maxContextWindowTokens - systemPromptTokens - maxOutputTokens`
-- Removes oldest messages first (FIFO) when budget exceeded
-- Preserves the current user prompt (never trimmed)
-- Maintains AssistantMessage + ToolResponseMessage pair integrity
-
-### LLM Retry
-
-Automatic retry with exponential backoff for transient errors:
-
-```yaml
-arc:
-  reactor:
-    retry:
-      max-attempts: 3           # Default: 3
-      initial-delay-ms: 1000    # Default: 1s
-      multiplier: 2.0           # Default: 2x
-      max-delay-ms: 10000       # Default: 10s
-```
-
-- Retries on: rate limit (429), timeout, 5xx, connection errors
-- No retry on: auth errors, invalid request, context too long
-- Jitter (+-25%) prevents thundering herd
-- Respects `CancellationException` for structured concurrency
+### 에러 메시지 한국어화
 
 ```kotlin
-// Custom transient error classifier
-val executor = SpringAiAgentExecutor(
-    chatClient = chatClient,
-    properties = properties,
-    transientErrorClassifier = { e ->
-        e.message?.contains("429") == true
+@Bean
+fun errorMessageResolver() = ErrorMessageResolver { code, _ ->
+    when (code) {
+        AgentErrorCode.RATE_LIMITED -> "요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
+        AgentErrorCode.TIMEOUT -> "요청 시간이 초과되었습니다."
+        AgentErrorCode.GUARD_REJECTED -> "요청이 거부되었습니다."
+        else -> code.defaultMessage
     }
-)
+}
 ```
 
-### Parallel Tool Execution
+### PostgreSQL Memory 활성화
 
-When the LLM requests multiple tool calls in a single response, they execute concurrently:
+`build.gradle.kts`에서 주석 해제 + `application.yml`에 DB 설정 추가만 하면 됩니다. 코드 변경 없이 `DataSource` 빈이 감지되면 자동으로 `JdbcMemoryStore`로 전환됩니다.
 
-```
-Sequential (before):  Tool A (2s) → Tool B (2s) → Tool C (2s) = 6s
-Parallel (now):       Tool A (2s) ┐
-                      Tool B (2s) ├ = 2s
-                      Tool C (2s) ┘
-```
-
-- Powered by `coroutineScope { map { async {} }.awaitAll() }`
-- Result order preserved (matches tool call order)
-- Hook lifecycle (BeforeToolCall/AfterToolCall) runs per tool
-- One tool failure doesn't cancel others
-
-### Structured Output
-
-Request JSON responses from the LLM:
-
-```kotlin
-val result = agentExecutor.execute(
-    AgentCommand(
-        systemPrompt = "You are a data extraction agent.",
-        userPrompt = "Extract the company info from: Arc Reactor Inc, founded 2024",
-        responseFormat = ResponseFormat.JSON,
-        responseSchema = """
-            {
-                "name": "string",
-                "founded": "number"
-            }
-        """
-    )
-)
-// result.content = {"name": "Arc Reactor Inc", "founded": 2024}
-```
-
-- Provider-independent (works via system prompt injection, not API-specific JSON mode)
-- Optional `responseSchema` guides the output structure
-- Not supported in streaming mode (partial JSON has no utility)
-
-### MCP (Model Context Protocol)
-
-Connect external tools dynamically via MCP:
+### MCP 서버 연결
 
 ```kotlin
 @Service
 class McpSetup(private val mcpManager: McpManager) {
-
     @PostConstruct
-    fun setupMcpServers() {
-        // Register filesystem MCP server
+    fun setup() {
         mcpManager.register(McpServer(
             name = "filesystem",
             transportType = McpTransportType.STDIO,
@@ -314,99 +224,31 @@ class McpSetup(private val mcpManager: McpManager) {
                 "args" to listOf("-y", "@modelcontextprotocol/server-filesystem", "/data")
             )
         ))
-
-        // Connect
-        runBlocking {
-            mcpManager.connect("filesystem")
-        }
+        runBlocking { mcpManager.connect("filesystem") }
     }
 }
 ```
 
-### RAG Pipeline
-
-Retrieval-Augmented Generation with pluggable components:
+## 설정 레퍼런스
 
 ```yaml
 arc:
   reactor:
-    rag:
-      enabled: true
-      similarity-threshold: 0.7
-      top-k: 10
-```
+    max-tools-per-request: 20    # 요청당 최대 도구 수
+    max-tool-calls: 10           # ReAct 루프 최대 도구 호출 횟수
 
-```kotlin
-// Custom retriever with Spring AI VectorStore
-@Bean
-fun documentRetriever(vectorStore: VectorStore): DocumentRetriever {
-    return SpringAiVectorStoreRetriever(
-        vectorStore = vectorStore,
-        defaultSimilarityThreshold = 0.7
-    )
-}
-```
-
-### Memory
-
-Session-based conversation memory with pluggable backends:
-
-**In-Memory** (default, no config needed):
-
-```kotlin
-val result = agentExecutor.execute(
-    AgentCommand(
-        systemPrompt = "You are a helpful assistant.",
-        userPrompt = "What did I ask before?",
-        metadata = mapOf("sessionId" to "user-123-session-456")
-    )
-)
-```
-
-**PostgreSQL** (auto-detected when DataSource is available):
-
-```kotlin
-// build.gradle.kts
-dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-jdbc")
-    runtimeOnly("org.postgresql:postgresql")
-    // Flyway migration creates the table automatically
-    implementation("org.flywaydb:flyway-core")
-    implementation("org.flywaydb:flyway-database-postgresql")
-}
-```
-
-```yaml
-# application.yml
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/arcreactor
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
-```
-
-No code changes needed. When a `DataSource` bean exists, `JdbcMemoryStore` is auto-configured instead of `InMemoryMemoryStore`.
-
-## Configuration Reference
-
-```yaml
-arc:
-  reactor:
-    # LLM Settings
     llm:
       temperature: 0.3
       max-output-tokens: 4096
       max-conversation-turns: 10
-      max-context-window-tokens: 128000    # Context window management
+      max-context-window-tokens: 128000
 
-    # Retry Settings
     retry:
       max-attempts: 3
       initial-delay-ms: 1000
       multiplier: 2.0
       max-delay-ms: 10000
 
-    # Guard Settings
     guard:
       enabled: true
       rate-limit-per-minute: 10
@@ -414,7 +256,6 @@ arc:
       max-input-length: 10000
       injection-detection-enabled: true
 
-    # RAG Settings
     rag:
       enabled: false
       similarity-threshold: 0.7
@@ -422,80 +263,72 @@ arc:
       rerank-enabled: true
       max-context-tokens: 4000
 
-    # Concurrency Settings
     concurrency:
       max-concurrent-requests: 20
       request-timeout-ms: 30000
-
-    # Tool Settings
-    max-tools-per-request: 20
-    max-tool-calls: 10
 ```
 
-## Project Structure
+## 프로젝트 구조
 
 ```
-arc-reactor/
-├── agent/              # Agent Core
-│   ├── AgentExecutor.kt
-│   ├── config/AgentProperties.kt
-│   ├── model/AgentModels.kt
-│   └── impl/SpringAiAgentExecutor.kt
-├── tool/               # Tool System
-│   ├── LocalTool.kt
-│   ├── ToolSelector.kt
-│   ├── ToolCallback.kt
-│   └── example/        # Example tools (not auto-registered)
-├── hook/               # Lifecycle Hooks
-│   ├── Hooks.kt (4 interfaces)
-│   ├── HookExecutor.kt
-│   └── model/HookModels.kt
-├── guard/              # 5-Stage Guardrail
-│   ├── Guard.kt
-│   ├── model/GuardModels.kt
-│   └── impl/
-│       ├── GuardPipeline.kt
-│       └── Default*Stage.kt
-├── rag/                # RAG Pipeline
-│   ├── RagPipeline.kt
-│   ├── model/RagModels.kt
-│   └── impl/
-│       ├── DefaultRagPipeline.kt
-│       ├── SpringAiVectorStoreRetriever.kt
-│       └── *Reranker.kt
-├── memory/             # Conversation Memory
-│   ├── ConversationMemory.kt
-│   └── JdbcMemoryStore.kt
-├── mcp/                # MCP Support
-│   ├── McpManager.kt
-│   └── model/McpModels.kt
-└── autoconfigure/      # Spring Boot Auto Config
-    └── ArcReactorAutoConfiguration.kt
+src/main/kotlin/com/arc/reactor/
+├── agent/                          # 에이전트 코어
+│   ├── AgentExecutor.kt              → 인터페이스
+│   ├── config/AgentProperties.kt     → 설정 (arc.reactor.*)
+│   ├── model/AgentModels.kt          → AgentCommand, AgentResult
+│   └── impl/SpringAiAgentExecutor.kt → ReAct 루프 구현체
+│
+├── guard/                          # 5단계 Guard
+│   ├── Guard.kt                      → GuardStage 인터페이스들
+│   ├── model/GuardModels.kt          → GuardCommand, GuardResult
+│   └── impl/                         → 기본 구현체들
+│
+├── hook/                           # 라이프사이클 Hook
+│   ├── Hook.kt                       → 4개 Hook 인터페이스
+│   ├── HookExecutor.kt               → Hook 실행 엔진
+│   └── model/HookModels.kt           → HookContext, HookResult
+│
+├── tool/                           # 도구 시스템 ← 여기에 도구 추가
+│   ├── ToolCallback.kt               → 도구 추상화
+│   ├── ToolSelector.kt               → 도구 선택 전략
+│   ├── LocalTool.kt                  → @Tool 어노테이션 기반 도구
+│   └── example/                      → 예시 (CalculatorTool, DateTimeTool)
+│
+├── memory/                         # 대화 메모리
+│   ├── ConversationMemory.kt         → 인터페이스
+│   ├── MemoryStore.kt                → InMemory 구현
+│   └── JdbcMemoryStore.kt            → PostgreSQL 구현
+│
+├── rag/                            # RAG 파이프라인
+│   ├── RagPipeline.kt                → 4단계 인터페이스
+│   └── impl/                         → 기본 구현체들
+│
+├── mcp/                            # MCP 프로토콜
+│   ├── McpManager.kt                 → MCP 서버 관리
+│   └── model/McpModels.kt            → McpServer, McpStatus
+│
+├── autoconfigure/                  # Spring Boot 자동 설정
+│   └── ArcReactorAutoConfiguration.kt
+│
+├── controller/                     # REST API ← 필요시 수정
+│   └── ChatController.kt
+│
+└── config/
+    └── ChatClientConfig.kt
 ```
 
-## Requirements
+## 요구사항
 
 - Java 21+
-- Spring Boot 3.5.9+
-- Spring AI 1.1.2+
-- Kotlin 2.3.0+
+- Spring Boot 3.5+
+- Spring AI 1.1+
+- Kotlin 2.3+
 
-## Examples
+## 라이선스
 
-See the [Quick Start](#quick-start) section above for a step-by-step integration guide.
-
-The `tool/example/` directory contains reference implementations (`CalculatorTool`, `DateTimeTool`) showing how to build custom tools. These are not auto-registered; copy and add `@Component` to use them in your project.
-
-## Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-
-## License
-
-Apache License 2.0 - see [LICENSE](./LICENSE) for details.
+Apache License 2.0 - [LICENSE](./LICENSE) 참조
 
 ## Acknowledgments
 
-- Built on [Spring AI](https://spring.io/projects/spring-ai)
-- Inspired by [LangChain](https://langchain.com) and [Claude Code](https://claude.ai)
-- MCP integration based on [Model Context Protocol](https://modelcontextprotocol.io)
+- [Spring AI](https://spring.io/projects/spring-ai) 기반
+- [Model Context Protocol](https://modelcontextprotocol.io) 통합

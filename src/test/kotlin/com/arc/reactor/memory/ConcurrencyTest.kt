@@ -103,8 +103,8 @@ class ConversationMemoryConcurrencyTest {
         val snapshots = readers.awaitAll()
 
         snapshots.forEach { snapshot ->
-            assertNotNull(snapshot)
-            assertTrue(snapshot.isNotEmpty())
+            assertNotNull(snapshot) { "Snapshot from concurrent read should not be null" }
+            assertTrue(snapshot.isNotEmpty()) { "Snapshot should contain messages, got empty list" }
         }
     }
 }
@@ -136,7 +136,9 @@ class MemoryStoreConcurrencyTest {
 
             // Every future should have returned a non-null memory
             assertEquals(threadCount, results.size)
-            results.forEach { assertNotNull(it) }
+            results.forEachIndexed { index, it ->
+                assertNotNull(it, "Session memory at index $index should not be null")
+            }
 
             // Every session ID should be retrievable from the store
             for (i in 1..threadCount) {
@@ -298,7 +300,7 @@ class MemoryStoreConcurrencyTest {
 
         // All snapshots should be valid lists (no exceptions thrown)
         snapshots.forEach { snapshot ->
-            assertNotNull(snapshot)
+            assertNotNull(snapshot) { "Snapshot from concurrent toolsUsed read should not be null" }
             assertTrue(snapshot.isNotEmpty(), "Snapshots should contain at least initial tools")
         }
 
@@ -373,7 +375,7 @@ class MemoryStoreConcurrencyTest {
 
         // All reader snapshots should be valid maps (no exceptions thrown)
         snapshots.forEach { snapshot ->
-            assertNotNull(snapshot)
+            assertNotNull(snapshot) { "Snapshot from concurrent metadata read should not be null" }
             assertTrue(snapshot.isNotEmpty(), "Snapshots should contain at least pre-populated entries")
         }
 

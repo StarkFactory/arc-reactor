@@ -68,15 +68,15 @@ class ToolSelectorTest {
 
         // Should match search category
         val searchResult = selector.select("Please search for documents", tools)
-        assertTrue(searchResult.any { it.name == "search_tool" })
-        assertTrue(searchResult.any { it.name == "general_tool" }) // No category, always included
-        assertFalse(searchResult.any { it.name == "calc_tool" }) // Different category
+        assertTrue(searchResult.any { it.name == "search_tool" }) { "Search result should include search_tool, got: ${searchResult.map { it.name }}" }
+        assertTrue(searchResult.any { it.name == "general_tool" }) { "Search result should include general_tool (uncategorized), got: ${searchResult.map { it.name }}" }
+        assertFalse(searchResult.any { it.name == "calc_tool" }) { "Search result should not include calc_tool, got: ${searchResult.map { it.name }}" }
 
         // Should match calculation category
         val calcResult = selector.select("Calculate the sum of these numbers", tools)
-        assertTrue(calcResult.any { it.name == "calc_tool" })
-        assertTrue(calcResult.any { it.name == "general_tool" }) // No category, always included
-        assertFalse(calcResult.any { it.name == "search_tool" }) // Different category
+        assertTrue(calcResult.any { it.name == "calc_tool" }) { "Calc result should include calc_tool, got: ${calcResult.map { it.name }}" }
+        assertTrue(calcResult.any { it.name == "general_tool" }) { "Calc result should include general_tool (uncategorized), got: ${calcResult.map { it.name }}" }
+        assertFalse(calcResult.any { it.name == "search_tool" }) { "Calc result should not include search_tool, got: ${calcResult.map { it.name }}" }
     }
 
     @Test
@@ -110,10 +110,10 @@ class ToolSelectorTest {
             override val keywords = setOf("search", "find", "query")
         }
 
-        assertTrue(category.matches("I want to SEARCH for something"))
-        assertTrue(category.matches("please find this document"))
-        assertTrue(category.matches("Run a query"))
-        assertFalse(category.matches("Hello world"))
+        assertTrue(category.matches("I want to SEARCH for something")) { "Category should match prompt containing 'SEARCH'" }
+        assertTrue(category.matches("please find this document")) { "Category should match prompt containing 'find'" }
+        assertTrue(category.matches("Run a query")) { "Category should match prompt containing 'query'" }
+        assertFalse(category.matches("Hello world")) { "Category should not match prompt 'Hello world' with no keywords" }
     }
 
     @Test
@@ -148,22 +148,22 @@ class ToolSelectorTest {
 
     @Test
     fun `DefaultToolCategory should match prompts correctly`() {
-        assertTrue(DefaultToolCategory.SEARCH.matches("검색해줘"))
-        assertTrue(DefaultToolCategory.SEARCH.matches("Please search for documents"))
-        assertTrue(DefaultToolCategory.CREATE.matches("Create a new report"))
-        assertTrue(DefaultToolCategory.ANALYZE.matches("Analyze this data"))
-        assertTrue(DefaultToolCategory.COMMUNICATE.matches("Send an email"))
-        assertTrue(DefaultToolCategory.DATA.matches("Update the database"))
+        assertTrue(DefaultToolCategory.SEARCH.matches("검색해줘")) { "SEARCH category should match Korean keyword '검색해줘'" }
+        assertTrue(DefaultToolCategory.SEARCH.matches("Please search for documents")) { "SEARCH category should match 'search'" }
+        assertTrue(DefaultToolCategory.CREATE.matches("Create a new report")) { "CREATE category should match 'Create'" }
+        assertTrue(DefaultToolCategory.ANALYZE.matches("Analyze this data")) { "ANALYZE category should match 'Analyze'" }
+        assertTrue(DefaultToolCategory.COMMUNICATE.matches("Send an email")) { "COMMUNICATE category should match 'Send'" }
+        assertTrue(DefaultToolCategory.DATA.matches("Update the database")) { "DATA category should match 'database'" }
 
-        assertFalse(DefaultToolCategory.SEARCH.matches("Hello world"))
+        assertFalse(DefaultToolCategory.SEARCH.matches("Hello world")) { "SEARCH category should not match 'Hello world'" }
     }
 
     @Test
     fun `DefaultToolCategory matchCategories should find all matching`() {
         val matched = DefaultToolCategory.matchCategories("검색해서 분석해줘")
 
-        assertTrue(matched.contains(DefaultToolCategory.SEARCH))
-        assertTrue(matched.contains(DefaultToolCategory.ANALYZE))
-        assertFalse(matched.contains(DefaultToolCategory.CREATE))
+        assertTrue(matched.contains(DefaultToolCategory.SEARCH)) { "Matched categories should contain SEARCH, got: ${matched.map { it.name }}" }
+        assertTrue(matched.contains(DefaultToolCategory.ANALYZE)) { "Matched categories should contain ANALYZE, got: ${matched.map { it.name }}" }
+        assertFalse(matched.contains(DefaultToolCategory.CREATE)) { "Matched categories should not contain CREATE, got: ${matched.map { it.name }}" }
     }
 }

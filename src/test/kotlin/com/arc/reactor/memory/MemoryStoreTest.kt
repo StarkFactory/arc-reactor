@@ -13,8 +13,8 @@ class MemoryStoreTest {
 
         val memory = store.getOrCreate("session-1")
 
-        assertNotNull(memory)
-        assertTrue(memory.getHistory().isEmpty())
+        assertNotNull(memory) { "Memory for new session should not be null" }
+        assertTrue(memory.getHistory().isEmpty()) { "New session should have empty history, got: ${memory.getHistory().size} messages" }
     }
 
     @Test
@@ -36,7 +36,7 @@ class MemoryStoreTest {
 
         val memory = store.get("nonexistent")
 
-        assertNull(memory)
+        assertNull(memory, "Nonexistent session should return null")
     }
 
     @Test
@@ -46,7 +46,7 @@ class MemoryStoreTest {
 
         store.remove("session-1")
 
-        assertNull(store.get("session-1"))
+        assertNull(store.get("session-1"), "Removed session should return null")
     }
 
     @Test
@@ -57,8 +57,8 @@ class MemoryStoreTest {
 
         store.clear()
 
-        assertNull(store.get("session-1"))
-        assertNull(store.get("session-2"))
+        assertNull(store.get("session-1"), "session-1 should be null after clear")
+        assertNull(store.get("session-2"), "session-2 should be null after clear")
     }
 
     @Test
@@ -74,7 +74,7 @@ class MemoryStoreTest {
             .count { store.get(it) != null }
         assertEquals(2, surviving, "Exactly maxSessions entries should survive after eviction")
         // Most recently added should survive
-        assertNotNull(store.get("session-3"))
+        assertNotNull(store.get("session-3"), "Most recently added session should survive eviction")
     }
 
     @Test
@@ -85,7 +85,7 @@ class MemoryStoreTest {
         store.addMessage("session-1", "assistant", "Hi there!")
 
         val memory = store.get("session-1")
-        assertNotNull(memory)
+        assertNotNull(memory) { "Memory for session-1 should exist after addMessage calls" }
         assertEquals(2, memory!!.getHistory().size)
         assertEquals(MessageRole.USER, memory.getHistory()[0].role)
         assertEquals(MessageRole.ASSISTANT, memory.getHistory()[1].role)
@@ -129,7 +129,7 @@ class ConversationMemoryTest {
 
         memory.clear()
 
-        assertTrue(memory.getHistory().isEmpty())
+        assertTrue(memory.getHistory().isEmpty()) { "History should be empty after clear(), got: ${memory.getHistory().size} messages" }
     }
 
     @Test
@@ -144,9 +144,9 @@ class ConversationMemoryTest {
         // Get history with small token limit
         val limitedHistory = memory.getHistoryWithinTokenLimit(40) // Should fit ~1-2 messages
 
-        assertTrue(limitedHistory.size < 3)
+        assertTrue(limitedHistory.size < 3) { "Expected fewer than 3 messages within token limit, got: ${limitedHistory.size}" }
         // Should return most recent messages that fit
-        assertTrue(limitedHistory.last().content.startsWith("C"))
+        assertTrue(limitedHistory.last().content.startsWith("C")) { "Last message should start with 'C', got: '${limitedHistory.last().content.take(10)}'" }
     }
 
     @Test
@@ -179,8 +179,8 @@ class ConversationMemoryTest {
     fun `default estimator should return at least 1 for non-empty text`() {
         val estimator = DefaultTokenEstimator()
 
-        assertTrue(estimator.estimate("a") >= 1)
-        assertTrue(estimator.estimate("한") >= 1)
+        assertTrue(estimator.estimate("a") >= 1) { "Expected at least 1 token for 'a', got: ${estimator.estimate("a")}" }
+        assertTrue(estimator.estimate("한") >= 1) { "Expected at least 1 token for '한', got: ${estimator.estimate("한")}" }
         assertEquals(0, estimator.estimate(""))
     }
 

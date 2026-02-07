@@ -36,7 +36,7 @@ class RagPipelineTest {
             rerank = false
         ))
 
-        assertTrue(result.hasDocuments)
+        assertTrue(result.hasDocuments) { "Expected documents for query 'kotlin programming', got: ${result.documents.size} documents" }
         assertEquals(1, result.documents.size)
         assertEquals("doc-1", result.documents[0].id)
     }
@@ -51,7 +51,7 @@ class RagPipelineTest {
             topK = 5
         ))
 
-        assertFalse(result.hasDocuments)
+        assertFalse(result.hasDocuments) { "Expected no documents for 'nonexistent topic', got: ${result.documents.size} documents" }
         assertEquals(RagContext.EMPTY, result)
     }
 
@@ -75,11 +75,11 @@ class RagPipelineTest {
             rerank = true
         ))
 
-        assertTrue(result.documents.isNotEmpty())
+        assertTrue(result.documents.isNotEmpty(), "Reranker should return documents")
         // After reranking, should be sorted by score (highest first)
-        if (result.documents.size > 1) {
-            assertTrue(result.documents[0].score >= result.documents[1].score)
-        }
+        assertTrue(result.documents.size > 1, "Should return multiple documents for score ordering check")
+        assertTrue(result.documents[0].score >= result.documents[1].score,
+            "Documents should be sorted by score: first=${result.documents[0].score}, second=${result.documents[1].score}")
     }
 
     @Test
@@ -101,7 +101,7 @@ class RagPipelineTest {
             rerank = true
         ))
 
-        assertTrue(result.documents.isNotEmpty())
+        assertTrue(result.documents.isNotEmpty()) { "Expected documents after keyword-weighted reranking, got: ${result.documents.size}" }
         // Kotlin document should rank higher due to keyword match
         assertEquals("2", result.documents[0].id)
     }
@@ -126,8 +126,10 @@ class RagPipelineTest {
             rerank = true
         ))
 
-        assertTrue(result.documents.isNotEmpty())
-        // MMR should prefer diverse documents
+        assertTrue(result.documents.isNotEmpty(), "Diversity reranker should return documents")
+        // MMR should prefer diverse documents: doc-1 (highest score) + doc-3 (most diverse from doc-1)
+        assertEquals("1", result.documents[0].id, "Highest-scored document should be first")
+        assertTrue(result.documents.size >= 2, "Should return at least 2 diverse documents")
     }
 
     @Test
@@ -147,8 +149,8 @@ class RagPipelineTest {
             rerank = false
         ))
 
-        assertTrue(result.context.contains("Kotlin"))
-        assertTrue(result.context.contains("kotlin-docs.md"))
+        assertTrue(result.context.contains("Kotlin")) { "Context should contain 'Kotlin', got: ${result.context.take(200)}" }
+        assertTrue(result.context.contains("kotlin-docs.md")) { "Context should contain source 'kotlin-docs.md', got: ${result.context.take(200)}" }
     }
 
     @Test
@@ -168,8 +170,8 @@ class RagPipelineTest {
             rerank = false
         ))
 
-        assertTrue(result.totalTokens > 0)
-        assertTrue(result.totalTokens <= 400 / 4 + 50) // Approximate with some buffer
+        assertTrue(result.totalTokens > 0) { "totalTokens should be positive, got: ${result.totalTokens}" }
+        assertTrue(result.totalTokens <= 400 / 4 + 50) { "totalTokens (${result.totalTokens}) should be approximate token count with buffer" }
     }
 
     @Test
@@ -180,6 +182,6 @@ class RagPipelineTest {
         retriever.clear()
 
         val results = retriever.retrieve(listOf("test"), 10)
-        assertTrue(results.isEmpty())
+        assertTrue(results.isEmpty()) { "Expected no results after clear(), got: ${results.size} documents" }
     }
 }

@@ -1,10 +1,5 @@
 package com.arc.reactor.agent
 
-import com.arc.reactor.agent.config.AgentProperties
-import com.arc.reactor.agent.config.ConcurrencyProperties
-import com.arc.reactor.agent.config.GuardProperties
-import com.arc.reactor.agent.config.LlmProperties
-import com.arc.reactor.agent.config.RagProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentMode
@@ -12,7 +7,6 @@ import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
 import com.arc.reactor.hook.HookExecutor
-import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -24,13 +18,6 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec
-import org.springframework.ai.chat.client.ChatClient.StreamResponseSpec
-import org.springframework.ai.chat.messages.AssistantMessage
-import org.springframework.ai.chat.model.ChatResponse
-import org.springframework.ai.chat.model.Generation
-import org.springframework.ai.chat.prompt.ChatOptions
 import reactor.core.publisher.Flux
 
 /**
@@ -41,35 +28,12 @@ import reactor.core.publisher.Flux
  */
 class StreamingTest {
 
-    private lateinit var chatClient: ChatClient
-    private lateinit var requestSpec: ChatClientRequestSpec
-    private lateinit var streamResponseSpec: StreamResponseSpec
-    private lateinit var properties: AgentProperties
+    private lateinit var fixture: AgentTestFixture
+    private val properties = AgentTestFixture.defaultProperties()
 
     @BeforeEach
     fun setup() {
-        chatClient = mockk()
-        requestSpec = mockk(relaxed = true)
-        streamResponseSpec = mockk()
-        properties = AgentProperties(
-            llm = LlmProperties(),
-            guard = GuardProperties(),
-            rag = RagProperties(),
-            concurrency = ConcurrencyProperties()
-        )
-
-        every { chatClient.prompt() } returns requestSpec
-        every { requestSpec.system(any<String>()) } returns requestSpec
-        every { requestSpec.user(any<String>()) } returns requestSpec
-        every { requestSpec.messages(any<List<org.springframework.ai.chat.messages.Message>>()) } returns requestSpec
-        every { requestSpec.tools(*anyVararg<Any>()) } returns requestSpec
-        every { requestSpec.options(any<ChatOptions>()) } returns requestSpec
-        every { requestSpec.stream() } returns streamResponseSpec
-    }
-
-    /** Helper: Create a ChatResponse chunk with text content */
-    private fun textChunk(text: String): ChatResponse {
-        return ChatResponse(listOf(Generation(AssistantMessage(text))))
+        fixture = AgentTestFixture()
     }
 
     @Nested
@@ -77,12 +41,14 @@ class StreamingTest {
 
         @Test
         fun `should return flow of string chunks`() = runBlocking {
-            every { streamResponseSpec.chatResponse() } returns Flux.just(
-                textChunk("Hello"), textChunk(" "), textChunk("World")
+            every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
+                AgentTestFixture.textChunk("Hello"),
+                AgentTestFixture.textChunk(" "),
+                AgentTestFixture.textChunk("World")
             )
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties
             )
 
@@ -95,10 +61,12 @@ class StreamingTest {
 
         @Test
         fun `should apply system prompt in streaming mode`() = runBlocking {
-            every { streamResponseSpec.chatResponse() } returns Flux.just(textChunk("Response"))
+            every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
+                AgentTestFixture.textChunk("Response")
+            )
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties
             )
 
@@ -106,15 +74,17 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Hello")
             ).toList()
 
-            io.mockk.verify { requestSpec.system("You are helpful.") }
+            io.mockk.verify { fixture.requestSpec.system("You are helpful.") }
         }
 
         @Test
         fun `should use STREAMING mode by default for executeStream`() = runBlocking {
-            every { streamResponseSpec.chatResponse() } returns Flux.just(textChunk("chunk"))
+            every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
+                AgentTestFixture.textChunk("chunk")
+            )
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties
             )
 
@@ -132,10 +102,10 @@ class StreamingTest {
 
         @Test
         fun `should handle empty stream`() = runBlocking {
-            every { streamResponseSpec.chatResponse() } returns Flux.empty()
+            every { fixture.streamResponseSpec.chatResponse() } returns Flux.empty()
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties
             )
 
@@ -143,7 +113,7 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            assertTrue(chunks.isEmpty())
+            assertTrue(chunks.isEmpty()) { "Empty stream should produce no chunks but got: $chunks" }
         }
     }
 
@@ -155,10 +125,12 @@ class StreamingTest {
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Allowed.DEFAULT
 
-            every { streamResponseSpec.chatResponse() } returns Flux.just(textChunk("OK"))
+            every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
+                AgentTestFixture.textChunk("OK")
+            )
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 guard = guard
             )
@@ -181,7 +153,7 @@ class StreamingTest {
             )
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 guard = guard
             )
@@ -192,7 +164,7 @@ class StreamingTest {
 
             // Should emit single error chunk
             assertEquals(1, chunks.size)
-            assertTrue(chunks[0].contains("Blocked"))
+            assertTrue(chunks[0].contains("Blocked")) { "Error chunk should contain rejection reason, got: ${chunks[0]}" }
         }
     }
 
@@ -204,10 +176,12 @@ class StreamingTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
 
-            every { streamResponseSpec.chatResponse() } returns Flux.just(textChunk("Response"))
+            every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
+                AgentTestFixture.textChunk("Response")
+            )
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 hookExecutor = hookExecutor
             )
@@ -225,7 +199,7 @@ class StreamingTest {
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("Not allowed")
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties,
                 hookExecutor = hookExecutor
             )
@@ -235,7 +209,7 @@ class StreamingTest {
             ).toList()
 
             assertEquals(1, chunks.size)
-            assertTrue(chunks[0].contains("Not allowed"))
+            assertTrue(chunks[0].contains("Not allowed")) { "Error chunk should contain rejection reason, got: ${chunks[0]}" }
         }
     }
 
@@ -244,10 +218,10 @@ class StreamingTest {
 
         @Test
         fun `should handle stream error gracefully`() = runBlocking {
-            every { streamResponseSpec.chatResponse() } returns Flux.error(RuntimeException("Stream failed"))
+            every { fixture.streamResponseSpec.chatResponse() } returns Flux.error(RuntimeException("Stream failed"))
 
             val executor = SpringAiAgentExecutor(
-                chatClient = chatClient,
+                chatClient = fixture.chatClient,
                 properties = properties
             )
 
@@ -256,9 +230,11 @@ class StreamingTest {
             ).toList()
 
             // Should emit error as last chunk
-            assertTrue(chunks.isNotEmpty())
-            assertTrue(chunks.last().contains("error", ignoreCase = true) ||
-                       chunks.last().contains("failed", ignoreCase = true))
+            assertTrue(chunks.isNotEmpty()) { "Stream error should produce at least one error chunk" }
+            assertTrue(
+                chunks.last().contains("error", ignoreCase = true) || chunks.last().contains("failed", ignoreCase = true),
+                "Error chunk should contain 'error' or 'failed', got: ${chunks.last()}"
+            )
         }
     }
 }
