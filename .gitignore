@@ -17,6 +17,7 @@ build/
 
 # AI Tools
 .claude/
+!.claude/rules/
 
 # Kotlin
 *.class
