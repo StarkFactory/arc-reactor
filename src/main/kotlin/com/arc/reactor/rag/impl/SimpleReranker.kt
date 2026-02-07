@@ -93,21 +93,26 @@ class DiversityReranker(
 
         // Remaining documents: select using MMR
         while (selected.size < topK && remaining.isNotEmpty()) {
-            val nextDoc = remaining.maxByOrNull { candidate ->
-                val relevance = candidate.score
-                val maxSimilarity = selected.maxOfOrNull { selected ->
-                    calculateSimilarity(candidate.content, selected.content)
-                } ?: 0.0
-
-                // MMR = λ * Rel(d, q) - (1-λ) * max(Sim(d, d_i))
-                lambda * relevance - (1 - lambda) * maxSimilarity
-            } ?: break
-
+            val nextDoc = selectNextMmrDocument(remaining, selected) ?: break
             selected.add(nextDoc)
             remaining.remove(nextDoc)
         }
 
         return selected
+    }
+
+    /** Select the next document that maximizes MMR score. */
+    private fun selectNextMmrDocument(
+        remaining: List<RetrievedDocument>,
+        selected: List<RetrievedDocument>
+    ): RetrievedDocument? {
+        return remaining.maxByOrNull { candidate ->
+            val relevance = candidate.score
+            val maxSimilarity = selected.maxOfOrNull {
+                calculateSimilarity(candidate.content, it.content)
+            } ?: 0.0
+            lambda * relevance - (1 - lambda) * maxSimilarity
+        }
     }
 
     private fun calculateSimilarity(content1: String, content2: String): Double {

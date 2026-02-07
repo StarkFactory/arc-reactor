@@ -77,7 +77,10 @@ class ParallelOrchestrator(
                     }
 
                     val nodeDuration = System.currentTimeMillis() - nodeStart
-                    logger.info { "Parallel: node '${node.name}' completed in ${nodeDuration}ms, success=${result.success}" }
+                    logger.info {
+                        "Parallel: node '${node.name}' completed in ${nodeDuration}ms, " +
+                            "success=${result.success}"
+                    }
                     NodeResult(node.name, result, nodeDuration)
                 }
             }.awaitAll()

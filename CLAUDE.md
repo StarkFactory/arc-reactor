@@ -31,6 +31,8 @@ Spring AI 기반 AI Agent 프레임워크. Fork해서 도구를 붙여 사용하
 ## Code Style
 
 - Kotlin 관례를 따름. 특별한 포맷터 없음 (IntelliJ 기본)
+- **메서드 길이: 20줄 이하**. 초과 시 extract method 리팩터링
+- **라인 너비: 120자 이하**. 초과 시 줄바꿈
 - `suspend fun` 사용 — executor, tool, guard, hook 모두 코루틴 기반
 - `compileOnly` = 선택적 의존 (사용자가 필요 시 `implementation`으로 전환)
 - example 패키지의 클래스는 `@Component` 주석 처리 상태 (프로덕션 자동등록 방지)

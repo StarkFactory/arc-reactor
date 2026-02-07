@@ -130,7 +130,8 @@ class SpringAiAgentExecutor(
     init {
         val llm = properties.llm
         require(llm.maxContextWindowTokens > llm.maxOutputTokens) {
-            "maxContextWindowTokens (${llm.maxContextWindowTokens}) must be greater than maxOutputTokens (${llm.maxOutputTokens})"
+            "maxContextWindowTokens (${llm.maxContextWindowTokens}) " +
+                "must be greater than maxOutputTokens (${llm.maxOutputTokens})"
         }
     }
 
@@ -162,46 +163,40 @@ class SpringAiAgentExecutor(
             }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             logger.warn { "Request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
-            val failResult = AgentResult.failure(
-                errorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, e.message),
-                errorCode = AgentErrorCode.TIMEOUT,
-                durationMs = System.currentTimeMillis() - startTime
-            )
-            try {
-                hookExecutor?.executeAfterAgentComplete(
-                    context = hookContext,
-                    response = AgentResponse(success = false, errorMessage = failResult.errorMessage)
-                )
-            } catch (hookEx: Exception) {
-                logger.error(hookEx) { "AfterAgentComplete hook failed during timeout handling" }
-            }
-            agentMetrics.recordExecution(failResult)
-            return failResult
+            return handleFailureWithHook(AgentErrorCode.TIMEOUT, e, hookContext, startTime)
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e // Rethrow to support structured concurrency
         } catch (e: Exception) {
             logger.error(e) { "Agent execution failed" }
-            try {
-                hookExecutor?.executeAfterAgentComplete(
-                    context = hookContext,
-                    response = AgentResponse(success = false, errorMessage = e.message)
-                )
-            } catch (hookEx: Exception) {
-                logger.error(hookEx) { "AfterAgentComplete hook failed during error handling" }
-            }
-            val errorCode = classifyError(e)
-            val failResult = AgentResult.failure(
-                errorMessage = errorMessageResolver.resolve(errorCode, e.message),
-                errorCode = errorCode,
-                durationMs = System.currentTimeMillis() - startTime
-            )
-            agentMetrics.recordExecution(failResult)
-            return failResult
+            return handleFailureWithHook(classifyError(e), e, hookContext, startTime)
         } finally {
             MDC.remove("runId")
             MDC.remove("userId")
             MDC.remove("sessionId")
         }
+    }
+
+    private suspend fun handleFailureWithHook(
+        errorCode: AgentErrorCode,
+        exception: Exception,
+        hookContext: HookContext,
+        startTime: Long
+    ): AgentResult {
+        val failResult = AgentResult.failure(
+            errorMessage = errorMessageResolver.resolve(errorCode, exception.message),
+            errorCode = errorCode,
+            durationMs = System.currentTimeMillis() - startTime
+        )
+        try {
+            hookExecutor?.executeAfterAgentComplete(
+                context = hookContext,
+                response = AgentResponse(success = false, errorMessage = failResult.errorMessage)
+            )
+        } catch (hookEx: Exception) {
+            logger.error(hookEx) { "AfterAgentComplete hook failed during error handling" }
+        }
+        agentMetrics.recordExecution(failResult)
+        return failResult
     }
 
     /**
@@ -231,44 +226,10 @@ class SpringAiAgentExecutor(
         toolsUsed: MutableList<String>,
         startTime: Long
     ): AgentResult {
-        // 1. Guard check
-        checkGuard(command)?.let { rejection ->
-            agentMetrics.recordGuardRejection(
-                stage = rejection.stage ?: "unknown",
-                reason = rejection.reason
-            )
-            val failResult = AgentResult.failure(
-                errorMessage = rejection.reason,
-                errorCode = AgentErrorCode.GUARD_REJECTED,
-                durationMs = System.currentTimeMillis() - startTime
-            )
-            agentMetrics.recordExecution(failResult)
-            return failResult
-        }
+        checkGuardAndHooks(command, hookContext, startTime)?.let { return it }
 
-        // 2. Before Agent Start Hook
-        checkBeforeHooks(hookContext)?.let { hookResult ->
-            val message = when (hookResult) {
-                is HookResult.Reject -> hookResult.reason
-                is HookResult.PendingApproval -> "Pending approval: ${hookResult.message}"
-                else -> "Blocked by hook"
-            }
-            val failResult = AgentResult.failure(
-                errorMessage = message,
-                errorCode = AgentErrorCode.HOOK_REJECTED,
-                durationMs = System.currentTimeMillis() - startTime
-            )
-            agentMetrics.recordExecution(failResult)
-            return failResult
-        }
-
-        // 3. Load conversation history (via ConversationManager)
         val conversationHistory = conversationManager.loadHistory(command)
-
-        // 4. RAG: Retrieve context if enabled
         val ragContext = retrieveRagContext(command.userPrompt)
-
-        // 5. Select and prepare tools (respecting AgentMode)
         val selectedTools = if (command.mode == AgentMode.STANDARD) {
             emptyList()
         } else {
@@ -276,34 +237,65 @@ class SpringAiAgentExecutor(
         }
         logger.debug { "Selected ${selectedTools.size} tools for execution (mode=${command.mode})" }
 
-        // 6. Agent execution (Spring AI Function Calling)
         val result = executeWithTools(
-            command = command,
-            tools = selectedTools,
+            command = command, tools = selectedTools,
             conversationHistory = conversationHistory,
-            hookContext = hookContext,
-            toolsUsed = toolsUsed,
-            ragContext = ragContext
+            hookContext = hookContext, toolsUsed = toolsUsed, ragContext = ragContext
         )
 
-        // 7. Save conversation history (via ConversationManager)
-        conversationManager.saveHistory(command, result)
+        return finishExecution(result, command, hookContext, toolsUsed, startTime)
+    }
 
-        // 8. After Agent Complete Hook
+    private suspend fun checkGuardAndHooks(
+        command: AgentCommand,
+        hookContext: HookContext,
+        startTime: Long
+    ): AgentResult? {
+        checkGuard(command)?.let { rejection ->
+            agentMetrics.recordGuardRejection(
+                stage = rejection.stage ?: "unknown",
+                reason = rejection.reason
+            )
+            return AgentResult.failure(
+                errorMessage = rejection.reason,
+                errorCode = AgentErrorCode.GUARD_REJECTED,
+                durationMs = System.currentTimeMillis() - startTime
+            ).also { agentMetrics.recordExecution(it) }
+        }
+        checkBeforeHooks(hookContext)?.let { hookResult ->
+            val message = when (hookResult) {
+                is HookResult.Reject -> hookResult.reason
+                is HookResult.PendingApproval -> "Pending approval: ${hookResult.message}"
+                else -> "Blocked by hook"
+            }
+            return AgentResult.failure(
+                errorMessage = message,
+                errorCode = AgentErrorCode.HOOK_REJECTED,
+                durationMs = System.currentTimeMillis() - startTime
+            ).also { agentMetrics.recordExecution(it) }
+        }
+        return null
+    }
+
+    private suspend fun finishExecution(
+        result: AgentResult,
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        startTime: Long
+    ): AgentResult {
+        conversationManager.saveHistory(command, result)
         try {
             hookExecutor?.executeAfterAgentComplete(
                 context = hookContext,
                 response = AgentResponse(
-                    success = result.success,
-                    response = result.content,
-                    errorMessage = result.errorMessage,
-                    toolsUsed = toolsUsed
+                    success = result.success, response = result.content,
+                    errorMessage = result.errorMessage, toolsUsed = toolsUsed
                 )
             )
         } catch (e: Exception) {
             logger.error(e) { "AfterAgentComplete hook failed" }
         }
-
         val finalResult = result.copy(durationMs = System.currentTimeMillis() - startTime)
         agentMetrics.recordExecution(finalResult)
         return finalResult
@@ -408,17 +400,7 @@ class SpringAiAgentExecutor(
                         // Trim messages to fit context window before each LLM call
                         trimMessagesToFitContext(messages, systemPrompt)
 
-                        var requestSpec = chatClient.prompt()
-                        if (systemPrompt.isNotBlank()) {
-                            requestSpec = requestSpec.system(systemPrompt)
-                        }
-                        requestSpec = requestSpec.messages(messages)
-                        requestSpec = requestSpec.options(chatOptions)
-                        if (activeTools.isNotEmpty()) {
-                            requestSpec = requestSpec.tools(*activeTools.toTypedArray())
-                        }
-
-                        // Stream ChatResponse chunks (structured, not plain text)
+                        val requestSpec = buildRequestSpec(systemPrompt, messages, chatOptions, activeTools)
                         val flux = callWithRetry { requestSpec.stream().chatResponse() }
                         var pendingToolCalls: List<AssistantMessage.ToolCall> = emptyList()
                         val currentChunkText = StringBuilder()
@@ -470,7 +452,10 @@ class SpringAiAgentExecutor(
 
                         // Safety: if maxToolCalls limit reached, remove tools so LLM produces final text answer
                         if (totalToolCalls >= maxToolCallLimit) {
-                            logger.info { "maxToolCalls limit reached in streaming ($totalToolCalls/$maxToolCallLimit), requesting final answer without tools" }
+                            logger.info {
+                                "maxToolCalls reached in streaming " +
+                                    "($totalToolCalls/$maxToolCallLimit), final answer"
+                            }
                             activeTools = emptyList()
                             chatOptions = buildChatOptions(command, false)
                         }
@@ -514,27 +499,36 @@ class SpringAiAgentExecutor(
                 }
             }
 
-            // Record execution metrics
-            val durationMs = System.currentTimeMillis() - startTime
-            val result = if (streamSuccess) {
-                AgentResult.success(
-                    content = collectedContent.toString(),
-                    toolsUsed = toolsUsed.toList(),
-                    durationMs = durationMs
-                )
-            } else {
-                AgentResult.failure(
-                    errorMessage = streamErrorMessage ?: "Streaming failed",
-                    errorCode = streamErrorCode ?: AgentErrorCode.UNKNOWN,
-                    durationMs = durationMs
-                )
-            }
-            agentMetrics.recordExecution(result)
+            recordStreamingMetrics(
+                streamSuccess, collectedContent.toString(), streamErrorMessage,
+                streamErrorCode, toolsUsed.toList(), startTime
+            )
 
             MDC.remove("runId")
             MDC.remove("userId")
             MDC.remove("sessionId")
         }
+    }
+
+    private fun recordStreamingMetrics(
+        success: Boolean,
+        content: String,
+        errorMessage: String?,
+        errorCode: AgentErrorCode?,
+        toolsUsed: List<String>,
+        startTime: Long
+    ) {
+        val durationMs = System.currentTimeMillis() - startTime
+        val result = if (success) {
+            AgentResult.success(content = content, toolsUsed = toolsUsed, durationMs = durationMs)
+        } else {
+            AgentResult.failure(
+                errorMessage = errorMessage ?: "Streaming failed",
+                errorCode = errorCode ?: AgentErrorCode.UNKNOWN,
+                durationMs = durationMs
+            )
+        }
+        agentMetrics.recordExecution(result)
     }
 
     /**
@@ -603,11 +597,12 @@ class SpringAiAgentExecutor(
         val outputReserve = properties.llm.maxOutputTokens
         val budget = maxTokens - systemTokens - outputReserve
 
-        // Find the last UserMessage — this is the current user prompt and must always be preserved
-        val lastUserMsgIndex = messages.indexOfLast { it is UserMessage }
-
         if (budget <= 0) {
-            logger.warn { "Context budget is non-positive ($budget). system=$systemTokens, outputReserve=$outputReserve, max=$maxTokens" }
+            logger.warn {
+                "Context budget is non-positive ($budget). " +
+                    "system=$systemTokens, outputReserve=$outputReserve, max=$maxTokens"
+            }
+            val lastUserMsgIndex = messages.indexOfLast { it is UserMessage }
             if (lastUserMsgIndex >= 0 && messages.size > 1) {
                 val userMsg = messages[lastUserMsgIndex]
                 messages.clear()
@@ -617,11 +612,16 @@ class SpringAiAgentExecutor(
         }
 
         var totalTokens = messages.sumOf { estimateMessageTokens(it) }
+        totalTokens = trimOldHistory(messages, totalTokens, budget)
+        trimToolHistory(messages, totalTokens, budget)
+    }
 
-        // Phase 1: Remove oldest messages from the front, but stop before the last UserMessage
+    /** Phase 1: Remove oldest messages from the front, preserving the last UserMessage. */
+    private fun trimOldHistory(messages: MutableList<Message>, currentTokens: Int, budget: Int): Int {
+        var totalTokens = currentTokens
         while (totalTokens > budget && messages.size > 1) {
             val protectedIdx = messages.indexOfLast { it is UserMessage }.coerceAtLeast(0)
-            if (protectedIdx <= 0) break // Nothing before the protected message to remove
+            if (protectedIdx <= 0) break
 
             val removeCount = calculateRemoveGroupSize(messages)
             if (removeCount <= 0 || removeCount > protectedIdx) break
@@ -629,21 +629,21 @@ class SpringAiAgentExecutor(
             var removedTokens = 0
             repeat(removeCount) {
                 if (messages.size > 1) {
-                    val removed = messages.removeFirst()
-                    removedTokens += estimateMessageTokens(removed)
+                    removedTokens += estimateMessageTokens(messages.removeFirst())
                 }
             }
             totalTokens -= removedTokens
             logger.debug { "Trimmed $removeCount messages (old history). Remaining tokens: $totalTokens/$budget" }
         }
+        return totalTokens
+    }
 
-        // Phase 2: If still over budget, remove tool interaction pairs AFTER the last UserMessage
-        // (keeping the last UserMessage and the very last message for LLM context)
+    /** Phase 2: Remove tool interaction pairs after the last UserMessage when still over budget. */
+    private fun trimToolHistory(messages: MutableList<Message>, currentTokens: Int, budget: Int) {
+        var totalTokens = currentTokens
         while (totalTokens > budget && messages.size > 1) {
             val protectedIdx = messages.indexOfLast { it is UserMessage }.coerceAtLeast(0)
             val removeStartIdx = protectedIdx + 1
-
-            // Need at least one removable message that isn't the very last
             if (removeStartIdx >= messages.size - 1) break
 
             val subList = messages.subList(removeStartIdx, messages.size)
@@ -653,8 +653,7 @@ class SpringAiAgentExecutor(
             var removedTokens = 0
             repeat(removeCount) {
                 if (removeStartIdx < messages.size) {
-                    val removed = messages.removeAt(removeStartIdx)
-                    removedTokens += estimateMessageTokens(removed)
+                    removedTokens += estimateMessageTokens(messages.removeAt(removeStartIdx))
                 }
             }
             totalTokens -= removedTokens
@@ -753,6 +752,20 @@ class SpringAiAgentExecutor(
         }
     }
 
+    private fun buildRequestSpec(
+        systemPrompt: String,
+        messages: List<Message>,
+        chatOptions: ChatOptions,
+        tools: List<Any>
+    ): ChatClient.ChatClientRequestSpec {
+        var spec = chatClient.prompt()
+        if (systemPrompt.isNotBlank()) spec = spec.system(systemPrompt)
+        spec = spec.messages(messages)
+        spec = spec.options(chatOptions)
+        if (tools.isNotEmpty()) spec = spec.tools(*tools.toTypedArray())
+        return spec
+    }
+
     /**
      * Find a tool adapter by name from the registered tools.
      */
@@ -800,33 +813,47 @@ class SpringAiAgentExecutor(
         }
 
         val toolName = toolCall.name()
-        val toolParams = parseJsonToMap(toolCall.arguments())
-
         val toolCallContext = ToolCallContext(
-            agentContext = hookContext,
-            toolName = toolName,
-            toolParams = toolParams,
-            callIndex = currentCount
+            agentContext = hookContext, toolName = toolName,
+            toolParams = parseJsonToMap(toolCall.arguments()), callIndex = currentCount
         )
 
-        // BeforeToolCallHook
-        if (hookExecutor != null) {
-            when (val hookResult = hookExecutor.executeBeforeToolCall(toolCallContext)) {
-                is HookResult.Reject -> {
-                    logger.info { "Tool call $toolName rejected by hook: ${hookResult.reason}" }
-                    return ToolResponseMessage.ToolResponse(
-                        toolCall.id(), toolName,
-                        "Tool call rejected: ${hookResult.reason}"
-                    )
-                }
-                else -> { /* continue */ }
-            }
+        checkBeforeToolCallHook(toolCallContext)?.let { rejection ->
+            logger.info { "Tool call $toolName rejected by hook: ${rejection.reason}" }
+            return ToolResponseMessage.ToolResponse(
+                toolCall.id(), toolName, "Tool call rejected: ${rejection.reason}"
+            )
         }
 
-        // Execute the tool
         val toolStartTime = System.currentTimeMillis()
+        val toolOutput = invokeToolAdapter(toolName, toolCall, tools, toolsUsed)
+        val toolDurationMs = System.currentTimeMillis() - toolStartTime
+
+        hookExecutor?.executeAfterToolCall(
+            context = toolCallContext,
+            result = ToolCallResult(
+                success = !toolOutput.startsWith("Error:"),
+                output = toolOutput, durationMs = toolDurationMs
+            )
+        )
+
+        agentMetrics.recordToolCall(toolName, toolDurationMs, !toolOutput.startsWith("Error:"))
+        return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, toolOutput)
+    }
+
+    private suspend fun checkBeforeToolCallHook(context: ToolCallContext): HookResult.Reject? {
+        if (hookExecutor == null) return null
+        return hookExecutor.executeBeforeToolCall(context) as? HookResult.Reject
+    }
+
+    private suspend fun invokeToolAdapter(
+        toolName: String,
+        toolCall: AssistantMessage.ToolCall,
+        tools: List<Any>,
+        toolsUsed: MutableList<String>
+    ): String {
         val adapter = findToolAdapter(toolName, tools)
-        val toolOutput = if (adapter != null) {
+        return if (adapter != null) {
             toolsUsed.add(toolName)
             try {
                 adapter.call(toolCall.arguments())
@@ -838,22 +865,6 @@ class SpringAiAgentExecutor(
             logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
             "Error: Tool '$toolName' not found"
         }
-        val toolDurationMs = System.currentTimeMillis() - toolStartTime
-
-        // AfterToolCallHook
-        hookExecutor?.executeAfterToolCall(
-            context = toolCallContext,
-            result = ToolCallResult(
-                success = !toolOutput.startsWith("Error:"),
-                output = toolOutput,
-                durationMs = toolDurationMs
-            )
-        )
-
-        agentMetrics.recordToolCall(toolName, toolDurationMs, !toolOutput.startsWith("Error:"))
-        logger.debug { "Tool $toolName executed in ${toolDurationMs}ms" }
-
-        return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, toolOutput)
     }
 
     /**
@@ -879,7 +890,10 @@ class SpringAiAgentExecutor(
             var totalToolCalls = 0
 
             // System prompt (with RAG context and response format)
-            val systemPrompt = buildSystemPrompt(command.systemPrompt, ragContext, command.responseFormat, command.responseSchema)
+            val systemPrompt = buildSystemPrompt(
+                command.systemPrompt, ragContext,
+                command.responseFormat, command.responseSchema
+            )
 
             // Build initial messages
             val messages = mutableListOf<Message>()
@@ -897,37 +911,11 @@ class SpringAiAgentExecutor(
                 // Trim messages to fit context window before each LLM call
                 trimMessagesToFitContext(messages, systemPrompt)
 
-                var requestSpec = chatClient.prompt()
-
-                if (systemPrompt.isNotBlank()) {
-                    requestSpec = requestSpec.system(systemPrompt)
-                }
-
-                requestSpec = requestSpec.messages(messages)
-                requestSpec = requestSpec.options(chatOptions)
-
-                if (activeTools.isNotEmpty()) {
-                    requestSpec = requestSpec.tools(*activeTools.toTypedArray())
-                }
-
+                val requestSpec = buildRequestSpec(systemPrompt, messages, chatOptions, activeTools)
                 val response = callWithRetry { kotlinx.coroutines.runInterruptible { requestSpec.call() } }
                 val chatResponse = response.chatResponse()
 
-                // Accumulate token usage
-                chatResponse?.metadata?.usage?.let {
-                    val current = TokenUsage(
-                        promptTokens = it.promptTokens.toInt(),
-                        completionTokens = it.completionTokens.toInt(),
-                        totalTokens = it.totalTokens.toInt()
-                    )
-                    totalTokenUsage = totalTokenUsage?.let { prev ->
-                        TokenUsage(
-                            promptTokens = prev.promptTokens + current.promptTokens,
-                            completionTokens = prev.completionTokens + current.completionTokens,
-                            totalTokens = prev.totalTokens + current.totalTokens
-                        )
-                    } ?: current
-                }
+                totalTokenUsage = accumulateTokenUsage(chatResponse, totalTokenUsage)
 
                 // Check for tool calls in the response
                 val assistantOutput = chatResponse?.results?.firstOrNull()?.output
@@ -962,7 +950,10 @@ class SpringAiAgentExecutor(
 
                 // Safety: if maxToolCalls limit reached, remove tools so LLM produces final text answer
                 if (totalToolCalls >= maxToolCalls) {
-                    logger.info { "maxToolCalls limit reached ($totalToolCalls/$maxToolCalls), requesting final answer without tools" }
+                    logger.info {
+                        "maxToolCalls reached ($totalToolCalls/$maxToolCalls), " +
+                            "final answer"
+                    }
                     activeTools = emptyList()
                     chatOptions = buildChatOptions(command, false)
                 }
@@ -1004,12 +995,34 @@ class SpringAiAgentExecutor(
                 // Add ±25% jitter to prevent thundering herd
                 val jitter = (baseDelay * 0.25 * (Math.random() * 2 - 1)).toLong()
                 val delayMs = (baseDelay + jitter).coerceAtLeast(0)
-                logger.warn { "Transient error (attempt ${attempt + 1}/${maxAttempts}), retrying in ${delayMs}ms: ${e.message}" }
+                logger.warn {
+                    "Transient error (attempt ${attempt + 1}/$maxAttempts), " +
+                        "retrying in ${delayMs}ms: ${e.message}"
+                }
                 delay(delayMs)
             }
         }
 
         throw lastException ?: IllegalStateException("Retry exhausted")
+    }
+
+    private fun accumulateTokenUsage(
+        chatResponse: org.springframework.ai.chat.model.ChatResponse?,
+        previous: TokenUsage?
+    ): TokenUsage? {
+        val usage = chatResponse?.metadata?.usage ?: return previous
+        val current = TokenUsage(
+            promptTokens = usage.promptTokens.toInt(),
+            completionTokens = usage.completionTokens.toInt(),
+            totalTokens = usage.totalTokens.toInt()
+        )
+        return previous?.let {
+            TokenUsage(
+                promptTokens = it.promptTokens + current.promptTokens,
+                completionTokens = it.completionTokens + current.completionTokens,
+                totalTokens = it.totalTokens + current.totalTokens
+            )
+        } ?: current
     }
 
     private fun isTransientError(e: Exception): Boolean = transientErrorClassifier(e)
@@ -1024,9 +1037,6 @@ class SpringAiAgentExecutor(
         }
     }
 
-    private fun translateError(e: Exception): String {
-        return errorMessageResolver.resolve(classifyError(e), e.message)
-    }
 }
 
 /**

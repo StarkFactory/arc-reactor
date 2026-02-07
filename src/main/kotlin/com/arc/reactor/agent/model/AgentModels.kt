@@ -23,7 +23,7 @@ enum class AgentMode {
     /** ReAct mode (Thought-Action-Observation loop) */
     REACT,
 
-    /** Streaming mode (planned for future implementation) */
+    /** Streaming mode — executeStream()은 AgentMode와 무관하게 동작. 향후 모드 분기용 예약 */
     STREAMING
 }
 

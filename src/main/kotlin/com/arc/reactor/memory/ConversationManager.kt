@@ -63,30 +63,24 @@ class DefaultConversationManager(
 
     override fun saveHistory(command: AgentCommand, result: AgentResult) {
         if (!result.success) return
-        val sessionId = command.metadata["sessionId"]?.toString() ?: return
-        if (memoryStore == null) return
-
-        try {
-            memoryStore.addMessage(sessionId = sessionId, role = "user", content = command.userPrompt)
-            if (result.content != null) {
-                memoryStore.addMessage(sessionId = sessionId, role = "assistant", content = result.content)
-            }
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to save conversation history for session $sessionId" }
-        }
+        saveMessages(command.metadata, command.userPrompt, result.content)
     }
 
     override fun saveStreamingHistory(command: AgentCommand, content: String) {
-        val sessionId = command.metadata["sessionId"]?.toString() ?: return
+        saveMessages(command.metadata, command.userPrompt, content.ifEmpty { null })
+    }
+
+    private fun saveMessages(metadata: Map<String, Any>, userPrompt: String, assistantContent: String?) {
+        val sessionId = metadata["sessionId"]?.toString() ?: return
         if (memoryStore == null) return
 
         try {
-            memoryStore.addMessage(sessionId = sessionId, role = "user", content = command.userPrompt)
-            if (content.isNotEmpty()) {
-                memoryStore.addMessage(sessionId = sessionId, role = "assistant", content = content)
+            memoryStore.addMessage(sessionId = sessionId, role = "user", content = userPrompt)
+            if (assistantContent != null) {
+                memoryStore.addMessage(sessionId = sessionId, role = "assistant", content = assistantContent)
             }
         } catch (e: Exception) {
-            logger.error(e) { "Failed to save streaming conversation history for session $sessionId" }
+            logger.error(e) { "Failed to save conversation history for session $sessionId" }
         }
     }
 

@@ -165,33 +165,33 @@ class DefaultMcpManager(
             try {
                 logger.info { "Connecting to MCP server: $serverName" }
                 statuses[serverName] = McpServerStatus.CONNECTING
-
-                val client = when (server.transportType) {
-                    McpTransportType.STDIO -> connectStdio(server)
-                    McpTransportType.SSE -> connectSse(server)
-                    McpTransportType.HTTP -> connectHttp(server)
-                }
-
-                if (client != null) {
-                    clients[serverName] = client
-
-                    // Load tool callbacks
-                    val tools = loadToolCallbacks(client, serverName)
-                    toolCallbacksCache[serverName] = tools
-
-                    statuses[serverName] = McpServerStatus.CONNECTED
-                    logger.info { "MCP server connected: $serverName with ${tools.size} tools" }
-                    true
-                } else {
-                    statuses[serverName] = McpServerStatus.FAILED
-                    false
-                }
+                initializeClient(server, serverName)
             } catch (e: Exception) {
                 logger.error(e) { "Failed to connect MCP server: $serverName" }
                 statuses[serverName] = McpServerStatus.FAILED
                 false
             }
         }
+    }
+
+    private fun initializeClient(server: McpServer, serverName: String): Boolean {
+        val client = when (server.transportType) {
+            McpTransportType.STDIO -> connectStdio(server)
+            McpTransportType.SSE -> connectSse(server)
+            McpTransportType.HTTP -> connectHttp(server)
+        }
+
+        if (client == null) {
+            statuses[serverName] = McpServerStatus.FAILED
+            return false
+        }
+
+        clients[serverName] = client
+        val tools = loadToolCallbacks(client, serverName)
+        toolCallbacksCache[serverName] = tools
+        statuses[serverName] = McpServerStatus.CONNECTED
+        logger.info { "MCP server connected: $serverName with ${tools.size} tools" }
+        return true
     }
 
     /**

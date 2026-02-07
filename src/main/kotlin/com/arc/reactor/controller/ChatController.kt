@@ -85,7 +85,8 @@ class ChatController(
 
     companion object {
         private const val DEFAULT_SYSTEM_PROMPT =
-            "You are a helpful AI assistant. You can use tools when needed. Answer in the same language as the user's message."
+            "You are a helpful AI assistant. You can use tools when needed. " +
+                "Answer in the same language as the user's message."
     }
 }
 

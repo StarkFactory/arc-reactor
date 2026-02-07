@@ -145,7 +145,10 @@ class ArcReactorAutoConfiguration {
      * Guard Configuration
      */
     @Configuration
-    @ConditionalOnProperty(prefix = "arc.reactor.guard", name = ["enabled"], havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.guard", name = ["enabled"],
+        havingValue = "true", matchIfMissing = true
+    )
     class GuardConfiguration {
 
         @Bean
@@ -165,7 +168,10 @@ class ArcReactorAutoConfiguration {
 
         @Bean
         @ConditionalOnMissingBean(name = ["injectionDetectionStage"])
-        @ConditionalOnProperty(prefix = "arc.reactor.guard", name = ["injection-detection-enabled"], havingValue = "true", matchIfMissing = true)
+        @ConditionalOnProperty(
+            prefix = "arc.reactor.guard", name = ["injection-detection-enabled"],
+            havingValue = "true", matchIfMissing = true
+        )
         fun injectionDetectionStage(): GuardStage = DefaultInjectionDetectionStage()
 
         @Bean
