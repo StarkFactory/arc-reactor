@@ -92,6 +92,33 @@ curl -N http://localhost:8080/api/chat/stream \
 | **LLM 재시도** | 지수 백오프 + 지터 | 재시도 조건/횟수 설정 |
 | **병렬 도구 실행** | 코루틴 기반 동시 실행 | 자동 (설정 불필요) |
 | **Structured Output** | JSON 응답 모드 | `responseFormat = JSON` |
+| **멀티에이전트** | Sequential / Parallel / Supervisor | DSL 빌더 API |
+
+## 멀티에이전트
+
+여러 전문 에이전트가 협력하는 3가지 패턴을 지원합니다:
+
+```kotlin
+// Sequential: A의 출력 → B의 입력 → C의 입력
+val result = MultiAgent.sequential()
+    .node("researcher") { systemPrompt = "자료를 조사하라" }
+    .node("writer") { systemPrompt = "조사 결과로 글을 작성하라" }
+    .execute(command, agentFactory)
+
+// Parallel: 동시 실행 후 결과 병합
+val result = MultiAgent.parallel()
+    .node("security") { systemPrompt = "보안 분석" }
+    .node("style") { systemPrompt = "스타일 검사" }
+    .execute(command, agentFactory)
+
+// Supervisor: 매니저가 워커에게 작업 위임
+val result = MultiAgent.supervisor()
+    .node("order") { systemPrompt = "주문 처리"; description = "주문 조회/변경" }
+    .node("refund") { systemPrompt = "환불 처리"; description = "환불 신청/확인" }
+    .execute(command, agentFactory)
+```
+
+> 자세한 설명은 [멀티에이전트 가이드](docs/multi-agent.md)를 참고하세요.
 
 ## 아키텍처
 
@@ -276,7 +303,8 @@ src/main/kotlin/com/arc/reactor/
 │   ├── AgentExecutor.kt              → 인터페이스
 │   ├── config/AgentProperties.kt     → 설정 (arc.reactor.*)
 │   ├── model/AgentModels.kt          → AgentCommand, AgentResult
-│   └── impl/SpringAiAgentExecutor.kt → ReAct 루프 구현체
+│   ├── impl/SpringAiAgentExecutor.kt → ReAct 루프 구현체
+│   └── multi/                        → 멀티에이전트 (Sequential/Parallel/Supervisor)
 │
 ├── guard/                          # 5단계 Guard
 │   ├── Guard.kt                      → GuardStage 인터페이스들
@@ -296,6 +324,7 @@ src/main/kotlin/com/arc/reactor/
 │
 ├── memory/                         # 대화 메모리
 │   ├── ConversationMemory.kt         → 인터페이스
+│   ├── ConversationManager.kt        → 대화 히스토리 생명주기 관리
 │   ├── MemoryStore.kt                → InMemory 구현
 │   └── JdbcMemoryStore.kt            → PostgreSQL 구현
 │
@@ -316,6 +345,13 @@ src/main/kotlin/com/arc/reactor/
 └── config/
     └── ChatClientConfig.kt
 ```
+
+## 문서
+
+- [예시 앱 & 도구 추가 가이드](docs/example-app.md)
+- [멀티에이전트 가이드](docs/multi-agent.md) — 3가지 패턴과 Supervisor 설계
+- [아키텍처 가이드](docs/architecture.md) — 내부 구조와 에러 처리 체계
+- [배포 가이드](docs/deployment.md) — Docker, 환경 변수, 프로덕션 체크리스트
 
 ## 요구사항
 
