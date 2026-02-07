@@ -2,6 +2,7 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.impl.defaultTransientErrorClassifier
 import com.arc.reactor.agent.metrics.AgentMetrics
@@ -40,6 +41,7 @@ import com.arc.reactor.rag.impl.InMemoryDocumentRetriever
 import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
@@ -231,6 +233,21 @@ class ArcReactorAutoConfiguration {
     }
 
     /**
+     * Chat Model Provider (multi-LLM runtime selection)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun chatModelProvider(
+        chatModels: Map<String, ChatModel>,
+        properties: AgentProperties
+    ): ChatModelProvider {
+        val providerMap = chatModels.map { (beanName, model) ->
+            ChatModelProvider.resolveProviderName(beanName) to model
+        }.toMap()
+        return ChatModelProvider(providerMap, properties.llm.defaultProvider)
+    }
+
+    /**
      * Agent Executor
      */
     @Bean
@@ -238,6 +255,7 @@ class ArcReactorAutoConfiguration {
     @ConditionalOnBean(ChatClient::class)
     fun agentExecutor(
         chatClient: ChatClient,
+        chatModelProvider: ChatModelProvider,
         properties: AgentProperties,
         localTools: List<LocalTool>,
         toolCallbacks: List<ToolCallback>,
@@ -253,6 +271,7 @@ class ArcReactorAutoConfiguration {
         conversationManager: ConversationManager
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
+        chatModelProvider = chatModelProvider,
         properties = properties,
         localTools = localTools,
         toolCallbacks = toolCallbacks,

@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.arc"
-version = "1.0.0"
+version = "1.1.0"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -59,13 +59,13 @@ dependencies {
     // Optional: Micrometer (for metrics/observability)
     compileOnly("io.micrometer:micrometer-core")
 
-    // LLM Provider (기본: Gemini API Key 방식)
+    // LLM Providers (auto-configured when API key is set)
     implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
+    implementation("org.springframework.ai:spring-ai-starter-model-openai")
+    implementation("org.springframework.ai:spring-ai-starter-model-anthropic")
 
-    // Optional: 다른 LLM 제공자 (필요시 위의 Gemini를 교체)
-    compileOnly("org.springframework.ai:spring-ai-starter-model-openai")
+    // Optional: Google Vertex AI (alternative to google-genai)
     compileOnly("org.springframework.ai:spring-ai-starter-model-vertex-ai-gemini")
-    compileOnly("org.springframework.ai:spring-ai-starter-model-anthropic")
 
     // Spring AI Vector Store Core (for RAG)
     implementation("org.springframework.ai:spring-ai-vector-store")

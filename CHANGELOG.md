@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-02-08
+
+### Added
+- **Multi-LLM Provider Support**: Runtime provider selection via `model` field in ChatRequest/AgentCommand. Supports Google Gemini, OpenAI, and Anthropic Claude simultaneously
+- `ChatModelProvider`: Registry that maps provider names to ChatModel beans. Auto-configured from available Spring AI starters
+- `model` field on `ChatRequest`, `ChatResponse`, and `AgentCommand` for per-request provider selection
+- `defaultProvider` property in `LlmProperties` (default: "gemini")
+- Multi-agent example controllers: `MultiAgentExampleController`, `ReportPipelineExample` (Sequential), `CodeReviewExample` (Parallel)
+
+### Changed
+- OpenAI and Anthropic dependencies changed from `compileOnly` to `implementation` (auto-configured when API key is set)
+- `SpringAiAgentExecutor` accepts optional `ChatModelProvider` for runtime ChatClient resolution
+- `application.yml` updated with multi-provider configuration (Gemini, OpenAI, Anthropic)
+- All comments in `application.yml` converted to English
+
 ## [1.0.0] - 2026-02-07
 
 ### Added

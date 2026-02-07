@@ -34,6 +34,7 @@ data class AgentCommand(
     val systemPrompt: String,
     val userPrompt: String,
     val mode: AgentMode = AgentMode.REACT,
+    val model: String? = null,
     val conversationHistory: List<Message> = emptyList(),
     val temperature: Double? = null,
     val maxToolCalls: Int = 10,

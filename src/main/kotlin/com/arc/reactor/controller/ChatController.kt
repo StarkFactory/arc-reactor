@@ -44,6 +44,7 @@ class ChatController(
             AgentCommand(
                 systemPrompt = request.systemPrompt ?: DEFAULT_SYSTEM_PROMPT,
                 userPrompt = request.message,
+                model = request.model,
                 userId = request.userId,
                 metadata = request.metadata ?: emptyMap(),
                 responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
@@ -53,6 +54,7 @@ class ChatController(
         return ChatResponse(
             content = result.content,
             success = result.success,
+            model = request.model,
             toolsUsed = result.toolsUsed,
             errorMessage = result.errorMessage
         )
@@ -74,6 +76,7 @@ class ChatController(
             AgentCommand(
                 systemPrompt = request.systemPrompt ?: DEFAULT_SYSTEM_PROMPT,
                 userPrompt = request.message,
+                model = request.model,
                 userId = request.userId,
                 metadata = request.metadata ?: emptyMap(),
                 responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
@@ -96,6 +99,7 @@ class ChatController(
 data class ChatRequest(
     @field:NotBlank(message = "message must not be blank")
     val message: String,
+    val model: String? = null,
     val systemPrompt: String? = null,
     val userId: String? = null,
     val metadata: Map<String, Any>? = null,
@@ -109,6 +113,7 @@ data class ChatRequest(
 data class ChatResponse(
     val content: String?,
     val success: Boolean,
+    val model: String? = null,
     val toolsUsed: List<String> = emptyList(),
     val errorMessage: String? = null
 )

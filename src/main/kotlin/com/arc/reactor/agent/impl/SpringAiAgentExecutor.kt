@@ -2,6 +2,7 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentMode
@@ -111,6 +112,7 @@ private fun parseJsonToMap(json: String?): Map<String, Any?> {
  */
 class SpringAiAgentExecutor(
     private val chatClient: ChatClient,
+    private val chatModelProvider: ChatModelProvider? = null,
     private val properties: AgentProperties,
     private val localTools: List<LocalTool> = emptyList(),
     private val toolCallbacks: List<ToolCallback> = emptyList(),
@@ -383,6 +385,7 @@ class SpringAiAgentExecutor(
                     logger.debug { "Streaming ReAct: ${activeTools.size} tools selected (mode=${command.mode})" }
 
                     // 4. Build message list for ReAct loop
+                    val activeChatClient = resolveChatClient(command)
                     val messages = mutableListOf<Message>()
                     if (conversationHistory.isNotEmpty()) {
                         messages.addAll(conversationHistory)
@@ -400,7 +403,7 @@ class SpringAiAgentExecutor(
                         // Trim messages to fit context window before each LLM call
                         trimMessagesToFitContext(messages, systemPrompt)
 
-                        val requestSpec = buildRequestSpec(systemPrompt, messages, chatOptions, activeTools)
+                        val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
                         val flux = callWithRetry { requestSpec.stream().chatResponse() }
                         var pendingToolCalls: List<AssistantMessage.ToolCall> = emptyList()
                         val currentChunkText = StringBuilder()
@@ -752,13 +755,26 @@ class SpringAiAgentExecutor(
         }
     }
 
+    /**
+     * Resolves the ChatClient based on the command's model field.
+     * Falls back to the default chatClient when model is unspecified
+     * or chatModelProvider is unavailable.
+     */
+    private fun resolveChatClient(command: AgentCommand): ChatClient {
+        if (command.model == null || chatModelProvider == null) {
+            return chatClient
+        }
+        return chatModelProvider.getChatClient(command.model)
+    }
+
     private fun buildRequestSpec(
+        activeChatClient: ChatClient,
         systemPrompt: String,
         messages: List<Message>,
         chatOptions: ChatOptions,
         tools: List<Any>
     ): ChatClient.ChatClientRequestSpec {
-        var spec = chatClient.prompt()
+        var spec = activeChatClient.prompt()
         if (systemPrompt.isNotBlank()) spec = spec.system(systemPrompt)
         spec = spec.messages(messages)
         spec = spec.options(chatOptions)
@@ -905,13 +921,14 @@ class SpringAiAgentExecutor(
             var activeTools = tools
             var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
             var totalTokenUsage: TokenUsage? = null
+            val activeChatClient = resolveChatClient(command)
 
             // ReAct loop: call LLM → execute tools → repeat until done or maxToolCalls
             while (true) {
                 // Trim messages to fit context window before each LLM call
                 trimMessagesToFitContext(messages, systemPrompt)
 
-                val requestSpec = buildRequestSpec(systemPrompt, messages, chatOptions, activeTools)
+                val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
                 val response = callWithRetry { kotlinx.coroutines.runInterruptible { requestSpec.call() } }
                 val chatResponse = response.chatResponse()
 

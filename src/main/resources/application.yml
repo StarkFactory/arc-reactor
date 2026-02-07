@@ -5,43 +5,52 @@
 server:
   port: 8080
 
-# ----- LLM Provider (Gemini API Key) -----
-# API 키 설정: export GEMINI_API_KEY=your-api-key
-# API 키 발급: https://aistudio.google.com/apikey
+# ----- LLM Providers -----
+# Only providers with API keys set will be activated.
+# Set keys via environment variables:
+#   export GEMINI_API_KEY=your-key
+#   export OPENAI_API_KEY=your-key
+#   export ANTHROPIC_API_KEY=your-key
 spring:
   ai:
     google:
       genai:
-        api-key: ${GEMINI_API_KEY}
+        api-key: ${GEMINI_API_KEY:}
         chat:
           options:
             model: gemini-2.0-flash
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: gpt-4o
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          model: claude-sonnet-4-5-20250929
 
-# ----- Arc Reactor Agent 설정 -----
+# ----- Arc Reactor Agent Settings -----
 arc:
   reactor:
-    # 도구 호출 제한
     max-tool-calls: 10
     max-tools-per-request: 20
 
-    # LLM 파라미터
     llm:
+      default-provider: gemini
       temperature: 0.7
       max-output-tokens: 4096
 
-    # 동시성 제어
     concurrency:
       max-concurrent-requests: 20
       request-timeout-ms: 30000
 
-    # 가드 (보안)
     guard:
       enabled: true
       rate-limit-per-minute: 60
       rate-limit-per-hour: 500
       max-input-length: 10000
 
-    # RAG (사용하려면 enabled: true로 변경)
     rag:
       enabled: false
 

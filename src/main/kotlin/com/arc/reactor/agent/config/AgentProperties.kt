@@ -30,6 +30,9 @@ data class AgentProperties(
 )
 
 data class LlmProperties(
+    /** Default LLM provider (e.g., "gemini", "openai", "anthropic") */
+    val defaultProvider: String = "gemini",
+
     /** Default temperature */
     val temperature: Double = 0.3,
 
