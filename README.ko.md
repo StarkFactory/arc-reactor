@@ -99,13 +99,21 @@ docker-compose down            # 중지
 # 일반 응답
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "3 + 5는 얼마야?", "userId": "user-1"}'
+  -d '{"message": "3 + 5는 얼마야?"}'
 
 # 스트리밍
 curl -N -X POST http://localhost:8080/api/chat/stream \
   -H "Content-Type: application/json" \
-  -d '{"message": "안녕하세요", "userId": "user-1"}'
+  -d '{"message": "안녕하세요"}'
+
+# 사용 가능 모델 조회
+curl http://localhost:8080/api/models
+
+# 세션 목록 조회
+curl http://localhost:8080/api/sessions
 ```
+
+> 인증 활성화 시 모든 요청에 `Authorization: Bearer <token>` 헤더가 필요합니다. [인증](#인증-opt-in) 섹션을 참고하세요.
 
 ## 프로젝트가 제공하는 것
 
@@ -122,6 +130,10 @@ curl -N -X POST http://localhost:8080/api/chat/stream \
 | **병렬 도구 실행** | 코루틴 기반 동시 실행 | 자동 (설정 불필요) |
 | **Structured Output** | JSON 응답 모드 | `responseFormat = JSON` |
 | **멀티에이전트** | Sequential / Parallel / Supervisor | DSL 빌더 API |
+| **인증** | JWT 인증 + WebFilter (opt-in) | `AuthProvider` / `UserStore` 교체 |
+| **페르소나 관리** | 시스템 프롬프트 템플릿 CRUD API | `PersonaStore` 교체 |
+| **세션 관리** | 세션 조회/삭제 REST API | 자동 활성화 |
+| **Web UI** | React 채팅 인터페이스 ([arc-reactor-web](https://github.com/eqprog/arc-reactor-web)) | Fork해서 커스터마이즈 |
 
 ## 멀티에이전트
 
@@ -285,6 +297,33 @@ class McpSetup(private val mcpManager: McpManager) {
 }
 ```
 
+## 인증 (Opt-in)
+
+Arc Reactor에는 JWT 인증 시스템이 내장되어 있습니다. **기본적으로 비활성화** — 사용자별 세션 격리가 필요할 때만 활성화하세요.
+
+```yaml
+arc:
+  reactor:
+    auth:
+      enabled: true                    # JWT 인증 활성화
+      jwt-secret: ${JWT_SECRET}        # HMAC 서명 시크릿 (필수)
+      jwt-expiration-ms: 86400000      # 토큰 유효기간 (기본: 24시간)
+```
+
+활성화 시:
+- `POST /api/auth/register` — 회원가입
+- `POST /api/auth/login` — JWT 토큰 발급
+- `GET /api/auth/me` — 현재 사용자 프로필
+- 다른 모든 엔드포인트에 `Authorization: Bearer <token>` 필요
+- 세션이 사용자별로 자동 격리됨
+
+커스텀 인증 (LDAP, SSO 등)을 사용하려면 `AuthProvider` 인터페이스를 구현하세요:
+
+```kotlin
+@Bean
+fun authProvider(): AuthProvider = MyLdapAuthProvider()
+```
+
 ## 설정 레퍼런스
 
 ```yaml
@@ -322,6 +361,11 @@ arc:
     concurrency:
       max-concurrent-requests: 20
       request-timeout-ms: 30000
+
+    auth:
+      enabled: false                 # JWT 인증 (opt-in)
+      jwt-secret: ""                 # HMAC 시크릿 (활성화 시 필수)
+      jwt-expiration-ms: 86400000    # 토큰 유효기간 (24시간)
 ```
 
 ## 프로젝트 구조
@@ -365,11 +409,27 @@ src/main/kotlin/com/arc/reactor/
 │   ├── McpManager.kt                 → MCP 서버 관리
 │   └── model/McpModels.kt            → McpServer, McpStatus
 │
+├── auth/                          # JWT 인증 (opt-in)
+│   ├── AuthModels.kt                → User, AuthProperties
+│   ├── AuthProvider.kt              → 인터페이스 (교체 가능)
+│   ├── DefaultAuthProvider.kt       → BCrypt 기본 구현
+│   ├── UserStore.kt                 → 인터페이스 + InMemoryUserStore
+│   ├── JdbcUserStore.kt             → PostgreSQL 구현
+│   ├── JwtTokenProvider.kt          → JWT 토큰 생성/검증
+│   └── JwtAuthWebFilter.kt         → WebFilter (토큰 검증)
+│
+├── persona/                       # 페르소나 관리
+│   ├── PersonaStore.kt              → 인터페이스 + InMemoryPersonaStore
+│   └── JdbcPersonaStore.kt         → PostgreSQL 구현
+│
 ├── autoconfigure/                  # Spring Boot 자동 설정
 │   └── ArcReactorAutoConfiguration.kt
 │
 ├── controller/                     # REST API ← 필요시 수정
-│   └── ChatController.kt
+│   ├── ChatController.kt           → POST /api/chat, /api/chat/stream
+│   ├── SessionController.kt        → GET/DELETE /api/sessions, GET /api/models
+│   ├── AuthController.kt           → POST /api/auth/register|login, GET /api/auth/me
+│   └── PersonaController.kt        → CRUD /api/personas
 │
 └── config/
     └── ChatClientConfig.kt
@@ -388,6 +448,9 @@ src/main/kotlin/com/arc/reactor/
 - [멀티에이전트 가이드](docs/ko/multi-agent.md) — Sequential / Parallel / Supervisor 패턴
 - [Supervisor 패턴 Deep Dive](docs/ko/supervisor-pattern.md) — WorkerAgentTool 원리, 실제 사용법
 - [배포 가이드](docs/ko/deployment.md) — Docker, 환경 변수, 프로덕션 체크리스트
+- [인증 가이드](docs/ko/authentication.md) — JWT 인증, AuthProvider 커스터마이징, 세션 격리
+- [세션 & 페르소나 가이드](docs/ko/session-management.md) — 세션 API, 페르소나 관리, 데이터 아키텍처
+- [기능 인벤토리](docs/ko/feature-inventory.md) — 전체 기능 매트릭스, 데이터 아키텍처, DB 스키마
 
 ## 요구사항
 

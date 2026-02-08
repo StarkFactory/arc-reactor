@@ -404,7 +404,9 @@ class SpringAiAgentExecutor(
                         // Trim messages to fit context window before each LLM call
                         trimMessagesToFitContext(messages, systemPrompt)
 
-                        val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
+                        val requestSpec = buildRequestSpec(
+                            activeChatClient, systemPrompt, messages, chatOptions, activeTools
+                        )
                         val flux = callWithRetry { requestSpec.stream().chatResponse() }
                         var pendingToolCalls: List<AssistantMessage.ToolCall> = emptyList()
                         val currentChunkText = StringBuilder()

@@ -63,21 +63,33 @@ class DefaultConversationManager(
 
     override fun saveHistory(command: AgentCommand, result: AgentResult) {
         if (!result.success) return
-        saveMessages(command.metadata, command.userPrompt, result.content)
+        saveMessages(command.metadata, command.userId, command.userPrompt, result.content)
     }
 
     override fun saveStreamingHistory(command: AgentCommand, content: String) {
-        saveMessages(command.metadata, command.userPrompt, content.ifEmpty { null })
+        saveMessages(command.metadata, command.userId, command.userPrompt, content.ifEmpty { null })
     }
 
-    private fun saveMessages(metadata: Map<String, Any>, userPrompt: String, assistantContent: String?) {
+    private fun saveMessages(
+        metadata: Map<String, Any>,
+        userId: String?,
+        userPrompt: String,
+        assistantContent: String?
+    ) {
         val sessionId = metadata["sessionId"]?.toString() ?: return
         if (memoryStore == null) return
+        val resolvedUserId = userId ?: "anonymous"
 
         try {
-            memoryStore.addMessage(sessionId = sessionId, role = "user", content = userPrompt)
+            memoryStore.addMessage(
+                sessionId = sessionId, role = "user",
+                content = userPrompt, userId = resolvedUserId
+            )
             if (assistantContent != null) {
-                memoryStore.addMessage(sessionId = sessionId, role = "assistant", content = assistantContent)
+                memoryStore.addMessage(
+                    sessionId = sessionId, role = "assistant",
+                    content = assistantContent, userId = resolvedUserId
+                )
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to save conversation history for session $sessionId" }

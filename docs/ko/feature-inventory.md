@@ -21,10 +21,13 @@
 | **도구 실행** | 내부 (API 없음) | 활성 | 로컬 도구 + MCP 도구 자동 발견 |
 | **RAG 파이프라인** | 내부 (API 없음) | 비활성 (설정 가능) | VectorStore 연결 시 자동 활성화 |
 | **멀티에이전트** | `POST /api/multi/*` | **비활성** | @RestController 주석 처리됨 |
-| **세션 목록 조회** | 없음 | **미구현** | 세션 목록을 가져오는 API 없음 |
-| **대화 이력 조회** | 없음 | **미구현** | 특정 세션의 이력을 가져오는 API 없음 |
-| **세션 삭제** | 없음 | **미구현** | 서버에서 세션을 삭제하는 API 없음 |
-| **사용 가능 모델 조회** | 없음 | **미구현** | 동적 모델 목록 API 없음 |
+| **세션 목록 조회** | `GET /api/sessions` | 활성 | 세션 요약 목록 (messageCount, lastActivity, preview) |
+| **대화 이력 조회** | `GET /api/sessions/{id}` | 활성 | 특정 세션의 전체 메시지 이력 |
+| **세션 삭제** | `DELETE /api/sessions/{id}` | 활성 | 서버 측 세션 데이터 삭제 |
+| **사용 가능 모델 조회** | `GET /api/models` | 활성 | 등록된 LLM provider 목록 + 기본 모델 |
+| **JWT 인증** | `POST /api/auth/*` | **opt-in** | `arc.reactor.auth.enabled=true` 시 활성화 |
+| **페르소나 관리** | `GET/POST/PUT/DELETE /api/personas` | 활성 | 시스템 프롬프트 템플릿 CRUD |
+| **사용자별 세션 격리** | 내부 (API 없음) | **opt-in** | 인증 활성 시 userId로 세션 필터링 |
 
 ### 1.2 프론트엔드 (arc-reactor-web)
 
@@ -42,7 +45,9 @@
 | **재시도** | 구현 완료 | — | — |
 | **도구 사용 표시** | 구현 완료 | — | SSE `tool_start`/`tool_end` 이벤트 |
 | **응답 시간 표시** | 구현 완료 | — | 프론트에서 측정 |
-| **사용자 인증** | **미구현** | — | userId `'web-user'` 하드코딩 |
+| **사용자 인증** | 구현 완료 | localStorage (token) | 백엔드 auth 활성 시 로그인/회원가입 UI 자동 표시 |
+| **페르소나 선택** | 구현 완료 | 설정에 반영 | 페르소나 목록 조회 + 선택 + 인라인 CRUD |
+| **세션 서버 동기화** | 구현 완료 | localStorage + 서버 | GET/DELETE /api/sessions 연동 |
 
 ---
 
@@ -55,15 +60,16 @@
 │                          브라우저                                 │
 │                                                                  │
 │  localStorage                                                    │
-│  ├── arc-reactor-sessions    (Session[] — 최대 50개)             │
+│  ├── arc-reactor-sessions:{userId}  (Session[] — 최대 50개)     │
 │  │   ├── session.id          (UUID)                              │
 │  │   ├── session.title       (첫 메시지 30자)                    │
 │  │   ├── session.messages[]  (전체 대화 이력)                    │
 │  │   └── session.updatedAt   (타임스탬프)                        │
-│  └── arc-reactor-settings    (ChatSettings)                      │
-│      ├── model, systemPrompt, responseFormat                     │
-│      ├── darkMode, showMetadata                                  │
-│      └── sidebarOpen                                             │
+│  ├── arc-reactor-settings:{userId}  (ChatSettings)               │
+│  │   ├── model, systemPrompt, responseFormat                     │
+│  │   ├── darkMode, showMetadata                                  │
+│  │   └── sidebarOpen                                             │
+│  └── arc-reactor-auth-token  (JWT 토큰, 인증 활성 시)            │
 │                                                                  │
 │  POST /api/chat/stream ──────────────────────┐                   │
 │  { message, userId, model, systemPrompt,     │                   │
@@ -165,10 +171,10 @@ ChatContext.tsx                     ChatController.kt
 | Docker 재배포 | **유지** | **유실** | Volume이면 **유지** |
 | 다른 브라우저/기기 | **유실** | **유지** (sessionId 알면) | **유지** (sessionId 알면) |
 
-**현재 배포 상태 (arc-reactor-web docker-compose):**
-- PostgreSQL **미연결** → `InMemoryMemoryStore` 사용
-- 서버 재시작 시 서버 측 대화 컨텍스트 **유실**
-- 브라우저 localStorage의 UI 이력은 유지되지만, 서버는 이전 대화를 모름
+**배포 상태:**
+- PostgreSQL 미연결 시 → `InMemoryMemoryStore` (서버 재시작 시 유실)
+- PostgreSQL 연결 시 → `JdbcMemoryStore` (영구 저장)
+- 인증 활성 시 → `userId`로 세션 자동 격리, localStorage도 userId별 네임스페이스
 
 ---
 
@@ -195,7 +201,49 @@ CREATE INDEX idx_conversation_messages_session_timestamp
     ON conversation_messages (session_id, timestamp);
 ```
 
-### 4.2 데이터 예시
+### 4.2 personas 테이블
+
+```sql
+-- Flyway V2__create_personas.sql
+CREATE TABLE IF NOT EXISTS personas (
+    id            VARCHAR(36)   PRIMARY KEY,
+    name          VARCHAR(200)  NOT NULL,
+    system_prompt TEXT          NOT NULL,
+    is_default    BOOLEAN       NOT NULL DEFAULT FALSE,
+    created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 4.3 users 테이블
+
+```sql
+-- Flyway V3__create_users.sql
+CREATE TABLE IF NOT EXISTS users (
+    id            VARCHAR(36)   PRIMARY KEY,
+    email         VARCHAR(255)  NOT NULL UNIQUE,
+    name          VARCHAR(100)  NOT NULL,
+    password_hash VARCHAR(255)  NOT NULL,
+    created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email);
+```
+
+### 4.4 conversation_messages userId 추가
+
+```sql
+-- Flyway V4__add_user_id_to_conversation_messages.sql
+ALTER TABLE conversation_messages
+    ADD COLUMN IF NOT EXISTS user_id VARCHAR(36) NOT NULL DEFAULT 'anonymous';
+
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_user_id
+    ON conversation_messages (user_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_user_session
+    ON conversation_messages (user_id, session_id);
+```
+
+### 4.5 데이터 예시
 
 PostgreSQL 연결 시 저장되는 데이터:
 
@@ -236,15 +284,33 @@ services:
 
 ```yaml
 services:
-  app:        # arc-reactor (DB 연결 설정 포함)
+  app:        # arc-reactor (-Pdb=true 빌드, DB 연결 설정 포함)
   db:         # PostgreSQL 16 Alpine
-# JdbcMemoryStore 자동 활성화 → 영구 저장
+# JdbcMemoryStore + JdbcPersonaStore + JdbcUserStore 자동 활성화
 ```
 
 - **장점:** 대화 이력 영구 보존, 서버 재시작 후에도 컨텍스트 유지
 - **단점:** DB 관리 필요
 
-### 5.3 PostgreSQL 활성화 방법
+### 5.3 인증 활성화 배포
+
+```bash
+# Docker 빌드 시 auth + db 플래그 활성화
+# Dockerfile에서 ARG ENABLE_DB, ARG ENABLE_AUTH → -Pdb=true -Pauth=true
+docker compose up -d
+
+# 환경 변수 예시 (.env)
+GEMINI_API_KEY=your-key
+ARC_REACTOR_AUTH_ENABLED=true
+ARC_REACTOR_AUTH_JWT_SECRET=your-256-bit-secret
+```
+
+인증 활성 시 자동으로:
+- 모든 API에 JWT 토큰 필요 (`/api/auth/login`, `/api/auth/register` 제외)
+- 세션이 userId로 격리 (다른 사용자의 세션 접근 불가)
+- conversation_messages에 user_id 컬럼 자동 추가 (Flyway V4)
+
+### 5.4 PostgreSQL 활성화 방법
 
 arc-reactor-web의 docker-compose에 DB 서비스를 추가하거나, 환경 변수 설정:
 
@@ -272,7 +338,7 @@ cd arc-reactor && docker compose up -d
   "message": "사용자 입력 텍스트 (필수, NotBlank)",
   "model": "gemini | openai | anthropic | vertex | null (서버 기본값)",
   "systemPrompt": "커스텀 시스템 프롬프트 | null (기본 프롬프트)",
-  "userId": "web-user (현재 하드코딩)",
+  "userId": "인증 비활성 시 프론트에서 전송 (인증 활성 시 서버가 JWT에서 추출)",
   "metadata": {
     "sessionId": "UUID (세션 식별자)"
   },
@@ -288,7 +354,7 @@ cd arc-reactor && docker compose up -d
 | `message` | **항상** | LLM에 userPrompt로 전달 |
 | `model` | 설정 시 | `ChatModelProvider`에서 해당 provider의 ChatModel 선택 |
 | `systemPrompt` | 설정 시 | LLM 시스템 프롬프트 (기본: "You are a helpful AI assistant...") |
-| `userId` | **항상** (`'web-user'`) | Guard rate limit 키, 로그 식별자 |
+| `userId` | 인증 비활성 시 전송 | Guard rate limit 키, 로그 식별자 (인증 활성 시 JWT에서 자동 추출) |
 | `metadata.sessionId` | **항상** | `ConversationManager`에서 대화 이력 로드/저장 |
 | `responseFormat` | TEXT 아닐 때 | 응답 형식 (JSON 모드 시 시스템 프롬프트에 JSON 지시 추가) |
 | `responseSchema` | 미사용 | JSON 모드 시 스키마 강제 |
@@ -365,6 +431,14 @@ arc:
       max-input-length: 10000       # 최대 입력 길이 (자)
       injection-detection-enabled: true  # 프롬프트 인젝션 탐지
 
+    auth:
+      enabled: false                 # JWT 인증 활성화 (opt-in)
+      jwt-secret: ""                 # HMAC 서명 시크릿 (활성화 시 필수)
+      jwt-expiration-ms: 86400000    # 토큰 유효기간 (24시간)
+      public-paths:                  # 인증 없이 접근 가능한 경로
+        - /api/auth/login
+        - /api/auth/register
+
     rag:
       enabled: false                # RAG 파이프라인 활성화
       similarity-threshold: 0.7     # 유사도 임계값
@@ -381,9 +455,9 @@ arc:
 
 | 문제 | 영향 | 심각도 |
 |------|------|--------|
-| 세션 목록/이력 조회 API 없음 | 다른 기기에서 대화 이어가기 불가 | 중간 |
-| 세션 삭제 API 없음 | 서버 측 대화 데이터 정리 불가 | 낮음 |
-| userId 하드코딩 (`web-user`) | 모든 사용자가 동일한 rate limit 공유 | 중간 |
+| ~~세션 목록/이력 조회 API 없음~~ | ✅ **해결** — `GET /api/sessions`, `GET /api/sessions/{id}` | — |
+| ~~세션 삭제 API 없음~~ | ✅ **해결** — `DELETE /api/sessions/{id}` | — |
+| ~~userId 하드코딩 (`web-user`)~~ | ✅ **해결** — JWT 인증으로 사용자별 세션 격리 | — |
 | localStorage ↔ MemoryStore 미동기화 | 브라우저 데이터 삭제 시 UI 이력 유실 (서버에는 있을 수 있음) | 낮음 |
 
 ### 10.2 토큰 효율
@@ -400,7 +474,7 @@ arc:
 | 문제 | 영향 | 심각도 |
 |------|------|--------|
 | arc-reactor-web docker-compose에 DB 없음 | 서버 재시작 시 대화 컨텍스트 유실 | 높음 |
-| 모델 목록 하드코딩 | 새 모델 추가 시 프론트엔드 재배포 필요 | 낮음 |
+| ~~모델 목록 하드코딩~~ | ✅ **해결** — `GET /api/models` 동적 조회 | — |
 
 ### 10.4 프레임워크
 
@@ -430,6 +504,13 @@ arc:
 | `AgentExecutor` | `SpringAiAgentExecutor` | 항상 | `@Bean` 등록 |
 | `AgentMetrics` | `NoOpAgentMetrics` | 항상 | `@Bean` 등록 |
 | `ErrorMessageResolver` | `DefaultErrorMessageResolver` | 항상 | `@Bean` 등록 |
+| `PersonaStore` | `InMemoryPersonaStore` | PersonaStore 없을 때 | `@Bean` 등록 |
+| `PersonaStore` | `JdbcPersonaStore` | DataSource + JdbcTemplate 있을 때 | `@Bean` 등록 |
+| `AuthProvider` | `DefaultAuthProvider` | auth.enabled=true | `@Bean` 등록 |
+| `UserStore` | `InMemoryUserStore` | auth.enabled=true, DataSource 없을 때 | `@Bean` 등록 |
+| `UserStore` | `JdbcUserStore` | auth.enabled=true, DataSource 있을 때 | `@Bean` 등록 |
+| `JwtTokenProvider` | — | auth.enabled=true | — |
+| `JwtAuthWebFilter` | — | auth.enabled=true | — |
 
 ---
 

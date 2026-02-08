@@ -1,10 +1,12 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.SessionSummary
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ServerWebExchange
 
 /**
  * Session Management and Model API Controller
@@ -27,17 +29,33 @@ class SessionController(
 
     /**
      * List all sessions with summary metadata.
+     * When auth is enabled, sessions are filtered by the authenticated userId.
      */
     @GetMapping("/sessions")
-    fun listSessions(): List<SessionResponse> {
-        return memoryStore.listSessions().map { it.toResponse() }
+    fun listSessions(exchange: ServerWebExchange): List<SessionResponse> {
+        val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
+        val sessions = if (userId != null) {
+            memoryStore.listSessionsByUserId(userId)
+        } else {
+            memoryStore.listSessions()
+        }
+        return sessions.map { it.toResponse() }
     }
 
     /**
      * Get all messages for a specific session.
+     * When auth is enabled, verifies session ownership.
      */
     @GetMapping("/sessions/{sessionId}")
-    fun getSession(@PathVariable sessionId: String): ResponseEntity<SessionDetailResponse> {
+    fun getSession(
+        @PathVariable sessionId: String,
+        exchange: ServerWebExchange
+    ): ResponseEntity<SessionDetailResponse> {
+        val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
+        if (userId != null && !isSessionOwner(sessionId, userId)) {
+            return ResponseEntity.status(403).build()
+        }
+
         val memory = memoryStore.get(sessionId)
             ?: return ResponseEntity.notFound().build()
         val messages = memory.getHistory().map { msg ->
@@ -52,11 +70,26 @@ class SessionController(
 
     /**
      * Delete a session and all its messages.
+     * When auth is enabled, verifies session ownership.
      */
     @DeleteMapping("/sessions/{sessionId}")
-    fun deleteSession(@PathVariable sessionId: String): ResponseEntity<Void> {
+    fun deleteSession(
+        @PathVariable sessionId: String,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Void> {
+        val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
+        if (userId != null && !isSessionOwner(sessionId, userId)) {
+            return ResponseEntity.status(403).build()
+        }
+
         memoryStore.remove(sessionId)
         return ResponseEntity.noContent().build()
+    }
+
+    private fun isSessionOwner(sessionId: String, userId: String): Boolean {
+        val owner = memoryStore.getSessionOwner(sessionId)
+        // No owner recorded (legacy data or InMemory without userId) — allow access
+        return owner == null || owner == userId || owner == "anonymous"
     }
 
     /**

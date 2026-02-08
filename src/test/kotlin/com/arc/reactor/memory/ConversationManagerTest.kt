@@ -136,8 +136,8 @@ class ConversationManagerTest {
 
             manager.saveHistory(command, result)
 
-            verify { memoryStore.addMessage("s1", "user", "what is AI?") }
-            verify { memoryStore.addMessage("s1", "assistant", "AI is artificial intelligence") }
+            verify { memoryStore.addMessage("s1", "user", "what is AI?", "anonymous") }
+            verify { memoryStore.addMessage("s1", "assistant", "AI is artificial intelligence", "anonymous") }
         }
 
         @Test
@@ -153,13 +153,13 @@ class ConversationManagerTest {
 
             manager.saveHistory(command, result)
 
-            verify(exactly = 0) { memoryStore.addMessage(any(), any(), any()) }
+            verify(exactly = 0) { memoryStore.addMessage(any(), any(), any(), any()) }
         }
 
         @Test
         fun `should not throw when memoryStore save fails`() {
             val memoryStore = mockk<MemoryStore>()
-            every { memoryStore.addMessage(any(), any(), any()) } throws RuntimeException("DB error")
+            every { memoryStore.addMessage(any(), any(), any(), any()) } throws RuntimeException("DB error")
             val manager = DefaultConversationManager(memoryStore, properties)
             val command = AgentCommand(
                 systemPrompt = "",
@@ -189,8 +189,8 @@ class ConversationManagerTest {
 
             manager.saveStreamingHistory(command, "Once upon a time...")
 
-            verify { memoryStore.addMessage("s1", "user", "tell me a story") }
-            verify { memoryStore.addMessage("s1", "assistant", "Once upon a time...") }
+            verify { memoryStore.addMessage("s1", "user", "tell me a story", "anonymous") }
+            verify { memoryStore.addMessage("s1", "assistant", "Once upon a time...", "anonymous") }
         }
 
         @Test
@@ -205,8 +205,8 @@ class ConversationManagerTest {
 
             manager.saveStreamingHistory(command, "")
 
-            verify { memoryStore.addMessage("s1", "user", "hello") }
-            verify(exactly = 0) { memoryStore.addMessage("s1", "assistant", any()) }
+            verify { memoryStore.addMessage("s1", "user", "hello", "anonymous") }
+            verify(exactly = 0) { memoryStore.addMessage("s1", "assistant", any(), any()) }
         }
     }
 }

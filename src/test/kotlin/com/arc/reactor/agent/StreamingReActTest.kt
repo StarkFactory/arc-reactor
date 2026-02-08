@@ -658,9 +658,9 @@ class StreamingReActTest {
                 )
             ).toList()
 
-            // Verify: Saved with exact values
-            verify(exactly = 1) { memoryStore.addMessage("session-123", "user", "안녕") }
-            verify(exactly = 1) { memoryStore.addMessage("session-123", "assistant", "Hello World") }
+            // Verify: Saved with exact values (userId defaults to "anonymous" when not set)
+            verify(exactly = 1) { memoryStore.addMessage("session-123", "user", "안녕", "anonymous") }
+            verify(exactly = 1) { memoryStore.addMessage("session-123", "assistant", "Hello World", "anonymous") }
         }
 
         @Test
@@ -692,8 +692,8 @@ class StreamingReActTest {
             ).toList()
 
             // Verify: Only final round text is saved (intermediate tool-related text excluded)
-            verify(exactly = 1) { memoryStore.addMessage("session-456", "user", "해줘") }
-            verify(exactly = 1) { memoryStore.addMessage("session-456", "assistant", "결과: 완료") }
+            verify(exactly = 1) { memoryStore.addMessage("session-456", "user", "해줘", "anonymous") }
+            verify(exactly = 1) { memoryStore.addMessage("session-456", "assistant", "결과: 완료", "anonymous") }
         }
 
         @Test
@@ -715,7 +715,7 @@ class StreamingReActTest {
             ).toList()
 
             // Verify: addMessage was not called
-            verify(exactly = 0) { memoryStore.addMessage(any(), any(), any()) }
+            verify(exactly = 0) { memoryStore.addMessage(any(), any(), any(), any()) }
         }
     }
 

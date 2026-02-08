@@ -99,13 +99,21 @@ docker-compose down            # Stop
 # Regular response
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "What is 3 + 5?", "userId": "user-1"}'
+  -d '{"message": "What is 3 + 5?"}'
 
 # Streaming
 curl -N -X POST http://localhost:8080/api/chat/stream \
   -H "Content-Type: application/json" \
-  -d '{"message": "Hello", "userId": "user-1"}'
+  -d '{"message": "Hello"}'
+
+# List available models
+curl http://localhost:8080/api/models
+
+# List sessions
+curl http://localhost:8080/api/sessions
 ```
+
+> When auth is enabled, include `Authorization: Bearer <token>` in all requests. See [Authentication](#authentication-opt-in).
 
 ## What This Project Provides
 
@@ -122,6 +130,10 @@ curl -N -X POST http://localhost:8080/api/chat/stream \
 | **Parallel Tool Execution** | Coroutine-based concurrent execution | Automatic (no config needed) |
 | **Structured Output** | JSON response mode | `responseFormat = JSON` |
 | **Multi-Agent** | Sequential / Parallel / Supervisor | DSL builder API |
+| **Authentication** | JWT auth with WebFilter (opt-in) | Replace `AuthProvider` / `UserStore` |
+| **Persona Management** | Named system prompt templates (CRUD API) | Replace `PersonaStore` |
+| **Session Management** | List / get / delete sessions via REST API | Auto-enabled |
+| **Web UI** | React chat interface ([arc-reactor-web](https://github.com/eqprog/arc-reactor-web)) | Fork and customize |
 
 ## Multi-Agent
 
@@ -285,6 +297,33 @@ class McpSetup(private val mcpManager: McpManager) {
 }
 ```
 
+## Authentication (Opt-in)
+
+Arc Reactor includes a built-in JWT authentication system. It's **disabled by default** — enable it only when you need per-user session isolation.
+
+```yaml
+arc:
+  reactor:
+    auth:
+      enabled: true                    # Enable JWT authentication
+      jwt-secret: ${JWT_SECRET}        # HMAC signing secret (required)
+      jwt-expiration-ms: 86400000      # Token lifetime (default: 24h)
+```
+
+When enabled:
+- `POST /api/auth/register` — Create account
+- `POST /api/auth/login` — Get JWT token
+- `GET /api/auth/me` — Get current user profile
+- All other endpoints require `Authorization: Bearer <token>`
+- Sessions are automatically isolated per user
+
+To use a custom identity provider (LDAP, SSO, etc.), implement the `AuthProvider` interface:
+
+```kotlin
+@Bean
+fun authProvider(): AuthProvider = MyLdapAuthProvider()
+```
+
 ## Configuration Reference
 
 ```yaml
@@ -322,6 +361,11 @@ arc:
     concurrency:
       max-concurrent-requests: 20
       request-timeout-ms: 30000
+
+    auth:
+      enabled: false                 # JWT authentication (opt-in)
+      jwt-secret: ""                 # HMAC secret (required when enabled)
+      jwt-expiration-ms: 86400000    # Token lifetime (24h)
 ```
 
 ## Project Structure
@@ -365,11 +409,27 @@ src/main/kotlin/com/arc/reactor/
 │   ├── McpManager.kt                 -> MCP server management
 │   └── model/McpModels.kt            -> McpServer, McpStatus
 │
+├── auth/                          # JWT Authentication (opt-in)
+│   ├── AuthModels.kt                -> User, AuthProperties
+│   ├── AuthProvider.kt              -> Interface (replaceable)
+│   ├── DefaultAuthProvider.kt       -> BCrypt-based default implementation
+│   ├── UserStore.kt                 -> Interface + InMemoryUserStore
+│   ├── JdbcUserStore.kt             -> PostgreSQL implementation
+│   ├── JwtTokenProvider.kt          -> JWT token create/validate
+│   └── JwtAuthWebFilter.kt         -> WebFilter (token verification)
+│
+├── persona/                       # Persona Management
+│   ├── PersonaStore.kt              -> Interface + InMemoryPersonaStore
+│   └── JdbcPersonaStore.kt         -> PostgreSQL implementation
+│
 ├── autoconfigure/                  # Spring Boot Auto-configuration
 │   └── ArcReactorAutoConfiguration.kt
 │
 ├── controller/                     # REST API <- Modify as needed
-│   └── ChatController.kt
+│   ├── ChatController.kt           -> POST /api/chat, /api/chat/stream
+│   ├── SessionController.kt        -> GET/DELETE /api/sessions, GET /api/models
+│   ├── AuthController.kt           -> POST /api/auth/register|login, GET /api/auth/me
+│   └── PersonaController.kt        -> CRUD /api/personas
 │
 └── config/
     └── ChatClientConfig.kt
@@ -388,6 +448,9 @@ src/main/kotlin/com/arc/reactor/
 - [Multi-Agent Guide](docs/ko/multi-agent.md) - Sequential / Parallel / Supervisor patterns
 - [Supervisor Pattern Deep Dive](docs/ko/supervisor-pattern.md) - WorkerAgentTool internals, practical usage
 - [Deployment Guide](docs/ko/deployment.md) - Docker, environment variables, production checklist
+- [Authentication Guide](docs/ko/authentication.md) - JWT auth, AuthProvider customization, session isolation
+- [Session & Persona Guide](docs/ko/session-management.md) - Session API, persona management, data architecture
+- [Feature Inventory](docs/ko/feature-inventory.md) - Complete feature matrix, data architecture, DB schema
 
 ## Requirements
 
