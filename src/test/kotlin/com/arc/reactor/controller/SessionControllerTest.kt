@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
 class SessionControllerTest {
@@ -22,12 +23,15 @@ class SessionControllerTest {
     private lateinit var memoryStore: MemoryStore
     private lateinit var chatModelProvider: ChatModelProvider
     private lateinit var controller: SessionController
+    private lateinit var exchange: ServerWebExchange
 
     @BeforeEach
     fun setup() {
         memoryStore = mockk()
         chatModelProvider = mockk()
         controller = SessionController(memoryStore, chatModelProvider)
+        exchange = mockk()
+        every { exchange.attributes } returns mutableMapOf()
     }
 
     @Nested
@@ -37,7 +41,7 @@ class SessionControllerTest {
         fun `should return empty list when no sessions exist`() = runTest {
             every { memoryStore.listSessions() } returns emptyList()
 
-            val result = controller.listSessions()
+            val result = controller.listSessions(exchange)
 
             assertTrue(result.isEmpty()) { "Expected empty list, got ${result.size} sessions" }
         }
@@ -49,7 +53,7 @@ class SessionControllerTest {
                 SessionSummary("session-1", 5, now, "Hello, how are you?")
             )
 
-            val result = controller.listSessions()
+            val result = controller.listSessions(exchange)
 
             assertEquals(1, result.size) { "Expected 1 session" }
             val session = result[0]
@@ -67,7 +71,7 @@ class SessionControllerTest {
                 SessionSummary("s-2", 1, now.minusSeconds(60), "Second")
             )
 
-            val result = controller.listSessions()
+            val result = controller.listSessions(exchange)
 
             assertEquals(2, result.size) { "Expected 2 sessions" }
             assertEquals("s-1", result[0].sessionId) { "First session should be s-1" }
@@ -82,7 +86,7 @@ class SessionControllerTest {
         fun `should return 404 when session does not exist`() = runTest {
             every { memoryStore.get("nonexistent") } returns null
 
-            val response = controller.getSession("nonexistent")
+            val response = controller.getSession("nonexistent", exchange)
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404 for missing session" }
         }
@@ -97,7 +101,7 @@ class SessionControllerTest {
                 Message(MessageRole.ASSISTANT, "Hi there!", now.plusSeconds(2))
             )
 
-            val response = controller.getSession("session-1")
+            val response = controller.getSession("session-1", exchange)
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
             val body = response.body!!
@@ -115,7 +119,7 @@ class SessionControllerTest {
                 Message(MessageRole.SYSTEM, "System msg")
             )
 
-            val body = controller.getSession("session-1").body!!
+            val body = controller.getSession("session-1", exchange).body!!
 
             assertEquals("user", body.messages[0].role) { "USER should map to 'user'" }
             assertEquals("assistant", body.messages[1].role) { "ASSISTANT should map to 'assistant'" }
@@ -131,7 +135,7 @@ class SessionControllerTest {
                 Message(MessageRole.USER, "Hello!", now)
             )
 
-            val body = controller.getSession("session-1").body!!
+            val body = controller.getSession("session-1", exchange).body!!
 
             assertEquals(now.toEpochMilli(), body.messages[0].timestamp) { "Timestamp should be epoch millis" }
         }
@@ -144,7 +148,7 @@ class SessionControllerTest {
         fun `should return 204 on successful deletion`() = runTest {
             every { memoryStore.remove("session-1") } returns Unit
 
-            val response = controller.deleteSession("session-1")
+            val response = controller.deleteSession("session-1", exchange)
 
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) { "Should return 204 No Content" }
         }
@@ -153,7 +157,7 @@ class SessionControllerTest {
         fun `should call memoryStore remove with correct sessionId`() = runTest {
             every { memoryStore.remove(any()) } returns Unit
 
-            controller.deleteSession("target-session")
+            controller.deleteSession("target-session", exchange)
 
             verify(exactly = 1) { memoryStore.remove("target-session") }
         }
@@ -162,7 +166,7 @@ class SessionControllerTest {
         fun `should return 204 even for nonexistent session`() = runTest {
             every { memoryStore.remove("nonexistent") } returns Unit
 
-            val response = controller.deleteSession("nonexistent")
+            val response = controller.deleteSession("nonexistent", exchange)
 
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) { "DELETE should be idempotent" }
         }

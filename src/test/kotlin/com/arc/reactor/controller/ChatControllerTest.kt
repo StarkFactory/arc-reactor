@@ -6,6 +6,7 @@ import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.flow.flowOf
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.web.server.ServerWebExchange
 import reactor.test.StepVerifier
 
 /**
@@ -27,11 +29,14 @@ class ChatControllerTest {
 
     private lateinit var agentExecutor: AgentExecutor
     private lateinit var controller: ChatController
+    private lateinit var exchange: ServerWebExchange
 
     @BeforeEach
     fun setup() {
         agentExecutor = mockk()
         controller = ChatController(agentExecutor)
+        exchange = mockk()
+        every { exchange.attributes } returns mutableMapOf()
     }
 
     @Nested
@@ -46,7 +51,7 @@ class ChatControllerTest {
             )
 
             val request = ChatRequest(message = "Hi there")
-            val response = controller.chat(request)
+            val response = controller.chat(request, exchange)
 
             assertTrue(response.success) { "Response should be successful" }
             assertEquals("Hello!", response.content) { "Content should match agent result" }
@@ -68,7 +73,7 @@ class ChatControllerTest {
                 responseFormat = ResponseFormat.JSON,
                 responseSchema = """{"type":"object"}"""
             )
-            controller.chat(request)
+            controller.chat(request, exchange)
 
             val captured = commandSlot.captured
             assertEquals("test message", captured.userPrompt) { "userPrompt should match request message" }
@@ -85,7 +90,7 @@ class ChatControllerTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
-            controller.chat(ChatRequest(message = "hello"))
+            controller.chat(ChatRequest(message = "hello"), exchange)
 
             assertTrue(commandSlot.captured.systemPrompt.contains("helpful AI assistant")) {
                 "Default system prompt should contain 'helpful AI assistant'"
@@ -97,7 +102,7 @@ class ChatControllerTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
-            controller.chat(ChatRequest(message = "hello"))
+            controller.chat(ChatRequest(message = "hello"), exchange)
 
             assertEquals(emptyMap<String, Any>(), commandSlot.captured.metadata) {
                 "Default metadata should be empty map"
@@ -110,7 +115,7 @@ class ChatControllerTest {
                 errorMessage = "Rate limit exceeded"
             )
 
-            val response = controller.chat(ChatRequest(message = "hello"))
+            val response = controller.chat(ChatRequest(message = "hello"), exchange)
 
             assertFalse(response.success) { "Response should indicate failure" }
             assertNull(response.content) { "Content should be null on failure" }
@@ -121,9 +126,48 @@ class ChatControllerTest {
         fun `should forward model in response`() = runTest {
             coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
 
-            val response = controller.chat(ChatRequest(message = "hi", model = "gemini-2.0-flash"))
+            val response = controller.chat(ChatRequest(message = "hi", model = "gemini-2.0-flash"), exchange)
 
             assertEquals("gemini-2.0-flash", response.model) { "Model should be forwarded in response" }
+        }
+
+        @Test
+        fun `should resolve userId from exchange attributes when present`() = runTest {
+            val authExchange = mockk<ServerWebExchange>()
+            every { authExchange.attributes } returns mutableMapOf<String, Any>("userId" to "jwt-user-1")
+
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            controller.chat(ChatRequest(message = "hello", userId = "request-user"), authExchange)
+
+            assertEquals("jwt-user-1", commandSlot.captured.userId) {
+                "Should prefer JWT userId from exchange over request body userId"
+            }
+        }
+
+        @Test
+        fun `should fallback to request userId when exchange has no auth`() = runTest {
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            controller.chat(ChatRequest(message = "hello", userId = "request-user"), exchange)
+
+            assertEquals("request-user", commandSlot.captured.userId) {
+                "Should use request userId when no JWT present"
+            }
+        }
+
+        @Test
+        fun `should fallback to anonymous when no userId available`() = runTest {
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            controller.chat(ChatRequest(message = "hello"), exchange)
+
+            assertEquals("anonymous", commandSlot.captured.userId) {
+                "Should default to 'anonymous' when no userId"
+            }
         }
     }
 
@@ -134,7 +178,7 @@ class ChatControllerTest {
         fun `should return ServerSentEvents with message event type`() {
             coEvery { agentExecutor.executeStream(any()) } returns flowOf("Hello", " ", "World")
 
-            val flux = controller.chatStream(ChatRequest(message = "Hi"))
+            val flux = controller.chatStream(ChatRequest(message = "Hi"), exchange)
 
             StepVerifier.create(flux)
                 .assertNext { sse ->
@@ -164,7 +208,7 @@ class ChatControllerTest {
                 "The answer is 8."
             )
 
-            val flux = controller.chatStream(ChatRequest(message = "3+5?"))
+            val flux = controller.chatStream(ChatRequest(message = "3+5?"), exchange)
 
             StepVerifier.create(flux)
                 .assertNext { sse ->
@@ -193,7 +237,7 @@ class ChatControllerTest {
         fun `should always emit done event at the end`() {
             coEvery { agentExecutor.executeStream(any()) } returns flowOf("ok")
 
-            val flux = controller.chatStream(ChatRequest(message = "hello"))
+            val flux = controller.chatStream(ChatRequest(message = "hello"), exchange)
 
             StepVerifier.create(flux)
                 .assertNext { sse ->
@@ -216,7 +260,8 @@ class ChatControllerTest {
                     message = "stream test",
                     model = "gpt-4o",
                     userId = "user-456"
-                )
+                ),
+                exchange
             )
 
             val captured = commandSlot.captured
@@ -230,7 +275,7 @@ class ChatControllerTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.executeStream(capture(commandSlot)) } returns flowOf("ok")
 
-            controller.chatStream(ChatRequest(message = "hello"))
+            controller.chatStream(ChatRequest(message = "hello"), exchange)
 
             val captured = commandSlot.captured
             assertTrue(captured.systemPrompt.contains("helpful AI assistant")) {
