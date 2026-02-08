@@ -70,15 +70,26 @@ class DefaultConversationManager(
         saveMessages(command.metadata, command.userId, command.userPrompt, content.ifEmpty { null })
     }
 
-    private fun saveMessages(metadata: Map<String, Any>, userId: String?, userPrompt: String, assistantContent: String?) {
+    private fun saveMessages(
+        metadata: Map<String, Any>,
+        userId: String?,
+        userPrompt: String,
+        assistantContent: String?
+    ) {
         val sessionId = metadata["sessionId"]?.toString() ?: return
         if (memoryStore == null) return
         val resolvedUserId = userId ?: "anonymous"
 
         try {
-            memoryStore.addMessage(sessionId = sessionId, role = "user", content = userPrompt, userId = resolvedUserId)
+            memoryStore.addMessage(
+                sessionId = sessionId, role = "user",
+                content = userPrompt, userId = resolvedUserId
+            )
             if (assistantContent != null) {
-                memoryStore.addMessage(sessionId = sessionId, role = "assistant", content = assistantContent, userId = resolvedUserId)
+                memoryStore.addMessage(
+                    sessionId = sessionId, role = "assistant",
+                    content = assistantContent, userId = resolvedUserId
+                )
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to save conversation history for session $sessionId" }
