@@ -162,24 +162,24 @@ When proposing significant changes, please:
 
 ### High Priority
 
-- [ ] MCP SSE/HTTP transport implementation
+- [ ] Model-aware token estimation (tiktoken/SentencePiece integration)
+- [ ] Observability stack (Micrometer/Prometheus, structured logging, OpenTelemetry)
 - [ ] Integration tests for full agent flow
 - [ ] Performance benchmarks
-- [ ] Docker support
 
 ### Medium Priority
 
-- [ ] Additional Guard stages (content filtering, PII detection)
-- [ ] Persistent memory store (Redis, PostgreSQL)
-- [ ] Metrics/observability (Micrometer)
-- [ ] More reranker implementations
+- [ ] Advanced RAG pipeline (query transformation, hybrid search, conversation-aware retrieval)
+- [ ] Prompt versioning and evaluation framework
+- [ ] Kubernetes manifests and Helm chart
+- [ ] Additional reranker implementations
 
 ### Documentation
 
 - [ ] API reference documentation
 - [ ] Tutorial: Building a custom Guard
 - [ ] Tutorial: Implementing RAG with PGVector
-- [ ] Example projects
+- [ ] Example projects for common use cases
 
 ## Questions?
 

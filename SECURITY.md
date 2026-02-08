@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 2.x     | :white_check_mark: |
 | 1.x     | :white_check_mark: |
 | < 1.0   | :x:                |
 
@@ -14,7 +15,7 @@ We take security seriously. If you discover a security vulnerability in Arc Reac
 ### How to Report
 
 1. **Do NOT** open a public GitHub issue for security vulnerabilities
-2. Email your findings to the project maintainers
+2. Email your findings to **arc.reactor.oss@gmail.com**
 3. Include a detailed description of the vulnerability
 4. Provide steps to reproduce the issue if possible
 
