@@ -85,6 +85,7 @@ dependencies {
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("io.projectreactor:reactor-test")
     testImplementation("org.springframework.boot:spring-boot-starter-jdbc")
     testImplementation("com.h2database:h2")
     testImplementation("io.kotest:kotest-runner-junit5:5.9.1")

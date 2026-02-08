@@ -6,6 +6,7 @@ import com.arc.reactor.agent.config.ConcurrencyProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentMode
+import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.model.HookResult
@@ -146,8 +147,16 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "계산해줘")
             ).toList()
 
-            // Verify: Order must be correct (first stream A,B,C -> tool execution -> second stream D,E)
-            assertEquals(listOf("A", "B", "C", "D", "E"), chunks, "Text chunk order must be preserved")
+            // Verify: Order must be correct (first stream A,B,C -> tool markers -> second stream D,E)
+            val textChunks = chunks.filter { !StreamEventMarker.isMarker(it) }
+            assertEquals(listOf("A", "B", "C", "D", "E"), textChunks, "Text chunk order must be preserved")
+
+            // Verify: Tool markers are emitted between iterations
+            val markerChunks = chunks.filter { StreamEventMarker.isMarker(it) }
+            assertTrue(markerChunks.isNotEmpty()) { "Tool markers should be emitted" }
+            assertEquals("tool_start", StreamEventMarker.parse(markerChunks[0])?.first) {
+                "First marker should be tool_start"
+            }
         }
 
         @Test
