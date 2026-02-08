@@ -185,4 +185,62 @@ class JdbcMemoryStoreTest {
             assertNotNull(store.get("new-session")) { "New session should survive cleanup" }
         }
     }
+
+    @Nested
+    inner class ListSessions {
+
+        @Test
+        fun `should return empty list when no sessions`() {
+            val sessions = store.listSessions()
+
+            assertTrue(sessions.isEmpty()) { "Expected empty list, got ${sessions.size}" }
+        }
+
+        @Test
+        fun `should list sessions with correct counts`() {
+            store.addMessage("session-1", "user", "Hello")
+            store.addMessage("session-1", "assistant", "Hi!")
+            store.addMessage("session-2", "user", "Test")
+
+            val sessions = store.listSessions()
+
+            assertEquals(2, sessions.size) { "Expected 2 sessions" }
+            val s1 = sessions.first { it.sessionId == "session-1" }
+            val s2 = sessions.first { it.sessionId == "session-2" }
+            assertEquals(2, s1.messageCount) { "session-1 should have 2 messages" }
+            assertEquals(1, s2.messageCount) { "session-2 should have 1 message" }
+        }
+
+        @Test
+        fun `should include first user message as preview`() {
+            store.addMessage("session-1", "system", "System prompt")
+            store.addMessage("session-1", "user", "First user question")
+            store.addMessage("session-1", "assistant", "Answer")
+
+            val sessions = store.listSessions()
+
+            assertEquals("First user question", sessions[0].preview) { "Preview should be first user message" }
+        }
+
+        @Test
+        fun `should order by last activity descending`() {
+            store.addMessage("old-session", "user", "Old")
+            Thread.sleep(10)
+            store.addMessage("new-session", "user", "New")
+
+            val sessions = store.listSessions()
+
+            assertEquals("new-session", sessions[0].sessionId) { "Newest session should be first" }
+            assertEquals("old-session", sessions[1].sessionId) { "Oldest session should be last" }
+        }
+
+        @Test
+        fun `should show Empty conversation for sessions with only system messages`() {
+            store.addMessage("session-1", "system", "You are a helpful assistant")
+
+            val sessions = store.listSessions()
+
+            assertEquals("Empty conversation", sessions[0].preview) { "Preview should be 'Empty conversation'" }
+        }
+    }
 }

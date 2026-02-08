@@ -2,6 +2,7 @@ package com.arc.reactor.memory
 
 import com.arc.reactor.agent.model.Message
 import com.arc.reactor.agent.model.MessageRole
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 
@@ -89,6 +90,82 @@ class MemoryStoreTest {
         assertEquals(2, memory!!.getHistory().size)
         assertEquals(MessageRole.USER, memory.getHistory()[0].role)
         assertEquals(MessageRole.ASSISTANT, memory.getHistory()[1].role)
+    }
+
+    @Nested
+    inner class ListSessions {
+
+        @Test
+        fun `should return empty list when no sessions`() {
+            val store = InMemoryMemoryStore()
+
+            val sessions = store.listSessions()
+
+            assertTrue(sessions.isEmpty()) { "Expected empty list, got ${sessions.size}" }
+        }
+
+        @Test
+        fun `should list sessions with correct metadata`() {
+            val store = InMemoryMemoryStore()
+            store.addMessage("session-1", "user", "Hello world")
+            store.addMessage("session-1", "assistant", "Hi!")
+
+            val sessions = store.listSessions()
+
+            assertEquals(1, sessions.size) { "Expected 1 session" }
+            val session = sessions[0]
+            assertEquals("session-1", session.sessionId) { "Session ID should match" }
+            assertEquals(2, session.messageCount) { "Should have 2 messages" }
+            assertEquals("Hello world", session.preview) { "Preview should be first user message" }
+        }
+
+        @Test
+        fun `should truncate preview to 50 chars`() {
+            val store = InMemoryMemoryStore()
+            val longMessage = "A".repeat(60)
+            store.addMessage("session-1", "user", longMessage)
+
+            val sessions = store.listSessions()
+
+            val expected = "A".repeat(50) + "..."
+            assertEquals(expected, sessions[0].preview) { "Preview should be truncated with ellipsis" }
+        }
+
+        @Test
+        fun `should use first user message as preview`() {
+            val store = InMemoryMemoryStore()
+            store.addMessage("session-1", "system", "System prompt")
+            store.addMessage("session-1", "user", "First user message")
+            store.addMessage("session-1", "user", "Second user message")
+
+            val sessions = store.listSessions()
+
+            assertEquals("First user message", sessions[0].preview) { "Preview should be first USER message" }
+        }
+
+        @Test
+        fun `should order by last activity descending`() {
+            val store = InMemoryMemoryStore()
+            store.addMessage("old-session", "user", "Old")
+            Thread.sleep(10) // Ensure different timestamps
+            store.addMessage("new-session", "user", "New")
+
+            val sessions = store.listSessions()
+
+            assertEquals(2, sessions.size) { "Expected 2 sessions" }
+            assertEquals("new-session", sessions[0].sessionId) { "Newest session should be first" }
+            assertEquals("old-session", sessions[1].sessionId) { "Oldest session should be last" }
+        }
+
+        @Test
+        fun `should show Empty conversation for sessions with no user messages`() {
+            val store = InMemoryMemoryStore()
+            store.addMessage("session-1", "system", "You are a helpful assistant")
+
+            val sessions = store.listSessions()
+
+            assertEquals("Empty conversation", sessions[0].preview) { "Preview should be 'Empty conversation'" }
+        }
     }
 }
 

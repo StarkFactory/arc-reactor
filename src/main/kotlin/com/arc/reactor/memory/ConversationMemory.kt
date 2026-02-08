@@ -138,7 +138,35 @@ interface MemoryStore {
         }
         memory.add(Message(messageRole, content))
     }
+
+    /**
+     * List all session summaries.
+     *
+     * Returns metadata for all active sessions, ordered by most recent activity.
+     * Default implementation returns an empty list for backward compatibility
+     * with existing custom implementations.
+     *
+     * @return List of session summaries, ordered by lastActivity descending
+     */
+    fun listSessions(): List<SessionSummary> = emptyList()
 }
+
+/**
+ * Summary information for a conversation session.
+ *
+ * Provides metadata without loading the full message history.
+ *
+ * @param sessionId Unique session identifier
+ * @param messageCount Total messages in the session
+ * @param lastActivity Timestamp of the most recent message
+ * @param preview Truncated first user message (for display)
+ */
+data class SessionSummary(
+    val sessionId: String,
+    val messageCount: Int,
+    val lastActivity: Instant,
+    val preview: String
+)
 
 /**
  * In-Memory Conversation Memory Implementation
@@ -234,6 +262,34 @@ class InMemoryMemoryStore(
 
     override fun clear() {
         sessions.invalidateAll()
+    }
+
+    override fun listSessions(): List<SessionSummary> {
+        return sessions.asMap().map { (sessionId, memory) ->
+            val history = memory.getHistory()
+            SessionSummary(
+                sessionId = sessionId,
+                messageCount = history.size,
+                lastActivity = history.lastOrNull()?.timestamp ?: Instant.now(),
+                preview = extractPreview(history)
+            )
+        }.sortedByDescending { it.lastActivity }
+    }
+}
+
+internal const val PREVIEW_MAX_LENGTH = 50
+
+/**
+ * Extract a preview string from conversation history.
+ * Uses the first user message, truncated to [PREVIEW_MAX_LENGTH] characters.
+ */
+internal fun extractPreview(history: List<Message>): String {
+    val content = history.firstOrNull { it.role == MessageRole.USER }?.content
+        ?: return "Empty conversation"
+    return if (content.length > PREVIEW_MAX_LENGTH) {
+        content.take(PREVIEW_MAX_LENGTH) + "..."
+    } else {
+        content
     }
 }
 

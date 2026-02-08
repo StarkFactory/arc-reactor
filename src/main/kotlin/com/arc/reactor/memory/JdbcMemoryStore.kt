@@ -59,6 +59,38 @@ class JdbcMemoryStore(
         evictOldMessages(sessionId)
     }
 
+    override fun listSessions(): List<SessionSummary> {
+        return jdbcTemplate.query(
+            """
+            SELECT session_id, COUNT(*) AS message_count, MAX(timestamp) AS last_activity
+            FROM conversation_messages
+            GROUP BY session_id
+            ORDER BY last_activity DESC
+            """.trimIndent()
+        ) { rs: ResultSet, _: Int ->
+            SessionSummary(
+                sessionId = rs.getString("session_id"),
+                messageCount = rs.getInt("message_count"),
+                lastActivity = Instant.ofEpochMilli(rs.getLong("last_activity")),
+                preview = loadPreview(rs.getString("session_id"))
+            )
+        }
+    }
+
+    private fun loadPreview(sessionId: String): String {
+        val content = jdbcTemplate.query(
+            "SELECT content FROM conversation_messages WHERE session_id = ? AND role = 'user' ORDER BY id ASC LIMIT 1",
+            { rs: ResultSet, _: Int -> rs.getString("content") },
+            sessionId
+        ).firstOrNull() ?: return "Empty conversation"
+
+        return if (content.length > PREVIEW_MAX_LENGTH) {
+            content.take(PREVIEW_MAX_LENGTH) + "..."
+        } else {
+            content
+        }
+    }
+
     /**
      * Delete sessions that have been inactive for longer than the specified TTL.
      *
