@@ -450,6 +450,7 @@ src/main/kotlin/com/arc/reactor/
 - [Deployment Guide](docs/en/deployment.md) - Docker, environment variables, production checklist
 - [Authentication Guide](docs/en/authentication.md) - JWT auth, AuthProvider customization, session isolation
 - [Session & Persona Guide](docs/en/session-management.md) - Session API, persona management, data architecture
+- [Prompt Versioning Guide](docs/en/prompt-versioning.md) - Version control for system prompts, deployment, rollback
 - [Feature Inventory](docs/en/feature-inventory.md) - Complete feature matrix, data architecture, DB schema
 
 ## Requirements

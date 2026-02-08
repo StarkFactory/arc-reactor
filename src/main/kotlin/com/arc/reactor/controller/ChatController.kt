@@ -6,6 +6,7 @@ import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.persona.PersonaStore
+import com.arc.reactor.prompt.PromptTemplateStore
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import kotlinx.coroutines.flow.Flow
@@ -40,7 +41,8 @@ import reactor.core.publisher.Flux
 @RequestMapping("/api/chat")
 class ChatController(
     private val agentExecutor: AgentExecutor,
-    private val personaStore: PersonaStore? = null
+    private val personaStore: PersonaStore? = null,
+    private val promptTemplateStore: PromptTemplateStore? = null
 ) {
 
     /**
@@ -63,7 +65,7 @@ class ChatController(
                 userPrompt = request.message,
                 model = request.model,
                 userId = resolveUserId(exchange, request),
-                metadata = request.metadata ?: emptyMap(),
+                metadata = resolveMetadata(request),
                 responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
                 responseSchema = request.responseSchema
             )
@@ -104,7 +106,7 @@ class ChatController(
                 userPrompt = request.message,
                 model = request.model,
                 userId = resolveUserId(exchange, request),
-                metadata = request.metadata ?: emptyMap(),
+                metadata = resolveMetadata(request),
                 responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
                 responseSchema = request.responseSchema
             )
@@ -154,17 +156,36 @@ class ChatController(
     /**
      * Resolve the system prompt with priority:
      * 1. personaId → lookup from PersonaStore
-     * 2. request.systemPrompt → direct override
-     * 3. Default persona from PersonaStore
-     * 4. Hardcoded fallback
+     * 2. promptTemplateId → active version from PromptTemplateStore
+     * 3. request.systemPrompt → direct override
+     * 4. Default persona from PersonaStore
+     * 5. Hardcoded fallback
      */
     private fun resolveSystemPrompt(request: ChatRequest): String {
         if (request.personaId != null && personaStore != null) {
             personaStore.get(request.personaId)?.systemPrompt?.let { return it }
         }
+        if (request.promptTemplateId != null && promptTemplateStore != null) {
+            promptTemplateStore.getActiveVersion(request.promptTemplateId)?.content?.let { return it }
+        }
         if (!request.systemPrompt.isNullOrBlank()) return request.systemPrompt
         personaStore?.getDefault()?.systemPrompt?.let { return it }
         return DEFAULT_SYSTEM_PROMPT
+    }
+
+    /**
+     * Build metadata enriched with prompt version info when a template is used.
+     */
+    private fun resolveMetadata(request: ChatRequest): Map<String, Any> {
+        val base = request.metadata ?: emptyMap()
+        if (request.promptTemplateId == null || promptTemplateStore == null) return base
+
+        val activeVersion = promptTemplateStore.getActiveVersion(request.promptTemplateId) ?: return base
+        return base + mapOf(
+            "promptTemplateId" to request.promptTemplateId,
+            "promptVersionId" to activeVersion.id,
+            "promptVersion" to activeVersion.version
+        )
     }
 
     companion object {
@@ -183,6 +204,7 @@ data class ChatRequest(
     val model: String? = null,
     val systemPrompt: String? = null,
     val personaId: String? = null,
+    val promptTemplateId: String? = null,
     val userId: String? = null,
     val metadata: Map<String, Any>? = null,
     val responseFormat: ResponseFormat? = null,

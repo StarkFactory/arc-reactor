@@ -450,6 +450,7 @@ src/main/kotlin/com/arc/reactor/
 - [배포 가이드](docs/ko/deployment.md) — Docker, 환경 변수, 프로덕션 체크리스트
 - [인증 가이드](docs/ko/authentication.md) — JWT 인증, AuthProvider 커스터마이징, 세션 격리
 - [세션 & 페르소나 가이드](docs/ko/session-management.md) — 세션 API, 페르소나 관리, 데이터 아키텍처
+- [프롬프트 버저닝 가이드](docs/ko/prompt-versioning.md) — 시스템 프롬프트 버전 관리, 배포, 롤백
 - [기능 인벤토리](docs/ko/feature-inventory.md) — 전체 기능 매트릭스, 데이터 아키텍처, DB 스키마
 
 ## 요구사항

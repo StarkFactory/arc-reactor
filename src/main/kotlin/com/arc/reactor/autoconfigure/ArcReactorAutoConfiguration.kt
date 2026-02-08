@@ -40,6 +40,9 @@ import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.persona.InMemoryPersonaStore
 import com.arc.reactor.persona.JdbcPersonaStore
 import com.arc.reactor.persona.PersonaStore
+import com.arc.reactor.prompt.InMemoryPromptTemplateStore
+import com.arc.reactor.prompt.JdbcPromptTemplateStore
+import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
@@ -110,6 +113,12 @@ class ArcReactorAutoConfiguration {
         fun jdbcPersonaStore(
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
         ): PersonaStore = JdbcPersonaStore(jdbcTemplate = jdbcTemplate)
+
+        @Bean
+        @Primary
+        fun jdbcPromptTemplateStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
+        ): PromptTemplateStore = JdbcPromptTemplateStore(jdbcTemplate = jdbcTemplate)
     }
 
     /**
@@ -118,6 +127,13 @@ class ArcReactorAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun personaStore(): PersonaStore = InMemoryPersonaStore()
+
+    /**
+     * Prompt Template Store: In-memory fallback (when no DataSource/JDBC)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun promptTemplateStore(): PromptTemplateStore = InMemoryPromptTemplateStore()
 
     /**
      * Error Message Resolver (default: English messages)
