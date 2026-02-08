@@ -3,11 +3,15 @@ package com.arc.reactor.controller
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.ResponseFormat
+import com.arc.reactor.agent.model.StreamEventMarker
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.reactor.asFlux
 import org.springframework.http.MediaType
+import org.springframework.http.codec.ServerSentEvent
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -22,6 +26,12 @@ import reactor.core.publisher.Flux
  * ## Endpoints
  * - POST /api/chat        : Standard response (full response at once)
  * - POST /api/chat/stream  : Streaming response (SSE, real-time token-by-token)
+ *
+ * ## SSE Event Types (streaming)
+ * - `message` : Text token chunk
+ * - `tool_start` : Tool execution started (data = tool name)
+ * - `tool_end` : Tool execution completed (data = tool name)
+ * - `done` : Stream complete
  */
 @RestController
 @RequestMapping("/api/chat")
@@ -61,7 +71,13 @@ class ChatController(
     }
 
     /**
-     * Streaming chat - real-time response via SSE
+     * Streaming chat - real-time response via typed SSE events
+     *
+     * SSE event types:
+     * - `event: message` + `data: <text>` - LLM text token
+     * - `event: tool_start` + `data: <tool_name>` - Tool execution started
+     * - `event: tool_end` + `data: <tool_name>` - Tool execution completed
+     * - `event: done` + `data:` - Stream complete
      *
      * ```bash
      * curl -X POST http://localhost:8080/api/chat/stream \
@@ -71,7 +87,7 @@ class ChatController(
      * ```
      */
     @PostMapping("/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun chatStream(@Valid @RequestBody request: ChatRequest): Flux<String> {
+    fun chatStream(@Valid @RequestBody request: ChatRequest): Flux<ServerSentEvent<String>> {
         val flow: Flow<String> = agentExecutor.executeStream(
             AgentCommand(
                 systemPrompt = request.systemPrompt ?: DEFAULT_SYSTEM_PROMPT,
@@ -83,7 +99,34 @@ class ChatController(
                 responseSchema = request.responseSchema
             )
         )
-        return flow.asFlux()
+
+        val eventFlow: Flow<ServerSentEvent<String>> = flow
+            .map { chunk -> toServerSentEvent(chunk) }
+            .onCompletion {
+                emit(
+                    ServerSentEvent.builder<String>()
+                        .event("done")
+                        .data("")
+                        .build()
+                )
+            }
+
+        return eventFlow.asFlux()
+    }
+
+    private fun toServerSentEvent(chunk: String): ServerSentEvent<String> {
+        val parsed = StreamEventMarker.parse(chunk)
+        return if (parsed != null) {
+            ServerSentEvent.builder<String>()
+                .event(parsed.first)
+                .data(parsed.second)
+                .build()
+        } else {
+            ServerSentEvent.builder<String>()
+                .event("message")
+                .data(chunk)
+                .build()
+        }
     }
 
     companion object {

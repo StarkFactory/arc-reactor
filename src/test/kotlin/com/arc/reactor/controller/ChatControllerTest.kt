@@ -4,8 +4,8 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.ResponseFormat
+import com.arc.reactor.agent.model.StreamEventMarker
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.flow.flowOf
@@ -15,12 +15,13 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import reactor.test.StepVerifier
 
 /**
  * Unit tests for ChatController.
  *
- * Tests request-to-command mapping and response construction
- * without Spring context (pure unit test with MockK).
+ * Tests request-to-command mapping, response construction,
+ * and SSE event type conversion for streaming.
  */
 class ChatControllerTest {
 
@@ -130,20 +131,79 @@ class ChatControllerTest {
     inner class StreamingChat {
 
         @Test
-        fun `should return streaming flux from agent executor`() = runTest {
-            val commandSlot = slot<AgentCommand>()
-            coEvery { agentExecutor.executeStream(capture(commandSlot)) } returns flowOf("Hello", " ", "World")
+        fun `should return ServerSentEvents with message event type`() {
+            coEvery { agentExecutor.executeStream(any()) } returns flowOf("Hello", " ", "World")
 
-            val request = ChatRequest(message = "Hi")
-            val flow = agentExecutor.executeStream(
-                AgentCommand(
-                    systemPrompt = "You are a helpful AI assistant. You can use tools when needed. Answer in the same language as the user's message.",
-                    userPrompt = "Hi"
-                )
+            val flux = controller.chatStream(ChatRequest(message = "Hi"))
+
+            StepVerifier.create(flux)
+                .assertNext { sse ->
+                    assertEquals("message", sse.event()) { "Event type should be 'message'" }
+                    assertEquals("Hello", sse.data()) { "Data should be 'Hello'" }
+                }
+                .assertNext { sse ->
+                    assertEquals("message", sse.event()) { "Event type should be 'message'" }
+                    assertEquals(" ", sse.data()) { "Data should be space" }
+                }
+                .assertNext { sse ->
+                    assertEquals("message", sse.event()) { "Event type should be 'message'" }
+                    assertEquals("World", sse.data()) { "Data should be 'World'" }
+                }
+                .assertNext { sse ->
+                    assertEquals("done", sse.event()) { "Last event should be 'done'" }
+                }
+                .verifyComplete()
+        }
+
+        @Test
+        fun `should convert tool markers to SSE events`() {
+            coEvery { agentExecutor.executeStream(any()) } returns flowOf(
+                "Thinking...",
+                StreamEventMarker.toolStart("calculator"),
+                StreamEventMarker.toolEnd("calculator"),
+                "The answer is 8."
             )
-            val chunks = flow.toList()
 
-            assertEquals(listOf("Hello", " ", "World"), chunks) { "Should stream all chunks" }
+            val flux = controller.chatStream(ChatRequest(message = "3+5?"))
+
+            StepVerifier.create(flux)
+                .assertNext { sse ->
+                    assertEquals("message", sse.event()) { "First should be text" }
+                    assertEquals("Thinking...", sse.data()) { "Text content should match" }
+                }
+                .assertNext { sse ->
+                    assertEquals("tool_start", sse.event()) { "Should be tool_start event" }
+                    assertEquals("calculator", sse.data()) { "Tool name should be 'calculator'" }
+                }
+                .assertNext { sse ->
+                    assertEquals("tool_end", sse.event()) { "Should be tool_end event" }
+                    assertEquals("calculator", sse.data()) { "Tool name should be 'calculator'" }
+                }
+                .assertNext { sse ->
+                    assertEquals("message", sse.event()) { "Should be message event" }
+                    assertEquals("The answer is 8.", sse.data()) { "Text content should match" }
+                }
+                .assertNext { sse ->
+                    assertEquals("done", sse.event()) { "Last event should be 'done'" }
+                }
+                .verifyComplete()
+        }
+
+        @Test
+        fun `should always emit done event at the end`() {
+            coEvery { agentExecutor.executeStream(any()) } returns flowOf("ok")
+
+            val flux = controller.chatStream(ChatRequest(message = "hello"))
+
+            StepVerifier.create(flux)
+                .assertNext { sse ->
+                    assertEquals("message", sse.event()) { "Should emit message" }
+                }
+                .assertNext { sse ->
+                    assertEquals("done", sse.event()) { "Should always end with done" }
+                    assertEquals("", sse.data()) { "Done event data should be empty" }
+                }
+                .verifyComplete()
         }
 
         @Test
@@ -151,12 +211,13 @@ class ChatControllerTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.executeStream(capture(commandSlot)) } returns flowOf("ok")
 
-            val request = ChatRequest(
-                message = "stream test",
-                model = "gpt-4o",
-                userId = "user-456"
+            controller.chatStream(
+                ChatRequest(
+                    message = "stream test",
+                    model = "gpt-4o",
+                    userId = "user-456"
+                )
             )
-            controller.chatStream(request)
 
             val captured = commandSlot.captured
             assertEquals("stream test", captured.userPrompt) { "userPrompt should match" }
@@ -181,6 +242,48 @@ class ChatControllerTest {
             assertEquals(emptyMap<String, Any>(), captured.metadata) {
                 "Default metadata should be empty"
             }
+        }
+    }
+
+    @Nested
+    inner class StreamEventMarkerTest {
+
+        @Test
+        fun `toolStart should create proper marker`() {
+            val marker = StreamEventMarker.toolStart("calculator")
+
+            assertTrue(StreamEventMarker.isMarker(marker)) { "Should be recognized as marker" }
+            val parsed = StreamEventMarker.parse(marker)
+            assertNotNull(parsed) { "Should be parseable" }
+            assertEquals("tool_start", parsed!!.first) { "Event type should be tool_start" }
+            assertEquals("calculator", parsed.second) { "Tool name should be calculator" }
+        }
+
+        @Test
+        fun `toolEnd should create proper marker`() {
+            val marker = StreamEventMarker.toolEnd("web_search")
+
+            assertTrue(StreamEventMarker.isMarker(marker)) { "Should be recognized as marker" }
+            val parsed = StreamEventMarker.parse(marker)
+            assertNotNull(parsed) { "Should be parseable" }
+            assertEquals("tool_end", parsed!!.first) { "Event type should be tool_end" }
+            assertEquals("web_search", parsed.second) { "Tool name should be web_search" }
+        }
+
+        @Test
+        fun `regular text should not be a marker`() {
+            assertFalse(StreamEventMarker.isMarker("Hello world")) {
+                "Regular text should not be a marker"
+            }
+            assertNull(StreamEventMarker.parse("Hello world")) {
+                "Regular text should not be parseable as marker"
+            }
+        }
+
+        @Test
+        fun `empty string should not be a marker`() {
+            assertFalse(StreamEventMarker.isMarker("")) { "Empty string should not be a marker" }
+            assertNull(StreamEventMarker.parse("")) { "Empty string should not be parseable" }
         }
     }
 

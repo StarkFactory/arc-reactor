@@ -8,6 +8,7 @@ import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.ResponseFormat
+import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.agent.model.TokenUsage
@@ -438,6 +439,11 @@ class SpringAiAgentExecutor(
                             .build()
                         messages.add(assistantMsg)
 
+                        // Emit tool start markers for frontend
+                        for (toolCall in pendingToolCalls) {
+                            emit(StreamEventMarker.toolStart(toolCall.name()))
+                        }
+
                         // Execute tool calls in parallel
                         val totalToolCallsCounter = AtomicInteger(totalToolCalls)
                         val toolResponses = executeToolCallsInParallel(
@@ -445,6 +451,11 @@ class SpringAiAgentExecutor(
                             totalToolCallsCounter, maxToolCallLimit
                         )
                         totalToolCalls = totalToolCallsCounter.get()
+
+                        // Emit tool end markers for frontend
+                        for (toolCall in pendingToolCalls) {
+                            emit(StreamEventMarker.toolEnd(toolCall.name()))
+                        }
 
                         // Add tool results to conversation and loop back to LLM
                         messages.add(
