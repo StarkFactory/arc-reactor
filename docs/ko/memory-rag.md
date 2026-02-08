@@ -274,16 +274,65 @@ interface QueryTransformer {
 
 **기본 구현:** `PassthroughQueryTransformer` — 변환 없이 원본 쿼리 그대로 전달
 
-**확장 가능한 구현들:**
-- **HyDE:** LLM으로 가상 문서를 생성하여 검색
-- **다중 쿼리:** 의역, 동의어 추가로 여러 쿼리 생성
-- **쿼리 정규화:** 불필요한 부분 제거
+#### HyDEQueryTransformer
+
+**HyDE (Hypothetical Document Embeddings)** — LLM으로 가상 답변 문서를 생성하고, 원본 쿼리와 함께 검색에 사용합니다.
+
+```
+사용자 쿼리: "환불 정책이 뭔가요?"
+
+→ LLM이 가상 답변 생성:
+  "환불 정책은 구매일로부터 30일 이내 미개봉 상품에 한해 전액 환불이 가능합니다."
+
+→ 검색 쿼리 2개:
+  1. "환불 정책이 뭔가요?"           ← 원본
+  2. "환불 정책은 구매일로부터..."    ← 가상 답변 (문서와 임베딩 공간에서 더 가까움)
+```
+
+**왜 효과적인가:** 질문("정책이 뭔가요?")과 답변("정책은...입니다")은 어휘가 다르지만 의미가 유사하다. 가상 답변을 생성하면 실제 문서와의 벡터 거리가 줄어들어 검색 정확도가 올라간다.
+
+```kotlin
+val transformer = HyDEQueryTransformer(chatClient)
+val queries = transformer.transform("환불 정책이 뭔가요?")
+// → ["환불 정책이 뭔가요?", "환불 정책은 구매일로부터 30일 이내..."]
+```
+
+에러 발생 시 원본 쿼리만 반환 (graceful fallback).
+
+#### ConversationAwareQueryTransformer
+
+**대화 문맥 인식 쿼리 변환** — 대화 이력을 참조하여 대명사/암묵적 참조를 해소한 독립적 검색 쿼리로 변환합니다.
+
+```
+대화 이력:
+  User: "환불 정책에 대해 알려줘"
+  AI: "30일 이내 반품 가능합니다."
+  User: "전자제품은?"              ← 맥락 없이는 의미 불명확
+
+→ LLM이 재작성: "전자제품의 환불 정책은 무엇인가요?"
+→ 이 독립적 쿼리로 검색 → 정확한 문서 검색
+```
+
+```kotlin
+val transformer = ConversationAwareQueryTransformer(chatClient, maxHistoryTurns = 5)
+transformer.updateHistory(listOf("User: 환불 정책 알려줘", "AI: 30일 이내..."))
+val queries = transformer.transform("전자제품은?")
+// → ["전자제품의 환불 정책은 무엇인가요?"]
+```
+
+- 대화 이력이 없으면 LLM 호출 없이 원본 쿼리 반환
+- `maxHistoryTurns`으로 LLM에 전달할 이력 수 제한 (기본 5)
+- 에러 시 원본 쿼리로 폴백
 
 ### Stage 2: DocumentRetriever
 
 ```kotlin
 interface DocumentRetriever {
-    suspend fun retrieve(queries: List<String>, topK: Int = 10): List<RetrievedDocument>
+    suspend fun retrieve(
+        queries: List<String>,
+        topK: Int = 10,
+        filters: Map<String, Any> = emptyMap()
+    ): List<RetrievedDocument>
 }
 ```
 
@@ -299,17 +348,12 @@ class SpringAiVectorStoreRetriever(
 Spring AI의 `VectorStore`를 사용한 벡터 유사도 검색:
 
 ```kotlin
-override suspend fun retrieve(queries: List<String>, topK: Int): List<RetrievedDocument> {
+override suspend fun retrieve(
+    queries: List<String>, topK: Int, filters: Map<String, Any>
+): List<RetrievedDocument> {
     val allDocuments = queries.flatMap { query ->
-        val searchRequest = SearchRequest.builder()
-            .query(query)
-            .topK(topK)
-            .similarityThreshold(defaultSimilarityThreshold)
-            .build()
-        vectorStore.similaritySearch(searchRequest)
-            .map { it.toRetrievedDocument() }
+        searchWithQuery(query, topK, filters)
     }
-
     return allDocuments
         .sortedByDescending { it.score }
         .distinctBy { it.id }   // 다중 쿼리에서 중복 제거
@@ -317,9 +361,39 @@ override suspend fun retrieve(queries: List<String>, topK: Int): List<RetrievedD
 }
 ```
 
+#### 메타데이터 필터링
+
+`RagQuery.filters`를 통해 메타데이터 기반 문서 필터링을 지원합니다. 여러 필터는 AND 논리로 결합됩니다.
+
+```kotlin
+// source=docs AND category=language 인 문서만 검색
+val result = pipeline.retrieve(RagQuery(
+    query = "kotlin guide",
+    topK = 10,
+    filters = mapOf("source" to "docs", "category" to "language")
+))
+```
+
+**Spring AI FilterExpression 변환:**
+
+```kotlin
+private fun buildFilterExpression(filters: Map<String, Any>): Filter.Expression? {
+    val b = FilterExpressionBuilder()
+    val expressions = filters.map { (key, value) -> b.eq(key, value) }
+    return if (expressions.size == 1) {
+        expressions.first().build()
+    } else {
+        expressions.reduce { acc, expr -> b.and(acc, expr) }.build()
+    }
+}
+```
+
+- `SpringAiVectorStoreRetriever`: Spring AI의 `FilterExpressionBuilder`로 변환하여 벡터 DB 레벨에서 필터링
+- `InMemoryDocumentRetriever`: 메타데이터 맵을 직접 비교하여 필터링
+
 #### InMemoryDocumentRetriever
 
-테스트/개발용 메모리 기반 구현. 키워드 매칭(Jaccard 유사도)으로 검색합니다.
+테스트/개발용 메모리 기반 구현. 키워드 매칭(Jaccard 유사도)으로 검색하며, 메타데이터 필터링도 지원합니다.
 
 ### Stage 3: DocumentReranker
 
@@ -712,7 +786,8 @@ arc:
 | DocumentRetriever | 구현 완료 | `SpringAiVectorStoreRetriever` + `InMemoryDocumentRetriever` |
 | DocumentReranker | 구현 완료 | `SimpleScoreReranker` + `KeywordWeightedReranker` + `DiversityReranker` |
 | ContextBuilder | 구현 완료 | `SimpleContextBuilder` (토큰 인식) |
-| QueryTransformer | 구현 완료 | `PassthroughQueryTransformer` (확장 가능) |
+| QueryTransformer | 구현 완료 | `PassthroughQueryTransformer` + `HyDEQueryTransformer` + `ConversationAwareQueryTransformer` |
+| Metadata Filtering | 구현 완료 | `DocumentRetriever.retrieve(filters)` — AND 논리, `FilterExpressionBuilder` 활용 |
 | VectorStore | **의존성만** | `compileOnly` — 활성화하려면 `implementation`으로 변경 |
 
 ### 벡터 DB 지원

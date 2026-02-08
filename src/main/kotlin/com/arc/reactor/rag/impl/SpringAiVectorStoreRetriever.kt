@@ -6,6 +6,7 @@ import mu.KotlinLogging
 import org.springframework.ai.document.Document
 import org.springframework.ai.vectorstore.SearchRequest
 import org.springframework.ai.vectorstore.VectorStore
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder
 
 private val logger = KotlinLogging.logger {}
 
@@ -20,12 +21,16 @@ class SpringAiVectorStoreRetriever(
     private val defaultSimilarityThreshold: Double = 0.7
 ) : DocumentRetriever {
 
-    override suspend fun retrieve(queries: List<String>, topK: Int): List<RetrievedDocument> {
-        logger.debug { "Retrieving documents for ${queries.size} queries, topK=$topK" }
+    override suspend fun retrieve(
+        queries: List<String>,
+        topK: Int,
+        filters: Map<String, Any>
+    ): List<RetrievedDocument> {
+        logger.debug { "Retrieving documents for ${queries.size} queries, topK=$topK, filters=$filters" }
 
         // Search across multiple queries and deduplicate
         val allDocuments = queries.flatMap { query ->
-            searchWithQuery(query, topK)
+            searchWithQuery(query, topK, filters)
         }
 
         // Sort by score first, then deduplicate (keeps highest-scored version per ID)
@@ -35,13 +40,26 @@ class SpringAiVectorStoreRetriever(
             .take(topK)
     }
 
-    private fun searchWithQuery(query: String, topK: Int): List<RetrievedDocument> {
+    private fun searchWithQuery(
+        query: String,
+        topK: Int,
+        filters: Map<String, Any> = emptyMap()
+    ): List<RetrievedDocument> {
         return try {
-            val searchRequest = SearchRequest.builder()
+            val builder = SearchRequest.builder()
                 .query(query)
                 .topK(topK)
                 .similarityThreshold(defaultSimilarityThreshold)
-                .build()
+
+            // Apply metadata filters if provided
+            if (filters.isNotEmpty()) {
+                val filterExpression = buildFilterExpression(filters)
+                if (filterExpression != null) {
+                    builder.filterExpression(filterExpression)
+                }
+            }
+
+            val searchRequest = builder.build()
 
             val documents = vectorStore.similaritySearch(searchRequest)
 
@@ -49,6 +67,27 @@ class SpringAiVectorStoreRetriever(
         } catch (e: Exception) {
             logger.error(e) { "Vector search failed for query: $query" }
             emptyList()
+        }
+    }
+
+    /**
+     * Build a Spring AI filter expression from a metadata filter map.
+     * Combines multiple filters with AND logic.
+     */
+    private fun buildFilterExpression(
+        filters: Map<String, Any>
+    ): org.springframework.ai.vectorstore.filter.Filter.Expression? {
+        if (filters.isEmpty()) return null
+
+        val b = FilterExpressionBuilder()
+        val expressions = filters.map { (key, value) ->
+            b.eq(key, value)
+        }
+
+        return if (expressions.size == 1) {
+            expressions.first().build()
+        } else {
+            expressions.reduce { acc, expr -> b.and(acc, expr) }.build()
         }
     }
 
@@ -88,11 +127,16 @@ class InMemoryDocumentRetriever(
         documents.clear()
     }
 
-    override suspend fun retrieve(queries: List<String>, topK: Int): List<RetrievedDocument> {
+    override suspend fun retrieve(
+        queries: List<String>,
+        topK: Int,
+        filters: Map<String, Any>
+    ): List<RetrievedDocument> {
         // Simple keyword-matching search
         val queryTerms = queries.flatMap { it.lowercase().split(" ") }.toSet()
 
         return documents
+            .filter { doc -> matchesFilters(doc, filters) }
             .map { doc ->
                 val matchScore = calculateMatchScore(doc.content.lowercase(), queryTerms)
                 doc.copy(score = matchScore)
@@ -100,6 +144,13 @@ class InMemoryDocumentRetriever(
             .filter { it.score > 0 }
             .sortedByDescending { it.score }
             .take(topK)
+    }
+
+    private fun matchesFilters(doc: RetrievedDocument, filters: Map<String, Any>): Boolean {
+        if (filters.isEmpty()) return true
+        return filters.all { (key, value) ->
+            doc.metadata[key]?.toString() == value.toString()
+        }
     }
 
     private fun calculateMatchScore(content: String, queryTerms: Set<String>): Double {

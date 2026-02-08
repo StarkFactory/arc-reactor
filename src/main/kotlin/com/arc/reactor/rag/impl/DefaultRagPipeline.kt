@@ -39,7 +39,7 @@ class DefaultRagPipeline(
         }
 
         // 2. Retrieve
-        val documents = retriever.retrieve(transformedQueries, query.topK)
+        val documents = retriever.retrieve(transformedQueries, query.topK, query.filters)
         logger.debug { "Retrieved ${documents.size} documents" }
 
         if (documents.isEmpty()) {

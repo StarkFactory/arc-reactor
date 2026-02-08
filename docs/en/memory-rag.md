@@ -274,16 +274,66 @@ Expands a single query into multiple queries to improve retrieval quality.
 
 **Default implementation:** `PassthroughQueryTransformer` -- passes through the original query without transformation
 
-**Extensible implementations:**
-- **HyDE:** Generates a hypothetical document via LLM for retrieval
-- **Multi-query:** Creates multiple queries through paraphrasing and synonym expansion
-- **Query normalization:** Removes unnecessary parts
+#### HyDEQueryTransformer
+
+**HyDE (Hypothetical Document Embeddings)** -- Uses an LLM to generate a hypothetical answer document, then uses both the original query and the hypothetical document for retrieval.
+
+```
+User query: "What is our return policy?"
+
+→ LLM generates hypothetical answer:
+  "Our return policy allows customers to return items within 30 days
+   of purchase for a full refund. Items must be unused and in original packaging."
+
+→ 2 search queries:
+  1. "What is our return policy?"              ← original
+  2. "Our return policy allows customers..."   ← hypothetical (closer in embedding space to actual documents)
+```
+
+**Why it works:** A question ("What is the policy?") and its answer ("The policy is...") have different vocabulary but similar meaning. By generating a hypothetical answer, we create a query that's closer in embedding space to the actual documents, improving retrieval accuracy.
+
+```kotlin
+val transformer = HyDEQueryTransformer(chatClient)
+val queries = transformer.transform("What is our return policy?")
+// → ["What is our return policy?", "Our return policy allows customers to return items..."]
+```
+
+Falls back to original query on error (graceful fallback).
+
+#### ConversationAwareQueryTransformer
+
+**Conversation-aware query rewriting** -- Rewrites the user's query by incorporating conversation context, resolving pronouns and implicit references into a standalone search query.
+
+```
+Conversation history:
+  User: "Tell me about the return policy"
+  AI: "Items can be returned within 30 days."
+  User: "What about electronics?"       ← ambiguous without context
+
+→ LLM rewrites to: "What is the return policy for electronics?"
+→ This standalone query retrieves better documents
+```
+
+```kotlin
+val transformer = ConversationAwareQueryTransformer(chatClient, maxHistoryTurns = 5)
+transformer.updateHistory(listOf("User: Tell me about the return policy", "AI: 30 days..."))
+val queries = transformer.transform("What about electronics?")
+// → ["What is the return policy for electronics?"]
+```
+
+- Returns original query without LLM call when no conversation history exists
+- `maxHistoryTurns` limits the number of history turns sent to LLM (default: 5)
+- Falls back to original query on error
 
 ### Stage 2: DocumentRetriever
 
 ```kotlin
 interface DocumentRetriever {
-    suspend fun retrieve(queries: List<String>, topK: Int = 10): List<RetrievedDocument>
+    suspend fun retrieve(
+        queries: List<String>,
+        topK: Int = 10,
+        filters: Map<String, Any> = emptyMap()
+    ): List<RetrievedDocument>
 }
 ```
 
@@ -299,17 +349,12 @@ class SpringAiVectorStoreRetriever(
 Vector similarity search using Spring AI's `VectorStore`:
 
 ```kotlin
-override suspend fun retrieve(queries: List<String>, topK: Int): List<RetrievedDocument> {
+override suspend fun retrieve(
+    queries: List<String>, topK: Int, filters: Map<String, Any>
+): List<RetrievedDocument> {
     val allDocuments = queries.flatMap { query ->
-        val searchRequest = SearchRequest.builder()
-            .query(query)
-            .topK(topK)
-            .similarityThreshold(defaultSimilarityThreshold)
-            .build()
-        vectorStore.similaritySearch(searchRequest)
-            .map { it.toRetrievedDocument() }
+        searchWithQuery(query, topK, filters)
     }
-
     return allDocuments
         .sortedByDescending { it.score }
         .distinctBy { it.id }   // Deduplicate across multi-query results
@@ -317,9 +362,39 @@ override suspend fun retrieve(queries: List<String>, topK: Int): List<RetrievedD
 }
 ```
 
+#### Metadata Filtering
+
+Supports metadata-based document filtering via `RagQuery.filters`. Multiple filters are combined with AND logic.
+
+```kotlin
+// Retrieve only documents with source=docs AND category=language
+val result = pipeline.retrieve(RagQuery(
+    query = "kotlin guide",
+    topK = 10,
+    filters = mapOf("source" to "docs", "category" to "language")
+))
+```
+
+**Spring AI FilterExpression conversion:**
+
+```kotlin
+private fun buildFilterExpression(filters: Map<String, Any>): Filter.Expression? {
+    val b = FilterExpressionBuilder()
+    val expressions = filters.map { (key, value) -> b.eq(key, value) }
+    return if (expressions.size == 1) {
+        expressions.first().build()
+    } else {
+        expressions.reduce { acc, expr -> b.and(acc, expr) }.build()
+    }
+}
+```
+
+- `SpringAiVectorStoreRetriever`: Converts to Spring AI `FilterExpressionBuilder` for filtering at the vector DB level
+- `InMemoryDocumentRetriever`: Filters by direct metadata map comparison
+
 #### InMemoryDocumentRetriever
 
-An in-memory implementation for testing/development. Searches using keyword matching (Jaccard similarity).
+An in-memory implementation for testing/development. Searches using keyword matching (Jaccard similarity) and supports metadata filtering.
 
 ### Stage 3: DocumentReranker
 
@@ -712,7 +787,8 @@ arc:
 | DocumentRetriever | Fully implemented | `SpringAiVectorStoreRetriever` + `InMemoryDocumentRetriever` |
 | DocumentReranker | Fully implemented | `SimpleScoreReranker` + `KeywordWeightedReranker` + `DiversityReranker` |
 | ContextBuilder | Fully implemented | `SimpleContextBuilder` (token-aware) |
-| QueryTransformer | Fully implemented | `PassthroughQueryTransformer` (extensible) |
+| QueryTransformer | Fully implemented | `PassthroughQueryTransformer` + `HyDEQueryTransformer` + `ConversationAwareQueryTransformer` |
+| Metadata Filtering | Fully implemented | `DocumentRetriever.retrieve(filters)` -- AND logic, uses `FilterExpressionBuilder` |
 | VectorStore | **Dependency only** | `compileOnly` -- change to `implementation` to activate |
 
 ### Vector DB Support

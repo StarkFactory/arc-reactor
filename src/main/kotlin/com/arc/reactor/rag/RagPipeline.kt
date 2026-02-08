@@ -110,9 +110,14 @@ interface DocumentRetriever {
      *
      * @param queries Search queries (typically from QueryTransformer)
      * @param topK Maximum number of documents to retrieve
+     * @param filters Metadata filters to narrow results (e.g., {"source": "docs", "category": "policy"})
      * @return List of retrieved documents with similarity scores
      */
-    suspend fun retrieve(queries: List<String>, topK: Int = 10): List<RetrievedDocument>
+    suspend fun retrieve(
+        queries: List<String>,
+        topK: Int = 10,
+        filters: Map<String, Any> = emptyMap()
+    ): List<RetrievedDocument>
 }
 
 /**
