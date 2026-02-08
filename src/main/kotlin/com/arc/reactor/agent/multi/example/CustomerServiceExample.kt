@@ -56,19 +56,19 @@ class CustomerServiceExample(
             // description is important: the Supervisor's LLM reads this description to decide which worker to delegate to.
             .node("order") {
                 systemPrompt = "You are an order specialist. Handle order inquiries, modifications, and cancellations."
-                description = "주문 조회, 변경, 취소"
+                description = "Order lookup, modification, cancellation"
                 // tools = listOf(orderLookupTool, orderCancelTool)  <- Connect actual tools here
                 maxToolCalls = 5
             }
             .node("refund") {
                 systemPrompt = "You are a refund specialist. Process refund requests according to company policy."
-                description = "환불 신청, 환불 상태 확인, 환불 정책 안내"
+                description = "Refund requests, refund status checks, refund policy guidance"
                 // tools = listOf(refundProcessTool, refundStatusTool)
                 maxToolCalls = 5
             }
             .node("shipping") {
                 systemPrompt = "You are a shipping specialist. Track packages and handle delivery issues."
-                description = "배송 추적, 배송지 변경, 배송 지연 문의"
+                description = "Shipment tracking, address changes, delivery delay inquiries"
                 // tools = listOf(trackingTool, addressChangeTool)
                 maxToolCalls = 5
             }

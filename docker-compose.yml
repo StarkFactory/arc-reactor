@@ -1,13 +1,13 @@
 # ===========================================
 # Arc Reactor - Docker Compose
 # ===========================================
-# 사용법:
-#   cp .env.example .env    # API 키 설정
-#   docker-compose up -d    # 시작
-#   docker-compose down     # 중지
+# Usage:
+#   cp .env.example .env    # Set API keys
+#   docker-compose up -d    # Start
+#   docker-compose down     # Stop
 #
-# PostgreSQL이 포함되어 대화 기록이 영구 저장됩니다.
-# PostgreSQL 없이 실행하려면 app만 실행: docker-compose up app
+# Includes PostgreSQL for persistent conversation history.
+# To run without PostgreSQL: docker-compose up app
 
 services:
   app:
@@ -17,7 +17,7 @@ services:
     environment:
       # LLM Provider
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      # PostgreSQL 연결 (db 서비스 사용 시)
+      # PostgreSQL connection (when using db service)
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:-arcreactor}
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-arc}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-arc}

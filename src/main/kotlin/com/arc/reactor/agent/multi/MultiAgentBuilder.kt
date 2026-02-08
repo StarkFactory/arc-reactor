@@ -14,11 +14,11 @@ import com.arc.reactor.tool.ToolCallback
  * ```kotlin
  * val result = MultiAgent.sequential()
  *     .node("researcher") {
- *         systemPrompt = "자료를 조사하라"
- *         description = "리서치 전문 에이전트"
+ *         systemPrompt = "Research the given topic"
+ *         description = "Research specialist agent"
  *     }
  *     .node("writer") {
- *         systemPrompt = "리포트를 작성하라"
+ *         systemPrompt = "Write a report based on the research"
  *     }
  *     .execute(command, agentFactory)
  * ```
@@ -26,9 +26,9 @@ import com.arc.reactor.tool.ToolCallback
  * ## Parallel Example
  * ```kotlin
  * val result = MultiAgent.parallel()
- *     .node("security") { systemPrompt = "보안 취약점을 분석하라" }
- *     .node("style") { systemPrompt = "코드 스타일을 검사하라" }
- *     .node("logic") { systemPrompt = "비즈니스 로직을 검증하라" }
+ *     .node("security") { systemPrompt = "Analyze security vulnerabilities" }
+ *     .node("style") { systemPrompt = "Check code style" }
+ *     .node("logic") { systemPrompt = "Verify business logic" }
  *     .execute(command, agentFactory)
  * ```
  *
@@ -36,12 +36,12 @@ import com.arc.reactor.tool.ToolCallback
  * ```kotlin
  * val result = MultiAgent.supervisor()
  *     .node("order") {
- *         systemPrompt = "주문 관련 업무를 처리하라"
- *         description = "주문 조회, 변경, 취소"
+ *         systemPrompt = "Handle order-related tasks"
+ *         description = "Order lookup, modification, cancellation"
  *     }
  *     .node("refund") {
- *         systemPrompt = "환불 업무를 처리하라"
- *         description = "환불 신청, 상태 확인"
+ *         systemPrompt = "Handle refund tasks"
+ *         description = "Refund requests, status checks"
  *     }
  *     .execute(command, agentFactory)
  * ```

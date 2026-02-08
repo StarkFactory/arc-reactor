@@ -13,7 +13,7 @@ import com.arc.reactor.agent.model.AgentCommand
  * ```kotlin
  * val orchestrator = SequentialOrchestrator()
  * val result = orchestrator.execute(
- *     command = AgentCommand(systemPrompt = "", userPrompt = "리포트 작성해줘"),
+ *     command = AgentCommand(systemPrompt = "", userPrompt = "Write a report"),
  *     nodes = listOf(researcherNode, writerNode, reviewerNode),
  *     agentFactory = { node -> createAgent(node) }
  * )

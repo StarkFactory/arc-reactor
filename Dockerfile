@@ -1,7 +1,7 @@
 # ===========================================
 # Arc Reactor - Multi-stage Docker Build
 # ===========================================
-# 사용법:
+# Usage:
 #   docker build -t arc-reactor .
 #   docker run -e GEMINI_API_KEY=your-key -p 8080:8080 arc-reactor
 

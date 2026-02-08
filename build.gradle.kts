@@ -70,7 +70,7 @@ dependencies {
     // Spring AI Vector Store Core (for RAG)
     implementation("org.springframework.ai:spring-ai-vector-store")
 
-    // Optional: Vector Store Providers (사용자가 선택)
+    // Optional: Vector Store Providers (choose one)
     compileOnly("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
     compileOnly("org.springframework.ai:spring-ai-starter-vector-store-pinecone")
     compileOnly("org.springframework.ai:spring-ai-starter-vector-store-chroma")
@@ -96,7 +96,7 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
-// Application mode - fork해서 자신만의 도구를 추가하며 사용
+// Application mode - fork and add your own tools
 tasks.bootJar {
     enabled = true
 }

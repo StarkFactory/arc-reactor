@@ -35,7 +35,7 @@ class ChatController(
      * ```bash
      * curl -X POST http://localhost:8080/api/chat \
      *   -H "Content-Type: application/json" \
-     *   -d '{"message": "3 + 5는 얼마야?"}'
+     *   -d '{"message": "What is 3 + 5?"}'
      * ```
      */
     @PostMapping
@@ -66,7 +66,7 @@ class ChatController(
      * ```bash
      * curl -X POST http://localhost:8080/api/chat/stream \
      *   -H "Content-Type: application/json" \
-     *   -d '{"message": "지금 몇 시야?"}' \
+     *   -d '{"message": "What time is it now?"}' \
      *   --no-buffer
      * ```
      */
