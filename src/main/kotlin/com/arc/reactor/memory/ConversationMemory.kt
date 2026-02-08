@@ -140,6 +140,21 @@ interface MemoryStore {
     }
 
     /**
+     * Add a message to a session's conversation memory with user ownership.
+     *
+     * Associates the session with a userId for per-user session isolation.
+     * Default implementation delegates to [addMessage] without userId for backward compatibility.
+     *
+     * @param sessionId Session identifier
+     * @param role Message role (user, assistant, system, tool)
+     * @param content Message content
+     * @param userId Owner of the session
+     */
+    fun addMessage(sessionId: String, role: String, content: String, userId: String) {
+        addMessage(sessionId, role, content)
+    }
+
+    /**
      * List all session summaries.
      *
      * Returns metadata for all active sessions, ordered by most recent activity.
@@ -149,6 +164,28 @@ interface MemoryStore {
      * @return List of session summaries, ordered by lastActivity descending
      */
     fun listSessions(): List<SessionSummary> = emptyList()
+
+    /**
+     * List session summaries owned by a specific user.
+     *
+     * When authentication is enabled, this filters sessions by userId.
+     * Default implementation falls back to [listSessions] for backward compatibility.
+     *
+     * @param userId Owner user ID
+     * @return List of session summaries for the user, ordered by lastActivity descending
+     */
+    fun listSessionsByUserId(userId: String): List<SessionSummary> = listSessions()
+
+    /**
+     * Get the owner userId of a session.
+     *
+     * Used for ownership verification in delete/get operations.
+     * Default implementation returns null (no ownership tracking).
+     *
+     * @param sessionId Session identifier
+     * @return userId of the session owner, or null if unknown
+     */
+    fun getSessionOwner(sessionId: String): String? = null
 }
 
 /**
@@ -248,6 +285,8 @@ class InMemoryMemoryStore(
         .maximumSize(maxSessions.toLong())
         .build<String, ConversationMemory>()
 
+    private val sessionOwners = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     override fun get(sessionId: String): ConversationMemory? = sessions.getIfPresent(sessionId)
 
     override fun getOrCreate(sessionId: String): ConversationMemory {
@@ -258,10 +297,17 @@ class InMemoryMemoryStore(
 
     override fun remove(sessionId: String) {
         sessions.invalidate(sessionId)
+        sessionOwners.remove(sessionId)
     }
 
     override fun clear() {
         sessions.invalidateAll()
+        sessionOwners.clear()
+    }
+
+    override fun addMessage(sessionId: String, role: String, content: String, userId: String) {
+        sessionOwners.putIfAbsent(sessionId, userId)
+        addMessage(sessionId, role, content)
     }
 
     override fun listSessions(): List<SessionSummary> {
@@ -275,6 +321,27 @@ class InMemoryMemoryStore(
             )
         }.sortedByDescending { it.lastActivity }
     }
+
+    override fun listSessionsByUserId(userId: String): List<SessionSummary> {
+        val userSessionIds = sessionOwners.entries
+            .filter { it.value == userId }
+            .map { it.key }
+            .toSet()
+
+        return sessions.asMap()
+            .filter { it.key in userSessionIds }
+            .map { (sessionId, memory) ->
+                val history = memory.getHistory()
+                SessionSummary(
+                    sessionId = sessionId,
+                    messageCount = history.size,
+                    lastActivity = history.lastOrNull()?.timestamp ?: Instant.now(),
+                    preview = extractPreview(history)
+                )
+            }.sortedByDescending { it.lastActivity }
+    }
+
+    override fun getSessionOwner(sessionId: String): String? = sessionOwners[sessionId]
 }
 
 internal const val PREVIEW_MAX_LENGTH = 50

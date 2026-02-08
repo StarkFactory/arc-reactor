@@ -59,6 +59,16 @@ class JdbcMemoryStore(
         evictOldMessages(sessionId)
     }
 
+    override fun addMessage(sessionId: String, role: String, content: String, userId: String) {
+        jdbcTemplate.update(
+            "INSERT INTO conversation_messages (session_id, role, content, timestamp, user_id) VALUES (?, ?, ?, ?, ?)",
+            sessionId, role, content, Instant.now().toEpochMilli(), userId
+        )
+
+        // Enforce max messages per session (FIFO eviction)
+        evictOldMessages(sessionId)
+    }
+
     override fun listSessions(): List<SessionSummary> {
         return jdbcTemplate.query(
             """
@@ -75,6 +85,35 @@ class JdbcMemoryStore(
                 preview = loadPreview(rs.getString("session_id"))
             )
         }
+    }
+
+    override fun listSessionsByUserId(userId: String): List<SessionSummary> {
+        return jdbcTemplate.query(
+            """
+            SELECT session_id, COUNT(*) AS message_count, MAX(timestamp) AS last_activity
+            FROM conversation_messages
+            WHERE user_id = ?
+            GROUP BY session_id
+            ORDER BY last_activity DESC
+            """.trimIndent(),
+            { rs: ResultSet, _: Int ->
+                SessionSummary(
+                    sessionId = rs.getString("session_id"),
+                    messageCount = rs.getInt("message_count"),
+                    lastActivity = Instant.ofEpochMilli(rs.getLong("last_activity")),
+                    preview = loadPreview(rs.getString("session_id"))
+                )
+            },
+            userId
+        )
+    }
+
+    override fun getSessionOwner(sessionId: String): String? {
+        return jdbcTemplate.query(
+            "SELECT DISTINCT user_id FROM conversation_messages WHERE session_id = ? LIMIT 1",
+            { rs: ResultSet, _: Int -> rs.getString("user_id") },
+            sessionId
+        ).firstOrNull()
     }
 
     private fun loadPreview(sessionId: String): String {
