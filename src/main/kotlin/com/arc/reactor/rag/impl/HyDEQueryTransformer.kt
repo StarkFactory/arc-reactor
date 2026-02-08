@@ -50,6 +50,8 @@ class HyDEQueryTransformer(
             } else {
                 listOf(query, hypotheticalDocument)
             }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
             logger.warn(e) { "HyDE generation failed, falling back to original query" }
             listOf(query)

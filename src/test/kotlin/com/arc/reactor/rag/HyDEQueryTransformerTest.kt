@@ -4,6 +4,7 @@ import com.arc.reactor.rag.impl.HyDEQueryTransformer
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -92,6 +93,17 @@ class HyDEQueryTransformerTest {
 
             assertEquals(1, result.size) { "Should fallback to original query only" }
             assertEquals("original query", result[0]) { "Should be the original query" }
+        }
+
+        @Test
+        fun `should propagate CancellationException for structured concurrency`() = runTest {
+            every { requestSpec.call() } throws java.util.concurrent.CancellationException("cancelled")
+
+            val transformer = HyDEQueryTransformer(chatClient)
+
+            assertThrows<java.util.concurrent.CancellationException> {
+                transformer.transform("query")
+            }
         }
     }
 

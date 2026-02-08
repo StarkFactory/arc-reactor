@@ -2,7 +2,7 @@ package com.arc.reactor.rag
 
 import com.arc.reactor.rag.impl.InMemoryDocumentRetriever
 import com.arc.reactor.rag.model.RetrievedDocument
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -45,7 +45,7 @@ class MetadataFilteringTest {
     inner class SingleFilter {
 
         @Test
-        fun `should filter by single metadata field`() = runBlocking {
+        fun `should filter by single metadata field`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,
@@ -59,7 +59,7 @@ class MetadataFilteringTest {
         }
 
         @Test
-        fun `should filter by category`() = runBlocking {
+        fun `should filter by category`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,
@@ -75,7 +75,7 @@ class MetadataFilteringTest {
     inner class MultipleFilters {
 
         @Test
-        fun `should apply multiple filters with AND logic`() = runBlocking {
+        fun `should apply multiple filters with AND logic`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,
@@ -89,7 +89,7 @@ class MetadataFilteringTest {
         }
 
         @Test
-        fun `should return empty when filters exclude all matching docs`() = runBlocking {
+        fun `should return empty when filters exclude all matching docs`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,
@@ -106,7 +106,7 @@ class MetadataFilteringTest {
     inner class EmptyFilters {
 
         @Test
-        fun `should return all matching docs when filters are empty`() = runBlocking {
+        fun `should return all matching docs when filters are empty`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,
@@ -117,7 +117,7 @@ class MetadataFilteringTest {
         }
 
         @Test
-        fun `should return all matching docs when no filters parameter`() = runBlocking {
+        fun `should return all matching docs when no filters parameter`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10
@@ -131,7 +131,7 @@ class MetadataFilteringTest {
     inner class FilterWithNonexistentKey {
 
         @Test
-        fun `should return empty when filtering by nonexistent metadata key`() = runBlocking {
+        fun `should return empty when filtering by nonexistent metadata key`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,

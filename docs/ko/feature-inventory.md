@@ -19,7 +19,7 @@
 | **Guard 파이프라인** | 내부 (API 없음) | 활성 | Rate Limit → Input Validation → Injection Detection → Classification → Permission |
 | **Hook 시스템** | 내부 (API 없음) | 활성 | BeforeAgentStart → BeforeToolCall → AfterToolCall → AfterAgentComplete |
 | **도구 실행** | 내부 (API 없음) | 활성 | 로컬 도구 + MCP 도구 자동 발견 |
-| **RAG 파이프라인** | 내부 (API 없음) | 비활성 (설정 가능) | VectorStore 연결 시 자동 활성화 |
+| **RAG 파이프라인** | 내부 (API 없음) | 비활성 (설정 가능) | VectorStore 연결 시 자동 활성화. HyDE·대화문맥 쿼리 변환·메타데이터 필터링 지원 |
 | **멀티에이전트** | `POST /api/multi/*` | **비활성** | @RestController 주석 처리됨 |
 | **세션 목록 조회** | `GET /api/sessions` | 활성 | 세션 요약 목록 (messageCount, lastActivity, preview) |
 | **대화 이력 조회** | `GET /api/sessions/{id}` | 활성 | 특정 세션의 전체 메시지 이력 |

@@ -19,7 +19,7 @@
 | **Guard Pipeline** | Internal (no API) | Active | Rate Limit → Input Validation → Injection Detection → Classification → Permission |
 | **Hook System** | Internal (no API) | Active | BeforeAgentStart → BeforeToolCall → AfterToolCall → AfterAgentComplete |
 | **Tool Execution** | Internal (no API) | Active | Local tools + MCP tool auto-discovery |
-| **RAG Pipeline** | Internal (no API) | Inactive (configurable) | Auto-activates when VectorStore is connected |
+| **RAG Pipeline** | Internal (no API) | Inactive (configurable) | Auto-activates when VectorStore is connected. Supports HyDE, conversation-aware query rewriting, metadata filtering |
 | **Multi-Agent** | `POST /api/multi/*` | **Inactive** | @RestController is commented out |
 | **Session List** | `GET /api/sessions` | Active | Session summary list (messageCount, lastActivity, preview) |
 | **Conversation History** | `GET /api/sessions/{id}` | Active | Full message history for a specific session |

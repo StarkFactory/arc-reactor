@@ -28,6 +28,10 @@ private val logger = KotlinLogging.logger {}
  * and implicit references. These make poor search queries. By rewriting the query
  * to be self-contained, retrieval accuracy improves significantly.
  *
+ * **Thread safety:** This class holds mutable conversation history state.
+ * Do NOT share a single instance across concurrent requests.
+ * Create a new instance per request, or call [updateHistory] exclusively per-request.
+ *
  * @param chatClient Spring AI ChatClient for query rewriting
  * @param conversationHistory Recent conversation turns (set before each pipeline call)
  * @param maxHistoryTurns Maximum conversation turns to include (default: 5)
@@ -58,6 +62,8 @@ class ConversationAwareQueryTransformer(
             } else {
                 listOf(rewrittenQuery)
             }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
             logger.warn(e) { "Conversation-aware query rewriting failed, falling back to original query" }
             listOf(query)

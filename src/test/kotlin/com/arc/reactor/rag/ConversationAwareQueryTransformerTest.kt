@@ -4,6 +4,7 @@ import com.arc.reactor.rag.impl.ConversationAwareQueryTransformer
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -151,6 +152,29 @@ class ConversationAwareQueryTransformerTest {
 
             assertEquals(1, result.size) { "Should return single query" }
             assertEquals("already standalone query", result[0]) { "Should be the original" }
+        }
+
+        @Test
+        fun `should fallback to original query when LLM returns blank`() = runTest {
+            mockLlmResponse("   ")
+
+            val transformer = ConversationAwareQueryTransformer(chatClient)
+            transformer.updateHistory(listOf("some history"))
+            val result = transformer.transform("original query")
+
+            assertEquals(listOf("original query"), result) { "Should fallback to original on blank response" }
+        }
+
+        @Test
+        fun `should propagate CancellationException for structured concurrency`() = runTest {
+            every { requestSpec.call() } throws java.util.concurrent.CancellationException("cancelled")
+
+            val transformer = ConversationAwareQueryTransformer(chatClient)
+            transformer.updateHistory(listOf("some history"))
+
+            assertThrows<java.util.concurrent.CancellationException> {
+                transformer.transform("query")
+            }
         }
     }
 
