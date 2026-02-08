@@ -575,6 +575,193 @@ maxContextWindowTokens (128,000)
 
 ---
 
+## 토큰 관리 전략 — "매번 전체 이력을 보내면 낭비 아닌가?"
+
+### 문제
+
+LLM은 **무상태(stateless)**이다. 매 요청마다 이전 대화를 다시 보내야 맥락을 유지한다.
+세션이 길어질수록 토큰 소비가 급증한다:
+
+```
+1턴:  시스템 프롬프트 + 질문 1개                    → ~500 토큰
+5턴:  시스템 프롬프트 + 질문 5개 + 응답 5개          → ~5,000 토큰
+20턴: 시스템 프롬프트 + 질문 20개 + 응답 20개        → ~20,000 토큰
+50턴: 시스템 프롬프트 + 질문 50개 + 응답 50개        → ~50,000+ 토큰  ← 낭비
+```
+
+### Arc Reactor의 3단계 제한
+
+Arc Reactor는 이 문제를 **3겹의 방어**로 처리한다:
+
+#### 1. 턴 수 제한 (Sliding Window)
+
+```kotlin
+// ConversationManager.kt — loadHistory()
+memory.getHistory().takeLast(properties.llm.maxConversationTurns * 2)
+```
+
+- 기본값: `maxConversationTurns = 10` → 최근 **20개 메시지**만 LLM에 전달
+- 50턴 대화를 했어도 최근 10턴(user 10 + assistant 10)만 보냄
+- 설정: `arc.reactor.llm.max-conversation-turns`
+
+#### 2. DB 저장 한도 (FIFO Eviction)
+
+```kotlin
+// JdbcMemoryStore.kt — evictOldMessages()
+if (count > maxMessagesPerSession) {
+    // DELETE oldest messages
+}
+```
+
+- InMemoryMemoryStore: 세션당 최대 **50개** 메시지
+- JdbcMemoryStore: 세션당 최대 **100개** 메시지
+- 초과 시 가장 오래된 메시지부터 자동 삭제
+
+#### 3. 토큰 기반 잘라내기 (Token Budget)
+
+```kotlin
+// InMemoryConversationMemory.kt — getHistoryWithinTokenLimit()
+for (message in messages.reversed()) {
+    val tokens = tokenEstimator.estimate(message.content)
+    if (totalTokens + tokens > maxTokens) break  // 예산 초과 시 중단
+    result.add(message)
+}
+```
+
+- 역순 순회: 최신 메시지부터 포함, 예산 초과 시 오래된 메시지 제외
+- CJK 문자 인식: 한글은 ~1.5자/토큰으로 계산 (영문 4자/토큰보다 높음)
+
+### 실제 토큰 사용량 시뮬레이션
+
+기본 설정(`maxConversationTurns=10`)일 때:
+
+| 시나리오 | 실제 전송되는 이력 | 예상 토큰 | 128K 대비 |
+|----------|------------------|----------|----------|
+| 1턴 대화 | 메시지 2개 (user+assistant) | ~200~800 | 0.2~0.6% |
+| 5턴 대화 | 메시지 10개 | ~2,000~4,000 | 1.6~3.1% |
+| 10턴 대화 | 메시지 20개 (최대) | ~4,000~8,000 | 3.1~6.3% |
+| 50턴 대화 | 메시지 20개 (최근 10턴만) | ~4,000~8,000 | 3.1~6.3% |
+
+**결론:** 기본 설정에서 대화 이력은 컨텍스트 윈도우의 **3~6% 수준**으로 유지된다.
+
+### 업계 비교: ChatGPT 등은 어떻게 하는가?
+
+| 전략 | 설명 | 사용처 | Arc Reactor |
+|------|------|--------|-------------|
+| **Sliding Window** | 최근 N턴만 전송 | 대부분의 AI 서비스 | **사용 중** (`maxConversationTurns`) |
+| **Summarization** | 오래된 대화를 LLM으로 요약, system prompt에 포함 | ChatGPT (추정), Claude | 미구현 |
+| **RAG 기반 검색** | 대화 이력을 벡터 DB에 저장, 관련 과거 대화만 검색 | 일부 기업용 서비스 | 미구현 (대화 이력 대상) |
+| **혼합** | 요약 + 최근 원문 + RAG | ChatGPT (추정) | 미구현 |
+
+**ChatGPT의 추정 방식:**
+
+```
+[System Prompt]
+[Memory: 사용자가 Python 개발자이고, 한국어를 선호함]    ← 장기 기억 (요약)
+[Summary: 이전에 환불 절차에 대해 논의함]                ← 대화 요약
+[Recent 5-10 turns raw messages]                         ← 최근 대화 원문
+[Current user message]                                    ← 현재 질문
+```
+
+ChatGPT는 Sliding Window + Summarization을 혼합하는 것으로 추정된다.
+오래된 대화는 요약본으로, 최근 대화는 원문 그대로 합쳐서 보낸다.
+
+### 향후 개선 가능성
+
+Arc Reactor에 Summarization을 추가하려면:
+
+```kotlin
+// 1. 오래된 대화를 LLM에 요약 요청
+val summary = llm.call("Summarize this conversation in 3 sentences: $oldHistory")
+
+// 2. 요약을 system prompt에 주입
+val systemPrompt = """
+$basePrompt
+
+[Conversation Summary]
+$summary
+"""
+
+// 3. 최근 N턴 원문 + 요약을 합쳐서 전달
+```
+
+**트레이드오프:**
+- 장점: 오래된 맥락 보존, 토큰 효율 증가
+- 단점: 매 턴마다 요약 LLM 호출 비용 추가 (지연 + 비용)
+- 현실적 타협: N턴마다 한 번씩 배치 요약 (매 턴이 아닌)
+
+---
+
+## RAG 현재 상태
+
+### 구현 현황
+
+RAG 파이프라인은 **완전히 구현**되어 있지만, **기본 비활성화** 상태이다:
+
+```yaml
+# application.yml
+arc:
+  reactor:
+    rag:
+      enabled: false  # ← 기본값: 꺼져 있음
+```
+
+| 컴포넌트 | 상태 | 구현체 |
+|----------|------|--------|
+| RagPipeline | 구현 완료 | `DefaultRagPipeline` (4단계) |
+| DocumentRetriever | 구현 완료 | `SpringAiVectorStoreRetriever` + `InMemoryDocumentRetriever` |
+| DocumentReranker | 구현 완료 | `SimpleScoreReranker` + `KeywordWeightedReranker` + `DiversityReranker` |
+| ContextBuilder | 구현 완료 | `SimpleContextBuilder` (토큰 인식) |
+| QueryTransformer | 구현 완료 | `PassthroughQueryTransformer` (확장 가능) |
+| VectorStore | **의존성만** | `compileOnly` — 활성화하려면 `implementation`으로 변경 |
+
+### 벡터 DB 지원
+
+```kotlin
+// build.gradle.kts — compileOnly (사용자가 필요 시 implementation으로 전환)
+compileOnly("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
+compileOnly("org.springframework.ai:spring-ai-starter-vector-store-pinecone")
+compileOnly("org.springframework.ai:spring-ai-starter-vector-store-chroma")
+```
+
+pgvector, Pinecone, Chroma 등을 Spring AI의 `VectorStore` 추상화를 통해 지원한다.
+코드 수정 없이 의존성 + 설정만 바꾸면 활성화된다.
+
+### RAG vs 대화 메모리 — 혼동 주의
+
+이 두 시스템은 **목적이 완전히 다르다:**
+
+| | 대화 메모리 (Memory) | RAG |
+|---|---|---|
+| **대상** | 현재 세션의 대화 이력 | 외부 지식 베이스 (문서, PDF, DB 등) |
+| **목적** | "아까 뭐라고 했지?" 맥락 유지 | "이 문서에 뭐라고 써있지?" 지식 검색 |
+| **데이터 원천** | conversation_messages 테이블 | VectorStore (벡터 DB) |
+| **자동 축적** | 대화하면 자동 저장 | 사전에 문서를 인덱싱해야 함 |
+| **사용 시점** | 매 요청 | `rag.enabled: true`일 때만 |
+
+### 벡터 DB는 기업 전용인가?
+
+**아니다.** ChatGPT도 벡터 검색을 사용한다:
+
+| 서비스 | 벡터 검색 사용 | 용도 |
+|--------|---------------|------|
+| **ChatGPT** | 사용 | 파일 업로드 검색 (Code Interpreter), GPTs의 Knowledge |
+| **Claude** | 사용 | Projects의 파일 검색 |
+| **Perplexity** | 사용 | 웹 검색 결과 재정렬 |
+| **기업 챗봇** | 사용 | 사내 문서 검색 (가장 흔한 사용처) |
+| **Cursor/GitHub Copilot** | 사용 | 코드베이스 검색 |
+
+벡터 DB의 용도:
+- **범용 AI 서비스**: 사용자가 업로드한 파일 검색 (ChatGPT Files, Claude Projects)
+- **기업용**: 사내 문서, 매뉴얼, FAQ 검색 (가장 일반적인 RAG 사용처)
+- **개발 도구**: 코드베이스 임베딩 + 검색
+
+**ChatGPT의 "대화 기억"은 벡터 검색이 아니다:**
+ChatGPT의 Memory 기능("사용자가 Python 개발자임을 기억")은 벡터 DB가 아닌,
+key-value 형태의 사실 목록을 system prompt에 주입하는 방식으로 추정된다.
+
+---
+
 ## 설계 결정
 
 | 결정 | 근거 |
@@ -586,3 +773,5 @@ maxContextWindowTokens (128,000)
 | QueryTransformer/Reranker 선택적 | 불필요한 단계를 건너뛰어 성능 최적화 |
 | Caffeine 캐시 (InMemory) | LRU 자동 정리, 단일 프로세스에 적합 |
 | JDBC는 compileOnly | 선택적 의존 — PostgreSQL 불필요 시 제외 가능 |
+| RAG 기본 비활성화 | VectorStore 없으면 무의미 — 필요한 사용자만 활성화 |
+| Sliding Window 우선 | 구현 간단 + 대부분의 시나리오에서 충분 — Summarization은 추후 고려 |

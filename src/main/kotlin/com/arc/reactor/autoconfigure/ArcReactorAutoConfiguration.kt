@@ -29,6 +29,9 @@ import com.arc.reactor.memory.InMemoryMemoryStore
 import com.arc.reactor.memory.JdbcMemoryStore
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.TokenEstimator
+import com.arc.reactor.persona.InMemoryPersonaStore
+import com.arc.reactor.persona.JdbcPersonaStore
+import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
@@ -91,7 +94,20 @@ class ArcReactorAutoConfiguration {
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate,
             tokenEstimator: TokenEstimator
         ): MemoryStore = JdbcMemoryStore(jdbcTemplate = jdbcTemplate, tokenEstimator = tokenEstimator)
+
+        @Bean
+        @Primary
+        fun jdbcPersonaStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
+        ): PersonaStore = JdbcPersonaStore(jdbcTemplate = jdbcTemplate)
     }
+
+    /**
+     * Persona Store: In-memory fallback (when no DataSource/JDBC)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun personaStore(): PersonaStore = InMemoryPersonaStore()
 
     /**
      * Error Message Resolver (default: English messages)

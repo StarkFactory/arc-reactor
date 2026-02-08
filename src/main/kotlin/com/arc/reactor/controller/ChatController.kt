@@ -4,6 +4,7 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.persona.PersonaStore
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import kotlinx.coroutines.flow.Flow
@@ -36,7 +37,8 @@ import reactor.core.publisher.Flux
 @RestController
 @RequestMapping("/api/chat")
 class ChatController(
-    private val agentExecutor: AgentExecutor
+    private val agentExecutor: AgentExecutor,
+    private val personaStore: PersonaStore? = null
 ) {
 
     /**
@@ -52,7 +54,7 @@ class ChatController(
     suspend fun chat(@Valid @RequestBody request: ChatRequest): ChatResponse {
         val result = agentExecutor.execute(
             AgentCommand(
-                systemPrompt = request.systemPrompt ?: DEFAULT_SYSTEM_PROMPT,
+                systemPrompt = resolveSystemPrompt(request),
                 userPrompt = request.message,
                 model = request.model,
                 userId = request.userId,
@@ -90,7 +92,7 @@ class ChatController(
     fun chatStream(@Valid @RequestBody request: ChatRequest): Flux<ServerSentEvent<String>> {
         val flow: Flow<String> = agentExecutor.executeStream(
             AgentCommand(
-                systemPrompt = request.systemPrompt ?: DEFAULT_SYSTEM_PROMPT,
+                systemPrompt = resolveSystemPrompt(request),
                 userPrompt = request.message,
                 model = request.model,
                 userId = request.userId,
@@ -129,8 +131,24 @@ class ChatController(
         }
     }
 
+    /**
+     * Resolve the system prompt with priority:
+     * 1. personaId → lookup from PersonaStore
+     * 2. request.systemPrompt → direct override
+     * 3. Default persona from PersonaStore
+     * 4. Hardcoded fallback
+     */
+    private fun resolveSystemPrompt(request: ChatRequest): String {
+        if (request.personaId != null && personaStore != null) {
+            personaStore.get(request.personaId)?.systemPrompt?.let { return it }
+        }
+        if (!request.systemPrompt.isNullOrBlank()) return request.systemPrompt
+        personaStore?.getDefault()?.systemPrompt?.let { return it }
+        return DEFAULT_SYSTEM_PROMPT
+    }
+
     companion object {
-        private const val DEFAULT_SYSTEM_PROMPT =
+        internal const val DEFAULT_SYSTEM_PROMPT =
             "You are a helpful AI assistant. You can use tools when needed. " +
                 "Answer in the same language as the user's message."
     }
@@ -144,6 +162,7 @@ data class ChatRequest(
     val message: String,
     val model: String? = null,
     val systemPrompt: String? = null,
+    val personaId: String? = null,
     val userId: String? = null,
     val metadata: Map<String, Any>? = null,
     val responseFormat: ResponseFormat? = null,
