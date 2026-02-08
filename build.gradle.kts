@@ -78,10 +78,18 @@ dependencies {
     compileOnly("org.springframework.ai:spring-ai-starter-vector-store-chroma")
 
     // Optional: JDBC + PostgreSQL (for JdbcMemoryStore)
-    compileOnly("org.springframework.boot:spring-boot-starter-jdbc")
-    compileOnly("org.postgresql:postgresql")
-    compileOnly("org.flywaydb:flyway-core")
-    compileOnly("org.flywaydb:flyway-database-postgresql")
+    // Pass -Pdb=true to include in runtime classpath (e.g., Docker builds)
+    if (project.hasProperty("db")) {
+        implementation("org.springframework.boot:spring-boot-starter-jdbc")
+        implementation("org.postgresql:postgresql")
+        implementation("org.flywaydb:flyway-core")
+        implementation("org.flywaydb:flyway-database-postgresql")
+    } else {
+        compileOnly("org.springframework.boot:spring-boot-starter-jdbc")
+        compileOnly("org.postgresql:postgresql")
+        compileOnly("org.flywaydb:flyway-core")
+        compileOnly("org.flywaydb:flyway-database-postgresql")
+    }
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")

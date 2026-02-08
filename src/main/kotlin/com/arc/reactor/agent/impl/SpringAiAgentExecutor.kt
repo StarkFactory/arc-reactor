@@ -940,8 +940,9 @@ class SpringAiAgentExecutor(
                 trimMessagesToFitContext(messages, systemPrompt)
 
                 val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
-                val response = callWithRetry { kotlinx.coroutines.runInterruptible { requestSpec.call() } }
-                val chatResponse = response.chatResponse()
+                val chatResponse = callWithRetry {
+                    kotlinx.coroutines.runInterruptible { requestSpec.call().chatResponse() }
+                }
 
                 totalTokenUsage = accumulateTokenUsage(chatResponse, totalTokenUsage)
 
@@ -952,7 +953,7 @@ class SpringAiAgentExecutor(
                 if (pendingToolCalls.isEmpty() || activeTools.isEmpty()) {
                     // No tool calls — return final content
                     return AgentResult.success(
-                        content = response.content() ?: "",
+                        content = assistantOutput?.text.orEmpty(),
                         toolsUsed = ArrayList(toolsUsed),
                         tokenUsage = totalTokenUsage
                     )

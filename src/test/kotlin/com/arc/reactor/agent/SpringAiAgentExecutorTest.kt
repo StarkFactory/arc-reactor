@@ -52,8 +52,7 @@ class SpringAiAgentExecutorTest {
         @Test
         fun `should execute simple command successfully`() = runBlocking {
             // Arrange
-            every { fixture.callResponseSpec.content() } returns "Hello! How can I help you?"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Hello! How can I help you?")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -153,8 +152,7 @@ class SpringAiAgentExecutorTest {
             // Arrange
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Allowed.DEFAULT
-            every { fixture.callResponseSpec.content() } returns "Response"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Response")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -205,8 +203,7 @@ class SpringAiAgentExecutorTest {
                 afterCompleteHooks = listOf(afterHook)
             )
 
-            every { fixture.callResponseSpec.content() } returns "Response"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Response")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -270,8 +267,7 @@ class SpringAiAgentExecutorTest {
 
             val hookExecutor = HookExecutor(afterCompleteHooks = listOf(throwingAfterHook))
 
-            every { fixture.callResponseSpec.content() } returns "Successful response"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Successful response")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -300,8 +296,7 @@ class SpringAiAgentExecutorTest {
         fun `should save conversation to memory`() = runBlocking {
             // Arrange
             val memoryStore = InMemoryMemoryStore()
-            every { fixture.callResponseSpec.content() } returns "Hello there!"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Hello there!")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -333,8 +328,7 @@ class SpringAiAgentExecutorTest {
             memoryStore.addMessage("session-123", "user", "Previous question")
             memoryStore.addMessage("session-123", "assistant", "Previous answer")
 
-            every { fixture.callResponseSpec.content() } returns "New response"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("New response")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -359,8 +353,7 @@ class SpringAiAgentExecutorTest {
         fun `should save memory with non-String sessionId type`() = runBlocking {
             // Arrange
             val memoryStore = InMemoryMemoryStore()
-            every { fixture.callResponseSpec.content() } returns "Response"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Response")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -509,8 +502,7 @@ class SpringAiAgentExecutorTest {
                 override val description = "MCP Tool"
                 override suspend fun call(arguments: Map<String, Any?>) = "result"
             }
-            every { fixture.callResponseSpec.content() } returns "Response"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Response")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -542,8 +534,7 @@ class SpringAiAgentExecutorTest {
             }
             val limitedProperties = properties.copy(maxToolsPerRequest = 5)
 
-            every { fixture.callResponseSpec.content() } returns "Response"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Response")
 
             every { fixture.requestSpec.tools(*anyVararg<Any>()) } returns fixture.requestSpec
 

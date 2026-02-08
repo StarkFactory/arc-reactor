@@ -26,6 +26,6 @@ class ChatClientConfig {
         val defaultBeanName = chatModels.keys.firstOrNull { beanName ->
             ChatModelProvider.resolveProviderName(beanName) == properties.llm.defaultProvider
         } ?: chatModels.keys.first()
-        return ChatClient.create(chatModels[defaultBeanName]!!)
+        return ChatClient.builder(chatModels[defaultBeanName]!!).build()
     }
 }

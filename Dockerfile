@@ -8,11 +8,19 @@
 # Stage 1: Build
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /workspace
+
+# Pass --build-arg ENABLE_DB=true to include PostgreSQL/JDBC in runtime
+ARG ENABLE_DB=false
+
 COPY gradle/ gradle/
 COPY gradlew settings.gradle.kts build.gradle.kts ./
 RUN ./gradlew dependencies --no-daemon || true
 COPY src/ src/
-RUN ./gradlew bootJar --no-daemon -x test
+RUN if [ "$ENABLE_DB" = "true" ]; then \
+      ./gradlew bootJar --no-daemon -x test -Pdb=true; \
+    else \
+      ./gradlew bootJar --no-daemon -x test; \
+    fi
 
 # Stage 2: Run
 FROM eclipse-temurin:21-jre-alpine

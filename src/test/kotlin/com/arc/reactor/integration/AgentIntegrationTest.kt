@@ -78,8 +78,7 @@ class AgentIntegrationTest {
                 afterCompleteHooks = listOf(afterHook)
             )
 
-            every { fixture.callResponseSpec.content() } returns "Hello! I'm here to help."
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Hello! I'm here to help.")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -166,8 +165,7 @@ class AgentIntegrationTest {
                 DefaultRateLimitStage(requestsPerMinute = 2, requestsPerHour = 10)
             ))
 
-            every { fixture.callResponseSpec.content() } returns "Response"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Response")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -294,8 +292,7 @@ class AgentIntegrationTest {
                 DefaultInputValidationStage(maxLength = 10000)
             ))
 
-            every { fixture.callResponseSpec.content() } returns "Response"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Response")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -335,11 +332,10 @@ class AgentIntegrationTest {
         @Test
         fun `full pipeline - multi-turn conversation with memory`() = runBlocking {
             // Arrange
-            every { fixture.callResponseSpec.content() } returnsMany listOf(
-                "Hello! I'm Arc, your AI assistant.",
-                "You asked: 'Hello!' - I'm still here to help!"
+            every { fixture.callResponseSpec.chatResponse() } returnsMany listOf(
+                AgentTestFixture.simpleChatResponse("Hello! I'm Arc, your AI assistant."),
+                AgentTestFixture.simpleChatResponse("You asked: 'Hello!' - I'm still here to help!")
             )
-            every { fixture.callResponseSpec.chatResponse() } returns null
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,

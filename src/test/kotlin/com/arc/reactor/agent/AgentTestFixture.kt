@@ -44,8 +44,7 @@ class AgentTestFixture {
 
     /** Set up a simple successful call response. */
     fun mockCallResponse(content: String = "Response") {
-        every { callResponseSpec.content() } returns content
-        every { callResponseSpec.chatResponse() } returns null
+        every { callResponseSpec.chatResponse() } returns simpleChatResponse(content)
     }
 
     /** Create a CallResponseSpec containing tool calls (triggers ReAct loop). */
@@ -58,7 +57,6 @@ class AgentTestFixture {
         every { chatResponse.metadata } returns mockk(relaxed = true)
 
         val spec = mockk<CallResponseSpec>()
-        every { spec.content() } returns ""
         every { spec.chatResponse() } returns chatResponse
         return spec
     }
@@ -66,12 +64,17 @@ class AgentTestFixture {
     /** Create a CallResponseSpec for a final (no tool call) response. */
     fun mockFinalResponse(content: String): CallResponseSpec {
         val spec = mockk<CallResponseSpec>()
-        every { spec.content() } returns content
-        every { spec.chatResponse() } returns null
+        every { spec.chatResponse() } returns simpleChatResponse(content)
         return spec
     }
 
     companion object {
+
+        /** Build a ChatResponse with text content (no tool calls). */
+        fun simpleChatResponse(content: String): ChatResponse {
+            val assistantMsg = AssistantMessage(content)
+            return ChatResponse(listOf(Generation(assistantMsg)))
+        }
 
         fun defaultProperties(): AgentProperties = AgentProperties(
             llm = LlmProperties(),

@@ -52,7 +52,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import javax.sql.DataSource
+import org.springframework.context.annotation.Primary
 
 /**
  * Arc Reactor Auto Configuration
@@ -82,11 +82,11 @@ class ArcReactorAutoConfiguration {
      */
     @Configuration
     @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
-    @ConditionalOnBean(DataSource::class)
+    @ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
     class JdbcMemoryStoreConfiguration {
 
         @Bean
-        @ConditionalOnMissingBean
+        @Primary
         fun jdbcMemoryStore(
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate,
             tokenEstimator: TokenEstimator

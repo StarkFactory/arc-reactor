@@ -43,8 +43,7 @@ class RetryTest {
                 }
                 fixture.callResponseSpec
             }
-            every { fixture.callResponseSpec.content() } returns "Success after retry"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Success after retry")
 
             val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
@@ -68,8 +67,7 @@ class RetryTest {
                 }
                 fixture.callResponseSpec
             }
-            every { fixture.callResponseSpec.content() } returns "Recovered"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Recovered")
 
             val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
@@ -92,8 +90,7 @@ class RetryTest {
                 }
                 fixture.callResponseSpec
             }
-            every { fixture.callResponseSpec.content() } returns "Recovered"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Recovered")
 
             val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
@@ -162,8 +159,7 @@ class RetryTest {
                 }
                 fixture.callResponseSpec
             }
-            every { fixture.callResponseSpec.content() } returns "OK"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("OK")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -203,8 +199,7 @@ class RetryTest {
                 callCount.incrementAndGet()
                 fixture.callResponseSpec
             }
-            every { fixture.callResponseSpec.content() } returns "OK"
-            every { fixture.callResponseSpec.chatResponse() } returns null
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("OK")
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,

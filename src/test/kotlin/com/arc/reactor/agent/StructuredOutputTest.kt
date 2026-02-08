@@ -21,8 +21,7 @@ class StructuredOutputTest {
     @BeforeEach
     fun setup() {
         fixture = AgentTestFixture()
-        every { fixture.callResponseSpec.content() } returns """{"result": "hello"}"""
-        every { fixture.callResponseSpec.chatResponse() } returns null
+        every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("""{"result": "hello"}""")
         properties = AgentProperties()
     }
 
@@ -100,7 +99,7 @@ class StructuredOutputTest {
 
         @Test
         fun `JSON format should work with successful response`() = runBlocking {
-            every { fixture.callResponseSpec.content() } returns """{"name": "Arc", "version": "1.0"}"""
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("""{"name": "Arc", "version": "1.0"}""")
 
             val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
