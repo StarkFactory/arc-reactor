@@ -47,8 +47,8 @@ arc:
 
     guard:
       enabled: true
-      rate-limit-per-minute: 60
-      rate-limit-per-hour: 500
+      rate-limit-per-minute: 20
+      rate-limit-per-hour: 200
       max-input-length: 10000
 
     rag:
