@@ -4,6 +4,7 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.persona.PersonaStore
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Flux
 
 /**
@@ -51,13 +53,16 @@ class ChatController(
      * ```
      */
     @PostMapping
-    suspend fun chat(@Valid @RequestBody request: ChatRequest): ChatResponse {
+    suspend fun chat(
+        @Valid @RequestBody request: ChatRequest,
+        exchange: ServerWebExchange
+    ): ChatResponse {
         val result = agentExecutor.execute(
             AgentCommand(
                 systemPrompt = resolveSystemPrompt(request),
                 userPrompt = request.message,
                 model = request.model,
-                userId = request.userId,
+                userId = resolveUserId(exchange, request),
                 metadata = request.metadata ?: emptyMap(),
                 responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
                 responseSchema = request.responseSchema
@@ -89,13 +94,16 @@ class ChatController(
      * ```
      */
     @PostMapping("/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun chatStream(@Valid @RequestBody request: ChatRequest): Flux<ServerSentEvent<String>> {
+    fun chatStream(
+        @Valid @RequestBody request: ChatRequest,
+        exchange: ServerWebExchange
+    ): Flux<ServerSentEvent<String>> {
         val flow: Flow<String> = agentExecutor.executeStream(
             AgentCommand(
                 systemPrompt = resolveSystemPrompt(request),
                 userPrompt = request.message,
                 model = request.model,
-                userId = request.userId,
+                userId = resolveUserId(exchange, request),
                 metadata = request.metadata ?: emptyMap(),
                 responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
                 responseSchema = request.responseSchema
@@ -129,6 +137,18 @@ class ChatController(
                 .data(chunk)
                 .build()
         }
+    }
+
+    /**
+     * Resolve userId with priority:
+     * 1. JWT token (from WebFilter via exchange attributes)
+     * 2. Request body userId field
+     * 3. "anonymous" fallback
+     */
+    private fun resolveUserId(exchange: ServerWebExchange, request: ChatRequest): String {
+        return exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
+            ?: request.userId
+            ?: "anonymous"
     }
 
     /**

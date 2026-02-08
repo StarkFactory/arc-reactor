@@ -91,6 +91,20 @@ dependencies {
         compileOnly("org.flywaydb:flyway-database-postgresql")
     }
 
+    // Optional: JWT Auth (JJWT + Spring Security Crypto for BCrypt)
+    // Pass -Pauth=true to include in runtime classpath (e.g., Docker builds)
+    if (project.hasProperty("auth")) {
+        implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+        runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+        runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+        implementation("org.springframework.security:spring-security-crypto")
+    } else {
+        compileOnly("io.jsonwebtoken:jjwt-api:0.12.6")
+        compileOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+        compileOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+        compileOnly("org.springframework.security:spring-security-crypto")
+    }
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.projectreactor:reactor-test")
@@ -101,6 +115,10 @@ dependencies {
     testImplementation("io.kotest.extensions:kotest-extensions-spring:1.3.0")
     testImplementation("io.mockk:mockk:1.14.5")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("io.jsonwebtoken:jjwt-api:0.12.6")
+    testRuntimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    testRuntimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+    testImplementation("org.springframework.security:spring-security-crypto")
 }
 
 tasks.withType<Test> {

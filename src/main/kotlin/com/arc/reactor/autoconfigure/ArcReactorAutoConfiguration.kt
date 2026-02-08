@@ -2,6 +2,14 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.auth.AuthProperties
+import com.arc.reactor.auth.AuthProvider
+import com.arc.reactor.auth.DefaultAuthProvider
+import com.arc.reactor.auth.InMemoryUserStore
+import com.arc.reactor.auth.JdbcUserStore
+import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.auth.JwtTokenProvider
+import com.arc.reactor.auth.UserStore
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.impl.defaultTransientErrorClassifier
@@ -56,6 +64,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
+import org.springframework.core.env.Environment
+import org.springframework.web.server.WebFilter
 
 /**
  * Arc Reactor Auto Configuration
@@ -266,6 +276,73 @@ class ArcReactorAutoConfiguration {
             ChatModelProvider.resolveProviderName(beanName) to model
         }.toMap()
         return ChatModelProvider(providerMap, properties.llm.defaultProvider)
+    }
+
+    /**
+     * Auth Configuration (only when arc.reactor.auth.enabled=true)
+     */
+    @Configuration
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.auth", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    @ConditionalOnClass(name = ["io.jsonwebtoken.Jwts"])
+    class AuthConfiguration {
+
+        @Bean
+        fun authProperties(environment: Environment): AuthProperties {
+            val publicPathsCsv = environment.getProperty("arc.reactor.auth.public-paths")
+            val publicPaths = publicPathsCsv?.split(",")?.map { it.trim() }
+                ?: listOf("/api/auth/login", "/api/auth/register")
+
+            return AuthProperties(
+                enabled = true,
+                jwtSecret = environment.getProperty("arc.reactor.auth.jwt-secret", ""),
+                jwtExpirationMs = environment.getProperty(
+                    "arc.reactor.auth.jwt-expiration-ms", Long::class.java, 86_400_000L
+                ),
+                publicPaths = publicPaths
+            )
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun userStore(): UserStore = InMemoryUserStore()
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun authProvider(userStore: UserStore): AuthProvider = DefaultAuthProvider(userStore)
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun jwtTokenProvider(authProperties: AuthProperties): JwtTokenProvider =
+            JwtTokenProvider(authProperties)
+
+        @Bean
+        @ConditionalOnMissingBean(name = ["jwtAuthWebFilter"])
+        fun jwtAuthWebFilter(
+            jwtTokenProvider: JwtTokenProvider,
+            authProperties: AuthProperties
+        ): WebFilter = JwtAuthWebFilter(jwtTokenProvider, authProperties)
+    }
+
+    /**
+     * JDBC Auth Configuration (when JDBC is available and auth is enabled)
+     */
+    @Configuration
+    @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate", "io.jsonwebtoken.Jwts"])
+    @ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
+    class JdbcAuthConfiguration {
+
+        @Bean
+        @Primary
+        @ConditionalOnProperty(
+            prefix = "arc.reactor.auth", name = ["enabled"],
+            havingValue = "true", matchIfMissing = false
+        )
+        fun jdbcUserStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
+        ): UserStore = JdbcUserStore(jdbcTemplate)
     }
 
     /**
