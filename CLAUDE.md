@@ -26,7 +26,7 @@ Request flow: Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(
 - `ArcReactorAutoConfiguration` — All bean auto-configuration. Override via @ConditionalOnMissingBean
 - `ConversationManager` — Conversation history management, extracted from executor
 
-Details: @docs/ko/architecture.md, @docs/ko/tools.md, @docs/ko/supervisor-pattern.md
+Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-pattern.md
 
 ## Design Principles
 

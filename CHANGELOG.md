@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-02-07
 
 ### Added
-- **Multi-Agent Orchestration**: Sequential (체이닝), Parallel (동시실행+ResultMerger), Supervisor (WorkerAgentTool로 위임) 패턴. DSL 빌더 API `MultiAgent.sequential/parallel/supervisor()`
+- **Multi-Agent Orchestration**: Sequential (chaining), Parallel (concurrent execution + ResultMerger), Supervisor (delegation via WorkerAgentTool) patterns. DSL builder API `MultiAgent.sequential/parallel/supervisor()`
 - **Context Window Management**: Token-based message trimming that preserves the current user prompt and maintains AssistantMessage + ToolResponseMessage pair integrity
 - **LLM Retry**: Exponential backoff with +-25% jitter for transient errors (rate limit, timeout, 5xx). Configurable via `RetryProperties` with custom `transientErrorClassifier` support
 - **Parallel Tool Execution**: Concurrent tool calls via `coroutineScope { async {} }.awaitAll()` with preserved result ordering and per-tool Hook lifecycle
@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **AgentResult.errorCode**: Programmatic error classification (`GUARD_REJECTED`, `HOOK_REJECTED`, `RATE_LIMITED`, `TIMEOUT`, `CONTEXT_TOO_LONG`, `TOOL_ERROR`, `UNKNOWN`)
 - **Fork-Friendliness**: Dockerfile (multi-stage, non-root), docker-compose.yml (PostgreSQL), .env.example, .editorconfig, .dockerignore, GitHub Actions CI
 - **Example Code**: WeatherTool, AuditLogHook, BudgetLimitHook, BusinessHoursGuard, PiiDetectionGuard
-- **Documentation**: 멀티에이전트 가이드 (한글), 아키텍처 가이드, 배포 가이드
+- **Documentation**: Multi-agent guide, architecture guide, deployment guide
 - `TokenEstimator` interface with CJK-aware default implementation
 - `ResponseFormat` enum (TEXT, JSON) on `AgentCommand`
 

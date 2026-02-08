@@ -159,7 +159,7 @@ val result = MultiAgent.supervisor()
     .execute(command, agentFactory)
 ```
 
-> See the [Multi-Agent Guide](docs/ko/multi-agent.md) for details.
+> See the [Multi-Agent Guide](docs/en/multi-agent.md) for details.
 
 ## Architecture
 
@@ -437,20 +437,20 @@ src/main/kotlin/com/arc/reactor/
 
 ## Documentation
 
-- [Architecture Guide](docs/ko/architecture.md) - Internal structure and error handling
-- [ReAct Loop Internals](docs/ko/react-loop.md) - Core execution engine, parallel tool execution, context trimming, retry
-- [Guard & Hook System](docs/ko/guard-hook.md) - 5-stage security pipeline, 4 lifecycle extension points
-- [Memory & RAG Pipeline](docs/ko/memory-rag.md) - Conversation history, 4-stage retrieval-augmented generation
-- [Tool Guide](docs/ko/tools.md) - 3 tool types, registration, MCP connection
-- [MCP Integration Guide](docs/ko/mcp.md) - McpManager, STDIO/SSE transports, dynamic tool loading
-- [Configuration Reference](docs/ko/configuration.md) - Full YAML settings, auto-configuration, production examples
-- [Data Models & API](docs/ko/api-models.md) - AgentCommand/Result, error handling, metrics, REST API
-- [Multi-Agent Guide](docs/ko/multi-agent.md) - Sequential / Parallel / Supervisor patterns
-- [Supervisor Pattern Deep Dive](docs/ko/supervisor-pattern.md) - WorkerAgentTool internals, practical usage
-- [Deployment Guide](docs/ko/deployment.md) - Docker, environment variables, production checklist
-- [Authentication Guide](docs/ko/authentication.md) - JWT auth, AuthProvider customization, session isolation
-- [Session & Persona Guide](docs/ko/session-management.md) - Session API, persona management, data architecture
-- [Feature Inventory](docs/ko/feature-inventory.md) - Complete feature matrix, data architecture, DB schema
+- [Architecture Guide](docs/en/architecture.md) - Internal structure and error handling
+- [ReAct Loop Internals](docs/en/react-loop.md) - Core execution engine, parallel tool execution, context trimming, retry
+- [Guard & Hook System](docs/en/guard-hook.md) - 5-stage security pipeline, 4 lifecycle extension points
+- [Memory & RAG Pipeline](docs/en/memory-rag.md) - Conversation history, 4-stage retrieval-augmented generation
+- [Tool Guide](docs/en/tools.md) - 3 tool types, registration, MCP connection
+- [MCP Integration Guide](docs/en/mcp.md) - McpManager, STDIO/SSE transports, dynamic tool loading
+- [Configuration Reference](docs/en/configuration.md) - Full YAML settings, auto-configuration, production examples
+- [Data Models & API](docs/en/api-models.md) - AgentCommand/Result, error handling, metrics, REST API
+- [Multi-Agent Guide](docs/en/multi-agent.md) - Sequential / Parallel / Supervisor patterns
+- [Supervisor Pattern Deep Dive](docs/en/supervisor-pattern.md) - WorkerAgentTool internals, practical usage
+- [Deployment Guide](docs/en/deployment.md) - Docker, environment variables, production checklist
+- [Authentication Guide](docs/en/authentication.md) - JWT auth, AuthProvider customization, session isolation
+- [Session & Persona Guide](docs/en/session-management.md) - Session API, persona management, data architecture
+- [Feature Inventory](docs/en/feature-inventory.md) - Complete feature matrix, data architecture, DB schema
 
 ## Requirements
 
