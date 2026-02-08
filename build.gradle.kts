@@ -59,10 +59,12 @@ dependencies {
     // Optional: Micrometer (for metrics/observability)
     compileOnly("io.micrometer:micrometer-core")
 
-    // LLM Providers (auto-configured when API key is set)
+    // LLM Providers
     implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
-    implementation("org.springframework.ai:spring-ai-starter-model-openai")
-    implementation("org.springframework.ai:spring-ai-starter-model-anthropic")
+
+    // Optional LLM Providers (switch to implementation when needed)
+    compileOnly("org.springframework.ai:spring-ai-starter-model-openai")
+    compileOnly("org.springframework.ai:spring-ai-starter-model-anthropic")
 
     // Optional: Google Vertex AI (alternative to google-genai)
     compileOnly("org.springframework.ai:spring-ai-starter-model-vertex-ai-gemini")
