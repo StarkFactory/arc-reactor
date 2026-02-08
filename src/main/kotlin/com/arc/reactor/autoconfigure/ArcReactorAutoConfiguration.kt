@@ -52,7 +52,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.jdbc.core.JdbcTemplate
 import javax.sql.DataSource
 
 /**
@@ -72,21 +71,27 @@ class ArcReactorAutoConfiguration {
     fun toolSelector(): ToolSelector = AllToolSelector()
 
     /**
-     * Memory Store: JDBC-backed (when DataSource is available)
-     */
-    @Bean
-    @ConditionalOnClass(JdbcTemplate::class)
-    @ConditionalOnBean(DataSource::class)
-    @ConditionalOnMissingBean
-    fun jdbcMemoryStore(jdbcTemplate: JdbcTemplate, tokenEstimator: TokenEstimator): MemoryStore =
-        JdbcMemoryStore(jdbcTemplate = jdbcTemplate, tokenEstimator = tokenEstimator)
-
-    /**
-     * Memory Store: In-memory fallback (when no DataSource)
+     * Memory Store: In-memory fallback (when no DataSource/JDBC)
      */
     @Bean
     @ConditionalOnMissingBean
     fun memoryStore(): MemoryStore = InMemoryMemoryStore()
+
+    /**
+     * JDBC Memory Store Configuration (only loaded when JDBC is on classpath)
+     */
+    @Configuration
+    @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
+    @ConditionalOnBean(DataSource::class)
+    class JdbcMemoryStoreConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun jdbcMemoryStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate,
+            tokenEstimator: TokenEstimator
+        ): MemoryStore = JdbcMemoryStore(jdbcTemplate = jdbcTemplate, tokenEstimator = tokenEstimator)
+    }
 
     /**
      * Error Message Resolver (default: English messages)
