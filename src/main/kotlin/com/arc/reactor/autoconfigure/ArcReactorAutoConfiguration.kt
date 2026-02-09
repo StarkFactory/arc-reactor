@@ -2,6 +2,7 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.auth.AdminInitializer
 import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.auth.AuthProvider
 import com.arc.reactor.auth.DefaultAuthProvider
@@ -340,6 +341,13 @@ class ArcReactorAutoConfiguration {
             jwtTokenProvider: JwtTokenProvider,
             authProperties: AuthProperties
         ): WebFilter = JwtAuthWebFilter(jwtTokenProvider, authProperties)
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun adminInitializer(
+            userStore: UserStore,
+            authProvider: AuthProvider
+        ): AdminInitializer = AdminInitializer(userStore, authProvider)
     }
 
     /**

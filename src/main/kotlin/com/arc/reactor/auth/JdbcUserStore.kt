@@ -23,7 +23,7 @@ class JdbcUserStore(
 
     override fun findByEmail(email: String): User? {
         val results = jdbcTemplate.query(
-            "SELECT id, email, name, password_hash, created_at FROM users WHERE email = ?",
+            "SELECT id, email, name, password_hash, role, created_at FROM users WHERE email = ?",
             ROW_MAPPER,
             email
         )
@@ -32,7 +32,7 @@ class JdbcUserStore(
 
     override fun findById(id: String): User? {
         val results = jdbcTemplate.query(
-            "SELECT id, email, name, password_hash, created_at FROM users WHERE id = ?",
+            "SELECT id, email, name, password_hash, role, created_at FROM users WHERE id = ?",
             ROW_MAPPER,
             id
         )
@@ -41,22 +41,24 @@ class JdbcUserStore(
 
     override fun save(user: User): User {
         jdbcTemplate.update(
-            "INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
             user.id,
             user.email,
             user.name,
             user.passwordHash,
+            user.role.name,
             java.sql.Timestamp.from(user.createdAt)
         )
-        logger.debug { "Saved user: id=${user.id}, email=${user.email}" }
+        logger.debug { "Saved user: id=${user.id}, email=${user.email}, role=${user.role}" }
         return user
     }
 
     override fun update(user: User): User {
         jdbcTemplate.update(
-            "UPDATE users SET name = ?, password_hash = ? WHERE id = ?",
+            "UPDATE users SET name = ?, password_hash = ?, role = ? WHERE id = ?",
             user.name,
             user.passwordHash,
+            user.role.name,
             user.id
         )
         logger.debug { "Updated user: id=${user.id}" }
@@ -72,6 +74,13 @@ class JdbcUserStore(
         return (count ?: 0) > 0
     }
 
+    override fun count(): Long {
+        return jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM users",
+            Long::class.java
+        ) ?: 0L
+    }
+
     companion object {
         private val ROW_MAPPER = { rs: ResultSet, _: Int ->
             User(
@@ -79,6 +88,7 @@ class JdbcUserStore(
                 email = rs.getString("email"),
                 name = rs.getString("name"),
                 passwordHash = rs.getString("password_hash"),
+                role = UserRole.valueOf(rs.getString("role")),
                 createdAt = rs.getTimestamp("created_at").toInstant()
             )
         }

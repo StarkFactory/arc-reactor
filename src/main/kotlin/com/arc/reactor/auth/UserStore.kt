@@ -46,6 +46,12 @@ interface UserStore {
      * @return The updated user
      */
     fun update(user: User): User = save(user)
+
+    /**
+     * Count total number of registered users.
+     * Used for first-user-ADMIN policy during registration.
+     */
+    fun count(): Long
 }
 
 /**
@@ -79,4 +85,6 @@ class InMemoryUserStore : UserStore {
         usersByEmail[user.email] = user
         return user
     }
+
+    override fun count(): Long = usersById.size.toLong()
 }
