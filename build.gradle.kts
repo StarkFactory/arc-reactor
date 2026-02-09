@@ -122,7 +122,13 @@ dependencies {
 }
 
 tasks.withType<Test> {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // Exclude integration tests by default (require external dependencies like Node.js)
+        // Run with: ./gradlew test -PincludeIntegration
+        if (!project.hasProperty("includeIntegration")) {
+            excludeTags("integration")
+        }
+    }
 }
 
 // Application mode - fork and add your own tools
