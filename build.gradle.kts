@@ -42,7 +42,7 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-client-chat")
 
     // MCP (Model Context Protocol) SDK
-    implementation("io.modelcontextprotocol.sdk:mcp:0.10.0")
+    implementation("io.modelcontextprotocol.sdk:mcp:0.17.2")
 
     // Spring AI MCP Client Starter (optional - for auto-configuration)
     compileOnly("org.springframework.ai:spring-ai-starter-mcp-client")
