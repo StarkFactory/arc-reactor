@@ -518,8 +518,9 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert - MCP ToolCallback should be wrapped and passed as Spring AI tool
-            coVerify { fixture.requestSpec.tools(*anyVararg<Any>()) }
+            // Assert - MCP ToolCallback should be wrapped as ArcToolCallbackAdapter
+            // and passed via .toolCallbacks() (not .tools() which expects @Tool annotations)
+            coVerify { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
 
         @Test
@@ -536,8 +537,6 @@ class SpringAiAgentExecutorTest {
 
             every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Response")
 
-            every { fixture.requestSpec.tools(*anyVararg<Any>()) } returns fixture.requestSpec
-
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
                 properties = limitedProperties,
@@ -552,8 +551,8 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert - tools method should have been called with limited tools
-            coVerify { fixture.requestSpec.tools(*anyVararg<Any>()) }
+            // Assert - toolCallbacks should be called with limited tools (ToolCallback-based)
+            coVerify { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
 
         @Test

@@ -1,15 +1,21 @@
 package com.arc.reactor.mcp.model
 
+import java.time.Instant
+import java.util.UUID
+
 /**
  * MCP server configuration
  */
 data class McpServer(
+    val id: String = UUID.randomUUID().toString(),
     val name: String,
     val description: String? = null,
     val transportType: McpTransportType,
     val config: Map<String, Any> = emptyMap(),
     val version: String? = null,
-    val autoConnect: Boolean = false
+    val autoConnect: Boolean = false,
+    val createdAt: Instant = Instant.now(),
+    val updatedAt: Instant = Instant.now()
 )
 
 /**

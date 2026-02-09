@@ -64,7 +64,7 @@ class P0CriticalTest {
             )
 
             result.assertSuccess()
-            io.mockk.verify { fixture.requestSpec.tools(*anyVararg<Any>()) }
+            io.mockk.verify { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
 
         @Test

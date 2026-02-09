@@ -66,10 +66,20 @@ interface McpManager {
      * Register an MCP server configuration.
      *
      * Does not connect immediately - use [connect] to establish connection.
+     * If a [McpServerStore] is configured, the server is also persisted.
      *
      * @param server Server configuration including transport settings
      */
     fun register(server: McpServer)
+
+    /**
+     * Unregister an MCP server.
+     *
+     * Disconnects if connected, removes from store and runtime cache.
+     *
+     * @param serverName Name of the server to remove
+     */
+    suspend fun unregister(serverName: String)
 
     /**
      * Connect to a registered MCP server.
@@ -121,6 +131,13 @@ interface McpManager {
      * @return Current status, null if server not registered
      */
     fun getStatus(serverName: String): McpServerStatus?
+
+    /**
+     * Initialize from store: load all servers and auto-connect those marked with autoConnect.
+     *
+     * Called on application startup to restore previously registered servers.
+     */
+    suspend fun initializeFromStore()
 }
 
 /**
@@ -152,7 +169,8 @@ data class McpSecurityConfig(
 
 class DefaultMcpManager(
     private val connectionTimeoutMs: Long = 30_000,
-    private val securityConfig: McpSecurityConfig = McpSecurityConfig()
+    private val securityConfig: McpSecurityConfig = McpSecurityConfig(),
+    private val store: McpServerStore? = null
 ) : McpManager, AutoCloseable {
 
     private val servers = ConcurrentHashMap<String, McpServer>()
@@ -173,6 +191,46 @@ class DefaultMcpManager(
         logger.info { "Registering MCP server: ${server.name}" }
         servers[server.name] = server
         statuses[server.name] = McpServerStatus.PENDING
+
+        // Persist to store if available and not already saved
+        if (store != null && store.findByName(server.name) == null) {
+            try {
+                store.save(server)
+            } catch (e: Exception) {
+                logger.warn(e) { "Failed to persist MCP server '${server.name}' to store" }
+            }
+        }
+    }
+
+    override suspend fun unregister(serverName: String) {
+        disconnectInternal(serverName)
+        servers.remove(serverName)
+        statuses.remove(serverName)
+        serverMutexes.remove(serverName)
+        store?.delete(serverName)
+        logger.info { "Unregistered MCP server: $serverName" }
+    }
+
+    override suspend fun initializeFromStore() {
+        val storeServers = store?.list().orEmpty()
+        if (storeServers.isEmpty()) {
+            logger.debug { "No MCP servers found in store" }
+            return
+        }
+
+        logger.info { "Loading ${storeServers.size} MCP servers from store" }
+        for (server in storeServers) {
+            servers[server.name] = server
+            statuses[server.name] = McpServerStatus.PENDING
+
+            if (server.autoConnect) {
+                try {
+                    connect(server.name)
+                } catch (e: Exception) {
+                    logger.warn(e) { "Failed to auto-connect MCP server '${server.name}'" }
+                }
+            }
+        }
     }
 
     override suspend fun connect(serverName: String): Boolean {
@@ -349,7 +407,7 @@ class DefaultMcpManager(
     }
 
     override fun listServers(): List<McpServer> {
-        return servers.values.toList()
+        return store?.list() ?: servers.values.toList()
     }
 
     override fun getStatus(serverName: String): McpServerStatus? {

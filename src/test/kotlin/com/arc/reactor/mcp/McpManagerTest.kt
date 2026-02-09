@@ -235,6 +235,122 @@ class McpManagerTest {
     }
 
     @Nested
+    inner class StoreIntegration {
+
+        @Test
+        fun `register should persist server to store`() {
+            val store = InMemoryMcpServerStore()
+            val manager = DefaultMcpManager(store = store)
+
+            manager.register(McpServer(
+                name = "persisted-server",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://localhost:8081/sse")
+            ))
+
+            assertNotNull(store.findByName("persisted-server")) {
+                "Registered server should be persisted to store"
+            }
+        }
+
+        @Test
+        fun `register should not duplicate in store`() {
+            val store = InMemoryMcpServerStore()
+            val manager = DefaultMcpManager(store = store)
+
+            val server = McpServer(
+                name = "no-dup",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://localhost:8081/sse")
+            )
+
+            // Pre-save to store
+            store.save(server)
+
+            // register should not throw even though it already exists in store
+            manager.register(server)
+
+            assertEquals(1, store.list().size) {
+                "Store should still have exactly 1 server"
+            }
+        }
+
+        @Test
+        fun `unregister should remove from store and runtime`() = runBlocking {
+            val store = InMemoryMcpServerStore()
+            val manager = DefaultMcpManager(store = store)
+
+            manager.register(McpServer(
+                name = "to-remove",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://localhost:8081/sse")
+            ))
+
+            manager.unregister("to-remove")
+
+            assertNull(store.findByName("to-remove")) { "Server should be removed from store" }
+            assertTrue(manager.listServers().isEmpty()) { "Server should be removed from runtime" }
+            assertNull(manager.getStatus("to-remove")) { "Status should be removed" }
+        }
+
+        @Test
+        fun `listServers should return from store when available`() {
+            val store = InMemoryMcpServerStore()
+            store.save(McpServer(name = "store-server", transportType = McpTransportType.SSE))
+
+            val manager = DefaultMcpManager(store = store)
+            // Don't call register, just rely on store
+
+            val servers = manager.listServers()
+            assertEquals(1, servers.size) { "Should list servers from store" }
+            assertEquals("store-server", servers[0].name, "Should return store server")
+        }
+
+        @Test
+        fun `initializeFromStore should load and auto-connect`() = runBlocking {
+            val store = InMemoryMcpServerStore()
+            store.save(McpServer(
+                name = "auto-server",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://localhost:8081/sse"),
+                autoConnect = true
+            ))
+            store.save(McpServer(
+                name = "manual-server",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://localhost:8082/sse"),
+                autoConnect = false
+            ))
+
+            val manager = DefaultMcpManager(store = store)
+            manager.initializeFromStore()
+
+            // auto-connect server should have attempted connection (will fail since no real server)
+            val autoStatus = manager.getStatus("auto-server")
+            assertNotNull(autoStatus) { "Auto-connect server should have a status" }
+            assertTrue(autoStatus == McpServerStatus.FAILED || autoStatus == McpServerStatus.CONNECTED) {
+                "Auto-connect server should be FAILED (no real server) or CONNECTED"
+            }
+
+            // manual server should be PENDING (no connect attempted)
+            assertEquals(McpServerStatus.PENDING, manager.getStatus("manual-server")) {
+                "Manual server should remain PENDING"
+            }
+        }
+
+        @Test
+        fun `initializeFromStore should handle empty store`() = runBlocking {
+            val store = InMemoryMcpServerStore()
+            val manager = DefaultMcpManager(store = store)
+
+            // Should not throw
+            manager.initializeFromStore()
+
+            assertTrue(manager.listServers().isEmpty()) { "No servers should be loaded from empty store" }
+        }
+    }
+
+    @Nested
     inner class OutputTruncation {
 
         @Test

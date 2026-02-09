@@ -37,6 +37,7 @@ class AgentTestFixture {
         every { requestSpec.user(any<String>()) } returns requestSpec
         every { requestSpec.messages(any<List<Message>>()) } returns requestSpec
         every { requestSpec.tools(*anyVararg<Any>()) } returns requestSpec
+        every { requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) } returns requestSpec
         every { requestSpec.options(any<ChatOptions>()) } returns requestSpec
         every { requestSpec.call() } returns callResponseSpec
         every { requestSpec.stream() } returns streamResponseSpec

@@ -1,6 +1,6 @@
 # MCP 통합 가이드
 
-> **핵심 파일:** `McpManager.kt`, `McpModels.kt`
+> **핵심 파일:** `McpManager.kt`, `McpModels.kt`, `McpServerStore.kt`, `McpServerController.kt`, `McpStartupInitializer.kt`
 > 이 문서는 Arc Reactor의 MCP (Model Context Protocol) 통합을 설명합니다.
 
 ## MCP란?
@@ -67,12 +67,15 @@ McpServer(
 
 ```kotlin
 data class McpServer(
-    val name: String,                          // 서버 고유 이름 (식별자)
-    val description: String? = null,           // 설명
-    val transportType: McpTransportType,       // STDIO | SSE | HTTP
-    val config: Map<String, Any> = emptyMap(), // 트랜스포트별 설정
-    val version: String? = null,               // 서버 버전 (기본: "1.0.0")
-    val autoConnect: Boolean = false           // 등록 시 자동 연결
+    val id: String = UUID.randomUUID().toString(), // 고유 ID (자동 생성)
+    val name: String,                              // 서버 고유 이름 (식별자)
+    val description: String? = null,               // 설명
+    val transportType: McpTransportType,           // STDIO | SSE | HTTP
+    val config: Map<String, Any> = emptyMap(),     // 트랜스포트별 설정
+    val version: String? = null,                   // 서버 버전 (기본: "1.0.0")
+    val autoConnect: Boolean = false,              // 시작 시 자동 연결
+    val createdAt: Instant = Instant.now(),        // 생성 시각
+    val updatedAt: Instant = Instant.now()         // 최종 수정 시각
 )
 ```
 
@@ -111,12 +114,14 @@ disconnect() → DISCONNECTED
 ```kotlin
 interface McpManager {
     fun register(server: McpServer)
+    suspend fun unregister(serverName: String)        // 연결 해제 + 스토어에서 제거
     suspend fun connect(serverName: String): Boolean
     suspend fun disconnect(serverName: String)
     fun getAllToolCallbacks(): List<ToolCallback>
     fun getToolCallbacks(serverName: String): List<ToolCallback>
     fun listServers(): List<McpServer>
     fun getStatus(serverName: String): McpServerStatus?
+    suspend fun initializeFromStore()                  // 스토어에서 로드 + 자동 연결
 }
 ```
 
@@ -126,10 +131,12 @@ interface McpManager {
 
 ```kotlin
 class DefaultMcpManager(
-    private val connectionTimeoutMs: Long = 30_000
+    private val connectionTimeoutMs: Long = 30_000,
+    private val securityConfig: McpSecurityConfig = McpSecurityConfig(),
+    private val store: McpServerStore? = null          // 선택적 영속화
 ) : McpManager, AutoCloseable {
 
-    // 등록된 서버 설정
+    // 런타임 서버 캐시 (store 없을 때 폴백)
     private val servers = ConcurrentHashMap<String, McpServer>()
 
     // 연결된 MCP 클라이언트
@@ -165,7 +172,9 @@ mutexFor(serverName).withLock {
 
 ```
 1. register(McpServer)
-   └── servers에 저장, 상태 = PENDING
+   ├── 허용 목록 확인 (securityConfig.allowedServerNames에 없으면 거부)
+   ├── servers에 저장, 상태 = PENDING
+   └── store가 있으면 영속화 (이미 존재하면 skip)
 
 2. connect(serverName)
    ├── Mutex 획득
@@ -188,6 +197,16 @@ mutexFor(serverName).withLock {
    ├── 캐시 제거
    ├── 상태 = DISCONNECTED
    └── Mutex 해제
+
+5. unregister(serverName) — 신규
+   ├── disconnectInternal() — 연결 해제
+   ├── servers, statuses, mutexes에서 제거
+   └── store에서 삭제
+
+6. initializeFromStore() — 신규
+   ├── store에서 전체 서버 로드
+   ├── 런타임 캐시에 등록
+   └── autoConnect=true인 서버 자동 연결
 ```
 
 ### 도구 로드
@@ -270,9 +289,30 @@ private fun selectAndPrepareTools(userPrompt: String): List<Any> {
 
 ```kotlin
 // ArcReactorAutoConfiguration.kt
+
 @Bean
 @ConditionalOnMissingBean
-fun mcpManager(): McpManager = DefaultMcpManager()
+fun mcpServerStore(): McpServerStore = InMemoryMcpServerStore()
+
+@Bean
+@ConditionalOnMissingBean
+fun mcpManager(
+    properties: AgentProperties,
+    mcpServerStore: McpServerStore
+): McpManager = DefaultMcpManager(
+    securityConfig = McpSecurityConfig(
+        allowedServerNames = properties.mcp.security.allowedServerNames,
+        maxToolOutputLength = properties.mcp.security.maxToolOutputLength
+    ),
+    store = mcpServerStore
+)
+
+@Bean
+fun mcpStartupInitializer(
+    properties: AgentProperties,
+    mcpManager: McpManager,
+    mcpServerStore: McpServerStore
+): McpStartupInitializer = McpStartupInitializer(properties, mcpManager, mcpServerStore)
 
 @Bean
 fun agentExecutor(..., mcpManager: McpManager, ...): AgentExecutor =
@@ -283,9 +323,45 @@ fun agentExecutor(..., mcpManager: McpManager, ...): AgentExecutor =
     )
 ```
 
+PostgreSQL을 사용할 때 (`-Pdb=true`), `JdbcMcpServerStore`가 `@Primary`로 등록되어 인메모리 기본값을 대체합니다.
+
 ## 사용 예시
 
-### 서버 등록 및 연결
+### 방법 1: yml 설정 (배포 환경 권장)
+
+```yaml
+arc:
+  reactor:
+    mcp:
+      servers:
+        - name: filesystem
+          transport: stdio
+          command: npx
+          args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+        - name: github
+          transport: stdio
+          command: npx
+          args: ["-y", "@modelcontextprotocol/server-github"]
+```
+
+코드 작성 불필요. 앱 시작 시 자동으로 등록 및 연결됩니다.
+
+### 방법 2: REST API (런타임 관리)
+
+```bash
+# API로 등록
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{"name":"filesystem","transportType":"STDIO","config":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/data"]}}'
+
+# 서버 목록
+curl http://localhost:8080/api/mcp/servers
+
+# 연결 해제
+curl -X POST http://localhost:8080/api/mcp/servers/filesystem/disconnect
+```
+
+### 방법 3: 코드 등록
 
 ```kotlin
 @Service
@@ -293,7 +369,6 @@ class McpSetup(private val mcpManager: McpManager) {
 
     @PostConstruct
     fun setup() {
-        // 파일시스템 MCP 서버
         mcpManager.register(McpServer(
             name = "filesystem",
             transportType = McpTransportType.STDIO,
@@ -302,22 +377,7 @@ class McpSetup(private val mcpManager: McpManager) {
                 "args" to listOf("-y", "@modelcontextprotocol/server-filesystem", "/data")
             )
         ))
-
-        // GitHub MCP 서버
-        mcpManager.register(McpServer(
-            name = "github",
-            transportType = McpTransportType.STDIO,
-            config = mapOf(
-                "command" to "npx",
-                "args" to listOf("-y", "@modelcontextprotocol/server-github"),
-            )
-        ))
-
-        // 연결
-        runBlocking {
-            mcpManager.connect("filesystem")
-            mcpManager.connect("github")
-        }
+        runBlocking { mcpManager.connect("filesystem") }
     }
 
     @PreDestroy
@@ -344,33 +404,192 @@ val servers = mcpManager.listServers()
 
 // 런타임 연결 해제
 runBlocking { mcpManager.disconnect("github") }
+
+// 등록 해제 (연결 해제 + 스토어에서 삭제)
+runBlocking { mcpManager.unregister("github") }
 ```
 
-### REST API로 MCP 서버 관리
+## 서버 영속화 — McpServerStore
 
-`ChatController`에는 MCP 관리 엔드포인트가 없습니다. 필요하면 직접 추가하세요:
+MCP 서버 설정을 영속화하여 재시작 후에도 복원할 수 있습니다.
+
+### 인터페이스
 
 ```kotlin
-@RestController
-@RequestMapping("/api/mcp")
-class McpController(private val mcpManager: McpManager) {
-
-    @PostMapping("/servers")
-    suspend fun register(@RequestBody server: McpServer) {
-        mcpManager.register(server)
-        mcpManager.connect(server.name)
-    }
-
-    @GetMapping("/servers")
-    fun listServers() = mcpManager.listServers().map {
-        mapOf("name" to it.name, "status" to mcpManager.getStatus(it.name))
-    }
-
-    @DeleteMapping("/servers/{name}")
-    suspend fun disconnect(@PathVariable name: String) {
-        mcpManager.disconnect(name)
-    }
+interface McpServerStore {
+    fun list(): List<McpServer>
+    fun findByName(name: String): McpServer?
+    fun save(server: McpServer): McpServer
+    fun update(name: String, server: McpServer): McpServer?
+    fun delete(name: String)
 }
+```
+
+### 구현체
+
+| 구현체 | 저장소 | 사용 시점 |
+|--------|--------|-----------|
+| `InMemoryMcpServerStore` | ConcurrentHashMap | 기본값 (재시작 시 데이터 손실) |
+| `JdbcMcpServerStore` | PostgreSQL | `-Pdb=true` 빌드 플래그 설정 시 |
+
+`JdbcMcpServerStore`는 DataSource가 있으면 `@Primary`로 자동 구성됩니다. `JdbcMemoryStore`, `JdbcPersonaStore`와 동일한 패턴입니다.
+
+### 데이터베이스 스키마 (Flyway V7)
+
+```sql
+CREATE TABLE IF NOT EXISTS mcp_servers (
+    id              VARCHAR(36)     PRIMARY KEY,
+    name            VARCHAR(100)    NOT NULL,
+    description     VARCHAR(500),
+    transport_type  VARCHAR(20)     NOT NULL,
+    config          TEXT            NOT NULL DEFAULT '{}',
+    version         VARCHAR(50),
+    auto_connect    BOOLEAN         NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_servers_name ON mcp_servers(name);
+```
+
+`config` 컬럼은 트랜스포트별 설정을 JSON 텍스트로 저장합니다 (ObjectMapper로 직렬화).
+
+## yml 설정 — 선언적 서버 등록
+
+`application.yml`에 MCP 서버를 선언하면 시작 시 자동으로 등록됩니다:
+
+```yaml
+arc:
+  reactor:
+    mcp:
+      servers:
+        - name: swagger-agent
+          transport: sse
+          url: http://localhost:8081/sse
+          auto-connect: true
+        - name: filesystem
+          transport: stdio
+          command: npx
+          args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+          description: 파일 시스템 접근
+      security:
+        allowed-server-names: []        # 비어있으면 모두 허용
+        max-tool-output-length: 50000
+```
+
+### McpServerDefinition 속성
+
+| 속성 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `name` | String | (필수) | 서버 고유 이름 |
+| `transport` | Enum | `SSE` | `STDIO`, `SSE`, `HTTP` |
+| `url` | String | null | SSE/HTTP 엔드포인트 URL |
+| `command` | String | null | STDIO 실행 명령어 |
+| `args` | List | [] | STDIO 명령어 인자 |
+| `description` | String | null | 서버 설명 |
+| `auto-connect` | Boolean | true | 시작 시 자동 연결 |
+
+### 시작 흐름 (McpStartupInitializer)
+
+```
+ApplicationReadyEvent
+  │
+  v
+1. seedYmlServers()
+   └── arc.reactor.mcp.servers의 각 서버에 대해:
+       ├── name이 비어있으면 건너뜀
+       ├── 스토어에 이미 존재하면 건너뜀
+       ├── McpServerDefinition → McpServer 변환
+       └── McpServerStore에 저장
+
+2. mcpManager.initializeFromStore()
+   ├── 스토어에서 전체 서버 로드
+   ├── 런타임 캐시에 등록
+   └── autoConnect=true인 서버 자동 연결
+```
+
+yml 서버는 **시드**(seed)됩니다 — 스토어에 같은 이름의 서버가 이미 있으면 (예: REST API로 수정된 경우) yml 정의를 건너뜁니다.
+
+## REST API — 동적 서버 관리
+
+런타임에 MCP 서버를 관리하는 내장 REST API입니다. 인증 활성화 시 쓰기 작업은 관리자(Admin) 권한이 필요합니다.
+
+### 엔드포인트
+
+| 메서드 | 경로 | 설명 | 권한 |
+|--------|------|------|------|
+| `GET` | `/api/mcp/servers` | 전체 서버 목록 (상태 포함) | 읽기 |
+| `POST` | `/api/mcp/servers` | 등록 + 자동 연결 | 관리자 |
+| `GET` | `/api/mcp/servers/{name}` | 상세 조회 (도구 목록 포함) | 읽기 |
+| `PUT` | `/api/mcp/servers/{name}` | 설정 수정 | 관리자 |
+| `DELETE` | `/api/mcp/servers/{name}` | 연결 해제 + 제거 | 관리자 |
+| `POST` | `/api/mcp/servers/{name}/connect` | 연결 | 관리자 |
+| `POST` | `/api/mcp/servers/{name}/disconnect` | 연결 해제 (설정 유지) | 관리자 |
+
+### 서버 등록
+
+```bash
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "swagger-agent",
+    "transportType": "SSE",
+    "config": { "url": "http://localhost:8081/sse" },
+    "autoConnect": true
+  }'
+```
+
+응답 (201 Created):
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "swagger-agent",
+  "transportType": "SSE",
+  "autoConnect": true,
+  "status": "CONNECTED",
+  "toolCount": 5,
+  "createdAt": 1707436800000,
+  "updatedAt": 1707436800000
+}
+```
+
+### 서버 목록 조회
+
+```bash
+curl http://localhost:8080/api/mcp/servers
+```
+
+### 서버 상세 조회 (도구 목록 포함)
+
+```bash
+curl http://localhost:8080/api/mcp/servers/swagger-agent
+```
+
+응답:
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "swagger-agent",
+  "transportType": "SSE",
+  "config": { "url": "http://localhost:8081/sse" },
+  "autoConnect": true,
+  "status": "CONNECTED",
+  "tools": ["listPaths", "getSchema", "testEndpoint"],
+  "createdAt": 1707436800000,
+  "updatedAt": 1707436800000
+}
+```
+
+### 연결 / 해제
+
+```bash
+# 연결
+curl -X POST http://localhost:8080/api/mcp/servers/swagger-agent/connect
+
+# 연결 해제 (설정 유지, 나중에 재연결 가능)
+curl -X POST http://localhost:8080/api/mcp/servers/swagger-agent/disconnect
+
+# 완전 삭제
+curl -X DELETE http://localhost:8080/api/mcp/servers/swagger-agent
 ```
 
 ## 종료 처리

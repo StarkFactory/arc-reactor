@@ -30,8 +30,13 @@ import com.arc.reactor.hook.BeforeAgentStartHook
 import com.arc.reactor.hook.BeforeToolCallHook
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.mcp.DefaultMcpManager
+import com.arc.reactor.mcp.InMemoryMcpServerStore
+import com.arc.reactor.mcp.JdbcMcpServerStore
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.mcp.McpSecurityConfig
+import com.arc.reactor.mcp.McpServerStore
+import com.arc.reactor.mcp.model.McpServer
+import com.arc.reactor.mcp.model.McpTransportType
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.DefaultTokenEstimator
@@ -69,8 +74,12 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
+import org.springframework.boot.context.event.ApplicationReadyEvent
+import org.springframework.context.event.EventListener
 import org.springframework.core.env.Environment
 import org.springframework.web.server.WebFilter
+import kotlinx.coroutines.runBlocking
+import mu.KotlinLogging
 
 /**
  * Arc Reactor Auto Configuration
@@ -121,6 +130,12 @@ class ArcReactorAutoConfiguration {
         fun jdbcPromptTemplateStore(
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
         ): PromptTemplateStore = JdbcPromptTemplateStore(jdbcTemplate = jdbcTemplate)
+
+        @Bean
+        @Primary
+        fun jdbcMcpServerStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
+        ): McpServerStore = JdbcMcpServerStore(jdbcTemplate = jdbcTemplate)
     }
 
     /**
@@ -180,19 +195,40 @@ class ArcReactorAutoConfiguration {
     fun securityHeadersWebFilter(): WebFilter = SecurityHeadersWebFilter()
 
     /**
+     * MCP Server Store: In-memory fallback
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun mcpServerStore(): McpServerStore = InMemoryMcpServerStore()
+
+    /**
      * MCP Manager
      */
     @Bean
     @ConditionalOnMissingBean
-    fun mcpManager(properties: AgentProperties): McpManager {
-        val mcpSecurity = properties.mcpSecurity
+    fun mcpManager(properties: AgentProperties, mcpServerStore: McpServerStore): McpManager {
+        val mcpSecurity = properties.mcp.security
         return DefaultMcpManager(
             securityConfig = McpSecurityConfig(
                 allowedServerNames = mcpSecurity.allowedServerNames,
                 maxToolOutputLength = mcpSecurity.maxToolOutputLength
-            )
+            ),
+            store = mcpServerStore
         )
     }
+
+    /**
+     * MCP Startup Initializer
+     *
+     * Seeds yml-defined servers to store and auto-connects servers on startup.
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = ["mcpStartupInitializer"])
+    fun mcpStartupInitializer(
+        properties: AgentProperties,
+        mcpManager: McpManager,
+        mcpServerStore: McpServerStore
+    ): McpStartupInitializer = McpStartupInitializer(properties, mcpManager, mcpServerStore)
 
     /**
      * Hook Executor
