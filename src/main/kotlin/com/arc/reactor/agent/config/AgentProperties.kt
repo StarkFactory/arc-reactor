@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.config
 
+import com.arc.reactor.mcp.model.McpTransportType
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
@@ -34,8 +35,8 @@ data class AgentProperties(
     /** Security headers configuration */
     val securityHeaders: SecurityHeadersProperties = SecurityHeadersProperties(),
 
-    /** MCP security configuration */
-    val mcpSecurity: McpSecurityProperties = McpSecurityProperties()
+    /** MCP configuration */
+    val mcp: McpConfigProperties = McpConfigProperties()
 )
 
 data class LlmProperties(
@@ -117,6 +118,60 @@ data class CorsProperties(
 data class SecurityHeadersProperties(
     /** Security headers enabled (default: true) */
     val enabled: Boolean = true
+)
+
+/**
+ * MCP configuration — server declarations and security settings.
+ *
+ * Servers declared here are auto-registered on startup.
+ * Additional servers can be managed at runtime via REST API.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     mcp:
+ *       servers:
+ *         - name: swagger-agent
+ *           transport: sse
+ *           url: http://localhost:8081/sse
+ *       security:
+ *         allowed-server-names: []
+ *         max-tool-output-length: 50000
+ * ```
+ */
+data class McpConfigProperties(
+    /** MCP servers to register on startup */
+    val servers: List<McpServerDefinition> = emptyList(),
+
+    /** Security settings */
+    val security: McpSecurityProperties = McpSecurityProperties()
+)
+
+/**
+ * MCP server definition for yml-based registration.
+ */
+data class McpServerDefinition(
+    /** Unique server name */
+    val name: String = "",
+
+    /** Transport type */
+    val transport: McpTransportType = McpTransportType.SSE,
+
+    /** SSE/HTTP endpoint URL */
+    val url: String? = null,
+
+    /** STDIO command */
+    val command: String? = null,
+
+    /** STDIO command arguments */
+    val args: List<String> = emptyList(),
+
+    /** Description */
+    val description: String? = null,
+
+    /** Auto-connect on startup */
+    val autoConnect: Boolean = true
 )
 
 data class McpSecurityProperties(

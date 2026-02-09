@@ -1,6 +1,6 @@
 # MCP Integration Guide
 
-> **Key files:** `McpManager.kt`, `McpModels.kt`
+> **Key files:** `McpManager.kt`, `McpModels.kt`, `McpServerStore.kt`, `McpServerController.kt`, `McpStartupInitializer.kt`
 > This document explains Arc Reactor's MCP (Model Context Protocol) integration.
 
 ## What is MCP?
@@ -67,12 +67,15 @@ McpServer(
 
 ```kotlin
 data class McpServer(
-    val name: String,                          // Unique server name (identifier)
-    val description: String? = null,           // Description
-    val transportType: McpTransportType,       // STDIO | SSE | HTTP
-    val config: Map<String, Any> = emptyMap(), // Transport-specific configuration
-    val version: String? = null,               // Server version (default: "1.0.0")
-    val autoConnect: Boolean = false           // Auto-connect on registration
+    val id: String = UUID.randomUUID().toString(), // Unique ID (auto-generated)
+    val name: String,                              // Unique server name (identifier)
+    val description: String? = null,               // Description
+    val transportType: McpTransportType,           // STDIO | SSE | HTTP
+    val config: Map<String, Any> = emptyMap(),     // Transport-specific configuration
+    val version: String? = null,                   // Server version (default: "1.0.0")
+    val autoConnect: Boolean = false,              // Auto-connect on startup
+    val createdAt: Instant = Instant.now(),        // Creation timestamp
+    val updatedAt: Instant = Instant.now()         // Last update timestamp
 )
 ```
 
@@ -111,12 +114,14 @@ disconnect() -> DISCONNECTED
 ```kotlin
 interface McpManager {
     fun register(server: McpServer)
+    suspend fun unregister(serverName: String)        // Disconnect + remove from store
     suspend fun connect(serverName: String): Boolean
     suspend fun disconnect(serverName: String)
     fun getAllToolCallbacks(): List<ToolCallback>
     fun getToolCallbacks(serverName: String): List<ToolCallback>
     fun listServers(): List<McpServer>
     fun getStatus(serverName: String): McpServerStatus?
+    suspend fun initializeFromStore()                  // Load from store + auto-connect
 }
 ```
 
@@ -126,10 +131,12 @@ interface McpManager {
 
 ```kotlin
 class DefaultMcpManager(
-    private val connectionTimeoutMs: Long = 30_000
+    private val connectionTimeoutMs: Long = 30_000,
+    private val securityConfig: McpSecurityConfig = McpSecurityConfig(),
+    private val store: McpServerStore? = null          // Optional persistence
 ) : McpManager, AutoCloseable {
 
-    // Registered server configurations
+    // Runtime server cache (fallback when no store)
     private val servers = ConcurrentHashMap<String, McpServer>()
 
     // Connected MCP clients
@@ -165,7 +172,9 @@ mutexFor(serverName).withLock {
 
 ```
 1. register(McpServer)
+   +-- Allowlist check (reject if not in securityConfig.allowedServerNames)
    +-- Save to servers, status = PENDING
+   +-- Persist to store if available (skip if already exists)
 
 2. connect(serverName)
    +-- Acquire Mutex
@@ -188,6 +197,16 @@ mutexFor(serverName).withLock {
    +-- Remove from cache
    +-- status = DISCONNECTED
    +-- Release Mutex
+
+5. unregister(serverName) -- NEW
+   +-- disconnectInternal() -- Disconnect if connected
+   +-- Remove from servers, statuses, mutexes
+   +-- Delete from store if available
+
+6. initializeFromStore() -- NEW
+   +-- Load all servers from store
+   +-- Register each into runtime cache
+   +-- Auto-connect servers with autoConnect=true
 ```
 
 ### Tool Loading
@@ -270,9 +289,30 @@ private fun selectAndPrepareTools(userPrompt: String): List<Any> {
 
 ```kotlin
 // ArcReactorAutoConfiguration.kt
+
 @Bean
 @ConditionalOnMissingBean
-fun mcpManager(): McpManager = DefaultMcpManager()
+fun mcpServerStore(): McpServerStore = InMemoryMcpServerStore()
+
+@Bean
+@ConditionalOnMissingBean
+fun mcpManager(
+    properties: AgentProperties,
+    mcpServerStore: McpServerStore
+): McpManager = DefaultMcpManager(
+    securityConfig = McpSecurityConfig(
+        allowedServerNames = properties.mcp.security.allowedServerNames,
+        maxToolOutputLength = properties.mcp.security.maxToolOutputLength
+    ),
+    store = mcpServerStore
+)
+
+@Bean
+fun mcpStartupInitializer(
+    properties: AgentProperties,
+    mcpManager: McpManager,
+    mcpServerStore: McpServerStore
+): McpStartupInitializer = McpStartupInitializer(properties, mcpManager, mcpServerStore)
 
 @Bean
 fun agentExecutor(..., mcpManager: McpManager, ...): AgentExecutor =
@@ -283,9 +323,45 @@ fun agentExecutor(..., mcpManager: McpManager, ...): AgentExecutor =
     )
 ```
 
+When PostgreSQL is available (`-Pdb=true`), `JdbcMcpServerStore` is registered as `@Primary`, overriding the in-memory default.
+
 ## Usage Examples
 
-### Server Registration and Connection
+### Option 1: yml Configuration (Recommended for Deployment)
+
+```yaml
+arc:
+  reactor:
+    mcp:
+      servers:
+        - name: filesystem
+          transport: stdio
+          command: npx
+          args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+        - name: github
+          transport: stdio
+          command: npx
+          args: ["-y", "@modelcontextprotocol/server-github"]
+```
+
+No code needed. Servers are automatically registered and connected on startup.
+
+### Option 2: REST API (Runtime Management)
+
+```bash
+# Register via API
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{"name":"filesystem","transportType":"STDIO","config":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/data"]}}'
+
+# List servers
+curl http://localhost:8080/api/mcp/servers
+
+# Disconnect
+curl -X POST http://localhost:8080/api/mcp/servers/filesystem/disconnect
+```
+
+### Option 3: Programmatic Registration
 
 ```kotlin
 @Service
@@ -293,7 +369,6 @@ class McpSetup(private val mcpManager: McpManager) {
 
     @PostConstruct
     fun setup() {
-        // Filesystem MCP server
         mcpManager.register(McpServer(
             name = "filesystem",
             transportType = McpTransportType.STDIO,
@@ -302,22 +377,7 @@ class McpSetup(private val mcpManager: McpManager) {
                 "args" to listOf("-y", "@modelcontextprotocol/server-filesystem", "/data")
             )
         ))
-
-        // GitHub MCP server
-        mcpManager.register(McpServer(
-            name = "github",
-            transportType = McpTransportType.STDIO,
-            config = mapOf(
-                "command" to "npx",
-                "args" to listOf("-y", "@modelcontextprotocol/server-github"),
-            )
-        ))
-
-        // Connect
-        runBlocking {
-            mcpManager.connect("filesystem")
-            mcpManager.connect("github")
-        }
+        runBlocking { mcpManager.connect("filesystem") }
     }
 
     @PreDestroy
@@ -344,33 +404,192 @@ val servers = mcpManager.listServers()
 
 // Disconnect at runtime
 runBlocking { mcpManager.disconnect("github") }
+
+// Unregister (disconnect + remove from store)
+runBlocking { mcpManager.unregister("github") }
 ```
 
-### Managing MCP Servers via REST API
+## Server Persistence -- McpServerStore
 
-`ChatController` does not include MCP management endpoints. Add them yourself if needed:
+MCP server configurations can be persisted for recovery across restarts.
+
+### Interface
 
 ```kotlin
-@RestController
-@RequestMapping("/api/mcp")
-class McpController(private val mcpManager: McpManager) {
-
-    @PostMapping("/servers")
-    suspend fun register(@RequestBody server: McpServer) {
-        mcpManager.register(server)
-        mcpManager.connect(server.name)
-    }
-
-    @GetMapping("/servers")
-    fun listServers() = mcpManager.listServers().map {
-        mapOf("name" to it.name, "status" to mcpManager.getStatus(it.name))
-    }
-
-    @DeleteMapping("/servers/{name}")
-    suspend fun disconnect(@PathVariable name: String) {
-        mcpManager.disconnect(name)
-    }
+interface McpServerStore {
+    fun list(): List<McpServer>
+    fun findByName(name: String): McpServer?
+    fun save(server: McpServer): McpServer
+    fun update(name: String, server: McpServer): McpServer?
+    fun delete(name: String)
 }
+```
+
+### Implementations
+
+| Implementation | Storage | When Used |
+|----------------|---------|-----------|
+| `InMemoryMcpServerStore` | ConcurrentHashMap | Default (data lost on restart) |
+| `JdbcMcpServerStore` | PostgreSQL | When `-Pdb=true` build flag is set |
+
+`JdbcMcpServerStore` is auto-configured with `@Primary` when a DataSource is available, following the same pattern as `JdbcMemoryStore` and `JdbcPersonaStore`.
+
+### Database Schema (Flyway V7)
+
+```sql
+CREATE TABLE IF NOT EXISTS mcp_servers (
+    id              VARCHAR(36)     PRIMARY KEY,
+    name            VARCHAR(100)    NOT NULL,
+    description     VARCHAR(500),
+    transport_type  VARCHAR(20)     NOT NULL,
+    config          TEXT            NOT NULL DEFAULT '{}',
+    version         VARCHAR(50),
+    auto_connect    BOOLEAN         NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_servers_name ON mcp_servers(name);
+```
+
+The `config` column stores transport-specific configuration as JSON text (serialized via ObjectMapper).
+
+## yml Configuration -- Declarative Server Registration
+
+MCP servers can be declared in `application.yml` for automatic registration on startup:
+
+```yaml
+arc:
+  reactor:
+    mcp:
+      servers:
+        - name: swagger-agent
+          transport: sse
+          url: http://localhost:8081/sse
+          auto-connect: true
+        - name: filesystem
+          transport: stdio
+          command: npx
+          args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+          description: File system access
+      security:
+        allowed-server-names: []        # Empty = allow all
+        max-tool-output-length: 50000
+```
+
+### McpServerDefinition Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `name` | String | (required) | Unique server name |
+| `transport` | Enum | `SSE` | `STDIO`, `SSE`, or `HTTP` |
+| `url` | String | null | SSE/HTTP endpoint URL |
+| `command` | String | null | STDIO command to execute |
+| `args` | List | [] | STDIO command arguments |
+| `description` | String | null | Server description |
+| `auto-connect` | Boolean | true | Auto-connect on startup |
+
+### Startup Flow (McpStartupInitializer)
+
+```
+ApplicationReadyEvent
+  |
+  v
+1. seedYmlServers()
+   +-- For each server in arc.reactor.mcp.servers:
+   |   +-- Skip if name is blank
+   |   +-- Skip if already exists in store
+   |   +-- Convert McpServerDefinition -> McpServer
+   |   +-- Save to McpServerStore
+   |
+2. mcpManager.initializeFromStore()
+   +-- Load all servers from store
+   +-- Register each into runtime cache
+   +-- Auto-connect servers with autoConnect=true
+```
+
+yml servers are **seeded** (not overwritten) -- if a server with the same name already exists in the store (e.g., previously modified via REST API), the yml definition is skipped.
+
+## REST API -- Dynamic Server Management
+
+Built-in REST API for managing MCP servers at runtime. All write operations require admin role when auth is enabled.
+
+### Endpoints
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| `GET` | `/api/mcp/servers` | List all servers with status | Read |
+| `POST` | `/api/mcp/servers` | Register + auto-connect | Admin |
+| `GET` | `/api/mcp/servers/{name}` | Server details + tool list | Read |
+| `PUT` | `/api/mcp/servers/{name}` | Update config | Admin |
+| `DELETE` | `/api/mcp/servers/{name}` | Disconnect + remove | Admin |
+| `POST` | `/api/mcp/servers/{name}/connect` | Connect | Admin |
+| `POST` | `/api/mcp/servers/{name}/disconnect` | Disconnect (keep config) | Admin |
+
+### Register a Server
+
+```bash
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "swagger-agent",
+    "transportType": "SSE",
+    "config": { "url": "http://localhost:8081/sse" },
+    "autoConnect": true
+  }'
+```
+
+Response (201 Created):
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "swagger-agent",
+  "transportType": "SSE",
+  "autoConnect": true,
+  "status": "CONNECTED",
+  "toolCount": 5,
+  "createdAt": 1707436800000,
+  "updatedAt": 1707436800000
+}
+```
+
+### List Servers
+
+```bash
+curl http://localhost:8080/api/mcp/servers
+```
+
+### Get Server Details (with tool list)
+
+```bash
+curl http://localhost:8080/api/mcp/servers/swagger-agent
+```
+
+Response:
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "swagger-agent",
+  "transportType": "SSE",
+  "config": { "url": "http://localhost:8081/sse" },
+  "autoConnect": true,
+  "status": "CONNECTED",
+  "tools": ["listPaths", "getSchema", "testEndpoint"],
+  "createdAt": 1707436800000,
+  "updatedAt": 1707436800000
+}
+```
+
+### Connect / Disconnect
+
+```bash
+# Connect
+curl -X POST http://localhost:8080/api/mcp/servers/swagger-agent/connect
+
+# Disconnect (keeps config, can reconnect later)
+curl -X POST http://localhost:8080/api/mcp/servers/swagger-agent/disconnect
+
+# Remove entirely
+curl -X DELETE http://localhost:8080/api/mcp/servers/swagger-agent
 ```
 
 ## Shutdown Handling

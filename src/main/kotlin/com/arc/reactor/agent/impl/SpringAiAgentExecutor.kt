@@ -792,9 +792,15 @@ class SpringAiAgentExecutor(
         spec = spec.messages(messages)
         spec = spec.options(chatOptions)
         if (tools.isNotEmpty()) {
-            // Separate @Tool annotated objects (LocalTool) from ToolCallback implementations
-            val (callbacks, annotatedTools) = tools.partition { it is org.springframework.ai.tool.ToolCallback }
-            if (annotatedTools.isNotEmpty()) spec = spec.tools(*annotatedTools.toTypedArray())
+            // Separate @Tool annotated objects from ToolCallback implementations.
+            // Spring AI's .tools() uses MethodToolCallbackProvider which expects @Tool annotations.
+            // ToolCallback impls (e.g. ArcToolCallbackAdapter) must go to .toolCallbacks().
+            val (callbacks, annotatedTools) = tools.partition {
+                it is org.springframework.ai.tool.ToolCallback
+            }
+            if (annotatedTools.isNotEmpty()) {
+                spec = spec.tools(*annotatedTools.toTypedArray())
+            }
             if (callbacks.isNotEmpty()) {
                 @Suppress("UNCHECKED_CAST")
                 spec = spec.toolCallbacks(callbacks as List<org.springframework.ai.tool.ToolCallback>)

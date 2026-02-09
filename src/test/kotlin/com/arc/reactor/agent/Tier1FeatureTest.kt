@@ -108,8 +108,8 @@ class Tier1FeatureTest {
 
             executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "query"))
 
-            // tools() should be called (selector returned 1 tool)
-            verify { fixture.requestSpec.tools(*anyVararg<Any>()) }
+            // toolCallbacks() should be called (selector returned 1 ToolCallback)
+            verify { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
 
         @Test
@@ -125,8 +125,8 @@ class Tier1FeatureTest {
             val result = executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "query"))
 
             result.assertSuccess()
-            // tools() should be called with the callback wrapped as Spring AI tool
-            verify { fixture.requestSpec.tools(*anyVararg<Any>()) }
+            // toolCallbacks() should be called with the callback wrapped as ArcToolCallbackAdapter
+            verify { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
 
         @Test
@@ -138,8 +138,9 @@ class Tier1FeatureTest {
 
             executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "query"))
 
-            // tools() should NOT be called when there are no tools
+            // Neither tools() nor toolCallbacks() should be called when no tools
             verify(exactly = 0) { fixture.requestSpec.tools(*anyVararg<Any>()) }
+            verify(exactly = 0) { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
     }
 
@@ -360,6 +361,7 @@ class Tier1FeatureTest {
             result.assertSuccess()
             // In STANDARD mode, tools should NOT be passed
             verify(exactly = 0) { fixture.requestSpec.tools(*anyVararg<Any>()) }
+            verify(exactly = 0) { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
 
         @Test
@@ -381,7 +383,7 @@ class Tier1FeatureTest {
             )
 
             result.assertSuccess()
-            verify { fixture.requestSpec.tools(*anyVararg<Any>()) }
+            verify { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
     }
 }
