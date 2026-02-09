@@ -16,6 +16,12 @@ server:
 # Spring AI auto-configs create beans when properties exist (even if empty),
 # causing startup failures. Instead, set via environment variables directly.
 spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
   ai:
     google:
       genai:
@@ -23,6 +29,16 @@ spring:
         chat:
           options:
             model: gemini-2.0-flash
+        embedding:
+          api-key: ${GEMINI_API_KEY:}
+          text:
+            options:
+              model: gemini-embedding-001
+              dimensions: 768
+    vectorstore:
+      pgvector:
+        initialize-schema: ${SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA:false}
+        dimensions: 768
     # OpenAI: Set SPRING_AI_OPENAI_API_KEY env var to enable (default model: gpt-4o)
     # Anthropic: Set SPRING_AI_ANTHROPIC_API_KEY env var to enable
 
@@ -48,7 +64,8 @@ arc:
       max-input-length: 10000
 
     rag:
-      enabled: false
+      enabled: ${ARC_REACTOR_RAG_ENABLED:false}
+      similarity-threshold: 0.3
 
 # ----- API Documentation -----
 springdoc:

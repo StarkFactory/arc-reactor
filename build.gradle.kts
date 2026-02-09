@@ -64,6 +64,7 @@ dependencies {
 
     // LLM Providers
     implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
+    implementation("org.springframework.ai:spring-ai-starter-model-google-genai-embedding")
 
     // Optional LLM Providers (switch to implementation when needed)
     compileOnly("org.springframework.ai:spring-ai-starter-model-openai")
@@ -75,23 +76,24 @@ dependencies {
     // Spring AI Vector Store Core (for RAG)
     implementation("org.springframework.ai:spring-ai-vector-store")
 
-    // Optional: Vector Store Providers (choose one)
-    compileOnly("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
+    // Optional: Vector Store Providers (choose one, activated by -Pdb=true)
     compileOnly("org.springframework.ai:spring-ai-starter-vector-store-pinecone")
     compileOnly("org.springframework.ai:spring-ai-starter-vector-store-chroma")
 
-    // Optional: JDBC + PostgreSQL (for JdbcMemoryStore)
+    // Optional: JDBC + PostgreSQL + PGVector (for JdbcMemoryStore + RAG)
     // Pass -Pdb=true to include in runtime classpath (e.g., Docker builds)
     if (project.hasProperty("db")) {
         implementation("org.springframework.boot:spring-boot-starter-jdbc")
         implementation("org.postgresql:postgresql")
         implementation("org.flywaydb:flyway-core")
         implementation("org.flywaydb:flyway-database-postgresql")
+        implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
     } else {
         compileOnly("org.springframework.boot:spring-boot-starter-jdbc")
         compileOnly("org.postgresql:postgresql")
         compileOnly("org.flywaydb:flyway-core")
         compileOnly("org.flywaydb:flyway-database-postgresql")
+        compileOnly("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
     }
 
     // Optional: JWT Auth (JJWT + Spring Security Crypto for BCrypt)

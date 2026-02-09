@@ -293,25 +293,29 @@ class ArcReactorAutoConfiguration {
     class RagConfiguration {
 
         /**
-         * Document Retriever (when using Spring AI VectorStore)
+         * Document Retriever
+         * Uses VectorStore when available, falls back to in-memory.
          */
+        private val ragLogger = KotlinLogging.logger("com.arc.reactor.autoconfigure.RagConfiguration")
+
         @Bean
-        @ConditionalOnBean(VectorStore::class)
         @ConditionalOnMissingBean
         fun documentRetriever(
-            vectorStore: VectorStore,
+            vectorStoreProvider: ObjectProvider<VectorStore>,
             properties: AgentProperties
-        ): DocumentRetriever = SpringAiVectorStoreRetriever(
-            vectorStore = vectorStore,
-            defaultSimilarityThreshold = properties.rag.similarityThreshold
-        )
-
-        /**
-         * Document Retriever (without VectorStore - in-memory fallback)
-         */
-        @Bean
-        @ConditionalOnMissingBean(DocumentRetriever::class)
-        fun inMemoryDocumentRetriever(): DocumentRetriever = InMemoryDocumentRetriever()
+        ): DocumentRetriever {
+            val vectorStore = vectorStoreProvider.ifAvailable
+            return if (vectorStore != null) {
+                ragLogger.info { "RAG: Using SpringAiVectorStoreRetriever (VectorStore found)" }
+                SpringAiVectorStoreRetriever(
+                    vectorStore = vectorStore,
+                    defaultSimilarityThreshold = properties.rag.similarityThreshold
+                )
+            } else {
+                ragLogger.info { "RAG: Using InMemoryDocumentRetriever (no VectorStore)" }
+                InMemoryDocumentRetriever()
+            }
+        }
 
         /**
          * Document Reranker (default: simple score-based)
