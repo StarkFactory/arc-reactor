@@ -136,12 +136,16 @@ class JwtAuthWebFilterTest {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
             every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
+            every { jwtTokenProvider.extractRole("valid-token") } returns UserRole.USER
 
             val result = filter.filter(exchange, chain)
             result.block()
 
             assertEquals("user-42", attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE]) {
                 "userId should be stored in exchange attributes"
+            }
+            assertEquals(UserRole.USER, attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE]) {
+                "userRole should be stored in exchange attributes"
             }
             verify(exactly = 1) { chain.filter(exchange) }
         }

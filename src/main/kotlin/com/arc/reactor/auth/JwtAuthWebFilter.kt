@@ -47,8 +47,10 @@ class JwtAuthWebFilter(
             return unauthorized(exchange)
         }
 
-        // Store userId in exchange attributes for downstream controllers
+        // Store userId and role in exchange attributes for downstream controllers
         exchange.attributes[USER_ID_ATTRIBUTE] = userId
+        val role = jwtTokenProvider.extractRole(token) ?: UserRole.USER
+        exchange.attributes[USER_ROLE_ATTRIBUTE] = role
         return chain.filter(exchange)
     }
 
@@ -65,5 +67,8 @@ class JwtAuthWebFilter(
     companion object {
         /** Key used to store the authenticated userId in ServerWebExchange attributes. */
         const val USER_ID_ATTRIBUTE = "userId"
+
+        /** Key used to store the authenticated user's [UserRole] in ServerWebExchange attributes. */
+        const val USER_ROLE_ATTRIBUTE = "userRole"
     }
 }

@@ -174,7 +174,8 @@ data class AuthResponse(
 data class UserResponse(
     val id: String,
     val email: String,
-    val name: String
+    val name: String,
+    val role: String
 )
 
 // --- Mapping ---
@@ -182,5 +183,6 @@ data class UserResponse(
 private fun User.toResponse() = UserResponse(
     id = id,
     email = email,
-    name = name
+    name = name,
+    role = role.name
 )
