@@ -6,7 +6,7 @@
 #   docker run -e GEMINI_API_KEY=your-key -p 8080:8080 arc-reactor
 
 # Stage 1: Build
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM eclipse-temurin:25-jdk-alpine AS build
 WORKDIR /workspace
 
 # Pass --build-arg ENABLE_DB=true to include PostgreSQL/JDBC in runtime
@@ -24,7 +24,7 @@ RUN GRADLE_ARGS="bootJar --no-daemon -x test"; \
     ./gradlew $GRADLE_ARGS
 
 # Stage 2: Run
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
 
 RUN addgroup -S arc && adduser -S arc -G arc
