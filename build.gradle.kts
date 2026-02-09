@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     kotlin("jvm") version "2.3.10"
-    kotlin("plugin.spring") version "2.3.0"
+    kotlin("plugin.spring") version "2.3.10"
     id("org.springframework.boot") version "3.5.9"
     id("io.spring.dependency-management") version "1.1.7"
 }
@@ -42,7 +42,7 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-client-chat")
 
     // MCP (Model Context Protocol) SDK
-    implementation("io.modelcontextprotocol.sdk:mcp:0.10.0")
+    implementation("io.modelcontextprotocol.sdk:mcp:0.17.2")
 
     // Spring AI MCP Client Starter (optional - for auto-configuration)
     compileOnly("org.springframework.ai:spring-ai-starter-mcp-client")
@@ -97,14 +97,14 @@ dependencies {
     // Optional: JWT Auth (JJWT + Spring Security Crypto for BCrypt)
     // Pass -Pauth=true to include in runtime classpath (e.g., Docker builds)
     if (project.hasProperty("auth")) {
-        implementation("io.jsonwebtoken:jjwt-api:0.12.6")
-        runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
-        runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+        implementation("io.jsonwebtoken:jjwt-api:0.13.0")
+        runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
+        runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
         implementation("org.springframework.security:spring-security-crypto")
     } else {
-        compileOnly("io.jsonwebtoken:jjwt-api:0.12.6")
-        compileOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
-        compileOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+        compileOnly("io.jsonwebtoken:jjwt-api:0.13.0")
+        compileOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
+        compileOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
         compileOnly("org.springframework.security:spring-security-crypto")
     }
 
@@ -116,11 +116,11 @@ dependencies {
     testImplementation("io.kotest:kotest-runner-junit5:5.9.1")
     testImplementation("io.kotest:kotest-assertions-core:5.9.1")
     testImplementation("io.kotest.extensions:kotest-extensions-spring:1.3.0")
-    testImplementation("io.mockk:mockk:1.14.5")
+    testImplementation("io.mockk:mockk:1.14.9")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
-    testImplementation("io.jsonwebtoken:jjwt-api:0.12.6")
-    testRuntimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
-    testRuntimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+    testImplementation("io.jsonwebtoken:jjwt-api:0.13.0")
+    testRuntimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
+    testRuntimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
     testImplementation("org.springframework.security:spring-security-crypto")
 }
 

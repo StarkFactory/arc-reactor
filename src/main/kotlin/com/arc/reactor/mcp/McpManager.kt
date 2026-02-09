@@ -9,7 +9,9 @@ import io.modelcontextprotocol.client.McpSyncClient
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport
 import io.modelcontextprotocol.client.transport.ServerParameters
 import io.modelcontextprotocol.client.transport.StdioClientTransport
+import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper
 import io.modelcontextprotocol.spec.McpSchema
+import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
@@ -227,7 +229,7 @@ class DefaultMcpManager(
                 .args(*args.toTypedArray())
                 .build()
 
-            val transport = StdioClientTransport(params)
+            val transport = StdioClientTransport(params, JacksonMcpJsonMapper(ObjectMapper()))
 
             val client = McpClient.sync(transport)
                 .clientInfo(McpSchema.Implementation(server.name, server.version ?: "1.0.0"))
