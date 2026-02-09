@@ -96,14 +96,6 @@ class HookExecutor(
                         logger.warn { "Hook rejected: ${result.reason}" }
                         return result
                     }
-                    is HookResult.Modify -> {
-                        logger.debug { "Hook modified params" }
-                        return result
-                    }
-                    is HookResult.PendingApproval -> {
-                        logger.info { "Hook pending approval: ${result.approvalId}" }
-                        return result
-                    }
                 }
             } catch (e: Exception) {
                 logger.error(e) { "Hook execution failed: ${hook::class.simpleName}" }

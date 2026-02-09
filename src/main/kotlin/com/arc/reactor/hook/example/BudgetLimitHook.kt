@@ -25,8 +25,6 @@ private val logger = KotlinLogging.logger {}
  * ## HookResult types
  * - `HookResult.Continue` — Proceed
  * - `HookResult.Reject(reason)` — Block execution + return reason
- * - `HookResult.Modify(params)` — Modify parameters and proceed
- * - `HookResult.PendingApproval(id, msg)` — Await manual approval
  *
  * ## How to activate
  * Add @Component and adjust dailyLimit as needed.

@@ -13,15 +13,6 @@ sealed class HookResult {
 
     /** Reject execution */
     data class Reject(val reason: String) : HookResult()
-
-    /** Continue after modifying parameters */
-    data class Modify(val modifiedParams: Map<String, Any>) : HookResult()
-
-    /** Pending approval (async approval workflow) */
-    data class PendingApproval(
-        val approvalId: String,
-        val message: String
-    ) : HookResult()
 }
 
 /**

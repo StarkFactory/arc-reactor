@@ -88,7 +88,6 @@ interface AgentHook {
  * ## Return Values
  * - [HookResult.Continue]: Allow agent to proceed
  * - [HookResult.Reject]: Block execution with error message
- * - [HookResult.PendingApproval]: Request manual approval
  *
  * @see HookContext for available request information
  */
@@ -114,7 +113,6 @@ interface BeforeAgentStartHook : AgentHook {
  * ## Return Values
  * - [HookResult.Continue]: Allow tool execution
  * - [HookResult.Reject]: Block this specific tool call
- * - [HookResult.PendingApproval]: Request manual approval for dangerous operations
  *
  * @see ToolCallContext for tool call information
  */

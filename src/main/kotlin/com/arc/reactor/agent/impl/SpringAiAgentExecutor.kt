@@ -57,6 +57,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.TimeoutCancellationException
+import java.util.concurrent.CancellationException
 import kotlinx.coroutines.withTimeout
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
@@ -213,14 +215,11 @@ class SpringAiAgentExecutor(
     }
 
     /**
-     * Run before-agent-start hooks. Returns rejection/pending result if blocked, null if continue.
+     * Run before-agent-start hooks. Returns rejection if blocked, null if continue.
      */
-    private suspend fun checkBeforeHooks(hookContext: HookContext): HookResult? {
+    private suspend fun checkBeforeHooks(hookContext: HookContext): HookResult.Reject? {
         if (hookExecutor == null) return null
-        return when (val result = hookExecutor.executeBeforeAgentStart(hookContext)) {
-            is HookResult.Reject, is HookResult.PendingApproval -> result
-            else -> null
-        }
+        return hookExecutor.executeBeforeAgentStart(hookContext) as? HookResult.Reject
     }
 
     private suspend fun executeInternal(
@@ -265,14 +264,9 @@ class SpringAiAgentExecutor(
                 durationMs = System.currentTimeMillis() - startTime
             ).also { agentMetrics.recordExecution(it) }
         }
-        checkBeforeHooks(hookContext)?.let { hookResult ->
-            val message = when (hookResult) {
-                is HookResult.Reject -> hookResult.reason
-                is HookResult.PendingApproval -> "Pending approval: ${hookResult.message}"
-                else -> "Blocked by hook"
-            }
+        checkBeforeHooks(hookContext)?.let { rejection ->
             return AgentResult.failure(
-                errorMessage = message,
+                errorMessage = rejection.reason,
                 errorCode = AgentErrorCode.HOOK_REJECTED,
                 durationMs = System.currentTimeMillis() - startTime
             ).also { agentMetrics.recordExecution(it) }
@@ -354,13 +348,8 @@ class SpringAiAgentExecutor(
                     }
 
                     // 2. Before hooks
-                    checkBeforeHooks(hookContext)?.let { hookResult ->
-                        val message = when (hookResult) {
-                            is HookResult.Reject -> hookResult.reason
-                            is HookResult.PendingApproval -> "Pending approval: ${hookResult.message}"
-                            else -> "Blocked by hook"
-                        }
-                        emit(message)
+                    checkBeforeHooks(hookContext)?.let { rejection ->
+                        emit(rejection.reason)
                         return@withTimeout
                     }
 
@@ -869,18 +858,18 @@ class SpringAiAgentExecutor(
         }
 
         val toolStartTime = System.currentTimeMillis()
-        val toolOutput = invokeToolAdapter(toolName, toolCall, tools, toolsUsed)
+        val (toolOutput, toolSuccess) = invokeToolAdapter(toolName, toolCall, tools, toolsUsed)
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
         hookExecutor?.executeAfterToolCall(
             context = toolCallContext,
             result = ToolCallResult(
-                success = !toolOutput.startsWith("Error:"),
+                success = toolSuccess,
                 output = toolOutput, durationMs = toolDurationMs
             )
         )
 
-        agentMetrics.recordToolCall(toolName, toolDurationMs, !toolOutput.startsWith("Error:"))
+        agentMetrics.recordToolCall(toolName, toolDurationMs, toolSuccess)
         return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, toolOutput)
     }
 
@@ -894,19 +883,28 @@ class SpringAiAgentExecutor(
         toolCall: AssistantMessage.ToolCall,
         tools: List<Any>,
         toolsUsed: MutableList<String>
-    ): String {
+    ): Pair<String, Boolean> {
         val adapter = findToolAdapter(toolName, tools)
         return if (adapter != null) {
             toolsUsed.add(toolName)
             try {
-                adapter.call(toolCall.arguments())
+                val output = withTimeout(properties.concurrency.toolCallTimeoutMs) {
+                    adapter.call(toolCall.arguments())
+                }
+                Pair(output, true)
+            } catch (e: TimeoutCancellationException) {
+                val timeoutMs = properties.concurrency.toolCallTimeoutMs
+                logger.error { "Tool $toolName timed out after ${timeoutMs}ms" }
+                Pair("Error: Tool '$toolName' timed out after ${timeoutMs}ms", false)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logger.error(e) { "Tool $toolName execution failed" }
-                "Error: ${e.message}"
+                Pair("Error: ${e.message}", false)
             }
         } else {
             logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
-            "Error: Tool '$toolName' not found"
+            Pair("Error: Tool '$toolName' not found", false)
         }
     }
 

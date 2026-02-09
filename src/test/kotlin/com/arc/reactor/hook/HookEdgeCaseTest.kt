@@ -206,12 +206,5 @@ class HookEdgeCaseTest {
             val context = createContext()
             assertTrue(context.durationMs() >= 0) { "durationMs should be non-negative, got: ${context.durationMs()}" }
         }
-
-        @Test
-        fun `HookResult Modify carries parameters`() {
-            val params = mapOf("key" to "modified-value" as Any)
-            val result = HookResult.Modify(params)
-            assertEquals("modified-value", result.modifiedParams["key"])
-        }
     }
 }

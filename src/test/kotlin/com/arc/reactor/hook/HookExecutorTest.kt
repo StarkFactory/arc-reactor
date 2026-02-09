@@ -84,28 +84,6 @@ class HookExecutorTest {
         }
 
         @Test
-        fun `PendingApproval result is returned correctly`() = runBlocking {
-            val hook = object : BeforeAgentStartHook {
-                override val order = 1
-                override suspend fun beforeAgentStart(context: HookContext): HookResult {
-                    return HookResult.PendingApproval(
-                        approvalId = "approval-123",
-                        message = "Requires manager approval"
-                    )
-                }
-            }
-
-            val executor = HookExecutor(beforeStartHooks = listOf(hook))
-
-            val result = executor.executeBeforeAgentStart(
-                HookContext(runId = "run-1", userId = "user-1", userPrompt = "Delete all data")
-            )
-
-            val pending = assertInstanceOf(HookResult.PendingApproval::class.java, result)
-            assertEquals("Requires manager approval", pending.message)
-        }
-
-        @Test
         fun `fail-close when hook has failOnError true`() = runBlocking {
             val hook = object : BeforeAgentStartHook {
                 override val order = 1

@@ -92,7 +92,10 @@ data class ConcurrencyProperties(
     val maxConcurrentRequests: Int = 20,
 
     /** Request timeout (milliseconds) */
-    val requestTimeoutMs: Long = 30000
+    val requestTimeoutMs: Long = 30000,
+
+    /** Per-tool call timeout (milliseconds) */
+    val toolCallTimeoutMs: Long = 15000
 )
 
 data class CorsProperties(
