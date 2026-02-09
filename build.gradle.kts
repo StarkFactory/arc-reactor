@@ -32,7 +32,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
 
     // API Documentation (SpringDoc OpenAPI + Swagger UI for WebFlux)
-    implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.6")
+    implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:3.0.1")
 
     // Spring AI BOM (platform for version management)
     implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))
