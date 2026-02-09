@@ -41,7 +41,9 @@ class PromptTemplateController(
 
     private fun isAdmin(exchange: ServerWebExchange): Boolean {
         val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-        return role == UserRole.ADMIN
+        // When auth is disabled, JwtAuthWebFilter is not registered so role is null.
+        // Allow all operations (consistent with frontend: !isAuthRequired || isAdmin).
+        return role == null || role == UserRole.ADMIN
     }
 
     private fun forbidden(): ResponseEntity<Any> {

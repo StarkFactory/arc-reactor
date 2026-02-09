@@ -10,6 +10,7 @@ import com.arc.reactor.mcp.model.McpTransportType
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
@@ -44,7 +45,9 @@ class McpServerController(
 
     private fun isAdmin(exchange: ServerWebExchange): Boolean {
         val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-        return role == UserRole.ADMIN
+        // When auth is disabled, JwtAuthWebFilter is not registered so role is null.
+        // Allow all operations (consistent with frontend: !isAuthRequired || isAdmin).
+        return role == null || role == UserRole.ADMIN
     }
 
     private fun forbidden(): ResponseEntity<Any> {
@@ -80,7 +83,7 @@ class McpServerController(
         mcpManager.register(server)
 
         if (request.autoConnect) {
-            runBlocking {
+            runBlocking(Dispatchers.IO) {
                 try {
                     mcpManager.connect(server.name)
                 } catch (e: Exception) {
@@ -162,7 +165,7 @@ class McpServerController(
             ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(mapOf("error" to "MCP server '$name' not found"))
 
-        runBlocking { mcpManager.unregister(name) }
+        runBlocking(Dispatchers.IO) { mcpManager.unregister(name) }
 
         return ResponseEntity.noContent().build()
     }
@@ -181,7 +184,7 @@ class McpServerController(
             ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(mapOf("error" to "MCP server '$name' not found"))
 
-        val success = runBlocking { mcpManager.connect(name) }
+        val success = runBlocking(Dispatchers.IO) { mcpManager.connect(name) }
         val status = mcpManager.getStatus(name) ?: McpServerStatus.FAILED
 
         return if (success) {
@@ -207,7 +210,7 @@ class McpServerController(
             ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(mapOf("error" to "MCP server '$name' not found"))
 
-        runBlocking { mcpManager.disconnect(name) }
+        runBlocking(Dispatchers.IO) { mcpManager.disconnect(name) }
         val status = mcpManager.getStatus(name) ?: McpServerStatus.DISCONNECTED
 
         return ResponseEntity.ok(mapOf("status" to status.name))
