@@ -21,12 +21,23 @@ private val logger = KotlinLogging.logger {}
  */
 class JwtTokenProvider(private val authProperties: AuthProperties) {
 
+    init {
+        val secretBytes = authProperties.jwtSecret.toByteArray()
+        require(secretBytes.size >= 32) {
+            "JWT secret must be at least 32 bytes for HS256. " +
+            "Current length: ${secretBytes.size} bytes. " +
+            "Set a stronger secret via arc.reactor.auth.jwt-secret"
+        }
+    }
+
     private val secretKey: SecretKey = Keys.hmacShaKeyFor(
         authProperties.jwtSecret.toByteArray()
     )
 
     /**
      * Create a JWT token for the given user.
+     *
+     * Claims include userId (sub), email, role, issued-at, and expiration.
      *
      * @return Signed JWT string
      */
@@ -37,6 +48,7 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
         return Jwts.builder()
             .subject(user.id)
             .claim("email", user.email)
+            .claim("role", user.role.name)
             .issuedAt(now)
             .expiration(expiry)
             .signWith(secretKey)
@@ -58,6 +70,26 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
             claims.subject
         } catch (e: Exception) {
             logger.debug { "JWT validation failed: ${e.message}" }
+            null
+        }
+    }
+
+    /**
+     * Validate a JWT token and extract the role claim.
+     *
+     * @return [UserRole] if valid, null if invalid or expired
+     */
+    fun extractRole(token: String): UserRole? {
+        return try {
+            val claims = Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .payload
+            val roleName = claims.get("role", String::class.java) ?: return UserRole.USER
+            UserRole.valueOf(roleName)
+        } catch (e: Exception) {
+            logger.debug { "JWT role extraction failed: ${e.message}" }
             null
         }
     }

@@ -59,13 +59,78 @@ class JwtTokenProviderTest {
             assertNotNull(userId) { "Token should be valid and parseable" }
 
             // Decode the payload manually to check email claim
+            val payloadPart = token.split(".")[1]
             val payload = String(
-                java.util.Base64.getUrlDecoder().decode(token.split(".")[1] + "=="),
+                java.util.Base64.getUrlDecoder().decode(payloadPart),
                 Charsets.UTF_8
             )
             assertTrue(payload.contains("tony@stark.com")) {
                 "Token payload should contain the email claim, got: $payload"
             }
+        }
+    }
+
+    @Nested
+    inner class RoleClaim {
+
+        @Test
+        fun `token should contain role claim`() {
+            val adminUser = testUser.copy(role = UserRole.ADMIN)
+            val token = tokenProvider.createToken(adminUser)
+
+            val role = tokenProvider.extractRole(token)
+
+            assertEquals(UserRole.ADMIN, role) { "extractRole should return ADMIN for admin user" }
+        }
+
+        @Test
+        fun `default user should have USER role in token`() {
+            val token = tokenProvider.createToken(testUser)
+
+            val role = tokenProvider.extractRole(token)
+
+            assertEquals(UserRole.USER, role) { "extractRole should return USER for default user" }
+        }
+
+        @Test
+        fun `extractRole should return null for invalid token`() {
+            val role = tokenProvider.extractRole("invalid.token.value")
+
+            assertNull(role) { "extractRole should return null for invalid token" }
+        }
+    }
+
+    @Nested
+    inner class SecretValidation {
+
+        @Test
+        fun `should reject secret shorter than 32 bytes`() {
+            val exception = assertThrows(IllegalArgumentException::class.java) {
+                JwtTokenProvider(
+                    AuthProperties(enabled = true, jwtSecret = "too-short")
+                )
+            }
+            assertTrue(exception.message!!.contains("at least 32 bytes")) {
+                "Error message should mention minimum length, got: ${exception.message}"
+            }
+        }
+
+        @Test
+        fun `should reject empty secret`() {
+            assertThrows(IllegalArgumentException::class.java) {
+                JwtTokenProvider(
+                    AuthProperties(enabled = true, jwtSecret = "")
+                )
+            }
+        }
+
+        @Test
+        fun `should accept secret of exactly 32 bytes`() {
+            val provider = JwtTokenProvider(
+                AuthProperties(enabled = true, jwtSecret = "a".repeat(32))
+            )
+            val token = provider.createToken(testUser)
+            assertNotNull(token) { "Should create token with 32-byte secret" }
         }
     }
 

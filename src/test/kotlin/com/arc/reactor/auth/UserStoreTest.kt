@@ -109,6 +109,45 @@ class UserStoreTest {
     }
 
     @Nested
+    inner class Count {
+
+        @Test
+        fun `count should return 0 when empty`() {
+            assertEquals(0L, store.count()) { "Empty store should have count 0" }
+        }
+
+        @Test
+        fun `count should return correct number after saves`() {
+            store.save(User(id = "u-1", email = "a@test.com", name = "A", passwordHash = "h"))
+            store.save(User(id = "u-2", email = "b@test.com", name = "B", passwordHash = "h"))
+
+            assertEquals(2L, store.count()) { "Count should be 2 after saving 2 users" }
+        }
+    }
+
+    @Nested
+    inner class RoleField {
+
+        @Test
+        fun `should default to USER role`() {
+            val user = User(id = "u-1", email = "a@test.com", name = "A", passwordHash = "h")
+
+            assertEquals(UserRole.USER, user.role) { "Default role should be USER" }
+        }
+
+        @Test
+        fun `should preserve ADMIN role`() {
+            val user = User(id = "u-1", email = "a@test.com", name = "A", passwordHash = "h", role = UserRole.ADMIN)
+            store.save(user)
+
+            val retrieved = store.findById("u-1")
+
+            assertNotNull(retrieved) { "User should be retrievable" }
+            assertEquals(UserRole.ADMIN, retrieved!!.role) { "Role should be preserved as ADMIN" }
+        }
+    }
+
+    @Nested
     inner class Concurrency {
 
         @Test

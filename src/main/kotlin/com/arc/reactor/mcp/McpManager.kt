@@ -9,7 +9,9 @@ import io.modelcontextprotocol.client.McpSyncClient
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport
 import io.modelcontextprotocol.client.transport.ServerParameters
 import io.modelcontextprotocol.client.transport.StdioClientTransport
+import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper
 import io.modelcontextprotocol.spec.McpSchema
+import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
@@ -137,8 +139,20 @@ interface McpManager {
  * This implementation uses ConcurrentHashMap for thread-safe access.
  * Per-server Mutex ensures atomic connect/disconnect operations for the same server.
  */
+/**
+ * MCP security configuration.
+ *
+ * @param allowedServerNames Allowlist of MCP server names. Empty = allow all.
+ * @param maxToolOutputLength Maximum characters in tool output before truncation.
+ */
+data class McpSecurityConfig(
+    val allowedServerNames: Set<String> = emptySet(),
+    val maxToolOutputLength: Int = 50_000
+)
+
 class DefaultMcpManager(
-    private val connectionTimeoutMs: Long = 30_000
+    private val connectionTimeoutMs: Long = 30_000,
+    private val securityConfig: McpSecurityConfig = McpSecurityConfig()
 ) : McpManager, AutoCloseable {
 
     private val servers = ConcurrentHashMap<String, McpServer>()
@@ -150,6 +164,12 @@ class DefaultMcpManager(
     private fun mutexFor(serverName: String): Mutex = serverMutexes.getOrPut(serverName) { Mutex() }
 
     override fun register(server: McpServer) {
+        if (securityConfig.allowedServerNames.isNotEmpty() &&
+            server.name !in securityConfig.allowedServerNames
+        ) {
+            logger.warn { "MCP server rejected by allowlist: ${server.name}" }
+            return
+        }
         logger.info { "Registering MCP server: ${server.name}" }
         servers[server.name] = server
         statuses[server.name] = McpServerStatus.PENDING
@@ -209,7 +229,7 @@ class DefaultMcpManager(
                 .args(*args.toTypedArray())
                 .build()
 
-            val transport = StdioClientTransport(params)
+            val transport = StdioClientTransport(params, JacksonMcpJsonMapper(ObjectMapper()))
 
             val client = McpClient.sync(transport)
                 .clientInfo(McpSchema.Implementation(server.name, server.version ?: "1.0.0"))
@@ -281,7 +301,8 @@ class DefaultMcpManager(
                     client = client,
                     name = tool.name(),
                     description = tool.description() ?: "",
-                    mcpInputSchema = tool.inputSchema()
+                    mcpInputSchema = tool.inputSchema(),
+                    maxOutputLength = securityConfig.maxToolOutputLength
                 )
             }
         } catch (e: Exception) {
@@ -370,7 +391,8 @@ class McpToolCallback(
     private val client: McpSyncClient,
     override val name: String,
     override val description: String,
-    private val mcpInputSchema: McpSchema.JsonSchema?
+    private val mcpInputSchema: McpSchema.JsonSchema?,
+    private val maxOutputLength: Int = 50_000
 ) : ToolCallback {
 
     override val inputSchema: String
@@ -387,14 +409,21 @@ class McpToolCallback(
             val request = McpSchema.CallToolRequest(name, arguments)
             val result = client.callTool(request)
 
-            // Convert result to string
-            result.content().joinToString("\n") { content ->
+            // Convert result to string and enforce output length limit
+            val output = result.content().joinToString("\n") { content ->
                 when (content) {
                     is McpSchema.TextContent -> content.text()
                     is McpSchema.ImageContent -> "[Image: ${content.mimeType()}]"
                     is McpSchema.EmbeddedResource -> "[Resource: ${content.resource().uri()}]"
                     else -> content.toString()
                 }
+            }
+
+            if (output.length > maxOutputLength) {
+                logger.warn { "MCP tool '$name' output truncated: ${output.length} -> $maxOutputLength chars" }
+                output.take(maxOutputLength) + "\n[TRUNCATED: output exceeded $maxOutputLength characters]"
+            } else {
+                output
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to call MCP tool: $name" }

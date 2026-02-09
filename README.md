@@ -297,6 +297,8 @@ class McpSetup(private val mcpManager: McpManager) {
 }
 ```
 
+> **Note:** MCP SDK 0.10.0 does not support the Streamable HTTP transport. Use SSE as an alternative for remote servers. See the [MCP Integration Guide](docs/en/mcp.md) for details.
+
 ## Authentication (Opt-in)
 
 Arc Reactor includes a built-in JWT authentication system. It's **disabled by default** — enable it only when you need per-user session isolation.
@@ -423,13 +425,15 @@ src/main/kotlin/com/arc/reactor/
 │   └── JdbcPersonaStore.kt         -> PostgreSQL implementation
 │
 ├── autoconfigure/                  # Spring Boot Auto-configuration
-│   └── ArcReactorAutoConfiguration.kt
+│   ├── ArcReactorAutoConfiguration.kt
+│   └── OpenApiConfiguration.kt      -> Swagger UI / OpenAPI spec
 │
 ├── controller/                     # REST API <- Modify as needed
 │   ├── ChatController.kt           -> POST /api/chat, /api/chat/stream
 │   ├── SessionController.kt        -> GET/DELETE /api/sessions, GET /api/models
 │   ├── AuthController.kt           -> POST /api/auth/register|login, GET /api/auth/me
-│   └── PersonaController.kt        -> CRUD /api/personas
+│   ├── PersonaController.kt        -> CRUD /api/personas
+│   └── PromptTemplateController.kt -> Versioned prompt management (ADMIN)
 │
 └── config/
     └── ChatClientConfig.kt
@@ -452,6 +456,7 @@ src/main/kotlin/com/arc/reactor/
 - [Session & Persona Guide](docs/en/session-management.md) - Session API, persona management, data architecture
 - [Prompt Versioning Guide](docs/en/prompt-versioning.md) - Version control for system prompts, deployment, rollback
 - [Feature Inventory](docs/en/feature-inventory.md) - Complete feature matrix, data architecture, DB schema
+- [Troubleshooting](docs/en/troubleshooting.md) - Common issues and solutions
 
 ## Requirements
 

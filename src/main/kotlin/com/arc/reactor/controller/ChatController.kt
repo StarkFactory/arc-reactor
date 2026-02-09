@@ -7,6 +7,10 @@ import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.prompt.PromptTemplateStore
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import kotlinx.coroutines.flow.Flow
@@ -37,6 +41,7 @@ import reactor.core.publisher.Flux
  * - `tool_end` : Tool execution completed (data = tool name)
  * - `done` : Stream complete
  */
+@Tag(name = "Chat", description = "AI agent chat endpoints")
 @RestController
 @RequestMapping("/api/chat")
 class ChatController(
@@ -95,6 +100,22 @@ class ChatController(
      *   --no-buffer
      * ```
      */
+    @Operation(
+        summary = "Streaming chat (SSE)",
+        description = "Real-time streaming response via Server-Sent Events.\n\n" +
+            "SSE event types:\n" +
+            "- `message` : LLM text token chunk\n" +
+            "- `tool_start` : Tool execution started (data = tool name)\n" +
+            "- `tool_end` : Tool execution completed (data = tool name)\n" +
+            "- `done` : Stream complete",
+        responses = [
+            ApiResponse(
+                responseCode = "200",
+                description = "SSE stream",
+                content = [Content(mediaType = MediaType.TEXT_EVENT_STREAM_VALUE)]
+            )
+        ]
+    )
     @PostMapping("/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun chatStream(
         @Valid @RequestBody request: ChatRequest,

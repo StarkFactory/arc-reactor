@@ -1,5 +1,8 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.auth.UserRole
+import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.prompt.PromptTemplate
 import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.prompt.PromptVersion
@@ -8,6 +11,7 @@ import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ServerWebExchange
 import java.util.UUID
 
 /**
@@ -28,11 +32,22 @@ import java.util.UUID
  * - PUT    /api/prompt-templates/{id}/versions/{vid}/activate   : Activate a version
  * - PUT    /api/prompt-templates/{id}/versions/{vid}/archive    : Archive a version
  */
+@Tag(name = "Prompt Templates", description = "Versioned system prompt management (ADMIN only for write operations)")
 @RestController
 @RequestMapping("/api/prompt-templates")
 class PromptTemplateController(
     private val promptTemplateStore: PromptTemplateStore
 ) {
+
+    private fun isAdmin(exchange: ServerWebExchange): Boolean {
+        val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
+        return role == UserRole.ADMIN
+    }
+
+    private fun forbidden(): ResponseEntity<Any> {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(mapOf("error" to "Admin access required"))
+    }
 
     // ---- Template Endpoints ----
 
@@ -57,12 +72,14 @@ class PromptTemplateController(
     }
 
     /**
-     * Create a new template.
+     * Create a new template. Requires ADMIN role.
      */
     @PostMapping
     fun createTemplate(
-        @Valid @RequestBody request: CreateTemplateRequest
-    ): ResponseEntity<TemplateResponse> {
+        @Valid @RequestBody request: CreateTemplateRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         val template = PromptTemplate(
             id = UUID.randomUUID().toString(),
             name = request.name,
@@ -73,71 +90,83 @@ class PromptTemplateController(
     }
 
     /**
-     * Update template metadata. Only provided fields are changed.
+     * Update template metadata. Only provided fields are changed. Requires ADMIN role.
      */
     @PutMapping("/{templateId}")
     fun updateTemplate(
         @PathVariable templateId: String,
-        @Valid @RequestBody request: UpdateTemplateRequest
-    ): ResponseEntity<TemplateResponse> {
+        @Valid @RequestBody request: UpdateTemplateRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         val updated = promptTemplateStore.updateTemplate(
             id = templateId,
             name = request.name,
             description = request.description
-        ) ?: return ResponseEntity.notFound().build()
+        ) ?: return ResponseEntity.notFound().build<Any>()
         return ResponseEntity.ok(updated.toResponse())
     }
 
     /**
-     * Delete a template and all its versions. Idempotent — returns 204 even if not found.
+     * Delete a template and all its versions. Idempotent — returns 204 even if not found. Requires ADMIN role.
      */
     @DeleteMapping("/{templateId}")
-    fun deleteTemplate(@PathVariable templateId: String): ResponseEntity<Void> {
+    fun deleteTemplate(
+        @PathVariable templateId: String,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         promptTemplateStore.deleteTemplate(templateId)
-        return ResponseEntity.noContent().build()
+        return ResponseEntity.noContent().build<Any>()
     }
 
     // ---- Version Endpoints ----
 
     /**
-     * Create a new version for a template. Starts in DRAFT status.
+     * Create a new version for a template. Starts in DRAFT status. Requires ADMIN role.
      */
     @PostMapping("/{templateId}/versions")
     fun createVersion(
         @PathVariable templateId: String,
-        @Valid @RequestBody request: CreateVersionRequest
-    ): ResponseEntity<VersionResponse> {
+        @Valid @RequestBody request: CreateVersionRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         val version = promptTemplateStore.createVersion(
             templateId = templateId,
             content = request.content,
             changeLog = request.changeLog
-        ) ?: return ResponseEntity.notFound().build()
+        ) ?: return ResponseEntity.notFound().build<Any>()
         return ResponseEntity.status(HttpStatus.CREATED).body(version.toResponse())
     }
 
     /**
-     * Activate a version. The previously active version (if any) is archived.
+     * Activate a version. The previously active version (if any) is archived. Requires ADMIN role.
      */
     @PutMapping("/{templateId}/versions/{versionId}/activate")
     fun activateVersion(
         @PathVariable templateId: String,
-        @PathVariable versionId: String
-    ): ResponseEntity<VersionResponse> {
+        @PathVariable versionId: String,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         val activated = promptTemplateStore.activateVersion(templateId, versionId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return ResponseEntity.notFound().build<Any>()
         return ResponseEntity.ok(activated.toResponse())
     }
 
     /**
-     * Archive a version.
+     * Archive a version. Requires ADMIN role.
      */
     @PutMapping("/{templateId}/versions/{versionId}/archive")
     fun archiveVersion(
         @PathVariable templateId: String,
-        @PathVariable versionId: String
-    ): ResponseEntity<VersionResponse> {
+        @PathVariable versionId: String,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         val archived = promptTemplateStore.archiveVersion(versionId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return ResponseEntity.notFound().build<Any>()
         return ResponseEntity.ok(archived.toResponse())
     }
 }

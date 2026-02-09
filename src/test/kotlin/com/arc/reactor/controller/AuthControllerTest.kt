@@ -58,6 +58,7 @@ class AuthControllerTest {
             assertNotNull(response.body!!.user) { "User response should not be null" }
             assertEquals("new@test.com", response.body!!.user!!.email) { "Email should match" }
             assertEquals("New User", response.body!!.user!!.name) { "Name should match" }
+            assertEquals("USER", response.body!!.user!!.role) { "Registered user should always be USER" }
             assertNull(response.body!!.error) { "Error should be null on success" }
         }
 

@@ -1,5 +1,7 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.auth.UserRole
 import com.arc.reactor.prompt.*
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
@@ -8,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
 class PromptTemplateControllerTest {
@@ -21,6 +24,24 @@ class PromptTemplateControllerTest {
     fun setup() {
         store = mockk()
         controller = PromptTemplateController(store)
+    }
+
+    private fun adminExchange(): ServerWebExchange {
+        val exchange = mockk<ServerWebExchange>()
+        val attrs = mutableMapOf<String, Any>(
+            JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.ADMIN
+        )
+        every { exchange.attributes } returns attrs
+        return exchange
+    }
+
+    private fun userExchange(): ServerWebExchange {
+        val exchange = mockk<ServerWebExchange>()
+        val attrs = mutableMapOf<String, Any>(
+            JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.USER
+        )
+        every { exchange.attributes } returns attrs
+        return exchange
     }
 
     @Nested
@@ -71,49 +92,71 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `POST should create template and return 201`() = runTest {
+        fun `POST should create template and return 201 for ADMIN`() = runTest {
             val slot = slot<PromptTemplate>()
             every { store.saveTemplate(capture(slot)) } answers { slot.captured }
 
             val request = CreateTemplateRequest(name = "new-template", description = "A new one")
-            val response = controller.createTemplate(request)
+            val response = controller.createTemplate(request, adminExchange())
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should return 201 Created" }
-            val body = response.body!!
+            val body = response.body!! as TemplateResponse
             assertEquals("new-template", body.name) { "Name should match request" }
             assertEquals("A new one", body.description) { "Description should match request" }
             assertTrue(body.id.isNotBlank()) { "ID should be generated (UUID)" }
         }
 
         @Test
-        fun `PUT should update template`() = runTest {
+        fun `POST should return 403 for non-ADMIN`() = runTest {
+            val request = CreateTemplateRequest(name = "new-template", description = "A new one")
+            val response = controller.createTemplate(request, userExchange())
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
+        }
+
+        @Test
+        fun `PUT should update template for ADMIN`() = runTest {
             every { store.updateTemplate("t-1", "updated", null) } returns PromptTemplate(
                 "t-1", "updated", "original desc", now, now.plusSeconds(10)
             )
 
-            val response = controller.updateTemplate("t-1", UpdateTemplateRequest(name = "updated"))
+            val response = controller.updateTemplate("t-1", UpdateTemplateRequest(name = "updated"), adminExchange())
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
-            assertEquals("updated", response.body!!.name) { "Name should be updated" }
+            assertEquals("updated", (response.body!! as TemplateResponse).name) { "Name should be updated" }
+        }
+
+        @Test
+        fun `PUT should return 403 for non-ADMIN`() = runTest {
+            val response = controller.updateTemplate("t-1", UpdateTemplateRequest(name = "updated"), userExchange())
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
 
         @Test
         fun `PUT should return 404 for nonexistent template`() = runTest {
             every { store.updateTemplate("nonexistent", any(), any()) } returns null
 
-            val response = controller.updateTemplate("nonexistent", UpdateTemplateRequest(name = "x"))
+            val response = controller.updateTemplate("nonexistent", UpdateTemplateRequest(name = "x"), adminExchange())
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404" }
         }
 
         @Test
-        fun `DELETE should return 204`() = runTest {
+        fun `DELETE should return 204 for ADMIN`() = runTest {
             every { store.deleteTemplate("t-1") } returns Unit
 
-            val response = controller.deleteTemplate("t-1")
+            val response = controller.deleteTemplate("t-1", adminExchange())
 
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) { "Should return 204" }
             verify(exactly = 1) { store.deleteTemplate("t-1") }
+        }
+
+        @Test
+        fun `DELETE should return 403 for non-ADMIN`() = runTest {
+            val response = controller.deleteTemplate("t-1", userExchange())
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
     }
 
@@ -121,21 +164,33 @@ class PromptTemplateControllerTest {
     inner class VersionEndpoints {
 
         @Test
-        fun `POST versions should create new version and return 201`() = runTest {
+        fun `POST versions should create new version and return 201 for ADMIN`() = runTest {
             every { store.createVersion("t-1", "prompt content", "initial") } returns PromptVersion(
                 "v-1", "t-1", 1, "prompt content", VersionStatus.DRAFT, "initial", now
             )
 
             val response = controller.createVersion(
                 "t-1",
-                CreateVersionRequest(content = "prompt content", changeLog = "initial")
+                CreateVersionRequest(content = "prompt content", changeLog = "initial"),
+                adminExchange()
             )
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should return 201" }
-            val body = response.body!!
+            val body = response.body!! as VersionResponse
             assertEquals(1, body.version) { "Version number should be 1" }
             assertEquals("DRAFT", body.status) { "Status should be DRAFT" }
             assertEquals("prompt content", body.content) { "Content should match" }
+        }
+
+        @Test
+        fun `POST versions should return 403 for non-ADMIN`() = runTest {
+            val response = controller.createVersion(
+                "t-1",
+                CreateVersionRequest(content = "content"),
+                userExchange()
+            )
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
 
         @Test
@@ -144,50 +199,65 @@ class PromptTemplateControllerTest {
 
             val response = controller.createVersion(
                 "nonexistent",
-                CreateVersionRequest(content = "content")
+                CreateVersionRequest(content = "content"),
+                adminExchange()
             )
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404" }
         }
 
         @Test
-        fun `PUT activate should activate version`() = runTest {
+        fun `PUT activate should activate version for ADMIN`() = runTest {
             every { store.activateVersion("t-1", "v-1") } returns PromptVersion(
                 "v-1", "t-1", 1, "content", VersionStatus.ACTIVE, "", now
             )
 
-            val response = controller.activateVersion("t-1", "v-1")
+            val response = controller.activateVersion("t-1", "v-1", adminExchange())
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
-            assertEquals("ACTIVE", response.body!!.status) { "Status should be ACTIVE" }
+            assertEquals("ACTIVE", (response.body!! as VersionResponse).status) { "Status should be ACTIVE" }
+        }
+
+        @Test
+        fun `PUT activate should return 403 for non-ADMIN`() = runTest {
+            val response = controller.activateVersion("t-1", "v-1", userExchange())
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
 
         @Test
         fun `PUT activate should return 404 for nonexistent version`() = runTest {
             every { store.activateVersion("t-1", "nonexistent") } returns null
 
-            val response = controller.activateVersion("t-1", "nonexistent")
+            val response = controller.activateVersion("t-1", "nonexistent", adminExchange())
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404" }
         }
 
         @Test
-        fun `PUT archive should archive version`() = runTest {
+        fun `PUT archive should archive version for ADMIN`() = runTest {
             every { store.archiveVersion("v-1") } returns PromptVersion(
                 "v-1", "t-1", 1, "content", VersionStatus.ARCHIVED, "", now
             )
 
-            val response = controller.archiveVersion("t-1", "v-1")
+            val response = controller.archiveVersion("t-1", "v-1", adminExchange())
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
-            assertEquals("ARCHIVED", response.body!!.status) { "Status should be ARCHIVED" }
+            assertEquals("ARCHIVED", (response.body!! as VersionResponse).status) { "Status should be ARCHIVED" }
+        }
+
+        @Test
+        fun `PUT archive should return 403 for non-ADMIN`() = runTest {
+            val response = controller.archiveVersion("t-1", "v-1", userExchange())
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
 
         @Test
         fun `PUT archive should return 404 for nonexistent version`() = runTest {
             every { store.archiveVersion("nonexistent") } returns null
 
-            val response = controller.archiveVersion("t-1", "nonexistent")
+            val response = controller.archiveVersion("t-1", "nonexistent", adminExchange())
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404" }
         }

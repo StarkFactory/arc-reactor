@@ -2,6 +2,7 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.auth.AdminInitializer
 import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.auth.AuthProvider
 import com.arc.reactor.auth.DefaultAuthProvider
@@ -30,6 +31,7 @@ import com.arc.reactor.hook.BeforeToolCallHook
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.mcp.DefaultMcpManager
 import com.arc.reactor.mcp.McpManager
+import com.arc.reactor.mcp.McpSecurityConfig
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.DefaultTokenEstimator
@@ -167,11 +169,30 @@ class ArcReactorAutoConfiguration {
     ): ConversationManager = DefaultConversationManager(memoryStore, properties)
 
     /**
+     * Security Headers WebFilter (default: enabled)
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = ["securityHeadersWebFilter"])
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.security-headers", name = ["enabled"],
+        havingValue = "true", matchIfMissing = true
+    )
+    fun securityHeadersWebFilter(): WebFilter = SecurityHeadersWebFilter()
+
+    /**
      * MCP Manager
      */
     @Bean
     @ConditionalOnMissingBean
-    fun mcpManager(): McpManager = DefaultMcpManager()
+    fun mcpManager(properties: AgentProperties): McpManager {
+        val mcpSecurity = properties.mcpSecurity
+        return DefaultMcpManager(
+            securityConfig = McpSecurityConfig(
+                allowedServerNames = mcpSecurity.allowedServerNames,
+                maxToolOutputLength = mcpSecurity.maxToolOutputLength
+            )
+        )
+    }
 
     /**
      * Hook Executor
@@ -309,7 +330,10 @@ class ArcReactorAutoConfiguration {
         fun authProperties(environment: Environment): AuthProperties {
             val publicPathsCsv = environment.getProperty("arc.reactor.auth.public-paths")
             val publicPaths = publicPathsCsv?.split(",")?.map { it.trim() }
-                ?: listOf("/api/auth/login", "/api/auth/register")
+                ?: listOf(
+                    "/api/auth/login", "/api/auth/register",
+                    "/v3/api-docs", "/swagger-ui", "/webjars"
+                )
 
             return AuthProperties(
                 enabled = true,
@@ -340,6 +364,13 @@ class ArcReactorAutoConfiguration {
             jwtTokenProvider: JwtTokenProvider,
             authProperties: AuthProperties
         ): WebFilter = JwtAuthWebFilter(jwtTokenProvider, authProperties)
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun adminInitializer(
+            userStore: UserStore,
+            authProvider: AuthProvider
+        ): AdminInitializer = AdminInitializer(userStore, authProvider)
     }
 
     /**

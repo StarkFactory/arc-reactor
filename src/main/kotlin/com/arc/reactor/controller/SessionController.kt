@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.auth.JwtAuthWebFilter
+import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.SessionSummary
@@ -20,6 +21,7 @@ import org.springframework.web.server.ServerWebExchange
  * - DELETE /api/sessions/{id}  : Delete a session
  * - GET /api/models            : List available LLM providers
  */
+@Tag(name = "Sessions", description = "Conversation session and LLM provider management")
 @RestController
 @RequestMapping("/api")
 class SessionController(

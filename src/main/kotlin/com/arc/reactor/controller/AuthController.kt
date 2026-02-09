@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.auth.AuthProvider
+import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.auth.DefaultAuthProvider
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.JwtTokenProvider
@@ -32,6 +33,7 @@ import java.util.UUID
  * - POST /api/auth/login    : Authenticate and receive JWT
  * - GET  /api/auth/me       : Get current user profile (requires token)
  */
+@Tag(name = "Authentication", description = "JWT authentication (requires arc.reactor.auth.enabled=true)")
 @RestController
 @RequestMapping("/api/auth")
 @ConditionalOnProperty(prefix = "arc.reactor.auth", name = ["enabled"], havingValue = "true")
@@ -174,7 +176,8 @@ data class AuthResponse(
 data class UserResponse(
     val id: String,
     val email: String,
-    val name: String
+    val name: String,
+    val role: String
 )
 
 // --- Mapping ---
@@ -182,5 +185,6 @@ data class UserResponse(
 private fun User.toResponse() = UserResponse(
     id = id,
     email = email,
-    name = name
+    name = name,
+    role = role.name
 )
