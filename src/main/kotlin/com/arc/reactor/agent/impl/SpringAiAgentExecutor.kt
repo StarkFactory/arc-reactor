@@ -791,7 +791,15 @@ class SpringAiAgentExecutor(
         if (systemPrompt.isNotBlank()) spec = spec.system(systemPrompt)
         spec = spec.messages(messages)
         spec = spec.options(chatOptions)
-        if (tools.isNotEmpty()) spec = spec.tools(*tools.toTypedArray())
+        if (tools.isNotEmpty()) {
+            // Separate @Tool annotated objects (LocalTool) from ToolCallback implementations
+            val (callbacks, annotatedTools) = tools.partition { it is org.springframework.ai.tool.ToolCallback }
+            if (annotatedTools.isNotEmpty()) spec = spec.tools(*annotatedTools.toTypedArray())
+            if (callbacks.isNotEmpty()) {
+                @Suppress("UNCHECKED_CAST")
+                spec = spec.toolCallbacks(callbacks as List<org.springframework.ai.tool.ToolCallback>)
+            }
+        }
         return spec
     }
 
