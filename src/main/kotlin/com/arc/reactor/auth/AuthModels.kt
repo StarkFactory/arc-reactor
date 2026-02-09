@@ -45,5 +45,8 @@ data class AuthProperties(
     val enabled: Boolean = false,
     val jwtSecret: String = "",
     val jwtExpirationMs: Long = 86_400_000,
-    val publicPaths: List<String> = listOf("/api/auth/login", "/api/auth/register")
+    val publicPaths: List<String> = listOf(
+        "/api/auth/login", "/api/auth/register",
+        "/v3/api-docs", "/swagger-ui", "/webjars"
+    )
 )

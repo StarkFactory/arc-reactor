@@ -50,6 +50,13 @@ arc:
     rag:
       enabled: false
 
+# ----- API Documentation -----
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+
 # ----- Logging -----
 logging:
   level:

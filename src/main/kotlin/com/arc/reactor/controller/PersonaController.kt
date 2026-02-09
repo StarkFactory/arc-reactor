@@ -2,6 +2,7 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
+import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
@@ -22,6 +23,7 @@ import java.util.UUID
  * - PUT    /api/personas/{id}     : Update an existing persona
  * - DELETE /api/personas/{id}     : Delete a persona
  */
+@Tag(name = "Personas", description = "System prompt persona management")
 @RestController
 @RequestMapping("/api/personas")
 class PersonaController(
