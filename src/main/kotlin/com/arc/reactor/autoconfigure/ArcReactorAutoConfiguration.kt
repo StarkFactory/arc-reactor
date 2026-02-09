@@ -31,6 +31,7 @@ import com.arc.reactor.hook.BeforeToolCallHook
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.mcp.DefaultMcpManager
 import com.arc.reactor.mcp.McpManager
+import com.arc.reactor.mcp.McpSecurityConfig
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.DefaultTokenEstimator
@@ -168,11 +169,30 @@ class ArcReactorAutoConfiguration {
     ): ConversationManager = DefaultConversationManager(memoryStore, properties)
 
     /**
+     * Security Headers WebFilter (default: enabled)
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = ["securityHeadersWebFilter"])
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.security-headers", name = ["enabled"],
+        havingValue = "true", matchIfMissing = true
+    )
+    fun securityHeadersWebFilter(): WebFilter = SecurityHeadersWebFilter()
+
+    /**
      * MCP Manager
      */
     @Bean
     @ConditionalOnMissingBean
-    fun mcpManager(): McpManager = DefaultMcpManager()
+    fun mcpManager(properties: AgentProperties): McpManager {
+        val mcpSecurity = properties.mcpSecurity
+        return DefaultMcpManager(
+            securityConfig = McpSecurityConfig(
+                allowedServerNames = mcpSecurity.allowedServerNames,
+                maxToolOutputLength = mcpSecurity.maxToolOutputLength
+            )
+        )
+    }
 
     /**
      * Hook Executor
