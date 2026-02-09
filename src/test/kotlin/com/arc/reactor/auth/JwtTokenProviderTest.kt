@@ -101,6 +101,40 @@ class JwtTokenProviderTest {
     }
 
     @Nested
+    inner class SecretValidation {
+
+        @Test
+        fun `should reject secret shorter than 32 bytes`() {
+            val exception = assertThrows(IllegalArgumentException::class.java) {
+                JwtTokenProvider(
+                    AuthProperties(enabled = true, jwtSecret = "too-short")
+                )
+            }
+            assertTrue(exception.message!!.contains("at least 32 bytes")) {
+                "Error message should mention minimum length, got: ${exception.message}"
+            }
+        }
+
+        @Test
+        fun `should reject empty secret`() {
+            assertThrows(IllegalArgumentException::class.java) {
+                JwtTokenProvider(
+                    AuthProperties(enabled = true, jwtSecret = "")
+                )
+            }
+        }
+
+        @Test
+        fun `should accept secret of exactly 32 bytes`() {
+            val provider = JwtTokenProvider(
+                AuthProperties(enabled = true, jwtSecret = "a".repeat(32))
+            )
+            val token = provider.createToken(testUser)
+            assertNotNull(token) { "Should create token with 32-byte secret" }
+        }
+    }
+
+    @Nested
     inner class ValidateToken {
 
         @Test

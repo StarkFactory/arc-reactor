@@ -4,6 +4,7 @@ import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 
@@ -172,5 +173,95 @@ class McpManagerTest {
         manager.disconnect("test-server")
 
         assertEquals(McpServerStatus.DISCONNECTED, manager.getStatus("test-server"))
+    }
+
+    @Nested
+    inner class Allowlist {
+
+        @Test
+        fun `should reject server not in allowlist`() {
+            val manager = DefaultMcpManager(
+                securityConfig = McpSecurityConfig(
+                    allowedServerNames = setOf("trusted-server")
+                )
+            )
+
+            manager.register(McpServer(
+                name = "untrusted-server",
+                transportType = McpTransportType.STDIO,
+                config = mapOf("command" to "echo")
+            ))
+
+            assertTrue(manager.listServers().isEmpty()) {
+                "Untrusted server should not be registered"
+            }
+        }
+
+        @Test
+        fun `should accept server in allowlist`() {
+            val manager = DefaultMcpManager(
+                securityConfig = McpSecurityConfig(
+                    allowedServerNames = setOf("trusted-server")
+                )
+            )
+
+            manager.register(McpServer(
+                name = "trusted-server",
+                transportType = McpTransportType.STDIO,
+                config = mapOf("command" to "echo")
+            ))
+
+            assertEquals(1, manager.listServers().size) {
+                "Trusted server should be registered"
+            }
+        }
+
+        @Test
+        fun `should allow all servers when allowlist is empty`() {
+            val manager = DefaultMcpManager(
+                securityConfig = McpSecurityConfig(allowedServerNames = emptySet())
+            )
+
+            manager.register(McpServer(
+                name = "any-server",
+                transportType = McpTransportType.STDIO,
+                config = mapOf("command" to "echo")
+            ))
+
+            assertEquals(1, manager.listServers().size) {
+                "Empty allowlist should allow all servers"
+            }
+        }
+    }
+
+    @Nested
+    inner class OutputTruncation {
+
+        @Test
+        fun `McpSecurityConfig should have sensible defaults`() {
+            val config = McpSecurityConfig()
+
+            assertTrue(config.allowedServerNames.isEmpty()) {
+                "Default allowlist should be empty (allow all)"
+            }
+            assertEquals(50_000, config.maxToolOutputLength) {
+                "Default max output length should be 50,000 characters"
+            }
+        }
+
+        @Test
+        fun `McpSecurityConfig should accept custom values`() {
+            val config = McpSecurityConfig(
+                allowedServerNames = setOf("a", "b"),
+                maxToolOutputLength = 10_000
+            )
+
+            assertEquals(2, config.allowedServerNames.size) {
+                "Should store custom allowlist"
+            }
+            assertEquals(10_000, config.maxToolOutputLength) {
+                "Should store custom max output length"
+            }
+        }
     }
 }

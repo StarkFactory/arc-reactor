@@ -26,7 +26,16 @@ data class AgentProperties(
     val maxToolsPerRequest: Int = 20,
 
     /** Maximum tool calls (prevents infinite loops) */
-    val maxToolCalls: Int = 10
+    val maxToolCalls: Int = 10,
+
+    /** CORS configuration */
+    val cors: CorsProperties = CorsProperties(),
+
+    /** Security headers configuration */
+    val securityHeaders: SecurityHeadersProperties = SecurityHeadersProperties(),
+
+    /** MCP security configuration */
+    val mcpSecurity: McpSecurityProperties = McpSecurityProperties()
 )
 
 data class LlmProperties(
@@ -83,6 +92,39 @@ data class ConcurrencyProperties(
 
     /** Request timeout (milliseconds) */
     val requestTimeoutMs: Long = 30000
+)
+
+data class CorsProperties(
+    /** CORS enabled (opt-in) */
+    val enabled: Boolean = false,
+
+    /** Allowed origins */
+    val allowedOrigins: List<String> = listOf("http://localhost:3000"),
+
+    /** Allowed HTTP methods */
+    val allowedMethods: List<String> = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS"),
+
+    /** Allowed headers */
+    val allowedHeaders: List<String> = listOf("*"),
+
+    /** Allow credentials (cookies, Authorization header) */
+    val allowCredentials: Boolean = true,
+
+    /** Preflight cache duration in seconds */
+    val maxAge: Long = 3600
+)
+
+data class SecurityHeadersProperties(
+    /** Security headers enabled (default: true) */
+    val enabled: Boolean = true
+)
+
+data class McpSecurityProperties(
+    /** Allowed MCP server names (empty = allow all) */
+    val allowedServerNames: Set<String> = emptySet(),
+
+    /** Maximum tool output length in characters */
+    val maxToolOutputLength: Int = 50_000
 )
 
 data class RagProperties(

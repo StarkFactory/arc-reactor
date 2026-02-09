@@ -21,6 +21,15 @@ private val logger = KotlinLogging.logger {}
  */
 class JwtTokenProvider(private val authProperties: AuthProperties) {
 
+    init {
+        val secretBytes = authProperties.jwtSecret.toByteArray()
+        require(secretBytes.size >= 32) {
+            "JWT secret must be at least 32 bytes for HS256. " +
+            "Current length: ${secretBytes.size} bytes. " +
+            "Set a stronger secret via arc.reactor.auth.jwt-secret"
+        }
+    }
+
     private val secretKey: SecretKey = Keys.hmacShaKeyFor(
         authProperties.jwtSecret.toByteArray()
     )
