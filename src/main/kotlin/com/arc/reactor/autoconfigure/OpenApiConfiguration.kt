@@ -38,7 +38,7 @@ class OpenApiConfiguration {
                         "AI Agent framework REST API. " +
                             "Authentication endpoints are only available when `arc.reactor.auth.enabled=true`."
                     )
-                    .version("1.2.0")
+                    .version("2.1.0")
                     .license(License().name("Apache 2.0").url("https://opensource.org/licenses/Apache-2.0"))
             )
             .components(

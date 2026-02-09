@@ -21,7 +21,7 @@ class OpenApiConfigurationTest {
 
             assertEquals("Arc Reactor API", openAPI.info.title,
                 "OpenAPI title should be 'Arc Reactor API'")
-            assertEquals("1.2.0", openAPI.info.version,
+            assertEquals("2.1.0", openAPI.info.version,
                 "OpenAPI version should match project version")
         }
 
