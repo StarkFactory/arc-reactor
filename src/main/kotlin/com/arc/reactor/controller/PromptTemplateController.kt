@@ -2,6 +2,7 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
+import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.prompt.PromptTemplate
 import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.prompt.PromptVersion
@@ -31,6 +32,7 @@ import java.util.UUID
  * - PUT    /api/prompt-templates/{id}/versions/{vid}/activate   : Activate a version
  * - PUT    /api/prompt-templates/{id}/versions/{vid}/archive    : Archive a version
  */
+@Tag(name = "Prompt Templates", description = "Versioned system prompt management (ADMIN only for write operations)")
 @RestController
 @RequestMapping("/api/prompt-templates")
 class PromptTemplateController(

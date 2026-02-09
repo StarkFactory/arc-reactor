@@ -330,7 +330,10 @@ class ArcReactorAutoConfiguration {
         fun authProperties(environment: Environment): AuthProperties {
             val publicPathsCsv = environment.getProperty("arc.reactor.auth.public-paths")
             val publicPaths = publicPathsCsv?.split(",")?.map { it.trim() }
-                ?: listOf("/api/auth/login", "/api/auth/register")
+                ?: listOf(
+                    "/api/auth/login", "/api/auth/register",
+                    "/v3/api-docs", "/swagger-ui", "/webjars"
+                )
 
             return AuthProperties(
                 enabled = true,
