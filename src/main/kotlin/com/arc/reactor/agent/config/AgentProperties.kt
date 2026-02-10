@@ -45,7 +45,10 @@ data class AgentProperties(
     val toolSelection: ToolSelectionProperties = ToolSelectionProperties(),
 
     /** Human-in-the-Loop approval configuration */
-    val approval: ApprovalProperties = ApprovalProperties()
+    val approval: ApprovalProperties = ApprovalProperties(),
+
+    /** Multimodal (file upload / media URL) configuration */
+    val multimodal: MultimodalProperties = MultimodalProperties()
 )
 
 data class LlmProperties(
@@ -273,6 +276,22 @@ data class ApprovalProperties(
 
     /** Tool names that require approval (empty = use custom ToolApprovalPolicy) */
     val toolNames: Set<String> = emptySet()
+)
+
+/**
+ * Multimodal (file upload / media URL) configuration.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     multimodal:
+ *       enabled: false   # disable file uploads and media URL processing
+ * ```
+ */
+data class MultimodalProperties(
+    /** Enable multimodal support (file uploads via /api/chat/multipart and mediaUrls in JSON requests) */
+    val enabled: Boolean = true
 )
 
 data class RagProperties(

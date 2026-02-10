@@ -1,6 +1,8 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.agent.AgentExecutor
+import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.agent.config.MultimodalProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.ResponseFormat
@@ -362,6 +364,76 @@ class ChatControllerTest {
             assertEquals("gemini", response.model) { "model should match" }
             assertEquals(listOf("calc"), response.toolsUsed) { "toolsUsed should match" }
             assertNull(response.errorMessage) { "errorMessage should be null" }
+        }
+    }
+
+    @Nested
+    inner class MultimodalToggle {
+
+        @Test
+        fun `should resolve mediaUrls when multimodal is enabled (default)`() = runTest {
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            val request = ChatRequest(
+                message = "Describe this image",
+                mediaUrls = listOf(MediaUrlRequest("https://example.com/photo.png", "image/png"))
+            )
+            controller.chat(request, exchange)
+
+            assertEquals(1, commandSlot.captured.media.size) {
+                "Should have 1 media attachment when multimodal is enabled"
+            }
+        }
+
+        @Test
+        fun `should ignore mediaUrls when multimodal is disabled`() = runTest {
+            val disabledProps = AgentProperties(multimodal = MultimodalProperties(enabled = false))
+            val disabledController = ChatController(agentExecutor, properties = disabledProps)
+
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            val request = ChatRequest(
+                message = "Describe this image",
+                mediaUrls = listOf(MediaUrlRequest("https://example.com/photo.png", "image/png"))
+            )
+            disabledController.chat(request, exchange)
+
+            assertTrue(commandSlot.captured.media.isEmpty()) {
+                "Should have no media attachments when multimodal is disabled"
+            }
+        }
+
+        @Test
+        fun `should ignore mediaUrls in streaming when multimodal is disabled`() = runTest {
+            val disabledProps = AgentProperties(multimodal = MultimodalProperties(enabled = false))
+            val disabledController = ChatController(agentExecutor, properties = disabledProps)
+
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.executeStream(capture(commandSlot)) } returns flowOf("ok")
+
+            val request = ChatRequest(
+                message = "Describe this image",
+                mediaUrls = listOf(MediaUrlRequest("https://example.com/photo.png", "image/png"))
+            )
+            disabledController.chatStream(request, exchange)
+
+            assertTrue(commandSlot.captured.media.isEmpty()) {
+                "Streaming should have no media when multimodal is disabled"
+            }
+        }
+
+        @Test
+        fun `should pass empty media when no mediaUrls provided regardless of toggle`() = runTest {
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            controller.chat(ChatRequest(message = "hello"), exchange)
+
+            assertTrue(commandSlot.captured.media.isEmpty()) {
+                "Should have no media when mediaUrls not provided"
+            }
         }
     }
 }

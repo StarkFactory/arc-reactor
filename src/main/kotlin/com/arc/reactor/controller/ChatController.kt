@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.agent.AgentExecutor
+import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.agent.model.ResponseFormat
@@ -19,18 +20,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.reactor.asFlux
-import kotlinx.coroutines.reactive.awaitSingle
 import org.springframework.http.MediaType
 import org.springframework.http.codec.ServerSentEvent
-import org.springframework.http.codec.multipart.FilePart
 import org.springframework.util.MimeType
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
-import org.springframework.core.io.buffer.DataBufferUtils
 import reactor.core.publisher.Flux
 
 /**
@@ -54,7 +51,8 @@ import reactor.core.publisher.Flux
 class ChatController(
     private val agentExecutor: AgentExecutor,
     private val personaStore: PersonaStore? = null,
-    private val promptTemplateStore: PromptTemplateStore? = null
+    private val promptTemplateStore: PromptTemplateStore? = null,
+    private val properties: AgentProperties = AgentProperties()
 ) {
 
     /**
@@ -220,56 +218,11 @@ class ChatController(
     }
 
     /**
-     * Multipart chat - send a message with file attachments (images, audio, etc.)
-     *
-     * Supports multimodal LLMs by accepting file uploads alongside the text prompt.
-     * The message field and optional parameters are sent as form fields.
-     *
-     * ```bash
-     * curl -X POST http://localhost:8080/api/chat/multipart \
-     *   -F "message=What's in this image?" \
-     *   -F "files=@photo.png"
-     * ```
-     */
-    @Operation(summary = "Multipart chat with file attachments")
-    @PostMapping("/multipart", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
-    suspend fun chatMultipart(
-        @RequestPart("message") message: String,
-        @RequestPart("files") files: List<FilePart>,
-        @RequestPart("model", required = false) model: String?,
-        @RequestPart("systemPrompt", required = false) systemPrompt: String?,
-        @RequestPart("personaId", required = false) personaId: String?,
-        @RequestPart("userId", required = false) userId: String?,
-        exchange: ServerWebExchange
-    ): ChatResponse {
-        val mediaAttachments = files.map { file -> filePartToMediaAttachment(file) }
-
-        val resolvedSystemPrompt = resolveSystemPromptFromParams(systemPrompt, personaId)
-        val resolvedUserId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
-            ?: userId ?: "anonymous"
-
-        val result = agentExecutor.execute(
-            AgentCommand(
-                systemPrompt = resolvedSystemPrompt,
-                userPrompt = message,
-                model = model,
-                userId = resolvedUserId,
-                media = mediaAttachments
-            )
-        )
-        return ChatResponse(
-            content = result.content,
-            success = result.success,
-            model = model,
-            toolsUsed = result.toolsUsed,
-            errorMessage = result.errorMessage
-        )
-    }
-
-    /**
      * Convert [MediaUrlRequest] list to [MediaAttachment] list for URI-based media.
+     * Returns empty list when multimodal is disabled.
      */
     private fun resolveMediaUrls(mediaUrls: List<MediaUrlRequest>?): List<MediaAttachment> {
+        if (!properties.multimodal.enabled) return emptyList()
         if (mediaUrls.isNullOrEmpty()) return emptyList()
         return mediaUrls.map { req ->
             MediaAttachment(
@@ -277,41 +230,6 @@ class ChatController(
                 uri = java.net.URI(req.url)
             )
         }
-    }
-
-    /**
-     * Resolve system prompt from individual parameters (for multipart endpoint).
-     */
-    private fun resolveSystemPromptFromParams(systemPrompt: String?, personaId: String?): String {
-        if (personaId != null && personaStore != null) {
-            personaStore.get(personaId)?.systemPrompt?.let { return it }
-        }
-        if (!systemPrompt.isNullOrBlank()) return systemPrompt
-        personaStore?.getDefault()?.systemPrompt?.let { return it }
-        return DEFAULT_SYSTEM_PROMPT
-    }
-
-    /**
-     * Convert a [FilePart] to a [MediaAttachment] by reading all bytes.
-     */
-    private suspend fun filePartToMediaAttachment(file: FilePart): MediaAttachment {
-        val bytes = DataBufferUtils.join(file.content())
-            .map { buffer ->
-                val bytes = ByteArray(buffer.readableByteCount())
-                buffer.read(bytes)
-                DataBufferUtils.release(buffer)
-                bytes
-            }
-            .awaitSingle()
-
-        val mimeType = file.headers().contentType?.let { MimeType(it.type, it.subtype) }
-            ?: MimeType("application", "octet-stream")
-
-        return MediaAttachment(
-            mimeType = mimeType,
-            data = bytes,
-            name = file.filename()
-        )
     }
 
     companion object {
