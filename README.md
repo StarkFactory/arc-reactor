@@ -443,6 +443,7 @@ src/main/kotlin/com/arc/reactor/
 
 ## Documentation
 
+- **[Tutorial: Build a Chatbot in 30 Minutes](docs/en/tutorial-chatbot.md)** - End-to-end guide with custom tools, persona, and deployment
 - [Architecture Guide](docs/en/architecture.md) - Internal structure and error handling
 - [ReAct Loop Internals](docs/en/react-loop.md) - Core execution engine, parallel tool execution, context trimming, retry
 - [Guard & Hook System](docs/en/guard-hook.md) - 5-stage security pipeline, 4 lifecycle extension points
