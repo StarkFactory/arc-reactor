@@ -52,6 +52,14 @@ interface ToolCallback {
         get() = """{"type":"object","properties":{}}"""
 
     /**
+     * Per-tool timeout in milliseconds. When set, overrides the global
+     * `arc.reactor.concurrency.tool-call-timeout-ms` for this tool only.
+     * Null means use the global default.
+     */
+    val timeoutMs: Long?
+        get() = null
+
+    /**
      * Execute the tool with the given arguments.
      *
      * @param arguments Key-value pairs of tool parameters (parsed from LLM's JSON)

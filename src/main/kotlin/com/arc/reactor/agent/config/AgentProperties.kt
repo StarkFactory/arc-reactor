@@ -148,7 +148,10 @@ data class McpConfigProperties(
     val servers: List<McpServerDefinition> = emptyList(),
 
     /** Security settings */
-    val security: McpSecurityProperties = McpSecurityProperties()
+    val security: McpSecurityProperties = McpSecurityProperties(),
+
+    /** MCP connection timeout (milliseconds) */
+    val connectionTimeoutMs: Long = 30_000
 )
 
 /**

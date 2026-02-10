@@ -222,6 +222,7 @@ class ArcReactorAutoConfiguration {
     fun mcpManager(properties: AgentProperties, mcpServerStore: McpServerStore): McpManager {
         val mcpSecurity = properties.mcp.security
         return DefaultMcpManager(
+            connectionTimeoutMs = properties.mcp.connectionTimeoutMs,
             securityConfig = McpSecurityConfig(
                 allowedServerNames = mcpSecurity.allowedServerNames,
                 maxToolOutputLength = mcpSecurity.maxToolOutputLength

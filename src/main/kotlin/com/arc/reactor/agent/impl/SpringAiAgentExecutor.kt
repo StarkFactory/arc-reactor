@@ -888,12 +888,13 @@ class SpringAiAgentExecutor(
         return if (adapter != null) {
             toolsUsed.add(toolName)
             try {
-                val output = withTimeout(properties.concurrency.toolCallTimeoutMs) {
+                val timeoutMs = adapter.arcCallback.timeoutMs ?: properties.concurrency.toolCallTimeoutMs
+                val output = withTimeout(timeoutMs) {
                     adapter.call(toolCall.arguments())
                 }
                 Pair(output, true)
             } catch (e: TimeoutCancellationException) {
-                val timeoutMs = properties.concurrency.toolCallTimeoutMs
+                val timeoutMs = adapter.arcCallback.timeoutMs ?: properties.concurrency.toolCallTimeoutMs
                 logger.error { "Tool $toolName timed out after ${timeoutMs}ms" }
                 Pair("Error: Tool '$toolName' timed out after ${timeoutMs}ms", false)
             } catch (e: CancellationException) {
