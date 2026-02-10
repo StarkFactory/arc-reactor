@@ -1,10 +1,13 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.auth.JwtAuthWebFilter
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.SessionSummary
+import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
@@ -16,10 +19,12 @@ import org.springframework.web.server.ServerWebExchange
  * and querying available LLM providers.
  *
  * ## Endpoints
- * - GET /api/sessions          : List all sessions
- * - GET /api/sessions/{id}     : Get messages for a session
- * - DELETE /api/sessions/{id}  : Delete a session
- * - GET /api/models            : List available LLM providers
+ * - GET /api/sessions                          : List all sessions
+ * - GET /api/sessions/{id}                     : Get messages for a session
+ * - GET /api/sessions/{id}/export?format=json  : Export as JSON
+ * - GET /api/sessions/{id}/export?format=markdown : Export as Markdown
+ * - DELETE /api/sessions/{id}                  : Delete a session
+ * - GET /api/models                            : List available LLM providers
  */
 @Tag(name = "Sessions", description = "Conversation session and LLM provider management")
 @RestController
@@ -68,6 +73,58 @@ class SessionController(
             )
         }
         return ResponseEntity.ok(SessionDetailResponse(sessionId = sessionId, messages = messages))
+    }
+
+    /**
+     * Export a conversation session as JSON or Markdown.
+     */
+    @GetMapping("/sessions/{sessionId}/export")
+    fun exportSession(
+        @PathVariable sessionId: String,
+        @RequestParam(defaultValue = "json") format: String,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
+        if (userId != null && !isSessionOwner(sessionId, userId)) {
+            return ResponseEntity.status(403).build()
+        }
+
+        val memory = memoryStore.get(sessionId)
+            ?: return ResponseEntity.notFound().build()
+        val messages = memory.getHistory()
+
+        return when (format.lowercase()) {
+            "markdown", "md" -> {
+                val sb = StringBuilder()
+                sb.appendLine("# Conversation: $sessionId\n")
+                for (msg in messages) {
+                    sb.appendLine("## ${msg.role.name.lowercase()}\n")
+                    sb.appendLine(msg.content)
+                    sb.appendLine()
+                }
+                ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$sessionId.md\"")
+                    .contentType(MediaType.TEXT_MARKDOWN)
+                    .body(sb.toString())
+            }
+            else -> {
+                val export = mapOf(
+                    "sessionId" to sessionId,
+                    "exportedAt" to System.currentTimeMillis(),
+                    "messages" to messages.map { msg ->
+                        mapOf(
+                            "role" to msg.role.name.lowercase(),
+                            "content" to msg.content,
+                            "timestamp" to msg.timestamp.toEpochMilli()
+                        )
+                    }
+                )
+                ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$sessionId.json\"")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(export)
+            }
+        }
     }
 
     /**

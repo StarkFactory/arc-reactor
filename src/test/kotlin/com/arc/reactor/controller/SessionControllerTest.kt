@@ -143,6 +143,56 @@ class SessionControllerTest {
     }
 
     @Nested
+    inner class ExportSession {
+
+        @Test
+        fun `should export session as JSON by default`() = runTest {
+            val now = Instant.parse("2026-02-08T12:00:00Z")
+            val memory = mockk<ConversationMemory>()
+            every { memoryStore.get("session-1") } returns memory
+            every { memory.getHistory() } returns listOf(
+                Message(MessageRole.USER, "Hello!", now),
+                Message(MessageRole.ASSISTANT, "Hi!", now.plusSeconds(1))
+            )
+
+            val response = controller.exportSession("session-1", "json", exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
+            val body = response.body as Map<*, *>
+            assertEquals("session-1", body["sessionId"]) { "Should include sessionId" }
+            val messages = body["messages"] as List<*>
+            assertEquals(2, messages.size) { "Should include 2 messages" }
+        }
+
+        @Test
+        fun `should export session as markdown`() = runTest {
+            val memory = mockk<ConversationMemory>()
+            every { memoryStore.get("session-1") } returns memory
+            every { memory.getHistory() } returns listOf(
+                Message(MessageRole.USER, "Hello!"),
+                Message(MessageRole.ASSISTANT, "Hi there!")
+            )
+
+            val response = controller.exportSession("session-1", "markdown", exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
+            val body = response.body as String
+            assertTrue(body.contains("# Conversation: session-1")) { "Should have markdown header" }
+            assertTrue(body.contains("## user")) { "Should have user role header" }
+            assertTrue(body.contains("Hello!")) { "Should include message content" }
+        }
+
+        @Test
+        fun `should return 404 for nonexistent session`() = runTest {
+            every { memoryStore.get("nonexistent") } returns null
+
+            val response = controller.exportSession("nonexistent", "json", exchange)
+
+            assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404" }
+        }
+    }
+
+    @Nested
     inner class DeleteSession {
 
         @Test
