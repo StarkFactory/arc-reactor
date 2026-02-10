@@ -1,0 +1,14 @@
+# ===========================================
+# Arc Reactor - Development Profile
+# ===========================================
+# Activate: SPRING_PROFILES_ACTIVE=dev
+
+logging:
+  level:
+    com.arc.reactor: DEBUG
+
+arc:
+  reactor:
+    guard:
+      rate-limit-per-minute: 100
+      rate-limit-per-hour: 1000

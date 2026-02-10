@@ -4,6 +4,11 @@
 
 server:
   port: 8080
+  shutdown: graceful
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 # ----- LLM Providers -----
 # Only providers with API keys set will be activated.
@@ -75,7 +80,18 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: method
 
+# ----- Actuator -----
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 # ----- Logging -----
 logging:
   level:
-    com.arc.reactor: DEBUG
+    com.arc.reactor: INFO
