@@ -36,6 +36,11 @@ class AdminInitializer(
             return
         }
 
+        if (password.length < 8) {
+            logger.warn { "Admin password must be at least 8 characters, skipping admin initialization" }
+            return
+        }
+
         if (userStore.existsByEmail(email)) {
             logger.info { "Admin account already exists: $email" }
             return

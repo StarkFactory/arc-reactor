@@ -72,6 +72,33 @@ class AdminInitializerTest {
     }
 
     @Nested
+    inner class PasswordValidation {
+
+        @Test
+        fun `should skip when password is shorter than 8 characters`() {
+            envVars["ARC_REACTOR_AUTH_ADMIN_EMAIL"] = "admin@test.com"
+            envVars["ARC_REACTOR_AUTH_ADMIN_PASSWORD"] = "short"
+
+            createInitializer().initAdmin()
+
+            verify(exactly = 0) { userStore.save(any()) }
+        }
+
+        @Test
+        fun `should accept password with exactly 8 characters`() {
+            envVars["ARC_REACTOR_AUTH_ADMIN_EMAIL"] = "admin@test.com"
+            envVars["ARC_REACTOR_AUTH_ADMIN_PASSWORD"] = "12345678"
+            every { userStore.existsByEmail("admin@test.com") } returns false
+            every { authProvider.hashPassword("12345678") } returns "hashed"
+            every { userStore.save(any()) } answers { firstArg() }
+
+            createInitializer().initAdmin()
+
+            verify(exactly = 1) { userStore.save(any()) }
+        }
+    }
+
+    @Nested
     inner class WhenEnvVarsNotSet {
 
         @Test
