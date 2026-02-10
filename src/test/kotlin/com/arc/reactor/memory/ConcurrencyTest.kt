@@ -37,7 +37,7 @@ class ConversationMemoryConcurrencyTest {
 
             futures.forEach { it.get(10, TimeUnit.SECONDS) }
 
-            assertEquals(threadCount, memory.getHistory().size)
+            assertEquals(threadCount, memory.getHistory().size) { "All $threadCount messages should be present" }
         } finally {
             executor.shutdown()
             executor.awaitTermination(5, TimeUnit.SECONDS)
@@ -135,7 +135,7 @@ class MemoryStoreConcurrencyTest {
             val results = futures.map { it.get(10, TimeUnit.SECONDS) }
 
             // Every future should have returned a non-null memory
-            assertEquals(threadCount, results.size)
+            assertEquals(threadCount, results.size) { "All futures should return results" }
             results.forEachIndexed { index, it ->
                 assertNotNull(it, "Session memory at index $index should not be null")
             }
@@ -305,7 +305,7 @@ class MemoryStoreConcurrencyTest {
         }
 
         // Final state should contain all tools
-        assertEquals(10 + writerCount, context.toolsUsed.size)
+        assertEquals(10 + writerCount, context.toolsUsed.size) { "Should have initial + new tools" }
     }
 
     @Test
@@ -380,13 +380,13 @@ class MemoryStoreConcurrencyTest {
         }
 
         // Final state should contain all entries
-        assertEquals(20 + writerCount, context.metadata.size)
+        assertEquals(20 + writerCount, context.metadata.size) { "Should have pre-populated + new entries" }
 
         for (i in 1..writerCount) {
-            assertEquals("new-value-$i", context.metadata["new-key-$i"])
+            assertEquals("new-value-$i", context.metadata["new-key-$i"]) { "new-key-$i should have correct value" }
         }
         for (i in 1..20) {
-            assertEquals("value-$i", context.metadata["existing-$i"])
+            assertEquals("value-$i", context.metadata["existing-$i"]) { "existing-$i should have correct value" }
         }
     }
 }

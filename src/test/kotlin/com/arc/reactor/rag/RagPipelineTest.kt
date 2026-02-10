@@ -37,8 +37,8 @@ class RagPipelineTest {
         ))
 
         assertTrue(result.hasDocuments) { "Expected documents for query 'kotlin programming', got: ${result.documents.size} documents" }
-        assertEquals(1, result.documents.size)
-        assertEquals("doc-1", result.documents[0].id)
+        assertEquals(1, result.documents.size) { "Should retrieve exactly 1 matching document" }
+        assertEquals("doc-1", result.documents[0].id) { "Retrieved document ID should be 'doc-1'" }
     }
 
     @Test
@@ -52,7 +52,7 @@ class RagPipelineTest {
         ))
 
         assertFalse(result.hasDocuments) { "Expected no documents for 'nonexistent topic', got: ${result.documents.size} documents" }
-        assertEquals(RagContext.EMPTY, result)
+        assertEquals(RagContext.EMPTY, result) { "Result should be EMPTY context when no documents match" }
     }
 
     @Test
@@ -103,7 +103,7 @@ class RagPipelineTest {
 
         assertTrue(result.documents.isNotEmpty()) { "Expected documents after keyword-weighted reranking, got: ${result.documents.size}" }
         // Kotlin document should rank higher due to keyword match
-        assertEquals("2", result.documents[0].id)
+        assertEquals("2", result.documents[0].id) { "Kotlin document should rank first due to keyword match" }
     }
 
     @Test

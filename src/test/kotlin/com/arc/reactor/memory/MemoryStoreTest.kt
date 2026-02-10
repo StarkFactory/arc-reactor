@@ -27,8 +27,8 @@ class MemoryStoreTest {
 
         val memory2 = store.getOrCreate("session-1")
 
-        assertSame(memory1, memory2)
-        assertEquals(1, memory2.getHistory().size)
+        assertSame(memory1, memory2) { "Same session ID should return the same memory instance" }
+        assertEquals(1, memory2.getHistory().size) { "Memory should contain 1 message" }
     }
 
     @Test
@@ -87,9 +87,9 @@ class MemoryStoreTest {
 
         val memory = store.get("session-1")
         assertNotNull(memory) { "Memory for session-1 should exist after addMessage calls" }
-        assertEquals(2, memory!!.getHistory().size)
-        assertEquals(MessageRole.USER, memory.getHistory()[0].role)
-        assertEquals(MessageRole.ASSISTANT, memory.getHistory()[1].role)
+        assertEquals(2, memory!!.getHistory().size) { "Should have 2 messages after addMessage calls" }
+        assertEquals(MessageRole.USER, memory.getHistory()[0].role) { "First message should be USER" }
+        assertEquals(MessageRole.ASSISTANT, memory.getHistory()[1].role) { "Second message should be ASSISTANT" }
     }
 
     @Nested
@@ -179,9 +179,9 @@ class ConversationMemoryTest {
         memory.add(Message(MessageRole.ASSISTANT, "Hi!"))
 
         val history = memory.getHistory()
-        assertEquals(2, history.size)
-        assertEquals("Hello", history[0].content)
-        assertEquals("Hi!", history[1].content)
+        assertEquals(2, history.size) { "Should have 2 messages" }
+        assertEquals("Hello", history[0].content) { "First message content should be 'Hello'" }
+        assertEquals("Hi!", history[1].content) { "Second message content should be 'Hi!'" }
     }
 
     @Test
@@ -194,9 +194,9 @@ class ConversationMemoryTest {
         memory.add(Message(MessageRole.USER, "Message 4"))
 
         val history = memory.getHistory()
-        assertEquals(3, history.size)
-        assertEquals("Message 2", history[0].content)
-        assertEquals("Message 4", history[2].content)
+        assertEquals(3, history.size) { "Should retain maxMessages (3) after overflow" }
+        assertEquals("Message 2", history[0].content) { "Oldest surviving message should be 'Message 2'" }
+        assertEquals("Message 4", history[2].content) { "Newest message should be 'Message 4'" }
     }
 
     @Test
@@ -236,7 +236,7 @@ class ConversationMemoryTest {
         memory.add(Message(MessageRole.USER, "Longer message content"))
 
         val limited = memory.getHistoryWithinTokenLimit(25)
-        assertEquals(2, limited.size) // 2 messages * 10 tokens = 20, 3 would be 30 > 25
+        assertEquals(2, limited.size) { "2 messages * 10 tokens = 20 fits, 3 * 10 = 30 exceeds limit of 25" }
     }
 
     @Test
@@ -258,7 +258,7 @@ class ConversationMemoryTest {
 
         assertTrue(estimator.estimate("a") >= 1) { "Expected at least 1 token for 'a', got: ${estimator.estimate("a")}" }
         assertTrue(estimator.estimate("한") >= 1) { "Expected at least 1 token for '한', got: ${estimator.estimate("한")}" }
-        assertEquals(0, estimator.estimate(""))
+        assertEquals(0, estimator.estimate("")) { "Empty string should produce 0 tokens" }
     }
 
     @Test
@@ -270,9 +270,9 @@ class ConversationMemoryTest {
         memory.addSystemMessage("System message")
 
         val history = memory.getHistory()
-        assertEquals(3, history.size)
-        assertEquals(MessageRole.USER, history[0].role)
-        assertEquals(MessageRole.ASSISTANT, history[1].role)
-        assertEquals(MessageRole.SYSTEM, history[2].role)
+        assertEquals(3, history.size) { "Should have 3 messages from extension functions" }
+        assertEquals(MessageRole.USER, history[0].role) { "First message should be USER" }
+        assertEquals(MessageRole.ASSISTANT, history[1].role) { "Second message should be ASSISTANT" }
+        assertEquals(MessageRole.SYSTEM, history[2].role) { "Third message should be SYSTEM" }
     }
 }

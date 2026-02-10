@@ -2,6 +2,7 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.memory.MemoryStore
@@ -40,6 +41,7 @@ class SessionController(
      * List all sessions with summary metadata.
      * When auth is enabled, sessions are filtered by the authenticated userId.
      */
+    @Operation(summary = "List all conversation sessions")
     @GetMapping("/sessions")
     fun listSessions(exchange: ServerWebExchange): List<SessionResponse> {
         val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
@@ -55,6 +57,7 @@ class SessionController(
      * Get all messages for a specific session.
      * When auth is enabled, verifies session ownership.
      */
+    @Operation(summary = "Get messages for a specific session")
     @GetMapping("/sessions/{sessionId}")
     fun getSession(
         @PathVariable sessionId: String,
@@ -80,6 +83,7 @@ class SessionController(
     /**
      * Export a conversation session as JSON or Markdown.
      */
+    @Operation(summary = "Export a session as JSON or Markdown")
     @GetMapping("/sessions/{sessionId}/export")
     fun exportSession(
         @PathVariable sessionId: String,
@@ -133,6 +137,7 @@ class SessionController(
      * Delete a session and all its messages.
      * When auth is enabled, verifies session ownership.
      */
+    @Operation(summary = "Delete a session and all its messages")
     @DeleteMapping("/sessions/{sessionId}")
     fun deleteSession(
         @PathVariable sessionId: String,
@@ -161,6 +166,7 @@ class SessionController(
     /**
      * List available LLM providers.
      */
+    @Operation(summary = "List available LLM providers")
     @GetMapping("/models")
     fun listModels(): ModelsResponse {
         val defaultProvider = chatModelProvider.defaultProvider()
