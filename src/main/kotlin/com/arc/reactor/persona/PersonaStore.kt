@@ -112,28 +112,32 @@ class InMemoryPersonaStore : PersonaStore {
     override fun getDefault(): Persona? = personas.values.firstOrNull { it.isDefault }
 
     override fun save(persona: Persona): Persona {
-        if (persona.isDefault) {
-            clearDefault()
+        synchronized(this) {
+            if (persona.isDefault) {
+                clearDefault()
+            }
+            personas[persona.id] = persona
         }
-        personas[persona.id] = persona
         return persona
     }
 
     override fun update(personaId: String, name: String?, systemPrompt: String?, isDefault: Boolean?): Persona? {
-        val existing = personas[personaId] ?: return null
+        synchronized(this) {
+            val existing = personas[personaId] ?: return null
 
-        if (isDefault == true) {
-            clearDefault()
+            if (isDefault == true) {
+                clearDefault()
+            }
+
+            val updated = existing.copy(
+                name = name ?: existing.name,
+                systemPrompt = systemPrompt ?: existing.systemPrompt,
+                isDefault = isDefault ?: existing.isDefault,
+                updatedAt = Instant.now()
+            )
+            personas[personaId] = updated
+            return updated
         }
-
-        val updated = existing.copy(
-            name = name ?: existing.name,
-            systemPrompt = systemPrompt ?: existing.systemPrompt,
-            isDefault = isDefault ?: existing.isDefault,
-            updatedAt = Instant.now()
-        )
-        personas[personaId] = updated
-        return updated
     }
 
     override fun delete(personaId: String) {

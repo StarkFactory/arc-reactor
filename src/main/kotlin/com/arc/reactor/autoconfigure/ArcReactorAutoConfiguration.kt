@@ -123,8 +123,9 @@ class ArcReactorAutoConfiguration {
         @Bean
         @Primary
         fun jdbcPersonaStore(
-            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
-        ): PersonaStore = JdbcPersonaStore(jdbcTemplate = jdbcTemplate)
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate,
+            transactionTemplate: org.springframework.transaction.support.TransactionTemplate
+        ): PersonaStore = JdbcPersonaStore(jdbcTemplate = jdbcTemplate, transactionTemplate = transactionTemplate)
 
         @Bean
         @Primary

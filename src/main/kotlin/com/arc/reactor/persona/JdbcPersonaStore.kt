@@ -2,6 +2,7 @@ package com.arc.reactor.persona
 
 import mu.KotlinLogging
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.transaction.support.TransactionTemplate
 import java.sql.ResultSet
 import java.time.Instant
 
@@ -19,7 +20,8 @@ private val logger = KotlinLogging.logger {}
  * - Thread-safe via database transactions
  */
 class JdbcPersonaStore(
-    private val jdbcTemplate: JdbcTemplate
+    private val jdbcTemplate: JdbcTemplate,
+    private val transactionTemplate: TransactionTemplate
 ) : PersonaStore {
 
     override fun list(): List<Persona> {
@@ -47,41 +49,44 @@ class JdbcPersonaStore(
     }
 
     override fun save(persona: Persona): Persona {
-        if (persona.isDefault) {
-            clearDefault()
+        transactionTemplate.execute {
+            if (persona.isDefault) {
+                clearDefault()
+            }
+            jdbcTemplate.update(
+                "INSERT INTO personas (id, name, system_prompt, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                persona.id,
+                persona.name,
+                persona.systemPrompt,
+                persona.isDefault,
+                java.sql.Timestamp.from(persona.createdAt),
+                java.sql.Timestamp.from(persona.updatedAt)
+            )
         }
-        jdbcTemplate.update(
-            "INSERT INTO personas (id, name, system_prompt, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            persona.id,
-            persona.name,
-            persona.systemPrompt,
-            persona.isDefault,
-            java.sql.Timestamp.from(persona.createdAt),
-            java.sql.Timestamp.from(persona.updatedAt)
-        )
         return persona
     }
 
     override fun update(personaId: String, name: String?, systemPrompt: String?, isDefault: Boolean?): Persona? {
         val existing = get(personaId) ?: return null
 
-        if (isDefault == true) {
-            clearDefault()
-        }
-
         val updatedName = name ?: existing.name
         val updatedPrompt = systemPrompt ?: existing.systemPrompt
         val updatedDefault = isDefault ?: existing.isDefault
         val updatedAt = Instant.now()
 
-        jdbcTemplate.update(
-            "UPDATE personas SET name = ?, system_prompt = ?, is_default = ?, updated_at = ? WHERE id = ?",
-            updatedName,
-            updatedPrompt,
-            updatedDefault,
-            java.sql.Timestamp.from(updatedAt),
-            personaId
-        )
+        transactionTemplate.execute {
+            if (isDefault == true) {
+                clearDefault()
+            }
+            jdbcTemplate.update(
+                "UPDATE personas SET name = ?, system_prompt = ?, is_default = ?, updated_at = ? WHERE id = ?",
+                updatedName,
+                updatedPrompt,
+                updatedDefault,
+                java.sql.Timestamp.from(updatedAt),
+                personaId
+            )
+        }
 
         return existing.copy(
             name = updatedName,
