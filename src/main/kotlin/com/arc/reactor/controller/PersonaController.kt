@@ -2,6 +2,7 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
+import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -34,6 +35,7 @@ class PersonaController(
     /**
      * List all personas.
      */
+    @Operation(summary = "List all personas")
     @GetMapping
     fun listPersonas(): List<PersonaResponse> {
         return personaStore.list().map { it.toResponse() }
@@ -42,6 +44,7 @@ class PersonaController(
     /**
      * Get a persona by ID.
      */
+    @Operation(summary = "Get a persona by ID")
     @GetMapping("/{personaId}")
     fun getPersona(@PathVariable personaId: String): ResponseEntity<PersonaResponse> {
         val persona = personaStore.get(personaId)
@@ -52,6 +55,7 @@ class PersonaController(
     /**
      * Create a new persona. Requires ADMIN role when auth is enabled.
      */
+    @Operation(summary = "Create a new persona (ADMIN)")
     @PostMapping
     fun createPersona(
         @Valid @RequestBody request: CreatePersonaRequest,
@@ -72,6 +76,7 @@ class PersonaController(
      * Update an existing persona. Only provided fields are changed.
      * Requires ADMIN role when auth is enabled.
      */
+    @Operation(summary = "Update an existing persona (ADMIN)")
     @PutMapping("/{personaId}")
     fun updatePersona(
         @PathVariable personaId: String,
@@ -92,6 +97,7 @@ class PersonaController(
      * Delete a persona. Idempotent — returns 204 even if not found.
      * Requires ADMIN role when auth is enabled.
      */
+    @Operation(summary = "Delete a persona (ADMIN)")
     @DeleteMapping("/{personaId}")
     fun deletePersona(
         @PathVariable personaId: String,

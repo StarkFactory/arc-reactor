@@ -60,6 +60,7 @@ class ChatController(
      *   -d '{"message": "What is 3 + 5?"}'
      * ```
      */
+    @Operation(summary = "Send a message and receive a complete response")
     @PostMapping
     suspend fun chat(
         @Valid @RequestBody request: ChatRequest,

@@ -112,7 +112,7 @@ class AuthController(
     fun changePassword(
         @Valid @RequestBody request: ChangePasswordRequest,
         exchange: ServerWebExchange
-    ): ResponseEntity<Map<String, String>> {
+    ): ResponseEntity<Any> {
         val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
             ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
 
@@ -122,12 +122,12 @@ class AuthController(
         // Verify current password
         if (authProvider.authenticate(user.email, request.currentPassword) == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(mapOf("error" to "Current password is incorrect"))
+                .body(ErrorResponse(error = "Current password is incorrect", timestamp = java.time.Instant.now().toString()))
         }
 
         if (authProvider !is DefaultAuthProvider) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(mapOf("error" to "Password change not supported with custom AuthProvider"))
+                .body(ErrorResponse(error = "Password change not supported with custom AuthProvider", timestamp = java.time.Instant.now().toString()))
         }
 
         val newHash = authProvider.hashPassword(request.newPassword)

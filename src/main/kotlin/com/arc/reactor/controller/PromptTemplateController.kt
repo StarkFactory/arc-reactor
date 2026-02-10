@@ -1,5 +1,6 @@
 package com.arc.reactor.controller
 
+import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.prompt.PromptTemplate
 import com.arc.reactor.prompt.PromptTemplateStore
@@ -42,6 +43,7 @@ class PromptTemplateController(
     /**
      * List all templates.
      */
+    @Operation(summary = "List all prompt templates")
     @GetMapping
     fun listTemplates(): List<TemplateResponse> {
         return promptTemplateStore.listTemplates().map { it.toResponse() }
@@ -50,6 +52,7 @@ class PromptTemplateController(
     /**
      * Get a template by ID, including all its versions.
      */
+    @Operation(summary = "Get a template with all versions")
     @GetMapping("/{templateId}")
     fun getTemplate(@PathVariable templateId: String): ResponseEntity<TemplateDetailResponse> {
         val template = promptTemplateStore.getTemplate(templateId)
@@ -62,6 +65,7 @@ class PromptTemplateController(
     /**
      * Create a new template. Requires ADMIN role.
      */
+    @Operation(summary = "Create a new prompt template (ADMIN)")
     @PostMapping
     fun createTemplate(
         @Valid @RequestBody request: CreateTemplateRequest,
@@ -80,6 +84,7 @@ class PromptTemplateController(
     /**
      * Update template metadata. Only provided fields are changed. Requires ADMIN role.
      */
+    @Operation(summary = "Update template metadata (ADMIN)")
     @PutMapping("/{templateId}")
     fun updateTemplate(
         @PathVariable templateId: String,
@@ -98,6 +103,7 @@ class PromptTemplateController(
     /**
      * Delete a template and all its versions. Idempotent — returns 204 even if not found. Requires ADMIN role.
      */
+    @Operation(summary = "Delete a template and all versions (ADMIN)")
     @DeleteMapping("/{templateId}")
     fun deleteTemplate(
         @PathVariable templateId: String,
@@ -113,6 +119,7 @@ class PromptTemplateController(
     /**
      * Create a new version for a template. Starts in DRAFT status. Requires ADMIN role.
      */
+    @Operation(summary = "Create a new version for a template (ADMIN)")
     @PostMapping("/{templateId}/versions")
     fun createVersion(
         @PathVariable templateId: String,
@@ -131,6 +138,7 @@ class PromptTemplateController(
     /**
      * Activate a version. The previously active version (if any) is archived. Requires ADMIN role.
      */
+    @Operation(summary = "Activate a template version (ADMIN)")
     @PutMapping("/{templateId}/versions/{versionId}/activate")
     fun activateVersion(
         @PathVariable templateId: String,
@@ -146,6 +154,7 @@ class PromptTemplateController(
     /**
      * Archive a version. Requires ADMIN role.
      */
+    @Operation(summary = "Archive a template version (ADMIN)")
     @PutMapping("/{templateId}/versions/{versionId}/archive")
     fun archiveVersion(
         @PathVariable templateId: String,

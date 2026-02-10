@@ -26,14 +26,14 @@ class SpringAiToolCallbackAdapterTest {
     fun `name returns unknown when object has no getName method`() {
         val adapter = SpringAiToolCallbackAdapter(EmptyObject())
 
-        assertEquals("unknown", adapter.name)
+        assertEquals("unknown", adapter.name) { "Name should be 'unknown' for object without getName" }
     }
 
     @Test
     fun `description returns empty string when object has no getDescription method`() {
         val adapter = SpringAiToolCallbackAdapter(EmptyObject())
 
-        assertEquals("", adapter.description)
+        assertEquals("", adapter.description) { "Description should be empty for object without getDescription" }
     }
 
     @Test
@@ -55,8 +55,8 @@ class SpringAiToolCallbackAdapterTest {
         val fake = FakeSpringCallback()
         val adapter = SpringAiToolCallbackAdapter(fake)
 
-        assertEquals("test-tool", adapter.name)
-        assertEquals("A test tool", adapter.description)
+        assertEquals("test-tool", adapter.name) { "Name should come from FakeSpringCallback.getName()" }
+        assertEquals("A test tool", adapter.description) { "Description should come from FakeSpringCallback.getDescription()" }
 
         val result = runBlocking {
             adapter.call(mapOf("query" to "hello"))
@@ -71,7 +71,7 @@ class SpringAiToolCallbackAdapterTest {
         val fake = FakeSpringCallback()
         val adapter = SpringAiToolCallbackAdapter(fake)
 
-        assertSame(fake, adapter.unwrap())
+        assertSame(fake, adapter.unwrap()) { "unwrap() should return the original wrapped object" }
     }
 
     @Test
@@ -95,8 +95,8 @@ class SpringAiToolCallbackAdapterTest {
     fun `name returns value from getName method on partial object`() {
         val adapter = SpringAiToolCallbackAdapter(NameOnlyCallback())
 
-        assertEquals("name-only-tool", adapter.name)
-        assertEquals("", adapter.description)
+        assertEquals("name-only-tool", adapter.name) { "Name should come from getName method" }
+        assertEquals("", adapter.description) { "Description should be empty for object without getDescription" }
     }
 
     @Test
@@ -108,6 +108,6 @@ class SpringAiToolCallbackAdapterTest {
             adapter.call(emptyMap())
         } as String
 
-        assertEquals("Result: {}", result)
+        assertEquals("Result: {}", result) { "Empty args should serialize to empty JSON object" }
     }
 }

@@ -1,5 +1,6 @@
 package com.arc.reactor.controller
 
+import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -41,6 +42,7 @@ class DocumentController(
      * Add a document to the vector store.
      * The document content is automatically embedded and stored.
      */
+    @Operation(summary = "Add a document to the vector store (ADMIN)")
     @PostMapping
     fun addDocument(
         @Valid @RequestBody request: AddDocumentRequest,
@@ -67,6 +69,7 @@ class DocumentController(
     /**
      * Add multiple documents at once.
      */
+    @Operation(summary = "Add multiple documents in batch (ADMIN)")
     @PostMapping("/batch")
     fun addDocuments(
         @Valid @RequestBody request: BatchAddDocumentRequest,
@@ -94,6 +97,7 @@ class DocumentController(
     /**
      * Search documents by similarity.
      */
+    @Operation(summary = "Search documents by similarity")
     @PostMapping("/search")
     fun searchDocuments(@Valid @RequestBody request: SearchDocumentRequest): List<SearchResultResponse> {
         val searchRequest = SearchRequest.builder()
@@ -119,6 +123,7 @@ class DocumentController(
     /**
      * Delete documents by IDs.
      */
+    @Operation(summary = "Delete documents by IDs (ADMIN)")
     @DeleteMapping
     fun deleteDocuments(
         @RequestBody request: DeleteDocumentRequest,

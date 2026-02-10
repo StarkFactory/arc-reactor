@@ -5,6 +5,7 @@ import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
+import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -14,6 +15,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
+import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
 
@@ -43,6 +45,7 @@ class McpServerController(
     /**
      * List all registered MCP servers with connection status.
      */
+    @Operation(summary = "List all registered MCP servers")
     @GetMapping
     fun listServers(): List<McpServerResponse> {
         return mcpManager.listServers().map { it.toResponse() }
@@ -51,6 +54,7 @@ class McpServerController(
     /**
      * Register a new MCP server and optionally connect.
      */
+    @Operation(summary = "Register a new MCP server (ADMIN)")
     @PostMapping
     suspend fun registerServer(
         @Valid @RequestBody request: RegisterMcpServerRequest,
@@ -61,7 +65,7 @@ class McpServerController(
         val existing = mcpServerStore.findByName(request.name)
         if (existing != null) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(mapOf("error" to "MCP server '${request.name}' already exists"))
+                .body(ErrorResponse(error = "MCP server '${request.name}' already exists", timestamp = Instant.now().toString()))
         }
 
         val server = request.toMcpServer()
@@ -81,11 +85,11 @@ class McpServerController(
     /**
      * Get server details including connection status and tool list.
      */
+    @Operation(summary = "Get server details with tools")
     @GetMapping("/{name}")
     fun getServer(@PathVariable name: String): ResponseEntity<Any> {
         val server = mcpServerStore.findByName(name)
-            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(mapOf("error" to "MCP server '$name' not found"))
+            ?: return mcpNotFound(name)
 
         val status = mcpManager.getStatus(name) ?: McpServerStatus.PENDING
         val tools = mcpManager.getToolCallbacks(name).map { it.name }
@@ -109,6 +113,7 @@ class McpServerController(
      * Update MCP server configuration.
      * Requires reconnection to apply transport changes.
      */
+    @Operation(summary = "Update MCP server configuration (ADMIN)")
     @PutMapping("/{name}")
     fun updateServer(
         @PathVariable name: String,
@@ -128,8 +133,7 @@ class McpServerController(
         )
 
         val updated = mcpServerStore.update(name, updateData)
-            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(mapOf("error" to "MCP server '$name' not found"))
+            ?: return mcpNotFound(name)
 
         return ResponseEntity.ok(updated.toResponse())
     }
@@ -137,6 +141,7 @@ class McpServerController(
     /**
      * Disconnect and remove an MCP server.
      */
+    @Operation(summary = "Disconnect and remove an MCP server (ADMIN)")
     @DeleteMapping("/{name}")
     suspend fun deleteServer(
         @PathVariable name: String,
@@ -145,8 +150,7 @@ class McpServerController(
         if (!isAdmin(exchange)) return forbiddenResponse()
 
         mcpServerStore.findByName(name)
-            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(mapOf("error" to "MCP server '$name' not found"))
+            ?: return mcpNotFound(name)
 
         mcpManager.unregister(name)
 
@@ -156,6 +160,7 @@ class McpServerController(
     /**
      * Connect to a registered MCP server.
      */
+    @Operation(summary = "Connect to a registered MCP server (ADMIN)")
     @PostMapping("/{name}/connect")
     suspend fun connectServer(
         @PathVariable name: String,
@@ -164,24 +169,24 @@ class McpServerController(
         if (!isAdmin(exchange)) return forbiddenResponse()
 
         mcpServerStore.findByName(name)
-            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(mapOf("error" to "MCP server '$name' not found"))
+            ?: return mcpNotFound(name)
 
         val success = mcpManager.connect(name)
         val status = mcpManager.getStatus(name) ?: McpServerStatus.FAILED
 
         return if (success) {
             val tools = mcpManager.getToolCallbacks(name).map { it.name }
-            ResponseEntity.ok(mapOf("status" to status.name, "tools" to tools))
+            ResponseEntity.ok(McpConnectResponse(status = status.name, tools = tools))
         } else {
             ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                .body(mapOf("status" to status.name, "error" to "Failed to connect"))
+                .body(ErrorResponse(error = "Failed to connect to '$name'", timestamp = Instant.now().toString()))
         }
     }
 
     /**
      * Disconnect from an MCP server (without removing).
      */
+    @Operation(summary = "Disconnect from an MCP server (ADMIN)")
     @PostMapping("/{name}/disconnect")
     suspend fun disconnectServer(
         @PathVariable name: String,
@@ -190,13 +195,17 @@ class McpServerController(
         if (!isAdmin(exchange)) return forbiddenResponse()
 
         mcpServerStore.findByName(name)
-            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(mapOf("error" to "MCP server '$name' not found"))
+            ?: return mcpNotFound(name)
 
         mcpManager.disconnect(name)
         val status = mcpManager.getStatus(name) ?: McpServerStatus.DISCONNECTED
 
-        return ResponseEntity.ok(mapOf("status" to status.name))
+        return ResponseEntity.ok(McpStatusResponse(status = status.name))
+    }
+
+    private fun mcpNotFound(name: String): ResponseEntity<Any> {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ErrorResponse(error = "MCP server '$name' not found", timestamp = Instant.now().toString()))
     }
 
     // ---- DTOs ----
@@ -254,6 +263,15 @@ data class McpServerResponse(
     val toolCount: Int,
     val createdAt: Long,
     val updatedAt: Long
+)
+
+data class McpConnectResponse(
+    val status: String,
+    val tools: List<String>
+)
+
+data class McpStatusResponse(
+    val status: String
 )
 
 data class McpServerDetailResponse(
