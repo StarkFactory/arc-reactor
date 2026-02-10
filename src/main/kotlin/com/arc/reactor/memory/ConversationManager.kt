@@ -3,6 +3,7 @@ package com.arc.reactor.memory
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
+import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.agent.model.MessageRole
 import mu.KotlinLogging
 import org.springframework.ai.chat.messages.AssistantMessage
@@ -99,7 +100,7 @@ class DefaultConversationManager(
     companion object {
         fun toSpringAiMessage(msg: com.arc.reactor.agent.model.Message): Message {
             return when (msg.role) {
-                MessageRole.USER -> UserMessage(msg.content)
+                MessageRole.USER -> MediaConverter.buildUserMessage(msg.content, msg.media)
                 MessageRole.ASSISTANT -> AssistantMessage(msg.content)
                 MessageRole.SYSTEM -> SystemMessage(msg.content)
                 MessageRole.TOOL -> ToolResponseMessage.builder()
