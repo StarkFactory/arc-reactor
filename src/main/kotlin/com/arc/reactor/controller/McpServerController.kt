@@ -10,8 +10,6 @@ import com.arc.reactor.mcp.model.McpTransportType
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -67,7 +65,7 @@ class McpServerController(
      * Register a new MCP server and optionally connect.
      */
     @PostMapping
-    fun registerServer(
+    suspend fun registerServer(
         @Valid @RequestBody request: RegisterMcpServerRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
@@ -83,12 +81,10 @@ class McpServerController(
         mcpManager.register(server)
 
         if (request.autoConnect) {
-            runBlocking(Dispatchers.IO) {
-                try {
-                    mcpManager.connect(server.name)
-                } catch (e: Exception) {
-                    logger.warn(e) { "Auto-connect failed for '${server.name}'" }
-                }
+            try {
+                mcpManager.connect(server.name)
+            } catch (e: Exception) {
+                logger.warn(e) { "Auto-connect failed for '${server.name}'" }
             }
         }
 
@@ -155,17 +151,17 @@ class McpServerController(
      * Disconnect and remove an MCP server.
      */
     @DeleteMapping("/{name}")
-    fun deleteServer(
+    suspend fun deleteServer(
         @PathVariable name: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbidden()
 
-        val existing = mcpServerStore.findByName(name)
+        mcpServerStore.findByName(name)
             ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(mapOf("error" to "MCP server '$name' not found"))
 
-        runBlocking(Dispatchers.IO) { mcpManager.unregister(name) }
+        mcpManager.unregister(name)
 
         return ResponseEntity.noContent().build()
     }
@@ -174,17 +170,17 @@ class McpServerController(
      * Connect to a registered MCP server.
      */
     @PostMapping("/{name}/connect")
-    fun connectServer(
+    suspend fun connectServer(
         @PathVariable name: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbidden()
 
-        val server = mcpServerStore.findByName(name)
+        mcpServerStore.findByName(name)
             ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(mapOf("error" to "MCP server '$name' not found"))
 
-        val success = runBlocking(Dispatchers.IO) { mcpManager.connect(name) }
+        val success = mcpManager.connect(name)
         val status = mcpManager.getStatus(name) ?: McpServerStatus.FAILED
 
         return if (success) {
@@ -200,17 +196,17 @@ class McpServerController(
      * Disconnect from an MCP server (without removing).
      */
     @PostMapping("/{name}/disconnect")
-    fun disconnectServer(
+    suspend fun disconnectServer(
         @PathVariable name: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbidden()
 
-        val server = mcpServerStore.findByName(name)
+        mcpServerStore.findByName(name)
             ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(mapOf("error" to "MCP server '$name' not found"))
 
-        runBlocking(Dispatchers.IO) { mcpManager.disconnect(name) }
+        mcpManager.disconnect(name)
         val status = mcpManager.getStatus(name) ?: McpServerStatus.DISCONNECTED
 
         return ResponseEntity.ok(mapOf("status" to status.name))

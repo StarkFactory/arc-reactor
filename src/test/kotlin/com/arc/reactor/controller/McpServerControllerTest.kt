@@ -12,6 +12,7 @@ import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -81,7 +82,7 @@ class McpServerControllerTest {
     inner class RegisterServer {
 
         @Test
-        fun `should register server as admin`() {
+        fun `should register server as admin`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "my-server",
                 transportType = "SSE",
@@ -101,7 +102,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject duplicate server name`() {
+        fun `should reject duplicate server name`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "duplicate",
                 transportType = "SSE",
@@ -118,7 +119,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject non-admin register`() {
+        fun `should reject non-admin register`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "forbidden-server",
                 transportType = "SSE",
@@ -229,7 +230,7 @@ class McpServerControllerTest {
     inner class DeleteServer {
 
         @Test
-        fun `should delete server as admin`() {
+        fun `should delete server as admin`() = runTest {
             manager.register(McpServer(
                 name = "delete-me",
                 transportType = McpTransportType.SSE,
@@ -247,7 +248,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should return 404 when deleting nonexistent server`() {
+        fun `should return 404 when deleting nonexistent server`() = runTest {
             val response = controller.deleteServer("ghost", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
                 "Expected 404 for nonexistent server delete"
@@ -255,7 +256,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject non-admin delete`() {
+        fun `should reject non-admin delete`() = runTest {
             manager.register(McpServer(
                 name = "protected",
                 transportType = McpTransportType.SSE,
@@ -273,7 +274,7 @@ class McpServerControllerTest {
     inner class ConnectDisconnect {
 
         @Test
-        fun `connect should return 503 when server has no valid config`() {
+        fun `connect should return 503 when server has no valid config`() = runTest {
             manager.register(McpServer(
                 name = "bad-config",
                 transportType = McpTransportType.SSE,
@@ -288,7 +289,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `connect should return 404 for unknown server`() {
+        fun `connect should return 404 for unknown server`() = runTest {
             val response = controller.connectServer("nonexistent", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
                 "Expected 404 for unknown server"
@@ -296,7 +297,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `disconnect should return 404 for unknown server`() {
+        fun `disconnect should return 404 for unknown server`() = runTest {
             val response = controller.disconnectServer("nonexistent", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
                 "Expected 404 for unknown server"
@@ -304,7 +305,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `disconnect should succeed for registered server`() {
+        fun `disconnect should succeed for registered server`() = runTest {
             manager.register(McpServer(
                 name = "disc-test",
                 transportType = McpTransportType.SSE,
@@ -323,7 +324,7 @@ class McpServerControllerTest {
     inner class FullLifecycleScenario {
 
         @Test
-        fun `register then update then delete lifecycle`() {
+        fun `register then update then delete lifecycle`() = runTest {
             val exchange = adminExchange()
 
             // 1. Register
@@ -370,7 +371,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `security config should filter servers through allowlist`() {
+        fun `security config should filter servers through allowlist`() = runTest {
             val secureStore = InMemoryMcpServerStore()
             val secureManager = DefaultMcpManager(
                 securityConfig = McpSecurityConfig(allowedServerNames = setOf("trusted")),
