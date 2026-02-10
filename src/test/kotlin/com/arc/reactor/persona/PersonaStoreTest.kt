@@ -4,6 +4,9 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 class PersonaStoreTest {
 
@@ -138,6 +141,49 @@ class PersonaStoreTest {
         @Test
         fun `delete should be idempotent for nonexistent persona`() {
             assertDoesNotThrow { store.delete("nonexistent") }
+        }
+    }
+
+    @Nested
+    inner class ConcurrentDefaultHandling {
+
+        @Test
+        fun `concurrent saves with isDefault should result in exactly one default`() {
+            val threadCount = 10
+            val latch = CountDownLatch(1)
+            val executor = Executors.newFixedThreadPool(threadCount)
+            val errors = AtomicInteger(0)
+
+            try {
+                val futures = (1..threadCount).map { i ->
+                    executor.submit {
+                        latch.await()
+                        try {
+                            store.save(
+                                Persona(
+                                    id = "concurrent-$i",
+                                    name = "Persona $i",
+                                    systemPrompt = "Prompt $i",
+                                    isDefault = true
+                                )
+                            )
+                        } catch (e: Exception) {
+                            errors.incrementAndGet()
+                        }
+                    }
+                }
+
+                latch.countDown()
+                futures.forEach { it.get() }
+
+                val defaults = store.list().filter { it.isDefault }
+                assertEquals(1, defaults.size) {
+                    "Should have exactly 1 default persona after concurrent saves, " +
+                        "but found ${defaults.size}: ${defaults.map { it.id }}"
+                }
+            } finally {
+                executor.shutdown()
+            }
         }
     }
 }
