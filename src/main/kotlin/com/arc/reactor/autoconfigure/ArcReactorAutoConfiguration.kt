@@ -55,6 +55,7 @@ import com.arc.reactor.prompt.JdbcPromptTemplateStore
 import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.LocalTool
+import com.arc.reactor.tool.SemanticToolSelector
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
 import com.arc.reactor.rag.DocumentRetriever
@@ -66,6 +67,7 @@ import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
@@ -84,6 +86,8 @@ import org.springframework.web.server.WebFilter
 import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 
+private val logger = KotlinLogging.logger {}
+
 /**
  * Arc Reactor Auto Configuration
  *
@@ -94,11 +98,33 @@ import mu.KotlinLogging
 class ArcReactorAutoConfiguration {
 
     /**
-     * Tool Selector (default: select all)
+     * Tool Selector — strategy-based selection.
+     *
+     * - `all` (default): returns all tools without filtering
+     * - `keyword`: keyword-based category matching
+     * - `semantic`: embedding-based cosine similarity (requires EmbeddingModel)
      */
     @Bean
     @ConditionalOnMissingBean
-    fun toolSelector(): ToolSelector = AllToolSelector()
+    fun toolSelector(
+        properties: AgentProperties,
+        embeddingModel: ObjectProvider<EmbeddingModel>
+    ): ToolSelector {
+        val strategy = properties.toolSelection.strategy.lowercase()
+        if (strategy == "semantic") {
+            val model = embeddingModel.ifAvailable
+            if (model != null) {
+                logger.info { "Using SemanticToolSelector (threshold=${properties.toolSelection.similarityThreshold})" }
+                return SemanticToolSelector(
+                    embeddingModel = model,
+                    similarityThreshold = properties.toolSelection.similarityThreshold,
+                    maxResults = properties.toolSelection.maxResults
+                )
+            }
+            logger.warn { "SemanticToolSelector requested but no EmbeddingModel found, falling back to AllToolSelector" }
+        }
+        return AllToolSelector()
+    }
 
     /**
      * Memory Store: In-memory fallback (when no DataSource/JDBC)
