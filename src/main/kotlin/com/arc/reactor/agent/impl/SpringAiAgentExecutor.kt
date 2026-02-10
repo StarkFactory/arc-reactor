@@ -572,7 +572,7 @@ class SpringAiAgentExecutor(
         val parts = mutableListOf(basePrompt)
 
         if (ragContext != null) {
-            parts.add("[Retrieved Context]\n$ragContext")
+            parts.add(buildRagInstruction(ragContext))
         }
 
         when (responseFormat) {
@@ -604,6 +604,15 @@ class SpringAiAgentExecutor(
         if (responseSchema != null) {
             append("\n\nExpected YAML structure:\n$responseSchema")
         }
+    }
+
+    private fun buildRagInstruction(ragContext: String): String = buildString {
+        append("[Retrieved Context]\n")
+        append("The following information was retrieved from the knowledge base and may be relevant.\n")
+        append("Use this context to inform your answer when relevant. ")
+        append("If the context does not contain the answer, say so rather than guessing.\n")
+        append("Do not mention the retrieval process to the user.\n\n")
+        append(ragContext)
     }
 
     /**
