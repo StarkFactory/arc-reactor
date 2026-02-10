@@ -3,6 +3,7 @@ package com.arc.reactor.autoconfigure
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.auth.AdminInitializer
+import com.arc.reactor.auth.AuthRateLimitFilter
 import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.auth.AuthProvider
 import com.arc.reactor.auth.DefaultAuthProvider
@@ -381,7 +382,10 @@ class ArcReactorAutoConfiguration {
                 jwtExpirationMs = environment.getProperty(
                     "arc.reactor.auth.jwt-expiration-ms", Long::class.java, 86_400_000L
                 ),
-                publicPaths = publicPaths
+                publicPaths = publicPaths,
+                loginRateLimitPerMinute = environment.getProperty(
+                    "arc.reactor.auth.login-rate-limit-per-minute", Int::class.java, 5
+                )
             )
         }
 
@@ -411,6 +415,11 @@ class ArcReactorAutoConfiguration {
             userStore: UserStore,
             authProvider: AuthProvider
         ): AdminInitializer = AdminInitializer(userStore, authProvider)
+
+        @Bean
+        @ConditionalOnMissingBean(name = ["authRateLimitFilter"])
+        fun authRateLimitFilter(authProperties: AuthProperties): WebFilter =
+            AuthRateLimitFilter(maxAttemptsPerMinute = authProperties.loginRateLimitPerMinute)
     }
 
     /**

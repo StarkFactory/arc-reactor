@@ -48,5 +48,7 @@ data class AuthProperties(
     val publicPaths: List<String> = listOf(
         "/api/auth/login", "/api/auth/register",
         "/v3/api-docs", "/swagger-ui", "/webjars"
-    )
+    ),
+    /** Maximum auth attempts per minute per IP address (brute-force protection) */
+    val loginRateLimitPerMinute: Int = 5
 )
