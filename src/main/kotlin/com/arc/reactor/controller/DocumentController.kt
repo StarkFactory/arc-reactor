@@ -3,6 +3,8 @@ package com.arc.reactor.controller
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotEmpty
+import jakarta.validation.constraints.Size
 import mu.KotlinLogging
 import org.springframework.ai.document.Document
 import org.springframework.ai.vectorstore.SearchRequest
@@ -119,22 +121,29 @@ class DocumentController(
 
     data class AddDocumentRequest(
         @field:NotBlank(message = "Document content is required")
+        @field:Size(max = 100000, message = "Document content must not exceed 100000 characters")
         val content: String,
+        @field:Size(max = 50, message = "Metadata must not exceed 50 entries")
         val metadata: Map<String, Any>? = null
     )
 
     data class BatchAddDocumentRequest(
-        val documents: List<AddDocumentRequest>
+        @field:NotEmpty(message = "Documents list must not be empty")
+        @field:Size(max = 100, message = "Batch must not exceed 100 documents")
+        val documents: List<@Valid AddDocumentRequest>
     )
 
     data class SearchDocumentRequest(
         @field:NotBlank(message = "Search query is required")
+        @field:Size(max = 10000, message = "Search query must not exceed 10000 characters")
         val query: String,
         val topK: Int? = 5,
         val similarityThreshold: Double? = 0.0
     )
 
     data class DeleteDocumentRequest(
+        @field:NotEmpty(message = "IDs list must not be empty")
+        @field:Size(max = 100, message = "Cannot delete more than 100 documents at once")
         val ids: List<String>
     )
 

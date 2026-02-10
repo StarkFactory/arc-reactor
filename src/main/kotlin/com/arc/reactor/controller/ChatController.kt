@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
@@ -221,14 +222,17 @@ class ChatController(
  */
 data class ChatRequest(
     @field:NotBlank(message = "message must not be blank")
+    @field:Size(max = 50000, message = "message must not exceed 50000 characters")
     val message: String,
     val model: String? = null,
+    @field:Size(max = 10000, message = "systemPrompt must not exceed 10000 characters")
     val systemPrompt: String? = null,
     val personaId: String? = null,
     val promptTemplateId: String? = null,
     val userId: String? = null,
     val metadata: Map<String, Any>? = null,
     val responseFormat: ResponseFormat? = null,
+    @field:Size(max = 10000, message = "responseSchema must not exceed 10000 characters")
     val responseSchema: String? = null
 )
 
