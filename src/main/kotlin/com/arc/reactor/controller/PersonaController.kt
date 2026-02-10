@@ -1,7 +1,5 @@
 package com.arc.reactor.controller
 
-import com.arc.reactor.auth.JwtAuthWebFilter
-import com.arc.reactor.auth.UserRole
 import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -33,18 +31,6 @@ class PersonaController(
     private val personaStore: PersonaStore
 ) {
 
-    private fun isAdmin(exchange: ServerWebExchange): Boolean {
-        val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-        // When auth is disabled, JwtAuthWebFilter is not registered so role is null.
-        // Allow all operations (consistent with frontend: !isAuthRequired || isAdmin).
-        return role == null || role == UserRole.ADMIN
-    }
-
-    private fun forbidden(): ResponseEntity<Any> {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-            .body(mapOf("error" to "Admin access required"))
-    }
-
     /**
      * List all personas.
      */
@@ -71,7 +57,7 @@ class PersonaController(
         @Valid @RequestBody request: CreatePersonaRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val persona = Persona(
             id = UUID.randomUUID().toString(),
             name = request.name,
@@ -92,7 +78,7 @@ class PersonaController(
         @Valid @RequestBody request: UpdatePersonaRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val updated = personaStore.update(
             personaId = personaId,
             name = request.name,
@@ -111,7 +97,7 @@ class PersonaController(
         @PathVariable personaId: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         personaStore.delete(personaId)
         return ResponseEntity.noContent().build()
     }

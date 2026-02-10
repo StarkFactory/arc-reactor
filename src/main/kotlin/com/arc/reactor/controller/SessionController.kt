@@ -7,10 +7,12 @@ import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.SessionSummary
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
+import java.time.Instant
 
 /**
  * Session Management and Model API Controller
@@ -57,10 +59,10 @@ class SessionController(
     fun getSession(
         @PathVariable sessionId: String,
         exchange: ServerWebExchange
-    ): ResponseEntity<SessionDetailResponse> {
+    ): ResponseEntity<Any> {
         val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
         if (userId != null && !isSessionOwner(sessionId, userId)) {
-            return ResponseEntity.status(403).build()
+            return sessionForbidden()
         }
 
         val memory = memoryStore.get(sessionId)
@@ -86,7 +88,7 @@ class SessionController(
     ): ResponseEntity<Any> {
         val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
         if (userId != null && !isSessionOwner(sessionId, userId)) {
-            return ResponseEntity.status(403).build()
+            return sessionForbidden()
         }
 
         val memory = memoryStore.get(sessionId)
@@ -135,10 +137,10 @@ class SessionController(
     fun deleteSession(
         @PathVariable sessionId: String,
         exchange: ServerWebExchange
-    ): ResponseEntity<Void> {
+    ): ResponseEntity<Any> {
         val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
         if (userId != null && !isSessionOwner(sessionId, userId)) {
-            return ResponseEntity.status(403).build()
+            return sessionForbidden()
         }
 
         memoryStore.remove(sessionId)
@@ -149,6 +151,11 @@ class SessionController(
         val owner = memoryStore.getSessionOwner(sessionId)
         // No owner recorded (legacy data or InMemory without userId) — allow access
         return owner == null || owner == userId
+    }
+
+    private fun sessionForbidden(): ResponseEntity<Any> {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(ErrorResponse(error = "Access denied", timestamp = Instant.now().toString()))
     }
 
     /**

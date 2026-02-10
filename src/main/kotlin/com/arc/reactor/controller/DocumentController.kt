@@ -1,7 +1,5 @@
 package com.arc.reactor.controller
 
-import com.arc.reactor.auth.JwtAuthWebFilter
-import com.arc.reactor.auth.UserRole
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -39,16 +37,6 @@ class DocumentController(
     private val vectorStore: VectorStore
 ) {
 
-    private fun isAdmin(exchange: ServerWebExchange): Boolean {
-        val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-        return role == null || role == UserRole.ADMIN
-    }
-
-    private fun forbidden(): ResponseEntity<Any> {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-            .body(mapOf("error" to "Admin access required"))
-    }
-
     /**
      * Add a document to the vector store.
      * The document content is automatically embedded and stored.
@@ -58,7 +46,7 @@ class DocumentController(
         @Valid @RequestBody request: AddDocumentRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val id = UUID.randomUUID().toString()
         val metadata = request.metadata?.toMutableMap() ?: mutableMapOf()
 
@@ -84,7 +72,7 @@ class DocumentController(
         @Valid @RequestBody request: BatchAddDocumentRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val documents = request.documents.map { doc ->
             val id = UUID.randomUUID().toString()
             val metadata = doc.metadata?.toMutableMap() ?: mutableMapOf()
@@ -136,7 +124,7 @@ class DocumentController(
         @RequestBody request: DeleteDocumentRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         vectorStore.delete(request.ids)
         logger.info { "Deleted ${request.ids.size} documents" }
         return ResponseEntity.noContent().build()

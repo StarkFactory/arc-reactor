@@ -1,7 +1,5 @@
 package com.arc.reactor.controller
 
-import com.arc.reactor.auth.JwtAuthWebFilter
-import com.arc.reactor.auth.UserRole
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.mcp.model.McpServer
@@ -42,18 +40,6 @@ class McpServerController(
     private val mcpServerStore: McpServerStore
 ) {
 
-    private fun isAdmin(exchange: ServerWebExchange): Boolean {
-        val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-        // When auth is disabled, JwtAuthWebFilter is not registered so role is null.
-        // Allow all operations (consistent with frontend: !isAuthRequired || isAdmin).
-        return role == null || role == UserRole.ADMIN
-    }
-
-    private fun forbidden(): ResponseEntity<Any> {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-            .body(mapOf("error" to "Admin access required"))
-    }
-
     /**
      * List all registered MCP servers with connection status.
      */
@@ -70,7 +56,7 @@ class McpServerController(
         @Valid @RequestBody request: RegisterMcpServerRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
 
         val existing = mcpServerStore.findByName(request.name)
         if (existing != null) {
@@ -129,7 +115,7 @@ class McpServerController(
         @Valid @RequestBody request: UpdateMcpServerRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
 
         val updateData = McpServer(
             name = name,
@@ -156,7 +142,7 @@ class McpServerController(
         @PathVariable name: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
 
         mcpServerStore.findByName(name)
             ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -175,7 +161,7 @@ class McpServerController(
         @PathVariable name: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
 
         mcpServerStore.findByName(name)
             ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -201,7 +187,7 @@ class McpServerController(
         @PathVariable name: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
 
         mcpServerStore.findByName(name)
             ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
