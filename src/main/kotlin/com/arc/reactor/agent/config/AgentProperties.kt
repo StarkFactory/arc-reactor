@@ -39,7 +39,10 @@ data class AgentProperties(
     val mcp: McpConfigProperties = McpConfigProperties(),
 
     /** Webhook configuration */
-    val webhook: WebhookConfigProperties = WebhookConfigProperties()
+    val webhook: WebhookConfigProperties = WebhookConfigProperties(),
+
+    /** Tool selection configuration */
+    val toolSelection: ToolSelectionProperties = ToolSelectionProperties()
 )
 
 data class LlmProperties(
@@ -217,6 +220,30 @@ data class WebhookConfigProperties(
 
     /** Whether to include full conversation in payload */
     val includeConversation: Boolean = false
+)
+
+/**
+ * Tool selection strategy configuration.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     tool-selection:
+ *       strategy: semantic    # all | keyword | semantic
+ *       similarity-threshold: 0.3
+ *       max-results: 10
+ * ```
+ */
+data class ToolSelectionProperties(
+    /** Selection strategy: "all", "keyword", or "semantic" */
+    val strategy: String = "all",
+
+    /** Minimum cosine similarity threshold for semantic selection */
+    val similarityThreshold: Double = 0.3,
+
+    /** Maximum number of tools to return from semantic selection */
+    val maxResults: Int = 10
 )
 
 data class RagProperties(
