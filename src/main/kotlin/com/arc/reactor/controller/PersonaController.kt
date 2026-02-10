@@ -1,5 +1,7 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.auth.UserRole
 import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -8,6 +10,7 @@ import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ServerWebExchange
 import java.util.UUID
 
 /**
@@ -30,6 +33,18 @@ class PersonaController(
     private val personaStore: PersonaStore
 ) {
 
+    private fun isAdmin(exchange: ServerWebExchange): Boolean {
+        val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
+        // When auth is disabled, JwtAuthWebFilter is not registered so role is null.
+        // Allow all operations (consistent with frontend: !isAuthRequired || isAdmin).
+        return role == null || role == UserRole.ADMIN
+    }
+
+    private fun forbidden(): ResponseEntity<Any> {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(mapOf("error" to "Admin access required"))
+    }
+
     /**
      * List all personas.
      */
@@ -49,10 +64,14 @@ class PersonaController(
     }
 
     /**
-     * Create a new persona.
+     * Create a new persona. Requires ADMIN role when auth is enabled.
      */
     @PostMapping
-    fun createPersona(@Valid @RequestBody request: CreatePersonaRequest): ResponseEntity<PersonaResponse> {
+    fun createPersona(
+        @Valid @RequestBody request: CreatePersonaRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         val persona = Persona(
             id = UUID.randomUUID().toString(),
             name = request.name,
@@ -65,12 +84,15 @@ class PersonaController(
 
     /**
      * Update an existing persona. Only provided fields are changed.
+     * Requires ADMIN role when auth is enabled.
      */
     @PutMapping("/{personaId}")
     fun updatePersona(
         @PathVariable personaId: String,
-        @Valid @RequestBody request: UpdatePersonaRequest
-    ): ResponseEntity<PersonaResponse> {
+        @Valid @RequestBody request: UpdatePersonaRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         val updated = personaStore.update(
             personaId = personaId,
             name = request.name,
@@ -82,9 +104,14 @@ class PersonaController(
 
     /**
      * Delete a persona. Idempotent — returns 204 even if not found.
+     * Requires ADMIN role when auth is enabled.
      */
     @DeleteMapping("/{personaId}")
-    fun deletePersona(@PathVariable personaId: String): ResponseEntity<Void> {
+    fun deletePersona(
+        @PathVariable personaId: String,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         personaStore.delete(personaId)
         return ResponseEntity.noContent().build()
     }

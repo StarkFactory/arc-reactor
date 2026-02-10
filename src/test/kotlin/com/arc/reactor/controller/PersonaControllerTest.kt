@@ -1,5 +1,7 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.auth.UserRole
 import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
 import io.mockk.*
@@ -9,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
 class PersonaControllerTest {
@@ -20,6 +23,28 @@ class PersonaControllerTest {
     fun setup() {
         personaStore = mockk()
         controller = PersonaController(personaStore)
+    }
+
+    private fun adminExchange(): ServerWebExchange {
+        val exchange = mockk<ServerWebExchange>()
+        every { exchange.attributes } returns mutableMapOf<String, Any>(
+            JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.ADMIN
+        )
+        return exchange
+    }
+
+    private fun userExchange(): ServerWebExchange {
+        val exchange = mockk<ServerWebExchange>()
+        every { exchange.attributes } returns mutableMapOf<String, Any>(
+            JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.USER
+        )
+        return exchange
+    }
+
+    private fun noAuthExchange(): ServerWebExchange {
+        val exchange = mockk<ServerWebExchange>()
+        every { exchange.attributes } returns mutableMapOf<String, Any>()
+        return exchange
     }
 
     @Nested
@@ -100,7 +125,7 @@ class PersonaControllerTest {
     inner class CreatePersona {
 
         @Test
-        fun `should return 201 with created persona`() = runTest {
+        fun `should return 201 with created persona for admin`() = runTest {
             val slot = slot<Persona>()
             every { personaStore.save(capture(slot)) } answers { slot.captured }
 
@@ -109,14 +134,34 @@ class PersonaControllerTest {
                 systemPrompt = "You are new.",
                 isDefault = false
             )
-            val response = controller.createPersona(request)
+            val response = controller.createPersona(request, adminExchange())
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should return 201 Created" }
-            val body = response.body!!
+            val body = response.body as PersonaResponse
             assertEquals("New Persona", body.name) { "Name should match request" }
             assertEquals("You are new.", body.systemPrompt) { "System prompt should match request" }
             assertFalse(body.isDefault) { "Should not be default" }
             assertTrue(body.id.isNotBlank()) { "ID should be generated (UUID)" }
+        }
+
+        @Test
+        fun `should return 403 for non-admin user`() = runTest {
+            val request = CreatePersonaRequest(name = "test", systemPrompt = "test")
+
+            val response = controller.createPersona(request, userExchange())
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
+        }
+
+        @Test
+        fun `should allow when auth is disabled`() = runTest {
+            val slot = slot<Persona>()
+            every { personaStore.save(capture(slot)) } answers { slot.captured }
+
+            val request = CreatePersonaRequest(name = "test", systemPrompt = "test")
+            val response = controller.createPersona(request, noAuthExchange())
+
+            assertEquals(HttpStatus.CREATED, response.statusCode) { "Should allow when no auth (null role)" }
         }
 
         @Test
@@ -129,7 +174,7 @@ class PersonaControllerTest {
                 systemPrompt = "prompt",
                 isDefault = true
             )
-            controller.createPersona(request)
+            controller.createPersona(request, adminExchange())
 
             assertTrue(slot.captured.isDefault) { "Saved persona should have isDefault=true" }
         }
@@ -144,7 +189,8 @@ class PersonaControllerTest {
 
             val response = controller.updatePersona(
                 "nonexistent",
-                UpdatePersonaRequest(name = "Updated")
+                UpdatePersonaRequest(name = "Updated"),
+                adminExchange()
             )
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404 for missing persona" }
@@ -159,11 +205,23 @@ class PersonaControllerTest {
 
             val response = controller.updatePersona(
                 "p-1",
-                UpdatePersonaRequest(name = "Updated Name")
+                UpdatePersonaRequest(name = "Updated Name"),
+                adminExchange()
             )
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
-            assertEquals("Updated Name", response.body!!.name) { "Name should be updated" }
+            assertEquals("Updated Name", (response.body as PersonaResponse).name) { "Name should be updated" }
+        }
+
+        @Test
+        fun `should return 403 for non-admin user`() = runTest {
+            val response = controller.updatePersona(
+                "p-1",
+                UpdatePersonaRequest(name = "Hacked"),
+                userExchange()
+            )
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
 
         @Test
@@ -175,11 +233,12 @@ class PersonaControllerTest {
 
             val response = controller.updatePersona(
                 "p-1",
-                UpdatePersonaRequest(isDefault = true)
+                UpdatePersonaRequest(isDefault = true),
+                adminExchange()
             )
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
-            assertTrue(response.body!!.isDefault) { "Should be marked as default after update" }
+            assertTrue((response.body as PersonaResponse).isDefault) { "Should be marked as default after update" }
         }
     }
 
@@ -187,19 +246,26 @@ class PersonaControllerTest {
     inner class DeletePersona {
 
         @Test
-        fun `should return 204 on successful deletion`() = runTest {
+        fun `should return 204 on successful deletion for admin`() = runTest {
             every { personaStore.delete("p-1") } returns Unit
 
-            val response = controller.deletePersona("p-1")
+            val response = controller.deletePersona("p-1", adminExchange())
 
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) { "Should return 204 No Content" }
+        }
+
+        @Test
+        fun `should return 403 for non-admin user`() = runTest {
+            val response = controller.deletePersona("p-1", userExchange())
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
 
         @Test
         fun `should call store delete with correct personaId`() = runTest {
             every { personaStore.delete(any()) } returns Unit
 
-            controller.deletePersona("target-persona")
+            controller.deletePersona("target-persona", adminExchange())
 
             verify(exactly = 1) { personaStore.delete("target-persona") }
         }
@@ -208,7 +274,7 @@ class PersonaControllerTest {
         fun `should return 204 even for nonexistent persona`() = runTest {
             every { personaStore.delete("nonexistent") } returns Unit
 
-            val response = controller.deletePersona("nonexistent")
+            val response = controller.deletePersona("nonexistent", adminExchange())
 
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) { "DELETE should be idempotent" }
         }

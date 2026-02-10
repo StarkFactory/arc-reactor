@@ -1,5 +1,7 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.auth.UserRole
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -13,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ServerWebExchange
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -36,12 +39,26 @@ class DocumentController(
     private val vectorStore: VectorStore
 ) {
 
+    private fun isAdmin(exchange: ServerWebExchange): Boolean {
+        val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
+        return role == null || role == UserRole.ADMIN
+    }
+
+    private fun forbidden(): ResponseEntity<Any> {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(mapOf("error" to "Admin access required"))
+    }
+
     /**
      * Add a document to the vector store.
      * The document content is automatically embedded and stored.
      */
     @PostMapping
-    fun addDocument(@Valid @RequestBody request: AddDocumentRequest): ResponseEntity<DocumentResponse> {
+    fun addDocument(
+        @Valid @RequestBody request: AddDocumentRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         val id = UUID.randomUUID().toString()
         val metadata = request.metadata?.toMutableMap() ?: mutableMapOf()
 
@@ -63,7 +80,11 @@ class DocumentController(
      * Add multiple documents at once.
      */
     @PostMapping("/batch")
-    fun addDocuments(@Valid @RequestBody request: BatchAddDocumentRequest): ResponseEntity<BatchDocumentResponse> {
+    fun addDocuments(
+        @Valid @RequestBody request: BatchAddDocumentRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         val documents = request.documents.map { doc ->
             val id = UUID.randomUUID().toString()
             val metadata = doc.metadata?.toMutableMap() ?: mutableMapOf()
@@ -111,7 +132,11 @@ class DocumentController(
      * Delete documents by IDs.
      */
     @DeleteMapping
-    fun deleteDocuments(@RequestBody request: DeleteDocumentRequest): ResponseEntity<Any> {
+    fun deleteDocuments(
+        @RequestBody request: DeleteDocumentRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbidden()
         vectorStore.delete(request.ids)
         logger.info { "Deleted ${request.ids.size} documents" }
         return ResponseEntity.noContent().build()
