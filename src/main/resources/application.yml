@@ -6,10 +6,6 @@ server:
   port: 8080
   shutdown: graceful
 
-spring:
-  lifecycle:
-    timeout-per-shutdown-phase: 30s
-
 # ----- LLM Providers -----
 # Only providers with API keys set will be activated.
 # Set keys via environment variables:
@@ -21,6 +17,8 @@ spring:
 # Spring AI auto-configs create beans when properties exist (even if empty),
 # causing startup failures. Instead, set via environment variables directly.
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
   datasource:
     url: ${SPRING_DATASOURCE_URL:}
     username: ${SPRING_DATASOURCE_USERNAME:}
