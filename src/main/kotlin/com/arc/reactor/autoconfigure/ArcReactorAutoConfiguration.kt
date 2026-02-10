@@ -53,6 +53,11 @@ import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.prompt.InMemoryPromptTemplateStore
 import com.arc.reactor.prompt.JdbcPromptTemplateStore
 import com.arc.reactor.prompt.PromptTemplateStore
+import com.arc.reactor.approval.AlwaysApprovePolicy
+import com.arc.reactor.approval.InMemoryPendingApprovalStore
+import com.arc.reactor.approval.PendingApprovalStore
+import com.arc.reactor.approval.ToolApprovalPolicy
+import com.arc.reactor.approval.ToolNameApprovalPolicy
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.SemanticToolSelector
@@ -124,6 +129,38 @@ class ArcReactorAutoConfiguration {
             logger.warn { "SemanticToolSelector requested but no EmbeddingModel found, falling back to AllToolSelector" }
         }
         return AllToolSelector()
+    }
+
+    /**
+     * Tool Approval Policy — only created when HITL is enabled.
+     * Users can override with custom [ToolApprovalPolicy] bean.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.approval", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun toolApprovalPolicy(properties: AgentProperties): ToolApprovalPolicy {
+        val toolNames = properties.approval.toolNames
+        return if (toolNames.isNotEmpty()) {
+            ToolNameApprovalPolicy(toolNames)
+        } else {
+            AlwaysApprovePolicy()
+        }
+    }
+
+    /**
+     * Pending Approval Store — only created when HITL is enabled.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.approval", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun pendingApprovalStore(properties: AgentProperties): PendingApprovalStore {
+        return InMemoryPendingApprovalStore(defaultTimeoutMs = properties.approval.timeoutMs)
     }
 
     /**
@@ -524,7 +561,9 @@ class ArcReactorAutoConfiguration {
         agentMetrics: AgentMetrics,
         ragPipelineProvider: ObjectProvider<RagPipeline>,
         tokenEstimator: TokenEstimator,
-        conversationManager: ConversationManager
+        conversationManager: ConversationManager,
+        toolApprovalPolicyProvider: ObjectProvider<ToolApprovalPolicy>,
+        pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -540,6 +579,8 @@ class ArcReactorAutoConfiguration {
         agentMetrics = agentMetrics,
         ragPipeline = ragPipelineProvider.ifAvailable,
         tokenEstimator = tokenEstimator,
-        conversationManager = conversationManager
+        conversationManager = conversationManager,
+        toolApprovalPolicy = toolApprovalPolicyProvider.ifAvailable,
+        pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable
     )
 }

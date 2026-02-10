@@ -9,6 +9,8 @@ import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.agent.model.ResponseFormat
+import com.arc.reactor.approval.PendingApprovalStore
+import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
@@ -130,7 +132,9 @@ class SpringAiAgentExecutor(
     private val ragPipeline: RagPipeline? = null,
     private val tokenEstimator: TokenEstimator = DefaultTokenEstimator(),
     private val transientErrorClassifier: (Exception) -> Boolean = ::defaultTransientErrorClassifier,
-    private val conversationManager: ConversationManager = DefaultConversationManager(memoryStore, properties)
+    private val conversationManager: ConversationManager = DefaultConversationManager(memoryStore, properties),
+    private val toolApprovalPolicy: ToolApprovalPolicy? = null,
+    private val pendingApprovalStore: PendingApprovalStore? = null
 ) : AgentExecutor {
 
     init {
@@ -986,6 +990,11 @@ class SpringAiAgentExecutor(
             )
         }
 
+        // Human-in-the-Loop: check if tool call requires approval
+        checkToolApproval(toolName, toolCallContext, hookContext)?.let { rejection ->
+            return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, rejection)
+        }
+
         val toolStartTime = System.currentTimeMillis()
         val (toolOutput, toolSuccess) = invokeToolAdapter(toolName, toolCall, tools, toolsUsed)
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
@@ -1005,6 +1014,44 @@ class SpringAiAgentExecutor(
     private suspend fun checkBeforeToolCallHook(context: ToolCallContext): HookResult.Reject? {
         if (hookExecutor == null) return null
         return hookExecutor.executeBeforeToolCall(context) as? HookResult.Reject
+    }
+
+    /**
+     * Human-in-the-Loop: Check if tool call requires approval and wait for it.
+     *
+     * @return Rejection message if rejected or timed out, null if approved or no policy
+     */
+    private suspend fun checkToolApproval(
+        toolName: String,
+        toolCallContext: ToolCallContext,
+        hookContext: HookContext
+    ): String? {
+        if (toolApprovalPolicy == null || pendingApprovalStore == null) return null
+        if (!toolApprovalPolicy.requiresApproval(toolName, toolCallContext.toolParams)) return null
+
+        logger.info { "Tool '$toolName' requires human approval, suspending execution..." }
+
+        return try {
+            val response = pendingApprovalStore.requestApproval(
+                runId = hookContext.runId,
+                userId = hookContext.userId,
+                toolName = toolName,
+                arguments = toolCallContext.toolParams
+            )
+            if (response.approved) {
+                logger.info { "Tool '$toolName' approved by human" }
+                null // Continue execution
+            } else {
+                val reason = response.reason ?: "Rejected by human"
+                logger.info { "Tool '$toolName' rejected by human: $reason" }
+                "Tool call rejected by human: $reason"
+            }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.error(e) { "Approval check failed for tool '$toolName'" }
+            null // Fail-open: allow tool execution on approval system error
+        }
     }
 
     private suspend fun invokeToolAdapter(

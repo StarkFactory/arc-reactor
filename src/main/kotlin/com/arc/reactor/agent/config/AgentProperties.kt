@@ -42,7 +42,10 @@ data class AgentProperties(
     val webhook: WebhookConfigProperties = WebhookConfigProperties(),
 
     /** Tool selection configuration */
-    val toolSelection: ToolSelectionProperties = ToolSelectionProperties()
+    val toolSelection: ToolSelectionProperties = ToolSelectionProperties(),
+
+    /** Human-in-the-Loop approval configuration */
+    val approval: ApprovalProperties = ApprovalProperties()
 )
 
 data class LlmProperties(
@@ -244,6 +247,32 @@ data class ToolSelectionProperties(
 
     /** Maximum number of tools to return from semantic selection */
     val maxResults: Int = 10
+)
+
+/**
+ * Human-in-the-Loop approval configuration.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     approval:
+ *       enabled: true
+ *       timeout-ms: 300000
+ *       tool-names:
+ *         - delete_order
+ *         - process_refund
+ * ```
+ */
+data class ApprovalProperties(
+    /** Enable Human-in-the-Loop approval */
+    val enabled: Boolean = false,
+
+    /** Default approval timeout in milliseconds (0 = 5 minutes) */
+    val timeoutMs: Long = 300_000,
+
+    /** Tool names that require approval (empty = use custom ToolApprovalPolicy) */
+    val toolNames: Set<String> = emptySet()
 )
 
 data class RagProperties(
