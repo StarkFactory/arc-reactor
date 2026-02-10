@@ -91,7 +91,7 @@ class SessionController(
     private fun isSessionOwner(sessionId: String, userId: String): Boolean {
         val owner = memoryStore.getSessionOwner(sessionId)
         // No owner recorded (legacy data or InMemory without userId) — allow access
-        return owner == null || owner == userId || owner == "anonymous"
+        return owner == null || owner == userId
     }
 
     /**

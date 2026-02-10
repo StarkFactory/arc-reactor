@@ -11,6 +11,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
+import com.arc.reactor.auth.JwtAuthWebFilter
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -169,6 +170,87 @@ class SessionControllerTest {
             val response = controller.deleteSession("nonexistent", exchange)
 
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) { "DELETE should be idempotent" }
+        }
+    }
+
+    @Nested
+    inner class SessionOwnership {
+
+        @Test
+        fun `should return 403 when authenticated user does not own session`() = runTest {
+            val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
+            every { exchange.attributes } returns attrs
+            every { memoryStore.getSessionOwner("session-1") } returns "user-2"
+
+            val response = controller.getSession("session-1", exchange)
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should deny access to other user's session" }
+        }
+
+        @Test
+        fun `should allow access when user owns session`() = runTest {
+            val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
+            every { exchange.attributes } returns attrs
+            every { memoryStore.getSessionOwner("session-1") } returns "user-1"
+            val memory = mockk<ConversationMemory>()
+            every { memoryStore.get("session-1") } returns memory
+            every { memory.getHistory() } returns emptyList()
+
+            val response = controller.getSession("session-1", exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should allow access to own session" }
+        }
+
+        @Test
+        fun `should allow access when session has no owner`() = runTest {
+            val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
+            every { exchange.attributes } returns attrs
+            every { memoryStore.getSessionOwner("session-1") } returns null
+            val memory = mockk<ConversationMemory>()
+            every { memoryStore.get("session-1") } returns memory
+            every { memory.getHistory() } returns emptyList()
+
+            val response = controller.getSession("session-1", exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should allow access when no owner recorded" }
+        }
+
+        @Test
+        fun `should deny access when session owner is anonymous`() = runTest {
+            val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
+            every { exchange.attributes } returns attrs
+            every { memoryStore.getSessionOwner("session-1") } returns "anonymous"
+
+            val response = controller.getSession("session-1", exchange)
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "Anonymous-owned sessions should not be accessible by authenticated users"
+            }
+        }
+
+        @Test
+        fun `should return 403 on delete when user does not own session`() = runTest {
+            val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
+            every { exchange.attributes } returns attrs
+            every { memoryStore.getSessionOwner("session-1") } returns "user-2"
+
+            val response = controller.deleteSession("session-1", exchange)
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should deny deletion of other user's session" }
+            verify(exactly = 0) { memoryStore.remove(any()) }
+        }
+
+        @Test
+        fun `should skip ownership check when auth is disabled`() = runTest {
+            // No userId attribute = auth disabled
+            every { exchange.attributes } returns mutableMapOf()
+            val memory = mockk<ConversationMemory>()
+            every { memoryStore.get("session-1") } returns memory
+            every { memory.getHistory() } returns emptyList()
+
+            val response = controller.getSession("session-1", exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should allow access when auth is disabled" }
         }
     }
 
