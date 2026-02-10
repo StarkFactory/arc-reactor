@@ -1,0 +1,20 @@
+# ===========================================
+# Arc Reactor - Production Profile
+# ===========================================
+# Activate: SPRING_PROFILES_ACTIVE=prod
+
+spring:
+  flyway:
+    enabled: true
+
+logging:
+  level:
+    com.arc.reactor: INFO
+    org.springframework: WARN
+
+arc:
+  reactor:
+    concurrency:
+      max-concurrent-requests: 50
+    security-headers:
+      enabled: true

@@ -21,6 +21,14 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:-arcreactor}
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-arc}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-arc}
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_PROFILES_ACTIVE: prod
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     depends_on:
       db:
         condition: service_healthy
