@@ -5,7 +5,7 @@ import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -29,7 +29,10 @@ import org.springframework.web.server.ServerWebExchange
 @Tag(name = "Approvals", description = "Human-in-the-Loop tool approval endpoints")
 @RestController
 @RequestMapping("/api/approvals")
-@ConditionalOnBean(PendingApprovalStore::class)
+@ConditionalOnProperty(
+    prefix = "arc.reactor.approval", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 class ApprovalController(
     private val pendingApprovalStore: PendingApprovalStore
 ) {
