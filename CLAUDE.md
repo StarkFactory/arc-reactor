@@ -48,6 +48,14 @@ Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-patter
 - **Hook**: Default **fail-open** (log & continue). Set `failOnError=true` for fail-close
 - IMPORTANT: Security-critical logic belongs in Guard, not Hook
 
+### Structured Output
+
+- `ResponseFormat`: `TEXT` (default), `JSON`, `YAML`
+- JSON/YAML validated via Jackson ObjectMapper / SnakeYAML after LLM response
+- Auto-strips markdown code fences (` ```json ` / ` ```yaml `)
+- Invalid output → one LLM repair call → still invalid → `INVALID_RESPONSE` error
+- Streaming mode rejects all non-TEXT formats (returns error chunk)
+
 ### SSE Streaming Events
 
 `POST /api/chat/stream` emits 4 event types: `message` (LLM token), `tool_start`, `tool_end`, `done`
@@ -74,12 +82,22 @@ Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-patter
 
 ### Admin Access Control
 
-- Admin-only: MCP server write ops, PromptTemplate write ops
+- Admin-only: Persona/Document/MCP server/PromptTemplate write ops
+- Shared utility: `AdminAuthSupport.kt` — `isAdmin(exchange)` + `forbiddenResponse()`
+- **MUST use shared functions** — do NOT duplicate `isAdmin`/`forbidden` in individual controllers
 - `isAdmin()` = `role == null || role == ADMIN` — when auth is disabled, **all requests treated as admin**
+- Session ownership: `SessionController` uses its own `sessionForbidden()` (different error message)
+
+### Error Responses
+
+- **Standard DTO**: `ErrorResponse(error, details?, timestamp)` from `GlobalExceptionHandler.kt`
+- All 403 responses MUST include `ErrorResponse` body (never empty `build()`)
+- All error `mapOf(...)` patterns replaced with `ErrorResponse` — maintain consistency
+- `GlobalExceptionHandler`: validation→400 (field errors), input→400, generic→500 (masked, no stack trace)
 
 ### Error Codes
 
-`RATE_LIMITED` | `TIMEOUT` | `CONTEXT_TOO_LONG` | `TOOL_ERROR` | `GUARD_REJECTED` | `HOOK_REJECTED` | `UNKNOWN` — Override via `ErrorMessageResolver` (i18n)
+`RATE_LIMITED` | `TIMEOUT` | `CONTEXT_TOO_LONG` | `TOOL_ERROR` | `GUARD_REJECTED` | `HOOK_REJECTED` | `INVALID_RESPONSE` | `UNKNOWN` — Override via `ErrorMessageResolver` (i18n)
 
 ### Key Defaults
 
@@ -100,6 +118,7 @@ Full config: see `agent/config/AgentProperties.kt`
 - Null handling: `content.orEmpty()` over `content!!`, elvis `?: "anonymous"` for fallbacks
 - `compileOnly` = optional dependency. Example packages: `@Component` always commented out
 - Interfaces at package root, implementations in `impl/`, data classes in `model/`
+- Swagger: All controllers MUST have `@Tag`. All endpoints MUST have `@Operation(summary = "...")`
 
 ## Testing Rules
 

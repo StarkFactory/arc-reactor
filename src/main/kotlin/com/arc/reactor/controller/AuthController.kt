@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.auth.AuthProvider
+import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.auth.DefaultAuthProvider
 import com.arc.reactor.auth.JwtAuthWebFilter
@@ -46,6 +47,7 @@ class AuthController(
     /**
      * Register a new user account.
      */
+    @Operation(summary = "Register a new user account and receive JWT")
     @PostMapping("/register")
     fun register(@Valid @RequestBody request: RegisterRequest): ResponseEntity<AuthResponse> {
         if (userStore.existsByEmail(request.email)) {
@@ -76,6 +78,7 @@ class AuthController(
     /**
      * Login with email and password.
      */
+    @Operation(summary = "Authenticate with email and password, receive JWT")
     @PostMapping("/login")
     fun login(@Valid @RequestBody request: LoginRequest): ResponseEntity<AuthResponse> {
         val user = authProvider.authenticate(request.email, request.password)
@@ -89,6 +92,7 @@ class AuthController(
     /**
      * Get the current authenticated user's profile.
      */
+    @Operation(summary = "Get current user profile (requires JWT)")
     @GetMapping("/me")
     fun me(exchange: ServerWebExchange): ResponseEntity<UserResponse> {
         val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
@@ -103,6 +107,7 @@ class AuthController(
     /**
      * Change the current user's password.
      */
+    @Operation(summary = "Change password for the current user (requires JWT)")
     @PostMapping("/change-password")
     fun changePassword(
         @Valid @RequestBody request: ChangePasswordRequest,

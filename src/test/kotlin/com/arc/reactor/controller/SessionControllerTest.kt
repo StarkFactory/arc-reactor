@@ -105,7 +105,7 @@ class SessionControllerTest {
             val response = controller.getSession("session-1", exchange)
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
-            val body = response.body!!
+            val body = response.body!! as SessionDetailResponse
             assertEquals("session-1", body.sessionId) { "Session ID should match" }
             assertEquals(2, body.messages.size) { "Should have 2 messages" }
         }
@@ -120,7 +120,7 @@ class SessionControllerTest {
                 Message(MessageRole.SYSTEM, "System msg")
             )
 
-            val body = controller.getSession("session-1", exchange).body!!
+            val body = controller.getSession("session-1", exchange).body!! as SessionDetailResponse
 
             assertEquals("user", body.messages[0].role) { "USER should map to 'user'" }
             assertEquals("assistant", body.messages[1].role) { "ASSISTANT should map to 'assistant'" }
@@ -136,7 +136,7 @@ class SessionControllerTest {
                 Message(MessageRole.USER, "Hello!", now)
             )
 
-            val body = controller.getSession("session-1", exchange).body!!
+            val body = controller.getSession("session-1", exchange).body!! as SessionDetailResponse
 
             assertEquals(now.toEpochMilli(), body.messages[0].timestamp) { "Timestamp should be epoch millis" }
         }

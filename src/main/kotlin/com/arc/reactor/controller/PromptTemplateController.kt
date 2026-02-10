@@ -1,7 +1,5 @@
 package com.arc.reactor.controller
 
-import com.arc.reactor.auth.JwtAuthWebFilter
-import com.arc.reactor.auth.UserRole
 import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.prompt.PromptTemplate
 import com.arc.reactor.prompt.PromptTemplateStore
@@ -39,18 +37,6 @@ class PromptTemplateController(
     private val promptTemplateStore: PromptTemplateStore
 ) {
 
-    private fun isAdmin(exchange: ServerWebExchange): Boolean {
-        val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-        // When auth is disabled, JwtAuthWebFilter is not registered so role is null.
-        // Allow all operations (consistent with frontend: !isAuthRequired || isAdmin).
-        return role == null || role == UserRole.ADMIN
-    }
-
-    private fun forbidden(): ResponseEntity<Any> {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-            .body(mapOf("error" to "Admin access required"))
-    }
-
     // ---- Template Endpoints ----
 
     /**
@@ -81,7 +67,7 @@ class PromptTemplateController(
         @Valid @RequestBody request: CreateTemplateRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val template = PromptTemplate(
             id = UUID.randomUUID().toString(),
             name = request.name,
@@ -100,7 +86,7 @@ class PromptTemplateController(
         @Valid @RequestBody request: UpdateTemplateRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val updated = promptTemplateStore.updateTemplate(
             id = templateId,
             name = request.name,
@@ -117,7 +103,7 @@ class PromptTemplateController(
         @PathVariable templateId: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         promptTemplateStore.deleteTemplate(templateId)
         return ResponseEntity.noContent().build<Any>()
     }
@@ -133,7 +119,7 @@ class PromptTemplateController(
         @Valid @RequestBody request: CreateVersionRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val version = promptTemplateStore.createVersion(
             templateId = templateId,
             content = request.content,
@@ -151,7 +137,7 @@ class PromptTemplateController(
         @PathVariable versionId: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val activated = promptTemplateStore.activateVersion(templateId, versionId)
             ?: return ResponseEntity.notFound().build<Any>()
         return ResponseEntity.ok(activated.toResponse())
@@ -166,7 +152,7 @@ class PromptTemplateController(
         @PathVariable versionId: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbidden()
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val archived = promptTemplateStore.archiveVersion(versionId)
             ?: return ResponseEntity.notFound().build<Any>()
         return ResponseEntity.ok(archived.toResponse())
