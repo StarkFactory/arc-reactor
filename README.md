@@ -113,6 +113,8 @@ curl http://localhost:8080/api/models
 curl http://localhost:8080/api/sessions
 ```
 
+> **API Docs**: Open [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) for interactive API documentation.
+
 > When auth is enabled, include `Authorization: Bearer <token>` in all requests. See [Authentication](#authentication-opt-in).
 
 ## What This Project Provides

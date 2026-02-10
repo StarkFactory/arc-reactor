@@ -155,6 +155,17 @@ class ArcReactorAutoConfiguration {
     fun promptTemplateStore(): PromptTemplateStore = InMemoryPromptTemplateStore()
 
     /**
+     * Startup Info Logger (logs provider, URLs, feature flags on startup)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun startupInfoLogger(
+        environment: Environment,
+        chatModelProvider: ChatModelProvider,
+        authProperties: ObjectProvider<AuthProperties>
+    ): StartupInfoLogger = StartupInfoLogger(environment, chatModelProvider, authProperties.ifAvailable)
+
+    /**
      * Error Message Resolver (default: English messages)
      */
     @Bean
