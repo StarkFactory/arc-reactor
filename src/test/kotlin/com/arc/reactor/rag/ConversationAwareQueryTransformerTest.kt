@@ -178,6 +178,62 @@ class ConversationAwareQueryTransformerTest {
         }
     }
 
+    @Nested
+    inner class ThreadSafety {
+
+        @Test
+        fun `sequential requests with different histories should not interfere`() = runTest {
+            val transformer = ConversationAwareQueryTransformer(chatClient)
+
+            val userSlot = slot<String>()
+            every { requestSpec.user(capture(userSlot)) } returns requestSpec
+
+            // Return different rewrites based on the history content
+            every { callResponseSpec.chatResponse() } answers {
+                val captured = userSlot.captured
+                val rewritten = when {
+                    captured.contains("about dogs") -> "return policy for dogs"
+                    captured.contains("about cats") -> "return policy for cats"
+                    else -> "standalone query"
+                }
+                ChatResponse(listOf(Generation(AssistantMessage(rewritten))))
+            }
+
+            // First request with dogs history
+            transformer.updateHistory(listOf("User: Tell me about dogs"))
+            val result1 = transformer.transform("What about the return policy?")
+
+            // Second request with cats history (previous history should be cleared)
+            transformer.updateHistory(listOf("User: Tell me about cats"))
+            val result2 = transformer.transform("What about the return policy?")
+
+            assertEquals(listOf("return policy for dogs"), result1) {
+                "First request should use dogs history"
+            }
+            assertEquals(listOf("return policy for cats"), result2) {
+                "Second request should use cats history, not dogs"
+            }
+        }
+
+        @Test
+        fun `ThreadLocal should be cleaned up after transform`() = runTest {
+            mockLlmResponse("rewritten query")
+
+            val transformer = ConversationAwareQueryTransformer(chatClient)
+            transformer.updateHistory(listOf("some history"))
+            transformer.transform("query")
+
+            // After transform, calling again without updateHistory should return original (empty history)
+            val result = transformer.transform("another query")
+
+            assertEquals(listOf("another query"), result) {
+                "After transform, ThreadLocal should be cleared — second call without updateHistory should use empty history"
+            }
+            // LLM should NOT be called for the second transform (empty history)
+            verify(atMost = 1) { chatClient.prompt() }
+        }
+    }
+
     private fun mockLlmResponse(text: String) {
         val assistantMessage = AssistantMessage(text)
         val chatResponse = ChatResponse(listOf(Generation(assistantMessage)))

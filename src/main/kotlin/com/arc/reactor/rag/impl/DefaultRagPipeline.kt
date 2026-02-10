@@ -74,6 +74,7 @@ class SimpleContextBuilder(
     override fun build(documents: List<RetrievedDocument>, maxTokens: Int): String {
         val sb = StringBuilder()
         var currentTokens = 0
+        var docIndex = 1
 
         for (doc in documents) {
             val docTokens = doc.estimatedTokens
@@ -85,13 +86,13 @@ class SimpleContextBuilder(
                 sb.append(separator)
             }
 
-            // Append source information
-            doc.source?.let {
-                sb.append("[Source: $it]\n")
-            }
+            sb.append("[$docIndex]")
+            doc.source?.let { sb.append(" Source: $it") }
+            sb.append("\n")
             sb.append(doc.content)
 
             currentTokens += docTokens
+            docIndex++
         }
 
         return sb.toString()
