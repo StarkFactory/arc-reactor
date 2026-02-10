@@ -26,6 +26,7 @@ enum class AgentErrorCode(val defaultMessage: String) {
     TOOL_ERROR("An error occurred during tool execution."),
     GUARD_REJECTED("Request rejected by guard."),
     HOOK_REJECTED("Request rejected by hook."),
+    INVALID_RESPONSE("LLM returned an invalid structured response."),
     UNKNOWN("An unknown error occurred.")
 }
 

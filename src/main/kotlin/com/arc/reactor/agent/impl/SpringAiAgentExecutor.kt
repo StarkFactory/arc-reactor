@@ -353,9 +353,9 @@ class SpringAiAgentExecutor(
                         return@withTimeout
                     }
 
-                    // Reject JSON format in streaming mode
-                    if (command.responseFormat == ResponseFormat.JSON) {
-                        emit("[error] Structured JSON output is not supported in streaming mode")
+                    // Reject structured formats in streaming mode
+                    if (command.responseFormat != ResponseFormat.TEXT) {
+                        emit("[error] Structured ${command.responseFormat} output is not supported in streaming mode")
                         return@withTimeout
                     }
 
@@ -364,7 +364,10 @@ class SpringAiAgentExecutor(
                     // 3. Setup (conversation via ConversationManager)
                     val conversationHistory = conversationManager.loadHistory(command)
                     val ragContext = retrieveRagContext(command.userPrompt)
-                    val systemPrompt = buildSystemPrompt(command.systemPrompt, ragContext)
+                    val systemPrompt = buildSystemPrompt(
+                        command.systemPrompt, ragContext,
+                        command.responseFormat, command.responseSchema
+                    )
                     var activeTools = if (command.mode == AgentMode.STANDARD) {
                         emptyList()
                     } else {
@@ -572,18 +575,134 @@ class SpringAiAgentExecutor(
             parts.add("[Retrieved Context]\n$ragContext")
         }
 
-        if (responseFormat == ResponseFormat.JSON) {
-            val jsonInstruction = buildString {
-                append("[Response Format]\n")
-                append("You MUST respond with valid JSON only. Do not include any text outside the JSON object.")
-                if (responseSchema != null) {
-                    append("\n\nExpected JSON schema:\n$responseSchema")
-                }
-            }
-            parts.add(jsonInstruction)
+        when (responseFormat) {
+            ResponseFormat.JSON -> parts.add(buildJsonInstruction(responseSchema))
+            ResponseFormat.YAML -> parts.add(buildYamlInstruction(responseSchema))
+            ResponseFormat.TEXT -> { /* no format instruction */ }
         }
 
         return parts.joinToString("\n\n")
+    }
+
+    private fun buildJsonInstruction(responseSchema: String?): String = buildString {
+        append("[Response Format]\n")
+        append("You MUST respond with valid JSON only.\n")
+        append("- Do NOT wrap the response in markdown code blocks (no ```json or ```).\n")
+        append("- Do NOT include any text before or after the JSON.\n")
+        append("- The response MUST start with '{' or '[' and end with '}' or ']'.")
+        if (responseSchema != null) {
+            append("\n\nExpected JSON schema:\n$responseSchema")
+        }
+    }
+
+    private fun buildYamlInstruction(responseSchema: String?): String = buildString {
+        append("[Response Format]\n")
+        append("You MUST respond with valid YAML only.\n")
+        append("- Do NOT wrap the response in markdown code blocks (no ```yaml or ```).\n")
+        append("- Do NOT include any text before or after the YAML.\n")
+        append("- Use proper YAML indentation (2 spaces).")
+        if (responseSchema != null) {
+            append("\n\nExpected YAML structure:\n$responseSchema")
+        }
+    }
+
+    /**
+     * Validate structured output and attempt one repair if invalid.
+     * Returns the validated content or an INVALID_RESPONSE failure.
+     */
+    private suspend fun validateAndRepairResponse(
+        rawContent: String,
+        format: ResponseFormat,
+        command: AgentCommand,
+        tokenUsage: TokenUsage?,
+        toolsUsed: List<String>
+    ): AgentResult {
+        if (format == ResponseFormat.TEXT) {
+            return AgentResult.success(content = rawContent, toolsUsed = toolsUsed, tokenUsage = tokenUsage)
+        }
+
+        val stripped = stripMarkdownCodeFence(rawContent)
+
+        if (isValidFormat(stripped, format)) {
+            return AgentResult.success(content = stripped, toolsUsed = toolsUsed, tokenUsage = tokenUsage)
+        }
+
+        // Attempt one LLM repair call
+        logger.warn { "Invalid $format response detected, attempting repair" }
+        val repaired = attemptRepair(stripped, format, command)
+        if (repaired != null && isValidFormat(repaired, format)) {
+            return AgentResult.success(content = repaired, toolsUsed = toolsUsed, tokenUsage = tokenUsage)
+        }
+
+        logger.error { "Structured output validation failed after repair attempt" }
+        return AgentResult.failure(
+            errorMessage = errorMessageResolver.resolve(AgentErrorCode.INVALID_RESPONSE, null),
+            errorCode = AgentErrorCode.INVALID_RESPONSE
+        )
+    }
+
+    private fun isValidFormat(content: String, format: ResponseFormat): Boolean {
+        return when (format) {
+            ResponseFormat.JSON -> validateJson(content)
+            ResponseFormat.YAML -> validateYaml(content)
+            ResponseFormat.TEXT -> true
+        }
+    }
+
+    private fun validateJson(content: String): Boolean {
+        return try {
+            objectMapper.readTree(content)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun validateYaml(content: String): Boolean {
+        return try {
+            val yaml = org.yaml.snakeyaml.Yaml()
+            val result = yaml.load<Any>(content)
+            result != null
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun stripMarkdownCodeFence(content: String): String {
+        val trimmed = content.trim()
+        if (!trimmed.startsWith("```")) return trimmed
+        val lines = trimmed.lines()
+        val startIdx = 1 // skip first ``` line
+        val endIdx = if (lines.last().trim() == "```") lines.size - 1 else lines.size
+        return lines.subList(startIdx, endIdx).joinToString("\n").trim()
+    }
+
+    private suspend fun attemptRepair(
+        invalidContent: String,
+        format: ResponseFormat,
+        command: AgentCommand
+    ): String? {
+        return try {
+            val formatName = format.name
+            val repairPrompt = "The following $formatName is invalid. " +
+                "Fix it and return ONLY valid $formatName with no explanation or code fences:\n\n$invalidContent"
+
+            val activeChatClient = resolveChatClient(command)
+            val response = kotlinx.coroutines.runInterruptible {
+                activeChatClient
+                    .prompt()
+                    .user(repairPrompt)
+                    .call()
+                    .chatResponse()
+            }
+            val repairedContent = response?.results?.firstOrNull()?.output?.text
+            if (repairedContent != null) stripMarkdownCodeFence(repairedContent) else null
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.warn(e) { "Repair attempt failed" }
+            null
+        }
     }
 
     /**
@@ -966,11 +1085,13 @@ class SpringAiAgentExecutor(
                 val pendingToolCalls = assistantOutput?.toolCalls.orEmpty()
 
                 if (pendingToolCalls.isEmpty() || activeTools.isEmpty()) {
-                    // No tool calls — return final content
-                    return AgentResult.success(
-                        content = assistantOutput?.text.orEmpty(),
-                        toolsUsed = ArrayList(toolsUsed),
-                        tokenUsage = totalTokenUsage
+                    // No tool calls — validate structured output and return
+                    return validateAndRepairResponse(
+                        rawContent = assistantOutput?.text.orEmpty(),
+                        format = command.responseFormat,
+                        command = command,
+                        tokenUsage = totalTokenUsage,
+                        toolsUsed = ArrayList(toolsUsed)
                     )
                 }
 

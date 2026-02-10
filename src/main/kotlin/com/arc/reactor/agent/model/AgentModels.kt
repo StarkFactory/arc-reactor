@@ -10,7 +10,10 @@ enum class ResponseFormat {
     TEXT,
 
     /** JSON response (system prompt instructs LLM to output valid JSON) */
-    JSON
+    JSON,
+
+    /** YAML response (system prompt instructs LLM to output valid YAML) */
+    YAML
 }
 
 /**
