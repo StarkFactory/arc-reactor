@@ -1,6 +1,7 @@
 package com.arc.reactor.agent.model
 
 import java.time.Instant
+import org.springframework.util.MimeType
 
 /**
  * Response format for structured output
@@ -31,6 +32,55 @@ enum class AgentMode {
 }
 
 /**
+ * Media attachment for multimodal input (images, audio, video, etc.)
+ *
+ * Wraps a media resource that can be sent to multimodal LLMs alongside text prompts.
+ * Supports both URI-based references and raw byte data.
+ *
+ * ## Example
+ * ```kotlin
+ * // From URL
+ * val imageUrl = MediaAttachment(
+ *     mimeType = MimeTypeUtils.IMAGE_PNG,
+ *     uri = URI("https://example.com/photo.png")
+ * )
+ *
+ * // From raw bytes
+ * val imageBytes = MediaAttachment(
+ *     mimeType = MimeTypeUtils.IMAGE_JPEG,
+ *     data = fileBytes,
+ *     name = "photo.jpg"
+ * )
+ * ```
+ */
+data class MediaAttachment(
+    val mimeType: MimeType,
+    val data: ByteArray? = null,
+    val uri: java.net.URI? = null,
+    val name: String? = null
+) {
+    init {
+        require(data != null || uri != null) { "Either data or uri must be provided" }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is MediaAttachment) return false
+        return mimeType == other.mimeType &&
+            data?.contentEquals(other.data ?: byteArrayOf()) ?: (other.data == null) &&
+            uri == other.uri && name == other.name
+    }
+
+    override fun hashCode(): Int {
+        var result = mimeType.hashCode()
+        result = 31 * result + (data?.contentHashCode() ?: 0)
+        result = 31 * result + (uri?.hashCode() ?: 0)
+        result = 31 * result + (name?.hashCode() ?: 0)
+        return result
+    }
+}
+
+/**
  * Agent execution command
  */
 data class AgentCommand(
@@ -44,7 +94,8 @@ data class AgentCommand(
     val userId: String? = null,
     val metadata: Map<String, Any> = emptyMap(),
     val responseFormat: ResponseFormat = ResponseFormat.TEXT,
-    val responseSchema: String? = null
+    val responseSchema: String? = null,
+    val media: List<MediaAttachment> = emptyList()
 )
 
 /**
@@ -53,7 +104,8 @@ data class AgentCommand(
 data class Message(
     val role: MessageRole,
     val content: String,
-    val timestamp: Instant = Instant.now()
+    val timestamp: Instant = Instant.now(),
+    val media: List<MediaAttachment> = emptyList()
 )
 
 enum class MessageRole {

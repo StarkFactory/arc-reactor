@@ -7,6 +7,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
+import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
@@ -383,7 +384,7 @@ class SpringAiAgentExecutor(
                     if (conversationHistory.isNotEmpty()) {
                         messages.addAll(conversationHistory)
                     }
-                    messages.add(UserMessage(command.userPrompt))
+                    messages.add(MediaConverter.buildUserMessage(command.userPrompt, command.media))
 
                     val maxToolCallLimit = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
                     var totalToolCalls = 0
@@ -1070,7 +1071,7 @@ class SpringAiAgentExecutor(
             if (conversationHistory.isNotEmpty()) {
                 messages.addAll(conversationHistory)
             }
-            messages.add(UserMessage(command.userPrompt))
+            messages.add(MediaConverter.buildUserMessage(command.userPrompt, command.media))
 
             var activeTools = tools
             var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
