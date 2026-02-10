@@ -26,6 +26,8 @@ import com.arc.reactor.guard.impl.DefaultInputValidationStage
 import com.arc.reactor.guard.impl.DefaultRateLimitStage
 import com.arc.reactor.guard.impl.GuardPipeline
 import com.arc.reactor.hook.AfterAgentCompleteHook
+import com.arc.reactor.hook.impl.WebhookNotificationHook
+import com.arc.reactor.hook.impl.WebhookProperties
 import com.arc.reactor.hook.AfterToolCallHook
 import com.arc.reactor.hook.BeforeAgentStartHook
 import com.arc.reactor.hook.BeforeToolCallHook
@@ -260,6 +262,27 @@ class ArcReactorAutoConfiguration {
         afterToolCallHooks = afterToolCallHooks,
         afterCompleteHooks = afterCompleteHooks
     )
+
+    /**
+     * Webhook Notification Hook (only when arc.reactor.webhook.enabled=true)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.webhook", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun webhookNotificationHook(properties: AgentProperties): WebhookNotificationHook {
+        val config = properties.webhook
+        return WebhookNotificationHook(
+            webhookProperties = WebhookProperties(
+                enabled = config.enabled,
+                url = config.url,
+                timeoutMs = config.timeoutMs,
+                includeConversation = config.includeConversation
+            )
+        )
+    }
 
     /**
      * Guard Configuration

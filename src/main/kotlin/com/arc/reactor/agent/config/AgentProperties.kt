@@ -36,7 +36,10 @@ data class AgentProperties(
     val securityHeaders: SecurityHeadersProperties = SecurityHeadersProperties(),
 
     /** MCP configuration */
-    val mcp: McpConfigProperties = McpConfigProperties()
+    val mcp: McpConfigProperties = McpConfigProperties(),
+
+    /** Webhook configuration */
+    val webhook: WebhookConfigProperties = WebhookConfigProperties()
 )
 
 data class LlmProperties(
@@ -186,6 +189,34 @@ data class McpSecurityProperties(
 
     /** Maximum tool output length in characters */
     val maxToolOutputLength: Int = 50_000
+)
+
+/**
+ * Webhook notification configuration.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     webhook:
+ *       enabled: true
+ *       url: https://example.com/webhook
+ *       timeout-ms: 5000
+ *       include-conversation: false
+ * ```
+ */
+data class WebhookConfigProperties(
+    /** Enable webhook notifications */
+    val enabled: Boolean = false,
+
+    /** POST target URL */
+    val url: String = "",
+
+    /** HTTP timeout (milliseconds) */
+    val timeoutMs: Long = 5000,
+
+    /** Whether to include full conversation in payload */
+    val includeConversation: Boolean = false
 )
 
 data class RagProperties(
