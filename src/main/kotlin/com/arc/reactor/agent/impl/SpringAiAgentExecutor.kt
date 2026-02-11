@@ -12,6 +12,8 @@ import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.resilience.CircuitBreaker
+import com.arc.reactor.resilience.CircuitBreakerOpenException
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.ResponseFilterContext
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
@@ -137,7 +139,8 @@ class SpringAiAgentExecutor(
     private val conversationManager: ConversationManager = DefaultConversationManager(memoryStore, properties),
     private val toolApprovalPolicy: ToolApprovalPolicy? = null,
     private val pendingApprovalStore: PendingApprovalStore? = null,
-    private val responseFilterChain: ResponseFilterChain? = null
+    private val responseFilterChain: ResponseFilterChain? = null,
+    private val circuitBreaker: CircuitBreaker? = null
 ) : AgentExecutor {
 
     init {
@@ -1216,39 +1219,59 @@ class SpringAiAgentExecutor(
     }
 
     /**
-     * Call a block with retry and exponential backoff for transient errors.
+     * Call a block with circuit breaker protection and retry with exponential backoff.
+     *
+     * If a [CircuitBreaker] is configured, the entire retry sequence is wrapped within it.
+     * When the circuit is OPEN, calls fail immediately with [CircuitBreakerOpenException].
      */
     private suspend fun <T> callWithRetry(block: suspend () -> T): T {
-        val retry = properties.retry
-        val maxAttempts = retry.maxAttempts.coerceAtLeast(1)
-        var lastException: Exception? = null
+        val retryBlock: suspend () -> T = {
+            val retry = properties.retry
+            val maxAttempts = retry.maxAttempts.coerceAtLeast(1)
+            var lastException: Exception? = null
+            var result: T? = null
+            var completed = false
 
-        repeat(maxAttempts) { attempt ->
-            try {
-                return block()
-            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-                throw e // Never retry cancellation (respects withTimeout)
-            } catch (e: Exception) {
-                lastException = e
-                if (!isTransientError(e) || attempt == maxAttempts - 1) {
-                    throw e
+            repeat(maxAttempts) { attempt ->
+                if (completed) return@repeat
+                try {
+                    result = block()
+                    completed = true
+                } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                    throw e // Never retry cancellation (respects withTimeout)
+                } catch (e: Exception) {
+                    lastException = e
+                    if (!isTransientError(e) || attempt == maxAttempts - 1) {
+                        throw e
+                    }
+                    val baseDelay = minOf(
+                        (retry.initialDelayMs * Math.pow(retry.multiplier, attempt.toDouble())).toLong(),
+                        retry.maxDelayMs
+                    )
+                    // Add ±25% jitter to prevent thundering herd
+                    val jitter = (baseDelay * 0.25 * (Math.random() * 2 - 1)).toLong()
+                    val delayMs = (baseDelay + jitter).coerceAtLeast(0)
+                    logger.warn {
+                        "Transient error (attempt ${attempt + 1}/$maxAttempts), " +
+                            "retrying in ${delayMs}ms: ${e.message}"
+                    }
+                    delay(delayMs)
                 }
-                val baseDelay = minOf(
-                    (retry.initialDelayMs * Math.pow(retry.multiplier, attempt.toDouble())).toLong(),
-                    retry.maxDelayMs
-                )
-                // Add ±25% jitter to prevent thundering herd
-                val jitter = (baseDelay * 0.25 * (Math.random() * 2 - 1)).toLong()
-                val delayMs = (baseDelay + jitter).coerceAtLeast(0)
-                logger.warn {
-                    "Transient error (attempt ${attempt + 1}/$maxAttempts), " +
-                        "retrying in ${delayMs}ms: ${e.message}"
-                }
-                delay(delayMs)
+            }
+
+            if (completed) {
+                @Suppress("UNCHECKED_CAST")
+                result as T
+            } else {
+                throw lastException ?: IllegalStateException("Retry exhausted")
             }
         }
 
-        throw lastException ?: IllegalStateException("Retry exhausted")
+        return if (circuitBreaker != null) {
+            circuitBreaker.execute(retryBlock)
+        } else {
+            retryBlock()
+        }
     }
 
     private fun accumulateTokenUsage(
@@ -1274,6 +1297,7 @@ class SpringAiAgentExecutor(
 
     private fun classifyError(e: Exception): AgentErrorCode {
         return when {
+            e is CircuitBreakerOpenException -> AgentErrorCode.CIRCUIT_BREAKER_OPEN
             e.message?.contains("rate limit", ignoreCase = true) == true -> AgentErrorCode.RATE_LIMITED
             e.message?.contains("timeout", ignoreCase = true) == true -> AgentErrorCode.TIMEOUT
             e.message?.contains("context length", ignoreCase = true) == true -> AgentErrorCode.CONTEXT_TOO_LONG
