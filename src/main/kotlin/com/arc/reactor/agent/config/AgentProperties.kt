@@ -54,7 +54,10 @@ data class AgentProperties(
     val response: ResponseProperties = ResponseProperties(),
 
     /** Circuit breaker configuration */
-    val circuitBreaker: CircuitBreakerProperties = CircuitBreakerProperties()
+    val circuitBreaker: CircuitBreakerProperties = CircuitBreakerProperties(),
+
+    /** Response caching configuration */
+    val cache: CacheProperties = CacheProperties()
 )
 
 data class LlmProperties(
@@ -406,4 +409,36 @@ data class CircuitBreakerProperties(
 
     /** Number of trial calls allowed in HALF_OPEN state. */
     val halfOpenMaxCalls: Int = 1
+)
+
+/**
+ * Response caching configuration.
+ *
+ * When enabled, identical requests return cached responses to avoid
+ * redundant LLM calls. Only deterministic responses (temperature at
+ * or below [cacheableTemperature]) are cached.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     cache:
+ *       enabled: true
+ *       max-size: 1000
+ *       ttl-minutes: 60
+ *       cacheable-temperature: 0.0
+ * ```
+ */
+data class CacheProperties(
+    /** Enable response caching. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Maximum number of cached entries. */
+    val maxSize: Long = 1000,
+
+    /** Time-to-live for cache entries in minutes. */
+    val ttlMinutes: Long = 60,
+
+    /** Only cache responses when temperature is at or below this value. */
+    val cacheableTemperature: Double = 0.0
 )

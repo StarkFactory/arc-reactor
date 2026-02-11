@@ -12,6 +12,9 @@ import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.cache.CacheKeyBuilder
+import com.arc.reactor.cache.CachedResponse
+import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.resilience.CircuitBreaker
 import com.arc.reactor.resilience.CircuitBreakerOpenException
 import com.arc.reactor.response.ResponseFilterChain
@@ -140,7 +143,9 @@ class SpringAiAgentExecutor(
     private val toolApprovalPolicy: ToolApprovalPolicy? = null,
     private val pendingApprovalStore: PendingApprovalStore? = null,
     private val responseFilterChain: ResponseFilterChain? = null,
-    private val circuitBreaker: CircuitBreaker? = null
+    private val circuitBreaker: CircuitBreaker? = null,
+    private val responseCache: ResponseCache? = null,
+    private val cacheableTemperature: Double = 0.0
 ) : AgentExecutor {
 
     init {
@@ -241,6 +246,29 @@ class SpringAiAgentExecutor(
     ): AgentResult {
         checkGuardAndHooks(command, hookContext, startTime)?.let { return it }
 
+        // Check response cache (only for cacheable temperature)
+        val cacheKey = if (responseCache != null && isCacheable(command)) {
+            val toolNames = (toolCallbacks + mcpToolCallbacks()).map { it.name }
+            val key = CacheKeyBuilder.buildKey(command, toolNames)
+            try {
+                responseCache.get(key)?.let { cached ->
+                    logger.debug { "Cache hit for request" }
+                    return AgentResult.success(
+                        content = cached.content,
+                        toolsUsed = cached.toolsUsed,
+                        durationMs = System.currentTimeMillis() - startTime
+                    )
+                }
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.warn(e) { "Cache lookup failed, proceeding without cache" }
+            }
+            key
+        } else {
+            null
+        }
+
         val conversationHistory = conversationManager.loadHistory(command)
         val ragContext = retrieveRagContext(command.userPrompt)
         val selectedTools = if (command.mode == AgentMode.STANDARD) {
@@ -256,7 +284,27 @@ class SpringAiAgentExecutor(
             hookContext = hookContext, toolsUsed = toolsUsed, ragContext = ragContext
         )
 
-        return finishExecution(result, command, hookContext, toolsUsed, startTime)
+        val finalResult = finishExecution(result, command, hookContext, toolsUsed, startTime)
+
+        // Save to cache on success
+        if (cacheKey != null && finalResult.success && finalResult.content != null) {
+            try {
+                responseCache?.put(cacheKey, CachedResponse(
+                    content = finalResult.content,
+                    toolsUsed = finalResult.toolsUsed
+                ))
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.warn(e) { "Failed to cache response" }
+            }
+        }
+
+        return finalResult
+    }
+
+    private fun isCacheable(command: AgentCommand): Boolean {
+        return (command.temperature ?: properties.llm.temperature) <= cacheableTemperature
     }
 
     private suspend fun checkGuardAndHooks(
