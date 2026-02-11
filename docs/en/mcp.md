@@ -105,8 +105,9 @@ enum class McpServerStatus {
 ```
 register() -> PENDING
 connect()  -> CONNECTING -> CONNECTED
-                         -> FAILED (on error)
+                         -> FAILED (on error) -> [auto-reconnection] -> CONNECTED
 disconnect() -> DISCONNECTED
+ensureConnected() -> CONNECTED (on-demand reconnect for FAILED/DISCONNECTED)
 ```
 
 ## McpManager Interface
@@ -121,6 +122,7 @@ interface McpManager {
     fun getToolCallbacks(serverName: String): List<ToolCallback>
     fun listServers(): List<McpServer>
     fun getStatus(serverName: String): McpServerStatus?
+    suspend fun ensureConnected(serverName: String): Boolean  // On-demand reconnect
     suspend fun initializeFromStore()                  // Load from store + auto-connect
 }
 ```
@@ -592,12 +594,76 @@ curl -X POST http://localhost:8080/api/mcp/servers/swagger-agent/disconnect
 curl -X DELETE http://localhost:8080/api/mcp/servers/swagger-agent
 ```
 
+## Auto-Reconnection
+
+When an MCP server connection fails, `DefaultMcpManager` can automatically retry with exponential backoff. This is enabled by default.
+
+### Configuration
+
+```yaml
+arc:
+  reactor:
+    mcp:
+      reconnection:
+        enabled: true           # Enable auto-reconnection (default: true)
+        max-attempts: 5         # Max retry attempts before giving up
+        initial-delay-ms: 5000  # Initial backoff delay
+        multiplier: 2.0         # Backoff multiplier
+        max-delay-ms: 60000     # Maximum backoff delay
+```
+
+### How It Works
+
+```
+connect() fails
+  |
+  v
+scheduleReconnection()
+  |-- Check: reconnection.enabled?  No -> return
+  |-- Check: already reconnecting?  Yes -> return (prevent duplicates)
+  |
+  v
+Background coroutine (Dispatchers.IO + SupervisorJob)
+  |
+  for attempt in 1..maxAttempts:
+    |-- Calculate delay: min(initialDelay * multiplier^(attempt-1), maxDelay)
+    |-- Add jitter: ±25% randomization
+    |-- delay(...)
+    |-- Check: server unregistered or already connected? -> exit
+    |-- connect(serverName)
+    |   |-- Success -> exit (reconnected!)
+    |   |-- Failure -> continue to next attempt
+    |
+  All attempts exhausted -> log warning, give up
+```
+
+### On-Demand Reconnection
+
+When a tool call targets a disconnected/failed server, `ensureConnected()` attempts a single synchronous reconnect before the call:
+
+```kotlin
+// Called before MCP tool execution
+suspend fun ensureConnected(serverName: String): Boolean
+```
+
+- Returns `true` if server is CONNECTED (already or after reconnect)
+- Returns `false` if reconnection is disabled, server is in PENDING/CONNECTING state, or reconnect fails
+
+### Thread Safety
+
+- `ConcurrentHashMap.newKeySet<String>()` tracks which servers have active reconnection tasks
+- `CoroutineScope(Dispatchers.IO + SupervisorJob())` isolates reconnection failures
+- Per-server `Mutex` ensures connect/disconnect atomicity (same as before)
+- `close()` cancels all background reconnection tasks
+
 ## Shutdown Handling
 
 `DefaultMcpManager` implements `AutoCloseable`:
 
 ```kotlin
 override fun close() {
+    reconnectScope.cancel()        // Cancel all background reconnection tasks
+    reconnectingServers.clear()
     for (serverName in clients.keys.toList()) {
         disconnectInternal(serverName)  // non-suspend (avoids runBlocking)
     }
@@ -607,7 +673,7 @@ override fun close() {
 }
 ```
 
-**Note:** `close()` calls `disconnectInternal()` directly (no Mutex, non-suspend). This is because `AutoCloseable.close()` cannot be a `suspend fun`. It is called automatically during Spring context shutdown.
+**Note:** `close()` first cancels the reconnection scope, then calls `disconnectInternal()` directly (no Mutex, non-suspend). `AutoCloseable.close()` cannot be a `suspend fun`. It is called automatically during Spring context shutdown.
 
 ## Known Limitations
 

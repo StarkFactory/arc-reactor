@@ -105,8 +105,9 @@ enum class McpServerStatus {
 ```
 register() → PENDING
 connect()  → CONNECTING → CONNECTED
-                        → FAILED (에러 시)
+                        → FAILED (에러 시) → [자동 재연결] → CONNECTED
 disconnect() → DISCONNECTED
+ensureConnected() → CONNECTED (FAILED/DISCONNECTED 상태에서 온디맨드 재연결)
 ```
 
 ## McpManager 인터페이스
@@ -121,6 +122,7 @@ interface McpManager {
     fun getToolCallbacks(serverName: String): List<ToolCallback>
     fun listServers(): List<McpServer>
     fun getStatus(serverName: String): McpServerStatus?
+    suspend fun ensureConnected(serverName: String): Boolean  // 온디맨드 재연결
     suspend fun initializeFromStore()                  // 스토어에서 로드 + 자동 연결
 }
 ```
@@ -592,12 +594,76 @@ curl -X POST http://localhost:8080/api/mcp/servers/swagger-agent/disconnect
 curl -X DELETE http://localhost:8080/api/mcp/servers/swagger-agent
 ```
 
+## 자동 재연결
+
+MCP 서버 연결이 실패하면, `DefaultMcpManager`가 자동으로 지수 백오프(exponential backoff)를 적용하여 재연결을 시도합니다. 기본적으로 활성화되어 있습니다.
+
+### 설정
+
+```yaml
+arc:
+  reactor:
+    mcp:
+      reconnection:
+        enabled: true           # 자동 재연결 활성화 (기본: true)
+        max-attempts: 5         # 포기 전 최대 재시도 횟수
+        initial-delay-ms: 5000  # 초기 백오프 지연
+        multiplier: 2.0         # 백오프 배율
+        max-delay-ms: 60000     # 최대 백오프 지연
+```
+
+### 동작 원리
+
+```
+connect() 실패
+  │
+  v
+scheduleReconnection()
+  ├── 확인: reconnection.enabled?  아니오 → 종료
+  ├── 확인: 이미 재연결 중?        예 → 종료 (중복 방지)
+  │
+  v
+백그라운드 코루틴 (Dispatchers.IO + SupervisorJob)
+  │
+  for attempt in 1..maxAttempts:
+    ├── 지연 계산: min(initialDelay * multiplier^(attempt-1), maxDelay)
+    ├── 지터 추가: ±25% 무작위화
+    ├── delay(...)
+    ├── 확인: 서버가 삭제되었거나 이미 연결됨? → 종료
+    ├── connect(serverName)
+    │   ├── 성공 → 종료 (재연결 완료!)
+    │   └── 실패 → 다음 시도로 계속
+    │
+  모든 시도 소진 → 경고 로그, 포기
+```
+
+### 온디맨드 재연결
+
+도구 호출이 연결 해제/실패 상태의 서버를 대상으로 할 때, `ensureConnected()`가 호출 전에 단일 동기 재연결을 시도합니다:
+
+```kotlin
+// MCP 도구 실행 전 호출
+suspend fun ensureConnected(serverName: String): Boolean
+```
+
+- 서버가 CONNECTED 상태이면 `true` 반환 (이미 연결됨 또는 재연결 성공)
+- 재연결이 비활성화되었거나, PENDING/CONNECTING 상태이거나, 재연결 실패 시 `false` 반환
+
+### 스레드 안전성
+
+- `ConcurrentHashMap.newKeySet<String>()` — 활성 재연결 작업이 있는 서버 추적
+- `CoroutineScope(Dispatchers.IO + SupervisorJob())` — 재연결 실패 격리
+- 서버별 `Mutex` — connect/disconnect 원자성 보장 (기존과 동일)
+- `close()` — 모든 백그라운드 재연결 작업 취소
+
 ## 종료 처리
 
 `DefaultMcpManager`는 `AutoCloseable`을 구현합니다:
 
 ```kotlin
 override fun close() {
+    reconnectScope.cancel()        // 모든 백그라운드 재연결 작업 취소
+    reconnectingServers.clear()
     for (serverName in clients.keys.toList()) {
         disconnectInternal(serverName)  // non-suspend (runBlocking 회피)
     }
@@ -607,7 +673,7 @@ override fun close() {
 }
 ```
 
-**주의:** `close()`는 `disconnectInternal()`을 직접 호출합니다 (Mutex 없음, non-suspend). `AutoCloseable.close()`가 `suspend fun`일 수 없기 때문입니다. Spring 컨텍스트 종료 시 자동 호출됩니다.
+**주의:** `close()`는 먼저 재연결 스코프를 취소하고, `disconnectInternal()`을 직접 호출합니다 (Mutex 없음, non-suspend). `AutoCloseable.close()`가 `suspend fun`일 수 없기 때문입니다. Spring 컨텍스트 종료 시 자동 호출됩니다.
 
 ## 알려진 제약사항
 
