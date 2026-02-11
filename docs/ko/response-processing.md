@@ -175,3 +175,114 @@ fun responseFilterChain(): ResponseFilterChain {
 ```
 
 필터가 실패하면 체인은 에러를 로깅하고 **변경되지 않은 콘텐츠**를 다음 필터에 전달합니다.
+
+---
+
+## 응답 캐싱
+
+### 개요
+
+응답 캐싱은 동일한 요청에 대한 LLM 응답을 저장하여 불필요한 API 호출을 방지합니다. 동일한 입력이 항상 같은 출력을 생성하는 결정적 쿼리(temperature=0)에 유용합니다.
+
+캐싱은 **opt-in** 방식이며 **기본적으로 비활성화**되어 있습니다.
+
+### 동작 방식
+
+```
+요청 도착
+    │
+    ▼
+캐싱 활성화? ──아니오──▶ LLM 직접 호출
+    │
+    예
+    │
+    ▼
+temperature ≤ cacheableTemperature? ──아니오──▶ LLM 호출 (비결정적)
+    │
+    예
+    │
+    ▼
+캐시 키 생성 (SHA-256)
+    │
+    ▼
+캐시 히트? ──예──▶ 캐시된 응답 반환 (LLM 호출 없음)
+    │
+   아니오
+    │
+    ▼
+LLM 호출 → 결과를 캐시에 저장 → 응답 반환
+```
+
+### 캐시 키 전략
+
+캐시 키는 다음 요소의 SHA-256 해시입니다:
+- 시스템 프롬프트
+- 사용자 프롬프트
+- 정렬된 도구 이름 목록 (순서 무관)
+- 모델 이름
+
+같은 입력이면 도구 목록 순서와 관계없이 동일한 키가 생성됩니다.
+
+### 설정
+
+```yaml
+arc:
+  reactor:
+    cache:
+      enabled: true               # 응답 캐싱 활성화 (기본값: false)
+      max-size: 1000              # 최대 캐시 항목 수 (기본값: 1000)
+      ttl-minutes: 60             # 항목당 TTL (기본값: 60분)
+      cacheable-temperature: 0.0  # 캐싱 가능 최대 temperature (기본값: 0.0)
+```
+
+| 속성 | 기본값 | 설명 |
+|------|--------|------|
+| `enabled` | `false` | 응답 캐싱 활성화/비활성화 |
+| `max-size` | `1000` | 최대 캐시 항목 수 |
+| `ttl-minutes` | `60` | 항목당 유효 시간 (분) |
+| `cacheable-temperature` | `0.0` | 이 값 이하의 temperature만 캐싱 |
+
+### Temperature 기반 캐싱 조건
+
+요청의 temperature가 `cacheable-temperature` 이하일 때만 응답이 캐싱됩니다:
+
+- `temperature=0.0`, `cacheable-temperature=0.0` → **캐싱됨** (결정적)
+- `temperature=0.3`, `cacheable-temperature=0.5` → **캐싱됨** (임계값 이내)
+- `temperature=0.8`, `cacheable-temperature=0.5` → **캐싱 안 됨** (비결정적)
+
+Command에 temperature가 설정되지 않으면 `arc.reactor.llm.temperature` 기본값이 사용됩니다.
+
+### 구현체
+
+| 구현체 | 설명 |
+|--------|------|
+| `CaffeineResponseCache` | Caffeine 기반 캐시. TTL과 최대 크기 지원. `cache.enabled=true`일 때 등록 |
+| `NoOpResponseCache` | No-op 구현. 모든 작업이 아무 동작도 하지 않음 |
+
+### 커스텀 캐시 구현
+
+자체 `ResponseCache` Bean을 제공하여 기본 캐시를 교체할 수 있습니다:
+
+```kotlin
+@Bean
+fun responseCache(): ResponseCache {
+    return MyRedisResponseCache(redisTemplate)
+}
+```
+
+`@ConditionalOnMissingBean`이 사용되므로 커스텀 Bean이 우선합니다.
+
+### 프로그래밍 방식 캐시 무효화
+
+```kotlin
+@Autowired(required = false)
+private val responseCache: ResponseCache? = null
+
+fun clearCache() {
+    responseCache?.invalidateAll()
+}
+```
+
+### 캐싱과 스트리밍
+
+응답 캐싱은 **비스트리밍 `execute()`에만** 적용됩니다. 스트리밍 응답(`executeStream()`)은 토큰을 점진적으로 전달하므로 캐싱되지 않습니다.

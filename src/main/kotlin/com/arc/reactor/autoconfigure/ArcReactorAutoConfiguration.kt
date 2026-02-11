@@ -2,6 +2,8 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.cache.ResponseCache
+import com.arc.reactor.cache.impl.CaffeineResponseCache
 import com.arc.reactor.resilience.CircuitBreakerRegistry
 import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterChain
@@ -570,6 +572,22 @@ class ArcReactorAutoConfiguration {
     }
 
     /**
+     * Response Cache — caches agent responses for identical requests.
+     *
+     * Only created when `arc.reactor.cache.enabled=true`.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "arc.reactor.cache", name = ["enabled"], havingValue = "true")
+    fun responseCache(properties: AgentProperties): ResponseCache {
+        val cacheProps = properties.cache
+        return CaffeineResponseCache(
+            maxSize = cacheProps.maxSize,
+            ttlMinutes = cacheProps.ttlMinutes
+        )
+    }
+
+    /**
      * Circuit Breaker Registry — manages named circuit breakers for LLM and MCP calls.
      *
      * Only created when `arc.reactor.circuit-breaker.enabled=true`.
@@ -611,7 +629,8 @@ class ArcReactorAutoConfiguration {
         toolApprovalPolicyProvider: ObjectProvider<ToolApprovalPolicy>,
         pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>,
         responseFilterChain: ResponseFilterChain,
-        circuitBreakerRegistryProvider: ObjectProvider<CircuitBreakerRegistry>
+        circuitBreakerRegistryProvider: ObjectProvider<CircuitBreakerRegistry>,
+        responseCacheProvider: ObjectProvider<ResponseCache>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -631,6 +650,8 @@ class ArcReactorAutoConfiguration {
         toolApprovalPolicy = toolApprovalPolicyProvider.ifAvailable,
         pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable,
         responseFilterChain = if (properties.response.filtersEnabled) responseFilterChain else null,
-        circuitBreaker = circuitBreakerRegistryProvider.ifAvailable?.get("llm")
+        circuitBreaker = circuitBreakerRegistryProvider.ifAvailable?.get("llm"),
+        responseCache = responseCacheProvider.ifAvailable,
+        cacheableTemperature = properties.cache.cacheableTemperature
     )
 }
