@@ -159,3 +159,113 @@ val metrics = circuitBreakerRegistry.get("llm").metrics()
 - **서킷 브레이커**: 여러 요청에 걸친 지속적 장애 처리 (예: 제공자 장애)
 - 모든 재시도가 실패하면 서킷 브레이커에 실패 **1회** 기록
 - 재시도 중 성공하면 서킷 브레이커에 성공 **1회** 기록
+
+---
+
+## 그레이스풀 디그레이데이션 (폴백)
+
+### 개요
+
+주 LLM이 실패하면 (서킷 브레이커 개방, 제공자 장애 등) 폴백 전략이 대체 모델을 사용하여 복구를 시도합니다.
+
+**기본값은 비활성화** — 설정으로 활성화합니다.
+
+### 동작 방식
+
+```
+요청 → 주 LLM → 성공 → 응답 반환
+          │
+         실패
+          │
+          ▼
+     폴백 활성화?
+       │       │
+       예      아니오 → 에러 반환
+       │
+       ▼
+  모델 1 시도 → 성공 → 폴백 응답 반환
+       │
+      실패
+       │
+       ▼
+  모델 2 시도 → 성공 → 폴백 응답 반환
+       │
+      실패
+       │
+       ▼
+  원래 에러 반환
+```
+
+### 설정
+
+```yaml
+arc:
+  reactor:
+    fallback:
+      enabled: true       # 그레이스풀 디그레이데이션 활성화 (기본값: false)
+      models:              # 우선순위 순서의 폴백 모델
+        - openai
+        - anthropic
+```
+
+| 속성 | 기본값 | 설명 |
+|------|--------|------|
+| `enabled` | `false` | 폴백 전략 활성화 |
+| `models` | `[]` | 시도할 모델 이름 (우선순위 순서) |
+
+### 핵심 동작
+
+- 폴백은 **모든** 실행 실패 시 트리거됩니다 (서킷 브레이커뿐만 아니라)
+- 폴백 호출은 **단순 LLM 호출**입니다 — 도구 없음, ReAct 루프 없음
+- 모델은 **순서대로** 시도됩니다 — 첫 번째 성공이 반환됨
+- Guard와 Hook 검사는 **반복하지 않습니다** (원래 요청에서 이미 통과)
+- 폴백 전략 자체가 예외를 던지면 원래 에러가 보존됩니다
+
+### FallbackStrategy 인터페이스
+
+```kotlin
+interface FallbackStrategy {
+    suspend fun execute(command: AgentCommand, originalError: Exception): AgentResult?
+}
+```
+
+`null` 반환은 복구 불가를 의미 — 원래 에러가 호출자에게 반환됩니다.
+
+### 커스텀 폴백 구현
+
+자체 Bean으로 기본값을 교체할 수 있습니다:
+
+```kotlin
+@Bean
+fun fallbackStrategy(): FallbackStrategy {
+    return object : FallbackStrategy {
+        override suspend fun execute(
+            command: AgentCommand,
+            originalError: Exception
+        ): AgentResult? {
+            // 커스텀 복구 로직 (예: 캐시된 응답 반환 또는 정적 메시지)
+            return AgentResult.success(content = "서비스가 일시적으로 이용 불가합니다.")
+        }
+    }
+}
+```
+
+`@ConditionalOnMissingBean`이 사용되므로 커스텀 Bean이 우선합니다.
+
+### 서킷 브레이커와의 상호작용
+
+서킷 브레이커와 폴백이 모두 활성화된 경우:
+
+```
+서킷 브레이커
+  └─ 재시도 (지수 백오프)
+       └─ LLM 호출
+              │
+            실패 (CB OPEN 또는 재시도 소진)
+              │
+              ▼
+       폴백 전략
+         └─ 대체 모델 시도
+```
+
+폴백은 서킷 브레이커가 호출을 거부한 **이후에** 실행되어, 사용자에게 에러 대신 그레이스풀한 대안을 제공합니다.

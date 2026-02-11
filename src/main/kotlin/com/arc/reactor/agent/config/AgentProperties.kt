@@ -57,7 +57,10 @@ data class AgentProperties(
     val circuitBreaker: CircuitBreakerProperties = CircuitBreakerProperties(),
 
     /** Response caching configuration */
-    val cache: CacheProperties = CacheProperties()
+    val cache: CacheProperties = CacheProperties(),
+
+    /** Graceful degradation / fallback configuration */
+    val fallback: FallbackProperties = FallbackProperties()
 )
 
 data class LlmProperties(
@@ -441,4 +444,29 @@ data class CacheProperties(
 
     /** Only cache responses when temperature is at or below this value. */
     val cacheableTemperature: Double = 0.0
+)
+
+/**
+ * Graceful degradation / fallback configuration.
+ *
+ * When enabled, agent execution failures trigger fallback to alternative
+ * LLM models. Models are tried in order until one succeeds.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     fallback:
+ *       enabled: true
+ *       models:
+ *         - openai
+ *         - anthropic
+ * ```
+ */
+data class FallbackProperties(
+    /** Enable graceful degradation. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Fallback model names in priority order. */
+    val models: List<String> = emptyList()
 )

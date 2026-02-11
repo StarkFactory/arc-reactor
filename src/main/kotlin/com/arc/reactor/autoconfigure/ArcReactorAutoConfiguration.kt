@@ -5,6 +5,8 @@ import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.cache.impl.CaffeineResponseCache
 import com.arc.reactor.resilience.CircuitBreakerRegistry
+import com.arc.reactor.resilience.FallbackStrategy
+import com.arc.reactor.resilience.impl.ModelFallbackStrategy
 import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.impl.MaxLengthResponseFilter
@@ -588,6 +590,24 @@ class ArcReactorAutoConfiguration {
     }
 
     /**
+     * Fallback Strategy — graceful degradation to alternative LLM models on failure.
+     *
+     * Only created when `arc.reactor.fallback.enabled=true`.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "arc.reactor.fallback", name = ["enabled"], havingValue = "true")
+    fun fallbackStrategy(
+        properties: AgentProperties,
+        chatModelProvider: ChatModelProvider
+    ): FallbackStrategy {
+        return ModelFallbackStrategy(
+            fallbackModels = properties.fallback.models,
+            chatModelProvider = chatModelProvider
+        )
+    }
+
+    /**
      * Circuit Breaker Registry — manages named circuit breakers for LLM and MCP calls.
      *
      * Only created when `arc.reactor.circuit-breaker.enabled=true`.
@@ -630,7 +650,8 @@ class ArcReactorAutoConfiguration {
         pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>,
         responseFilterChain: ResponseFilterChain,
         circuitBreakerRegistryProvider: ObjectProvider<CircuitBreakerRegistry>,
-        responseCacheProvider: ObjectProvider<ResponseCache>
+        responseCacheProvider: ObjectProvider<ResponseCache>,
+        fallbackStrategyProvider: ObjectProvider<FallbackStrategy>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -652,6 +673,7 @@ class ArcReactorAutoConfiguration {
         responseFilterChain = if (properties.response.filtersEnabled) responseFilterChain else null,
         circuitBreaker = circuitBreakerRegistryProvider.ifAvailable?.get("llm"),
         responseCache = responseCacheProvider.ifAvailable,
-        cacheableTemperature = properties.cache.cacheableTemperature
+        cacheableTemperature = properties.cache.cacheableTemperature,
+        fallbackStrategy = fallbackStrategyProvider.ifAvailable
     )
 }

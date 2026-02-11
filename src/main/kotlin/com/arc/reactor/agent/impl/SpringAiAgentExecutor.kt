@@ -17,6 +17,7 @@ import com.arc.reactor.cache.CachedResponse
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.resilience.CircuitBreaker
 import com.arc.reactor.resilience.CircuitBreakerOpenException
+import com.arc.reactor.resilience.FallbackStrategy
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.ResponseFilterContext
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
@@ -145,7 +146,8 @@ class SpringAiAgentExecutor(
     private val responseFilterChain: ResponseFilterChain? = null,
     private val circuitBreaker: CircuitBreaker? = null,
     private val responseCache: ResponseCache? = null,
-    private val cacheableTemperature: Double = 0.0
+    private val cacheableTemperature: Double = 0.0,
+    private val fallbackStrategy: FallbackStrategy? = null
 ) : AgentExecutor {
 
     init {
@@ -278,11 +280,16 @@ class SpringAiAgentExecutor(
         }
         logger.debug { "Selected ${selectedTools.size} tools for execution (mode=${command.mode})" }
 
-        val result = executeWithTools(
+        var result = executeWithTools(
             command = command, tools = selectedTools,
             conversationHistory = conversationHistory,
             hookContext = hookContext, toolsUsed = toolsUsed, ragContext = ragContext
         )
+
+        // Attempt fallback on failure
+        if (!result.success && fallbackStrategy != null) {
+            result = attemptFallback(command, result)
+        }
 
         val finalResult = finishExecution(result, command, hookContext, toolsUsed, startTime)
 
@@ -305,6 +312,24 @@ class SpringAiAgentExecutor(
 
     private fun isCacheable(command: AgentCommand): Boolean {
         return (command.temperature ?: properties.llm.temperature) <= cacheableTemperature
+    }
+
+    private suspend fun attemptFallback(command: AgentCommand, originalResult: AgentResult): AgentResult {
+        return try {
+            val error = Exception(originalResult.errorMessage ?: "Agent execution failed")
+            val fallbackResult = fallbackStrategy?.execute(command, error)
+            if (fallbackResult != null) {
+                logger.info { "Fallback succeeded, using fallback response" }
+                fallbackResult
+            } else {
+                originalResult
+            }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.warn(e) { "Fallback strategy failed, using original error" }
+            originalResult
+        }
     }
 
     private suspend fun checkGuardAndHooks(
