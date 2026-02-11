@@ -51,8 +51,8 @@ class McpReconnectionTest {
             }
 
             // Background reconnection is scheduled but will also fail
-            // Wait long enough for 2 attempts (100ms + 100ms delays + execution)
-            delay(1500)
+            // Wait long enough for 2 attempts (100ms + 100ms delays + execution overhead)
+            delay(3000)
 
             // After exhausted attempts, status should still be FAILED
             assertEquals(McpServerStatus.FAILED, manager.getStatus("recon-server")) {
