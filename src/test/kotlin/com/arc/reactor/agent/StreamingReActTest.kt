@@ -588,7 +588,7 @@ class StreamingReActTest {
 
             // Verify: success=true, content included, durationMs >= 0
             verify(exactly = 1) {
-                metrics.recordExecution(match {
+                metrics.recordStreamingExecution(match {
                     it.success &&
                         it.content == "Response" &&
                         it.durationMs >= 0

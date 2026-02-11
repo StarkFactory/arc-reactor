@@ -255,6 +255,7 @@ class SpringAiAgentExecutor(
             try {
                 responseCache.get(key)?.let { cached ->
                     logger.debug { "Cache hit for request" }
+                    agentMetrics.recordCacheHit(key)
                     return AgentResult.success(
                         content = cached.content,
                         toolsUsed = cached.toolsUsed,
@@ -266,6 +267,7 @@ class SpringAiAgentExecutor(
             } catch (e: Exception) {
                 logger.warn(e) { "Cache lookup failed, proceeding without cache" }
             }
+            agentMetrics.recordCacheMiss(key)
             key
         } else {
             null
@@ -640,7 +642,7 @@ class SpringAiAgentExecutor(
                 durationMs = durationMs
             )
         }
-        agentMetrics.recordExecution(result)
+        agentMetrics.recordStreamingExecution(result)
     }
 
     /**
@@ -1235,6 +1237,13 @@ class SpringAiAgentExecutor(
                 }
 
                 totalTokenUsage = accumulateTokenUsage(chatResponse, totalTokenUsage)
+                chatResponse?.metadata?.usage?.let { usage ->
+                    agentMetrics.recordTokenUsage(TokenUsage(
+                        promptTokens = usage.promptTokens.toInt(),
+                        completionTokens = usage.completionTokens.toInt(),
+                        totalTokens = usage.totalTokens.toInt()
+                    ))
+                }
 
                 // Check for tool calls in the response
                 val assistantOutput = chatResponse?.results?.firstOrNull()?.output

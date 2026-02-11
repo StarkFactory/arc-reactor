@@ -365,13 +365,13 @@ class DefaultMcpManager(
     /**
      * Connect via HTTP (Streamable) transport.
      *
-     * Note: Streamable HTTP transport is not available in MCP SDK 0.10.0.
+     * Note: Streamable HTTP transport is not available in MCP SDK 0.17.2.
      * Use SSE transport as an alternative. This will be implemented when
      * the SDK is upgraded to a version that includes HttpClientStreamableHttpTransport.
      */
     private fun connectHttp(server: McpServer): McpSyncClient? {
         logger.warn {
-            "HTTP (Streamable) transport is not yet supported in MCP SDK 0.10.0. " +
+            "HTTP (Streamable) transport is not yet supported in MCP SDK 0.17.2. " +
             "Use SSE transport instead for server: ${server.name}"
         }
         return null

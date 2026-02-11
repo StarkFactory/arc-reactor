@@ -1,5 +1,7 @@
 package com.arc.reactor.resilience.impl
 
+import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.resilience.CircuitBreaker
 import com.arc.reactor.resilience.CircuitBreakerMetrics
 import com.arc.reactor.resilience.CircuitBreakerOpenException
@@ -21,13 +23,15 @@ private val logger = KotlinLogging.logger {}
  * @param halfOpenMaxCalls Number of trial calls allowed in HALF_OPEN state
  * @param name Identifier for logging and exception messages
  * @param clock Time source for testability (default: System.currentTimeMillis)
+ * @param agentMetrics Metrics recorder for state transitions
  */
 class DefaultCircuitBreaker(
     private val failureThreshold: Int = 5,
     private val resetTimeoutMs: Long = 30_000,
     private val halfOpenMaxCalls: Int = 1,
     private val name: String = "default",
-    private val clock: () -> Long = System::currentTimeMillis
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val agentMetrics: AgentMetrics = NoOpAgentMetrics()
 ) : CircuitBreaker {
 
     private val state = AtomicReference(CircuitBreakerState.CLOSED)
@@ -98,6 +102,9 @@ class DefaultCircuitBreaker(
                 if (state.compareAndSet(CircuitBreakerState.OPEN, CircuitBreakerState.HALF_OPEN)) {
                     halfOpenCallCount.set(0)
                     logger.info { "Circuit breaker '$name' transitioned OPEN → HALF_OPEN after ${elapsed}ms" }
+                    agentMetrics.recordCircuitBreakerStateChange(
+                        name, CircuitBreakerState.OPEN, CircuitBreakerState.HALF_OPEN
+                    )
                 }
                 return state.get()
             }
@@ -114,6 +121,9 @@ class DefaultCircuitBreaker(
             successCount.incrementAndGet()
             halfOpenCallCount.set(0)
             logger.info { "Circuit breaker '$name' transitioned HALF_OPEN → CLOSED (recovery confirmed)" }
+            agentMetrics.recordCircuitBreakerStateChange(
+                name, CircuitBreakerState.HALF_OPEN, CircuitBreakerState.CLOSED
+            )
         } else {
             successCount.incrementAndGet()
             failureCount.set(0) // Reset consecutive failure count on success
@@ -130,6 +140,9 @@ class DefaultCircuitBreaker(
             openedAt.set(clock())
             halfOpenCallCount.set(0)
             logger.warn { "Circuit breaker '$name' transitioned HALF_OPEN → OPEN (trial call failed)" }
+            agentMetrics.recordCircuitBreakerStateChange(
+                name, CircuitBreakerState.HALF_OPEN, CircuitBreakerState.OPEN
+            )
         } else if (current == CircuitBreakerState.CLOSED) {
             val failures = failureCount.incrementAndGet()
             if (failures >= failureThreshold) {
@@ -139,6 +152,9 @@ class DefaultCircuitBreaker(
                     "Circuit breaker '$name' transitioned CLOSED → OPEN " +
                         "(failures=$failures, threshold=$failureThreshold)"
                 }
+                agentMetrics.recordCircuitBreakerStateChange(
+                    name, CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN
+                )
             }
         }
     }

@@ -599,11 +599,13 @@ class ArcReactorAutoConfiguration {
     @ConditionalOnProperty(prefix = "arc.reactor.fallback", name = ["enabled"], havingValue = "true")
     fun fallbackStrategy(
         properties: AgentProperties,
-        chatModelProvider: ChatModelProvider
+        chatModelProvider: ChatModelProvider,
+        agentMetrics: AgentMetrics
     ): FallbackStrategy {
         return ModelFallbackStrategy(
             fallbackModels = properties.fallback.models,
-            chatModelProvider = chatModelProvider
+            chatModelProvider = chatModelProvider,
+            agentMetrics = agentMetrics
         )
     }
 
@@ -615,12 +617,16 @@ class ArcReactorAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "arc.reactor.circuit-breaker", name = ["enabled"], havingValue = "true")
-    fun circuitBreakerRegistry(properties: AgentProperties): CircuitBreakerRegistry {
+    fun circuitBreakerRegistry(
+        properties: AgentProperties,
+        agentMetrics: AgentMetrics
+    ): CircuitBreakerRegistry {
         val cb = properties.circuitBreaker
         return CircuitBreakerRegistry(
             failureThreshold = cb.failureThreshold,
             resetTimeoutMs = cb.resetTimeoutMs,
-            halfOpenMaxCalls = cb.halfOpenMaxCalls
+            halfOpenMaxCalls = cb.halfOpenMaxCalls,
+            agentMetrics = agentMetrics
         )
     }
 

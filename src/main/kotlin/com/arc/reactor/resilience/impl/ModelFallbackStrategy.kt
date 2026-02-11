@@ -1,5 +1,7 @@
 package com.arc.reactor.resilience.impl
 
+import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.config.ChatModelProvider
@@ -31,7 +33,8 @@ private val logger = KotlinLogging.logger {}
  */
 class ModelFallbackStrategy(
     private val fallbackModels: List<String>,
-    private val chatModelProvider: ChatModelProvider
+    private val chatModelProvider: ChatModelProvider,
+    private val agentMetrics: AgentMetrics = NoOpAgentMetrics()
 ) : FallbackStrategy {
 
     override suspend fun execute(command: AgentCommand, originalError: Exception): AgentResult? {
@@ -51,13 +54,16 @@ class ModelFallbackStrategy(
                 val content = response?.results?.firstOrNull()?.output?.text
                 if (!content.isNullOrBlank()) {
                     logger.info { "Fallback to model '$model' succeeded" }
+                    agentMetrics.recordFallbackAttempt(model, success = true)
                     return AgentResult.success(content = content)
                 }
                 logger.warn { "Fallback model '$model' returned empty response" }
+                agentMetrics.recordFallbackAttempt(model, success = false)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 logger.warn(e) { "Fallback to model '$model' failed" }
+                agentMetrics.recordFallbackAttempt(model, success = false)
             }
         }
 

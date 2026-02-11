@@ -1,5 +1,7 @@
 package com.arc.reactor.resilience
 
+import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.resilience.impl.DefaultCircuitBreaker
 import java.util.concurrent.ConcurrentHashMap
 
@@ -12,11 +14,13 @@ import java.util.concurrent.ConcurrentHashMap
  * @param failureThreshold Default failure threshold for new breakers
  * @param resetTimeoutMs Default reset timeout for new breakers
  * @param halfOpenMaxCalls Default half-open trial calls for new breakers
+ * @param agentMetrics Metrics recorder for circuit breaker state transitions
  */
 class CircuitBreakerRegistry(
     private val failureThreshold: Int = 5,
     private val resetTimeoutMs: Long = 30_000,
-    private val halfOpenMaxCalls: Int = 1
+    private val halfOpenMaxCalls: Int = 1,
+    private val agentMetrics: AgentMetrics = NoOpAgentMetrics()
 ) {
 
     private val breakers = ConcurrentHashMap<String, CircuitBreaker>()
@@ -29,7 +33,8 @@ class CircuitBreakerRegistry(
             failureThreshold = failureThreshold,
             resetTimeoutMs = resetTimeoutMs,
             halfOpenMaxCalls = halfOpenMaxCalls,
-            name = name
+            name = name,
+            agentMetrics = agentMetrics
         )
     }
 

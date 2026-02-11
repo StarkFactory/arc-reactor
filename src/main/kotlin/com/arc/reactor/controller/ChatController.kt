@@ -259,6 +259,7 @@ data class ChatRequest(
     val personaId: String? = null,
     val promptTemplateId: String? = null,
     val userId: String? = null,
+    @field:Size(max = 20, message = "metadata must not exceed 20 entries")
     val metadata: Map<String, Any>? = null,
     val responseFormat: ResponseFormat? = null,
     @field:Size(max = 10000, message = "responseSchema must not exceed 10000 characters")
