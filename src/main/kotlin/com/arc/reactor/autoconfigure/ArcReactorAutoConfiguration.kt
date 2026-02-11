@@ -2,6 +2,7 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.resilience.CircuitBreakerRegistry
 import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.impl.MaxLengthResponseFilter
@@ -568,6 +569,23 @@ class ArcReactorAutoConfiguration {
     }
 
     /**
+     * Circuit Breaker Registry — manages named circuit breakers for LLM and MCP calls.
+     *
+     * Only created when `arc.reactor.circuit-breaker.enabled=true`.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "arc.reactor.circuit-breaker", name = ["enabled"], havingValue = "true")
+    fun circuitBreakerRegistry(properties: AgentProperties): CircuitBreakerRegistry {
+        val cb = properties.circuitBreaker
+        return CircuitBreakerRegistry(
+            failureThreshold = cb.failureThreshold,
+            resetTimeoutMs = cb.resetTimeoutMs,
+            halfOpenMaxCalls = cb.halfOpenMaxCalls
+        )
+    }
+
+    /**
      * Agent Executor
      */
     @Bean
@@ -591,7 +609,8 @@ class ArcReactorAutoConfiguration {
         conversationManager: ConversationManager,
         toolApprovalPolicyProvider: ObjectProvider<ToolApprovalPolicy>,
         pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>,
-        responseFilterChain: ResponseFilterChain
+        responseFilterChain: ResponseFilterChain,
+        circuitBreakerRegistryProvider: ObjectProvider<CircuitBreakerRegistry>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -610,6 +629,7 @@ class ArcReactorAutoConfiguration {
         conversationManager = conversationManager,
         toolApprovalPolicy = toolApprovalPolicyProvider.ifAvailable,
         pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable,
-        responseFilterChain = if (properties.response.filtersEnabled) responseFilterChain else null
+        responseFilterChain = if (properties.response.filtersEnabled) responseFilterChain else null,
+        circuitBreaker = circuitBreakerRegistryProvider.ifAvailable?.get("llm")
     )
 }

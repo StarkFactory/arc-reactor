@@ -40,6 +40,7 @@ Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-patter
 | Auth (JWT) | OFF | `arc.reactor.auth.enabled` |
 | RAG | OFF | `arc.reactor.rag.enabled` |
 | CORS | OFF | `arc.reactor.cors.enabled` |
+| Circuit Breaker | OFF | `arc.reactor.circuit-breaker.enabled` |
 | Flyway | OFF | `SPRING_FLYWAY_ENABLED` env var |
 
 ### Guard vs Hook Error Policy
@@ -97,7 +98,7 @@ Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-patter
 
 ### Error Codes
 
-`RATE_LIMITED` | `TIMEOUT` | `CONTEXT_TOO_LONG` | `TOOL_ERROR` | `GUARD_REJECTED` | `HOOK_REJECTED` | `INVALID_RESPONSE` | `UNKNOWN` — Override via `ErrorMessageResolver` (i18n)
+`RATE_LIMITED` | `TIMEOUT` | `CONTEXT_TOO_LONG` | `TOOL_ERROR` | `GUARD_REJECTED` | `HOOK_REJECTED` | `INVALID_RESPONSE` | `CIRCUIT_BREAKER_OPEN` | `UNKNOWN` — Override via `ErrorMessageResolver` (i18n)
 
 ### Key Defaults
 

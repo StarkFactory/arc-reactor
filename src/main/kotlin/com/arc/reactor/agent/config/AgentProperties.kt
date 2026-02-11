@@ -51,7 +51,10 @@ data class AgentProperties(
     val multimodal: MultimodalProperties = MultimodalProperties(),
 
     /** Response post-processing configuration */
-    val response: ResponseProperties = ResponseProperties()
+    val response: ResponseProperties = ResponseProperties(),
+
+    /** Circuit breaker configuration */
+    val circuitBreaker: CircuitBreakerProperties = CircuitBreakerProperties()
 )
 
 data class LlmProperties(
@@ -332,4 +335,35 @@ data class ResponseProperties(
 
     /** Enable response filter chain processing. */
     val filtersEnabled: Boolean = true
+)
+
+/**
+ * Circuit breaker configuration for LLM and MCP calls.
+ *
+ * When enabled, tracks consecutive failures and short-circuits calls
+ * when the failure rate exceeds the threshold.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     circuit-breaker:
+ *       enabled: true
+ *       failure-threshold: 5
+ *       reset-timeout-ms: 30000
+ *       half-open-max-calls: 1
+ * ```
+ */
+data class CircuitBreakerProperties(
+    /** Enable circuit breaker. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Number of consecutive failures before opening the circuit. */
+    val failureThreshold: Int = 5,
+
+    /** Time in ms to wait before transitioning from OPEN to HALF_OPEN. */
+    val resetTimeoutMs: Long = 30_000,
+
+    /** Number of trial calls allowed in HALF_OPEN state. */
+    val halfOpenMaxCalls: Int = 1
 )
