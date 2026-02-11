@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.bind.support.WebExchangeBindException
+import org.springframework.web.reactive.resource.NoResourceFoundException
 import org.springframework.web.server.ServerWebInputException
 import java.time.Instant
 
@@ -41,6 +42,16 @@ class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(
             ErrorResponse(
                 error = "Invalid request: ${ex.reason ?: "Bad request"}",
+                timestamp = Instant.now().toString()
+            )
+        )
+    }
+
+    @ExceptionHandler(NoResourceFoundException::class)
+    fun handleNotFound(ex: NoResourceFoundException): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+            ErrorResponse(
+                error = "Not found",
                 timestamp = Instant.now().toString()
             )
         )

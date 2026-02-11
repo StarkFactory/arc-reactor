@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.validation.BindingResult
 import org.springframework.validation.FieldError
 import org.springframework.web.bind.support.WebExchangeBindException
+import org.springframework.web.reactive.resource.NoResourceFoundException
 import org.springframework.web.server.ServerWebInputException
 
 class GlobalExceptionHandlerTest {
@@ -69,6 +70,21 @@ class GlobalExceptionHandlerTest {
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) { "Should return 400" }
             assertTrue(response.body!!.error.contains("Invalid JSON body")) { "Should include reason" }
             assertNull(response.body!!.details) { "Should not have field details" }
+        }
+    }
+
+    @Nested
+    inner class NotFoundErrors {
+
+        @Test
+        fun `should return 404 for missing resources`() {
+            val ex = NoResourceFoundException("/api/approvals")
+
+            val response = handler.handleNotFound(ex)
+
+            assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404" }
+            assertEquals("Not found", response.body!!.error) { "Should have generic not found message" }
+            assertNotNull(response.body!!.timestamp) { "Should include timestamp" }
         }
     }
 
