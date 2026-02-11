@@ -58,7 +58,7 @@ Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-patter
 
 ### SSE Streaming Events
 
-`POST /api/chat/stream` emits 4 event types: `message` (LLM token), `tool_start`, `tool_end`, `done`
+`POST /api/chat/stream` emits 5 event types: `message` (LLM token), `tool_start`, `tool_end`, `error` (typed error), `done`
 
 ### REST API Endpoints
 

@@ -190,6 +190,62 @@ agentExecutor.executeStream(command).collect { chunk ->
 
 ---
 
+## SSE 이벤트 타입
+
+스트리밍 엔드포인트 `POST /api/chat/stream`은 타입이 지정된 Server-Sent Events를 방출함:
+
+| 이벤트 타입 | 데이터 | 설명 |
+|------------|--------|------|
+| `message` | 텍스트 청크 | LLM이 생성한 토큰 (메인 콘텐츠) |
+| `tool_start` | 도구 이름 | 도구 실행 시작 |
+| `tool_end` | 도구 이름 | 도구 실행 완료 |
+| `error` | 에러 메시지 | 에러 발생 (Guard 거부, 타임아웃, LLM 장애 등) |
+| `done` | 빈 문자열 | 스트림 완료 |
+
+### 에러 이벤트
+
+에러는 인라인 텍스트가 아닌 타입이 지정된 `event: error` SSE 이벤트로 방출됨. 클라이언트가 프로그래밍 방식으로 에러를 처리할 수 있음:
+
+```javascript
+const eventSource = new EventSource('/api/chat/stream');
+
+eventSource.addEventListener('message', (e) => {
+    appendToChat(e.data);  // 일반 텍스트 청크
+});
+
+eventSource.addEventListener('tool_start', (e) => {
+    showToolIndicator(e.data);  // e.data = 도구 이름
+});
+
+eventSource.addEventListener('error', (e) => {
+    showErrorBanner(e.data);  // e.data = 에러 메시지
+});
+
+eventSource.addEventListener('done', () => {
+    eventSource.close();
+});
+```
+
+에러 이벤트가 방출되는 경우:
+- Guard 거부 (Rate Limit, 입력 검증, 인젝션 탐지)
+- Hook 거부 (커스텀 비즈니스 로직)
+- 구조화 출력 포맷 거부 (스트리밍에서 JSON/YAML 미지원)
+- 요청 타임아웃
+- LLM 제공자 장애
+
+### 클라이언트 취소
+
+클라이언트가 SSE 연결을 닫으면 서버에서 진행 중인 실행이 자동으로 취소됨:
+
+- Kotlin 코루틴 Flow가 구조적 동시성을 통해 취소됨
+- 진행 중인 도구 실행은 `CancellationException`을 수신
+- `finally` 블록에서 리소스가 정상 정리됨
+- 취소는 DEBUG 레벨로 userId와 함께 로깅됨
+
+별도 취소 API는 필요 없음 — HTTP 연결을 닫기만 하면 됨.
+
+---
+
 ## 기술적 구현 포인트
 
 ### 1. `stream().chatResponse()` 사용
