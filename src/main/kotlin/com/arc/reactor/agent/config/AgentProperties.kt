@@ -48,7 +48,10 @@ data class AgentProperties(
     val approval: ApprovalProperties = ApprovalProperties(),
 
     /** Multimodal (file upload / media URL) configuration */
-    val multimodal: MultimodalProperties = MultimodalProperties()
+    val multimodal: MultimodalProperties = MultimodalProperties(),
+
+    /** Response post-processing configuration */
+    val response: ResponseProperties = ResponseProperties()
 )
 
 data class LlmProperties(
@@ -309,4 +312,24 @@ data class RagProperties(
 
     /** Maximum context tokens */
     val maxContextTokens: Int = 4000
+)
+
+/**
+ * Response post-processing configuration.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     response:
+ *       max-length: 10000
+ *       filters-enabled: true
+ * ```
+ */
+data class ResponseProperties(
+    /** Maximum response length in characters. 0 = unlimited (default). */
+    val maxLength: Int = 0,
+
+    /** Enable response filter chain processing. */
+    val filtersEnabled: Boolean = true
 )
