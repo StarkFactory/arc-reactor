@@ -193,6 +193,62 @@ User: "Tell me the weather in Seoul and the current time"
 
 ---
 
+## SSE Event Types
+
+The streaming endpoint `POST /api/chat/stream` emits typed Server-Sent Events:
+
+| Event Type | Data | Description |
+|------------|------|-------------|
+| `message` | Text chunk | LLM-generated token (main content) |
+| `tool_start` | Tool name | Tool execution has started |
+| `tool_end` | Tool name | Tool execution has completed |
+| `error` | Error message | An error occurred (guard rejection, timeout, LLM failure, etc.) |
+| `done` | Empty | Stream is complete |
+
+### Error Events
+
+Errors are emitted as typed `event: error` SSE events instead of inline text. This allows clients to handle errors programmatically:
+
+```javascript
+const eventSource = new EventSource('/api/chat/stream');
+
+eventSource.addEventListener('message', (e) => {
+    appendToChat(e.data);  // Normal text chunk
+});
+
+eventSource.addEventListener('tool_start', (e) => {
+    showToolIndicator(e.data);  // e.data = tool name
+});
+
+eventSource.addEventListener('error', (e) => {
+    showErrorBanner(e.data);  // e.data = error message
+});
+
+eventSource.addEventListener('done', () => {
+    eventSource.close();
+});
+```
+
+Error events are emitted for:
+- Guard rejections (rate limit, input validation, injection detection)
+- Hook rejections (custom business logic)
+- Structured output format rejection (JSON/YAML not supported in streaming)
+- Request timeout
+- LLM provider failures
+
+### Client Cancellation
+
+When the client closes the SSE connection, the server automatically cancels the ongoing execution:
+
+- The Kotlin coroutine Flow is cancelled via structured concurrency
+- Tool executions in progress receive `CancellationException`
+- Resources are properly cleaned up in the `finally` block
+- Cancellation is logged at DEBUG level with the userId
+
+No explicit cancellation API is needed — simply closing the HTTP connection is sufficient.
+
+---
+
 ## Technical Implementation Details
 
 ### 1. Using `stream().chatResponse()`

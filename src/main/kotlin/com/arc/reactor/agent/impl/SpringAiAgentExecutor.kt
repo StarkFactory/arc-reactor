@@ -348,19 +348,19 @@ class SpringAiAgentExecutor(
                             stage = rejection.stage ?: "unknown",
                             reason = rejection.reason
                         )
-                        emit(rejection.reason)
+                        emit(StreamEventMarker.error(rejection.reason))
                         return@withTimeout
                     }
 
                     // 2. Before hooks
                     checkBeforeHooks(hookContext)?.let { rejection ->
-                        emit(rejection.reason)
+                        emit(StreamEventMarker.error(rejection.reason))
                         return@withTimeout
                     }
 
                     // Reject structured formats in streaming mode
                     if (command.responseFormat != ResponseFormat.TEXT) {
-                        emit("[error] Structured ${command.responseFormat} output is not supported in streaming mode")
+                        emit(StreamEventMarker.error("Structured ${command.responseFormat} output is not supported in streaming mode"))
                         return@withTimeout
                     }
 
@@ -480,7 +480,7 @@ class SpringAiAgentExecutor(
             logger.warn { "Streaming request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
             streamErrorCode = AgentErrorCode.TIMEOUT
             streamErrorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, e.message)
-            emit("[error] $streamErrorMessage")
+            emit(StreamEventMarker.error(streamErrorMessage.orEmpty()))
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e // Rethrow to support structured concurrency
         } catch (e: Exception) {
@@ -488,7 +488,7 @@ class SpringAiAgentExecutor(
             val errorCode = classifyError(e)
             streamErrorCode = errorCode
             streamErrorMessage = errorMessageResolver.resolve(errorCode, e.message)
-            emit("[error] $streamErrorMessage")
+            emit(StreamEventMarker.error(streamErrorMessage.orEmpty()))
         } finally {
             // Save conversation history via ConversationManager (only on success, outside withTimeout)
             if (streamSuccess) {

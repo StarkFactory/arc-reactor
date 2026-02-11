@@ -3,6 +3,7 @@ package com.arc.reactor.agent
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentMode
+import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
@@ -235,6 +236,74 @@ class StreamingTest {
                 chunks.last().contains("error", ignoreCase = true) || chunks.last().contains("failed", ignoreCase = true),
                 "Error chunk should contain 'error' or 'failed', got: ${chunks.last()}"
             )
+        }
+
+        @Test
+        fun `should emit typed error marker on stream failure`() = runBlocking {
+            every { fixture.streamResponseSpec.chatResponse() } returns Flux.error(RuntimeException("LLM unavailable"))
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties
+            )
+
+            val chunks = executor.executeStream(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
+            ).toList()
+
+            val errorMarkers = chunks.mapNotNull { StreamEventMarker.parse(it) }
+                .filter { it.first == "error" }
+            assertTrue(errorMarkers.isNotEmpty()) {
+                "Should emit at least one typed error marker, got chunks: $chunks"
+            }
+        }
+
+        @Test
+        fun `guard rejection should emit typed error marker`() = runBlocking {
+            val guard = mockk<RequestGuard>()
+            coEvery { guard.guard(any()) } returns GuardResult.Rejected(
+                reason = "Rate limited",
+                category = RejectionCategory.RATE_LIMITED,
+                stage = "rateLimit"
+            )
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties,
+                guard = guard
+            )
+
+            val chunks = executor.executeStream(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello", userId = "user-1")
+            ).toList()
+
+            assertEquals(1, chunks.size) { "Should emit exactly one error chunk" }
+            val parsed = StreamEventMarker.parse(chunks[0])
+            assertNotNull(parsed) { "Guard rejection should be a typed error marker, got: ${chunks[0]}" }
+            assertEquals("error", parsed!!.first) { "Event type should be error" }
+            assertEquals("Rate limited", parsed.second) { "Error payload should be rejection reason" }
+        }
+
+        @Test
+        fun `hook rejection should emit typed error marker`() = runBlocking {
+            val hookExecutor = mockk<HookExecutor>(relaxed = true)
+            coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("Budget exceeded")
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties,
+                hookExecutor = hookExecutor
+            )
+
+            val chunks = executor.executeStream(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
+            ).toList()
+
+            assertEquals(1, chunks.size) { "Should emit exactly one error chunk" }
+            val parsed = StreamEventMarker.parse(chunks[0])
+            assertNotNull(parsed) { "Hook rejection should be a typed error marker, got: ${chunks[0]}" }
+            assertEquals("error", parsed!!.first) { "Event type should be error" }
+            assertEquals("Budget exceeded", parsed.second) { "Error payload should be rejection reason" }
         }
     }
 }

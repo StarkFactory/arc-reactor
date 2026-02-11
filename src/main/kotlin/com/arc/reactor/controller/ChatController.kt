@@ -8,6 +8,7 @@ import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.persona.PersonaStore
+import mu.KotlinLogging
 import com.arc.reactor.prompt.PromptTemplateStore
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.Content
@@ -30,6 +31,8 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Flux
 
+private val logger = KotlinLogging.logger {}
+
 /**
  * Chat API Controller
  *
@@ -43,6 +46,7 @@ import reactor.core.publisher.Flux
  * - `message` : Text token chunk
  * - `tool_start` : Tool execution started (data = tool name)
  * - `tool_end` : Tool execution completed (data = tool name)
+ * - `error` : Error occurred (data = error message)
  * - `done` : Stream complete
  */
 @Tag(name = "Chat", description = "AI agent chat endpoints")
@@ -114,6 +118,7 @@ class ChatController(
             "- `message` : LLM text token chunk\n" +
             "- `tool_start` : Tool execution started (data = tool name)\n" +
             "- `tool_end` : Tool execution completed (data = tool name)\n" +
+            "- `error` : Error occurred (data = error message)\n" +
             "- `done` : Stream complete",
         responses = [
             ApiResponse(
@@ -152,7 +157,9 @@ class ChatController(
                 )
             }
 
+        val userId = resolveUserId(exchange, request)
         return eventFlow.asFlux()
+            .doOnCancel { logger.debug { "SSE stream cancelled by client (userId=$userId)" } }
     }
 
     private fun toServerSentEvent(chunk: String): ServerSentEvent<String> {

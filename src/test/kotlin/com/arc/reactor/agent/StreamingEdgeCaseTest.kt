@@ -7,6 +7,7 @@ import com.arc.reactor.agent.config.ConcurrencyProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.ResponseFormat
+import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.memory.InMemoryMemoryStore
 import com.arc.reactor.memory.MemoryStore
 import io.mockk.every
@@ -61,12 +62,15 @@ class StreamingEdgeCaseTest {
                 )
             ).toList()
 
-            val output = chunks.joinToString("")
-            assertTrue(output.contains("[error]")) {
-                "Should emit error marker for JSON format"
+            // Error should be emitted as a typed error marker
+            val hasErrorMarker = chunks.any { StreamEventMarker.parse(it)?.first == "error" }
+            assertTrue(hasErrorMarker) {
+                "Should emit typed error marker for JSON format, got: $chunks"
             }
-            assertTrue(output.contains("not supported in streaming")) {
-                "Error should mention streaming incompatibility, got: $output"
+            val errorPayload = chunks.mapNotNull { StreamEventMarker.parse(it) }
+                .first { it.first == "error" }.second
+            assertTrue(errorPayload.contains("not supported in streaming")) {
+                "Error should mention streaming incompatibility, got: $errorPayload"
             }
         }
 
@@ -88,12 +92,15 @@ class StreamingEdgeCaseTest {
                 )
             ).toList()
 
-            val output = chunks.joinToString("")
-            assertTrue(output.contains("[error]")) {
-                "Should emit error marker for YAML format"
+            // Error should be emitted as a typed error marker
+            val hasErrorMarker = chunks.any { StreamEventMarker.parse(it)?.first == "error" }
+            assertTrue(hasErrorMarker) {
+                "Should emit typed error marker for YAML format, got: $chunks"
             }
-            assertTrue(output.contains("not supported in streaming")) {
-                "Error should mention streaming incompatibility, got: $output"
+            val errorPayload = chunks.mapNotNull { StreamEventMarker.parse(it) }
+                .first { it.first == "error" }.second
+            assertTrue(errorPayload.contains("not supported in streaming")) {
+                "Error should mention streaming incompatibility, got: $errorPayload"
             }
         }
     }
@@ -312,10 +319,11 @@ class StreamingEdgeCaseTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Slow request")
             ).toList()
 
-            val output = chunks.joinToString("")
-            // Should timeout and emit error
-            assertTrue(output.contains("start") || output.contains("[error]") || output.contains("timed out")) {
-                "Stream should either emit partial content or timeout error, got: $output"
+            // Should timeout and emit error marker
+            val hasContent = chunks.any { !StreamEventMarker.isMarker(it) && it.contains("start") }
+            val hasErrorMarker = chunks.any { StreamEventMarker.parse(it)?.first == "error" }
+            assertTrue(hasContent || hasErrorMarker) {
+                "Stream should either emit partial content or typed error marker, got: $chunks"
             }
         }
     }
