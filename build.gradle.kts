@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.arc"
-version = "2.7.0"
+version = "2.7.1"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
