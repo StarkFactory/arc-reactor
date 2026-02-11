@@ -57,6 +57,7 @@ class ChatModelProvider(
             "openAiChatModel" to "openai",
             "anthropicChatModel" to "anthropic",
             "googleAiGeminiChatModel" to "gemini",
+            "googleGenAiChatModel" to "gemini",
             "vertexAiGeminiChatModel" to "vertex"
         )
 
