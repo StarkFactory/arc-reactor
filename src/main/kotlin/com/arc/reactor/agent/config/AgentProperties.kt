@@ -169,7 +169,10 @@ data class McpConfigProperties(
     val security: McpSecurityProperties = McpSecurityProperties(),
 
     /** MCP connection timeout (milliseconds) */
-    val connectionTimeoutMs: Long = 30_000
+    val connectionTimeoutMs: Long = 30_000,
+
+    /** Auto-reconnection settings */
+    val reconnection: McpReconnectionProperties = McpReconnectionProperties()
 )
 
 /**
@@ -204,6 +207,43 @@ data class McpSecurityProperties(
 
     /** Maximum tool output length in characters */
     val maxToolOutputLength: Int = 50_000
+)
+
+/**
+ * MCP auto-reconnection configuration.
+ *
+ * When enabled, failed MCP server connections are automatically retried
+ * with exponential backoff. On-demand reconnection is also attempted
+ * when a tool call targets a disconnected/failed server.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     mcp:
+ *       reconnection:
+ *         enabled: true
+ *         max-attempts: 5
+ *         initial-delay-ms: 5000
+ *         multiplier: 2.0
+ *         max-delay-ms: 60000
+ * ```
+ */
+data class McpReconnectionProperties(
+    /** Enable auto-reconnection for failed MCP servers. */
+    val enabled: Boolean = true,
+
+    /** Maximum reconnection attempts before giving up. */
+    val maxAttempts: Int = 5,
+
+    /** Initial delay between reconnection attempts (milliseconds). */
+    val initialDelayMs: Long = 5000,
+
+    /** Backoff multiplier for subsequent attempts. */
+    val multiplier: Double = 2.0,
+
+    /** Maximum delay between reconnection attempts (milliseconds). */
+    val maxDelayMs: Long = 60_000
 )
 
 /**

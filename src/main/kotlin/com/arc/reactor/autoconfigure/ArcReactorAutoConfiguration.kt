@@ -296,7 +296,8 @@ class ArcReactorAutoConfiguration {
                 allowedServerNames = mcpSecurity.allowedServerNames,
                 maxToolOutputLength = mcpSecurity.maxToolOutputLength
             ),
-            store = mcpServerStore
+            store = mcpServerStore,
+            reconnectionProperties = properties.mcp.reconnection
         )
     }
 

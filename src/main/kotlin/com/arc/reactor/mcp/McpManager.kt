@@ -1,5 +1,6 @@
 package com.arc.reactor.mcp
 
+import com.arc.reactor.agent.config.McpReconnectionProperties
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
@@ -12,6 +13,13 @@ import io.modelcontextprotocol.client.transport.StdioClientTransport
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper
 import io.modelcontextprotocol.spec.McpSchema
 import com.fasterxml.jackson.databind.ObjectMapper
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
@@ -133,6 +141,17 @@ interface McpManager {
     fun getStatus(serverName: String): McpServerStatus?
 
     /**
+     * Ensure a server is connected, attempting reconnection if needed.
+     *
+     * If the server is in FAILED or DISCONNECTED state and auto-reconnection
+     * is enabled, a single reconnection attempt is made synchronously.
+     *
+     * @param serverName Name of the server
+     * @return true if the server is connected (either already or after reconnect)
+     */
+    suspend fun ensureConnected(serverName: String): Boolean
+
+    /**
      * Initialize from store: load all servers and auto-connect those marked with autoConnect.
      *
      * Called on application startup to restore previously registered servers.
@@ -170,7 +189,8 @@ data class McpSecurityConfig(
 class DefaultMcpManager(
     private val connectionTimeoutMs: Long = 30_000,
     private val securityConfig: McpSecurityConfig = McpSecurityConfig(),
-    private val store: McpServerStore? = null
+    private val store: McpServerStore? = null,
+    private val reconnectionProperties: McpReconnectionProperties = McpReconnectionProperties()
 ) : McpManager, AutoCloseable {
 
     private val servers = ConcurrentHashMap<String, McpServer>()
@@ -178,6 +198,12 @@ class DefaultMcpManager(
     private val toolCallbacksCache = ConcurrentHashMap<String, List<ToolCallback>>()
     private val statuses = ConcurrentHashMap<String, McpServerStatus>()
     private val serverMutexes = ConcurrentHashMap<String, Mutex>()
+
+    /** Tracks servers that already have a background reconnection task running. */
+    private val reconnectingServers = ConcurrentHashMap.newKeySet<String>()
+
+    /** Background scope for reconnection tasks. Uses SupervisorJob so one failure doesn't cancel others. */
+    private val reconnectScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private fun mutexFor(serverName: String): Mutex = serverMutexes.getOrPut(serverName) { Mutex() }
 
@@ -243,10 +269,17 @@ class DefaultMcpManager(
             try {
                 logger.info { "Connecting to MCP server: $serverName" }
                 statuses[serverName] = McpServerStatus.CONNECTING
-                initializeClient(server, serverName)
+                val result = initializeClient(server, serverName)
+                if (result) {
+                    reconnectingServers.remove(serverName)
+                } else {
+                    scheduleReconnection(serverName)
+                }
+                result
             } catch (e: Exception) {
                 logger.error(e) { "Failed to connect MCP server: $serverName" }
                 statuses[serverName] = McpServerStatus.FAILED
+                scheduleReconnection(serverName)
                 false
             }
         }
@@ -398,6 +431,80 @@ class DefaultMcpManager(
         statuses[serverName] = McpServerStatus.DISCONNECTED
     }
 
+    override suspend fun ensureConnected(serverName: String): Boolean {
+        val status = statuses[serverName]
+        if (status == McpServerStatus.CONNECTED) return true
+        if (status != McpServerStatus.FAILED && status != McpServerStatus.DISCONNECTED) return false
+        if (!reconnectionProperties.enabled) return false
+
+        logger.info { "On-demand reconnection attempt for MCP server: $serverName" }
+        return connect(serverName)
+    }
+
+    /**
+     * Schedule a background reconnection task with exponential backoff.
+     * No-op if reconnection is disabled or a task is already running for this server.
+     */
+    private fun scheduleReconnection(serverName: String) {
+        if (!reconnectionProperties.enabled) return
+        if (!reconnectingServers.add(serverName)) return // already has a task
+
+        reconnectScope.launch {
+            val maxAttempts = reconnectionProperties.maxAttempts
+            for (attempt in 1..maxAttempts) {
+                val baseDelay = minOf(
+                    (reconnectionProperties.initialDelayMs *
+                        Math.pow(reconnectionProperties.multiplier, (attempt - 1).toDouble())).toLong(),
+                    reconnectionProperties.maxDelayMs
+                )
+                // Add ±25% jitter
+                val jitter = (baseDelay * 0.25 * (Math.random() * 2 - 1)).toLong()
+                val delayMs = (baseDelay + jitter).coerceAtLeast(0)
+
+                logger.info {
+                    "MCP reconnection scheduled for '$serverName' " +
+                        "(attempt $attempt/$maxAttempts, delay ${delayMs}ms)"
+                }
+
+                try {
+                    delay(delayMs)
+                } catch (e: CancellationException) {
+                    reconnectingServers.remove(serverName)
+                    throw e
+                }
+
+                // Check if server was unregistered, manually reconnected, or explicitly disconnected
+                val currentStatus = statuses[serverName]
+                if (!servers.containsKey(serverName) ||
+                    currentStatus == McpServerStatus.CONNECTED ||
+                    currentStatus == McpServerStatus.DISCONNECTED
+                ) {
+                    reconnectingServers.remove(serverName)
+                    return@launch
+                }
+
+                val success = try {
+                    connect(serverName)
+                } catch (e: CancellationException) {
+                    reconnectingServers.remove(serverName)
+                    throw e
+                } catch (e: Exception) {
+                    logger.warn(e) { "Reconnection attempt $attempt/$maxAttempts failed for '$serverName'" }
+                    false
+                }
+
+                if (success) {
+                    logger.info { "MCP server '$serverName' reconnected on attempt $attempt" }
+                    reconnectingServers.remove(serverName)
+                    return@launch
+                }
+            }
+
+            logger.warn { "MCP reconnection exhausted ($maxAttempts attempts) for '$serverName'" }
+            reconnectingServers.remove(serverName)
+        }
+    }
+
     override fun getAllToolCallbacks(): List<ToolCallback> {
         return toolCallbacksCache.values.flatten()
     }
@@ -420,6 +527,8 @@ class DefaultMcpManager(
      */
     override fun close() {
         logger.info { "Closing MCP Manager, disconnecting all servers" }
+        reconnectScope.cancel()
+        reconnectingServers.clear()
         for (serverName in clients.keys.toList()) {
             disconnectInternal(serverName)
         }
