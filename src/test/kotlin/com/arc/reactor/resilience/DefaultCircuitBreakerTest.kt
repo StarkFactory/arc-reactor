@@ -255,4 +255,110 @@ class DefaultCircuitBreakerTest {
             assertNull(metrics.lastFailureTime) { "Should be null with no failures" }
         }
     }
+
+    @Nested
+    inner class AgentMetricsRecording {
+
+        private val transitionNames = mutableListOf<String>()
+        private val transitionFromStates = mutableListOf<CircuitBreakerState>()
+        private val transitionToStates = mutableListOf<CircuitBreakerState>()
+        private val trackingMetrics = object : com.arc.reactor.agent.metrics.AgentMetrics {
+            override fun recordExecution(result: com.arc.reactor.agent.model.AgentResult) {}
+            override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {}
+            override fun recordGuardRejection(stage: String, reason: String) {}
+            override fun recordCircuitBreakerStateChange(
+                name: String, from: CircuitBreakerState, to: CircuitBreakerState
+            ) {
+                transitionNames.add(name)
+                transitionFromStates.add(from)
+                transitionToStates.add(to)
+            }
+        }
+
+        private lateinit var metricsCb: DefaultCircuitBreaker
+
+        @BeforeEach
+        fun setupMetricsCb() {
+            metricsCb = DefaultCircuitBreaker(
+                failureThreshold = 3,
+                resetTimeoutMs = 5000,
+                halfOpenMaxCalls = 1,
+                name = "metrics-test",
+                clock = { clock.get() },
+                agentMetrics = trackingMetrics
+            )
+            transitionNames.clear()
+            transitionFromStates.clear()
+            transitionToStates.clear()
+        }
+
+        @Test
+        fun `should record CLOSED to OPEN transition`() = runTest {
+            repeat(3) {
+                runCatching { metricsCb.execute { throw RuntimeException("fail") } }
+            }
+
+            assertEquals(1, transitionNames.size) { "Should have 1 state transition" }
+            assertEquals("metrics-test", transitionNames[0]) { "Transition name should match CB name" }
+            assertEquals(CircuitBreakerState.CLOSED, transitionFromStates[0]) { "Should transition FROM CLOSED" }
+            assertEquals(CircuitBreakerState.OPEN, transitionToStates[0]) { "Should transition TO OPEN" }
+        }
+
+        @Test
+        fun `should record OPEN to HALF_OPEN transition`() = runTest {
+            repeat(3) {
+                runCatching { metricsCb.execute { throw RuntimeException("fail") } }
+            }
+            transitionNames.clear()
+            transitionFromStates.clear()
+            transitionToStates.clear()
+
+            clock.addAndGet(5000)
+            metricsCb.state() // Trigger evaluation
+
+            assertEquals(1, transitionNames.size) { "Should have 1 state transition" }
+            assertEquals(CircuitBreakerState.OPEN, transitionFromStates[0]) { "Should transition FROM OPEN" }
+            assertEquals(CircuitBreakerState.HALF_OPEN, transitionToStates[0]) { "Should transition TO HALF_OPEN" }
+        }
+
+        @Test
+        fun `should record HALF_OPEN to CLOSED on recovery`() = runTest {
+            repeat(3) {
+                runCatching { metricsCb.execute { throw RuntimeException("fail") } }
+            }
+            clock.addAndGet(5000)
+            transitionNames.clear()
+            transitionFromStates.clear()
+            transitionToStates.clear()
+
+            metricsCb.execute { "recovered" }
+
+            // OPEN → HALF_OPEN (from evaluateState) + HALF_OPEN → CLOSED (from onSuccess)
+            assertTrue(transitionToStates.size >= 1) { "Should have at least 1 transition" }
+            val closedIdx = transitionToStates.indexOf(CircuitBreakerState.CLOSED)
+            assertTrue(closedIdx >= 0) { "Should have a transition to CLOSED" }
+            assertEquals(CircuitBreakerState.HALF_OPEN, transitionFromStates[closedIdx]) {
+                "Recovery transition should be FROM HALF_OPEN"
+            }
+        }
+
+        @Test
+        fun `should record HALF_OPEN to OPEN on failure`() = runTest {
+            repeat(3) {
+                runCatching { metricsCb.execute { throw RuntimeException("fail") } }
+            }
+            clock.addAndGet(5000)
+            transitionNames.clear()
+            transitionFromStates.clear()
+            transitionToStates.clear()
+
+            runCatching { metricsCb.execute { throw RuntimeException("still broken") } }
+
+            val reopenIdx = transitionToStates.indices.find {
+                transitionFromStates[it] == CircuitBreakerState.HALF_OPEN &&
+                    transitionToStates[it] == CircuitBreakerState.OPEN
+            }
+            assertNotNull(reopenIdx) { "Should have HALF_OPEN → OPEN transition" }
+        }
+    }
 }
