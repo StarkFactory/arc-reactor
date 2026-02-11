@@ -159,3 +159,113 @@ Circuit Breaker
 - **Circuit breaker** handles persistent failures across multiple requests (e.g., provider outage)
 - If all retry attempts fail, the circuit breaker records **one** failure
 - If a retry succeeds, the circuit breaker records **one** success
+
+---
+
+## Graceful Degradation (Fallback)
+
+### Overview
+
+When the primary LLM fails (circuit breaker open, provider outage, etc.), the fallback strategy attempts to recover by using alternative models.
+
+**Disabled by default** — opt-in via configuration.
+
+### How It Works
+
+```
+Request → Primary LLM → Success → Return response
+                │
+              Failure
+                │
+                ▼
+         Fallback enabled?
+              │       │
+             Yes      No → Return error
+              │
+              ▼
+         Try Model 1 → Success → Return fallback response
+              │
+            Failure
+              │
+              ▼
+         Try Model 2 → Success → Return fallback response
+              │
+            Failure
+              │
+              ▼
+         Return original error
+```
+
+### Configuration
+
+```yaml
+arc:
+  reactor:
+    fallback:
+      enabled: true       # Enable graceful degradation (default: false)
+      models:              # Fallback models in priority order
+        - openai
+        - anthropic
+```
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `enabled` | `false` | Enable fallback strategy |
+| `models` | `[]` | Model names to try, in priority order |
+
+### Key Behavior
+
+- Fallback triggers on **any** execution failure (not just circuit breaker)
+- Fallback calls are **simple LLM calls** — no tools, no ReAct loop
+- Models are tried **in order** — first success wins
+- Guard and hook checks are **not repeated** (already passed for the original request)
+- If the fallback strategy itself throws an exception, the original error is preserved
+
+### FallbackStrategy Interface
+
+```kotlin
+interface FallbackStrategy {
+    suspend fun execute(command: AgentCommand, originalError: Exception): AgentResult?
+}
+```
+
+Returning `null` means the strategy cannot recover — the original error is returned to the caller.
+
+### Custom Fallback Implementation
+
+Override the default by providing your own bean:
+
+```kotlin
+@Bean
+fun fallbackStrategy(): FallbackStrategy {
+    return object : FallbackStrategy {
+        override suspend fun execute(
+            command: AgentCommand,
+            originalError: Exception
+        ): AgentResult? {
+            // Custom recovery logic (e.g., return a cached response or static message)
+            return AgentResult.success(content = "Service is temporarily unavailable.")
+        }
+    }
+}
+```
+
+Since `@ConditionalOnMissingBean` is used, your custom bean takes precedence.
+
+### Interaction with Circuit Breaker
+
+When both circuit breaker and fallback are enabled:
+
+```
+Circuit Breaker
+  └─ Retry (exponential backoff)
+       └─ LLM Call
+              │
+            Failure (CB OPEN or retries exhausted)
+              │
+              ▼
+       Fallback Strategy
+         └─ Try alternative models
+```
+
+The fallback runs **after** the circuit breaker rejects a call, providing a graceful degradation path instead of returning an error to the user.
