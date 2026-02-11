@@ -1,6 +1,6 @@
 # Arc Reactor 기능 인벤토리 & 데이터 아키텍처
 
-> 마지막 업데이트: 2026-02-08
+> 마지막 업데이트: 2026-02-11
 
 ---
 
@@ -28,6 +28,13 @@
 | **JWT 인증** | `POST /api/auth/*` | **opt-in** | `arc.reactor.auth.enabled=true` 시 활성화 |
 | **페르소나 관리** | `GET/POST/PUT/DELETE /api/personas` | 활성 | 시스템 프롬프트 템플릿 CRUD |
 | **사용자별 세션 격리** | 내부 (API 없음) | **opt-in** | 인증 활성 시 userId로 세션 필터링 |
+| **응답 캐싱** | 내부 (API 없음) | **opt-in** | Caffeine 기반 캐시, SHA-256 키, 온도 기반 적격성 |
+| **서킷 브레이커** | 내부 (API 없음) | **opt-in** | Kotlin 네이티브 CB: CLOSED → OPEN → HALF_OPEN 상태 머신 |
+| **우아한 성능 저하** | 내부 (API 없음) | **opt-in** | 기본 모델 실패 시 순차 모델 폴백 |
+| **응답 필터** | 내부 (API 없음) | 활성 | 후처리 파이프라인 (MaxLengthResponseFilter 내장) |
+| **스트리밍 에러 이벤트** | SSE `error` 이벤트 | 활성 | StreamEventMarker를 통한 스트리밍 중 에러 이벤트 |
+| **관측성 메트릭** | 내부 (API 없음) | 활성 | 9개 메트릭 포인트: 실행, 도구, Guard, 캐시, CB, 폴백, 토큰 |
+| **MCP 자동 재연결** | 내부 (API 없음) | 활성 | 지수 백오프 + 지터, 서버별 Mutex |
 
 ### 1.2 프론트엔드 (arc-reactor-web)
 
@@ -439,6 +446,22 @@ arc:
         - /api/auth/login
         - /api/auth/register
 
+    cache:
+      enabled: false                # 응답 캐싱 활성화 (opt-in)
+      max-size: 1000                # 캐시 항목 최대 수
+      ttl-minutes: 60               # 캐시 TTL (분)
+      cacheable-temperature: 0.0    # 온도가 이 값 이하일 때만 캐시
+
+    circuit-breaker:
+      enabled: false                # 서킷 브레이커 활성화 (opt-in)
+      failure-threshold: 5          # OPEN 전 실패 횟수
+      reset-timeout-ms: 30000       # OPEN → HALF_OPEN 지연 (ms)
+      half-open-max-calls: 1        # HALF_OPEN 시험 호출 수
+
+    fallback:
+      enabled: false                # 우아한 성능 저하 활성화 (opt-in)
+      models: []                    # 폴백 모델 우선순위 순서
+
     rag:
       enabled: false                # RAG 파이프라인 활성화
       similarity-threshold: 0.7     # 유사도 임계값
@@ -503,6 +526,10 @@ arc:
 | `ChatModelProvider` | 자동 발견 | ChatModel 빈 있을 때 | `@Bean` 등록 |
 | `AgentExecutor` | `SpringAiAgentExecutor` | 항상 | `@Bean` 등록 |
 | `AgentMetrics` | `NoOpAgentMetrics` | 항상 | `@Bean` 등록 |
+| `ResponseFilterChain` | `ResponseFilterChain` | 항상 | `@Component` ResponseFilter 추가 |
+| `ResponseCache` | `CaffeineResponseCache` | cache.enabled=true | `@Bean` 등록 |
+| `CircuitBreaker` | `DefaultCircuitBreaker` | circuit-breaker.enabled=true | `@Bean` 등록 |
+| `FallbackStrategy` | `ModelFallbackStrategy` | fallback.enabled=true | `@Bean` 등록 |
 | `ErrorMessageResolver` | `DefaultErrorMessageResolver` | 항상 | `@Bean` 등록 |
 | `PersonaStore` | `InMemoryPersonaStore` | PersonaStore 없을 때 | `@Bean` 등록 |
 | `PersonaStore` | `JdbcPersonaStore` | DataSource + JdbcTemplate 있을 때 | `@Bean` 등록 |

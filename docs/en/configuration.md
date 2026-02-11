@@ -40,6 +40,22 @@ arc:
     concurrency:                 # Concurrency control
       max-concurrent-requests: 20
       request-timeout-ms: 30000
+
+    cache:                       # Response caching (opt-in)
+      enabled: false
+      max-size: 1000
+      ttl-minutes: 60
+      cacheable-temperature: 0.0
+
+    circuit-breaker:             # Circuit breaker (opt-in)
+      enabled: false
+      failure-threshold: 5
+      reset-timeout-ms: 30000
+      half-open-max-calls: 1
+
+    fallback:                    # Graceful degradation (opt-in)
+      enabled: false
+      models: []
 ```
 
 ## Configuration Groups in Detail
@@ -106,6 +122,47 @@ arc:
 
 **Note:** Semaphore wait time is included in the timeout. In other words, a timeout can occur while waiting for the semaphore.
 
+### CacheProperties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | Boolean | false | Enables response caching. Disabled by default (opt-in) |
+| `max-size` | Long | 1000 | Maximum number of cached entries |
+| `ttl-minutes` | Long | 60 | Time-to-live for cache entries in minutes |
+| `cacheable-temperature` | Double | 0.0 | Only cache responses when the request temperature is at or below this value. Set to `0.0` to cache only deterministic requests; set to `1.0` to cache all requests |
+
+**Behavior:**
+- Cache key: SHA-256 hash of `userPrompt + systemPrompt + model + tools + responseFormat`
+- Cached before response filters are applied
+- Streaming requests are never cached
+
+### CircuitBreakerProperties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | Boolean | false | Enables the circuit breaker. Disabled by default (opt-in) |
+| `failure-threshold` | Int | 5 | Number of consecutive failures before opening the circuit |
+| `reset-timeout-ms` | Long | 30000 | Time in ms to wait before transitioning from OPEN to HALF_OPEN |
+| `half-open-max-calls` | Int | 1 | Number of trial calls allowed in HALF_OPEN state |
+
+**State transitions:**
+- `CLOSED` (normal) -> N consecutive failures -> `OPEN` (all calls rejected)
+- `OPEN` -> after `resetTimeoutMs` -> `HALF_OPEN` (trial call allowed)
+- `HALF_OPEN` -> trial succeeds -> `CLOSED`
+- `HALF_OPEN` -> trial fails -> `OPEN`
+
+### FallbackProperties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | Boolean | false | Enables graceful degradation. Disabled by default (opt-in) |
+| `models` | List&lt;String&gt; | [] | Fallback model names in priority order (e.g., `[openai, anthropic]`) |
+
+**Behavior:**
+- Triggered when the primary model fails after retries
+- Models are tried sequentially in the order listed
+- Requires matching provider beans to be registered (e.g., `SPRING_AI_OPENAI_API_KEY` env var)
+
 ### RagProperties
 
 | Property | Type | Default | Description |
@@ -133,7 +190,8 @@ ArcReactorAutoConfiguration
 │   ├── tokenEstimator        → DefaultTokenEstimator (CJK-aware)
 │   ├── conversationManager   → DefaultConversationManager
 │   ├── mcpManager            → DefaultMcpManager
-│   └── hookExecutor          → HookExecutor (empty Hook list)
+│   ├── hookExecutor          → HookExecutor (empty Hook list)
+│   └── responseFilterChain   → ResponseFilterChain (empty filter list)
 │
 ├── Conditionally created
 │   ├── jdbcMemoryStore       → @ConditionalOnClass(JdbcTemplate) + @ConditionalOnBean(DataSource)
@@ -145,6 +203,15 @@ ArcReactorAutoConfiguration
 │   ├── inputValidationStage  → DefaultInputValidationStage
 │   ├── injectionDetectionStage → DefaultInjectionDetectionStage (injection-detection-enabled=true)
 │   └── requestGuard          → GuardPipeline(stages)
+│
+├── cache.enabled=true → CacheConfiguration
+│   └── responseCache       → CaffeineResponseCache
+│
+├── circuit-breaker.enabled=true → CircuitBreakerConfiguration
+│   └── circuitBreaker      → DefaultCircuitBreaker
+│
+├── fallback.enabled=true → FallbackConfiguration
+│   └── fallbackStrategy    → ModelFallbackStrategy
 │
 └── rag.enabled=true → RagConfiguration
     ├── documentRetriever     → SpringAiVectorStoreRetriever (@ConditionalOnBean(VectorStore))

@@ -40,6 +40,22 @@ arc:
     concurrency:                 # 동시성 제어
       max-concurrent-requests: 20
       request-timeout-ms: 30000
+
+    cache:                       # 응답 캐싱 (opt-in)
+      enabled: false
+      max-size: 1000
+      ttl-minutes: 60
+      cacheable-temperature: 0.0
+
+    circuit-breaker:             # 서킷 브레이커 (opt-in)
+      enabled: false
+      failure-threshold: 5
+      reset-timeout-ms: 30000
+      half-open-max-calls: 1
+
+    fallback:                    # 우아한 성능 저하 (opt-in)
+      enabled: false
+      models: []
 ```
 
 ## 설정 그룹별 상세
@@ -106,6 +122,47 @@ arc:
 
 **주의:** 세마포어 대기 시간은 타임아웃에 포함됩니다. 즉, 세마포어 대기 중에도 타임아웃이 발생할 수 있습니다.
 
+### CacheProperties
+
+| 속성 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `enabled` | Boolean | false | 응답 캐싱 활성화. 기본 비활성 (opt-in) |
+| `max-size` | Long | 1000 | 캐시 항목 최대 수 |
+| `ttl-minutes` | Long | 60 | 캐시 항목 TTL (분) |
+| `cacheable-temperature` | Double | 0.0 | 요청 온도가 이 값 이하일 때만 캐시. `0.0`이면 결정적 요청만 캐시, `1.0`이면 모든 요청 캐시 |
+
+**동작 방식:**
+- 캐시 키: `userPrompt + systemPrompt + model + tools + responseFormat`의 SHA-256 해시
+- 응답 필터 적용 전에 캐시됨
+- 스트리밍 요청은 캐시되지 않음
+
+### CircuitBreakerProperties
+
+| 속성 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `enabled` | Boolean | false | 서킷 브레이커 활성화. 기본 비활성 (opt-in) |
+| `failure-threshold` | Int | 5 | 서킷을 열기 전 연속 실패 횟수 |
+| `reset-timeout-ms` | Long | 30000 | OPEN에서 HALF_OPEN으로 전이 전 대기 시간 (ms) |
+| `half-open-max-calls` | Int | 1 | HALF_OPEN 상태에서 허용되는 시험 호출 수 |
+
+**상태 전이:**
+- `CLOSED` (정상) -> N회 연속 실패 -> `OPEN` (모든 호출 거부)
+- `OPEN` -> `resetTimeoutMs` 경과 -> `HALF_OPEN` (시험 호출 허용)
+- `HALF_OPEN` -> 시험 성공 -> `CLOSED`
+- `HALF_OPEN` -> 시험 실패 -> `OPEN`
+
+### FallbackProperties
+
+| 속성 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `enabled` | Boolean | false | 우아한 성능 저하 활성화. 기본 비활성 (opt-in) |
+| `models` | List&lt;String&gt; | [] | 폴백 모델 이름 우선순위 순서 (예: `[openai, anthropic]`) |
+
+**동작 방식:**
+- 기본 모델이 재시도 후에도 실패하면 발동
+- 모델은 나열된 순서대로 순차 시도
+- 해당 프로바이더 빈이 등록되어 있어야 함 (예: `SPRING_AI_OPENAI_API_KEY` 환경 변수)
+
 ### RagProperties
 
 | 속성 | 타입 | 기본값 | 설명 |
@@ -133,7 +190,8 @@ ArcReactorAutoConfiguration
 │   ├── tokenEstimator        → DefaultTokenEstimator (CJK 인식)
 │   ├── conversationManager   → DefaultConversationManager
 │   ├── mcpManager            → DefaultMcpManager
-│   └── hookExecutor          → HookExecutor (빈 Hook 리스트)
+│   ├── hookExecutor          → HookExecutor (빈 Hook 리스트)
+│   └── responseFilterChain   → ResponseFilterChain (빈 필터 리스트)
 │
 ├── 조건부 생성
 │   ├── jdbcMemoryStore       → @ConditionalOnClass(JdbcTemplate) + @ConditionalOnBean(DataSource)
@@ -145,6 +203,15 @@ ArcReactorAutoConfiguration
 │   ├── inputValidationStage  → DefaultInputValidationStage
 │   ├── injectionDetectionStage → DefaultInjectionDetectionStage (injection-detection-enabled=true)
 │   └── requestGuard          → GuardPipeline(stages)
+│
+├── cache.enabled=true → CacheConfiguration
+│   └── responseCache       → CaffeineResponseCache
+│
+├── circuit-breaker.enabled=true → CircuitBreakerConfiguration
+│   └── circuitBreaker      → DefaultCircuitBreaker
+│
+├── fallback.enabled=true → FallbackConfiguration
+│   └── fallbackStrategy    → ModelFallbackStrategy
 │
 └── rag.enabled=true → RagConfiguration
     ├── documentRetriever     → SpringAiVectorStoreRetriever (@ConditionalOnBean(VectorStore))
