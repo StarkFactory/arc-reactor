@@ -129,6 +129,11 @@ curl http://localhost:8080/api/sessions
 | **LLM 재시도** | 지수 백오프 + 지터 | 재시도 조건/횟수 설정 |
 | **병렬 도구 실행** | 코루틴 기반 동시 실행 | 자동 (설정 불필요) |
 | **Structured Output** | JSON 응답 모드 | `responseFormat = JSON` |
+| **응답 캐싱** | Caffeine 기반 응답 캐시 (opt-in) | `cache.enabled`, 온도 기반 적격성 |
+| **서킷 브레이커** | Kotlin 네이티브 서킷 브레이커 (opt-in) | `circuit-breaker.enabled`, 실패 임계값 |
+| **우아한 성능 저하** | 실패 시 순차적 모델 폴백 (opt-in) | `fallback.enabled`, 폴백 모델 목록 |
+| **응답 필터** | 후처리 파이프라인 (예: 최대 길이) | `ResponseFilter` `@Component`로 추가 |
+| **관측성 메트릭** | 파이프라인 전체 9개 메트릭 포인트 | `AgentMetrics`를 Micrometer 등으로 교체 |
 | **멀티에이전트** | Sequential / Parallel / Supervisor | DSL 빌더 API |
 | **인증** | JWT 인증 + WebFilter (opt-in) | `AuthProvider` / `UserStore` 교체 |
 | **페르소나 관리** | 시스템 프롬프트 템플릿 CRUD API | `PersonaStore` 교체 |
@@ -362,6 +367,22 @@ arc:
       max-concurrent-requests: 20
       request-timeout-ms: 30000
 
+    cache:                           # 응답 캐싱 (opt-in)
+      enabled: false
+      max-size: 1000
+      ttl-minutes: 60
+      cacheable-temperature: 0.0     # 온도가 이 값 이하일 때만 캐시
+
+    circuit-breaker:                 # 서킷 브레이커 (opt-in)
+      enabled: false
+      failure-threshold: 5
+      reset-timeout-ms: 30000
+      half-open-max-calls: 1
+
+    fallback:                        # 우아한 성능 저하 (opt-in)
+      enabled: false
+      models: []                     # 예: [openai, anthropic]
+
     auth:
       enabled: false                 # JWT 인증 (opt-in)
       jwt-secret: ""                 # HMAC 시크릿 (활성화 시 필수)
@@ -444,6 +465,9 @@ src/main/kotlin/com/arc/reactor/
 - [도구(Tool) 가이드](docs/ko/tools.md) — 3가지 도구 유형, 등록 방법, MCP 연결
 - [MCP 통합 가이드](docs/ko/mcp.md) — McpManager, STDIO/SSE 트랜스포트, 도구 동적 로드
 - [설정 레퍼런스](docs/ko/configuration.md) — 전체 YAML 설정, 자동 구성, 프로덕션 예시
+- [관측성 & 메트릭](docs/ko/metrics.md) — AgentMetrics 인터페이스, Micrometer 통합, 메트릭 포인트
+- [복원력 가이드](docs/ko/resilience.md) — 서킷 브레이커, 재시도, 우아한 성능 저하
+- [응답 처리](docs/ko/response-processing.md) — 응답 필터, 캐싱, 구조화 출력
 - [데이터 모델 & API](docs/ko/api-models.md) — AgentCommand/Result, 에러 처리, 메트릭, REST API
 - [멀티에이전트 가이드](docs/ko/multi-agent.md) — Sequential / Parallel / Supervisor 패턴
 - [Supervisor 패턴 Deep Dive](docs/ko/supervisor-pattern.md) — WorkerAgentTool 원리, 실제 사용법

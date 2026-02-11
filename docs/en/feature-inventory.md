@@ -1,6 +1,6 @@
 # Arc Reactor Feature Inventory & Data Architecture
 
-> Last updated: 2026-02-08
+> Last updated: 2026-02-11
 
 ---
 
@@ -28,6 +28,13 @@
 | **JWT Authentication** | `POST /api/auth/*` | **opt-in** | Activated when `arc.reactor.auth.enabled=true` |
 | **Persona Management** | `GET/POST/PUT/DELETE /api/personas` | Active | System prompt template CRUD |
 | **Per-User Session Isolation** | Internal (no API) | **opt-in** | Sessions filtered by userId when authentication is enabled |
+| **Response Caching** | Internal (no API) | **opt-in** | Caffeine-based cache, SHA-256 keys, temperature-based eligibility |
+| **Circuit Breaker** | Internal (no API) | **opt-in** | Kotlin-native CB: CLOSED → OPEN → HALF_OPEN state machine |
+| **Graceful Degradation** | Internal (no API) | **opt-in** | Sequential model fallback on primary model failure |
+| **Response Filters** | Internal (no API) | Active | Post-processing pipeline (MaxLengthResponseFilter built-in) |
+| **Streaming Error Events** | SSE `error` event | Active | Error events during streaming with StreamEventMarker |
+| **Observability Metrics** | Internal (no API) | Active | 9 metric points: execution, tool, guard, cache, CB, fallback, tokens |
+| **MCP Auto-Reconnection** | Internal (no API) | Active | Exponential backoff + jitter, per-server Mutex |
 
 ### 1.2 Frontend (arc-reactor-web)
 
@@ -439,6 +446,22 @@ arc:
         - /api/auth/login
         - /api/auth/register
 
+    cache:
+      enabled: false                # Enable response caching (opt-in)
+      max-size: 1000                # Max cached entries
+      ttl-minutes: 60               # Cache TTL (minutes)
+      cacheable-temperature: 0.0    # Cache only when temp <= this
+
+    circuit-breaker:
+      enabled: false                # Enable circuit breaker (opt-in)
+      failure-threshold: 5          # Failures before OPEN
+      reset-timeout-ms: 30000       # OPEN → HALF_OPEN delay (ms)
+      half-open-max-calls: 1        # Trial calls in HALF_OPEN
+
+    fallback:
+      enabled: false                # Enable graceful degradation (opt-in)
+      models: []                    # Fallback models in priority order
+
     rag:
       enabled: false                # Enable RAG pipeline
       similarity-threshold: 0.7     # Similarity threshold
@@ -503,6 +526,10 @@ All beans are registered with `@ConditionalOnMissingBean`, so users can override
 | `ChatModelProvider` | Auto-discovered | When ChatModel bean exists | Register `@Bean` |
 | `AgentExecutor` | `SpringAiAgentExecutor` | Always | Register `@Bean` |
 | `AgentMetrics` | `NoOpAgentMetrics` | Always | Register `@Bean` |
+| `ResponseFilterChain` | `ResponseFilterChain` | Always | Add `@Component` ResponseFilter |
+| `ResponseCache` | `CaffeineResponseCache` | cache.enabled=true | Register `@Bean` |
+| `CircuitBreaker` | `DefaultCircuitBreaker` | circuit-breaker.enabled=true | Register `@Bean` |
+| `FallbackStrategy` | `ModelFallbackStrategy` | fallback.enabled=true | Register `@Bean` |
 | `ErrorMessageResolver` | `DefaultErrorMessageResolver` | Always | Register `@Bean` |
 | `PersonaStore` | `InMemoryPersonaStore` | When no PersonaStore | Register `@Bean` |
 | `PersonaStore` | `JdbcPersonaStore` | When DataSource + JdbcTemplate present | Register `@Bean` |

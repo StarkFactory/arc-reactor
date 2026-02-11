@@ -131,6 +131,11 @@ curl http://localhost:8080/api/sessions
 | **LLM Retry** | Exponential backoff with jitter | Configure retry conditions/attempts |
 | **Parallel Tool Execution** | Coroutine-based concurrent execution | Automatic (no config needed) |
 | **Structured Output** | JSON response mode | `responseFormat = JSON` |
+| **Response Caching** | Caffeine-based response cache (opt-in) | `cache.enabled`, temperature-based eligibility |
+| **Circuit Breaker** | Kotlin-native circuit breaker (opt-in) | `circuit-breaker.enabled`, failure threshold |
+| **Graceful Degradation** | Sequential model fallback on failure (opt-in) | `fallback.enabled`, fallback model list |
+| **Response Filters** | Post-processing pipeline (e.g., max length) | Add `ResponseFilter` via `@Component` |
+| **Observability Metrics** | 9 metric points across the pipeline | Replace `AgentMetrics` with Micrometer etc. |
 | **Multi-Agent** | Sequential / Parallel / Supervisor | DSL builder API |
 | **Authentication** | JWT auth with WebFilter (opt-in) | Replace `AuthProvider` / `UserStore` |
 | **Persona Management** | Named system prompt templates (CRUD API) | Replace `PersonaStore` |
@@ -299,7 +304,7 @@ class McpSetup(private val mcpManager: McpManager) {
 }
 ```
 
-> **Note:** MCP SDK 0.10.0 does not support the Streamable HTTP transport. Use SSE as an alternative for remote servers. See the [MCP Integration Guide](docs/en/mcp.md) for details.
+> **Note:** MCP SDK 0.17.2 does not support the Streamable HTTP transport. Use SSE as an alternative for remote servers. See the [MCP Integration Guide](docs/en/mcp.md) for details.
 
 ## Authentication (Opt-in)
 
@@ -365,6 +370,22 @@ arc:
     concurrency:
       max-concurrent-requests: 20
       request-timeout-ms: 30000
+
+    cache:                           # Response caching (opt-in)
+      enabled: false
+      max-size: 1000
+      ttl-minutes: 60
+      cacheable-temperature: 0.0     # Only cache when temperature <= this value
+
+    circuit-breaker:                 # Circuit breaker (opt-in)
+      enabled: false
+      failure-threshold: 5
+      reset-timeout-ms: 30000
+      half-open-max-calls: 1
+
+    fallback:                        # Graceful degradation (opt-in)
+      enabled: false
+      models: []                     # e.g., [openai, anthropic]
 
     auth:
       enabled: false                 # JWT authentication (opt-in)
@@ -451,6 +472,9 @@ src/main/kotlin/com/arc/reactor/
 - [Tool Guide](docs/en/tools.md) - 3 tool types, registration, MCP connection
 - [MCP Integration Guide](docs/en/mcp.md) - McpManager, STDIO/SSE transports, dynamic tool loading
 - [Configuration Reference](docs/en/configuration.md) - Full YAML settings, auto-configuration, production examples
+- [Observability & Metrics](docs/en/metrics.md) - AgentMetrics interface, Micrometer integration, metric points
+- [Resilience Guide](docs/en/resilience.md) - Circuit breaker, retry, graceful degradation
+- [Response Processing](docs/en/response-processing.md) - Response filters, caching, structured output
 - [Data Models & API](docs/en/api-models.md) - AgentCommand/Result, error handling, metrics, REST API
 - [Multi-Agent Guide](docs/en/multi-agent.md) - Sequential / Parallel / Supervisor patterns
 - [Supervisor Pattern Deep Dive](docs/en/supervisor-pattern.md) - WorkerAgentTool internals, practical usage
