@@ -12,6 +12,8 @@ import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.response.ResponseFilterChain
+import com.arc.reactor.response.ResponseFilterContext
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.agent.model.TokenUsage
@@ -134,7 +136,8 @@ class SpringAiAgentExecutor(
     private val transientErrorClassifier: (Exception) -> Boolean = ::defaultTransientErrorClassifier,
     private val conversationManager: ConversationManager = DefaultConversationManager(memoryStore, properties),
     private val toolApprovalPolicy: ToolApprovalPolicy? = null,
-    private val pendingApprovalStore: PendingApprovalStore? = null
+    private val pendingApprovalStore: PendingApprovalStore? = null,
+    private val responseFilterChain: ResponseFilterChain? = null
 ) : AgentExecutor {
 
     init {
@@ -286,19 +289,39 @@ class SpringAiAgentExecutor(
         toolsUsed: MutableList<String>,
         startTime: Long
     ): AgentResult {
-        conversationManager.saveHistory(command, result)
+        // Apply response filter chain (only on success with non-null content)
+        val filtered = if (result.success && result.content != null && responseFilterChain != null) {
+            try {
+                val context = ResponseFilterContext(
+                    command = command,
+                    toolsUsed = toolsUsed.toList(),
+                    durationMs = System.currentTimeMillis() - startTime
+                )
+                val filteredContent = responseFilterChain.apply(result.content, context)
+                result.copy(content = filteredContent)
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.warn(e) { "Response filter chain failed, using original content" }
+                result
+            }
+        } else {
+            result
+        }
+
+        conversationManager.saveHistory(command, filtered)
         try {
             hookExecutor?.executeAfterAgentComplete(
                 context = hookContext,
                 response = AgentResponse(
-                    success = result.success, response = result.content,
-                    errorMessage = result.errorMessage, toolsUsed = toolsUsed
+                    success = filtered.success, response = filtered.content,
+                    errorMessage = filtered.errorMessage, toolsUsed = toolsUsed
                 )
             )
         } catch (e: Exception) {
             logger.error(e) { "AfterAgentComplete hook failed" }
         }
-        val finalResult = result.copy(durationMs = System.currentTimeMillis() - startTime)
+        val finalResult = filtered.copy(durationMs = System.currentTimeMillis() - startTime)
         agentMetrics.recordExecution(finalResult)
         return finalResult
     }

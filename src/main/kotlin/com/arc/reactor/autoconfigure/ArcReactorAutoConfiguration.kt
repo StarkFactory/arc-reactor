@@ -2,6 +2,9 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.response.ResponseFilter
+import com.arc.reactor.response.ResponseFilterChain
+import com.arc.reactor.response.impl.MaxLengthResponseFilter
 import com.arc.reactor.auth.AdminInitializer
 import com.arc.reactor.auth.AuthRateLimitFilter
 import com.arc.reactor.auth.AuthProperties
@@ -541,6 +544,30 @@ class ArcReactorAutoConfiguration {
     }
 
     /**
+     * Response Filter Chain — applies post-processing filters to agent responses.
+     *
+     * Collects all [ResponseFilter] beans and chains them by order.
+     * Automatically includes [MaxLengthResponseFilter] if `response.max-length > 0`.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun responseFilterChain(
+        properties: AgentProperties,
+        filters: ObjectProvider<ResponseFilter>
+    ): ResponseFilterChain {
+        val allFilters = mutableListOf<ResponseFilter>()
+        filters.forEach { allFilters.add(it) }
+        // Add built-in MaxLength filter if configured
+        if (properties.response.maxLength > 0) {
+            val hasMaxLength = allFilters.any { it is MaxLengthResponseFilter }
+            if (!hasMaxLength) {
+                allFilters.add(MaxLengthResponseFilter(properties.response.maxLength))
+            }
+        }
+        return ResponseFilterChain(allFilters)
+    }
+
+    /**
      * Agent Executor
      */
     @Bean
@@ -563,7 +590,8 @@ class ArcReactorAutoConfiguration {
         tokenEstimator: TokenEstimator,
         conversationManager: ConversationManager,
         toolApprovalPolicyProvider: ObjectProvider<ToolApprovalPolicy>,
-        pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>
+        pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>,
+        responseFilterChain: ResponseFilterChain
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -581,6 +609,7 @@ class ArcReactorAutoConfiguration {
         tokenEstimator = tokenEstimator,
         conversationManager = conversationManager,
         toolApprovalPolicy = toolApprovalPolicyProvider.ifAvailable,
-        pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable
+        pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable,
+        responseFilterChain = if (properties.response.filtersEnabled) responseFilterChain else null
     )
 }
