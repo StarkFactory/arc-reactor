@@ -4,9 +4,14 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaAttachment
+import com.arc.reactor.agent.model.Message
+import com.arc.reactor.agent.model.MessageRole
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.intent.IntentResolver
+import com.arc.reactor.intent.model.ClassificationContext
+import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.persona.PersonaStore
 import mu.KotlinLogging
 import com.arc.reactor.prompt.PromptTemplateStore
@@ -56,7 +61,9 @@ class ChatController(
     private val agentExecutor: AgentExecutor,
     private val personaStore: PersonaStore? = null,
     private val promptTemplateStore: PromptTemplateStore? = null,
-    private val properties: AgentProperties = AgentProperties()
+    private val properties: AgentProperties = AgentProperties(),
+    private val intentResolver: IntentResolver? = null,
+    private val memoryStore: MemoryStore? = null
 ) {
 
     /**
@@ -74,18 +81,20 @@ class ChatController(
         @Valid @RequestBody request: ChatRequest,
         exchange: ServerWebExchange
     ): ChatResponse {
-        val result = agentExecutor.execute(
-            AgentCommand(
-                systemPrompt = resolveSystemPrompt(request),
-                userPrompt = request.message,
-                model = request.model,
-                userId = resolveUserId(exchange, request),
-                metadata = resolveMetadata(request),
-                responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
-                responseSchema = request.responseSchema,
-                media = resolveMediaUrls(request.mediaUrls)
-            )
+        var command = AgentCommand(
+            systemPrompt = resolveSystemPrompt(request),
+            userPrompt = request.message,
+            model = request.model,
+            userId = resolveUserId(exchange, request),
+            metadata = resolveMetadata(request),
+            responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
+            responseSchema = request.responseSchema,
+            media = resolveMediaUrls(request.mediaUrls)
         )
+
+        command = applyIntentProfile(command, request)
+
+        val result = agentExecutor.execute(command)
         return ChatResponse(
             content = result.content,
             success = result.success,
@@ -129,22 +138,24 @@ class ChatController(
         ]
     )
     @PostMapping("/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun chatStream(
+    suspend fun chatStream(
         @Valid @RequestBody request: ChatRequest,
         exchange: ServerWebExchange
     ): Flux<ServerSentEvent<String>> {
-        val flow: Flow<String> = agentExecutor.executeStream(
-            AgentCommand(
-                systemPrompt = resolveSystemPrompt(request),
-                userPrompt = request.message,
-                model = request.model,
-                userId = resolveUserId(exchange, request),
-                metadata = resolveMetadata(request),
-                responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
-                responseSchema = request.responseSchema,
-                media = resolveMediaUrls(request.mediaUrls)
-            )
+        var command = AgentCommand(
+            systemPrompt = resolveSystemPrompt(request),
+            userPrompt = request.message,
+            model = request.model,
+            userId = resolveUserId(exchange, request),
+            metadata = resolveMetadata(request),
+            responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
+            responseSchema = request.responseSchema,
+            media = resolveMediaUrls(request.mediaUrls)
         )
+
+        command = applyIntentProfile(command, request)
+
+        val flow: Flow<String> = agentExecutor.executeStream(command)
 
         val eventFlow: Flow<ServerSentEvent<String>> = flow
             .map { chunk -> toServerSentEvent(chunk) }
@@ -175,6 +186,39 @@ class ChatController(
                 .data(chunk)
                 .build()
         }
+    }
+
+    /**
+     * Apply intent profile to the command if intent classification is enabled.
+     * Returns the original command if intent is disabled or no confident match.
+     */
+    private suspend fun applyIntentProfile(command: AgentCommand, request: ChatRequest): AgentCommand {
+        if (intentResolver == null) return command
+
+        val context = buildClassificationContext(command, request)
+        val resolved = intentResolver.resolve(command.userPrompt, context) ?: return command
+        return intentResolver.applyProfile(command, resolved)
+    }
+
+    /**
+     * Build classification context from request and conversation history.
+     */
+    private fun buildClassificationContext(command: AgentCommand, request: ChatRequest): ClassificationContext {
+        val sessionId = request.metadata?.get("sessionId") as? String
+        val history = if (sessionId != null && memoryStore != null) {
+            memoryStore.get(sessionId)
+                ?.getHistory()
+                ?.takeLast(4)
+                ?: emptyList()
+        } else {
+            emptyList()
+        }
+
+        return ClassificationContext(
+            userId = command.userId,
+            conversationHistory = history,
+            metadata = request.metadata ?: emptyMap()
+        )
     }
 
     /**
