@@ -9,6 +9,8 @@ dependencies {
     // Gateway modules (runtimeOnly — included in bootJar but no compile dependency)
     runtimeOnly(project(":arc-web"))
     runtimeOnly(project(":arc-slack"))
+    runtimeOnly(project(":arc-discord"))
+    runtimeOnly(project(":arc-line"))
 
     // Spring Boot Core
     implementation("org.springframework.boot:spring-boot-starter")
