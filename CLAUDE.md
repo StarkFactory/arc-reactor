@@ -11,16 +11,27 @@ Spring AI-based AI Agent framework. Fork and attach tools to use.
 ## Project Structure
 
 Multi-module Gradle project:
-- `arc-core/` — Core framework (agent, tools, guard, hook, MCP, RAG, controllers)
-- `arc-slack/` — Optional Slack integration module
+
+| Module | Role | Boot |
+|--------|------|------|
+| `arc-core/` | Agent engine + main app (guard, hook, MCP, RAG) | bootJar |
+| `arc-web/` | REST API gateway (controllers, Swagger, security headers) | library |
+| `arc-slack/` | Slack gateway (webhook, signature verification) | library |
+| `arc-discord/` | Discord gateway (Discord4J WebSocket) | library |
+| `arc-line/` | LINE gateway (webhook, HMAC-SHA256 signature) | library |
 
 ## Commands
 
 ```bash
-./gradlew :arc-core:test                                             # All tests (890)
+./gradlew test                                                       # All tests (~1001)
+./gradlew :arc-core:test                                             # Engine tests (749)
+./gradlew :arc-web:test                                              # Controller tests (139)
+./gradlew :arc-slack:test                                            # Slack tests (53)
+./gradlew :arc-discord:test                                          # Discord tests (21)
+./gradlew :arc-line:test                                             # LINE tests (39)
 ./gradlew :arc-core:test --tests "com.arc.reactor.agent.*"           # Package filter
 ./gradlew :arc-core:test --tests "*.SpringAiAgentExecutorTest"       # Single file
-./gradlew :arc-core:compileKotlin :arc-core:compileTestKotlin        # Compile check (maintain 0 warnings)
+./gradlew compileKotlin compileTestKotlin                            # Compile check (maintain 0 warnings)
 ./gradlew :arc-core:bootRun                                          # Run (GEMINI_API_KEY required)
 ./gradlew :arc-core:test -Pdb=true                                   # Include PostgreSQL/PGVector/Flyway deps
 ./gradlew :arc-core:test -Pauth=true                                 # Include JWT/Spring Security Crypto deps
