@@ -46,4 +46,12 @@ class CaffeineResponseCache(
         cache.invalidateAll()
         logger.info { "Invalidated all $size cached responses" }
     }
+
+    /**
+     * Forces pending evictions to run immediately.
+     * Useful for testing since Caffeine eviction is asynchronous.
+     */
+    fun cleanUp() {
+        cache.cleanUp()
+    }
 }

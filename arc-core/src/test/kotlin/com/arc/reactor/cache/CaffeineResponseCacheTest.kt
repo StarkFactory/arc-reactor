@@ -71,20 +71,20 @@ class CaffeineResponseCacheTest {
         fun `cache with maxSize should not grow unbounded`() = runTest {
             val cache = CaffeineResponseCache(maxSize = 3, ttlMinutes = 60)
 
-            // Insert more than max with pauses for lazy eviction
             for (i in 1..10) {
                 cache.put("key-$i", CachedResponse(content = "response-$i"))
             }
 
-            // Count remaining entries — Caffeine eviction is lazy and approximate
-            // so we just verify it does not keep all 10
+            // Caffeine eviction is async — force cleanup before asserting
+            cache.cleanUp()
+
             var hitCount = 0
             for (i in 1..10) {
                 if (cache.get("key-$i") != null) hitCount++
             }
 
-            assertTrue(hitCount < 10) {
-                "Cache should have evicted some entries (maxSize=3), but found $hitCount/10"
+            assertTrue(hitCount <= 3) {
+                "Cache should have evicted to maxSize=3, but found $hitCount/10"
             }
         }
     }
