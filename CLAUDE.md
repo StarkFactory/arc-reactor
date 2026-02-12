@@ -8,17 +8,24 @@ Spring AI-based AI Agent framework. Fork and attach tools to use.
 - Test: JUnit 5 + MockK 1.14.5 + Kotest assertions 5.9.1
 - DB: H2 (test), PostgreSQL (prod, optional)
 
+## Project Structure
+
+Multi-module Gradle project:
+- `arc-core/` — Core framework (agent, tools, guard, hook, MCP, RAG, controllers)
+- `arc-slack/` — Optional Slack integration module
+
 ## Commands
 
 ```bash
-./gradlew test                                             # All tests (267)
-./gradlew test --tests "com.arc.reactor.agent.*"           # Package filter
-./gradlew test --tests "*.SpringAiAgentExecutorTest"       # Single file
-./gradlew compileKotlin compileTestKotlin                  # Compile check (maintain 0 warnings)
-./gradlew bootRun                                          # Run (GEMINI_API_KEY required)
-./gradlew test -Pdb=true                                   # Include PostgreSQL/PGVector/Flyway deps
-./gradlew test -Pauth=true                                 # Include JWT/Spring Security Crypto deps
-./gradlew test -PincludeIntegration                        # Include @Tag("integration") tests
+./gradlew :arc-core:test                                             # All tests (890)
+./gradlew :arc-core:test --tests "com.arc.reactor.agent.*"           # Package filter
+./gradlew :arc-core:test --tests "*.SpringAiAgentExecutorTest"       # Single file
+./gradlew :arc-core:compileKotlin :arc-core:compileTestKotlin        # Compile check (maintain 0 warnings)
+./gradlew :arc-core:bootRun                                          # Run (GEMINI_API_KEY required)
+./gradlew :arc-core:test -Pdb=true                                   # Include PostgreSQL/PGVector/Flyway deps
+./gradlew :arc-core:test -Pauth=true                                 # Include JWT/Spring Security Crypto deps
+./gradlew :arc-core:test -PincludeIntegration                        # Include @Tag("integration") tests
+./gradlew :arc-slack:test                                            # Slack module tests
 ```
 
 ## Architecture
