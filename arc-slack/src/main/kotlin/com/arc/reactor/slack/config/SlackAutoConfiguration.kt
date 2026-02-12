@@ -67,4 +67,5 @@ class SlackAutoConfiguration {
         agentExecutor = agentExecutor,
         messagingService = messagingService
     )
+
 }

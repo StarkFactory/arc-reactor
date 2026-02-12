@@ -17,6 +17,7 @@ import kotlinx.coroutines.sync.withPermit
 import mu.KotlinLogging
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -36,6 +37,7 @@ private val logger = KotlinLogging.logger {}
  */
 @RestController
 @RequestMapping("/api/slack")
+@ConditionalOnProperty(prefix = "arc.reactor.slack", name = ["enabled"], havingValue = "true")
 @Tag(name = "Slack", description = "Slack event handling endpoints")
 class SlackEventController(
     private val objectMapper: ObjectMapper,

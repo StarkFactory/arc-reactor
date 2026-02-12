@@ -64,4 +64,5 @@ class LineAutoConfiguration {
         agentExecutor = agentExecutor,
         messagingService = messagingService
     )
+
 }
