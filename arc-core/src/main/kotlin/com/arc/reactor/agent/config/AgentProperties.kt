@@ -63,6 +63,9 @@ data class AgentProperties(
     /** Graceful degradation / fallback configuration */
     val fallback: FallbackProperties = FallbackProperties(),
 
+    /** Intent classification configuration */
+    val intent: IntentProperties = IntentProperties(),
+
     /** Output guard configuration */
     val outputGuard: OutputGuardProperties = OutputGuardProperties()
 )
@@ -509,4 +512,38 @@ data class OutputGuardProperties(
 
     /** Custom regex patterns for blocking or masking. */
     val customPatterns: List<OutputBlockPattern> = emptyList()
+)
+
+/**
+ * Intent classification configuration.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     intent:
+ *       enabled: true
+ *       confidence-threshold: 0.6
+ *       llm-model: gemini
+ *       rule-confidence-threshold: 0.8
+ * ```
+ */
+data class IntentProperties(
+    /** Intent classification enabled (opt-in) */
+    val enabled: Boolean = false,
+
+    /** Minimum confidence to apply an intent profile */
+    val confidenceThreshold: Double = 0.6,
+
+    /** LLM provider for classification (null = use default provider) */
+    val llmModel: String? = null,
+
+    /** Minimum rule-based confidence to skip LLM fallback */
+    val ruleConfidenceThreshold: Double = 0.8,
+
+    /** Maximum few-shot examples per intent in LLM prompt */
+    val maxExamplesPerIntent: Int = 3,
+
+    /** Maximum conversation turns to include for context-aware classification */
+    val maxConversationTurns: Int = 2
 )
