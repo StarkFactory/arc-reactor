@@ -28,6 +28,9 @@ import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
+import com.arc.reactor.guard.output.OutputGuardContext
+import com.arc.reactor.guard.output.OutputGuardPipeline
+import com.arc.reactor.guard.output.OutputGuardResult
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
@@ -147,7 +150,8 @@ class SpringAiAgentExecutor(
     private val circuitBreaker: CircuitBreaker? = null,
     private val responseCache: ResponseCache? = null,
     private val cacheableTemperature: Double = 0.0,
-    private val fallbackStrategy: FallbackStrategy? = null
+    private val fallbackStrategy: FallbackStrategy? = null,
+    private val outputGuardPipeline: OutputGuardPipeline? = null
 ) : AgentExecutor {
 
     init {
@@ -367,24 +371,68 @@ class SpringAiAgentExecutor(
         toolsUsed: MutableList<String>,
         startTime: Long
     ): AgentResult {
-        // Apply response filter chain (only on success with non-null content)
-        val filtered = if (result.success && result.content != null && responseFilterChain != null) {
+        // Step 1: Apply output guard pipeline (fail-close, before response filter)
+        val guarded = if (result.success && result.content != null && outputGuardPipeline != null) {
+            try {
+                val guardContext = OutputGuardContext(
+                    command = command,
+                    toolsUsed = toolsUsed.toList(),
+                    durationMs = System.currentTimeMillis() - startTime
+                )
+                when (val guardResult = outputGuardPipeline.check(result.content, guardContext)) {
+                    is OutputGuardResult.Allowed -> {
+                        agentMetrics.recordOutputGuardAction("pipeline", "allowed", "")
+                        result
+                    }
+                    is OutputGuardResult.Modified -> {
+                        agentMetrics.recordOutputGuardAction(
+                            guardResult.stage ?: "unknown", "modified", guardResult.reason
+                        )
+                        result.copy(content = guardResult.content)
+                    }
+                    is OutputGuardResult.Rejected -> {
+                        agentMetrics.recordOutputGuardAction(
+                            guardResult.stage ?: "unknown", "rejected", guardResult.reason
+                        )
+                        return AgentResult.failure(
+                            errorMessage = guardResult.reason,
+                            errorCode = AgentErrorCode.OUTPUT_GUARD_REJECTED,
+                            durationMs = System.currentTimeMillis() - startTime
+                        ).also { agentMetrics.recordExecution(it) }
+                    }
+                }
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.error(e) { "Output guard pipeline failed, rejecting (fail-close)" }
+                return AgentResult.failure(
+                    errorMessage = "Output guard check failed",
+                    errorCode = AgentErrorCode.OUTPUT_GUARD_REJECTED,
+                    durationMs = System.currentTimeMillis() - startTime
+                ).also { agentMetrics.recordExecution(it) }
+            }
+        } else {
+            result
+        }
+
+        // Step 2: Apply response filter chain (fail-open, after output guard)
+        val filtered = if (guarded.success && guarded.content != null && responseFilterChain != null) {
             try {
                 val context = ResponseFilterContext(
                     command = command,
                     toolsUsed = toolsUsed.toList(),
                     durationMs = System.currentTimeMillis() - startTime
                 )
-                val filteredContent = responseFilterChain.apply(result.content, context)
-                result.copy(content = filteredContent)
+                val filteredContent = responseFilterChain.apply(guarded.content, context)
+                guarded.copy(content = filteredContent)
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 logger.warn(e) { "Response filter chain failed, using original content" }
-                result
+                guarded
             }
         } else {
-            result
+            guarded
         }
 
         conversationManager.saveHistory(command, filtered)

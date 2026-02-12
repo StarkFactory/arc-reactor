@@ -27,6 +27,7 @@ enum class AgentErrorCode(val defaultMessage: String) {
     GUARD_REJECTED("Request rejected by guard."),
     HOOK_REJECTED("Request rejected by hook."),
     INVALID_RESPONSE("LLM returned an invalid structured response."),
+    OUTPUT_GUARD_REJECTED("Response blocked by output guard."),
     CIRCUIT_BREAKER_OPEN("Service temporarily unavailable due to repeated failures. Please try again later."),
     UNKNOWN("An unknown error occurred.")
 }

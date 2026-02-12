@@ -116,6 +116,15 @@ interface AgentMetrics {
      * @param result The streaming execution result
      */
     fun recordStreamingExecution(result: AgentResult) {}
+
+    /**
+     * Record an output guard action.
+     *
+     * @param stage The output guard stage name
+     * @param action The action taken: "allowed", "modified", or "rejected"
+     * @param reason The reason for the action
+     */
+    fun recordOutputGuardAction(stage: String, action: String, reason: String) {}
 }
 
 /**
