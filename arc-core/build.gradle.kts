@@ -6,6 +6,9 @@ plugins {
 val springAiVersion = "1.1.2"
 
 dependencies {
+    // Arc Slack Integration (runtimeOnly to avoid circular dependency)
+    runtimeOnly(project(":arc-slack"))
+
     // Spring Boot Core
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
