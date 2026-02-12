@@ -177,7 +177,7 @@ class ChatControllerTest {
     inner class StreamingChat {
 
         @Test
-        fun `should return ServerSentEvents with message event type`() {
+        fun `should return ServerSentEvents with message event type`() = runTest {
             coEvery { agentExecutor.executeStream(any()) } returns flowOf("Hello", " ", "World")
 
             val flux = controller.chatStream(ChatRequest(message = "Hi"), exchange)
@@ -202,7 +202,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should convert tool markers to SSE events`() {
+        fun `should convert tool markers to SSE events`() = runTest {
             coEvery { agentExecutor.executeStream(any()) } returns flowOf(
                 "Thinking...",
                 StreamEventMarker.toolStart("calculator"),
@@ -236,7 +236,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should always emit done event at the end`() {
+        fun `should always emit done event at the end`() = runTest {
             coEvery { agentExecutor.executeStream(any()) } returns flowOf("ok")
 
             val flux = controller.chatStream(ChatRequest(message = "hello"), exchange)

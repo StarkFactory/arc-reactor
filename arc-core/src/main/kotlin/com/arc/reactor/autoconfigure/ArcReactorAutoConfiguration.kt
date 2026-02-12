@@ -79,6 +79,14 @@ import com.arc.reactor.approval.InMemoryPendingApprovalStore
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.approval.ToolNameApprovalPolicy
+import com.arc.reactor.intent.InMemoryIntentRegistry
+import com.arc.reactor.intent.IntentClassifier
+import com.arc.reactor.intent.IntentRegistry
+import com.arc.reactor.intent.IntentResolver
+import com.arc.reactor.intent.impl.CompositeIntentClassifier
+import com.arc.reactor.intent.impl.JdbcIntentRegistry
+import com.arc.reactor.intent.impl.LlmIntentClassifier
+import com.arc.reactor.intent.impl.RuleBasedIntentClassifier
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.SemanticToolSelector
@@ -633,6 +641,84 @@ class ArcReactorAutoConfiguration {
         fun jdbcUserStore(
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
         ): UserStore = JdbcUserStore(jdbcTemplate)
+    }
+
+    /**
+     * Intent Classification Configuration (only when arc.reactor.intent.enabled=true)
+     */
+    @Configuration
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.intent", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    class IntentConfiguration {
+
+        /**
+         * Intent Registry: In-memory fallback
+         */
+        @Bean
+        @ConditionalOnMissingBean
+        fun intentRegistry(): IntentRegistry = InMemoryIntentRegistry()
+
+        /**
+         * Intent Classifier: Composite (Rule -> LLM cascading)
+         */
+        @Bean
+        @ConditionalOnMissingBean
+        fun intentClassifier(
+            intentRegistry: IntentRegistry,
+            chatModelProvider: ChatModelProvider,
+            properties: AgentProperties
+        ): IntentClassifier {
+            val intentProps = properties.intent
+            val chatClient = chatModelProvider.getChatClient(intentProps.llmModel)
+            val ruleClassifier = RuleBasedIntentClassifier(intentRegistry)
+            val llmClassifier = LlmIntentClassifier(
+                chatClient = chatClient,
+                registry = intentRegistry,
+                maxExamplesPerIntent = intentProps.maxExamplesPerIntent,
+                maxConversationTurns = intentProps.maxConversationTurns
+            )
+            return CompositeIntentClassifier(
+                ruleClassifier = ruleClassifier,
+                llmClassifier = llmClassifier,
+                ruleConfidenceThreshold = intentProps.ruleConfidenceThreshold
+            )
+        }
+
+        /**
+         * Intent Resolver
+         */
+        @Bean
+        @ConditionalOnMissingBean
+        fun intentResolver(
+            intentClassifier: IntentClassifier,
+            intentRegistry: IntentRegistry,
+            properties: AgentProperties
+        ): IntentResolver = IntentResolver(
+            classifier = intentClassifier,
+            registry = intentRegistry,
+            confidenceThreshold = properties.intent.confidenceThreshold
+        )
+    }
+
+    /**
+     * JDBC Intent Registry (when JDBC is available and intent is enabled)
+     */
+    @Configuration
+    @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
+    @ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
+    class JdbcIntentRegistryConfiguration {
+
+        @Bean
+        @Primary
+        @ConditionalOnProperty(
+            prefix = "arc.reactor.intent", name = ["enabled"],
+            havingValue = "true", matchIfMissing = false
+        )
+        fun jdbcIntentRegistry(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
+        ): IntentRegistry = JdbcIntentRegistry(jdbcTemplate)
     }
 
     /**
