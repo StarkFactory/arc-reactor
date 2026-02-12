@@ -76,6 +76,13 @@ arc:
       bot-token: ${SLACK_BOT_TOKEN:}
       signing-secret: ${SLACK_SIGNING_SECRET:}
       signature-verification-enabled: ${ARC_REACTOR_SLACK_SIGNATURE_VERIFICATION:true}
+    discord:
+      enabled: ${ARC_REACTOR_DISCORD_ENABLED:false}
+      token: ${DISCORD_BOT_TOKEN:}
+    line:
+      enabled: ${ARC_REACTOR_LINE_ENABLED:false}
+      channel-token: ${LINE_CHANNEL_TOKEN:}
+      channel-secret: ${LINE_CHANNEL_SECRET:}
 
 # ----- API Documentation -----
 springdoc:
