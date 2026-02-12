@@ -1,0 +1,108 @@
+# ===========================================
+# Arc Reactor - AI Agent Application
+# ===========================================
+
+server:
+  port: 8080
+  shutdown: graceful
+
+# ----- LLM Providers -----
+# Only providers with API keys set will be activated.
+# Set keys via environment variables:
+#   export GEMINI_API_KEY=your-key
+#   export SPRING_AI_OPENAI_API_KEY=your-key
+#   export SPRING_AI_ANTHROPIC_API_KEY=your-key
+#
+# Note: Do NOT declare provider properties with empty defaults here.
+# Spring AI auto-configs create beans when properties exist (even if empty),
+# causing startup failures. Instead, set via environment variables directly.
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
+  ai:
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY:}
+        chat:
+          options:
+            model: gemini-2.0-flash
+        embedding:
+          api-key: ${GEMINI_API_KEY:}
+          text:
+            options:
+              model: gemini-embedding-001
+              dimensions: 768
+    vectorstore:
+      pgvector:
+        initialize-schema: ${SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA:false}
+        dimensions: 768
+    # OpenAI: Set SPRING_AI_OPENAI_API_KEY env var to enable (default model: gpt-4o)
+    # Anthropic: Set SPRING_AI_ANTHROPIC_API_KEY env var to enable
+
+# ----- Arc Reactor Agent Settings -----
+arc:
+  reactor:
+    max-tool-calls: 10
+    max-tools-per-request: 20
+
+    llm:
+      default-provider: gemini
+      temperature: 0.7
+      max-output-tokens: 4096
+
+    concurrency:
+      max-concurrent-requests: 20
+      request-timeout-ms: 30000
+      tool-call-timeout-ms: 15000
+
+    guard:
+      enabled: true
+      rate-limit-per-minute: 20
+      rate-limit-per-hour: 200
+      max-input-length: 10000
+
+    rag:
+      enabled: ${ARC_REACTOR_RAG_ENABLED:false}
+      similarity-threshold: 0.3
+
+    slack:
+      enabled: ${ARC_REACTOR_SLACK_ENABLED:false}
+      bot-token: ${SLACK_BOT_TOKEN:}
+      signing-secret: ${SLACK_SIGNING_SECRET:}
+      signature-verification-enabled: ${ARC_REACTOR_SLACK_SIGNATURE_VERIFICATION:true}
+    discord:
+      enabled: ${ARC_REACTOR_DISCORD_ENABLED:false}
+      token: ${DISCORD_BOT_TOKEN:}
+    line:
+      enabled: ${ARC_REACTOR_LINE_ENABLED:false}
+      channel-token: ${LINE_CHANNEL_TOKEN:}
+      channel-secret: ${LINE_CHANNEL_SECRET:}
+
+# ----- API Documentation -----
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+
+# ----- Actuator -----
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+# ----- Logging -----
+logging:
+  level:
+    com.arc.reactor: INFO

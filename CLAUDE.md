@@ -8,17 +8,35 @@ Spring AI-based AI Agent framework. Fork and attach tools to use.
 - Test: JUnit 5 + MockK 1.14.5 + Kotest assertions 5.9.1
 - DB: H2 (test), PostgreSQL (prod, optional)
 
+## Project Structure
+
+Multi-module Gradle project:
+
+| Module | Role | Boot |
+|--------|------|------|
+| `arc-core/` | Agent engine + main app (guard, hook, MCP, RAG) | bootJar |
+| `arc-web/` | REST API gateway (controllers, Swagger, security headers) | library |
+| `arc-slack/` | Slack gateway (webhook, signature verification) | library |
+| `arc-discord/` | Discord gateway (Discord4J WebSocket) | library |
+| `arc-line/` | LINE gateway (webhook, HMAC-SHA256 signature) | library |
+
 ## Commands
 
 ```bash
-./gradlew test                                             # All tests (267)
-./gradlew test --tests "com.arc.reactor.agent.*"           # Package filter
-./gradlew test --tests "*.SpringAiAgentExecutorTest"       # Single file
-./gradlew compileKotlin compileTestKotlin                  # Compile check (maintain 0 warnings)
-./gradlew bootRun                                          # Run (GEMINI_API_KEY required)
-./gradlew test -Pdb=true                                   # Include PostgreSQL/PGVector/Flyway deps
-./gradlew test -Pauth=true                                 # Include JWT/Spring Security Crypto deps
-./gradlew test -PincludeIntegration                        # Include @Tag("integration") tests
+./gradlew test                                                       # All tests (~1001)
+./gradlew :arc-core:test                                             # Engine tests (749)
+./gradlew :arc-web:test                                              # Controller tests (139)
+./gradlew :arc-slack:test                                            # Slack tests (53)
+./gradlew :arc-discord:test                                          # Discord tests (21)
+./gradlew :arc-line:test                                             # LINE tests (39)
+./gradlew :arc-core:test --tests "com.arc.reactor.agent.*"           # Package filter
+./gradlew :arc-core:test --tests "*.SpringAiAgentExecutorTest"       # Single file
+./gradlew compileKotlin compileTestKotlin                            # Compile check (maintain 0 warnings)
+./gradlew :arc-core:bootRun                                          # Run (GEMINI_API_KEY required)
+./gradlew :arc-core:test -Pdb=true                                   # Include PostgreSQL/PGVector/Flyway deps
+./gradlew :arc-core:test -Pauth=true                                 # Include JWT/Spring Security Crypto deps
+./gradlew :arc-core:test -PincludeIntegration                        # Include @Tag("integration") tests
+./gradlew :arc-slack:test                                            # Slack module tests
 ```
 
 ## Architecture

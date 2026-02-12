@@ -16,9 +16,10 @@ ARG ENABLE_AUTH=false
 
 COPY gradle/ gradle/
 COPY gradlew settings.gradle.kts build.gradle.kts ./
+COPY arc-core/build.gradle.kts arc-core/
 RUN ./gradlew dependencies --no-daemon || true
-COPY src/ src/
-RUN GRADLE_ARGS="bootJar --no-daemon -x test"; \
+COPY arc-core/src/ arc-core/src/
+RUN GRADLE_ARGS=":arc-core:bootJar --no-daemon -x test"; \
     if [ "$ENABLE_DB" = "true" ]; then GRADLE_ARGS="$GRADLE_ARGS -Pdb=true"; fi; \
     if [ "$ENABLE_AUTH" = "true" ]; then GRADLE_ARGS="$GRADLE_ARGS -Pauth=true"; fi; \
     ./gradlew $GRADLE_ARGS
@@ -30,7 +31,7 @@ WORKDIR /app
 RUN addgroup -S arc && adduser -S arc -G arc
 USER arc
 
-COPY --from=build /workspace/build/libs/*.jar app.jar
+COPY --from=build /workspace/arc-core/build/libs/*.jar app.jar
 
 EXPOSE 8080
 

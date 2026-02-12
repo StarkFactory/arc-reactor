@@ -1,5 +1,7 @@
 rootProject.name = "arc-reactor"
 
+include("arc-core", "arc-web", "arc-slack", "arc-discord", "arc-line")
+
 dependencyResolutionManagement {
     repositories {
         mavenCentral()
