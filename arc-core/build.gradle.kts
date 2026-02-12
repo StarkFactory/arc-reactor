@@ -6,7 +6,8 @@ plugins {
 val springAiVersion = "1.1.2"
 
 dependencies {
-    // Arc Slack Integration (runtimeOnly to avoid circular dependency)
+    // Gateway modules (runtimeOnly — included in bootJar but no compile dependency)
+    runtimeOnly(project(":arc-web"))
     runtimeOnly(project(":arc-slack"))
 
     // Spring Boot Core
@@ -14,9 +15,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-
-    // API Documentation (SpringDoc OpenAPI + Swagger UI for WebFlux)
-    implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.6")
 
     // Spring AI BOM (platform for version management)
     implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))

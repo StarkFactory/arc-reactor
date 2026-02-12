@@ -270,17 +270,6 @@ class ArcReactorAutoConfiguration {
     ): ConversationManager = DefaultConversationManager(memoryStore, properties)
 
     /**
-     * Security Headers WebFilter (default: enabled)
-     */
-    @Bean
-    @ConditionalOnMissingBean(name = ["securityHeadersWebFilter"])
-    @ConditionalOnProperty(
-        prefix = "arc.reactor.security-headers", name = ["enabled"],
-        havingValue = "true", matchIfMissing = true
-    )
-    fun securityHeadersWebFilter(): WebFilter = SecurityHeadersWebFilter()
-
-    /**
      * MCP Server Store: In-memory fallback
      */
     @Bean

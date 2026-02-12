@@ -1,6 +1,6 @@
 rootProject.name = "arc-reactor"
 
-include("arc-core", "arc-slack")
+include("arc-core", "arc-web", "arc-slack")
 
 dependencyResolutionManagement {
     repositories {

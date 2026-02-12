@@ -259,32 +259,6 @@ class ArcReactorAutoConfigurationTest {
         }
     }
 
-    // ── Security Headers ────────────────────────────────────────────
-
-    @Nested
-    inner class SecurityHeadersTests {
-
-        @Test
-        fun `should register security headers filter by default`() {
-            contextRunner.run { context ->
-                assertTrue(context.containsBean("securityHeadersWebFilter")) {
-                    "securityHeadersWebFilter should be registered by default (matchIfMissing=true)"
-                }
-            }
-        }
-
-        @Test
-        fun `should not register security headers filter when disabled`() {
-            contextRunner
-                .withPropertyValues("arc.reactor.security-headers.enabled=false")
-                .run { context ->
-                    assertFalse(context.containsBean("securityHeadersWebFilter")) {
-                        "securityHeadersWebFilter should not exist when disabled"
-                    }
-                }
-        }
-    }
-
     // ── Webhook ─────────────────────────────────────────────────────
 
     @Nested
