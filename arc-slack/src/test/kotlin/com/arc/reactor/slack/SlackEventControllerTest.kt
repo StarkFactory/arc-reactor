@@ -3,8 +3,10 @@ package com.arc.reactor.slack
 import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.controller.SlackEventController
 import com.arc.reactor.slack.handler.SlackEventHandler
+import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackChallengeResponse
 import com.arc.reactor.slack.model.SlackEventCommand
+import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.matchers.shouldBe
@@ -21,8 +23,10 @@ class SlackEventControllerTest {
 
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
     private val eventHandler = mockk<SlackEventHandler>(relaxed = true)
+    private val messagingService = mockk<SlackMessagingService>(relaxed = true)
+    private val metricsRecorder = mockk<SlackMetricsRecorder>(relaxed = true)
     private val properties = SlackProperties(enabled = true, maxConcurrentRequests = 5)
-    private val controller = SlackEventController(objectMapper, eventHandler, properties)
+    private val controller = SlackEventController(objectMapper, eventHandler, messagingService, metricsRecorder, properties)
 
     @Nested
     inner class UrlVerification {
@@ -83,6 +87,31 @@ class SlackEventControllerTest {
             delay(200) // Allow async processing
 
             coVerify(timeout = 2000) { eventHandler.handleAppMention(match { it.userId == "U123" }) }
+        }
+
+        @Test
+        fun `deduplicates event callback by event_id`() = runTest {
+            coEvery { eventHandler.handleAppMention(any()) } returns Unit
+
+            val payload = """
+                {
+                    "type": "event_callback",
+                    "event_id": "Ev123",
+                    "event": {
+                        "type": "app_mention",
+                        "user": "U123",
+                        "channel": "C456",
+                        "text": "<@BOT> hello",
+                        "ts": "1234.5678"
+                    }
+                }
+            """.trimIndent()
+
+            controller.handleEvent(payload)
+            controller.handleEvent(payload)
+            delay(200)
+
+            coVerify(exactly = 1) { eventHandler.handleAppMention(any()) }
         }
     }
 

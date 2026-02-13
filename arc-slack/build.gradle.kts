@@ -31,6 +31,7 @@ dependencies {
 
     // Logging
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
+    implementation("io.micrometer:micrometer-core")
 
     // Swagger (for @Tag, @Operation)
     implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.6")

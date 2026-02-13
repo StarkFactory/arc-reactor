@@ -35,8 +35,12 @@ import com.arc.reactor.guard.impl.DefaultRateLimitStage
 import com.arc.reactor.guard.impl.GuardPipeline
 import com.arc.reactor.guard.output.OutputGuardPipeline
 import com.arc.reactor.guard.output.OutputGuardStage
+import com.arc.reactor.guard.output.impl.DynamicRuleOutputGuard
 import com.arc.reactor.guard.output.impl.PiiMaskingOutputGuard
 import com.arc.reactor.guard.output.impl.RegexPatternOutputGuard
+import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleStore
+import com.arc.reactor.guard.output.policy.JdbcOutputGuardRuleStore
+import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
 import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.impl.WebhookNotificationHook
 import com.arc.reactor.hook.impl.WebhookProperties
@@ -215,6 +219,12 @@ class ArcReactorAutoConfiguration {
         fun jdbcMcpServerStore(
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
         ): McpServerStore = JdbcMcpServerStore(jdbcTemplate = jdbcTemplate)
+
+        @Bean
+        @Primary
+        fun jdbcOutputGuardRuleStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
+        ): OutputGuardRuleStore = JdbcOutputGuardRuleStore(jdbcTemplate = jdbcTemplate)
     }
 
     /**
@@ -279,6 +289,13 @@ class ArcReactorAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun mcpServerStore(): McpServerStore = InMemoryMcpServerStore()
+
+    /**
+     * Dynamic output guard rule store: in-memory fallback.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun outputGuardRuleStore(): OutputGuardRuleStore = InMemoryOutputGuardRuleStore()
 
     /**
      * MCP Manager
@@ -415,6 +432,20 @@ class ArcReactorAutoConfiguration {
             if (patterns.isEmpty()) return null
             return RegexPatternOutputGuard(patterns)
         }
+
+        @Bean
+        @ConditionalOnMissingBean(name = ["dynamicRuleOutputGuard"])
+        @ConditionalOnProperty(
+            prefix = "arc.reactor.output-guard", name = ["dynamic-rules-enabled"],
+            havingValue = "true", matchIfMissing = true
+        )
+        fun dynamicRuleOutputGuard(
+            properties: AgentProperties,
+            outputGuardRuleStore: OutputGuardRuleStore
+        ): OutputGuardStage = DynamicRuleOutputGuard(
+            store = outputGuardRuleStore,
+            refreshIntervalMs = properties.outputGuard.dynamicRulesRefreshMs
+        )
 
         @Bean
         @ConditionalOnMissingBean

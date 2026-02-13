@@ -1,9 +1,12 @@
 package com.arc.reactor.slack.service
 
 import com.arc.reactor.slack.model.SlackApiResult
+import com.arc.reactor.slack.metrics.NoOpSlackMetricsRecorder
+import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import kotlinx.coroutines.delay
 import mu.KotlinLogging
 import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.reactive.function.client.awaitBody
 import org.springframework.web.reactive.function.client.awaitBodilessEntity
 import java.util.concurrent.ConcurrentHashMap
@@ -21,6 +24,9 @@ private val logger = KotlinLogging.logger {}
  */
 class SlackMessagingService(
     botToken: String,
+    private val maxApiRetries: Int = 2,
+    private val retryDefaultDelayMs: Long = 1000L,
+    private val metricsRecorder: SlackMetricsRecorder = NoOpSlackMetricsRecorder(),
     private val webClient: WebClient = WebClient.builder()
         .baseUrl("https://slack.com/api")
         .defaultHeader("Authorization", "Bearer $botToken")
@@ -95,19 +101,66 @@ class SlackMessagingService(
                 .bodyValue(body)
                 .retrieve()
                 .awaitBodilessEntity()
+            metricsRecorder.recordResponseUrl("success")
             true
         } catch (e: Exception) {
             logger.error(e) { "Failed to send response_url callback" }
+            metricsRecorder.recordResponseUrl("failure")
             false
         }
     }
 
     private suspend fun callSlackApi(method: String, body: Map<String, Any>): SlackApiResult {
-        return webClient.post()
-            .uri("/$method")
-            .bodyValue(body)
-            .retrieve()
-            .awaitBody<SlackApiResult>()
+        val started = System.currentTimeMillis()
+        var attempt = 0
+        val maxAttempts = maxApiRetries.coerceAtLeast(0) + 1
+
+        while (true) {
+            attempt++
+            try {
+                val result = webClient.post()
+                    .uri("/$method")
+                    .bodyValue(body)
+                    .retrieve()
+                    .awaitBody<SlackApiResult>()
+                metricsRecorder.recordApiCall(
+                    method = method,
+                    outcome = if (result.ok) "success" else "api_error",
+                    durationMs = System.currentTimeMillis() - started
+                )
+                return result
+            } catch (e: WebClientResponseException.TooManyRequests) {
+                metricsRecorder.recordApiRetry(method = method, reason = "rate_limit")
+                if (attempt >= maxAttempts) throw e
+                val retryAfterMillis = e.headers.getFirst("Retry-After")
+                    ?.toLongOrNull()
+                    ?.coerceAtLeast(1L)
+                    ?.times(1000)
+                    ?: retryDefaultDelayMs.coerceAtLeast(1L)
+
+                logger.warn {
+                    "Slack API rate-limited for method=$method, retrying in ${retryAfterMillis}ms (attempt=$attempt/$maxAttempts)"
+                }
+                delay(retryAfterMillis)
+            } catch (e: WebClientResponseException) {
+                val reason = if (e.statusCode.is5xxServerError) "server_error" else "client_error"
+                metricsRecorder.recordApiRetry(method = method, reason = reason)
+                if (!e.statusCode.is5xxServerError || attempt >= maxAttempts) throw e
+
+                val backoffMillis = retryDefaultDelayMs.coerceAtLeast(1L) * attempt
+                logger.warn {
+                    "Slack API 5xx for method=$method, retrying in ${backoffMillis}ms (attempt=$attempt/$maxAttempts)"
+                }
+                delay(backoffMillis)
+            } catch (e: Exception) {
+                metricsRecorder.recordApiCall(
+                    method = method,
+                    outcome = "exception",
+                    durationMs = System.currentTimeMillis() - started
+                )
+                throw e
+            }
+        }
     }
 
     private suspend fun enforceRateLimit(channelId: String) {

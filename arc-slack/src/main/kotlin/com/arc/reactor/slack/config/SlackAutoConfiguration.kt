@@ -5,12 +5,17 @@ import com.arc.reactor.slack.handler.DefaultSlackCommandHandler
 import com.arc.reactor.slack.handler.DefaultSlackEventHandler
 import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.handler.SlackEventHandler
+import com.arc.reactor.slack.metrics.MicrometerSlackMetricsRecorder
+import com.arc.reactor.slack.metrics.NoOpSlackMetricsRecorder
+import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.security.SlackSignatureVerifier
 import com.arc.reactor.slack.security.SlackSignatureWebFilter
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -31,6 +36,17 @@ import org.springframework.web.server.WebFilter
 )
 @EnableConfigurationProperties(SlackProperties::class)
 class SlackAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun slackMetricsRecorder(): SlackMetricsRecorder = NoOpSlackMetricsRecorder()
+
+    @Bean
+    @ConditionalOnClass(MeterRegistry::class)
+    @ConditionalOnBean(MeterRegistry::class)
+    @ConditionalOnMissingBean
+    fun micrometerSlackMetricsRecorder(registry: MeterRegistry): SlackMetricsRecorder =
+        MicrometerSlackMetricsRecorder(registry)
 
     @Bean
     @ConditionalOnMissingBean
@@ -56,8 +72,16 @@ class SlackAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    fun slackMessagingService(properties: SlackProperties): SlackMessagingService =
-        SlackMessagingService(botToken = properties.botToken)
+    fun slackMessagingService(
+        properties: SlackProperties,
+        metricsRecorder: SlackMetricsRecorder
+    ): SlackMessagingService =
+        SlackMessagingService(
+            botToken = properties.botToken,
+            maxApiRetries = properties.apiMaxRetries,
+            retryDefaultDelayMs = properties.apiRetryDefaultDelayMs,
+            metricsRecorder = metricsRecorder
+        )
 
     @Bean
     @ConditionalOnMissingBean

@@ -31,7 +31,13 @@ class SlackMessagingServiceTest {
             .build()
 
         val responseWebClient = WebClient.builder().build()
-        service = SlackMessagingService("test-token", webClient, responseWebClient)
+        service = SlackMessagingService(
+            botToken = "test-token",
+            maxApiRetries = 2,
+            retryDefaultDelayMs = 10,
+            webClient = webClient,
+            responseWebClient = responseWebClient
+        )
     }
 
     @AfterEach
@@ -91,6 +97,43 @@ class SlackMessagingServiceTest {
 
             result.ok shouldBe false
             result.error shouldBe "channel_not_found"
+        }
+
+        @Test
+        fun `retries on rate limit and succeeds`() = runTest {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(429)
+                    .setHeader("Content-Type", "application/json")
+                    .setBody("""{"ok":false,"error":"ratelimited"}""")
+            )
+            mockServer.enqueue(
+                MockResponse()
+                    .setHeader("Content-Type", "application/json")
+                    .setBody("""{"ok":true,"ts":"1234.7777","channel":"C123"}""")
+            )
+
+            val result = service.sendMessage("C123", "Hello with retry")
+
+            result.ok shouldBe true
+            result.ts shouldBe "1234.7777"
+            mockServer.requestCount shouldBe 2
+        }
+
+        @Test
+        fun `retries on server error and succeeds`() = runTest {
+            mockServer.enqueue(MockResponse().setResponseCode(503))
+            mockServer.enqueue(
+                MockResponse()
+                    .setHeader("Content-Type", "application/json")
+                    .setBody("""{"ok":true,"ts":"1234.8888","channel":"C123"}""")
+            )
+
+            val result = service.sendMessage("C123", "Hello after 5xx")
+
+            result.ok shouldBe true
+            result.ts shouldBe "1234.8888"
+            mockServer.requestCount shouldBe 2
         }
     }
 
