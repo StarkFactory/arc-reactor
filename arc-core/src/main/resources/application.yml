@@ -71,6 +71,13 @@ arc:
       enabled: ${ARC_REACTOR_RAG_ENABLED:false}
       similarity-threshold: 0.3
 
+    error-report:
+      enabled: ${ARC_REACTOR_ERROR_REPORT_ENABLED:false}
+      api-key: ${ERROR_REPORT_API_KEY:}
+      max-concurrent-requests: 3
+      request-timeout-ms: 120000
+      max-tool-calls: 25
+
     slack:
       enabled: ${ARC_REACTOR_SLACK_ENABLED:false}
       bot-token: ${SLACK_BOT_TOKEN:}
