@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.config
 
+import com.arc.reactor.guard.output.impl.OutputBlockPattern
 import com.arc.reactor.mcp.model.McpTransportType
 import org.springframework.boot.context.properties.ConfigurationProperties
 
@@ -60,7 +61,10 @@ data class AgentProperties(
     val cache: CacheProperties = CacheProperties(),
 
     /** Graceful degradation / fallback configuration */
-    val fallback: FallbackProperties = FallbackProperties()
+    val fallback: FallbackProperties = FallbackProperties(),
+
+    /** Output guard configuration */
+    val outputGuard: OutputGuardProperties = OutputGuardProperties()
 )
 
 data class LlmProperties(
@@ -469,4 +473,34 @@ data class FallbackProperties(
 
     /** Fallback model names in priority order. */
     val models: List<String> = emptyList()
+)
+
+/**
+ * Output guard configuration for post-execution response validation.
+ *
+ * When enabled, LLM responses are checked for PII, policy violations,
+ * and custom regex patterns before being returned to the caller.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     output-guard:
+ *       enabled: true
+ *       pii-masking-enabled: true
+ *       custom-patterns:
+ *         - pattern: "(?i)internal\\s+use\\s+only"
+ *           action: REJECT
+ *           name: "Internal Document"
+ * ```
+ */
+data class OutputGuardProperties(
+    /** Enable output guard. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Enable built-in PII masking stage. */
+    val piiMaskingEnabled: Boolean = true,
+
+    /** Custom regex patterns for blocking or masking. */
+    val customPatterns: List<OutputBlockPattern> = emptyList()
 )

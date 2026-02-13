@@ -1,12 +1,15 @@
 package com.arc.reactor.slack
 
+import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.slack.config.SlackAutoConfiguration
+import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.security.SlackSignatureVerifier
 import com.arc.reactor.slack.service.SlackMessagingService
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.mockk.mockk
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
@@ -65,6 +68,23 @@ class SlackAutoConfigurationTest {
                 )
                 .run { context ->
                     context.getBean(SlackMessagingService::class.java).shouldNotBeNull()
+                }
+        }
+
+        @Test
+        fun `SlackCommandHandler is created when AgentExecutor bean exists`() {
+            contextRunner
+                .withBean(
+                    AgentExecutor::class.java,
+                    java.util.function.Supplier { mockk<AgentExecutor>(relaxed = true) }
+                )
+                .withPropertyValues(
+                    "arc.reactor.slack.enabled=true",
+                    "arc.reactor.slack.signing-secret=test-secret",
+                    "arc.reactor.slack.bot-token=xoxb-test"
+                )
+                .run { context ->
+                    context.getBean(SlackCommandHandler::class.java).shouldNotBeNull()
                 }
         }
     }

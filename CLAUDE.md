@@ -4,9 +4,15 @@ Spring AI-based AI Agent framework. Fork and attach tools to use.
 
 ## Tech Stack
 
-- Kotlin 2.3.0, Spring Boot 3.5.9, Spring AI 1.1.2, JDK 21, Gradle 8.12
-- Test: JUnit 5 + MockK 1.14.5 + Kotest assertions 5.9.1
+- Kotlin 2.3.10, Spring Boot 3.5.9, Spring AI 1.1.2, JDK 21, Gradle 8.12
+- Test: JUnit 5 + MockK 1.14.9 + Kotest assertions 5.9.1
 - DB: H2 (test), PostgreSQL (prod, optional)
+
+## Instruction Files
+
+- `CLAUDE.md` and `AGENTS.md` must stay aligned.
+- When changing project rules, update both files in the same commit.
+- For Codex-style agents, `AGENTS.md` is the primary machine-readable instruction file.
 
 ## Project Structure
 
@@ -23,12 +29,12 @@ Multi-module Gradle project:
 ## Commands
 
 ```bash
-./gradlew test                                                       # All tests (~1001)
-./gradlew :arc-core:test                                             # Engine tests (749)
-./gradlew :arc-web:test                                              # Controller tests (139)
-./gradlew :arc-slack:test                                            # Slack tests (53)
-./gradlew :arc-discord:test                                          # Discord tests (21)
-./gradlew :arc-line:test                                             # LINE tests (39)
+./gradlew test                                                       # All tests
+./gradlew :arc-core:test                                             # Engine tests
+./gradlew :arc-web:test                                              # Controller tests
+./gradlew :arc-slack:test                                            # Slack tests
+./gradlew :arc-discord:test                                          # Discord tests
+./gradlew :arc-line:test                                             # LINE tests
 ./gradlew :arc-core:test --tests "com.arc.reactor.agent.*"           # Package filter
 ./gradlew :arc-core:test --tests "*.SpringAiAgentExecutorTest"       # Single file
 ./gradlew compileKotlin compileTestKotlin                            # Compile check (maintain 0 warnings)
@@ -143,6 +149,9 @@ Full config: see `agent/config/AgentProperties.kt`
 
 - **All new features must have tests**. Every bug fix must include a regression test
 - **Run `./gradlew test` after every change**
+- **TDD by default**: Red -> Green -> Refactor
+- For bug fixes, first add a failing test that reproduces the bug, then fix
+- If no test is added, include an explicit reason in PR/commit message (docs-only, config-only, or non-behavioral change)
 - `AgentTestFixture` for agent tests: `mockCallResponse()`, `mockToolCallResponse()`, `mockFinalResponse()`, `TrackingTool`
 - `AgentResultAssertions`: `assertSuccess()`, `assertFailure()`, `assertErrorCode()`, `assertErrorContains()`
 - IMPORTANT: ALL assertions MUST have failure messages — no bare `assertTrue(x)`
@@ -152,6 +161,35 @@ Full config: see `agent/config/AgentProperties.kt`
 - Mock `requestSpec.options(any<ChatOptions>())` explicitly for streaming tests
 
 For test patterns and examples: @docs/en/implementation-guide.md
+
+## Recommended Development Methodology (Spring + Kotlin)
+
+- **Workflow**: TDD by default (`Red -> Green -> Refactor`) for behavior changes.
+- **Test strategy**:
+  - Unit tests for pure domain/tool logic
+  - Slice tests (`@WebFluxTest`, `@DataJdbcTest`, etc.) for boundaries
+  - Integration tests for infrastructure paths with Testcontainers + `@ServiceConnection`
+- **Dependency injection**: Prefer constructor injection for required dependencies (immutability + null safety).
+- **Transactions**:
+  - Put `@Transactional` on concrete service methods/classes
+  - Prefer `public` transactional entry points
+  - Avoid self-invocation of transactional methods (proxy interception limitation)
+- **Configuration**: Prefer typed `@ConfigurationProperties` for structured settings; keep env-based overrides.
+- **Observability-first**: Every production feature should be diagnosable via logs/metrics/traces; add custom observations for expensive or failure-prone paths.
+- **Definition of Done (DoD)**:
+  - tests pass
+  - docs/config updated
+  - migration/compatibility impact checked
+  - key failure mode observable
+
+### Official References
+
+- Spring Boot - DI: https://docs.spring.io/spring-boot/reference/using/spring-beans-and-dependency-injection.html
+- Spring Boot - Testing/Testcontainers: https://docs.spring.io/spring-boot/reference/testing/testcontainers.html
+- Spring Framework - `@Transactional`: https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html
+- Spring Boot - Observability: https://docs.spring.io/spring-boot/reference/actuator/observability.html
+- Kotlin Coding Conventions: https://kotlinlang.org/docs/coding-conventions.html
+- JUnit 5 User Guide: https://docs.junit.org/5.11.4/user-guide/
 
 ## Implementation Guide
 
@@ -192,6 +230,10 @@ STDIO: { "name": "fs-server", "transportType": "STDIO", "config": { "command": "
 - **Spring AI mock chain**: Explicitly mock `.options(any<ChatOptions>())` returns requestSpec
 - **Spring AI providers**: NEVER declare provider keys with empty defaults in `application.yml`. Use env vars only: `GEMINI_API_KEY`, `SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`
 - **MCP SDK**: Version 0.17.2. SSE only (`HttpClientSseClientTransport`), no streamable HTTP
+- **Approval security**: Approve/Reject endpoints MUST enforce ownership or admin authorization
+- **HITL argument rewrite**: If approval returns `modifiedArguments`, tool execution MUST use modified arguments
+- **Streaming policy parity**: Output guard and response filter policy must match non-streaming behavior, or exception must be explicitly documented
+- **MCP update consistency**: MCP server update path must synchronize runtime manager state before reconnect
 
 For code examples of anti-patterns: @docs/en/implementation-guide.md
 

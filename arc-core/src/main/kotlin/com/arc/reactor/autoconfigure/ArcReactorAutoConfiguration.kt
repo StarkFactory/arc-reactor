@@ -33,6 +33,10 @@ import com.arc.reactor.guard.impl.DefaultInjectionDetectionStage
 import com.arc.reactor.guard.impl.DefaultInputValidationStage
 import com.arc.reactor.guard.impl.DefaultRateLimitStage
 import com.arc.reactor.guard.impl.GuardPipeline
+import com.arc.reactor.guard.output.OutputGuardPipeline
+import com.arc.reactor.guard.output.OutputGuardStage
+import com.arc.reactor.guard.output.impl.PiiMaskingOutputGuard
+import com.arc.reactor.guard.output.impl.RegexPatternOutputGuard
 import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.impl.WebhookNotificationHook
 import com.arc.reactor.hook.impl.WebhookProperties
@@ -384,6 +388,41 @@ class ArcReactorAutoConfiguration {
     }
 
     /**
+     * Output Guard Configuration (opt-in)
+     *
+     * Post-execution response validation: PII masking, pattern blocking.
+     * Only active when `arc.reactor.output-guard.enabled=true`.
+     */
+    @Configuration
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.output-guard", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    class OutputGuardConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean(name = ["piiMaskingOutputGuard"])
+        @ConditionalOnProperty(
+            prefix = "arc.reactor.output-guard", name = ["pii-masking-enabled"],
+            havingValue = "true", matchIfMissing = true
+        )
+        fun piiMaskingOutputGuard(): OutputGuardStage = PiiMaskingOutputGuard()
+
+        @Bean
+        @ConditionalOnMissingBean(name = ["regexPatternOutputGuard"])
+        fun regexPatternOutputGuard(properties: AgentProperties): OutputGuardStage? {
+            val patterns = properties.outputGuard.customPatterns
+            if (patterns.isEmpty()) return null
+            return RegexPatternOutputGuard(patterns)
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun outputGuardPipeline(stages: List<OutputGuardStage>): OutputGuardPipeline =
+            OutputGuardPipeline(stages)
+    }
+
+    /**
      * RAG Configuration
      */
     @Configuration
@@ -646,7 +685,8 @@ class ArcReactorAutoConfiguration {
         responseFilterChain: ResponseFilterChain,
         circuitBreakerRegistryProvider: ObjectProvider<CircuitBreakerRegistry>,
         responseCacheProvider: ObjectProvider<ResponseCache>,
-        fallbackStrategyProvider: ObjectProvider<FallbackStrategy>
+        fallbackStrategyProvider: ObjectProvider<FallbackStrategy>,
+        outputGuardPipelineProvider: ObjectProvider<OutputGuardPipeline>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -669,6 +709,7 @@ class ArcReactorAutoConfiguration {
         circuitBreaker = circuitBreakerRegistryProvider.ifAvailable?.get("llm"),
         responseCache = responseCacheProvider.ifAvailable,
         cacheableTemperature = properties.cache.cacheableTemperature,
-        fallbackStrategy = fallbackStrategyProvider.ifAvailable
+        fallbackStrategy = fallbackStrategyProvider.ifAvailable,
+        outputGuardPipeline = outputGuardPipelineProvider.ifAvailable
     )
 }

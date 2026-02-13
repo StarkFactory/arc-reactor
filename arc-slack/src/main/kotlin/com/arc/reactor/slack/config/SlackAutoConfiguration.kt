@@ -1,7 +1,9 @@
 package com.arc.reactor.slack.config
 
 import com.arc.reactor.agent.AgentExecutor
+import com.arc.reactor.slack.handler.DefaultSlackCommandHandler
 import com.arc.reactor.slack.handler.DefaultSlackEventHandler
+import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.security.SlackSignatureVerifier
 import com.arc.reactor.slack.security.SlackSignatureWebFilter
@@ -64,6 +66,17 @@ class SlackAutoConfiguration {
         agentExecutor: AgentExecutor,
         messagingService: SlackMessagingService
     ): SlackEventHandler = DefaultSlackEventHandler(
+        agentExecutor = agentExecutor,
+        messagingService = messagingService
+    )
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(AgentExecutor::class)
+    fun slackCommandHandler(
+        agentExecutor: AgentExecutor,
+        messagingService: SlackMessagingService
+    ): SlackCommandHandler = DefaultSlackCommandHandler(
         agentExecutor = agentExecutor,
         messagingService = messagingService
     )

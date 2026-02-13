@@ -48,6 +48,29 @@ data class SlackEventCommand(
 )
 
 /**
+ * Internal command for slash command processing.
+ */
+data class SlackSlashCommand(
+    val command: String,
+    val text: String,
+    val userId: String,
+    val userName: String?,
+    val channelId: String,
+    val channelName: String?,
+    val responseUrl: String,
+    val triggerId: String?
+)
+
+/**
+ * Immediate acknowledgement body for slash command endpoint.
+ */
+data class SlackCommandAckResponse(
+    @param:JsonProperty("response_type")
+    val responseType: String = "ephemeral",
+    val text: String
+)
+
+/**
  * Slack Web API response.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
