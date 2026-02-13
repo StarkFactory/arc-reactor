@@ -18,9 +18,9 @@ import mu.KotlinLogging
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -41,27 +41,62 @@ class SlackCommandController(
     private val metricsRecorder: SlackMetricsRecorder,
     properties: SlackProperties
 ) {
+    data class SlackSlashCommandForm(
+        val command: String? = null,
+        val text: String? = null,
+        val user_id: String? = null,
+        val user_name: String? = null,
+        val channel_id: String? = null,
+        val channel_name: String? = null,
+        val response_url: String? = null,
+        val trigger_id: String? = null
+    )
+
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val semaphore = Semaphore(properties.maxConcurrentRequests)
     private val requestTimeoutMs = properties.requestTimeoutMs
 
     @PostMapping("/commands", consumes = [MediaType.APPLICATION_FORM_URLENCODED_VALUE])
     @Operation(summary = "Handle Slack slash command")
+    fun handleSlashCommandEndpoint(
+        @ModelAttribute form: SlackSlashCommandForm
+    ): ResponseEntity<SlackCommandAckResponse> = handleSlashCommand(
+        command = form.command,
+        text = form.text,
+        userId = form.user_id,
+        userName = form.user_name,
+        channelId = form.channel_id,
+        channelName = form.channel_name,
+        responseUrl = form.response_url,
+        triggerId = form.trigger_id
+    )
+
     fun handleSlashCommand(
-        @RequestParam("command") command: String,
-        @RequestParam("text", required = false, defaultValue = "") text: String,
-        @RequestParam("user_id") userId: String,
-        @RequestParam("user_name", required = false) userName: String?,
-        @RequestParam("channel_id") channelId: String,
-        @RequestParam("channel_name", required = false) channelName: String?,
-        @RequestParam("response_url") responseUrl: String,
-        @RequestParam("trigger_id", required = false) triggerId: String?
+        command: String?,
+        text: String?,
+        userId: String?,
+        userName: String?,
+        channelId: String?,
+        channelName: String?,
+        responseUrl: String?,
+        triggerId: String?
     ): ResponseEntity<SlackCommandAckResponse> {
+        if (command.isNullOrBlank() || userId.isNullOrBlank() ||
+            channelId.isNullOrBlank() || responseUrl.isNullOrBlank()
+        ) {
+            return ResponseEntity.badRequest().body(
+                SlackCommandAckResponse(
+                    responseType = "ephemeral",
+                    text = ":warning: Invalid slash command payload."
+                )
+            )
+        }
+
         metricsRecorder.recordInbound(entrypoint = "slash_command")
 
         val slashCommand = SlackSlashCommand(
             command = command,
-            text = text,
+            text = text.orEmpty(),
             userId = userId,
             userName = userName,
             channelId = channelId,
