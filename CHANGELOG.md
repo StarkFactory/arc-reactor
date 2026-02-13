@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-02-14
+
+### Added
+- **Intent Classification**: Rule-based + LLM + composite classifiers, intent profiles (model/systemPrompt/maxToolCalls/allowedTools/responseFormat), and CRUD API (`/api/intents`).
+- **Intent Persistence**: `intent_definitions` Flyway migration and `JdbcIntentRegistry`.
+- **Output Guard Policy Engine v1**: Admin-managed dynamic regex rules (priority/dry-run/audit) and integration test coverage.
+
+### Changed
+- Intent `allowedTools` is now enforced at tool execution time (disallowed tool calls are blocked and returned as an error tool response).
+- `ChatController` response `model` reflects the model actually used after applying an intent profile override.
+
+### Fixed
+- `JdbcIntentRegistry` SQL bug that produced invalid `ORDER BY ... WHERE ...` queries.
+
 ## [2.1.1] - 2026-02-09
 
 ### Changed
