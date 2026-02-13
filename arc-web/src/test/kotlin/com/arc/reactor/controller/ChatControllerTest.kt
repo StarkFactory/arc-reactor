@@ -82,7 +82,7 @@ class ChatControllerTest {
             assertEquals("gpt-4o", captured.model) { "model should be forwarded" }
             assertEquals("custom prompt", captured.systemPrompt) { "custom systemPrompt should be used" }
             assertEquals("user-123", captured.userId) { "userId should be forwarded" }
-            assertEquals(mapOf("key" to "value"), captured.metadata) { "metadata should be forwarded" }
+            assertEquals(mapOf("key" to "value", "channel" to "web"), captured.metadata) { "metadata should be forwarded" }
             assertEquals(ResponseFormat.JSON, captured.responseFormat) { "responseFormat should be forwarded" }
             assertEquals("""{"type":"object"}""", captured.responseSchema) { "responseSchema should be forwarded" }
         }
@@ -106,8 +106,8 @@ class ChatControllerTest {
 
             controller.chat(ChatRequest(message = "hello"), exchange)
 
-            assertEquals(emptyMap<String, Any>(), commandSlot.captured.metadata) {
-                "Default metadata should be empty map"
+            assertEquals(mapOf("channel" to "web"), commandSlot.captured.metadata) {
+                "Default metadata should contain channel=web"
             }
         }
 
@@ -286,8 +286,8 @@ class ChatControllerTest {
             assertEquals(ResponseFormat.TEXT, captured.responseFormat) {
                 "Default response format should be TEXT"
             }
-            assertEquals(emptyMap<String, Any>(), captured.metadata) {
-                "Default metadata should be empty"
+            assertEquals(mapOf("channel" to "web"), captured.metadata) {
+                "Default metadata should contain channel=web"
             }
         }
     }

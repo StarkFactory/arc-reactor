@@ -115,6 +115,7 @@ class DefaultSlackCommandHandler(
                 metadata = mapOf(
                     "sessionId" to sessionId,
                     "source" to "slack",
+                    "channel" to "slack",
                     "entrypoint" to "slash",
                     "channelId" to command.channelId
                 )

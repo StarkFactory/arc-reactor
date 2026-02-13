@@ -179,6 +179,7 @@ class SpringAiAgentExecutor(
             runId = runId,
             userId = command.userId ?: "anonymous",
             userPrompt = command.userPrompt,
+            channel = command.metadata["channel"]?.toString(),
             toolsUsed = toolsUsed
         )
 
@@ -478,6 +479,7 @@ class SpringAiAgentExecutor(
             runId = runId,
             userId = command.userId ?: "anonymous",
             userPrompt = command.userPrompt,
+            channel = command.metadata["channel"]?.toString(),
             toolsUsed = toolsUsed
         )
 

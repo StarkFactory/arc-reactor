@@ -48,6 +48,9 @@ data class AgentProperties(
     /** Human-in-the-Loop approval configuration */
     val approval: ApprovalProperties = ApprovalProperties(),
 
+    /** Tool policy configuration (e.g., read-only vs write tools) */
+    val toolPolicy: ToolPolicyProperties = ToolPolicyProperties(),
+
     /** Multimodal (file upload / media URL) configuration */
     val multimodal: MultimodalProperties = MultimodalProperties(),
 
@@ -335,6 +338,41 @@ data class ApprovalProperties(
 
     /** Tool names that require approval (empty = use custom ToolApprovalPolicy) */
     val toolNames: Set<String> = emptySet()
+)
+
+/**
+ * Tool policy configuration.
+ *
+ * Primarily used to safely handle "write" (side-effecting) tools in enterprise environments.
+ * Typical strategy:
+ * - Web: require HITL approval for write tools
+ * - Slack: deny write tools (chat-first UX + risk)
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     tool-policy:
+ *       enabled: true
+ *       write-tool-names:
+ *         - jira_create_issue
+ *         - confluence_update_page
+ *       deny-write-channels:
+ *         - slack
+ * ```
+ */
+data class ToolPolicyProperties(
+    /** Enable tool policy enforcement (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Tool names considered "write" (side-effecting). */
+    val writeToolNames: Set<String> = emptySet(),
+
+    /** Channels where write tools are denied (fail-closed). */
+    val denyWriteChannels: Set<String> = setOf("slack"),
+
+    /** Error message returned when a tool call is denied by policy. */
+    val denyWriteMessage: String = "Error: This tool is not allowed in this channel"
 )
 
 /**
