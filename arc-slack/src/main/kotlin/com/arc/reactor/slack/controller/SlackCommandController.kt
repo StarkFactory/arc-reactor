@@ -2,6 +2,7 @@ package com.arc.reactor.slack.controller
 
 import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.handler.SlackCommandHandler
+import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackCommandAckResponse
 import com.arc.reactor.slack.model.SlackSlashCommand
 import com.arc.reactor.slack.service.SlackMessagingService
@@ -37,6 +38,7 @@ private val logger = KotlinLogging.logger {}
 class SlackCommandController(
     private val commandHandler: SlackCommandHandler,
     private val messagingService: SlackMessagingService,
+    private val metricsRecorder: SlackMetricsRecorder,
     properties: SlackProperties
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -55,6 +57,8 @@ class SlackCommandController(
         @RequestParam("response_url") responseUrl: String,
         @RequestParam("trigger_id", required = false) triggerId: String?
     ): ResponseEntity<SlackCommandAckResponse> {
+        metricsRecorder.recordInbound(entrypoint = "slash_command")
+
         val slashCommand = SlackSlashCommand(
             command = command,
             text = text,
@@ -81,6 +85,10 @@ class SlackCommandController(
             val acquired = acquirePermitWithTimeout()
             if (!acquired) {
                 logger.warn { "Slack slash command dropped due to queue timeout: channel=${command.channelId}" }
+                metricsRecorder.recordDropped(
+                    entrypoint = "slash_command",
+                    reason = "queue_timeout"
+                )
                 messagingService.sendResponseUrl(
                     responseUrl = command.responseUrl,
                     text = ":hourglass: The system is busy. Please try again shortly."
@@ -88,12 +96,25 @@ class SlackCommandController(
                 return@launch
             }
 
+            val started = System.currentTimeMillis()
             try {
                 commandHandler.handleSlashCommand(command)
+                metricsRecorder.recordHandler(
+                    entrypoint = "slash_command",
+                    eventType = command.command,
+                    success = true,
+                    durationMs = System.currentTimeMillis() - started
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 logger.error(e) { "Failed to handle slash command for channel=${command.channelId}" }
+                metricsRecorder.recordHandler(
+                    entrypoint = "slash_command",
+                    eventType = command.command,
+                    success = false,
+                    durationMs = System.currentTimeMillis() - started
+                )
             } finally {
                 semaphore.release()
             }

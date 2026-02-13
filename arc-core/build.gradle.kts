@@ -45,6 +45,7 @@ dependencies {
 
     // Optional: Micrometer (for metrics/observability)
     compileOnly("io.micrometer:micrometer-core")
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 
     // LLM Providers
     implementation("org.springframework.ai:spring-ai-starter-model-google-genai")

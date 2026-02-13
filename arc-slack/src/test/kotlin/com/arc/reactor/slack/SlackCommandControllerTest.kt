@@ -3,6 +3,7 @@ package com.arc.reactor.slack
 import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.controller.SlackCommandController
 import com.arc.reactor.slack.handler.SlackCommandHandler
+import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackSlashCommand
 import com.arc.reactor.slack.service.SlackMessagingService
 import io.kotest.matchers.shouldBe
@@ -18,8 +19,9 @@ class SlackCommandControllerTest {
 
     private val commandHandler = mockk<SlackCommandHandler>(relaxed = true)
     private val messagingService = mockk<SlackMessagingService>(relaxed = true)
+    private val metricsRecorder = mockk<SlackMetricsRecorder>(relaxed = true)
     private val properties = SlackProperties(enabled = true, maxConcurrentRequests = 5)
-    private val controller = SlackCommandController(commandHandler, messagingService, properties)
+    private val controller = SlackCommandController(commandHandler, messagingService, metricsRecorder, properties)
 
     @Test
     fun `returns 200 immediately for slash command`() = runTest {
@@ -72,6 +74,7 @@ class SlackCommandControllerTest {
         val timeoutController = SlackCommandController(
             commandHandler = slowHandler,
             messagingService = timeoutMessagingService,
+            metricsRecorder = metricsRecorder,
             properties = SlackProperties(
                 enabled = true,
                 maxConcurrentRequests = 1,

@@ -3,6 +3,7 @@ package com.arc.reactor.slack
 import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.controller.SlackEventController
 import com.arc.reactor.slack.handler.SlackEventHandler
+import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackChallengeResponse
 import com.arc.reactor.slack.model.SlackEventCommand
 import com.arc.reactor.slack.service.SlackMessagingService
@@ -23,8 +24,9 @@ class SlackEventControllerTest {
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
     private val eventHandler = mockk<SlackEventHandler>(relaxed = true)
     private val messagingService = mockk<SlackMessagingService>(relaxed = true)
+    private val metricsRecorder = mockk<SlackMetricsRecorder>(relaxed = true)
     private val properties = SlackProperties(enabled = true, maxConcurrentRequests = 5)
-    private val controller = SlackEventController(objectMapper, eventHandler, messagingService, properties)
+    private val controller = SlackEventController(objectMapper, eventHandler, messagingService, metricsRecorder, properties)
 
     @Nested
     inner class UrlVerification {

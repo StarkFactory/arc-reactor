@@ -2,6 +2,7 @@ package com.arc.reactor.slack.controller
 
 import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.handler.SlackEventHandler
+import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackChallengeResponse
 import com.arc.reactor.slack.model.SlackEventCommand
 import com.arc.reactor.slack.service.SlackMessagingService
@@ -45,6 +46,7 @@ class SlackEventController(
     private val objectMapper: ObjectMapper,
     private val eventHandler: SlackEventHandler,
     private val messagingService: SlackMessagingService,
+    private val metricsRecorder: SlackMetricsRecorder,
     properties: SlackProperties
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -74,6 +76,7 @@ class SlackEventController(
 
         val event = json.path("event")
         val eventType = event.path("type").asText()
+        metricsRecorder.recordInbound(entrypoint = "events_api", eventType = eventType)
         val eventId = json.path("event_id").asText().takeIf { it.isNotBlank() }
 
         if (retryNum != null || retryReason != null) {
@@ -82,6 +85,7 @@ class SlackEventController(
 
         if (eventId != null && deduplicator.isDuplicateAndMark(eventId)) {
             logger.info { "Duplicate Slack event ignored: eventId=$eventId, type=$eventType" }
+            metricsRecorder.recordDuplicate(eventType)
             return ResponseEntity.ok().build()
         }
 
@@ -114,10 +118,16 @@ class SlackEventController(
             val acquired = acquirePermitWithTimeout()
             if (!acquired) {
                 logger.warn { "Slack event dropped due to queue timeout: type=$eventType, channel=${command.channelId}" }
+                metricsRecorder.recordDropped(
+                    entrypoint = "events_api",
+                    reason = "queue_timeout",
+                    eventType = eventType
+                )
                 notifyBusyIfInteractive(command)
                 return@launch
             }
 
+            val started = System.currentTimeMillis()
             try {
                 when (eventType) {
                     "app_mention" -> eventHandler.handleAppMention(command)
@@ -128,10 +138,22 @@ class SlackEventController(
                         }
                     }
                 }
+                metricsRecorder.recordHandler(
+                    entrypoint = "events_api",
+                    eventType = eventType,
+                    success = true,
+                    durationMs = System.currentTimeMillis() - started
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 logger.error(e) { "Failed to handle Slack event: type=$eventType, channel=${command.channelId}" }
+                metricsRecorder.recordHandler(
+                    entrypoint = "events_api",
+                    eventType = eventType,
+                    success = false,
+                    durationMs = System.currentTimeMillis() - started
+                )
             } finally {
                 semaphore.release()
             }

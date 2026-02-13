@@ -501,6 +501,12 @@ data class OutputGuardProperties(
     /** Enable built-in PII masking stage. */
     val piiMaskingEnabled: Boolean = true,
 
+    /** Enable dynamic runtime-managed regex rules (admin-managed). */
+    val dynamicRulesEnabled: Boolean = true,
+
+    /** Refresh interval for dynamic rules cache (milliseconds). */
+    val dynamicRulesRefreshMs: Long = 3000,
+
     /** Custom regex patterns for blocking or masking. */
     val customPatterns: List<OutputBlockPattern> = emptyList()
 )

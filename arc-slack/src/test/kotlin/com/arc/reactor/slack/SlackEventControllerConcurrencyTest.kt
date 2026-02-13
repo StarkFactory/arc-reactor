@@ -3,6 +3,7 @@ package com.arc.reactor.slack
 import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.controller.SlackEventController
 import com.arc.reactor.slack.handler.SlackEventHandler
+import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackEventCommand
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -22,6 +23,7 @@ class SlackEventControllerConcurrencyTest {
 
     private val objectMapper = jacksonObjectMapper()
     private val messagingService = mockk<SlackMessagingService>(relaxed = true)
+    private val metricsRecorder = mockk<SlackMetricsRecorder>(relaxed = true)
 
     private fun mentionPayload(index: Int): String = """
         {
@@ -57,7 +59,7 @@ class SlackEventControllerConcurrencyTest {
             }
 
             val properties = SlackProperties(enabled = true, maxConcurrentRequests = maxConcurrentLimit)
-            val controller = SlackEventController(objectMapper, handler, messagingService, properties)
+            val controller = SlackEventController(objectMapper, handler, messagingService, metricsRecorder, properties)
 
             runBlocking {
                 repeat(totalEvents) { i -> controller.handleEvent(mentionPayload(i)) }
@@ -81,7 +83,7 @@ class SlackEventControllerConcurrencyTest {
             }
 
             val properties = SlackProperties(enabled = true, maxConcurrentRequests = 3)
-            val controller = SlackEventController(objectMapper, handler, messagingService, properties)
+            val controller = SlackEventController(objectMapper, handler, messagingService, metricsRecorder, properties)
 
             runBlocking {
                 repeat(totalEvents) { i -> controller.handleEvent(mentionPayload(i)) }
@@ -108,7 +110,7 @@ class SlackEventControllerConcurrencyTest {
             }
 
             val properties = SlackProperties(enabled = true, maxConcurrentRequests = totalEvents)
-            val controller = SlackEventController(objectMapper, handler, messagingService, properties)
+            val controller = SlackEventController(objectMapper, handler, messagingService, metricsRecorder, properties)
 
             runBlocking {
                 repeat(totalEvents) { i -> controller.handleEvent(mentionPayload(i)) }
