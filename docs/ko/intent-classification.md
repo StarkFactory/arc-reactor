@@ -133,6 +133,12 @@ DELETE /api/intents/{name}
 
 ---
 
+## 도구 허용 목록 (`allowedTools`)
+
+`profile.allowedTools`가 설정되어 있으면, 목록에 없는 tool call은 실행 단계에서 차단되고 LLM에는 에러 tool response로 반환됩니다.
+
+---
+
 ## 주요 파일
 
 | 파일 | 역할 |

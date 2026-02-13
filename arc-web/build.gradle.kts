@@ -35,6 +35,7 @@ dependencies {
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-jdbc")
     testImplementation("io.projectreactor:reactor-test")
     testImplementation("io.mockk:mockk:1.14.9")
     testImplementation("io.kotest:kotest-assertions-core:5.9.1")
@@ -42,6 +43,7 @@ dependencies {
     testImplementation("io.jsonwebtoken:jjwt-api:0.13.0")
     testRuntimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
     testRuntimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
+    testRuntimeOnly("com.h2database:h2")
     testImplementation("org.springframework.security:spring-security-crypto")
     testImplementation("org.springframework.ai:spring-ai-vector-store")
 }

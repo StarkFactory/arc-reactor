@@ -40,12 +40,12 @@ class JdbcIntentRegistry(
     }
 
     override fun listEnabled(): List<IntentDefinition> {
-        return jdbcTemplate.query("$SELECT_ALL WHERE enabled = TRUE", ROW_MAPPER)
+        return jdbcTemplate.query("$BASE_SELECT WHERE enabled = TRUE ORDER BY name ASC", ROW_MAPPER)
     }
 
     override fun get(intentName: String): IntentDefinition? {
         val results = jdbcTemplate.query(
-            "$SELECT_ALL WHERE name = ?",
+            "$BASE_SELECT WHERE name = ?",
             ROW_MAPPER,
             intentName
         )
@@ -94,9 +94,11 @@ class JdbcIntentRegistry(
     }
 
     companion object {
-        private const val SELECT_ALL =
+        private const val BASE_SELECT =
             "SELECT name, description, examples, keywords, profile, enabled, created_at, updated_at " +
-                "FROM intent_definitions ORDER BY name ASC"
+                "FROM intent_definitions"
+
+        private const val SELECT_ALL = "$BASE_SELECT ORDER BY name ASC"
 
         private val objectMapper = jacksonObjectMapper()
 

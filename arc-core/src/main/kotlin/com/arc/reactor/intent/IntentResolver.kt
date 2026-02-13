@@ -90,18 +90,23 @@ class IntentResolver(
      */
     fun applyProfile(command: AgentCommand, resolved: ResolvedIntent): AgentCommand {
         val profile = resolved.profile
+        val intentMetadata = mutableMapOf<String, Any>(
+            METADATA_INTENT_NAME to resolved.intentName,
+            METADATA_INTENT_CONFIDENCE to resolved.result.primary!!.confidence,
+            METADATA_INTENT_CLASSIFIED_BY to resolved.result.classifiedBy,
+            METADATA_INTENT_TOKEN_COST to resolved.result.tokenCost
+        )
+        profile.allowedTools?.let { tools ->
+            // Stored as a stable list for easier logging/serialization.
+            intentMetadata[METADATA_INTENT_ALLOWED_TOOLS] = tools.toList().sorted()
+        }
         return command.copy(
             systemPrompt = profile.systemPrompt ?: command.systemPrompt,
             model = profile.model ?: command.model,
             temperature = profile.temperature ?: command.temperature,
             maxToolCalls = profile.maxToolCalls ?: command.maxToolCalls,
             responseFormat = profile.responseFormat ?: command.responseFormat,
-            metadata = command.metadata + mapOf(
-                METADATA_INTENT_NAME to resolved.intentName,
-                METADATA_INTENT_CONFIDENCE to resolved.result.primary!!.confidence,
-                METADATA_INTENT_CLASSIFIED_BY to resolved.result.classifiedBy,
-                METADATA_INTENT_TOKEN_COST to resolved.result.tokenCost
-            )
+            metadata = command.metadata + intentMetadata
         )
     }
 
@@ -131,6 +136,7 @@ class IntentResolver(
         const val METADATA_INTENT_CONFIDENCE = "intentConfidence"
         const val METADATA_INTENT_CLASSIFIED_BY = "intentClassifiedBy"
         const val METADATA_INTENT_TOKEN_COST = "intentTokenCost"
+        const val METADATA_INTENT_ALLOWED_TOOLS = "intentAllowedTools"
     }
 }
 

@@ -98,7 +98,7 @@ class ChatController(
         return ChatResponse(
             content = result.content,
             success = result.success,
-            model = request.model,
+            model = command.model,
             toolsUsed = result.toolsUsed,
             errorMessage = result.errorMessage
         )

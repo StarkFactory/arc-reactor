@@ -133,6 +133,12 @@ DELETE /api/intents/{name}
 
 ---
 
+## Tool Allowlist (`allowedTools`)
+
+If `profile.allowedTools` is set, tool calls not included in the list are blocked at execution time and returned as an error tool response.
+
+---
+
 ## Key Files
 
 | File | Role |

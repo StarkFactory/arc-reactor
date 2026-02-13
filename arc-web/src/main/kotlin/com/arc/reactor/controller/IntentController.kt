@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -36,7 +36,7 @@ import org.springframework.web.server.ServerWebExchange
 @Tag(name = "Intents", description = "Intent definition management")
 @RestController
 @RequestMapping("/api/intents")
-@ConditionalOnBean(IntentRegistry::class)
+@ConditionalOnProperty(prefix = "arc.reactor.intent", name = ["enabled"], havingValue = "true")
 class IntentController(
     private val intentRegistry: IntentRegistry
 ) {
