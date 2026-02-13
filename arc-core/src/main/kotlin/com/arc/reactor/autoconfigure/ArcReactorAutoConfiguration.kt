@@ -49,6 +49,7 @@ import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
 import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.impl.WebhookNotificationHook
 import com.arc.reactor.hook.impl.WebhookProperties
+import com.arc.reactor.hook.impl.WriteToolBlockHook
 import com.arc.reactor.hook.AfterToolCallHook
 import com.arc.reactor.hook.BeforeAgentStartHook
 import com.arc.reactor.hook.BeforeToolCallHook
@@ -171,7 +172,7 @@ class ArcReactorAutoConfiguration {
         havingValue = "true", matchIfMissing = false
     )
     fun toolApprovalPolicy(properties: AgentProperties): ToolApprovalPolicy {
-        val toolNames = properties.approval.toolNames
+        val toolNames = (properties.approval.toolNames + properties.toolPolicy.writeToolNames)
         return if (toolNames.isNotEmpty()) {
             ToolNameApprovalPolicy(toolNames)
         } else {
@@ -396,6 +397,18 @@ class ArcReactorAutoConfiguration {
             )
         )
     }
+
+    /**
+     * Write Tool Block Hook (only when arc.reactor.tool-policy.enabled=true)
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = ["writeToolBlockHook"])
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.tool-policy", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun writeToolBlockHook(properties: AgentProperties): WriteToolBlockHook =
+        WriteToolBlockHook(properties.toolPolicy)
 
     /**
      * Guard Configuration

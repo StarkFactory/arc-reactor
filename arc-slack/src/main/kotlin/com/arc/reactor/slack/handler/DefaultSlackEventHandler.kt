@@ -58,7 +58,11 @@ class DefaultSlackEventHandler(
                     systemPrompt = SlackSystemPromptFactory.build(defaultProvider),
                     userPrompt = userPrompt,
                     userId = userId,
-                    metadata = mapOf("sessionId" to sessionId, "source" to "slack")
+                    metadata = mapOf(
+                        "sessionId" to sessionId,
+                        "source" to "slack",
+                        "channel" to "slack"
+                    )
                 )
             )
 

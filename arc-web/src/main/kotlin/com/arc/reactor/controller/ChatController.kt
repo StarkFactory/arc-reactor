@@ -258,10 +258,11 @@ class ChatController(
      */
     private fun resolveMetadata(request: ChatRequest): Map<String, Any> {
         val base = request.metadata ?: emptyMap()
-        if (request.promptTemplateId == null || promptTemplateStore == null) return base
+        val withChannel = if (base.containsKey("channel")) base else (base + mapOf("channel" to "web"))
+        if (request.promptTemplateId == null || promptTemplateStore == null) return withChannel
 
-        val activeVersion = promptTemplateStore.getActiveVersion(request.promptTemplateId) ?: return base
-        return base + mapOf(
+        val activeVersion = promptTemplateStore.getActiveVersion(request.promptTemplateId) ?: return withChannel
+        return withChannel + mapOf(
             "promptTemplateId" to request.promptTemplateId,
             "promptVersionId" to activeVersion.id,
             "promptVersion" to activeVersion.version
