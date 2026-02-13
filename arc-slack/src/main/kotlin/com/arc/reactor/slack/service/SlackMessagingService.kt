@@ -5,6 +5,7 @@ import kotlinx.coroutines.delay
 import mu.KotlinLogging
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.awaitBody
+import org.springframework.web.reactive.function.client.awaitBodilessEntity
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -24,7 +25,8 @@ class SlackMessagingService(
         .baseUrl("https://slack.com/api")
         .defaultHeader("Authorization", "Bearer $botToken")
         .defaultHeader("Content-Type", "application/json; charset=utf-8")
-        .build()
+        .build(),
+    private val responseWebClient: WebClient = WebClient.builder().build()
 ) {
     private val lastRequestTimeByChannel = ConcurrentHashMap<String, AtomicLong>()
 
@@ -67,6 +69,36 @@ class SlackMessagingService(
         } catch (e: Exception) {
             logger.error(e) { "Failed to add reaction $emoji to channel=$channelId" }
             SlackApiResult(ok = false, error = e.message ?: "Unknown error")
+        }
+    }
+
+    /**
+     * Sends an asynchronous response to Slack via response_url (slash command callback).
+     *
+     * @return true if HTTP request succeeds, false otherwise.
+     */
+    suspend fun sendResponseUrl(
+        responseUrl: String,
+        text: String,
+        responseType: String = "ephemeral"
+    ): Boolean {
+        if (responseUrl.isBlank()) return false
+
+        val body = mapOf(
+            "response_type" to responseType,
+            "text" to text
+        )
+
+        return try {
+            responseWebClient.post()
+                .uri(responseUrl)
+                .bodyValue(body)
+                .retrieve()
+                .awaitBodilessEntity()
+            true
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to send response_url callback" }
+            false
         }
     }
 

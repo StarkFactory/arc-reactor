@@ -30,7 +30,8 @@ class SlackMessagingServiceTest {
             .defaultHeader("Content-Type", "application/json; charset=utf-8")
             .build()
 
-        service = SlackMessagingService("test-token", webClient)
+        val responseWebClient = WebClient.builder().build()
+        service = SlackMessagingService("test-token", webClient, responseWebClient)
     }
 
     @AfterEach
@@ -112,6 +113,29 @@ class SlackMessagingServiceTest {
             request.path shouldBe "/reactions.add"
             val body = objectMapper.readTree(request.body.readUtf8())
             body.path("name").asText() shouldBe "thumbsup"
+        }
+    }
+
+    @Nested
+    inner class ResponseUrl {
+
+        @Test
+        fun `sends callback to response_url successfully`() = runTest {
+            mockServer.enqueue(MockResponse().setResponseCode(200))
+
+            val ok = service.sendResponseUrl(
+                responseUrl = mockServer.url("/response").toString(),
+                text = "Done",
+                responseType = "ephemeral"
+            )
+
+            ok shouldBe true
+
+            val request = mockServer.takeRequest()
+            request.path shouldBe "/response"
+            val body = objectMapper.readTree(request.body.readUtf8())
+            body.path("response_type").asText() shouldBe "ephemeral"
+            body.path("text").asText() shouldBe "Done"
         }
     }
 }
