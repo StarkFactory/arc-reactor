@@ -541,6 +541,7 @@ class SpringAiAgentExecutor(
 
                     val maxToolCallLimit = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
                     var totalToolCalls = 0
+                    val allowedTools = resolveAllowedTools(command)
 
                     // 5. Streaming ReAct Loop: Stream → Detect Tool Calls → Execute → Re-Stream
                     while (true) {
@@ -596,7 +597,7 @@ class SpringAiAgentExecutor(
                         val totalToolCallsCounter = AtomicInteger(totalToolCalls)
                         val toolResponses = executeToolCallsInParallel(
                             pendingToolCalls, activeTools, hookContext, toolsUsed,
-                            totalToolCallsCounter, maxToolCallLimit
+                            totalToolCallsCounter, maxToolCallLimit, allowedTools
                         )
                         totalToolCalls = totalToolCallsCounter.get()
 
@@ -1087,6 +1088,17 @@ class SpringAiAgentExecutor(
         return tools.filterIsInstance<ArcToolCallbackAdapter>().firstOrNull { it.arcCallback.name == toolName }
     }
 
+    private fun resolveAllowedTools(command: AgentCommand): Set<String>? {
+        val raw = command.metadata["intentAllowedTools"] ?: return null
+        val parsed = when (raw) {
+            is Collection<*> -> raw.filterIsInstance<String>().toSet()
+            is Array<*> -> raw.filterIsInstance<String>().toSet()
+            is String -> setOf(raw)
+            else -> null
+        }
+        return parsed
+    }
+
     /**
      * Execute multiple tool calls in parallel using coroutines.
      * Results are returned in the same order as the input tool calls.
@@ -1097,11 +1109,12 @@ class SpringAiAgentExecutor(
         hookContext: HookContext,
         toolsUsed: MutableList<String>,
         totalToolCallsCounter: AtomicInteger,
-        maxToolCalls: Int
+        maxToolCalls: Int,
+        allowedTools: Set<String>?
     ): List<ToolResponseMessage.ToolResponse> = coroutineScope {
         toolCalls.map { toolCall ->
             async {
-                executeSingleToolCall(toolCall, tools, hookContext, toolsUsed, totalToolCallsCounter, maxToolCalls)
+                executeSingleToolCall(toolCall, tools, hookContext, toolsUsed, totalToolCallsCounter, maxToolCalls, allowedTools)
             }
         }.awaitAll()
     }
@@ -1115,7 +1128,8 @@ class SpringAiAgentExecutor(
         hookContext: HookContext,
         toolsUsed: MutableList<String>,
         totalToolCallsCounter: AtomicInteger,
-        maxToolCalls: Int
+        maxToolCalls: Int,
+        allowedTools: Set<String>?
     ): ToolResponseMessage.ToolResponse {
         val currentCount = totalToolCallsCounter.getAndIncrement()
         if (currentCount >= maxToolCalls) {
@@ -1127,6 +1141,13 @@ class SpringAiAgentExecutor(
         }
 
         val toolName = toolCall.name()
+        if (allowedTools != null && toolName !in allowedTools) {
+            val msg = "Error: Tool '$toolName' is not allowed for this request"
+            logger.info { "Tool call blocked by allowlist: tool=$toolName allowedTools=${allowedTools.size}" }
+            agentMetrics.recordToolCall(toolName, 0, false)
+            return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, msg)
+        }
+
         val toolCallContext = ToolCallContext(
             agentContext = hookContext, toolName = toolName,
             toolParams = parseJsonToMap(toolCall.arguments()), callIndex = currentCount
@@ -1255,6 +1276,7 @@ class SpringAiAgentExecutor(
         try {
             val maxToolCalls = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
             var totalToolCalls = 0
+            val allowedTools = resolveAllowedTools(command)
 
             // System prompt (with RAG context and response format)
             val systemPrompt = buildSystemPrompt(
@@ -1315,7 +1337,7 @@ class SpringAiAgentExecutor(
                 val totalToolCallsCounter = AtomicInteger(totalToolCalls)
                 val toolResponses = executeToolCallsInParallel(
                     pendingToolCalls, activeTools, hookContext, toolsUsed,
-                    totalToolCallsCounter, maxToolCalls
+                    totalToolCallsCounter, maxToolCalls, allowedTools
                 )
                 totalToolCalls = totalToolCallsCounter.get()
 
