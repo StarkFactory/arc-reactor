@@ -1,13 +1,17 @@
 package com.arc.reactor.slack.config
 
 import com.arc.reactor.agent.AgentExecutor
+import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.slack.handler.DefaultSlackCommandHandler
 import com.arc.reactor.slack.handler.DefaultSlackEventHandler
 import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.handler.SlackEventHandler
+import com.arc.reactor.slack.gateway.SlackSocketModeGateway
 import com.arc.reactor.slack.metrics.MicrometerSlackMetricsRecorder
 import com.arc.reactor.slack.metrics.NoOpSlackMetricsRecorder
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
+import com.arc.reactor.slack.processor.SlackCommandProcessor
+import com.arc.reactor.slack.processor.SlackEventProcessor
 import com.arc.reactor.slack.security.SlackSignatureVerifier
 import com.arc.reactor.slack.security.SlackSignatureWebFilter
 import com.arc.reactor.slack.service.SlackMessagingService
@@ -62,6 +66,10 @@ class SlackAutoConfiguration {
         prefix = "arc.reactor.slack", name = ["signature-verification-enabled"],
         havingValue = "true", matchIfMissing = true
     )
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.slack", name = ["transport-mode"],
+        havingValue = "events_api", matchIfMissing = true
+    )
     fun slackSignatureWebFilter(
         verifier: SlackSignatureVerifier,
         objectMapper: ObjectProvider<ObjectMapper>
@@ -88,10 +96,12 @@ class SlackAutoConfiguration {
     @ConditionalOnBean(AgentExecutor::class)
     fun slackEventHandler(
         agentExecutor: AgentExecutor,
-        messagingService: SlackMessagingService
+        messagingService: SlackMessagingService,
+        agentProperties: ObjectProvider<AgentProperties>
     ): SlackEventHandler = DefaultSlackEventHandler(
         agentExecutor = agentExecutor,
-        messagingService = messagingService
+        messagingService = messagingService,
+        defaultProvider = agentProperties.ifAvailable?.llm?.defaultProvider ?: "configured backend model"
     )
 
     @Bean
@@ -99,10 +109,66 @@ class SlackAutoConfiguration {
     @ConditionalOnBean(AgentExecutor::class)
     fun slackCommandHandler(
         agentExecutor: AgentExecutor,
-        messagingService: SlackMessagingService
+        messagingService: SlackMessagingService,
+        agentProperties: ObjectProvider<AgentProperties>
     ): SlackCommandHandler = DefaultSlackCommandHandler(
         agentExecutor = agentExecutor,
-        messagingService = messagingService
+        messagingService = messagingService,
+        defaultProvider = agentProperties.ifAvailable?.llm?.defaultProvider ?: "configured backend model"
+    )
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(SlackEventHandler::class)
+    fun slackEventProcessor(
+        eventHandler: SlackEventHandler,
+        messagingService: SlackMessagingService,
+        metricsRecorder: SlackMetricsRecorder,
+        properties: SlackProperties
+    ): SlackEventProcessor = SlackEventProcessor(
+        eventHandler = eventHandler,
+        messagingService = messagingService,
+        metricsRecorder = metricsRecorder,
+        properties = properties
+    )
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(SlackCommandHandler::class)
+    fun slackCommandProcessor(
+        commandHandler: SlackCommandHandler,
+        messagingService: SlackMessagingService,
+        metricsRecorder: SlackMetricsRecorder,
+        properties: SlackProperties
+    ): SlackCommandProcessor = SlackCommandProcessor(
+        commandHandler = commandHandler,
+        messagingService = messagingService,
+        metricsRecorder = metricsRecorder,
+        properties = properties
+    )
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(value = [SlackEventProcessor::class, SlackCommandProcessor::class])
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.slack",
+        name = ["transport-mode"],
+        havingValue = "socket_mode"
+    )
+    fun slackSocketModeGateway(
+        properties: SlackProperties,
+        objectMapper: ObjectMapper,
+        commandProcessor: SlackCommandProcessor,
+        eventProcessor: SlackEventProcessor,
+        messagingService: SlackMessagingService,
+        metricsRecorder: SlackMetricsRecorder
+    ): SlackSocketModeGateway = SlackSocketModeGateway(
+        properties = properties,
+        objectMapper = objectMapper,
+        commandProcessor = commandProcessor,
+        eventProcessor = eventProcessor,
+        messagingService = messagingService,
+        metricsRecorder = metricsRecorder
     )
 
 }

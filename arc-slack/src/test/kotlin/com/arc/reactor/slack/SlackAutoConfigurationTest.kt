@@ -118,5 +118,20 @@ class SlackAutoConfigurationTest {
                     context.containsBean("slackSignatureWebFilter").shouldBeFalse()
                 }
         }
+
+        @Test
+        fun `WebFilter is NOT created in socket mode even if signature verification is enabled`() {
+            contextRunner
+                .withPropertyValues(
+                    "arc.reactor.slack.enabled=true",
+                    "arc.reactor.slack.transport-mode=socket_mode",
+                    "arc.reactor.slack.signature-verification-enabled=true",
+                    "arc.reactor.slack.signing-secret=test-secret",
+                    "arc.reactor.slack.bot-token=xoxb-test"
+                )
+                .run { context ->
+                    context.containsBean("slackSignatureWebFilter").shouldBeFalse()
+                }
+        }
     }
 }

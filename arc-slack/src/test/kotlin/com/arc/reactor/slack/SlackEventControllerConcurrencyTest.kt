@@ -5,6 +5,7 @@ import com.arc.reactor.slack.controller.SlackEventController
 import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackEventCommand
+import com.arc.reactor.slack.processor.SlackEventProcessor
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
@@ -58,8 +59,15 @@ class SlackEventControllerConcurrencyTest {
                 latch.countDown()
             }
 
-            val properties = SlackProperties(enabled = true, maxConcurrentRequests = maxConcurrentLimit)
-            val controller = SlackEventController(objectMapper, handler, messagingService, metricsRecorder, properties)
+            val properties = SlackProperties(
+                enabled = true,
+                maxConcurrentRequests = maxConcurrentLimit,
+                failFastOnSaturation = false
+            )
+            val controller = SlackEventController(
+                objectMapper,
+                SlackEventProcessor(handler, messagingService, metricsRecorder, properties)
+            )
 
             runBlocking {
                 repeat(totalEvents) { i -> controller.handleEvent(mentionPayload(i)) }
@@ -82,8 +90,15 @@ class SlackEventControllerConcurrencyTest {
                 latch.countDown()
             }
 
-            val properties = SlackProperties(enabled = true, maxConcurrentRequests = 3)
-            val controller = SlackEventController(objectMapper, handler, messagingService, metricsRecorder, properties)
+            val properties = SlackProperties(
+                enabled = true,
+                maxConcurrentRequests = 3,
+                failFastOnSaturation = false
+            )
+            val controller = SlackEventController(
+                objectMapper,
+                SlackEventProcessor(handler, messagingService, metricsRecorder, properties)
+            )
 
             runBlocking {
                 repeat(totalEvents) { i -> controller.handleEvent(mentionPayload(i)) }
@@ -110,7 +125,10 @@ class SlackEventControllerConcurrencyTest {
             }
 
             val properties = SlackProperties(enabled = true, maxConcurrentRequests = totalEvents)
-            val controller = SlackEventController(objectMapper, handler, messagingService, metricsRecorder, properties)
+            val controller = SlackEventController(
+                objectMapper,
+                SlackEventProcessor(handler, messagingService, metricsRecorder, properties)
+            )
 
             runBlocking {
                 repeat(totalEvents) { i -> controller.handleEvent(mentionPayload(i)) }
@@ -118,6 +136,34 @@ class SlackEventControllerConcurrencyTest {
             }
 
             successCount.get() shouldBe (totalEvents - 1)
+        }
+
+        @Test
+        fun `drops overloaded events quickly in fail fast mode`() {
+            val processedCount = AtomicInteger(0)
+            val handler = mockk<SlackEventHandler>(relaxed = true)
+            coEvery { handler.handleAppMention(any()) } coAnswers {
+                processedCount.incrementAndGet()
+                delay(250)
+            }
+
+            val properties = SlackProperties(
+                enabled = true,
+                maxConcurrentRequests = 1,
+                failFastOnSaturation = true,
+                notifyOnDrop = false
+            )
+            val controller = SlackEventController(
+                objectMapper,
+                SlackEventProcessor(handler, messagingService, metricsRecorder, properties)
+            )
+
+            runBlocking {
+                repeat(6) { i -> controller.handleEvent(mentionPayload(i)) }
+                delay(500)
+            }
+
+            processedCount.get() shouldBe 1
         }
     }
 }

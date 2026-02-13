@@ -5,7 +5,7 @@ import com.arc.reactor.slack.controller.SlackEventController
 import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackChallengeResponse
-import com.arc.reactor.slack.model.SlackEventCommand
+import com.arc.reactor.slack.processor.SlackEventProcessor
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -26,7 +26,8 @@ class SlackEventControllerTest {
     private val messagingService = mockk<SlackMessagingService>(relaxed = true)
     private val metricsRecorder = mockk<SlackMetricsRecorder>(relaxed = true)
     private val properties = SlackProperties(enabled = true, maxConcurrentRequests = 5)
-    private val controller = SlackEventController(objectMapper, eventHandler, messagingService, metricsRecorder, properties)
+    private val eventProcessor = SlackEventProcessor(eventHandler, messagingService, metricsRecorder, properties)
+    private val controller = SlackEventController(objectMapper, eventProcessor)
 
     @Nested
     inner class UrlVerification {

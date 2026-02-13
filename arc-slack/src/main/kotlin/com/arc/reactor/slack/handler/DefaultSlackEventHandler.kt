@@ -19,7 +19,8 @@ private val logger = KotlinLogging.logger {}
  */
 class DefaultSlackEventHandler(
     private val agentExecutor: AgentExecutor,
-    private val messagingService: SlackMessagingService
+    private val messagingService: SlackMessagingService,
+    private val defaultProvider: String = "configured backend model"
 ) : SlackEventHandler {
 
     override suspend fun handleAppMention(command: SlackEventCommand) {
@@ -54,7 +55,7 @@ class DefaultSlackEventHandler(
 
             val result = agentExecutor.execute(
                 AgentCommand(
-                    systemPrompt = "You are a helpful AI assistant responding in a Slack channel. Keep responses concise and well-formatted for Slack.",
+                    systemPrompt = SlackSystemPromptFactory.build(defaultProvider),
                     userPrompt = userPrompt,
                     userId = userId,
                     metadata = mapOf("sessionId" to sessionId, "source" to "slack")
