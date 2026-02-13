@@ -38,8 +38,13 @@ import com.arc.reactor.guard.output.OutputGuardStage
 import com.arc.reactor.guard.output.impl.DynamicRuleOutputGuard
 import com.arc.reactor.guard.output.impl.PiiMaskingOutputGuard
 import com.arc.reactor.guard.output.impl.RegexPatternOutputGuard
+import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleAuditStore
 import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleStore
+import com.arc.reactor.guard.output.policy.JdbcOutputGuardRuleAuditStore
 import com.arc.reactor.guard.output.policy.JdbcOutputGuardRuleStore
+import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditStore
+import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
+import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
 import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
 import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.impl.WebhookNotificationHook
@@ -225,6 +230,12 @@ class ArcReactorAutoConfiguration {
         fun jdbcOutputGuardRuleStore(
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
         ): OutputGuardRuleStore = JdbcOutputGuardRuleStore(jdbcTemplate = jdbcTemplate)
+
+        @Bean
+        @Primary
+        fun jdbcOutputGuardRuleAuditStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
+        ): OutputGuardRuleAuditStore = JdbcOutputGuardRuleAuditStore(jdbcTemplate = jdbcTemplate)
     }
 
     /**
@@ -296,6 +307,18 @@ class ArcReactorAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun outputGuardRuleStore(): OutputGuardRuleStore = InMemoryOutputGuardRuleStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun outputGuardRuleAuditStore(): OutputGuardRuleAuditStore = InMemoryOutputGuardRuleAuditStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun outputGuardRuleInvalidationBus(): OutputGuardRuleInvalidationBus = OutputGuardRuleInvalidationBus()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun outputGuardRuleEvaluator(): OutputGuardRuleEvaluator = OutputGuardRuleEvaluator()
 
     /**
      * MCP Manager
@@ -441,10 +464,14 @@ class ArcReactorAutoConfiguration {
         )
         fun dynamicRuleOutputGuard(
             properties: AgentProperties,
-            outputGuardRuleStore: OutputGuardRuleStore
+            outputGuardRuleStore: OutputGuardRuleStore,
+            invalidationBus: OutputGuardRuleInvalidationBus,
+            evaluator: OutputGuardRuleEvaluator
         ): OutputGuardStage = DynamicRuleOutputGuard(
             store = outputGuardRuleStore,
-            refreshIntervalMs = properties.outputGuard.dynamicRulesRefreshMs
+            refreshIntervalMs = properties.outputGuard.dynamicRulesRefreshMs,
+            invalidationBus = invalidationBus,
+            evaluator = evaluator
         )
 
         @Bean

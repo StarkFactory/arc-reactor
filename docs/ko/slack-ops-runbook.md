@@ -69,5 +69,11 @@ scripts/load/run-slack-load-test.sh
 - `POST /api/output-guard/rules` (ADMIN)
 - `PUT /api/output-guard/rules/{id}` (ADMIN)
 - `DELETE /api/output-guard/rules/{id}` (ADMIN)
+- `POST /api/output-guard/rules/simulate` (ADMIN, dry-run)
+- `GET /api/output-guard/rules/audits?limit=100` (ADMIN)
 
-이 규칙은 Output Guard 파이프라인에서 실시간(짧은 주기 캐시 갱신)으로 반영된다.
+운영 포인트:
+
+- 각 규칙은 `priority`(낮을수록 먼저 적용)를 갖는다.
+- 관리 API로 규칙 변경 시 캐시 무효화가 즉시 발생해, 주기 캐시를 기다리지 않고 반영된다.
+- `simulate`로 차단/마스킹 결과를 사전 검증한 뒤 저장 규칙을 적용할 수 있다.
