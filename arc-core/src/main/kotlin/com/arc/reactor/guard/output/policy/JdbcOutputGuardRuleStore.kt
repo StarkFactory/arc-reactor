@@ -13,16 +13,16 @@ class JdbcOutputGuardRuleStore(
 
     override fun list(): List<OutputGuardRule> {
         return jdbcTemplate.query(
-            """SELECT id, name, pattern, action, enabled, created_at, updated_at
+            """SELECT id, name, pattern, action, priority, enabled, created_at, updated_at
                FROM output_guard_rules
-               ORDER BY created_at ASC""",
+               ORDER BY priority ASC, created_at ASC""",
             ROW_MAPPER
         )
     }
 
     override fun findById(id: String): OutputGuardRule? {
         val results = jdbcTemplate.query(
-            """SELECT id, name, pattern, action, enabled, created_at, updated_at
+            """SELECT id, name, pattern, action, priority, enabled, created_at, updated_at
                FROM output_guard_rules
                WHERE id = ?""",
             ROW_MAPPER,
@@ -33,12 +33,13 @@ class JdbcOutputGuardRuleStore(
 
     override fun save(rule: OutputGuardRule): OutputGuardRule {
         jdbcTemplate.update(
-            """INSERT INTO output_guard_rules (id, name, pattern, action, enabled, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO output_guard_rules (id, name, pattern, action, priority, enabled, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             rule.id,
             rule.name,
             rule.pattern,
             rule.action.name,
+            rule.priority,
             rule.enabled,
             java.sql.Timestamp.from(rule.createdAt),
             java.sql.Timestamp.from(rule.updatedAt)
@@ -52,11 +53,12 @@ class JdbcOutputGuardRuleStore(
 
         jdbcTemplate.update(
             """UPDATE output_guard_rules
-               SET name = ?, pattern = ?, action = ?, enabled = ?, updated_at = ?
+               SET name = ?, pattern = ?, action = ?, priority = ?, enabled = ?, updated_at = ?
                WHERE id = ?""",
             rule.name,
             rule.pattern,
             rule.action.name,
+            rule.priority,
             rule.enabled,
             java.sql.Timestamp.from(updatedAt),
             id
@@ -66,6 +68,7 @@ class JdbcOutputGuardRuleStore(
             name = rule.name,
             pattern = rule.pattern,
             action = rule.action,
+            priority = rule.priority,
             enabled = rule.enabled,
             updatedAt = updatedAt
         )
@@ -82,6 +85,7 @@ class JdbcOutputGuardRuleStore(
                 name = rs.getString("name"),
                 pattern = rs.getString("pattern"),
                 action = OutputGuardRuleAction.valueOf(rs.getString("action")),
+                priority = rs.getInt("priority"),
                 enabled = rs.getBoolean("enabled"),
                 createdAt = rs.getTimestamp("created_at").toInstant(),
                 updatedAt = rs.getTimestamp("updated_at").toInstant()

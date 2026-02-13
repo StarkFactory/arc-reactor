@@ -5,6 +5,7 @@ import com.arc.reactor.guard.output.impl.DynamicRuleOutputGuard
 import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleStore
 import com.arc.reactor.guard.output.policy.OutputGuardRule
 import com.arc.reactor.guard.output.policy.OutputGuardRuleAction
+import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
@@ -50,5 +51,56 @@ class DynamicRuleOutputGuardTest {
 
         val rejected = result as OutputGuardResult.Rejected
         rejected.category shouldBe OutputRejectionCategory.POLICY_VIOLATION
+    }
+
+    @Test
+    fun `higher-priority reject rule runs before mask rule`() = runTest {
+        val store = InMemoryOutputGuardRuleStore()
+        store.save(
+            OutputGuardRule(
+                name = "Mask secret",
+                pattern = "(?i)secret",
+                action = OutputGuardRuleAction.MASK,
+                priority = 50
+            )
+        )
+        store.save(
+            OutputGuardRule(
+                name = "Reject secret",
+                pattern = "(?i)secret",
+                action = OutputGuardRuleAction.REJECT,
+                priority = 1
+            )
+        )
+
+        val guard = DynamicRuleOutputGuard(store, refreshIntervalMs = 60_000)
+        val result = guard.check("SECRET", context)
+        (result is OutputGuardResult.Rejected) shouldBe true
+    }
+
+    @Test
+    fun `reloads immediately when invalidation bus is touched`() = runTest {
+        val store = InMemoryOutputGuardRuleStore()
+        val invalidationBus = OutputGuardRuleInvalidationBus()
+        val guard = DynamicRuleOutputGuard(
+            store = store,
+            refreshIntervalMs = 60_000,
+            invalidationBus = invalidationBus
+        )
+
+        val first = guard.check("password: x", context)
+        first shouldBe OutputGuardResult.Allowed.DEFAULT
+
+        store.save(
+            OutputGuardRule(
+                name = "Mask password",
+                pattern = "(?i)password\\s*:\\s*\\S+",
+                action = OutputGuardRuleAction.MASK
+            )
+        )
+        invalidationBus.touch()
+
+        val second = guard.check("password: x", context)
+        (second as OutputGuardResult.Modified).content shouldBe "[REDACTED]"
     }
 }

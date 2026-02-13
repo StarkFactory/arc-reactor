@@ -2,12 +2,18 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
+import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditAction
+import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditLog
+import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditStore
 import com.arc.reactor.guard.output.policy.OutputGuardRule
 import com.arc.reactor.guard.output.policy.OutputGuardRuleAction
+import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
+import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
 import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verifyOrder
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -21,12 +27,21 @@ import java.time.Instant
 class OutputGuardRuleControllerTest {
 
     private lateinit var store: OutputGuardRuleStore
+    private lateinit var auditStore: OutputGuardRuleAuditStore
+    private lateinit var invalidationBus: OutputGuardRuleInvalidationBus
     private lateinit var controller: OutputGuardRuleController
 
     @BeforeEach
     fun setup() {
         store = mockk(relaxed = true)
-        controller = OutputGuardRuleController(store)
+        auditStore = mockk(relaxed = true)
+        invalidationBus = mockk(relaxed = true)
+        controller = OutputGuardRuleController(
+            store = store,
+            auditStore = auditStore,
+            invalidationBus = invalidationBus,
+            evaluator = OutputGuardRuleEvaluator()
+        )
     }
 
     private fun adminExchange(): ServerWebExchange {
@@ -58,6 +73,7 @@ class OutputGuardRuleControllerTest {
                     name = "Secret",
                     pattern = "(?i)secret",
                     action = "REJECT",
+                    priority = 10,
                     enabled = true
                 ),
                 adminExchange()
@@ -65,7 +81,13 @@ class OutputGuardRuleControllerTest {
 
             assertEquals(HttpStatus.CREATED, response.statusCode)
             assertEquals(OutputGuardRuleAction.REJECT, captured.captured.action)
+            assertEquals(10, captured.captured.priority)
             assertTrue(captured.captured.id.isNotBlank())
+            verifyOrder {
+                store.save(any())
+                invalidationBus.touch()
+                auditStore.save(any())
+            }
         }
 
         @Test
@@ -94,6 +116,7 @@ class OutputGuardRuleControllerTest {
                     name = "Mask password",
                     pattern = "(?i)password\\s*[:=]\\s*\\S+",
                     action = OutputGuardRuleAction.MASK,
+                    priority = 5,
                     enabled = true,
                     createdAt = now,
                     updatedAt = now
@@ -105,6 +128,7 @@ class OutputGuardRuleControllerTest {
             assertEquals(1, result.size)
             assertEquals("r1", result[0].id)
             assertEquals("MASK", result[0].action)
+            assertEquals(5, result[0].priority)
         }
     }
 
@@ -112,10 +136,60 @@ class OutputGuardRuleControllerTest {
     inner class DeleteRule {
         @Test
         fun `deletes for admin`() {
+            every { store.findById("r1") } returns OutputGuardRule(
+                id = "r1",
+                name = "rule1",
+                pattern = "a",
+                action = OutputGuardRuleAction.MASK
+            )
             val response = controller.deleteRule("r1", adminExchange())
 
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode)
             verify { store.delete("r1") }
+            verify { invalidationBus.touch() }
+            verify {
+                auditStore.save(
+                    withArg<OutputGuardRuleAuditLog> {
+                        assertEquals(OutputGuardRuleAuditAction.DELETE, it.action)
+                        assertEquals("r1", it.ruleId)
+                    }
+                )
+            }
+        }
+    }
+
+    @Nested
+    inner class Simulate {
+        @Test
+        fun `simulates and returns blocked response`() {
+            every { store.list() } returns listOf(
+                OutputGuardRule(
+                    id = "r1",
+                    name = "Secret rule",
+                    pattern = "(?i)secret",
+                    action = OutputGuardRuleAction.REJECT,
+                    priority = 1,
+                    enabled = true
+                )
+            )
+
+            val response = controller.simulate(
+                OutputGuardSimulationRequest(content = "contains SECRET", includeDisabled = false),
+                adminExchange()
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            val body = response.body as OutputGuardSimulationResponse
+            assertTrue(body.blocked)
+            assertEquals("r1", body.blockedByRuleId)
+            assertEquals(1, body.matchedRules.size)
+            verify {
+                auditStore.save(
+                    withArg<OutputGuardRuleAuditLog> {
+                        assertEquals(OutputGuardRuleAuditAction.SIMULATE, it.action)
+                    }
+                )
+            }
         }
     }
 }

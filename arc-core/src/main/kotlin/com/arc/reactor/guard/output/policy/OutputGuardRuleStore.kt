@@ -12,6 +12,7 @@ data class OutputGuardRule(
     val name: String,
     val pattern: String,
     val action: OutputGuardRuleAction = OutputGuardRuleAction.MASK,
+    val priority: Int = 100,
     val enabled: Boolean = true,
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now()
@@ -37,7 +38,11 @@ class InMemoryOutputGuardRuleStore : OutputGuardRuleStore {
     private val rules = ConcurrentHashMap<String, OutputGuardRule>()
 
     override fun list(): List<OutputGuardRule> {
-        return rules.values.sortedBy { it.createdAt }
+        return rules.values.sortedWith(
+            compareBy<OutputGuardRule> { it.priority }
+                .thenBy { it.createdAt }
+                .thenBy { it.id }
+        )
     }
 
     override fun findById(id: String): OutputGuardRule? = rules[id]

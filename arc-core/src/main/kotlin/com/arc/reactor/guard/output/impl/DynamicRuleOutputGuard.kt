@@ -6,6 +6,8 @@ import com.arc.reactor.guard.output.OutputGuardStage
 import com.arc.reactor.guard.output.OutputRejectionCategory
 import com.arc.reactor.guard.output.policy.OutputGuardRule
 import com.arc.reactor.guard.output.policy.OutputGuardRuleAction
+import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
+import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
 import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
 import mu.KotlinLogging
 
@@ -18,7 +20,9 @@ private val logger = KotlinLogging.logger {}
  */
 class DynamicRuleOutputGuard(
     private val store: OutputGuardRuleStore,
-    private val refreshIntervalMs: Long = 3000
+    private val refreshIntervalMs: Long = 3000,
+    private val invalidationBus: OutputGuardRuleInvalidationBus = OutputGuardRuleInvalidationBus(),
+    private val evaluator: OutputGuardRuleEvaluator = OutputGuardRuleEvaluator()
 ) : OutputGuardStage {
 
     override val stageName: String = "DynamicRule"
@@ -28,77 +32,60 @@ class DynamicRuleOutputGuard(
     private var cachedAtMs: Long = 0
 
     @Volatile
-    private var cachedRules: List<CompiledRule> = emptyList()
+    private var cachedRevision: Long = -1
+
+    @Volatile
+    private var cachedRules: List<OutputGuardRule> = emptyList()
 
     override suspend fun check(content: String, context: OutputGuardContext): OutputGuardResult {
-        val rules = getCompiledRules()
+        val rules = getRules()
         if (rules.isEmpty()) return OutputGuardResult.Allowed.DEFAULT
 
-        var masked = content
-        val maskedNames = mutableListOf<String>()
-
-        for (rule in rules) {
-            if (!rule.regex.containsMatchIn(masked)) continue
-
-            when (rule.action) {
-                OutputGuardRuleAction.REJECT -> {
-                    logger.warn { "Dynamic output rule '${rule.name}' matched, rejecting response" }
-                    return OutputGuardResult.Rejected(
-                        reason = "Response blocked: ${rule.name}",
-                        category = OutputRejectionCategory.POLICY_VIOLATION,
-                        stage = stageName
-                    )
-                }
-
-                OutputGuardRuleAction.MASK -> {
-                    maskedNames.add(rule.name)
-                    masked = rule.regex.replace(masked, "[REDACTED]")
-                }
-            }
+        val evaluation = evaluator.evaluate(content = content, rules = rules)
+        for (invalid in evaluation.invalidRules) {
+            logger.warn { "Skipping invalid dynamic output rule id=${invalid.ruleId}, name=${invalid.ruleName}" }
         }
 
-        if (maskedNames.isEmpty()) return OutputGuardResult.Allowed.DEFAULT
+        if (evaluation.blocked) {
+            val blockedBy = evaluation.blockedBy?.ruleName ?: "unknown"
+            logger.warn { "Dynamic output rule '$blockedBy' matched, rejecting response" }
+            return OutputGuardResult.Rejected(
+                reason = "Response blocked: $blockedBy",
+                category = OutputRejectionCategory.POLICY_VIOLATION,
+                stage = stageName
+            )
+        }
+
+        if (!evaluation.modified) return OutputGuardResult.Allowed.DEFAULT
 
         return OutputGuardResult.Modified(
-            content = masked,
-            reason = "Dynamic rule masked: ${maskedNames.joinToString(", ")}",
+            content = evaluation.content,
+            reason = "Dynamic rule masked: ${
+                evaluation.matchedRules
+                    .filter { it.action == OutputGuardRuleAction.MASK }
+                    .joinToString(", ") { it.ruleName }
+            }",
             stage = stageName
         )
     }
 
-    private fun getCompiledRules(nowMs: Long = System.currentTimeMillis()): List<CompiledRule> {
+    private fun getRules(nowMs: Long = System.currentTimeMillis()): List<OutputGuardRule> {
         val interval = refreshIntervalMs.coerceAtLeast(200)
-        if (nowMs - cachedAtMs <= interval) return cachedRules
+        val revision = invalidationBus.currentRevision()
+        if (nowMs - cachedAtMs <= interval && revision == cachedRevision) return cachedRules
 
         synchronized(this) {
-            if (nowMs - cachedAtMs <= interval) return cachedRules
+            val latestRevision = invalidationBus.currentRevision()
+            if (nowMs - cachedAtMs <= interval && latestRevision == cachedRevision) return cachedRules
 
             cachedRules = store.list()
                 .asSequence()
                 .filter { it.enabled }
-                .mapNotNull(::compile)
+                .sortedWith(compareBy<OutputGuardRule> { it.priority }.thenBy { it.createdAt })
                 .toList()
             cachedAtMs = nowMs
+            cachedRevision = latestRevision
             return cachedRules
         }
     }
-
-    private fun compile(rule: OutputGuardRule): CompiledRule? {
-        return try {
-            CompiledRule(
-                name = rule.name,
-                action = rule.action,
-                regex = Regex(rule.pattern)
-            )
-        } catch (e: Exception) {
-            logger.warn(e) { "Skipping invalid dynamic output rule id=${rule.id}, name=${rule.name}" }
-            null
-        }
-    }
-
-    private data class CompiledRule(
-        val name: String,
-        val action: OutputGuardRuleAction,
-        val regex: Regex
-    )
 }
