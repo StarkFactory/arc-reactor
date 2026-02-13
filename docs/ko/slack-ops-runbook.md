@@ -46,10 +46,22 @@ scripts/load/run-slack-load-test.sh
 
 - `MODE=events|commands|mixed`
 - `VUS` 동시 사용자 수
+- `SLEEP_SECONDS` 가상 사용자 요청 간격(기본 `0.1`)
 - `DURATION` 테스트 시간
 - `SLACK_SIGNING_SECRET` (서명 검증 활성화 시 필수)
 
-## 4) Admin 동적 필터 규칙 API
+## 4) 백프레셔 설정
+
+고부하에서 코루틴 대기열이 비정상적으로 커지지 않도록 fail-fast 모드를 기본값으로 둔다.
+
+- `ARC_REACTOR_SLACK_FAIL_FAST_ON_SATURATION=true`
+  - 포화 시 즉시 드롭(`arc.slack.dropped.total{reason="queue_overflow"}` 증가)
+- `ARC_REACTOR_SLACK_NOTIFY_ON_DROP=false`
+  - 드롭 알림 메시지 전송 비활성화(외부 Slack API 호출 폭증 방지)
+- `ARC_REACTOR_SLACK_REQUEST_TIMEOUT_MS`
+  - `fail-fast=false`일 때만 큐 대기 타임아웃으로 사용
+
+## 5) Admin 동적 필터 규칙 API
 
 런타임에 출력 필터 규칙을 변경할 수 있다.
 

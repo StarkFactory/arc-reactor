@@ -17,6 +17,7 @@ dependencies {
     // Slack API Client
     implementation("com.slack.api:slack-api-client:1.42.0")
     implementation("com.slack.api:slack-api-model-kotlin-extension:1.42.0")
+    implementation("org.java-websocket:Java-WebSocket:1.5.7")
 
     // Spring Boot WebFlux (for WebFilter, WebClient, RestController)
     implementation("org.springframework.boot:spring-boot-starter-webflux")

@@ -1,20 +1,10 @@
 package com.arc.reactor.slack.controller
 
-import com.arc.reactor.slack.config.SlackProperties
-import com.arc.reactor.slack.handler.SlackCommandHandler
-import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackCommandAckResponse
 import com.arc.reactor.slack.model.SlackSlashCommand
-import com.arc.reactor.slack.service.SlackMessagingService
+import com.arc.reactor.slack.processor.SlackCommandProcessor
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.withTimeoutOrNull
-import mu.KotlinLogging
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -22,9 +12,6 @@ import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import kotlin.coroutines.cancellation.CancellationException
-
-private val logger = KotlinLogging.logger {}
 
 /**
  * Handles Slack slash commands.
@@ -34,12 +21,15 @@ private val logger = KotlinLogging.logger {}
 @RestController
 @RequestMapping("/api/slack")
 @ConditionalOnProperty(prefix = "arc.reactor.slack", name = ["enabled"], havingValue = "true")
+@ConditionalOnProperty(
+    prefix = "arc.reactor.slack",
+    name = ["transport-mode"],
+    havingValue = "events_api",
+    matchIfMissing = true
+)
 @Tag(name = "Slack", description = "Slack command handling endpoints")
 class SlackCommandController(
-    private val commandHandler: SlackCommandHandler,
-    private val messagingService: SlackMessagingService,
-    private val metricsRecorder: SlackMetricsRecorder,
-    properties: SlackProperties
+    private val commandProcessor: SlackCommandProcessor
 ) {
     data class SlackSlashCommandForm(
         val command: String? = null,
@@ -51,10 +41,6 @@ class SlackCommandController(
         val response_url: String? = null,
         val trigger_id: String? = null
     )
-
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val semaphore = Semaphore(properties.maxConcurrentRequests)
-    private val requestTimeoutMs = properties.requestTimeoutMs
 
     @PostMapping("/commands", consumes = [MediaType.APPLICATION_FORM_URLENCODED_VALUE])
     @Operation(summary = "Handle Slack slash command")
@@ -87,12 +73,10 @@ class SlackCommandController(
             return ResponseEntity.badRequest().body(
                 SlackCommandAckResponse(
                     responseType = "ephemeral",
-                    text = ":warning: Invalid slash command payload."
+                    text = SlackCommandProcessor.INVALID_PAYLOAD_RESPONSE_TEXT
                 )
             )
         }
-
-        metricsRecorder.recordInbound(entrypoint = "slash_command")
 
         val slashCommand = SlackSlashCommand(
             command = command,
@@ -105,65 +89,24 @@ class SlackCommandController(
             triggerId = triggerId
         )
 
-        processAsync(slashCommand)
+        val accepted = commandProcessor.submit(
+            command = slashCommand,
+            entrypoint = "slash_command"
+        )
+        if (!accepted) {
+            return ResponseEntity.ok(
+                SlackCommandAckResponse(
+                    responseType = "ephemeral",
+                    text = SlackCommandProcessor.BUSY_RESPONSE_TEXT
+                )
+            )
+        }
 
         return ResponseEntity.ok(
             SlackCommandAckResponse(
                 responseType = "ephemeral",
-                text = ":hourglass_flowing_sand: Processing..."
+                text = SlackCommandProcessor.PROCESSING_RESPONSE_TEXT
             )
         )
-    }
-
-    private fun processAsync(command: SlackSlashCommand) {
-        scope.launch {
-            val acquired = acquirePermitWithTimeout()
-            if (!acquired) {
-                logger.warn { "Slack slash command dropped due to queue timeout: channel=${command.channelId}" }
-                metricsRecorder.recordDropped(
-                    entrypoint = "slash_command",
-                    reason = "queue_timeout"
-                )
-                messagingService.sendResponseUrl(
-                    responseUrl = command.responseUrl,
-                    text = ":hourglass: The system is busy. Please try again shortly."
-                )
-                return@launch
-            }
-
-            val started = System.currentTimeMillis()
-            try {
-                commandHandler.handleSlashCommand(command)
-                metricsRecorder.recordHandler(
-                    entrypoint = "slash_command",
-                    eventType = command.command,
-                    success = true,
-                    durationMs = System.currentTimeMillis() - started
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                logger.error(e) { "Failed to handle slash command for channel=${command.channelId}" }
-                metricsRecorder.recordHandler(
-                    entrypoint = "slash_command",
-                    eventType = command.command,
-                    success = false,
-                    durationMs = System.currentTimeMillis() - started
-                )
-            } finally {
-                semaphore.release()
-            }
-        }
-    }
-
-    private suspend fun acquirePermitWithTimeout(): Boolean {
-        if (requestTimeoutMs <= 0) {
-            semaphore.acquire()
-            return true
-        }
-        return withTimeoutOrNull(requestTimeoutMs) {
-            semaphore.acquire()
-            true
-        } ?: false
     }
 }

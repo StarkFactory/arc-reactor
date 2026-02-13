@@ -5,6 +5,7 @@ import com.arc.reactor.slack.controller.SlackCommandController
 import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackSlashCommand
+import com.arc.reactor.slack.processor.SlackCommandProcessor
 import com.arc.reactor.slack.service.SlackMessagingService
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -21,7 +22,8 @@ class SlackCommandControllerTest {
     private val messagingService = mockk<SlackMessagingService>(relaxed = true)
     private val metricsRecorder = mockk<SlackMetricsRecorder>(relaxed = true)
     private val properties = SlackProperties(enabled = true, maxConcurrentRequests = 5)
-    private val controller = SlackCommandController(commandHandler, messagingService, metricsRecorder, properties)
+    private val processor = SlackCommandProcessor(commandHandler, messagingService, metricsRecorder, properties)
+    private val controller = SlackCommandController(processor)
 
     @Test
     fun `returns 200 immediately for slash command`() = runTest {
@@ -68,17 +70,65 @@ class SlackCommandControllerTest {
     }
 
     @Test
-    fun `sends busy response_url message when request queue times out`() = runTest {
+    fun `returns busy ack immediately when saturated in fail fast mode`() = runTest {
+        val slowHandler = mockk<SlackCommandHandler>()
+        val failFastMessagingService = mockk<SlackMessagingService>(relaxed = true)
+        val failFastController = SlackCommandController(
+            commandProcessor = SlackCommandProcessor(
+                commandHandler = slowHandler,
+                messagingService = failFastMessagingService,
+                metricsRecorder = metricsRecorder,
+                properties = SlackProperties(
+                    enabled = true,
+                    maxConcurrentRequests = 1,
+                    failFastOnSaturation = true
+                )
+            )
+        )
+        coEvery { slowHandler.handleSlashCommand(any()) } coAnswers { delay(300) }
+
+        failFastController.handleSlashCommand(
+            command = "/jarvis",
+            text = "first",
+            userId = "U1",
+            userName = "alice",
+            channelId = "C1",
+            channelName = "general",
+            responseUrl = "https://hooks.slack.com/commands/first",
+            triggerId = null
+        )
+
+        val second = failFastController.handleSlashCommand(
+            command = "/jarvis",
+            text = "second",
+            userId = "U2",
+            userName = "bob",
+            channelId = "C2",
+            channelName = "general",
+            responseUrl = "https://hooks.slack.com/commands/second",
+            triggerId = null
+        )
+
+        second.statusCode shouldBe HttpStatus.OK
+        second.body?.text.orEmpty().lowercase().contains("busy") shouldBe true
+    }
+
+    @Test
+    fun `sends busy response_url message when request queue times out in queue mode`() = runTest {
         val slowHandler = mockk<SlackCommandHandler>()
         val timeoutMessagingService = mockk<SlackMessagingService>(relaxed = true)
         val timeoutController = SlackCommandController(
-            commandHandler = slowHandler,
-            messagingService = timeoutMessagingService,
-            metricsRecorder = metricsRecorder,
-            properties = SlackProperties(
-                enabled = true,
-                maxConcurrentRequests = 1,
-                requestTimeoutMs = 50
+            commandProcessor = SlackCommandProcessor(
+                commandHandler = slowHandler,
+                messagingService = timeoutMessagingService,
+                metricsRecorder = metricsRecorder,
+                properties = SlackProperties(
+                    enabled = true,
+                    maxConcurrentRequests = 1,
+                    requestTimeoutMs = 50,
+                    failFastOnSaturation = false,
+                    notifyOnDrop = true
+                )
             )
         )
 

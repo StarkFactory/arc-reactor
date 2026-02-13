@@ -12,8 +12,18 @@ data class SlackProperties(
     /** Enable Slack integration. Default: false (opt-in) */
     val enabled: Boolean = false,
 
+    /**
+     * Slack transport mode.
+     * - EVENTS_API: receive payloads over HTTP endpoints
+     * - SOCKET_MODE: receive payloads over WebSocket (no public callback URL required)
+     */
+    val transportMode: SlackTransportMode = SlackTransportMode.SOCKET_MODE,
+
     /** Slack Bot User OAuth Token (xoxb-...) */
     val botToken: String = "",
+
+    /** Slack App-Level Token for Socket Mode (xapp-...) */
+    val appToken: String = "",
 
     /** Slack signing secret for request signature verification */
     val signingSecret: String = "",
@@ -30,6 +40,18 @@ data class SlackProperties(
     /** Request timeout for agent execution (ms) */
     val requestTimeoutMs: Long = 30000,
 
+    /**
+     * If true, reject immediately when the processing semaphore is saturated.
+     * Prevents coroutine queue buildup under burst traffic.
+     */
+    val failFastOnSaturation: Boolean = true,
+
+    /**
+     * If true, send busy notifications to Slack when events/commands are dropped.
+     * Keep false in high-load environments to avoid amplifying outbound traffic.
+     */
+    val notifyOnDrop: Boolean = false,
+
     /** Max retry attempts for Slack Web API on retryable errors (429/5xx) */
     val apiMaxRetries: Int = 2,
 
@@ -43,5 +65,24 @@ data class SlackProperties(
     val eventDedupTtlSeconds: Long = 600,
 
     /** Max in-memory event_id entries kept for deduplication */
-    val eventDedupMaxEntries: Int = 10000
+    val eventDedupMaxEntries: Int = 10000,
+
+    /** Socket Mode WebSocket backend implementation */
+    val socketBackend: SlackSocketBackend = SlackSocketBackend.JAVA_WEBSOCKET,
+
+    /** Initial retry delay for Socket Mode startup connection failures (ms) */
+    val socketConnectRetryInitialDelayMs: Long = 1000,
+
+    /** Max retry delay for Socket Mode startup connection failures (ms) */
+    val socketConnectRetryMaxDelayMs: Long = 30000
 )
+
+enum class SlackTransportMode {
+    EVENTS_API,
+    SOCKET_MODE
+}
+
+enum class SlackSocketBackend {
+    JAVA_WEBSOCKET,
+    TYRUS
+}

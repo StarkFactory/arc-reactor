@@ -19,7 +19,8 @@ private val logger = KotlinLogging.logger {}
  */
 class DefaultSlackCommandHandler(
     private val agentExecutor: AgentExecutor,
-    private val messagingService: SlackMessagingService
+    private val messagingService: SlackMessagingService,
+    private val defaultProvider: String = "configured backend model"
 ) : SlackCommandHandler {
 
     override suspend fun handleSlashCommand(command: SlackSlashCommand) {
@@ -108,7 +109,7 @@ class DefaultSlackCommandHandler(
     ): com.arc.reactor.agent.model.AgentResult {
         return agentExecutor.execute(
             AgentCommand(
-                systemPrompt = "You are a helpful AI assistant responding in Slack. Keep responses concise and well-formatted for Slack.",
+                systemPrompt = SlackSystemPromptFactory.build(defaultProvider),
                 userPrompt = prompt,
                 userId = command.userId,
                 metadata = mapOf(

@@ -5,6 +5,7 @@ import com.arc.reactor.slack.controller.SlackCommandController
 import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackCommandAckResponse
+import com.arc.reactor.slack.processor.SlackCommandProcessor
 import com.arc.reactor.slack.service.SlackMessagingService
 import io.kotest.matchers.shouldBe
 import io.mockk.coVerify
@@ -20,10 +21,12 @@ class SlackCommandControllerWebBindingTest {
     private val messagingService = mockk<SlackMessagingService>(relaxed = true)
     private val metricsRecorder = mockk<SlackMetricsRecorder>(relaxed = true)
     private val controller = SlackCommandController(
-        commandHandler = commandHandler,
-        messagingService = messagingService,
-        metricsRecorder = metricsRecorder,
-        properties = SlackProperties(enabled = true)
+        commandProcessor = SlackCommandProcessor(
+            commandHandler = commandHandler,
+            messagingService = messagingService,
+            metricsRecorder = metricsRecorder,
+            properties = SlackProperties(enabled = true)
+        )
     )
     private val webTestClient = WebTestClient.bindToController(controller).build()
 
