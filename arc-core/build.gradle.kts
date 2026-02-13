@@ -11,6 +11,7 @@ dependencies {
     runtimeOnly(project(":arc-slack"))
     runtimeOnly(project(":arc-discord"))
     runtimeOnly(project(":arc-line"))
+    runtimeOnly(project(":arc-error-report"))
 
     // Spring Boot Core
     implementation("org.springframework.boot:spring-boot-starter")
