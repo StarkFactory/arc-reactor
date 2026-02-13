@@ -57,7 +57,11 @@ class SlackAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun slackMessagingService(properties: SlackProperties): SlackMessagingService =
-        SlackMessagingService(botToken = properties.botToken)
+        SlackMessagingService(
+            botToken = properties.botToken,
+            maxApiRetries = properties.apiMaxRetries,
+            retryDefaultDelayMs = properties.apiRetryDefaultDelayMs
+        )
 
     @Bean
     @ConditionalOnMissingBean

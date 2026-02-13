@@ -28,5 +28,20 @@ data class SlackProperties(
     val maxConcurrentRequests: Int = 5,
 
     /** Request timeout for agent execution (ms) */
-    val requestTimeoutMs: Long = 30000
+    val requestTimeoutMs: Long = 30000,
+
+    /** Max retry attempts for Slack Web API on retryable errors (429/5xx) */
+    val apiMaxRetries: Int = 2,
+
+    /** Default retry delay (ms) when Retry-After header is missing */
+    val apiRetryDefaultDelayMs: Long = 1000,
+
+    /** Enable in-memory deduplication for Slack Events API using event_id */
+    val eventDedupEnabled: Boolean = true,
+
+    /** Retention time (seconds) for deduplication event_id cache */
+    val eventDedupTtlSeconds: Long = 600,
+
+    /** Max in-memory event_id entries kept for deduplication */
+    val eventDedupMaxEntries: Int = 10000
 )

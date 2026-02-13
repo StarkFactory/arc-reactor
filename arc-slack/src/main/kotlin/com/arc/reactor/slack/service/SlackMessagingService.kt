@@ -4,6 +4,7 @@ import com.arc.reactor.slack.model.SlackApiResult
 import kotlinx.coroutines.delay
 import mu.KotlinLogging
 import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.reactive.function.client.awaitBody
 import org.springframework.web.reactive.function.client.awaitBodilessEntity
 import java.util.concurrent.ConcurrentHashMap
@@ -21,6 +22,8 @@ private val logger = KotlinLogging.logger {}
  */
 class SlackMessagingService(
     botToken: String,
+    private val maxApiRetries: Int = 2,
+    private val retryDefaultDelayMs: Long = 1000L,
     private val webClient: WebClient = WebClient.builder()
         .baseUrl("https://slack.com/api")
         .defaultHeader("Authorization", "Bearer $botToken")
@@ -103,11 +106,39 @@ class SlackMessagingService(
     }
 
     private suspend fun callSlackApi(method: String, body: Map<String, Any>): SlackApiResult {
-        return webClient.post()
-            .uri("/$method")
-            .bodyValue(body)
-            .retrieve()
-            .awaitBody<SlackApiResult>()
+        var attempt = 0
+        val maxAttempts = maxApiRetries.coerceAtLeast(0) + 1
+
+        while (true) {
+            attempt++
+            try {
+                return webClient.post()
+                    .uri("/$method")
+                    .bodyValue(body)
+                    .retrieve()
+                    .awaitBody<SlackApiResult>()
+            } catch (e: WebClientResponseException.TooManyRequests) {
+                if (attempt >= maxAttempts) throw e
+                val retryAfterMillis = e.headers.getFirst("Retry-After")
+                    ?.toLongOrNull()
+                    ?.coerceAtLeast(1L)
+                    ?.times(1000)
+                    ?: retryDefaultDelayMs.coerceAtLeast(1L)
+
+                logger.warn {
+                    "Slack API rate-limited for method=$method, retrying in ${retryAfterMillis}ms (attempt=$attempt/$maxAttempts)"
+                }
+                delay(retryAfterMillis)
+            } catch (e: WebClientResponseException) {
+                if (!e.statusCode.is5xxServerError || attempt >= maxAttempts) throw e
+
+                val backoffMillis = retryDefaultDelayMs.coerceAtLeast(1L) * attempt
+                logger.warn {
+                    "Slack API 5xx for method=$method, retrying in ${backoffMillis}ms (attempt=$attempt/$maxAttempts)"
+                }
+                delay(backoffMillis)
+            }
+        }
     }
 
     private suspend fun enforceRateLimit(channelId: String) {
