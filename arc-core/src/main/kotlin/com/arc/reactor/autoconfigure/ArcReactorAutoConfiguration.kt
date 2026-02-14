@@ -87,6 +87,13 @@ import com.arc.reactor.intent.impl.CompositeIntentClassifier
 import com.arc.reactor.intent.impl.JdbcIntentRegistry
 import com.arc.reactor.intent.impl.LlmIntentClassifier
 import com.arc.reactor.intent.impl.RuleBasedIntentClassifier
+import com.arc.reactor.scheduler.DynamicSchedulerService
+import com.arc.reactor.scheduler.InMemoryScheduledJobStore
+import com.arc.reactor.scheduler.JdbcScheduledJobStore
+import com.arc.reactor.scheduler.ScheduledJobStore
+import com.arc.reactor.scheduler.SlackMessageSender
+import org.springframework.scheduling.TaskScheduler
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.SemanticToolSelector
@@ -244,6 +251,16 @@ class ArcReactorAutoConfiguration {
         fun jdbcOutputGuardRuleAuditStore(
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
         ): OutputGuardRuleAuditStore = JdbcOutputGuardRuleAuditStore(jdbcTemplate = jdbcTemplate)
+
+        @Bean
+        @Primary
+        @ConditionalOnProperty(
+            prefix = "arc.reactor.scheduler", name = ["enabled"],
+            havingValue = "true", matchIfMissing = false
+        )
+        fun jdbcScheduledJobStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
+        ): ScheduledJobStore = JdbcScheduledJobStore(jdbcTemplate = jdbcTemplate)
     }
 
     /**
@@ -719,6 +736,47 @@ class ArcReactorAutoConfiguration {
         fun jdbcIntentRegistry(
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
         ): IntentRegistry = JdbcIntentRegistry(jdbcTemplate)
+    }
+
+    /**
+     * Dynamic Scheduler Configuration (only when arc.reactor.scheduler.enabled=true)
+     *
+     * Provides cron-based MCP tool execution with dynamic job management.
+     */
+    @Configuration
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.scheduler", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    class SchedulerConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun scheduledJobStore(): ScheduledJobStore = InMemoryScheduledJobStore()
+
+        @Bean
+        @ConditionalOnMissingBean(name = ["schedulerTaskScheduler"])
+        fun schedulerTaskScheduler(properties: AgentProperties): TaskScheduler {
+            val scheduler = ThreadPoolTaskScheduler()
+            scheduler.poolSize = properties.scheduler.threadPoolSize
+            scheduler.setThreadNamePrefix("arc-scheduler-")
+            scheduler.initialize()
+            return scheduler
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun dynamicSchedulerService(
+            scheduledJobStore: ScheduledJobStore,
+            schedulerTaskScheduler: TaskScheduler,
+            mcpManager: McpManager,
+            slackMessageSender: ObjectProvider<SlackMessageSender>
+        ): DynamicSchedulerService = DynamicSchedulerService(
+            store = scheduledJobStore,
+            taskScheduler = schedulerTaskScheduler,
+            mcpManager = mcpManager,
+            slackMessageSender = slackMessageSender.ifAvailable
+        )
     }
 
     /**
