@@ -36,6 +36,7 @@ class ToolPolicyProvider(
                 writeToolNames = emptySet(),
                 denyWriteChannels = emptySet(),
                 allowWriteToolNamesInDenyChannels = emptySet(),
+                allowWriteToolNamesByChannel = emptyMap(),
                 denyWriteMessage = properties.denyWriteMessage,
                 createdAt = Instant.EPOCH,
                 updatedAt = Instant.EPOCH
@@ -73,6 +74,11 @@ class ToolPolicyProvider(
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
                 .toSet(),
+            allowWriteToolNamesByChannel = policy.allowWriteToolNamesByChannel
+                .mapKeys { (k, _) -> k.trim().lowercase() }
+                .mapValues { (_, v) -> v.map { it.trim() }.filter { it.isNotBlank() }.toSet() }
+                .filterKeys { it.isNotBlank() }
+                .filterValues { it.isNotEmpty() },
             denyWriteMessage = policy.denyWriteMessage.ifBlank { properties.denyWriteMessage }
         )
     }

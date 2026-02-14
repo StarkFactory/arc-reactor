@@ -390,6 +390,25 @@ data class ToolPolicyProperties(
      */
     val allowWriteToolNamesInDenyChannels: Set<String> = emptySet(),
 
+    /**
+     * Channel-scoped allowlist for deny channels.
+     *
+     * If a channel is in [denyWriteChannels], write tools are blocked by default. This map can then
+     * allow specific write tools for specific channels.
+     *
+     * Example:
+     * ```yaml
+     * arc:
+     *   reactor:
+     *     tool-policy:
+     *       enabled: true
+     *       deny-write-channels: [slack, discord]
+     *       allow-write-tool-names-by-channel:
+     *         slack: [jira_create_issue]
+     * ```
+     */
+    val allowWriteToolNamesByChannel: Map<String, Set<String>> = emptyMap(),
+
     /** Error message returned when a tool call is denied by policy. */
     val denyWriteMessage: String = "Error: This tool is not allowed in this channel"
 )
