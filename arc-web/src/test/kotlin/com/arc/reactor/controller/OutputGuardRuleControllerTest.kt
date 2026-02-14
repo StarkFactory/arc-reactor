@@ -123,12 +123,21 @@ class OutputGuardRuleControllerTest {
                 )
             )
 
-            val result = controller.listRules()
+            val response = controller.listRules(adminExchange())
+            assertEquals(HttpStatus.OK, response.statusCode)
+            @Suppress("UNCHECKED_CAST")
+            val result = response.body as List<OutputGuardRuleResponse>
 
             assertEquals(1, result.size)
             assertEquals("r1", result[0].id)
             assertEquals("MASK", result[0].action)
             assertEquals(5, result[0].priority)
+        }
+
+        @Test
+        fun `returns 403 for non-admin`() {
+            val response = controller.listRules(userExchange())
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
         }
     }
 

@@ -5,6 +5,9 @@ import com.arc.reactor.hook.impl.WriteToolBlockHook
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
+import com.arc.reactor.policy.tool.InMemoryToolPolicyStore
+import com.arc.reactor.policy.tool.ToolPolicy
+import com.arc.reactor.policy.tool.ToolPolicyProvider
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -14,14 +17,14 @@ class WriteToolBlockHookTest {
 
     @Test
     fun `blocks configured write tool on slack channel`() = runTest {
-        val hook = WriteToolBlockHook(
-            ToolPolicyProperties(
-                enabled = true,
-                writeToolNames = setOf("jira_create_issue"),
-                denyWriteChannels = setOf("slack"),
-                denyWriteMessage = "blocked"
-            )
+        val props = ToolPolicyProperties(
+            enabled = true,
+            writeToolNames = setOf("jira_create_issue"),
+            denyWriteChannels = setOf("slack"),
+            denyWriteMessage = "blocked"
         )
+        val provider = ToolPolicyProvider(props, InMemoryToolPolicyStore(ToolPolicy.fromProperties(props)))
+        val hook = WriteToolBlockHook(provider)
 
         val ctx = ToolCallContext(
             agentContext = HookContext(
@@ -42,13 +45,13 @@ class WriteToolBlockHookTest {
 
     @Test
     fun `allows write tool on non-deny channel`() = runTest {
-        val hook = WriteToolBlockHook(
-            ToolPolicyProperties(
-                enabled = true,
-                writeToolNames = setOf("jira_create_issue"),
-                denyWriteChannels = setOf("slack")
-            )
+        val props = ToolPolicyProperties(
+            enabled = true,
+            writeToolNames = setOf("jira_create_issue"),
+            denyWriteChannels = setOf("slack")
         )
+        val provider = ToolPolicyProvider(props, InMemoryToolPolicyStore(ToolPolicy.fromProperties(props)))
+        val hook = WriteToolBlockHook(provider)
 
         val ctx = ToolCallContext(
             agentContext = HookContext(
@@ -66,4 +69,3 @@ class WriteToolBlockHookTest {
         assertTrue(result is HookResult.Continue)
     }
 }
-

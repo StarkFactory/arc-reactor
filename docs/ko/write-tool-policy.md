@@ -27,10 +27,13 @@ arc:
 
     tool-policy:
       enabled: true
+      # 선택: DB 기반 동적 정책 (admin 관리)
+      # dynamic:
+      #   enabled: true
+      #   refresh-ms: 10000
       write-tool-names:
         - jira_create_issue
         - confluence_update_page
       deny-write-channels:
         - slack
 ```
-

@@ -46,8 +46,9 @@ class OutputGuardRuleController(
 
     @Operation(summary = "List output guard rules")
     @GetMapping
-    fun listRules(): List<OutputGuardRuleResponse> {
-        return store.list().map { it.toResponse() }
+    fun listRules(exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+        return ResponseEntity.ok(store.list().map { it.toResponse() })
     }
 
     @Operation(summary = "List output guard rule audit logs (ADMIN)")

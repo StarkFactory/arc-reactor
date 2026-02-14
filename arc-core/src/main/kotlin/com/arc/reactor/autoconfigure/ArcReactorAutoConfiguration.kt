@@ -88,6 +88,12 @@ import com.arc.reactor.intent.impl.CompositeIntentClassifier
 import com.arc.reactor.intent.impl.JdbcIntentRegistry
 import com.arc.reactor.intent.impl.LlmIntentClassifier
 import com.arc.reactor.intent.impl.RuleBasedIntentClassifier
+import com.arc.reactor.policy.tool.DynamicToolApprovalPolicy
+import com.arc.reactor.policy.tool.InMemoryToolPolicyStore
+import com.arc.reactor.policy.tool.JdbcToolPolicyStore
+import com.arc.reactor.policy.tool.ToolPolicy
+import com.arc.reactor.policy.tool.ToolPolicyProvider
+import com.arc.reactor.policy.tool.ToolPolicyStore
 import com.arc.reactor.scheduler.DynamicSchedulerService
 import com.arc.reactor.scheduler.InMemoryScheduledJobStore
 import com.arc.reactor.scheduler.JdbcScheduledJobStore
@@ -168,6 +174,16 @@ class ArcReactorAutoConfiguration {
         return AllToolSelector()
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    fun toolPolicyStore(properties: AgentProperties): ToolPolicyStore =
+        InMemoryToolPolicyStore(initial = ToolPolicy.fromProperties(properties.toolPolicy))
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun toolPolicyProvider(properties: AgentProperties, toolPolicyStore: ToolPolicyStore): ToolPolicyProvider =
+        ToolPolicyProvider(properties = properties.toolPolicy, store = toolPolicyStore)
+
     /**
      * Tool Approval Policy — only created when HITL is enabled.
      * Users can override with custom [ToolApprovalPolicy] bean.
@@ -178,13 +194,23 @@ class ArcReactorAutoConfiguration {
         prefix = "arc.reactor.approval", name = ["enabled"],
         havingValue = "true", matchIfMissing = false
     )
-    fun toolApprovalPolicy(properties: AgentProperties): ToolApprovalPolicy {
-        val toolNames = (properties.approval.toolNames + properties.toolPolicy.writeToolNames)
-        return if (toolNames.isNotEmpty()) {
-            ToolNameApprovalPolicy(toolNames)
-        } else {
-            AlwaysApprovePolicy()
+    fun toolApprovalPolicy(
+        properties: AgentProperties,
+        toolPolicyProvider: ToolPolicyProvider
+    ): ToolApprovalPolicy {
+        val staticToolNames = properties.approval.toolNames
+
+        // Dynamic tool policy enabled: allow write-tool approval list to change at runtime.
+        if (properties.toolPolicy.dynamic.enabled) {
+            return DynamicToolApprovalPolicy(
+                staticToolNames = staticToolNames,
+                toolPolicyProvider = toolPolicyProvider
+            )
         }
+
+        // Static mode: approval list is fixed at startup.
+        val toolNames = (staticToolNames + properties.toolPolicy.writeToolNames)
+        return if (toolNames.isNotEmpty()) ToolNameApprovalPolicy(toolNames) else AlwaysApprovePolicy()
     }
 
     /**
@@ -262,6 +288,34 @@ class ArcReactorAutoConfiguration {
         fun jdbcScheduledJobStore(
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
         ): ScheduledJobStore = JdbcScheduledJobStore(jdbcTemplate = jdbcTemplate)
+    }
+
+    /**
+     * JDBC Tool Policy Store (dynamic tool policy only).
+     *
+     * Only created when:
+     * - JDBC is available
+     * - datasource is configured
+     * - `arc.reactor.tool-policy.dynamic.enabled=true`
+     */
+    @Configuration
+    @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
+    @ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.tool-policy.dynamic", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    class JdbcToolPolicyStoreConfiguration {
+
+        @Bean
+        @Primary
+        fun jdbcToolPolicyStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate,
+            transactionTemplate: org.springframework.transaction.support.TransactionTemplate
+        ): ToolPolicyStore = JdbcToolPolicyStore(
+            jdbcTemplate = jdbcTemplate,
+            transactionTemplate = transactionTemplate
+        )
     }
 
     /**
@@ -424,8 +478,8 @@ class ArcReactorAutoConfiguration {
         prefix = "arc.reactor.tool-policy", name = ["enabled"],
         havingValue = "true", matchIfMissing = false
     )
-    fun writeToolBlockHook(properties: AgentProperties): WriteToolBlockHook =
-        WriteToolBlockHook(properties.toolPolicy)
+    fun writeToolBlockHook(toolPolicyProvider: ToolPolicyProvider): WriteToolBlockHook =
+        WriteToolBlockHook(toolPolicyProvider)
 
     /**
      * Guard Configuration
