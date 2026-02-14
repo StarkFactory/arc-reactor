@@ -43,13 +43,18 @@ class IntentController(
 
     @Operation(summary = "List all intent definitions")
     @GetMapping
-    fun listIntents(): List<IntentResponse> {
-        return intentRegistry.list().map { it.toResponse() }
+    fun listIntents(exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+        return ResponseEntity.ok(intentRegistry.list().map { it.toResponse() })
     }
 
     @Operation(summary = "Get an intent definition by name")
     @GetMapping("/{intentName}")
-    fun getIntent(@PathVariable intentName: String): ResponseEntity<IntentResponse> {
+    fun getIntent(
+        @PathVariable intentName: String,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val intent = intentRegistry.get(intentName) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(intent.toResponse())
     }

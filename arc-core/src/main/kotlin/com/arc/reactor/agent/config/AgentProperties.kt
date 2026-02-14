@@ -365,6 +365,14 @@ data class ToolPolicyProperties(
     /** Enable tool policy enforcement (opt-in). */
     val enabled: Boolean = false,
 
+    /**
+     * Dynamic tool policy configuration (admin-managed).
+     *
+     * When enabled, Arc Reactor can load and update tool policy values at runtime via DB/API,
+     * allowing enterprises to change write-tool rules without redeploying.
+     */
+    val dynamic: ToolPolicyDynamicProperties = ToolPolicyDynamicProperties(),
+
     /** Tool names considered "write" (side-effecting). */
     val writeToolNames: Set<String> = emptySet(),
 
@@ -373,6 +381,14 @@ data class ToolPolicyProperties(
 
     /** Error message returned when a tool call is denied by policy. */
     val denyWriteMessage: String = "Error: This tool is not allowed in this channel"
+)
+
+data class ToolPolicyDynamicProperties(
+    /** Enable DB-backed tool policy (admin API updates + periodic refresh). */
+    val enabled: Boolean = false,
+
+    /** Cache refresh interval in milliseconds when dynamic policy is enabled. */
+    val refreshMs: Long = 10_000
 )
 
 /**
