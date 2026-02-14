@@ -81,6 +81,7 @@ data class ToolPolicyResponse(
     val enabled: Boolean,
     val writeToolNames: Set<String>,
     val denyWriteChannels: Set<String>,
+    val allowWriteToolNamesInDenyChannels: Set<String>,
     val denyWriteMessage: String,
     val createdAt: Long,
     val updatedAt: Long
@@ -92,6 +93,8 @@ data class UpdateToolPolicyRequest(
     val writeToolNames: Set<String> = emptySet(),
     @field:Size(max = 50, message = "denyWriteChannels must not exceed 50 entries")
     val denyWriteChannels: Set<String> = emptySet(),
+    @field:Size(max = 500, message = "allowWriteToolNamesInDenyChannels must not exceed 500 entries")
+    val allowWriteToolNamesInDenyChannels: Set<String> = emptySet(),
     @field:Size(max = 500, message = "denyWriteMessage must not exceed 500 characters")
     val denyWriteMessage: String = "Error: This tool is not allowed in this channel"
 ) {
@@ -99,6 +102,7 @@ data class UpdateToolPolicyRequest(
         enabled = enabled,
         writeToolNames = writeToolNames.map { it.trim() }.filter { it.isNotBlank() }.toSet(),
         denyWriteChannels = denyWriteChannels.map { it.trim().lowercase() }.filter { it.isNotBlank() }.toSet(),
+        allowWriteToolNamesInDenyChannels = allowWriteToolNamesInDenyChannels.map { it.trim() }.filter { it.isNotBlank() }.toSet(),
         denyWriteMessage = denyWriteMessage.trim()
     )
 }
@@ -107,8 +111,8 @@ private fun ToolPolicy.toResponse(): ToolPolicyResponse = ToolPolicyResponse(
     enabled = enabled,
     writeToolNames = writeToolNames,
     denyWriteChannels = denyWriteChannels,
+    allowWriteToolNamesInDenyChannels = allowWriteToolNamesInDenyChannels,
     denyWriteMessage = denyWriteMessage,
     createdAt = createdAt.toEpochMilli(),
     updatedAt = updatedAt.toEpochMilli()
 )
-

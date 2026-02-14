@@ -382,6 +382,14 @@ data class ToolPolicyProperties(
     /** Channels where write tools are denied (fail-closed). */
     val denyWriteChannels: Set<String> = setOf("slack"),
 
+    /**
+     * Exception list: write tool names that are allowed even in [denyWriteChannels].
+     *
+     * This is useful when you want a strict default (deny on chat channels), but still
+     * allow a small subset of safe write operations (e.g., create a Jira issue) in Slack.
+     */
+    val allowWriteToolNamesInDenyChannels: Set<String> = emptySet(),
+
     /** Error message returned when a tool call is denied by policy. */
     val denyWriteMessage: String = "Error: This tool is not allowed in this channel"
 )

@@ -12,6 +12,7 @@ data class ToolPolicy(
     val enabled: Boolean,
     val writeToolNames: Set<String>,
     val denyWriteChannels: Set<String>,
+    val allowWriteToolNamesInDenyChannels: Set<String>,
     val denyWriteMessage: String,
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now()
@@ -21,8 +22,8 @@ data class ToolPolicy(
             enabled = props.enabled,
             writeToolNames = props.writeToolNames,
             denyWriteChannels = props.denyWriteChannels,
+            allowWriteToolNamesInDenyChannels = props.allowWriteToolNamesInDenyChannels,
             denyWriteMessage = props.denyWriteMessage
         )
     }
 }
-

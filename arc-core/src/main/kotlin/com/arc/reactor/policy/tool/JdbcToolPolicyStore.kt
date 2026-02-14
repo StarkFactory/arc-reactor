@@ -14,7 +14,8 @@ class JdbcToolPolicyStore(
 
     override fun getOrNull(): ToolPolicy? {
         return jdbcTemplate.query(
-            "SELECT id, enabled, write_tool_names, deny_write_channels, deny_write_message, created_at, updated_at " +
+            "SELECT id, enabled, write_tool_names, deny_write_channels, allow_write_tool_names_in_deny_channels, " +
+                "deny_write_message, created_at, updated_at " +
                 "FROM tool_policy WHERE id = ?",
             { rs: ResultSet, _: Int -> mapRow(rs) },
             DEFAULT_ID
@@ -31,23 +32,27 @@ class JdbcToolPolicyStore(
             if (existing == null) {
                 jdbcTemplate.update(
                     "INSERT INTO tool_policy " +
-                        "(id, enabled, write_tool_names, deny_write_channels, deny_write_message, created_at, updated_at) " +
-                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        "(id, enabled, write_tool_names, deny_write_channels, allow_write_tool_names_in_deny_channels, " +
+                        "deny_write_message, created_at, updated_at) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     DEFAULT_ID,
                     updated.enabled,
                     objectMapper.writeValueAsString(updated.writeToolNames.toList()),
                     objectMapper.writeValueAsString(updated.denyWriteChannels.toList()),
+                    objectMapper.writeValueAsString(updated.allowWriteToolNamesInDenyChannels.toList()),
                     updated.denyWriteMessage,
                     java.sql.Timestamp.from(createdAt),
                     java.sql.Timestamp.from(now)
                 )
             } else {
                 jdbcTemplate.update(
-                    "UPDATE tool_policy SET enabled = ?, write_tool_names = ?, deny_write_channels = ?, deny_write_message = ?, updated_at = ? " +
+                    "UPDATE tool_policy SET enabled = ?, write_tool_names = ?, deny_write_channels = ?, " +
+                        "allow_write_tool_names_in_deny_channels = ?, deny_write_message = ?, updated_at = ? " +
                         "WHERE id = ?",
                     updated.enabled,
                     objectMapper.writeValueAsString(updated.writeToolNames.toList()),
                     objectMapper.writeValueAsString(updated.denyWriteChannels.toList()),
+                    objectMapper.writeValueAsString(updated.allowWriteToolNamesInDenyChannels.toList()),
                     updated.denyWriteMessage,
                     java.sql.Timestamp.from(now),
                     DEFAULT_ID
@@ -68,6 +73,7 @@ class JdbcToolPolicyStore(
             enabled = rs.getBoolean("enabled"),
             writeToolNames = parseJsonSet(rs.getString("write_tool_names")),
             denyWriteChannels = parseJsonSet(rs.getString("deny_write_channels")),
+            allowWriteToolNamesInDenyChannels = parseJsonSet(rs.getString("allow_write_tool_names_in_deny_channels")),
             denyWriteMessage = rs.getString("deny_write_message") ?: "",
             createdAt = rs.getTimestamp("created_at").toInstant(),
             updatedAt = rs.getTimestamp("updated_at").toInstant()
