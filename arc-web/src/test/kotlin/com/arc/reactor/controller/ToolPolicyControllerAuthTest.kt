@@ -89,4 +89,3 @@ class ToolPolicyControllerAuthTest {
         assertEquals(HttpStatus.OK, response.statusCode)
     }
 }
-

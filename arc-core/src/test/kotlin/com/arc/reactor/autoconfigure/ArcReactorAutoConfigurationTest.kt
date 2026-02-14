@@ -469,6 +469,22 @@ class ArcReactorAutoConfigurationTest {
                     }
                 }
         }
+
+        @Test
+        fun `should append actuator health to public paths when enabled`() {
+            contextRunner
+                .withPropertyValues(
+                    "arc.reactor.auth.enabled=true",
+                    "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough",
+                    "arc.reactor.auth.public-actuator-health=true"
+                )
+                .run { context ->
+                    val props = context.getBean(com.arc.reactor.auth.AuthProperties::class.java)
+                    assertTrue(props.publicPaths.any { it == "/actuator/health" }) {
+                        "publicPaths should include /actuator/health when arc.reactor.auth.public-actuator-health=true"
+                    }
+                }
+        }
     }
 
     // ── Test Configuration Classes ──────────────────────────────────

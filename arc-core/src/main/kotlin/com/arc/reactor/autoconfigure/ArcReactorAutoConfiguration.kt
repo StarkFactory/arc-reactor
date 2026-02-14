@@ -656,11 +656,25 @@ class ArcReactorAutoConfiguration {
         @Bean
         fun authProperties(environment: Environment): AuthProperties {
             val publicPathsCsv = environment.getProperty("arc.reactor.auth.public-paths")
-            val publicPaths = publicPathsCsv?.split(",")?.map { it.trim() }
-                ?: listOf(
-                    "/api/auth/login", "/api/auth/register",
-                    "/v3/api-docs", "/swagger-ui", "/webjars"
-                )
+            val defaultPublicPaths = mutableListOf(
+                "/api/auth/login", "/api/auth/register",
+                "/v3/api-docs", "/swagger-ui", "/webjars"
+            )
+
+            // Convenience option: make health endpoint publicly accessible without requiring users to
+            // override the entire public-paths list.
+            val publicActuatorHealth = environment.getProperty(
+                "arc.reactor.auth.public-actuator-health", Boolean::class.java, false
+            )
+            if (publicActuatorHealth) {
+                defaultPublicPaths.add("/actuator/health")
+            }
+
+            val publicPaths = publicPathsCsv
+                ?.split(",")
+                ?.map { it.trim() }
+                ?.filter { it.isNotBlank() }
+                ?: defaultPublicPaths
 
             return AuthProperties(
                 enabled = true,

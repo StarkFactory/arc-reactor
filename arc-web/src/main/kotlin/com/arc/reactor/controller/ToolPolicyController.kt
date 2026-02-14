@@ -82,6 +82,7 @@ data class ToolPolicyResponse(
     val writeToolNames: Set<String>,
     val denyWriteChannels: Set<String>,
     val allowWriteToolNamesInDenyChannels: Set<String>,
+    val allowWriteToolNamesByChannel: Map<String, Set<String>>,
     val denyWriteMessage: String,
     val createdAt: Long,
     val updatedAt: Long
@@ -95,6 +96,8 @@ data class UpdateToolPolicyRequest(
     val denyWriteChannels: Set<String> = emptySet(),
     @field:Size(max = 500, message = "allowWriteToolNamesInDenyChannels must not exceed 500 entries")
     val allowWriteToolNamesInDenyChannels: Set<String> = emptySet(),
+    @field:Size(max = 200, message = "allowWriteToolNamesByChannel must not exceed 200 channels")
+    val allowWriteToolNamesByChannel: Map<String, Set<String>> = emptyMap(),
     @field:Size(max = 500, message = "denyWriteMessage must not exceed 500 characters")
     val denyWriteMessage: String = "Error: This tool is not allowed in this channel"
 ) {
@@ -103,6 +106,11 @@ data class UpdateToolPolicyRequest(
         writeToolNames = writeToolNames.map { it.trim() }.filter { it.isNotBlank() }.toSet(),
         denyWriteChannels = denyWriteChannels.map { it.trim().lowercase() }.filter { it.isNotBlank() }.toSet(),
         allowWriteToolNamesInDenyChannels = allowWriteToolNamesInDenyChannels.map { it.trim() }.filter { it.isNotBlank() }.toSet(),
+        allowWriteToolNamesByChannel = allowWriteToolNamesByChannel
+            .mapKeys { (k, _) -> k.trim().lowercase() }
+            .mapValues { (_, v) -> v.map { it.trim() }.filter { it.isNotBlank() }.toSet() }
+            .filterKeys { it.isNotBlank() }
+            .filterValues { it.isNotEmpty() },
         denyWriteMessage = denyWriteMessage.trim()
     )
 }
@@ -112,6 +120,7 @@ private fun ToolPolicy.toResponse(): ToolPolicyResponse = ToolPolicyResponse(
     writeToolNames = writeToolNames,
     denyWriteChannels = denyWriteChannels,
     allowWriteToolNamesInDenyChannels = allowWriteToolNamesInDenyChannels,
+    allowWriteToolNamesByChannel = allowWriteToolNamesByChannel,
     denyWriteMessage = denyWriteMessage,
     createdAt = createdAt.toEpochMilli(),
     updatedAt = updatedAt.toEpochMilli()

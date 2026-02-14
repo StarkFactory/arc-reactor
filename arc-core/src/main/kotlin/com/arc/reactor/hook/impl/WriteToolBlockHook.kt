@@ -40,6 +40,10 @@ class WriteToolBlockHook(
         // Exception: allow specific write tools even in deny channels.
         if (toolName in policy.allowWriteToolNamesInDenyChannels) return HookResult.Continue
 
+        // Exception: channel-scoped allowlist.
+        val allowForChannel = policy.allowWriteToolNamesByChannel[channel] ?: emptySet()
+        if (toolName in allowForChannel) return HookResult.Continue
+
         logger.info {
             "Write tool blocked by policy: tool=$toolName channel=$channel userId=${context.agentContext.userId}"
         }

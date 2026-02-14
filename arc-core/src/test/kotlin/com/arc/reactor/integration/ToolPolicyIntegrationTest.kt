@@ -154,6 +154,7 @@ class ToolPolicyIntegrationTest {
                     "writeToolNames" to listOf("jira_create_issue"),
                     "denyWriteChannels" to listOf("slack"),
                     "allowWriteToolNamesInDenyChannels" to listOf("jira_create_issue"),
+                    "allowWriteToolNamesByChannel" to mapOf<String, List<String>>(),
                     "denyWriteMessage" to "blocked"
                 )
             )
@@ -174,6 +175,42 @@ class ToolPolicyIntegrationTest {
 
         val result = runBlocking { writeToolBlockHook.beforeToolCall(toolCtx) }
         assertTrue(result is HookResult.Continue)
+    }
+
+    @Test
+    fun `channel-scoped allowlist permits only specific channels`() {
+        webTestClient.put()
+            .uri("/api/tool-policy")
+            .bodyValue(
+                mapOf(
+                    "enabled" to true,
+                    "writeToolNames" to listOf("jira_create_issue"),
+                    "denyWriteChannels" to listOf("slack", "web"),
+                    "allowWriteToolNamesByChannel" to mapOf("slack" to listOf("jira_create_issue")),
+                    "denyWriteMessage" to "blocked"
+                )
+            )
+            .exchange()
+            .expectStatus().isOk
+
+        val slackCtx = ToolCallContext(
+            agentContext = HookContext(
+                runId = "r1",
+                userId = "u1",
+                userPrompt = "create issue",
+                channel = "slack"
+            ),
+            toolName = "jira_create_issue",
+            toolParams = emptyMap(),
+            callIndex = 0
+        )
+        val slackResult = runBlocking { writeToolBlockHook.beforeToolCall(slackCtx) }
+        assertTrue(slackResult is HookResult.Continue)
+
+        val webCtx = slackCtx.copy(agentContext = slackCtx.agentContext.copy(channel = "web"))
+        val webResult = runBlocking { writeToolBlockHook.beforeToolCall(webCtx) }
+        assertTrue(webResult is HookResult.Reject)
+        assertEquals("blocked", (webResult as HookResult.Reject).reason)
     }
 
     @Test
