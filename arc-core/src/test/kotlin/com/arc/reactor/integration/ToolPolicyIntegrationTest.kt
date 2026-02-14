@@ -145,6 +145,38 @@ class ToolPolicyIntegrationTest {
     }
 
     @Test
+    fun `allowlist permits a write tool even in deny channel`() {
+        webTestClient.put()
+            .uri("/api/tool-policy")
+            .bodyValue(
+                mapOf(
+                    "enabled" to true,
+                    "writeToolNames" to listOf("jira_create_issue"),
+                    "denyWriteChannels" to listOf("slack"),
+                    "allowWriteToolNamesInDenyChannels" to listOf("jira_create_issue"),
+                    "denyWriteMessage" to "blocked"
+                )
+            )
+            .exchange()
+            .expectStatus().isOk
+
+        val toolCtx = ToolCallContext(
+            agentContext = HookContext(
+                runId = "r1",
+                userId = "u1",
+                userPrompt = "create issue",
+                channel = "slack"
+            ),
+            toolName = "jira_create_issue",
+            toolParams = emptyMap(),
+            callIndex = 0
+        )
+
+        val result = runBlocking { writeToolBlockHook.beforeToolCall(toolCtx) }
+        assertTrue(result is HookResult.Continue)
+    }
+
+    @Test
     fun `DELETE resets stored policy and hook no longer blocks`() {
         webTestClient.put()
             .uri("/api/tool-policy")
