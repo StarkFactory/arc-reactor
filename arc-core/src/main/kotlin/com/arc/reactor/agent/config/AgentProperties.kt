@@ -70,7 +70,10 @@ data class AgentProperties(
     val intent: IntentProperties = IntentProperties(),
 
     /** Output guard configuration */
-    val outputGuard: OutputGuardProperties = OutputGuardProperties()
+    val outputGuard: OutputGuardProperties = OutputGuardProperties(),
+
+    /** Dynamic scheduler configuration */
+    val scheduler: SchedulerProperties = SchedulerProperties()
 )
 
 data class LlmProperties(
@@ -600,4 +603,26 @@ data class IntentProperties(
 
     /** Maximum conversation turns to include for context-aware classification */
     val maxConversationTurns: Int = 2
+)
+
+/**
+ * Dynamic scheduler configuration.
+ *
+ * When enabled, allows cron-scheduled MCP tool execution managed via REST API.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     scheduler:
+ *       enabled: true
+ *       thread-pool-size: 5
+ * ```
+ */
+data class SchedulerProperties(
+    /** Enable dynamic scheduler. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Thread pool size for scheduled task execution. */
+    val threadPoolSize: Int = 5
 )
