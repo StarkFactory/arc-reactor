@@ -59,12 +59,16 @@ class JdbcIntentRegistry(
         if (existing != null) {
             jdbcTemplate.update(
                 """UPDATE intent_definitions
-                   SET description = ?, examples = ?, keywords = ?, profile = ?,
+                   SET description = ?, examples = ?, keywords = ?, synonyms = ?,
+                       keyword_weights = ?, negative_keywords = ?, profile = ?,
                        enabled = ?, updated_at = ?
                    WHERE name = ?""",
                 intent.description,
                 objectMapper.writeValueAsString(intent.examples),
                 objectMapper.writeValueAsString(intent.keywords),
+                objectMapper.writeValueAsString(intent.synonyms),
+                objectMapper.writeValueAsString(intent.keywordWeights),
+                objectMapper.writeValueAsString(intent.negativeKeywords),
                 objectMapper.writeValueAsString(intent.profile),
                 intent.enabled,
                 java.sql.Timestamp.from(now),
@@ -75,12 +79,16 @@ class JdbcIntentRegistry(
 
         jdbcTemplate.update(
             """INSERT INTO intent_definitions
-               (name, description, examples, keywords, profile, enabled, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (name, description, examples, keywords, synonyms, keyword_weights,
+                negative_keywords, profile, enabled, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             intent.name,
             intent.description,
             objectMapper.writeValueAsString(intent.examples),
             objectMapper.writeValueAsString(intent.keywords),
+            objectMapper.writeValueAsString(intent.synonyms),
+            objectMapper.writeValueAsString(intent.keywordWeights),
+            objectMapper.writeValueAsString(intent.negativeKeywords),
             objectMapper.writeValueAsString(intent.profile),
             intent.enabled,
             java.sql.Timestamp.from(intent.createdAt),
@@ -95,7 +103,8 @@ class JdbcIntentRegistry(
 
     companion object {
         private const val BASE_SELECT =
-            "SELECT name, description, examples, keywords, profile, enabled, created_at, updated_at " +
+            "SELECT name, description, examples, keywords, synonyms, keyword_weights, " +
+                "negative_keywords, profile, enabled, created_at, updated_at " +
                 "FROM intent_definitions"
 
         private const val SELECT_ALL = "$BASE_SELECT ORDER BY name ASC"
@@ -108,6 +117,9 @@ class JdbcIntentRegistry(
                 description = rs.getString("description"),
                 examples = parseJsonList(rs.getString("examples")),
                 keywords = parseJsonList(rs.getString("keywords")),
+                synonyms = parseJsonMap(rs.getString("synonyms")),
+                keywordWeights = parseJsonDoubleMap(rs.getString("keyword_weights")),
+                negativeKeywords = parseJsonList(rs.getString("negative_keywords")),
                 profile = parseProfile(rs.getString("profile")),
                 enabled = rs.getBoolean("enabled"),
                 createdAt = rs.getTimestamp("created_at").toInstant(),
@@ -122,6 +134,26 @@ class JdbcIntentRegistry(
             } catch (e: Exception) {
                 logger.debug(e) { "Failed to parse JSON list: $json" }
                 emptyList()
+            }
+        }
+
+        private fun parseJsonMap(json: String?): Map<String, List<String>> {
+            if (json.isNullOrBlank()) return emptyMap()
+            return try {
+                objectMapper.readValue(json)
+            } catch (e: Exception) {
+                logger.debug(e) { "Failed to parse JSON map: $json" }
+                emptyMap()
+            }
+        }
+
+        private fun parseJsonDoubleMap(json: String?): Map<String, Double> {
+            if (json.isNullOrBlank()) return emptyMap()
+            return try {
+                objectMapper.readValue(json)
+            } catch (e: Exception) {
+                logger.debug(e) { "Failed to parse JSON double map: $json" }
+                emptyMap()
             }
         }
 

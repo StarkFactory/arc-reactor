@@ -969,7 +969,8 @@ class ArcReactorAutoConfiguration {
         circuitBreakerRegistryProvider: ObjectProvider<CircuitBreakerRegistry>,
         responseCacheProvider: ObjectProvider<ResponseCache>,
         fallbackStrategyProvider: ObjectProvider<FallbackStrategy>,
-        outputGuardPipelineProvider: ObjectProvider<OutputGuardPipeline>
+        outputGuardPipelineProvider: ObjectProvider<OutputGuardPipeline>,
+        intentResolverProvider: ObjectProvider<IntentResolver>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -993,6 +994,8 @@ class ArcReactorAutoConfiguration {
         responseCache = responseCacheProvider.ifAvailable,
         cacheableTemperature = properties.cache.cacheableTemperature,
         fallbackStrategy = fallbackStrategyProvider.ifAvailable,
-        outputGuardPipeline = outputGuardPipelineProvider.ifAvailable
+        outputGuardPipeline = outputGuardPipelineProvider.ifAvailable,
+        intentResolver = intentResolverProvider.ifAvailable,
+        blockedIntents = properties.intent.blockedIntents
     )
 }

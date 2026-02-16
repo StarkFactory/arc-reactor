@@ -102,10 +102,10 @@ class LlmIntentClassifier(
     ): String {
         val intentDescriptions = intents.joinToString("\n") { intent ->
             val examples = intent.examples.take(maxExamplesPerIntent)
-            val exampleStr = if (examples.isNotEmpty()) {
-                " Examples: ${examples.joinToString(", ") { "\"$it\"" }}"
+            val exampleLines = if (examples.isNotEmpty()) {
+                "\n  Examples:\n" + examples.joinToString("\n") { "    - \"$it\"" }
             } else ""
-            "- ${intent.name}: ${intent.description}$exampleStr"
+            "- ${intent.name}: ${intent.description}$exampleLines"
         }
 
         val conversationContext = buildConversationContext(context)
