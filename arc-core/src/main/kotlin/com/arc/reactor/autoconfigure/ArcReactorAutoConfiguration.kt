@@ -46,7 +46,11 @@ import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditStore
 import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
 import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
 import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
+import com.arc.reactor.feedback.FeedbackStore
+import com.arc.reactor.feedback.InMemoryFeedbackStore
+import com.arc.reactor.feedback.JdbcFeedbackStore
 import com.arc.reactor.hook.AfterAgentCompleteHook
+import com.arc.reactor.hook.impl.FeedbackMetadataCaptureHook
 import com.arc.reactor.hook.impl.WebhookNotificationHook
 import com.arc.reactor.hook.impl.WebhookProperties
 import com.arc.reactor.hook.impl.WriteToolBlockHook
@@ -288,6 +292,16 @@ class ArcReactorAutoConfiguration {
         fun jdbcScheduledJobStore(
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
         ): ScheduledJobStore = JdbcScheduledJobStore(jdbcTemplate = jdbcTemplate)
+
+        @Bean
+        @Primary
+        @ConditionalOnProperty(
+            prefix = "arc.reactor.feedback", name = ["enabled"],
+            havingValue = "true", matchIfMissing = false
+        )
+        fun jdbcFeedbackStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
+        ): FeedbackStore = JdbcFeedbackStore(jdbcTemplate = jdbcTemplate)
     }
 
     /**
@@ -324,6 +338,31 @@ class ArcReactorAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun personaStore(): PersonaStore = InMemoryPersonaStore()
+
+    /**
+     * Feedback Store: In-memory fallback (only when feedback feature is enabled)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.feedback", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun feedbackStore(): FeedbackStore = InMemoryFeedbackStore()
+
+    /**
+     * Feedback Metadata Capture Hook (only when feedback feature is enabled)
+     *
+     * Caches execution metadata so that feedback submissions can auto-enrich
+     * with query, response, toolsUsed, and durationMs via runId.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.feedback", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun feedbackMetadataCaptureHook(): FeedbackMetadataCaptureHook = FeedbackMetadataCaptureHook()
 
     /**
      * Prompt Template Store: In-memory fallback (when no DataSource/JDBC)
