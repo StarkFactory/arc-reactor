@@ -65,6 +65,7 @@ Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-patter
 | RAG | OFF | `arc.reactor.rag.enabled` |
 | CORS | OFF | `arc.reactor.cors.enabled` |
 | Circuit Breaker | OFF | `arc.reactor.circuit-breaker.enabled` |
+| Feedback | OFF | `arc.reactor.feedback.enabled` |
 | Flyway | OFF | `SPRING_FLYWAY_ENABLED` env var |
 
 ### Guard vs Hook Error Policy
@@ -96,6 +97,7 @@ Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-patter
 | McpServerController | `/api/mcp/servers` | Always (write = Admin) |
 | AuthController | `/api/auth` | `auth.enabled=true` |
 | DocumentController | `/api/documents` | `rag.enabled=true` |
+| FeedbackController | `/api/feedback` | `feedback.enabled=true` |
 
 ### System Prompt Resolution (priority order)
 
