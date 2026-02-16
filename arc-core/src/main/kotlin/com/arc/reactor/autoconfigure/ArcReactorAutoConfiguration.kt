@@ -503,7 +503,9 @@ class ArcReactorAutoConfiguration {
         @ConditionalOnMissingBean(name = ["inputValidationStage"])
         fun inputValidationStage(properties: AgentProperties): GuardStage =
             DefaultInputValidationStage(
-                maxLength = properties.guard.maxInputLength
+                maxLength = properties.boundaries.inputMaxChars,
+                minLength = properties.boundaries.inputMinChars,
+                systemPromptMaxChars = properties.boundaries.systemPromptMaxChars
             )
 
         @Bean
@@ -874,7 +876,9 @@ class ArcReactorAutoConfiguration {
     ): ResponseFilterChain {
         val allFilters = mutableListOf<ResponseFilter>()
         filters.forEach { allFilters.add(it) }
-        // Add built-in MaxLength filter if configured
+        // MaxLengthResponseFilter is only added for explicit response.maxLength config.
+        // boundaries.outputMaxChars is handled by checkOutputBoundary() in the executor
+        // to avoid double truncation.
         if (properties.response.maxLength > 0) {
             val hasMaxLength = allFilters.any { it is MaxLengthResponseFilter }
             if (!hasMaxLength) {

@@ -73,7 +73,10 @@ data class AgentProperties(
     val outputGuard: OutputGuardProperties = OutputGuardProperties(),
 
     /** Dynamic scheduler configuration */
-    val scheduler: SchedulerProperties = SchedulerProperties()
+    val scheduler: SchedulerProperties = SchedulerProperties(),
+
+    /** Input/output boundary policy configuration */
+    val boundaries: BoundaryProperties = BoundaryProperties()
 )
 
 data class LlmProperties(
@@ -653,3 +656,56 @@ data class SchedulerProperties(
     /** Thread pool size for scheduled task execution. */
     val threadPoolSize: Int = 5
 )
+
+/**
+ * Input/output boundary policy configuration.
+ *
+ * Provides a single config group for all length-based boundary checks:
+ * input min/max, system prompt max, output min/max.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     boundaries:
+ *       input-min-chars: 1
+ *       input-max-chars: 5000
+ *       system-prompt-max-chars: 50000
+ *       output-min-chars: 0
+ *       output-max-chars: 0
+ *       output-min-violation-mode: warn
+ * ```
+ */
+data class BoundaryProperties(
+    /** Minimum input length in characters. */
+    val inputMinChars: Int = 1,
+
+    /** Maximum input length in characters. */
+    val inputMaxChars: Int = 5000,
+
+    /** Maximum system prompt length in characters. 0 = disabled. */
+    val systemPromptMaxChars: Int = 0,
+
+    /** Minimum output length in characters. 0 = disabled. */
+    val outputMinChars: Int = 0,
+
+    /** Maximum output length in characters. 0 = disabled. */
+    val outputMaxChars: Int = 0,
+
+    /** Policy when output is below outputMinChars. */
+    val outputMinViolationMode: OutputMinViolationMode = OutputMinViolationMode.WARN
+)
+
+/**
+ * Policy for handling output minimum length violations.
+ */
+enum class OutputMinViolationMode {
+    /** Log a warning and pass the short response through. */
+    WARN,
+
+    /** Make one additional LLM call requesting a longer response. Falls back to WARN if still short. */
+    RETRY_ONCE,
+
+    /** Fail with OUTPUT_TOO_SHORT error code. */
+    FAIL
+}
