@@ -390,6 +390,64 @@ class IntentIntegrationTest {
         }
     }
 
+    @Nested
+    inner class EnhancedRuleFeatures {
+
+        @Test
+        fun `synonym match resolves via rule path`() = runTest {
+            registry.save(IntentDefinition(
+                name = "refund_enhanced",
+                description = "Refund with synonyms",
+                keywords = listOf("환불"),
+                synonyms = mapOf("환불" to listOf("리펀드", "돌려줘")),
+                profile = IntentProfile(maxToolCalls = 5)
+            ))
+
+            val resolved = resolver.resolve("리펀드 해주세요")
+            assertNotNull(resolved) { "Synonym should match via rule" }
+            assertEquals("refund_enhanced", resolved!!.intentName) { "Should match refund_enhanced" }
+            assertEquals("rule", resolved.result.classifiedBy) { "Should be rule-classified" }
+        }
+
+        @Test
+        fun `negative keyword causes rule failure and LLM fallback`() = runTest {
+            registry.save(IntentDefinition(
+                name = "refund_neg",
+                description = "Refund with negative keywords",
+                keywords = listOf("환불"),
+                negativeKeywords = listOf("환불 정책"),
+                profile = IntentProfile(maxToolCalls = 5)
+            ))
+
+            // "환불 정책" matches negative keyword -> rule excludes refund_neg
+            // LLM mock returns refund_neg anyway (LLM doesn't know about negative keywords)
+            mockLlmResponse("""{"intents":[{"name":"refund_neg","confidence":0.9}]}""")
+
+            val resolved = resolver.resolve("환불 정책 알려주세요")
+            assertNotNull(resolved) { "LLM fallback should resolve" }
+            assertEquals("refund_neg", resolved!!.intentName) { "LLM classifies as refund_neg" }
+            assertEquals("llm", resolved.result.classifiedBy) { "Should fallback to LLM" }
+        }
+
+        @Test
+        fun `weighted keyword changes winner intent`() = runTest {
+            registry.save(IntentDefinition(
+                name = "weighted_refund",
+                description = "Refund with weighted keywords",
+                keywords = listOf("주문", "환불"),
+                keywordWeights = mapOf("환불" to 5.0),
+                profile = IntentProfile(maxToolCalls = 5)
+            ))
+            // "주문" is also in order_inquiry (3 keywords), but weighted_refund has 환불 at 5.0
+            // Input "주문 환불" -> weighted_refund: (1+5)/(1+5) = 1.0, order: 1/3 = 0.33
+            val resolved = resolver.resolve("주문 환불 해주세요")
+            assertNotNull(resolved) { "Should resolve" }
+            assertEquals("weighted_refund", resolved!!.intentName) {
+                "Weighted refund should win over order_inquiry"
+            }
+        }
+    }
+
     private fun registerIntents() {
         // Single keyword -> 1/1 = 1.0 confidence -> always rule-accepted
         registry.save(

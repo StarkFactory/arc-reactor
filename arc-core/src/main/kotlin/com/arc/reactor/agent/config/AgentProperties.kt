@@ -629,7 +629,10 @@ data class IntentProperties(
     val maxExamplesPerIntent: Int = 3,
 
     /** Maximum conversation turns to include for context-aware classification */
-    val maxConversationTurns: Int = 2
+    val maxConversationTurns: Int = 2,
+
+    /** Intent names to block — requests classified as these intents are rejected */
+    val blockedIntents: Set<String> = emptySet()
 )
 
 /**

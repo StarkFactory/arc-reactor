@@ -14,6 +14,9 @@ import java.time.Instant
  * @param description Human-readable description used by LLM classifier for intent selection
  * @param examples Few-shot examples for LLM classification accuracy
  * @param keywords Keywords for rule-based classification (high-confidence patterns only)
+ * @param synonyms Synonym groups — key is canonical keyword, value is alternative forms
+ * @param keywordWeights Keyword importance weights — higher values increase confidence contribution (default 1.0)
+ * @param negativeKeywords Keywords that exclude this intent when matched
  * @param profile Pipeline configuration overrides for this intent
  * @param enabled Whether this intent is active for classification
  * @param createdAt Creation timestamp
@@ -24,6 +27,9 @@ data class IntentDefinition(
     val description: String,
     val examples: List<String> = emptyList(),
     val keywords: List<String> = emptyList(),
+    val synonyms: Map<String, List<String>> = emptyMap(),
+    val keywordWeights: Map<String, Double> = emptyMap(),
+    val negativeKeywords: List<String> = emptyList(),
     val profile: IntentProfile = IntentProfile(),
     val enabled: Boolean = true,
     val createdAt: Instant = Instant.now(),

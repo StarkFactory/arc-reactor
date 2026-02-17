@@ -32,6 +32,8 @@ import com.arc.reactor.guard.output.OutputGuardContext
 import com.arc.reactor.guard.output.OutputGuardPipeline
 import com.arc.reactor.guard.output.OutputGuardResult
 import com.arc.reactor.hook.HookExecutor
+import com.arc.reactor.intent.IntentResolver
+import com.arc.reactor.intent.model.ClassificationContext
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
@@ -151,7 +153,9 @@ class SpringAiAgentExecutor(
     private val responseCache: ResponseCache? = null,
     private val cacheableTemperature: Double = 0.0,
     private val fallbackStrategy: FallbackStrategy? = null,
-    private val outputGuardPipeline: OutputGuardPipeline? = null
+    private val outputGuardPipeline: OutputGuardPipeline? = null,
+    private val intentResolver: IntentResolver? = null,
+    private val blockedIntents: Set<String> = emptySet()
 ) : AgentExecutor {
 
     init {
@@ -189,6 +193,9 @@ class SpringAiAgentExecutor(
                     executeInternal(command, hookContext, toolsUsed, startTime)
                 }
             }
+        } catch (e: BlockedIntentException) {
+            logger.info { "Blocked intent: ${e.intentName}" }
+            return handleFailureWithHook(AgentErrorCode.GUARD_REJECTED, e, hookContext, startTime)
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             logger.warn { "Request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
             return handleFailureWithHook(AgentErrorCode.TIMEOUT, e, hookContext, startTime)
@@ -252,11 +259,12 @@ class SpringAiAgentExecutor(
         startTime: Long
     ): AgentResult {
         checkGuardAndHooks(command, hookContext, startTime)?.let { return it }
+        val effectiveCommand = resolveIntent(command)
 
         // Check response cache (only for cacheable temperature)
-        val cacheKey = if (responseCache != null && isCacheable(command)) {
+        val cacheKey = if (responseCache != null && isCacheable(effectiveCommand)) {
             val toolNames = (toolCallbacks + mcpToolCallbacks()).map { it.name }
-            val key = CacheKeyBuilder.buildKey(command, toolNames)
+            val key = CacheKeyBuilder.buildKey(effectiveCommand, toolNames)
             try {
                 responseCache.get(key)?.let { cached ->
                     logger.debug { "Cache hit for request" }
@@ -278,27 +286,27 @@ class SpringAiAgentExecutor(
             null
         }
 
-        val conversationHistory = conversationManager.loadHistory(command)
-        val ragContext = retrieveRagContext(command.userPrompt)
-        val selectedTools = if (command.mode == AgentMode.STANDARD) {
+        val conversationHistory = conversationManager.loadHistory(effectiveCommand)
+        val ragContext = retrieveRagContext(effectiveCommand.userPrompt)
+        val selectedTools = if (effectiveCommand.mode == AgentMode.STANDARD) {
             emptyList()
         } else {
-            selectAndPrepareTools(command.userPrompt)
+            selectAndPrepareTools(effectiveCommand.userPrompt)
         }
-        logger.debug { "Selected ${selectedTools.size} tools for execution (mode=${command.mode})" }
+        logger.debug { "Selected ${selectedTools.size} tools for execution (mode=${effectiveCommand.mode})" }
 
         var result = executeWithTools(
-            command = command, tools = selectedTools,
+            command = effectiveCommand, tools = selectedTools,
             conversationHistory = conversationHistory,
             hookContext = hookContext, toolsUsed = toolsUsed, ragContext = ragContext
         )
 
         // Attempt fallback on failure
         if (!result.success && fallbackStrategy != null) {
-            result = attemptFallback(command, result)
+            result = attemptFallback(effectiveCommand, result)
         }
 
-        val finalResult = finishExecution(result, command, hookContext, toolsUsed, startTime)
+        val finalResult = finishExecution(result, effectiveCommand, hookContext, toolsUsed, startTime)
 
         // Save to cache on success
         if (cacheKey != null && finalResult.success && finalResult.content != null) {
@@ -363,6 +371,34 @@ class SpringAiAgentExecutor(
             ).also { agentMetrics.recordExecution(it) }
         }
         return null
+    }
+
+    /**
+     * Resolve intent and apply profile to the command.
+     *
+     * Fail-safe: on any error (except blocked intents), returns the original command.
+     */
+    private suspend fun resolveIntent(command: AgentCommand): AgentCommand {
+        if (intentResolver == null) return command
+        try {
+            val context = ClassificationContext(
+                userId = command.userId,
+                channel = command.metadata["channel"]?.toString()
+            )
+            val resolved = intentResolver.resolve(command.userPrompt, context)
+                ?: return command
+            if (blockedIntents.contains(resolved.intentName)) {
+                throw BlockedIntentException(resolved.intentName)
+            }
+            return intentResolver.applyProfile(command, resolved)
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: BlockedIntentException) {
+            throw e
+        } catch (e: Exception) {
+            logger.error(e) { "Intent resolution failed, using original command" }
+            return command
+        }
     }
 
     private suspend fun finishExecution(
@@ -509,43 +545,46 @@ class SpringAiAgentExecutor(
                         return@withTimeout
                     }
 
+                    // 3. Intent resolution (after guard/hooks)
+                    val effectiveCommand = resolveIntent(command)
+
                     // Reject structured formats in streaming mode
-                    if (command.responseFormat != ResponseFormat.TEXT) {
-                        emit(StreamEventMarker.error("Structured ${command.responseFormat} output is not supported in streaming mode"))
+                    if (effectiveCommand.responseFormat != ResponseFormat.TEXT) {
+                        emit(StreamEventMarker.error("Structured ${effectiveCommand.responseFormat} output is not supported in streaming mode"))
                         return@withTimeout
                     }
 
                     streamStarted = true
 
-                    // 3. Setup (conversation via ConversationManager)
-                    val conversationHistory = conversationManager.loadHistory(command)
-                    val ragContext = retrieveRagContext(command.userPrompt)
+                    // 4. Setup (conversation via ConversationManager)
+                    val conversationHistory = conversationManager.loadHistory(effectiveCommand)
+                    val ragContext = retrieveRagContext(effectiveCommand.userPrompt)
                     val systemPrompt = buildSystemPrompt(
-                        command.systemPrompt, ragContext,
-                        command.responseFormat, command.responseSchema
+                        effectiveCommand.systemPrompt, ragContext,
+                        effectiveCommand.responseFormat, effectiveCommand.responseSchema
                     )
-                    var activeTools = if (command.mode == AgentMode.STANDARD) {
+                    var activeTools = if (effectiveCommand.mode == AgentMode.STANDARD) {
                         emptyList()
                     } else {
-                        selectAndPrepareTools(command.userPrompt)
+                        selectAndPrepareTools(effectiveCommand.userPrompt)
                     }
-                    var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
+                    var chatOptions = buildChatOptions(effectiveCommand, activeTools.isNotEmpty())
 
-                    logger.debug { "Streaming ReAct: ${activeTools.size} tools selected (mode=${command.mode})" }
+                    logger.debug { "Streaming ReAct: ${activeTools.size} tools selected (mode=${effectiveCommand.mode})" }
 
-                    // 4. Build message list for ReAct loop
-                    val activeChatClient = resolveChatClient(command)
+                    // 5. Build message list for ReAct loop
+                    val activeChatClient = resolveChatClient(effectiveCommand)
                     val messages = mutableListOf<Message>()
                     if (conversationHistory.isNotEmpty()) {
                         messages.addAll(conversationHistory)
                     }
-                    messages.add(MediaConverter.buildUserMessage(command.userPrompt, command.media))
+                    messages.add(MediaConverter.buildUserMessage(effectiveCommand.userPrompt, effectiveCommand.media))
 
-                    val maxToolCallLimit = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
+                    val maxToolCallLimit = minOf(effectiveCommand.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
                     var totalToolCalls = 0
-                    val allowedTools = resolveAllowedTools(command)
+                    val allowedTools = resolveAllowedTools(effectiveCommand)
 
-                    // 5. Streaming ReAct Loop: Stream → Detect Tool Calls → Execute → Re-Stream
+                    // 6. Streaming ReAct Loop: Stream → Detect Tool Calls → Execute → Re-Stream
                     while (true) {
                         // Reset last iteration content for memory persistence (only final iteration is saved)
                         lastIterationContent = StringBuilder()
@@ -622,12 +661,17 @@ class SpringAiAgentExecutor(
                                     "($totalToolCalls/$maxToolCallLimit), final answer"
                             }
                             activeTools = emptyList()
-                            chatOptions = buildChatOptions(command, false)
+                            chatOptions = buildChatOptions(effectiveCommand, false)
                         }
                     }
 
                 }
             }
+        } catch (e: BlockedIntentException) {
+            logger.info { "Blocked intent in streaming: ${e.intentName}" }
+            streamErrorCode = AgentErrorCode.GUARD_REJECTED
+            streamErrorMessage = e.message
+            emit(StreamEventMarker.error(streamErrorMessage.orEmpty()))
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             logger.warn { "Streaming request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
             streamErrorCode = AgentErrorCode.TIMEOUT
@@ -1490,3 +1534,10 @@ internal class ArcToolCallbackAdapter(
         }
     }
 }
+
+/**
+ * Exception thrown when a classified intent is in the blocked list.
+ */
+class BlockedIntentException(
+    val intentName: String
+) : Exception("Intent '$intentName' is blocked by policy")
