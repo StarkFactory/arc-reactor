@@ -25,30 +25,26 @@ cd arc-reactor
 
 ### 2. LLM Provider 설정
 
-`application.yml`에 사용할 LLM API 키를 설정합니다:
+환경 변수로 provider API 키를 설정합니다:
 
-```yaml
-spring:
-  ai:
-    openai:
-      api-key: ${SPRING_AI_OPENAI_API_KEY}
-    # 또는 Anthropic, Google Gemini, Vertex AI 등
+```bash
+# 기본 provider (arc-core에 기본 활성화): Google Gemini
+export GEMINI_API_KEY=your-api-key
+
+# 선택 provider (의존성을 implementation으로 전환한 경우)
+# export SPRING_AI_OPENAI_API_KEY=your-api-key
+# export SPRING_AI_ANTHROPIC_API_KEY=your-api-key
 ```
 
-`build.gradle.kts`에서 사용할 provider의 주석을 해제합니다:
+provider 의존성은 `arc-core/build.gradle.kts`에서 관리합니다.
 
-```kotlin
-// 기본: Google Gemini (이미 활성화됨)
-implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
-
-// 필요한 것만 활성화
-// compileOnly("org.springframework.ai:spring-ai-starter-model-openai")
-// compileOnly("org.springframework.ai:spring-ai-starter-model-anthropic")
-```
+- 기본: `spring-ai-starter-model-google-genai` 활성화
+- OpenAI/Anthropic: 기본 `compileOnly`
+- provider를 전환하면 `arc-core/build.gradle.kts`에서 대상 의존성을 `implementation(...)`으로 변경
 
 ### 3. 도구 만들기
 
-`tool/` 패키지에 비즈니스 로직을 도구로 추가합니다:
+`arc-core/src/main/kotlin/com/arc/reactor/tool/`에 비즈니스 로직 도구를 추가합니다:
 
 ```kotlin
 @Component
@@ -209,22 +205,22 @@ Fork 후 수정이 필요한 부분과 건드릴 필요 없는 부분을 구분�
 
 | 파일/패키지 | 할 일 |
 |-------------|-------|
-| `tool/` | **도구 추가** — `LocalTool` + `@Tool` 어노테이션으로 비즈니스 로직 연결 |
-| `application.yml` | **설정 변경** — LLM provider, Guard 임계값, RAG on/off 등 |
-| `guard/impl/` | **커스텀 Guard** — 비즈니스 규칙에 맞는 분류/권한 단계 구현 |
-| `hook/` | **커스텀 Hook** — 감사 로그, 빌링, 알림 등 `@Component`로 추가 |
-| `controller/` | **API 수정** — 인증 추가, 엔드포인트 변경 등 |
+| `arc-core/src/main/kotlin/com/arc/reactor/tool/` | **도구 추가** — `LocalTool` + `@Tool` 어노테이션으로 비즈니스 로직 연결 |
+| `arc-core/src/main/resources/application.yml` (또는 외부 env/config) | **설정 변경** — LLM provider, Guard 임계값, RAG on/off 등 |
+| `arc-core/src/main/kotlin/com/arc/reactor/guard/impl/` | **커스텀 Guard** — 비즈니스 규칙에 맞는 분류/권한 단계 구현 |
+| `arc-core/src/main/kotlin/com/arc/reactor/hook/` | **커스텀 Hook** — 감사 로그, 빌링, 알림 등 `@Component`로 추가 |
+| `arc-web/src/main/kotlin/com/arc/reactor/controller/` | **API 수정** — 인증 추가, 엔드포인트 변경 등 |
 
 ### 건드릴 필요 없는 곳 (이미 구조화됨)
 
 | 파일/패키지 | 역할 |
 |-------------|------|
-| `agent/impl/SpringAiAgentExecutor.kt` | ReAct 루프, 재시도, 컨텍스트 관리 — 그대로 사용 |
-| `guard/impl/GuardPipeline.kt` | Guard 파이프라인 오케스트레이션 — 그대로 사용 |
-| `hook/HookExecutor.kt` | Hook 실행 엔진 — 그대로 사용 |
-| `memory/` | 대화 기록 관리 — InMemory/JDBC 자동 선택 |
-| `rag/impl/` | RAG 파이프라인 — 설정으로 제어 |
-| `autoconfigure/` | Spring Boot 자동 설정 — 그대로 사용 |
+| `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/SpringAiAgentExecutor.kt` | ReAct 루프, 재시도, 컨텍스트 관리 — 그대로 사용 |
+| `arc-core/src/main/kotlin/com/arc/reactor/guard/impl/GuardPipeline.kt` | Guard 파이프라인 오케스트레이션 — 그대로 사용 |
+| `arc-core/src/main/kotlin/com/arc/reactor/hook/HookExecutor.kt` | Hook 실행 엔진 — 그대로 사용 |
+| `arc-core/src/main/kotlin/com/arc/reactor/memory/` | 대화 기록 관리 — InMemory/JDBC 자동 선택 |
+| `arc-core/src/main/kotlin/com/arc/reactor/rag/impl/` | RAG 파이프라인 — 설정으로 제어 |
+| `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/` | Spring Boot 자동 설정 — 그대로 사용 |
 
 ## 커스터마이징 예시
 
@@ -280,27 +276,29 @@ fun errorMessageResolver() = ErrorMessageResolver { code, _ ->
 
 ### PostgreSQL Memory 활성화
 
-`build.gradle.kts`에서 주석 해제 + `application.yml`에 DB 설정 추가만 하면 됩니다. 코드 변경 없이 `DataSource` 빈이 감지되면 자동으로 `JdbcMemoryStore`로 전환됩니다.
+빌드/실행 시 `-Pdb=true`를 사용하고 datasource 설정(env 또는 `application.yml`)을 제공하면 됩니다.
+코드 변경 없이 `DataSource` 빈이 감지되면 `JdbcMemoryStore`로 자동 전환됩니다.
 
 ### MCP 서버 연결
 
-```kotlin
-@Service
-class McpSetup(private val mcpManager: McpManager) {
-    @PostConstruct
-    fun setup() {
-        mcpManager.register(McpServer(
-            name = "filesystem",
-            transportType = McpTransportType.STDIO,
-            config = mapOf(
-                "command" to "npx",
-                "args" to listOf("-y", "@modelcontextprotocol/server-filesystem", "/data")
-            )
-        ))
-        runBlocking { mcpManager.connect("filesystem") }
-    }
-}
+REST API로 MCP 서버를 등록합니다:
+
+```bash
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "filesystem",
+    "description": "로컬 파일시스템 도구",
+    "transportType": "STDIO",
+    "config": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+    },
+    "autoConnect": true
+  }'
 ```
+
+> **참고:** MCP SDK 0.17.2는 Streamable HTTP 전송을 지원하지 않습니다. 원격 서버는 SSE를 사용하세요. 자세한 내용은 [MCP 통합 가이드](docs/ko/architecture/mcp.md)를 참고하세요.
 
 ## 인증 (Opt-in)
 
@@ -391,73 +389,29 @@ arc:
 
 ## 프로젝트 구조
 
-```
-src/main/kotlin/com/arc/reactor/
-├── agent/                          # 에이전트 코어
-│   ├── AgentExecutor.kt              → 인터페이스
-│   ├── config/AgentProperties.kt     → 설정 (arc.reactor.*)
-│   ├── model/AgentModels.kt          → AgentCommand, AgentResult
-│   ├── impl/SpringAiAgentExecutor.kt → ReAct 루프 구현체
-│   └── multi/                        → 멀티에이전트 (Sequential/Parallel/Supervisor)
-│
-├── guard/                          # 5단계 Guard
-│   ├── Guard.kt                      → GuardStage 인터페이스들
-│   ├── model/GuardModels.kt          → GuardCommand, GuardResult
-│   └── impl/                         → 기본 구현체들
-│
-├── hook/                           # 라이프사이클 Hook
-│   ├── Hook.kt                       → 4개 Hook 인터페이스
-│   ├── HookExecutor.kt               → Hook 실행 엔진
-│   └── model/HookModels.kt           → HookContext, HookResult
-│
-├── tool/                           # 도구 시스템 ← 여기에 도구 추가
-│   ├── ToolCallback.kt               → 도구 추상화
-│   ├── ToolSelector.kt               → 도구 선택 전략
-│   ├── LocalTool.kt                  → @Tool 어노테이션 기반 도구
-│   └── example/                      → 예시 (CalculatorTool, DateTimeTool)
-│
-├── memory/                         # 대화 메모리
-│   ├── ConversationMemory.kt         → 인터페이스
-│   ├── ConversationManager.kt        → 대화 히스토리 생명주기 관리
-│   ├── MemoryStore.kt                → InMemory 구현
-│   └── JdbcMemoryStore.kt            → PostgreSQL 구현
-│
-├── rag/                            # RAG 파이프라인
-│   ├── RagPipeline.kt                → 4단계 인터페이스
-│   └── impl/                         → 기본 구현체들
-│
-├── mcp/                            # MCP 프로토콜
-│   ├── McpManager.kt                 → MCP 서버 관리
-│   └── model/McpModels.kt            → McpServer, McpStatus
-│
-├── auth/                          # JWT 인증 (opt-in)
-│   ├── AuthModels.kt                → User, AuthProperties
-│   ├── AuthProvider.kt              → 인터페이스 (교체 가능)
-│   ├── DefaultAuthProvider.kt       → BCrypt 기본 구현
-│   ├── UserStore.kt                 → 인터페이스 + InMemoryUserStore
-│   ├── JdbcUserStore.kt             → PostgreSQL 구현
-│   ├── JwtTokenProvider.kt          → JWT 토큰 생성/검증
-│   └── JwtAuthWebFilter.kt         → WebFilter (토큰 검증)
-│
-├── persona/                       # 페르소나 관리
-│   ├── PersonaStore.kt              → 인터페이스 + InMemoryPersonaStore
-│   └── JdbcPersonaStore.kt         → PostgreSQL 구현
-│
-├── autoconfigure/                  # Spring Boot 자동 설정
-│   └── ArcReactorAutoConfiguration.kt
-│
-├── controller/                     # REST API ← 필요시 수정
-│   ├── ChatController.kt           → POST /api/chat, /api/chat/stream
-│   ├── SessionController.kt        → GET/DELETE /api/sessions, GET /api/models
-│   ├── AuthController.kt           → POST /api/auth/register|login, GET /api/auth/me
-│   └── PersonaController.kt        → CRUD /api/personas
-│
-└── config/
-    └── ChatClientConfig.kt
-```
+Arc Reactor는 멀티모듈 Gradle 프로젝트입니다:
+
+- `arc-app/`: 실행 조립 모듈 (`:arc-app:bootRun`, `:arc-app:bootJar`)
+- `arc-core/`: 에이전트 엔진/라이브러리 (guard, hook, tool, memory, RAG, MCP, 정책)
+- `arc-web/`: REST API 컨트롤러 및 웹 통합
+- `arc-slack/`: Slack 게이트웨이
+- `arc-discord/`: Discord 게이트웨이
+- `arc-line/`: LINE 게이트웨이
+- `arc-error-report/`: 에러 리포팅 확장
+
+핵심 구현 진입점:
+
+- `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/SpringAiAgentExecutor.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/ArcReactorAutoConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/agent/config/AgentProperties.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/ChatController.kt`
 
 ## 문서
 
+- **[문서 홈](docs/ko/README.md)** — 패키지형 문서 인덱스
+- [모듈 레이아웃 가이드](docs/ko/architecture/module-layout.md) — 현재 Gradle 모듈과 런타임 조립 구조
+- [테스트/성능 가이드](docs/ko/engineering/testing-and-performance.md) — 로컬 피드백 루프 최적화
+- [Slack 운영 런북](docs/ko/integrations/slack/ops-runbook.md) — 메트릭/부하테스트/백프레셔 운영
 - [아키텍처 가이드](docs/ko/architecture/architecture.md) — 내부 구조와 에러 처리 체계
 - [ReAct 루프 내부 구현](docs/ko/architecture/react-loop.md) — 핵심 실행 엔진, 도구 병렬 실행, 컨텍스트 트리밍, 재시도
 - [Guard & Hook 시스템](docs/ko/architecture/guard-hook.md) — 5단계 보안 파이프라인, 4가지 생명주기 확장점
