@@ -79,10 +79,10 @@ arc:
 ./gradlew :arc-app:bootRun
 
 # Production: Build with auth dependencies included
-./gradlew bootJar -Pauth=true
+./gradlew :arc-app:bootJar -Pauth=true
 
 # DB + Auth both included
-./gradlew bootJar -Pdb=true -Pauth=true
+./gradlew :arc-app:bootJar -Pdb=true -Pauth=true
 ```
 
 When the `-Pauth=true` flag is used, JJWT and spring-security-crypto switch from `compileOnly` to `implementation`.
@@ -92,7 +92,7 @@ When the `-Pauth=true` flag is used, JJWT and spring-security-crypto switch from
 ```dockerfile
 # Control via ARG in Dockerfile
 ARG ENABLE_AUTH=false
-RUN ./gradlew bootJar -Pdb=true -Pauth=${ENABLE_AUTH}
+RUN ./gradlew :arc-app:bootJar -Pdb=true -Pauth=${ENABLE_AUTH}
 ```
 
 ```yaml

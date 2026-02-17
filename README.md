@@ -1,7 +1,7 @@
 # Arc Reactor
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.0-purple.svg)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.10-purple.svg)](https://kotlinlang.org)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-green.svg)](https://spring.io/projects/spring-boot)
 [![Spring AI](https://img.shields.io/badge/Spring%20AI-1.1.2-orange.svg)](https://spring.io/projects/spring-ai)
 
@@ -25,30 +25,26 @@ cd arc-reactor
 
 ### 2. Configure LLM Provider
 
-Set your LLM API key in `application.yml`:
+Set provider keys with environment variables:
 
-```yaml
-spring:
-  ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
-    # Or Anthropic, Google Gemini, Vertex AI, etc.
+```bash
+# Default provider (already enabled in arc-core): Google Gemini
+export GEMINI_API_KEY=your-api-key
+
+# Optional providers (when switched to implementation dependency)
+# export SPRING_AI_OPENAI_API_KEY=your-api-key
+# export SPRING_AI_ANTHROPIC_API_KEY=your-api-key
 ```
 
-Uncomment the provider you want to use in `build.gradle.kts`:
+Provider dependencies are defined in `arc-core/build.gradle.kts`.
 
-```kotlin
-// Default: Google Gemini (already enabled)
-implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
-
-// Enable only what you need
-// compileOnly("org.springframework.ai:spring-ai-starter-model-openai")
-// compileOnly("org.springframework.ai:spring-ai-starter-model-anthropic")
-```
+- Default: `spring-ai-starter-model-google-genai` is enabled.
+- OpenAI/Anthropic are `compileOnly` by default.
+- If you switch provider, change the target dependency to `implementation(...)` in `arc-core/build.gradle.kts`.
 
 ### 3. Create Tools
 
-Add your business logic as tools in the `tool/` package:
+Add your business logic as tools in `arc-core/src/main/kotlin/com/arc/reactor/tool/`:
 
 ```kotlin
 @Component
@@ -211,22 +207,22 @@ After forking, here's what you need to change vs. what you can leave as-is:
 
 | File/Package | What to Do |
 |--------------|------------|
-| `tool/` | **Add tools** - Connect business logic with `LocalTool` + `@Tool` annotation |
-| `application.yml` | **Change settings** - LLM provider, Guard thresholds, RAG on/off, etc. |
-| `guard/impl/` | **Custom Guards** - Implement classification/permission stages for your rules |
-| `hook/` | **Custom Hooks** - Add audit logging, billing, notifications via `@Component` |
-| `controller/` | **Modify API** - Add authentication, change endpoints, etc. |
+| `arc-core/src/main/kotlin/com/arc/reactor/tool/` | **Add tools** - Connect business logic with `LocalTool` + `@Tool` annotation |
+| `arc-core/src/main/resources/application.yml` (or external env/config) | **Change settings** - LLM provider, Guard thresholds, RAG on/off, etc. |
+| `arc-core/src/main/kotlin/com/arc/reactor/guard/impl/` | **Custom Guards** - Implement classification/permission stages for your rules |
+| `arc-core/src/main/kotlin/com/arc/reactor/hook/` | **Custom Hooks** - Add audit logging, billing, notifications via `@Component` |
+| `arc-web/src/main/kotlin/com/arc/reactor/controller/` | **Modify API** - Add authentication, change endpoints, etc. |
 
 ### Leave As-Is (Already Structured)
 
 | File/Package | Role |
 |--------------|------|
-| `agent/impl/SpringAiAgentExecutor.kt` | ReAct loop, retry, context management - use as-is |
-| `guard/impl/GuardPipeline.kt` | Guard pipeline orchestration - use as-is |
-| `hook/HookExecutor.kt` | Hook execution engine - use as-is |
-| `memory/` | Conversation history management - auto-selects InMemory/JDBC |
-| `rag/impl/` | RAG pipeline - controlled via config |
-| `autoconfigure/` | Spring Boot auto-configuration - use as-is |
+| `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/SpringAiAgentExecutor.kt` | ReAct loop, retry, context management - use as-is |
+| `arc-core/src/main/kotlin/com/arc/reactor/guard/impl/GuardPipeline.kt` | Guard pipeline orchestration - use as-is |
+| `arc-core/src/main/kotlin/com/arc/reactor/hook/HookExecutor.kt` | Hook execution engine - use as-is |
+| `arc-core/src/main/kotlin/com/arc/reactor/memory/` | Conversation history management - auto-selects InMemory/JDBC |
+| `arc-core/src/main/kotlin/com/arc/reactor/rag/impl/` | RAG pipeline - controlled via config |
+| `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/` | Spring Boot auto-configuration - use as-is |
 
 ## Customization Examples
 
@@ -282,29 +278,29 @@ fun errorMessageResolver() = ErrorMessageResolver { code, _ ->
 
 ### Enable PostgreSQL Memory
 
-Just uncomment the dependency in `build.gradle.kts` and add DB settings to `application.yml`. No code changes needed - when a `DataSource` bean is detected, it automatically switches to `JdbcMemoryStore`.
+Use `-Pdb=true` when building/running and provide datasource settings (env vars or `application.yml`).
+No code changes are needed - when a `DataSource` bean is detected, Arc Reactor switches to `JdbcMemoryStore`.
 
 ### Connect an MCP Server
 
-```kotlin
-@Service
-class McpSetup(private val mcpManager: McpManager) {
-    @PostConstruct
-    fun setup() {
-        mcpManager.register(McpServer(
-            name = "filesystem",
-            transportType = McpTransportType.STDIO,
-            config = mapOf(
-                "command" to "npx",
-                "args" to listOf("-y", "@modelcontextprotocol/server-filesystem", "/data")
-            )
-        ))
-        runBlocking { mcpManager.connect("filesystem") }
-    }
-}
+Register MCP servers via REST API:
+
+```bash
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "filesystem",
+    "description": "Local filesystem tools",
+    "transportType": "STDIO",
+    "config": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+    },
+    "autoConnect": true
+  }'
 ```
 
-> **Note:** MCP SDK 0.17.2 does not support the Streamable HTTP transport. Use SSE as an alternative for remote servers. See the [MCP Integration Guide](docs/en/architecture/mcp.md) for details.
+> **Note:** MCP SDK 0.17.2 does not support Streamable HTTP transport. Use SSE for remote servers. See the [MCP Integration Guide](docs/en/architecture/mcp.md) for details.
 
 ## Authentication (Opt-in)
 
@@ -395,75 +391,29 @@ arc:
 
 ## Project Structure
 
-```
-src/main/kotlin/com/arc/reactor/
-├── agent/                          # Agent core
-│   ├── AgentExecutor.kt              -> Interface
-│   ├── config/AgentProperties.kt     -> Settings (arc.reactor.*)
-│   ├── model/AgentModels.kt          -> AgentCommand, AgentResult
-│   ├── impl/SpringAiAgentExecutor.kt -> ReAct loop implementation
-│   └── multi/                        -> Multi-agent (Sequential/Parallel/Supervisor)
-│
-├── guard/                          # 5-stage Guard
-│   ├── Guard.kt                      -> GuardStage interfaces
-│   ├── model/GuardModels.kt          -> GuardCommand, GuardResult
-│   └── impl/                         -> Default implementations
-│
-├── hook/                           # Lifecycle Hooks
-│   ├── Hook.kt                       -> 4 Hook interfaces
-│   ├── HookExecutor.kt               -> Hook execution engine
-│   └── model/HookModels.kt           -> HookContext, HookResult
-│
-├── tool/                           # Tool system <- Add your tools here
-│   ├── ToolCallback.kt               -> Tool abstraction
-│   ├── ToolSelector.kt               -> Tool selection strategy
-│   ├── LocalTool.kt                  -> @Tool annotation-based tools
-│   └── example/                      -> Examples (CalculatorTool, DateTimeTool)
-│
-├── memory/                         # Conversation Memory
-│   ├── ConversationMemory.kt         -> Interface
-│   ├── ConversationManager.kt        -> Conversation history lifecycle
-│   ├── MemoryStore.kt                -> InMemory implementation
-│   └── JdbcMemoryStore.kt            -> PostgreSQL implementation
-│
-├── rag/                            # RAG Pipeline
-│   ├── RagPipeline.kt                -> 4-stage interface
-│   └── impl/                         -> Default implementations
-│
-├── mcp/                            # MCP Protocol
-│   ├── McpManager.kt                 -> MCP server management
-│   └── model/McpModels.kt            -> McpServer, McpStatus
-│
-├── auth/                          # JWT Authentication (opt-in)
-│   ├── AuthModels.kt                -> User, AuthProperties
-│   ├── AuthProvider.kt              -> Interface (replaceable)
-│   ├── DefaultAuthProvider.kt       -> BCrypt-based default implementation
-│   ├── UserStore.kt                 -> Interface + InMemoryUserStore
-│   ├── JdbcUserStore.kt             -> PostgreSQL implementation
-│   ├── JwtTokenProvider.kt          -> JWT token create/validate
-│   └── JwtAuthWebFilter.kt         -> WebFilter (token verification)
-│
-├── persona/                       # Persona Management
-│   ├── PersonaStore.kt              -> Interface + InMemoryPersonaStore
-│   └── JdbcPersonaStore.kt         -> PostgreSQL implementation
-│
-├── autoconfigure/                  # Spring Boot Auto-configuration
-│   ├── ArcReactorAutoConfiguration.kt
-│   └── OpenApiConfiguration.kt      -> Swagger UI / OpenAPI spec
-│
-├── controller/                     # REST API <- Modify as needed
-│   ├── ChatController.kt           -> POST /api/chat, /api/chat/stream
-│   ├── SessionController.kt        -> GET/DELETE /api/sessions, GET /api/models
-│   ├── AuthController.kt           -> POST /api/auth/register|login, GET /api/auth/me
-│   ├── PersonaController.kt        -> CRUD /api/personas
-│   └── PromptTemplateController.kt -> Versioned prompt management (ADMIN)
-│
-└── config/
-    └── ChatClientConfig.kt
-```
+Arc Reactor is a multi-module Gradle project:
+
+- `arc-app/`: executable assembly module (`:arc-app:bootRun`, `:arc-app:bootJar`)
+- `arc-core/`: agent engine/library (guard, hook, tool, memory, RAG, MCP, policies)
+- `arc-web/`: REST API controllers and web integration
+- `arc-slack/`: Slack gateway
+- `arc-discord/`: Discord gateway
+- `arc-line/`: LINE gateway
+- `arc-error-report/`: error reporting extension
+
+Key implementation entrypoints:
+
+- `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/SpringAiAgentExecutor.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/ArcReactorAutoConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/agent/config/AgentProperties.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/ChatController.kt`
 
 ## Documentation
 
+- **[Docs Home](docs/en/README.md)** - Package-style documentation index
+- [Module Layout Guide](docs/en/architecture/module-layout.md) - Current Gradle modules and runtime assembly
+- [Testing and Performance Guide](docs/en/engineering/testing-and-performance.md) - Fast test feedback strategy
+- [Slack Ops Runbook](docs/en/integrations/slack/ops-runbook.md) - Metrics, load testing, backpressure ops
 - **[Tutorial: Build a Chatbot in 30 Minutes](docs/en/getting-started/tutorial-chatbot.md)** - End-to-end guide with custom tools, persona, and deployment
 - [Architecture Guide](docs/en/architecture/architecture.md) - Internal structure and error handling
 - [ReAct Loop Internals](docs/en/architecture/react-loop.md) - Core execution engine, parallel tool execution, context trimming, retry

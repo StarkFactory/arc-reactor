@@ -50,11 +50,11 @@ Multi-module Gradle project:
 
 Request flow: Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete) → Response
 
-- `SpringAiAgentExecutor` (~1,060 lines) — Core executor. Modify with caution
-- `ArcReactorAutoConfiguration` — All bean auto-configuration. Override via @ConditionalOnMissingBean
+- `SpringAiAgentExecutor` (~1,730 lines) — Core executor. Modify with caution
+- `ArcReactorAutoConfiguration` (~1,185 lines) — All bean auto-configuration. Override via @ConditionalOnMissingBean
 - `ConversationManager` — Conversation history management, extracted from executor
 
-Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-pattern.md
+Details: @docs/en/architecture/architecture.md, @docs/en/reference/tools.md, @docs/en/architecture/supervisor-pattern.md
 
 ### Feature Toggles
 
@@ -163,7 +163,7 @@ Full config: see `agent/config/AgentProperties.kt`
 - `coEvery`/`coVerify` for suspend mocks, `runTest` preferred over `runBlocking`
 - Mock `requestSpec.options(any<ChatOptions>())` explicitly for streaming tests
 
-For test patterns and examples: @docs/en/implementation-guide.md
+For test patterns and examples: @docs/en/architecture/implementation-guide.md
 
 ## Recommended Development Methodology (Spring + Kotlin)
 
@@ -196,7 +196,7 @@ For test patterns and examples: @docs/en/implementation-guide.md
 
 ## Implementation Guide
 
-When adding new ToolCallback, GuardStage, Hook, or Bean — follow templates in @docs/en/implementation-guide.md
+When adding new ToolCallback, GuardStage, Hook, or Bean — follow templates in @docs/en/architecture/implementation-guide.md
 
 Key rules:
 - **ToolCallback**: Return errors as strings (`"Error: ..."`) — do NOT throw exceptions
@@ -238,7 +238,7 @@ STDIO: { "name": "fs-server", "transportType": "STDIO", "config": { "command": "
 - **Streaming policy parity**: Output guard and response filter policy must match non-streaming behavior, or exception must be explicitly documented
 - **MCP update consistency**: MCP server update path must synchronize runtime manager state before reconnect
 
-For code examples of anti-patterns: @docs/en/implementation-guide.md
+For code examples of anti-patterns: @docs/en/architecture/implementation-guide.md
 
 ## Domain Terms
 

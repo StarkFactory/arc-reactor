@@ -1,6 +1,6 @@
 # ReAct Loop Internal Implementation
 
-> **Key file:** `SpringAiAgentExecutor.kt` (~1,060 lines)
+> **Key file:** `SpringAiAgentExecutor.kt` (~1,730 lines)
 > This document explains the internal workings of the ReAct loop, the core execution engine of Arc Reactor.
 
 ## Overall Execution Flow

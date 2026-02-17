@@ -77,10 +77,10 @@ arc:
 ./gradlew :arc-app:bootRun
 
 # 프로덕션: auth 의존성 포함 빌드
-./gradlew bootJar -Pauth=true
+./gradlew :arc-app:bootJar -Pauth=true
 
 # DB + Auth 모두 포함
-./gradlew bootJar -Pdb=true -Pauth=true
+./gradlew :arc-app:bootJar -Pdb=true -Pauth=true
 ```
 
 `-Pauth=true` 플래그를 사용하면 JJWT와 spring-security-crypto가 `compileOnly`에서 `implementation`으로 전환된다.
@@ -90,7 +90,7 @@ arc:
 ```dockerfile
 # Dockerfile에서 ARG로 제어
 ARG ENABLE_AUTH=false
-RUN ./gradlew bootJar -Pdb=true -Pauth=${ENABLE_AUTH}
+RUN ./gradlew :arc-app:bootJar -Pdb=true -Pauth=${ENABLE_AUTH}
 ```
 
 ```yaml

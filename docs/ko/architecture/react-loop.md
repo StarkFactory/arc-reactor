@@ -1,6 +1,6 @@
 # ReAct 루프 내부 구현
 
-> **핵심 파일:** `SpringAiAgentExecutor.kt` (~1,060줄)
+> **핵심 파일:** `SpringAiAgentExecutor.kt` (~1,730줄)
 > 이 문서는 Arc Reactor의 핵심 실행 엔진인 ReAct 루프의 내부 동작을 설명합니다.
 
 ## 전체 실행 흐름

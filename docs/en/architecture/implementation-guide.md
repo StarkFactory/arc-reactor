@@ -1,6 +1,7 @@
 # Implementation Guide
 
-Code templates and patterns for extending Arc Reactor. Referenced from CLAUDE.md via `@docs/en/implementation-guide.md`.
+Code templates and patterns for extending Arc Reactor. Referenced from CLAUDE.md via
+`@docs/en/architecture/implementation-guide.md`.
 
 ## New ToolCallback
 
