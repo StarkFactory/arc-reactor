@@ -120,7 +120,17 @@ data class GuardProperties(
     /** Requests per hour limit */
     val rateLimitPerHour: Int = 100,
 
-    /** Maximum input length */
+    /**
+     * Maximum input length.
+     *
+     * @deprecated Use [BoundaryProperties.inputMaxChars] as the single source of truth.
+     * Backward compatibility is handled in guard auto-configuration when
+     * `arc.reactor.boundaries.input-max-chars` is not explicitly provided.
+     */
+    @Deprecated(
+        message = "Use arc.reactor.boundaries.input-max-chars",
+        replaceWith = ReplaceWith("inputMaxChars", "com.arc.reactor.agent.config.BoundaryProperties")
+    )
     val maxInputLength: Int = 10000,
 
     /** Injection detection enabled */
