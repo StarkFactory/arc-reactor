@@ -4,7 +4,7 @@ This guide documents current test scope defaults and practical speed optimizatio
 
 ## Default Test Scope
 
-`arc-core` excludes `@Tag("integration")` tests by default.
+All modules exclude `@Tag("integration")` tests by default.
 
 - default run: `./gradlew test --continue`
 - include integration: `./gradlew test -PincludeIntegration`

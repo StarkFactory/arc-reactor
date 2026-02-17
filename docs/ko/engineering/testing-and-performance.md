@@ -4,7 +4,7 @@
 
 ## 기본 테스트 범위
 
-`arc-core`는 기본적으로 `@Tag("integration")` 테스트를 제외합니다.
+모든 모듈은 기본적으로 `@Tag("integration")` 테스트를 제외합니다.
 
 - 기본 실행: `./gradlew test --continue`
 - 통합 테스트 포함: `./gradlew test -PincludeIntegration`
