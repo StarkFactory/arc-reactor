@@ -106,7 +106,7 @@ arc:
 
 ```kotlin
 // build.gradle.kts
-implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter")
+implementation("org.springframework.ai:spring-ai-starter-model-openai")
 ```
 
 ```yaml
@@ -114,7 +114,7 @@ implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter")
 spring:
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY}
+      api-key: ${SPRING_AI_OPENAI_API_KEY}
 ```
 
 `EmbeddingModel` 빈이 없으면 `SemanticToolSelector`가 자동으로 `all` 전략으로 폴백하며 경고 로그를 출력합니다. 애플리케이션이 실패하지 않습니다.

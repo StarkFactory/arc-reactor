@@ -23,7 +23,7 @@ The API will start at `http://localhost:8080`.
 
 ```bash
 # Build JAR
-./gradlew bootJar
+./gradlew :arc-app:bootJar
 
 # Build Docker image
 docker build -t arc-reactor:latest .
@@ -44,7 +44,7 @@ cp .env.example .env
 # Set GEMINI_API_KEY
 
 # Build JAR and run
-./gradlew bootJar
+./gradlew :arc-app:bootJar
 docker compose up -d
 ```
 
@@ -59,8 +59,8 @@ docker compose up -d
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `GEMINI_API_KEY` | Yes | - | Google Gemini API key |
-| `OPENAI_API_KEY` | - | - | OpenAI API key (when switching provider) |
-| `ANTHROPIC_API_KEY` | - | - | Anthropic API key (when switching provider) |
+| `SPRING_AI_OPENAI_API_KEY` | - | - | OpenAI API key (when switching provider) |
+| `SPRING_AI_ANTHROPIC_API_KEY` | - | - | Anthropic API key (when switching provider) |
 | `DB_HOST` | - | `localhost` | PostgreSQL host |
 | `DB_PORT` | - | `5432` | PostgreSQL port |
 | `DB_NAME` | - | `arc_reactor` | Database name |

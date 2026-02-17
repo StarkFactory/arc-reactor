@@ -2,7 +2,7 @@
 
 ## Overall Structure
 
-Arc Reactor consists of 6 core modules:
+Arc Reactor runtime is organized around 6 core components:
 
 ```
                         ┌─────────────┐
@@ -27,6 +27,9 @@ Arc Reactor consists of 6 core modules:
               │  Memory  │ │ RAG  │ │   MCP   │
               └──────────┘ └──────┘ └─────────┘
 ```
+
+For Gradle module boundaries and runtime assembly entrypoints, see
+[Module Layout Guide](module-layout.md).
 
 ## Request Processing Flow
 

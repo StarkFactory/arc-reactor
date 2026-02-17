@@ -28,10 +28,10 @@ Set your API key as an environment variable:
 export GEMINI_API_KEY=your-api-key-here
 
 # Or OpenAI
-# export OPENAI_API_KEY=your-api-key-here
+# export SPRING_AI_OPENAI_API_KEY=your-api-key-here
 
 # Or Anthropic
-# export ANTHROPIC_API_KEY=your-api-key-here
+# export SPRING_AI_ANTHROPIC_API_KEY=your-api-key-here
 ```
 
 If using OpenAI or Anthropic, uncomment the corresponding dependency in `build.gradle.kts`:

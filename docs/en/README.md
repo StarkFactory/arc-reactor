@@ -1,40 +1,21 @@
 # Arc Reactor Docs (EN)
 
-## Quick Start
+## Package Index
+
+- [Getting Started](getting-started/README.md)
+- [Architecture](architecture/README.md)
+- [Governance](governance/README.md)
+- [Reference](reference/README.md)
+- [Integrations](integrations/README.md)
+- [Engineering](engineering/README.md)
+- [Releases](releases/README.md)
+
+## Quick Links
 
 - [Getting Started Overview](getting-started/example-app.md)
-- [Configuration](getting-started/configuration.md)
-- [Deployment](getting-started/deployment.md)
-- [Troubleshooting](getting-started/troubleshooting.md)
-
-## Architecture
-
-- [Architecture Overview](architecture/architecture.md)
+- [Module Layout](architecture/module-layout.md)
 - [ReAct Loop](architecture/react-loop.md)
-- [Streaming ReAct](architecture/streaming-react.md)
-- [MCP Guide (Overview)](architecture/mcp.md)
-- [Memory & RAG (Overview)](architecture/memory-rag.md)
-- [Multi-Agent](architecture/multi-agent.md)
-
-## Governance
-
 - [Authentication](governance/authentication.md)
-- [Human-in-the-Loop](governance/human-in-the-loop.md)
-- [Prompt Versioning](governance/prompt-versioning.md)
-- [Tool Policy Admin](governance/tool-policy-admin.md)
-
-## Reference
-
-- [API Models](reference/api-models.md)
-- [Feature Inventory](reference/feature-inventory.md)
-- [Metrics](reference/metrics.md)
-- [Tools](reference/tools.md)
-
-## Integrations
-
-- [Slack Token Issuance](integrations/slack/token-issuance.md)
-- [Slack Transport Selection](integrations/slack/transport-selection.md)
-
-## Releases
-
-- [v3.8.1](releases/v3.8.1.md)
+- [Tools Reference](reference/tools.md)
+- [Slack Ops Runbook](integrations/slack/ops-runbook.md)
+- [Testing and Performance](engineering/testing-and-performance.md)

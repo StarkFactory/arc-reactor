@@ -226,7 +226,7 @@ implementation("org.springframework.ai:spring-ai-starter-model-openai")
 spring:
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY}
+      api-key: ${SPRING_AI_OPENAI_API_KEY}
       chat:
         options:
           model: gpt-4o-mini
@@ -245,7 +245,7 @@ implementation("org.springframework.ai:spring-ai-starter-model-anthropic")
 spring:
   ai:
     anthropic:
-      api-key: ${ANTHROPIC_API_KEY}
+      api-key: ${SPRING_AI_ANTHROPIC_API_KEY}
       chat:
         options:
           model: claude-sonnet-4-5-20250929

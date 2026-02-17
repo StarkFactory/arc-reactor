@@ -23,7 +23,7 @@ API가 `http://localhost:8080`에서 시작됩니다.
 
 ```bash
 # JAR 빌드
-./gradlew bootJar
+./gradlew :arc-app:bootJar
 
 # Docker 이미지 빌드
 docker build -t arc-reactor:latest .
@@ -44,7 +44,7 @@ cp .env.example .env
 # GEMINI_API_KEY 설정
 
 # JAR 빌드 후 실행
-./gradlew bootJar
+./gradlew :arc-app:bootJar
 docker compose up -d
 ```
 
@@ -59,8 +59,8 @@ docker compose up -d
 | 변수 | 필수 | 기본값 | 설명 |
 |------|------|--------|------|
 | `GEMINI_API_KEY` | O | - | Google Gemini API 키 |
-| `OPENAI_API_KEY` | - | - | OpenAI API 키 (provider 변경 시) |
-| `ANTHROPIC_API_KEY` | - | - | Anthropic API 키 (provider 변경 시) |
+| `SPRING_AI_OPENAI_API_KEY` | - | - | OpenAI API 키 (provider 변경 시) |
+| `SPRING_AI_ANTHROPIC_API_KEY` | - | - | Anthropic API 키 (provider 변경 시) |
 | `DB_HOST` | - | `localhost` | PostgreSQL 호스트 |
 | `DB_PORT` | - | `5432` | PostgreSQL 포트 |
 | `DB_NAME` | - | `arc_reactor` | 데이터베이스 이름 |

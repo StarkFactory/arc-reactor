@@ -106,7 +106,7 @@ Semantic strategy requires an `EmbeddingModel` bean. This typically comes from a
 
 ```kotlin
 // build.gradle.kts
-implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter")
+implementation("org.springframework.ai:spring-ai-starter-model-openai")
 ```
 
 ```yaml
@@ -114,7 +114,7 @@ implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter")
 spring:
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY}
+      api-key: ${SPRING_AI_OPENAI_API_KEY}
 ```
 
 If no `EmbeddingModel` bean is available, `SemanticToolSelector` automatically falls back to the `all` strategy with a warning log. Your application will not fail.
