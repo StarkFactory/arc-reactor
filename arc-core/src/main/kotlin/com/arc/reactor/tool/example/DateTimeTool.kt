@@ -1,5 +1,6 @@
 package com.arc.reactor.tool.example
 
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -39,6 +40,7 @@ class DateTimeTool : ToolCallback {
         val zone = try {
             ZoneId.of(timezoneId)
         } catch (e: Exception) {
+            e.throwIfCancellation()
             return "Error: Invalid timezone '$timezoneId'. Examples: Asia/Seoul, UTC, America/New_York"
         }
 

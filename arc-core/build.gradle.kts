@@ -6,13 +6,6 @@ plugins {
 val springAiVersion = "1.1.2"
 
 dependencies {
-    // Gateway modules (runtimeOnly — included in bootJar but no compile dependency)
-    runtimeOnly(project(":arc-web"))
-    runtimeOnly(project(":arc-slack"))
-    runtimeOnly(project(":arc-discord"))
-    runtimeOnly(project(":arc-line"))
-    runtimeOnly(project(":arc-error-report"))
-
     // Spring Boot Core
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
@@ -122,9 +115,9 @@ tasks.withType<Test> {
     }
 }
 
-// Application mode - fork and add your own tools
+// Library module: executable assembly moved to :arc-app
 tasks.bootJar {
-    enabled = true
+    enabled = false
 }
 
 // Regular jar needed for submodule dependency (arc-slack uses project(":arc-core"))

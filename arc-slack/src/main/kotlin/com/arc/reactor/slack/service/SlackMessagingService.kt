@@ -1,5 +1,6 @@
 package com.arc.reactor.slack.service
 
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.slack.model.SlackApiResult
 import com.arc.reactor.slack.metrics.NoOpSlackMetricsRecorder
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
@@ -60,6 +61,7 @@ class SlackMessagingService(
         return try {
             callSlackApi("chat.postMessage", body)
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Failed to send message to channel=$channelId" }
             SlackApiResult(ok = false, error = e.message ?: "Unknown error")
         }
@@ -73,6 +75,7 @@ class SlackMessagingService(
         return try {
             callSlackApi("reactions.add", body)
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Failed to add reaction $emoji to channel=$channelId" }
             SlackApiResult(ok = false, error = e.message ?: "Unknown error")
         }
@@ -104,6 +107,7 @@ class SlackMessagingService(
             metricsRecorder.recordResponseUrl("success")
             true
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Failed to send response_url callback" }
             metricsRecorder.recordResponseUrl("failure")
             false
@@ -153,6 +157,7 @@ class SlackMessagingService(
                 }
                 delay(backoffMillis)
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 metricsRecorder.recordApiCall(
                     method = method,
                     outcome = "exception",

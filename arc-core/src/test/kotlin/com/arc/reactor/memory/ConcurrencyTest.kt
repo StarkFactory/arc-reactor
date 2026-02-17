@@ -49,7 +49,7 @@ class ConversationMemoryConcurrencyTest {
         val maxMessages = 10
         val memory = InMemoryConversationMemory(maxMessages = maxMessages)
         val threadCount = 100
-        val executor = Executors.newFixedThreadPool(20)
+        val executor = Executors.newFixedThreadPool(threadCount)
         val readyLatch = CountDownLatch(threadCount)
         val startLatch = CountDownLatch(1)
 
@@ -191,7 +191,7 @@ class MemoryStoreConcurrencyTest {
         val maxSessions = 10
         val store = InMemoryMemoryStore(maxSessions = maxSessions)
         val totalSessions = 100
-        val threadCount = 50
+        val threadCount = totalSessions
         val executor = Executors.newFixedThreadPool(threadCount)
         val readyLatch = CountDownLatch(totalSessions)
         val startLatch = CountDownLatch(1)

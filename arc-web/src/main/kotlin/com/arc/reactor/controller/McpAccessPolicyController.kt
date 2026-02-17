@@ -2,6 +2,7 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.mcp.McpServerStore
+import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -147,6 +148,7 @@ class McpAccessPolicyController(
             val payload = parseJsonOrString(e.responseBodyAsString)
             ResponseEntity.status(e.statusCode).body(payload)
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "Failed to proxy access-policy request to MCP server '$name'" }
             ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                 .body(

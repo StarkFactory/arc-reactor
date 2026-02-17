@@ -45,7 +45,7 @@ If using OpenAI or Anthropic, uncomment the corresponding dependency in `build.g
 ### Verify it works
 
 ```bash
-./gradlew bootRun
+./gradlew :arc-app:bootRun
 ```
 
 In another terminal:
@@ -163,7 +163,7 @@ Uncomment `@Component` on both classes to auto-register them. That's it - Spring
 A persona sets the agent's personality and behavior. Start the server and use the REST API to create one:
 
 ```bash
-./gradlew bootRun
+./gradlew :arc-app:bootRun
 ```
 
 Create a customer service persona:

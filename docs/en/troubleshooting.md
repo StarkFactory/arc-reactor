@@ -127,7 +127,7 @@ arc:
 
 2. Include auth dependencies at build time:
 ```bash
-./gradlew bootRun -Pauth=true
+./gradlew :arc-app:bootRun -Pauth=true
 ```
 
 Or switch from `compileOnly` to `implementation` in `build.gradle.kts` for JJWT and Spring Security Crypto.
@@ -182,7 +182,7 @@ Users with `USER` role can still read templates (`GET` endpoints).
 
 ```bash
 # Include DB dependencies at runtime
-./gradlew bootRun -Pdb=true
+./gradlew :arc-app:bootRun -Pdb=true
 ```
 
 Or switch `spring-boot-starter-jdbc` and `postgresql` from `compileOnly` to `implementation` in `build.gradle.kts`.

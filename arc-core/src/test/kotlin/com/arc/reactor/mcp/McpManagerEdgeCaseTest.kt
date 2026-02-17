@@ -1,5 +1,6 @@
 package com.arc.reactor.mcp
 
+import com.arc.reactor.agent.config.McpReconnectionProperties
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
@@ -22,16 +23,27 @@ import org.junit.jupiter.api.Test
  */
 class McpManagerEdgeCaseTest {
 
-    private fun stdioServer(name: String, command: String = "echo") = McpServer(
+    private fun stdioServer(name: String, command: String? = null) = McpServer(
         name = name,
         transportType = McpTransportType.STDIO,
-        config = mapOf("command" to command)
+        config = command?.let { mapOf("command" to it) } ?: emptyMap()
     )
 
-    private fun sseServer(name: String, url: String = "http://localhost:8080/sse") = McpServer(
+    private fun sseServer(name: String, url: String = "not-a-valid-url") = McpServer(
         name = name,
         transportType = McpTransportType.SSE,
         config = mapOf("url" to url)
+    )
+
+    private fun manager(
+        store: McpServerStore? = null,
+        securityConfig: McpSecurityConfig = McpSecurityConfig(),
+        reconnectionProperties: McpReconnectionProperties = McpReconnectionProperties(enabled = false)
+    ) = DefaultMcpManager(
+        connectionTimeoutMs = 300,
+        securityConfig = securityConfig,
+        store = store,
+        reconnectionProperties = reconnectionProperties
     )
 
     @Nested
@@ -39,7 +51,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `disconnect then reconnect should transition through correct states`() = runBlocking {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             manager.register(stdioServer("reconnect-server"))
 
             // Initial state
@@ -68,7 +80,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `disconnect should clear tool callbacks`() = runBlocking {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             manager.register(stdioServer("tool-server"))
 
             // Attempt connect (will fail, but verifies callback state)
@@ -85,7 +97,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `multiple disconnects should not throw`() = runBlocking {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             manager.register(stdioServer("multi-dc-server"))
 
             // Disconnect multiple times — should not throw
@@ -104,7 +116,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `concurrent registers of different servers should all succeed`() = runBlocking {
-            val manager = DefaultMcpManager()
+            val manager = manager()
 
             coroutineScope {
                 val jobs = (1..10).map { i ->
@@ -122,7 +134,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `concurrent connect and disconnect on same server should not crash`() = runBlocking {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             manager.register(stdioServer("race-server"))
 
             // Launch connect and disconnect concurrently — should not throw
@@ -153,7 +165,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `re-register same server name should overwrite`() {
-            val manager = DefaultMcpManager()
+            val manager = manager()
 
             manager.register(stdioServer("dup-server", command = "cmd1"))
             manager.register(stdioServer("dup-server", command = "cmd2"))
@@ -176,7 +188,7 @@ class McpManagerEdgeCaseTest {
             every { failingStore.save(any()) } throws RuntimeException("DB write failed")
             every { failingStore.list() } returns emptyList()
 
-            val manager = DefaultMcpManager(store = failingStore)
+            val manager = manager(store = failingStore)
             manager.register(stdioServer("resilient-server"))
 
             // Server should still be in runtime despite store failure
@@ -194,7 +206,7 @@ class McpManagerEdgeCaseTest {
             val server = stdioServer("existing-server")
             store.save(server)
 
-            val manager = DefaultMcpManager(store = store)
+            val manager = manager(store = store)
             // Should not throw IllegalArgumentException from store.save duplicate check
             manager.register(server)
 
@@ -206,7 +218,7 @@ class McpManagerEdgeCaseTest {
         @Test
         fun `initializeFromStore should handle store returning empty list`() = runBlocking {
             val store = InMemoryMcpServerStore()
-            val manager = DefaultMcpManager(store = store)
+            val manager = manager(store = store)
 
             // Should not throw
             manager.initializeFromStore()
@@ -222,7 +234,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `close should clear all servers and statuses`() {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             manager.register(stdioServer("server-1"))
             manager.register(stdioServer("server-2"))
             manager.register(sseServer("server-3"))
@@ -243,14 +255,14 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `close on fresh manager should not throw`() {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             // Should not throw on empty manager
             manager.close()
         }
 
         @Test
         fun `close should handle servers that were never connected`() {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             manager.register(stdioServer("never-connected-1"))
             manager.register(stdioServer("never-connected-2"))
 
@@ -265,7 +277,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `close after failed connections should not throw`() = runBlocking {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             manager.register(stdioServer("fail-server-1"))
             manager.register(McpServer(
                 name = "fail-server-2",
@@ -286,8 +298,26 @@ class McpManagerEdgeCaseTest {
     inner class TransportEdgeCases {
 
         @Test
+        fun `SSE connect should honor configured timeout`() = runBlocking {
+            val manager = manager()
+            manager.register(McpServer(
+                name = "timeout-sse",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "not-a-valid-url")
+            ))
+
+            val start = System.currentTimeMillis()
+            manager.connect("timeout-sse")
+            val elapsed = System.currentTimeMillis() - start
+
+            assertTrue(elapsed < 3000) {
+                "SSE connect should fail quickly with configured timeout, took ${elapsed}ms"
+            }
+        }
+
+        @Test
         fun `SSE with invalid URL should fail gracefully`() = runBlocking {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             manager.register(McpServer(
                 name = "bad-sse",
                 transportType = McpTransportType.SSE,
@@ -304,7 +334,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `HTTP transport should fail with informative status`() = runBlocking {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             manager.register(McpServer(
                 name = "http-server",
                 transportType = McpTransportType.HTTP,
@@ -321,7 +351,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `STDIO with non-existent command should fail gracefully`() = runBlocking {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             manager.register(McpServer(
                 name = "bad-stdio",
                 transportType = McpTransportType.STDIO,
@@ -343,7 +373,7 @@ class McpManagerEdgeCaseTest {
         @Test
         fun `unregister should remove from both runtime and store`() = runBlocking {
             val store = InMemoryMcpServerStore()
-            val manager = DefaultMcpManager(store = store)
+            val manager = manager(store = store)
 
             manager.register(stdioServer("to-remove"))
             assertEquals(1, store.list().size) { "Server should be in store after register" }
@@ -363,7 +393,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `unregister nonexistent server should not throw`() = runBlocking {
-            val manager = DefaultMcpManager()
+            val manager = manager()
 
             // Should not throw
             manager.unregister("nonexistent-server")
@@ -371,7 +401,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `unregister should disconnect if connected`() = runBlocking {
-            val manager = DefaultMcpManager()
+            val manager = manager()
             manager.register(stdioServer("connected-removal"))
 
             // Attempt connect (will fail, but sets up internal state)
@@ -393,7 +423,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `allowlist should be case-sensitive`() {
-            val manager = DefaultMcpManager(
+            val manager = manager(
                 securityConfig = McpSecurityConfig(
                     allowedServerNames = setOf("Trusted-Server")
                 )
@@ -412,7 +442,7 @@ class McpManagerEdgeCaseTest {
 
         @Test
         fun `multiple servers should be filtered by allowlist`() {
-            val manager = DefaultMcpManager(
+            val manager = manager(
                 securityConfig = McpSecurityConfig(
                     allowedServerNames = setOf("allowed-1", "allowed-2")
                 )

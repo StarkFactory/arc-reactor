@@ -8,13 +8,13 @@ import com.arc.reactor.rag.ingestion.RagIngestionCandidateStatus
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyProvider
 import com.arc.reactor.rag.ingestion.toDocument
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 import org.springframework.ai.vectorstore.VectorStore
 import java.time.Instant
 import java.util.UUID
 import java.util.regex.Pattern
 import java.util.regex.PatternSyntaxException
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -81,9 +81,8 @@ class RagIngestionCaptureHook(
                     ingestedDocumentId = documentId
                 )
             )
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "Failed to capture rag ingestion candidate for runId=${context.runId}" }
         }
     }

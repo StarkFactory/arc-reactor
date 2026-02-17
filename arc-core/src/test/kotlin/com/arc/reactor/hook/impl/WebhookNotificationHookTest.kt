@@ -6,6 +6,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -241,6 +243,18 @@ class WebhookNotificationHookTest {
             hook.afterAgentComplete(createContext(), createSuccessResponse())
 
             verify(exactly = 0) { webClient.post() }
+        }
+
+        @Test
+        fun `should rethrow cancellation exception`() {
+            every { responseSpec.toBodilessEntity() } returns Mono.error(CancellationException("cancelled"))
+            val hook = createHook()
+
+            assertThrows(CancellationException::class.java) {
+                runBlocking {
+                    hook.afterAgentComplete(createContext(), createSuccessResponse())
+                }
+            }
         }
 
         @Test

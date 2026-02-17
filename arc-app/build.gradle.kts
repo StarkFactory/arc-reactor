@@ -1,0 +1,20 @@
+plugins {
+    id("org.springframework.boot")
+}
+
+dependencies {
+    implementation(project(":arc-core"))
+    runtimeOnly(project(":arc-web"))
+    runtimeOnly(project(":arc-slack"))
+    runtimeOnly(project(":arc-discord"))
+    runtimeOnly(project(":arc-line"))
+    runtimeOnly(project(":arc-error-report"))
+}
+
+springBoot {
+    mainClass.set("com.arc.reactor.ArcReactorApplicationKt")
+}
+
+tasks.jar {
+    enabled = false
+}

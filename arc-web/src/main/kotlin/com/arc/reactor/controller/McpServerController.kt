@@ -6,6 +6,7 @@ import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
+import com.arc.reactor.support.throwIfCancellation
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
@@ -77,6 +78,7 @@ class McpServerController(
             try {
                 mcpManager.connect(server.name)
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.warn(e) { "Auto-connect failed for '${server.name}'" }
             }
         }
@@ -145,6 +147,7 @@ class McpServerController(
 
         val updated = mcpServerStore.update(name, updateData)
             ?: return mcpNotFound(name)
+        mcpManager.syncRuntimeServer(updated)
 
         recordAdminAudit(
             store = adminAuditStore,

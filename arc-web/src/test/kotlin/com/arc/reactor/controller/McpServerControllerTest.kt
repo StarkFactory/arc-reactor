@@ -232,6 +232,37 @@ class McpServerControllerTest {
                 "Non-admin should get 403"
             }
         }
+
+        @Test
+        fun `should sync runtime manager state when store and manager are decoupled`() {
+            val runtimeManager = DefaultMcpManager()
+            val persistentStore = InMemoryMcpServerStore()
+            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
+
+            val original = McpServer(
+                name = "sync-runtime",
+                description = "old-description",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://localhost:8081/sse"),
+                autoConnect = false
+            )
+            runtimeManager.register(original)
+            persistentStore.save(original)
+
+            val response = localController.updateServer(
+                "sync-runtime",
+                UpdateMcpServerRequest(description = "new-description"),
+                adminExchange()
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "Update should succeed"
+            }
+            val runtimeServer = runtimeManager.listServers().first { it.name == "sync-runtime" }
+            assertEquals("new-description", runtimeServer.description) {
+                "Runtime manager state should be updated with latest store config"
+            }
+        }
     }
 
     @Nested

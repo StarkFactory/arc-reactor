@@ -2,10 +2,10 @@ package com.arc.reactor.slack.handler
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.slack.model.SlackEventCommand
 import com.arc.reactor.slack.service.SlackMessagingService
 import mu.KotlinLogging
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -77,9 +77,8 @@ class DefaultSlackEventHandler(
                 text = responseText,
                 threadTs = threadTs
             )
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Failed to process Slack event for channel=$channelId, thread=$threadTs" }
             try {
                 messagingService.sendMessage(
@@ -87,9 +86,8 @@ class DefaultSlackEventHandler(
                     text = ":x: An internal error occurred. Please try again later.",
                     threadTs = threadTs
                 )
-            } catch (sendError: CancellationException) {
-                throw sendError
             } catch (sendError: Exception) {
+                sendError.throwIfCancellation()
                 logger.error(sendError) { "Failed to send error message to Slack" }
             }
         }

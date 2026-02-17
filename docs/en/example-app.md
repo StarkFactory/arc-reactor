@@ -38,7 +38,7 @@ export GEMINI_API_KEY=your-api-key
 ### 2. Run
 
 ```bash
-./gradlew bootRun
+./gradlew :arc-app:bootRun
 ```
 
 ### 3. Test Calls

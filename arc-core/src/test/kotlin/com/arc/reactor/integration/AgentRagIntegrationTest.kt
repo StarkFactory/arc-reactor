@@ -23,6 +23,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
 import reactor.core.publisher.Flux
@@ -33,6 +34,7 @@ import reactor.core.publisher.Flux
  * Verifies that RAG context is correctly injected into the agent's system prompt,
  * and that the agent handles RAG pipeline failures gracefully.
  */
+@Tag("integration")
 class AgentRagIntegrationTest {
 
     private lateinit var fixture: AgentTestFixture

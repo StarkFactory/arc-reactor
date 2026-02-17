@@ -4,8 +4,8 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.slack.model.SlackSlashCommand
 import com.arc.reactor.slack.service.SlackMessagingService
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -40,9 +40,8 @@ class DefaultSlackCommandHandler(
             } else {
                 executeAndReplyByResponseUrl(command, prompt)
             }
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Failed to process slash command for channel=${command.channelId}" }
             messagingService.sendResponseUrl(
                 responseUrl = command.responseUrl,

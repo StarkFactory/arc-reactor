@@ -13,9 +13,8 @@ server:
 #   export SPRING_AI_OPENAI_API_KEY=your-key
 #   export SPRING_AI_ANTHROPIC_API_KEY=your-key
 #
-# Note: Do NOT declare provider properties with empty defaults here.
-# Spring AI auto-configs create beans when properties exist (even if empty),
-# causing startup failures. Instead, set via environment variables directly.
+# Note: this default app keeps empty fallbacks for local startup/tests.
+# In production, provide keys via environment variables (without relying on empty defaults).
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s

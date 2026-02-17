@@ -76,7 +76,7 @@ arc:
 
 ```bash
 # Development: Build without auth dependencies (default)
-./gradlew bootRun
+./gradlew :arc-app:bootRun
 
 # Production: Build with auth dependencies included
 ./gradlew bootJar -Pauth=true

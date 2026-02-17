@@ -1,7 +1,7 @@
 package com.arc.reactor.response
 
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -36,9 +36,8 @@ class ResponseFilterChain(filters: List<ResponseFilter>) {
         for (filter in sorted) {
             try {
                 result = filter.filter(result, context)
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.warn(e) { "ResponseFilter '${filter::class.simpleName}' failed, skipping" }
             }
         }

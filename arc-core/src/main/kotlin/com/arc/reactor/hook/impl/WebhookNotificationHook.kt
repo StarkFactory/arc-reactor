@@ -3,6 +3,8 @@ package com.arc.reactor.hook.impl
 import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
+import com.arc.reactor.support.throwIfCancellation
+import kotlinx.coroutines.reactor.awaitSingleOrNull
 import mu.KotlinLogging
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
@@ -61,13 +63,15 @@ class WebhookNotificationHook(
                 .toBodilessEntity()
                 .timeout(Duration.ofMillis(webhookProperties.timeoutMs))
                 .onErrorResume { e ->
+                    e.throwIfCancellation()
                     logger.warn { "Webhook POST to $url failed: ${e.message}" }
                     Mono.empty()
                 }
-                .block()
+                .awaitSingleOrNull()
 
             logger.debug { "Webhook notification sent to $url for runId=${context.runId}" }
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn { "Webhook notification failed for runId=${context.runId}: ${e.message}" }
         }
     }

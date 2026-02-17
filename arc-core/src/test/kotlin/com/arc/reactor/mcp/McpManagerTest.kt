@@ -1,5 +1,6 @@
 package com.arc.reactor.mcp
 
+import com.arc.reactor.agent.config.McpReconnectionProperties
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
@@ -10,9 +11,20 @@ import org.junit.jupiter.api.Assertions.*
 
 class McpManagerTest {
 
+    private fun manager(
+        store: McpServerStore? = null,
+        securityConfig: McpSecurityConfig = McpSecurityConfig(),
+        reconnectionProperties: McpReconnectionProperties = McpReconnectionProperties(enabled = false)
+    ) = DefaultMcpManager(
+        connectionTimeoutMs = 300,
+        securityConfig = securityConfig,
+        store = store,
+        reconnectionProperties = reconnectionProperties
+    )
+
     @Test
     fun `should register MCP server`() {
-        val manager = DefaultMcpManager()
+        val manager = manager()
 
         val server = McpServer(
             name = "test-server",
@@ -33,7 +45,7 @@ class McpManagerTest {
 
     @Test
     fun `should report PENDING status after registration`() {
-        val manager = DefaultMcpManager()
+        val manager = manager()
 
         val server = McpServer(
             name = "test-server",
@@ -48,8 +60,37 @@ class McpManagerTest {
     }
 
     @Test
+    fun `syncRuntimeServer should update runtime config`() {
+        val manager = manager()
+        manager.register(
+            McpServer(
+                name = "sync-target",
+                description = "before",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://localhost:8081/sse"),
+                autoConnect = false
+            )
+        )
+
+        manager.syncRuntimeServer(
+            McpServer(
+                name = "sync-target",
+                description = "after",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://localhost:8082/sse"),
+                autoConnect = true
+            )
+        )
+
+        val synced = manager.listServers().first { it.name == "sync-target" }
+        assertEquals("after", synced.description)
+        assertEquals("http://localhost:8082/sse", synced.config["url"])
+        assertTrue(synced.autoConnect)
+    }
+
+    @Test
     fun `should return null status for unknown server`() {
-        val manager = DefaultMcpManager()
+        val manager = manager()
 
         val status = manager.getStatus("unknown-server")
         assertNull(status, "Unknown server should return null status")
@@ -57,7 +98,7 @@ class McpManagerTest {
 
     @Test
     fun `should return empty callbacks when no servers connected`() {
-        val manager = DefaultMcpManager()
+        val manager = manager()
 
         val callbacks = manager.getAllToolCallbacks()
         assertTrue(callbacks.isEmpty()) { "Expected no callbacks when no servers connected, got: ${callbacks.size}" }
@@ -65,7 +106,7 @@ class McpManagerTest {
 
     @Test
     fun `should fail connection for missing command config`() = runBlocking {
-        val manager = DefaultMcpManager()
+        val manager = manager()
 
         val server = McpServer(
             name = "invalid-server",
@@ -82,7 +123,7 @@ class McpManagerTest {
 
     @Test
     fun `should return false for connecting to unregistered server`() = runBlocking {
-        val manager = DefaultMcpManager()
+        val manager = manager()
 
         val connected = manager.connect("nonexistent-server")
 
@@ -91,7 +132,7 @@ class McpManagerTest {
 
     @Test
     fun `should support multiple server registrations`() {
-        val manager = DefaultMcpManager()
+        val manager = manager()
 
         manager.register(McpServer(
             name = "server-1",
@@ -117,7 +158,7 @@ class McpManagerTest {
 
     @Test
     fun `should return empty callbacks for specific unconnected server`() {
-        val manager = DefaultMcpManager()
+        val manager = manager()
 
         manager.register(McpServer(
             name = "test-server",
@@ -131,7 +172,7 @@ class McpManagerTest {
 
     @Test
     fun `should fail SSE connection when url not provided`() = runBlocking {
-        val manager = DefaultMcpManager()
+        val manager = manager()
         val server = McpServer(
             name = "sse-server",
             transportType = McpTransportType.SSE,
@@ -146,7 +187,7 @@ class McpManagerTest {
 
     @Test
     fun `should fail HTTP connection with unsupported transport`() = runBlocking {
-        val manager = DefaultMcpManager()
+        val manager = manager()
         val server = McpServer(
             name = "http-server",
             transportType = McpTransportType.HTTP,
@@ -161,7 +202,7 @@ class McpManagerTest {
 
     @Test
     fun `should handle disconnect for unconnected server gracefully`() = runBlocking {
-        val manager = DefaultMcpManager()
+        val manager = manager()
 
         manager.register(McpServer(
             name = "test-server",
@@ -180,7 +221,7 @@ class McpManagerTest {
 
         @Test
         fun `should reject server not in allowlist`() {
-            val manager = DefaultMcpManager(
+            val manager = manager(
                 securityConfig = McpSecurityConfig(
                     allowedServerNames = setOf("trusted-server")
                 )
@@ -199,7 +240,7 @@ class McpManagerTest {
 
         @Test
         fun `should accept server in allowlist`() {
-            val manager = DefaultMcpManager(
+            val manager = manager(
                 securityConfig = McpSecurityConfig(
                     allowedServerNames = setOf("trusted-server")
                 )
@@ -218,7 +259,7 @@ class McpManagerTest {
 
         @Test
         fun `should allow all servers when allowlist is empty`() {
-            val manager = DefaultMcpManager(
+            val manager = manager(
                 securityConfig = McpSecurityConfig(allowedServerNames = emptySet())
             )
 
@@ -240,7 +281,7 @@ class McpManagerTest {
         @Test
         fun `register should persist server to store`() {
             val store = InMemoryMcpServerStore()
-            val manager = DefaultMcpManager(store = store)
+            val manager = manager(store = store)
 
             manager.register(McpServer(
                 name = "persisted-server",
@@ -256,7 +297,7 @@ class McpManagerTest {
         @Test
         fun `register should not duplicate in store`() {
             val store = InMemoryMcpServerStore()
-            val manager = DefaultMcpManager(store = store)
+            val manager = manager(store = store)
 
             val server = McpServer(
                 name = "no-dup",
@@ -278,7 +319,7 @@ class McpManagerTest {
         @Test
         fun `unregister should remove from store and runtime`() = runBlocking {
             val store = InMemoryMcpServerStore()
-            val manager = DefaultMcpManager(store = store)
+            val manager = manager(store = store)
 
             manager.register(McpServer(
                 name = "to-remove",
@@ -298,7 +339,7 @@ class McpManagerTest {
             val store = InMemoryMcpServerStore()
             store.save(McpServer(name = "store-server", transportType = McpTransportType.SSE))
 
-            val manager = DefaultMcpManager(store = store)
+            val manager = manager(store = store)
             // Don't call register, just rely on store
 
             val servers = manager.listServers()
@@ -322,7 +363,7 @@ class McpManagerTest {
                 autoConnect = false
             ))
 
-            val manager = DefaultMcpManager(store = store)
+            val manager = manager(store = store)
             manager.initializeFromStore()
 
             // auto-connect server should have attempted connection (will fail since no real server)
@@ -341,7 +382,7 @@ class McpManagerTest {
         @Test
         fun `initializeFromStore should handle empty store`() = runBlocking {
             val store = InMemoryMcpServerStore()
-            val manager = DefaultMcpManager(store = store)
+            val manager = manager(store = store)
 
             // Should not throw
             manager.initializeFromStore()

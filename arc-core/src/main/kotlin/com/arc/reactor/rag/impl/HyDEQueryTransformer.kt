@@ -1,6 +1,7 @@
 package com.arc.reactor.rag.impl
 
 import com.arc.reactor.rag.QueryTransformer
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
 
@@ -50,9 +51,8 @@ class HyDEQueryTransformer(
             } else {
                 listOf(query, hypotheticalDocument)
             }
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "HyDE generation failed, falling back to original query" }
             listOf(query)
         }

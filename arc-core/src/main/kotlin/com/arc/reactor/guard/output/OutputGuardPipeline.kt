@@ -1,7 +1,7 @@
 package com.arc.reactor.guard.output
 
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -43,9 +43,8 @@ class OutputGuardPipeline(stages: List<OutputGuardStage>) {
         for (stage in sorted) {
             val result = try {
                 stage.check(currentContent, context)
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.error(e) { "OutputGuardStage '${stage.stageName}' failed, rejecting (fail-close)" }
                 return OutputGuardResult.Rejected(
                     reason = "Output guard check failed: ${stage.stageName}",

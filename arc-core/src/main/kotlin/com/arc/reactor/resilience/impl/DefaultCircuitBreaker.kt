@@ -6,6 +6,7 @@ import com.arc.reactor.resilience.CircuitBreaker
 import com.arc.reactor.resilience.CircuitBreakerMetrics
 import com.arc.reactor.resilience.CircuitBreakerOpenException
 import com.arc.reactor.resilience.CircuitBreakerState
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -63,10 +64,9 @@ class DefaultCircuitBreaker(
             val result = block()
             onSuccess()
             result
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            // CancellationException is NOT a failure — do not count it
-            throw e
         } catch (e: Exception) {
+            // Cancellation is a control signal, not a circuit-breaker failure.
+            e.throwIfCancellation()
             onFailure()
             throw e
         }

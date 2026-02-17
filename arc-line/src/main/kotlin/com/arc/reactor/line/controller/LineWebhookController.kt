@@ -3,6 +3,7 @@ package com.arc.reactor.line.controller
 import com.arc.reactor.line.config.LineProperties
 import com.arc.reactor.line.handler.LineEventHandler
 import com.arc.reactor.line.model.LineEventCommand
+import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.Operation
@@ -20,7 +21,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -87,17 +87,16 @@ class LineWebhookController(
             messageId = message.path("id").asText()
         )
 
-        scope.launch {
-            semaphore.withPermit {
-                try {
-                    eventHandler.handleMessage(command)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    logger.error(e) {
-                        "Failed to handle LINE event: user=${command.userId}"
+            scope.launch {
+                semaphore.withPermit {
+                    try {
+                        eventHandler.handleMessage(command)
+                    } catch (e: Exception) {
+                        e.throwIfCancellation()
+                        logger.error(e) {
+                            "Failed to handle LINE event: user=${command.userId}"
+                        }
                     }
-                }
             }
         }
     }

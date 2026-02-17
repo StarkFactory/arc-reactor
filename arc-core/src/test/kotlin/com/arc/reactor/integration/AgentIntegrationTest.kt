@@ -25,6 +25,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 
 /**
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.Test
  *
  * Tests the complete flow: Guard → Hook → Agent → Memory
  */
+@Tag("integration")
 class AgentIntegrationTest {
 
     private lateinit var fixture: AgentTestFixture
