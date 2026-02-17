@@ -294,7 +294,7 @@ class SpringAiAgentExecutor(
         }
 
         val conversationHistory = conversationManager.loadHistory(effectiveCommand)
-        val ragContext = retrieveRagContext(effectiveCommand.userPrompt)
+        val ragContext = retrieveRagContext(effectiveCommand)
         val selectedTools = if (effectiveCommand.mode == AgentMode.STANDARD) {
             emptyList()
         } else {
@@ -680,7 +680,7 @@ class SpringAiAgentExecutor(
 
                     // 4. Setup (conversation via ConversationManager)
                     val conversationHistory = conversationManager.loadHistory(effectiveCommand)
-                    val ragContext = retrieveRagContext(effectiveCommand.userPrompt)
+                    val ragContext = retrieveRagContext(effectiveCommand)
                     val systemPrompt = buildSystemPrompt(
                         effectiveCommand.systemPrompt, ragContext,
                         effectiveCommand.responseFormat, effectiveCommand.responseSchema
@@ -910,13 +910,15 @@ class SpringAiAgentExecutor(
     /**
      * Retrieve RAG context if enabled and pipeline is available.
      */
-    private suspend fun retrieveRagContext(userPrompt: String): String? {
+    private suspend fun retrieveRagContext(command: AgentCommand): String? {
         if (!properties.rag.enabled || ragPipeline == null) return null
 
         return try {
+            val ragFilters = extractRagFilters(command.metadata)
             val ragResult = ragPipeline.retrieve(
                 RagQuery(
-                    query = userPrompt,
+                    query = command.userPrompt,
+                    filters = ragFilters,
                     topK = properties.rag.topK,
                     rerank = properties.rag.rerankEnabled
                 )
@@ -926,6 +928,30 @@ class SpringAiAgentExecutor(
             logger.warn(e) { "RAG retrieval failed, continuing without context" }
             null
         }
+    }
+
+    private fun extractRagFilters(metadata: Map<String, Any>): Map<String, Any> {
+        if (metadata.isEmpty()) return emptyMap()
+
+        val merged = linkedMapOf<String, Any>()
+
+        val explicit = metadata["ragFilters"] as? Map<*, *>
+        explicit?.forEach { (k, v) ->
+            val key = k?.toString()?.trim().orEmpty()
+            if (key.isNotBlank() && v != null) {
+                merged[key] = v
+            }
+        }
+
+        metadata.forEach { (k, v) ->
+            if (!k.startsWith("rag.filter.")) return@forEach
+            val key = k.removePrefix("rag.filter.").trim()
+            if (key.isNotBlank() && key !in merged) {
+                merged[key] = v
+            }
+        }
+
+        return merged
     }
 
     /**

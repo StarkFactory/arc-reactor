@@ -453,6 +453,9 @@ data class RagProperties(
     /** Enable re-ranking */
     val rerankEnabled: Boolean = true,
 
+    /** Query transformer mode: passthrough|hyde */
+    val queryTransformer: String = "passthrough",
+
     /** Maximum context tokens */
     val maxContextTokens: Int = 4000
 )

@@ -74,6 +74,7 @@ arc:
     rag:
       enabled: ${ARC_REACTOR_RAG_ENABLED:false}
       similarity-threshold: 0.3
+      query-transformer: ${ARC_REACTOR_RAG_QUERY_TRANSFORMER:passthrough}
 
     error-report:
       enabled: ${ARC_REACTOR_ERROR_REPORT_ENABLED:false}

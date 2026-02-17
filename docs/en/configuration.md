@@ -171,6 +171,7 @@ arc:
 | `similarity-threshold` | Double | 0.7 | Vector search similarity threshold (0.0~1.0) |
 | `top-k` | Int | 10 | Number of vector search results |
 | `rerank-enabled` | Boolean | true | Enables search result reranking |
+| `query-transformer` | String | `passthrough` | Query rewrite mode (`passthrough` or `hyde`) |
 | `max-context-tokens` | Int | 4000 | Maximum number of tokens allocated to the RAG context |
 
 ---
