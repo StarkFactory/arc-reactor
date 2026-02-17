@@ -186,6 +186,7 @@ class SpringAiAgentExecutor(
             channel = command.metadata["channel"]?.toString(),
             toolsUsed = toolsUsed
         )
+        hookContext.metadata.putAll(command.metadata)
 
         try {
             return concurrencySemaphore.withPermit {
@@ -518,6 +519,7 @@ class SpringAiAgentExecutor(
             channel = command.metadata["channel"]?.toString(),
             toolsUsed = toolsUsed
         )
+        hookContext.metadata.putAll(command.metadata)
 
         var streamSuccess = false
         var streamErrorCode: AgentErrorCode? = null
