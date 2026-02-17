@@ -850,3 +850,34 @@ key-value 형태의 사실 목록을 system prompt에 주입하는 방식으로 
 | JDBC는 compileOnly | 선택적 의존 — PostgreSQL 불필요 시 제외 가능 |
 | RAG 기본 비활성화 | VectorStore 없으면 무의미 — 필요한 사용자만 활성화 |
 | Sliding Window 우선 | 구현 간단 + 대부분의 시나리오에서 충분 — Summarization은 추후 고려 |
+
+## RAG 적재 리뷰 큐 (Admin)
+
+Arc Reactor는 기업 운영용으로 Q&A 적재를 리뷰 큐 방식으로 지원한다:
+
+1. 성공한 Q&A를 `PENDING` 후보로 수집
+2. Admin이 후보 목록을 검토
+3. 승인(`INGESTED`) 또는 반려(`REJECTED`)
+4. 승인 시 `VectorStore`에 문서 적재
+
+### 핵심 설정
+
+```yaml
+arc:
+  reactor:
+    rag:
+      ingestion:
+        enabled: true
+        dynamic:
+          enabled: true
+        require-review: true
+```
+
+### Admin API
+
+- `GET /api/rag-ingestion/policy`
+- `PUT /api/rag-ingestion/policy`
+- `DELETE /api/rag-ingestion/policy`
+- `GET /api/rag-ingestion/candidates`
+- `POST /api/rag-ingestion/candidates/{id}/approve`
+- `POST /api/rag-ingestion/candidates/{id}/reject`
