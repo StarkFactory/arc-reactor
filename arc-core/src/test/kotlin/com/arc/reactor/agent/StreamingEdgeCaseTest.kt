@@ -202,7 +202,7 @@ class StreamingEdgeCaseTest {
 
             val slowTool = AgentTestFixture.delayingToolCallback(
                 name = "slow-tool",
-                delayMs = 5000, // 5 seconds, exceeds timeout
+                delayMs = 300, // keep above timeout while avoiding long wall-clock waits
                 result = "should not return"
             )
 
@@ -214,7 +214,7 @@ class StreamingEdgeCaseTest {
                     concurrency = ConcurrencyProperties(
                         maxConcurrentRequests = 20,
                         requestTimeoutMs = 30000,
-                        toolCallTimeoutMs = 100 // Very short timeout
+                        toolCallTimeoutMs = 50 // Very short timeout
                     )
                 )
             }

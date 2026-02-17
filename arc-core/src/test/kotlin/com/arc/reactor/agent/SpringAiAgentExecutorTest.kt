@@ -379,6 +379,14 @@ class SpringAiAgentExecutorTest {
 
     @Nested
     inner class ErrorHandling {
+        // Error translation behavior does not require retry/backoff; disable retries to keep tests fast.
+        private val noRetryProperties = properties.copy(
+            retry = properties.retry.copy(
+                maxAttempts = 1,
+                initialDelayMs = 1,
+                maxDelayMs = 1
+            )
+        )
 
         @Test
         fun `should handle LLM exception gracefully`() = runBlocking {
@@ -387,7 +395,7 @@ class SpringAiAgentExecutorTest {
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
-                properties = properties
+                properties = noRetryProperties
             )
 
             // Act
@@ -410,7 +418,7 @@ class SpringAiAgentExecutorTest {
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
-                properties = properties
+                properties = noRetryProperties
             )
 
             // Act
@@ -436,7 +444,7 @@ class SpringAiAgentExecutorTest {
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
-                properties = properties
+                properties = noRetryProperties
             )
 
             // Act
@@ -470,7 +478,7 @@ class SpringAiAgentExecutorTest {
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
-                properties = properties,
+                properties = noRetryProperties,
                 errorMessageResolver = koreanResolver
             )
 

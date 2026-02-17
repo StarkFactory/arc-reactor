@@ -32,7 +32,13 @@ subprojects {
     }
 
     tasks.withType<Test> {
-        useJUnitPlatform()
+        useJUnitPlatform {
+            // Keep integration tests opt-in across all modules.
+            // Run with: ./gradlew test -PincludeIntegration
+            if (!project.hasProperty("includeIntegration")) {
+                excludeTags("integration")
+            }
+        }
     }
 
     configurations.configureEach {

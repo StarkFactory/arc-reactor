@@ -79,7 +79,7 @@ class DiscordMessageListenerTest {
             val listener = DiscordMessageListener(client, handler, properties)
             listener.startListening()
 
-            delay(100)
+            delay(20)
 
             coVerify(exactly = 0) { handler.handleMessage(any()) }
         }
@@ -93,7 +93,7 @@ class DiscordMessageListenerTest {
             val listener = DiscordMessageListener(client, handler, properties)
             listener.startListening()
 
-            delay(100)
+            delay(20)
 
             coVerify(exactly = 0) { handler.handleMessage(any()) }
         }
@@ -115,9 +115,7 @@ class DiscordMessageListenerTest {
             val listener = DiscordMessageListener(client, handler, noMentionProps)
             listener.startListening()
 
-            delay(200)
-
-            coVerify(atLeast = 1) { handler.handleMessage(any()) }
+            coVerify(timeout = 2000, exactly = 1) { handler.handleMessage(any()) }
             commandSlot.captured.content shouldBe "hello bot"
         }
 
@@ -135,7 +133,7 @@ class DiscordMessageListenerTest {
             val listener = DiscordMessageListener(client, handler, properties)
             listener.startListening()
 
-            delay(100)
+            delay(20)
 
             coVerify(exactly = 0) { handler.handleMessage(any()) }
         }
@@ -156,9 +154,7 @@ class DiscordMessageListenerTest {
             val listener = DiscordMessageListener(client, handler, properties)
             listener.startListening()
 
-            delay(200)
-
-            coVerify(atLeast = 1) { handler.handleMessage(any()) }
+            coVerify(timeout = 2000, exactly = 1) { handler.handleMessage(any()) }
             commandSlot.captured.channelId shouldBe "333333"
             commandSlot.captured.userId shouldBe "222222"
             commandSlot.captured.username shouldBe "testuser"
@@ -179,9 +175,7 @@ class DiscordMessageListenerTest {
             val listener = DiscordMessageListener(client, handler, properties)
             listener.startListening()
 
-            delay(200)
-
-            coVerify(atLeast = 1) { handler.handleMessage(any()) }
+            coVerify(timeout = 2000, exactly = 1) { handler.handleMessage(any()) }
             commandSlot.captured.guildId shouldBe null
         }
     }

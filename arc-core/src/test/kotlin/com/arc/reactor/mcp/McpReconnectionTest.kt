@@ -36,9 +36,9 @@ class McpReconnectionTest {
             val props = McpReconnectionProperties(
                 enabled = true,
                 maxAttempts = 2,
-                initialDelayMs = 100,
+                initialDelayMs = 20,
                 multiplier = 1.0,
-                maxDelayMs = 200
+                maxDelayMs = 20
             )
             val manager = DefaultMcpManager(reconnectionProperties = props)
             manager.register(fastFailServer("recon-server"))
@@ -50,9 +50,9 @@ class McpReconnectionTest {
                 "Status should be FAILED after failed connection"
             }
 
-            // Background reconnection is scheduled but will also fail
-            // Wait long enough for 2 attempts (100ms + 100ms delays + execution overhead)
-            delay(3000)
+            // Background reconnection is scheduled but will also fail.
+            // Wait long enough for 2 attempts with small backoff.
+            delay(500)
 
             // After exhausted attempts, status should still be FAILED
             assertEquals(McpServerStatus.FAILED, manager.getStatus("recon-server")) {
@@ -88,9 +88,9 @@ class McpReconnectionTest {
             val props = McpReconnectionProperties(
                 enabled = true,
                 maxAttempts = 10,
-                initialDelayMs = 200,
+                initialDelayMs = 50,
                 multiplier = 1.0,
-                maxDelayMs = 500
+                maxDelayMs = 50
             )
             val manager = DefaultMcpManager(reconnectionProperties = props)
             manager.register(fastFailServer("manual-recon"))
@@ -102,7 +102,7 @@ class McpReconnectionTest {
             manager.disconnect("manual-recon")
 
             // Wait a bit for the reconnection loop to detect disconnected state
-            delay(500)
+            delay(120)
 
             assertEquals(McpServerStatus.DISCONNECTED, manager.getStatus("manual-recon")) {
                 "Status should be DISCONNECTED after manual disconnect"
@@ -128,7 +128,7 @@ class McpReconnectionTest {
             }
 
             // No background task scheduled — state should remain stable
-            delay(200)
+            delay(50)
             assertEquals(McpServerStatus.FAILED, manager.getStatus("no-recon")) {
                 "Status should remain FAILED with reconnection disabled"
             }
