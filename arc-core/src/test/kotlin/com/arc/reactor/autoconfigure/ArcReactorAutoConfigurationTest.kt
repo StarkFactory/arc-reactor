@@ -6,6 +6,7 @@ import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.guard.RequestGuard
+import com.arc.reactor.guard.impl.DefaultInputValidationStage
 import com.arc.reactor.guard.impl.GuardPipeline
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.impl.WebhookNotificationHook
@@ -200,6 +201,12 @@ class ArcReactorAutoConfigurationTest {
 
     @Nested
     inner class GuardConfigurationTests {
+        private fun inputValidationMaxLength(context: org.springframework.context.ApplicationContext): Int {
+            val stage = context.getBean("inputValidationStage", DefaultInputValidationStage::class.java)
+            val maxLengthField = DefaultInputValidationStage::class.java.getDeclaredField("maxLength")
+            maxLengthField.isAccessible = true
+            return maxLengthField.getInt(stage)
+        }
 
         @Test
         fun `should register guard beans by default`() {
@@ -257,6 +264,31 @@ class ArcReactorAutoConfigurationTest {
                     }
                     assertFalse(context.containsBean("injectionDetectionStage")) {
                         "injectionDetectionStage should not exist when injection detection is disabled"
+                    }
+                }
+        }
+
+        @Test
+        fun `should use legacy guard max input length when boundaries input max is not set`() {
+            contextRunner
+                .withPropertyValues("arc.reactor.guard.max-input-length=4321")
+                .run { context ->
+                    assertEquals(4321, inputValidationMaxLength(context)) {
+                        "Legacy guard max input length should be applied for backward compatibility"
+                    }
+                }
+        }
+
+        @Test
+        fun `should prioritize boundaries input max over legacy guard max input length`() {
+            contextRunner
+                .withPropertyValues(
+                    "arc.reactor.guard.max-input-length=4321",
+                    "arc.reactor.boundaries.input-max-chars=8765"
+                )
+                .run { context ->
+                    assertEquals(8765, inputValidationMaxLength(context)) {
+                        "boundaries.input-max-chars should take precedence over legacy guard.max-input-length"
                     }
                 }
         }
