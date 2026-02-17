@@ -54,6 +54,7 @@ arc:
       default-provider: gemini
       temperature: 0.7
       max-output-tokens: 4096
+      google-search-retrieval-enabled: ${ARC_REACTOR_LLM_GOOGLE_SEARCH_RETRIEVAL_ENABLED:false}
 
     concurrency:
       max-concurrent-requests: 20
