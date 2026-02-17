@@ -168,6 +168,8 @@ class SpringAiAgentExecutor(
     }
 
     private val concurrencySemaphore = Semaphore(properties.concurrency.maxConcurrentRequests)
+    private val systemPromptBuilder = SystemPromptBuilder()
+    private val structuredOutputValidator = StructuredOutputValidator()
     private val messageTrimmer = ConversationMessageTrimmer(
         maxContextWindowTokens = properties.llm.maxContextWindowTokens,
         outputReserveTokens = properties.llm.maxOutputTokens,
@@ -675,7 +677,7 @@ class SpringAiAgentExecutor(
                     // 4. Setup (conversation via ConversationManager)
                     val conversationHistory = conversationManager.loadHistory(effectiveCommand)
                     val ragContext = retrieveRagContext(effectiveCommand)
-                    val systemPrompt = buildSystemPrompt(
+                    val systemPrompt = systemPromptBuilder.build(
                         effectiveCommand.systemPrompt, ragContext,
                         effectiveCommand.responseFormat, effectiveCommand.responseSchema
                     )
@@ -948,61 +950,6 @@ class SpringAiAgentExecutor(
     }
 
     /**
-     * Build system prompt with optional RAG context and response format instructions.
-     */
-    private fun buildSystemPrompt(
-        basePrompt: String,
-        ragContext: String?,
-        responseFormat: ResponseFormat = ResponseFormat.TEXT,
-        responseSchema: String? = null
-    ): String {
-        val parts = mutableListOf(basePrompt)
-
-        if (ragContext != null) {
-            parts.add(buildRagInstruction(ragContext))
-        }
-
-        when (responseFormat) {
-            ResponseFormat.JSON -> parts.add(buildJsonInstruction(responseSchema))
-            ResponseFormat.YAML -> parts.add(buildYamlInstruction(responseSchema))
-            ResponseFormat.TEXT -> { /* no format instruction */ }
-        }
-
-        return parts.joinToString("\n\n")
-    }
-
-    private fun buildJsonInstruction(responseSchema: String?): String = buildString {
-        append("[Response Format]\n")
-        append("You MUST respond with valid JSON only.\n")
-        append("- Do NOT wrap the response in markdown code blocks (no ```json or ```).\n")
-        append("- Do NOT include any text before or after the JSON.\n")
-        append("- The response MUST start with '{' or '[' and end with '}' or ']'.")
-        if (responseSchema != null) {
-            append("\n\nExpected JSON schema:\n$responseSchema")
-        }
-    }
-
-    private fun buildYamlInstruction(responseSchema: String?): String = buildString {
-        append("[Response Format]\n")
-        append("You MUST respond with valid YAML only.\n")
-        append("- Do NOT wrap the response in markdown code blocks (no ```yaml or ```).\n")
-        append("- Do NOT include any text before or after the YAML.\n")
-        append("- Use proper YAML indentation (2 spaces).")
-        if (responseSchema != null) {
-            append("\n\nExpected YAML structure:\n$responseSchema")
-        }
-    }
-
-    private fun buildRagInstruction(ragContext: String): String = buildString {
-        append("[Retrieved Context]\n")
-        append("The following information was retrieved from the knowledge base and may be relevant.\n")
-        append("Use this context to inform your answer when relevant. ")
-        append("If the context does not contain the answer, say so rather than guessing.\n")
-        append("Do not mention the retrieval process to the user.\n\n")
-        append(ragContext)
-    }
-
-    /**
      * Validate structured output and attempt one repair if invalid.
      * Returns the validated content or an INVALID_RESPONSE failure.
      */
@@ -1017,16 +964,16 @@ class SpringAiAgentExecutor(
             return AgentResult.success(content = rawContent, toolsUsed = toolsUsed, tokenUsage = tokenUsage)
         }
 
-        val stripped = stripMarkdownCodeFence(rawContent)
+        val stripped = structuredOutputValidator.stripMarkdownCodeFence(rawContent)
 
-        if (isValidFormat(stripped, format)) {
+        if (structuredOutputValidator.isValidFormat(stripped, format)) {
             return AgentResult.success(content = stripped, toolsUsed = toolsUsed, tokenUsage = tokenUsage)
         }
 
         // Attempt one LLM repair call
         logger.warn { "Invalid $format response detected, attempting repair" }
         val repaired = attemptRepair(stripped, format, command)
-        if (repaired != null && isValidFormat(repaired, format)) {
+        if (repaired != null && structuredOutputValidator.isValidFormat(repaired, format)) {
             return AgentResult.success(content = repaired, toolsUsed = toolsUsed, tokenUsage = tokenUsage)
         }
 
@@ -1035,42 +982,6 @@ class SpringAiAgentExecutor(
             errorMessage = errorMessageResolver.resolve(AgentErrorCode.INVALID_RESPONSE, null),
             errorCode = AgentErrorCode.INVALID_RESPONSE
         )
-    }
-
-    private fun isValidFormat(content: String, format: ResponseFormat): Boolean {
-        return when (format) {
-            ResponseFormat.JSON -> validateJson(content)
-            ResponseFormat.YAML -> validateYaml(content)
-            ResponseFormat.TEXT -> true
-        }
-    }
-
-    private fun validateJson(content: String): Boolean {
-        return try {
-            objectMapper.readTree(content)
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    private fun validateYaml(content: String): Boolean {
-        return try {
-            val yaml = org.yaml.snakeyaml.Yaml()
-            val result = yaml.load<Any>(content)
-            result != null
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    private fun stripMarkdownCodeFence(content: String): String {
-        val trimmed = content.trim()
-        if (!trimmed.startsWith("```")) return trimmed
-        val lines = trimmed.lines()
-        val startIdx = 1 // skip first ``` line
-        val endIdx = if (lines.last().trim() == "```") lines.size - 1 else lines.size
-        return lines.subList(startIdx, endIdx).joinToString("\n").trim()
     }
 
     private suspend fun attemptRepair(
@@ -1092,7 +1003,7 @@ class SpringAiAgentExecutor(
                     .chatResponse()
             }
             val repairedContent = response?.results?.firstOrNull()?.output?.text
-            if (repairedContent != null) stripMarkdownCodeFence(repairedContent) else null
+            if (repairedContent != null) structuredOutputValidator.stripMarkdownCodeFence(repairedContent) else null
         }.getOrElse { e ->
             logger.warn(e) { "Repair attempt failed" }
             null
@@ -1398,7 +1309,7 @@ class SpringAiAgentExecutor(
             val allowedTools = resolveAllowedTools(command)
 
             // System prompt (with RAG context and response format)
-            val systemPrompt = buildSystemPrompt(
+            val systemPrompt = systemPromptBuilder.build(
                 command.systemPrompt, ragContext,
                 command.responseFormat, command.responseSchema
             )
