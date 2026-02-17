@@ -171,6 +171,7 @@ arc:
 | `similarity-threshold` | Double | 0.7 | 벡터 검색 유사도 임계값 (0.0~1.0) |
 | `top-k` | Int | 10 | 벡터 검색 결과 수 |
 | `rerank-enabled` | Boolean | true | 검색 결과 재순위 활성화 |
+| `query-transformer` | String | `passthrough` | 질의 재작성 모드 (`passthrough` 또는 `hyde`) |
 | `max-context-tokens` | Int | 4000 | RAG 컨텍스트에 할당할 최대 토큰 수 |
 
 ---

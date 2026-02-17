@@ -29,9 +29,12 @@ import com.arc.reactor.prompt.JdbcPromptTemplateStore
 import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.rag.DocumentReranker
 import com.arc.reactor.rag.DocumentRetriever
+import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.impl.DefaultRagPipeline
+import com.arc.reactor.rag.impl.HyDEQueryTransformer
 import com.arc.reactor.rag.impl.InMemoryDocumentRetriever
+import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.ToolCallback
@@ -329,6 +332,26 @@ class ArcReactorAutoConfigurationTest {
                     assertInstanceOf(
                         SimpleScoreReranker::class.java, context.getBean(DocumentReranker::class.java),
                         "Default DocumentReranker should be SimpleScoreReranker"
+                    )
+                    assertInstanceOf(
+                        PassthroughQueryTransformer::class.java, context.getBean(QueryTransformer::class.java),
+                        "Default QueryTransformer should be PassthroughQueryTransformer"
+                    )
+                }
+        }
+
+        @Test
+        fun `should register HyDE query transformer when configured`() {
+            contextRunner
+                .withUserConfiguration(MockChatClientConfig::class.java)
+                .withPropertyValues(
+                    "arc.reactor.rag.enabled=true",
+                    "arc.reactor.rag.query-transformer=hyde"
+                )
+                .run { context ->
+                    assertInstanceOf(
+                        HyDEQueryTransformer::class.java, context.getBean(QueryTransformer::class.java),
+                        "QueryTransformer should be HyDEQueryTransformer when configured"
                     )
                 }
         }

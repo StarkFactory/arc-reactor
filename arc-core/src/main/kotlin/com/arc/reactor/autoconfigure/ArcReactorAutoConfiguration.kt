@@ -112,9 +112,12 @@ import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
 import com.arc.reactor.rag.DocumentRetriever
 import com.arc.reactor.rag.DocumentReranker
+import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.rag.RagPipeline
+import com.arc.reactor.rag.impl.HyDEQueryTransformer
 import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.InMemoryDocumentRetriever
+import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import org.springframework.ai.chat.client.ChatClient
@@ -653,15 +656,56 @@ class ArcReactorAutoConfiguration {
         fun documentReranker(): DocumentReranker = SimpleScoreReranker()
 
         /**
+         * Query transformer strategy.
+         * - passthrough (default): no rewrite
+         * - hyde: hypothetical document generation for better retrieval
+         */
+        @Bean
+        @ConditionalOnMissingBean
+        fun queryTransformer(
+            chatModelProvider: ObjectProvider<ChatModelProvider>,
+            properties: AgentProperties
+        ): QueryTransformer {
+            return when (properties.rag.queryTransformer.trim().lowercase()) {
+                "hyde" -> {
+                    val provider = chatModelProvider.ifAvailable
+                    if (provider != null) {
+                        val selectedProvider = provider.availableProviders()
+                            .firstOrNull { it == provider.defaultProvider() }
+                            ?: provider.availableProviders().firstOrNull()
+                        if (selectedProvider == null) {
+                            ragLogger.warn { "RAG: HyDE requested but no chat providers are available, using passthrough" }
+                            return PassthroughQueryTransformer()
+                        }
+                        ragLogger.info { "RAG: Using HyDEQueryTransformer" }
+                        HyDEQueryTransformer(provider.getChatClient(selectedProvider))
+                    } else {
+                        ragLogger.warn { "RAG: HyDE requested but ChatModelProvider is unavailable, using passthrough" }
+                        PassthroughQueryTransformer()
+                    }
+                }
+                "passthrough", "" -> PassthroughQueryTransformer()
+                else -> {
+                    ragLogger.warn {
+                        "RAG: Unknown query transformer '${properties.rag.queryTransformer}', falling back to passthrough"
+                    }
+                    PassthroughQueryTransformer()
+                }
+            }
+        }
+
+        /**
          * RAG Pipeline
          */
         @Bean
         @ConditionalOnMissingBean
         fun ragPipeline(
+            queryTransformer: QueryTransformer,
             retriever: DocumentRetriever,
             reranker: DocumentReranker,
             properties: AgentProperties
         ): RagPipeline = DefaultRagPipeline(
+            queryTransformer = queryTransformer,
             retriever = retriever,
             reranker = reranker,
             maxContextTokens = properties.rag.maxContextTokens

@@ -255,6 +255,42 @@ class Tier1FeatureTest {
         }
 
         @Test
+        fun `should pass metadata filters to RAG query`() = runBlocking {
+            val ragPipeline = mockk<RagPipeline>()
+            coEvery { ragPipeline.retrieve(any()) } returns RagContext.EMPTY
+
+            val ragProperties = RagProperties(enabled = true, topK = 5, maxContextTokens = 4000)
+            val props = properties.copy(rag = ragProperties)
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = props,
+                ragPipeline = ragPipeline
+            )
+
+            executor.execute(
+                AgentCommand(
+                    systemPrompt = "You are helpful.",
+                    userPrompt = "Show docs",
+                    metadata = mapOf(
+                        "ragFilters" to mapOf("source" to "confluence"),
+                        "rag.filter.space" to "ENG"
+                    )
+                )
+            )
+
+            coVerify {
+                ragPipeline.retrieve(
+                    match {
+                        it.query == "Show docs" &&
+                            it.filters["source"] == "confluence" &&
+                            it.filters["space"] == "ENG"
+                    }
+                )
+            }
+        }
+
+        @Test
         fun `should not call RAG when disabled`() = runBlocking {
             val ragPipeline = mockk<RagPipeline>()
 
