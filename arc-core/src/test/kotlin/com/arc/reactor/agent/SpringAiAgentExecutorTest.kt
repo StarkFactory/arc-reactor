@@ -21,10 +21,12 @@ import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.memory.InMemoryMemoryStore
+import com.arc.reactor.rag.RagPipeline
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -495,6 +497,36 @@ class SpringAiAgentExecutorTest {
             result.assertErrorCode(AgentErrorCode.RATE_LIMITED)
             assertTrue(result.errorMessage!!.contains("요청 한도")) {
                 "Expected Korean rate limit message containing '요청 한도', got: ${result.errorMessage}"
+            }
+        }
+    }
+
+    @Nested
+    inner class CancellationHandling {
+
+        @Test
+        fun `should rethrow cancellation from rag retrieval`() {
+            // Arrange
+            val ragPipeline = mockk<RagPipeline>()
+            coEvery { ragPipeline.retrieve(any()) } throws CancellationException("cancelled")
+            every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("unused")
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties.copy(rag = properties.rag.copy(enabled = true)),
+                ragPipeline = ragPipeline
+            )
+
+            // Act + Assert
+            assertThrows(CancellationException::class.java) {
+                runBlocking {
+                    executor.execute(
+                        AgentCommand(
+                            systemPrompt = "You are helpful.",
+                            userPrompt = "Hello!"
+                        )
+                    )
+                }
             }
         }
     }
