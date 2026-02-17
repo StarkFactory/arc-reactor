@@ -47,6 +47,7 @@ import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.model.RagQuery
 import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.TokenEstimator
+import com.arc.reactor.support.runSuspendCatchingNonCancellation
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
@@ -334,7 +335,7 @@ class SpringAiAgentExecutor(
     }
 
     private suspend fun attemptFallback(command: AgentCommand, originalResult: AgentResult): AgentResult {
-        return try {
+        return runSuspendCatchingNonCancellation {
             val error = Exception(originalResult.errorMessage ?: "Agent execution failed")
             val fallbackResult = fallbackStrategy?.execute(command, error)
             if (fallbackResult != null) {
@@ -343,8 +344,7 @@ class SpringAiAgentExecutor(
             } else {
                 originalResult
             }
-        } catch (e: Exception) {
-            e.throwIfCancellation()
+        }.getOrElse { e ->
             logger.warn(e) { "Fallback strategy failed, using original error" }
             originalResult
         }
@@ -582,7 +582,7 @@ class SpringAiAgentExecutor(
         minChars: Int,
         command: AgentCommand
     ): String? {
-        return try {
+        return runSuspendCatchingNonCancellation {
             val retryPrompt = "Your previous response was too short " +
                 "(${shortContent.length} chars, minimum $minChars chars). " +
                 "Please provide a more detailed response."
@@ -595,8 +595,7 @@ class SpringAiAgentExecutor(
                     .chatResponse()
             }
             response?.results?.firstOrNull()?.output?.text
-        } catch (e: Exception) {
-            e.throwIfCancellation()
+        }.getOrElse { e ->
             logger.warn(e) { "Longer response retry failed" }
             null
         }
@@ -904,7 +903,7 @@ class SpringAiAgentExecutor(
     private suspend fun retrieveRagContext(command: AgentCommand): String? {
         if (!properties.rag.enabled || ragPipeline == null) return null
 
-        return try {
+        return runSuspendCatchingNonCancellation {
             val ragFilters = extractRagFilters(command.metadata)
             val ragResult = ragPipeline.retrieve(
                 RagQuery(
@@ -915,7 +914,7 @@ class SpringAiAgentExecutor(
                 )
             )
             if (ragResult.hasDocuments) ragResult.context else null
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             logger.warn(e) { "RAG retrieval failed, continuing without context" }
             null
         }
@@ -1076,7 +1075,7 @@ class SpringAiAgentExecutor(
         format: ResponseFormat,
         command: AgentCommand
     ): String? {
-        return try {
+        return runSuspendCatchingNonCancellation {
             val formatName = format.name
             val repairPrompt = "The following $formatName is invalid. " +
                 "Fix it and return ONLY valid $formatName with no explanation or code fences:\n\n$invalidContent"
@@ -1091,8 +1090,7 @@ class SpringAiAgentExecutor(
             }
             val repairedContent = response?.results?.firstOrNull()?.output?.text
             if (repairedContent != null) stripMarkdownCodeFence(repairedContent) else null
-        } catch (e: Exception) {
-            e.throwIfCancellation()
+        }.getOrElse { e ->
             logger.warn(e) { "Repair attempt failed" }
             null
         }
@@ -1441,7 +1439,7 @@ class SpringAiAgentExecutor(
 
         logger.info { "Tool '$toolName' requires human approval, suspending execution..." }
 
-        return try {
+        return runSuspendCatchingNonCancellation {
             val response = pendingApprovalStore.requestApproval(
                 runId = hookContext.runId,
                 userId = hookContext.userId,
@@ -1456,8 +1454,7 @@ class SpringAiAgentExecutor(
                 logger.info { "Tool '$toolName' rejected by human: $reason" }
                 "Tool call rejected by human: $reason"
             }
-        } catch (e: Exception) {
-            e.throwIfCancellation()
+        }.getOrElse { e ->
             logger.error(e) { "Approval check failed for tool '$toolName'" }
             null // Fail-open: allow tool execution on approval system error
         }
