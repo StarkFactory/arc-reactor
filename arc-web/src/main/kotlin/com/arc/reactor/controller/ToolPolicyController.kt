@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.policy.tool.ToolPolicy
 import com.arc.reactor.policy.tool.ToolPolicyProvider
 import com.arc.reactor.policy.tool.ToolPolicyStore
@@ -28,7 +29,8 @@ import org.springframework.web.server.ServerWebExchange
 class ToolPolicyController(
     private val properties: AgentProperties,
     private val store: ToolPolicyStore,
-    private val provider: ToolPolicyProvider
+    private val provider: ToolPolicyProvider,
+    private val adminAuditStore: AdminAuditStore
 ) {
 
     @Operation(summary = "Get tool policy state (effective + stored) (ADMIN)")
@@ -57,6 +59,15 @@ class ToolPolicyController(
 
         val saved = store.save(request.toPolicy())
         provider.invalidate()
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "tool_policy",
+            action = "UPDATE",
+            actor = currentActor(exchange),
+            resourceType = "tool_policy",
+            resourceId = "singleton",
+            detail = "enabled=${saved.enabled}, writeTools=${saved.writeToolNames.size}, denyChannels=${saved.denyWriteChannels.size}"
+        )
         return ResponseEntity.ok(saved.toResponse())
     }
 
@@ -66,6 +77,15 @@ class ToolPolicyController(
         if (!isAdmin(exchange)) return forbiddenResponse()
         store.delete()
         provider.invalidate()
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "tool_policy",
+            action = "DELETE",
+            actor = currentActor(exchange),
+            resourceType = "tool_policy",
+            resourceId = "singleton",
+            detail = "reset_to_config_defaults=true"
+        )
         return ResponseEntity.noContent().build()
     }
 }

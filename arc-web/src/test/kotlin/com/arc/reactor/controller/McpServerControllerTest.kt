@@ -2,6 +2,8 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
+import com.arc.reactor.audit.AdminAuditStore
+import com.arc.reactor.audit.InMemoryAdminAuditStore
 import com.arc.reactor.mcp.DefaultMcpManager
 import com.arc.reactor.mcp.InMemoryMcpServerStore
 import com.arc.reactor.mcp.McpManager
@@ -30,6 +32,7 @@ class McpServerControllerTest {
 
     private lateinit var store: McpServerStore
     private lateinit var manager: McpManager
+    private lateinit var adminAuditStore: AdminAuditStore
     private lateinit var controller: McpServerController
 
     private fun adminExchange(): ServerWebExchange {
@@ -50,7 +53,8 @@ class McpServerControllerTest {
     fun setup() {
         store = InMemoryMcpServerStore()
         manager = DefaultMcpManager(store = store)
-        controller = McpServerController(manager, store)
+        adminAuditStore = InMemoryAdminAuditStore()
+        controller = McpServerController(manager, store, adminAuditStore)
     }
 
     @Nested
@@ -99,6 +103,10 @@ class McpServerControllerTest {
             val saved = store.findByName("my-server")
             assertNotNull(saved) { "Server should be persisted in store" }
             assertEquals(McpTransportType.SSE, saved!!.transportType)
+            val audits = adminAuditStore.list()
+            assertEquals(1, audits.size)
+            assertEquals("mcp_server", audits.first().category)
+            assertEquals("CREATE", audits.first().action)
         }
 
         @Test
@@ -377,7 +385,7 @@ class McpServerControllerTest {
                 securityConfig = McpSecurityConfig(allowedServerNames = setOf("trusted")),
                 store = secureStore
             )
-            val secureController = McpServerController(secureManager, secureStore)
+            val secureController = McpServerController(secureManager, secureStore, InMemoryAdminAuditStore())
 
             // Register allowed server
             val trustedReq = RegisterMcpServerRequest(

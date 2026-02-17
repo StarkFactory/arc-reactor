@@ -3,6 +3,8 @@ package com.arc.reactor.controller
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.config.ToolPolicyDynamicProperties
 import com.arc.reactor.agent.config.ToolPolicyProperties
+import com.arc.reactor.audit.AdminAuditStore
+import com.arc.reactor.audit.InMemoryAdminAuditStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
 import com.arc.reactor.policy.tool.InMemoryToolPolicyStore
@@ -22,6 +24,7 @@ class ToolPolicyControllerAuthTest {
     private lateinit var properties: AgentProperties
     private lateinit var store: ToolPolicyStore
     private lateinit var provider: ToolPolicyProvider
+    private lateinit var adminAuditStore: AdminAuditStore
     private lateinit var controller: ToolPolicyController
 
     @BeforeEach
@@ -34,10 +37,12 @@ class ToolPolicyControllerAuthTest {
         )
         store = InMemoryToolPolicyStore(initial = ToolPolicy.fromProperties(properties.toolPolicy))
         provider = ToolPolicyProvider(properties = properties.toolPolicy, store = store)
+        adminAuditStore = InMemoryAdminAuditStore()
         controller = ToolPolicyController(
             properties = properties,
             store = store,
-            provider = provider
+            provider = provider,
+            adminAuditStore = adminAuditStore
         )
     }
 
@@ -87,5 +92,9 @@ class ToolPolicyControllerAuthTest {
             adminExchange()
         )
         assertEquals(HttpStatus.OK, response.statusCode)
+        val audits = adminAuditStore.list()
+        assertEquals(1, audits.size)
+        assertEquals("tool_policy", audits.first().category)
+        assertEquals("UPDATE", audits.first().action)
     }
 }

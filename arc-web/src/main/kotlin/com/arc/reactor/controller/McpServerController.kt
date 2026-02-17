@@ -1,5 +1,6 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.mcp.model.McpServer
@@ -39,7 +40,8 @@ private val logger = KotlinLogging.logger {}
 @RequestMapping("/api/mcp/servers")
 class McpServerController(
     private val mcpManager: McpManager,
-    private val mcpServerStore: McpServerStore
+    private val mcpServerStore: McpServerStore,
+    private val adminAuditStore: AdminAuditStore
 ) {
 
     /**
@@ -79,6 +81,15 @@ class McpServerController(
             }
         }
 
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "mcp_server",
+            action = "CREATE",
+            actor = currentActor(exchange),
+            resourceType = "mcp_server",
+            resourceId = server.name,
+            detail = "transport=${server.transportType}, autoConnect=${server.autoConnect}"
+        )
         return ResponseEntity.status(HttpStatus.CREATED).body(server.toResponse())
     }
 
@@ -135,6 +146,15 @@ class McpServerController(
         val updated = mcpServerStore.update(name, updateData)
             ?: return mcpNotFound(name)
 
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "mcp_server",
+            action = "UPDATE",
+            actor = currentActor(exchange),
+            resourceType = "mcp_server",
+            resourceId = name,
+            detail = "transport=${updated.transportType}, autoConnect=${updated.autoConnect}"
+        )
         return ResponseEntity.ok(updated.toResponse())
     }
 
@@ -154,6 +174,14 @@ class McpServerController(
 
         mcpManager.unregister(name)
 
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "mcp_server",
+            action = "DELETE",
+            actor = currentActor(exchange),
+            resourceType = "mcp_server",
+            resourceId = name
+        )
         return ResponseEntity.noContent().build()
     }
 
@@ -174,6 +202,15 @@ class McpServerController(
         val success = mcpManager.connect(name)
         val status = mcpManager.getStatus(name) ?: McpServerStatus.FAILED
 
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "mcp_server",
+            action = "CONNECT",
+            actor = currentActor(exchange),
+            resourceType = "mcp_server",
+            resourceId = name,
+            detail = "success=$success, status=$status"
+        )
         return if (success) {
             val tools = mcpManager.getToolCallbacks(name).map { it.name }
             ResponseEntity.ok(McpConnectResponse(status = status.name, tools = tools))
@@ -200,6 +237,15 @@ class McpServerController(
         mcpManager.disconnect(name)
         val status = mcpManager.getStatus(name) ?: McpServerStatus.DISCONNECTED
 
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "mcp_server",
+            action = "DISCONNECT",
+            actor = currentActor(exchange),
+            resourceType = "mcp_server",
+            resourceId = name,
+            detail = "status=$status"
+        )
         return ResponseEntity.ok(McpStatusResponse(status = status.name))
     }
 
