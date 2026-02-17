@@ -276,6 +276,7 @@ class SpringAiAgentExecutor(
                 response = AgentResponse(success = false, errorMessage = failResult.errorMessage)
             )
         } catch (hookEx: Exception) {
+            hookEx.throwIfCancellation()
             logger.error(hookEx) { "AfterAgentComplete hook failed during error handling" }
         }
         agentMetrics.recordExecution(failResult)

@@ -132,6 +132,7 @@ internal class ExecutionResultFinalizer(
                 )
             )
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "AfterAgentComplete hook failed" }
         }
 

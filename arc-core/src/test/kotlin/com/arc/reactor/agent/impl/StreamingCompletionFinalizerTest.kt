@@ -8,12 +8,15 @@ import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
 class StreamingCompletionFinalizerTest {
@@ -119,5 +122,61 @@ class StreamingCompletionFinalizerTest {
         val parsed = StreamEventMarker.parse(emitted.first())
         assertEquals("error", parsed?.first)
         assertTrue(parsed?.second?.contains("Output too short (3 chars, min: 5)") == true)
+    }
+
+    @Test
+    fun `should rethrow cancellation from streaming after hook`() = runBlocking {
+        val hookExecutor = mockk<HookExecutor>()
+        coEvery { hookExecutor.executeAfterAgentComplete(any(), any()) } throws CancellationException("cancelled")
+        val finalizer = StreamingCompletionFinalizer(
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = hookExecutor,
+            agentMetrics = mockk(relaxed = true)
+        )
+
+        try {
+            finalizer.finalize(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+                hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+                streamStarted = true,
+                streamSuccess = false,
+                collectedContent = "",
+                lastIterationContent = "",
+                streamErrorMessage = "error",
+                toolsUsed = emptyList(),
+                emit = {}
+            )
+            fail("Expected CancellationException")
+        } catch (_: CancellationException) {
+            // expected
+        }
+    }
+
+    @Test
+    fun `should rethrow cancellation when emitting boundary marker fails`() = runBlocking {
+        val finalizer = StreamingCompletionFinalizer(
+            boundaries = BoundaryProperties(outputMaxChars = 1),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = null,
+            agentMetrics = mockk(relaxed = true)
+        )
+
+        try {
+            finalizer.finalize(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+                hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+                streamStarted = false,
+                streamSuccess = true,
+                collectedContent = "too-long",
+                lastIterationContent = "too-long",
+                streamErrorMessage = null,
+                toolsUsed = emptyList(),
+                emit = { throw CancellationException("cancelled") }
+            )
+            fail("Expected CancellationException")
+        } catch (_: CancellationException) {
+            // expected
+        }
     }
 }

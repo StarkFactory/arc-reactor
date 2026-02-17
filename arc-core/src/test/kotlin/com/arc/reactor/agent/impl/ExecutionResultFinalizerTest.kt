@@ -18,13 +18,16 @@ import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.ResponseFilterContext
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
 class ExecutionResultFinalizerTest {
@@ -177,5 +180,37 @@ class ExecutionResultFinalizerTest {
         assertTrue(result.success)
         assertEquals("long enough response", result.content)
         verify(exactly = 1) { metrics.recordExecution(match { it.success && it.content == "long enough response" }) }
+    }
+
+    @Test
+    fun `should rethrow cancellation from after hook`() = runBlocking {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val hookExecutor = mockk<HookExecutor>()
+        coEvery { hookExecutor.executeAfterAgentComplete(any(), any()) } throws CancellationException("cancelled")
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = conversationManager,
+            hookExecutor = hookExecutor,
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+
+        try {
+            finalizer.finalize(
+                result = AgentResult.success(content = "hello"),
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+                hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+                toolsUsed = emptyList(),
+                startTime = 500L,
+                attemptLongerResponse = { _, _, _ -> null }
+            )
+            fail("Expected CancellationException")
+        } catch (_: CancellationException) {
+            // expected
+        }
     }
 }

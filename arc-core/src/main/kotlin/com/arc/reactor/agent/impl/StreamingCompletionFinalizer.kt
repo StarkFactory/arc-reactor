@@ -9,6 +9,7 @@ import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -48,6 +49,7 @@ internal class StreamingCompletionFinalizer(
                     )
                 )
             } catch (hookEx: Exception) {
+                hookEx.throwIfCancellation()
                 logger.error(hookEx) { "AfterAgentComplete hook failed in streaming finally" }
             }
         }
@@ -71,7 +73,8 @@ internal class StreamingCompletionFinalizer(
                 emit(StreamEventMarker.error(
                     "Output too long ($contentLength chars, max: ${boundaries.outputMaxChars})"
                 ))
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.debug { "Could not emit boundary error (collector cancelled)" }
             }
         }
@@ -92,7 +95,8 @@ internal class StreamingCompletionFinalizer(
                 emit(StreamEventMarker.error(
                     "Output too short ($contentLength chars, min: ${boundaries.outputMinChars})"
                 ))
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.debug { "Could not emit boundary error (collector cancelled)" }
             }
         }
