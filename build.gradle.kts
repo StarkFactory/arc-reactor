@@ -1,5 +1,7 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
+val coroutinesVersion = "1.10.2"
+
 plugins {
     kotlin("jvm") version "2.3.10" apply false
     kotlin("plugin.spring") version "2.3.10" apply false
@@ -31,5 +33,16 @@ subprojects {
 
     tasks.withType<Test> {
         useJUnitPlatform()
+    }
+
+    configurations.configureEach {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "org.jetbrains.kotlinx" &&
+                requested.name.startsWith("kotlinx-coroutines")
+            ) {
+                useVersion(coroutinesVersion)
+                because("Align coroutine modules to a single version and avoid mixed runtime classpath")
+            }
+        }
     }
 }

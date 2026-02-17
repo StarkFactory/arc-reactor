@@ -1,6 +1,7 @@
 package com.arc.reactor.rag.impl
 
 import com.arc.reactor.rag.QueryTransformer
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
 
@@ -65,9 +66,8 @@ class ConversationAwareQueryTransformer(
                 } else {
                     listOf(rewrittenQuery)
                 }
-            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.warn(e) { "Conversation-aware query rewriting failed, falling back to original query" }
                 listOf(query)
             }

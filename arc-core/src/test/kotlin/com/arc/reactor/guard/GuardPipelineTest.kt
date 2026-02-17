@@ -7,6 +7,7 @@ import com.arc.reactor.guard.impl.GuardPipeline
 import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -135,6 +136,24 @@ class GuardPipelineTest {
 
             assertInstanceOf(GuardResult.Rejected::class.java, result)
             assertEquals(listOf(1, 2), executionOrder, "Stage 3 should not execute after rejection")
+        }
+
+        @Test
+        fun `should rethrow cancellation exception from guard stage`() {
+            val cancellingStage = object : GuardStage {
+                override val stageName = "cancel-stage"
+                override val order = 1
+                override suspend fun check(command: GuardCommand): GuardResult {
+                    throw CancellationException("cancel")
+                }
+            }
+            val pipeline = GuardPipeline(listOf(cancellingStage))
+
+            assertThrows(CancellationException::class.java) {
+                runBlocking {
+                    pipeline.guard(GuardCommand(userId = "user-1", text = "hello"))
+                }
+            }
         }
     }
 

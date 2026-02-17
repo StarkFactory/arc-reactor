@@ -1,5 +1,7 @@
 package com.arc.reactor.tool
 
+import com.arc.reactor.support.throwIfCancellation
+
 /**
  * Tool Callback Interface
  *
@@ -124,6 +126,7 @@ class SpringAiToolCallbackAdapter(
             val jsonArgs = objectMapper.writeValueAsString(arguments)
             method.invoke(springAiCallback, jsonArgs)
         } catch (e: Exception) {
+            e.throwIfCancellation()
             throw RuntimeException("Tool call failed: ${e.message}", e)
         }
     }

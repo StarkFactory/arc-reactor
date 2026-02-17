@@ -1,5 +1,6 @@
 package com.arc.reactor.discord.listener
 
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.discord.config.DiscordProperties
 import com.arc.reactor.discord.handler.DiscordEventHandler
 import com.arc.reactor.discord.model.DiscordEventCommand
@@ -12,7 +13,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import mu.KotlinLogging
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -79,9 +79,8 @@ class DiscordMessageListener(
             semaphore.withPermit {
                 try {
                     handler.handleMessage(command)
-                } catch (e: CancellationException) {
-                    throw e
                 } catch (e: Exception) {
+                    e.throwIfCancellation()
                     logger.error(e) {
                         "Failed to handle Discord message=${command.messageId} " +
                             "from user=${command.userId}"

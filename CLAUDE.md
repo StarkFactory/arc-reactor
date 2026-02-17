@@ -20,7 +20,8 @@ Multi-module Gradle project:
 
 | Module | Role | Boot |
 |--------|------|------|
-| `arc-core/` | Agent engine + main app (guard, hook, MCP, RAG) | bootJar |
+| `arc-app/` | Executable assembly module (wires core + gateways into bootJar) | bootJar |
+| `arc-core/` | Agent engine/library (guard, hook, MCP, RAG) | library |
 | `arc-web/` | REST API gateway (controllers, Swagger, security headers) | library |
 | `arc-slack/` | Slack gateway (webhook, signature verification) | library |
 | `arc-discord/` | Discord gateway (Discord4J WebSocket) | library |
@@ -38,7 +39,7 @@ Multi-module Gradle project:
 ./gradlew :arc-core:test --tests "com.arc.reactor.agent.*"           # Package filter
 ./gradlew :arc-core:test --tests "*.SpringAiAgentExecutorTest"       # Single file
 ./gradlew compileKotlin compileTestKotlin                            # Compile check (maintain 0 warnings)
-./gradlew :arc-core:bootRun                                          # Run (GEMINI_API_KEY required)
+./gradlew :arc-app:bootRun                                           # Run (GEMINI_API_KEY required)
 ./gradlew :arc-core:test -Pdb=true                                   # Include PostgreSQL/PGVector/Flyway deps
 ./gradlew :arc-core:test -Pauth=true                                 # Include JWT/Spring Security Crypto deps
 ./gradlew :arc-core:test -PincludeIntegration                        # Include @Tag("integration") tests

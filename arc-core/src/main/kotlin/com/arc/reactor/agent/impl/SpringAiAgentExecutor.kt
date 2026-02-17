@@ -47,6 +47,7 @@ import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.model.RagQuery
 import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.TokenEstimator
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
@@ -76,7 +77,6 @@ import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.TimeoutCancellationException
-import java.util.concurrent.CancellationException
 import kotlinx.coroutines.withTimeout
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
@@ -202,9 +202,8 @@ class SpringAiAgentExecutor(
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             logger.warn { "Request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
             return handleFailureWithHook(AgentErrorCode.TIMEOUT, e, hookContext, startTime)
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e // Rethrow to support structured concurrency
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Agent execution failed" }
             return handleFailureWithHook(classifyError(e), e, hookContext, startTime)
         } finally {
@@ -282,9 +281,8 @@ class SpringAiAgentExecutor(
                         durationMs = System.currentTimeMillis() - startTime
                     )
                 }
-            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.warn(e) { "Cache lookup failed, proceeding without cache" }
             }
             agentMetrics.recordCacheMiss(key)
@@ -322,9 +320,8 @@ class SpringAiAgentExecutor(
                     content = finalResult.content,
                     toolsUsed = finalResult.toolsUsed
                 ))
-            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.warn(e) { "Failed to cache response" }
             }
         }
@@ -346,9 +343,8 @@ class SpringAiAgentExecutor(
             } else {
                 originalResult
             }
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "Fallback strategy failed, using original error" }
             originalResult
         }
@@ -398,11 +394,10 @@ class SpringAiAgentExecutor(
                 throw BlockedIntentException(resolved.intentName)
             }
             return intentResolver.applyProfile(command, resolved)
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e
         } catch (e: BlockedIntentException) {
             throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Intent resolution failed, using original command" }
             return command
         }
@@ -445,9 +440,8 @@ class SpringAiAgentExecutor(
                         ).also { agentMetrics.recordExecution(it) }
                     }
                 }
-            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.error(e) { "Output guard pipeline failed, rejecting (fail-close)" }
                 return AgentResult.failure(
                     errorMessage = "Output guard check failed",
@@ -481,9 +475,8 @@ class SpringAiAgentExecutor(
                 )
                 val filteredContent = responseFilterChain.apply(bounded.content, context)
                 bounded.copy(content = filteredContent)
-            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.warn(e) { "Response filter chain failed, using original content" }
                 bounded
             }
@@ -602,9 +595,8 @@ class SpringAiAgentExecutor(
                     .chatResponse()
             }
             response?.results?.firstOrNull()?.output?.text
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "Longer response retry failed" }
             null
         }
@@ -799,9 +791,8 @@ class SpringAiAgentExecutor(
             streamErrorCode = AgentErrorCode.TIMEOUT
             streamErrorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, e.message)
             emit(StreamEventMarker.error(streamErrorMessage.orEmpty()))
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e // Rethrow to support structured concurrency
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Streaming execution failed" }
             val errorCode = classifyError(e)
             streamErrorCode = errorCode
@@ -1100,9 +1091,8 @@ class SpringAiAgentExecutor(
             }
             val repairedContent = response?.results?.firstOrNull()?.output?.text
             if (repairedContent != null) stripMarkdownCodeFence(repairedContent) else null
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "Repair attempt failed" }
             null
         }
@@ -1466,9 +1456,8 @@ class SpringAiAgentExecutor(
                 logger.info { "Tool '$toolName' rejected by human: $reason" }
                 "Tool call rejected by human: $reason"
             }
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Approval check failed for tool '$toolName'" }
             null // Fail-open: allow tool execution on approval system error
         }
@@ -1493,9 +1482,8 @@ class SpringAiAgentExecutor(
                 val timeoutMs = adapter.arcCallback.timeoutMs ?: properties.concurrency.toolCallTimeoutMs
                 logger.error { "Tool $toolName timed out after ${timeoutMs}ms" }
                 Pair("Error: Tool '$toolName' timed out after ${timeoutMs}ms", false)
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.error(e) { "Tool $toolName execution failed" }
                 Pair("Error: ${e.message}", false)
             }
@@ -1608,9 +1596,8 @@ class SpringAiAgentExecutor(
                     chatOptions = buildChatOptions(command, false)
                 }
             }
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e // Rethrow to support withTimeout and structured concurrency
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "LLM call with tools failed" }
             val errorCode = classifyError(e)
             return AgentResult.failure(
@@ -1639,9 +1626,8 @@ class SpringAiAgentExecutor(
                 try {
                     result = block()
                     completed = true
-                } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-                    throw e // Never retry cancellation (respects withTimeout)
                 } catch (e: Exception) {
+                    e.throwIfCancellation()
                     lastException = e
                     if (!isTransientError(e) || attempt == maxAttempts - 1) {
                         throw e

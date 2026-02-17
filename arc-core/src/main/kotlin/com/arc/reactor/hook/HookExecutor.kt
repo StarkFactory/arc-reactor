@@ -5,6 +5,7 @@ import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -60,6 +61,7 @@ class HookExecutor(
             try {
                 hook.afterToolCall(context, result)
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.error(e) { "AfterToolCallHook failed: ${hook::class.simpleName}" }
                 if (hook.failOnError) throw e
             }
@@ -74,6 +76,7 @@ class HookExecutor(
             try {
                 hook.afterAgentComplete(context, response)
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.error(e) { "AfterAgentCompleteHook failed: ${hook::class.simpleName}" }
                 if (hook.failOnError) throw e
             }
@@ -98,6 +101,7 @@ class HookExecutor(
                     }
                 }
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.error(e) { "Hook execution failed: ${hook::class.simpleName}" }
                 if (hook.failOnError) {
                     return HookResult.Reject("Hook execution failed: ${e.message}")

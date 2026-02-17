@@ -1,5 +1,6 @@
 package com.arc.reactor.slack.gateway
 
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.config.SlackSocketBackend
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
@@ -19,7 +20,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import org.springframework.context.SmartLifecycle
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.min
 
 private val logger = KotlinLogging.logger {}
@@ -95,9 +95,8 @@ class SlackSocketModeGateway(
                 connectOnce()
                 running = true
                 logger.info { "Slack Socket Mode gateway connected successfully" }
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 metricsRecorder.recordDropped(
                     entrypoint = "socket_mode",
                     reason = "connect_failure"

@@ -6,12 +6,12 @@ import com.arc.reactor.intent.model.ClassificationContext
 import com.arc.reactor.intent.model.ClassifiedIntent
 import com.arc.reactor.intent.model.IntentDefinition
 import com.arc.reactor.intent.model.IntentResult
+import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.model.ChatResponse
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -83,9 +83,8 @@ class LlmIntentClassifier(
                 tokenCost = tokenCost,
                 latencyMs = latencyMs
             )
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             val latencyMs = (System.nanoTime() - startTime) / 1_000_000
             logger.error(e) { "LLM classifier: classification failed, returning unknown" }
             return IntentResult.unknown(

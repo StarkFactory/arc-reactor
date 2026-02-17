@@ -3,6 +3,7 @@ package com.arc.reactor.agent.multi
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
+import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -72,6 +73,7 @@ class ParallelOrchestrator(
                     val result = try {
                         agent.execute(nodeCommand)
                     } catch (e: Exception) {
+                        e.throwIfCancellation()
                         logger.error(e) { "Parallel: node '${node.name}' threw exception" }
                         AgentResult.failure("Node '${node.name}' failed: ${e.message}")
                     }

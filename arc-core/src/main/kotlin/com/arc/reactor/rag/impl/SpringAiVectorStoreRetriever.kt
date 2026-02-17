@@ -2,6 +2,7 @@ package com.arc.reactor.rag.impl
 
 import com.arc.reactor.rag.DocumentRetriever
 import com.arc.reactor.rag.model.RetrievedDocument
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 import org.springframework.ai.document.Document
 import org.springframework.ai.vectorstore.SearchRequest
@@ -65,6 +66,7 @@ class SpringAiVectorStoreRetriever(
 
             documents.map { doc -> doc.toRetrievedDocument() }
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Vector search failed for query: $query" }
             emptyList()
         }

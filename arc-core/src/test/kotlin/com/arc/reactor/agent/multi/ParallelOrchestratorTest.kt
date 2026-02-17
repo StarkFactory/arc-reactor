@@ -5,7 +5,9 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import io.mockk.coEvery
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -127,6 +129,22 @@ class ParallelOrchestratorTest {
             val result = orchestrator.execute(baseCommand, emptyList()) { mockAgent("") }
 
             assertFalse(result.success, "Should fail for empty nodes")
+        }
+
+        @Test
+        fun `should rethrow cancellation exception from node`() {
+            val orchestrator = ParallelOrchestrator()
+            val cancellingAgent = mockk<AgentExecutor>()
+            coEvery { cancellingAgent.execute(any()) } throws CancellationException("cancelled")
+
+            assertThrows(CancellationException::class.java) {
+                runBlocking {
+                    orchestrator.execute(
+                        command = baseCommand,
+                        nodes = listOf(AgentNode("cancel-node", systemPrompt = ""))
+                    ) { cancellingAgent }
+                }
+            }
         }
     }
 

@@ -74,7 +74,7 @@ arc:
 
 ```bash
 # 개발: auth 의존성 없이 빌드 (기본)
-./gradlew bootRun
+./gradlew :arc-app:bootRun
 
 # 프로덕션: auth 의존성 포함 빌드
 ./gradlew bootJar -Pauth=true

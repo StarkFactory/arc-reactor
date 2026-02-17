@@ -4,8 +4,8 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.line.model.LineEventCommand
 import com.arc.reactor.line.service.LineMessagingService
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -76,18 +76,16 @@ class DefaultLineEventHandler(
             }
 
             sendResponse(command.replyToken, replyTarget, responseText)
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Failed to process LINE event for user=${command.userId}" }
             try {
                 messagingService.pushMessage(
                     to = replyTarget,
                     text = "\u274C An internal error occurred. Please try again later."
                 )
-            } catch (sendError: CancellationException) {
-                throw sendError
             } catch (sendError: Exception) {
+                sendError.throwIfCancellation()
                 logger.error(sendError) { "Failed to send error message to LINE" }
             }
         }

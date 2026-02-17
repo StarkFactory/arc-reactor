@@ -6,8 +6,8 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.resilience.FallbackStrategy
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -59,9 +59,8 @@ class ModelFallbackStrategy(
                 }
                 logger.warn { "Fallback model '$model' returned empty response" }
                 agentMetrics.recordFallbackAttempt(model, success = false)
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.warn(e) { "Fallback to model '$model' failed" }
                 agentMetrics.recordFallbackAttempt(model, success = false)
             }

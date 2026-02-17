@@ -4,8 +4,8 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.discord.model.DiscordEventCommand
 import com.arc.reactor.discord.service.DiscordMessagingService
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -63,18 +63,16 @@ class DefaultDiscordEventHandler(
             }
 
             messagingService.sendMessage(channelId, responseText)
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Failed to process Discord event for channel=$channelId" }
             try {
                 messagingService.sendMessage(
                     channelId,
                     ":x: An internal error occurred. Please try again later."
                 )
-            } catch (sendError: CancellationException) {
-                throw sendError
             } catch (sendError: Exception) {
+                sendError.throwIfCancellation()
                 logger.error(sendError) { "Failed to send error message to Discord" }
             }
         }

@@ -5,6 +5,7 @@ import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -130,6 +131,25 @@ class HookExecutorTest {
 
             assertInstanceOf(HookResult.Continue::class.java, result)
             assertEquals(listOf(2), executionOrder, "Second hook should still execute")
+        }
+
+        @Test
+        fun `should rethrow cancellation exception from hook`() {
+            val hook = object : BeforeAgentStartHook {
+                override val order = 1
+                override suspend fun beforeAgentStart(context: HookContext): HookResult {
+                    throw CancellationException("cancelled")
+                }
+            }
+            val executor = HookExecutor(beforeStartHooks = listOf(hook))
+
+            assertThrows(CancellationException::class.java) {
+                runBlocking {
+                    executor.executeBeforeAgentStart(
+                        HookContext(runId = "run-1", userId = "user-1", userPrompt = "cancel me")
+                    )
+                }
+            }
         }
     }
 

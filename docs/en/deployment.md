@@ -12,7 +12,7 @@ cp .env.example .env
 ### 2. Run with Gradle
 
 ```bash
-./gradlew bootRun
+./gradlew :arc-app:bootRun
 ```
 
 The API will start at `http://localhost:8080`.

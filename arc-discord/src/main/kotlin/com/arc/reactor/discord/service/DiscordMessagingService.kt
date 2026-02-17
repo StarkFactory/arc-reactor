@@ -1,5 +1,6 @@
 package com.arc.reactor.discord.service
 
+import com.arc.reactor.support.throwIfCancellation
 import discord4j.common.util.Snowflake
 import discord4j.core.GatewayDiscordClient
 import discord4j.core.`object`.entity.channel.MessageChannel
@@ -38,6 +39,7 @@ class DiscordMessagingService(
             channel.createMessage(truncated).awaitSingle()
             logger.debug { "Sent message to channel=$channelId (${truncated.length} chars)" }
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Failed to send message to channel=$channelId" }
             throw e
         }

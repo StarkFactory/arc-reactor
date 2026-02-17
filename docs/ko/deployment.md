@@ -12,7 +12,7 @@ cp .env.example .env
 ### 2. Gradle로 실행
 
 ```bash
-./gradlew bootRun
+./gradlew :arc-app:bootRun
 ```
 
 API가 `http://localhost:8080`에서 시작됩니다.

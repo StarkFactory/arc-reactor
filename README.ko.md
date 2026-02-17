@@ -66,7 +66,7 @@ class OrderTool : LocalTool {
 
 #### IntelliJ에서 실행
 
-1. `ArcReactorApplication.kt`의 `main()` 옆 ▶ 버튼 클릭
+1. **Gradle Tool Window**에서 `arc-app > Tasks > application > bootRun` 실행
 2. **Run/Debug Configuration → Environment variables**에 입력:
    ```
    GEMINI_API_KEY=AIzaSy_your_actual_key
@@ -79,7 +79,7 @@ class OrderTool : LocalTool {
 
 ```bash
 export GEMINI_API_KEY=your-api-key
-./gradlew bootRun
+./gradlew :arc-app:bootRun
 ```
 
 #### Docker Compose로 실행

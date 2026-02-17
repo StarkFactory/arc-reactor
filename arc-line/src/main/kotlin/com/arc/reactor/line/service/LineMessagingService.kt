@@ -1,5 +1,6 @@
 package com.arc.reactor.line.service
 
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.awaitBody
@@ -44,6 +45,7 @@ class LineMessagingService(
             logger.debug { "LINE reply response: $response" }
             true
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "LINE replyMessage failed (token may be expired)" }
             false
         }
@@ -69,6 +71,7 @@ class LineMessagingService(
                 .awaitBody<Map<String, Any?>>()
             logger.debug { "LINE push response: $response" }
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Failed to push message to=$to" }
         }
     }

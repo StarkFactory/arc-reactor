@@ -4,6 +4,7 @@ import com.arc.reactor.agent.config.McpReconnectionProperties
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
 import io.modelcontextprotocol.client.McpClient
 import io.modelcontextprotocol.client.McpSyncClient
@@ -23,6 +24,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
+import java.net.URI
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 
 private val logger = KotlinLogging.logger {}
@@ -79,6 +84,16 @@ interface McpManager {
      * @param server Server configuration including transport settings
      */
     fun register(server: McpServer)
+
+    /**
+     * Synchronize a server configuration into runtime manager state.
+     *
+     * This updates the in-memory server config used by connect/reconnect flows.
+     * It does not persist to store, and it does not auto-connect.
+     *
+     * @param server Updated server configuration
+     */
+    fun syncRuntimeServer(server: McpServer)
 
     /**
      * Unregister an MCP server.
@@ -228,6 +243,18 @@ class DefaultMcpManager(
         }
     }
 
+    override fun syncRuntimeServer(server: McpServer) {
+        if (securityConfig.allowedServerNames.isNotEmpty() &&
+            server.name !in securityConfig.allowedServerNames
+        ) {
+            logger.warn { "MCP runtime sync rejected by allowlist: ${server.name}" }
+            return
+        }
+        servers[server.name] = server
+        statuses.putIfAbsent(server.name, McpServerStatus.PENDING)
+        logger.info { "Synchronized MCP runtime config for server: ${server.name}" }
+    }
+
     override suspend fun unregister(serverName: String) {
         disconnectInternal(serverName)
         servers.remove(serverName)
@@ -314,6 +341,10 @@ class DefaultMcpManager(
             return null
         }
         val args = (server.config["args"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+        if (command.contains("/") && !Files.exists(Paths.get(command))) {
+            logger.warn { "STDIO command does not exist for server '${server.name}': $command" }
+            return null
+        }
 
         return try {
             val params = ServerParameters.builder(command)
@@ -323,6 +354,8 @@ class DefaultMcpManager(
             val transport = StdioClientTransport(params, JacksonMcpJsonMapper(ObjectMapper()))
 
             val client = McpClient.sync(transport)
+                .requestTimeout(Duration.ofMillis(connectionTimeoutMs))
+                .initializationTimeout(Duration.ofMillis(connectionTimeoutMs))
                 .clientInfo(McpSchema.Implementation(server.name, server.version ?: "1.0.0"))
                 .build()
 
@@ -344,13 +377,25 @@ class DefaultMcpManager(
             logger.warn { "SSE transport requires 'url' in config for server: ${server.name}" }
             return null
         }
+        val parsed = try {
+            URI(url)
+        } catch (e: Exception) {
+            logger.warn { "Invalid SSE URL for server '${server.name}': $url" }
+            return null
+        }
+        if (!parsed.isAbsolute || (parsed.scheme != "http" && parsed.scheme != "https")) {
+            logger.warn { "SSE URL must be absolute http/https for server '${server.name}': $url" }
+            return null
+        }
 
         return try {
-            val transport = HttpClientSseClientTransport.builder(url)
-                .customizeClient { it.connectTimeout(java.time.Duration.ofMillis(connectionTimeoutMs)) }
+            val transport = HttpClientSseClientTransport.builder(parsed.toString())
+                .customizeClient { it.connectTimeout(Duration.ofMillis(connectionTimeoutMs)) }
                 .build()
 
             val client = McpClient.sync(transport)
+                .requestTimeout(Duration.ofMillis(connectionTimeoutMs))
+                .initializationTimeout(Duration.ofMillis(connectionTimeoutMs))
                 .clientInfo(McpSchema.Implementation(server.name, server.version ?: "1.0.0"))
                 .build()
 
@@ -468,8 +513,9 @@ class DefaultMcpManager(
 
                 try {
                     delay(delayMs)
-                } catch (e: CancellationException) {
+                } catch (e: Exception) {
                     reconnectingServers.remove(serverName)
+                    e.throwIfCancellation()
                     throw e
                 }
 
@@ -485,10 +531,11 @@ class DefaultMcpManager(
 
                 val success = try {
                     connect(serverName)
-                } catch (e: CancellationException) {
-                    reconnectingServers.remove(serverName)
-                    throw e
                 } catch (e: Exception) {
+                    if (e is CancellationException) {
+                        reconnectingServers.remove(serverName)
+                    }
+                    e.throwIfCancellation()
                     logger.warn(e) { "Reconnection attempt $attempt/$maxAttempts failed for '$serverName'" }
                     false
                 }

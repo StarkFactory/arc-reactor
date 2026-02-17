@@ -3,8 +3,8 @@ package com.arc.reactor.intent.impl
 import com.arc.reactor.intent.IntentClassifier
 import com.arc.reactor.intent.model.ClassificationContext
 import com.arc.reactor.intent.model.IntentResult
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -55,9 +55,8 @@ class CompositeIntentClassifier(
             }
 
             return llmResult
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Composite: LLM classification failed, falling back to rule result" }
             return ruleResult
         }

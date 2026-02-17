@@ -1,5 +1,6 @@
 package com.arc.reactor.slack.processor
 
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.controller.SlackEventDeduplicator
 import com.arc.reactor.slack.handler.SlackEventHandler
@@ -14,7 +15,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeoutOrNull
 import mu.KotlinLogging
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -123,9 +123,8 @@ class SlackEventProcessor(
                     success = true,
                     durationMs = System.currentTimeMillis() - started
                 )
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.error(e) { "Failed to handle Slack event: entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}" }
                 metricsRecorder.recordHandler(
                     entrypoint = entrypoint,
@@ -160,9 +159,8 @@ class SlackEventProcessor(
                 text = BUSY_RESPONSE_TEXT,
                 threadTs = threadTs
             )
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "Failed to send queue-timeout message for channel=${command.channelId}" }
         }
     }

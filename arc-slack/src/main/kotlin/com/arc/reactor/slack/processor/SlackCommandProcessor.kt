@@ -1,5 +1,6 @@
 package com.arc.reactor.slack.processor
 
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
@@ -12,7 +13,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeoutOrNull
 import mu.KotlinLogging
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -73,9 +73,8 @@ class SlackCommandProcessor(
                     success = true,
                     durationMs = System.currentTimeMillis() - started
                 )
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.error(e) { "Failed to handle slash command for channel=${command.channelId}" }
                 metricsRecorder.recordHandler(
                     entrypoint = entrypoint,

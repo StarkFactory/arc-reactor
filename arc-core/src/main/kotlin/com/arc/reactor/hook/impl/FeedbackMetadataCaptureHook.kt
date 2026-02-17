@@ -3,12 +3,12 @@ package com.arc.reactor.hook.impl
 import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 import java.time.Clock
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -71,9 +71,8 @@ class FeedbackMetadataCaptureHook(
             cache[context.runId] = metadata
             evictIfNeeded()
             logger.debug { "Captured execution metadata for runId=${context.runId}" }
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn { "Failed to capture metadata for runId=${context.runId}: ${e.message}" }
         }
     }

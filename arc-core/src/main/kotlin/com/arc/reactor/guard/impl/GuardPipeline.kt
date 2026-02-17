@@ -5,6 +5,7 @@ import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -58,6 +59,7 @@ class GuardPipeline(
                     }
                 }
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.error(e) { "Guard stage ${stage.stageName} failed" }
                 // fail-close: reject on error
                 return GuardResult.Rejected(
