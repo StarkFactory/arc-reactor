@@ -64,7 +64,8 @@ class DefaultRateLimitStage(
  */
 class DefaultInputValidationStage(
     private val maxLength: Int = 10000,
-    private val minLength: Int = 1
+    private val minLength: Int = 1,
+    private val systemPromptMaxChars: Int = 0
 ) : InputValidationStage {
 
     override suspend fun check(command: GuardCommand): GuardResult {
@@ -80,6 +81,15 @@ class DefaultInputValidationStage(
         if (text.length > maxLength) {
             return GuardResult.Rejected(
                 reason = "Input too long (max: $maxLength)",
+                category = RejectionCategory.INVALID_INPUT
+            )
+        }
+
+        if (systemPromptMaxChars > 0 && command.systemPrompt != null &&
+            command.systemPrompt.length > systemPromptMaxChars
+        ) {
+            return GuardResult.Rejected(
+                reason = "System prompt too long (max: $systemPromptMaxChars, actual: ${command.systemPrompt.length})",
                 category = RejectionCategory.INVALID_INPUT
             )
         }

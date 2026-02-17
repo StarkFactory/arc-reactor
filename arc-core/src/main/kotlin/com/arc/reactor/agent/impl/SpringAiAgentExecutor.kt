@@ -2,6 +2,7 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.agent.config.OutputMinViolationMode
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
@@ -60,6 +61,7 @@ import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.prompt.ChatOptions
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.tool.definition.ToolDefinition
 import org.springframework.ai.tool.metadata.ToolMetadata
@@ -241,7 +243,11 @@ class SpringAiAgentExecutor(
     private suspend fun checkGuard(command: AgentCommand): GuardResult.Rejected? {
         if (guard == null) return null
         val userId = command.userId ?: "anonymous"
-        val result = guard.guard(GuardCommand(userId = userId, text = command.userPrompt))
+        val result = guard.guard(GuardCommand(
+            userId = userId,
+            text = command.userPrompt,
+            systemPrompt = command.systemPrompt
+        ))
         return result as? GuardResult.Rejected
     }
 
@@ -453,24 +459,36 @@ class SpringAiAgentExecutor(
             result
         }
 
+        // Step 1.5: Apply output boundary check (between output guard and response filter)
+        val bounded = if (guarded.success && guarded.content != null) {
+            checkOutputBoundary(guarded, command, startTime)
+                ?: return AgentResult.failure(
+                    errorMessage = errorMessageResolver.resolve(AgentErrorCode.OUTPUT_TOO_SHORT, null),
+                    errorCode = AgentErrorCode.OUTPUT_TOO_SHORT,
+                    durationMs = System.currentTimeMillis() - startTime
+                ).also { agentMetrics.recordExecution(it) }
+        } else {
+            guarded
+        }
+
         // Step 2: Apply response filter chain (fail-open, after output guard)
-        val filtered = if (guarded.success && guarded.content != null && responseFilterChain != null) {
+        val filtered = if (bounded.success && bounded.content != null && responseFilterChain != null) {
             try {
                 val context = ResponseFilterContext(
                     command = command,
                     toolsUsed = toolsUsed.toList(),
                     durationMs = System.currentTimeMillis() - startTime
                 )
-                val filteredContent = responseFilterChain.apply(guarded.content, context)
-                guarded.copy(content = filteredContent)
+                val filteredContent = responseFilterChain.apply(bounded.content, context)
+                bounded.copy(content = filteredContent)
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 logger.warn(e) { "Response filter chain failed, using original content" }
-                guarded
+                bounded
             }
         } else {
-            guarded
+            bounded
         }
 
         conversationManager.saveHistory(command, filtered)
@@ -488,6 +506,108 @@ class SpringAiAgentExecutor(
         val finalResult = filtered.copy(durationMs = System.currentTimeMillis() - startTime)
         agentMetrics.recordExecution(finalResult)
         return finalResult
+    }
+
+    /**
+     * Check output boundary constraints (min/max chars).
+     *
+     * Returns the (possibly truncated) result, or null if FAIL mode and too short.
+     */
+    private suspend fun checkOutputBoundary(
+        result: AgentResult,
+        command: AgentCommand,
+        startTime: Long
+    ): AgentResult? {
+        val boundaries = properties.boundaries
+        val content = result.content ?: return result
+        val len = content.length
+
+        // Max chars check: truncate if exceeded
+        val afterMax = if (boundaries.outputMaxChars > 0 && len > boundaries.outputMaxChars) {
+            agentMetrics.recordBoundaryViolation(
+                "output_too_long", "truncate", boundaries.outputMaxChars, len
+            )
+            logger.info { "Output truncated: $len chars exceeds max ${boundaries.outputMaxChars}" }
+            result.copy(content = content.take(boundaries.outputMaxChars) + "\n\n[Response truncated]")
+        } else {
+            result
+        }
+
+        // Min chars check
+        val effectiveContent = afterMax.content ?: return afterMax
+        if (boundaries.outputMinChars <= 0 || effectiveContent.length >= boundaries.outputMinChars) {
+            return afterMax
+        }
+
+        // Output is too short
+        return when (boundaries.outputMinViolationMode) {
+            OutputMinViolationMode.WARN -> {
+                agentMetrics.recordBoundaryViolation(
+                    "output_too_short", "warn", boundaries.outputMinChars, effectiveContent.length
+                )
+                logger.warn {
+                    "Output too short: ${effectiveContent.length} chars " +
+                        "(min: ${boundaries.outputMinChars}), passing through (WARN)"
+                }
+                afterMax
+            }
+            OutputMinViolationMode.RETRY_ONCE -> {
+                agentMetrics.recordBoundaryViolation(
+                    "output_too_short", "retry", boundaries.outputMinChars, effectiveContent.length
+                )
+                logger.info {
+                    "Output too short: ${effectiveContent.length} chars " +
+                        "(min: ${boundaries.outputMinChars}), retrying once"
+                }
+                val retried = attemptLongerResponse(effectiveContent, boundaries.outputMinChars, command)
+                if (retried != null && retried.length >= boundaries.outputMinChars) {
+                    afterMax.copy(content = retried)
+                } else {
+                    logger.warn { "Retry still too short, falling back to WARN" }
+                    afterMax
+                }
+            }
+            OutputMinViolationMode.FAIL -> {
+                agentMetrics.recordBoundaryViolation(
+                    "output_too_short", "fail", boundaries.outputMinChars, effectiveContent.length
+                )
+                logger.warn {
+                    "Output too short: ${effectiveContent.length} chars " +
+                        "(min: ${boundaries.outputMinChars}), failing (FAIL mode)"
+                }
+                null
+            }
+        }
+    }
+
+    /**
+     * Make one additional LLM call requesting a longer response.
+     * Follows the same pattern as [attemptRepair].
+     */
+    private suspend fun attemptLongerResponse(
+        shortContent: String,
+        minChars: Int,
+        command: AgentCommand
+    ): String? {
+        return try {
+            val retryPrompt = "Your previous response was too short " +
+                "(${shortContent.length} chars, minimum $minChars chars). " +
+                "Please provide a more detailed response."
+            val activeChatClient = resolveChatClient(command)
+            val response = kotlinx.coroutines.runInterruptible {
+                activeChatClient
+                    .prompt()
+                    .user(retryPrompt)
+                    .call()
+                    .chatResponse()
+            }
+            response?.results?.firstOrNull()?.output?.text
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.warn(e) { "Longer response retry failed" }
+            null
+        }
     }
 
     /**
@@ -691,6 +811,51 @@ class SpringAiAgentExecutor(
             // Save conversation history via ConversationManager (only on success, outside withTimeout)
             if (streamSuccess) {
                 conversationManager.saveStreamingHistory(command, lastIterationContent.toString())
+            }
+
+            // Streaming boundary check (post-stream, informational only).
+            // emit() is wrapped in try-catch because the collector may have already
+            // cancelled (e.g., client disconnect), and an uncaught CancellationException
+            // here would skip subsequent hook/metrics cleanup.
+            if (streamSuccess) {
+                val boundaries = properties.boundaries
+                val contentLength = collectedContent.length
+                if (boundaries.outputMaxChars > 0 && contentLength > boundaries.outputMaxChars) {
+                    agentMetrics.recordBoundaryViolation(
+                        "output_too_long", "warn", boundaries.outputMaxChars, contentLength
+                    )
+                    logger.warn {
+                        "Streaming output exceeded max: $contentLength chars " +
+                            "(max: ${boundaries.outputMaxChars})"
+                    }
+                    try {
+                        emit(StreamEventMarker.error(
+                            "Output too long ($contentLength chars, max: ${boundaries.outputMaxChars})"
+                        ))
+                    } catch (_: Exception) {
+                        logger.debug { "Could not emit boundary error (collector cancelled)" }
+                    }
+                }
+                if (boundaries.outputMinChars > 0 && contentLength < boundaries.outputMinChars) {
+                    val policy = when (boundaries.outputMinViolationMode) {
+                        OutputMinViolationMode.RETRY_ONCE -> "warn" // falls back to warn in streaming
+                        else -> boundaries.outputMinViolationMode.name.lowercase()
+                    }
+                    agentMetrics.recordBoundaryViolation(
+                        "output_too_short", policy, boundaries.outputMinChars, contentLength
+                    )
+                    logger.warn {
+                        "Streaming output too short: $contentLength chars " +
+                            "(min: ${boundaries.outputMinChars}, policy: $policy)"
+                    }
+                    try {
+                        emit(StreamEventMarker.error(
+                            "Output too short ($contentLength chars, min: ${boundaries.outputMinChars})"
+                        ))
+                    } catch (_: Exception) {
+                        logger.debug { "Could not emit boundary error (collector cancelled)" }
+                    }
+                }
             }
 
             // AfterAgentComplete hook (only if stream passed guard/hook checks)
@@ -1073,6 +1238,17 @@ class SpringAiAgentExecutor(
     private fun buildChatOptions(command: AgentCommand, hasTools: Boolean): ChatOptions {
         val temperature = command.temperature ?: properties.llm.temperature
         val maxTokens = properties.llm.maxOutputTokens
+        val provider = command.model ?: chatModelProvider?.defaultProvider() ?: properties.llm.defaultProvider
+        val isGemini = provider.equals("gemini", ignoreCase = true) || provider.equals("vertex", ignoreCase = true)
+
+        if (isGemini) {
+            return GoogleGenAiChatOptions.builder()
+                .temperature(temperature)
+                .maxOutputTokens(maxTokens)
+                .googleSearchRetrieval(true)
+                .internalToolExecutionEnabled(!hasTools)
+                .build()
+        }
 
         return if (hasTools) {
             ToolCallingChatOptions.builder()

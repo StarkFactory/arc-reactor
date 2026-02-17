@@ -126,6 +126,71 @@ class DefaultGuardStagesTest {
     }
 
     @Nested
+    inner class SystemPromptValidation {
+
+        @Test
+        fun `system prompt exceeding max is rejected`() = runBlocking {
+            val stage = DefaultInputValidationStage(
+                maxLength = 10000, minLength = 1, systemPromptMaxChars = 100
+            )
+            val command = GuardCommand(
+                userId = "user-1", text = "hello",
+                systemPrompt = "a".repeat(101)
+            )
+
+            val rejected = assertInstanceOf(
+                GuardResult.Rejected::class.java, stage.check(command),
+                "System prompt exceeding max should be rejected"
+            )
+            assertEquals(RejectionCategory.INVALID_INPUT, rejected.category) {
+                "Category should be INVALID_INPUT, got: ${rejected.category}"
+            }
+            assertTrue(rejected.reason.contains("System prompt")) {
+                "Rejection reason should mention system prompt, got: ${rejected.reason}"
+            }
+        }
+
+        @Test
+        fun `system prompt null is allowed`() = runBlocking {
+            val stage = DefaultInputValidationStage(
+                maxLength = 10000, minLength = 1, systemPromptMaxChars = 100
+            )
+            val command = GuardCommand(userId = "user-1", text = "hello")
+
+            assertInstanceOf(GuardResult.Allowed::class.java, stage.check(command),
+                "Null system prompt should be allowed")
+        }
+
+        @Test
+        fun `system prompt within limit is allowed`() = runBlocking {
+            val stage = DefaultInputValidationStage(
+                maxLength = 10000, minLength = 1, systemPromptMaxChars = 100
+            )
+            val command = GuardCommand(
+                userId = "user-1", text = "hello",
+                systemPrompt = "a".repeat(100)
+            )
+
+            assertInstanceOf(GuardResult.Allowed::class.java, stage.check(command),
+                "System prompt at exact limit should be allowed")
+        }
+
+        @Test
+        fun `systemPromptMaxChars disabled allows any length`() = runBlocking {
+            val stage = DefaultInputValidationStage(
+                maxLength = 10000, minLength = 1, systemPromptMaxChars = 0
+            )
+            val command = GuardCommand(
+                userId = "user-1", text = "hello",
+                systemPrompt = "a".repeat(1_000_000)
+            )
+
+            assertInstanceOf(GuardResult.Allowed::class.java, stage.check(command),
+                "Disabled system prompt check (0) should allow any length")
+        }
+    }
+
+    @Nested
     inner class ClassificationStage {
 
         @Test

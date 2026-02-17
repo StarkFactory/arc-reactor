@@ -125,6 +125,16 @@ interface AgentMetrics {
      * @param reason The reason for the action
      */
     fun recordOutputGuardAction(stage: String, action: String, reason: String) {}
+
+    /**
+     * Record a boundary policy violation.
+     *
+     * @param violation The violation type (e.g., "output_too_short", "output_too_long")
+     * @param policy The policy action taken (e.g., "warn", "retry", "fail", "truncate")
+     * @param limit The configured limit value
+     * @param actual The actual measured value
+     */
+    fun recordBoundaryViolation(violation: String, policy: String, limit: Int, actual: Int) {}
 }
 
 /**

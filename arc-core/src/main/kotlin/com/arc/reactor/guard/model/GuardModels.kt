@@ -7,7 +7,8 @@ data class GuardCommand(
     val userId: String,
     val text: String,
     val channel: String? = null,
-    val metadata: Map<String, Any> = emptyMap()
+    val metadata: Map<String, Any> = emptyMap(),
+    val systemPrompt: String? = null
 )
 
 /**
