@@ -1041,7 +1041,7 @@ class SpringAiAgentExecutor(
             return GoogleGenAiChatOptions.builder()
                 .temperature(temperature)
                 .maxOutputTokens(maxTokens)
-                .googleSearchRetrieval(true)
+                .googleSearchRetrieval(properties.llm.googleSearchRetrievalEnabled)
                 .internalToolExecutionEnabled(!hasTools)
                 .build()
         }

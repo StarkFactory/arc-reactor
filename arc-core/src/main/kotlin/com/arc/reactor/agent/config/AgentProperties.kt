@@ -89,6 +89,12 @@ data class LlmProperties(
     /** Maximum output tokens */
     val maxOutputTokens: Int = 4096,
 
+    /**
+     * Enable Gemini Google Search retrieval grounding.
+     * Default OFF to avoid unintended external retrieval in enterprise environments.
+     */
+    val googleSearchRetrievalEnabled: Boolean = false,
+
     /** Maximum conversation history turns */
     val maxConversationTurns: Int = 10,
 
