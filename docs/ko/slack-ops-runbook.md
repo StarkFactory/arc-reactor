@@ -7,6 +7,8 @@ Arc Reactor 실행 후 다음 엔드포인트에서 확인한다.
 - 메트릭 목록: `GET /actuator/metrics`
 - 특정 메트릭: `GET /actuator/metrics/{name}`
 - Prometheus scrape: `GET /actuator/prometheus`
+- 운영 대시보드 스냅샷(API): `GET /api/ops/dashboard` (ADMIN)
+- 운영 메트릭 이름 목록(API): `GET /api/ops/metrics/names` (ADMIN)
 
 기본 노출 설정은 `arc-core/src/main/resources/application.yml`에 반영되어 있다.
 
