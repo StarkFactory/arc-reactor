@@ -77,8 +77,8 @@ class DefaultGuardStagesTest {
             val rejected = assertInstanceOf(GuardResult.Rejected::class.java,
                 stage.check(GuardCommand(userId = "user-1", text = "")))
             assertEquals(RejectionCategory.INVALID_INPUT, rejected.category)
-            assertTrue(rejected.reason.contains("too short"),
-                "Rejection reason should mention 'too short', got: ${rejected.reason}")
+            assertTrue(rejected.reason.contains("Boundary violation [input.min_chars]"),
+                "Rejection reason should be standardized, got: ${rejected.reason}")
         }
 
         @Test
@@ -97,8 +97,8 @@ class DefaultGuardStagesTest {
             val rejected = assertInstanceOf(GuardResult.Rejected::class.java,
                 stage.check(GuardCommand(userId = "user-1", text = "a".repeat(11))))
             assertEquals(RejectionCategory.INVALID_INPUT, rejected.category)
-            assertTrue(rejected.reason.contains("too long"),
-                "Rejection reason should mention 'too long', got: ${rejected.reason}")
+            assertTrue(rejected.reason.contains("Boundary violation [input.max_chars]"),
+                "Rejection reason should be standardized, got: ${rejected.reason}")
         }
 
         @Test
@@ -145,8 +145,8 @@ class DefaultGuardStagesTest {
             assertEquals(RejectionCategory.INVALID_INPUT, rejected.category) {
                 "Category should be INVALID_INPUT, got: ${rejected.category}"
             }
-            assertTrue(rejected.reason.contains("System prompt")) {
-                "Rejection reason should mention system prompt, got: ${rejected.reason}"
+            assertTrue(rejected.reason.contains("Boundary violation [system_prompt.max_chars]")) {
+                "Rejection reason should be standardized, got: ${rejected.reason}"
             }
         }
 

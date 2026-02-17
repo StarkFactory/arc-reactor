@@ -9,6 +9,7 @@ import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
+import com.arc.reactor.support.formatBoundaryViolation
 import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
@@ -62,16 +63,14 @@ internal class StreamingCompletionFinalizer(
         val contentLength = collectedContent.length
 
         if (boundaries.outputMaxChars > 0 && contentLength > boundaries.outputMaxChars) {
+            val policy = "warn"
             agentMetrics.recordBoundaryViolation(
-                "output_too_long", "warn", boundaries.outputMaxChars, contentLength
+                "output_too_long", policy, boundaries.outputMaxChars, contentLength
             )
-            logger.warn {
-                "Streaming output exceeded max: $contentLength chars " +
-                    "(max: ${boundaries.outputMaxChars})"
-            }
+            logger.warn { formatBoundaryViolation("output_too_long", policy, boundaries.outputMaxChars, contentLength) }
             try {
                 emit(StreamEventMarker.error(
-                    "Output too long ($contentLength chars, max: ${boundaries.outputMaxChars})"
+                    formatBoundaryViolation("output_too_long", policy, boundaries.outputMaxChars, contentLength)
                 ))
             } catch (e: Exception) {
                 e.throwIfCancellation()
@@ -87,13 +86,10 @@ internal class StreamingCompletionFinalizer(
             agentMetrics.recordBoundaryViolation(
                 "output_too_short", policy, boundaries.outputMinChars, contentLength
             )
-            logger.warn {
-                "Streaming output too short: $contentLength chars " +
-                    "(min: ${boundaries.outputMinChars}, policy: $policy)"
-            }
+            logger.warn { formatBoundaryViolation("output_too_short", policy, boundaries.outputMinChars, contentLength) }
             try {
                 emit(StreamEventMarker.error(
-                    "Output too short ($contentLength chars, min: ${boundaries.outputMinChars})"
+                    formatBoundaryViolation("output_too_short", policy, boundaries.outputMinChars, contentLength)
                 ))
             } catch (e: Exception) {
                 e.throwIfCancellation()

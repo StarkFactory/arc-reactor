@@ -63,8 +63,8 @@ class StreamingBoundaryTest {
             assertTrue(errorEvents.isNotEmpty()) {
                 "Should emit error event for output min violation in streaming, got chunks: $chunks"
             }
-            assertTrue(errorEvents.any { it.second.contains("too short") }) {
-                "Error event should mention 'too short', got: $errorEvents"
+            assertTrue(errorEvents.any { it.second.contains("Boundary violation [output_too_short]") }) {
+                "Error event should use standardized boundary message, got: $errorEvents"
             }
         }
 
@@ -123,8 +123,8 @@ class StreamingBoundaryTest {
             assertTrue(errorEvents.isNotEmpty()) {
                 "Should emit error event for output max violation in streaming"
             }
-            assertTrue(errorEvents.any { it.second.contains("too long") }) {
-                "Error event should mention 'too long', got: $errorEvents"
+            assertTrue(errorEvents.any { it.second.contains("Boundary violation [output_too_long]") }) {
+                "Error event should use standardized boundary message, got: $errorEvents"
             }
         }
     }
