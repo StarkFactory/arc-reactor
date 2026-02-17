@@ -164,7 +164,7 @@ val result = MultiAgent.supervisor()
     .execute(command, agentFactory)
 ```
 
-> 자세한 설명은 [멀티에이전트 가이드](docs/ko/multi-agent.md)를 참고하세요.
+> 자세한 설명은 [멀티에이전트 가이드](docs/ko/architecture/multi-agent.md)를 참고하세요.
 
 ## 아키텍처
 
@@ -458,24 +458,24 @@ src/main/kotlin/com/arc/reactor/
 
 ## 문서
 
-- [아키텍처 가이드](docs/ko/architecture.md) — 내부 구조와 에러 처리 체계
-- [ReAct 루프 내부 구현](docs/ko/react-loop.md) — 핵심 실행 엔진, 도구 병렬 실행, 컨텍스트 트리밍, 재시도
-- [Guard & Hook 시스템](docs/ko/guard-hook.md) — 5단계 보안 파이프라인, 4가지 생명주기 확장점
-- [메모리 & RAG 파이프라인](docs/ko/memory-rag.md) — 대화 기록 관리, 4단계 검색 증강 생성
-- [도구(Tool) 가이드](docs/ko/tools.md) — 3가지 도구 유형, 등록 방법, MCP 연결
-- [MCP 통합 가이드](docs/ko/mcp.md) — McpManager, STDIO/SSE 트랜스포트, 도구 동적 로드
-- [설정 레퍼런스](docs/ko/configuration.md) — 전체 YAML 설정, 자동 구성, 프로덕션 예시
-- [관측성 & 메트릭](docs/ko/metrics.md) — AgentMetrics 인터페이스, Micrometer 통합, 메트릭 포인트
-- [복원력 가이드](docs/ko/resilience.md) — 서킷 브레이커, 재시도, 우아한 성능 저하
-- [응답 처리](docs/ko/response-processing.md) — 응답 필터, 캐싱, 구조화 출력
-- [데이터 모델 & API](docs/ko/api-models.md) — AgentCommand/Result, 에러 처리, 메트릭, REST API
-- [멀티에이전트 가이드](docs/ko/multi-agent.md) — Sequential / Parallel / Supervisor 패턴
-- [Supervisor 패턴 Deep Dive](docs/ko/supervisor-pattern.md) — WorkerAgentTool 원리, 실제 사용법
-- [배포 가이드](docs/ko/deployment.md) — Docker, 환경 변수, 프로덕션 체크리스트
-- [인증 가이드](docs/ko/authentication.md) — JWT 인증, AuthProvider 커스터마이징, 세션 격리
-- [세션 & 페르소나 가이드](docs/ko/session-management.md) — 세션 API, 페르소나 관리, 데이터 아키텍처
-- [프롬프트 버저닝 가이드](docs/ko/prompt-versioning.md) — 시스템 프롬프트 버전 관리, 배포, 롤백
-- [기능 인벤토리](docs/ko/feature-inventory.md) — 전체 기능 매트릭스, 데이터 아키텍처, DB 스키마
+- [아키텍처 가이드](docs/ko/architecture/architecture.md) — 내부 구조와 에러 처리 체계
+- [ReAct 루프 내부 구현](docs/ko/architecture/react-loop.md) — 핵심 실행 엔진, 도구 병렬 실행, 컨텍스트 트리밍, 재시도
+- [Guard & Hook 시스템](docs/ko/architecture/guard-hook.md) — 5단계 보안 파이프라인, 4가지 생명주기 확장점
+- [메모리 & RAG 파이프라인](docs/ko/architecture/memory-rag.md) — 대화 기록 관리, 4단계 검색 증강 생성
+- [도구(Tool) 가이드](docs/ko/reference/tools.md) — 3가지 도구 유형, 등록 방법, MCP 연결
+- [MCP 통합 가이드](docs/ko/architecture/mcp.md) — McpManager, STDIO/SSE 트랜스포트, 도구 동적 로드
+- [설정 레퍼런스](docs/ko/getting-started/configuration.md) — 전체 YAML 설정, 자동 구성, 프로덕션 예시
+- [관측성 & 메트릭](docs/ko/reference/metrics.md) — AgentMetrics 인터페이스, Micrometer 통합, 메트릭 포인트
+- [복원력 가이드](docs/ko/architecture/resilience.md) — 서킷 브레이커, 재시도, 우아한 성능 저하
+- [응답 처리](docs/ko/architecture/response-processing.md) — 응답 필터, 캐싱, 구조화 출력
+- [데이터 모델 & API](docs/ko/reference/api-models.md) — AgentCommand/Result, 에러 처리, 메트릭, REST API
+- [멀티에이전트 가이드](docs/ko/architecture/multi-agent.md) — Sequential / Parallel / Supervisor 패턴
+- [Supervisor 패턴 Deep Dive](docs/ko/architecture/supervisor-pattern.md) — WorkerAgentTool 원리, 실제 사용법
+- [배포 가이드](docs/ko/getting-started/deployment.md) — Docker, 환경 변수, 프로덕션 체크리스트
+- [인증 가이드](docs/ko/governance/authentication.md) — JWT 인증, AuthProvider 커스터마이징, 세션 격리
+- [세션 & 페르소나 가이드](docs/ko/architecture/session-management.md) — 세션 API, 페르소나 관리, 데이터 아키텍처
+- [프롬프트 버저닝 가이드](docs/ko/governance/prompt-versioning.md) — 시스템 프롬프트 버전 관리, 배포, 롤백
+- [기능 인벤토리](docs/ko/reference/feature-inventory.md) — 전체 기능 매트릭스, 데이터 아키텍처, DB 스키마
 
 ## 요구사항
 
@@ -486,7 +486,7 @@ src/main/kotlin/com/arc/reactor/
 
 ## 라이선스
 
-Apache License 2.0 - [LICENSE](./LICENSE) 참조
+Apache License 2.0 - [LICENSE](LICENSE) 참조
 
 ## Acknowledgments
 
