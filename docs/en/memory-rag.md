@@ -850,3 +850,34 @@ ChatGPT's Memory feature ("remembers that user is a Python developer") is estima
 | JDBC as compileOnly | Optional dependency -- can be excluded when PostgreSQL is not needed |
 | RAG disabled by default | Meaningless without VectorStore -- only users who need it enable it |
 | Sliding Window first | Simple implementation + sufficient for most scenarios -- Summarization considered for future |
+
+## RAG Ingestion Review Queue (Admin)
+
+Arc Reactor supports a review-queue ingestion flow for enterprise Slack/Web Q&A:
+
+1. Capture successful Q&A as `PENDING` candidates
+2. Admin reviews candidate list
+3. Admin approves (`INGESTED`) or rejects (`REJECTED`)
+4. Approved candidates are added to `VectorStore`
+
+### Key Config
+
+```yaml
+arc:
+  reactor:
+    rag:
+      ingestion:
+        enabled: true
+        dynamic:
+          enabled: true
+        require-review: true
+```
+
+### Admin APIs
+
+- `GET /api/rag-ingestion/policy`
+- `PUT /api/rag-ingestion/policy`
+- `DELETE /api/rag-ingestion/policy`
+- `GET /api/rag-ingestion/candidates`
+- `POST /api/rag-ingestion/candidates/{id}/approve`
+- `POST /api/rag-ingestion/candidates/{id}/reject`

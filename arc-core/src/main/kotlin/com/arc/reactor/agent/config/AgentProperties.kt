@@ -456,8 +456,42 @@ data class RagProperties(
     /** Query transformer mode: passthrough|hyde */
     val queryTransformer: String = "passthrough",
 
+    /** RAG ingestion policy (Q&A -> candidate queue -> reviewed vector ingestion) */
+    val ingestion: RagIngestionProperties = RagIngestionProperties(),
+
     /** Maximum context tokens */
     val maxContextTokens: Int = 4000
+)
+
+data class RagIngestionProperties(
+    /** Master switch for ingestion candidate capture. */
+    val enabled: Boolean = false,
+
+    /** Runtime DB-backed policy management switch. */
+    val dynamic: RagIngestionDynamicProperties = RagIngestionDynamicProperties(),
+
+    /** Whether admin review is required before vector ingestion. */
+    val requireReview: Boolean = true,
+
+    /** Allowed channels for auto-capture. Empty = capture from all channels. */
+    val allowedChannels: Set<String> = emptySet(),
+
+    /** Minimum query length to be considered knowledge-worthy. */
+    val minQueryChars: Int = 10,
+
+    /** Minimum response length to be considered knowledge-worthy. */
+    val minResponseChars: Int = 20,
+
+    /** Regex patterns that block capture when matched on query or response. */
+    val blockedPatterns: Set<String> = emptySet()
+)
+
+data class RagIngestionDynamicProperties(
+    /** Enable DB policy override through admin APIs. */
+    val enabled: Boolean = false,
+
+    /** Provider cache refresh interval for dynamic policy. */
+    val refreshMs: Long = 10_000
 )
 
 /**

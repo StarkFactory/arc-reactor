@@ -54,6 +54,7 @@ import com.arc.reactor.feedback.InMemoryFeedbackStore
 import com.arc.reactor.feedback.JdbcFeedbackStore
 import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.impl.FeedbackMetadataCaptureHook
+import com.arc.reactor.hook.impl.RagIngestionCaptureHook
 import com.arc.reactor.hook.impl.WebhookNotificationHook
 import com.arc.reactor.hook.impl.WebhookProperties
 import com.arc.reactor.hook.impl.WriteToolBlockHook
@@ -123,6 +124,14 @@ import com.arc.reactor.rag.impl.InMemoryDocumentRetriever
 import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
+import com.arc.reactor.rag.ingestion.InMemoryRagIngestionCandidateStore
+import com.arc.reactor.rag.ingestion.InMemoryRagIngestionPolicyStore
+import com.arc.reactor.rag.ingestion.JdbcRagIngestionCandidateStore
+import com.arc.reactor.rag.ingestion.JdbcRagIngestionPolicyStore
+import com.arc.reactor.rag.ingestion.RagIngestionPolicy
+import com.arc.reactor.rag.ingestion.RagIngestionPolicyProvider
+import com.arc.reactor.rag.ingestion.RagIngestionPolicyStore
+import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.embedding.EmbeddingModel
@@ -193,6 +202,25 @@ class ArcReactorAutoConfiguration {
     @ConditionalOnMissingBean
     fun toolPolicyProvider(properties: AgentProperties, toolPolicyStore: ToolPolicyStore): ToolPolicyProvider =
         ToolPolicyProvider(properties = properties.toolPolicy, store = toolPolicyStore)
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun ragIngestionPolicyStore(properties: AgentProperties): RagIngestionPolicyStore =
+        InMemoryRagIngestionPolicyStore(initial = RagIngestionPolicy.fromProperties(properties.rag.ingestion))
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun ragIngestionPolicyProvider(
+        properties: AgentProperties,
+        ragIngestionPolicyStore: RagIngestionPolicyStore
+    ): RagIngestionPolicyProvider = RagIngestionPolicyProvider(
+        properties = properties.rag.ingestion,
+        store = ragIngestionPolicyStore
+    )
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun ragIngestionCandidateStore(): RagIngestionCandidateStore = InMemoryRagIngestionCandidateStore()
 
     /**
      * Tool Approval Policy — only created when HITL is enabled.
@@ -314,6 +342,20 @@ class ArcReactorAutoConfiguration {
         fun jdbcFeedbackStore(
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
         ): FeedbackStore = JdbcFeedbackStore(jdbcTemplate = jdbcTemplate)
+
+        @Bean
+        @Primary
+        @ConditionalOnProperty(
+            prefix = "arc.reactor.rag.ingestion", name = ["enabled"],
+            havingValue = "true", matchIfMissing = false
+        )
+        fun jdbcRagIngestionCandidateStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate,
+            transactionTemplate: org.springframework.transaction.support.TransactionTemplate
+        ): RagIngestionCandidateStore = JdbcRagIngestionCandidateStore(
+            jdbcTemplate = jdbcTemplate,
+            transactionTemplate = transactionTemplate
+        )
     }
 
     /**
@@ -339,6 +381,29 @@ class ArcReactorAutoConfiguration {
             jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate,
             transactionTemplate: org.springframework.transaction.support.TransactionTemplate
         ): ToolPolicyStore = JdbcToolPolicyStore(
+            jdbcTemplate = jdbcTemplate,
+            transactionTemplate = transactionTemplate
+        )
+    }
+
+    /**
+     * JDBC RAG ingestion policy store (dynamic policy only).
+     */
+    @Configuration
+    @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
+    @ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.rag.ingestion.dynamic", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    class JdbcRagIngestionPolicyStoreConfiguration {
+
+        @Bean
+        @Primary
+        fun jdbcRagIngestionPolicyStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate,
+            transactionTemplate: org.springframework.transaction.support.TransactionTemplate
+        ): RagIngestionPolicyStore = JdbcRagIngestionPolicyStore(
             jdbcTemplate = jdbcTemplate,
             transactionTemplate = transactionTemplate
         )
@@ -535,6 +600,25 @@ class ArcReactorAutoConfiguration {
     )
     fun writeToolBlockHook(toolPolicyProvider: ToolPolicyProvider): WriteToolBlockHook =
         WriteToolBlockHook(toolPolicyProvider)
+
+    /**
+     * RAG ingestion capture hook (Q&A -> candidate queue).
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = ["ragIngestionCaptureHook"])
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.rag.ingestion", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun ragIngestionCaptureHook(
+        policyProvider: RagIngestionPolicyProvider,
+        candidateStore: RagIngestionCandidateStore,
+        vectorStoreProvider: ObjectProvider<VectorStore>
+    ): RagIngestionCaptureHook = RagIngestionCaptureHook(
+        policyProvider = policyProvider,
+        candidateStore = candidateStore,
+        vectorStore = vectorStoreProvider.ifAvailable
+    )
 
     /**
      * Guard Configuration

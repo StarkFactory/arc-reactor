@@ -75,6 +75,11 @@ arc:
       enabled: ${ARC_REACTOR_RAG_ENABLED:false}
       similarity-threshold: 0.3
       query-transformer: ${ARC_REACTOR_RAG_QUERY_TRANSFORMER:passthrough}
+      ingestion:
+        enabled: ${ARC_REACTOR_RAG_INGESTION_ENABLED:false}
+        dynamic:
+          enabled: ${ARC_REACTOR_RAG_INGESTION_DYNAMIC_ENABLED:false}
+          refresh-ms: ${ARC_REACTOR_RAG_INGESTION_DYNAMIC_REFRESH_MS:10000}
 
     error-report:
       enabled: ${ARC_REACTOR_ERROR_REPORT_ENABLED:false}
