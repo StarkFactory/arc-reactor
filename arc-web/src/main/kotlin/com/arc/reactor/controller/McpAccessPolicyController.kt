@@ -1,5 +1,6 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.mcp.McpServerStore
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.swagger.v3.oas.annotations.Operation
@@ -26,7 +27,8 @@ private val logger = KotlinLogging.logger {}
 @RestController
 @RequestMapping("/api/mcp/servers/{name}/access-policy")
 class McpAccessPolicyController(
-    private val mcpServerStore: McpServerStore
+    private val mcpServerStore: McpServerStore,
+    private val adminAuditStore: AdminAuditStore
 ) {
     @Operation(summary = "Get access policy from MCP server admin API")
     @GetMapping
@@ -35,7 +37,17 @@ class McpAccessPolicyController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return proxy(name, HttpMethod.GET, null)
+        val response = proxy(name, HttpMethod.GET, null)
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "mcp_access_policy",
+            action = "READ",
+            actor = currentActor(exchange),
+            resourceType = "mcp_server",
+            resourceId = name,
+            detail = "status=${response.statusCode.value()}"
+        )
+        return response
     }
 
     @Operation(summary = "Update access policy on MCP server admin API")
@@ -46,7 +58,17 @@ class McpAccessPolicyController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return proxy(name, HttpMethod.PUT, request)
+        val response = proxy(name, HttpMethod.PUT, request)
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "mcp_access_policy",
+            action = "UPDATE",
+            actor = currentActor(exchange),
+            resourceType = "mcp_server",
+            resourceId = name,
+            detail = "status=${response.statusCode.value()}, jiraProjects=${request.allowedJiraProjectKeys.size}, confluenceSpaces=${request.allowedConfluenceSpaceKeys.size}"
+        )
+        return response
     }
 
     @Operation(summary = "Clear dynamic policy on MCP server admin API")
@@ -56,7 +78,17 @@ class McpAccessPolicyController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return proxy(name, HttpMethod.DELETE, null)
+        val response = proxy(name, HttpMethod.DELETE, null)
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "mcp_access_policy",
+            action = "DELETE",
+            actor = currentActor(exchange),
+            resourceType = "mcp_server",
+            resourceId = name,
+            detail = "status=${response.statusCode.value()}, reset_to_env_defaults=true"
+        )
+        return response
     }
 
     private suspend fun proxy(
@@ -112,7 +144,7 @@ class McpAccessPolicyController(
 
             ResponseEntity.ok(parseJsonOrString(responseBody ?: ""))
         } catch (e: WebClientResponseException) {
-            val payload = parseJsonOrString(e.responseBodyAsString ?: "")
+            val payload = parseJsonOrString(e.responseBodyAsString)
             ResponseEntity.status(e.statusCode).body(payload)
         } catch (e: Exception) {
             logger.warn(e) { "Failed to proxy access-policy request to MCP server '$name'" }

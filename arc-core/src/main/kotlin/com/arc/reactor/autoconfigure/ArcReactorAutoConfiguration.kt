@@ -2,6 +2,9 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.audit.AdminAuditStore
+import com.arc.reactor.audit.InMemoryAdminAuditStore
+import com.arc.reactor.audit.JdbcAdminAuditStore
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.cache.impl.CaffeineResponseCache
 import com.arc.reactor.resilience.CircuitBreakerRegistry
@@ -285,6 +288,12 @@ class ArcReactorAutoConfiguration {
 
         @Bean
         @Primary
+        fun jdbcAdminAuditStore(
+            jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
+        ): AdminAuditStore = JdbcAdminAuditStore(jdbcTemplate = jdbcTemplate)
+
+        @Bean
+        @Primary
         @ConditionalOnProperty(
             prefix = "arc.reactor.scheduler", name = ["enabled"],
             havingValue = "true", matchIfMissing = false
@@ -430,6 +439,10 @@ class ArcReactorAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun outputGuardRuleAuditStore(): OutputGuardRuleAuditStore = InMemoryOutputGuardRuleAuditStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun adminAuditStore(): AdminAuditStore = InMemoryAdminAuditStore()
 
     @Bean
     @ConditionalOnMissingBean

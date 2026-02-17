@@ -24,3 +24,12 @@ fun forbiddenResponse(): ResponseEntity<Any> {
     return ResponseEntity.status(HttpStatus.FORBIDDEN)
         .body(ErrorResponse(error = "Admin access required", timestamp = java.time.Instant.now().toString()))
 }
+
+/**
+ * Resolve current actor id for admin-audit logs.
+ */
+fun currentActor(exchange: ServerWebExchange): String {
+    return (exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String)
+        ?.takeIf { it.isNotBlank() }
+        ?: "anonymous"
+}
