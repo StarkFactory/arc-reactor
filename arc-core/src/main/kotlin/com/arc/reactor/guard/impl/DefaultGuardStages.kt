@@ -8,6 +8,7 @@ import com.arc.reactor.guard.RateLimitStage
 import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
+import com.arc.reactor.support.formatBoundaryRuleViolation
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
@@ -67,20 +68,23 @@ class DefaultInputValidationStage(
     private val minLength: Int = 1,
     private val systemPromptMaxChars: Int = 0
 ) : InputValidationStage {
-
     override suspend fun check(command: GuardCommand): GuardResult {
         val text = command.text.trim()
 
         if (text.length < minLength) {
+            val reason = formatBoundaryRuleViolation("input.min_chars", text.length, minLength)
+            logger.warn { reason }
             return GuardResult.Rejected(
-                reason = "Input too short",
+                reason = reason,
                 category = RejectionCategory.INVALID_INPUT
             )
         }
 
         if (text.length > maxLength) {
+            val reason = formatBoundaryRuleViolation("input.max_chars", text.length, maxLength)
+            logger.warn { reason }
             return GuardResult.Rejected(
-                reason = "Input too long (max: $maxLength)",
+                reason = reason,
                 category = RejectionCategory.INVALID_INPUT
             )
         }
@@ -88,8 +92,14 @@ class DefaultInputValidationStage(
         if (systemPromptMaxChars > 0 && command.systemPrompt != null &&
             command.systemPrompt.length > systemPromptMaxChars
         ) {
+            val reason = formatBoundaryRuleViolation(
+                "system_prompt.max_chars",
+                command.systemPrompt.length,
+                systemPromptMaxChars
+            )
+            logger.warn { reason }
             return GuardResult.Rejected(
-                reason = "System prompt too long (max: $systemPromptMaxChars, actual: ${command.systemPrompt.length})",
+                reason = reason,
                 category = RejectionCategory.INVALID_INPUT
             )
         }

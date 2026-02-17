@@ -179,6 +179,7 @@ class ExecutionResultFinalizerTest {
 
         assertTrue(result.success)
         assertEquals("long enough response", result.content)
+        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "retry_once", 10, 5) }
         verify(exactly = 1) { metrics.recordExecution(match { it.success && it.content == "long enough response" }) }
     }
 

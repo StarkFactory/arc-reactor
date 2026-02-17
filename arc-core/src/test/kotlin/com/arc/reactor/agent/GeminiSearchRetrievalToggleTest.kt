@@ -95,4 +95,3 @@ class GeminiSearchRetrievalToggleTest {
         error("Could not read googleSearchRetrieval from ${options::class.java.name}")
     }
 }
-

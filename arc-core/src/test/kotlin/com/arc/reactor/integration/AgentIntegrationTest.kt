@@ -223,9 +223,10 @@ class AgentIntegrationTest {
             result.assertFailure()
             val errorMessage = requireNotNull(result.errorMessage)
             assertTrue(
-                errorMessage.contains("too long", ignoreCase = true) ||
+                errorMessage.contains("Boundary violation [input.max_chars]") ||
+                    errorMessage.contains("too long", ignoreCase = true) ||
                     errorMessage.contains("max", ignoreCase = true),
-                "Validation error should mention too long or max, got: $errorMessage"
+                "Validation error should mention boundary violation, too long or max, got: $errorMessage"
             )
         }
 

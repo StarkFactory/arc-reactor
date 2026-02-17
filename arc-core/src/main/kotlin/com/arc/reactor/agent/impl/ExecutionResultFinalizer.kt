@@ -16,6 +16,7 @@ import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.ResponseFilterContext
+import com.arc.reactor.support.formatBoundaryViolation
 import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
@@ -150,10 +151,11 @@ internal class ExecutionResultFinalizer(
         val len = content.length
 
         val afterMax = if (boundaries.outputMaxChars > 0 && len > boundaries.outputMaxChars) {
+            val policy = "truncate"
             agentMetrics.recordBoundaryViolation(
-                "output_too_long", "truncate", boundaries.outputMaxChars, len
+                "output_too_long", policy, boundaries.outputMaxChars, len
             )
-            logger.info { "Output truncated: $len chars exceeds max ${boundaries.outputMaxChars}" }
+            logger.info { formatBoundaryViolation("output_too_long", policy, boundaries.outputMaxChars, len) }
             result.copy(content = content.take(boundaries.outputMaxChars) + "\n\n[Response truncated]")
         } else {
             result
@@ -166,40 +168,58 @@ internal class ExecutionResultFinalizer(
 
         return when (boundaries.outputMinViolationMode) {
             OutputMinViolationMode.WARN -> {
+                val policy = OutputMinViolationMode.WARN.name.lowercase()
                 agentMetrics.recordBoundaryViolation(
-                    "output_too_short", "warn", boundaries.outputMinChars, effectiveContent.length
+                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length
                 )
                 logger.warn {
-                    "Output too short: ${effectiveContent.length} chars " +
-                        "(min: ${boundaries.outputMinChars}), passing through (WARN)"
+                    formatBoundaryViolation(
+                        "output_too_short",
+                        policy,
+                        boundaries.outputMinChars,
+                        effectiveContent.length
+                    )
                 }
                 afterMax
             }
 
             OutputMinViolationMode.RETRY_ONCE -> {
+                val policy = OutputMinViolationMode.RETRY_ONCE.name.lowercase()
                 agentMetrics.recordBoundaryViolation(
-                    "output_too_short", "retry", boundaries.outputMinChars, effectiveContent.length
+                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length
                 )
                 logger.info {
-                    "Output too short: ${effectiveContent.length} chars " +
-                        "(min: ${boundaries.outputMinChars}), retrying once"
+                    formatBoundaryViolation(
+                        "output_too_short",
+                        policy,
+                        boundaries.outputMinChars,
+                        effectiveContent.length
+                    )
                 }
                 val retried = attemptLongerResponse(effectiveContent, boundaries.outputMinChars, command)
                 if (retried != null && retried.length >= boundaries.outputMinChars) {
                     afterMax.copy(content = retried)
                 } else {
-                    logger.warn { "Retry still too short, falling back to WARN" }
+                    logger.warn {
+                        "Boundary retry result: output_too_short still below limit " +
+                            "(actual=${retried?.length ?: 0}, limit=${boundaries.outputMinChars})"
+                    }
                     afterMax
                 }
             }
 
             OutputMinViolationMode.FAIL -> {
+                val policy = OutputMinViolationMode.FAIL.name.lowercase()
                 agentMetrics.recordBoundaryViolation(
-                    "output_too_short", "fail", boundaries.outputMinChars, effectiveContent.length
+                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length
                 )
                 logger.warn {
-                    "Output too short: ${effectiveContent.length} chars " +
-                        "(min: ${boundaries.outputMinChars}), failing (FAIL mode)"
+                    formatBoundaryViolation(
+                        "output_too_short",
+                        policy,
+                        boundaries.outputMinChars,
+                        effectiveContent.length
+                    )
                 }
                 null
             }

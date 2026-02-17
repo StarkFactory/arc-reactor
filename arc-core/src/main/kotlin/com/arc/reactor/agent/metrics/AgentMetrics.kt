@@ -130,7 +130,7 @@ interface AgentMetrics {
      * Record a boundary policy violation.
      *
      * @param violation The violation type (e.g., "output_too_short", "output_too_long")
-     * @param policy The policy action taken (e.g., "warn", "retry", "fail", "truncate")
+     * @param policy The policy action taken (e.g., "warn", "retry_once", "fail", "truncate")
      * @param limit The configured limit value
      * @param actual The actual measured value
      */

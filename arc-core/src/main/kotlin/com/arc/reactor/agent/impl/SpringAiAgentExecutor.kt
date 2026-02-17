@@ -296,10 +296,10 @@ class SpringAiAgentExecutor(
             val retryPrompt = """
                 Your previous response was too short (${shortContent.length} chars, minimum $minChars chars).
                 Please provide a more detailed response while staying faithful to the original user request.
-                
+
                 Original user request:
                 ${command.userPrompt}
-                
+
                 Previous short response:
                 $shortContent
             """.trimIndent()
