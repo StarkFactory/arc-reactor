@@ -509,10 +509,11 @@ class SpringAiAgentExecutor(
 
         // Max chars check: truncate if exceeded
         val afterMax = if (boundaries.outputMaxChars > 0 && len > boundaries.outputMaxChars) {
+            val policy = "truncate"
             agentMetrics.recordBoundaryViolation(
-                "output_too_long", "truncate", boundaries.outputMaxChars, len
+                "output_too_long", policy, boundaries.outputMaxChars, len
             )
-            logger.info { "Output truncated: $len chars exceeds max ${boundaries.outputMaxChars}" }
+            logger.info { boundaryLogMessage("output_too_long", policy, boundaries.outputMaxChars, len) }
             result.copy(content = content.take(boundaries.outputMaxChars) + "\n\n[Response truncated]")
         } else {
             result
@@ -527,43 +528,47 @@ class SpringAiAgentExecutor(
         // Output is too short
         return when (boundaries.outputMinViolationMode) {
             OutputMinViolationMode.WARN -> {
+                val policy = OutputMinViolationMode.WARN.name.lowercase()
                 agentMetrics.recordBoundaryViolation(
-                    "output_too_short", "warn", boundaries.outputMinChars, effectiveContent.length
+                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length
                 )
-                logger.warn {
-                    "Output too short: ${effectiveContent.length} chars " +
-                        "(min: ${boundaries.outputMinChars}), passing through (WARN)"
-                }
+                logger.warn { boundaryLogMessage("output_too_short", policy, boundaries.outputMinChars, effectiveContent.length) }
                 afterMax
             }
             OutputMinViolationMode.RETRY_ONCE -> {
+                val policy = OutputMinViolationMode.RETRY_ONCE.name.lowercase()
                 agentMetrics.recordBoundaryViolation(
-                    "output_too_short", "retry", boundaries.outputMinChars, effectiveContent.length
+                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length
                 )
-                logger.info {
-                    "Output too short: ${effectiveContent.length} chars " +
-                        "(min: ${boundaries.outputMinChars}), retrying once"
-                }
+                logger.info { boundaryLogMessage("output_too_short", policy, boundaries.outputMinChars, effectiveContent.length) }
                 val retried = attemptLongerResponse(effectiveContent, boundaries.outputMinChars, command)
                 if (retried != null && retried.length >= boundaries.outputMinChars) {
                     afterMax.copy(content = retried)
                 } else {
-                    logger.warn { "Retry still too short, falling back to WARN" }
+                    logger.warn {
+                        "Boundary retry result: output_too_short still below limit " +
+                            "(actual=${retried?.length ?: 0}, limit=${boundaries.outputMinChars})"
+                    }
                     afterMax
                 }
             }
             OutputMinViolationMode.FAIL -> {
+                val policy = OutputMinViolationMode.FAIL.name.lowercase()
                 agentMetrics.recordBoundaryViolation(
-                    "output_too_short", "fail", boundaries.outputMinChars, effectiveContent.length
+                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length
                 )
-                logger.warn {
-                    "Output too short: ${effectiveContent.length} chars " +
-                        "(min: ${boundaries.outputMinChars}), failing (FAIL mode)"
-                }
+                logger.warn { boundaryLogMessage("output_too_short", policy, boundaries.outputMinChars, effectiveContent.length) }
                 null
             }
         }
     }
+
+    private fun boundaryLogMessage(
+        violation: String,
+        policy: String,
+        limit: Int,
+        actual: Int
+    ): String = "Boundary violation [$violation]: policy=$policy, limit=$limit, actual=$actual"
 
     /**
      * Make one additional LLM call requesting a longer response.
@@ -803,16 +808,14 @@ class SpringAiAgentExecutor(
                 val boundaries = properties.boundaries
                 val contentLength = collectedContent.length
                 if (boundaries.outputMaxChars > 0 && contentLength > boundaries.outputMaxChars) {
+                    val policy = "warn"
                     agentMetrics.recordBoundaryViolation(
-                        "output_too_long", "warn", boundaries.outputMaxChars, contentLength
+                        "output_too_long", policy, boundaries.outputMaxChars, contentLength
                     )
-                    logger.warn {
-                        "Streaming output exceeded max: $contentLength chars " +
-                            "(max: ${boundaries.outputMaxChars})"
-                    }
+                    logger.warn { boundaryLogMessage("output_too_long", policy, boundaries.outputMaxChars, contentLength) }
                     try {
                         emit(StreamEventMarker.error(
-                            "Output too long ($contentLength chars, max: ${boundaries.outputMaxChars})"
+                            boundaryLogMessage("output_too_long", policy, boundaries.outputMaxChars, contentLength)
                         ))
                     } catch (_: Exception) {
                         logger.debug { "Could not emit boundary error (collector cancelled)" }
@@ -826,13 +829,10 @@ class SpringAiAgentExecutor(
                     agentMetrics.recordBoundaryViolation(
                         "output_too_short", policy, boundaries.outputMinChars, contentLength
                     )
-                    logger.warn {
-                        "Streaming output too short: $contentLength chars " +
-                            "(min: ${boundaries.outputMinChars}, policy: $policy)"
-                    }
+                    logger.warn { boundaryLogMessage("output_too_short", policy, boundaries.outputMinChars, contentLength) }
                     try {
                         emit(StreamEventMarker.error(
-                            "Output too short ($contentLength chars, min: ${boundaries.outputMinChars})"
+                            boundaryLogMessage("output_too_short", policy, boundaries.outputMinChars, contentLength)
                         ))
                     } catch (_: Exception) {
                         logger.debug { "Could not emit boundary error (collector cancelled)" }

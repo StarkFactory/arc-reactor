@@ -4,8 +4,10 @@ import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.config.BoundaryProperties
 import com.arc.reactor.agent.config.OutputMinViolationMode
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
+import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
+import com.arc.reactor.agent.model.AgentResult
 import io.mockk.every
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
@@ -107,6 +109,41 @@ class OutputBoundaryTest {
             )
 
             result.assertSuccess("RETRY_ONCE should fall back to WARN when retry is still short")
+        }
+
+        @Test
+        fun `retry mode records standardized boundary policy name`() = runTest {
+            every { fixture.requestSpec.call() } returnsMany listOf(
+                fixture.mockFinalResponse("Hi"),
+                fixture.mockFinalResponse("This retry response is long enough.")
+            )
+            val recordedBoundaryPolicies = mutableListOf<String>()
+            val metrics = object : AgentMetrics {
+                override fun recordExecution(result: AgentResult) {}
+                override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {}
+                override fun recordGuardRejection(stage: String, reason: String) {}
+                override fun recordBoundaryViolation(violation: String, policy: String, limit: Int, actual: Int) {
+                    if (violation == "output_too_short") {
+                        recordedBoundaryPolicies.add(policy)
+                    }
+                }
+            }
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = propertiesWithBoundaries(
+                    outputMinChars = 20, mode = OutputMinViolationMode.RETRY_ONCE
+                ),
+                agentMetrics = metrics
+            )
+
+            executor.execute(
+                AgentCommand(systemPrompt = "Be helpful", userPrompt = "Hello")
+            )
+
+            assertTrue(recordedBoundaryPolicies.contains("retry_once")) {
+                "Boundary policy should use standardized value 'retry_once', got: $recordedBoundaryPolicies"
+            }
         }
     }
 

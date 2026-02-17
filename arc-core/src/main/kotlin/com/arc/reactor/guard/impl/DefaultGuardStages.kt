@@ -67,20 +67,26 @@ class DefaultInputValidationStage(
     private val minLength: Int = 1,
     private val systemPromptMaxChars: Int = 0
 ) : InputValidationStage {
+    private fun boundaryReason(rule: String, actual: Int, limit: Int): String =
+        "Boundary violation [$rule]: actual=$actual, limit=$limit"
 
     override suspend fun check(command: GuardCommand): GuardResult {
         val text = command.text.trim()
 
         if (text.length < minLength) {
+            val reason = boundaryReason("input.min_chars", text.length, minLength)
+            logger.warn { reason }
             return GuardResult.Rejected(
-                reason = "Input too short",
+                reason = reason,
                 category = RejectionCategory.INVALID_INPUT
             )
         }
 
         if (text.length > maxLength) {
+            val reason = boundaryReason("input.max_chars", text.length, maxLength)
+            logger.warn { reason }
             return GuardResult.Rejected(
-                reason = "Input too long (max: $maxLength)",
+                reason = reason,
                 category = RejectionCategory.INVALID_INPUT
             )
         }
@@ -88,8 +94,10 @@ class DefaultInputValidationStage(
         if (systemPromptMaxChars > 0 && command.systemPrompt != null &&
             command.systemPrompt.length > systemPromptMaxChars
         ) {
+            val reason = boundaryReason("system_prompt.max_chars", command.systemPrompt.length, systemPromptMaxChars)
+            logger.warn { reason }
             return GuardResult.Rejected(
-                reason = "System prompt too long (max: $systemPromptMaxChars, actual: ${command.systemPrompt.length})",
+                reason = reason,
                 category = RejectionCategory.INVALID_INPUT
             )
         }
