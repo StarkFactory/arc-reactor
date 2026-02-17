@@ -2,6 +2,17 @@
 
 Spring AI-based AI Agent framework. Fork and attach tools to use.
 
+## Language Policy
+
+This is an **open-source project**. All written content MUST be in **English**:
+- Code: variable names, function names, class names
+- Comments and KDoc
+- Commit messages
+- Pull request titles and descriptions
+- Code review comments
+- Issue titles and descriptions
+- Documentation (README, CLAUDE.md, AGENTS.md, etc.)
+
 ## Tech Stack
 
 - Kotlin 2.3.10, Spring Boot 3.5.9, Spring AI 1.1.2, JDK 21, Gradle 8.12
