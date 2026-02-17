@@ -43,7 +43,7 @@ class ConcurrencyTimeoutTest {
             every { fixture.requestSpec.call() } answers {
                 val concurrent = currentConcurrent.incrementAndGet()
                 maxConcurrentObserved.updateAndGet { max -> maxOf(max, concurrent) }
-                Thread.sleep(200)
+                Thread.sleep(80)
                 currentConcurrent.decrementAndGet()
                 fixture.callResponseSpec
             }
@@ -69,13 +69,13 @@ class ConcurrencyTimeoutTest {
             val properties = AgentProperties(
                 concurrency = ConcurrencyProperties(
                     maxConcurrentRequests = 20,
-                    requestTimeoutMs = 50
+                    requestTimeoutMs = 30
                 )
             )
             val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
             every { fixture.requestSpec.call() } answers {
-                Thread.sleep(500)
+                Thread.sleep(120)
                 fixture.callResponseSpec
             }
 
@@ -97,13 +97,13 @@ class ConcurrencyTimeoutTest {
             val properties = AgentProperties(
                 concurrency = ConcurrencyProperties(
                     maxConcurrentRequests = 20,
-                    requestTimeoutMs = 2000
+                    requestTimeoutMs = 500
                 )
             )
             val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
             every { fixture.requestSpec.call() } answers {
-                Thread.sleep(50)
+                Thread.sleep(20)
                 fixture.callResponseSpec
             }
 
