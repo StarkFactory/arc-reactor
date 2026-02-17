@@ -166,7 +166,7 @@ val result = MultiAgent.supervisor()
     .execute(command, agentFactory)
 ```
 
-> See the [Multi-Agent Guide](docs/en/multi-agent.md) for details.
+> See the [Multi-Agent Guide](docs/en/architecture/multi-agent.md) for details.
 
 ## Architecture
 
@@ -304,7 +304,7 @@ class McpSetup(private val mcpManager: McpManager) {
 }
 ```
 
-> **Note:** MCP SDK 0.17.2 does not support the Streamable HTTP transport. Use SSE as an alternative for remote servers. See the [MCP Integration Guide](docs/en/mcp.md) for details.
+> **Note:** MCP SDK 0.17.2 does not support the Streamable HTTP transport. Use SSE as an alternative for remote servers. See the [MCP Integration Guide](docs/en/architecture/mcp.md) for details.
 
 ## Authentication (Opt-in)
 
@@ -464,26 +464,26 @@ src/main/kotlin/com/arc/reactor/
 
 ## Documentation
 
-- **[Tutorial: Build a Chatbot in 30 Minutes](docs/en/tutorial-chatbot.md)** - End-to-end guide with custom tools, persona, and deployment
-- [Architecture Guide](docs/en/architecture.md) - Internal structure and error handling
-- [ReAct Loop Internals](docs/en/react-loop.md) - Core execution engine, parallel tool execution, context trimming, retry
-- [Guard & Hook System](docs/en/guard-hook.md) - 5-stage security pipeline, 4 lifecycle extension points
-- [Memory & RAG Pipeline](docs/en/memory-rag.md) - Conversation history, 4-stage retrieval-augmented generation
-- [Tool Guide](docs/en/tools.md) - 3 tool types, registration, MCP connection
-- [MCP Integration Guide](docs/en/mcp.md) - McpManager, STDIO/SSE transports, dynamic tool loading
-- [Configuration Reference](docs/en/configuration.md) - Full YAML settings, auto-configuration, production examples
-- [Observability & Metrics](docs/en/metrics.md) - AgentMetrics interface, Micrometer integration, metric points
-- [Resilience Guide](docs/en/resilience.md) - Circuit breaker, retry, graceful degradation
-- [Response Processing](docs/en/response-processing.md) - Response filters, caching, structured output
-- [Data Models & API](docs/en/api-models.md) - AgentCommand/Result, error handling, metrics, REST API
-- [Multi-Agent Guide](docs/en/multi-agent.md) - Sequential / Parallel / Supervisor patterns
-- [Supervisor Pattern Deep Dive](docs/en/supervisor-pattern.md) - WorkerAgentTool internals, practical usage
-- [Deployment Guide](docs/en/deployment.md) - Docker, environment variables, production checklist
-- [Authentication Guide](docs/en/authentication.md) - JWT auth, AuthProvider customization, session isolation
-- [Session & Persona Guide](docs/en/session-management.md) - Session API, persona management, data architecture
-- [Prompt Versioning Guide](docs/en/prompt-versioning.md) - Version control for system prompts, deployment, rollback
-- [Feature Inventory](docs/en/feature-inventory.md) - Complete feature matrix, data architecture, DB schema
-- [Troubleshooting](docs/en/troubleshooting.md) - Common issues and solutions
+- **[Tutorial: Build a Chatbot in 30 Minutes](docs/en/getting-started/tutorial-chatbot.md)** - End-to-end guide with custom tools, persona, and deployment
+- [Architecture Guide](docs/en/architecture/architecture.md) - Internal structure and error handling
+- [ReAct Loop Internals](docs/en/architecture/react-loop.md) - Core execution engine, parallel tool execution, context trimming, retry
+- [Guard & Hook System](docs/en/architecture/guard-hook.md) - 5-stage security pipeline, 4 lifecycle extension points
+- [Memory & RAG Pipeline](docs/en/architecture/memory-rag.md) - Conversation history, 4-stage retrieval-augmented generation
+- [Tool Guide](docs/en/reference/tools.md) - 3 tool types, registration, MCP connection
+- [MCP Integration Guide](docs/en/architecture/mcp.md) - McpManager, STDIO/SSE transports, dynamic tool loading
+- [Configuration Reference](docs/en/getting-started/configuration.md) - Full YAML settings, auto-configuration, production examples
+- [Observability & Metrics](docs/en/reference/metrics.md) - AgentMetrics interface, Micrometer integration, metric points
+- [Resilience Guide](docs/en/architecture/resilience.md) - Circuit breaker, retry, graceful degradation
+- [Response Processing](docs/en/architecture/response-processing.md) - Response filters, caching, structured output
+- [Data Models & API](docs/en/reference/api-models.md) - AgentCommand/Result, error handling, metrics, REST API
+- [Multi-Agent Guide](docs/en/architecture/multi-agent.md) - Sequential / Parallel / Supervisor patterns
+- [Supervisor Pattern Deep Dive](docs/en/architecture/supervisor-pattern.md) - WorkerAgentTool internals, practical usage
+- [Deployment Guide](docs/en/getting-started/deployment.md) - Docker, environment variables, production checklist
+- [Authentication Guide](docs/en/governance/authentication.md) - JWT auth, AuthProvider customization, session isolation
+- [Session & Persona Guide](docs/en/architecture/session-management.md) - Session API, persona management, data architecture
+- [Prompt Versioning Guide](docs/en/governance/prompt-versioning.md) - Version control for system prompts, deployment, rollback
+- [Feature Inventory](docs/en/reference/feature-inventory.md) - Complete feature matrix, data architecture, DB schema
+- [Troubleshooting](docs/en/getting-started/troubleshooting.md) - Common issues and solutions
 
 ## Requirements
 
@@ -494,7 +494,7 @@ src/main/kotlin/com/arc/reactor/
 
 ## License
 
-Apache License 2.0 - See [LICENSE](./LICENSE)
+Apache License 2.0 - See [LICENSE](LICENSE)
 
 ## Acknowledgments
 
