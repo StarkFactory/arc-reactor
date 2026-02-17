@@ -7,6 +7,7 @@ import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import io.mockk.every
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -107,6 +108,34 @@ class OutputBoundaryTest {
             )
 
             result.assertSuccess("RETRY_ONCE should fall back to WARN when retry is still short")
+        }
+
+        @Test
+        fun `retry prompt includes original request and previous short response context`() = runTest {
+            every { fixture.requestSpec.call() } returnsMany listOf(
+                fixture.mockFinalResponse("Hi"),
+                fixture.mockFinalResponse("This is a longer, contextualized retry response.")
+            )
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = propertiesWithBoundaries(
+                    outputMinChars = 20, mode = OutputMinViolationMode.RETRY_ONCE
+                )
+            )
+
+            val command = AgentCommand(systemPrompt = "Be helpful", userPrompt = "How do I reset my password?")
+            val result = executor.execute(command)
+
+            result.assertSuccess("Retry should succeed with contextualized prompt")
+            verify {
+                fixture.requestSpec.user(match<String> { prompt ->
+                    prompt.contains("Original user request:") &&
+                        prompt.contains("How do I reset my password?") &&
+                        prompt.contains("Previous short response:") &&
+                        prompt.contains("Hi")
+                })
+            }
         }
     }
 
