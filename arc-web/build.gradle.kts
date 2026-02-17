@@ -38,7 +38,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-jdbc")
     testImplementation("io.projectreactor:reactor-test")
     testImplementation("io.mockk:mockk:1.14.9")
-    testImplementation("io.kotest:kotest-assertions-core:5.9.1")
+    testImplementation("io.kotest:kotest-assertions-core:6.1.3")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("io.jsonwebtoken:jjwt-api:0.13.0")
     testRuntimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
