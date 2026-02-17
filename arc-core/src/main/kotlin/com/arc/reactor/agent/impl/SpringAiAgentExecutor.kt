@@ -38,8 +38,6 @@ import com.arc.reactor.intent.model.ClassificationContext
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
-import com.arc.reactor.hook.model.ToolCallContext
-import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.MemoryStore
@@ -52,8 +50,6 @@ import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import mu.KotlinLogging
 import org.slf4j.MDC
 import org.springframework.ai.chat.client.ChatClient
@@ -65,9 +61,6 @@ import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.tool.definition.ToolDefinition
 import org.springframework.ai.tool.metadata.ToolMetadata
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -75,14 +68,11 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 private val logger = KotlinLogging.logger {}
-private val objectMapper = jacksonObjectMapper()
-private val mapTypeRef = object : TypeReference<Map<String, Any?>>() {}
 private val httpStatusPattern = Regex("(status|http|error|code)[^a-z0-9]*(429|500|502|503|504)")
 
 /**
@@ -102,16 +92,6 @@ fun defaultTransientErrorClassifier(e: Exception): Boolean {
             message.contains("internal server error") ||
             message.contains("service unavailable") ||
             message.contains("bad gateway")
-}
-
-private fun parseJsonToMap(json: String?): Map<String, Any?> {
-    if (json.isNullOrBlank()) return emptyMap()
-    return try {
-        objectMapper.readValue(json, mapTypeRef)
-    } catch (e: Exception) {
-        logger.warn(e) { "Failed to parse JSON arguments" }
-        emptyMap()
-    }
 }
 
 /**
@@ -174,6 +154,13 @@ class SpringAiAgentExecutor(
         maxContextWindowTokens = properties.llm.maxContextWindowTokens,
         outputReserveTokens = properties.llm.maxOutputTokens,
         tokenEstimator = tokenEstimator
+    )
+    private val toolCallOrchestrator = ToolCallOrchestrator(
+        toolCallTimeoutMs = properties.concurrency.toolCallTimeoutMs,
+        hookExecutor = hookExecutor,
+        toolApprovalPolicy = toolApprovalPolicy,
+        pendingApprovalStore = pendingApprovalStore,
+        agentMetrics = agentMetrics
     )
 
     override suspend fun execute(command: AgentCommand): AgentResult {
@@ -754,7 +741,7 @@ class SpringAiAgentExecutor(
 
                         // Execute tool calls in parallel
                         val totalToolCallsCounter = AtomicInteger(totalToolCalls)
-                        val toolResponses = executeToolCallsInParallel(
+                        val toolResponses = toolCallOrchestrator.executeInParallel(
                             pendingToolCalls, activeTools, hookContext, toolsUsed,
                             totalToolCallsCounter, maxToolCallLimit, allowedTools
                         )
@@ -1114,13 +1101,6 @@ class SpringAiAgentExecutor(
         return spec
     }
 
-    /**
-     * Find a tool adapter by name from the registered tools.
-     */
-    private fun findToolAdapter(toolName: String, tools: List<Any>): ArcToolCallbackAdapter? {
-        return tools.filterIsInstance<ArcToolCallbackAdapter>().firstOrNull { it.arcCallback.name == toolName }
-    }
-
     private fun resolveAllowedTools(command: AgentCommand): Set<String>? {
         val raw = command.metadata["intentAllowedTools"] ?: return null
         val parsed = when (raw) {
@@ -1130,159 +1110,6 @@ class SpringAiAgentExecutor(
             else -> null
         }
         return parsed
-    }
-
-    /**
-     * Execute multiple tool calls in parallel using coroutines.
-     * Results are returned in the same order as the input tool calls.
-     */
-    private suspend fun executeToolCallsInParallel(
-        toolCalls: List<AssistantMessage.ToolCall>,
-        tools: List<Any>,
-        hookContext: HookContext,
-        toolsUsed: MutableList<String>,
-        totalToolCallsCounter: AtomicInteger,
-        maxToolCalls: Int,
-        allowedTools: Set<String>?
-    ): List<ToolResponseMessage.ToolResponse> = coroutineScope {
-        toolCalls.map { toolCall ->
-            async {
-                executeSingleToolCall(toolCall, tools, hookContext, toolsUsed, totalToolCallsCounter, maxToolCalls, allowedTools)
-            }
-        }.awaitAll()
-    }
-
-    /**
-     * Execute a single tool call with hooks and metrics.
-     */
-    private suspend fun executeSingleToolCall(
-        toolCall: AssistantMessage.ToolCall,
-        tools: List<Any>,
-        hookContext: HookContext,
-        toolsUsed: MutableList<String>,
-        totalToolCallsCounter: AtomicInteger,
-        maxToolCalls: Int,
-        allowedTools: Set<String>?
-    ): ToolResponseMessage.ToolResponse {
-        val currentCount = totalToolCallsCounter.getAndIncrement()
-        if (currentCount >= maxToolCalls) {
-            logger.warn { "maxToolCalls ($maxToolCalls) reached, stopping tool execution" }
-            return ToolResponseMessage.ToolResponse(
-                toolCall.id(), toolCall.name(),
-                "Error: Maximum tool call limit ($maxToolCalls) reached"
-            )
-        }
-
-        val toolName = toolCall.name()
-        if (allowedTools != null && toolName !in allowedTools) {
-            val msg = "Error: Tool '$toolName' is not allowed for this request"
-            logger.info { "Tool call blocked by allowlist: tool=$toolName allowedTools=${allowedTools.size}" }
-            agentMetrics.recordToolCall(toolName, 0, false)
-            return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, msg)
-        }
-
-        val toolCallContext = ToolCallContext(
-            agentContext = hookContext, toolName = toolName,
-            toolParams = parseJsonToMap(toolCall.arguments()), callIndex = currentCount
-        )
-
-        checkBeforeToolCallHook(toolCallContext)?.let { rejection ->
-            logger.info { "Tool call $toolName rejected by hook: ${rejection.reason}" }
-            return ToolResponseMessage.ToolResponse(
-                toolCall.id(), toolName, "Tool call rejected: ${rejection.reason}"
-            )
-        }
-
-        // Human-in-the-Loop: check if tool call requires approval
-        checkToolApproval(toolName, toolCallContext, hookContext)?.let { rejection ->
-            return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, rejection)
-        }
-
-        val toolStartTime = System.currentTimeMillis()
-        val (toolOutput, toolSuccess) = invokeToolAdapter(toolName, toolCall, tools, toolsUsed)
-        val toolDurationMs = System.currentTimeMillis() - toolStartTime
-
-        hookExecutor?.executeAfterToolCall(
-            context = toolCallContext,
-            result = ToolCallResult(
-                success = toolSuccess,
-                output = toolOutput, durationMs = toolDurationMs
-            )
-        )
-
-        agentMetrics.recordToolCall(toolName, toolDurationMs, toolSuccess)
-        return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, toolOutput)
-    }
-
-    private suspend fun checkBeforeToolCallHook(context: ToolCallContext): HookResult.Reject? {
-        if (hookExecutor == null) return null
-        return hookExecutor.executeBeforeToolCall(context) as? HookResult.Reject
-    }
-
-    /**
-     * Human-in-the-Loop: Check if tool call requires approval and wait for it.
-     *
-     * @return Rejection message if rejected or timed out, null if approved or no policy
-     */
-    private suspend fun checkToolApproval(
-        toolName: String,
-        toolCallContext: ToolCallContext,
-        hookContext: HookContext
-    ): String? {
-        if (toolApprovalPolicy == null || pendingApprovalStore == null) return null
-        if (!toolApprovalPolicy.requiresApproval(toolName, toolCallContext.toolParams)) return null
-
-        logger.info { "Tool '$toolName' requires human approval, suspending execution..." }
-
-        return runSuspendCatchingNonCancellation {
-            val response = pendingApprovalStore.requestApproval(
-                runId = hookContext.runId,
-                userId = hookContext.userId,
-                toolName = toolName,
-                arguments = toolCallContext.toolParams
-            )
-            if (response.approved) {
-                logger.info { "Tool '$toolName' approved by human" }
-                null // Continue execution
-            } else {
-                val reason = response.reason ?: "Rejected by human"
-                logger.info { "Tool '$toolName' rejected by human: $reason" }
-                "Tool call rejected by human: $reason"
-            }
-        }.getOrElse { e ->
-            logger.error(e) { "Approval check failed for tool '$toolName'" }
-            null // Fail-open: allow tool execution on approval system error
-        }
-    }
-
-    private suspend fun invokeToolAdapter(
-        toolName: String,
-        toolCall: AssistantMessage.ToolCall,
-        tools: List<Any>,
-        toolsUsed: MutableList<String>
-    ): Pair<String, Boolean> {
-        val adapter = findToolAdapter(toolName, tools)
-        return if (adapter != null) {
-            toolsUsed.add(toolName)
-            try {
-                val timeoutMs = adapter.arcCallback.timeoutMs ?: properties.concurrency.toolCallTimeoutMs
-                val output = withTimeout(timeoutMs) {
-                    adapter.call(toolCall.arguments())
-                }
-                Pair(output, true)
-            } catch (e: TimeoutCancellationException) {
-                val timeoutMs = adapter.arcCallback.timeoutMs ?: properties.concurrency.toolCallTimeoutMs
-                logger.error { "Tool $toolName timed out after ${timeoutMs}ms" }
-                Pair("Error: Tool '$toolName' timed out after ${timeoutMs}ms", false)
-            } catch (e: Exception) {
-                e.throwIfCancellation()
-                logger.error(e) { "Tool $toolName execution failed" }
-                Pair("Error: ${e.message}", false)
-            }
-        } else {
-            logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
-            Pair("Error: Tool '$toolName' not found", false)
-        }
     }
 
     /**
@@ -1365,7 +1192,7 @@ class SpringAiAgentExecutor(
 
                 // Execute tool calls in parallel
                 val totalToolCallsCounter = AtomicInteger(totalToolCalls)
-                val toolResponses = executeToolCallsInParallel(
+                val toolResponses = toolCallOrchestrator.executeInParallel(
                     pendingToolCalls, activeTools, hookContext, toolsUsed,
                     totalToolCallsCounter, maxToolCalls, allowedTools
                 )
@@ -1509,7 +1336,7 @@ internal class ArcToolCallbackAdapter(
     override fun getToolMetadata(): ToolMetadata = ToolMetadata.builder().build()
 
     override fun call(toolInput: String): String {
-        val args = parseJsonToMap(toolInput)
+        val args = parseToolArguments(toolInput)
         // Bridge suspend call to blocking for Spring AI compatibility (runs on IO dispatcher)
         return kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
             arcCallback.call(args)?.toString() ?: ""
