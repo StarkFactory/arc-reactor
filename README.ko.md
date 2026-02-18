@@ -42,6 +42,18 @@ provider 의존성은 `arc-core/build.gradle.kts`에서 관리합니다.
 - OpenAI/Anthropic: 기본 `compileOnly`
 - provider를 전환하면 `arc-core/build.gradle.kts`에서 대상 의존성을 `implementation(...)`으로 변경
 
+#### 최소 실행 설정 (fork 친화)
+
+처음 로컬 실행은 필수 값 1개만 있으면 됩니다:
+
+```bash
+export GEMINI_API_KEY=your-api-key
+./gradlew :arc-app:bootRun
+```
+
+그 외 기능은 전부 opt-in(`auth`, `rag`, `cors`, `circuit-breaker`)이라서 필요할 때 단계적으로 켜면 됩니다.
+세부 토글은 `docs/ko/getting-started/configuration.md`에 정리되어 있습니다.
+
 ### 3. 도구 만들기
 
 `arc-core/src/main/kotlin/com/arc/reactor/tool/`에 비즈니스 로직 도구를 추가합니다:

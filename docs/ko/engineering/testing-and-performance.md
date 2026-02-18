@@ -8,6 +8,8 @@
 
 - 기본 실행: `./gradlew test --continue`
 - 통합 테스트 포함: `./gradlew test -PincludeIntegration`
+- 통합 API 스위트(core + web): `./gradlew :arc-core:test :arc-web:test -PincludeIntegration --tests "com.arc.reactor.integration.*"`
+- 외부 의존 통합 테스트 포함(npx/docker/network): `./gradlew test -PincludeIntegration -PincludeExternalIntegration`
 
 로컬 피드백 루프를 빠르게 유지하고, 통합 경로는 명시적으로 실행할 수 있게 설계되어 있습니다.
 
@@ -30,6 +32,7 @@
 - 실패 경로 테스트에서 과도하게 긴 timeout
 - 실패 검증 테스트에서도 reconnect 루프 활성화
 - thread/latch 구성이 잘못되어 고정 대기 발생
+- 외부 의존 시작/다운로드 지연(예: MCP `npx` 서버 부팅)
 
 ## 권장 사항
 
@@ -37,6 +40,15 @@
 - reconnect 검증 테스트가 아니면 reconnect 비활성화
 - 통합 테스트는 태그 기반 opt-in 유지
 - 외부 의존 대신 빠르게 실패하는 고정 invalid endpoint 활용
+
+## Gradle 기본 실행 설정
+
+`gradle.properties`에 로컬 기여자를 위한 기본 속도 설정이 포함되어 있습니다:
+
+- `org.gradle.daemon=true`
+- `org.gradle.parallel=true`
+- `org.gradle.caching=true`
+- `kotlin.incremental=true`
 
 ## H2/JDBC 검증
 

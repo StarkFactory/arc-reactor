@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.0] - 2026-02-17
+
+### Added
+- CI integration test job for `:arc-core` and `:arc-web` using `-PincludeIntegration` with
+  `com.arc.reactor.integration.*` filters.
+- Shared web integration test stub config (`IntegrationTestAgentExecutorConfig`) to keep controller integration contexts lightweight.
+- New `external` test tag gate. External-dependency integration tests run only with
+  `-PincludeExternalIntegration`.
+
+### Changed
+- Moved policy/rag/output-guard REST integration tests from `arc-core` to `arc-web` to match module boundaries.
+- Moved related SQL test schemas to `arc-web` test resources.
+- Added Gradle performance defaults in `gradle.properties` (daemon/parallel/build-cache/incremental).
+- Split large configuration/model files:
+  - extracted policy/feature property classes from `AgentProperties.kt`
+  - extracted `McpToolCallback` from `McpManager.kt`
+
+### Fixed
+- Prevented hidden integration regressions by enforcing integration checks in CI.
+- Fixed false-negative integration failures caused by mismatched test module placement.
+
 ## [3.4.0] - 2026-02-14
 
 ### Added

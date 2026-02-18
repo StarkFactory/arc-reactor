@@ -42,6 +42,18 @@ Provider dependencies are defined in `arc-core/build.gradle.kts`.
 - OpenAI/Anthropic are `compileOnly` by default.
 - If you switch provider, change the target dependency to `implementation(...)` in `arc-core/build.gradle.kts`.
 
+#### Minimal fork-friendly setup
+
+For the first local run, only one required value is needed:
+
+```bash
+export GEMINI_API_KEY=your-api-key
+./gradlew :arc-app:bootRun
+```
+
+Everything else is opt-in (`auth`, `rag`, `cors`, `circuit-breaker`), so you can enable features progressively.
+Detailed toggles are documented in `docs/en/getting-started/configuration.md`.
+
 ### 3. Create Tools
 
 Add your business logic as tools in `arc-core/src/main/kotlin/com/arc/reactor/tool/`:

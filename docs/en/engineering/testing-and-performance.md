@@ -8,6 +8,8 @@ All modules exclude `@Tag("integration")` tests by default.
 
 - default run: `./gradlew test --continue`
 - include integration: `./gradlew test -PincludeIntegration`
+- integration API suite (core + web): `./gradlew :arc-core:test :arc-web:test -PincludeIntegration --tests "com.arc.reactor.integration.*"`
+- include external integration (npx/docker/network): `./gradlew test -PincludeIntegration -PincludeExternalIntegration`
 
 This keeps local feedback loops fast while allowing explicit integration coverage when needed.
 
@@ -30,6 +32,7 @@ Examples:
 - long network/connection timeout values in negative-path tests
 - reconnect loops enabled in tests that validate failure behavior
 - thread/latch misconfiguration that forces fixed waits
+- external dependency startup/download (e.g., MCP `npx` server boot)
 
 ## Recommendations
 
@@ -37,6 +40,15 @@ Examples:
 - disable reconnect by default in unit tests unless reconnect is under test
 - keep integration tests tagged and opt-in
 - prefer deterministic invalid endpoints over externally flaky targets
+
+## Gradle Runtime Defaults
+
+`gradle.properties` now includes practical speed defaults for local contributors:
+
+- `org.gradle.daemon=true`
+- `org.gradle.parallel=true`
+- `org.gradle.caching=true`
+- `kotlin.incremental=true`
 
 ## H2/JDBC Validation
 
