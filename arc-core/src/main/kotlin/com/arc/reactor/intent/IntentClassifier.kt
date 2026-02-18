@@ -17,8 +17,9 @@ import com.arc.reactor.intent.model.IntentResult
  * ## Example Usage
  * ```kotlin
  * val result = classifier.classify("I want to return my order", context)
- * if (!result.isUnknown) {
- *     val intentName = result.primary!!.intentName  // e.g. "refund"
+ * val intentName = result.primary?.intentName
+ * if (intentName != null) {
+ *     // e.g. "refund"
  * }
  * ```
  *

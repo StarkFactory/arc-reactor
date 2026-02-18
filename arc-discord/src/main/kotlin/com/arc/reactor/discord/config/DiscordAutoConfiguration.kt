@@ -40,10 +40,14 @@ class DiscordAutoConfiguration(
     @ConditionalOnMissingBean
     fun gatewayDiscordClient(properties: DiscordProperties): GatewayDiscordClient {
         logger.info { "Creating Discord gateway client" }
-        return DiscordClientBuilder.create(properties.token)
+        return checkNotNull(
+            DiscordClientBuilder.create(properties.token)
             .build()
             .login()
-            .block()!!
+            .block()
+        ) {
+            "Discord login returned null GatewayDiscordClient. Verify token and gateway connectivity."
+        }
     }
 
     @Bean

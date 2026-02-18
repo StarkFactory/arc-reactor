@@ -65,7 +65,7 @@ class JdbcToolPolicyStore(
             }
 
             updated
-        }!!
+        } ?: error("Transaction returned null while saving tool policy")
     }
 
     override fun delete(): Boolean {

@@ -47,7 +47,13 @@ jobs:
         if: always()
         with:
           name: test-results-java-${{ matrix.java }}
-          path: build/reports/tests/
+          path: |
+            arc-core/build/reports/tests/
+            arc-web/build/reports/tests/
+            arc-slack/build/reports/tests/
+            arc-discord/build/reports/tests/
+            arc-line/build/reports/tests/
+            arc-error-report/build/reports/tests/
 
   integration:
     runs-on: ubuntu-latest

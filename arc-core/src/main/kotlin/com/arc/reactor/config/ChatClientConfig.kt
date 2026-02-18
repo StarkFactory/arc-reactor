@@ -25,7 +25,13 @@ class ChatClientConfig {
     ): ChatClient {
         val defaultBeanName = chatModels.keys.firstOrNull { beanName ->
             ChatModelProvider.resolveProviderName(beanName) == properties.llm.defaultProvider
-        } ?: chatModels.keys.first()
-        return ChatClient.builder(chatModels[defaultBeanName]!!).build()
+        } ?: chatModels.keys.firstOrNull()
+        val resolvedBeanName = checkNotNull(defaultBeanName) {
+            "No ChatModel bean found. Configure at least one Spring AI provider."
+        }
+        val chatModel = checkNotNull(chatModels[resolvedBeanName]) {
+            "Resolved ChatModel bean '$resolvedBeanName' is missing from chatModels map."
+        }
+        return ChatClient.builder(chatModel).build()
     }
 }

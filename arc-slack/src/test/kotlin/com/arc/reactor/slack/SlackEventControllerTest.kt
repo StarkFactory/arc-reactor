@@ -13,7 +13,6 @@ import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -85,7 +84,6 @@ class SlackEventControllerTest {
             """.trimIndent()
 
             controller.handleEvent(payload)
-            delay(200) // Allow async processing
 
             coVerify(timeout = 2000) { eventHandler.handleAppMention(match { it.userId == "U123" }) }
         }
@@ -110,9 +108,8 @@ class SlackEventControllerTest {
 
             controller.handleEvent(payload)
             controller.handleEvent(payload)
-            delay(200)
 
-            coVerify(exactly = 1) { eventHandler.handleAppMention(any()) }
+            coVerify(timeout = 2000, exactly = 1) { eventHandler.handleAppMention(any()) }
         }
     }
 
@@ -136,7 +133,6 @@ class SlackEventControllerTest {
             """.trimIndent()
 
             controller.handleEvent(payload)
-            delay(200)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -158,7 +154,6 @@ class SlackEventControllerTest {
             """.trimIndent()
 
             controller.handleEvent(payload)
-            delay(200)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -186,7 +181,6 @@ class SlackEventControllerTest {
             """.trimIndent()
 
             controller.handleEvent(payload)
-            delay(200)
 
             coVerify(timeout = 2000) {
                 eventHandler.handleMessage(match {
@@ -211,7 +205,6 @@ class SlackEventControllerTest {
             """.trimIndent()
 
             controller.handleEvent(payload)
-            delay(200)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }

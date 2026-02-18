@@ -10,7 +10,6 @@ import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -60,7 +59,6 @@ class LineWebhookControllerTest {
             """.trimIndent()
 
             controller.handleWebhook(payload)
-            delay(200)
 
             coVerify(timeout = 2000) {
                 eventHandler.handleMessage(
@@ -93,7 +91,6 @@ class LineWebhookControllerTest {
             """.trimIndent()
 
             controller.handleWebhook(payload)
-            delay(200)
 
             coVerify(timeout = 2000) {
                 eventHandler.handleMessage(match { it.userId == "U001" })
@@ -121,7 +118,6 @@ class LineWebhookControllerTest {
             """.trimIndent()
 
             controller.handleWebhook(payload)
-            delay(200)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -140,7 +136,6 @@ class LineWebhookControllerTest {
             """.trimIndent()
 
             controller.handleWebhook(payload)
-            delay(200)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -158,7 +153,6 @@ class LineWebhookControllerTest {
             """.trimIndent()
 
             controller.handleWebhook(payload)
-            delay(200)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }

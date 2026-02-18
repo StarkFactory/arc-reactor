@@ -60,7 +60,7 @@ class JdbcRagIngestionPolicyStore(
                 )
             }
             updated
-        }!!
+        } ?: error("Transaction returned null while saving RAG ingestion policy")
     }
 
     override fun delete(): Boolean {
@@ -124,7 +124,7 @@ class JdbcRagIngestionCandidateStore(
                 candidate.ingestedDocumentId
             )
             findById(candidate.id) ?: candidate
-        }!!
+        } ?: error("Transaction returned null while saving RAG ingestion candidate")
     }
 
     override fun findById(id: String): RagIngestionCandidate? {

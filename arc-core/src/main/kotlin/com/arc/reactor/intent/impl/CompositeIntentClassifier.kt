@@ -35,11 +35,12 @@ class CompositeIntentClassifier(
 
     override suspend fun classify(text: String, context: ClassificationContext): IntentResult {
         val ruleResult = ruleClassifier.classify(text, context)
+        val rulePrimary = ruleResult.primary
 
-        if (!ruleResult.isUnknown && ruleResult.primary!!.confidence >= ruleConfidenceThreshold) {
+        if (!ruleResult.isUnknown && rulePrimary != null && rulePrimary.confidence >= ruleConfidenceThreshold) {
             logger.debug {
                 "Composite: rule-based match accepted " +
-                    "(intent=${ruleResult.primary.intentName}, confidence=${ruleResult.primary.confidence})"
+                    "(intent=${rulePrimary.intentName}, confidence=${rulePrimary.confidence})"
             }
             return ruleResult
         }
@@ -49,7 +50,7 @@ class CompositeIntentClassifier(
 
             logger.debug {
                 val ruleInfo = if (ruleResult.isUnknown) "no rule match"
-                else "rule=${ruleResult.primary!!.intentName}(${ruleResult.primary.confidence})"
+                else "rule=${rulePrimary?.intentName}(${rulePrimary?.confidence})"
                 "Composite: LLM fallback used ($ruleInfo) -> " +
                     "llm=${llmResult.primary?.intentName}(${llmResult.primary?.confidence})"
             }

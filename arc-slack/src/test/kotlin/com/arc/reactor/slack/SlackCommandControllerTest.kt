@@ -57,8 +57,6 @@ class SlackCommandControllerTest {
             triggerId = "trigger-1"
         )
 
-        delay(200)
-
         coVerify(timeout = 2000) {
             commandHandler.handleSlashCommand(match<SlackSlashCommand> {
                 it.command == "/jarvis" &&

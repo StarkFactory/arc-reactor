@@ -46,7 +46,10 @@ class IntentResolver(
                 return null
             }
 
-            val primary = result.primary!!
+            val primary = result.primary ?: run {
+                logger.warn { "IntentResolver: non-unknown result without primary intent, using default pipeline" }
+                return null
+            }
             if (primary.confidence < confidenceThreshold) {
                 logger.debug {
                     "IntentResolver: confidence too low " +
@@ -89,9 +92,12 @@ class IntentResolver(
      */
     fun applyProfile(command: AgentCommand, resolved: ResolvedIntent): AgentCommand {
         val profile = resolved.profile
+        val primaryConfidence = requireNotNull(resolved.result.primary) {
+            "ResolvedIntent.result.primary must not be null when applying an intent profile"
+        }.confidence
         val intentMetadata = mutableMapOf<String, Any>(
             METADATA_INTENT_NAME to resolved.intentName,
-            METADATA_INTENT_CONFIDENCE to resolved.result.primary!!.confidence,
+            METADATA_INTENT_CONFIDENCE to primaryConfidence,
             METADATA_INTENT_CLASSIFIED_BY to resolved.result.classifiedBy,
             METADATA_INTENT_TOKEN_COST to resolved.result.tokenCost
         )

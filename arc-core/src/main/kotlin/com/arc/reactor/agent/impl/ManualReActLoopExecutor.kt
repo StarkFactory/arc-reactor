@@ -91,7 +91,10 @@ internal class ManualReActLoopExecutor(
                 )
             }
 
-            messages.add(assistantOutput!!)
+            val assistantMessage = requireNotNull(assistantOutput) {
+                "Assistant output is required when tool calls are present"
+            }
+            messages.add(assistantMessage)
 
             val totalToolCallsCounter = AtomicInteger(totalToolCalls)
             val toolResponses = toolCallOrchestrator.executeInParallel(
