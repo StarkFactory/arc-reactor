@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.1] - 2026-02-18
+
+### Added
+- Optional external integration test gate via `-PincludeExternalIntegration` with `@Tag("external")`.
+
+### Changed
+- Bumped project version to `3.9.1`.
+- Moved API integration tests and related SQL schemas to `arc-web` to match module ownership.
+- Split large config/MCP files (`AgentProperties` policy-feature extraction, `McpToolCallback` extraction).
+- Aligned CI integration test filter and release/docs references with the current integration suite.
+- Unified provider key examples to Spring AI env vars (`SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`).
+
 ## [3.9.0] - 2026-02-17
 
 ### Added
