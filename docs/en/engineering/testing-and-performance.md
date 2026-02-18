@@ -50,6 +50,16 @@ Examples:
 - `org.gradle.caching=true`
 - `kotlin.incremental=true`
 
+## CI Duration Guard
+
+CI now enforces time budgets using `scripts/ci/run-with-duration-guard.sh`:
+
+- unit test suite: 90s
+- integration API suite: 150s
+
+If execution exceeds the budget, CI fails fast with a clear duration error.
+Integration gate also verifies that external MCP integration tests are excluded.
+
 ## H2/JDBC Validation
 
 For DB-related behavior, keep slice/integration tests reproducible:

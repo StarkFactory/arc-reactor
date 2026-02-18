@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+env:
+  UNIT_TEST_MAX_SECONDS: "90"
+  INTEGRATION_TEST_MAX_SECONDS: "150"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,8 +36,8 @@ jobs:
       - name: Build
         run: ./gradlew build -x test
 
-      - name: Run Tests
-        run: ./gradlew test
+      - name: Run Tests (Duration Guard)
+        run: DURATION_LABEL="unit test suite" bash scripts/ci/run-with-duration-guard.sh "$UNIT_TEST_MAX_SECONDS" ./gradlew test
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v6
@@ -62,8 +66,15 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      - name: Run Integration Tests (core + web)
-        run: ./gradlew :arc-core:test :arc-web:test -PincludeIntegration --tests "com.arc.reactor.integration.*"
+      - name: Run Integration Tests (core + web, Duration Guard)
+        run: DURATION_LABEL="integration api suite" bash scripts/ci/run-with-duration-guard.sh "$INTEGRATION_TEST_MAX_SECONDS" ./gradlew :arc-core:test :arc-web:test -PincludeIntegration --tests "com.arc.reactor.integration.*"
+
+      - name: Verify External Integration Tests Are Excluded
+        run: |
+          if ls arc-core/build/test-results/test/TEST-com.arc.reactor.mcp.McpIntegrationTest*.xml >/dev/null 2>&1; then
+            echo "::error::external integration tests were executed in integration gate"
+            exit 1
+          fi
 
       - name: Upload Integration Test Results
         uses: actions/upload-artifact@v6

@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve Release Notes File
+        id: notes
+        run: |
+          FILE="docs/en/releases/${GITHUB_REF_NAME}.md"
+          if [ -f "$FILE" ]; then
+            echo "has_file=true" >> "$GITHUB_OUTPUT"
+            echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_file=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Release From Docs
+        if: steps.notes.outputs.has_file == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: ${{ steps.notes.outputs.file }}
+          draft: false
+          prerelease: false
+
+      - name: Create Release With Generated Notes
+        if: steps.notes.outputs.has_file != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false

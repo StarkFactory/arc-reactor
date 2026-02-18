@@ -50,6 +50,16 @@
 - `org.gradle.caching=true`
 - `kotlin.incremental=true`
 
+## CI 시간 가드
+
+CI는 `scripts/ci/run-with-duration-guard.sh`로 실행 시간을 제한합니다:
+
+- 기본(unit) 테스트: 90초
+- 통합 API 스위트: 150초
+
+예산을 초과하면 CI를 즉시 실패시켜 시간 회귀를 빠르게 감지합니다.
+통합 게이트에서는 외부 MCP 통합 테스트가 포함되지 않았는지도 함께 검증합니다.
+
 ## H2/JDBC 검증
 
 DB 관련 회귀 검증은 재현 가능성을 우선합니다:

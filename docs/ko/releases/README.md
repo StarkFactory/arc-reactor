@@ -2,6 +2,7 @@
 
 버전별 릴리즈 노트와 업그레이드 요약입니다.
 
+- 태그(`v*`) 푸시 시 `.github/workflows/release.yml`로 GitHub Release가 자동 생성됩니다.
 - [v3.9.1](v3.9.1.md)
 - [v3.9.0](v3.9.0.md)
 - [v3.8.2](v3.8.2.md)
