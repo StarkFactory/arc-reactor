@@ -112,6 +112,11 @@ tasks.withType<Test> {
         if (!project.hasProperty("includeIntegration")) {
             excludeTags("integration")
         }
+        // Exclude matrix/fuzz tests by default to keep local feedback loops fast.
+        // Run with: ./gradlew test -PincludeMatrix
+        if (!project.hasProperty("includeMatrix")) {
+            excludeTags("matrix")
+        }
     }
 }
 

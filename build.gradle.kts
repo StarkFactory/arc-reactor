@@ -38,6 +38,11 @@ subprojects {
             if (!project.hasProperty("includeIntegration")) {
                 excludeTags("integration")
             }
+            // Large matrix/fuzz suites are opt-in for local/CI speed.
+            // Run with: ./gradlew test -PincludeMatrix
+            if (!project.hasProperty("includeMatrix")) {
+                excludeTags("matrix")
+            }
             // External dependency integration tests (network/npx/docker) stay explicit.
             // Run with: ./gradlew test -PincludeIntegration -PincludeExternalIntegration
             if (!project.hasProperty("includeExternalIntegration")) {

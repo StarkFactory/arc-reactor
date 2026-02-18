@@ -4,10 +4,11 @@ This guide documents current test scope defaults and practical speed optimizatio
 
 ## Default Test Scope
 
-All modules exclude `@Tag("integration")` tests by default.
+All modules exclude `@Tag("integration")`, `@Tag("external")`, and `@Tag("matrix")` tests by default.
 
 - default run: `./gradlew test --continue`
 - include integration: `./gradlew test -PincludeIntegration`
+- include matrix/fuzz suites: `./gradlew test -PincludeMatrix`
 - integration API suite (core + web): `./gradlew :arc-core:test :arc-web:test -PincludeIntegration --tests "com.arc.reactor.integration.*"`
 - include external integration (npx/docker/network): `./gradlew test -PincludeIntegration -PincludeExternalIntegration`
 
@@ -31,6 +32,7 @@ Developer helpers:
 
 - fast local default suite: `scripts/dev/test-fast.sh`
 - include integration tests: `INCLUDE_INTEGRATION=1 scripts/dev/test-fast.sh`
+- include matrix/fuzz tests: `INCLUDE_MATRIX=1 scripts/dev/test-fast.sh`
 - include external integration tests: `INCLUDE_EXTERNAL=1 scripts/dev/test-fast.sh`
 - inspect slowest suites from existing XML reports: `scripts/dev/slow-tests.sh 30`
 - run docs/sync quality checks locally: `scripts/dev/check-docs.sh`
@@ -43,6 +45,12 @@ Developer helpers:
 - external dependency startup/download (e.g., MCP `npx` server boot)
 - repeated use of `--no-daemon`/`--rerun-tasks`/`--no-build-cache` for local loops
 - running multiple Gradle test commands concurrently in the same workspace
+
+## Matrix/Fuzz Policy
+
+- Put high-volume combinations/randomized regression tests under `@Tag("matrix")`.
+- Keep `matrix` suites out of default PR runs for speed.
+- Run them on demand with `-PincludeMatrix` and in nightly CI.
 
 ## Recommendations
 
@@ -69,6 +77,12 @@ CI now enforces time budgets using `scripts/ci/run-with-duration-guard.sh`:
 
 If execution exceeds the budget, CI fails fast with a clear duration error.
 Integration gate also verifies that external MCP integration tests are excluded.
+
+Nightly matrix workflow:
+
+- `.github/workflows/nightly-matrix.yml` runs `:arc-core:test -PincludeMatrix` on a schedule.
+- workflow step summary includes parsed JUnit totals + failed test cases (`scripts/ci/summarize-junit-failures.sh`)
+- optional Slack failure notification is sent when `NIGHTLY_MATRIX_SLACK_WEBHOOK_URL` secret is configured
 
 ## CI Structural Guard
 

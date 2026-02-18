@@ -4,10 +4,11 @@
 
 ## 기본 테스트 범위
 
-모든 모듈은 기본적으로 `@Tag("integration")` 테스트를 제외합니다.
+모든 모듈은 기본적으로 `@Tag("integration")`, `@Tag("external")`, `@Tag("matrix")` 테스트를 제외합니다.
 
 - 기본 실행: `./gradlew test --continue`
 - 통합 테스트 포함: `./gradlew test -PincludeIntegration`
+- 매트릭스/퍼즈 테스트 포함: `./gradlew test -PincludeMatrix`
 - 통합 API 스위트(core + web): `./gradlew :arc-core:test :arc-web:test -PincludeIntegration --tests "com.arc.reactor.integration.*"`
 - 외부 의존 통합 테스트 포함(npx/docker/network): `./gradlew test -PincludeIntegration -PincludeExternalIntegration`
 
@@ -31,6 +32,7 @@
 
 - 빠른 기본 로컬 스위트: `scripts/dev/test-fast.sh`
 - 통합 테스트 포함: `INCLUDE_INTEGRATION=1 scripts/dev/test-fast.sh`
+- 매트릭스/퍼즈 테스트 포함: `INCLUDE_MATRIX=1 scripts/dev/test-fast.sh`
 - 외부 통합 테스트 포함: `INCLUDE_EXTERNAL=1 scripts/dev/test-fast.sh`
 - 기존 XML 리포트 기준 느린 테스트 상위 조회: `scripts/dev/slow-tests.sh 30`
 - 문서/동기화 품질 검사: `scripts/dev/check-docs.sh`
@@ -43,6 +45,12 @@
 - 외부 의존 시작/다운로드 지연(예: MCP `npx` 서버 부팅)
 - 로컬 반복 실행에서 `--no-daemon`/`--rerun-tasks`/`--no-build-cache`를 자주 사용
 - 동일 워크스페이스에서 Gradle 테스트 명령을 동시에 여러 개 실행
+
+## 매트릭스/퍼즈 운영 정책
+
+- 조합 폭이 큰 회귀/랜덤 검증 테스트는 `@Tag("matrix")`로 분류합니다.
+- PR 기본 경로에서는 `matrix`를 제외해 피드백 속도를 유지합니다.
+- 필요 시 `-PincludeMatrix`로 수동 실행하고, nightly CI에서 정기 검증합니다.
 
 ## 권장 사항
 
@@ -69,6 +77,12 @@ CI는 `scripts/ci/run-with-duration-guard.sh`로 실행 시간을 제한합니�
 
 예산을 초과하면 CI를 즉시 실패시켜 시간 회귀를 빠르게 감지합니다.
 통합 게이트에서는 외부 MCP 통합 테스트가 포함되지 않았는지도 함께 검증합니다.
+
+Nightly matrix 워크플로:
+
+- `.github/workflows/nightly-matrix.yml`에서 `:arc-core:test -PincludeMatrix`를 주기 실행합니다.
+- 워크플로 요약에는 JUnit 총계와 실패 케이스가 자동 정리됩니다(`scripts/ci/summarize-junit-failures.sh`).
+- `NIGHTLY_MATRIX_SLACK_WEBHOOK_URL` 시크릿이 설정되어 있으면 실패 시 Slack 알림을 전송합니다.
 
 ## CI 구조 가드
 

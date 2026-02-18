@@ -10,6 +10,10 @@ if [[ "${INCLUDE_INTEGRATION:-0}" == "1" || "${INCLUDE_EXTERNAL:-0}" == "1" ]]; 
   gradle_args+=(-PincludeIntegration)
 fi
 
+if [[ "${INCLUDE_MATRIX:-0}" == "1" ]]; then
+  gradle_args+=(-PincludeMatrix)
+fi
+
 if [[ "${INCLUDE_EXTERNAL:-0}" == "1" ]]; then
   gradle_args+=(-PincludeExternalIntegration)
 fi
