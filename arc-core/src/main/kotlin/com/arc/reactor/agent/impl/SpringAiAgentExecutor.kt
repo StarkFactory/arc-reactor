@@ -18,7 +18,6 @@ import com.arc.reactor.resilience.FallbackStrategy
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
-import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.guard.RequestGuard
@@ -31,7 +30,6 @@ import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.rag.RagPipeline
-import com.arc.reactor.rag.model.RagQuery
 import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.support.runSuspendCatchingNonCancellation
@@ -46,10 +44,6 @@ import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import org.springframework.ai.model.tool.ToolCallingChatOptions
-import org.springframework.ai.tool.definition.ToolDefinition
-import org.springframework.ai.tool.metadata.ToolMetadata
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -136,7 +130,16 @@ class SpringAiAgentExecutor(
 
     private val concurrencySemaphore = Semaphore(properties.concurrency.maxConcurrentRequests)
     private val systemPromptBuilder = SystemPromptBuilder()
-    private val structuredOutputValidator = StructuredOutputValidator()
+    private val ragContextRetriever = RagContextRetriever(
+        enabled = properties.rag.enabled,
+        topK = properties.rag.topK,
+        rerankEnabled = properties.rag.rerankEnabled,
+        ragPipeline = ragPipeline
+    )
+    private val structuredResponseRepairer = StructuredResponseRepairer(
+        errorMessageResolver = errorMessageResolver,
+        resolveChatClient = ::resolveChatClient
+    )
     private val messageTrimmer = ConversationMessageTrimmer(
         maxContextWindowTokens = properties.llm.maxContextWindowTokens,
         outputReserveTokens = properties.llm.maxOutputTokens,
@@ -160,7 +163,7 @@ class SpringAiAgentExecutor(
         buildRequestSpec = ::createPromptRequestSpec,
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::buildChatOptions,
-        validateAndRepairResponse = ::validateAndRepairResponse,
+        validateAndRepairResponse = structuredResponseRepairer::validateAndRepair,
         recordTokenUsage = agentMetrics::recordTokenUsage
     )
     private val streamingReActLoopExecutor = StreamingReActLoopExecutor(
@@ -202,7 +205,7 @@ class SpringAiAgentExecutor(
         mcpToolCallbacks = mcpToolCallbacks,
         conversationManager = conversationManager,
         selectAndPrepareTools = ::prepareToolsForPrompt,
-        retrieveRagContext = ::retrieveRagContext,
+        retrieveRagContext = ragContextRetriever::retrieve,
         executeWithTools = ::executeWithTools,
         finalizeExecution = { result, command, hookContext, tools, startTime ->
             executionResultFinalizer.finalize(
@@ -287,7 +290,7 @@ class SpringAiAgentExecutor(
 
     /**
      * Make one additional LLM call requesting a longer response.
-     * Follows the same pattern as [attemptRepair].
+     * Follows the same retry pattern used by [StructuredResponseRepairer].
      */
     private suspend fun attemptLongerResponse(
         shortContent: String,
@@ -390,7 +393,7 @@ class SpringAiAgentExecutor(
 
                     // 4. Setup (conversation via ConversationManager)
                     val conversationHistory = conversationManager.loadHistory(effectiveCommand)
-                    val ragContext = retrieveRagContext(effectiveCommand)
+                    val ragContext = ragContextRetriever.retrieve(effectiveCommand)
                     val systemPrompt = systemPromptBuilder.build(
                         effectiveCommand.systemPrompt, ragContext,
                         effectiveCommand.responseFormat, effectiveCommand.responseSchema
@@ -485,114 +488,6 @@ class SpringAiAgentExecutor(
             )
         }
         agentMetrics.recordStreamingExecution(result)
-    }
-
-    /**
-     * Retrieve RAG context if enabled and pipeline is available.
-     */
-    private suspend fun retrieveRagContext(command: AgentCommand): String? {
-        if (!properties.rag.enabled || ragPipeline == null) return null
-
-        return runSuspendCatchingNonCancellation {
-            val ragFilters = extractRagFilters(command.metadata)
-            val ragResult = ragPipeline.retrieve(
-                RagQuery(
-                    query = command.userPrompt,
-                    filters = ragFilters,
-                    topK = properties.rag.topK,
-                    rerank = properties.rag.rerankEnabled
-                )
-            )
-            if (ragResult.hasDocuments) ragResult.context else null
-        }.getOrElse { e ->
-            logger.warn(e) { "RAG retrieval failed, continuing without context" }
-            null
-        }
-    }
-
-    private fun extractRagFilters(metadata: Map<String, Any>): Map<String, Any> {
-        if (metadata.isEmpty()) return emptyMap()
-
-        val merged = linkedMapOf<String, Any>()
-
-        val explicit = metadata["ragFilters"] as? Map<*, *>
-        explicit?.forEach { (k, v) ->
-            val key = k?.toString()?.trim().orEmpty()
-            if (key.isNotBlank() && v != null) {
-                merged[key] = v
-            }
-        }
-
-        metadata.forEach { (k, v) ->
-            if (!k.startsWith("rag.filter.")) return@forEach
-            val key = k.removePrefix("rag.filter.").trim()
-            if (key.isNotBlank() && key !in merged) {
-                merged[key] = v
-            }
-        }
-
-        return merged
-    }
-
-    /**
-     * Validate structured output and attempt one repair if invalid.
-     * Returns the validated content or an INVALID_RESPONSE failure.
-     */
-    private suspend fun validateAndRepairResponse(
-        rawContent: String,
-        format: ResponseFormat,
-        command: AgentCommand,
-        tokenUsage: TokenUsage?,
-        toolsUsed: List<String>
-    ): AgentResult {
-        if (format == ResponseFormat.TEXT) {
-            return AgentResult.success(content = rawContent, toolsUsed = toolsUsed, tokenUsage = tokenUsage)
-        }
-
-        val stripped = structuredOutputValidator.stripMarkdownCodeFence(rawContent)
-
-        if (structuredOutputValidator.isValidFormat(stripped, format)) {
-            return AgentResult.success(content = stripped, toolsUsed = toolsUsed, tokenUsage = tokenUsage)
-        }
-
-        // Attempt one LLM repair call
-        logger.warn { "Invalid $format response detected, attempting repair" }
-        val repaired = attemptRepair(stripped, format, command)
-        if (repaired != null && structuredOutputValidator.isValidFormat(repaired, format)) {
-            return AgentResult.success(content = repaired, toolsUsed = toolsUsed, tokenUsage = tokenUsage)
-        }
-
-        logger.error { "Structured output validation failed after repair attempt" }
-        return AgentResult.failure(
-            errorMessage = errorMessageResolver.resolve(AgentErrorCode.INVALID_RESPONSE, null),
-            errorCode = AgentErrorCode.INVALID_RESPONSE
-        )
-    }
-
-    private suspend fun attemptRepair(
-        invalidContent: String,
-        format: ResponseFormat,
-        command: AgentCommand
-    ): String? {
-        return runSuspendCatchingNonCancellation {
-            val formatName = format.name
-            val repairPrompt = "The following $formatName is invalid. " +
-                "Fix it and return ONLY valid $formatName with no explanation or code fences:\n\n$invalidContent"
-
-            val activeChatClient = resolveChatClient(command)
-            val response = kotlinx.coroutines.runInterruptible {
-                activeChatClient
-                    .prompt()
-                    .user(repairPrompt)
-                    .call()
-                    .chatResponse()
-            }
-            val repairedContent = response?.results?.firstOrNull()?.output?.text
-            if (repairedContent != null) structuredOutputValidator.stripMarkdownCodeFence(repairedContent) else null
-        }.getOrElse { e ->
-            logger.warn(e) { "Repair attempt failed" }
-            null
-        }
     }
 
     /**
@@ -777,52 +672,3 @@ class SpringAiAgentExecutor(
     }
 
 }
-
-/**
- * Adapter that wraps Arc Reactor's ToolCallback as a Spring AI ToolCallback.
- *
- * Bridges the framework-agnostic ToolCallback interface to Spring AI's
- * tool calling system, enabling integration with ChatClient.tools().
- */
-internal class ArcToolCallbackAdapter(
-    val arcCallback: ToolCallback,
-    fallbackToolTimeoutMs: Long = 15_000
-) : org.springframework.ai.tool.ToolCallback {
-
-    private val blockingInvoker = BlockingToolCallbackInvoker(fallbackToolTimeoutMs)
-    private val toolDefinition = ToolDefinition.builder()
-        .name(arcCallback.name)
-        .description(arcCallback.description)
-        .inputSchema(arcCallback.inputSchema)
-        .build()
-
-    override fun getToolDefinition(): ToolDefinition = toolDefinition
-
-    override fun getToolMetadata(): ToolMetadata = ToolMetadata.builder().build()
-
-    override fun call(toolInput: String): String {
-        val parsedArguments = parseToolArguments(toolInput)
-        return try {
-            // Spring AI callback API is blocking; enforce tool-level timeout to avoid indefinite hangs.
-            blockingInvoker.invokeWithTimeout(arcCallback, parsedArguments)
-        } catch (e: TimeoutCancellationException) {
-            val timeoutMessage = blockingInvoker.timeoutErrorMessage(arcCallback)
-            logger.warn { timeoutMessage }
-            throw RuntimeException(timeoutMessage, e)
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            logger.error(e) { "Tool callback execution failed for '${arcCallback.name}'" }
-            throw RuntimeException(
-                "Tool '${arcCallback.name}' execution failed: ${e.message.orEmpty()}",
-                e
-            )
-        }
-    }
-}
-
-/**
- * Exception thrown when a classified intent is in the blocked list.
- */
-class BlockedIntentException(
-    val intentName: String
-) : Exception("Intent '$intentName' is blocked by policy")
