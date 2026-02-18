@@ -66,7 +66,8 @@ class ToolPolicyController(
             actor = currentActor(exchange),
             resourceType = "tool_policy",
             resourceId = "singleton",
-            detail = "enabled=${saved.enabled}, writeTools=${saved.writeToolNames.size}, denyChannels=${saved.denyWriteChannels.size}"
+            detail = "enabled=${saved.enabled}, writeTools=${saved.writeToolNames.size}, " +
+                "denyChannels=${saved.denyWriteChannels.size}"
         )
         return ResponseEntity.ok(saved.toResponse())
     }
@@ -125,7 +126,10 @@ data class UpdateToolPolicyRequest(
         enabled = enabled,
         writeToolNames = writeToolNames.map { it.trim() }.filter { it.isNotBlank() }.toSet(),
         denyWriteChannels = denyWriteChannels.map { it.trim().lowercase() }.filter { it.isNotBlank() }.toSet(),
-        allowWriteToolNamesInDenyChannels = allowWriteToolNamesInDenyChannels.map { it.trim() }.filter { it.isNotBlank() }.toSet(),
+        allowWriteToolNamesInDenyChannels = allowWriteToolNamesInDenyChannels
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .toSet(),
         allowWriteToolNamesByChannel = allowWriteToolNamesByChannel
             .mapKeys { (k, _) -> k.trim().lowercase() }
             .mapValues { (_, v) -> v.map { it.trim() }.filter { it.isNotBlank() }.toSet() }

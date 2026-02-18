@@ -86,7 +86,10 @@ class ArcReactorCoreBeansConfiguration {
                     maxResults = properties.toolSelection.maxResults
                 )
             }
-            logger.warn { "SemanticToolSelector requested but no EmbeddingModel found, falling back to AllToolSelector" }
+            logger.warn {
+                "SemanticToolSelector requested but no EmbeddingModel found, " +
+                    "falling back to AllToolSelector"
+            }
         }
         return AllToolSelector()
     }

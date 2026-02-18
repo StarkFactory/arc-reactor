@@ -68,7 +68,12 @@ class McpServerController(
         val existing = mcpServerStore.findByName(request.name)
         if (existing != null) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ErrorResponse(error = "MCP server '${request.name}' already exists", timestamp = Instant.now().toString()))
+                .body(
+                    ErrorResponse(
+                        error = "MCP server '${request.name}' already exists",
+                        timestamp = Instant.now().toString()
+                    )
+                )
         }
 
         val server = request.toMcpServer()

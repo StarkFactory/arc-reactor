@@ -26,7 +26,9 @@ internal class ManualReActLoopExecutor(
         ChatOptions,
         List<Any>
     ) -> ChatClient.ChatClientRequestSpec,
-    private val callWithRetry: suspend (suspend () -> org.springframework.ai.chat.model.ChatResponse?) -> org.springframework.ai.chat.model.ChatResponse?,
+    private val callWithRetry: suspend (
+        suspend () -> org.springframework.ai.chat.model.ChatResponse?
+    ) -> org.springframework.ai.chat.model.ChatResponse?,
     private val buildChatOptions: (AgentCommand, Boolean) -> ChatOptions,
     private val validateAndRepairResponse: suspend (
         String,

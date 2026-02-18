@@ -53,7 +53,8 @@ class CustomerServiceExample(
         return MultiAgent.supervisor()
             // -- Worker node definitions --
             // Each node() defines one worker agent.
-            // description is important: the Supervisor's LLM reads this description to decide which worker to delegate to.
+            // description is important: the Supervisor's LLM reads this description
+            // to decide which worker to delegate to.
             .node("order") {
                 systemPrompt = "You are an order specialist. Handle order inquiries, modifications, and cancellations."
                 description = "Order lookup, modification, cancellation"

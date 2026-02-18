@@ -63,7 +63,8 @@ class RagIngestionPolicyController(
             actor = currentActor(exchange),
             resourceType = "rag_ingestion_policy",
             resourceId = "singleton",
-            detail = "enabled=${saved.enabled}, requireReview=${saved.requireReview}, allowedChannels=${saved.allowedChannels.size}"
+            detail = "enabled=${saved.enabled}, requireReview=${saved.requireReview}, " +
+                "allowedChannels=${saved.allowedChannels.size}"
         )
         return ResponseEntity.ok(saved.toResponse())
     }

@@ -122,12 +122,22 @@ class AuthController(
         // Verify current password
         if (authProvider.authenticate(user.email, request.currentPassword) == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse(error = "Current password is incorrect", timestamp = java.time.Instant.now().toString()))
+                .body(
+                    ErrorResponse(
+                        error = "Current password is incorrect",
+                        timestamp = java.time.Instant.now().toString()
+                    )
+                )
         }
 
         if (authProvider !is DefaultAuthProvider) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse(error = "Password change not supported with custom AuthProvider", timestamp = java.time.Instant.now().toString()))
+                .body(
+                    ErrorResponse(
+                        error = "Password change not supported with custom AuthProvider",
+                        timestamp = java.time.Instant.now().toString()
+                    )
+                )
         }
 
         val newHash = authProvider.hashPassword(request.newPassword)

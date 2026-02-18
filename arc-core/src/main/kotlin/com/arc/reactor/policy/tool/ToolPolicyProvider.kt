@@ -69,7 +69,10 @@ class ToolPolicyProvider(
     private fun normalize(policy: ToolPolicy): ToolPolicy {
         return policy.copy(
             writeToolNames = policy.writeToolNames.map { it.trim() }.filter { it.isNotBlank() }.toSet(),
-            denyWriteChannels = policy.denyWriteChannels.map { it.trim().lowercase() }.filter { it.isNotBlank() }.toSet(),
+            denyWriteChannels = policy.denyWriteChannels
+                .map { it.trim().lowercase() }
+                .filter { it.isNotBlank() }
+                .toSet(),
             allowWriteToolNamesInDenyChannels = policy.allowWriteToolNamesInDenyChannels
                 .map { it.trim() }
                 .filter { it.isNotBlank() }

@@ -41,11 +41,13 @@ class DefaultErrorReportHandler(
 
             if (result.success) {
                 logger.info {
-                    "Error report completed requestId=$requestId tools=${result.toolsUsed} duration=${result.durationMs}ms"
+                    "Error report completed requestId=$requestId " +
+                        "tools=${result.toolsUsed} duration=${result.durationMs}ms"
                 }
             } else {
                 logger.warn {
-                    "Error report agent failed requestId=$requestId error=${result.errorMessage} code=${result.errorCode}"
+                    "Error report agent failed requestId=$requestId " +
+                        "error=${result.errorMessage} code=${result.errorCode}"
                 }
             }
         } catch (e: CancellationException) {
@@ -72,7 +74,8 @@ class DefaultErrorReportHandler(
     }
 
     companion object {
-        internal const val ERROR_REPORT_SYSTEM_PROMPT = """You are an autonomous error analysis agent for production incident response.
+        internal const val ERROR_REPORT_SYSTEM_PROMPT = """
+You are an autonomous error analysis agent for production incident response.
 You have access to MCP tools for repository analysis, issue tracking, documentation, and messaging.
 
 ## Your Mission
@@ -80,7 +83,8 @@ Analyze the production error provided and deliver a comprehensive report to the 
 
 ## Available Tool Categories
 - **Bitbucket MCP**: Clone or access repository source code by the provided repository slug.
-- **Error Log MCP**: Load repository and analyze stack traces (repo_load, error_analyze, code_search, code_detail, error_search, stacktrace_parse).
+- **Error Log MCP**: Load repository and analyze stack traces
+  (repo_load, error_analyze, code_search, code_detail, error_search, stacktrace_parse).
 - **Jira MCP**: Search for related issues and find responsible developers.
 - **Slack MCP**: Send formatted messages with @mentions to the specified channel.
 - **Confluence MCP**: Search for related documentation and runbooks.
@@ -88,8 +92,10 @@ Analyze the production error provided and deliver a comprehensive report to the 
 ## Step-by-Step Analysis Process
 1. **Access the repository**: Use Bitbucket tools to clone or locate the repository by the provided repoSlug.
 2. **Load and analyze**: Use repo_load to index the repository, then error_analyze with the stack trace.
-3. **Deep dive**: If specific files/methods are identified, use code_detail to examine surrounding code. Use error_search to find related error patterns.
-4. **Find context**: Search Jira for related issues (recent bugs, known issues). Identify the developer who last modified the failing code or is assigned to related issues.
+3. **Deep dive**: If specific files/methods are identified, use code_detail
+   to examine surrounding code. Use error_search to find related error patterns.
+4. **Find context**: Search Jira for related issues (recent bugs, known issues).
+   Identify the developer who last modified the failing code or is assigned to related issues.
 5. **Check documentation**: Search Confluence for relevant runbooks or incident response procedures.
 6. **Send report**: Compose a well-formatted Slack message and send it to the specified channel.
 

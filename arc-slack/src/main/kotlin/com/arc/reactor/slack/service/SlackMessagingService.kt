@@ -143,7 +143,8 @@ class SlackMessagingService(
                     ?: retryDefaultDelayMs.coerceAtLeast(1L)
 
                 logger.warn {
-                    "Slack API rate-limited for method=$method, retrying in ${retryAfterMillis}ms (attempt=$attempt/$maxAttempts)"
+                    "Slack API rate-limited for method=$method, " +
+                        "retrying in ${retryAfterMillis}ms (attempt=$attempt/$maxAttempts)"
                 }
                 delay(retryAfterMillis)
             } catch (e: WebClientResponseException) {

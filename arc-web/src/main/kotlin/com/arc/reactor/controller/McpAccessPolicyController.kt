@@ -67,7 +67,9 @@ class McpAccessPolicyController(
             actor = currentActor(exchange),
             resourceType = "mcp_server",
             resourceId = name,
-            detail = "status=${response.statusCode.value()}, jiraProjects=${request.allowedJiraProjectKeys.size}, confluenceSpaces=${request.allowedConfluenceSpaceKeys.size}"
+            detail = "status=${response.statusCode.value()}, " +
+                "jiraProjects=${request.allowedJiraProjectKeys.size}, " +
+                "confluenceSpaces=${request.allowedConfluenceSpaceKeys.size}"
         )
         return response
     }

@@ -33,7 +33,8 @@ class JdbcToolPolicyStore(
             if (existing == null) {
                 jdbcTemplate.update(
                     "INSERT INTO tool_policy " +
-                        "(id, enabled, write_tool_names, deny_write_channels, allow_write_tool_names_in_deny_channels, " +
+                        "(id, enabled, write_tool_names, deny_write_channels, " +
+                        "allow_write_tool_names_in_deny_channels, " +
                         "allow_write_tool_names_by_channel, " +
                         "deny_write_message, created_at, updated_at) " +
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -42,7 +43,9 @@ class JdbcToolPolicyStore(
                     objectMapper.writeValueAsString(updated.writeToolNames.toList()),
                     objectMapper.writeValueAsString(updated.denyWriteChannels.toList()),
                     objectMapper.writeValueAsString(updated.allowWriteToolNamesInDenyChannels.toList()),
-                    objectMapper.writeValueAsString(updated.allowWriteToolNamesByChannel.mapValues { it.value.toList() }),
+                    objectMapper.writeValueAsString(
+                        updated.allowWriteToolNamesByChannel.mapValues { it.value.toList() }
+                    ),
                     updated.denyWriteMessage,
                     java.sql.Timestamp.from(createdAt),
                     java.sql.Timestamp.from(now)
@@ -57,7 +60,9 @@ class JdbcToolPolicyStore(
                     objectMapper.writeValueAsString(updated.writeToolNames.toList()),
                     objectMapper.writeValueAsString(updated.denyWriteChannels.toList()),
                     objectMapper.writeValueAsString(updated.allowWriteToolNamesInDenyChannels.toList()),
-                    objectMapper.writeValueAsString(updated.allowWriteToolNamesByChannel.mapValues { it.value.toList() }),
+                    objectMapper.writeValueAsString(
+                        updated.allowWriteToolNamesByChannel.mapValues { it.value.toList() }
+                    ),
                     updated.denyWriteMessage,
                     java.sql.Timestamp.from(now),
                     DEFAULT_ID
@@ -88,7 +93,12 @@ class JdbcToolPolicyStore(
 
     private fun parseJsonSet(json: String?): Set<String> {
         if (json.isNullOrBlank()) return emptySet()
-        return runCatching { objectMapper.readValue<List<String>>(json).map { it.trim() }.filter { it.isNotBlank() }.toSet() }
+        return runCatching {
+            objectMapper.readValue<List<String>>(json)
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .toSet()
+        }
             .getOrDefault(emptySet())
     }
 

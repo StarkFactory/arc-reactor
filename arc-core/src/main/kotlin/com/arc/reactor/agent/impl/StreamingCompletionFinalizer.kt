@@ -86,7 +86,14 @@ internal class StreamingCompletionFinalizer(
             agentMetrics.recordBoundaryViolation(
                 "output_too_short", policy, boundaries.outputMinChars, contentLength
             )
-            logger.warn { formatBoundaryViolation("output_too_short", policy, boundaries.outputMinChars, contentLength) }
+            logger.warn {
+                formatBoundaryViolation(
+                    "output_too_short",
+                    policy,
+                    boundaries.outputMinChars,
+                    contentLength
+                )
+            }
             try {
                 emit(StreamEventMarker.error(
                     formatBoundaryViolation("output_too_short", policy, boundaries.outputMinChars, contentLength)

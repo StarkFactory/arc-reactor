@@ -53,7 +53,8 @@ class IntentResolver(
             if (primary.confidence < confidenceThreshold) {
                 logger.debug {
                     "IntentResolver: confidence too low " +
-                        "(intent=${primary.intentName}, confidence=${primary.confidence}, threshold=$confidenceThreshold)"
+                        "(intent=${primary.intentName}, " +
+                        "confidence=${primary.confidence}, threshold=$confidenceThreshold)"
                 }
                 return null
             }

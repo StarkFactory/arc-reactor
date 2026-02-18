@@ -71,9 +71,10 @@ class RagIngestionCandidateController(
             )
         }
 
-        val vectorStore = vectorStoreProvider.ifAvailable ?: return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
-            ErrorResponse(error = "VectorStore is not configured", timestamp = Instant.now().toString())
-        )
+        val vectorStore = vectorStoreProvider.ifAvailable
+            ?: return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                ErrorResponse(error = "VectorStore is not configured", timestamp = Instant.now().toString())
+            )
 
         val documentId = UUID.randomUUID().toString()
         vectorStore.add(listOf(candidate.toDocument(documentId = documentId)))

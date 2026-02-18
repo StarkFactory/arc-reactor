@@ -35,7 +35,10 @@ class SlackCommandProcessor(
 
     private fun processAsync(command: SlackSlashCommand, entrypoint: String): Boolean {
         if (failFastOnSaturation && !semaphore.tryAcquire()) {
-            logger.warn { "Slack slash command rejected due to saturation: entrypoint=$entrypoint, channel=${command.channelId}" }
+            logger.warn {
+                "Slack slash command rejected due to saturation: " +
+                    "entrypoint=$entrypoint, channel=${command.channelId}"
+            }
             metricsRecorder.recordDropped(
                 entrypoint = entrypoint,
                 reason = "queue_overflow",
@@ -48,7 +51,10 @@ class SlackCommandProcessor(
             if (!failFastOnSaturation) {
                 val acquired = acquirePermitWithTimeout()
                 if (!acquired) {
-                    logger.warn { "Slack slash command dropped due to queue timeout: entrypoint=$entrypoint, channel=${command.channelId}" }
+                    logger.warn {
+                        "Slack slash command dropped due to queue timeout: " +
+                            "entrypoint=$entrypoint, channel=${command.channelId}"
+                    }
                     metricsRecorder.recordDropped(
                         entrypoint = entrypoint,
                         reason = "queue_timeout",

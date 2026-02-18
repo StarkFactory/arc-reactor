@@ -107,7 +107,8 @@ class JdbcRagIngestionCandidateStore(
             findByRunId(candidate.runId)?.let { return@execute it }
             jdbcTemplate.update(
                 "INSERT INTO rag_ingestion_candidates " +
-                    "(id, run_id, user_id, session_id, channel, query, response, status, captured_at, reviewed_at, reviewed_by, review_comment, ingested_document_id) " +
+                    "(id, run_id, user_id, session_id, channel, query, response, status, " +
+                    "captured_at, reviewed_at, reviewed_by, review_comment, ingested_document_id) " +
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 candidate.id,
                 candidate.runId,
@@ -129,7 +130,8 @@ class JdbcRagIngestionCandidateStore(
 
     override fun findById(id: String): RagIngestionCandidate? {
         return jdbcTemplate.query(
-            "SELECT id, run_id, user_id, session_id, channel, query, response, status, captured_at, reviewed_at, reviewed_by, review_comment, ingested_document_id " +
+            "SELECT id, run_id, user_id, session_id, channel, query, response, status, " +
+                "captured_at, reviewed_at, reviewed_by, review_comment, ingested_document_id " +
                 "FROM rag_ingestion_candidates WHERE id = ?",
             { rs: ResultSet, _: Int -> mapCandidate(rs) },
             id
@@ -138,7 +140,8 @@ class JdbcRagIngestionCandidateStore(
 
     override fun findByRunId(runId: String): RagIngestionCandidate? {
         return jdbcTemplate.query(
-            "SELECT id, run_id, user_id, session_id, channel, query, response, status, captured_at, reviewed_at, reviewed_by, review_comment, ingested_document_id " +
+            "SELECT id, run_id, user_id, session_id, channel, query, response, status, " +
+                "captured_at, reviewed_at, reviewed_by, review_comment, ingested_document_id " +
                 "FROM rag_ingestion_candidates WHERE run_id = ?",
             { rs: ResultSet, _: Int -> mapCandidate(rs) },
             runId
@@ -159,7 +162,8 @@ class JdbcRagIngestionCandidateStore(
             params.add(normalizedChannel)
         }
         val whereClause = if (where.isEmpty()) "" else "WHERE ${where.joinToString(" AND ")}"
-        val sql = "SELECT id, run_id, user_id, session_id, channel, query, response, status, captured_at, reviewed_at, reviewed_by, review_comment, ingested_document_id " +
+        val sql = "SELECT id, run_id, user_id, session_id, channel, query, response, status, " +
+            "captured_at, reviewed_at, reviewed_by, review_comment, ingested_document_id " +
             "FROM rag_ingestion_candidates $whereClause ORDER BY captured_at DESC LIMIT ?"
         params.add(cappedLimit)
         return jdbcTemplate.query(sql, { rs: ResultSet, _: Int -> mapCandidate(rs) }, *params.toTypedArray())
@@ -174,7 +178,8 @@ class JdbcRagIngestionCandidateStore(
     ): RagIngestionCandidate? {
         val updatedAt = Instant.now()
         val count = jdbcTemplate.update(
-            "UPDATE rag_ingestion_candidates SET status = ?, reviewed_at = ?, reviewed_by = ?, review_comment = ?, ingested_document_id = ? WHERE id = ?",
+            "UPDATE rag_ingestion_candidates SET status = ?, reviewed_at = ?, reviewed_by = ?, " +
+                "review_comment = ?, ingested_document_id = ? WHERE id = ?",
             status.name,
             java.sql.Timestamp.from(updatedAt),
             reviewedBy,

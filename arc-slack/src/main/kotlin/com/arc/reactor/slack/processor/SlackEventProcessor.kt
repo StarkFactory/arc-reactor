@@ -78,7 +78,10 @@ class SlackEventProcessor(
         }
 
         if (failFastOnSaturation && !semaphore.tryAcquire()) {
-            logger.warn { "Slack event rejected due to saturation: entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}" }
+            logger.warn {
+                "Slack event rejected due to saturation: " +
+                    "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
+            }
             metricsRecorder.recordDropped(
                 entrypoint = entrypoint,
                 reason = "queue_overflow",
@@ -94,7 +97,10 @@ class SlackEventProcessor(
             if (!failFastOnSaturation) {
                 val acquired = acquirePermitWithTimeout()
                 if (!acquired) {
-                    logger.warn { "Slack event dropped due to queue timeout: entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}" }
+                    logger.warn {
+                        "Slack event dropped due to queue timeout: " +
+                            "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
+                    }
                     metricsRecorder.recordDropped(
                         entrypoint = entrypoint,
                         reason = "queue_timeout",
@@ -125,7 +131,10 @@ class SlackEventProcessor(
                 )
             } catch (e: Exception) {
                 e.throwIfCancellation()
-                logger.error(e) { "Failed to handle Slack event: entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}" }
+                logger.error(e) {
+                    "Failed to handle Slack event: " +
+                        "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
+                }
                 metricsRecorder.recordHandler(
                     entrypoint = entrypoint,
                     eventType = eventType,

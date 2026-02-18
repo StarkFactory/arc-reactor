@@ -52,7 +52,12 @@ class OpsDashboardController(
         val names = registry?.meters
             ?.asSequence()
             ?.map { it.id.name }
-            ?.filter { it.startsWith("arc.") || it.startsWith("jvm.") || it.startsWith("process.") || it.startsWith("system.") }
+            ?.filter {
+                it.startsWith("arc.") ||
+                    it.startsWith("jvm.") ||
+                    it.startsWith("process.") ||
+                    it.startsWith("system.")
+            }
             ?.distinct()
             ?.sorted()
             ?.toList()

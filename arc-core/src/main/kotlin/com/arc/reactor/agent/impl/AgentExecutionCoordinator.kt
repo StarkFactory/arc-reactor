@@ -111,7 +111,9 @@ internal class AgentExecutionCoordinator(
     }
 
     private suspend fun resolveCache(command: AgentCommand, startTime: Long): CacheLookupResult {
-        if (responseCache == null || !isCacheable(command)) return CacheLookupResult(cacheKey = null, cachedResult = null)
+        if (responseCache == null || !isCacheable(command)) {
+            return CacheLookupResult(cacheKey = null, cachedResult = null)
+        }
 
         val toolNames = (toolCallbacks + mcpToolCallbacks()).map { it.name }
         val key = CacheKeyBuilder.buildKey(command, toolNames)

@@ -42,7 +42,8 @@ class JdbcPersonaStore(
 
     override fun getDefault(): Persona? {
         val results = jdbcTemplate.query(
-            "SELECT id, name, system_prompt, is_default, created_at, updated_at FROM personas WHERE is_default = TRUE LIMIT 1",
+            "SELECT id, name, system_prompt, is_default, created_at, updated_at " +
+                "FROM personas WHERE is_default = TRUE LIMIT 1",
             ROW_MAPPER
         )
         return results.firstOrNull()
@@ -54,7 +55,8 @@ class JdbcPersonaStore(
                 clearDefault()
             }
             jdbcTemplate.update(
-                "INSERT INTO personas (id, name, system_prompt, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO personas (id, name, system_prompt, is_default, created_at, updated_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)",
                 persona.id,
                 persona.name,
                 persona.systemPrompt,

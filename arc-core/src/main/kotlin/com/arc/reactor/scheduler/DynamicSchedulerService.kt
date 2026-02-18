@@ -81,7 +81,10 @@ class DynamicSchedulerService(
             val future = taskScheduler.schedule({ executeJob(job) }, trigger)
             if (future != null) {
                 scheduledFutures[job.id] = future
-                logger.info { "Registered cron job: ${job.name} [${job.cronExpression}] → ${job.mcpServerName}/${job.toolName}" }
+                logger.info {
+                    "Registered cron job: ${job.name} [${job.cronExpression}] " +
+                        "→ ${job.mcpServerName}/${job.toolName}"
+                }
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to register cron job: ${job.name}" }

@@ -41,8 +41,12 @@ class JdbcMcpServerStore(
 
     override fun save(server: McpServer): McpServer {
         jdbcTemplate.update(
-            """INSERT INTO mcp_servers (id, name, description, transport_type, config, version, auto_connect, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            """
+            INSERT INTO mcp_servers
+                (id, name, description, transport_type, config, version, auto_connect, created_at, updated_at)
+            VALUES
+                (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """.trimIndent(),
             server.id,
             server.name,
             server.description,

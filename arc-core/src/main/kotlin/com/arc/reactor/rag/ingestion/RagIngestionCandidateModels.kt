@@ -29,7 +29,11 @@ interface RagIngestionCandidateStore {
     fun save(candidate: RagIngestionCandidate): RagIngestionCandidate
     fun findById(id: String): RagIngestionCandidate?
     fun findByRunId(runId: String): RagIngestionCandidate?
-    fun list(limit: Int = 100, status: RagIngestionCandidateStatus? = null, channel: String? = null): List<RagIngestionCandidate>
+    fun list(
+        limit: Int = 100,
+        status: RagIngestionCandidateStatus? = null,
+        channel: String? = null
+    ): List<RagIngestionCandidate>
     fun updateReview(
         id: String,
         status: RagIngestionCandidateStatus,
@@ -38,4 +42,3 @@ interface RagIngestionCandidateStore {
         ingestedDocumentId: String? = null
     ): RagIngestionCandidate?
 }
-

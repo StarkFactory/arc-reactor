@@ -144,7 +144,8 @@ class OutputGuardRuleController(
             action = OutputGuardRuleAuditAction.UPDATE,
             actor = actor(exchange),
             ruleId = updated.id,
-            detail = "name=${updated.name}, action=${updated.action}, priority=${updated.priority}, enabled=${updated.enabled}"
+            detail = "name=${updated.name}, action=${updated.action}, " +
+                "priority=${updated.priority}, enabled=${updated.enabled}"
         )
         return ResponseEntity.ok(updated.toResponse())
     }
@@ -183,7 +184,8 @@ class OutputGuardRuleController(
         recordAudit(
             action = OutputGuardRuleAuditAction.SIMULATE,
             actor = actor(exchange),
-            detail = "blocked=${evaluation.blocked}, matched=${evaluation.matchedRules.size}, includeDisabled=${request.includeDisabled}"
+            detail = "blocked=${evaluation.blocked}, matched=${evaluation.matchedRules.size}, " +
+                "includeDisabled=${request.includeDisabled}"
         )
 
         return ResponseEntity.ok(
