@@ -48,6 +48,8 @@ import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.tool.definition.ToolDefinition
 import org.springframework.ai.tool.metadata.ToolMetadata
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -155,7 +157,7 @@ class SpringAiAgentExecutor(
     private val manualReActLoopExecutor = ManualReActLoopExecutor(
         messageTrimmer = messageTrimmer,
         toolCallOrchestrator = toolCallOrchestrator,
-        buildRequestSpec = ::buildRequestSpec,
+        buildRequestSpec = ::createPromptRequestSpec,
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::buildChatOptions,
         validateAndRepairResponse = ::validateAndRepairResponse,
@@ -164,7 +166,7 @@ class SpringAiAgentExecutor(
     private val streamingReActLoopExecutor = StreamingReActLoopExecutor(
         messageTrimmer = messageTrimmer,
         toolCallOrchestrator = toolCallOrchestrator,
-        buildRequestSpec = ::buildRequestSpec,
+        buildRequestSpec = ::createPromptRequestSpec,
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::buildChatOptions
     )
@@ -199,7 +201,7 @@ class SpringAiAgentExecutor(
         toolCallbacks = toolCallbacks,
         mcpToolCallbacks = mcpToolCallbacks,
         conversationManager = conversationManager,
-        selectAndPrepareTools = ::selectAndPrepareTools,
+        selectAndPrepareTools = ::prepareToolsForPrompt,
         retrieveRagContext = ::retrieveRagContext,
         executeWithTools = ::executeWithTools,
         finalizeExecution = { result, command, hookContext, tools, startTime ->
@@ -396,7 +398,7 @@ class SpringAiAgentExecutor(
                     val selectedTools = if (effectiveCommand.mode == AgentMode.STANDARD) {
                         emptyList()
                     } else {
-                        selectAndPrepareTools(effectiveCommand.userPrompt)
+                        prepareToolsForPrompt(effectiveCommand.userPrompt)
                     }
 
                     logger.debug { "Streaming ReAct: ${selectedTools.size} tools selected (mode=${effectiveCommand.mode})" }
@@ -404,7 +406,7 @@ class SpringAiAgentExecutor(
                     // 5. Run streaming ReAct loop
                     val activeChatClient = resolveChatClient(effectiveCommand)
                     val maxToolCallLimit = minOf(effectiveCommand.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
-                    val allowedTools = resolveAllowedTools(effectiveCommand)
+                    val allowedTools = resolveIntentAllowedTools(effectiveCommand)
 
                     val loopResult = streamingReActLoopExecutor.execute(
                         command = effectiveCommand,
@@ -603,7 +605,7 @@ class SpringAiAgentExecutor(
      * 4. Combine with LocalTool instances (@Tool annotation)
      * 5. Apply maxToolsPerRequest limit
      */
-    private fun selectAndPrepareTools(userPrompt: String): List<Any> {
+    private fun prepareToolsForPrompt(userPrompt: String): List<Any> {
         // 1. LocalTool instances (Spring AI handles @Tool annotations directly)
         val localToolInstances = localTools.toList()
 
@@ -618,7 +620,12 @@ class SpringAiAgentExecutor(
         }
 
         // 4. Wrap as Spring AI ToolCallbacks
-        val wrappedCallbacks = selectedCallbacks.map { ArcToolCallbackAdapter(it) }
+        val wrappedCallbacks = selectedCallbacks.map {
+            ArcToolCallbackAdapter(
+                arcCallback = it,
+                fallbackToolTimeoutMs = properties.concurrency.toolCallTimeoutMs
+            )
+        }
 
         // 5. Combine and apply limit
         return (localToolInstances + wrappedCallbacks).take(properties.maxToolsPerRequest)
@@ -668,7 +675,7 @@ class SpringAiAgentExecutor(
         return chatModelProvider.getChatClient(command.model)
     }
 
-    private fun buildRequestSpec(
+    private fun createPromptRequestSpec(
         activeChatClient: ChatClient,
         systemPrompt: String,
         messages: List<Message>,
@@ -697,7 +704,7 @@ class SpringAiAgentExecutor(
         return spec
     }
 
-    private fun resolveAllowedTools(command: AgentCommand): Set<String>? {
+    private fun resolveIntentAllowedTools(command: AgentCommand): Set<String>? {
         val raw = command.metadata["intentAllowedTools"] ?: return null
         val parsed = when (raw) {
             is Collection<*> -> raw.filterIsInstance<String>().toSet()
@@ -728,7 +735,7 @@ class SpringAiAgentExecutor(
     ): AgentResult {
         try {
             val maxToolCalls = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
-            val allowedTools = resolveAllowedTools(command)
+            val allowedTools = resolveIntentAllowedTools(command)
             val systemPrompt = systemPromptBuilder.build(
                 command.systemPrompt, ragContext,
                 command.responseFormat, command.responseSchema
@@ -778,9 +785,11 @@ class SpringAiAgentExecutor(
  * tool calling system, enabling integration with ChatClient.tools().
  */
 internal class ArcToolCallbackAdapter(
-    val arcCallback: ToolCallback
+    val arcCallback: ToolCallback,
+    fallbackToolTimeoutMs: Long = 15_000
 ) : org.springframework.ai.tool.ToolCallback {
 
+    private val blockingInvoker = BlockingToolCallbackInvoker(fallbackToolTimeoutMs)
     private val toolDefinition = ToolDefinition.builder()
         .name(arcCallback.name)
         .description(arcCallback.description)
@@ -792,10 +801,21 @@ internal class ArcToolCallbackAdapter(
     override fun getToolMetadata(): ToolMetadata = ToolMetadata.builder().build()
 
     override fun call(toolInput: String): String {
-        val args = parseToolArguments(toolInput)
-        // Bridge suspend call to blocking for Spring AI compatibility (runs on IO dispatcher)
-        return kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
-            arcCallback.call(args)?.toString() ?: ""
+        val parsedArguments = parseToolArguments(toolInput)
+        return try {
+            // Spring AI callback API is blocking; enforce tool-level timeout to avoid indefinite hangs.
+            blockingInvoker.invokeWithTimeout(arcCallback, parsedArguments)
+        } catch (e: TimeoutCancellationException) {
+            val timeoutMessage = blockingInvoker.timeoutErrorMessage(arcCallback)
+            logger.warn { timeoutMessage }
+            throw RuntimeException(timeoutMessage, e)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logger.error(e) { "Tool callback execution failed for '${arcCallback.name}'" }
+            throw RuntimeException(
+                "Tool '${arcCallback.name}' execution failed: ${e.message.orEmpty()}",
+                e
+            )
         }
     }
 }

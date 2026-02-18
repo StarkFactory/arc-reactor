@@ -21,13 +21,13 @@ import reactor.core.publisher.Flux
 /**
  * P0 Tests for timeout edge cases.
  *
- * ## Important: Tool-level timeout limitation
- * [ArcToolCallbackAdapter.call] uses `runBlocking(Dispatchers.IO)` which creates
- * an independent coroutine scope. Parent `withTimeout` cancellation does NOT propagate
- * into this scope. Therefore, tool execution delays cannot be cancelled by request timeout.
+ * ## Scope
+ * Tool execution in manual ReAct flow is handled by [com.arc.reactor.agent.impl.ToolCallOrchestrator],
+ * which already enforces per-tool timeout.
+ * [com.arc.reactor.agent.impl.ArcToolCallbackAdapter.call] also applies timeout for blocking callback paths.
  *
- * These tests use LLM-level blocking (inside `runInterruptible`, properly cancellable)
- * to verify timeout behavior. Tool-level timeout is a known limitation documented here.
+ * These tests focus on LLM-level blocking (inside `runInterruptible`, properly cancellable)
+ * to verify request timeout behavior in the ReAct loop.
  *
  * @see ConcurrencyTimeoutTest for semaphore and basic timeout tests
  */
@@ -62,7 +62,7 @@ class TimeoutEdgeCaseTest {
                 // Second LLM call blocks (inside runInterruptible → properly cancellable)
                 mockk<org.springframework.ai.chat.client.ChatClient.CallResponseSpec>().also {
                     every { it.chatResponse() } answers {
-                        Thread.sleep(5000) // Blocks inside runInterruptible, interruptible
+                        Thread.sleep(1_000) // Blocks inside runInterruptible, interruptible
                         AgentTestFixture.simpleChatResponse("Never reached")
                     }
                 }
@@ -102,7 +102,7 @@ class TimeoutEdgeCaseTest {
                 fixture.mockToolCallResponse(listOf(toolCall)),
                 mockk<org.springframework.ai.chat.client.ChatClient.CallResponseSpec>().also {
                     every { it.chatResponse() } answers {
-                        Thread.sleep(5000)
+                        Thread.sleep(1_000)
                         AgentTestFixture.simpleChatResponse("Never")
                     }
                 }
@@ -216,7 +216,7 @@ class TimeoutEdgeCaseTest {
 
             // LLM call hangs
             every { fixture.requestSpec.call() } answers {
-                Thread.sleep(5000)
+                Thread.sleep(1_000)
                 fixture.callResponseSpec
             }
 
@@ -254,7 +254,7 @@ class TimeoutEdgeCaseTest {
             )
 
             every { fixture.requestSpec.call() } answers {
-                Thread.sleep(5000)
+                Thread.sleep(1_000)
                 fixture.callResponseSpec
             }
 
