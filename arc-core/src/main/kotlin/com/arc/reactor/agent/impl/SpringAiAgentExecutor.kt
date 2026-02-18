@@ -120,6 +120,14 @@ class SpringAiAgentExecutor(
         errorMessageResolver = errorMessageResolver,
         resolveChatClient = ::resolveChatClient
     )
+    private val toolPreparationPlanner = ToolPreparationPlanner(
+        localTools = localTools,
+        toolCallbacks = toolCallbacks,
+        mcpToolCallbacks = mcpToolCallbacks,
+        toolSelector = toolSelector,
+        maxToolsPerRequest = properties.maxToolsPerRequest,
+        fallbackToolTimeoutMs = properties.concurrency.toolCallTimeoutMs
+    )
     private val messageTrimmer = ConversationMessageTrimmer(
         maxContextWindowTokens = properties.llm.maxContextWindowTokens,
         outputReserveTokens = properties.llm.maxOutputTokens,
@@ -184,7 +192,7 @@ class SpringAiAgentExecutor(
         toolCallbacks = toolCallbacks,
         mcpToolCallbacks = mcpToolCallbacks,
         conversationManager = conversationManager,
-        selectAndPrepareTools = ::prepareToolsForPrompt,
+        selectAndPrepareTools = toolPreparationPlanner::prepareForPrompt,
         retrieveRagContext = ragContextRetriever::retrieve,
         executeWithTools = ::executeWithTools,
         finalizeExecution = { result, command, hookContext, tools, startTime ->
@@ -381,7 +389,7 @@ class SpringAiAgentExecutor(
                     val selectedTools = if (effectiveCommand.mode == AgentMode.STANDARD) {
                         emptyList()
                     } else {
-                        prepareToolsForPrompt(effectiveCommand.userPrompt)
+                        toolPreparationPlanner.prepareForPrompt(effectiveCommand.userPrompt)
                     }
 
                     logger.debug { "Streaming ReAct: ${selectedTools.size} tools selected (mode=${effectiveCommand.mode})" }
@@ -468,42 +476,6 @@ class SpringAiAgentExecutor(
             )
         }
         agentMetrics.recordStreamingExecution(result)
-    }
-
-    /**
-     * Select and prepare tools using ToolSelector.
-     *
-     * Flow:
-     * 1. Collect all ToolCallback instances (custom + MCP)
-     * 2. Filter via ToolSelector (if available)
-     * 3. Wrap as Spring AI ToolCallbacks
-     * 4. Combine with LocalTool instances (@Tool annotation)
-     * 5. Apply maxToolsPerRequest limit
-     */
-    private fun prepareToolsForPrompt(userPrompt: String): List<Any> {
-        // 1. LocalTool instances (Spring AI handles @Tool annotations directly)
-        val localToolInstances = localTools.toList()
-
-        // 2. Collect all ToolCallback instances (custom + MCP)
-        val allCallbacks = toolCallbacks + mcpToolCallbacks()
-
-        // 3. Apply ToolSelector filtering
-        val selectedCallbacks = if (toolSelector != null && allCallbacks.isNotEmpty()) {
-            toolSelector.select(userPrompt, allCallbacks)
-        } else {
-            allCallbacks
-        }
-
-        // 4. Wrap as Spring AI ToolCallbacks
-        val wrappedCallbacks = selectedCallbacks.map {
-            ArcToolCallbackAdapter(
-                arcCallback = it,
-                fallbackToolTimeoutMs = properties.concurrency.toolCallTimeoutMs
-            )
-        }
-
-        // 5. Combine and apply limit
-        return (localToolInstances + wrappedCallbacks).take(properties.maxToolsPerRequest)
     }
 
     /**
