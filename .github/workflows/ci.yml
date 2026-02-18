@@ -33,6 +33,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
+      - name: Structural File-Size Guard
+        run: bash scripts/ci/check-file-size-guard.sh
+
       - name: Build
         run: ./gradlew build -x test
 

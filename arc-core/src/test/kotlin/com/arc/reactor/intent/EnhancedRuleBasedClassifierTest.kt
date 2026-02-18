@@ -38,8 +38,9 @@ class EnhancedRuleBasedClassifierTest {
 
             val result = classifier.classify("리펀드 해주세요")
             assertFalse(result.isUnknown) { "Synonym '리펀드' should match '환불'" }
-            assertEquals("refund", result.primary!!.intentName) { "Should match refund intent" }
-            assertEquals(1.0, result.primary!!.confidence, 0.01) { "1/1 keyword matched" }
+            val primary = requireNotNull(result.primary) { "Primary intent should exist for matched result" }
+            assertEquals("refund", primary.intentName) { "Should match refund intent" }
+            assertEquals(1.0, primary.confidence, 0.01) { "1/1 keyword matched" }
         }
 
         @Test
@@ -135,10 +136,11 @@ class EnhancedRuleBasedClassifierTest {
 
             // Input "주문 환불" -> refund: 주문(1)+환불(5) = 6/6=1.0, order: 주문(1) = 1/3=0.33
             val result = classifier.classify("주문 환불")
-            assertEquals("refund", result.primary!!.intentName) {
+            val primary = requireNotNull(result.primary) { "Primary intent should exist for matched result" }
+            assertEquals("refund", primary.intentName) {
                 "Refund should win due to weighted '환불'"
             }
-            assertEquals(1.0, result.primary!!.confidence, 0.01) { "Full match" }
+            assertEquals(1.0, primary.confidence, 0.01) { "Full match" }
         }
     }
 
@@ -208,8 +210,9 @@ class EnhancedRuleBasedClassifierTest {
 
             val result = classifier.classify("hello world")
             assertFalse(result.isUnknown) { "Should match" }
-            assertEquals("greeting", result.primary!!.intentName) { "Should match greeting" }
-            assertEquals(0.5, result.primary!!.confidence, 0.01) { "1/2 = 0.5" }
+            val primary = requireNotNull(result.primary) { "Primary intent should exist for matched result" }
+            assertEquals("greeting", primary.intentName) { "Should match greeting" }
+            assertEquals(0.5, primary.confidence, 0.01) { "1/2 = 0.5" }
             assertEquals("rule", result.classifiedBy) { "Should be rule" }
             assertEquals(0, result.tokenCost) { "Zero token cost" }
         }

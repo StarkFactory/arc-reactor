@@ -27,12 +27,21 @@
 - `./gradlew :arc-web:test --tests "com.arc.reactor.controller.*"`
 - `./gradlew test --continue`
 
+개발 보조 스크립트:
+
+- 빠른 기본 로컬 스위트: `scripts/dev/test-fast.sh`
+- 통합 테스트 포함: `INCLUDE_INTEGRATION=1 scripts/dev/test-fast.sh`
+- 외부 통합 테스트 포함: `INCLUDE_EXTERNAL=1 scripts/dev/test-fast.sh`
+- 기존 XML 리포트 기준 느린 테스트 상위 조회: `scripts/dev/slow-tests.sh 30`
+
 ## 느린 테스트의 대표 원인
 
 - 실패 경로 테스트에서 과도하게 긴 timeout
 - 실패 검증 테스트에서도 reconnect 루프 활성화
 - thread/latch 구성이 잘못되어 고정 대기 발생
 - 외부 의존 시작/다운로드 지연(예: MCP `npx` 서버 부팅)
+- 로컬 반복 실행에서 `--no-daemon`/`--rerun-tasks`/`--no-build-cache`를 자주 사용
+- 동일 워크스페이스에서 Gradle 테스트 명령을 동시에 여러 개 실행
 
 ## 권장 사항
 
@@ -59,6 +68,16 @@ CI는 `scripts/ci/run-with-duration-guard.sh`로 실행 시간을 제한합니�
 
 예산을 초과하면 CI를 즉시 실패시켜 시간 회귀를 빠르게 감지합니다.
 통합 게이트에서는 외부 MCP 통합 테스트가 포함되지 않았는지도 함께 검증합니다.
+
+## CI 구조 가드
+
+핵심 오케스트레이션/설정 파일은 라인 수 상한을 CI에서 강제합니다:
+
+- `SpringAiAgentExecutor.kt` <= 900줄
+- `ArcReactorCoreBeansConfiguration.kt` <= 350줄
+- `AgentPolicyAndFeatureProperties.kt` <= 500줄
+
+가드 스크립트: `scripts/ci/check-file-size-guard.sh`
 
 ## H2/JDBC 검증
 
