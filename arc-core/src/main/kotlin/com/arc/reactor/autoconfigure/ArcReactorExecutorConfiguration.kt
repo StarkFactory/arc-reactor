@@ -30,9 +30,14 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 
-@Configuration
+/**
+ * AgentExecutor bean, conditional on ChatClient availability.
+ *
+ * NOT annotated with @Configuration to prevent component-scan from picking it up
+ * before auto-configuration ordering (@AutoConfigureAfter) takes effect.
+ * Processed exclusively via @Import from ArcReactorAutoConfiguration.
+ */
 class ArcReactorExecutorConfiguration {
 
     /**

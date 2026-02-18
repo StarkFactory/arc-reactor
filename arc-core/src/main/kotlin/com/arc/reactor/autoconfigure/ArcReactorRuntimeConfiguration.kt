@@ -11,15 +11,46 @@ import com.arc.reactor.resilience.impl.ModelFallbackStrategy
 import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.impl.MaxLengthResponseFilter
+import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 
-@Configuration
+/**
+ * Runtime beans that depend on ChatModel from provider auto-configurations.
+ *
+ * NOT annotated with @Configuration to prevent component-scan from picking it up
+ * before auto-configuration ordering (@AutoConfigureAfter) takes effect.
+ * Processed exclusively via @Import from ArcReactorAutoConfiguration.
+ */
 class ArcReactorRuntimeConfiguration {
+
+    /**
+     * ChatClient — resolves multi-ChatModel ambiguity by selecting the default provider.
+     * Registered in auto-configuration context so @ConditionalOnBean(ChatClient) works
+     * for downstream beans like agentExecutor.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(ChatModel::class)
+    fun chatClient(
+        chatModels: Map<String, ChatModel>,
+        properties: AgentProperties
+    ): ChatClient {
+        val defaultBeanName = chatModels.keys.firstOrNull { beanName ->
+            ChatModelProvider.resolveProviderName(beanName) == properties.llm.defaultProvider
+        } ?: chatModels.keys.firstOrNull()
+        val resolvedBeanName = checkNotNull(defaultBeanName) {
+            "No ChatModel bean found. Configure at least one Spring AI provider."
+        }
+        val chatModel = checkNotNull(chatModels[resolvedBeanName]) {
+            "Resolved ChatModel bean '$resolvedBeanName' is missing from chatModels map."
+        }
+        return ChatClient.builder(chatModel).build()
+    }
 
     /**
      * Chat Model Provider (multi-LLM runtime selection)

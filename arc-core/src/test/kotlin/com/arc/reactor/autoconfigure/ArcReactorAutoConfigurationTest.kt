@@ -416,6 +416,23 @@ class ArcReactorAutoConfigurationTest {
                     }
                 }
         }
+
+        @Test
+        fun `should register AgentExecutor when only ChatModel is available`() {
+            contextRunner
+                .withUserConfiguration(MockChatModelOnlyConfig::class.java)
+                .run { context ->
+                    assertTrue(context.containsBean("chatClient")) {
+                        "chatClient should be auto-configured from ChatModel"
+                    }
+                    assertTrue(context.containsBean("agentExecutor")) {
+                        "AgentExecutor should exist when ChatModel is available"
+                    }
+                    assertNotNull(context.getBean(AgentExecutor::class.java)) {
+                        "AgentExecutor bean should not be null"
+                    }
+                }
+        }
     }
 
     // ── JDBC Store Overrides ────────────────────────────────────────
@@ -574,5 +591,11 @@ class ArcReactorAutoConfigurationTest {
 
         @Bean
         fun chatClient(chatModel: ChatModel): ChatClient = ChatClient.create(chatModel)
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    class MockChatModelOnlyConfig {
+        @Bean
+        fun chatModel(): ChatModel = mockk(relaxed = true)
     }
 }
