@@ -123,6 +123,7 @@ class SpringAiAgentExecutor(
         maxOutputTokens = properties.llm.maxOutputTokens,
         googleSearchRetrievalEnabled = properties.llm.googleSearchRetrievalEnabled
     )
+    private val promptRequestSpecBuilder = PromptRequestSpecBuilder()
     private val toolPreparationPlanner = ToolPreparationPlanner(
         localTools = localTools,
         toolCallbacks = toolCallbacks,
@@ -151,7 +152,7 @@ class SpringAiAgentExecutor(
     private val manualReActLoopExecutor = ManualReActLoopExecutor(
         messageTrimmer = messageTrimmer,
         toolCallOrchestrator = toolCallOrchestrator,
-        buildRequestSpec = ::createPromptRequestSpec,
+        buildRequestSpec = promptRequestSpecBuilder::create,
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::createChatOptions,
         validateAndRepairResponse = structuredResponseRepairer::validateAndRepair,
@@ -160,7 +161,7 @@ class SpringAiAgentExecutor(
     private val streamingReActLoopExecutor = StreamingReActLoopExecutor(
         messageTrimmer = messageTrimmer,
         toolCallOrchestrator = toolCallOrchestrator,
-        buildRequestSpec = ::createPromptRequestSpec,
+        buildRequestSpec = promptRequestSpecBuilder::create,
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::createChatOptions
     )
@@ -500,35 +501,6 @@ class SpringAiAgentExecutor(
             return chatClient
         }
         return chatModelProvider.getChatClient(command.model)
-    }
-
-    private fun createPromptRequestSpec(
-        activeChatClient: ChatClient,
-        systemPrompt: String,
-        messages: List<Message>,
-        chatOptions: ChatOptions,
-        tools: List<Any>
-    ): ChatClient.ChatClientRequestSpec {
-        var spec = activeChatClient.prompt()
-        if (systemPrompt.isNotBlank()) spec = spec.system(systemPrompt)
-        spec = spec.messages(messages)
-        spec = spec.options(chatOptions)
-        if (tools.isNotEmpty()) {
-            // Separate @Tool annotated objects from ToolCallback implementations.
-            // Spring AI's .tools() uses MethodToolCallbackProvider which expects @Tool annotations.
-            // ToolCallback impls (e.g. ArcToolCallbackAdapter) must go to .toolCallbacks().
-            val (callbacks, annotatedTools) = tools.partition {
-                it is org.springframework.ai.tool.ToolCallback
-            }
-            if (annotatedTools.isNotEmpty()) {
-                spec = spec.tools(*annotatedTools.toTypedArray())
-            }
-            if (callbacks.isNotEmpty()) {
-                @Suppress("UNCHECKED_CAST")
-                spec = spec.toolCallbacks(callbacks as List<org.springframework.ai.tool.ToolCallback>)
-            }
-        }
-        return spec
     }
 
     private fun resolveIntentAllowedTools(command: AgentCommand): Set<String>? {
