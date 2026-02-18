@@ -37,7 +37,6 @@ import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
 import mu.KotlinLogging
-import org.slf4j.MDC
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.prompt.ChatOptions
@@ -48,7 +47,6 @@ import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
-import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
@@ -106,6 +104,7 @@ class SpringAiAgentExecutor(
     }
 
     private val concurrencySemaphore = Semaphore(properties.concurrency.maxConcurrentRequests)
+    private val runContextManager = AgentRunContextManager()
     private val systemPromptBuilder = SystemPromptBuilder()
     private val ragContextRetriever = RagContextRetriever(
         enabled = properties.rag.enabled,
@@ -215,23 +214,9 @@ class SpringAiAgentExecutor(
 
     override suspend fun execute(command: AgentCommand): AgentResult {
         val startTime = System.currentTimeMillis()
-        val runId = UUID.randomUUID().toString()
         val toolsUsed = java.util.concurrent.CopyOnWriteArrayList<String>()
-
-        // Set MDC context for structured logging
-        MDC.put("runId", runId)
-        MDC.put("userId", command.userId ?: "anonymous")
-        command.metadata["sessionId"]?.toString()?.let { MDC.put("sessionId", it) }
-
-        // Create hook context
-        val hookContext = HookContext(
-            runId = runId,
-            userId = command.userId ?: "anonymous",
-            userPrompt = command.userPrompt,
-            channel = command.metadata["channel"]?.toString(),
-            toolsUsed = toolsUsed
-        )
-        hookContext.metadata.putAll(command.metadata)
+        val runContext = runContextManager.open(command, toolsUsed)
+        val hookContext = runContext.hookContext
 
         try {
             return concurrencySemaphore.withPermit {
@@ -250,9 +235,7 @@ class SpringAiAgentExecutor(
             logger.error(e) { "Agent execution failed" }
             return handleFailureWithHook(agentErrorPolicy.classify(e), e, hookContext, startTime)
         } finally {
-            MDC.remove("runId")
-            MDC.remove("userId")
-            MDC.remove("sessionId")
+            runContextManager.close()
         }
     }
 
@@ -329,22 +312,9 @@ class SpringAiAgentExecutor(
      */
     override fun executeStream(command: AgentCommand): Flow<String> = flow {
         val startTime = System.currentTimeMillis()
-        val runId = UUID.randomUUID().toString()
         val toolsUsed = java.util.concurrent.CopyOnWriteArrayList<String>()
-
-        // Set MDC context for structured logging
-        MDC.put("runId", runId)
-        MDC.put("userId", command.userId ?: "anonymous")
-        command.metadata["sessionId"]?.toString()?.let { MDC.put("sessionId", it) }
-
-        val hookContext = HookContext(
-            runId = runId,
-            userId = command.userId ?: "anonymous",
-            userPrompt = command.userPrompt,
-            channel = command.metadata["channel"]?.toString(),
-            toolsUsed = toolsUsed
-        )
-        hookContext.metadata.putAll(command.metadata)
+        val runContext = runContextManager.open(command, toolsUsed)
+        val hookContext = runContext.hookContext
 
         var streamSuccess = false
         var streamErrorCode: AgentErrorCode? = null
@@ -362,12 +332,16 @@ class SpringAiAgentExecutor(
                             stage = rejection.stage ?: "unknown",
                             reason = rejection.reason
                         )
+                        streamErrorCode = AgentErrorCode.GUARD_REJECTED
+                        streamErrorMessage = rejection.reason
                         emit(StreamEventMarker.error(rejection.reason))
                         return@withTimeout
                     }
 
                     // 2. Before hooks
                     preExecutionResolver.checkBeforeHooks(hookContext)?.let { rejection ->
+                        streamErrorCode = AgentErrorCode.HOOK_REJECTED
+                        streamErrorMessage = rejection.reason
                         emit(StreamEventMarker.error(rejection.reason))
                         return@withTimeout
                     }
@@ -377,7 +351,10 @@ class SpringAiAgentExecutor(
 
                     // Reject structured formats in streaming mode
                     if (effectiveCommand.responseFormat != ResponseFormat.TEXT) {
-                        emit(StreamEventMarker.error("Structured ${effectiveCommand.responseFormat} output is not supported in streaming mode"))
+                        streamErrorCode = AgentErrorCode.INVALID_RESPONSE
+                        streamErrorMessage =
+                            "Structured ${effectiveCommand.responseFormat} output is not supported in streaming mode"
+                        emit(StreamEventMarker.error(streamErrorMessage.orEmpty()))
                         return@withTimeout
                     }
 
@@ -454,10 +431,7 @@ class SpringAiAgentExecutor(
                 streamSuccess, collectedContent.toString(), streamErrorMessage,
                 streamErrorCode, toolsUsed.toList(), startTime
             )
-
-            MDC.remove("runId")
-            MDC.remove("userId")
-            MDC.remove("sessionId")
+            runContextManager.close()
         }
     }
 
