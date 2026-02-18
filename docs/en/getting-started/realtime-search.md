@@ -11,7 +11,7 @@ Arc Reactor's default system prompt includes a **Real-time Information Policy** 
 
 ## Gemini Google Search (Recommended)
 
-Gemini's built-in `googleSearchRetrieval` provides real-time web search with zero additional setup. No API keys, no external services, no MCP configuration needed.
+Gemini's built-in `googleSearchRetrieval` provides real-time web search with zero additional setup. No extra search API key, no external service, and no MCP configuration are needed beyond your Gemini provider credentials.
 
 ### Enable
 
