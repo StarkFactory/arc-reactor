@@ -33,6 +33,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
  * Excluded from default `./gradlew test` via @Tag("integration").
  */
 @Tag("integration")
+@Tag("external")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation::class)
 class McpIntegrationTest {

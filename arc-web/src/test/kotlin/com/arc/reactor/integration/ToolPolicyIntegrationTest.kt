@@ -23,7 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.reactive.server.WebTestClient
 
 @SpringBootTest(
-    classes = [ArcReactorApplication::class],
+    classes = [ArcReactorApplication::class, IntegrationTestAgentExecutorConfig::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "spring.datasource.url=jdbc:h2:mem:toolpolicydb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false",

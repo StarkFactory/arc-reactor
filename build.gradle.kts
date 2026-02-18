@@ -38,6 +38,11 @@ subprojects {
             if (!project.hasProperty("includeIntegration")) {
                 excludeTags("integration")
             }
+            // External dependency integration tests (network/npx/docker) stay explicit.
+            // Run with: ./gradlew test -PincludeIntegration -PincludeExternalIntegration
+            if (!project.hasProperty("includeExternalIntegration")) {
+                excludeTags("external")
+            }
         }
     }
 
