@@ -33,6 +33,7 @@ Developer helpers:
 - include integration tests: `INCLUDE_INTEGRATION=1 scripts/dev/test-fast.sh`
 - include external integration tests: `INCLUDE_EXTERNAL=1 scripts/dev/test-fast.sh`
 - inspect slowest suites from existing XML reports: `scripts/dev/slow-tests.sh 30`
+- run docs/sync quality checks locally: `scripts/dev/check-docs.sh`
 
 ## Common Slow-Test Causes
 
@@ -78,6 +79,13 @@ CI also enforces file-size guardrails for key orchestration/configuration files:
 - `AgentPolicyAndFeatureProperties.kt` <= 500 lines
 
 Guard script: `scripts/ci/check-file-size-guard.sh`
+
+## CI Documentation Guard
+
+CI enforces documentation consistency and navigability:
+
+- `scripts/ci/check-agent-doc-sync.sh` verifies `AGENTS.md` and `CLAUDE.md` are identical.
+- `scripts/ci/check-doc-links.py` verifies local markdown links and package README indexes in `docs/en` + `docs/ko`.
 
 ## H2/JDBC Validation
 

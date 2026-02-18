@@ -1,0 +1,64 @@
+# Advanced profile (production-oriented baseline)
+# Start from quickstart first, then apply only what you need.
+
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
+  ai:
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY:}
+        chat:
+          options:
+            model: gemini-2.0-flash
+
+arc:
+  reactor:
+    llm:
+      default-provider: gemini
+      temperature: 0.3
+      max-output-tokens: 4096
+      google-search-retrieval-enabled: ${ARC_REACTOR_LLM_GOOGLE_SEARCH_RETRIEVAL_ENABLED:false}
+    concurrency:
+      max-concurrent-requests: 20
+      request-timeout-ms: 30000
+      tool-call-timeout-ms: 15000
+    guard:
+      enabled: true
+      rate-limit-per-minute: 20
+      rate-limit-per-hour: 200
+    boundaries:
+      input-min-chars: 1
+      input-max-chars: 10000
+      system-prompt-max-chars: 0
+    rag:
+      enabled: ${ARC_REACTOR_RAG_ENABLED:false}
+      query-transformer: ${ARC_REACTOR_RAG_QUERY_TRANSFORMER:passthrough}
+      ingestion:
+        enabled: ${ARC_REACTOR_RAG_INGESTION_ENABLED:false}
+    cache:
+      enabled: ${ARC_REACTOR_CACHE_ENABLED:false}
+    circuit-breaker:
+      enabled: ${ARC_REACTOR_CIRCUIT_BREAKER_ENABLED:false}
+    fallback:
+      enabled: ${ARC_REACTOR_FALLBACK_ENABLED:false}
+    auth:
+      enabled: ${ARC_REACTOR_AUTH_ENABLED:false}
+    cors:
+      enabled: ${ARC_REACTOR_CORS_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

@@ -13,6 +13,7 @@
 ## 빠른 링크
 
 - [예제 앱](getting-started/example-app.md)
+- [설정 Quickstart](getting-started/configuration-quickstart.md)
 - [모듈 레이아웃](architecture/module-layout.md)
 - [ReAct 루프](architecture/react-loop.md)
 - [인증](governance/authentication.md)

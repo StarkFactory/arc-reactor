@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+bash scripts/ci/check-agent-doc-sync.sh
+python3 scripts/ci/check-doc-links.py
+
+echo "All docs checks passed."

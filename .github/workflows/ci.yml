@@ -33,6 +33,12 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
+      - name: Agent Instruction Sync Guard
+        run: bash scripts/ci/check-agent-doc-sync.sh
+
+      - name: Docs Link & Package Index Guard
+        run: python3 scripts/ci/check-doc-links.py
+
       - name: Structural File-Size Guard
         run: bash scripts/ci/check-file-size-guard.sh
 

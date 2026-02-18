@@ -13,6 +13,7 @@
 ## Quick Links
 
 - [Getting Started Overview](getting-started/example-app.md)
+- [Configuration Quickstart](getting-started/configuration-quickstart.md)
 - [Module Layout](architecture/module-layout.md)
 - [ReAct Loop](architecture/react-loop.md)
 - [Authentication](governance/authentication.md)

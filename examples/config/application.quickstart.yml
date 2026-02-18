@@ -1,0 +1,32 @@
+# Quickstart profile (minimal)
+# Usage:
+#   1) export GEMINI_API_KEY=your-key
+#   2) ./gradlew :arc-app:bootRun
+#
+# This file is intentionally small. For full settings see:
+# - docs/en/getting-started/configuration.md
+# - docs/ko/getting-started/configuration.md
+
+server:
+  port: 8080
+
+spring:
+  ai:
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY}
+        chat:
+          options:
+            model: gemini-2.0-flash
+
+arc:
+  reactor:
+    llm:
+      default-provider: gemini
+      temperature: 0.3
+      max-output-tokens: 4096
+    concurrency:
+      request-timeout-ms: 30000
+      tool-call-timeout-ms: 15000
+    guard:
+      enabled: true

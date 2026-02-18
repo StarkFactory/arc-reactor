@@ -52,7 +52,7 @@ export GEMINI_API_KEY=your-api-key
 ```
 
 그 외 기능은 전부 opt-in(`auth`, `rag`, `cors`, `circuit-breaker`)이라서 필요할 때 단계적으로 켜면 됩니다.
-세부 토글은 `docs/ko/getting-started/configuration.md`에 정리되어 있습니다.
+`docs/ko/getting-started/configuration-quickstart.md`부터 보고, 필요 시 `configuration.md`로 확장하세요.
 
 ### 3. 도구 만들기
 
@@ -430,6 +430,7 @@ Arc Reactor는 멀티모듈 Gradle 프로젝트입니다:
 - [메모리 & RAG 파이프라인](docs/ko/architecture/memory-rag.md) — 대화 기록 관리, 4단계 검색 증강 생성
 - [도구(Tool) 가이드](docs/ko/reference/tools.md) — 3가지 도구 유형, 등록 방법, MCP 연결
 - [MCP 통합 가이드](docs/ko/architecture/mcp.md) — McpManager, STDIO/SSE 트랜스포트, 도구 동적 로드
+- [설정 Quickstart](docs/ko/getting-started/configuration-quickstart.md) — 첫 실행용 최소 설정
 - [설정 레퍼런스](docs/ko/getting-started/configuration.md) — 전체 YAML 설정, 자동 구성, 프로덕션 예시
 - [관측성 & 메트릭](docs/ko/reference/metrics.md) — AgentMetrics 인터페이스, Micrometer 통합, 메트릭 포인트
 - [복원력 가이드](docs/ko/architecture/resilience.md) — 서킷 브레이커, 재시도, 우아한 성능 저하

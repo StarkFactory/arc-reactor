@@ -2,6 +2,7 @@
 
 > **Key files:** `AgentProperties.kt`, `ArcReactorAutoConfiguration.kt`
 > This document covers all configuration options and the Spring Boot auto-configuration mechanism in Arc Reactor.
+> New fork? Start with [configuration-quickstart.md](configuration-quickstart.md) first.
 
 ## Full Configuration Structure
 

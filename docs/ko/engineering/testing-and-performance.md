@@ -33,6 +33,7 @@
 - 통합 테스트 포함: `INCLUDE_INTEGRATION=1 scripts/dev/test-fast.sh`
 - 외부 통합 테스트 포함: `INCLUDE_EXTERNAL=1 scripts/dev/test-fast.sh`
 - 기존 XML 리포트 기준 느린 테스트 상위 조회: `scripts/dev/slow-tests.sh 30`
+- 문서/동기화 품질 검사: `scripts/dev/check-docs.sh`
 
 ## 느린 테스트의 대표 원인
 
@@ -78,6 +79,13 @@ CI는 `scripts/ci/run-with-duration-guard.sh`로 실행 시간을 제한합니�
 - `AgentPolicyAndFeatureProperties.kt` <= 500줄
 
 가드 스크립트: `scripts/ci/check-file-size-guard.sh`
+
+## CI 문서 가드
+
+CI는 문서 정합성과 탐색 가능성도 함께 검증합니다:
+
+- `scripts/ci/check-agent-doc-sync.sh`: `AGENTS.md`와 `CLAUDE.md` 동일성 검사
+- `scripts/ci/check-doc-links.py`: 로컬 마크다운 링크 + `docs/en`/`docs/ko` 패키지 README 인덱스 검사
 
 ## H2/JDBC 검증
 

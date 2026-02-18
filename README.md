@@ -52,7 +52,7 @@ export GEMINI_API_KEY=your-api-key
 ```
 
 Everything else is opt-in (`auth`, `rag`, `cors`, `circuit-breaker`), so you can enable features progressively.
-Detailed toggles are documented in `docs/en/getting-started/configuration.md`.
+Start with `docs/en/getting-started/configuration-quickstart.md`, then expand with `docs/en/getting-started/configuration.md`.
 
 ### 3. Create Tools
 
@@ -433,6 +433,7 @@ Key implementation entrypoints:
 - [Memory & RAG Pipeline](docs/en/architecture/memory-rag.md) - Conversation history, 4-stage retrieval-augmented generation
 - [Tool Guide](docs/en/reference/tools.md) - 3 tool types, registration, MCP connection
 - [MCP Integration Guide](docs/en/architecture/mcp.md) - McpManager, STDIO/SSE transports, dynamic tool loading
+- [Configuration Quickstart](docs/en/getting-started/configuration-quickstart.md) - Minimal setup for first run
 - [Configuration Reference](docs/en/getting-started/configuration.md) - Full YAML settings, auto-configuration, production examples
 - [Observability & Metrics](docs/en/reference/metrics.md) - AgentMetrics interface, Micrometer integration, metric points
 - [Resilience Guide](docs/en/architecture/resilience.md) - Circuit breaker, retry, graceful degradation

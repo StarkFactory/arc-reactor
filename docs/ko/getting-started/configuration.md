@@ -2,6 +2,7 @@
 
 > **핵심 파일:** `AgentProperties.kt`, `ArcReactorAutoConfiguration.kt`
 > 이 문서는 Arc Reactor의 모든 설정 옵션과 Spring Boot 자동 구성 메커니즘을 설명합니다.
+> 처음 fork해서 시작한다면 [configuration-quickstart.md](configuration-quickstart.md)부터 보세요.
 
 ## 전체 설정 구조
 
