@@ -1,5 +1,6 @@
 package com.arc.reactor.mcp
 
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
 import io.modelcontextprotocol.client.McpSyncClient
 import io.modelcontextprotocol.spec.McpSchema
@@ -62,6 +63,7 @@ class McpToolCallback(
                 output
             }
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Failed to call MCP tool: $name" }
             "Error: ${e.message}"
         }
