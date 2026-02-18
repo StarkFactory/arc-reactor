@@ -315,125 +315,206 @@ class SpringAiAgentExecutor(
         val toolsUsed = java.util.concurrent.CopyOnWriteArrayList<String>()
         val runContext = runContextManager.open(command, toolsUsed)
         val hookContext = runContext.hookContext
-
-        var streamSuccess = false
-        var streamErrorCode: AgentErrorCode? = null
-        var streamErrorMessage: String? = null
-        var streamStarted = false
-        val collectedContent = StringBuilder()
-        var lastIterationContent = StringBuilder()
+        val state = StreamingExecutionState()
 
         try {
-            concurrencySemaphore.withPermit {
-                withTimeout(properties.concurrency.requestTimeoutMs) {
-                    // 1. Guard check
-                    preExecutionResolver.checkGuard(command)?.let { rejection ->
-                        agentMetrics.recordGuardRejection(
-                            stage = rejection.stage ?: "unknown",
-                            reason = rejection.reason
-                        )
-                        streamErrorCode = AgentErrorCode.GUARD_REJECTED
-                        streamErrorMessage = rejection.reason
-                        emit(StreamEventMarker.error(rejection.reason))
-                        return@withTimeout
-                    }
-
-                    // 2. Before hooks
-                    preExecutionResolver.checkBeforeHooks(hookContext)?.let { rejection ->
-                        streamErrorCode = AgentErrorCode.HOOK_REJECTED
-                        streamErrorMessage = rejection.reason
-                        emit(StreamEventMarker.error(rejection.reason))
-                        return@withTimeout
-                    }
-
-                    // 3. Intent resolution (after guard/hooks)
-                    val effectiveCommand = preExecutionResolver.resolveIntent(command)
-
-                    // Reject structured formats in streaming mode
-                    if (effectiveCommand.responseFormat != ResponseFormat.TEXT) {
-                        streamErrorCode = AgentErrorCode.INVALID_RESPONSE
-                        streamErrorMessage =
-                            "Structured ${effectiveCommand.responseFormat} output is not supported in streaming mode"
-                        emit(StreamEventMarker.error(streamErrorMessage.orEmpty()))
-                        return@withTimeout
-                    }
-
-                    streamStarted = true
-
-                    // 4. Setup (conversation via ConversationManager)
-                    val conversationHistory = conversationManager.loadHistory(effectiveCommand)
-                    val ragContext = ragContextRetriever.retrieve(effectiveCommand)
-                    val systemPrompt = systemPromptBuilder.build(
-                        effectiveCommand.systemPrompt, ragContext,
-                        effectiveCommand.responseFormat, effectiveCommand.responseSchema
-                    )
-                    val selectedTools = if (effectiveCommand.mode == AgentMode.STANDARD) {
-                        emptyList()
-                    } else {
-                        toolPreparationPlanner.prepareForPrompt(effectiveCommand.userPrompt)
-                    }
-
-                    logger.debug { "Streaming ReAct: ${selectedTools.size} tools selected (mode=${effectiveCommand.mode})" }
-
-                    // 5. Run streaming ReAct loop
-                    val activeChatClient = resolveChatClient(effectiveCommand)
-                    val maxToolCallLimit = minOf(effectiveCommand.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
-                    val allowedTools = resolveIntentAllowedTools(effectiveCommand)
-
-                    val loopResult = streamingReActLoopExecutor.execute(
-                        command = effectiveCommand,
-                        activeChatClient = activeChatClient,
-                        systemPrompt = systemPrompt,
-                        initialTools = selectedTools,
-                        conversationHistory = conversationHistory,
-                        hookContext = hookContext,
-                        toolsUsed = toolsUsed,
-                        allowedTools = allowedTools,
-                        maxToolCalls = maxToolCallLimit,
-                        emit = { chunk -> emit(chunk) }
-                    )
-                    streamSuccess = loopResult.success
-                    collectedContent.append(loopResult.collectedContent)
-                    lastIterationContent = StringBuilder(loopResult.lastIterationContent)
-                }
-            }
+            executeStreamingFlow(command, hookContext, toolsUsed, state, emit = { chunk -> emit(chunk) })
         } catch (e: BlockedIntentException) {
-            logger.info { "Blocked intent in streaming: ${e.intentName}" }
-            streamErrorCode = AgentErrorCode.GUARD_REJECTED
-            streamErrorMessage = e.message
-            emit(StreamEventMarker.error(streamErrorMessage.orEmpty()))
+            handleBlockedIntentInStreaming(e, state, emit = { marker -> emit(marker) })
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            logger.warn { "Streaming request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
-            streamErrorCode = AgentErrorCode.TIMEOUT
-            streamErrorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, e.message)
-            emit(StreamEventMarker.error(streamErrorMessage.orEmpty()))
+            handleStreamingTimeout(e, state, emit = { marker -> emit(marker) })
         } catch (e: Exception) {
-            e.throwIfCancellation()
-            logger.error(e) { "Streaming execution failed" }
-            val errorCode = agentErrorPolicy.classify(e)
-            streamErrorCode = errorCode
-            streamErrorMessage = errorMessageResolver.resolve(errorCode, e.message)
-            emit(StreamEventMarker.error(streamErrorMessage.orEmpty()))
+            handleUnexpectedStreamingFailure(e, state, emit = { marker -> emit(marker) })
         } finally {
+            finalizeStreamingFlow(command, hookContext, toolsUsed, state, startTime, emit = { marker -> emit(marker) })
+        }
+    }
+
+    private suspend fun executeStreamingFlow(
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        state: StreamingExecutionState,
+        emit: suspend (String) -> Unit
+    ) {
+        concurrencySemaphore.withPermit {
+            withTimeout(properties.concurrency.requestTimeoutMs) {
+                val effectiveCommand = validateStreamingPreconditions(command, hookContext, state, emit)
+                    ?: return@withTimeout
+                state.streamStarted = true
+                val setup = prepareStreamingLoopSetup(effectiveCommand)
+                val loopResult = runStreamingReActLoop(effectiveCommand, setup, hookContext, toolsUsed, emit)
+                state.streamSuccess = loopResult.success
+                state.collectedContent.append(loopResult.collectedContent)
+                state.lastIterationContent = StringBuilder(loopResult.lastIterationContent)
+            }
+        }
+    }
+
+    private suspend fun validateStreamingPreconditions(
+        command: AgentCommand,
+        hookContext: HookContext,
+        state: StreamingExecutionState,
+        emit: suspend (String) -> Unit
+    ): AgentCommand? {
+        preExecutionResolver.checkGuard(command)?.let { rejection ->
+            agentMetrics.recordGuardRejection(stage = rejection.stage ?: "unknown", reason = rejection.reason)
+            state.streamErrorCode = AgentErrorCode.GUARD_REJECTED
+            state.streamErrorMessage = rejection.reason
+            emit(StreamEventMarker.error(rejection.reason))
+            return null
+        }
+
+        preExecutionResolver.checkBeforeHooks(hookContext)?.let { rejection ->
+            state.streamErrorCode = AgentErrorCode.HOOK_REJECTED
+            state.streamErrorMessage = rejection.reason
+            emit(StreamEventMarker.error(rejection.reason))
+            return null
+        }
+
+        val effectiveCommand = preExecutionResolver.resolveIntent(command)
+        if (effectiveCommand.responseFormat != ResponseFormat.TEXT) {
+            state.streamErrorCode = AgentErrorCode.INVALID_RESPONSE
+            state.streamErrorMessage =
+                "Structured ${effectiveCommand.responseFormat} output is not supported in streaming mode"
+            emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
+            return null
+        }
+        return effectiveCommand
+    }
+
+    private suspend fun prepareStreamingLoopSetup(command: AgentCommand): StreamingLoopSetup {
+        val conversationHistory = conversationManager.loadHistory(command)
+        val ragContext = ragContextRetriever.retrieve(command)
+        val systemPrompt = systemPromptBuilder.build(
+            command.systemPrompt,
+            ragContext,
+            command.responseFormat,
+            command.responseSchema
+        )
+        val selectedTools = if (command.mode == AgentMode.STANDARD) {
+            emptyList()
+        } else {
+            toolPreparationPlanner.prepareForPrompt(command.userPrompt)
+        }
+        logger.debug { "Streaming ReAct: ${selectedTools.size} tools selected (mode=${command.mode})" }
+        return StreamingLoopSetup(
+            activeChatClient = resolveChatClient(command),
+            systemPrompt = systemPrompt,
+            initialTools = selectedTools,
+            conversationHistory = conversationHistory,
+            allowedTools = resolveIntentAllowedTools(command),
+            maxToolCallLimit = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
+        )
+    }
+
+    private suspend fun runStreamingReActLoop(
+        command: AgentCommand,
+        setup: StreamingLoopSetup,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        emit: suspend (String) -> Unit
+    ): StreamingLoopResult {
+        return streamingReActLoopExecutor.execute(
+            command = command,
+            activeChatClient = setup.activeChatClient,
+            systemPrompt = setup.systemPrompt,
+            initialTools = setup.initialTools,
+            conversationHistory = setup.conversationHistory,
+            hookContext = hookContext,
+            toolsUsed = toolsUsed,
+            allowedTools = setup.allowedTools,
+            maxToolCalls = setup.maxToolCallLimit,
+            emit = emit
+        )
+    }
+
+    private suspend fun handleBlockedIntentInStreaming(
+        exception: BlockedIntentException,
+        state: StreamingExecutionState,
+        emit: suspend (String) -> Unit
+    ) {
+        logger.info { "Blocked intent in streaming: ${exception.intentName}" }
+        state.streamErrorCode = AgentErrorCode.GUARD_REJECTED
+        state.streamErrorMessage = exception.message
+        emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
+    }
+
+    private suspend fun handleStreamingTimeout(
+        exception: kotlinx.coroutines.TimeoutCancellationException,
+        state: StreamingExecutionState,
+        emit: suspend (String) -> Unit
+    ) {
+        logger.warn { "Streaming request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
+        state.streamErrorCode = AgentErrorCode.TIMEOUT
+        state.streamErrorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, exception.message)
+        emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
+    }
+
+    private suspend fun handleUnexpectedStreamingFailure(
+        exception: Exception,
+        state: StreamingExecutionState,
+        emit: suspend (String) -> Unit
+    ) {
+        exception.throwIfCancellation()
+        logger.error(exception) { "Streaming execution failed" }
+        val errorCode = agentErrorPolicy.classify(exception)
+        state.streamErrorCode = errorCode
+        state.streamErrorMessage = errorMessageResolver.resolve(errorCode, exception.message)
+        emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
+    }
+
+    private suspend fun finalizeStreamingFlow(
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: List<String>,
+        state: StreamingExecutionState,
+        startTime: Long,
+        emit: suspend (String) -> Unit
+    ) {
+        try {
             streamingCompletionFinalizer.finalize(
                 command = command,
                 hookContext = hookContext,
-                streamStarted = streamStarted,
-                streamSuccess = streamSuccess,
-                collectedContent = collectedContent.toString(),
-                lastIterationContent = lastIterationContent.toString(),
-                streamErrorMessage = streamErrorMessage,
-                toolsUsed = toolsUsed.toList(),
-                emit = { marker -> emit(marker) }
+                streamStarted = state.streamStarted,
+                streamSuccess = state.streamSuccess,
+                collectedContent = state.collectedContent.toString(),
+                lastIterationContent = state.lastIterationContent.toString(),
+                streamErrorMessage = state.streamErrorMessage,
+                toolsUsed = toolsUsed,
+                emit = emit
             )
 
             recordStreamingMetrics(
-                streamSuccess, collectedContent.toString(), streamErrorMessage,
-                streamErrorCode, toolsUsed.toList(), startTime
+                success = state.streamSuccess,
+                content = state.collectedContent.toString(),
+                errorMessage = state.streamErrorMessage,
+                errorCode = state.streamErrorCode,
+                toolsUsed = toolsUsed,
+                startTime = startTime
             )
+        } finally {
             runContextManager.close()
         }
     }
+
+    private data class StreamingExecutionState(
+        var streamSuccess: Boolean = false,
+        var streamErrorCode: AgentErrorCode? = null,
+        var streamErrorMessage: String? = null,
+        var streamStarted: Boolean = false,
+        val collectedContent: StringBuilder = StringBuilder(),
+        var lastIterationContent: StringBuilder = StringBuilder()
+    )
+
+    private data class StreamingLoopSetup(
+        val activeChatClient: ChatClient,
+        val systemPrompt: String,
+        val initialTools: List<Any>,
+        val conversationHistory: List<Message>,
+        val allowedTools: Set<String>?,
+        val maxToolCallLimit: Int
+    )
 
     private fun recordStreamingMetrics(
         success: Boolean,
