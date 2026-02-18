@@ -2,8 +2,10 @@ package com.arc.reactor.agent
 
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
@@ -167,6 +169,36 @@ class StreamingTest {
             assertEquals(1, chunks.size)
             assertTrue(chunks[0].contains("Blocked")) { "Error chunk should contain rejection reason, got: ${chunks[0]}" }
         }
+
+        @Test
+        fun `should record GUARD_REJECTED in streaming metrics when guard rejects`() = runBlocking {
+            val guard = mockk<RequestGuard>()
+            val metrics = mockk<AgentMetrics>(relaxed = true)
+            coEvery { guard.guard(any()) } returns GuardResult.Rejected(
+                reason = "Blocked",
+                category = RejectionCategory.RATE_LIMITED,
+                stage = "rateLimit"
+            )
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties,
+                guard = guard,
+                agentMetrics = metrics
+            )
+
+            executor.executeStream(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello", userId = "user-1")
+            ).toList()
+
+            io.mockk.verify(exactly = 1) {
+                metrics.recordStreamingExecution(match {
+                    !it.success &&
+                        it.errorCode == AgentErrorCode.GUARD_REJECTED &&
+                        it.errorMessage == "Blocked"
+                })
+            }
+        }
     }
 
     @Nested
@@ -211,6 +243,32 @@ class StreamingTest {
 
             assertEquals(1, chunks.size)
             assertTrue(chunks[0].contains("Not allowed")) { "Error chunk should contain rejection reason, got: ${chunks[0]}" }
+        }
+
+        @Test
+        fun `should record HOOK_REJECTED in streaming metrics when before hook rejects`() = runBlocking {
+            val hookExecutor = mockk<HookExecutor>(relaxed = true)
+            val metrics = mockk<AgentMetrics>(relaxed = true)
+            coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("Not allowed")
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties,
+                hookExecutor = hookExecutor,
+                agentMetrics = metrics
+            )
+
+            executor.executeStream(
+                AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
+            ).toList()
+
+            io.mockk.verify(exactly = 1) {
+                metrics.recordStreamingExecution(match {
+                    !it.success &&
+                        it.errorCode == AgentErrorCode.HOOK_REJECTED &&
+                        it.errorMessage == "Not allowed"
+                })
+            }
         }
     }
 
