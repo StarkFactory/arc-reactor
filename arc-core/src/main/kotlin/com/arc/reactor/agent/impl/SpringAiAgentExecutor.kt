@@ -41,8 +41,6 @@ import org.slf4j.MDC
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.prompt.ChatOptions
-import org.springframework.ai.google.genai.GoogleGenAiChatOptions
-import org.springframework.ai.model.tool.ToolCallingChatOptions
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -120,6 +118,11 @@ class SpringAiAgentExecutor(
         errorMessageResolver = errorMessageResolver,
         resolveChatClient = ::resolveChatClient
     )
+    private val chatOptionsFactory = ChatOptionsFactory(
+        defaultTemperature = properties.llm.temperature,
+        maxOutputTokens = properties.llm.maxOutputTokens,
+        googleSearchRetrievalEnabled = properties.llm.googleSearchRetrievalEnabled
+    )
     private val toolPreparationPlanner = ToolPreparationPlanner(
         localTools = localTools,
         toolCallbacks = toolCallbacks,
@@ -150,7 +153,7 @@ class SpringAiAgentExecutor(
         toolCallOrchestrator = toolCallOrchestrator,
         buildRequestSpec = ::createPromptRequestSpec,
         callWithRetry = { block -> retryExecutor.execute(block) },
-        buildChatOptions = ::buildChatOptions,
+        buildChatOptions = ::createChatOptions,
         validateAndRepairResponse = structuredResponseRepairer::validateAndRepair,
         recordTokenUsage = agentMetrics::recordTokenUsage
     )
@@ -159,7 +162,7 @@ class SpringAiAgentExecutor(
         toolCallOrchestrator = toolCallOrchestrator,
         buildRequestSpec = ::createPromptRequestSpec,
         callWithRetry = { block -> retryExecutor.execute(block) },
-        buildChatOptions = ::buildChatOptions
+        buildChatOptions = ::createChatOptions
     )
     private val streamingCompletionFinalizer = StreamingCompletionFinalizer(
         boundaries = properties.boundaries,
@@ -478,36 +481,13 @@ class SpringAiAgentExecutor(
         agentMetrics.recordStreamingExecution(result)
     }
 
-    /**
-     * Build ChatOptions from command and properties.
-     */
-    private fun buildChatOptions(command: AgentCommand, hasTools: Boolean): ChatOptions {
-        val temperature = command.temperature ?: properties.llm.temperature
-        val maxTokens = properties.llm.maxOutputTokens
-        val provider = command.model ?: chatModelProvider?.defaultProvider() ?: properties.llm.defaultProvider
-        val isGemini = provider.equals("gemini", ignoreCase = true) || provider.equals("vertex", ignoreCase = true)
-
-        if (isGemini) {
-            return GoogleGenAiChatOptions.builder()
-                .temperature(temperature)
-                .maxOutputTokens(maxTokens)
-                .googleSearchRetrieval(properties.llm.googleSearchRetrievalEnabled)
-                .internalToolExecutionEnabled(!hasTools)
-                .build()
-        }
-
-        return if (hasTools) {
-            ToolCallingChatOptions.builder()
-                .temperature(temperature)
-                .maxTokens(maxTokens)
-                .internalToolExecutionEnabled(false) // We manage the tool loop ourselves
-                .build()
-        } else {
-            ChatOptions.builder()
-                .temperature(temperature)
-                .maxTokens(maxTokens)
-                .build()
-        }
+    private fun createChatOptions(command: AgentCommand, hasTools: Boolean): ChatOptions {
+        val fallbackProvider = chatModelProvider?.defaultProvider() ?: properties.llm.defaultProvider
+        return chatOptionsFactory.create(
+            command = command,
+            hasTools = hasTools,
+            fallbackProvider = fallbackProvider
+        )
     }
 
     /**
