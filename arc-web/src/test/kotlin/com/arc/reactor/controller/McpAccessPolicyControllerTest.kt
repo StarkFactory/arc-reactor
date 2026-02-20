@@ -17,8 +17,8 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
-import java.net.InetSocketAddress
 import com.sun.net.httpserver.HttpServer
+import java.net.InetSocketAddress
 
 class McpAccessPolicyControllerTest {
 
@@ -226,6 +226,54 @@ class McpAccessPolicyControllerTest {
 
                 assertEquals(HttpStatus.NO_CONTENT, response.statusCode) {
                     "Proxy should preserve upstream 204 NO_CONTENT instead of converting to 200"
+                }
+            } finally {
+                server.stop(0)
+            }
+        }
+
+        @Test
+        fun `getPolicy should return gateway timeout when upstream is too slow`() = runTest {
+            val server = HttpServer.create(InetSocketAddress(0), 0)
+            server.createContext("/admin/access-policy") { exchange ->
+                if (exchange.requestMethod != "GET") {
+                    exchange.sendResponseHeaders(405, -1)
+                    exchange.close()
+                    return@createContext
+                }
+
+                Thread.sleep(300)
+                val payload = """{"status":"ok"}""".toByteArray()
+                exchange.sendResponseHeaders(200, payload.size.toLong())
+                exchange.responseBody.use { it.write(payload) }
+            }
+            server.start()
+
+            try {
+                val port = server.address.port
+                saveServer(
+                    name = "slow-server",
+                    config = mapOf(
+                        "url" to "http://localhost:$port/sse",
+                        "adminToken" to "admin-secret",
+                        "adminTimeoutMs" to 50
+                    )
+                )
+
+                val response = controller.getPolicy(name = "slow-server", exchange = adminExchange("timeout-admin"))
+
+                assertEquals(HttpStatus.GATEWAY_TIMEOUT, response.statusCode) {
+                    "Expected 504 GATEWAY_TIMEOUT when upstream exceeds configured timeout"
+                }
+                val body = response.body as ErrorResponse
+                assertTrue(body.error.contains("timed out")) {
+                    "Expected timeout error message, got: ${body.error}"
+                }
+
+                val audits = auditStore.list()
+                assertEquals(1, audits.size) { "Expected one READ audit log entry for timed-out request" }
+                assertTrue(audits.first().detail.orEmpty().contains("status=504")) {
+                    "Audit detail should record 504 status for timeout case"
                 }
             } finally {
                 server.stop(0)

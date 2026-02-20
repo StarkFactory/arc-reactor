@@ -14,7 +14,9 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.server.ServerWebExchange
+import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.TimeoutException
 
 private val logger = KotlinLogging.logger {}
 
@@ -120,6 +122,7 @@ class McpAccessPolicyController(
                         timestamp = Instant.now().toString()
                     )
                 )
+        val timeoutMs = resolveAdminTimeoutMs(config)
 
         return try {
             val client = WebClient.builder().baseUrl(baseUrl).build()
@@ -132,6 +135,7 @@ class McpAccessPolicyController(
                             .defaultIfEmpty("")
                             .map { responseBody -> toResponseEntity(response.statusCode(), responseBody) }
                     }
+                    .timeout(Duration.ofMillis(timeoutMs))
                     .awaitSingleOrNull()
                 HttpMethod.PUT -> client.put()
                     .uri("/admin/access-policy")
@@ -142,6 +146,7 @@ class McpAccessPolicyController(
                             .defaultIfEmpty("")
                             .map { responseBody -> toResponseEntity(response.statusCode(), responseBody) }
                     }
+                    .timeout(Duration.ofMillis(timeoutMs))
                     .awaitSingleOrNull()
                 HttpMethod.DELETE -> client.delete()
                     .uri("/admin/access-policy")
@@ -151,6 +156,7 @@ class McpAccessPolicyController(
                             .defaultIfEmpty("")
                             .map { responseBody -> toResponseEntity(response.statusCode(), responseBody) }
                     }
+                    .timeout(Duration.ofMillis(timeoutMs))
                     .awaitSingleOrNull()
             }
                 ?: ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(
@@ -159,6 +165,13 @@ class McpAccessPolicyController(
                         timestamp = Instant.now().toString()
                     )
                 )
+        } catch (_: TimeoutException) {
+            ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(
+                ErrorResponse(
+                    error = "MCP admin API timed out after ${timeoutMs}ms",
+                    timestamp = Instant.now().toString()
+                )
+            )
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) { "Failed to proxy access-policy request to MCP server '$name'" }
@@ -182,6 +195,15 @@ class McpAccessPolicyController(
         return ResponseEntity.status(statusCode).body(parseJsonOrString(body))
     }
 
+    private fun resolveAdminTimeoutMs(config: Map<String, Any>): Long {
+        val configured = when (val raw = config["adminTimeoutMs"]) {
+            is Number -> raw.toLong()
+            is String -> raw.trim().toLongOrNull()
+            else -> null
+        } ?: DEFAULT_ADMIN_TIMEOUT_MS
+        return configured.coerceIn(MIN_ADMIN_TIMEOUT_MS, MAX_ADMIN_TIMEOUT_MS)
+    }
+
     private fun parseJsonOrString(body: String): Any {
         if (body.isBlank()) return emptyMap<String, Any>()
         return try {
@@ -194,6 +216,9 @@ class McpAccessPolicyController(
     private enum class HttpMethod { GET, PUT, DELETE }
 
     companion object {
+        private const val DEFAULT_ADMIN_TIMEOUT_MS = 10_000L
+        private const val MIN_ADMIN_TIMEOUT_MS = 100L
+        private const val MAX_ADMIN_TIMEOUT_MS = 120_000L
         private val objectMapper = jacksonObjectMapper()
     }
 }
