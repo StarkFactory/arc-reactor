@@ -4,7 +4,7 @@ import com.arc.reactor.agent.AgentTestFixture
 import com.arc.reactor.tool.LocalTool
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
 
 @Tag("matrix")
@@ -36,11 +36,19 @@ class ToolPreparationPlannerMatrixTest {
 
                         val expectedLocalPrefix = minOf(localCount, maxTools)
                         repeat(expectedLocalPrefix) { i ->
-                            assertTrue(prepared[i] is LocalTool, "combination=$checked index=$i should be LocalTool")
+                            assertInstanceOf(
+                                LocalTool::class.java,
+                                prepared[i],
+                                "combination=$checked index=$i should be LocalTool"
+                            )
                         }
 
                         val expectedCallbacks = expectedTotal - expectedLocalPrefix
-                        assertEquals(expectedCallbacks, prepared.count { it is ArcToolCallbackAdapter }, "combination=$checked")
+                        assertEquals(
+                            expectedCallbacks,
+                            prepared.count { it is ArcToolCallbackAdapter },
+                            "combination=$checked"
+                        )
 
                         checked++
                     }
@@ -67,8 +75,12 @@ class ToolPreparationPlannerMatrixTest {
         val prepared = planner.prepareForPrompt("critical query")
 
         assertEquals(5, prepared.size)
-        assertTrue(prepared[0] is LocalTool)
-        assertTrue(prepared[1] is LocalTool)
+        assertInstanceOf(LocalTool::class.java, prepared[0]) {
+            "First prepared tool should be local tool"
+        }
+        assertInstanceOf(LocalTool::class.java, prepared[1]) {
+            "Second prepared tool should be local tool"
+        }
         assertEquals(3, prepared.count { it is ArcToolCallbackAdapter })
     }
 }

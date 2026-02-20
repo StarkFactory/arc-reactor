@@ -8,6 +8,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -34,7 +35,9 @@ class ToolPreparationPlannerTest {
         assertEquals(3, prepared.size)
         assertTrue(prepared[0] === localA)
         assertTrue(prepared[1] === localB)
-        assertTrue(prepared[2] is ArcToolCallbackAdapter)
+        assertInstanceOf(ArcToolCallbackAdapter::class.java, prepared[2]) {
+            "Third prepared tool should wrap callback as ArcToolCallbackAdapter"
+        }
     }
 
     @Test

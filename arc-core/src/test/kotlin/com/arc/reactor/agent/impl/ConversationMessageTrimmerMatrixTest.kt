@@ -3,6 +3,7 @@ package com.arc.reactor.agent.impl
 import com.arc.reactor.memory.TokenEstimator
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
@@ -85,7 +86,10 @@ class ConversationMessageTrimmerMatrixTest {
             val messages = mutableListOf<Message>()
             messages += UserMessage("question-$i")
             repeat(pairCount) { p ->
-                messages += AssistantMessage.builder().content("think-$i-$p").toolCalls(listOf(buildToolCall(p))).build()
+                messages += AssistantMessage.builder()
+                    .content("think-$i-$p")
+                    .toolCalls(listOf(buildToolCall(p)))
+                    .build()
                 messages += ToolResponseMessage.builder()
                     .responses(listOf(ToolResponseMessage.ToolResponse("tr-$p", "tool-$p", "res-$p")))
                     .build()
@@ -103,8 +107,12 @@ class ConversationMessageTrimmerMatrixTest {
                 if (msg is ToolResponseMessage) {
                     assertTrue(idx > 0, "case=$i tool response at first index")
                     val prev = messages[idx - 1]
-                    assertTrue(prev is AssistantMessage, "case=$i tool response must follow assistant")
-                    assertTrue(!(prev as AssistantMessage).toolCalls.isNullOrEmpty(), "case=$i assistant before tool response must have toolCalls")
+                    val previousAssistant = assertInstanceOf(AssistantMessage::class.java, prev) {
+                        "case=$i tool response must follow assistant"
+                    }
+                    assertTrue(!previousAssistant.toolCalls.isNullOrEmpty()) {
+                        "case=$i assistant before tool response must have toolCalls"
+                    }
                 }
             }
         }

@@ -187,7 +187,9 @@ class ScenarioAssumptionValidationTest {
         val parsed = StreamEventMarker.parse(chunks.first())
         assertNotNull(parsed)
         assertEquals("error", parsed?.first)
-        assertTrue(parsed?.second?.contains("Structured JSON output is not supported in streaming mode") == true)
+        assertTrue(parsed?.second?.contains("Structured JSON output is not supported in streaming mode") == true) {
+            "Streaming with JSON response format should emit INVALID_RESPONSE marker"
+        }
         verify(exactly = 1) {
             metrics.recordStreamingExecution(
                 match { !it.success && it.errorCode == AgentErrorCode.INVALID_RESPONSE }

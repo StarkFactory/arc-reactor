@@ -8,7 +8,7 @@ import com.arc.reactor.rag.ingestion.RagIngestionCandidateStatus
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyStore
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -28,7 +28,8 @@ import org.springframework.test.web.reactive.server.WebTestClient
         "spring.datasource.password=",
         "spring.flyway.enabled=false",
         "spring.sql.init.mode=always",
-        "spring.sql.init.schema-locations=classpath:test-schema.sql,classpath:test-tool-policy-schema.sql,classpath:test-rag-ingestion-schema.sql",
+        "spring.sql.init.schema-locations=" +
+            "classpath:test-schema.sql,classpath:test-tool-policy-schema.sql,classpath:test-rag-ingestion-schema.sql",
         "spring.ai.google.genai.api-key=test-key",
         "spring.ai.google.genai.embedding.api-key=test-key",
         "arc.reactor.rag.ingestion.enabled=true",
@@ -60,8 +61,12 @@ class RagIngestionIntegrationTest {
 
     @Test
     fun `wires jdbc rag ingestion stores when datasource and dynamic are enabled`() {
-        assertTrue(ragIngestionPolicyStore is JdbcRagIngestionPolicyStore)
-        assertTrue(ragIngestionCandidateStore is JdbcRagIngestionCandidateStore)
+        assertInstanceOf(JdbcRagIngestionPolicyStore::class.java, ragIngestionPolicyStore) {
+            "Expected JdbcRagIngestionPolicyStore when datasource and dynamic policy are enabled"
+        }
+        assertInstanceOf(JdbcRagIngestionCandidateStore::class.java, ragIngestionCandidateStore) {
+            "Expected JdbcRagIngestionCandidateStore when datasource and dynamic policy are enabled"
+        }
     }
 
     @Test

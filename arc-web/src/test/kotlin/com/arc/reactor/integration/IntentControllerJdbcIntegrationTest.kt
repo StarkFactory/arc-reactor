@@ -5,6 +5,7 @@ import com.arc.reactor.intent.IntentRegistry
 import com.arc.reactor.intent.impl.JdbcIntentRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
@@ -53,7 +54,9 @@ class IntentControllerJdbcIntegrationTest {
 
     @Test
     fun `wires JdbcIntentRegistry when datasource is configured`() {
-        assertTrue(intentRegistry is JdbcIntentRegistry)
+        assertInstanceOf(JdbcIntentRegistry::class.java, intentRegistry) {
+            "Expected JdbcIntentRegistry when datasource is configured"
+        }
     }
 
     @Test

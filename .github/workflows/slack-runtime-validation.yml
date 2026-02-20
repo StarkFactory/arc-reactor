@@ -1,0 +1,64 @@
+name: Slack Runtime Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Target Arc Reactor base URL"
+        required: true
+        default: "http://localhost:18084"
+        type: string
+      require_mcp_check:
+        description: "Require MCP read_messages checks"
+        required: true
+        default: true
+        type: boolean
+      mcp_server_name:
+        description: "MCP server name to register/check"
+        required: false
+        default: "slack-mcp-runtime-validation"
+        type: string
+      mcp_sse_url:
+        description: "Optional MCP SSE URL (auto-register when provided)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate Required Secrets
+        run: |
+          set -euo pipefail
+          missing=0
+          for key in SLACK_SIGNING_SECRET SLACK_BOT_TOKEN SLACK_CHANNEL_ID; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required secret: $key"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+        env:
+          SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Run Slack Runtime Validation
+        run: scripts/dev/validate-slack-runtime.sh
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+          REQUIRE_MCP_CHECK: ${{ inputs.require_mcp_check }}
+          MCP_SERVER_NAME: ${{ inputs.mcp_server_name }}
+          MCP_SSE_URL: ${{ inputs.mcp_sse_url }}
