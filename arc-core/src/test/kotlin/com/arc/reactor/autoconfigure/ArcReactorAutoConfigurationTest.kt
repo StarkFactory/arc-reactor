@@ -269,26 +269,14 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should use legacy guard max input length when boundaries input max is not set`() {
-            contextRunner
-                .withPropertyValues("arc.reactor.guard.max-input-length=4321")
-                .run { context ->
-                    assertEquals(4321, inputValidationMaxLength(context)) {
-                        "Legacy guard max input length should be applied for backward compatibility"
-                    }
-                }
-        }
-
-        @Test
-        fun `should prioritize boundaries input max over legacy guard max input length`() {
+        fun `should apply boundaries input max chars to input validation stage`() {
             contextRunner
                 .withPropertyValues(
-                    "arc.reactor.guard.max-input-length=4321",
                     "arc.reactor.boundaries.input-max-chars=8765"
                 )
                 .run { context ->
                     assertEquals(8765, inputValidationMaxLength(context)) {
-                        "boundaries.input-max-chars should take precedence over legacy guard.max-input-length"
+                        "inputValidationStage should use boundaries.input-max-chars"
                     }
                 }
         }

@@ -7,14 +7,10 @@ import com.arc.reactor.guard.impl.DefaultInjectionDetectionStage
 import com.arc.reactor.guard.impl.DefaultInputValidationStage
 import com.arc.reactor.guard.impl.DefaultRateLimitStage
 import com.arc.reactor.guard.impl.GuardPipeline
-import mu.KotlinLogging
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.core.env.Environment
-
-private val logger = KotlinLogging.logger {}
 
 /**
  * Guard Configuration
@@ -36,28 +32,9 @@ class GuardConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name = ["inputValidationStage"])
-    fun inputValidationStage(
-        properties: AgentProperties,
-        environment: Environment
-    ): GuardStage {
-        val hasBoundariesInputMax = environment.containsProperty("arc.reactor.boundaries.input-max-chars")
-        val hasLegacyGuardInputMax = environment.containsProperty("arc.reactor.guard.max-input-length")
-
-        val effectiveInputMaxChars = when {
-            hasBoundariesInputMax -> properties.boundaries.inputMaxChars
-            hasLegacyGuardInputMax -> {
-                logger.warn {
-                    "Deprecated config detected: arc.reactor.guard.max-input-length. " +
-                        "Use arc.reactor.boundaries.input-max-chars instead."
-                }
-                @Suppress("DEPRECATION")
-                properties.guard.maxInputLength
-            }
-            else -> properties.boundaries.inputMaxChars
-        }
-
+    fun inputValidationStage(properties: AgentProperties): GuardStage {
         return DefaultInputValidationStage(
-            maxLength = effectiveInputMaxChars,
+            maxLength = properties.boundaries.inputMaxChars,
             minLength = properties.boundaries.inputMinChars,
             systemPromptMaxChars = properties.boundaries.systemPromptMaxChars
         )
