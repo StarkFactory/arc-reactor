@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.ServerWebInputException
 import java.time.Instant
 import java.time.format.DateTimeParseException
 
@@ -47,11 +48,7 @@ class FeedbackController(
     fun submitFeedback(
         @RequestBody request: SubmitFeedbackRequest
     ): ResponseEntity<FeedbackResponse> {
-        val rating = try {
-            FeedbackRating.valueOf(request.rating.uppercase())
-        } catch (e: IllegalArgumentException) {
-            return ResponseEntity.badRequest().build()
-        }
+        val rating = parseRating(request.rating)
 
         val metadata = request.runId?.let { metadataCaptureHook.get(it) }
 
@@ -91,18 +88,9 @@ class FeedbackController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
 
-        val ratingEnum = rating?.let {
-            try { FeedbackRating.valueOf(it.uppercase()) }
-            catch (e: IllegalArgumentException) { return ResponseEntity.badRequest().build() }
-        }
-        val fromInstant = from?.let {
-            try { Instant.parse(it) }
-            catch (e: DateTimeParseException) { return ResponseEntity.badRequest().build() }
-        }
-        val toInstant = to?.let {
-            try { Instant.parse(it) }
-            catch (e: DateTimeParseException) { return ResponseEntity.badRequest().build() }
-        }
+        val ratingEnum = rating?.let(::parseRating)
+        val fromInstant = from?.let { parseInstant("from", it) }
+        val toInstant = to?.let { parseInstant("to", it) }
 
         val results = feedbackStore.list(
             rating = ratingEnum,
@@ -155,6 +143,22 @@ class FeedbackController(
         if (!isAdmin(exchange)) return forbiddenResponse()
         feedbackStore.delete(feedbackId)
         return ResponseEntity.noContent().build()
+    }
+
+    private fun parseRating(raw: String): FeedbackRating {
+        return try {
+            FeedbackRating.valueOf(raw.trim().uppercase())
+        } catch (_: IllegalArgumentException) {
+            throw ServerWebInputException("Invalid rating: $raw")
+        }
+    }
+
+    private fun parseInstant(field: String, raw: String): Instant {
+        return try {
+            Instant.parse(raw.trim())
+        } catch (_: DateTimeParseException) {
+            throw ServerWebInputException("Invalid timestamp for '$field': $raw")
+        }
     }
 }
 

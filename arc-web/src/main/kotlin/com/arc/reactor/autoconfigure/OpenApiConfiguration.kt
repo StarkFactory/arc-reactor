@@ -7,6 +7,7 @@ import io.swagger.v3.oas.models.info.License
 import io.swagger.v3.oas.models.security.SecurityRequirement
 import io.swagger.v3.oas.models.security.SecurityScheme
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
+import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -26,7 +27,9 @@ import org.springframework.context.annotation.Configuration
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springdoc.core.configuration.SpringDocConfiguration"])
-class OpenApiConfiguration {
+class OpenApiConfiguration(
+    private val buildProperties: BuildProperties? = null
+) {
 
     @Bean
     fun arcReactorOpenAPI(): OpenAPI {
@@ -38,7 +41,7 @@ class OpenApiConfiguration {
                         "AI Agent framework REST API. " +
                             "Authentication endpoints are only available when `arc.reactor.auth.enabled=true`."
                     )
-                    .version("2.1.1")
+                    .version(resolveVersion())
                     .license(License().name("Apache 2.0").url("https://opensource.org/licenses/Apache-2.0"))
             )
             .components(
@@ -56,5 +59,11 @@ class OpenApiConfiguration {
                     )
             )
             .addSecurityItem(SecurityRequirement().addList("bearerAuth"))
+    }
+
+    private fun resolveVersion(): String {
+        return buildProperties?.version
+            ?: OpenApiConfiguration::class.java.`package`?.implementationVersion
+            ?: "dev"
     }
 }

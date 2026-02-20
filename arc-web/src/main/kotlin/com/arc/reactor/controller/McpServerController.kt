@@ -76,8 +76,20 @@ class McpServerController(
                 )
         }
 
-        val server = request.toMcpServer()
+        val transportType = parseTransportType(request.transportType)
+            ?: return badRequest("Invalid transportType: ${request.transportType}")
+        if (transportType == McpTransportType.HTTP) {
+            return badRequest("HTTP transport is not supported. Use SSE or STDIO.")
+        }
+
+        val server = request.toMcpServer(transportType)
         mcpManager.register(server)
+        val registeredInRuntime = mcpManager.getStatus(server.name) != null ||
+            mcpManager.listServers().any { it.name == server.name }
+        if (!registeredInRuntime) {
+            return badRequest("MCP server '${server.name}' is not allowed by the security allowlist.")
+        }
+        persistServerIfMissing(server)
 
         if (request.autoConnect) {
             try {
@@ -140,14 +152,25 @@ class McpServerController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
 
+        val existing = mcpServerStore.findByName(name)
+            ?: return mcpNotFound(name)
+
+        val transportType = when (val requested = request.transportType) {
+            null -> existing.transportType
+            else -> parseTransportType(requested)
+                ?: return badRequest("Invalid transportType: $requested")
+        }
+        if (transportType == McpTransportType.HTTP) {
+            return badRequest("HTTP transport is not supported. Use SSE or STDIO.")
+        }
+
         val updateData = McpServer(
             name = name,
-            description = request.description,
-            transportType = request.transportType?.let { McpTransportType.valueOf(it) }
-                ?: McpTransportType.SSE,
-            config = request.config ?: emptyMap(),
-            version = request.version,
-            autoConnect = request.autoConnect ?: false
+            description = request.description ?: existing.description,
+            transportType = transportType,
+            config = request.config ?: existing.config,
+            version = request.version ?: existing.version,
+            autoConnect = request.autoConnect ?: existing.autoConnect
         )
 
         val updated = mcpServerStore.update(name, updateData)
@@ -262,6 +285,26 @@ class McpServerController(
             .body(ErrorResponse(error = "MCP server '$name' not found", timestamp = Instant.now().toString()))
     }
 
+    private fun parseTransportType(raw: String): McpTransportType? {
+        val normalized = raw.trim()
+        if (normalized.isEmpty()) return null
+        return McpTransportType.entries.firstOrNull { it.name.equals(normalized, ignoreCase = true) }
+    }
+
+    private fun badRequest(message: String): ResponseEntity<Any> =
+        ResponseEntity.badRequest().body(
+            ErrorResponse(error = message, timestamp = Instant.now().toString())
+        )
+
+    private fun persistServerIfMissing(server: McpServer) {
+        if (mcpServerStore.findByName(server.name) != null) return
+        try {
+            mcpServerStore.save(server)
+        } catch (e: IllegalArgumentException) {
+            logger.debug(e) { "MCP server '${server.name}' was concurrently saved by another request" }
+        }
+    }
+
     // ---- DTOs ----
 
     private fun McpServer.toResponse() = McpServerResponse(
@@ -289,10 +332,10 @@ data class RegisterMcpServerRequest(
     val version: String? = null,
     val autoConnect: Boolean = true
 ) {
-    fun toMcpServer() = McpServer(
+    fun toMcpServer(transportType: McpTransportType) = McpServer(
         name = name,
         description = description,
-        transportType = McpTransportType.valueOf(transportType),
+        transportType = transportType,
         config = config,
         version = version,
         autoConnect = autoConnect
@@ -300,8 +343,10 @@ data class RegisterMcpServerRequest(
 }
 
 data class UpdateMcpServerRequest(
+    @field:Size(max = 500, message = "Description must not exceed 500 characters")
     val description: String? = null,
     val transportType: String? = null,
+    @field:Size(max = 20, message = "Config must not exceed 20 entries")
     val config: Map<String, Any>? = null,
     val version: String? = null,
     val autoConnect: Boolean? = null
