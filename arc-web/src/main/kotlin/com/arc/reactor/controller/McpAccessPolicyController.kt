@@ -64,6 +64,22 @@ class McpAccessPolicyController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        val validationError = validatePolicyRequest(request)
+        if (validationError != null) {
+            val response = errorResponse(HttpStatus.BAD_REQUEST, validationError)
+            recordAdminAudit(
+                store = adminAuditStore,
+                category = "mcp_access_policy",
+                action = "UPDATE",
+                actor = currentActor(exchange),
+                resourceType = "mcp_server",
+                resourceId = name,
+                detail = "status=${response.statusCode.value()}, validationError=$validationError, " +
+                    "jiraProjects=${request.allowedJiraProjectKeys.size}, " +
+                    "confluenceSpaces=${request.allowedConfluenceSpaceKeys.size}"
+            )
+            return response
+        }
         val response = proxy(name, HttpMethod.PUT, request)
         recordAdminAudit(
             store = adminAuditStore,
@@ -183,6 +199,53 @@ class McpAccessPolicyController(
         return response
     }
 
+    private fun validatePolicyRequest(request: UpdateMcpAccessPolicyRequest): String? {
+        validatePolicyKeys(
+            fieldName = "allowedJiraProjectKeys",
+            keys = request.allowedJiraProjectKeys,
+            maxItems = MAX_PROJECT_KEYS,
+            maxLength = MAX_JIRA_KEY_LENGTH,
+            pattern = JIRA_PROJECT_KEY_PATTERN
+        )?.let { return it }
+        validatePolicyKeys(
+            fieldName = "allowedConfluenceSpaceKeys",
+            keys = request.allowedConfluenceSpaceKeys,
+            maxItems = MAX_SPACE_KEYS,
+            maxLength = MAX_SPACE_KEY_LENGTH,
+            pattern = CONFLUENCE_SPACE_KEY_PATTERN
+        )?.let { return it }
+        return null
+    }
+
+    private fun validatePolicyKeys(
+        fieldName: String,
+        keys: List<String>,
+        maxItems: Int,
+        maxLength: Int,
+        pattern: Regex
+    ): String? {
+        if (keys.size > maxItems) {
+            return "$fieldName must not exceed $maxItems items"
+        }
+
+        for ((index, rawKey) in keys.withIndex()) {
+            val key = rawKey.trim()
+            if (key.isEmpty()) {
+                return "$fieldName[$index] must not be blank"
+            }
+            if (rawKey != key) {
+                return "$fieldName[$index] must not contain leading or trailing whitespace"
+            }
+            if (key.length > maxLength) {
+                return "$fieldName[$index] must not exceed $maxLength characters"
+            }
+            if (!pattern.matches(key)) {
+                return "$fieldName[$index] has invalid format"
+            }
+        }
+        return null
+    }
+
     private fun toResponseEntity(statusCode: HttpStatusCode, body: String): ResponseEntity<Any> {
         if (statusCode == HttpStatus.NO_CONTENT) {
             return noBodyResponse(statusCode)
@@ -268,9 +331,15 @@ class McpAccessPolicyController(
     companion object {
         private const val METRIC_PROXY_REQUESTS = "arc.reactor.mcp.access_policy.proxy.requests"
         private const val METRIC_PROXY_DURATION = "arc.reactor.mcp.access_policy.proxy.duration"
+        private const val MAX_PROJECT_KEYS = 200
+        private const val MAX_SPACE_KEYS = 200
+        private const val MAX_JIRA_KEY_LENGTH = 50
+        private const val MAX_SPACE_KEY_LENGTH = 64
         private const val DEFAULT_ADMIN_TIMEOUT_MS = 10_000L
         private const val MIN_ADMIN_TIMEOUT_MS = 100L
         private const val MAX_ADMIN_TIMEOUT_MS = 120_000L
+        private val JIRA_PROJECT_KEY_PATTERN = Regex("^[A-Z][A-Z0-9_]*$")
+        private val CONFLUENCE_SPACE_KEY_PATTERN = Regex("^[A-Za-z0-9][A-Za-z0-9_-]*$")
         private val objectMapper = jacksonObjectMapper()
     }
 }

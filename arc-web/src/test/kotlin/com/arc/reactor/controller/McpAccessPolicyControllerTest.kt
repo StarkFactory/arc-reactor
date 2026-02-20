@@ -209,6 +209,82 @@ class McpAccessPolicyControllerTest {
                 "Audit detail should include Confluence space count"
             }
         }
+
+        @Test
+        fun `updatePolicy should reject too many jira project keys`() = runTest {
+            val oversizedRequest = UpdateMcpAccessPolicyRequest(
+                allowedJiraProjectKeys = (1..201).map { "PROJ$it" },
+                allowedConfluenceSpaceKeys = listOf("SPACE")
+            )
+
+            val response = controller.updatePolicy(
+                name = "policy-validation-target",
+                request = oversizedRequest,
+                exchange = adminExchange("policy-admin")
+            )
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "Expected 400 BAD_REQUEST when Jira project key count exceeds limit"
+            }
+            val body = response.body as ErrorResponse
+            assertTrue(body.error.contains("allowedJiraProjectKeys must not exceed 200 items")) {
+                "Expected max-size validation message, got: ${body.error}"
+            }
+
+            val audits = auditStore.list()
+            assertEquals(1, audits.size) { "Expected one audit entry for rejected update request" }
+            assertEquals("UPDATE", audits.first().action) { "Expected UPDATE audit action for rejected request" }
+            assertTrue(audits.first().detail.orEmpty().contains("status=400")) {
+                "Rejected update should be audited with status=400"
+            }
+            assertTrue(audits.first().detail.orEmpty().contains("validationError=")) {
+                "Audit detail should include validation error context"
+            }
+        }
+
+        @Test
+        fun `updatePolicy should reject invalid jira project key format`() = runTest {
+            val invalidRequest = UpdateMcpAccessPolicyRequest(
+                allowedJiraProjectKeys = listOf("proj-1"),
+                allowedConfluenceSpaceKeys = emptyList()
+            )
+
+            val response = controller.updatePolicy(
+                name = "invalid-jira-key",
+                request = invalidRequest,
+                exchange = adminExchange()
+            )
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "Expected 400 BAD_REQUEST for invalid Jira project key format"
+            }
+            val body = response.body as ErrorResponse
+            assertTrue(body.error.contains("allowedJiraProjectKeys[0] has invalid format")) {
+                "Expected invalid Jira key format error, got: ${body.error}"
+            }
+        }
+
+        @Test
+        fun `updatePolicy should reject invalid confluence space key format`() = runTest {
+            val invalidRequest = UpdateMcpAccessPolicyRequest(
+                allowedJiraProjectKeys = listOf("CORE"),
+                allowedConfluenceSpaceKeys = listOf("SPACE/OPS")
+            )
+
+            val response = controller.updatePolicy(
+                name = "invalid-space-key",
+                request = invalidRequest,
+                exchange = adminExchange()
+            )
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "Expected 400 BAD_REQUEST for invalid Confluence space key format"
+            }
+            val body = response.body as ErrorResponse
+            assertTrue(body.error.contains("allowedConfluenceSpaceKeys[0] has invalid format")) {
+                "Expected invalid Confluence key format error, got: ${body.error}"
+            }
+        }
     }
 
     @Nested
