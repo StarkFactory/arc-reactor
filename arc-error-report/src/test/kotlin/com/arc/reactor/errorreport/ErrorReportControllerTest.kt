@@ -4,7 +4,6 @@ import com.arc.reactor.errorreport.config.ErrorReportProperties
 import com.arc.reactor.errorreport.controller.ErrorReportController
 import com.arc.reactor.errorreport.handler.ErrorReportHandler
 import com.arc.reactor.errorreport.model.ErrorReportResponse
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeBlank
 import io.mockk.mockk
@@ -16,7 +15,6 @@ import org.springframework.test.web.reactive.server.WebTestClient
 class ErrorReportControllerTest {
 
     private val handler = mockk<ErrorReportHandler>(relaxed = true)
-    private val objectMapper = ObjectMapper().findAndRegisterModules()
 
     private fun createClient(apiKey: String = ""): WebTestClient {
         val properties = ErrorReportProperties(enabled = true, apiKey = apiKey)
@@ -127,6 +125,9 @@ class ErrorReportControllerTest {
                 .bodyValue(validBody)
                 .exchange()
                 .expectStatus().isUnauthorized
+                .expectBody()
+                .jsonPath("$.error").isEqualTo("Invalid or missing API key")
+                .jsonPath("$.timestamp").exists()
         }
 
         @Test

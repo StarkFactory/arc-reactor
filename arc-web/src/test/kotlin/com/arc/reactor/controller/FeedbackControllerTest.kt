@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.ServerWebInputException
 import java.time.Instant
 
 class FeedbackControllerTest {
@@ -99,10 +100,12 @@ class FeedbackControllerTest {
         @Test
         fun `should return 400 for invalid rating`() = runTest {
             val request = SubmitFeedbackRequest(rating = "invalid_rating")
-
-            val response = controller.submitFeedback(request)
-
-            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) { "Should return 400 for invalid rating" }
+            val exception = assertThrows(ServerWebInputException::class.java) {
+                controller.submitFeedback(request)
+            }
+            assertTrue(exception.reason?.contains("Invalid rating") == true) {
+                "Invalid rating should produce ServerWebInputException with clear reason"
+            }
         }
 
         @Test
@@ -191,6 +194,25 @@ class FeedbackControllerTest {
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should accept uppercase rating" }
             assertEquals(FeedbackRating.THUMBS_DOWN, slot.captured.rating) { "Should parse uppercase rating" }
         }
+
+        @Test
+        fun `should accept rating with surrounding spaces`() = runTest {
+            val slot = slot<Feedback>()
+            every { feedbackStore.save(capture(slot)) } answers { slot.captured }
+            every { metadataCaptureHook.get(any()) } returns null
+
+            val request = SubmitFeedbackRequest(
+                rating = "  thumbs_up  ",
+                query = "test",
+                response = "test"
+            )
+            val response = controller.submitFeedback(request)
+
+            assertEquals(HttpStatus.CREATED, response.statusCode) { "Should accept trimmed rating input" }
+            assertEquals(FeedbackRating.THUMBS_UP, slot.captured.rating) {
+                "Rating should be parsed after trimming surrounding spaces"
+            }
+        }
     }
 
     @Nested
@@ -257,6 +279,39 @@ class FeedbackControllerTest {
                     to = Instant.parse("2026-02-01T00:00:00Z"),
                     intent = "refund",
                     sessionId = "s-42"
+                )
+            }
+        }
+
+        @Test
+        fun `should parse rating filter with surrounding spaces`() = runTest {
+            every {
+                feedbackStore.list(
+                    rating = FeedbackRating.THUMBS_UP,
+                    from = null,
+                    to = null,
+                    intent = null,
+                    sessionId = null
+                )
+            } returns emptyList()
+
+            val response = controller.listFeedback(
+                rating = "  thumbs_up  ",
+                from = null,
+                to = null,
+                intent = null,
+                sessionId = null,
+                exchange = adminExchange()
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Trimmed rating filter should be accepted" }
+            verify(exactly = 1) {
+                feedbackStore.list(
+                    rating = FeedbackRating.THUMBS_UP,
+                    from = null,
+                    to = null,
+                    intent = null,
+                    sessionId = null
                 )
             }
         }
@@ -368,49 +423,52 @@ class FeedbackControllerTest {
 
         @Test
         fun `should return 400 for invalid from timestamp`() = runTest {
-            val response = controller.listFeedback(
-                rating = null,
-                from = "not-a-timestamp",
-                to = null,
-                intent = null,
-                sessionId = null,
-                exchange = adminExchange()
-            )
-
-            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "Should return 400 for unparseable from timestamp"
+            val exception = assertThrows(ServerWebInputException::class.java) {
+                controller.listFeedback(
+                    rating = null,
+                    from = "not-a-timestamp",
+                    to = null,
+                    intent = null,
+                    sessionId = null,
+                    exchange = adminExchange()
+                )
+            }
+            assertTrue(exception.reason?.contains("Invalid timestamp for 'from'") == true) {
+                "Unparseable from timestamp should raise clear input exception"
             }
         }
 
         @Test
         fun `should return 400 for invalid to timestamp`() = runTest {
-            val response = controller.listFeedback(
-                rating = null,
-                from = null,
-                to = "2026-13-45T99:99:99Z",
-                intent = null,
-                sessionId = null,
-                exchange = adminExchange()
-            )
-
-            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "Should return 400 for unparseable to timestamp"
+            val exception = assertThrows(ServerWebInputException::class.java) {
+                controller.listFeedback(
+                    rating = null,
+                    from = null,
+                    to = "2026-13-45T99:99:99Z",
+                    intent = null,
+                    sessionId = null,
+                    exchange = adminExchange()
+                )
+            }
+            assertTrue(exception.reason?.contains("Invalid timestamp for 'to'") == true) {
+                "Unparseable to timestamp should raise clear input exception"
             }
         }
 
         @Test
         fun `should return 400 for invalid rating in list`() = runTest {
-            val response = controller.listFeedback(
-                rating = "five_stars",
-                from = null,
-                to = null,
-                intent = null,
-                sessionId = null,
-                exchange = adminExchange()
-            )
-
-            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "Should return 400 for invalid rating value"
+            val exception = assertThrows(ServerWebInputException::class.java) {
+                controller.listFeedback(
+                    rating = "five_stars",
+                    from = null,
+                    to = null,
+                    intent = null,
+                    sessionId = null,
+                    exchange = adminExchange()
+                )
+            }
+            assertTrue(exception.reason?.contains("Invalid rating") == true) {
+                "Invalid rating filter should raise clear input exception"
             }
         }
     }

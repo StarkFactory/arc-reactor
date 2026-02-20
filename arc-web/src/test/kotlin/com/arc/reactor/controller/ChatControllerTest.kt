@@ -19,7 +19,9 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.ServerWebInputException
 import reactor.test.StepVerifier
+import java.net.URI
 
 /**
  * Unit tests for ChatController.
@@ -433,6 +435,131 @@ class ChatControllerTest {
 
             assertTrue(commandSlot.captured.media.isEmpty()) {
                 "Should have no media when mediaUrls not provided"
+            }
+        }
+
+        @Test
+        fun `should reject invalid media mime type with bad request exception`() = runTest {
+            coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
+
+            val exception = try {
+                controller.chat(
+                    ChatRequest(
+                        message = "Describe this image",
+                        mediaUrls = listOf(MediaUrlRequest("https://example.com/photo.png", "not-a-mime"))
+                    ),
+                    exchange
+                )
+                fail("Expected ServerWebInputException for invalid media mime type")
+            } catch (e: ServerWebInputException) {
+                e
+            }
+            assertTrue(exception.reason?.contains("Invalid media mimeType") == true) {
+                "Invalid mimeType should produce a clear bad request reason"
+            }
+        }
+
+        @Test
+        fun `should reject invalid media url with bad request exception`() = runTest {
+            coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
+
+            val exception = try {
+                controller.chat(
+                    ChatRequest(
+                        message = "Describe this image",
+                        mediaUrls = listOf(MediaUrlRequest("://bad-url", "image/png"))
+                    ),
+                    exchange
+                )
+                fail("Expected ServerWebInputException for invalid media URL")
+            } catch (e: ServerWebInputException) {
+                e
+            }
+            assertTrue(exception.reason?.contains("Invalid media URL") == true) {
+                "Invalid media URL should produce a clear bad request reason"
+            }
+        }
+
+        @Test
+        fun `should reject relative media url with bad request exception`() = runTest {
+            coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
+
+            val exception = try {
+                controller.chat(
+                    ChatRequest(
+                        message = "Describe this image",
+                        mediaUrls = listOf(MediaUrlRequest("images/photo.png", "image/png"))
+                    ),
+                    exchange
+                )
+                fail("Expected ServerWebInputException for relative media URL")
+            } catch (e: ServerWebInputException) {
+                e
+            }
+            assertTrue(exception.reason?.contains("Invalid media URL") == true) {
+                "Relative media URL should be rejected as invalid input"
+            }
+        }
+
+        @Test
+        fun `should reject non-http media url scheme`() = runTest {
+            coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
+
+            val exception = try {
+                controller.chat(
+                    ChatRequest(
+                        message = "Describe this image",
+                        mediaUrls = listOf(MediaUrlRequest("file:///tmp/secret.png", "image/png"))
+                    ),
+                    exchange
+                )
+                fail("Expected ServerWebInputException for unsupported media URL scheme")
+            } catch (e: ServerWebInputException) {
+                e
+            }
+            assertTrue(exception.reason?.contains("Invalid media URL") == true) {
+                "Only http/https media URLs should be accepted"
+            }
+        }
+
+        @Test
+        fun `should accept trimmed https media url and mime type`() = runTest {
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            controller.chat(
+                ChatRequest(
+                    message = "Describe this image",
+                    mediaUrls = listOf(MediaUrlRequest("  https://example.com/photo.png  ", " image/png "))
+                ),
+                exchange
+            )
+
+            val media = commandSlot.captured.media
+            assertEquals(1, media.size) { "Expected one media attachment for valid trimmed input" }
+            assertEquals(URI("https://example.com/photo.png"), media.first().uri) {
+                "URL should be trimmed and parsed as an absolute https URI"
+            }
+        }
+
+        @Test
+        fun `should reject absolute https url without host`() = runTest {
+            coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
+
+            val exception = try {
+                controller.chat(
+                    ChatRequest(
+                        message = "Describe this image",
+                        mediaUrls = listOf(MediaUrlRequest("https:///photo.png", "image/png"))
+                    ),
+                    exchange
+                )
+                fail("Expected ServerWebInputException for https URL without host")
+            } catch (e: ServerWebInputException) {
+                e
+            }
+            assertTrue(exception.reason?.contains("Invalid media URL") == true) {
+                "Absolute URLs without host should be rejected"
             }
         }
     }

@@ -34,7 +34,10 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.ServerWebInputException
 import reactor.core.publisher.Flux
+import java.net.URI
+import java.net.URISyntaxException
 
 private val logger = KotlinLogging.logger {}
 
@@ -278,10 +281,39 @@ class ChatController(
         if (mediaUrls.isNullOrEmpty()) return emptyList()
         return mediaUrls.map { req ->
             MediaAttachment(
-                mimeType = MimeType.valueOf(req.mimeType),
-                uri = java.net.URI(req.url)
+                mimeType = parseMimeType(req.mimeType),
+                uri = parseMediaUri(req.url)
             )
         }
+    }
+
+    private fun parseMimeType(raw: String): MimeType {
+        val normalized = raw.trim()
+        return try {
+            MimeType.valueOf(normalized)
+        } catch (_: IllegalArgumentException) {
+            throw ServerWebInputException("Invalid media mimeType: $raw")
+        }
+    }
+
+    private fun parseMediaUri(raw: String): URI {
+        val normalized = raw.trim()
+        val uri = try {
+            URI(normalized)
+        } catch (_: URISyntaxException) {
+            throw ServerWebInputException("Invalid media URL: $raw")
+        }
+        if (!uri.isAbsolute) {
+            throw ServerWebInputException("Invalid media URL: $raw")
+        }
+        val scheme = uri.scheme?.lowercase()
+        if (scheme != "http" && scheme != "https") {
+            throw ServerWebInputException("Invalid media URL: $raw")
+        }
+        if (uri.host.isNullOrBlank()) {
+            throw ServerWebInputException("Invalid media URL: $raw")
+        }
+        return uri
     }
 
     companion object {

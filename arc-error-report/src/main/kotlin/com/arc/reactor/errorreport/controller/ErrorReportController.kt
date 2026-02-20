@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import java.time.Instant
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -52,7 +53,12 @@ class ErrorReportController(
     ): ResponseEntity<Any> {
         if (!validateApiKey(apiKey)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(mapOf("error" to "Invalid or missing API key"))
+                .body(
+                    ErrorReportErrorResponse(
+                        error = "Invalid or missing API key",
+                        timestamp = Instant.now().toString()
+                    )
+                )
         }
 
         val requestId = UUID.randomUUID().toString()
@@ -87,3 +93,8 @@ class ErrorReportController(
         return headerKey == properties.apiKey
     }
 }
+
+private data class ErrorReportErrorResponse(
+    val error: String,
+    val timestamp: String
+)

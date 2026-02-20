@@ -4,6 +4,8 @@ import io.swagger.v3.oas.models.security.SecurityScheme
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.boot.info.BuildProperties
+import java.util.Properties
 
 /**
  * Tests for OpenAPI configuration bean.
@@ -21,8 +23,8 @@ class OpenApiConfigurationTest {
 
             assertEquals("Arc Reactor API", openAPI.info.title,
                 "OpenAPI title should be 'Arc Reactor API'")
-            assertEquals("2.1.1", openAPI.info.version,
-                "OpenAPI version should match project version")
+            assertEquals("dev", openAPI.info.version,
+                "OpenAPI version should default to 'dev' when build info is unavailable")
         }
 
         @Test
@@ -64,6 +66,15 @@ class OpenApiConfigurationTest {
 
             assertTrue(openAPI.info.description.contains("arc.reactor.auth.enabled"),
                 "Description should mention that auth is conditional")
+        }
+
+        @Test
+        fun `should prefer build properties version when available`() {
+            val properties = Properties().apply { setProperty("version", "9.9.9-test") }
+            val openAPI = OpenApiConfiguration(BuildProperties(properties)).arcReactorOpenAPI()
+
+            assertEquals("9.9.9-test", openAPI.info.version,
+                "OpenAPI version should use BuildProperties when present")
         }
     }
 }

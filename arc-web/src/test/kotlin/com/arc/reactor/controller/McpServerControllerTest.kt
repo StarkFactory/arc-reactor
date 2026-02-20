@@ -139,6 +139,88 @@ class McpServerControllerTest {
                 "Non-admin should get 403 FORBIDDEN"
             }
         }
+
+        @Test
+        fun `should reject invalid transport type`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "invalid-transport",
+                transportType = "SSEE",
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "Invalid transport type should return 400 BAD_REQUEST"
+            }
+        }
+
+        @Test
+        fun `should reject unsupported http transport`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "http-server",
+                transportType = "HTTP",
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "HTTP transport should be rejected with 400 BAD_REQUEST"
+            }
+        }
+
+        @Test
+        fun `should accept transport type with surrounding spaces`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "trimmed-transport",
+                transportType = "  sSe  ",
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.CREATED, response.statusCode) {
+                "Trimmed transport type should be parsed successfully"
+            }
+
+            val saved = store.findByName("trimmed-transport")
+            assertNotNull(saved) { "Server should be saved for valid trimmed transport type" }
+            assertEquals(McpTransportType.SSE, saved!!.transportType) {
+                "Trimmed and case-insensitive transport type should resolve to SSE"
+            }
+        }
+
+        @Test
+        fun `should register realistic stdio server payload`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "filesystem-prod",
+                description = "Filesystem MCP server for production-like scenario",
+                transportType = "STDIO",
+                config = mapOf(
+                    "command" to "npx",
+                    "args" to listOf("-y", "@modelcontextprotocol/server-filesystem", "/var/data")
+                ),
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.CREATED, response.statusCode) {
+                "Realistic STDIO registration payload should succeed"
+            }
+
+            val saved = store.findByName("filesystem-prod")
+            assertNotNull(saved) { "Registered STDIO server should be persisted in store" }
+            assertEquals(McpTransportType.STDIO, saved!!.transportType) {
+                "STDIO transport should be persisted"
+            }
+            assertEquals("npx", saved.config["command"]) {
+                "STDIO command should be preserved in persisted config"
+            }
+            assertEquals(
+                listOf("-y", "@modelcontextprotocol/server-filesystem", "/var/data"),
+                saved.config["args"]
+            ) {
+                "STDIO args should be preserved in persisted config"
+            }
+        }
     }
 
     @Nested
@@ -230,6 +312,94 @@ class McpServerControllerTest {
             )
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
                 "Non-admin should get 403"
+            }
+        }
+
+        @Test
+        fun `should preserve existing transport when transportType is omitted`() {
+            manager.register(McpServer(
+                name = "preserve-transport",
+                transportType = McpTransportType.STDIO,
+                config = mapOf("command" to "echo"),
+                autoConnect = false
+            ))
+
+            val response = controller.updateServer(
+                "preserve-transport",
+                UpdateMcpServerRequest(description = "keep transport"),
+                adminExchange()
+            )
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "Update should succeed when transportType is omitted"
+            }
+
+            val updated = store.findByName("preserve-transport")
+            assertNotNull(updated) { "Updated server should exist in store" }
+            assertEquals(McpTransportType.STDIO, updated!!.transportType) {
+                "Omitted transportType should preserve existing transport"
+            }
+        }
+
+        @Test
+        fun `should reject invalid transport type on update`() {
+            manager.register(McpServer(
+                name = "invalid-update-transport",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://localhost:8081/sse"),
+                autoConnect = false
+            ))
+
+            val response = controller.updateServer(
+                "invalid-update-transport",
+                UpdateMcpServerRequest(transportType = "invalid"),
+                adminExchange()
+            )
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "Invalid update transport should return 400 BAD_REQUEST"
+            }
+        }
+
+        @Test
+        fun `should reject unsupported http transport on update`() {
+            manager.register(McpServer(
+                name = "http-update-transport",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://localhost:8081/sse"),
+                autoConnect = false
+            ))
+
+            val response = controller.updateServer(
+                "http-update-transport",
+                UpdateMcpServerRequest(transportType = "HTTP"),
+                adminExchange()
+            )
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "HTTP update transport should return 400 BAD_REQUEST"
+            }
+        }
+
+        @Test
+        fun `should accept trimmed transport type on update`() {
+            manager.register(McpServer(
+                name = "trim-update-transport",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://localhost:8081/sse"),
+                autoConnect = false
+            ))
+
+            val response = controller.updateServer(
+                "trim-update-transport",
+                UpdateMcpServerRequest(transportType = "  stdio "),
+                adminExchange()
+            )
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "Trimmed transport type should be parsed during update"
+            }
+
+            val updated = store.findByName("trim-update-transport")
+            assertNotNull(updated) { "Updated server should exist after successful update" }
+            assertEquals(McpTransportType.STDIO, updated!!.transportType) {
+                "Trimmed transport type should update server to STDIO"
             }
         }
 
@@ -433,6 +603,58 @@ class McpServerControllerTest {
             val list = secureController.listServers()
             assertEquals(1, list.size) { "Only trusted server should be listed" }
             assertEquals("trusted", list[0].name)
+        }
+
+        @Test
+        fun `register should return bad request when server is blocked by allowlist`() = runTest {
+            val secureStore = InMemoryMcpServerStore()
+            val secureManager = DefaultMcpManager(
+                securityConfig = McpSecurityConfig(allowedServerNames = setOf("trusted")),
+                store = secureStore
+            )
+            val secureController = McpServerController(secureManager, secureStore, InMemoryAdminAuditStore())
+
+            val blockedReq = RegisterMcpServerRequest(
+                name = "untrusted",
+                transportType = "SSE",
+                autoConnect = false
+            )
+
+            val blockedResp = secureController.registerServer(blockedReq, adminExchange())
+            assertEquals(HttpStatus.BAD_REQUEST, blockedResp.statusCode) {
+                "Server blocked by allowlist should return 400 BAD_REQUEST"
+            }
+
+            assertNull(secureStore.findByName("untrusted")) {
+                "Blocked server should not be persisted to store"
+            }
+        }
+
+        @Test
+        fun `register should persist when runtime manager and store are decoupled`() = runTest {
+            val runtimeManager = DefaultMcpManager()
+            val persistentStore = InMemoryMcpServerStore()
+            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
+
+            val request = RegisterMcpServerRequest(
+                name = "decoupled-register",
+                transportType = "SSE",
+                config = mapOf("url" to "http://localhost:8081/sse"),
+                autoConnect = false
+            )
+
+            val response = localController.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.CREATED, response.statusCode) {
+                "Register should succeed even when manager and store are decoupled"
+            }
+            assertNotNull(persistentStore.findByName("decoupled-register")) {
+                "Register endpoint must persist server into controller store"
+            }
+
+            val detailResponse = localController.getServer("decoupled-register")
+            assertEquals(HttpStatus.OK, detailResponse.statusCode) {
+                "Get server should succeed after decoupled register persistence"
+            }
         }
     }
 }
