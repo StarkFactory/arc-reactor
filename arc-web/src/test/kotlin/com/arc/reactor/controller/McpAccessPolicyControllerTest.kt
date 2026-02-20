@@ -7,6 +7,7 @@ import com.arc.reactor.mcp.InMemoryMcpServerStore
 import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpTransportType
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -24,13 +25,15 @@ class McpAccessPolicyControllerTest {
 
     private lateinit var store: McpServerStore
     private lateinit var auditStore: InMemoryAdminAuditStore
+    private lateinit var meterRegistry: SimpleMeterRegistry
     private lateinit var controller: McpAccessPolicyController
 
     @BeforeEach
     fun setup() {
         store = InMemoryMcpServerStore()
         auditStore = InMemoryAdminAuditStore()
-        controller = McpAccessPolicyController(store, auditStore)
+        meterRegistry = SimpleMeterRegistry()
+        controller = McpAccessPolicyController(store, auditStore, meterRegistry)
     }
 
     private fun adminExchange(userId: String = "admin-user"): ServerWebExchange {
@@ -62,6 +65,24 @@ class McpAccessPolicyControllerTest {
                 autoConnect = false
             )
         )
+    }
+
+    private fun requestCount(method: String, status: String, outcome: String): Double {
+        return meterRegistry.get("arc.reactor.mcp.access_policy.proxy.requests")
+            .tag("method", method)
+            .tag("status", status)
+            .tag("outcome", outcome)
+            .counter()
+            .count()
+    }
+
+    private fun durationCount(method: String, status: String, outcome: String): Long {
+        return meterRegistry.get("arc.reactor.mcp.access_policy.proxy.duration")
+            .tag("method", method)
+            .tag("status", status)
+            .tag("outcome", outcome)
+            .timer()
+            .count()
     }
 
     @Nested
@@ -104,6 +125,9 @@ class McpAccessPolicyControllerTest {
             assertEquals("ops-admin", audits.first().actor) { "Audit actor should be derived from exchange user id" }
             assertTrue(audits.first().detail.orEmpty().contains("status=404")) {
                 "Audit detail should include upstream status code 404"
+            }
+            assertEquals(1.0, requestCount("GET", "404", "client_error")) {
+                "Expected GET 404 proxy request metric to be recorded once"
             }
         }
 
@@ -227,6 +251,12 @@ class McpAccessPolicyControllerTest {
                 assertEquals(HttpStatus.NO_CONTENT, response.statusCode) {
                     "Proxy should preserve upstream 204 NO_CONTENT instead of converting to 200"
                 }
+                assertEquals(1.0, requestCount("DELETE", "204", "success")) {
+                    "Expected DELETE 204 proxy request metric to be recorded once"
+                }
+                assertEquals(1, durationCount("DELETE", "204", "success")) {
+                    "Expected DELETE 204 proxy duration timer count to be recorded once"
+                }
             } finally {
                 server.stop(0)
             }
@@ -274,6 +304,12 @@ class McpAccessPolicyControllerTest {
                 assertEquals(1, audits.size) { "Expected one READ audit log entry for timed-out request" }
                 assertTrue(audits.first().detail.orEmpty().contains("status=504")) {
                     "Audit detail should record 504 status for timeout case"
+                }
+                assertEquals(1.0, requestCount("GET", "504", "server_error")) {
+                    "Expected GET 504 proxy request metric to be recorded once"
+                }
+                assertEquals(1, durationCount("GET", "504", "server_error")) {
+                    "Expected GET 504 proxy duration timer count to be recorded once"
                 }
             } finally {
                 server.stop(0)

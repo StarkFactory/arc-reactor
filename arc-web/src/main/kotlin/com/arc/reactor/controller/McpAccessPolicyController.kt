@@ -4,6 +4,8 @@ import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Timer
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactor.awaitSingleOrNull
@@ -16,6 +18,7 @@ import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.server.ServerWebExchange
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 private val logger = KotlinLogging.logger {}
@@ -30,7 +33,8 @@ private val logger = KotlinLogging.logger {}
 @RequestMapping("/api/mcp/servers/{name}/access-policy")
 class McpAccessPolicyController(
     private val mcpServerStore: McpServerStore,
-    private val adminAuditStore: AdminAuditStore
+    private val adminAuditStore: AdminAuditStore,
+    private val meterRegistry: MeterRegistry? = null
 ) {
     @Operation(summary = "Get access policy from MCP server admin API")
     @GetMapping
@@ -100,31 +104,30 @@ class McpAccessPolicyController(
         method: HttpMethod,
         body: Any?
     ): ResponseEntity<Any> {
+        val startedAtNanos = System.nanoTime()
         val server = mcpServerStore.findByName(name)
-            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse(error = "MCP server '$name' not found", timestamp = Instant.now().toString()))
+            ?: return errorResponse(
+                status = HttpStatus.NOT_FOUND,
+                message = "MCP server '$name' not found"
+            ).also { observeProxyCall(name, method, it.statusCode.value(), startedAtNanos) }
 
         val config = server.config
         val baseUrl = McpAdminUrlResolver.resolve(config)
-            ?: return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(
-                    ErrorResponse(
-                        error = "MCP server '$name' has invalid admin URL. " +
-                            "Set absolute config.adminUrl or config.url(/sse) with http/https",
-                        timestamp = Instant.now().toString()
-                    )
-                )
+            ?: return errorResponse(
+                status = HttpStatus.BAD_REQUEST,
+                message = "MCP server '$name' has invalid admin URL. " +
+                    "Set absolute config.adminUrl or config.url(/sse) with http/https"
+            )
+                .also { observeProxyCall(name, method, it.statusCode.value(), startedAtNanos) }
         val token = config["adminToken"]?.toString()?.takeIf { it.isNotBlank() }
-            ?: return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(
-                    ErrorResponse(
-                        error = "MCP server '$name' has no admin token. Set config.adminToken",
-                        timestamp = Instant.now().toString()
-                    )
-                )
+            ?: return errorResponse(
+                status = HttpStatus.BAD_REQUEST,
+                message = "MCP server '$name' has no admin token. Set config.adminToken"
+            )
+                .also { observeProxyCall(name, method, it.statusCode.value(), startedAtNanos) }
         val timeoutMs = resolveAdminTimeoutMs(config)
 
-        return try {
+        val response: ResponseEntity<Any> = try {
             val client = WebClient.builder().baseUrl(baseUrl).build()
             when (method) {
                 HttpMethod.GET -> client.get()
@@ -159,40 +162,35 @@ class McpAccessPolicyController(
                     .timeout(Duration.ofMillis(timeoutMs))
                     .awaitSingleOrNull()
             }
-                ?: ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(
-                    ErrorResponse(
-                        error = "MCP admin API returned no response",
-                        timestamp = Instant.now().toString()
-                    )
+                ?: errorResponse(
+                    status = HttpStatus.BAD_GATEWAY,
+                    message = "MCP admin API returned no response"
                 )
         } catch (_: TimeoutException) {
-            ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(
-                ErrorResponse(
-                    error = "MCP admin API timed out after ${timeoutMs}ms",
-                    timestamp = Instant.now().toString()
-                )
+            errorResponse(
+                status = HttpStatus.GATEWAY_TIMEOUT,
+                message = "MCP admin API timed out after ${timeoutMs}ms"
             )
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) { "Failed to proxy access-policy request to MCP server '$name'" }
-            ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(
-                    ErrorResponse(
-                        error = "Failed to call MCP admin API: ${e.message}",
-                        timestamp = Instant.now().toString()
-                    )
-                )
+            errorResponse(
+                status = HttpStatus.BAD_GATEWAY,
+                message = "Failed to call MCP admin API: ${e.message}"
+            )
         }
+        observeProxyCall(name, method, response.statusCode.value(), startedAtNanos)
+        return response
     }
 
     private fun toResponseEntity(statusCode: HttpStatusCode, body: String): ResponseEntity<Any> {
         if (statusCode == HttpStatus.NO_CONTENT) {
-            return ResponseEntity.status(statusCode).build()
+            return noBodyResponse(statusCode)
         }
         if (body.isBlank()) {
-            return ResponseEntity.status(statusCode).build()
+            return noBodyResponse(statusCode)
         }
-        return ResponseEntity.status(statusCode).body(parseJsonOrString(body))
+        return bodyResponse(statusCode, parseJsonOrString(body))
     }
 
     private fun resolveAdminTimeoutMs(config: Map<String, Any>): Long {
@@ -213,9 +211,63 @@ class McpAccessPolicyController(
         }
     }
 
+    private fun errorResponse(status: HttpStatus, message: String): ResponseEntity<Any> {
+        return ResponseEntity.status(status)
+            .body(ErrorResponse(error = message, timestamp = Instant.now().toString()))
+    }
+
+    private fun noBodyResponse(statusCode: HttpStatusCode): ResponseEntity<Any> {
+        return ResponseEntity.status(statusCode).build<Any>()
+    }
+
+    private fun bodyResponse(statusCode: HttpStatusCode, body: Any): ResponseEntity<Any> {
+        return ResponseEntity.status(statusCode).body(body)
+    }
+
+    private fun observeProxyCall(
+        serverName: String,
+        method: HttpMethod,
+        statusCode: Int,
+        startedAtNanos: Long
+    ) {
+        val durationNanos = (System.nanoTime() - startedAtNanos).coerceAtLeast(0)
+        val outcome = when {
+            statusCode in 200..299 -> "success"
+            statusCode in 400..499 -> "client_error"
+            else -> "server_error"
+        }
+        val tags = arrayOf(
+            "method", method.name,
+            "status", statusCode.toString(),
+            "outcome", outcome
+        )
+        meterRegistry?.counter(METRIC_PROXY_REQUESTS, *tags)?.increment()
+        meterRegistry?.let { registry ->
+            Timer.builder(METRIC_PROXY_DURATION)
+                .tags(*tags)
+                .register(registry)
+                .record(durationNanos, TimeUnit.NANOSECONDS)
+        }
+
+        val durationMs = TimeUnit.NANOSECONDS.toMillis(durationNanos)
+        if (statusCode >= 400) {
+            logger.warn {
+                "MCP access-policy proxy failed: server=$serverName method=${method.name} " +
+                    "status=$statusCode durationMs=$durationMs"
+            }
+        } else {
+            logger.debug {
+                "MCP access-policy proxy succeeded: server=$serverName method=${method.name} " +
+                    "status=$statusCode durationMs=$durationMs"
+            }
+        }
+    }
+
     private enum class HttpMethod { GET, PUT, DELETE }
 
     companion object {
+        private const val METRIC_PROXY_REQUESTS = "arc.reactor.mcp.access_policy.proxy.requests"
+        private const val METRIC_PROXY_DURATION = "arc.reactor.mcp.access_policy.proxy.duration"
         private const val DEFAULT_ADMIN_TIMEOUT_MS = 10_000L
         private const val MIN_ADMIN_TIMEOUT_MS = 100L
         private const val MAX_ADMIN_TIMEOUT_MS = 120_000L
