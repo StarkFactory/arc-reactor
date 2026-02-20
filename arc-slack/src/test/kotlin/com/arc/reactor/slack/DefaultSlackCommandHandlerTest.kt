@@ -2,12 +2,15 @@ package com.arc.reactor.slack
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.slack.handler.DefaultSlackCommandHandler
 import com.arc.reactor.slack.model.SlackApiResult
 import com.arc.reactor.slack.model.SlackSlashCommand
 import com.arc.reactor.slack.service.SlackMessagingService
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldStartWith
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -79,6 +82,9 @@ class DefaultSlackCommandHandlerTest {
             commandSlot.captured.userPrompt shouldBe "What should I do today?"
             commandSlot.captured.metadata["entrypoint"] shouldBe "slash"
             commandSlot.captured.metadata["sessionId"] shouldBe "slack-C123-1111.2222"
+            commandSlot.captured.metadata["source"] shouldBe "slack"
+            commandSlot.captured.metadata["channel"] shouldBe "slack"
+            commandSlot.captured.metadata["channelId"] shouldBe "C123"
 
             coVerify(exactly = 1) { messagingService.sendMessage("C123", any(), null) }
             coVerify(exactly = 1) { messagingService.sendMessage("C123", "You have 3 tasks today.", "1111.2222") }
@@ -99,6 +105,91 @@ class DefaultSlackCommandHandlerTest {
 
             coVerify(exactly = 1) { messagingService.sendResponseUrl("https://hooks.slack.com/commands/test", "Fallback response", "ephemeral") }
             coVerify(exactly = 0) { messagingService.sendMessage("C123", "Fallback response", any()) }
+        }
+
+        @Test
+        fun `falls back to response_url when thread reply send fails`() = runTest {
+            coEvery {
+                messagingService.sendMessage("C123", any(), null)
+            } returns SlackApiResult(ok = true, ts = "1111.2222", channel = "C123")
+            coEvery {
+                messagingService.sendMessage("C123", any(), "1111.2222")
+            } returns SlackApiResult(ok = false, error = "channel_not_found")
+
+            coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
+                AgentResult(success = true, content = "Thread reply fallback")
+            coEvery { messagingService.sendResponseUrl(any(), any(), any()) } returns true
+
+            handler.handleSlashCommand(slashCommand())
+
+            coVerify(exactly = 1) {
+                messagingService.sendResponseUrl(
+                    "https://hooks.slack.com/commands/test",
+                    "Thread reply fallback",
+                    "ephemeral"
+                )
+            }
+        }
+    }
+
+    @Nested
+    inner class AgentScenarios {
+
+        @Test
+        fun `guard rejected result is surfaced as warning`() = runTest {
+            coEvery {
+                messagingService.sendMessage("C123", any(), null)
+            } returns SlackApiResult(ok = true, ts = "1111.2222", channel = "C123")
+            coEvery {
+                messagingService.sendMessage("C123", any(), "1111.2222")
+            } returns SlackApiResult(ok = true, ts = "1111.3333", channel = "C123")
+            coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
+                AgentResult(
+                    success = false,
+                    content = null,
+                    errorCode = AgentErrorCode.GUARD_REJECTED,
+                    errorMessage = "Guard blocked unsafe prompt"
+                )
+
+            handler.handleSlashCommand(slashCommand())
+
+            coVerify {
+                messagingService.sendMessage(
+                    "C123",
+                    match {
+                        it.shouldStartWith(":warning:")
+                        it.shouldContain("Guard blocked unsafe prompt")
+                        true
+                    },
+                    "1111.2222"
+                )
+            }
+        }
+
+        @Test
+        fun `react and mcp success response is delivered in thread`() = runTest {
+            coEvery {
+                messagingService.sendMessage("C123", any(), null)
+            } returns SlackApiResult(ok = true, ts = "1111.2222", channel = "C123")
+            coEvery {
+                messagingService.sendMessage("C123", any(), "1111.2222")
+            } returns SlackApiResult(ok = true, ts = "1111.3333", channel = "C123")
+            coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
+                AgentResult(
+                    success = true,
+                    content = "Resolved via ReAct + MCP: ticket owner is @alice.",
+                    toolsUsed = listOf("mcp_jira_lookup")
+                )
+
+            handler.handleSlashCommand(slashCommand())
+
+            coVerify {
+                messagingService.sendMessage(
+                    "C123",
+                    "Resolved via ReAct + MCP: ticket owner is @alice.",
+                    "1111.2222"
+                )
+            }
         }
     }
 }

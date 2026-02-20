@@ -5,15 +5,14 @@ import com.arc.reactor.slack.security.SlackSignatureWebFilter
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotBeBlank
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.core.io.buffer.DefaultDataBufferFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
 import org.springframework.mock.web.server.MockServerWebExchange
 import org.springframework.web.server.WebFilterChain
-import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.test.StepVerifier
 import java.util.concurrent.atomic.AtomicReference
@@ -24,8 +23,7 @@ class SlackSignatureWebFilterTest {
 
     private val signingSecret = "test-signing-secret-12345"
     private val verifier = SlackSignatureVerifier(signingSecret)
-    private val objectMapper = jacksonObjectMapper()
-    private val filter = SlackSignatureWebFilter(verifier, objectMapper)
+    private val filter = SlackSignatureWebFilter(verifier, jacksonObjectMapper())
 
     private fun computeSignature(timestamp: String, body: String): String {
         val baseString = "v0:$timestamp:$body"
@@ -41,10 +39,11 @@ class SlackSignatureWebFilterTest {
         path: String,
         body: String,
         timestamp: String? = null,
-        signature: String? = null
+        signature: String? = null,
+        contentType: MediaType = MediaType.APPLICATION_JSON
     ): MockServerWebExchange {
         val requestBuilder = MockServerHttpRequest.post(path)
-            .contentType(MediaType.APPLICATION_JSON)
+            .contentType(contentType)
 
         if (timestamp != null) {
             requestBuilder.header("X-Slack-Request-Timestamp", timestamp)
@@ -113,6 +112,35 @@ class SlackSignatureWebFilterTest {
                 .verifyComplete()
 
             chainCalled shouldBe true
+            exchange.response.statusCode shouldBe null
+        }
+
+        @Test
+        fun `allows slash command payload with valid signature`() {
+            val body =
+                "command=%2Fjarvis&text=hello+there&user_id=U123" +
+                    "&user_name=alice&channel_id=C456&channel_name=general" +
+                    "&response_url=https%3A%2F%2Fexample.com%2Fresponse"
+            val timestamp = currentTimestamp()
+            val signature = computeSignature(timestamp, body)
+            val exchange = createExchange(
+                path = "/api/slack/commands",
+                body = body,
+                timestamp = timestamp,
+                signature = signature,
+                contentType = MediaType.APPLICATION_FORM_URLENCODED
+            )
+            var chainCalled = false
+            val chain = WebFilterChain {
+                chainCalled = true
+                Mono.empty()
+            }
+
+            StepVerifier.create(filter.filter(exchange, chain))
+                .verifyComplete()
+
+            chainCalled shouldBe true
+            exchange.response.statusCode shouldBe null
         }
 
         @Test
@@ -168,6 +196,42 @@ class SlackSignatureWebFilterTest {
 
             exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
+
+        @Test
+        fun `returns 403 for slack path with no body and missing signature`() {
+            val request = MockServerHttpRequest.post("/api/slack/events").build()
+            val exchange = MockServerWebExchange.from(request)
+
+            StepVerifier.create(filter.filter(exchange, passThrough()))
+                .verifyComplete()
+
+            exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+            val responseBody = exchange.response.bodyAsString.block().orEmpty()
+            responseBody.shouldContain("Slack signature verification failed")
+            responseBody.shouldContain("timestamp")
+        }
+
+        @Test
+        fun `allows slack path with no body when signature is valid for empty payload`() {
+            val timestamp = currentTimestamp()
+            val signature = computeSignature(timestamp, "")
+            val request = MockServerHttpRequest.post("/api/slack/events")
+                .header("X-Slack-Request-Timestamp", timestamp)
+                .header("X-Slack-Signature", signature)
+                .build()
+            val exchange = MockServerWebExchange.from(request)
+            var chainCalled = false
+            val chain = WebFilterChain {
+                chainCalled = true
+                Mono.empty()
+            }
+
+            StepVerifier.create(filter.filter(exchange, chain))
+                .verifyComplete()
+
+            chainCalled shouldBe true
+            exchange.response.statusCode shouldBe null
+        }
     }
 
     @Nested
@@ -197,6 +261,101 @@ class SlackSignatureWebFilterTest {
                 .verifyComplete()
 
             capturedBody.get() shouldBe body
+            exchange.response.statusCode shouldBe null
+        }
+
+        @Test
+        fun `replays form body and exposes parameters for downstream binding`() {
+            val body =
+                "command=%2Fjarvis&text=hello+there&user_id=U123" +
+                    "&user_name=alice&channel_id=C456&channel_name=general" +
+                    "&response_url=https%3A%2F%2Fexample.com%2Fresponse"
+            val timestamp = currentTimestamp()
+            val signature = computeSignature(timestamp, body)
+            val exchange = createExchange(
+                path = "/api/slack/commands",
+                body = body,
+                timestamp = timestamp,
+                signature = signature,
+                contentType = MediaType.APPLICATION_FORM_URLENCODED
+            )
+            val capturedCommand = AtomicReference<String?>()
+            val capturedResponseUrl = AtomicReference<String?>()
+
+            val chain = WebFilterChain { ex ->
+                ex.formData
+                    .doOnNext { form ->
+                        capturedCommand.set(form.getFirst("command"))
+                        capturedResponseUrl.set(form.getFirst("response_url"))
+                    }
+                    .then()
+            }
+
+            StepVerifier.create(filter.filter(exchange, chain))
+                .verifyComplete()
+
+            capturedCommand.get() shouldBe "/jarvis"
+            capturedResponseUrl.get() shouldBe "https://example.com/response"
+            exchange.response.statusCode shouldBe null
+        }
+
+        @Test
+        fun `provides required form fields for downstream slash command validation`() {
+            val body =
+                "command=%2Fjarvis&text=hello+there&user_id=U123" +
+                    "&user_name=alice&channel_id=C456&channel_name=general" +
+                    "&response_url=https%3A%2F%2Fexample.com%2Fresponse"
+            val timestamp = currentTimestamp()
+            val signature = computeSignature(timestamp, body)
+            val exchange = createExchange(
+                path = "/api/slack/commands",
+                body = body,
+                timestamp = timestamp,
+                signature = signature,
+                contentType = MediaType.APPLICATION_FORM_URLENCODED
+            )
+
+            val chain = WebFilterChain { ex ->
+                ex.formData
+                    .flatMap { form ->
+                        val command = form.getFirst("command")
+                        val userId = form.getFirst("user_id")
+                        val channelId = form.getFirst("channel_id")
+                        val responseUrl = form.getFirst("response_url")
+                        ex.response.statusCode = if (
+                            command.isNullOrBlank() ||
+                            userId.isNullOrBlank() ||
+                            channelId.isNullOrBlank() ||
+                            responseUrl.isNullOrBlank()
+                        ) {
+                            HttpStatus.BAD_REQUEST
+                        } else {
+                            HttpStatus.OK
+                        }
+                        ex.response.setComplete()
+                    }
+            }
+
+            StepVerifier.create(filter.filter(exchange, chain))
+                .verifyComplete()
+
+            exchange.response.statusCode shouldBe HttpStatus.OK
+        }
+
+        @Test
+        fun `returns structured json body for forbidden response`() {
+            val body = """{"type":"event_callback"}"""
+            val exchange = createExchange("/api/slack/events", body)
+
+            StepVerifier.create(filter.filter(exchange, passThrough()))
+                .verifyComplete()
+
+            exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+            val responseBody = exchange.response.bodyAsString.block().orEmpty()
+            responseBody.shouldContain("error")
+            responseBody.shouldContain("details")
+            responseBody.shouldContain("timestamp")
+            responseBody.shouldNotBeBlank()
         }
     }
 }
