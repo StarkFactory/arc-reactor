@@ -4,14 +4,18 @@ Spring AI-based AI Agent framework. Fork and attach tools to use.
 
 ## Language Policy
 
-This is an **open-source project**. All written content MUST be in **English**:
+This is an **open-source project** and is **English-first**:
 - Code: variable names, function names, class names
 - Comments and KDoc
 - Commit messages
 - Pull request titles and descriptions
 - Code review comments
 - Issue titles and descriptions
-- Documentation (README, CLAUDE.md, AGENTS.md, etc.)
+- English documentation (`docs/en`, `README.md`, `CLAUDE.md`, `AGENTS.md`, etc.)
+
+Allowed exceptions for intentional multilingual support:
+- Localized documentation (for example `docs/ko/**`, `README.ko.md`)
+- User-facing sample utterances, i18n test data, and multilingual keyword dictionaries
 
 ## Tech Stack
 
@@ -54,15 +58,15 @@ Multi-module Gradle project:
 ./gradlew :arc-core:test -Pdb=true                                   # Include PostgreSQL/PGVector/Flyway deps
 ./gradlew :arc-core:test -Pauth=true                                 # Include JWT/Spring Security Crypto deps
 ./gradlew :arc-core:test -PincludeIntegration                        # Include @Tag("integration") tests
-./gradlew :arc-slack:test                                            # Slack module tests
+BASE_URL=http://localhost:18084 scripts/dev/validate-slack-runtime.sh # Live Slack runtime validation (requires Slack env vars)
 ```
 
 ## Architecture
 
 Request flow: Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete) → Response
 
-- `SpringAiAgentExecutor` (~1,730 lines) — Core executor. Modify with caution
-- `ArcReactorAutoConfiguration` (~1,185 lines) — All bean auto-configuration. Override via @ConditionalOnMissingBean
+- `SpringAiAgentExecutor` (~620 lines) — Core executor. Modify with caution
+- `ArcReactorAutoConfiguration` (entrypoint import) — Auto-configuration entrypoint. Override via @ConditionalOnMissingBean
 - `ConversationManager` — Conversation history management, extracted from executor
 
 Details: @docs/en/architecture/architecture.md, @docs/en/reference/tools.md, @docs/en/architecture/supervisor-pattern.md
@@ -145,7 +149,7 @@ Details: @docs/en/architecture/architecture.md, @docs/en/reference/tools.md, @do
 | `max-tool-calls` | 10 | `concurrency.request-timeout-ms` | 30000 |
 | `max-tools-per-request` | 20 | `concurrency.tool-call-timeout-ms` | 15000 |
 | `llm.temperature` | 0.3 | `guard.rate-limit-per-minute` | 10 |
-| `llm.max-context-window-tokens` | 128000 | `guard.max-input-length` | 10000 |
+| `llm.max-context-window-tokens` | 128000 | `boundaries.input-max-chars` | 10000 |
 
 Full config: see `agent/config/AgentProperties.kt`
 
@@ -242,7 +246,7 @@ STDIO: { "name": "fs-server", "transportType": "STDIO", "config": { "command": "
 - **Hook/Memory**: Always wrap in try-catch, log errors, never let exceptions propagate
 - **AssistantMessage**: Constructor is protected → use `AssistantMessage.builder().content().toolCalls().build()`
 - **Spring AI mock chain**: Explicitly mock `.options(any<ChatOptions>())` returns requestSpec
-- **Spring AI providers**: NEVER declare provider keys with empty defaults in `application.yml`. Use env vars only: `GEMINI_API_KEY`, `SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`
+- **Spring AI providers**: Use environment variables for provider keys (`GEMINI_API_KEY`, `SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`) and never hardcode real keys. Empty local fallbacks are acceptable only for local startup/tests; production must provide env vars.
 - **MCP SDK**: Version 0.17.2. SSE only (`HttpClientSseClientTransport`), no streamable HTTP
 - **Approval security**: Approve/Reject endpoints MUST enforce ownership or admin authorization
 - **HITL argument rewrite**: If approval returns `modifiedArguments`, tool execution MUST use modified arguments
@@ -250,6 +254,12 @@ STDIO: { "name": "fs-server", "transportType": "STDIO", "config": { "command": "
 - **MCP update consistency**: MCP server update path must synchronize runtime manager state before reconnect
 
 For code examples of anti-patterns: @docs/en/architecture/implementation-guide.md
+
+## Shared Skills
+
+Tool-agnostic workflow docs usable by both Claude Code and Codex:
+- `docs/en/skills/tdd-workflow/SKILL.md` — Test-first delivery and regression safety workflow
+- `docs/en/skills/slack-runtime-validation/SKILL.md` — Slack-first runtime and integration validation workflow
 
 ## Domain Terms
 
@@ -267,4 +277,4 @@ For code examples of anti-patterns: @docs/en/architecture/implementation-guide.m
 | `agent/multi/SupervisorOrchestrator.kt` | Multi-agent orchestration |
 | `autoconfigure/ArcReactorAutoConfiguration.kt` | All bean auto-configuration |
 | `agent/config/AgentProperties.kt` | All settings (`arc.reactor.*`) |
-| `test/../AgentTestFixture.kt` | Test shared mock setup |
+| `arc-core/src/test/kotlin/com/arc/reactor/agent/AgentTestFixture.kt` | Test shared mock setup |

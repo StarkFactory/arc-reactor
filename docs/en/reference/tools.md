@@ -118,23 +118,19 @@ class CalculatorTool : ToolCallback {
 
 [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) is a standard protocol for external servers to provide tools.
 
-```kotlin
-// Register an MCP server
-mcpManager.register(McpServer(
-    name = "filesystem",
-    description = "파일 시스템 접근",
-    transportType = McpTransportType.STDIO,
-    config = mapOf(
-        "command" to "npx",
-        "args" to listOf("-y", "@modelcontextprotocol/server-filesystem", "/tmp")
-    )
-))
-
-// Connect -> tools are loaded automatically
-mcpManager.connect("filesystem")
-
-// Tools provided by this server (read_file, write_file, list_directory, etc.)
-val tools = mcpManager.getToolCallbacks("filesystem")
+```bash
+# Register an MCP server via admin API
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "filesystem",
+    "transportType": "STDIO",
+    "config": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    },
+    "autoConnect": true
+  }'
 ```
 
 **Features:**
@@ -272,14 +268,20 @@ MultiAgent.supervisor()
 
 ### MCP Tool Registration
 
-```kotlin
-// Configure via application.yml or register programmatically
-mcpManager.register(McpServer(
-    name = "github",
-    transportType = McpTransportType.STDIO,
-    config = mapOf("command" to "npx", "args" to listOf("-y", "@modelcontextprotocol/server-github")),
-    autoConnect = true  // Auto-connect on app startup
-))
+Register MCP servers via the admin REST API:
+
+```bash
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "github",
+    "transportType": "STDIO",
+    "config": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"]
+    },
+    "autoConnect": true
+  }'
 ```
 
 ---

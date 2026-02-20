@@ -329,26 +329,7 @@ When PostgreSQL is available (`-Pdb=true`), `JdbcMcpServerStore` is registered a
 
 ## Usage Examples
 
-### Option 1: yml Configuration (Recommended for Deployment)
-
-```yaml
-arc:
-  reactor:
-    mcp:
-      servers:
-        - name: filesystem
-          transport: stdio
-          command: npx
-          args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
-        - name: github
-          transport: stdio
-          command: npx
-          args: ["-y", "@modelcontextprotocol/server-github"]
-```
-
-No code needed. Servers are automatically registered and connected on startup.
-
-### Option 2: REST API (Runtime Management)
+### Option 1: REST API (Recommended)
 
 ```bash
 # Register via API
@@ -363,31 +344,10 @@ curl http://localhost:8080/api/mcp/servers
 curl -X POST http://localhost:8080/api/mcp/servers/filesystem/disconnect
 ```
 
-### Option 3: Programmatic Registration
+### Option 2: Startup Recovery from Store
 
-```kotlin
-@Service
-class McpSetup(private val mcpManager: McpManager) {
-
-    @PostConstruct
-    fun setup() {
-        mcpManager.register(McpServer(
-            name = "filesystem",
-            transportType = McpTransportType.STDIO,
-            config = mapOf(
-                "command" to "npx",
-                "args" to listOf("-y", "@modelcontextprotocol/server-filesystem", "/data")
-            )
-        ))
-        runBlocking { mcpManager.connect("filesystem") }
-    }
-
-    @PreDestroy
-    fun cleanup() {
-        (mcpManager as? AutoCloseable)?.close()
-    }
-}
-```
+After servers are registered via REST API, their metadata is persisted in `McpServerStore`.
+On startup, Arc Reactor restores them from the store and auto-connects entries with `autoConnect=true`.
 
 ### Runtime Server Management
 
@@ -455,40 +415,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_servers_name ON mcp_servers(name);
 
 The `config` column stores transport-specific configuration as JSON text (serialized via ObjectMapper).
 
-## yml Configuration -- Declarative Server Registration
+## Startup Recovery (Store-Driven)
 
-MCP servers can be declared in `application.yml` for automatic registration on startup:
-
-```yaml
-arc:
-  reactor:
-    mcp:
-      servers:
-        - name: swagger-agent
-          transport: sse
-          url: http://localhost:8081/sse
-          auto-connect: true
-        - name: filesystem
-          transport: stdio
-          command: npx
-          args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
-          description: File system access
-      security:
-        allowed-server-names: []        # Empty = allow all
-        max-tool-output-length: 50000
-```
-
-### McpServerDefinition Properties
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `name` | String | (required) | Unique server name |
-| `transport` | Enum | `SSE` | `STDIO`, `SSE`, or `HTTP` |
-| `url` | String | null | SSE/HTTP endpoint URL |
-| `command` | String | null | STDIO command to execute |
-| `args` | List | [] | STDIO command arguments |
-| `description` | String | null | Server description |
-| `auto-connect` | Boolean | true | Auto-connect on startup |
+MCP server registration is handled via REST API (`/api/mcp/servers`).
+At startup, Arc Reactor restores previously registered servers from `McpServerStore`.
 
 ### Startup Flow (McpStartupInitializer)
 
@@ -496,20 +426,11 @@ arc:
 ApplicationReadyEvent
   |
   v
-1. seedYmlServers()
-   +-- For each server in arc.reactor.mcp.servers:
-   |   +-- Skip if name is blank
-   |   +-- Skip if already exists in store
-   |   +-- Convert McpServerDefinition -> McpServer
-   |   +-- Save to McpServerStore
-   |
-2. mcpManager.initializeFromStore()
+1. mcpManager.initializeFromStore()
    +-- Load all servers from store
    +-- Register each into runtime cache
    +-- Auto-connect servers with autoConnect=true
 ```
-
-yml servers are **seeded** (not overwritten) -- if a server with the same name already exists in the store (e.g., previously modified via REST API), the yml definition is skipped.
 
 ## REST API -- Dynamic Server Management
 

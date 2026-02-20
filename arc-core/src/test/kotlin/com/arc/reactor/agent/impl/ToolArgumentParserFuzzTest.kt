@@ -3,6 +3,7 @@ package com.arc.reactor.agent.impl
 import kotlin.random.Random
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -56,8 +57,12 @@ class ToolArgumentParserFuzzTest {
         assertEquals(true, parsed1["metric"])
 
         val parsed2 = parseToolArguments("""{"nested":{"a":1},"arr":[1,2,3],"nullValue":null}""")
-        assertTrue(parsed2["nested"] is Map<*, *>)
-        assertTrue(parsed2["arr"] is List<*>)
+        assertInstanceOf(Map::class.java, parsed2["nested"]) {
+            "nested key should contain a map value"
+        }
+        assertInstanceOf(List::class.java, parsed2["arr"]) {
+            "arr key should contain a list value"
+        }
         assertTrue(parsed2.containsKey("nullValue"))
     }
 

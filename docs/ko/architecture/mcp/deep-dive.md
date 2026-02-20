@@ -329,26 +329,7 @@ PostgreSQL을 사용할 때 (`-Pdb=true`), `JdbcMcpServerStore`가 `@Primary`로
 
 ## 사용 예시
 
-### 방법 1: yml 설정 (배포 환경 권장)
-
-```yaml
-arc:
-  reactor:
-    mcp:
-      servers:
-        - name: filesystem
-          transport: stdio
-          command: npx
-          args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
-        - name: github
-          transport: stdio
-          command: npx
-          args: ["-y", "@modelcontextprotocol/server-github"]
-```
-
-코드 작성 불필요. 앱 시작 시 자동으로 등록 및 연결됩니다.
-
-### 방법 2: REST API (런타임 관리)
+### 방법 1: REST API (권장)
 
 ```bash
 # API로 등록
@@ -363,31 +344,10 @@ curl http://localhost:8080/api/mcp/servers
 curl -X POST http://localhost:8080/api/mcp/servers/filesystem/disconnect
 ```
 
-### 방법 3: 코드 등록
+### 방법 2: 저장소 기반 시작 복구
 
-```kotlin
-@Service
-class McpSetup(private val mcpManager: McpManager) {
-
-    @PostConstruct
-    fun setup() {
-        mcpManager.register(McpServer(
-            name = "filesystem",
-            transportType = McpTransportType.STDIO,
-            config = mapOf(
-                "command" to "npx",
-                "args" to listOf("-y", "@modelcontextprotocol/server-filesystem", "/data")
-            )
-        ))
-        runBlocking { mcpManager.connect("filesystem") }
-    }
-
-    @PreDestroy
-    fun cleanup() {
-        (mcpManager as? AutoCloseable)?.close()
-    }
-}
-```
+REST API로 등록된 서버 메타데이터는 `McpServerStore`에 저장됩니다.
+애플리케이션 시작 시 `autoConnect=true` 서버는 저장소에서 복구되어 자동 연결됩니다.
 
 ### 런타임 서버 관리
 
@@ -455,40 +415,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_servers_name ON mcp_servers(name);
 
 `config` 컬럼은 트랜스포트별 설정을 JSON 텍스트로 저장합니다 (ObjectMapper로 직렬화).
 
-## yml 설정 — 선언적 서버 등록
+## 시작 복구 (스토어 기반)
 
-`application.yml`에 MCP 서버를 선언하면 시작 시 자동으로 등록됩니다:
-
-```yaml
-arc:
-  reactor:
-    mcp:
-      servers:
-        - name: swagger-agent
-          transport: sse
-          url: http://localhost:8081/sse
-          auto-connect: true
-        - name: filesystem
-          transport: stdio
-          command: npx
-          args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
-          description: 파일 시스템 접근
-      security:
-        allowed-server-names: []        # 비어있으면 모두 허용
-        max-tool-output-length: 50000
-```
-
-### McpServerDefinition 속성
-
-| 속성 | 타입 | 기본값 | 설명 |
-|------|------|--------|------|
-| `name` | String | (필수) | 서버 고유 이름 |
-| `transport` | Enum | `SSE` | `STDIO`, `SSE`, `HTTP` |
-| `url` | String | null | SSE/HTTP 엔드포인트 URL |
-| `command` | String | null | STDIO 실행 명령어 |
-| `args` | List | [] | STDIO 명령어 인자 |
-| `description` | String | null | 서버 설명 |
-| `auto-connect` | Boolean | true | 시작 시 자동 연결 |
+MCP 서버 등록은 REST API(`/api/mcp/servers`)를 통해 수행합니다.
+애플리케이션 시작 시 Arc Reactor는 `McpServerStore`에 저장된 서버를 복구합니다.
 
 ### 시작 흐름 (McpStartupInitializer)
 
@@ -496,20 +426,11 @@ arc:
 ApplicationReadyEvent
   │
   v
-1. seedYmlServers()
-   └── arc.reactor.mcp.servers의 각 서버에 대해:
-       ├── name이 비어있으면 건너뜀
-       ├── 스토어에 이미 존재하면 건너뜀
-       ├── McpServerDefinition → McpServer 변환
-       └── McpServerStore에 저장
-
-2. mcpManager.initializeFromStore()
+1. mcpManager.initializeFromStore()
    ├── 스토어에서 전체 서버 로드
    ├── 런타임 캐시에 등록
    └── autoConnect=true인 서버 자동 연결
 ```
-
-yml 서버는 **시드**(seed)됩니다 — 스토어에 같은 이름의 서버가 이미 있으면 (예: REST API로 수정된 경우) yml 정의를 건너뜁니다.
 
 ## REST API — 동적 서버 관리
 

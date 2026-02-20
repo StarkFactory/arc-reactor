@@ -10,7 +10,7 @@ import com.arc.reactor.policy.tool.ToolPolicy
 import com.arc.reactor.policy.tool.ToolPolicyProvider
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
 
 class WriteToolBlockHookTest {
@@ -39,8 +39,10 @@ class WriteToolBlockHookTest {
         )
 
         val result = hook.beforeToolCall(ctx)
-        assertTrue(result is HookResult.Reject)
-        assertEquals("blocked", (result as HookResult.Reject).reason)
+        val reject = assertInstanceOf(HookResult.Reject::class.java, result) {
+            "Slack write tool should be rejected"
+        }
+        assertEquals("blocked", reject.reason)
     }
 
     @Test
@@ -66,6 +68,8 @@ class WriteToolBlockHookTest {
         )
 
         val result = hook.beforeToolCall(ctx)
-        assertTrue(result is HookResult.Continue)
+        assertInstanceOf(HookResult.Continue::class.java, result) {
+            "Write tool on non-deny channel should continue"
+        }
     }
 }

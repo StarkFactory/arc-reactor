@@ -118,23 +118,19 @@ class CalculatorTool : ToolCallback {
 
 [MCP(Model Context Protocol)](https://modelcontextprotocol.io/)는 외부 서버가 도구를 제공하는 표준 프로토콜입니다.
 
-```kotlin
-// MCP 서버 등록
-mcpManager.register(McpServer(
-    name = "filesystem",
-    description = "파일 시스템 접근",
-    transportType = McpTransportType.STDIO,
-    config = mapOf(
-        "command" to "npx",
-        "args" to listOf("-y", "@modelcontextprotocol/server-filesystem", "/tmp")
-    )
-))
-
-// 연결 → 도구가 자동으로 로드됨
-mcpManager.connect("filesystem")
-
-// 이 서버가 제공하는 도구들 (read_file, write_file, list_directory 등)
-val tools = mcpManager.getToolCallbacks("filesystem")
+```bash
+# 관리자 API로 MCP 서버 등록
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "filesystem",
+    "transportType": "STDIO",
+    "config": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    },
+    "autoConnect": true
+  }'
 ```
 
 **특징:**
@@ -272,14 +268,20 @@ MultiAgent.supervisor()
 
 ### MCP 도구 등록
 
-```kotlin
-// application.yml로 설정하거나, 코드로 등록
-mcpManager.register(McpServer(
-    name = "github",
-    transportType = McpTransportType.STDIO,
-    config = mapOf("command" to "npx", "args" to listOf("-y", "@modelcontextprotocol/server-github")),
-    autoConnect = true  // 앱 시작 시 자동 연결
-))
+관리자 REST API로 MCP 서버를 등록합니다:
+
+```bash
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "github",
+    "transportType": "STDIO",
+    "config": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"]
+    },
+    "autoConnect": true
+  }'
 ```
 
 ---

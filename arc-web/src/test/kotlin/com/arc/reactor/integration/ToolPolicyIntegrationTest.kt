@@ -11,6 +11,7 @@ import com.arc.reactor.policy.tool.ToolPolicyProvider
 import com.arc.reactor.policy.tool.ToolPolicyStore
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -71,7 +72,9 @@ class ToolPolicyIntegrationTest {
 
     @Test
     fun `wires JdbcToolPolicyStore when dynamic is enabled`() {
-        assertTrue(toolPolicyStore is JdbcToolPolicyStore)
+        assertInstanceOf(JdbcToolPolicyStore::class.java, toolPolicyStore) {
+            "Expected JdbcToolPolicyStore when dynamic policy is enabled"
+        }
     }
 
     @Test
@@ -142,8 +145,10 @@ class ToolPolicyIntegrationTest {
         )
 
         val result = runBlocking { writeToolBlockHook.beforeToolCall(toolCtx) }
-        assertTrue(result is HookResult.Reject)
-        assertEquals("blocked", (result as HookResult.Reject).reason)
+        val reject = assertInstanceOf(HookResult.Reject::class.java, result) {
+            "Slack write tool should be rejected by policy"
+        }
+        assertEquals("blocked", reject.reason)
     }
 
     @Test
@@ -176,7 +181,9 @@ class ToolPolicyIntegrationTest {
         )
 
         val result = runBlocking { writeToolBlockHook.beforeToolCall(toolCtx) }
-        assertTrue(result is HookResult.Continue)
+        assertInstanceOf(HookResult.Continue::class.java, result) {
+            "Allowlist should permit write tool on deny channel"
+        }
     }
 
     @Test
@@ -207,12 +214,16 @@ class ToolPolicyIntegrationTest {
             callIndex = 0
         )
         val slackResult = runBlocking { writeToolBlockHook.beforeToolCall(slackCtx) }
-        assertTrue(slackResult is HookResult.Continue)
+        assertInstanceOf(HookResult.Continue::class.java, slackResult) {
+            "Channel-scoped allowlist should permit tool on slack"
+        }
 
         val webCtx = slackCtx.copy(agentContext = slackCtx.agentContext.copy(channel = "web"))
         val webResult = runBlocking { writeToolBlockHook.beforeToolCall(webCtx) }
-        assertTrue(webResult is HookResult.Reject)
-        assertEquals("blocked", (webResult as HookResult.Reject).reason)
+        val webReject = assertInstanceOf(HookResult.Reject::class.java, webResult) {
+            "Same tool should be rejected on non-allowlisted channel"
+        }
+        assertEquals("blocked", webReject.reason)
     }
 
     @Test
@@ -251,6 +262,8 @@ class ToolPolicyIntegrationTest {
 
         // With no stored policy, it falls back to config defaults (empty write-tool list) so it should continue.
         val result = runBlocking { writeToolBlockHook.beforeToolCall(toolCtx) }
-        assertTrue(result is HookResult.Continue)
+        assertInstanceOf(HookResult.Continue::class.java, result) {
+            "Without stored policy, hook should continue with defaults"
+        }
     }
 }

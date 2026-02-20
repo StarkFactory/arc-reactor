@@ -12,12 +12,15 @@ Common issues, their causes, and solutions.
 
 **Solution:** Use SSE transport instead for remote servers:
 
-```kotlin
-mcpManager.register(McpServer(
-    name = "my-server",
-    transportType = McpTransportType.SSE,  // Not HTTP
-    config = mapOf("url" to "http://localhost:3001/sse")
-))
+```bash
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-server",
+    "transportType": "SSE",
+    "config": { "url": "http://localhost:3001/sse" },
+    "autoConnect": true
+  }'
 ```
 
 See [MCP Integration Guide](../architecture/mcp.md) for transport details.
