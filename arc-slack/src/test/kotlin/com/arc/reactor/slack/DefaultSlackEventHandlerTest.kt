@@ -119,6 +119,17 @@ class DefaultSlackEventHandlerTest {
 
             commandSlot.captured.metadata["source"] shouldBe "slack"
         }
+
+        @Test
+        fun `includes channel metadata`() = runTest {
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns
+                AgentResult(success = true, content = "Done")
+
+            handler.handleAppMention(command())
+
+            commandSlot.captured.metadata["channel"] shouldBe "slack"
+        }
     }
 
     @Nested
@@ -148,6 +159,50 @@ class DefaultSlackEventHandlerTest {
 
             coVerify {
                 messagingService.sendMessage("C456", match { it.shouldContain(":warning:"); true }, "1234.5678")
+            }
+        }
+
+        @Test
+        fun `formats guard rejection as warning response`() = runTest {
+            coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
+                AgentResult(
+                    success = false,
+                    content = null,
+                    errorCode = AgentErrorCode.GUARD_REJECTED,
+                    errorMessage = "Blocked by input policy"
+                )
+
+            handler.handleAppMention(command())
+
+            coVerify {
+                messagingService.sendMessage(
+                    "C456",
+                    match {
+                        it.shouldStartWith(":warning:")
+                        it.shouldContain("Blocked by input policy")
+                        true
+                    },
+                    "1234.5678"
+                )
+            }
+        }
+
+        @Test
+        fun `passes through rag and mcp enriched response content`() = runTest {
+            coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
+                AgentResult(
+                    success = true,
+                    content = "RAG says policy is 30 days. MCP tool confirmed latest ticket status."
+                )
+
+            handler.handleAppMention(command())
+
+            coVerify {
+                messagingService.sendMessage(
+                    "C456",
+                    "RAG says policy is 30 days. MCP tool confirmed latest ticket status.",
+                    "1234.5678"
+                )
             }
         }
 
