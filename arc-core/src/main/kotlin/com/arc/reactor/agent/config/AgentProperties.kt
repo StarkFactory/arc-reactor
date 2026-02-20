@@ -1,6 +1,5 @@
 package com.arc.reactor.agent.config
 
-import com.arc.reactor.mcp.model.McpTransportType
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
@@ -125,19 +124,6 @@ data class GuardProperties(
     /** Requests per hour limit */
     val rateLimitPerHour: Int = 100,
 
-    /**
-     * Maximum input length.
-     *
-     * @deprecated Use [BoundaryProperties.inputMaxChars] as the single source of truth.
-     * Backward compatibility is handled in guard auto-configuration when
-     * `arc.reactor.boundaries.input-max-chars` is not explicitly provided.
-     */
-    @Deprecated(
-        message = "Use arc.reactor.boundaries.input-max-chars",
-        replaceWith = ReplaceWith("inputMaxChars", "com.arc.reactor.agent.config.BoundaryProperties")
-    )
-    val maxInputLength: Int = 10000,
-
     /** Injection detection enabled */
     val injectionDetectionEnabled: Boolean = true
 )
@@ -179,29 +165,21 @@ data class SecurityHeadersProperties(
 )
 
 /**
- * MCP configuration — server declarations and security settings.
+ * MCP configuration — runtime security and connection settings.
  *
- * Servers declared here are auto-registered on startup.
- * Additional servers can be managed at runtime via REST API.
+ * MCP servers are registered and managed via REST API (`/api/mcp/servers`).
  *
  * ## Example
  * ```yaml
  * arc:
  *   reactor:
  *     mcp:
- *       servers:
- *         - name: swagger-agent
- *           transport: sse
- *           url: http://localhost:8081/sse
  *       security:
  *         allowed-server-names: []
  *         max-tool-output-length: 50000
  * ```
  */
 data class McpConfigProperties(
-    /** MCP servers to register on startup */
-    val servers: List<McpServerDefinition> = emptyList(),
-
     /** Security settings */
     val security: McpSecurityProperties = McpSecurityProperties(),
 
@@ -210,32 +188,6 @@ data class McpConfigProperties(
 
     /** Auto-reconnection settings */
     val reconnection: McpReconnectionProperties = McpReconnectionProperties()
-)
-
-/**
- * MCP server definition for yml-based registration.
- */
-data class McpServerDefinition(
-    /** Unique server name */
-    val name: String = "",
-
-    /** Transport type */
-    val transport: McpTransportType = McpTransportType.SSE,
-
-    /** SSE/HTTP endpoint URL */
-    val url: String? = null,
-
-    /** STDIO command */
-    val command: String? = null,
-
-    /** STDIO command arguments */
-    val args: List<String> = emptyList(),
-
-    /** Description */
-    val description: String? = null,
-
-    /** Auto-connect on startup */
-    val autoConnect: Boolean = true
 )
 
 data class McpSecurityProperties(

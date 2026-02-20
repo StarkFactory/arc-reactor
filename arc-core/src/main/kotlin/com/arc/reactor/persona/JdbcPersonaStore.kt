@@ -1,12 +1,9 @@
 package com.arc.reactor.persona
 
-import mu.KotlinLogging
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.support.TransactionTemplate
 import java.sql.ResultSet
 import java.time.Instant
-
-private val logger = KotlinLogging.logger {}
 
 /**
  * JDBC-based Persona Store for persistent persona storage.

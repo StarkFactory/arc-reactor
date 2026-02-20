@@ -1,12 +1,9 @@
 package com.arc.reactor.prompt
 
-import mu.KotlinLogging
 import org.springframework.jdbc.core.JdbcTemplate
 import java.sql.ResultSet
 import java.time.Instant
 import java.util.UUID
-
-private val logger = KotlinLogging.logger {}
 
 /**
  * JDBC-based Prompt Template Store for persistent storage.

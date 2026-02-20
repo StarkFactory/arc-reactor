@@ -48,15 +48,12 @@ class ArcReactorHookAndMcpConfiguration {
     /**
      * MCP Startup Initializer
      *
-     * Seeds yml-defined servers to store and auto-connects servers on startup.
+     * Restores persisted servers from store and auto-connects on startup.
      */
     @Bean
     @ConditionalOnMissingBean(name = ["mcpStartupInitializer"])
-    fun mcpStartupInitializer(
-        properties: AgentProperties,
-        mcpManager: McpManager,
-        mcpServerStore: McpServerStore
-    ): McpStartupInitializer = McpStartupInitializer(properties, mcpManager, mcpServerStore)
+    fun mcpStartupInitializer(mcpManager: McpManager): McpStartupInitializer =
+        McpStartupInitializer(mcpManager)
 
     /**
      * Hook Executor
