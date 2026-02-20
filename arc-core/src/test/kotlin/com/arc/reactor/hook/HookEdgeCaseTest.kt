@@ -5,6 +5,7 @@ import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -152,6 +153,63 @@ class HookEdgeCaseTest {
                         AgentResponse(success = true, response = "done")
                     )
                 }
+            }
+        }
+
+        @Test
+        fun `afterToolCall rethrows cancellation even when failOnError is false`() {
+            val cancellingHook = object : AfterToolCallHook {
+                override val order = 1
+                override val failOnError = false
+                override suspend fun afterToolCall(context: ToolCallContext, result: ToolCallResult) {
+                    throw CancellationException("cancel tool hook")
+                }
+            }
+
+            val executor = HookExecutor(afterToolCallHooks = listOf(cancellingHook))
+            val thrown = assertThrows<CancellationException>(
+                "CancellationException must propagate from afterToolCall hooks"
+            ) {
+                runBlocking {
+                    executor.executeAfterToolCall(
+                        ToolCallContext(
+                            agentContext = createContext(),
+                            toolName = "test-tool",
+                            toolParams = emptyMap(),
+                            callIndex = 0
+                        ),
+                        ToolCallResult(success = true)
+                    )
+                }
+            }
+            assertEquals("cancel tool hook", thrown.message) {
+                "CancellationException message should be preserved"
+            }
+        }
+
+        @Test
+        fun `afterAgentComplete rethrows cancellation even when failOnError is false`() {
+            val cancellingHook = object : AfterAgentCompleteHook {
+                override val order = 1
+                override val failOnError = false
+                override suspend fun afterAgentComplete(context: HookContext, response: AgentResponse) {
+                    throw CancellationException("cancel completion hook")
+                }
+            }
+
+            val executor = HookExecutor(afterCompleteHooks = listOf(cancellingHook))
+            val thrown = assertThrows<CancellationException>(
+                "CancellationException must propagate from afterAgentComplete hooks"
+            ) {
+                runBlocking {
+                    executor.executeAfterAgentComplete(
+                        createContext(),
+                        AgentResponse(success = true, response = "done")
+                    )
+                }
+            }
+            assertEquals("cancel completion hook", thrown.message) {
+                "CancellationException message should be preserved"
             }
         }
     }
