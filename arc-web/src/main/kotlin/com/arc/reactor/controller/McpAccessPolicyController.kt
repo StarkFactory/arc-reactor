@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.server.ServerWebExchange
-import java.net.URI
 import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
@@ -104,11 +103,12 @@ class McpAccessPolicyController(
                 .body(ErrorResponse(error = "MCP server '$name' not found", timestamp = Instant.now().toString()))
 
         val config = server.config
-        val baseUrl = resolveAdminBaseUrl(config)
+        val baseUrl = McpAdminUrlResolver.resolve(config)
             ?: return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(
                     ErrorResponse(
-                        error = "MCP server '$name' has no admin URL. Set config.adminUrl or config.url(/sse)",
+                        error = "MCP server '$name' has invalid admin URL. " +
+                            "Set absolute config.adminUrl or config.url(/sse) with http/https",
                         timestamp = Instant.now().toString()
                     )
                 )
@@ -159,24 +159,6 @@ class McpAccessPolicyController(
                         timestamp = Instant.now().toString()
                     )
                 )
-        }
-    }
-
-    private fun resolveAdminBaseUrl(config: Map<String, Any>): String? {
-        val explicit = config["adminUrl"]?.toString()?.trim().orEmpty()
-        if (explicit.isNotBlank()) return explicit.trimEnd('/')
-
-        val sseUrl = config["url"]?.toString()?.trim().orEmpty()
-        if (sseUrl.isBlank()) return null
-
-        return try {
-            val uri = URI(sseUrl)
-            val path = uri.path ?: ""
-            val basePath = if (path.endsWith("/sse")) path.removeSuffix("/sse") else path
-            val rebuilt = URI(uri.scheme, uri.userInfo, uri.host, uri.port, basePath, null, null)
-            rebuilt.toString().trimEnd('/')
-        } catch (_: Exception) {
-            null
         }
     }
 
