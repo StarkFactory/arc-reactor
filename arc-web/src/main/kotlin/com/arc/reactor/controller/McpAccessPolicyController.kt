@@ -34,7 +34,8 @@ private val logger = KotlinLogging.logger {}
 class McpAccessPolicyController(
     private val mcpServerStore: McpServerStore,
     private val adminAuditStore: AdminAuditStore,
-    private val meterRegistry: MeterRegistry? = null
+    private val meterRegistry: MeterRegistry? = null,
+    private val adminWebClientFactory: McpAdminWebClientFactory = McpAdminWebClientFactory()
 ) {
     @Operation(summary = "Get access policy from MCP server admin API")
     @GetMapping
@@ -142,9 +143,10 @@ class McpAccessPolicyController(
             )
                 .also { observeProxyCall(name, method, it.statusCode.value(), startedAtNanos) }
         val timeoutMs = resolveAdminTimeoutMs(config)
+        val connectTimeoutMs = resolveAdminConnectTimeoutMs(config, timeoutMs)
 
         val response: ResponseEntity<Any> = try {
-            val client = WebClient.builder().baseUrl(baseUrl).build()
+            val client = adminWebClientFactory.getClient(baseUrl, connectTimeoutMs, timeoutMs)
             when (method) {
                 HttpMethod.GET -> client.get()
                     .uri("/admin/access-policy")
@@ -265,6 +267,17 @@ class McpAccessPolicyController(
         return configured.coerceIn(MIN_ADMIN_TIMEOUT_MS, MAX_ADMIN_TIMEOUT_MS)
     }
 
+    private fun resolveAdminConnectTimeoutMs(config: Map<String, Any>, requestTimeoutMs: Long): Int {
+        val configured = when (val raw = config["adminConnectTimeoutMs"]) {
+            is Number -> raw.toLong()
+            is String -> raw.trim().toLongOrNull()
+            else -> null
+        } ?: DEFAULT_ADMIN_CONNECT_TIMEOUT_MS
+
+        val upperBound = minOf(requestTimeoutMs, MAX_ADMIN_CONNECT_TIMEOUT_MS.toLong())
+        return configured.coerceIn(MIN_ADMIN_CONNECT_TIMEOUT_MS.toLong(), upperBound).toInt()
+    }
+
     private fun parseJsonOrString(body: String): Any {
         if (body.isBlank()) return emptyMap<String, Any>()
         return try {
@@ -338,6 +351,9 @@ class McpAccessPolicyController(
         private const val DEFAULT_ADMIN_TIMEOUT_MS = 10_000L
         private const val MIN_ADMIN_TIMEOUT_MS = 100L
         private const val MAX_ADMIN_TIMEOUT_MS = 120_000L
+        private const val DEFAULT_ADMIN_CONNECT_TIMEOUT_MS = 3_000L
+        private const val MIN_ADMIN_CONNECT_TIMEOUT_MS = 100
+        private const val MAX_ADMIN_CONNECT_TIMEOUT_MS = 30_000
         private val JIRA_PROJECT_KEY_PATTERN = Regex("^[A-Z][A-Z0-9_]*$")
         private val CONFLUENCE_SPACE_KEY_PATTERN = Regex("^[A-Za-z0-9][A-Za-z0-9_-]*$")
         private val objectMapper = jacksonObjectMapper()
