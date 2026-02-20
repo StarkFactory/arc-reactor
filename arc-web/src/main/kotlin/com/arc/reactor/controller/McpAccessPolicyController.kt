@@ -9,10 +9,10 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpStatusCode
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.reactive.function.client.WebClient
-import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
@@ -123,32 +123,42 @@ class McpAccessPolicyController(
 
         return try {
             val client = WebClient.builder().baseUrl(baseUrl).build()
-            val responseBody = when (method) {
+            when (method) {
                 HttpMethod.GET -> client.get()
                     .uri("/admin/access-policy")
                     .header("X-Admin-Token", token)
-                    .retrieve()
-                    .bodyToMono(String::class.java)
+                    .exchangeToMono { response ->
+                        response.bodyToMono(String::class.java)
+                            .defaultIfEmpty("")
+                            .map { responseBody -> toResponseEntity(response.statusCode(), responseBody) }
+                    }
                     .awaitSingleOrNull()
                 HttpMethod.PUT -> client.put()
                     .uri("/admin/access-policy")
                     .header("X-Admin-Token", token)
                     .bodyValue(body ?: emptyMap<String, Any>())
-                    .retrieve()
-                    .bodyToMono(String::class.java)
+                    .exchangeToMono { response ->
+                        response.bodyToMono(String::class.java)
+                            .defaultIfEmpty("")
+                            .map { responseBody -> toResponseEntity(response.statusCode(), responseBody) }
+                    }
                     .awaitSingleOrNull()
                 HttpMethod.DELETE -> client.delete()
                     .uri("/admin/access-policy")
                     .header("X-Admin-Token", token)
-                    .retrieve()
-                    .bodyToMono(String::class.java)
+                    .exchangeToMono { response ->
+                        response.bodyToMono(String::class.java)
+                            .defaultIfEmpty("")
+                            .map { responseBody -> toResponseEntity(response.statusCode(), responseBody) }
+                    }
                     .awaitSingleOrNull()
             }
-
-            ResponseEntity.ok(parseJsonOrString(responseBody ?: ""))
-        } catch (e: WebClientResponseException) {
-            val payload = parseJsonOrString(e.responseBodyAsString)
-            ResponseEntity.status(e.statusCode).body(payload)
+                ?: ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(
+                    ErrorResponse(
+                        error = "MCP admin API returned no response",
+                        timestamp = Instant.now().toString()
+                    )
+                )
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) { "Failed to proxy access-policy request to MCP server '$name'" }
@@ -160,6 +170,16 @@ class McpAccessPolicyController(
                     )
                 )
         }
+    }
+
+    private fun toResponseEntity(statusCode: HttpStatusCode, body: String): ResponseEntity<Any> {
+        if (statusCode == HttpStatus.NO_CONTENT) {
+            return ResponseEntity.status(statusCode).build()
+        }
+        if (body.isBlank()) {
+            return ResponseEntity.status(statusCode).build()
+        }
+        return ResponseEntity.status(statusCode).body(parseJsonOrString(body))
     }
 
     private fun parseJsonOrString(body: String): Any {

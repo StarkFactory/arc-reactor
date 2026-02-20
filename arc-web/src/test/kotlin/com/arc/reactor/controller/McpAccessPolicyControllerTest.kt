@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
+import java.net.InetSocketAddress
+import com.sun.net.httpserver.HttpServer
 
 class McpAccessPolicyControllerTest {
 
@@ -181,6 +183,52 @@ class McpAccessPolicyControllerTest {
             }
             assertTrue(audits.first().detail.orEmpty().contains("confluenceSpaces=1")) {
                 "Audit detail should include Confluence space count"
+            }
+        }
+    }
+
+    @Nested
+    inner class ProxyStatusHandling {
+
+        @Test
+        fun `clearPolicy should preserve upstream no-content status`() = runTest {
+            val server = HttpServer.create(InetSocketAddress(0), 0)
+            server.createContext("/admin/access-policy") { exchange ->
+                if (exchange.requestMethod != "DELETE") {
+                    exchange.sendResponseHeaders(405, -1)
+                    exchange.close()
+                    return@createContext
+                }
+
+                val token = exchange.requestHeaders.getFirst("X-Admin-Token")
+                if (token != "admin-secret") {
+                    exchange.sendResponseHeaders(401, -1)
+                    exchange.close()
+                    return@createContext
+                }
+
+                exchange.sendResponseHeaders(204, -1)
+                exchange.close()
+            }
+            server.start()
+
+            try {
+                val port = server.address.port
+                saveServer(
+                    name = "no-content-server",
+                    config = mapOf(
+                        "url" to "http://localhost:$port/sse",
+                        "adminToken" to "admin-secret"
+                    )
+                )
+
+                val response = controller.clearPolicy(name = "no-content-server", exchange = adminExchange())
+
+                assertEquals(HttpStatus.NO_CONTENT, response.statusCode) {
+                    "Proxy should preserve upstream 204 NO_CONTENT instead of converting to 200"
+                }
+            } finally {
+                server.stop(0)
             }
         }
     }
