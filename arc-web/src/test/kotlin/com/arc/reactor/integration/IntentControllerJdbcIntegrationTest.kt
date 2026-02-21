@@ -1,6 +1,9 @@
 package com.arc.reactor.integration
 
 import com.arc.reactor.ArcReactorApplication
+import com.arc.reactor.auth.JwtTokenProvider
+import com.arc.reactor.auth.User
+import com.arc.reactor.auth.UserRole
 import com.arc.reactor.intent.IntentRegistry
 import com.arc.reactor.intent.impl.JdbcIntentRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -13,6 +16,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.http.HttpHeaders
 import org.springframework.test.web.reactive.server.WebTestClient
 import javax.sql.DataSource
 
@@ -29,7 +33,9 @@ import javax.sql.DataSource
         "spring.sql.init.schema-locations=classpath:test-intent-schema.sql",
         "spring.ai.google.genai.api-key=test-key",
         "spring.ai.google.genai.embedding.api-key=test-key",
-        "arc.reactor.intent.enabled=true"
+        "arc.reactor.intent.enabled=true",
+        "arc.reactor.auth.enabled=true",
+        "arc.reactor.auth.jwt-secret=integration-test-jwt-secret-32-bytes"
     ]
 )
 @AutoConfigureWebTestClient
@@ -45,11 +51,20 @@ class IntentControllerJdbcIntegrationTest {
     @Autowired
     lateinit var intentRegistry: IntentRegistry
 
+    @Autowired
+    lateinit var jwtTokenProvider: JwtTokenProvider
+
+    lateinit var adminClient: WebTestClient
+
     @BeforeEach
     fun cleanDb() {
         dataSource.connection.use { conn ->
             conn.prepareStatement("DELETE FROM intent_definitions").use { it.executeUpdate() }
         }
+        val token = jwtTokenProvider.createToken(adminUser())
+        adminClient = webTestClient.mutate()
+            .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer $token")
+            .build()
     }
 
     @Test
@@ -62,7 +77,7 @@ class IntentControllerJdbcIntegrationTest {
     @Test
     fun `intent CRUD persists to DB and is reflected in APIs`() {
         // Create
-        webTestClient.post()
+        adminClient.post()
             .uri("/api/intents")
             .bodyValue(
                 mapOf(
@@ -84,7 +99,7 @@ class IntentControllerJdbcIntegrationTest {
         assertEquals(1, countRows("intent_definitions"))
 
         // List
-        val list = webTestClient.get()
+        val list = adminClient.get()
             .uri("/api/intents")
             .exchange()
             .expectStatus().isOk
@@ -95,7 +110,7 @@ class IntentControllerJdbcIntegrationTest {
         assertTrue(list.any { it["name"] == "refund" })
 
         // Update
-        webTestClient.put()
+        adminClient.put()
             .uri("/api/intents/refund")
             .bodyValue(
                 mapOf(
@@ -112,7 +127,7 @@ class IntentControllerJdbcIntegrationTest {
         assertFalse(queryBoolean("SELECT enabled FROM intent_definitions WHERE name = ?", "refund"))
 
         // Get
-        val get = webTestClient.get()
+        val get = adminClient.get()
             .uri("/api/intents/refund")
             .exchange()
             .expectStatus().isOk
@@ -125,17 +140,25 @@ class IntentControllerJdbcIntegrationTest {
         assertEquals("Follow the refund policy strictly.", profile["systemPrompt"])
 
         // Delete
-        webTestClient.delete()
+        adminClient.delete()
             .uri("/api/intents/refund")
             .exchange()
             .expectStatus().isNoContent
 
         assertEquals(0, countRows("intent_definitions"))
-        webTestClient.get()
+        adminClient.get()
             .uri("/api/intents/refund")
             .exchange()
             .expectStatus().isNotFound
     }
+
+    private fun adminUser() = User(
+        id = "integration-admin",
+        email = "integration-admin@arc.dev",
+        name = "Integration Admin",
+        passwordHash = "ignored",
+        role = UserRole.ADMIN
+    )
 
     private fun countRows(table: String): Int =
         queryInt("SELECT COUNT(*) FROM $table")

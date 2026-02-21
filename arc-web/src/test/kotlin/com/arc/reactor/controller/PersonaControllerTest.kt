@@ -154,14 +154,14 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should allow when auth is disabled`() = runTest {
+        fun `should return 403 when auth is disabled`() = runTest {
             val slot = slot<Persona>()
             every { personaStore.save(capture(slot)) } answers { slot.captured }
 
             val request = CreatePersonaRequest(name = "test", systemPrompt = "test")
             val response = controller.createPersona(request, noAuthExchange())
 
-            assertEquals(HttpStatus.CREATED, response.statusCode) { "Should allow when no auth (null role)" }
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should fail-close when no auth" }
         }
 
         @Test

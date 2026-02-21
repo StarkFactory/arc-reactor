@@ -1,6 +1,9 @@
 package com.arc.reactor.integration
 
 import com.arc.reactor.ArcReactorApplication
+import com.arc.reactor.auth.JwtTokenProvider
+import com.arc.reactor.auth.User
+import com.arc.reactor.auth.UserRole
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -12,6 +15,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.http.HttpHeaders
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.reactive.server.WebTestClient
 
@@ -30,7 +34,9 @@ import org.springframework.test.web.reactive.server.WebTestClient
         "spring.ai.google.genai.embedding.api-key=test-key",
         "arc.reactor.output-guard.enabled=true",
         "arc.reactor.output-guard.dynamic-rules-enabled=true",
-        "arc.reactor.output-guard.dynamic-rules-refresh-ms=600000"
+        "arc.reactor.output-guard.dynamic-rules-refresh-ms=600000",
+        "arc.reactor.auth.enabled=true",
+        "arc.reactor.auth.jwt-secret=integration-test-jwt-secret-32-bytes"
     ]
 )
 @AutoConfigureWebTestClient
@@ -45,6 +51,11 @@ class OutputGuardPolicyEngineIntegrationTest {
 
     @Autowired
     lateinit var objectMapper: ObjectMapper
+
+    @Autowired
+    lateinit var jwtTokenProvider: JwtTokenProvider
+
+    lateinit var adminClient: WebTestClient
 
     @BeforeEach
     fun setUpSchema() {
@@ -76,6 +87,10 @@ class OutputGuardPolicyEngineIntegrationTest {
         )
         jdbcTemplate.execute("DELETE FROM output_guard_rule_audits")
         jdbcTemplate.execute("DELETE FROM output_guard_rules")
+        val token = jwtTokenProvider.createToken(adminUser())
+        adminClient = webTestClient.mutate()
+            .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer $token")
+            .build()
     }
 
     @Test
@@ -142,7 +157,7 @@ class OutputGuardPolicyEngineIntegrationTest {
         priority: Int,
         enabled: Boolean
     ): JsonNode {
-        val result = webTestClient.post()
+        val result = adminClient.post()
             .uri("/api/output-guard/rules")
             .bodyValue(
                 mapOf(
@@ -162,7 +177,7 @@ class OutputGuardPolicyEngineIntegrationTest {
     }
 
     private fun updateRule(id: String, body: Map<String, Any>) {
-        webTestClient.put()
+        adminClient.put()
             .uri("/api/output-guard/rules/$id")
             .bodyValue(body)
             .exchange()
@@ -170,14 +185,14 @@ class OutputGuardPolicyEngineIntegrationTest {
     }
 
     private fun deleteRule(id: String) {
-        webTestClient.delete()
+        adminClient.delete()
             .uri("/api/output-guard/rules/$id")
             .exchange()
             .expectStatus().isNoContent
     }
 
     private fun simulate(content: String, includeDisabled: Boolean): JsonNode {
-        val result = webTestClient.post()
+        val result = adminClient.post()
             .uri("/api/output-guard/rules/simulate")
             .bodyValue(
                 mapOf(
@@ -193,7 +208,7 @@ class OutputGuardPolicyEngineIntegrationTest {
     }
 
     private fun listAudits(limit: Int): List<JsonNode> {
-        val result = webTestClient.get()
+        val result = adminClient.get()
             .uri("/api/output-guard/rules/audits?limit=$limit")
             .exchange()
             .expectStatus().isOk
@@ -202,6 +217,14 @@ class OutputGuardPolicyEngineIntegrationTest {
         val root = toJson(result.responseBody)
         return root.map { it }
     }
+
+    private fun adminUser() = User(
+        id = "integration-admin",
+        email = "integration-admin@arc.dev",
+        name = "Integration Admin",
+        passwordHash = "ignored",
+        role = UserRole.ADMIN
+    )
 
     private fun toJson(bytes: ByteArray?): JsonNode {
         val body = requireNotNull(bytes)
