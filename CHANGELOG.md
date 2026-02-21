@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] - 2026-02-21
+
+### Fixed
+- Stabilized release security-gate execution by switching Gitleaks checks to OSS CLI mode
+  without commercial license dependency.
+- Added repository Gitleaks baseline handling and full-history checkout in security scan jobs
+  so known historical placeholders do not block releases while new findings still fail-closed.
+- Restored reliable tag-release publication flow for `v4.0.0+` (SBOM, checksum, signature,
+  provenance attachment path).
+
 ## [4.0.0] - 2026-02-21
 
 ### Added
