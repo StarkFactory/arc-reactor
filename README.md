@@ -17,6 +17,16 @@ integration (Web, Slack, Discord, LINE).
 
 > Arc Reactor is **not** a drop-in framework dependency. The intended model is: **fork -> customize -> deploy**.
 
+## Fork Responsibility Boundary
+
+- Arc Reactor is provided **AS IS** under Apache-2.0 (`LICENSE`).
+- Upstream maintainers are responsible for this upstream repository only.
+- Downstream fork operators are solely responsible for their own deployment and operations:
+  security hardening, secrets, access control, compliance, incident response, and production change management.
+- Upstream maintainers do not assume liability for outages, breaches, data loss, or compliance failures in
+  downstream forks or customized deployments.
+- No SLA, warranty, or indemnification is provided for downstream operations.
+
 ## Why Arc Reactor for Enterprise
 
 - Central control plane APIs for prompts, personas, MCP servers, tool policy, output guard rules, approvals, and audits

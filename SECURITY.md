@@ -42,6 +42,25 @@ The following are in scope for security reports:
 - Denial of service via legitimate API usage (rate limiting is configurable)
 - Issues requiring physical access to the server
 
+## Fork Responsibility Boundary
+
+This policy applies to the upstream Arc Reactor repository and supported upstream versions only.
+
+For forked/customized/self-hosted deployments, the fork operator is solely responsible for:
+
+- Deployment security posture and runtime hardening
+- Secrets, key management, and access control configuration
+- Compliance controls and legal obligations
+- Incident response and recovery operations
+
+Out of scope for upstream maintainer responsibility:
+
+- Vulnerabilities introduced by fork-specific code changes
+- Infrastructure or cloud misconfiguration in downstream environments
+- CI/CD compromise or insecure release process in downstream forks
+
+Upstream maintainers may provide best-effort guidance, but do not assume operational liability for downstream forks.
+
 ## Security Best Practices
 
 When using Arc Reactor in production:
