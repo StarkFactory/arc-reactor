@@ -170,6 +170,11 @@ class SpringAiAgentExecutor(
         hookExecutor = hookExecutor,
         agentMetrics = agentMetrics
     )
+    private val streamingFlowLifecycleCoordinator = StreamingFlowLifecycleCoordinator(
+        streamingCompletionFinalizer = streamingCompletionFinalizer,
+        agentMetrics = agentMetrics,
+        closeRunContext = runContextManager::close
+    )
     private val executionResultFinalizer = ExecutionResultFinalizer(
         outputGuardPipeline = outputGuardPipeline,
         responseFilterChain = responseFilterChain,
@@ -341,63 +346,15 @@ class SpringAiAgentExecutor(
                 emit = { chunk -> emit(chunk) }
             )
         } finally {
-            finalizeStreamingFlow(command, hookContext, toolsUsed, state, startTime, emit = { marker -> emit(marker) })
-        }
-    }
-
-    private suspend fun finalizeStreamingFlow(
-        command: AgentCommand,
-        hookContext: HookContext,
-        toolsUsed: List<String>,
-        state: StreamingExecutionState,
-        startTime: Long,
-        emit: suspend (String) -> Unit
-    ) {
-        try {
-            streamingCompletionFinalizer.finalize(
+            streamingFlowLifecycleCoordinator.finalize(
                 command = command,
                 hookContext = hookContext,
-                streamStarted = state.streamStarted,
-                streamSuccess = state.streamSuccess,
-                collectedContent = state.collectedContent.toString(),
-                lastIterationContent = state.lastIterationContent.toString(),
-                streamErrorMessage = state.streamErrorMessage,
                 toolsUsed = toolsUsed,
-                emit = emit
-            )
-
-            recordStreamingMetrics(
-                success = state.streamSuccess,
-                content = state.collectedContent.toString(),
-                errorMessage = state.streamErrorMessage,
-                errorCode = state.streamErrorCode,
-                toolsUsed = toolsUsed,
-                startTime = startTime
-            )
-        } finally {
-            runContextManager.close()
-        }
-    }
-
-    private fun recordStreamingMetrics(
-        success: Boolean,
-        content: String,
-        errorMessage: String?,
-        errorCode: AgentErrorCode?,
-        toolsUsed: List<String>,
-        startTime: Long
-    ) {
-        val durationMs = System.currentTimeMillis() - startTime
-        val result = if (success) {
-            AgentResult.success(content = content, toolsUsed = toolsUsed, durationMs = durationMs)
-        } else {
-            AgentResult.failure(
-                errorMessage = errorMessage ?: "Streaming failed",
-                errorCode = errorCode ?: AgentErrorCode.UNKNOWN,
-                durationMs = durationMs
+                state = state,
+                startTime = startTime,
+                emit = { marker -> emit(marker) }
             )
         }
-        agentMetrics.recordStreamingExecution(result)
     }
 
     private fun createChatOptions(command: AgentCommand, hasTools: Boolean): ChatOptions {
@@ -479,5 +436,4 @@ class SpringAiAgentExecutor(
             )
         }
     }
-
 }
