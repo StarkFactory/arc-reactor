@@ -40,6 +40,7 @@ jobs:
         run: |
           gitleaks git \
             --redact \
+            --baseline-path .gitleaks-baseline.json \
             --exit-code 1 \
             --report-format sarif \
             --report-path gitleaks.sarif
