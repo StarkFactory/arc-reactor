@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-02-21
+
+### Added
+- Explicit fork responsibility and liability boundary documentation across:
+  - `README.md` / `README.ko.md`
+  - `SECURITY.md`
+  - `SUPPORT.md`
+  - `docs/en/governance/support-policy.md`
+- API version contract guard for REST APIs via `X-Arc-Api-Version` with supported version headers.
+- Release artifact trust chain automation on tag release:
+  - CycloneDX SBOM generation
+  - SHA256 checksum generation
+  - Keyless artifact signing (Cosign)
+  - GitHub build provenance attestation
+- Kubernetes deployment reference manifests under `deploy/k8s` and operational guide docs.
+- Cost-aware agent benchmarking guide and chat load-test scripts.
+
+### Changed
+- CI now enforces default-config/doc alignment checks as a required guard.
+- Tag release workflow now blocks artifact publication on security gate failures
+  (Gitleaks + Trivy fs scan).
+- Runtime complexity reduction in `SpringAiAgentExecutor` through extracted coordinators/handlers:
+  - `StreamingExecutionCoordinator`
+  - `AgentExecutionCoordinator`
+  - `StreamingFlowLifecycleCoordinator`
+  - `AgentExecutionFailureHandler`
+- Project version bumped to `4.0.0`.
+
+### Notes
+- No endpoint path migration is required. API versioning remains header-based and optional
+  (`X-Arc-Api-Version`, default `v1`).
+- Release process hardening may require additional permissions/scanning policy setup
+  in downstream forks.
+
 ## [3.9.2] - 2026-02-18
 
 ### Added
