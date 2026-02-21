@@ -19,6 +19,8 @@ The API will start at `http://localhost:8080`.
 
 ## Docker Deployment
 
+For Kubernetes production baseline, see [Kubernetes Deployment Reference](kubernetes-reference.md).
+
 ### Docker Only
 
 ```bash
