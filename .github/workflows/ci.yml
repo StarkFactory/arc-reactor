@@ -39,6 +39,9 @@ jobs:
       - name: Docs Link & Package Index Guard
         run: python3 scripts/ci/check-doc-links.py
 
+      - name: Default Config Alignment Guard
+        run: python3 scripts/ci/check-default-config-alignment.py
+
       - name: Structural File-Size Guard
         run: bash scripts/ci/check-file-size-guard.sh
 
