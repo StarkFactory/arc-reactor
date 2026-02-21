@@ -465,6 +465,11 @@ arc:
       enabled: false                # 우아한 성능 저하 활성화 (opt-in)
       models: []                    # 폴백 모델 우선순위 순서
 
+    api-version:
+      enabled: true                 # API 버전 계약 필터 활성화
+      current: v1                   # 현재 API 버전
+      supported: v1                 # 지원 버전 목록 (콤마 구분)
+
     rag:
       enabled: false                # RAG 파이프라인 활성화
       similarity-threshold: 0.7     # 유사도 임계값

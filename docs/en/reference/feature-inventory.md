@@ -465,6 +465,11 @@ arc:
       enabled: false                # Enable graceful degradation (opt-in)
       models: []                    # Fallback models in priority order
 
+    api-version:
+      enabled: true                 # Enable API version contract filter
+      current: v1                   # Current API version
+      supported: v1                 # Supported versions (comma-separated)
+
     rag:
       enabled: false                # Enable RAG pipeline
       similarity-threshold: 0.7     # Similarity threshold
