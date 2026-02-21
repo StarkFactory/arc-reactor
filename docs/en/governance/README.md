@@ -7,3 +7,5 @@ Operational controls for auth, approval, and policy management.
 - [Prompt Versioning](prompt-versioning.md)
 - [Tool Policy Admin](tool-policy-admin.md)
 - [Write Tool Policy](write-tool-policy.md)
+- [Security Release Framework](security-release-framework.md)
+- [Support and Compatibility Policy](support-policy.md)
