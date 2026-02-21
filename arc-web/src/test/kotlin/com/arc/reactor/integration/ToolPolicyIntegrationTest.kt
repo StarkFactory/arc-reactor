@@ -1,6 +1,9 @@
 package com.arc.reactor.integration
 
 import com.arc.reactor.ArcReactorApplication
+import com.arc.reactor.auth.JwtTokenProvider
+import com.arc.reactor.auth.User
+import com.arc.reactor.auth.UserRole
 import com.arc.reactor.hook.impl.WriteToolBlockHook
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
@@ -20,6 +23,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.http.HttpHeaders
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.reactive.server.WebTestClient
 
@@ -39,7 +43,9 @@ import org.springframework.test.web.reactive.server.WebTestClient
         "arc.reactor.approval.enabled=true",
         "arc.reactor.tool-policy.enabled=true",
         "arc.reactor.tool-policy.dynamic.enabled=true",
-        "arc.reactor.tool-policy.dynamic.refresh-ms=600000"
+        "arc.reactor.tool-policy.dynamic.refresh-ms=600000",
+        "arc.reactor.auth.enabled=true",
+        "arc.reactor.auth.jwt-secret=integration-test-jwt-secret-32-bytes"
     ]
 )
 @AutoConfigureWebTestClient
@@ -64,10 +70,19 @@ class ToolPolicyIntegrationTest {
     @Autowired
     lateinit var writeToolBlockHook: WriteToolBlockHook
 
+    @Autowired
+    lateinit var jwtTokenProvider: JwtTokenProvider
+
+    lateinit var adminClient: WebTestClient
+
     @BeforeEach
     fun setUpSchema() {
         jdbcTemplate.update("DELETE FROM tool_policy")
         toolPolicyProvider.invalidate()
+        val token = jwtTokenProvider.createToken(adminUser())
+        adminClient = webTestClient.mutate()
+            .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer $token")
+            .build()
     }
 
     @Test
@@ -80,7 +95,7 @@ class ToolPolicyIntegrationTest {
     @Test
     fun `PUT then GET persists and affects effective policy`() {
         // Update stored policy
-        webTestClient.put()
+        adminClient.put()
             .uri("/api/tool-policy")
             .bodyValue(
                 mapOf(
@@ -96,7 +111,7 @@ class ToolPolicyIntegrationTest {
         assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM tool_policy", Int::class.java))
 
         // GET state
-        val state = webTestClient.get()
+        val state = adminClient.get()
             .uri("/api/tool-policy")
             .exchange()
             .expectStatus().isOk
@@ -114,7 +129,7 @@ class ToolPolicyIntegrationTest {
     @Test
     fun `policy affects approval and slack write-tool blocking`() {
         // Store policy
-        webTestClient.put()
+        adminClient.put()
             .uri("/api/tool-policy")
             .bodyValue(
                 mapOf(
@@ -153,7 +168,7 @@ class ToolPolicyIntegrationTest {
 
     @Test
     fun `allowlist permits a write tool even in deny channel`() {
-        webTestClient.put()
+        adminClient.put()
             .uri("/api/tool-policy")
             .bodyValue(
                 mapOf(
@@ -188,7 +203,7 @@ class ToolPolicyIntegrationTest {
 
     @Test
     fun `channel-scoped allowlist permits only specific channels`() {
-        webTestClient.put()
+        adminClient.put()
             .uri("/api/tool-policy")
             .bodyValue(
                 mapOf(
@@ -228,7 +243,7 @@ class ToolPolicyIntegrationTest {
 
     @Test
     fun `DELETE resets stored policy and hook no longer blocks`() {
-        webTestClient.put()
+        adminClient.put()
             .uri("/api/tool-policy")
             .bodyValue(
                 mapOf(
@@ -241,7 +256,7 @@ class ToolPolicyIntegrationTest {
             .exchange()
             .expectStatus().isOk
 
-        webTestClient.delete()
+        adminClient.delete()
             .uri("/api/tool-policy")
             .exchange()
             .expectStatus().isNoContent
@@ -266,4 +281,12 @@ class ToolPolicyIntegrationTest {
             "Without stored policy, hook should continue with defaults"
         }
     }
+
+    private fun adminUser() = User(
+        id = "integration-admin",
+        email = "integration-admin@arc.dev",
+        name = "Integration Admin",
+        passwordHash = "ignored",
+        role = UserRole.ADMIN
+    )
 }

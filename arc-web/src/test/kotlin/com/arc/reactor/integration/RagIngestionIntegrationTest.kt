@@ -1,6 +1,9 @@
 package com.arc.reactor.integration
 
 import com.arc.reactor.ArcReactorApplication
+import com.arc.reactor.auth.JwtTokenProvider
+import com.arc.reactor.auth.User
+import com.arc.reactor.auth.UserRole
 import com.arc.reactor.rag.ingestion.JdbcRagIngestionCandidateStore
 import com.arc.reactor.rag.ingestion.JdbcRagIngestionPolicyStore
 import com.arc.reactor.rag.ingestion.RagIngestionCandidate
@@ -15,6 +18,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.http.HttpHeaders
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.reactive.server.WebTestClient
 
@@ -34,7 +38,9 @@ import org.springframework.test.web.reactive.server.WebTestClient
         "spring.ai.google.genai.embedding.api-key=test-key",
         "arc.reactor.rag.ingestion.enabled=true",
         "arc.reactor.rag.ingestion.dynamic.enabled=true",
-        "arc.reactor.rag.ingestion.dynamic.refresh-ms=600000"
+        "arc.reactor.rag.ingestion.dynamic.refresh-ms=600000",
+        "arc.reactor.auth.enabled=true",
+        "arc.reactor.auth.jwt-secret=integration-test-jwt-secret-32-bytes"
     ]
 )
 @AutoConfigureWebTestClient
@@ -53,10 +59,19 @@ class RagIngestionIntegrationTest {
     @Autowired
     lateinit var ragIngestionCandidateStore: RagIngestionCandidateStore
 
+    @Autowired
+    lateinit var jwtTokenProvider: JwtTokenProvider
+
+    lateinit var adminClient: WebTestClient
+
     @BeforeEach
     fun reset() {
         jdbcTemplate.update("DELETE FROM rag_ingestion_policy")
         jdbcTemplate.update("DELETE FROM rag_ingestion_candidates")
+        val token = jwtTokenProvider.createToken(adminUser())
+        adminClient = webTestClient.mutate()
+            .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer $token")
+            .build()
     }
 
     @Test
@@ -71,7 +86,7 @@ class RagIngestionIntegrationTest {
 
     @Test
     fun `policy api persists and returns effective state`() {
-        webTestClient.put()
+        adminClient.put()
             .uri("/api/rag-ingestion/policy")
             .bodyValue(
                 mapOf(
@@ -88,7 +103,7 @@ class RagIngestionIntegrationTest {
 
         assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM rag_ingestion_policy", Int::class.java))
 
-        val state = webTestClient.get()
+        val state = adminClient.get()
             .uri("/api/rag-ingestion/policy")
             .exchange()
             .expectStatus().isOk
@@ -115,7 +130,7 @@ class RagIngestionIntegrationTest {
             )
         )
 
-        webTestClient.post()
+        adminClient.post()
             .uri("/api/rag-ingestion/candidates/${candidate.id}/reject")
             .bodyValue(mapOf("comment" to "not useful"))
             .exchange()
@@ -128,4 +143,12 @@ class RagIngestionIntegrationTest {
         )
         assertEquals("REJECTED", updatedStatus)
     }
+
+    private fun adminUser() = User(
+        id = "integration-admin",
+        email = "integration-admin@arc.dev",
+        name = "Integration Admin",
+        passwordHash = "ignored",
+        role = UserRole.ADMIN
+    )
 }
