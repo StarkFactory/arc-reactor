@@ -140,11 +140,24 @@ Recommended environment variables:
 - `SPRING_DATASOURCE_PASSWORD`
 - `SPRING_FLYWAY_ENABLED=true`
 
+## API Version Contract
+
+- Request header (optional): `X-Arc-Api-Version` (default: `v1`)
+- Unsupported version -> `400 Bad Request` with standard `ErrorResponse`
+- Response headers:
+  - `X-Arc-Api-Version` (current version)
+  - `X-Arc-Api-Supported-Versions` (comma-separated supported set)
+- Config:
+  - `arc.reactor.api-version.enabled=true` (default)
+  - `arc.reactor.api-version.current=v1` (default)
+  - `arc.reactor.api-version.supported=v1` (default)
+
 ## Enterprise Control Plane APIs
 
 | Capability | API Base | Activation |
 |---|---|---|
 | Chat runtime | `/api/chat` | Always |
+| API version contract | all `/api/**` | Always (`arc.reactor.api-version.enabled=true` by default) |
 | Session/model ops | `/api/sessions`, `/api/models` | Always |
 | Persona management | `/api/personas` | Always |
 | Prompt template versioning | `/api/prompt-templates` | Always |

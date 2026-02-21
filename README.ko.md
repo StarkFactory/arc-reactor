@@ -339,6 +339,18 @@ arc:
 fun authProvider(): AuthProvider = MyLdapAuthProvider()
 ```
 
+## API 버전 계약
+
+- 요청 헤더(선택): `X-Arc-Api-Version` (기본값: `v1`)
+- 미지원 버전 요청 -> 표준 `ErrorResponse`와 함께 `400 Bad Request`
+- 응답 헤더:
+  - `X-Arc-Api-Version` (현재 버전)
+  - `X-Arc-Api-Supported-Versions` (지원 버전 목록, 콤마 구분)
+- 설정:
+  - `arc.reactor.api-version.enabled=true` (기본값)
+  - `arc.reactor.api-version.current=v1` (기본값)
+  - `arc.reactor.api-version.supported=v1` (기본값)
+
 ## 설정 레퍼런스
 
 ```yaml

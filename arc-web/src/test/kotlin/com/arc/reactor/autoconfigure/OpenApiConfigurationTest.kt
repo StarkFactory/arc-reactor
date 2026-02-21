@@ -61,11 +61,13 @@ class OpenApiConfigurationTest {
         }
 
         @Test
-        fun `should have description mentioning auth is conditional`() {
+        fun `should have description mentioning auth and api version contract`() {
             val openAPI = config.arcReactorOpenAPI()
 
             assertTrue(openAPI.info.description.contains("arc.reactor.auth.enabled"),
                 "Description should mention that auth is conditional")
+            assertTrue(openAPI.info.description.contains("X-Arc-Api-Version"),
+                "Description should mention API version contract header")
         }
 
         @Test

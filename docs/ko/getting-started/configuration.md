@@ -60,6 +60,11 @@ arc:
     fallback:                    # 우아한 성능 저하 (opt-in)
       enabled: false
       models: []
+
+    api-version:                 # API 버전 계약 (헤더 기반)
+      enabled: true
+      current: v1
+      supported: v1
 ```
 
 ## 설정 그룹별 상세
@@ -173,6 +178,20 @@ arc:
 - 기본 모델이 재시도 후에도 실패하면 발동
 - 모델은 나열된 순서대로 순차 시도
 - 해당 프로바이더 빈이 등록되어 있어야 함 (예: `SPRING_AI_OPENAI_API_KEY` 환경 변수)
+
+### ApiVersionContract
+
+| 속성 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `enabled` | Boolean | true | `X-Arc-Api-Version` 버전 계약 검증 활성화 |
+| `current` | String | `v1` | 응답 헤더로 반환되는 현재 API 버전 |
+| `supported` | String | `v1` | 지원 버전 목록(콤마 구분, 예: `v1,v2`) |
+
+**동작 방식:**
+- 요청 헤더 `X-Arc-Api-Version`는 선택 사항
+- 헤더가 없으면 서버는 `current`를 사용
+- 헤더가 있고 지원되지 않으면 `400 Bad Request`로 거부
+- 모든 응답에 `X-Arc-Api-Version`, `X-Arc-Api-Supported-Versions` 포함
 
 ### RagProperties
 

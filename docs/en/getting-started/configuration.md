@@ -60,6 +60,11 @@ arc:
     fallback:                    # Graceful degradation (opt-in)
       enabled: false
       models: []
+
+    api-version:                 # API version contract (header-based)
+      enabled: true
+      current: v1
+      supported: v1
 ```
 
 ## Configuration Groups in Detail
@@ -173,6 +178,20 @@ arc:
 - Triggered when the primary model fails after retries
 - Models are tried sequentially in the order listed
 - Requires matching provider beans to be registered (e.g., `SPRING_AI_OPENAI_API_KEY` env var)
+
+### ApiVersionContract
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | Boolean | true | Enables API version contract validation for `X-Arc-Api-Version` |
+| `current` | String | `v1` | Current API version returned via response header |
+| `supported` | String | `v1` | Comma-separated supported versions (e.g., `v1,v2`) |
+
+**Behavior:**
+- Request header `X-Arc-Api-Version` is optional
+- If missing, server uses `current`
+- If provided and unsupported, request is rejected with `400 Bad Request`
+- Responses include `X-Arc-Api-Version` and `X-Arc-Api-Supported-Versions`
 
 ### RagProperties
 
