@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v4.0.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -17,10 +23,26 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Secret Scan (Gitleaks)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Gitleaks (OSS CLI)
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION="8.24.2"
+          INSTALL_DIR="$RUNNER_TEMP/gitleaks"
+          mkdir -p "$INSTALL_DIR"
+          curl -sSL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o "$INSTALL_DIR/gitleaks.tar.gz"
+          tar -xzf "$INSTALL_DIR/gitleaks.tar.gz" -C "$INSTALL_DIR" gitleaks
+          chmod +x "$INSTALL_DIR/gitleaks"
+          echo "$INSTALL_DIR" >> "$GITHUB_PATH"
+
+      - name: Secret Scan (Gitleaks OSS)
+        run: |
+          gitleaks git \
+            --redact \
+            --exit-code 1 \
+            --report-format sarif \
+            --report-path gitleaks.sarif
 
       - name: Filesystem Vulnerability Scan (Trivy)
         uses: aquasecurity/trivy-action@0.32.0
@@ -50,6 +72,17 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Resolve Release Tag
+        id: release_tag
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "value=$TAG" >> "$GITHUB_OUTPUT"
+
       - name: Build Release Artifact
         run: ./gradlew :arc-app:bootJar
 
@@ -59,7 +92,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           JAR_SOURCE="$(ls arc-app/build/libs/*.jar | head -n 1)"
-          JAR_NAME="arc-reactor-${GITHUB_REF_NAME}.jar"
+          JAR_NAME="arc-reactor-${{ steps.release_tag.outputs.value }}.jar"
           JAR_PATH="dist/${JAR_NAME}"
           SBOM_PATH="${JAR_PATH}.sbom.cdx.json"
           CHECKSUMS_PATH="dist/sha256sums.txt"
@@ -112,7 +145,7 @@ jobs:
       - name: Resolve Release Notes File
         id: notes
         run: |
-          FILE="docs/en/releases/${GITHUB_REF_NAME}.md"
+          FILE="docs/en/releases/${{ steps.release_tag.outputs.value }}.md"
           if [ -f "$FILE" ]; then
             echo "has_file=true" >> "$GITHUB_OUTPUT"
             echo "file=$FILE" >> "$GITHUB_OUTPUT"
@@ -124,8 +157,8 @@ jobs:
         if: steps.notes.outputs.has_file == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          tag_name: ${{ steps.release_tag.outputs.value }}
+          name: ${{ steps.release_tag.outputs.value }}
           body_path: ${{ steps.notes.outputs.file }}
           files: |
             dist/*
@@ -136,8 +169,8 @@ jobs:
         if: steps.notes.outputs.has_file != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          tag_name: ${{ steps.release_tag.outputs.value }}
+          name: ${{ steps.release_tag.outputs.value }}
           generate_release_notes: true
           files: |
             dist/*
