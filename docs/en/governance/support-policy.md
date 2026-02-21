@@ -53,6 +53,14 @@ When deprecating APIs/config/features:
 - Standard issues and requests: GitHub Issues
 - Security disclosures: follow `SECURITY.md`
 
+## Fork and Deployment Responsibility Boundary
+
+- Arc Reactor is distributed under Apache-2.0 and provided **AS IS**.
+- Upstream maintainers support upstream code lines by this policy, but do not assume operational liability
+  for downstream fork deployments.
+- Fork operators are solely responsible for runtime security, secrets handling, compliance, incident response,
+  and production operations in their own environments.
+
 ## Related
 
 - `SECURITY.md`
