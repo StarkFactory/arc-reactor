@@ -28,8 +28,11 @@ arc:
       enabled: true
       rate-limit-per-minute: 10
       rate-limit-per-hour: 100
-      max-input-length: 10000
       injection-detection-enabled: true
+
+    boundaries:                  # Input/output boundary checks
+      input-min-chars: 1
+      input-max-chars: 5000
 
     rag:                         # RAG pipeline settings
       enabled: false
@@ -107,12 +110,19 @@ arc:
 | `enabled` | Boolean | true | Enables the Guard pipeline. When `false`, all Guard stages are disabled |
 | `rate-limit-per-minute` | Int | 10 | Per-user request limit per minute |
 | `rate-limit-per-hour` | Int | 100 | Per-user request limit per hour |
-| `max-input-length` | Int | 10000 | Maximum user input length (character count) |
 | `injection-detection-enabled` | Boolean | true | Enables prompt injection detection |
 
 **Behavior:**
 - `enabled=false`: The Guard bean itself is not created (`@ConditionalOnProperty`)
 - `injection-detection-enabled=false`: Only the injection detection stage is disabled; the remaining Guard stages still operate
+
+### BoundaryProperties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `input-min-chars` | Int | 1 | Minimum user input length (character count) |
+| `input-max-chars` | Int | 5000 | Maximum user input length (character count) |
+| `system-prompt-max-chars` | Int | 0 | Maximum system prompt length. `0` means unlimited |
 
 ### ConcurrencyProperties
 
@@ -334,8 +344,9 @@ arc:
       enabled: true
       rate-limit-per-minute: 5
       rate-limit-per-hour: 50
-      max-input-length: 5000
       injection-detection-enabled: true
+    boundaries:
+      input-max-chars: 3000
     concurrency:
       request-timeout-ms: 15000  # Short timeout
 ```

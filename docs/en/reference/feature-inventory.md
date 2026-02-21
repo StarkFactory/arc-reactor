@@ -416,7 +416,7 @@ arc:
 
     llm:
       default-provider: gemini      # Default LLM provider
-      temperature: 0.7              # Creativity (0.0~1.0)
+      temperature: 0.3              # Creativity (0.0~1.0)
       max-output-tokens: 4096       # Max response length
       max-conversation-turns: 10    # Max conversation history turns
       max-context-window-tokens: 128000  # Context window token limit
@@ -433,10 +433,13 @@ arc:
 
     guard:
       enabled: true                 # Enable Guard
-      rate-limit-per-minute: 20     # Requests per minute limit
-      rate-limit-per-hour: 200      # Requests per hour limit
-      max-input-length: 10000       # Max input length (characters)
+      rate-limit-per-minute: 10     # Requests per minute limit
+      rate-limit-per-hour: 100      # Requests per hour limit
       injection-detection-enabled: true  # Prompt injection detection
+
+    boundaries:
+      input-min-chars: 1            # Min input length (characters)
+      input-max-chars: 5000         # Max input length (characters)
 
     auth:
       enabled: false                 # Enable JWT authentication (opt-in)

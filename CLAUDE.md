@@ -149,7 +149,7 @@ Details: @docs/en/architecture/architecture.md, @docs/en/reference/tools.md, @do
 | `max-tool-calls` | 10 | `concurrency.request-timeout-ms` | 30000 |
 | `max-tools-per-request` | 20 | `concurrency.tool-call-timeout-ms` | 15000 |
 | `llm.temperature` | 0.3 | `guard.rate-limit-per-minute` | 10 |
-| `llm.max-context-window-tokens` | 128000 | `boundaries.input-max-chars` | 10000 |
+| `llm.max-context-window-tokens` | 128000 | `boundaries.input-max-chars` | 5000 |
 
 Full config: see `agent/config/AgentProperties.kt`
 
