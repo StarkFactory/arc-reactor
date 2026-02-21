@@ -20,7 +20,7 @@ Use this checklist before tagging a public release.
 
 - [ ] Docker image built and smoke-tested
 - [ ] Image tag is immutable and documented
-- [ ] SBOM/signature workflow completed (when enabled in release pipeline)
+- [ ] SBOM + checksum + signature + provenance artifacts attached to release
 - [ ] Changelog and compatibility notes updated
 
 ## Operations

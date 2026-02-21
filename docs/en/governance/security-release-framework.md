@@ -40,6 +40,32 @@ This document defines a practical security release baseline for Arc Reactor.
 Current repository baseline:
 
 - `.github/workflows/security-baseline.yml` for secret and filesystem vulnerability scans
+- `.github/workflows/release.yml` for release artifact build/sign/attestation
+
+## Automated Release Artifacts (Current Pipeline)
+
+On tag push (`v*`), the release workflow now publishes:
+
+- Boot artifact: `arc-reactor-<tag>.jar`
+- SBOM: `arc-reactor-<tag>.jar.sbom.cdx.json` (CycloneDX JSON via Syft)
+- Checksums: `sha256sums.txt`
+- Keyless signatures + certificates for all above files (`*.sig`, `*.pem`) via Cosign
+- GitHub build provenance attestation for jar/sbom/checksum subjects
+
+Recommended verification flow after download:
+
+```bash
+# 1) Check integrity
+sha256sum -c sha256sums.txt
+
+# 2) Verify keyless signature (repeat for each signed file)
+cosign verify-blob \
+  --certificate arc-reactor-vX.Y.Z.jar.pem \
+  --signature arc-reactor-vX.Y.Z.jar.sig \
+  --certificate-identity-regexp "https://github.com/StarkFactory/arc-reactor/.github/workflows/release.yml@refs/tags/.*" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  arc-reactor-vX.Y.Z.jar
+```
 
 ## Arc Reactor-Specific Hardening
 
