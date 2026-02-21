@@ -128,7 +128,7 @@ Details: @docs/en/architecture/architecture.md, @docs/en/reference/tools.md, @do
 - Admin-only: Persona/Document/MCP server/PromptTemplate write ops
 - Shared utility: `AdminAuthSupport.kt` — `isAdmin(exchange)` + `forbiddenResponse()`
 - **MUST use shared functions** — do NOT duplicate `isAdmin`/`forbidden` in individual controllers
-- `isAdmin()` = `role == null || role == ADMIN` — when auth is disabled, **all requests treated as admin**
+- `isAdmin()` = `role == ADMIN` — fail-close by default. When auth is disabled, admin APIs are denied unless role is explicitly set
 - Session ownership: `SessionController` uses its own `sessionForbidden()` (different error message)
 
 ### Error Responses

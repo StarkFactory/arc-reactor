@@ -317,7 +317,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should allow when auth is disabled`() = runTest {
+        fun `should return 403 when auth is disabled`() = runTest {
             every {
                 feedbackStore.list(
                     rating = null, from = null, to = null,
@@ -331,7 +331,7 @@ class FeedbackControllerTest {
                 exchange = noAuthExchange()
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode) { "Should allow when no auth (null role)" }
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should fail-close when no auth" }
         }
     }
 

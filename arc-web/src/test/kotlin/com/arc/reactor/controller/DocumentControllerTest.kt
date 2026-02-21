@@ -72,12 +72,12 @@ class DocumentControllerTest {
         }
 
         @Test
-        fun `should allow when auth is disabled`() {
+        fun `should return 403 when auth is disabled`() {
             val request = DocumentController.AddDocumentRequest(content = "Test content")
 
             val response = controller.addDocument(request, noAuthExchange())
 
-            assertEquals(HttpStatus.CREATED, response.statusCode) { "Should allow when no auth" }
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should fail-close when no auth" }
         }
 
         @Test
