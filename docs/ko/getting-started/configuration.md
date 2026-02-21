@@ -28,8 +28,11 @@ arc:
       enabled: true
       rate-limit-per-minute: 10
       rate-limit-per-hour: 100
-      max-input-length: 10000
       injection-detection-enabled: true
+
+    boundaries:                  # 입력/출력 경계 검사
+      input-min-chars: 1
+      input-max-chars: 5000
 
     rag:                         # RAG 파이프라인 설정
       enabled: false
@@ -107,12 +110,19 @@ arc:
 | `enabled` | Boolean | true | Guard 파이프라인 활성화. `false`면 모든 Guard 단계 비활성화 |
 | `rate-limit-per-minute` | Int | 10 | 사용자별 분당 요청 제한 |
 | `rate-limit-per-hour` | Int | 100 | 사용자별 시간당 요청 제한 |
-| `max-input-length` | Int | 10000 | 사용자 입력 최대 길이 (문자 수) |
 | `injection-detection-enabled` | Boolean | true | 프롬프트 인젝션 탐지 활성화 |
 
 **동작 방식:**
 - `enabled=false`: Guard 빈 자체가 생성되지 않음 (`@ConditionalOnProperty`)
 - `injection-detection-enabled=false`: 인젝션 탐지 단계만 비활성화, 나머지 Guard는 동작
+
+### BoundaryProperties
+
+| 속성 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `input-min-chars` | Int | 1 | 사용자 입력 최소 길이 (문자 수) |
+| `input-max-chars` | Int | 5000 | 사용자 입력 최대 길이 (문자 수) |
+| `system-prompt-max-chars` | Int | 0 | 시스템 프롬프트 최대 길이. `0`이면 무제한 |
 
 ### ConcurrencyProperties
 
@@ -334,8 +344,9 @@ arc:
       enabled: true
       rate-limit-per-minute: 5
       rate-limit-per-hour: 50
-      max-input-length: 5000
       injection-detection-enabled: true
+    boundaries:
+      input-max-chars: 3000
     concurrency:
       request-timeout-ms: 15000  # 짧은 타임아웃
 ```

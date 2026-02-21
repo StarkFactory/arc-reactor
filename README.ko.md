@@ -363,8 +363,11 @@ arc:
       enabled: true
       rate-limit-per-minute: 10
       rate-limit-per-hour: 100
-      max-input-length: 10000
       injection-detection-enabled: true
+
+    boundaries:
+      input-min-chars: 1
+      input-max-chars: 5000
 
     rag:
       enabled: false

@@ -416,7 +416,7 @@ arc:
 
     llm:
       default-provider: gemini      # 기본 LLM 프로바이더
-      temperature: 0.7              # 창의성 (0.0~1.0)
+      temperature: 0.3              # 창의성 (0.0~1.0)
       max-output-tokens: 4096       # 최대 응답 길이
       max-conversation-turns: 10    # 대화 이력 최대 턴 수
       max-context-window-tokens: 128000  # 컨텍스트 윈도우 토큰 한도
@@ -433,10 +433,13 @@ arc:
 
     guard:
       enabled: true                 # Guard 활성화
-      rate-limit-per-minute: 20     # 분당 요청 한도
-      rate-limit-per-hour: 200      # 시간당 요청 한도
-      max-input-length: 10000       # 최대 입력 길이 (자)
+      rate-limit-per-minute: 10     # 분당 요청 한도
+      rate-limit-per-hour: 100      # 시간당 요청 한도
       injection-detection-enabled: true  # 프롬프트 인젝션 탐지
+
+    boundaries:
+      input-min-chars: 1            # 최소 입력 길이 (자)
+      input-max-chars: 5000         # 최대 입력 길이 (자)
 
     auth:
       enabled: false                 # JWT 인증 활성화 (opt-in)
