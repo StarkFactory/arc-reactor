@@ -17,10 +17,26 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Secret Scan (Gitleaks)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Gitleaks (OSS CLI)
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION="8.24.2"
+          INSTALL_DIR="$RUNNER_TEMP/gitleaks"
+          mkdir -p "$INSTALL_DIR"
+          curl -sSL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o "$INSTALL_DIR/gitleaks.tar.gz"
+          tar -xzf "$INSTALL_DIR/gitleaks.tar.gz" -C "$INSTALL_DIR" gitleaks
+          chmod +x "$INSTALL_DIR/gitleaks"
+          echo "$INSTALL_DIR" >> "$GITHUB_PATH"
+
+      - name: Secret Scan (Gitleaks OSS)
+        run: |
+          gitleaks git \
+            --redact \
+            --exit-code 1 \
+            --report-format sarif \
+            --report-path gitleaks.sarif
 
       - name: Filesystem Vulnerability Scan (Trivy)
         uses: aquasecurity/trivy-action@0.32.0
