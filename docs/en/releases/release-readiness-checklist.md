@@ -12,6 +12,7 @@ Use this checklist before tagging a public release.
 ## Security Gates
 
 - [ ] Security scans passed by policy
+- [ ] Tag release workflow security-gates job passed (Gitleaks + Trivy)
 - [ ] Dependency vulnerability review completed
 - [ ] No secrets in repository diff
 - [ ] Runtime hardening defaults verified (auth/policy/guard settings)

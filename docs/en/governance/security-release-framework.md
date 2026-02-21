@@ -42,6 +42,15 @@ Current repository baseline:
 - `.github/workflows/security-baseline.yml` for secret and filesystem vulnerability scans
 - `.github/workflows/release.yml` for release artifact build/sign/attestation
 
+## Enforced Tag Release Gates
+
+On tag push (`v*`), `.github/workflows/release.yml` now blocks artifact publication unless
+all of the following pass inside the same workflow run:
+
+- Secret scan (Gitleaks)
+- Filesystem vulnerability scan (Trivy, `CRITICAL/HIGH`, `ignore-unfixed=true`)
+- Artifact chain generation and verification materials (SBOM + checksums + keyless signatures + provenance)
+
 ## Automated Release Artifacts (Current Pipeline)
 
 On tag push (`v*`), the release workflow now publishes:
