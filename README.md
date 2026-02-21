@@ -405,7 +405,7 @@ Before broad public adoption, strongly consider adding:
 
 - Public benchmark baseline (latency/throughput by scenario)
 - Compatibility and support policy (LTS window, deprecation policy)
-- Security hardening artifacts (SBOM/signing/vulnerability report process)
+- Security scan summary publication policy in release notes
 - Kubernetes reference manifests (or Helm chart) for standard enterprise deployment
 
 ## Contributing

@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   create-release:
@@ -16,6 +18,74 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Release Artifact
+        run: ./gradlew :arc-app:bootJar
+
+      - name: Prepare Release Artifact Paths
+        id: artifact
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          JAR_SOURCE="$(ls arc-app/build/libs/*.jar | head -n 1)"
+          JAR_NAME="arc-reactor-${GITHUB_REF_NAME}.jar"
+          JAR_PATH="dist/${JAR_NAME}"
+          SBOM_PATH="${JAR_PATH}.sbom.cdx.json"
+          CHECKSUMS_PATH="dist/sha256sums.txt"
+
+          cp "$JAR_SOURCE" "$JAR_PATH"
+
+          echo "jar_path=$JAR_PATH" >> "$GITHUB_OUTPUT"
+          echo "sbom_path=$SBOM_PATH" >> "$GITHUB_OUTPUT"
+          echo "checksums_path=$CHECKSUMS_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Generate SBOM (CycloneDX JSON)
+        run: |
+          syft "file:${{ steps.artifact.outputs.jar_path }}" \
+            -o "cyclonedx-json=${{ steps.artifact.outputs.sbom_path }}"
+
+      - name: Generate SHA256 Checksums
+        run: |
+          sha256sum \
+            "${{ steps.artifact.outputs.jar_path }}" \
+            "${{ steps.artifact.outputs.sbom_path }}" \
+            > "${{ steps.artifact.outputs.checksums_path }}"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign Release Blobs (keyless)
+        run: |
+          set -euo pipefail
+          for file in \
+            "${{ steps.artifact.outputs.jar_path }}" \
+            "${{ steps.artifact.outputs.sbom_path }}" \
+            "${{ steps.artifact.outputs.checksums_path }}"; do
+            cosign sign-blob --yes \
+              --output-signature "${file}.sig" \
+              --output-certificate "${file}.pem" \
+              "$file"
+          done
+
+      - name: Attest Build Provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            ${{ steps.artifact.outputs.jar_path }}
+            ${{ steps.artifact.outputs.sbom_path }}
+            ${{ steps.artifact.outputs.checksums_path }}
 
       - name: Resolve Release Notes File
         id: notes
@@ -35,6 +105,8 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           body_path: ${{ steps.notes.outputs.file }}
+          files: |
+            dist/*
           draft: false
           prerelease: false
 
@@ -45,5 +117,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           generate_release_notes: true
+          files: |
+            dist/*
           draft: false
           prerelease: false
