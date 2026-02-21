@@ -23,7 +23,6 @@ import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.output.OutputGuardPipeline
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.intent.IntentResolver
-import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
@@ -207,6 +206,11 @@ class SpringAiAgentExecutor(
         agentErrorPolicy = agentErrorPolicy,
         agentMetrics = agentMetrics
     )
+    private val executionFailureHandler = AgentExecutionFailureHandler(
+        errorMessageResolver = errorMessageResolver,
+        hookExecutor = hookExecutor,
+        agentMetrics = agentMetrics
+    )
     private val agentExecutionCoordinator = AgentExecutionCoordinator(
         responseCache = responseCache,
         cacheableTemperature = cacheableTemperature,
@@ -247,41 +251,17 @@ class SpringAiAgentExecutor(
             }
         } catch (e: BlockedIntentException) {
             logger.info { "Blocked intent: ${e.intentName}" }
-            return handleFailureWithHook(AgentErrorCode.GUARD_REJECTED, e, hookContext, startTime)
+            return executionFailureHandler.handle(AgentErrorCode.GUARD_REJECTED, e, hookContext, startTime)
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             logger.warn { "Request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
-            return handleFailureWithHook(AgentErrorCode.TIMEOUT, e, hookContext, startTime)
+            return executionFailureHandler.handle(AgentErrorCode.TIMEOUT, e, hookContext, startTime)
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Agent execution failed" }
-            return handleFailureWithHook(agentErrorPolicy.classify(e), e, hookContext, startTime)
+            return executionFailureHandler.handle(agentErrorPolicy.classify(e), e, hookContext, startTime)
         } finally {
             runContextManager.close()
         }
-    }
-
-    private suspend fun handleFailureWithHook(
-        errorCode: AgentErrorCode,
-        exception: Exception,
-        hookContext: HookContext,
-        startTime: Long
-    ): AgentResult {
-        val failResult = AgentResult.failure(
-            errorMessage = errorMessageResolver.resolve(errorCode, exception.message),
-            errorCode = errorCode,
-            durationMs = System.currentTimeMillis() - startTime
-        )
-        try {
-            hookExecutor?.executeAfterAgentComplete(
-                context = hookContext,
-                response = AgentResponse(success = false, errorMessage = failResult.errorMessage)
-            )
-        } catch (hookEx: Exception) {
-            hookEx.throwIfCancellation()
-            logger.error(hookEx) { "AfterAgentComplete hook failed during error handling" }
-        }
-        agentMetrics.recordExecution(failResult)
-        return failResult
     }
 
     /**
