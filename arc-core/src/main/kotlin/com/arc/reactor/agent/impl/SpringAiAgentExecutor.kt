@@ -186,6 +186,22 @@ class SpringAiAgentExecutor(
         blockedIntents = blockedIntents,
         agentMetrics = agentMetrics
     )
+    private val streamingExecutionCoordinator = StreamingExecutionCoordinator(
+        concurrencySemaphore = concurrencySemaphore,
+        requestTimeoutMs = properties.concurrency.requestTimeoutMs,
+        maxToolCallsLimit = properties.maxToolCalls,
+        preExecutionResolver = preExecutionResolver,
+        conversationManager = conversationManager,
+        ragContextRetriever = ragContextRetriever,
+        systemPromptBuilder = systemPromptBuilder,
+        toolPreparationPlanner = toolPreparationPlanner,
+        resolveChatClient = ::resolveChatClient,
+        resolveIntentAllowedTools = ::resolveIntentAllowedTools,
+        streamingReActLoopExecutor = streamingReActLoopExecutor,
+        errorMessageResolver = errorMessageResolver,
+        agentErrorPolicy = agentErrorPolicy,
+        agentMetrics = agentMetrics
+    )
     private val agentExecutionCoordinator = AgentExecutionCoordinator(
         responseCache = responseCache,
         cacheableTemperature = cacheableTemperature,
@@ -315,153 +331,18 @@ class SpringAiAgentExecutor(
         val toolsUsed = java.util.concurrent.CopyOnWriteArrayList<String>()
         val runContext = runContextManager.open(command, toolsUsed)
         val hookContext = runContext.hookContext
-        val state = StreamingExecutionState()
+        var state = StreamingExecutionState()
 
         try {
-            executeStreamingFlow(command, hookContext, toolsUsed, state, emit = { chunk -> emit(chunk) })
-        } catch (e: BlockedIntentException) {
-            handleBlockedIntentInStreaming(e, state, emit = { marker -> emit(marker) })
-        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            handleStreamingTimeout(e, state, emit = { marker -> emit(marker) })
-        } catch (e: Exception) {
-            handleUnexpectedStreamingFailure(e, state, emit = { marker -> emit(marker) })
+            state = streamingExecutionCoordinator.execute(
+                command = command,
+                hookContext = hookContext,
+                toolsUsed = toolsUsed,
+                emit = { chunk -> emit(chunk) }
+            )
         } finally {
             finalizeStreamingFlow(command, hookContext, toolsUsed, state, startTime, emit = { marker -> emit(marker) })
         }
-    }
-
-    private suspend fun executeStreamingFlow(
-        command: AgentCommand,
-        hookContext: HookContext,
-        toolsUsed: MutableList<String>,
-        state: StreamingExecutionState,
-        emit: suspend (String) -> Unit
-    ) {
-        concurrencySemaphore.withPermit {
-            withTimeout(properties.concurrency.requestTimeoutMs) {
-                val effectiveCommand = validateStreamingPreconditions(command, hookContext, state, emit)
-                    ?: return@withTimeout
-                state.streamStarted = true
-                val setup = prepareStreamingLoopSetup(effectiveCommand)
-                val loopResult = runStreamingReActLoop(effectiveCommand, setup, hookContext, toolsUsed, emit)
-                state.streamSuccess = loopResult.success
-                state.collectedContent.append(loopResult.collectedContent)
-                state.lastIterationContent = StringBuilder(loopResult.lastIterationContent)
-            }
-        }
-    }
-
-    private suspend fun validateStreamingPreconditions(
-        command: AgentCommand,
-        hookContext: HookContext,
-        state: StreamingExecutionState,
-        emit: suspend (String) -> Unit
-    ): AgentCommand? {
-        preExecutionResolver.checkGuard(command)?.let { rejection ->
-            agentMetrics.recordGuardRejection(stage = rejection.stage ?: "unknown", reason = rejection.reason)
-            state.streamErrorCode = AgentErrorCode.GUARD_REJECTED
-            state.streamErrorMessage = rejection.reason
-            emit(StreamEventMarker.error(rejection.reason))
-            return null
-        }
-
-        preExecutionResolver.checkBeforeHooks(hookContext)?.let { rejection ->
-            state.streamErrorCode = AgentErrorCode.HOOK_REJECTED
-            state.streamErrorMessage = rejection.reason
-            emit(StreamEventMarker.error(rejection.reason))
-            return null
-        }
-
-        val effectiveCommand = preExecutionResolver.resolveIntent(command)
-        if (effectiveCommand.responseFormat != ResponseFormat.TEXT) {
-            state.streamErrorCode = AgentErrorCode.INVALID_RESPONSE
-            state.streamErrorMessage =
-                "Structured ${effectiveCommand.responseFormat} output is not supported in streaming mode"
-            emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
-            return null
-        }
-        return effectiveCommand
-    }
-
-    private suspend fun prepareStreamingLoopSetup(command: AgentCommand): StreamingLoopSetup {
-        val conversationHistory = conversationManager.loadHistory(command)
-        val ragContext = ragContextRetriever.retrieve(command)
-        val systemPrompt = systemPromptBuilder.build(
-            command.systemPrompt,
-            ragContext,
-            command.responseFormat,
-            command.responseSchema
-        )
-        val selectedTools = if (command.mode == AgentMode.STANDARD) {
-            emptyList()
-        } else {
-            toolPreparationPlanner.prepareForPrompt(command.userPrompt)
-        }
-        logger.debug { "Streaming ReAct: ${selectedTools.size} tools selected (mode=${command.mode})" }
-        return StreamingLoopSetup(
-            activeChatClient = resolveChatClient(command),
-            systemPrompt = systemPrompt,
-            initialTools = selectedTools,
-            conversationHistory = conversationHistory,
-            allowedTools = resolveIntentAllowedTools(command),
-            maxToolCallLimit = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
-        )
-    }
-
-    private suspend fun runStreamingReActLoop(
-        command: AgentCommand,
-        setup: StreamingLoopSetup,
-        hookContext: HookContext,
-        toolsUsed: MutableList<String>,
-        emit: suspend (String) -> Unit
-    ): StreamingLoopResult {
-        return streamingReActLoopExecutor.execute(
-            command = command,
-            activeChatClient = setup.activeChatClient,
-            systemPrompt = setup.systemPrompt,
-            initialTools = setup.initialTools,
-            conversationHistory = setup.conversationHistory,
-            hookContext = hookContext,
-            toolsUsed = toolsUsed,
-            allowedTools = setup.allowedTools,
-            maxToolCalls = setup.maxToolCallLimit,
-            emit = emit
-        )
-    }
-
-    private suspend fun handleBlockedIntentInStreaming(
-        exception: BlockedIntentException,
-        state: StreamingExecutionState,
-        emit: suspend (String) -> Unit
-    ) {
-        logger.info { "Blocked intent in streaming: ${exception.intentName}" }
-        state.streamErrorCode = AgentErrorCode.GUARD_REJECTED
-        state.streamErrorMessage = exception.message
-        emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
-    }
-
-    private suspend fun handleStreamingTimeout(
-        exception: kotlinx.coroutines.TimeoutCancellationException,
-        state: StreamingExecutionState,
-        emit: suspend (String) -> Unit
-    ) {
-        logger.warn { "Streaming request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
-        state.streamErrorCode = AgentErrorCode.TIMEOUT
-        state.streamErrorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, exception.message)
-        emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
-    }
-
-    private suspend fun handleUnexpectedStreamingFailure(
-        exception: Exception,
-        state: StreamingExecutionState,
-        emit: suspend (String) -> Unit
-    ) {
-        exception.throwIfCancellation()
-        logger.error(exception) { "Streaming execution failed" }
-        val errorCode = agentErrorPolicy.classify(exception)
-        state.streamErrorCode = errorCode
-        state.streamErrorMessage = errorMessageResolver.resolve(errorCode, exception.message)
-        emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
     }
 
     private suspend fun finalizeStreamingFlow(
@@ -497,24 +378,6 @@ class SpringAiAgentExecutor(
             runContextManager.close()
         }
     }
-
-    private data class StreamingExecutionState(
-        var streamSuccess: Boolean = false,
-        var streamErrorCode: AgentErrorCode? = null,
-        var streamErrorMessage: String? = null,
-        var streamStarted: Boolean = false,
-        val collectedContent: StringBuilder = StringBuilder(),
-        var lastIterationContent: StringBuilder = StringBuilder()
-    )
-
-    private data class StreamingLoopSetup(
-        val activeChatClient: ChatClient,
-        val systemPrompt: String,
-        val initialTools: List<Any>,
-        val conversationHistory: List<Message>,
-        val allowedTools: Set<String>?,
-        val maxToolCallLimit: Int
-    )
 
     private fun recordStreamingMetrics(
         success: Boolean,
