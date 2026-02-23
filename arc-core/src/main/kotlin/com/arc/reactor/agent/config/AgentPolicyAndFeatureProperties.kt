@@ -431,3 +431,48 @@ enum class OutputMinViolationMode {
     /** Fail with OUTPUT_TOO_SHORT error code. */
     FAIL
 }
+
+/**
+ * Conversation memory configuration.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     memory:
+ *       summary:
+ *         enabled: true
+ *         trigger-message-count: 20
+ *         recent-message-count: 10
+ *         llm-model: gemini-2.0-flash
+ *         max-narrative-tokens: 500
+ * ```
+ */
+data class MemoryProperties(
+    /** Hierarchical summary configuration */
+    val summary: SummaryProperties = SummaryProperties()
+)
+
+/**
+ * Hierarchical conversation summary configuration.
+ *
+ * When enabled, old messages are summarized into structured facts + narrative
+ * while recent messages are preserved verbatim. This prevents context loss
+ * during long conversations.
+ */
+data class SummaryProperties(
+    /** Enable hierarchical memory summarization. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Minimum message count before summarization triggers. */
+    val triggerMessageCount: Int = 20,
+
+    /** Number of recent messages to keep verbatim (not summarized). */
+    val recentMessageCount: Int = 10,
+
+    /** LLM provider for summarization (null = use default provider). */
+    val llmModel: String? = null,
+
+    /** Maximum token budget for the narrative summary. */
+    val maxNarrativeTokens: Int = 500
+)

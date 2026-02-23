@@ -74,7 +74,10 @@ data class AgentProperties(
     val scheduler: SchedulerProperties = SchedulerProperties(),
 
     /** Input/output boundary policy configuration */
-    val boundaries: BoundaryProperties = BoundaryProperties()
+    val boundaries: BoundaryProperties = BoundaryProperties(),
+
+    /** Conversation memory configuration */
+    val memory: MemoryProperties = MemoryProperties()
 )
 
 data class LlmProperties(
