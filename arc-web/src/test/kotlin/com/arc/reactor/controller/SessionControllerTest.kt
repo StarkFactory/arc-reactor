@@ -6,6 +6,7 @@ import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.memory.ConversationMemory
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.SessionSummary
+import com.arc.reactor.memory.summary.ConversationSummaryStore
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -15,6 +16,7 @@ import com.arc.reactor.auth.JwtAuthWebFilter
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
@@ -23,6 +25,8 @@ class SessionControllerTest {
 
     private lateinit var memoryStore: MemoryStore
     private lateinit var chatModelProvider: ChatModelProvider
+    private lateinit var summaryStoreProvider: ObjectProvider<ConversationSummaryStore>
+    private lateinit var summaryStore: ConversationSummaryStore
     private lateinit var controller: SessionController
     private lateinit var exchange: ServerWebExchange
 
@@ -30,7 +34,10 @@ class SessionControllerTest {
     fun setup() {
         memoryStore = mockk()
         chatModelProvider = mockk()
-        controller = SessionController(memoryStore, chatModelProvider)
+        summaryStore = mockk(relaxed = true)
+        summaryStoreProvider = mockk()
+        every { summaryStoreProvider.ifAvailable } returns summaryStore
+        controller = SessionController(memoryStore, chatModelProvider, summaryStoreProvider)
         exchange = mockk()
         every { exchange.attributes } returns mutableMapOf()
     }
@@ -220,6 +227,28 @@ class SessionControllerTest {
             val response = controller.deleteSession("nonexistent", exchange)
 
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) { "DELETE should be idempotent" }
+        }
+
+        @Test
+        fun `should cascade delete summary store on session deletion`() = runTest {
+            every { memoryStore.remove("session-1") } returns Unit
+
+            controller.deleteSession("session-1", exchange)
+
+            verify(exactly = 1) { summaryStore.delete("session-1") }
+        }
+
+        @Test
+        fun `should not fail when summary store is not available`() = runTest {
+            every { summaryStoreProvider.ifAvailable } returns null
+            val noSummaryController = SessionController(memoryStore, chatModelProvider, summaryStoreProvider)
+            every { memoryStore.remove("session-1") } returns Unit
+
+            val response = noSummaryController.deleteSession("session-1", exchange)
+
+            assertEquals(HttpStatus.NO_CONTENT, response.statusCode) {
+                "Deletion should succeed even without summary store"
+            }
         }
     }
 
