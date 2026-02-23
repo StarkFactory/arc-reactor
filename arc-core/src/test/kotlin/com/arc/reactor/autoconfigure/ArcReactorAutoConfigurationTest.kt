@@ -22,6 +22,11 @@ import com.arc.reactor.memory.InMemoryMemoryStore
 import com.arc.reactor.memory.JdbcMemoryStore
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.TokenEstimator
+import com.arc.reactor.memory.summary.ConversationSummaryService
+import com.arc.reactor.memory.summary.ConversationSummaryStore
+import com.arc.reactor.memory.summary.InMemoryConversationSummaryStore
+import com.arc.reactor.memory.summary.JdbcConversationSummaryStore
+import com.arc.reactor.memory.summary.LlmConversationSummaryService
 import com.arc.reactor.persona.InMemoryPersonaStore
 import com.arc.reactor.persona.JdbcPersonaStore
 import com.arc.reactor.persona.PersonaStore
@@ -542,6 +547,96 @@ class ArcReactorAutoConfigurationTest {
                     val props = context.getBean(com.arc.reactor.auth.AuthProperties::class.java)
                     assertTrue(props.publicPaths.any { it == "/actuator/health" }) {
                         "publicPaths should include /actuator/health when arc.reactor.auth.public-actuator-health=true"
+                    }
+                }
+        }
+    }
+
+    // ── Memory Summary Configuration ────────────────────────────────
+
+    @Nested
+    inner class MemorySummaryConfigurationTests {
+
+        @Test
+        fun `should not register summary beans by default`() {
+            contextRunner.run { context ->
+                assertFalse(context.containsBean("conversationSummaryStore")) {
+                    "ConversationSummaryStore should not exist by default (summary is opt-in)"
+                }
+                assertFalse(context.containsBean("conversationSummaryService")) {
+                    "ConversationSummaryService should not exist by default"
+                }
+            }
+        }
+
+        @Test
+        fun `should register InMemory summary store when enabled with ChatClient`() {
+            contextRunner
+                .withUserConfiguration(MockChatClientConfig::class.java)
+                .withPropertyValues(
+                    "arc.reactor.memory.summary.enabled=true",
+                    "arc.reactor.llm.default-provider=chatModel"
+                )
+                .run { context ->
+                    assertInstanceOf(
+                        InMemoryConversationSummaryStore::class.java,
+                        context.getBean(ConversationSummaryStore::class.java),
+                        "Default summary store should be InMemoryConversationSummaryStore"
+                    )
+                    assertInstanceOf(
+                        LlmConversationSummaryService::class.java,
+                        context.getBean(ConversationSummaryService::class.java),
+                        "Summary service should be LlmConversationSummaryService"
+                    )
+                }
+        }
+
+        @Test
+        fun `should use JDBC summary store when datasource is configured and summary enabled`() {
+            contextRunner
+                .withConfiguration(
+                    AutoConfigurations.of(
+                        DataSourceAutoConfiguration::class.java,
+                        JdbcTemplateAutoConfiguration::class.java,
+                        DataSourceTransactionManagerAutoConfiguration::class.java,
+                        TransactionAutoConfiguration::class.java
+                    )
+                )
+                .withUserConfiguration(MockChatClientConfig::class.java)
+                .withPropertyValues(
+                    "arc.reactor.memory.summary.enabled=true",
+                    "arc.reactor.llm.default-provider=chatModel",
+                    "spring.datasource.url=jdbc:h2:mem:summaryTest;DB_CLOSE_DELAY=-1",
+                    "spring.datasource.driver-class-name=org.h2.Driver"
+                )
+                .run { context ->
+                    assertInstanceOf(
+                        JdbcConversationSummaryStore::class.java,
+                        context.getBean(ConversationSummaryStore::class.java),
+                        "Summary store should be JDBC when datasource is available"
+                    )
+                }
+        }
+
+        @Test
+        fun `should inject summary dependencies into ConversationManager when enabled`() {
+            contextRunner
+                .withUserConfiguration(MockChatClientConfig::class.java)
+                .withPropertyValues(
+                    "arc.reactor.memory.summary.enabled=true",
+                    "arc.reactor.llm.default-provider=chatModel"
+                )
+                .run { context ->
+                    val manager = context.getBean(ConversationManager::class.java)
+                    assertInstanceOf(DefaultConversationManager::class.java, manager,
+                        "ConversationManager should be DefaultConversationManager")
+
+                    // Verify summary store and service exist as separate beans
+                    assertTrue(context.containsBean("conversationSummaryStore")) {
+                        "ConversationSummaryStore bean must exist when summary is enabled"
+                    }
+                    assertTrue(context.containsBean("conversationSummaryService")) {
+                        "ConversationSummaryService bean must exist when summary is enabled"
                     }
                 }
         }

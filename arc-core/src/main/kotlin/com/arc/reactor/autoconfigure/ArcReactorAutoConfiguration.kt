@@ -30,6 +30,8 @@ import org.springframework.context.annotation.Import
     JdbcAuthConfiguration::class,
     IntentConfiguration::class,
     JdbcIntentRegistryConfiguration::class,
-    SchedulerConfiguration::class
+    SchedulerConfiguration::class,
+    MemorySummaryConfiguration::class,
+    JdbcConversationSummaryStoreConfiguration::class
 )
 class ArcReactorAutoConfiguration
