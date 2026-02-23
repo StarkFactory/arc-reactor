@@ -5,6 +5,7 @@ This page is the entry point for Memory and RAG documentation.
 ## Read by Topic
 
 - [Memory/RAG Architecture](memory-rag/architecture.md)
+- [Hierarchical Conversation Memory](memory-rag/hierarchical-memory.md)
 - [Ingestion and Retrieval Operations](memory-rag/ingestion-and-retrieval.md)
 - [Deep Dive (Full Legacy Document)](memory-rag/deep-dive.md)
 

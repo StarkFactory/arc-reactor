@@ -71,6 +71,7 @@ curl -X DELETE http://localhost:8080/api/sessions/a1b2c3d4-...
 ```
 
 - Completely deletes session data from the MemoryStore
+- When hierarchical memory is enabled, also deletes the conversation summary
 - **When authentication is enabled**: Deleting another user's session returns 403 Forbidden
 
 ### GET /api/models — Model List
@@ -108,13 +109,17 @@ curl http://localhost:8080/api/models
               │
               ├─→ ConversationManager.loadHistory(sessionId)
               │     → Load previous conversation from MemoryStore
-              │     → Pass as context to LLM
+              │     → If hierarchical memory enabled: Facts + Narrative + Recent Window
+              │     → Otherwise: takeLast(maxConversationTurns * 2)
               │
               ├─→ LLM execution (context + current message)
               │
               └─→ ConversationManager.saveHistory(sessionId, content)
                     → Save user + assistant messages to MemoryStore
+                    → If hierarchical memory enabled: trigger async summarization
 ```
+
+> For hierarchical memory details, see [Hierarchical Conversation Memory](memory-rag/hierarchical-memory.md).
 
 ### Dual Storage Architecture
 

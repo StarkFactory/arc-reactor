@@ -82,6 +82,7 @@ Details: @docs/en/architecture/architecture.md, @docs/en/reference/tools.md, @do
 | CORS | OFF | `arc.reactor.cors.enabled` |
 | Circuit Breaker | OFF | `arc.reactor.circuit-breaker.enabled` |
 | Feedback | OFF | `arc.reactor.feedback.enabled` |
+| Memory Summary | OFF | `arc.reactor.memory.summary.enabled` |
 | Flyway | OFF | `SPRING_FLYWAY_ENABLED` env var |
 
 ### Guard vs Hook Error Policy
