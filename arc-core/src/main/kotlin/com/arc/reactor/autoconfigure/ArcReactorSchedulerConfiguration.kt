@@ -3,7 +3,6 @@ package com.arc.reactor.autoconfigure
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.scheduler.DynamicSchedulerService
-import com.arc.reactor.scheduler.InMemoryScheduledJobStore
 import com.arc.reactor.scheduler.ScheduledJobStore
 import com.arc.reactor.scheduler.SlackMessageSender
 import org.springframework.beans.factory.ObjectProvider
@@ -25,10 +24,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler
     havingValue = "true", matchIfMissing = false
 )
 class SchedulerConfiguration {
-
-    @Bean
-    @ConditionalOnMissingBean
-    fun scheduledJobStore(): ScheduledJobStore = InMemoryScheduledJobStore()
 
     @Bean
     @ConditionalOnMissingBean(name = ["schedulerTaskScheduler"])
