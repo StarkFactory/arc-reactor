@@ -292,6 +292,6 @@ Using the default provider model (e.g., `claude-sonnet-4-20250514`, `gpt-4o`) fo
 - [`memory/summary/InMemoryConversationSummaryStore.kt`](../../../../arc-core/src/main/kotlin/com/arc/reactor/memory/summary/InMemoryConversationSummaryStore.kt) — Default in-memory implementation
 - [`memory/summary/JdbcConversationSummaryStore.kt`](../../../../arc-core/src/main/kotlin/com/arc/reactor/memory/summary/JdbcConversationSummaryStore.kt) — JDBC/PostgreSQL implementation
 - [`memory/summary/LlmConversationSummaryService.kt`](../../../../arc-core/src/main/kotlin/com/arc/reactor/memory/summary/LlmConversationSummaryService.kt) — LLM-based summarization
-- [`autoconfigure/ArcReactorMemorySummaryConfiguration.kt`](../../../../arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/ArcReactorMemorySummaryConfiguration.kt) — Bean registration
+- [`autoconfigure/MemorySummaryConfiguration.kt`](../../../../arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/MemorySummaryConfiguration.kt) — Bean registration
 - [`agent/impl/ConversationMessageTrimmer.kt`](../../../../arc-core/src/main/kotlin/com/arc/reactor/agent/impl/ConversationMessageTrimmer.kt) — Token-aware context trimming with SystemMessage protection
 - [`V20__create_conversation_summaries.sql`](../../../../arc-core/src/main/resources/db/migration/V20__create_conversation_summaries.sql) — Database migration
