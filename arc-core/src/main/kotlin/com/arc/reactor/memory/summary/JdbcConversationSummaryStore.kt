@@ -43,20 +43,25 @@ class JdbcConversationSummaryStore(
         val factsJson = objectMapper.writeValueAsString(summary.facts)
         val now = Timestamp.from(Instant.now())
 
-        val updated = jdbcTemplate.update(
-            "UPDATE conversation_summaries SET narrative = ?, facts_json = ?, " +
-                "summarized_up_to = ?, updated_at = ? WHERE session_id = ?",
-            summary.narrative, factsJson, summary.summarizedUpToIndex, now, summary.sessionId
+        jdbcTemplate.update(
+            """
+            MERGE INTO conversation_summaries cs
+            USING (VALUES (?, ?, ?, ?, ?, ?))
+                AS src(session_id, narrative, facts_json, summarized_up_to, created_at, updated_at)
+            ON cs.session_id = src.session_id
+            WHEN MATCHED THEN UPDATE SET
+                narrative = src.narrative,
+                facts_json = src.facts_json,
+                summarized_up_to = src.summarized_up_to,
+                updated_at = src.updated_at
+            WHEN NOT MATCHED THEN INSERT
+                (session_id, narrative, facts_json, summarized_up_to, created_at, updated_at)
+                VALUES (src.session_id, src.narrative, src.facts_json,
+                    src.summarized_up_to, src.created_at, src.updated_at)
+            """.trimIndent(),
+            summary.sessionId, summary.narrative, factsJson,
+            summary.summarizedUpToIndex, now, now
         )
-
-        if (updated == 0) {
-            jdbcTemplate.update(
-                "INSERT INTO conversation_summaries (session_id, narrative, facts_json, " +
-                    "summarized_up_to, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                summary.sessionId, summary.narrative, factsJson,
-                summary.summarizedUpToIndex, now, now
-            )
-        }
     }
 
     override fun delete(sessionId: String) {
