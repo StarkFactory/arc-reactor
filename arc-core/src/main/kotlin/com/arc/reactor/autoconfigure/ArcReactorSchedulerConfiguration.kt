@@ -1,6 +1,9 @@
 package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.approval.PendingApprovalStore
+import com.arc.reactor.approval.ToolApprovalPolicy
+import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.scheduler.DynamicSchedulerService
 import com.arc.reactor.scheduler.ScheduledJobStore
@@ -41,11 +44,17 @@ class SchedulerConfiguration {
         scheduledJobStore: ScheduledJobStore,
         schedulerTaskScheduler: TaskScheduler,
         mcpManager: McpManager,
-        slackMessageSender: ObjectProvider<SlackMessageSender>
+        slackMessageSender: ObjectProvider<SlackMessageSender>,
+        hookExecutorProvider: ObjectProvider<HookExecutor>,
+        toolApprovalPolicyProvider: ObjectProvider<ToolApprovalPolicy>,
+        pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>
     ): DynamicSchedulerService = DynamicSchedulerService(
         store = scheduledJobStore,
         taskScheduler = schedulerTaskScheduler,
         mcpManager = mcpManager,
-        slackMessageSender = slackMessageSender.ifAvailable
+        slackMessageSender = slackMessageSender.ifAvailable,
+        hookExecutor = hookExecutorProvider.ifAvailable,
+        toolApprovalPolicy = toolApprovalPolicyProvider.ifAvailable,
+        pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable
     )
 }
