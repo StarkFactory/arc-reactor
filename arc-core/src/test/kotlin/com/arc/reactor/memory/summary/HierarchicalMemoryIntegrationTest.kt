@@ -551,12 +551,13 @@ class HierarchicalMemoryIntegrationTest {
 
             val history = manager.loadHistory(createCommand())
 
-            // No facts, no narrative -> only [10 recent messages]
-            assertEquals(10, history.size,
-                "Both empty should produce only 10 recent messages")
+            // No facts, no narrative -> falls back to takeLast(maxConversationTurns * 2) = 20
+            val expectedFallbackSize = agentProperties.llm.maxConversationTurns * 2
+            assertEquals(expectedFallbackSize, history.size,
+                "Empty summary should fall back to takeLast($expectedFallbackSize) to avoid silent context loss")
             val systemMessages = history.filterIsInstance<SystemMessage>()
             assertTrue(systemMessages.isEmpty(),
-                "Should have no SystemMessages when both facts and narrative are empty")
+                "Fallback should have no SystemMessages when both facts and narrative are empty")
         }
     }
 }
