@@ -15,6 +15,7 @@ import mu.KotlinLogging
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.scheduling.TaskScheduler
+import org.springframework.scheduling.support.CronExpression
 import org.springframework.scheduling.support.CronTrigger
 import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
@@ -62,6 +63,7 @@ class DynamicSchedulerService(
     }
 
     fun create(job: ScheduledJob): ScheduledJob {
+        validateSchedule(job)
         val saved = store.save(job)
         if (saved.enabled) registerJob(saved)
         logger.info { "Scheduled job created: ${saved.name} (${saved.cronExpression})" }
@@ -69,8 +71,9 @@ class DynamicSchedulerService(
     }
 
     fun update(id: String, job: ScheduledJob): ScheduledJob? {
-        cancelJob(id)
+        validateSchedule(job)
         val updated = store.update(id, job) ?: return null
+        cancelJob(id)
         if (updated.enabled) registerJob(updated)
         logger.info { "Scheduled job updated: ${updated.name} (${updated.cronExpression})" }
         return updated
@@ -105,6 +108,19 @@ class DynamicSchedulerService(
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to register cron job: ${job.name}" }
+        }
+    }
+
+    private fun validateSchedule(job: ScheduledJob) {
+        try {
+            ZoneId.of(job.timezone)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Invalid timezone: ${job.timezone}", e)
+        }
+        try {
+            CronExpression.parse(job.cronExpression)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Invalid cron expression: ${job.cronExpression}", e)
         }
     }
 
