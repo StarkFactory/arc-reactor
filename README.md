@@ -318,21 +318,22 @@ With PostgreSQL/JDBC dependencies included:
 
 ## Persistence Strategy
 
-Arc Reactor uses in-memory stores by default and transparently switches to JDBC-backed stores when a
-`DataSource` is configured.
+Arc Reactor requires PostgreSQL in runtime and uses JDBC-backed stores.
+Startup fails fast when `spring.datasource.url` is missing or not `jdbc:postgresql:...`.
 
-| Domain State | Default | JDBC-backed with DataSource |
-|---|---|---|
-| Conversation memory | InMemory | Yes |
-| Personas | InMemory | Yes |
-| Prompt templates/versions | InMemory | Yes |
-| MCP server registry | InMemory | Yes |
-| Output guard rules + audits | InMemory | Yes |
-| Admin audit logs | InMemory | Yes |
-| Feedback | Off by default | Yes (when `arc.reactor.feedback.enabled=true`) |
-| Scheduler jobs | Off by default | Yes (when `arc.reactor.scheduler.enabled=true`) |
-| Tool policy store | InMemory | Yes (when `tool-policy.dynamic.enabled=true`) |
-| RAG ingestion policy store | InMemory | Yes (when `rag.ingestion.dynamic.enabled=true`) |
+| Domain State | Runtime backing |
+|---|---|
+| Conversation memory | PostgreSQL (JDBC) |
+| Personas | PostgreSQL (JDBC) |
+| Prompt templates/versions | PostgreSQL (JDBC) |
+| MCP server registry | PostgreSQL (JDBC) |
+| Output guard rules + audits | PostgreSQL (JDBC) |
+| Admin audit logs | PostgreSQL (JDBC) |
+| Approval requests (HITL) | PostgreSQL (JDBC, when `arc.reactor.approval.enabled=true`) |
+| Feedback | PostgreSQL (JDBC, when `arc.reactor.feedback.enabled=true`) |
+| Scheduler jobs | PostgreSQL (JDBC, when `arc.reactor.scheduler.enabled=true`) |
+| Tool policy store | PostgreSQL (JDBC) |
+| RAG ingestion policy store | PostgreSQL (JDBC) |
 
 ## Quality Signals
 
@@ -364,7 +365,7 @@ Maturity snapshot (repository state on February 21, 2026):
 - Add lifecycle hooks for audit, billing, policy enforcement, and side-effect controls
 - Configure auth and admin role model for your environment
 - Register MCP servers through API and apply per-server access policy
-- Choose persistence strategy (InMemory for dev, JDBC/PostgreSQL for production)
+- Provision PostgreSQL and configure `spring.datasource.*` + Flyway
 
 ## Deployment Options
 
@@ -406,7 +407,7 @@ docker-compose down
 ## Known Constraints
 
 - MCP SDK `0.17.2` does not support streamable HTTP transport. Use **SSE** or **STDIO**.
-- InMemory stores are the default for several features; use JDBC/PostgreSQL for durable operations.
+- PostgreSQL is required at runtime (`spring.datasource.url=jdbc:postgresql://...`).
 - External integration tests are opt-in (`-PincludeIntegration`, `-PincludeExternalIntegration`).
 
 ## Open-Source Release Readiness Checklist

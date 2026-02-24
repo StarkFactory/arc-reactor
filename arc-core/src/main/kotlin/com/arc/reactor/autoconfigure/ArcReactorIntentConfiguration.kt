@@ -2,7 +2,6 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.config.ChatModelProvider
-import com.arc.reactor.intent.InMemoryIntentRegistry
 import com.arc.reactor.intent.IntentClassifier
 import com.arc.reactor.intent.IntentRegistry
 import com.arc.reactor.intent.IntentResolver
@@ -27,13 +26,6 @@ import org.springframework.jdbc.core.JdbcTemplate
     havingValue = "true", matchIfMissing = false
 )
 class IntentConfiguration {
-
-    /**
-     * Intent Registry: In-memory fallback
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    fun intentRegistry(): IntentRegistry = InMemoryIntentRegistry()
 
     /**
      * Intent Classifier: Composite (Rule -> LLM cascading)

@@ -14,7 +14,7 @@ import com.arc.reactor.mcp.DefaultMcpManager
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.mcp.McpSecurityConfig
 import com.arc.reactor.mcp.McpServerStore
-import com.arc.reactor.policy.tool.ToolPolicyProvider
+import com.arc.reactor.policy.tool.ToolExecutionPolicyEngine
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyProvider
 import org.springframework.ai.vectorstore.VectorStore
@@ -102,8 +102,8 @@ class ArcReactorHookAndMcpConfiguration {
         prefix = "arc.reactor.tool-policy", name = ["enabled"],
         havingValue = "true", matchIfMissing = false
     )
-    fun writeToolBlockHook(toolPolicyProvider: ToolPolicyProvider): WriteToolBlockHook =
-        WriteToolBlockHook(toolPolicyProvider)
+    fun writeToolBlockHook(toolExecutionPolicyEngine: ToolExecutionPolicyEngine): WriteToolBlockHook =
+        WriteToolBlockHook(toolExecutionPolicyEngine)
 
     /**
      * RAG ingestion capture hook (Q&A -> candidate queue).

@@ -1,6 +1,7 @@
 package com.arc.reactor.hook.impl
 
-import com.arc.reactor.policy.tool.ToolPolicyProvider
+import com.arc.reactor.policy.tool.ToolExecutionDecision
+import com.arc.reactor.policy.tool.ToolExecutionPolicyEngine
 import com.arc.reactor.hook.BeforeToolCallHook
 import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
@@ -18,35 +19,27 @@ private val logger = KotlinLogging.logger {}
  * Channel is sourced from [com.arc.reactor.hook.model.HookContext.channel].
  */
 class WriteToolBlockHook(
-    private val toolPolicyProvider: ToolPolicyProvider
+    private val toolExecutionPolicyEngine: ToolExecutionPolicyEngine
 ) : BeforeToolCallHook {
 
     override val order: Int = 10
     override val failOnError: Boolean = true
 
     override suspend fun beforeToolCall(context: ToolCallContext): HookResult {
-        val policy = toolPolicyProvider.current()
-        if (!policy.enabled) return HookResult.Continue
-        if (policy.writeToolNames.isEmpty()) return HookResult.Continue
-
-        val channel = context.agentContext.channel?.trim()?.lowercase()
-        if (channel.isNullOrBlank()) return HookResult.Continue
-
-        if (channel !in policy.denyWriteChannels) return HookResult.Continue
-
-        val toolName = context.toolName
-        if (toolName !in policy.writeToolNames) return HookResult.Continue
-
-        // Exception: allow specific write tools even in deny channels.
-        if (toolName in policy.allowWriteToolNamesInDenyChannels) return HookResult.Continue
-
-        // Exception: channel-scoped allowlist.
-        val allowForChannel = policy.allowWriteToolNamesByChannel[channel] ?: emptySet()
-        if (toolName in allowForChannel) return HookResult.Continue
-
-        logger.info {
-            "Write tool blocked by policy: tool=$toolName channel=$channel userId=${context.agentContext.userId}"
+        return when (
+            val decision = toolExecutionPolicyEngine.evaluate(
+                channel = context.agentContext.channel,
+                toolName = context.toolName
+            )
+        ) {
+            is ToolExecutionDecision.Allow -> HookResult.Continue
+            is ToolExecutionDecision.Deny -> {
+                logger.info {
+                    "Write tool blocked by policy: tool=${context.toolName} " +
+                        "channel=${context.agentContext.channel} userId=${context.agentContext.userId}"
+                }
+                HookResult.Reject(decision.reason)
+            }
         }
-        return HookResult.Reject(policy.denyWriteMessage)
     }
 }

@@ -1,6 +1,8 @@
 package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.approval.JdbcPendingApprovalStore
+import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.audit.JdbcAdminAuditStore
 import com.arc.reactor.feedback.FeedbackStore
@@ -99,6 +101,20 @@ class JdbcMemoryStoreConfiguration {
     @Bean
     @Primary
     @ConditionalOnProperty(
+        prefix = "arc.reactor.approval", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun jdbcPendingApprovalStore(
+        jdbcTemplate: JdbcTemplate,
+        properties: AgentProperties
+    ): PendingApprovalStore = JdbcPendingApprovalStore(
+        jdbcTemplate = jdbcTemplate,
+        defaultTimeoutMs = properties.approval.timeoutMs
+    )
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(
         prefix = "arc.reactor.feedback", name = ["enabled"],
         havingValue = "true", matchIfMissing = false
     )
@@ -127,10 +143,6 @@ class JdbcMemoryStoreConfiguration {
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
 @ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
-@ConditionalOnProperty(
-    prefix = "arc.reactor.tool-policy.dynamic", name = ["enabled"],
-    havingValue = "true", matchIfMissing = false
-)
 class JdbcToolPolicyStoreConfiguration {
 
     @Bean
@@ -150,10 +162,6 @@ class JdbcToolPolicyStoreConfiguration {
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
 @ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
-@ConditionalOnProperty(
-    prefix = "arc.reactor.rag.ingestion.dynamic", name = ["enabled"],
-    havingValue = "true", matchIfMissing = false
-)
 class JdbcRagIngestionPolicyStoreConfiguration {
 
     @Bean
