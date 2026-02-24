@@ -3,6 +3,7 @@ package com.arc.reactor.controller
 import com.arc.reactor.agent.model.Message
 import com.arc.reactor.agent.model.MessageRole
 import com.arc.reactor.config.ChatModelProvider
+import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.ConversationMemory
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.SessionSummary
@@ -26,7 +27,9 @@ class SessionControllerTest {
     private lateinit var memoryStore: MemoryStore
     private lateinit var chatModelProvider: ChatModelProvider
     private lateinit var summaryStoreProvider: ObjectProvider<ConversationSummaryStore>
+    private lateinit var conversationManagerProvider: ObjectProvider<ConversationManager>
     private lateinit var summaryStore: ConversationSummaryStore
+    private lateinit var conversationManager: ConversationManager
     private lateinit var controller: SessionController
     private lateinit var exchange: ServerWebExchange
 
@@ -35,9 +38,14 @@ class SessionControllerTest {
         memoryStore = mockk()
         chatModelProvider = mockk()
         summaryStore = mockk(relaxed = true)
+        conversationManager = mockk(relaxed = true)
         summaryStoreProvider = mockk()
+        conversationManagerProvider = mockk()
         every { summaryStoreProvider.ifAvailable } returns summaryStore
-        controller = SessionController(memoryStore, chatModelProvider, summaryStoreProvider)
+        every { conversationManagerProvider.ifAvailable } returns conversationManager
+        controller = SessionController(
+            memoryStore, chatModelProvider, summaryStoreProvider, conversationManagerProvider
+        )
         exchange = mockk()
         every { exchange.attributes } returns mutableMapOf()
     }
@@ -241,7 +249,10 @@ class SessionControllerTest {
         @Test
         fun `should not fail when summary store is not available`() = runTest {
             every { summaryStoreProvider.ifAvailable } returns null
-            val noSummaryController = SessionController(memoryStore, chatModelProvider, summaryStoreProvider)
+            every { conversationManagerProvider.ifAvailable } returns null
+            val noSummaryController = SessionController(
+                memoryStore, chatModelProvider, summaryStoreProvider, conversationManagerProvider
+            )
             every { memoryStore.remove("session-1") } returns Unit
 
             val response = noSummaryController.deleteSession("session-1", exchange)
@@ -249,6 +260,17 @@ class SessionControllerTest {
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) {
                 "Deletion should succeed even without summary store"
             }
+        }
+
+        @Test
+        fun `should cancel active summarization before deleting session`() = runTest {
+            every { memoryStore.remove("session-1") } returns Unit
+
+            controller.deleteSession("session-1", exchange)
+
+            verify(exactly = 1) { conversationManager.cancelActiveSummarization("session-1") }
+            verify(exactly = 1) { memoryStore.remove("session-1") }
+            verify(exactly = 1) { summaryStore.delete("session-1") }
         }
     }
 

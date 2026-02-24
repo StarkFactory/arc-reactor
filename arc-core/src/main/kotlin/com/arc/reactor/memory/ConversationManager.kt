@@ -60,6 +60,14 @@ interface ConversationManager {
      * Saves streaming results to the MemoryStore.
      */
     suspend fun saveStreamingHistory(command: AgentCommand, content: String)
+
+    /**
+     * Cancels any active async summarization for the given session.
+     * Called during session deletion to prevent orphan summaries.
+     */
+    fun cancelActiveSummarization(sessionId: String) {
+        // Default no-op for implementations without async summarization
+    }
 }
 
 /**
@@ -185,6 +193,10 @@ class DefaultConversationManager(
         )
         summaryStore?.save(summary)
         return summary
+    }
+
+    override fun cancelActiveSummarization(sessionId: String) {
+        activeSummarizations.remove(sessionId)?.cancel()
     }
 
     private fun triggerAsyncSummarization(metadata: Map<String, Any>) {
