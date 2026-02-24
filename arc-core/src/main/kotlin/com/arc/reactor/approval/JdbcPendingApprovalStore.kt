@@ -18,7 +18,8 @@ import java.util.UUID
 class JdbcPendingApprovalStore(
     private val jdbcTemplate: JdbcTemplate,
     private val defaultTimeoutMs: Long = 300_000,
-    private val pollIntervalMs: Long = 250
+    private val pollIntervalMs: Long = 250,
+    private val resolvedRetentionMs: Long = 7 * 24 * 60 * 60 * 1000L
 ) : PendingApprovalStore {
 
     override suspend fun requestApproval(
@@ -28,6 +29,8 @@ class JdbcPendingApprovalStore(
         arguments: Map<String, Any?>,
         timeoutMs: Long
     ): ToolApprovalResponse {
+        cleanupResolvedRows()
+
         val id = UUID.randomUUID().toString()
         val requestedAt = Instant.now()
         val effectiveTimeoutMs = if (timeoutMs > 0) timeoutMs else defaultTimeoutMs
@@ -102,6 +105,8 @@ class JdbcPendingApprovalStore(
     }
 
     override fun listPending(): List<ApprovalSummary> {
+        cleanupResolvedRows()
+
         return jdbcTemplate.query(
             """
             SELECT id, run_id, user_id, tool_name, arguments, requested_at
@@ -125,6 +130,8 @@ class JdbcPendingApprovalStore(
     }
 
     override fun listPendingByUser(userId: String): List<ApprovalSummary> {
+        cleanupResolvedRows()
+
         return jdbcTemplate.query(
             """
             SELECT id, run_id, user_id, tool_name, arguments, requested_at
@@ -149,6 +156,8 @@ class JdbcPendingApprovalStore(
     }
 
     override fun approve(approvalId: String, modifiedArguments: Map<String, Any?>?): Boolean {
+        cleanupResolvedRows()
+
         val now = Instant.now()
         val updated = jdbcTemplate.update(
             """
@@ -166,6 +175,8 @@ class JdbcPendingApprovalStore(
     }
 
     override fun reject(approvalId: String, reason: String?): Boolean {
+        cleanupResolvedRows()
+
         val now = Instant.now()
         val updated = jdbcTemplate.update(
             """
@@ -180,6 +191,23 @@ class JdbcPendingApprovalStore(
             ApprovalStatus.PENDING.name
         )
         return updated > 0
+    }
+
+    private fun cleanupResolvedRows() {
+        val retentionMs = resolvedRetentionMs.coerceAtLeast(0)
+        val cutoff = Instant.now().minusMillis(retentionMs)
+        jdbcTemplate.update(
+            """
+            DELETE FROM pending_approvals
+             WHERE status IN (?, ?, ?)
+               AND resolved_at IS NOT NULL
+               AND resolved_at < ?
+            """.trimIndent(),
+            ApprovalStatus.APPROVED.name,
+            ApprovalStatus.REJECTED.name,
+            ApprovalStatus.TIMED_OUT.name,
+            Timestamp.from(cutoff)
+        )
     }
 
     private fun findState(id: String): ApprovalState? {

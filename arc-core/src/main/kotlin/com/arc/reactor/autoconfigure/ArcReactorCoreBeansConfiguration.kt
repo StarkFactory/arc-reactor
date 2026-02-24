@@ -12,15 +12,26 @@ import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
 import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
 import com.arc.reactor.hook.impl.FeedbackMetadataCaptureHook
+import com.arc.reactor.mcp.InMemoryMcpServerStore
+import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.DefaultTokenEstimator
+import com.arc.reactor.memory.InMemoryMemoryStore
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.TokenEstimator
+import com.arc.reactor.persona.InMemoryPersonaStore
+import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.policy.tool.DynamicToolApprovalPolicy
+import com.arc.reactor.policy.tool.InMemoryToolPolicyStore
 import com.arc.reactor.policy.tool.ToolExecutionPolicyEngine
+import com.arc.reactor.policy.tool.ToolPolicy
 import com.arc.reactor.policy.tool.ToolPolicyProvider
 import com.arc.reactor.policy.tool.ToolPolicyStore
+import com.arc.reactor.prompt.InMemoryPromptTemplateStore
+import com.arc.reactor.prompt.PromptTemplateStore
+import com.arc.reactor.rag.ingestion.InMemoryRagIngestionPolicyStore
+import com.arc.reactor.rag.ingestion.RagIngestionPolicy
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyProvider
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyStore
 import com.arc.reactor.tool.AllToolSelector
@@ -74,8 +85,28 @@ class ArcReactorCoreBeansConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean(name = ["postgresRequirementMarker"])
+    @ConditionalOnMissingBean
+    fun memoryStore(): MemoryStore = InMemoryMemoryStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun personaStore(): PersonaStore = InMemoryPersonaStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun promptTemplateStore(): PromptTemplateStore = InMemoryPromptTemplateStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun mcpServerStore(): McpServerStore = InMemoryMcpServerStore()
+
+    @Bean
     fun postgresRequirementMarker(environment: Environment): Any {
+        val postgresRequired = environment.getProperty("arc.reactor.postgres.required", Boolean::class.java, true)
+        if (!postgresRequired) {
+            return Any()
+        }
+
         val url = environment.getProperty("spring.datasource.url")?.trim().orEmpty()
         if (url.isBlank()) {
             throw BeanInitializationException(
@@ -92,8 +123,18 @@ class ArcReactorCoreBeansConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    fun toolPolicyStore(properties: AgentProperties): ToolPolicyStore =
+        InMemoryToolPolicyStore(initial = ToolPolicy.fromProperties(properties.toolPolicy))
+
+    @Bean
+    @ConditionalOnMissingBean
     fun toolPolicyProvider(properties: AgentProperties, toolPolicyStore: ToolPolicyStore): ToolPolicyProvider =
         ToolPolicyProvider(properties = properties.toolPolicy, store = toolPolicyStore)
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun ragIngestionPolicyStore(properties: AgentProperties): RagIngestionPolicyStore =
+        InMemoryRagIngestionPolicyStore(initial = RagIngestionPolicy.fromProperties(properties.rag.ingestion))
 
     @Bean
     @ConditionalOnMissingBean

@@ -1,6 +1,8 @@
 name: Security Baseline
 
 on:
+  pull_request:
+    branches: [ main ]
   schedule:
     - cron: '0 3 * * 1'
   workflow_dispatch:
@@ -39,17 +41,25 @@ jobs:
             --report-format sarif \
             --report-path gitleaks.sarif
 
-  fs-vulnerability-scan:
-    name: Filesystem Vulnerability Scan (Trivy)
+  dependency-vulnerability-scan:
+    name: Dependency Vulnerability Scan (Trivy)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Run Trivy FS scan
-        uses: aquasecurity/trivy-action@0.34.1
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
         with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: '1'
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Build executable jar for dependency scan
+        run: ./gradlew --no-daemon :arc-app:bootJar -Pdb=true -Pauth=true -x test
+      - name: Verify scan target exists
+        run: ls -1 arc-app/build/libs/*.jar
+      - name: Run Grype dependency scan (HIGH/CRITICAL, fixed only)
+        uses: anchore/scan-action@v7
+        with:
+          path: arc-app/build/libs
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true

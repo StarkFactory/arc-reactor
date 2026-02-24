@@ -41,12 +41,8 @@ import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
 import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
-import com.arc.reactor.policy.tool.InMemoryToolPolicyStore
-import com.arc.reactor.policy.tool.ToolPolicyStore
-import com.arc.reactor.rag.ingestion.InMemoryRagIngestionPolicyStore
-import com.arc.reactor.rag.ingestion.RagIngestionPolicyStore
-
 import com.arc.reactor.auth.UserStore
+import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
@@ -69,9 +65,8 @@ import org.springframework.context.annotation.Configuration
 class ArcReactorAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()
+        .withPropertyValues("arc.reactor.postgres.required=false")
         .withConfiguration(AutoConfigurations.of(ArcReactorAutoConfiguration::class.java))
-        .withAllowBeanDefinitionOverriding(true)
-        .withUserConfiguration(SkipPostgresCheckConfig::class.java)
 
     private val jdbcContextRunner = contextRunner
         .withConfiguration(
@@ -364,8 +359,8 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register RAG beans when enabled with VectorStore`() {
-            jdbcContextRunner
+        fun `should register RAG beans when VectorStore is present`() {
+            contextRunner
                 .withUserConfiguration(MockVectorStoreConfig::class.java)
                 .withPropertyValues("arc.reactor.rag.enabled=true")
                 .run { context ->
@@ -373,9 +368,10 @@ class ArcReactorAutoConfigurationTest {
                         DefaultRagPipeline::class.java, context.getBean(RagPipeline::class.java),
                         "Default RagPipeline should be DefaultRagPipeline"
                     )
-                    assertNotNull(context.getBean(DocumentRetriever::class.java)) {
-                        "DocumentRetriever should exist when RAG is enabled with VectorStore"
-                    }
+                    assertInstanceOf(
+                        SpringAiVectorStoreRetriever::class.java, context.getBean(DocumentRetriever::class.java),
+                        "Default DocumentRetriever should be SpringAiVectorStoreRetriever when VectorStore is present"
+                    )
                     assertInstanceOf(
                         SimpleScoreReranker::class.java, context.getBean(DocumentReranker::class.java),
                         "Default DocumentReranker should be SimpleScoreReranker"
@@ -389,7 +385,7 @@ class ArcReactorAutoConfigurationTest {
 
         @Test
         fun `should register HyDE query transformer when configured`() {
-            jdbcContextRunner
+            contextRunner
                 .withUserConfiguration(MockChatClientConfig::class.java, MockVectorStoreConfig::class.java)
                 .withPropertyValues(
                     "arc.reactor.rag.enabled=true",
@@ -694,34 +690,5 @@ class ArcReactorAutoConfigurationTest {
     class MockVectorStoreConfig {
         @Bean
         fun vectorStore(): VectorStore = mockk(relaxed = true)
-    }
-
-    /**
-     * Provides in-memory store fallbacks for tests that run without a DataSource.
-     * Production code (since PR #147) requires PostgreSQL and has no InMemory fallbacks,
-     * but auto-configuration tests need lightweight replacements.
-     */
-    @Configuration(proxyBeanMethods = false)
-    class SkipPostgresCheckConfig {
-        @Bean
-        fun postgresRequirementMarker(): Any = Any()
-
-        @Bean
-        fun memoryStore(): MemoryStore = InMemoryMemoryStore()
-
-        @Bean
-        fun personaStore(): PersonaStore = InMemoryPersonaStore()
-
-        @Bean
-        fun promptTemplateStore(): PromptTemplateStore = InMemoryPromptTemplateStore()
-
-        @Bean
-        fun mcpServerStore(): McpServerStore = InMemoryMcpServerStore()
-
-        @Bean
-        fun toolPolicyStore(): ToolPolicyStore = InMemoryToolPolicyStore()
-
-        @Bean
-        fun ragIngestionPolicyStore(): RagIngestionPolicyStore = InMemoryRagIngestionPolicyStore()
     }
 }

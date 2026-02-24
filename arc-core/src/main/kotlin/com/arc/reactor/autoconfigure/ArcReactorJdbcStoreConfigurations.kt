@@ -109,7 +109,8 @@ class JdbcMemoryStoreConfiguration {
         properties: AgentProperties
     ): PendingApprovalStore = JdbcPendingApprovalStore(
         jdbcTemplate = jdbcTemplate,
-        defaultTimeoutMs = properties.approval.timeoutMs
+        defaultTimeoutMs = properties.approval.timeoutMs,
+        resolvedRetentionMs = properties.approval.resolvedRetentionMs
     )
 
     @Bean
