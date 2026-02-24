@@ -17,7 +17,7 @@ import org.springframework.web.server.ServerWebExchange
  */
 fun isAdmin(exchange: ServerWebExchange): Boolean {
     val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-    return role == UserRole.ADMIN
+    return AdminAccessPolicy.isAdmin(role)
 }
 
 /**
