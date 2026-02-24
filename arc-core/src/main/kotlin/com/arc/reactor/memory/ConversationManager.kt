@@ -209,11 +209,10 @@ class DefaultConversationManager(
             } catch (e: Exception) {
                 e.throwIfCancellation()
                 logger.debug(e) { "Async summarization failed for session $sessionId (will retry on next load)" }
-            } finally {
-                activeSummarizations.remove(sessionId)
             }
         }
         activeSummarizations[sessionId] = job
+        job.invokeOnCompletion { activeSummarizations.remove(sessionId, job) }
     }
 
     private fun isSummaryEnabled(): Boolean =
