@@ -9,8 +9,9 @@
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /workspace
 
-# Pass --build-arg ENABLE_DB=true to include PostgreSQL/JDBC in runtime
-ARG ENABLE_DB=false
+# PostgreSQL/JDBC is required at runtime.
+# Set ENABLE_DB=false only for specialized library-only builds.
+ARG ENABLE_DB=true
 # Pass --build-arg ENABLE_AUTH=true to include JWT auth in runtime
 ARG ENABLE_AUTH=false
 

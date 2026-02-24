@@ -8,13 +8,13 @@ import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
-import com.arc.reactor.rag.impl.InMemoryDocumentRetriever
 import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import mu.KotlinLogging
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.BeanInitializationException
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
@@ -29,7 +29,7 @@ class RagConfiguration {
 
     /**
      * Document Retriever
-     * Uses VectorStore when available, falls back to in-memory.
+     * Requires VectorStore.
      */
     private val ragLogger = KotlinLogging.logger("com.arc.reactor.autoconfigure.RagConfiguration")
 
@@ -40,16 +40,17 @@ class RagConfiguration {
         properties: AgentProperties
     ): DocumentRetriever {
         val vectorStore = vectorStoreProvider.ifAvailable
-        return if (vectorStore != null) {
-            ragLogger.info { "RAG: Using SpringAiVectorStoreRetriever (VectorStore found)" }
-            SpringAiVectorStoreRetriever(
-                vectorStore = vectorStore,
-                defaultSimilarityThreshold = properties.rag.similarityThreshold
+        if (vectorStore == null) {
+            throw BeanInitializationException(
+                "RAG is enabled but no VectorStore bean is configured. " +
+                    "Configure a persistent VectorStore (for example, pgvector) before startup."
             )
-        } else {
-            ragLogger.info { "RAG: Using InMemoryDocumentRetriever (no VectorStore)" }
-            InMemoryDocumentRetriever()
         }
+        ragLogger.info { "RAG: Using SpringAiVectorStoreRetriever (VectorStore found)" }
+        return SpringAiVectorStoreRetriever(
+            vectorStore = vectorStore,
+            defaultSimilarityThreshold = properties.rag.similarityThreshold
+        )
     }
 
     /**
