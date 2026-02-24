@@ -34,9 +34,9 @@ import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
-import com.arc.reactor.rag.impl.InMemoryDocumentRetriever
 import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
+import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
@@ -54,10 +54,12 @@ import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfigu
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.ai.vectorstore.VectorStore
 
 class ArcReactorAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()
+        .withPropertyValues("arc.reactor.postgres.required=false")
         .withConfiguration(AutoConfigurations.of(ArcReactorAutoConfiguration::class.java))
 
     // ── Default Beans ───────────────────────────────────────────────
@@ -339,6 +341,7 @@ class ArcReactorAutoConfigurationTest {
         @Test
         fun `should register RAG beans with in-memory retriever when enabled`() {
             contextRunner
+                .withUserConfiguration(MockVectorStoreConfig::class.java)
                 .withPropertyValues("arc.reactor.rag.enabled=true")
                 .run { context ->
                     assertInstanceOf(
@@ -346,8 +349,8 @@ class ArcReactorAutoConfigurationTest {
                         "Default RagPipeline should be DefaultRagPipeline"
                     )
                     assertInstanceOf(
-                        InMemoryDocumentRetriever::class.java, context.getBean(DocumentRetriever::class.java),
-                        "Default DocumentRetriever should be InMemoryDocumentRetriever (no VectorStore)"
+                        SpringAiVectorStoreRetriever::class.java, context.getBean(DocumentRetriever::class.java),
+                        "Default DocumentRetriever should be SpringAiVectorStoreRetriever when VectorStore is present"
                     )
                     assertInstanceOf(
                         SimpleScoreReranker::class.java, context.getBean(DocumentReranker::class.java),
@@ -363,7 +366,7 @@ class ArcReactorAutoConfigurationTest {
         @Test
         fun `should register HyDE query transformer when configured`() {
             contextRunner
-                .withUserConfiguration(MockChatClientConfig::class.java)
+                .withUserConfiguration(MockChatClientConfig::class.java, MockVectorStoreConfig::class.java)
                 .withPropertyValues(
                     "arc.reactor.rag.enabled=true",
                     "arc.reactor.rag.query-transformer=hyde"
@@ -585,5 +588,11 @@ class ArcReactorAutoConfigurationTest {
     class MockChatModelOnlyConfig {
         @Bean
         fun chatModel(): ChatModel = mockk(relaxed = true)
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    class MockVectorStoreConfig {
+        @Bean
+        fun vectorStore(): VectorStore = mockk(relaxed = true)
     }
 }
