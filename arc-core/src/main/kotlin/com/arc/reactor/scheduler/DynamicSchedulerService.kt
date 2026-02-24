@@ -209,10 +209,9 @@ class DynamicSchedulerService(
             throw e
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) {
-                "Approval check failed for scheduled tool '${tool.name}', continuing fail-open"
-            }
-            arguments
+            val message = "Approval check failed for scheduled tool '${tool.name}'"
+            logger.error(e) { message }
+            throw IllegalStateException(message, e)
         }
     }
 

@@ -1,8 +1,12 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
+import com.arc.reactor.approval.PendingApprovalStore
+import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.tool.ToolCallback
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
@@ -44,6 +48,89 @@ class ToolCallOrchestratorTest {
 
         assertEquals(1, responses.size)
         assertTrue(responses[0].responseData().contains("not allowed"))
+    }
+
+    @Test
+    fun `should fail closed when approval required but store is missing`() = runBlocking {
+        val approvalPolicy = mockk<ToolApprovalPolicy>()
+        val tool = mockk<ToolCallback>()
+        val toolCall = toolCall(id = "id-1", name = "danger_tool")
+
+        every { approvalPolicy.requiresApproval("danger_tool", any()) } returns true
+        every { tool.name } returns "danger_tool"
+        every { tool.description } returns "danger"
+        every { tool.inputSchema } returns """{"type":"object","properties":{}}"""
+        coEvery { tool.call(any()) } returns "ok"
+
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = approvalPolicy,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("q" to "arc") }
+        )
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(tool)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertTrue(responses[0].responseData().contains("approval store unavailable", ignoreCase = true))
+        coVerify(exactly = 0) { tool.call(any()) }
+    }
+
+    @Test
+    fun `should fail closed when approval check throws`() = runBlocking {
+        val approvalPolicy = mockk<ToolApprovalPolicy>()
+        val pendingApprovalStore = mockk<PendingApprovalStore>()
+        val tool = mockk<ToolCallback>()
+        val toolCall = toolCall(id = "id-1", name = "danger_tool")
+
+        every { approvalPolicy.requiresApproval("danger_tool", any()) } returns true
+        every { tool.name } returns "danger_tool"
+        every { tool.description } returns "danger"
+        every { tool.inputSchema } returns """{"type":"object","properties":{}}"""
+        coEvery { tool.call(any()) } returns "ok"
+        coEvery {
+            pendingApprovalStore.requestApproval(
+                runId = any(),
+                userId = any(),
+                toolName = any(),
+                arguments = any(),
+                timeoutMs = any()
+            )
+        } throws IllegalStateException("approval backend down")
+
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = approvalPolicy,
+            pendingApprovalStore = pendingApprovalStore,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("q" to "arc") }
+        )
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(tool)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertTrue(responses[0].responseData().contains("Tool call blocked"))
+        assertTrue(responses[0].responseData().contains("Approval check failed"))
+        coVerify(exactly = 0) { tool.call(any()) }
     }
 
     @Test
