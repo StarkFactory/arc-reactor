@@ -18,6 +18,7 @@ import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.policy.tool.DynamicToolApprovalPolicy
+import com.arc.reactor.policy.tool.ToolExecutionPolicyEngine
 import com.arc.reactor.policy.tool.ToolPolicyProvider
 import com.arc.reactor.policy.tool.ToolPolicyStore
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyProvider
@@ -95,6 +96,11 @@ class ArcReactorCoreBeansConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    fun toolExecutionPolicyEngine(toolPolicyProvider: ToolPolicyProvider): ToolExecutionPolicyEngine =
+        ToolExecutionPolicyEngine(toolPolicyProvider)
+
+    @Bean
+    @ConditionalOnMissingBean
     fun ragIngestionPolicyProvider(
         properties: AgentProperties,
         ragIngestionPolicyStore: RagIngestionPolicyStore
@@ -115,7 +121,7 @@ class ArcReactorCoreBeansConfiguration {
     )
     fun toolApprovalPolicy(
         properties: AgentProperties,
-        toolPolicyProvider: ToolPolicyProvider
+        toolExecutionPolicyEngine: ToolExecutionPolicyEngine
     ): ToolApprovalPolicy {
         val staticToolNames = properties.approval.toolNames
 
@@ -123,7 +129,7 @@ class ArcReactorCoreBeansConfiguration {
         if (properties.toolPolicy.dynamic.enabled) {
             return DynamicToolApprovalPolicy(
                 staticToolNames = staticToolNames,
-                toolPolicyProvider = toolPolicyProvider
+                toolExecutionPolicyEngine = toolExecutionPolicyEngine
             )
         }
 

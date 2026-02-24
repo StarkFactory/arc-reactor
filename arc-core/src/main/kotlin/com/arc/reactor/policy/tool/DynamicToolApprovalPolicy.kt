@@ -9,14 +9,11 @@ import com.arc.reactor.approval.ToolApprovalPolicy
  */
 class DynamicToolApprovalPolicy(
     private val staticToolNames: Set<String>,
-    private val toolPolicyProvider: ToolPolicyProvider
+    private val toolExecutionPolicyEngine: ToolExecutionPolicyEngine
 ) : ToolApprovalPolicy {
 
     override fun requiresApproval(toolName: String, arguments: Map<String, Any?>): Boolean {
         if (toolName in staticToolNames) return true
-        val policy = toolPolicyProvider.current()
-        if (!policy.enabled) return false
-        return toolName in policy.writeToolNames
+        return toolExecutionPolicyEngine.isWriteTool(toolName)
     }
 }
-
