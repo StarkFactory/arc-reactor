@@ -2,74 +2,64 @@
 
 Spring AI-based AI Agent framework. Fork and attach tools to use.
 
-## Language Policy
-
-This is an **open-source project** and is **English-first**:
-- Code: variable names, function names, class names
-- Comments and KDoc
-- Commit messages
-- Pull request titles and descriptions
-- Code review comments
-- Issue titles and descriptions
-- English documentation (`docs/en`, `README.md`, `CLAUDE.md`, `AGENTS.md`, etc.)
-
-Allowed exceptions for intentional multilingual support:
-- Localized documentation (for example `docs/ko/**`, `README.ko.md`)
-- User-facing sample utterances, i18n test data, and multilingual keyword dictionaries
-
 ## Tech Stack
 
 - Kotlin 2.3.10, Spring Boot 3.5.9, Spring AI 1.1.2, JDK 21, Gradle 8.12
 - Test: JUnit 5 + MockK 1.14.9 + Kotest assertions 5.9.1
 - DB: H2 (test), PostgreSQL (prod, optional)
 
-## Instruction Files
-
-- `CLAUDE.md` and `AGENTS.md` must stay aligned.
-- When changing project rules, update both files in the same commit.
-- For Codex-style agents, `AGENTS.md` is the primary machine-readable instruction file.
-
-## Project Structure
-
-Multi-module Gradle project:
-
-| Module | Role | Boot |
-|--------|------|------|
-| `arc-app/` | Executable assembly module (wires core + gateways into bootJar) | bootJar |
-| `arc-core/` | Agent engine/library (guard, hook, MCP, RAG) | library |
-| `arc-web/` | REST API gateway (controllers, Swagger, security headers) | library |
-| `arc-slack/` | Slack gateway (webhook, signature verification) | library |
-| `arc-discord/` | Discord gateway (Discord4J WebSocket) | library |
-| `arc-line/` | LINE gateway (webhook, HMAC-SHA256 signature) | library |
-
 ## Commands
 
 ```bash
-./gradlew test                                                       # All tests
-./gradlew :arc-core:test                                             # Engine tests
-./gradlew :arc-web:test                                              # Controller tests
-./gradlew :arc-slack:test                                            # Slack tests
-./gradlew :arc-discord:test                                          # Discord tests
-./gradlew :arc-line:test                                             # LINE tests
-./gradlew :arc-core:test --tests "com.arc.reactor.agent.*"           # Package filter
-./gradlew :arc-core:test --tests "*.SpringAiAgentExecutorTest"       # Single file
-./gradlew compileKotlin compileTestKotlin                            # Compile check (maintain 0 warnings)
-./gradlew :arc-app:bootRun                                           # Run (GEMINI_API_KEY required)
-./gradlew :arc-core:test -Pdb=true                                   # Include PostgreSQL/PGVector/Flyway deps
-./gradlew :arc-core:test -Pauth=true                                 # Include JWT/Spring Security Crypto deps
-./gradlew :arc-core:test -PincludeIntegration                        # Include @Tag("integration") tests
-BASE_URL=http://localhost:18084 scripts/dev/validate-slack-runtime.sh # Live Slack runtime validation (requires Slack env vars)
+./gradlew test                                             # Full test suite
+./gradlew test --tests "com.arc.reactor.agent.*"           # Package filter
+./gradlew test --tests "*.SpringAiAgentExecutorTest"       # Single file
+./gradlew compileKotlin compileTestKotlin                  # Compile check (maintain 0 warnings)
+./gradlew bootRun                                          # Run (GEMINI_API_KEY required)
+./gradlew test -Pdb=true                                   # Include PostgreSQL/PGVector/Flyway deps
+./gradlew test -Pauth=true                                 # Include JWT/Spring Security Crypto deps
+./gradlew test -PincludeIntegration                        # Include @Tag("integration") tests
 ```
+
+## Agent Playbook (Optimized)
+
+### Instruction Hierarchy and File Strategy
+
+- Keep `AGENTS.md` as Codex-first canonical project policy; keep it synchronized with this file
+- Use nearest-scope instruction files for submodules/packages when rules differ (more specific path wins)
+- Keep agent instruction files concise and non-duplicated; prefer linking to detailed docs over repeating long prose
+- For Claude workflows, split deep/specialized guidance into modular rule files and import only when needed
+- Prefer explicit checklists and executable commands over vague guidance
+
+### PR and CI Gate (Mandatory)
+
+- Required checks are merge gates: `build`, `integration`, `docker`
+- Do not merge if required checks are failing or pending
+- Keep PR branch up-to-date with target branch before merge when required checks enforce it
+- Dependency-only PRs default to squash merge unless maintainers request otherwise
+
+### Cost and LLM Governance
+
+- Any feature that adds LLM calls (for example, summarization/compression paths) must include cost impact review
+- For Slack-origin short operational questions, prefer low-cost model routes and keep expensive add-on paths opt-in
+- Capture and monitor per-request metrics: `llm_calls_total`, `prompt_tokens`, `completion_tokens`, `tool_calls_total`, `estimated_cost_usd`
+- PR descriptions for new LLM paths should include expected call-frequency delta and token/cost assumptions
+
+### Dependency Upgrade Policy
+
+- Patch/minor upgrades: merge after green CI and no behavior-risk findings
+- Major upgrades: require compatibility notes, migration impact, and rollback plan
+- Spring Boot major upgrades are blocked by default without explicit maintainer approval
 
 ## Architecture
 
 Request flow: Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete) → Response
 
-- `SpringAiAgentExecutor` (~620 lines) — Core executor. Modify with caution
-- `ArcReactorAutoConfiguration` (entrypoint import) — Auto-configuration entrypoint. Override via @ConditionalOnMissingBean
+- `SpringAiAgentExecutor` (~1,060 lines) — Core executor. Modify with caution
+- `ArcReactorAutoConfiguration` — All bean auto-configuration. Override via @ConditionalOnMissingBean
 - `ConversationManager` — Conversation history management, extracted from executor
 
-Details: @docs/en/architecture/architecture.md, @docs/en/reference/tools.md, @docs/en/architecture/supervisor-pattern.md
+Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-pattern.md
 
 ### Feature Toggles
 
@@ -81,7 +71,6 @@ Details: @docs/en/architecture/architecture.md, @docs/en/reference/tools.md, @do
 | RAG | OFF | `arc.reactor.rag.enabled` |
 | CORS | OFF | `arc.reactor.cors.enabled` |
 | Circuit Breaker | OFF | `arc.reactor.circuit-breaker.enabled` |
-| Feedback | OFF | `arc.reactor.feedback.enabled` |
 | Flyway | OFF | `SPRING_FLYWAY_ENABLED` env var |
 
 ### Guard vs Hook Error Policy
@@ -113,7 +102,6 @@ Details: @docs/en/architecture/architecture.md, @docs/en/reference/tools.md, @do
 | McpServerController | `/api/mcp/servers` | Always (write = Admin) |
 | AuthController | `/api/auth` | `auth.enabled=true` |
 | DocumentController | `/api/documents` | `rag.enabled=true` |
-| FeedbackController | `/api/feedback` | `feedback.enabled=true` |
 
 ### System Prompt Resolution (priority order)
 
@@ -128,7 +116,7 @@ Details: @docs/en/architecture/architecture.md, @docs/en/reference/tools.md, @do
 - Admin-only: Persona/Document/MCP server/PromptTemplate write ops
 - Shared utility: `AdminAuthSupport.kt` — `isAdmin(exchange)` + `forbiddenResponse()`
 - **MUST use shared functions** — do NOT duplicate `isAdmin`/`forbidden` in individual controllers
-- `isAdmin()` = `role == ADMIN` — fail-close by default. When auth is disabled, admin APIs are denied unless role is explicitly set
+- `isAdmin()` = `role == null || role == ADMIN` — when auth is disabled, **all requests treated as admin**
 - Session ownership: `SessionController` uses its own `sessionForbidden()` (different error message)
 
 ### Error Responses
@@ -149,7 +137,7 @@ Details: @docs/en/architecture/architecture.md, @docs/en/reference/tools.md, @do
 | `max-tool-calls` | 10 | `concurrency.request-timeout-ms` | 30000 |
 | `max-tools-per-request` | 20 | `concurrency.tool-call-timeout-ms` | 15000 |
 | `llm.temperature` | 0.3 | `guard.rate-limit-per-minute` | 10 |
-| `llm.max-context-window-tokens` | 128000 | `boundaries.input-max-chars` | 5000 |
+| `llm.max-context-window-tokens` | 128000 | `guard.max-input-length` | 10000 |
 
 Full config: see `agent/config/AgentProperties.kt`
 
@@ -167,9 +155,8 @@ Full config: see `agent/config/AgentProperties.kt`
 
 - **All new features must have tests**. Every bug fix must include a regression test
 - **Run `./gradlew test` after every change**
-- **TDD by default**: Red -> Green -> Refactor
-- For bug fixes, first add a failing test that reproduces the bug, then fix
-- If no test is added, include an explicit reason in PR/commit message (docs-only, config-only, or non-behavioral change)
+- **PR CI gate is mandatory**: open/merge PRs only when required checks (`build`, `integration`, `docker`) are green
+- If CI fails, fix root cause (or update the PR with explicit rationale) before requesting/continuing review
 - `AgentTestFixture` for agent tests: `mockCallResponse()`, `mockToolCallResponse()`, `mockFinalResponse()`, `TrackingTool`
 - `AgentResultAssertions`: `assertSuccess()`, `assertFailure()`, `assertErrorCode()`, `assertErrorContains()`
 - IMPORTANT: ALL assertions MUST have failure messages — no bare `assertTrue(x)`
@@ -178,40 +165,11 @@ Full config: see `agent/config/AgentProperties.kt`
 - `coEvery`/`coVerify` for suspend mocks, `runTest` preferred over `runBlocking`
 - Mock `requestSpec.options(any<ChatOptions>())` explicitly for streaming tests
 
-For test patterns and examples: @docs/en/architecture/implementation-guide.md
-
-## Recommended Development Methodology (Spring + Kotlin)
-
-- **Workflow**: TDD by default (`Red -> Green -> Refactor`) for behavior changes.
-- **Test strategy**:
-  - Unit tests for pure domain/tool logic
-  - Slice tests (`@WebFluxTest`, `@DataJdbcTest`, etc.) for boundaries
-  - Integration tests for infrastructure paths with Testcontainers + `@ServiceConnection`
-- **Dependency injection**: Prefer constructor injection for required dependencies (immutability + null safety).
-- **Transactions**:
-  - Put `@Transactional` on concrete service methods/classes
-  - Prefer `public` transactional entry points
-  - Avoid self-invocation of transactional methods (proxy interception limitation)
-- **Configuration**: Prefer typed `@ConfigurationProperties` for structured settings; keep env-based overrides.
-- **Observability-first**: Every production feature should be diagnosable via logs/metrics/traces; add custom observations for expensive or failure-prone paths.
-- **Definition of Done (DoD)**:
-  - tests pass
-  - docs/config updated
-  - migration/compatibility impact checked
-  - key failure mode observable
-
-### Official References
-
-- Spring Boot - DI: https://docs.spring.io/spring-boot/reference/using/spring-beans-and-dependency-injection.html
-- Spring Boot - Testing/Testcontainers: https://docs.spring.io/spring-boot/reference/testing/testcontainers.html
-- Spring Framework - `@Transactional`: https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html
-- Spring Boot - Observability: https://docs.spring.io/spring-boot/reference/actuator/observability.html
-- Kotlin Coding Conventions: https://kotlinlang.org/docs/coding-conventions.html
-- JUnit 5 User Guide: https://docs.junit.org/5.11.4/user-guide/
+For test patterns and examples: @docs/en/implementation-guide.md
 
 ## Implementation Guide
 
-When adding new ToolCallback, GuardStage, Hook, or Bean — follow templates in @docs/en/architecture/implementation-guide.md
+When adding new ToolCallback, GuardStage, Hook, or Bean — follow templates in @docs/en/implementation-guide.md
 
 Key rules:
 - **ToolCallback**: Return errors as strings (`"Error: ..."`) — do NOT throw exceptions
@@ -246,20 +204,10 @@ STDIO: { "name": "fs-server", "transportType": "STDIO", "config": { "command": "
 - **Hook/Memory**: Always wrap in try-catch, log errors, never let exceptions propagate
 - **AssistantMessage**: Constructor is protected → use `AssistantMessage.builder().content().toolCalls().build()`
 - **Spring AI mock chain**: Explicitly mock `.options(any<ChatOptions>())` returns requestSpec
-- **Spring AI providers**: Use environment variables for provider keys (`GEMINI_API_KEY`, `SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`) and never hardcode real keys. Empty local fallbacks are acceptable only for local startup/tests; production must provide env vars.
-- **MCP SDK**: Version 0.17.2. SSE only (`HttpClientSseClientTransport`), no streamable HTTP
-- **Approval security**: Approve/Reject endpoints MUST enforce ownership or admin authorization
-- **HITL argument rewrite**: If approval returns `modifiedArguments`, tool execution MUST use modified arguments
-- **Streaming policy parity**: Output guard and response filter policy must match non-streaming behavior, or exception must be explicitly documented
-- **MCP update consistency**: MCP server update path must synchronize runtime manager state before reconnect
+- **Spring AI providers**: NEVER declare provider keys with empty defaults in `application.yml`. Use env vars only: `GEMINI_API_KEY`, `SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`
+- **MCP SDK**: Follow version pinned in `build.gradle.kts`. Do not hardcode transport assumptions; verify support matrix before adding new transport behavior
 
-For code examples of anti-patterns: @docs/en/architecture/implementation-guide.md
-
-## Shared Skills
-
-Tool-agnostic workflow docs usable by both Claude Code and Codex:
-- `docs/en/skills/tdd-workflow/SKILL.md` — Test-first delivery and regression safety workflow
-- `docs/en/skills/slack-runtime-validation/SKILL.md` — Slack-first runtime and integration validation workflow
+For code examples of anti-patterns: @docs/en/implementation-guide.md
 
 ## Domain Terms
 
@@ -277,4 +225,4 @@ Tool-agnostic workflow docs usable by both Claude Code and Codex:
 | `agent/multi/SupervisorOrchestrator.kt` | Multi-agent orchestration |
 | `autoconfigure/ArcReactorAutoConfiguration.kt` | All bean auto-configuration |
 | `agent/config/AgentProperties.kt` | All settings (`arc.reactor.*`) |
-| `arc-core/src/test/kotlin/com/arc/reactor/agent/AgentTestFixture.kt` | Test shared mock setup |
+| `test/../AgentTestFixture.kt` | Test shared mock setup |
