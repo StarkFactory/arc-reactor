@@ -187,11 +187,9 @@ class DynamicSchedulerService(
 
         val approvalStore = pendingApprovalStore
         if (approvalStore == null) {
-            logger.warn {
-                "Approval required for scheduled tool '${tool.name}' but PendingApprovalStore is unavailable; " +
-                    "continuing fail-open"
-            }
-            return arguments
+            val message = "Approval store unavailable for required scheduled tool '${tool.name}'"
+            logger.error { message }
+            throw IllegalStateException(message)
         }
 
         return try {

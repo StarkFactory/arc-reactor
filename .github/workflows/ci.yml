@@ -10,6 +10,7 @@ permissions:
   contents: read
 
 env:
+  SAFETY_TEST_MAX_SECONDS: "60"
   UNIT_TEST_MAX_SECONDS: "90"
   INTEGRATION_TEST_MAX_SECONDS: "150"
 
@@ -47,6 +48,17 @@ jobs:
 
       - name: Build
         run: ./gradlew build -x test
+
+      - name: Run Safety Gate Tests (Fail-Close)
+        run: |
+          DURATION_LABEL="safety gate suite" bash scripts/ci/run-with-duration-guard.sh "$SAFETY_TEST_MAX_SECONDS" \
+            ./gradlew :arc-core:test :arc-web:test \
+            --tests "com.arc.reactor.scheduler.DynamicSchedulerServicePolicyPipelineTest" \
+            --tests "com.arc.reactor.scheduler.DynamicSchedulerServiceCronValidationTest" \
+            --tests "com.arc.reactor.approval.JdbcPendingApprovalStoreCleanupTest" \
+            --tests "com.arc.reactor.safety.ToolInvocationPathSafetyTest" \
+            --tests "com.arc.reactor.controller.ApprovalControllerAuthTest" \
+            --tests "com.arc.reactor.controller.SchedulerControllerAuthTest"
 
       - name: Run Tests (Duration Guard)
         run: DURATION_LABEL="unit test suite" bash scripts/ci/run-with-duration-guard.sh "$UNIT_TEST_MAX_SECONDS" ./gradlew test

@@ -105,6 +105,36 @@ class DynamicSchedulerServicePolicyPipelineTest {
     }
 
     @Test
+    fun `trigger fails closed when approval is required but approval store is missing`() {
+        val job = sampleJob()
+        val store = RecordingStore(job)
+        val taskScheduler = mockk<TaskScheduler>(relaxed = true)
+        val mcpManager = mockk<McpManager>()
+        val tool = mockk<ToolCallback>()
+        val approvalPolicy = mockk<ToolApprovalPolicy>()
+
+        every { tool.name } returns "danger_tool"
+        coEvery { tool.call(any()) } returns "ok"
+        coEvery { mcpManager.ensureConnected(job.mcpServerName) } returns true
+        every { mcpManager.getToolCallbacks(job.mcpServerName) } returns listOf(tool)
+        every { approvalPolicy.requiresApproval("danger_tool", any()) } returns true
+
+        val service = DynamicSchedulerService(
+            store = store,
+            taskScheduler = taskScheduler,
+            mcpManager = mcpManager,
+            toolApprovalPolicy = approvalPolicy,
+            pendingApprovalStore = null
+        )
+
+        val result = service.trigger(job.id)
+
+        assertTrue(result.contains("approval store unavailable", ignoreCase = true))
+        assertEquals(JobExecutionStatus.FAILED, store.lastStatus)
+        coVerify(exactly = 0) { tool.call(any()) }
+    }
+
+    @Test
     fun `trigger uses modified arguments after approval`() {
         val job = sampleJob(toolArguments = mapOf("q" to "original"))
         val store = RecordingStore(job)
