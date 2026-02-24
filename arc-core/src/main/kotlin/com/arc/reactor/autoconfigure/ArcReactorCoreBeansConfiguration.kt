@@ -74,6 +74,7 @@ class ArcReactorCoreBeansConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(name = ["postgresRequirementMarker"])
     fun postgresRequirementMarker(environment: Environment): Any {
         val url = environment.getProperty("spring.datasource.url")?.trim().orEmpty()
         if (url.isBlank()) {

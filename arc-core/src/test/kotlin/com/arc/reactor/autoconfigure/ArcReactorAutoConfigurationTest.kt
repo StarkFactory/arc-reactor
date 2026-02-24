@@ -39,13 +39,19 @@ import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
-import com.arc.reactor.rag.impl.InMemoryDocumentRetriever
 import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
+import com.arc.reactor.policy.tool.InMemoryToolPolicyStore
+import com.arc.reactor.policy.tool.ToolPolicyStore
+import com.arc.reactor.rag.ingestion.InMemoryRagIngestionPolicyStore
+import com.arc.reactor.rag.ingestion.RagIngestionPolicyStore
+
+import com.arc.reactor.auth.UserStore
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
 import io.mockk.mockk
+import org.springframework.ai.vectorstore.VectorStore
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -64,6 +70,22 @@ class ArcReactorAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(ArcReactorAutoConfiguration::class.java))
+        .withAllowBeanDefinitionOverriding(true)
+        .withUserConfiguration(SkipPostgresCheckConfig::class.java)
+
+    private val jdbcContextRunner = contextRunner
+        .withConfiguration(
+            AutoConfigurations.of(
+                DataSourceAutoConfiguration::class.java,
+                JdbcTemplateAutoConfiguration::class.java,
+                DataSourceTransactionManagerAutoConfiguration::class.java,
+                TransactionAutoConfiguration::class.java
+            )
+        )
+        .withPropertyValues(
+            "spring.datasource.url=jdbc:h2:mem:autoConfigTest;DB_CLOSE_DELAY=-1",
+            "spring.datasource.driver-class-name=org.h2.Driver"
+        )
 
     // ── Default Beans ───────────────────────────────────────────────
 
@@ -342,18 +364,18 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register RAG beans with in-memory retriever when enabled`() {
-            contextRunner
+        fun `should register RAG beans when enabled with VectorStore`() {
+            jdbcContextRunner
+                .withUserConfiguration(MockVectorStoreConfig::class.java)
                 .withPropertyValues("arc.reactor.rag.enabled=true")
                 .run { context ->
                     assertInstanceOf(
                         DefaultRagPipeline::class.java, context.getBean(RagPipeline::class.java),
                         "Default RagPipeline should be DefaultRagPipeline"
                     )
-                    assertInstanceOf(
-                        InMemoryDocumentRetriever::class.java, context.getBean(DocumentRetriever::class.java),
-                        "Default DocumentRetriever should be InMemoryDocumentRetriever (no VectorStore)"
-                    )
+                    assertNotNull(context.getBean(DocumentRetriever::class.java)) {
+                        "DocumentRetriever should exist when RAG is enabled with VectorStore"
+                    }
                     assertInstanceOf(
                         SimpleScoreReranker::class.java, context.getBean(DocumentReranker::class.java),
                         "Default DocumentReranker should be SimpleScoreReranker"
@@ -367,8 +389,8 @@ class ArcReactorAutoConfigurationTest {
 
         @Test
         fun `should register HyDE query transformer when configured`() {
-            contextRunner
-                .withUserConfiguration(MockChatClientConfig::class.java)
+            jdbcContextRunner
+                .withUserConfiguration(MockChatClientConfig::class.java, MockVectorStoreConfig::class.java)
                 .withPropertyValues(
                     "arc.reactor.rag.enabled=true",
                     "arc.reactor.rag.query-transformer=hyde"
@@ -432,20 +454,6 @@ class ArcReactorAutoConfigurationTest {
 
     @Nested
     inner class JdbcStoreOverrideTests {
-
-        private val jdbcContextRunner = contextRunner
-            .withConfiguration(
-                AutoConfigurations.of(
-                    DataSourceAutoConfiguration::class.java,
-                    JdbcTemplateAutoConfiguration::class.java,
-                    DataSourceTransactionManagerAutoConfiguration::class.java,
-                    TransactionAutoConfiguration::class.java
-                )
-            )
-            .withPropertyValues(
-                "spring.datasource.url=jdbc:h2:mem:autoConfigTest;DB_CLOSE_DELAY=-1",
-                "spring.datasource.driver-class-name=org.h2.Driver"
-            )
 
         @Test
         fun `should use JDBC stores when datasource is configured`() {
@@ -514,13 +522,13 @@ class ArcReactorAutoConfigurationTest {
 
         @Test
         fun `should register auth beans when enabled`() {
-            contextRunner
+            jdbcContextRunner
                 .withPropertyValues(
                     "arc.reactor.auth.enabled=true",
                     "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
                 )
                 .run { context ->
-                    assertTrue(context.containsBean("userStore")) {
+                    assertNotNull(context.getBean(UserStore::class.java)) {
                         "UserStore should exist when auth is enabled"
                     }
                     assertTrue(context.containsBean("authProvider")) {
@@ -537,7 +545,7 @@ class ArcReactorAutoConfigurationTest {
 
         @Test
         fun `should append actuator health to public paths when enabled`() {
-            contextRunner
+            jdbcContextRunner
                 .withPropertyValues(
                     "arc.reactor.auth.enabled=true",
                     "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough",
@@ -680,5 +688,40 @@ class ArcReactorAutoConfigurationTest {
     class MockChatModelOnlyConfig {
         @Bean
         fun chatModel(): ChatModel = mockk(relaxed = true)
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    class MockVectorStoreConfig {
+        @Bean
+        fun vectorStore(): VectorStore = mockk(relaxed = true)
+    }
+
+    /**
+     * Provides in-memory store fallbacks for tests that run without a DataSource.
+     * Production code (since PR #147) requires PostgreSQL and has no InMemory fallbacks,
+     * but auto-configuration tests need lightweight replacements.
+     */
+    @Configuration(proxyBeanMethods = false)
+    class SkipPostgresCheckConfig {
+        @Bean
+        fun postgresRequirementMarker(): Any = Any()
+
+        @Bean
+        fun memoryStore(): MemoryStore = InMemoryMemoryStore()
+
+        @Bean
+        fun personaStore(): PersonaStore = InMemoryPersonaStore()
+
+        @Bean
+        fun promptTemplateStore(): PromptTemplateStore = InMemoryPromptTemplateStore()
+
+        @Bean
+        fun mcpServerStore(): McpServerStore = InMemoryMcpServerStore()
+
+        @Bean
+        fun toolPolicyStore(): ToolPolicyStore = InMemoryToolPolicyStore()
+
+        @Bean
+        fun ragIngestionPolicyStore(): RagIngestionPolicyStore = InMemoryRagIngestionPolicyStore()
     }
 }
