@@ -131,13 +131,20 @@ internal class ToolCallOrchestrator(
         toolCallContext: ToolCallContext,
         hookContext: HookContext
     ): String? {
-        if (toolApprovalPolicy == null || pendingApprovalStore == null) return null
+        if (toolApprovalPolicy == null) return null
         if (!toolApprovalPolicy.requiresApproval(toolName, toolCallContext.toolParams)) return null
+
+        val approvalStore = pendingApprovalStore
+        if (approvalStore == null) {
+            val reason = "Approval store unavailable for required tool '$toolName'"
+            logger.error { reason }
+            return "Tool call blocked: $reason"
+        }
 
         logger.info { "Tool '$toolName' requires human approval, suspending execution..." }
 
         return try {
-            val response = pendingApprovalStore.requestApproval(
+            val response = approvalStore.requestApproval(
                 runId = hookContext.runId,
                 userId = hookContext.userId,
                 toolName = toolName,
@@ -153,8 +160,9 @@ internal class ToolCallOrchestrator(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Approval check failed for tool '$toolName'" }
-            null // Fail-open: allow tool execution on approval system error
+            val reason = "Approval check failed for tool '$toolName': ${e.message ?: "unknown error"}"
+            logger.error(e) { reason }
+            "Tool call blocked: $reason"
         }
     }
 

@@ -135,6 +135,55 @@ class DynamicSchedulerServicePolicyPipelineTest {
     }
 
     @Test
+    fun `trigger fails closed when approval check throws exception`() {
+        val job = sampleJob()
+        val store = RecordingStore(job)
+        val taskScheduler = mockk<TaskScheduler>(relaxed = true)
+        val mcpManager = mockk<McpManager>()
+        val tool = mockk<ToolCallback>()
+        val approvalPolicy = mockk<ToolApprovalPolicy>()
+        val pendingApprovalStore = mockk<PendingApprovalStore>()
+
+        every { tool.name } returns "danger_tool"
+        coEvery { tool.call(any()) } returns "ok"
+        coEvery { mcpManager.ensureConnected(job.mcpServerName) } returns true
+        every { mcpManager.getToolCallbacks(job.mcpServerName) } returns listOf(tool)
+        every { approvalPolicy.requiresApproval("danger_tool", any()) } returns true
+        coEvery {
+            pendingApprovalStore.requestApproval(
+                runId = any(),
+                userId = any(),
+                toolName = any(),
+                arguments = any(),
+                timeoutMs = any()
+            )
+        } throws RuntimeException("approval backend unavailable")
+
+        val service = DynamicSchedulerService(
+            store = store,
+            taskScheduler = taskScheduler,
+            mcpManager = mcpManager,
+            toolApprovalPolicy = approvalPolicy,
+            pendingApprovalStore = pendingApprovalStore
+        )
+
+        val result = service.trigger(job.id)
+
+        assertTrue(result.contains("approval check failed", ignoreCase = true))
+        assertEquals(JobExecutionStatus.FAILED, store.lastStatus)
+        coVerify(exactly = 1) {
+            pendingApprovalStore.requestApproval(
+                runId = any(),
+                userId = any(),
+                toolName = "danger_tool",
+                arguments = any(),
+                timeoutMs = any()
+            )
+        }
+        coVerify(exactly = 0) { tool.call(any()) }
+    }
+
+    @Test
     fun `trigger uses modified arguments after approval`() {
         val job = sampleJob(toolArguments = mapOf("q" to "original"))
         val store = RecordingStore(job)
