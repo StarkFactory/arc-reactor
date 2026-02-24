@@ -238,6 +238,52 @@ After trimming:   [Facts] [Narrative] [recent-user] [recent-asst] [current-user]
 
 ---
 
+## Cost & Performance
+
+### LLM Call Frequency
+
+| Path | Calls | When |
+|------|-------|------|
+| `saveHistory()` / `saveStreamingHistory()` | ~1 async call | After each save when message count exceeds `triggerMessageCount` |
+| `loadHistory()` — cache hit | 0 | Cached summary is fresh (`summarizedUpToIndex >= splitIndex`) |
+| `loadHistory()` — cache miss | 1 synchronous call | First load after threshold, or stale cache |
+
+In a typical session, the async path pre-computes the summary so `loadHistory()` hits the cache with zero additional LLM cost.
+
+### Token Usage
+
+Input tokens scale with the number of messages being summarized:
+
+- **20 messages** (~4K tokens input) — lightweight, sub-second on flash models
+- **100 messages** (~20K tokens input) — moderate, 1-3s on flash models
+- **500+ messages** — consider lowering `trigger-message-count` or increasing `recent-message-count`
+
+Output is fixed-size: a JSON object with facts array + narrative paragraph (~200-500 tokens).
+
+### Model Recommendation
+
+Summarization uses a dedicated `llm-model` property. **Explicitly set a lightweight model** to avoid falling back to the default (potentially expensive) provider:
+
+```yaml
+arc:
+  reactor:
+    memory:
+      summary:
+        llm-model: gemini-2.0-flash   # Fast and cheap — recommended
+        # llm-model: gpt-4o-mini      # Alternative lightweight option
+```
+
+Using the default provider model (e.g., `claude-sonnet-4-20250514`, `gpt-4o`) for summarization is significantly more expensive and provides negligible quality improvement for this extraction task.
+
+### Monitoring
+
+- **Async failures** are logged at `DEBUG` level: `"Async summarization failed for session {sessionId}"`
+- **Sync fallbacks** are logged at `WARN` level: `"Hierarchical memory failed for session {sessionId}, falling back to takeLast"`
+- **Empty summaries** trigger `WARN`: `"Summary produced no content for session {sessionId}, falling back to takeLast"`
+- Track `ConversationSummaryStore` row count and `summarized_up_to` values for cache freshness
+
+---
+
 ## Reference Code
 
 - [`memory/ConversationManager.kt`](../../../../arc-core/src/main/kotlin/com/arc/reactor/memory/ConversationManager.kt) — 3-layer history assembly + async trigger
