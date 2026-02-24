@@ -43,20 +43,26 @@ class ConversationMessageTrimmer(
         trimToolHistory(messages, totalTokens, budget)
     }
 
-    /** Phase 1: Remove oldest messages from the front, preserving the last UserMessage. */
+    /**
+     * Phase 1: Remove oldest messages from the front, preserving leading SystemMessages
+     * (e.g., hierarchical memory facts/narrative) and the last UserMessage.
+     */
     private fun trimOldHistory(messages: MutableList<Message>, currentTokens: Int, budget: Int): Int {
         var totalTokens = currentTokens
         while (totalTokens > budget && messages.size > 1) {
+            val skipCount = messages.indexOfFirst { it !is SystemMessage }
+                .let { if (it < 0) messages.size else it }
             val protectedIdx = messages.indexOfLast { it is UserMessage }.coerceAtLeast(0)
-            if (protectedIdx <= 0) break
+            if (protectedIdx <= skipCount) break
 
-            val removeCount = calculateRemoveGroupSize(messages)
-            if (removeCount <= 0 || removeCount > protectedIdx) break
+            val removable = messages.subList(skipCount, messages.size)
+            val removeCount = calculateRemoveGroupSize(removable)
+            if (removeCount <= 0 || skipCount + removeCount > protectedIdx) break
 
             var removedTokens = 0
             repeat(removeCount) {
-                if (messages.size > 1) {
-                    removedTokens += estimateMessageTokens(messages.removeFirst())
+                if (skipCount < messages.size && messages.size > 1) {
+                    removedTokens += estimateMessageTokens(messages.removeAt(skipCount))
                 }
             }
             totalTokens -= removedTokens

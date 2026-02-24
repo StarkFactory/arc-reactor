@@ -35,7 +35,8 @@ import javax.sql.DataSource
         "spring.ai.google.genai.embedding.api-key=test-key",
         "arc.reactor.intent.enabled=true",
         "arc.reactor.auth.enabled=true",
-        "arc.reactor.auth.jwt-secret=integration-test-jwt-secret-32-bytes"
+        "arc.reactor.auth.jwt-secret=integration-test-jwt-secret-32-bytes",
+        "arc.reactor.postgres.required=false"
     ]
 )
 @AutoConfigureWebTestClient

@@ -71,6 +71,8 @@ Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-patter
 | RAG | OFF | `arc.reactor.rag.enabled` |
 | CORS | OFF | `arc.reactor.cors.enabled` |
 | Circuit Breaker | OFF | `arc.reactor.circuit-breaker.enabled` |
+| Feedback | OFF | `arc.reactor.feedback.enabled` |
+| Memory Summary | OFF | `arc.reactor.memory.summary.enabled` |
 | Flyway | OFF | `SPRING_FLYWAY_ENABLED` env var |
 
 ### Guard vs Hook Error Policy
@@ -138,8 +140,9 @@ Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-patter
 | `max-tools-per-request` | 20 | `concurrency.tool-call-timeout-ms` | 15000 |
 | `llm.temperature` | 0.3 | `guard.rate-limit-per-minute` | 10 |
 | `llm.max-context-window-tokens` | 128000 | `guard.max-input-length` | 10000 |
+| `boundaries.input-max-chars` | 5000 | | |
 
-Full config: see `agent/config/AgentProperties.kt`
+Full config: see `agent/config/AgentPolicyAndFeatureProperties.kt`
 
 ## Code Conventions
 

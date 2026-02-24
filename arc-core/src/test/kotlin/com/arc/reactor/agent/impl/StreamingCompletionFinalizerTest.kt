@@ -48,7 +48,7 @@ class StreamingCompletionFinalizerTest {
             emit = {}
         )
 
-        verify(exactly = 1) { conversationManager.saveStreamingHistory(command, "final chunk") }
+        coVerify(exactly = 1) { conversationManager.saveStreamingHistory(command, "final chunk") }
         coVerify(exactly = 1) {
             hookExecutor.executeAfterAgentComplete(
                 context = hookContext,

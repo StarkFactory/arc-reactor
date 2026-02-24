@@ -5,8 +5,11 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.config.ChatModelProvider
+import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.SessionSummary
+import com.arc.reactor.memory.summary.ConversationSummaryStore
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -34,8 +37,13 @@ import java.time.Instant
 @RequestMapping("/api")
 class SessionController(
     private val memoryStore: MemoryStore,
-    private val chatModelProvider: ChatModelProvider
+    private val chatModelProvider: ChatModelProvider,
+    summaryStoreProvider: ObjectProvider<ConversationSummaryStore>,
+    conversationManagerProvider: ObjectProvider<ConversationManager>
 ) {
+
+    private val conversationSummaryStore: ConversationSummaryStore? = summaryStoreProvider.ifAvailable
+    private val conversationManager: ConversationManager? = conversationManagerProvider.ifAvailable
 
     /**
      * List all sessions with summary metadata.
@@ -148,7 +156,9 @@ class SessionController(
             return sessionForbidden()
         }
 
+        conversationManager?.cancelActiveSummarization(sessionId)
         memoryStore.remove(sessionId)
+        conversationSummaryStore?.delete(sessionId)
         return ResponseEntity.noContent().build()
     }
 

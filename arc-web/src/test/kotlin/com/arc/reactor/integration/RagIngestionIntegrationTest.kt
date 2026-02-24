@@ -40,7 +40,8 @@ import org.springframework.test.web.reactive.server.WebTestClient
         "arc.reactor.rag.ingestion.dynamic.enabled=true",
         "arc.reactor.rag.ingestion.dynamic.refresh-ms=600000",
         "arc.reactor.auth.enabled=true",
-        "arc.reactor.auth.jwt-secret=integration-test-jwt-secret-32-bytes"
+        "arc.reactor.auth.jwt-secret=integration-test-jwt-secret-32-bytes",
+        "arc.reactor.postgres.required=false"
     ]
 )
 @AutoConfigureWebTestClient

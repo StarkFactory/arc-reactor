@@ -233,8 +233,15 @@ class ArcReactorCoreBeansConfiguration {
     @ConditionalOnMissingBean
     fun conversationManager(
         memoryStore: MemoryStore,
-        properties: AgentProperties
-    ): ConversationManager = DefaultConversationManager(memoryStore, properties)
+        properties: AgentProperties,
+        summaryStore: ObjectProvider<com.arc.reactor.memory.summary.ConversationSummaryStore>,
+        summaryService: ObjectProvider<com.arc.reactor.memory.summary.ConversationSummaryService>
+    ): ConversationManager = DefaultConversationManager(
+        memoryStore = memoryStore,
+        properties = properties,
+        summaryStore = summaryStore.ifAvailable,
+        summaryService = summaryService.ifAvailable
+    )
 
     @Bean
     @ConditionalOnMissingBean
