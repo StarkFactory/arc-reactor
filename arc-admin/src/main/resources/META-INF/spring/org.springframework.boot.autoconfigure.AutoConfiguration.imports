@@ -1,0 +1,4 @@
+com.arc.reactor.admin.config.AdminAutoConfiguration
+com.arc.reactor.admin.config.AdminJdbcConfiguration
+com.arc.reactor.admin.tracing.TracingAutoConfiguration
+com.arc.reactor.admin.tracing.OtlpExporterConfiguration
