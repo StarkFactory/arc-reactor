@@ -1,6 +1,15 @@
 package com.arc.reactor.scheduler
 
+import com.arc.reactor.approval.PendingApprovalStore
+import com.arc.reactor.approval.ToolApprovalPolicy
+import com.arc.reactor.hook.HookExecutor
+import com.arc.reactor.hook.model.HookContext
+import com.arc.reactor.hook.model.HookResult
+import com.arc.reactor.hook.model.ToolCallContext
+import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.mcp.McpManager
+import com.arc.reactor.support.throwIfCancellation
+import com.arc.reactor.tool.ToolCallback
 import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -30,8 +39,16 @@ class DynamicSchedulerService(
     private val store: ScheduledJobStore,
     private val taskScheduler: TaskScheduler,
     private val mcpManager: McpManager,
-    private val slackMessageSender: SlackMessageSender? = null
+    private val slackMessageSender: SlackMessageSender? = null,
+    private val hookExecutor: HookExecutor? = null,
+    private val toolApprovalPolicy: ToolApprovalPolicy? = null,
+    private val pendingApprovalStore: PendingApprovalStore? = null
 ) {
+
+    companion object {
+        private const val SCHEDULER_ACTOR = "scheduler"
+        private const val SCHEDULER_CHANNEL = "scheduler"
+    }
 
     private val scheduledFutures = ConcurrentHashMap<String, ScheduledFuture<*>>()
 
@@ -95,6 +112,115 @@ class DynamicSchedulerService(
         scheduledFutures.remove(id)?.cancel(false)
     }
 
+    private suspend fun executeToolWithPolicies(job: ScheduledJob, tool: ToolCallback): String {
+        val baseArguments: Map<String, Any?> = job.toolArguments.mapValues { it.value }
+        val hookContext = buildHookContext(job)
+
+        checkBeforeToolCall(
+            ToolCallContext(
+                agentContext = hookContext,
+                toolName = tool.name,
+                toolParams = baseArguments,
+                callIndex = 0
+            )
+        )?.let { rejection ->
+            throw IllegalStateException("Tool call rejected: ${rejection.reason}")
+        }
+
+        val effectiveArguments = resolveApprovedArguments(tool, baseArguments, hookContext)
+        val toolCallContext = ToolCallContext(
+            agentContext = hookContext,
+            toolName = tool.name,
+            toolParams = effectiveArguments,
+            callIndex = 0
+        )
+
+        val startedAt = System.currentTimeMillis()
+        return try {
+            val output = tool.call(effectiveArguments)?.toString() ?: "No result"
+            hookExecutor?.executeAfterToolCall(
+                context = toolCallContext,
+                result = ToolCallResult(
+                    success = true,
+                    output = output,
+                    durationMs = System.currentTimeMillis() - startedAt
+                )
+            )
+            output
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            hookExecutor?.executeAfterToolCall(
+                context = toolCallContext,
+                result = ToolCallResult(
+                    success = false,
+                    errorMessage = e.message,
+                    durationMs = System.currentTimeMillis() - startedAt
+                )
+            )
+            throw e
+        }
+    }
+
+    private suspend fun resolveApprovedArguments(
+        tool: ToolCallback,
+        arguments: Map<String, Any?>,
+        hookContext: HookContext
+    ): Map<String, Any?> {
+        if (toolApprovalPolicy == null) return arguments
+        if (!toolApprovalPolicy.requiresApproval(tool.name, arguments)) return arguments
+
+        val approvalStore = pendingApprovalStore
+        if (approvalStore == null) {
+            logger.warn {
+                "Approval required for scheduled tool '${tool.name}' but PendingApprovalStore is unavailable; " +
+                    "continuing fail-open"
+            }
+            return arguments
+        }
+
+        return try {
+            val response = approvalStore.requestApproval(
+                runId = hookContext.runId,
+                userId = hookContext.userId,
+                toolName = tool.name,
+                arguments = arguments
+            )
+            if (response.approved) {
+                response.modifiedArguments ?: arguments
+            } else {
+                val reason = response.reason ?: "Rejected by human"
+                throw IllegalStateException("Tool call rejected by human: $reason")
+            }
+        } catch (e: IllegalStateException) {
+            throw e
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.error(e) {
+                "Approval check failed for scheduled tool '${tool.name}', continuing fail-open"
+            }
+            arguments
+        }
+    }
+
+    private suspend fun checkBeforeToolCall(context: ToolCallContext): HookResult.Reject? {
+        if (hookExecutor == null) return null
+        return hookExecutor.executeBeforeToolCall(context) as? HookResult.Reject
+    }
+
+    private fun buildHookContext(job: ScheduledJob): HookContext {
+        val runId = "scheduler-${job.id}-${System.currentTimeMillis()}"
+        return HookContext(
+            runId = runId,
+            userId = SCHEDULER_ACTOR,
+            userPrompt = "Scheduled job '${job.name}'",
+            channel = SCHEDULER_CHANNEL
+        ).also { context ->
+            context.metadata["schedulerJobId"] = job.id
+            context.metadata["schedulerJobName"] = job.name
+            context.metadata["schedulerMcpServer"] = job.mcpServerName
+        }
+    }
+
     private fun executeJob(job: ScheduledJob): String {
         logger.info { "Executing scheduled job: ${job.name}" }
         store.updateExecutionResult(job.id, JobExecutionStatus.RUNNING, null)
@@ -110,7 +236,7 @@ class DynamicSchedulerService(
                 val tool = tools.find { it.name == job.toolName }
                     ?: throw IllegalStateException("Tool '${job.toolName}' not found on server '${job.mcpServerName}'")
 
-                tool.call(job.toolArguments)?.toString() ?: "No result"
+                executeToolWithPolicies(job, tool)
             }
 
             // Send to Slack if configured

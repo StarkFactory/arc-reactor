@@ -7,6 +7,7 @@ import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.policy.tool.InMemoryToolPolicyStore
 import com.arc.reactor.policy.tool.ToolPolicy
+import com.arc.reactor.policy.tool.ToolExecutionPolicyEngine
 import com.arc.reactor.policy.tool.ToolPolicyProvider
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -24,7 +25,7 @@ class WriteToolBlockHookTest {
             denyWriteMessage = "blocked"
         )
         val provider = ToolPolicyProvider(props, InMemoryToolPolicyStore(ToolPolicy.fromProperties(props)))
-        val hook = WriteToolBlockHook(provider)
+        val hook = WriteToolBlockHook(ToolExecutionPolicyEngine(provider))
 
         val ctx = ToolCallContext(
             agentContext = HookContext(
@@ -53,7 +54,7 @@ class WriteToolBlockHookTest {
             denyWriteChannels = setOf("slack")
         )
         val provider = ToolPolicyProvider(props, InMemoryToolPolicyStore(ToolPolicy.fromProperties(props)))
-        val hook = WriteToolBlockHook(provider)
+        val hook = WriteToolBlockHook(ToolExecutionPolicyEngine(provider))
 
         val ctx = ToolCallContext(
             agentContext = HookContext(
