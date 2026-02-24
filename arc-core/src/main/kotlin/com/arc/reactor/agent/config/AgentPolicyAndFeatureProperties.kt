@@ -24,6 +24,9 @@ data class ApprovalProperties(
     /** Default approval timeout in milliseconds (0 = 5 minutes) */
     val timeoutMs: Long = 300_000,
 
+    /** Retention in milliseconds for resolved approvals before cleanup */
+    val resolvedRetentionMs: Long = 7 * 24 * 60 * 60 * 1000L,
+
     /** Tool names that require approval (empty = use custom ToolApprovalPolicy) */
     val toolNames: Set<String> = emptySet()
 )
