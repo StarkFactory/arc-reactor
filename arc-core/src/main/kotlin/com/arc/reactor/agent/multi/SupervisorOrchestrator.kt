@@ -57,10 +57,10 @@ class SupervisorOrchestrator(
 
         val startTime = System.currentTimeMillis()
 
-        // 1. Convert each worker node to a WorkerAgentTool
+        // 1. Convert each worker node to a WorkerAgentTool (propagate parent metadata)
         val workerTools = nodes.map { node ->
             val workerAgent = agentFactory(node)
-            WorkerAgentTool(node, workerAgent)
+            WorkerAgentTool(node, workerAgent, parentCommand = command)
         }
 
         logger.info { "Supervisor: created ${workerTools.size} worker tools: ${workerTools.map { it.name }}" }

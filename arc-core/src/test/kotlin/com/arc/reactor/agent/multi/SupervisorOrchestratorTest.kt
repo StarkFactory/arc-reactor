@@ -138,6 +138,92 @@ class SupervisorOrchestratorTest {
     }
 
     @Nested
+    inner class MetadataPropagation {
+
+        @Test
+        fun `WorkerAgentTool should propagate parent metadata to worker command`() = runTest {
+            val commandSlot = slot<AgentCommand>()
+            val workerAgent = mockk<AgentExecutor>()
+            coEvery { workerAgent.execute(capture(commandSlot)) } returns
+                AgentResult.success("done")
+
+            val parentCommand = AgentCommand(
+                systemPrompt = "supervisor",
+                userPrompt = "original request",
+                userId = "user-42",
+                metadata = mapOf("tenantId" to "acme-corp", "sessionId" to "sess-1", "channel" to "slack")
+            )
+
+            val node = AgentNode("worker", systemPrompt = "Do work")
+            val tool = WorkerAgentTool(node, workerAgent, parentCommand = parentCommand)
+
+            tool.call(mapOf("instruction" to "process this"))
+
+            val captured = commandSlot.captured
+            assertEquals("acme-corp", captured.metadata["tenantId"],
+                "Worker should inherit parent tenantId")
+            assertEquals("sess-1", captured.metadata["sessionId"],
+                "Worker should inherit parent sessionId")
+            assertEquals("slack", captured.metadata["channel"],
+                "Worker should inherit parent channel")
+            assertEquals("user-42", captured.userId,
+                "Worker should inherit parent userId")
+        }
+
+        @Test
+        fun `WorkerAgentTool without parentCommand should have empty metadata`() = runTest {
+            val commandSlot = slot<AgentCommand>()
+            val workerAgent = mockk<AgentExecutor>()
+            coEvery { workerAgent.execute(capture(commandSlot)) } returns
+                AgentResult.success("done")
+
+            val node = AgentNode("worker", systemPrompt = "Do work")
+            val tool = WorkerAgentTool(node, workerAgent) // no parentCommand
+
+            tool.call(mapOf("instruction" to "process this"))
+
+            assertTrue(commandSlot.captured.metadata.isEmpty(),
+                "Without parentCommand, metadata should be empty")
+            assertNull(commandSlot.captured.userId,
+                "Without parentCommand, userId should be null")
+        }
+
+        @Test
+        fun `SupervisorOrchestrator should propagate metadata through WorkerAgentTools`() = runTest {
+            val orchestrator = SupervisorOrchestrator()
+            val parentCommand = AgentCommand(
+                systemPrompt = "",
+                userPrompt = "환불 처리",
+                userId = "user-99",
+                metadata = mapOf("tenantId" to "enterprise-corp", "channel" to "web")
+            )
+
+            val workerNode = AgentNode("refund", systemPrompt = "환불 처리", description = "환불")
+
+            // Capture both the supervisor command and the worker command
+            val supervisorCommandSlot = slot<AgentCommand>()
+
+            orchestrator.execute(parentCommand, listOf(workerNode)) { node ->
+                val agent = mockk<AgentExecutor>()
+                if (node.name == "supervisor") {
+                    coEvery { agent.execute(capture(supervisorCommandSlot)) } returns
+                        AgentResult.success("done")
+                } else {
+                    coEvery { agent.execute(any()) } returns AgentResult.success("worker done")
+                }
+                agent
+            }
+
+            // Supervisor itself should inherit metadata via command.copy()
+            val supervisorCmd = supervisorCommandSlot.captured
+            assertEquals("enterprise-corp", supervisorCmd.metadata["tenantId"],
+                "Supervisor command should carry parent tenantId")
+            assertEquals("user-99", supervisorCmd.userId,
+                "Supervisor command should carry parent userId")
+        }
+    }
+
+    @Nested
     inner class BuilderIntegration {
 
         @Test
