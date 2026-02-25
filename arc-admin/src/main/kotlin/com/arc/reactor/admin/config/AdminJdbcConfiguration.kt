@@ -139,14 +139,13 @@ class AdminJdbcConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBean(com.arc.reactor.resilience.CircuitBreakerRegistry::class)
     fun quotaEnforcerHook(
-        tenantResolver: TenantResolver,
         tenantStore: TenantStore,
         queryService: MetricQueryService,
         circuitBreakerRegistry: com.arc.reactor.resilience.CircuitBreakerRegistry,
         healthMonitor: PipelineHealthMonitor
     ): QuotaEnforcerHook {
         logger.info { "QuotaEnforcerHook registered (order=5, fail-open)" }
-        return QuotaEnforcerHook(tenantResolver, tenantStore, queryService, circuitBreakerRegistry, healthMonitor)
+        return QuotaEnforcerHook(tenantStore, queryService, circuitBreakerRegistry, healthMonitor)
     }
 
     // --- Alerting ---

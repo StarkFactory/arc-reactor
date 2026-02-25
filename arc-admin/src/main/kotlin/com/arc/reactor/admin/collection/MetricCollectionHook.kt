@@ -23,7 +23,6 @@ private val logger = KotlinLogging.logger {}
  */
 class MetricCollectionHook(
     private val ringBuffer: MetricRingBuffer,
-    private val tenantResolver: TenantResolver,
     private val healthMonitor: PipelineHealthMonitor
 ) : AfterAgentCompleteHook, AfterToolCallHook {
 
@@ -34,7 +33,7 @@ class MetricCollectionHook(
     override suspend fun afterAgentComplete(context: HookContext, response: AgentResponse) {
         try {
             val event = AgentExecutionEvent(
-                tenantId = tenantResolver.currentTenantId(),
+                tenantId = context.metadata["tenantId"]?.toString() ?: "default",
                 runId = context.runId,
                 userId = context.userId,
                 sessionId = context.metadata["sessionId"]?.toString(),
@@ -65,7 +64,7 @@ class MetricCollectionHook(
     override suspend fun afterToolCall(context: ToolCallContext, result: ToolCallResult) {
         try {
             val event = ToolCallEvent(
-                tenantId = tenantResolver.currentTenantId(),
+                tenantId = context.agentContext.metadata["tenantId"]?.toString() ?: "default",
                 runId = context.agentContext.runId,
                 toolName = context.toolName,
                 toolSource = context.agentContext.metadata["toolSource_${context.toolName}"]?.toString() ?: "local",

@@ -8,32 +8,27 @@ import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import kotlin.coroutines.cancellation.CancellationException
 
 class MetricCollectionHookTest {
 
     private lateinit var ringBuffer: MetricRingBuffer
-    private val tenantResolver = TenantResolver()
     private val healthMonitor = PipelineHealthMonitor()
     private lateinit var hook: MetricCollectionHook
 
     @BeforeEach
     fun setUp() {
         ringBuffer = MetricRingBuffer(64)
-        tenantResolver.setTenantId("tenant-1")
-        hook = MetricCollectionHook(ringBuffer, tenantResolver, healthMonitor)
+        hook = MetricCollectionHook(ringBuffer, healthMonitor)
     }
 
     private fun hookContext(
         runId: String = "run-1",
         userId: String = "user-1",
-        metadata: MutableMap<String, Any> = mutableMapOf()
+        metadata: MutableMap<String, Any> = mutableMapOf("tenantId" to "tenant-1")
     ) = HookContext(
         runId = runId,
         userId = userId,
@@ -68,7 +63,7 @@ class MetricCollectionHookTest {
 
         @Test
         fun `publishes execution event on success`() = runTest {
-            val context = hookContext(metadata = mutableMapOf("sessionId" to "sess-1"))
+            val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "sessionId" to "sess-1"))
             hook.afterAgentComplete(context, agentResponse(success = true, toolsUsed = listOf("tool1", "tool2")))
 
             val events = ringBuffer.drain(10)
@@ -85,7 +80,7 @@ class MetricCollectionHookTest {
 
         @Test
         fun `publishes execution event on failure with errorCode`() = runTest {
-            val context = hookContext(metadata = mutableMapOf("errorCode" to "TOOL_ERROR"))
+            val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "errorCode" to "TOOL_ERROR"))
             hook.afterAgentComplete(context, agentResponse(success = false))
 
             val events = ringBuffer.drain(10)
@@ -97,7 +92,7 @@ class MetricCollectionHookTest {
 
         @Test
         fun `errorCode is null when success is true even if metadata has errorCode`() = runTest {
-            val context = hookContext(metadata = mutableMapOf("errorCode" to "TOOL_ERROR"))
+            val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "errorCode" to "TOOL_ERROR"))
             hook.afterAgentComplete(context, agentResponse(success = true))
 
             val events = ringBuffer.drain(10)
@@ -108,6 +103,7 @@ class MetricCollectionHookTest {
         @Test
         fun `extracts latency breakdown from metadata`() = runTest {
             val context = hookContext(metadata = mutableMapOf(
+                "tenantId" to "tenant-1",
                 "llmDurationMs" to "300",
                 "toolDurationMs" to "150",
                 "guardDurationMs" to "20",
@@ -140,7 +136,7 @@ class MetricCollectionHookTest {
         fun `records drop when buffer is full`() = runTest {
             // Min capacity is 64 (MetricRingBuffer coerces to at least 64)
             val tinyBuffer = MetricRingBuffer(64)
-            val tinyHook = MetricCollectionHook(tinyBuffer, tenantResolver, healthMonitor)
+            val tinyHook = MetricCollectionHook(tinyBuffer, healthMonitor)
 
             // Fill buffer to capacity
             repeat(64) { tinyBuffer.publish(AgentExecutionEvent(tenantId = "t", runId = "r-$it", success = true)) }
@@ -151,29 +147,11 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `records drop on unexpected exception`() = runTest {
-            val failingResolver = mockk<TenantResolver>()
-            every { failingResolver.currentTenantId() } throws RuntimeException("boom")
-            val failHook = MetricCollectionHook(ringBuffer, failingResolver, healthMonitor)
+        fun `uses default tenantId when metadata has no tenantId`() = runTest {
+            hook.afterAgentComplete(hookContext(metadata = mutableMapOf()), agentResponse())
 
-            val dropsBefore = healthMonitor.droppedTotal.get()
-            failHook.afterAgentComplete(hookContext(), agentResponse())
-            healthMonitor.droppedTotal.get() shouldBe dropsBefore + 1
-        }
-
-        @Test
-        fun `rethrows CancellationException`() = runTest {
-            val cancelResolver = mockk<TenantResolver>()
-            every { cancelResolver.currentTenantId() } throws CancellationException("cancelled")
-            val cancelHook = MetricCollectionHook(ringBuffer, cancelResolver, healthMonitor)
-
-            var caught = false
-            try {
-                cancelHook.afterAgentComplete(hookContext(), agentResponse())
-            } catch (_: CancellationException) {
-                caught = true
-            }
-            caught shouldBe true
+            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<AgentExecutionEvent>()
+            event.tenantId shouldBe "default"
         }
     }
 
@@ -183,7 +161,7 @@ class MetricCollectionHookTest {
         private fun toolCallContext(
             toolName: String = "check_order",
             callIndex: Int = 0,
-            metadata: MutableMap<String, Any> = mutableMapOf()
+            metadata: MutableMap<String, Any> = mutableMapOf("tenantId" to "tenant-1")
         ) = ToolCallContext(
             agentContext = hookContext(metadata = metadata),
             toolName = toolName,
@@ -290,6 +268,7 @@ class MetricCollectionHookTest {
         @Test
         fun `resolves tool source from metadata`() = runTest {
             val meta = mutableMapOf<String, Any>(
+                "tenantId" to "tenant-1",
                 "toolSource_check_order" to "mcp",
                 "mcpServer_check_order" to "payment-server"
             )
@@ -312,7 +291,7 @@ class MetricCollectionHookTest {
         @Test
         fun `records drop when buffer is full`() = runTest {
             val tinyBuffer = MetricRingBuffer(64)
-            val tinyHook = MetricCollectionHook(tinyBuffer, tenantResolver, healthMonitor)
+            val tinyHook = MetricCollectionHook(tinyBuffer, healthMonitor)
 
             repeat(64) { tinyBuffer.publish(AgentExecutionEvent(tenantId = "t", runId = "r-$it", success = true)) }
 
@@ -322,18 +301,11 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `rethrows CancellationException`() = runTest {
-            val cancelResolver = mockk<TenantResolver>()
-            every { cancelResolver.currentTenantId() } throws CancellationException("cancelled")
-            val cancelHook = MetricCollectionHook(ringBuffer, cancelResolver, healthMonitor)
+        fun `uses default tenantId when metadata has no tenantId`() = runTest {
+            hook.afterToolCall(toolCallContext(metadata = mutableMapOf()), toolCallResult())
 
-            var caught = false
-            try {
-                cancelHook.afterToolCall(toolCallContext(), toolCallResult())
-            } catch (_: CancellationException) {
-                caught = true
-            }
-            caught shouldBe true
+            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<ToolCallEvent>()
+            event.tenantId shouldBe "default"
         }
     }
 }

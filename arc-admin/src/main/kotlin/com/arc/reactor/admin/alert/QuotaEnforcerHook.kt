@@ -1,7 +1,6 @@
 package com.arc.reactor.admin.alert
 
 import com.arc.reactor.admin.collection.PipelineHealthMonitor
-import com.arc.reactor.admin.collection.TenantResolver
 import com.arc.reactor.admin.model.TenantStatus
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.tenant.TenantStore
@@ -32,7 +31,6 @@ private val logger = KotlinLogging.logger {}
  * Fail-open: if all layers fail, request is allowed with warning.
  */
 class QuotaEnforcerHook(
-    private val tenantResolver: TenantResolver,
     private val tenantStore: TenantStore,
     private val queryService: MetricQueryService,
     circuitBreakerRegistry: CircuitBreakerRegistry,
@@ -56,7 +54,7 @@ class QuotaEnforcerHook(
         .build<String, com.arc.reactor.admin.model.TenantUsage>()
 
     override suspend fun beforeAgentStart(context: HookContext): HookResult {
-        val tenantId = tenantResolver.currentTenantId()
+        val tenantId = context.metadata["tenantId"]?.toString() ?: "default"
         if (tenantId == "default") return HookResult.Continue
 
         resetLocalCountersIfNewMonth()

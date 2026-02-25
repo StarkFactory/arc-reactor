@@ -1,6 +1,5 @@
 package com.arc.reactor.admin.tracing
 
-import com.arc.reactor.admin.collection.TenantResolver
 import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.AfterToolCallHook
 import com.arc.reactor.hook.BeforeAgentStartHook
@@ -32,8 +31,7 @@ private data class ToolSpanEntry(
  * Spring AI's gen_ai.client.operation span is auto-created and becomes a child.
  */
 class AgentTracingHooks(
-    private val tracer: Tracer,
-    private val tenantResolver: TenantResolver
+    private val tracer: Tracer
 ) : BeforeAgentStartHook, AfterAgentCompleteHook, BeforeToolCallHook, AfterToolCallHook {
 
     override val order: Int = 199
@@ -50,7 +48,7 @@ class AgentTracingHooks(
                 .tag("run_id", context.runId)
                 .tag("user_id", context.userId)
                 .tag("session_id", context.metadata["sessionId"]?.toString().orEmpty())
-                .tag("tenant_id", tenantResolver.currentTenantId())
+                .tag("tenant_id", context.metadata["tenantId"]?.toString() ?: "default")
                 .tag("channel", context.channel.orEmpty())
                 .tag("gen_ai.agent.name", context.metadata["agentName"]?.toString() ?: "default")
                 .start()

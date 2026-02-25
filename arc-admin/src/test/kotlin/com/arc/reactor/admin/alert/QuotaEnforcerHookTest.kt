@@ -1,7 +1,6 @@
 package com.arc.reactor.admin.alert
 
 import com.arc.reactor.admin.collection.PipelineHealthMonitor
-import com.arc.reactor.admin.collection.TenantResolver
 import com.arc.reactor.admin.model.Tenant
 import com.arc.reactor.admin.model.TenantPlan
 import com.arc.reactor.admin.model.TenantQuota
@@ -27,7 +26,6 @@ import java.math.BigDecimal
 
 class QuotaEnforcerHookTest {
 
-    private val tenantResolver = TenantResolver()
     private val tenantStore = InMemoryTenantStore()
     private val queryService = mockk<MetricQueryService>()
     private val circuitBreakerRegistry = mockk<CircuitBreakerRegistry>()
@@ -55,17 +53,15 @@ class QuotaEnforcerHookTest {
         runId = "run-1",
         userId = "user-1",
         userPrompt = "test prompt",
-        metadata = mutableMapOf()
+        metadata = mutableMapOf("tenantId" to "tenant-1")
     )
 
     @BeforeEach
     fun setup() {
         every { circuitBreakerRegistry.get("quota-enforcer") } returns circuitBreaker
         tenantStore.save(testTenant)
-        tenantResolver.setTenantId("tenant-1")
 
         hook = QuotaEnforcerHook(
-            tenantResolver = tenantResolver,
             tenantStore = tenantStore,
             queryService = queryService,
             circuitBreakerRegistry = circuitBreakerRegistry,
@@ -78,8 +74,11 @@ class QuotaEnforcerHookTest {
 
         @Test
         fun `default tenant bypasses quota check`() = runTest {
-            tenantResolver.setTenantId("default")
-            hook.beforeAgentStart(context) shouldBe HookResult.Continue
+            val defaultCtx = HookContext(
+                runId = "run-1", userId = "user-1", userPrompt = "test",
+                metadata = mutableMapOf()
+            )
+            hook.beforeAgentStart(defaultCtx) shouldBe HookResult.Continue
         }
 
         @Test

@@ -83,11 +83,9 @@ class AdminAutoConfiguration {
     @ConditionalOnMissingBean(name = ["metricCollectorAgentMetrics"])
     fun metricCollectorAgentMetrics(
         ringBuffer: MetricRingBuffer,
-        tenantResolver: TenantResolver,
         healthMonitor: PipelineHealthMonitor
     ): AgentMetrics = MetricCollectorAgentMetrics(
         ringBuffer = ringBuffer,
-        tenantResolver = tenantResolver,
         healthMonitor = healthMonitor
     )
 
@@ -95,11 +93,9 @@ class AdminAutoConfiguration {
     @ConditionalOnMissingBean
     fun metricCollectionHook(
         ringBuffer: MetricRingBuffer,
-        tenantResolver: TenantResolver,
         healthMonitor: PipelineHealthMonitor
     ): MetricCollectionHook = MetricCollectionHook(
         ringBuffer = ringBuffer,
-        tenantResolver = tenantResolver,
         healthMonitor = healthMonitor
     )
 
@@ -107,11 +103,10 @@ class AdminAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBean(Tracer::class)
     fun agentTracingHooks(
-        tracer: Tracer,
-        tenantResolver: TenantResolver
+        tracer: Tracer
     ): AgentTracingHooks {
         logger.info { "AgentTracingHooks registered (order=199)" }
-        return AgentTracingHooks(tracer, tenantResolver)
+        return AgentTracingHooks(tracer)
     }
 
     @Bean
