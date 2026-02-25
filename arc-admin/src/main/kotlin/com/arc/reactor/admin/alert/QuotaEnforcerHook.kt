@@ -1,6 +1,8 @@
 package com.arc.reactor.admin.alert
 
+import com.arc.reactor.admin.collection.MetricRingBuffer
 import com.arc.reactor.admin.collection.PipelineHealthMonitor
+import com.arc.reactor.admin.model.QuotaEvent
 import com.arc.reactor.admin.model.TenantStatus
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.tenant.TenantStore
@@ -34,7 +36,8 @@ class QuotaEnforcerHook(
     private val tenantStore: TenantStore,
     private val queryService: MetricQueryService,
     circuitBreakerRegistry: CircuitBreakerRegistry,
-    private val healthMonitor: PipelineHealthMonitor
+    private val healthMonitor: PipelineHealthMonitor,
+    private val ringBuffer: MetricRingBuffer
 ) : BeforeAgentStartHook {
 
     override val order: Int = 5
@@ -53,6 +56,9 @@ class QuotaEnforcerHook(
         .expireAfterWrite(Duration.ofSeconds(60))
         .build<String, com.arc.reactor.admin.model.TenantUsage>()
 
+    // Dedup: emit 90% warning once per tenant per month
+    private val warnedTenants = ConcurrentHashMap.newKeySet<String>()
+
     override suspend fun beforeAgentStart(context: HookContext): HookResult {
         val tenantId = context.metadata["tenantId"]?.toString() ?: "default"
         if (tenantId == "default") return HookResult.Continue
@@ -66,6 +72,7 @@ class QuotaEnforcerHook(
 
         val tenant = tenantStore.findById(tenantId) ?: return HookResult.Continue
         if (tenant.status != TenantStatus.ACTIVE) {
+            publishQuotaEvent(tenantId, "rejected_suspended", 0, 0, "Tenant account is ${tenant.status}")
             return HookResult.Reject("Tenant account is ${tenant.status}")
         }
 
@@ -98,15 +105,52 @@ class QuotaEnforcerHook(
         localCounters[tenantId]?.set(usage.requests)
 
         if (usage.requests >= quota.maxRequestsPerMonth) {
+            publishQuotaEvent(
+                tenantId, "rejected_requests", usage.requests, quota.maxRequestsPerMonth,
+                "Monthly request quota exceeded (${usage.requests}/${quota.maxRequestsPerMonth})"
+            )
             return HookResult.Reject(
                 "Monthly request quota exceeded (${usage.requests}/${quota.maxRequestsPerMonth})"
             )
         }
         if (usage.tokens >= quota.maxTokensPerMonth) {
+            publishQuotaEvent(
+                tenantId, "rejected_tokens", usage.tokens, quota.maxTokensPerMonth,
+                "Monthly token quota exceeded"
+            )
             return HookResult.Reject("Monthly token quota exceeded")
         }
 
+        // 90% usage warning — once per tenant per month (deduped)
+        if (usage.requests >= quota.maxRequestsPerMonth * 0.9 && warnedTenants.add(tenantId)) {
+            publishQuotaEvent(
+                tenantId, "warning", usage.requests, quota.maxRequestsPerMonth,
+                "90% quota used"
+            )
+        }
+
         return HookResult.Continue
+    }
+
+    private fun publishQuotaEvent(
+        tenantId: String,
+        action: String,
+        currentUsage: Long,
+        quotaLimit: Long,
+        reason: String
+    ) {
+        val percent = if (quotaLimit > 0) currentUsage.toDouble() / quotaLimit * 100.0 else 0.0
+        val event = QuotaEvent(
+            tenantId = tenantId,
+            action = action,
+            currentUsage = currentUsage,
+            quotaLimit = quotaLimit,
+            usagePercent = percent,
+            reason = reason
+        )
+        if (!ringBuffer.publish(event)) {
+            healthMonitor.recordDrop(1)
+        }
     }
 
     private fun resetLocalCountersIfNewMonth() {
@@ -114,6 +158,7 @@ class QuotaEnforcerHook(
         val stored = localCounterResetMonth.get()
         if (current != stored && localCounterResetMonth.compareAndSet(stored, current)) {
             localCounters.clear()
+            warnedTenants.clear()
         }
     }
 
