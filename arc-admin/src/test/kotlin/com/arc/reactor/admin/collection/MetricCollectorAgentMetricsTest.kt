@@ -127,19 +127,61 @@ class MetricCollectorAgentMetricsTest {
     inner class TokenUsageRecording {
 
         @Test
-        fun `publishes token usage event`() {
+        fun `publishes token usage event with metadata extraction`() {
+            val metadata = mapOf<String, Any>(
+                "tenantId" to "tenant-1",
+                "runId" to "run-42",
+                "model" to "gemini-2.0-flash",
+                "provider" to "google"
+            )
             metrics.recordTokenUsage(
                 TokenUsage(promptTokens = 100, completionTokens = 50, totalTokens = 150),
-                defaultMetadata
+                metadata
             )
 
             val events = ringBuffer.drain(10)
             events.size shouldBe 1
             val event = events[0].shouldBeInstanceOf<TokenUsageEvent>()
             event.tenantId shouldBe "tenant-1"
+            event.runId shouldBe "run-42"
+            event.model shouldBe "gemini-2.0-flash"
+            event.provider shouldBe "google"
             event.promptTokens shouldBe 100
             event.completionTokens shouldBe 50
             event.totalTokens shouldBe 150
+        }
+
+        @Test
+        fun `derives provider from model name when not in metadata`() {
+            metrics.recordTokenUsage(
+                TokenUsage(promptTokens = 10, completionTokens = 5, totalTokens = 15),
+                mapOf("tenantId" to "t1", "model" to "gpt-4o")
+            )
+
+            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<TokenUsageEvent>()
+            event.model shouldBe "gpt-4o"
+            event.provider shouldBe "openai"
+        }
+
+        @Test
+        fun `derives anthropic provider from claude model`() {
+            metrics.recordTokenUsage(
+                TokenUsage(promptTokens = 10, completionTokens = 5, totalTokens = 15),
+                mapOf("tenantId" to "t1", "model" to "claude-3-sonnet")
+            )
+
+            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<TokenUsageEvent>()
+            event.provider shouldBe "anthropic"
+        }
+
+        @Test
+        fun `uses unknown when metadata has no model or provider`() {
+            metrics.recordTokenUsage(
+                TokenUsage(promptTokens = 10, completionTokens = 5, totalTokens = 15),
+                defaultMetadata
+            )
+
+            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<TokenUsageEvent>()
             event.model shouldBe "unknown"
             event.provider shouldBe "unknown"
         }

@@ -4,11 +4,14 @@ import com.arc.reactor.admin.model.TenantUsage
 import com.arc.reactor.admin.model.TimeSeriesPoint
 import com.arc.reactor.admin.model.ToolUsageSummary
 import com.arc.reactor.admin.model.UserUsageSummary
+import mu.KotlinLogging
 import org.springframework.jdbc.core.JdbcTemplate
 import java.math.BigDecimal
 import java.sql.Timestamp
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * Selects query source based on granularity:
@@ -23,16 +26,21 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
             .atZone(java.time.ZoneOffset.UTC)
             .withDayOfMonth(1)
             .toInstant()
+        val ts = Timestamp.from(monthStart)
 
+        // Separate queries to avoid JOIN inflation (1 execution × N token rows → N counts)
         val results = jdbcTemplate.queryForMap(
             """SELECT
-                COALESCE(COUNT(*), 0) AS requests,
-                COALESCE(SUM(t.total_tokens), 0) AS tokens,
-                COALESCE(SUM(t.estimated_cost_usd), 0) AS cost
-               FROM metric_agent_executions e
-               LEFT JOIN metric_token_usage t ON t.run_id = e.run_id AND t.tenant_id = e.tenant_id
-               WHERE e.tenant_id = ? AND e.time >= ?""",
-            tenantId, Timestamp.from(monthStart)
+                (SELECT COALESCE(COUNT(*), 0)
+                   FROM metric_agent_executions
+                   WHERE tenant_id = ? AND time >= ?) AS requests,
+                (SELECT COALESCE(SUM(total_tokens), 0)
+                   FROM metric_token_usage
+                   WHERE tenant_id = ? AND time >= ?) AS tokens,
+                (SELECT COALESCE(SUM(estimated_cost_usd), 0)
+                   FROM metric_token_usage
+                   WHERE tenant_id = ? AND time >= ?) AS cost""",
+            tenantId, ts, tenantId, ts, tenantId, ts
         )
 
         return TenantUsage(
@@ -151,6 +159,42 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
             },
             tenantId, Timestamp.from(from), Timestamp.from(to)
         ).toMap()
+    }
+
+    fun getMaxConsecutiveMcpFailures(tenantId: String): Long? {
+        return try {
+            jdbcTemplate.queryForObject(
+                """SELECT COALESCE(MAX(consecutive), 0) FROM (
+                       SELECT server_name,
+                              COUNT(*) FILTER (WHERE status != 'healthy') AS consecutive
+                       FROM (
+                           SELECT server_name, status,
+                                  SUM(CASE WHEN status = 'healthy' THEN 1 ELSE 0 END)
+                                      OVER (PARTITION BY server_name ORDER BY time) AS grp
+                           FROM metric_mcp_health
+                           WHERE tenant_id = ? AND time >= NOW() - INTERVAL '1 hour'
+                       ) sub
+                       GROUP BY server_name, grp
+                   ) counts""",
+                Long::class.java, tenantId
+            )
+        } catch (e: Exception) {
+            logger.debug(e) { "Failed to query MCP consecutive failures for tenant=$tenantId" }
+            null
+        }
+    }
+
+    fun getAggregateRefreshLagMs(): Long? {
+        return try {
+            jdbcTemplate.queryForObject(
+                """SELECT EXTRACT(EPOCH FROM (NOW() - MAX(bucket)))::BIGINT * 1000
+                   FROM metric_executions_hourly""",
+                Long::class.java
+            )
+        } catch (e: Exception) {
+            logger.debug(e) { "Failed to query aggregate refresh lag" }
+            null
+        }
     }
 
     private fun selectSource(hours: Long, granularity: String): Pair<String, String> {

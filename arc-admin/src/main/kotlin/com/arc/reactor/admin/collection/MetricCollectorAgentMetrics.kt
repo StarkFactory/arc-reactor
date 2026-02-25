@@ -47,16 +47,24 @@ class MetricCollectorAgentMetrics(
     }
 
     override fun recordTokenUsage(usage: TokenUsage, metadata: Map<String, Any>) {
+        val model = metadata["model"]?.toString() ?: "unknown"
         val event = TokenUsageEvent(
             tenantId = resolveTenantId(metadata),
-            runId = "",
-            model = "unknown",
-            provider = "unknown",
+            runId = metadata["runId"]?.toString().orEmpty(),
+            model = model,
+            provider = metadata["provider"]?.toString() ?: deriveProvider(model),
             promptTokens = usage.promptTokens,
             completionTokens = usage.completionTokens,
             totalTokens = usage.totalTokens
         )
         publish(event)
+    }
+
+    private fun deriveProvider(model: String): String = when {
+        model.startsWith("gemini", ignoreCase = true) -> "google"
+        model.startsWith("gpt", ignoreCase = true) || model.startsWith("o1", ignoreCase = true) -> "openai"
+        model.startsWith("claude", ignoreCase = true) -> "anthropic"
+        else -> "unknown"
     }
 
     // Streaming execution events are handled by MetricCollectionHook
