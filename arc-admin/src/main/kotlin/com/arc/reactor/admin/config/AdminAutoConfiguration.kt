@@ -1,5 +1,6 @@
 package com.arc.reactor.admin.config
 
+import com.arc.reactor.admin.collection.HitlEventHook
 import com.arc.reactor.admin.collection.MetricCollectionHook
 import com.arc.reactor.admin.collection.MetricCollectorAgentMetrics
 import com.arc.reactor.admin.collection.MetricRingBuffer
@@ -83,10 +84,12 @@ class AdminAutoConfiguration {
     @ConditionalOnMissingBean(name = ["metricCollectorAgentMetrics"])
     fun metricCollectorAgentMetrics(
         ringBuffer: MetricRingBuffer,
-        healthMonitor: PipelineHealthMonitor
+        healthMonitor: PipelineHealthMonitor,
+        costCalculator: CostCalculator
     ): AgentMetrics = MetricCollectorAgentMetrics(
         ringBuffer = ringBuffer,
-        healthMonitor = healthMonitor
+        healthMonitor = healthMonitor,
+        costCalculator = costCalculator
     )
 
     @Bean
@@ -98,6 +101,13 @@ class AdminAutoConfiguration {
         ringBuffer = ringBuffer,
         healthMonitor = healthMonitor
     )
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun hitlEventHook(
+        ringBuffer: MetricRingBuffer,
+        healthMonitor: PipelineHealthMonitor
+    ): HitlEventHook = HitlEventHook(ringBuffer, healthMonitor)
 
     @Bean
     @ConditionalOnMissingBean
