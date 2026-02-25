@@ -1,5 +1,6 @@
 package com.arc.reactor.admin.alert
 
+import com.arc.reactor.admin.collection.PipelineHealthMonitor
 import com.arc.reactor.admin.model.AlertInstance
 import com.arc.reactor.admin.model.AlertRule
 import com.arc.reactor.admin.model.AlertType
@@ -17,7 +18,8 @@ class AlertEvaluator(
     private val queryService: MetricQueryService,
     private val sloService: SloService,
     private val tenantStore: TenantStore,
-    private val baselineCalculator: BaselineCalculator
+    private val baselineCalculator: BaselineCalculator,
+    private val healthMonitor: PipelineHealthMonitor? = null
 ) {
 
     fun evaluateAll() {
@@ -58,6 +60,8 @@ class AlertEvaluator(
     }
 
     private fun evaluateStatic(rule: AlertRule): AlertInstance? {
+        if (rule.platformOnly) return evaluatePlatformStatic(rule)
+
         val tenantId = rule.tenantId ?: return null
         val now = Instant.now()
         val from = now.minus(rule.windowMinutes.toLong().coerceAtLeast(1), ChronoUnit.MINUTES)
@@ -65,6 +69,15 @@ class AlertEvaluator(
         val metricValue = when (rule.metric) {
             "error_rate" -> 1.0 - queryService.getSuccessRate(tenantId, from, now)
             "latency_p99" -> queryService.getLatencyPercentiles(tenantId, from, now)["p99"]?.toDouble() ?: 0.0
+            "token_budget_usage" -> {
+                val tenant = tenantStore.findById(tenantId) ?: return null
+                if (tenant.quota.maxTokensPerMonth <= 0) return null
+                val usage = queryService.getCurrentMonthUsage(tenantId)
+                usage.tokens.toDouble() / tenant.quota.maxTokensPerMonth
+            }
+            "mcp_consecutive_failures" -> {
+                queryService.getMaxConsecutiveMcpFailures(tenantId)?.toDouble() ?: 0.0
+            }
             else -> return null
         }
 
@@ -74,6 +87,26 @@ class AlertEvaluator(
                 tenantId = rule.tenantId,
                 severity = rule.severity,
                 message = "${rule.name}: ${rule.metric} = ${"%.4f".format(metricValue)} (threshold: ${rule.threshold})",
+                metricValue = metricValue,
+                threshold = rule.threshold
+            )
+        }
+        return null
+    }
+
+    private fun evaluatePlatformStatic(rule: AlertRule): AlertInstance? {
+        val metricValue = when (rule.metric) {
+            "pipeline_buffer_usage" -> healthMonitor?.bufferUsagePercent ?: 0.0
+            "aggregate_refresh_lag_ms" -> queryService.getAggregateRefreshLagMs()?.toDouble() ?: 0.0
+            else -> return null
+        }
+
+        if (metricValue > rule.threshold) {
+            return AlertInstance(
+                ruleId = rule.id,
+                tenantId = null,
+                severity = rule.severity,
+                message = "${rule.name}: ${rule.metric} = ${"%.2f".format(metricValue)} (threshold: ${rule.threshold})",
                 metricValue = metricValue,
                 threshold = rule.threshold
             )

@@ -1,12 +1,15 @@
 package com.arc.reactor.admin.alert
 
+import com.arc.reactor.admin.collection.PipelineHealthMonitor
 import com.arc.reactor.admin.model.AlertRule
 import com.arc.reactor.admin.model.AlertSeverity
 import com.arc.reactor.admin.model.AlertType
 import com.arc.reactor.admin.model.ErrorBudget
 import com.arc.reactor.admin.model.Tenant
 import com.arc.reactor.admin.model.TenantPlan
+import com.arc.reactor.admin.model.TenantQuota
 import com.arc.reactor.admin.model.TenantStatus
+import com.arc.reactor.admin.model.TenantUsage
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.query.SloService
 import com.arc.reactor.admin.tenant.InMemoryTenantStore
@@ -28,13 +31,15 @@ class AlertEvaluatorTest {
     private val sloService = mockk<SloService>()
     private val tenantStore = InMemoryTenantStore()
     private val baselineCalculator = mockk<BaselineCalculator>()
+    private val healthMonitor = PipelineHealthMonitor()
 
     private val evaluator = AlertEvaluator(
         alertStore = alertStore,
         queryService = queryService,
         sloService = sloService,
         tenantStore = tenantStore,
-        baselineCalculator = baselineCalculator
+        baselineCalculator = baselineCalculator,
+        healthMonitor = healthMonitor
     )
 
     private val testTenant = Tenant(
@@ -198,6 +203,122 @@ class AlertEvaluatorTest {
             val alerts = alertStore.findActiveAlerts("t1")
             alerts.size shouldBe 1
             alerts[0].message shouldContain "burn_rate"
+        }
+    }
+
+    @Nested
+    inner class TokenBudgetUsage {
+
+        @Test
+        fun `fires when token usage exceeds budget threshold`() {
+            tenantStore.save(testTenant.copy(quota = TenantQuota(maxTokensPerMonth = 10000)))
+
+            val rule = AlertRule(
+                tenantId = "t1",
+                name = "Token Budget 80%",
+                type = AlertType.STATIC_THRESHOLD,
+                metric = "token_budget_usage",
+                threshold = 0.80,
+                windowMinutes = 0
+            )
+
+            every { queryService.getCurrentMonthUsage("t1") } returns
+                TenantUsage(tenantId = "t1", requests = 50, tokens = 9000) // 90% > 80%
+
+            evaluator.evaluate(rule)
+
+            val alerts = alertStore.findActiveAlerts("t1")
+            alerts.size shouldBe 1
+            alerts[0].message shouldContain "token_budget_usage"
+        }
+
+        @Test
+        fun `does not fire when token usage is below threshold`() {
+            tenantStore.save(testTenant.copy(quota = TenantQuota(maxTokensPerMonth = 10000)))
+
+            val rule = AlertRule(
+                tenantId = "t1",
+                name = "Token Budget 80%",
+                type = AlertType.STATIC_THRESHOLD,
+                metric = "token_budget_usage",
+                threshold = 0.80,
+                windowMinutes = 0
+            )
+
+            every { queryService.getCurrentMonthUsage("t1") } returns
+                TenantUsage(tenantId = "t1", requests = 20, tokens = 5000) // 50% < 80%
+
+            evaluator.evaluate(rule)
+
+            alertStore.findActiveAlerts("t1").size shouldBe 0
+        }
+    }
+
+    @Nested
+    inner class McpConsecutiveFailures {
+
+        @Test
+        fun `fires when consecutive failures exceed threshold`() {
+            val rule = AlertRule(
+                tenantId = "t1",
+                name = "MCP Server Down",
+                type = AlertType.STATIC_THRESHOLD,
+                metric = "mcp_consecutive_failures",
+                threshold = 3.0,
+                windowMinutes = 0
+            )
+
+            every { queryService.getMaxConsecutiveMcpFailures("t1") } returns 5L
+
+            evaluator.evaluate(rule)
+
+            val alerts = alertStore.findActiveAlerts("t1")
+            alerts.size shouldBe 1
+            alerts[0].message shouldContain "mcp_consecutive_failures"
+        }
+    }
+
+    @Nested
+    inner class PlatformMetrics {
+
+        @Test
+        fun `fires when pipeline buffer usage exceeds threshold`() {
+            healthMonitor.updateBufferUsage(90.0)
+
+            val rule = AlertRule(
+                name = "MetricBuffer Overflow",
+                type = AlertType.STATIC_THRESHOLD,
+                metric = "pipeline_buffer_usage",
+                threshold = 80.0,
+                windowMinutes = 5,
+                platformOnly = true
+            )
+
+            evaluator.evaluate(rule)
+
+            val alerts = alertStore.findActiveAlerts(null)
+            alerts.size shouldBe 1
+            alerts[0].message shouldContain "pipeline_buffer_usage"
+        }
+
+        @Test
+        fun `fires when aggregate refresh lag exceeds threshold`() {
+            val rule = AlertRule(
+                name = "Aggregate Refresh Lag",
+                type = AlertType.STATIC_THRESHOLD,
+                metric = "aggregate_refresh_lag_ms",
+                threshold = 600000.0,
+                windowMinutes = 0,
+                platformOnly = true
+            )
+
+            every { queryService.getAggregateRefreshLagMs() } returns 900000L // 15min > 10min
+
+            evaluator.evaluate(rule)
+
+            val alerts = alertStore.findActiveAlerts(null)
+            alerts.size shouldBe 1
+            alerts[0].message shouldContain "aggregate_refresh_lag_ms"
         }
     }
 

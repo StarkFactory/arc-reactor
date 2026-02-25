@@ -132,8 +132,9 @@ class AdminJdbcConfiguration {
         queryService: MetricQueryService,
         sloService: SloService,
         tenantStore: TenantStore,
-        baselineCalculator: BaselineCalculator
-    ): AlertEvaluator = AlertEvaluator(alertStore, queryService, sloService, tenantStore, baselineCalculator)
+        baselineCalculator: BaselineCalculator,
+        healthMonitor: PipelineHealthMonitor
+    ): AlertEvaluator = AlertEvaluator(alertStore, queryService, sloService, tenantStore, baselineCalculator, healthMonitor)
 
     @Bean
     @ConditionalOnMissingBean
