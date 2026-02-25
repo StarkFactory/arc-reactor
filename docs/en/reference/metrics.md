@@ -200,26 +200,30 @@ The `arc-admin` module provides a production-grade metric collection pipeline th
 
 | Component | Role |
 |-----------|------|
-| `MetricCollectorAgentMetrics` | `@Primary` `AgentMetrics` implementation. Publishes guard/token events to the ring buffer. |
-| `MetricCollectionHook` | `AfterAgentCompleteHook` + `AfterToolCallHook`. Captures enriched execution/tool events with latency breakdown, sessionId, userId. |
+| `MetricCollectorAgentMetrics` | `@Primary` `AgentMetrics` implementation. Publishes guard/token events to the ring buffer. Calculates `estimatedCostUsd` via `CostCalculator`. |
+| `MetricCollectionHook` | `AfterAgentCompleteHook` + `AfterToolCallHook` (order=200). Captures enriched execution/tool events with latency breakdown, sessionId, userId. |
+| `HitlEventHook` | `AfterToolCallHook` (order=201). Captures HITL approval/rejection events from `ToolCallOrchestrator` metadata. |
+| `QuotaEnforcerHook` | `BeforeAgentStartHook` (order=5). Enforces tenant quotas and publishes `QuotaEvent` on rejection/warning. |
 | `MetricRingBuffer` | Lock-free ring buffer (Disruptor-inspired, default 8192 slots). Producers never block; full buffer → drop + counter. |
-| `MetricWriter` | Scheduled drain of the ring buffer → batched JDBC flush via `MetricEventStore`. |
+| `MetricWriter` | Scheduled drain of the ring buffer → batched JDBC flush via `MetricEventStore`. Safety net: re-calculates cost for `TokenUsageEvent` with zero cost. |
 
 ### Data Flow
 
 ```
 Agent thread                           Background writer
     |                                       |
-    +-- MetricCollectorAgentMetrics --|      |
-    +-- MetricCollectionHook --------|      |
-                                     v      |
+    +-- QuotaEnforcerHook (order=5) ---|    |
+    +-- MetricCollectorAgentMetrics ---|    |
+    +-- MetricCollectionHook (200) ----|    |
+    +-- HitlEventHook (201) ----------|    |
+                                      v    |
                               MetricRingBuffer
-                                     |      |
-                                     +------+
-                                     v
+                                      |    |
+                                      +----+
+                                      v
                               MetricWriter (scheduled)
-                                     |
-                                     v
+                                      |
+                                      v
                               MetricEventStore (JDBC)
 ```
 
@@ -227,11 +231,90 @@ Agent thread                           Background writer
 
 Tenant ID is resolved from `metadata["tenantId"]` passed through the metadata overloads, **not** from ThreadLocal. This ensures correct tenant attribution in async/coroutine contexts.
 
+#### Multi-Agent Metadata Propagation
+
+In multi-agent orchestration, tenant metadata must flow from the parent command to sub-agents:
+
+| Orchestrator | Propagation Method | Status |
+|-------------|-------------------|--------|
+| `SupervisorOrchestrator` | `command.copy()` → supervisor agent | Propagated |
+| `WorkerAgentTool` | `parentCommand` parameter → worker `AgentCommand` | Propagated |
+| `SequentialOrchestrator` | `command.copy()` → each node | Propagated |
+| `ParallelOrchestrator` | `command.copy()` → each concurrent node | Propagated |
+
+`WorkerAgentTool` receives the parent `AgentCommand` at construction time (via `SupervisorOrchestrator`) and copies `metadata` and `userId` into each worker's command. This ensures `tenantId`, `sessionId`, and `channel` are available to all hooks in the sub-agent's execution pipeline.
+
+### Event Types
+
+All events extend `sealed class MetricEvent` and are persisted to TimescaleDB hypertables.
+
+| Event | Table | Source | Description |
+|-------|-------|--------|-------------|
+| `AgentExecutionEvent` | `metric_agent_executions` | `MetricCollectionHook` | Run-level metrics: success, latency breakdown, guard/tool/LLM duration |
+| `ToolCallEvent` | `metric_tool_calls` | `MetricCollectionHook` | Per-tool call: name, source (local/MCP), duration, error |
+| `TokenUsageEvent` | `metric_token_usage` | `MetricCollectorAgentMetrics` | Per-LLM call: model, provider, tokens, `estimatedCostUsd` |
+| `SessionEvent` | `metric_sessions` | `MetricCollectionHook` | Session aggregate: turn count, total duration/tokens/cost |
+| `GuardEvent` | `metric_guard_events` | `MetricCollectorAgentMetrics` | Guard rejection: stage, category, reason, output guard flag |
+| `McpHealthEvent` | `metric_mcp_health` | `MetricCollectionHook` | MCP server health: response time, status, error tracking |
+| `EvalResultEvent` | `metric_eval_results` | External ingestion | Eval run: pass/fail, score, latency, assertion type |
+| `QuotaEvent` | `metric_quota_events` | `QuotaEnforcerHook` | Quota rejection/warning: action, usage, limit, percent |
+| `HitlEvent` | `metric_hitl_events` | `HitlEventHook` | HITL decision: tool, approved, wait time, rejection reason |
+
+### Token Cost Calculation
+
+`MetricCollectorAgentMetrics` computes `estimatedCostUsd` on the hot path using `CostCalculator`:
+
+```kotlin
+val cost = costCalculator.calculate(
+    provider = provider, model = model, time = Instant.now(),
+    promptTokens = usage.promptTokens, completionTokens = usage.completionTokens
+)
+```
+
+- Known model pricing → non-zero cost in the event
+- Unknown model or exception → `BigDecimal.ZERO` (safety fallback)
+- `MetricWriter.enrichCosts()` retries only when cost is ZERO (off-hot-path safety net)
+
+### Quota Events
+
+`QuotaEnforcerHook` publishes `QuotaEvent` at 3 rejection points and 1 warning threshold:
+
+| Action | Trigger | Continues? |
+|--------|---------|------------|
+| `rejected_requests` | `usage.requests >= quota.maxRequestsPerMonth` | No (request rejected) |
+| `rejected_tokens` | `usage.tokens >= quota.maxTokensPerMonth` | No (request rejected) |
+| `rejected_suspended` | `tenant.status != ACTIVE` | No (request rejected) |
+| `warning` | `usage.requests >= 90%` of quota | Yes (request continues) |
+
+The 90% warning is **deduplicated per tenant per month** via `ConcurrentHashMap.newKeySet()` to prevent alert noise.
+
+### HITL Events
+
+`HitlEventHook` reads metadata set by `ToolCallOrchestrator` during human-in-the-loop approval:
+
+| Metadata Key | Type | Description |
+|--------------|------|-------------|
+| `hitlWaitMs_{toolName}` | Long | How long the tool waited for human approval (ms) |
+| `hitlApproved_{toolName}` | Boolean | Whether the human approved the tool call |
+| `hitlRejectionReason_{toolName}` | String? | Reason for rejection (if rejected) |
+
+If `hitlWaitMs_{toolName}` is absent, the hook skips silently (no HITL was involved).
+
+### Database Schema
+
+Tables are defined in Flyway migration `V8__create_quota_and_hitl_tables.sql`:
+
+- `metric_quota_events` — TimescaleDB hypertable, 7-day chunk, 7-day compression, 90-day retention
+- `metric_hitl_events` — TimescaleDB hypertable, 7-day chunk, 7-day compression, 90-day retention
+
 ## Metric Points in the Pipeline
 
 ```
 Request
   |
+  v
+QuotaEnforcerHook ----[rejected]----> QuotaEvent
+  |                 --[90% usage]---> QuotaEvent (warning, deduped)
   v
 Guard Pipeline ----[rejection]----> recordGuardRejection()
   |
@@ -239,9 +322,10 @@ Guard Pipeline ----[rejection]----> recordGuardRejection()
 Cache Check ----[hit]----> recordCacheHit() --> return cached response
   |  [miss] --> recordCacheMiss()
   v
-LLM Call -----> recordTokenUsage()
+LLM Call -----> recordTokenUsage() --> TokenUsageEvent (with estimatedCostUsd)
   |
   +--> [tool calls] --> recordToolCall() (per tool)
+  |                 --> HitlEventHook --> HitlEvent (if HITL metadata present)
   |
   +--> [circuit breaker state change] --> recordCircuitBreakerStateChange()
   |
