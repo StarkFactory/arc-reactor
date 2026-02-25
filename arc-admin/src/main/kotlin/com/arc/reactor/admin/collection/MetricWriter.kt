@@ -27,7 +27,7 @@ class MetricWriter(
     private val costCalculator: CostCalculator,
     private val batchSize: Int = 1000,
     private val flushIntervalMs: Long = 1000,
-    private val writerThreads: Int = 3,
+    private val writerThreads: Int = 1,
     private val healthMonitor: PipelineHealthMonitor
 ) : DisposableBean {
 

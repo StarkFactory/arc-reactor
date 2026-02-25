@@ -87,6 +87,25 @@ class MetricRingBufferTest {
     inner class Concurrency {
 
         @Test
+        fun `single-consumer drain should not lose events`() {
+            // Validates that drain() called from a single thread preserves all events.
+            // This documents the single-consumer contract: concurrent drain() is unsafe.
+            val largeBuffer = MetricRingBuffer(8192)
+            val totalEvents = 4000
+            repeat(totalEvents) { largeBuffer.publish(testEvent("run-$it")) }
+
+            val drained = mutableListOf<com.arc.reactor.admin.model.MetricEvent>()
+            while (true) {
+                val batch = largeBuffer.drain(500)
+                if (batch.isEmpty()) break
+                drained.addAll(batch)
+            }
+
+            drained.size shouldBe totalEvents
+            largeBuffer.size() shouldBe 0
+        }
+
+        @Test
         fun `should handle concurrent producers`() {
             val largeBuffer = MetricRingBuffer(8192)
             val threadCount = 8

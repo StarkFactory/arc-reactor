@@ -42,7 +42,13 @@ class MetricRingBuffer(size: Int = 8192) {
     }
 
     /**
-     * Drain up to [maxBatch] events. Called from a single writer thread.
+     * Drain up to [maxBatch] events.
+     *
+     * **IMPORTANT: Single-consumer only.** This method is NOT safe for concurrent
+     * invocation. Multiple threads calling drain() simultaneously will cause
+     * duplicate reads and data loss due to non-atomic read-then-advance of
+     * [readSequence]. Ensure only one thread calls drain() at a time
+     * (e.g., MetricWriter with writerThreads=1).
      */
     fun drain(maxBatch: Int): List<MetricEvent> {
         val currentRead = readSequence.get()
