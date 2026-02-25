@@ -58,7 +58,8 @@ internal class PreExecutionResolver(
         checkGuard(command)?.let { rejection ->
             agentMetrics.recordGuardRejection(
                 stage = rejection.stage ?: "unknown",
-                reason = rejection.reason
+                reason = rejection.reason,
+                metadata = command.metadata
             )
             return AgentResult.failure(
                 errorMessage = rejection.reason,

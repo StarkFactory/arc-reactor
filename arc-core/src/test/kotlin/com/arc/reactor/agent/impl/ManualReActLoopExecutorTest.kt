@@ -49,7 +49,7 @@ class ManualReActLoopExecutorTest {
                 assertEquals("hello", rawContent)
                 AgentResult.success(content = "validated")
             },
-            recordTokenUsage = {}
+            recordTokenUsage = { _, _ -> }
         )
 
         val result = loopExecutor.execute(
@@ -105,7 +105,7 @@ class ManualReActLoopExecutorTest {
             validateAndRepairResponse = { rawContent, _, _, _, _ ->
                 AgentResult.success(content = rawContent)
             },
-            recordTokenUsage = {}
+            recordTokenUsage = { _, _ -> }
         )
 
         val result = loopExecutor.execute(

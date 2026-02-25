@@ -69,7 +69,7 @@ internal class ExecutionResultFinalizer(
             )
             when (val guardResult = outputGuardPipeline.check(result.content, guardContext)) {
                 is OutputGuardResult.Allowed -> {
-                    agentMetrics.recordOutputGuardAction("pipeline", "allowed", "")
+                    agentMetrics.recordOutputGuardAction("pipeline", "allowed", "", command.metadata)
                     result
                 }
 
@@ -77,7 +77,8 @@ internal class ExecutionResultFinalizer(
                     agentMetrics.recordOutputGuardAction(
                         guardResult.stage ?: "unknown",
                         "modified",
-                        guardResult.reason
+                        guardResult.reason,
+                        command.metadata
                     )
                     result.copy(content = guardResult.content)
                 }
@@ -86,7 +87,8 @@ internal class ExecutionResultFinalizer(
                     agentMetrics.recordOutputGuardAction(
                         guardResult.stage ?: "unknown",
                         "rejected",
-                        guardResult.reason
+                        guardResult.reason,
+                        command.metadata
                     )
                     outputGuardFailure(reason = guardResult.reason, startTime = startTime)
                 }

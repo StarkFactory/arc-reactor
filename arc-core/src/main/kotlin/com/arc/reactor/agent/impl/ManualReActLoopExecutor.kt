@@ -37,7 +37,7 @@ internal class ManualReActLoopExecutor(
         TokenUsage?,
         List<String>
     ) -> AgentResult,
-    private val recordTokenUsage: (TokenUsage) -> Unit
+    private val recordTokenUsage: (TokenUsage, Map<String, Any>) -> Unit
 ) {
 
     suspend fun execute(
@@ -77,7 +77,8 @@ internal class ManualReActLoopExecutor(
                         promptTokens = usage.promptTokens.toInt(),
                         completionTokens = usage.completionTokens.toInt(),
                         totalTokens = usage.totalTokens.toInt()
-                    )
+                    ),
+                    hookContext.metadata
                 )
             }
 

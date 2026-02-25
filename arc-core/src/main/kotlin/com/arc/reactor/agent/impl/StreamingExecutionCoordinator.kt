@@ -88,7 +88,11 @@ internal class StreamingExecutionCoordinator(
         emit: suspend (String) -> Unit
     ): AgentCommand? {
         preExecutionResolver.checkGuard(command)?.let { rejection ->
-            agentMetrics.recordGuardRejection(stage = rejection.stage ?: "unknown", reason = rejection.reason)
+            agentMetrics.recordGuardRejection(
+                stage = rejection.stage ?: "unknown",
+                reason = rejection.reason,
+                metadata = hookContext.metadata
+            )
             state.streamErrorCode = AgentErrorCode.GUARD_REJECTED
             state.streamErrorMessage = rejection.reason
             emit(StreamEventMarker.error(rejection.reason))

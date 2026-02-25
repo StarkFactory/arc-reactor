@@ -69,6 +69,20 @@ interface AgentMetrics {
     fun recordGuardRejection(stage: String, reason: String)
 
     /**
+     * Record a guard rejection with request metadata for tenant-aware metrics.
+     *
+     * Default implementation delegates to [recordGuardRejection] without metadata
+     * to preserve backward compatibility with existing implementations.
+     *
+     * @param stage The guard stage that rejected the request
+     * @param reason The rejection reason
+     * @param metadata Request metadata (typically contains "tenantId")
+     */
+    fun recordGuardRejection(stage: String, reason: String, metadata: Map<String, Any>) {
+        recordGuardRejection(stage, reason)
+    }
+
+    /**
      * Record a response cache hit.
      *
      * @param cacheKey The cache key that was hit
@@ -109,6 +123,19 @@ interface AgentMetrics {
     fun recordTokenUsage(usage: TokenUsage) {}
 
     /**
+     * Record LLM token usage with request metadata for tenant-aware metrics.
+     *
+     * Default implementation delegates to [recordTokenUsage] without metadata
+     * to preserve backward compatibility with existing implementations.
+     *
+     * @param usage The token usage from the LLM response
+     * @param metadata Request metadata (typically contains "tenantId")
+     */
+    fun recordTokenUsage(usage: TokenUsage, metadata: Map<String, Any>) {
+        recordTokenUsage(usage)
+    }
+
+    /**
      * Record a streaming execution result.
      *
      * Separate from [recordExecution] to allow distinguishing streaming vs non-streaming metrics.
@@ -125,6 +152,21 @@ interface AgentMetrics {
      * @param reason The reason for the action
      */
     fun recordOutputGuardAction(stage: String, action: String, reason: String) {}
+
+    /**
+     * Record an output guard action with request metadata for tenant-aware metrics.
+     *
+     * Default implementation delegates to [recordOutputGuardAction] without metadata
+     * to preserve backward compatibility with existing implementations.
+     *
+     * @param stage The output guard stage name
+     * @param action The action taken: "allowed", "modified", or "rejected"
+     * @param reason The reason for the action
+     * @param metadata Request metadata (typically contains "tenantId")
+     */
+    fun recordOutputGuardAction(stage: String, action: String, reason: String, metadata: Map<String, Any>) {
+        recordOutputGuardAction(stage, action, reason)
+    }
 
     /**
      * Record a boundary policy violation.

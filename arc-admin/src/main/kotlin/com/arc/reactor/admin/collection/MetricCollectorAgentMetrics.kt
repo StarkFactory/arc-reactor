@@ -18,7 +18,6 @@ private val logger = KotlinLogging.logger {}
  */
 class MetricCollectorAgentMetrics(
     private val ringBuffer: MetricRingBuffer,
-    private val tenantResolver: TenantResolver,
     private val healthMonitor: PipelineHealthMonitor
 ) : AgentMetrics {
 
@@ -28,9 +27,14 @@ class MetricCollectorAgentMetrics(
     // Tool call events are handled by MetricCollectionHook (richer data: runId, toolSource, mcpServerName)
     override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {}
 
+    // Legacy no-metadata overloads — kept for backward compatibility but use "default" tenantId
     override fun recordGuardRejection(stage: String, reason: String) {
+        recordGuardRejection(stage, reason, emptyMap())
+    }
+
+    override fun recordGuardRejection(stage: String, reason: String, metadata: Map<String, Any>) {
         val event = GuardEvent(
-            tenantId = tenantResolver.currentTenantId(),
+            tenantId = resolveTenantId(metadata),
             stage = stage,
             category = classifyGuardRejection(stage, reason),
             reasonDetail = reason.take(500)
@@ -39,8 +43,12 @@ class MetricCollectorAgentMetrics(
     }
 
     override fun recordTokenUsage(usage: TokenUsage) {
+        recordTokenUsage(usage, emptyMap())
+    }
+
+    override fun recordTokenUsage(usage: TokenUsage, metadata: Map<String, Any>) {
         val event = TokenUsageEvent(
-            tenantId = tenantResolver.currentTenantId(),
+            tenantId = resolveTenantId(metadata),
             runId = "",
             model = "unknown",
             provider = "unknown",
@@ -55,8 +63,12 @@ class MetricCollectorAgentMetrics(
     override fun recordStreamingExecution(result: AgentResult) {}
 
     override fun recordOutputGuardAction(stage: String, action: String, reason: String) {
+        recordOutputGuardAction(stage, action, reason, emptyMap())
+    }
+
+    override fun recordOutputGuardAction(stage: String, action: String, reason: String, metadata: Map<String, Any>) {
         val event = GuardEvent(
-            tenantId = tenantResolver.currentTenantId(),
+            tenantId = resolveTenantId(metadata),
             stage = stage,
             category = "output_guard",
             reasonDetail = reason.take(500),
@@ -71,6 +83,10 @@ class MetricCollectorAgentMetrics(
     override fun recordCircuitBreakerStateChange(name: String, from: CircuitBreakerState, to: CircuitBreakerState) {}
     override fun recordFallbackAttempt(model: String, success: Boolean) {}
     override fun recordBoundaryViolation(violation: String, policy: String, limit: Int, actual: Int) {}
+
+    private fun resolveTenantId(metadata: Map<String, Any>): String {
+        return metadata["tenantId"]?.toString() ?: "default"
+    }
 
     private fun publish(event: com.arc.reactor.admin.model.MetricEvent) {
         if (!ringBuffer.publish(event)) {

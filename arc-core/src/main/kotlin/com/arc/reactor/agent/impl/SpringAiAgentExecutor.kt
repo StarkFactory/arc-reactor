@@ -154,7 +154,7 @@ class SpringAiAgentExecutor(
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::createChatOptions,
         validateAndRepairResponse = structuredResponseRepairer::validateAndRepair,
-        recordTokenUsage = agentMetrics::recordTokenUsage
+        recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) }
     )
     private val streamingReActLoopExecutor = StreamingReActLoopExecutor(
         messageTrimmer = messageTrimmer,

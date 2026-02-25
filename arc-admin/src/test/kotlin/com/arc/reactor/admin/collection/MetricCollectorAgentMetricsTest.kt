@@ -14,15 +14,14 @@ import org.junit.jupiter.api.Test
 class MetricCollectorAgentMetricsTest {
 
     private lateinit var ringBuffer: MetricRingBuffer
-    private val tenantResolver = TenantResolver()
     private val healthMonitor = PipelineHealthMonitor()
     private lateinit var metrics: MetricCollectorAgentMetrics
+    private val defaultMetadata = mapOf<String, Any>("tenantId" to "tenant-1")
 
     @BeforeEach
     fun setUp() {
         ringBuffer = MetricRingBuffer(64)
-        tenantResolver.setTenantId("tenant-1")
-        metrics = MetricCollectorAgentMetrics(ringBuffer, tenantResolver, healthMonitor)
+        metrics = MetricCollectorAgentMetrics(ringBuffer, healthMonitor)
     }
 
     @Nested
@@ -54,7 +53,7 @@ class MetricCollectorAgentMetricsTest {
 
         @Test
         fun `publishes guard event with correct classification`() {
-            metrics.recordGuardRejection("RateLimitStage", "Too many requests")
+            metrics.recordGuardRejection("RateLimitStage", "Too many requests", defaultMetadata)
 
             val events = ringBuffer.drain(10)
             events.size shouldBe 1
@@ -68,7 +67,7 @@ class MetricCollectorAgentMetricsTest {
 
         @Test
         fun `classifies injection detection`() {
-            metrics.recordGuardRejection("InjectionDetectionStage", "SQL injection detected")
+            metrics.recordGuardRejection("InjectionDetectionStage", "SQL injection detected", defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
             event.category shouldBe "prompt_injection"
@@ -76,7 +75,7 @@ class MetricCollectorAgentMetricsTest {
 
         @Test
         fun `classifies classification stage`() {
-            metrics.recordGuardRejection("ClassificationStage", "Off-topic")
+            metrics.recordGuardRejection("ClassificationStage", "Off-topic", defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
             event.category shouldBe "classification"
@@ -84,7 +83,7 @@ class MetricCollectorAgentMetricsTest {
 
         @Test
         fun `classifies permission stage`() {
-            metrics.recordGuardRejection("PermissionStage", "No access")
+            metrics.recordGuardRejection("PermissionStage", "No access", defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
             event.category shouldBe "permission"
@@ -92,7 +91,7 @@ class MetricCollectorAgentMetricsTest {
 
         @Test
         fun `classifies input validation stage`() {
-            metrics.recordGuardRejection("InputValidationStage", "Too long")
+            metrics.recordGuardRejection("InputValidationStage", "Too long", defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
             event.category shouldBe "input_validation"
@@ -100,7 +99,7 @@ class MetricCollectorAgentMetricsTest {
 
         @Test
         fun `classifies unknown stage as other`() {
-            metrics.recordGuardRejection("CustomStage", "Custom reason")
+            metrics.recordGuardRejection("CustomStage", "Custom reason", defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
             event.category shouldBe "other"
@@ -109,10 +108,18 @@ class MetricCollectorAgentMetricsTest {
         @Test
         fun `truncates reason to 500 chars`() {
             val longReason = "x".repeat(1000)
-            metrics.recordGuardRejection("CustomStage", longReason)
+            metrics.recordGuardRejection("CustomStage", longReason, defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
             event.reasonDetail!!.length shouldBe 500
+        }
+
+        @Test
+        fun `uses default tenantId when metadata has no tenantId`() {
+            metrics.recordGuardRejection("CustomStage", "reason", emptyMap())
+
+            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
+            event.tenantId shouldBe "default"
         }
     }
 
@@ -121,7 +128,10 @@ class MetricCollectorAgentMetricsTest {
 
         @Test
         fun `publishes token usage event`() {
-            metrics.recordTokenUsage(TokenUsage(promptTokens = 100, completionTokens = 50, totalTokens = 150))
+            metrics.recordTokenUsage(
+                TokenUsage(promptTokens = 100, completionTokens = 50, totalTokens = 150),
+                defaultMetadata
+            )
 
             val events = ringBuffer.drain(10)
             events.size shouldBe 1
@@ -133,6 +143,17 @@ class MetricCollectorAgentMetricsTest {
             event.model shouldBe "unknown"
             event.provider shouldBe "unknown"
         }
+
+        @Test
+        fun `uses default tenantId when metadata has no tenantId`() {
+            metrics.recordTokenUsage(
+                TokenUsage(promptTokens = 10, completionTokens = 5, totalTokens = 15),
+                emptyMap()
+            )
+
+            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<TokenUsageEvent>()
+            event.tenantId shouldBe "default"
+        }
     }
 
     @Nested
@@ -140,7 +161,9 @@ class MetricCollectorAgentMetricsTest {
 
         @Test
         fun `publishes output guard event`() {
-            metrics.recordOutputGuardAction("ContentFilterStage", "modified", "PII detected and redacted")
+            metrics.recordOutputGuardAction(
+                "ContentFilterStage", "modified", "PII detected and redacted", defaultMetadata
+            )
 
             val events = ringBuffer.drain(10)
             events.size shouldBe 1
@@ -156,10 +179,18 @@ class MetricCollectorAgentMetricsTest {
         @Test
         fun `truncates output guard reason to 500 chars`() {
             val longReason = "y".repeat(800)
-            metrics.recordOutputGuardAction("Stage", "rejected", longReason)
+            metrics.recordOutputGuardAction("Stage", "rejected", longReason, defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
             event.reasonDetail!!.length shouldBe 500
+        }
+
+        @Test
+        fun `uses default tenantId when metadata has no tenantId`() {
+            metrics.recordOutputGuardAction("Stage", "allowed", "", emptyMap())
+
+            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
+            event.tenantId shouldBe "default"
         }
     }
 
@@ -170,7 +201,7 @@ class MetricCollectorAgentMetricsTest {
         fun `records drop when buffer is full`() {
             // Min capacity is 64 (MetricRingBuffer coerces to at least 64)
             val tinyBuffer = MetricRingBuffer(64)
-            val tinyMetrics = MetricCollectorAgentMetrics(tinyBuffer, tenantResolver, healthMonitor)
+            val tinyMetrics = MetricCollectorAgentMetrics(tinyBuffer, healthMonitor)
 
             // Fill buffer to capacity
             repeat(64) {
