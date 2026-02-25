@@ -85,6 +85,7 @@ class SpringAiAgentExecutorTest {
 
             val metadata = mockk<ChatResponseMetadata>()
             every { metadata.usage } returns usage
+            every { metadata.model } returns "test-model"
 
             val chatResponse = mockk<ChatResponse>()
             every { chatResponse.metadata } returns metadata

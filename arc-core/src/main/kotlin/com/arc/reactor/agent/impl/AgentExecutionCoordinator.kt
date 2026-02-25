@@ -57,6 +57,7 @@ internal class AgentExecutionCoordinator(
     ): AgentResult {
         checkGuardAndHooks(command, hookContext, startTime)?.let { return it }
         val effectiveCommand = resolveIntent(command)
+        effectiveCommand.metadata["intentCategory"]?.let { hookContext.metadata["intentCategory"] = it }
 
         val cacheLookup = resolveCache(effectiveCommand, startTime)
         cacheLookup.cachedResult?.let { return it }
@@ -81,7 +82,11 @@ internal class AgentExecutionCoordinator(
         )
 
         if (!result.success && fallbackStrategy != null) {
-            result = attemptFallback(effectiveCommand, result)
+            val fallbackResult = attemptFallback(effectiveCommand, result)
+            if (fallbackResult !== result) {
+                hookContext.metadata["fallbackUsed"] = true
+            }
+            result = fallbackResult
         }
 
         val finalResult = finalizeExecution(

@@ -55,7 +55,9 @@ internal class PreExecutionResolver(
         hookContext: HookContext,
         startTime: Long
     ): AgentResult? {
+        val guardStartTime = nowMs()
         checkGuard(command)?.let { rejection ->
+            hookContext.metadata["guardDurationMs"] = nowMs() - guardStartTime
             agentMetrics.recordGuardRejection(
                 stage = rejection.stage ?: "unknown",
                 reason = rejection.reason,
@@ -67,6 +69,7 @@ internal class PreExecutionResolver(
                 durationMs = nowMs() - startTime
             ).also { agentMetrics.recordExecution(it) }
         }
+        hookContext.metadata["guardDurationMs"] = nowMs() - guardStartTime
         checkBeforeHooks(hookContext)?.let { rejection ->
             return AgentResult.failure(
                 errorMessage = rejection.reason,

@@ -118,7 +118,12 @@ class ExecutionResultFinalizerTest {
         assertFalse(result.success)
         assertEquals(AgentErrorCode.OUTPUT_GUARD_REJECTED, result.errorCode)
         coVerify(exactly = 0) { conversationManager.saveHistory(command, match { true }) }
-        coVerify(exactly = 0) { hookExecutor.executeAfterAgentComplete(hookContext, match { true }) }
+        coVerify(exactly = 1) {
+            hookExecutor.executeAfterAgentComplete(
+                hookContext,
+                match { !it.success && it.errorCode == "OUTPUT_GUARD_REJECTED" }
+            )
+        }
         verify(exactly = 1) { metrics.recordExecution(match { !it.success && it.errorCode == AgentErrorCode.OUTPUT_GUARD_REJECTED }) }
     }
 

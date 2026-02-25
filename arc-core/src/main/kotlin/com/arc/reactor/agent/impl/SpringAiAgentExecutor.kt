@@ -161,7 +161,8 @@ class SpringAiAgentExecutor(
         toolCallOrchestrator = toolCallOrchestrator,
         buildRequestSpec = promptRequestSpecBuilder::create,
         callWithRetry = { block -> retryExecutor.execute(block) },
-        buildChatOptions = ::createChatOptions
+        buildChatOptions = ::createChatOptions,
+        recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) }
     )
     private val streamingCompletionFinalizer = StreamingCompletionFinalizer(
         boundaries = properties.boundaries,
@@ -245,7 +246,9 @@ class SpringAiAgentExecutor(
         enrichMetadataWithModelInfo(hookContext, command)
 
         try {
+            val queueStart = System.nanoTime()
             return concurrencySemaphore.withPermit {
+                hookContext.metadata["queueWaitMs"] = (System.nanoTime() - queueStart) / 1_000_000
                 withTimeout(properties.concurrency.requestTimeoutMs) {
                     agentExecutionCoordinator.execute(command, hookContext, toolsUsed, startTime)
                 }

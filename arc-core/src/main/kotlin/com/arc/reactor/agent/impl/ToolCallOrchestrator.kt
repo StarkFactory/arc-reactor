@@ -142,6 +142,7 @@ internal class ToolCallOrchestrator(
         }
 
         logger.info { "Tool '$toolName' requires human approval, suspending execution..." }
+        val hitlStartNanos = System.nanoTime()
 
         return try {
             val response = approvalStore.requestApproval(
@@ -150,12 +151,16 @@ internal class ToolCallOrchestrator(
                 toolName = toolName,
                 arguments = toolCallContext.toolParams
             )
+            val hitlWaitMs = (System.nanoTime() - hitlStartNanos) / 1_000_000
+            hookContext.metadata["hitlWaitMs_$toolName"] = hitlWaitMs
+            hookContext.metadata["hitlApproved_$toolName"] = response.approved
             if (response.approved) {
-                logger.info { "Tool '$toolName' approved by human" }
+                logger.info { "Tool '$toolName' approved by human (waited ${hitlWaitMs}ms)" }
                 null // Continue execution
             } else {
                 val reason = response.reason ?: "Rejected by human"
-                logger.info { "Tool '$toolName' rejected by human: $reason" }
+                logger.info { "Tool '$toolName' rejected by human: $reason (waited ${hitlWaitMs}ms)" }
+                hookContext.metadata["hitlRejectionReason_$toolName"] = reason
                 "Tool call rejected by human: $reason"
             }
         } catch (e: Exception) {
