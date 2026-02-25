@@ -3,8 +3,10 @@ package com.arc.reactor.admin.collection
 import com.arc.reactor.admin.model.AgentExecutionEvent
 import com.arc.reactor.admin.model.EvalResultEvent
 import com.arc.reactor.admin.model.GuardEvent
+import com.arc.reactor.admin.model.HitlEvent
 import com.arc.reactor.admin.model.McpHealthEvent
 import com.arc.reactor.admin.model.MetricEvent
+import com.arc.reactor.admin.model.QuotaEvent
 import com.arc.reactor.admin.model.SessionEvent
 import com.arc.reactor.admin.model.TokenUsageEvent
 import com.arc.reactor.admin.model.ToolCallEvent
@@ -31,6 +33,8 @@ class JdbcMetricEventStore(
         val guardEvents = mutableListOf<GuardEvent>()
         val mcpHealths = mutableListOf<McpHealthEvent>()
         val evalResults = mutableListOf<EvalResultEvent>()
+        val quotaEvents = mutableListOf<QuotaEvent>()
+        val hitlEvents = mutableListOf<HitlEvent>()
 
         for (event in events) {
             when (event) {
@@ -41,6 +45,8 @@ class JdbcMetricEventStore(
                 is GuardEvent -> guardEvents.add(event)
                 is McpHealthEvent -> mcpHealths.add(event)
                 is EvalResultEvent -> evalResults.add(event)
+                is QuotaEvent -> quotaEvents.add(event)
+                is HitlEvent -> hitlEvents.add(event)
             }
         }
 
@@ -51,6 +57,8 @@ class JdbcMetricEventStore(
         if (guardEvents.isNotEmpty()) insertGuardEvents(guardEvents)
         if (mcpHealths.isNotEmpty()) insertMcpHealths(mcpHealths)
         if (evalResults.isNotEmpty()) insertEvalResults(evalResults)
+        if (quotaEvents.isNotEmpty()) insertQuotaEvents(quotaEvents)
+        if (hitlEvents.isNotEmpty()) insertHitlEvents(hitlEvents)
     }
 
     private fun insertExecutions(events: List<AgentExecutionEvent>) {
@@ -249,6 +257,48 @@ class JdbcMetricEventStore(
                     ps.setString(11, e.failureClass)
                     ps.setString(12, e.failureDetail?.take(500))
                     ps.setString(13, e.tags.joinToString(","))
+                }
+                override fun getBatchSize() = events.size
+            }
+        )
+    }
+
+    private fun insertQuotaEvents(events: List<QuotaEvent>) {
+        jdbcTemplate.batchUpdate(
+            """INSERT INTO metric_quota_events
+               (time, tenant_id, action, current_usage, quota_limit, usage_percent, reason)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            object : BatchPreparedStatementSetter {
+                override fun setValues(ps: PreparedStatement, i: Int) {
+                    val e = events[i]
+                    ps.setTimestamp(1, Timestamp.from(e.time))
+                    ps.setString(2, e.tenantId)
+                    ps.setString(3, e.action)
+                    ps.setLong(4, e.currentUsage)
+                    ps.setLong(5, e.quotaLimit)
+                    ps.setDouble(6, e.usagePercent)
+                    ps.setString(7, e.reason?.take(500))
+                }
+                override fun getBatchSize() = events.size
+            }
+        )
+    }
+
+    private fun insertHitlEvents(events: List<HitlEvent>) {
+        jdbcTemplate.batchUpdate(
+            """INSERT INTO metric_hitl_events
+               (time, tenant_id, run_id, tool_name, approved, wait_ms, rejection_reason)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            object : BatchPreparedStatementSetter {
+                override fun setValues(ps: PreparedStatement, i: Int) {
+                    val e = events[i]
+                    ps.setTimestamp(1, Timestamp.from(e.time))
+                    ps.setString(2, e.tenantId)
+                    ps.setString(3, e.runId)
+                    ps.setString(4, e.toolName)
+                    ps.setBoolean(5, e.approved)
+                    ps.setLong(6, e.waitMs)
+                    ps.setString(7, e.rejectionReason?.take(500))
                 }
                 override fun getBatchSize() = events.size
             }
