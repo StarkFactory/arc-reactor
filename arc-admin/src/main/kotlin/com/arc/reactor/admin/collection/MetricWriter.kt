@@ -10,6 +10,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
 
 private val logger = KotlinLogging.logger {}
 
@@ -33,6 +34,9 @@ class MetricWriter(
 
     private val running = AtomicBoolean(false)
     private var executor: ScheduledExecutorService? = null
+
+    // Serializes drain() access — ring buffer is single-consumer only
+    private val flushLock = ReentrantLock()
 
     fun start() {
         if (!running.compareAndSet(false, true)) return
@@ -101,6 +105,7 @@ class MetricWriter(
     }
 
     private fun flush() {
+        if (!flushLock.tryLock()) return // Another thread is already flushing
         try {
             val events = ringBuffer.drain(batchSize)
             if (events.isEmpty()) return
@@ -122,6 +127,8 @@ class MetricWriter(
         } catch (e: Exception) {
             healthMonitor.recordWriteError()
             logger.error(e) { "Failed to write metric batch" }
+        } finally {
+            flushLock.unlock()
         }
     }
 }

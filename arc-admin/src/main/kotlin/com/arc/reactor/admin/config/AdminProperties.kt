@@ -31,7 +31,7 @@ data class CollectionProperties(
     val ringBufferSize: Int = 8192,
     val flushIntervalMs: Long = 1000,
     val batchSize: Int = 1000,
-    val writerThreads: Int = 3
+    val writerThreads: Int = 1
 )
 
 data class RetentionProperties(

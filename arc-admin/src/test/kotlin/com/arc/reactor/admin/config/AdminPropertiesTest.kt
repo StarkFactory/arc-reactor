@@ -16,7 +16,7 @@ class AdminPropertiesTest {
         props.collection.ringBufferSize shouldBe 8192
         props.collection.flushIntervalMs shouldBe 1000
         props.collection.batchSize shouldBe 1000
-        props.collection.writerThreads shouldBe 3
+        props.collection.writerThreads shouldBe 1
         props.retention.rawDays shouldBe 90
         props.retention.auditYears shouldBe 7
         props.retention.compressionAfterDays shouldBe 7

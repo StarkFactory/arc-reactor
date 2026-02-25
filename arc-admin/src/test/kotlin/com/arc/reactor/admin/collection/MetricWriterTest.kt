@@ -244,6 +244,38 @@ class MetricWriterTest {
     }
 
     @Nested
+    inner class FlushSerialization {
+
+        @Test
+        fun `concurrent flush calls do not cause duplicate events`() {
+            every {
+                costCalculator.calculate(any(), any(), any(), any(), any(), any(), any())
+            } returns BigDecimal("0.001")
+
+            // Publish 100 events
+            repeat(100) { i ->
+                ringBuffer.publish(tokenEvent(model = "model-$i"))
+            }
+
+            val writer = MetricWriter(
+                ringBuffer = ringBuffer,
+                store = store,
+                costCalculator = costCalculator,
+                batchSize = 10,
+                flushIntervalMs = 10, // fast flush
+                writerThreads = 3, // multiple threads, but flush is serialized by lock
+                healthMonitor = healthMonitor
+            )
+            writer.start()
+            Thread.sleep(500)
+            writer.stop()
+
+            // All events should be stored exactly once (no duplicates)
+            storedEvents.size shouldBe 100
+        }
+    }
+
+    @Nested
     inner class Lifecycle {
 
         @Test
