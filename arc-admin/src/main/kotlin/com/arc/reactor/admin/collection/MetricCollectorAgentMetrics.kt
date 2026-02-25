@@ -2,11 +2,14 @@ package com.arc.reactor.admin.collection
 
 import com.arc.reactor.admin.model.GuardEvent
 import com.arc.reactor.admin.model.TokenUsageEvent
+import com.arc.reactor.admin.pricing.CostCalculator
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.resilience.CircuitBreakerState
 import mu.KotlinLogging
+import java.math.BigDecimal
+import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
 
@@ -18,7 +21,8 @@ private val logger = KotlinLogging.logger {}
  */
 class MetricCollectorAgentMetrics(
     private val ringBuffer: MetricRingBuffer,
-    private val healthMonitor: PipelineHealthMonitor
+    private val healthMonitor: PipelineHealthMonitor,
+    private val costCalculator: CostCalculator
 ) : AgentMetrics {
 
     // Execution events are handled by MetricCollectionHook (richer data: latency breakdown, sessionId, etc.)
@@ -48,23 +52,30 @@ class MetricCollectorAgentMetrics(
 
     override fun recordTokenUsage(usage: TokenUsage, metadata: Map<String, Any>) {
         val model = metadata["model"]?.toString() ?: "unknown"
+        val provider = metadata["provider"]?.toString() ?: deriveProvider(model)
+        val cost = try {
+            costCalculator.calculate(
+                provider = provider,
+                model = model,
+                time = Instant.now(),
+                promptTokens = usage.promptTokens,
+                completionTokens = usage.completionTokens
+            )
+        } catch (e: Exception) {
+            logger.debug(e) { "Cost calculation failed for $model" }
+            BigDecimal.ZERO
+        }
         val event = TokenUsageEvent(
             tenantId = resolveTenantId(metadata),
             runId = metadata["runId"]?.toString().orEmpty(),
             model = model,
-            provider = metadata["provider"]?.toString() ?: deriveProvider(model),
+            provider = provider,
             promptTokens = usage.promptTokens,
             completionTokens = usage.completionTokens,
-            totalTokens = usage.totalTokens
+            totalTokens = usage.totalTokens,
+            estimatedCostUsd = cost
         )
         publish(event)
-    }
-
-    private fun deriveProvider(model: String): String = when {
-        model.startsWith("gemini", ignoreCase = true) -> "google"
-        model.startsWith("gpt", ignoreCase = true) || model.startsWith("o1", ignoreCase = true) -> "openai"
-        model.startsWith("claude", ignoreCase = true) -> "anthropic"
-        else -> "unknown"
     }
 
     // Streaming execution events are handled by MetricCollectionHook
@@ -100,6 +111,18 @@ class MetricCollectorAgentMetrics(
         if (!ringBuffer.publish(event)) {
             healthMonitor.recordDrop(1)
             logger.debug { "MetricRingBuffer full, event dropped" }
+        }
+    }
+
+    private fun deriveProvider(model: String): String {
+        return when {
+            model.startsWith("gpt-") || model.startsWith("o1") || model.startsWith("o3") -> "openai"
+            model.startsWith("claude-") -> "anthropic"
+            model.startsWith("gemini-") -> "google"
+            model.startsWith("mistral") || model.startsWith("codestral") -> "mistral"
+            model.startsWith("command") -> "cohere"
+            model.contains("llama") -> "meta"
+            else -> "unknown"
         }
     }
 
