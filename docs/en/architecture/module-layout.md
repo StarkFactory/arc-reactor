@@ -12,6 +12,7 @@ From `settings.gradle.kts`:
 - `arc-discord`: Discord channel gateway
 - `arc-line`: LINE channel gateway
 - `arc-error-report`: error reporting extension module
+- `arc-admin`: admin dashboard metrics pipeline, alerting, and tenant-scoped observability
 - `arc-app`: executable assembly module (runtime composition)
 
 ## Why `arc-app` Exists
@@ -37,6 +38,7 @@ From `settings.gradle.kts`:
 
 - channel/web modules depend on `arc-core`
 - `arc-app` assembles runtime modules
+- `arc-admin` depends on `arc-core` (compileOnly) for AgentMetrics, Hook interfaces
 - `arc-core` should avoid runtime coupling back to channel/web modules
 
 ## Related

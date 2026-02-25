@@ -9,7 +9,7 @@ Arc Reactor는 프레임워크에 독립적인 `AgentMetrics` 인터페이스를
 
 ## AgentMetrics 인터페이스
 
-5개 카테고리에 걸쳐 9개 메트릭 기록 메서드를 제공합니다:
+7개 카테고리에 걸쳐 14개 메트릭 기록 메서드를 제공합니다:
 
 ### 실행 메트릭
 
@@ -29,6 +29,7 @@ Arc Reactor는 프레임워크에 독립적인 `AgentMetrics` 인터페이스를
 | 메서드 | 호출 시점 | 파라미터 |
 |--------|---------|---------|
 | `recordGuardRejection(stage, reason)` | Guard 파이프라인이 요청을 거부할 때 | 단계 이름 (예: "InjectionDetection"), 거부 사유 |
+| `recordGuardRejection(stage, reason, metadata)` | 위와 동일, 요청 메타데이터 포함 | 단계, 사유, 메타데이터 맵 |
 
 ### 복원력 메트릭
 
@@ -44,6 +45,20 @@ Arc Reactor는 프레임워크에 독립적인 `AgentMetrics` 인터페이스를
 | 메서드 | 호출 시점 | 파라미터 |
 |--------|---------|---------|
 | `recordTokenUsage(usage)` | 각 LLM 호출 후 | `TokenUsage(promptTokens, completionTokens, totalTokens)` |
+| `recordTokenUsage(usage, metadata)` | 위와 동일, 요청 메타데이터 포함 | TokenUsage, 메타데이터 맵 |
+
+### 출력 Guard 메트릭
+
+| 메서드 | 호출 시점 | 파라미터 |
+|--------|---------|---------|
+| `recordOutputGuardAction(stage, action, reason)` | 출력 Guard가 응답을 처리할 때 | 단계, 동작 ("allowed"/"modified"/"rejected"), 사유 |
+| `recordOutputGuardAction(stage, action, reason, metadata)` | 위와 동일, 요청 메타데이터 포함 | 단계, 동작, 사유, 메타데이터 맵 |
+
+### 경계 메트릭
+
+| 메서드 | 호출 시점 | 파라미터 |
+|--------|---------|---------|
+| `recordBoundaryViolation(violation, policy, limit, actual)` | 출력 경계 정책이 트리거될 때 | 위반 유형 (예: "output_too_long"), 정책 동작 (예: "truncate"), 한계값, 실제값 |
 
 ## 구현
 
@@ -172,6 +187,43 @@ class MetricsConfig {
 
 2.6.0+ 에서 추가된 모든 메서드는 인터페이스에 **기본 빈 구현**을 갖습니다. 기존 커스텀 `AgentMetrics` 구현은 변경 없이 계속 동작합니다. 원래 3개 메서드(`recordExecution`, `recordToolCall`, `recordGuardRejection`)만 추상 메서드입니다.
 
+metadata 오버로드(2.7.0 추가)는 기본적으로 metadata 없는 메서드로 위임하므로, 기존 구현에서 별도 오버라이드가 필요 없습니다.
+
+## arc-admin 메트릭 파이프라인
+
+`arc-admin` 모듈은 `NoOpAgentMetrics`를 대체하는 프로덕션 수준의 메트릭 수집 파이프라인을 제공하며, 테넌트 범위 관측성을 지원합니다.
+
+### 구성 요소
+
+| 구성 요소 | 역할 |
+|-----------|------|
+| `MetricCollectorAgentMetrics` | `@Primary` `AgentMetrics` 구현. Guard/토큰 이벤트를 링 버퍼에 게시. |
+| `MetricCollectionHook` | `AfterAgentCompleteHook` + `AfterToolCallHook`. 지연 분석, sessionId, userId 등 풍부한 실행/도구 이벤트 캡처. |
+| `MetricRingBuffer` | Lock-free 링 버퍼 (Disruptor 기반, 기본 8192 슬롯). 프로듀서는 블로킹 없음. 버퍼 가득 시 드롭 + 카운터. |
+| `MetricWriter` | 링 버퍼를 주기적으로 드레인 → `MetricEventStore`를 통한 배치 JDBC 플러시. |
+
+### 데이터 흐름
+
+```
+에이전트 스레드                         백그라운드 라이터
+    |                                       |
+    +-- MetricCollectorAgentMetrics --|      |
+    +-- MetricCollectionHook --------|      |
+                                     v      |
+                              MetricRingBuffer
+                                     |      |
+                                     +------+
+                                     v
+                              MetricWriter (스케줄)
+                                     |
+                                     v
+                              MetricEventStore (JDBC)
+```
+
+### 테넌트 전파
+
+테넌트 ID는 metadata 오버로드를 통해 전달되는 `metadata["tenantId"]`에서 해석되며, ThreadLocal을 사용하지 **않습니다**. 이를 통해 비동기/코루틴 컨텍스트에서 정확한 테넌트 어트리뷰션을 보장합니다.
+
 ## 파이프라인 내 메트릭 포인트
 
 ```
@@ -191,6 +243,11 @@ LLM 호출 -----> recordTokenUsage()
   +--> [서킷 브레이커 상태 전이] --> recordCircuitBreakerStateChange()
   |
   +--> [폴백 발생] --> recordFallbackAttempt() (모델당)
+  |
+  v
+출력 Guard ----[동작]----> recordOutputGuardAction()
+  |
+  +--> [경계 위반] --> recordBoundaryViolation()
   |
   v
 응답
