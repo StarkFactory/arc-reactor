@@ -1,5 +1,7 @@
 package com.arc.reactor.admin.collection
 
+import com.arc.reactor.admin.tracing.TenantSpanProcessor
+import io.opentelemetry.context.Context
 import org.springframework.core.Ordered
 import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.WebFilter
@@ -7,15 +9,31 @@ import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
 
 /**
- * Resolves the current tenant ID from a ThreadLocal.
+ * Resolves the current tenant ID.
  *
- * The companion [TenantWebFilter] automatically sets and clears
- * the tenant ID for each HTTP request, preventing ThreadLocal leaks.
+ * Preferred: [resolveTenantId] with [ServerWebExchange] — reliable in WebFlux (no ThreadLocal).
+ * Legacy: [currentTenantId] via ThreadLocal — only safe when thread-hop is impossible.
  *
- * For non-HTTP contexts (hooks, background jobs), call [setTenantId] / [clear] explicitly.
+ * The companion [TenantWebFilter] stores the resolved tenant both in
+ * exchange attributes (WebFlux-safe) and ThreadLocal (legacy compatibility).
  */
 class TenantResolver {
 
+    /**
+     * Resolves tenant ID from exchange attributes/headers. WebFlux-safe — no ThreadLocal.
+     */
+    fun resolveTenantId(exchange: ServerWebExchange): String {
+        val attr = exchange.attributes[EXCHANGE_ATTR_KEY] as? String
+        if (!attr.isNullOrBlank()) return attr
+        val header = exchange.request.headers.getFirst(HEADER_NAME)
+        if (!header.isNullOrBlank()) return header
+        return "default"
+    }
+
+    /**
+     * ThreadLocal-based tenant ID. **Unreliable in WebFlux reactive chains** — use
+     * [resolveTenantId] with exchange instead for controller endpoints.
+     */
     fun currentTenantId(): String = TENANT_ID.get() ?: "default"
 
     fun setTenantId(tenantId: String) {
@@ -28,6 +46,8 @@ class TenantResolver {
 
     companion object {
         private val TENANT_ID = ThreadLocal<String?>()
+        const val HEADER_NAME = "X-Tenant-Id"
+        const val EXCHANGE_ATTR_KEY = "resolvedTenantId"
     }
 }
 
@@ -47,14 +67,23 @@ class TenantWebFilter(
     override fun filter(exchange: ServerWebExchange, chain: WebFilterChain): Mono<Void> {
         val tenantId = extractTenantId(exchange)
         tenantResolver.setTenantId(tenantId)
+        exchange.attributes[TenantResolver.EXCHANGE_ATTR_KEY] = tenantId
+
+        // Also propagate via OTel Context for TenantSpanProcessor
+        val otelScope = Context.current()
+            .with(TenantSpanProcessor.TENANT_CONTEXT_KEY, tenantId)
+            .makeCurrent()
 
         return chain.filter(exchange)
-            .doFinally { tenantResolver.clear() }
+            .doFinally {
+                otelScope.close()
+                tenantResolver.clear()
+            }
     }
 
     private fun extractTenantId(exchange: ServerWebExchange): String {
         // 1. Check request header
-        val header = exchange.request.headers.getFirst("X-Tenant-Id")
+        val header = exchange.request.headers.getFirst(TenantResolver.HEADER_NAME)
         if (!header.isNullOrBlank()) return header
 
         // 2. Check exchange attribute (set by upstream auth filter)
