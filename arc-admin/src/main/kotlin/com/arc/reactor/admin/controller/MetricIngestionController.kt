@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ServerWebExchange
 import java.math.BigDecimal
 import java.time.Instant
 
@@ -21,9 +22,14 @@ class MetricIngestionController(
     private val ringBuffer: MetricRingBuffer
 ) {
 
+    companion object {
+        const val MAX_BATCH_SIZE = 1000
+    }
+
     @Operation(summary = "Ingest MCP health event")
     @PostMapping("/mcp-health")
-    fun ingestMcpHealth(@RequestBody request: McpHealthRequest): ResponseEntity<Any> {
+    fun ingestMcpHealth(@RequestBody request: McpHealthRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val event = McpHealthEvent(
             time = Instant.now(),
             tenantId = request.tenantId,
@@ -46,7 +52,8 @@ class MetricIngestionController(
 
     @Operation(summary = "Ingest MCP tool call event")
     @PostMapping("/tool-call")
-    fun ingestToolCall(@RequestBody request: ToolCallRequest): ResponseEntity<Any> {
+    fun ingestToolCall(@RequestBody request: ToolCallRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val event = ToolCallEvent(
             time = Instant.now(),
             tenantId = request.tenantId,
@@ -72,7 +79,8 @@ class MetricIngestionController(
 
     @Operation(summary = "Ingest eval result event")
     @PostMapping("/eval-result")
-    fun ingestEvalResult(@RequestBody request: EvalResultRequest): ResponseEntity<Any> {
+    fun ingestEvalResult(@RequestBody request: EvalResultRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val event = EvalResultEvent(
             time = Instant.now(),
             tenantId = request.tenantId,
@@ -100,7 +108,13 @@ class MetricIngestionController(
 
     @Operation(summary = "Batch ingest eval results from a single eval run")
     @PostMapping("/eval-results")
-    fun ingestEvalResults(@RequestBody request: EvalRunResultsRequest): ResponseEntity<Any> {
+    fun ingestEvalResults(@RequestBody request: EvalRunResultsRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (request.results.size > MAX_BATCH_SIZE) {
+            return ResponseEntity.badRequest().body(
+                AdminErrorResponse(error = "Batch size exceeds limit of $MAX_BATCH_SIZE")
+            )
+        }
         if (request.results.isEmpty()) {
             return ResponseEntity.badRequest().body(
                 AdminErrorResponse(error = "Results list must not be empty")
@@ -133,7 +147,13 @@ class MetricIngestionController(
 
     @Operation(summary = "Batch ingest multiple MCP health events")
     @PostMapping("/batch")
-    fun ingestBatch(@RequestBody requests: List<McpHealthRequest>): ResponseEntity<Any> {
+    fun ingestBatch(@RequestBody requests: List<McpHealthRequest>, exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (requests.size > MAX_BATCH_SIZE) {
+            return ResponseEntity.badRequest().body(
+                AdminErrorResponse(error = "Batch size exceeds limit of $MAX_BATCH_SIZE")
+            )
+        }
         var accepted = 0
         var dropped = 0
         for (request in requests) {

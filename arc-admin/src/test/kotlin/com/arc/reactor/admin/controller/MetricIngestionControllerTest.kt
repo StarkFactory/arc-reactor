@@ -3,25 +3,117 @@ package com.arc.reactor.admin.controller
 import com.arc.reactor.admin.collection.MetricRingBuffer
 import com.arc.reactor.admin.model.EvalResultEvent
 import com.arc.reactor.admin.model.McpHealthEvent
-import com.arc.reactor.admin.model.MetricEvent
 import com.arc.reactor.admin.model.ToolCallEvent
+import com.arc.reactor.auth.UserRole
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.web.server.ServerWebExchange
 import java.math.BigDecimal
 
 class MetricIngestionControllerTest {
 
     private lateinit var ringBuffer: MetricRingBuffer
     private lateinit var controller: MetricIngestionController
+    private lateinit var adminExchange: ServerWebExchange
+
+    private fun exchangeWithRole(role: UserRole?): ServerWebExchange {
+        val exchange = mockk<ServerWebExchange>()
+        val attributes = mutableMapOf<String, Any>()
+        if (role != null) {
+            attributes["userRole"] = role
+        }
+        every { exchange.attributes } returns attributes
+        return exchange
+    }
 
     @BeforeEach
     fun setUp() {
         ringBuffer = MetricRingBuffer(64)
         controller = MetricIngestionController(ringBuffer)
+        adminExchange = exchangeWithRole(null) // null role = admin (auth disabled)
+    }
+
+    @Nested
+    inner class Authentication {
+
+        @Test
+        fun `should return 403 for non-admin on ingestMcpHealth`() {
+            val userExchange = exchangeWithRole(UserRole.USER)
+            val request = McpHealthRequest(tenantId = "t1", serverName = "s1")
+
+            val response = controller.ingestMcpHealth(request, userExchange)
+            response.statusCode shouldBe HttpStatus.FORBIDDEN
+            (response.body as AdminErrorResponse).error shouldContain "Admin"
+        }
+
+        @Test
+        fun `should return 403 for non-admin on ingestToolCall`() {
+            val userExchange = exchangeWithRole(UserRole.USER)
+            val request = ToolCallRequest(tenantId = "t1", runId = "r1", toolName = "tool1")
+
+            val response = controller.ingestToolCall(request, userExchange)
+            response.statusCode shouldBe HttpStatus.FORBIDDEN
+        }
+
+        @Test
+        fun `should return 403 for non-admin on ingestEvalResult`() {
+            val userExchange = exchangeWithRole(UserRole.USER)
+            val request = EvalResultRequest(tenantId = "t1", evalRunId = "e1", testCaseId = "tc1", pass = true)
+
+            val response = controller.ingestEvalResult(request, userExchange)
+            response.statusCode shouldBe HttpStatus.FORBIDDEN
+        }
+
+        @Test
+        fun `should return 403 for non-admin on ingestEvalResults batch`() {
+            val userExchange = exchangeWithRole(UserRole.USER)
+            val request = EvalRunResultsRequest(
+                tenantId = "t1", evalRunId = "e1",
+                results = listOf(EvalTestCaseResult(testCaseId = "tc1", pass = true))
+            )
+
+            val response = controller.ingestEvalResults(request, userExchange)
+            response.statusCode shouldBe HttpStatus.FORBIDDEN
+        }
+
+        @Test
+        fun `should return 403 for non-admin on ingestBatch`() {
+            val userExchange = exchangeWithRole(UserRole.USER)
+            val requests = listOf(McpHealthRequest(tenantId = "t1", serverName = "s1"))
+
+            val response = controller.ingestBatch(requests, userExchange)
+            response.statusCode shouldBe HttpStatus.FORBIDDEN
+        }
+    }
+
+    @Nested
+    inner class BatchLimits {
+
+        @Test
+        fun `should reject eval results batch exceeding limit`() {
+            val results = (1..1001).map { EvalTestCaseResult(testCaseId = "tc-$it", pass = true) }
+            val request = EvalRunResultsRequest(tenantId = "t1", evalRunId = "e1", results = results)
+
+            val response = controller.ingestEvalResults(request, adminExchange)
+            response.statusCode shouldBe HttpStatus.BAD_REQUEST
+            (response.body as AdminErrorResponse).error shouldContain "Batch size exceeds limit"
+        }
+
+        @Test
+        fun `should reject mcp health batch exceeding limit`() {
+            val requests = (1..1001).map { McpHealthRequest(tenantId = "t1", serverName = "s-$it") }
+
+            val response = controller.ingestBatch(requests, adminExchange)
+            response.statusCode shouldBe HttpStatus.BAD_REQUEST
+            (response.body as AdminErrorResponse).error shouldContain "Batch size exceeds limit"
+        }
     }
 
     @Nested
@@ -37,7 +129,7 @@ class MetricIngestionControllerTest {
                 toolCount = 13
             )
 
-            val response = controller.ingestMcpHealth(request)
+            val response = controller.ingestMcpHealth(request, adminExchange)
             response.statusCode shouldBe HttpStatus.ACCEPTED
 
             val events = ringBuffer.drain(10)
@@ -60,7 +152,7 @@ class MetricIngestionControllerTest {
                 errorMessage = "Connection refused"
             )
 
-            val response = controller.ingestMcpHealth(request)
+            val response = controller.ingestMcpHealth(request, adminExchange)
             response.statusCode shouldBe HttpStatus.ACCEPTED
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<McpHealthEvent>()
@@ -85,7 +177,7 @@ class MetricIngestionControllerTest {
                 durationMs = 250
             )
 
-            val response = controller.ingestToolCall(request)
+            val response = controller.ingestToolCall(request, adminExchange)
             response.statusCode shouldBe HttpStatus.ACCEPTED
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<ToolCallEvent>()
@@ -107,7 +199,7 @@ class MetricIngestionControllerTest {
                 toolSource = null
             )
 
-            controller.ingestToolCall(request)
+            controller.ingestToolCall(request, adminExchange)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<ToolCallEvent>()
             event.toolSource shouldBe "mcp"
@@ -122,7 +214,7 @@ class MetricIngestionControllerTest {
                 callIndex = null
             )
 
-            controller.ingestToolCall(request)
+            controller.ingestToolCall(request, adminExchange)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<ToolCallEvent>()
             event.callIndex shouldBe 0
@@ -147,7 +239,7 @@ class MetricIngestionControllerTest {
                 tags = listOf("golden", "customer-service")
             )
 
-            val response = controller.ingestEvalResult(request)
+            val response = controller.ingestEvalResult(request, adminExchange)
             response.statusCode shouldBe HttpStatus.ACCEPTED
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<EvalResultEvent>()
@@ -175,7 +267,7 @@ class MetricIngestionControllerTest {
                 failureDetail = "Expected tool 'check_order' but got 'search_faq'"
             )
 
-            controller.ingestEvalResult(request)
+            controller.ingestEvalResult(request, adminExchange)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<EvalResultEvent>()
             event.pass shouldBe false
@@ -194,7 +286,7 @@ class MetricIngestionControllerTest {
                 failureDetail = longDetail
             )
 
-            controller.ingestEvalResult(request)
+            controller.ingestEvalResult(request, adminExchange)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<EvalResultEvent>()
             event.failureDetail!!.length shouldBe 500
@@ -209,7 +301,7 @@ class MetricIngestionControllerTest {
                 pass = true
             )
 
-            controller.ingestEvalResult(request)
+            controller.ingestEvalResult(request, adminExchange)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<EvalResultEvent>()
             event.cost shouldBe BigDecimal.ZERO
@@ -225,7 +317,7 @@ class MetricIngestionControllerTest {
                 tags = null
             )
 
-            controller.ingestEvalResult(request)
+            controller.ingestEvalResult(request, adminExchange)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<EvalResultEvent>()
             event.tags shouldBe emptyList()
@@ -249,7 +341,7 @@ class MetricIngestionControllerTest {
                 )
             )
 
-            val response = controller.ingestEvalResults(request)
+            val response = controller.ingestEvalResults(request, adminExchange)
             response.statusCode shouldBe HttpStatus.OK
 
             @Suppress("UNCHECKED_CAST")
@@ -283,7 +375,7 @@ class MetricIngestionControllerTest {
                 results = emptyList()
             )
 
-            val response = controller.ingestEvalResults(request)
+            val response = controller.ingestEvalResults(request, adminExchange)
             response.statusCode shouldBe HttpStatus.BAD_REQUEST
         }
     }
@@ -300,7 +392,7 @@ class MetricIngestionControllerTest {
                     errorClass = "Timeout")
             )
 
-            val response = controller.ingestBatch(requests)
+            val response = controller.ingestBatch(requests, adminExchange)
             response.statusCode shouldBe HttpStatus.OK
 
             @Suppress("UNCHECKED_CAST")
@@ -325,13 +417,13 @@ class MetricIngestionControllerTest {
             repeat(64) {
                 ctrl.ingestMcpHealth(McpHealthRequest(
                     tenantId = "t1", serverName = "s$it"
-                ))
+                ), adminExchange)
             }
 
             // Next should be rejected
             val response = ctrl.ingestMcpHealth(McpHealthRequest(
                 tenantId = "t1", serverName = "overflow"
-            ))
+            ), adminExchange)
             response.statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
         }
 
@@ -342,7 +434,7 @@ class MetricIngestionControllerTest {
 
             // Fill most of the buffer
             repeat(60) {
-                ctrl.ingestMcpHealth(McpHealthRequest(tenantId = "t1", serverName = "s$it"))
+                ctrl.ingestMcpHealth(McpHealthRequest(tenantId = "t1", serverName = "s$it"), adminExchange)
             }
 
             // Batch of 10 — some should be accepted, some dropped
@@ -350,7 +442,7 @@ class MetricIngestionControllerTest {
                 McpHealthRequest(tenantId = "t1", serverName = "batch-$it")
             }
 
-            val response = ctrl.ingestBatch(requests)
+            val response = ctrl.ingestBatch(requests, adminExchange)
             response.statusCode shouldBe HttpStatus.OK
 
             @Suppress("UNCHECKED_CAST")
