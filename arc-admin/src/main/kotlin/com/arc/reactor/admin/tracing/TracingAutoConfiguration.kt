@@ -46,7 +46,7 @@ class TracingAutoConfiguration {
         val resource = Resource.create(
             Attributes.builder()
                 .put(AttributeKey.stringKey("service.name"), "arc-reactor")
-                .put(AttributeKey.stringKey("service.version"), "4.0.1")
+                .put(AttributeKey.stringKey("service.version"), "4.1.0")
                 .put(AttributeKey.stringKey("instance.id"), properties.scaling.instanceId)
                 .build()
         )

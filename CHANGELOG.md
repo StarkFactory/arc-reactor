@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-02-26
+
+### Added
+- New `arc-admin` module for control-plane and observability workflows, including tenant/model pricing,
+  metrics ingestion/query APIs, dashboards/SLO services, alerting, quota enforcement, and tracing hooks.
+- Hierarchical memory pipeline with conversation summarization and summary stores for long-running sessions.
+- Human-in-the-loop scheduler/tool execution flow with approval pipeline integration and expanded admin test coverage.
+- Quota and HITL metric events (`QuotaEvent`, `HitlEvent`) with persistence support and metadata propagation
+  through executor/hook/tool orchestration flows.
+
+### Changed
+- Project version bumped to `4.1.0`.
+- Release and CI security baselines were hardened (artifact security-gate effectiveness, PR security baseline workflows).
+- Runtime persistence paths are aligned around PostgreSQL-backed stores for production reliability.
+
+### Fixed
+- HITL rejection outcomes now trigger after-tool hooks and metrics collection, including collision-safe
+  metadata keys with call-index scoping.
+- Multiple admin pipeline correctness issues: monthly usage query inflation, tenant context propagation,
+  ring-buffer single-consumer guarantees, and controller activation guard consistency.
+
 ## [4.0.1] - 2026-02-21
 
 ### Fixed
