@@ -15,14 +15,12 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.io.StringWriter
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 @Tag(name = "Tenant Admin", description = "Tenant-scoped metric dashboards and management")
-@RestController
 @RequestMapping("/api/admin/tenant")
 class TenantAdminController(
     private val tenantResolver: TenantResolver,

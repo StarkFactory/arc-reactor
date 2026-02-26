@@ -10,13 +10,11 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.math.BigDecimal
 import java.time.Instant
 
 @Tag(name = "Metric Ingestion", description = "Metric ingestion endpoint for MCP servers and external sources")
-@RestController
 @RequestMapping("/api/admin/metrics/ingest")
 class MetricIngestionController(
     private val ringBuffer: MetricRingBuffer
