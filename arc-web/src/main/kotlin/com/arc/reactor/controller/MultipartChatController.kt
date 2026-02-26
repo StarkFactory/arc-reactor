@@ -5,6 +5,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.persona.PersonaStore
+import mu.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactive.awaitSingle
@@ -18,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * Multipart Chat Controller — file upload endpoint for multimodal LLMs.
@@ -86,12 +89,28 @@ class MultipartChatController(
     }
 
     private fun resolveSystemPrompt(systemPrompt: String?, personaId: String?): String {
-        if (personaId != null && personaStore != null) {
-            personaStore.get(personaId)?.systemPrompt?.let { return it }
-        }
+        personaId?.let { resolvePersonaPromptSafely(it)?.let { prompt -> return prompt } }
         if (!systemPrompt.isNullOrBlank()) return systemPrompt
-        personaStore?.getDefault()?.systemPrompt?.let { return it }
+        resolveDefaultPersonaPromptSafely()?.let { return it }
         return ChatController.DEFAULT_SYSTEM_PROMPT
+    }
+
+    private fun resolvePersonaPromptSafely(personaId: String): String? {
+        return try {
+            personaStore?.get(personaId)?.systemPrompt
+        } catch (e: Exception) {
+            logger.warn(e) { "Persona lookup failed for personaId='$personaId'; using fallback prompt" }
+            null
+        }
+    }
+
+    private fun resolveDefaultPersonaPromptSafely(): String? {
+        return try {
+            personaStore?.getDefault()?.systemPrompt
+        } catch (e: Exception) {
+            logger.warn(e) { "Default persona lookup failed in multipart chat; using fallback prompt" }
+            null
+        }
     }
 
     private suspend fun filePartToMediaAttachment(file: FilePart): MediaAttachment {
