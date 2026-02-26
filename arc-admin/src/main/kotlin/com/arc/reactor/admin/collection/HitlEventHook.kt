@@ -13,9 +13,11 @@ private val logger = KotlinLogging.logger {}
  * Captures Human-in-the-Loop (HITL) approval/rejection events from tool calls.
  *
  * Reads HITL metadata set by ToolCallOrchestrator:
- * - hitlWaitMs_{toolName}: how long the tool waited for human approval
- * - hitlApproved_{toolName}: whether the human approved the tool call
- * - hitlRejectionReason_{toolName}: reason for rejection (if rejected)
+ * - hitlWaitMs_{toolName}_{callIndex}: how long the tool waited for human approval
+ * - hitlApproved_{toolName}_{callIndex}: whether the human approved the tool call
+ * - hitlRejectionReason_{toolName}_{callIndex}: reason for rejection (if rejected)
+ *
+ * For backward compatibility, this hook also accepts legacy keys without callIndex suffix.
  *
  * Order 201: runs after MetricCollectionHook (200).
  */
@@ -32,9 +34,14 @@ class HitlEventHook(
         try {
             val meta = context.agentContext.metadata
             val toolName = context.toolName
-            val waitMs = meta["hitlWaitMs_$toolName"]?.toString()?.toLongOrNull() ?: return
-            val approved = meta["hitlApproved_$toolName"]?.toString()?.toBoolean() ?: false
-            val reason = meta["hitlRejectionReason_$toolName"]?.toString()
+            val keySuffix = "${toolName}_${context.callIndex}"
+            val waitMs = readMeta(meta, "hitlWaitMs_$keySuffix", "hitlWaitMs_$toolName")
+                ?.toLongOrNull()
+                ?: return
+            val approved = readMeta(meta, "hitlApproved_$keySuffix", "hitlApproved_$toolName")
+                ?.toBoolean()
+                ?: false
+            val reason = readMeta(meta, "hitlRejectionReason_$keySuffix", "hitlRejectionReason_$toolName")
 
             val event = HitlEvent(
                 tenantId = meta["tenantId"]?.toString() ?: "default",
@@ -53,5 +60,9 @@ class HitlEventHook(
             healthMonitor.recordDrop(1)
             logger.warn(e) { "Failed to record HITL event for ${context.toolName}" }
         }
+    }
+
+    private fun readMeta(meta: Map<String, Any>, primaryKey: String, fallbackKey: String): String? {
+        return meta[primaryKey]?.toString() ?: meta[fallbackKey]?.toString()
     }
 }

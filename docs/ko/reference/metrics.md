@@ -291,11 +291,12 @@ val cost = costCalculator.calculate(
 
 | 메타데이터 키 | 타입 | 설명 |
 |--------------|------|------|
-| `hitlWaitMs_{toolName}` | Long | 사람의 승인을 기다린 시간 (ms) |
-| `hitlApproved_{toolName}` | Boolean | 사람이 도구 호출을 승인했는지 여부 |
-| `hitlRejectionReason_{toolName}` | String? | 거부 사유 (거부된 경우) |
+| `hitlWaitMs_{toolName}_{callIndex}` | Long | 사람의 승인을 기다린 시간 (ms) |
+| `hitlApproved_{toolName}_{callIndex}` | Boolean | 사람이 도구 호출을 승인했는지 여부 |
+| `hitlRejectionReason_{toolName}_{callIndex}` | String? | 거부 사유 (거부된 경우) |
 
-`hitlWaitMs_{toolName}`이 없으면 훅은 조용히 건너뜁니다 (HITL이 관여하지 않은 경우).
+`hitlWaitMs_{toolName}_{callIndex}`가 없으면 레거시 키(`hitlWaitMs_{toolName}` 등)로
+폴백합니다. 둘 다 없으면 훅은 조용히 건너뜁니다 (HITL이 관여하지 않은 경우).
 
 ### 데이터베이스 스키마
 

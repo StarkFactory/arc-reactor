@@ -294,11 +294,12 @@ The 90% warning is **deduplicated per tenant per month** via `ConcurrentHashMap.
 
 | Metadata Key | Type | Description |
 |--------------|------|-------------|
-| `hitlWaitMs_{toolName}` | Long | How long the tool waited for human approval (ms) |
-| `hitlApproved_{toolName}` | Boolean | Whether the human approved the tool call |
-| `hitlRejectionReason_{toolName}` | String? | Reason for rejection (if rejected) |
+| `hitlWaitMs_{toolName}_{callIndex}` | Long | How long the tool waited for human approval (ms) |
+| `hitlApproved_{toolName}_{callIndex}` | Boolean | Whether the human approved the tool call |
+| `hitlRejectionReason_{toolName}_{callIndex}` | String? | Reason for rejection (if rejected) |
 
-If `hitlWaitMs_{toolName}` is absent, the hook skips silently (no HITL was involved).
+If `hitlWaitMs_{toolName}_{callIndex}` is absent, the hook falls back to legacy keys
+(`hitlWaitMs_{toolName}`, etc.). If both are absent, the hook skips silently.
 
 ### Database Schema
 
