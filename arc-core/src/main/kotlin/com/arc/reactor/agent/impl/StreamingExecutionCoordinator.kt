@@ -67,7 +67,9 @@ internal class StreamingExecutionCoordinator(
         state: StreamingExecutionState,
         emit: suspend (String) -> Unit
     ) {
+        val queueStart = System.nanoTime()
         concurrencySemaphore.withPermit {
+            hookContext.metadata["queueWaitMs"] = (System.nanoTime() - queueStart) / 1_000_000
             withTimeout(requestTimeoutMs) {
                 val effectiveCommand = validateStreamingPreconditions(command, hookContext, state, emit)
                     ?: return@withTimeout
@@ -87,7 +89,9 @@ internal class StreamingExecutionCoordinator(
         state: StreamingExecutionState,
         emit: suspend (String) -> Unit
     ): AgentCommand? {
+        val guardStart = System.nanoTime()
         preExecutionResolver.checkGuard(command)?.let { rejection ->
+            hookContext.metadata["guardDurationMs"] = (System.nanoTime() - guardStart) / 1_000_000
             agentMetrics.recordGuardRejection(
                 stage = rejection.stage ?: "unknown",
                 reason = rejection.reason,
@@ -98,6 +102,7 @@ internal class StreamingExecutionCoordinator(
             emit(StreamEventMarker.error(rejection.reason))
             return null
         }
+        hookContext.metadata["guardDurationMs"] = (System.nanoTime() - guardStart) / 1_000_000
 
         preExecutionResolver.checkBeforeHooks(hookContext)?.let { rejection ->
             state.streamErrorCode = AgentErrorCode.HOOK_REJECTED

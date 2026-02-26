@@ -1,6 +1,9 @@
 package com.arc.reactor.admin.collection
 
 import com.arc.reactor.admin.model.AgentExecutionEvent
+import com.arc.reactor.admin.model.GuardEvent
+import com.arc.reactor.admin.model.McpHealthEvent
+import com.arc.reactor.admin.model.SessionEvent
 import com.arc.reactor.admin.model.ToolCallEvent
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
@@ -39,12 +42,14 @@ class MetricCollectionHookTest {
     private fun agentResponse(
         success: Boolean = true,
         toolsUsed: List<String> = emptyList(),
-        totalDurationMs: Long = 500
+        totalDurationMs: Long = 500,
+        errorCode: String? = null
     ) = AgentResponse(
         success = success,
         response = "response",
         toolsUsed = toolsUsed,
-        totalDurationMs = totalDurationMs
+        totalDurationMs = totalDurationMs,
+        errorCode = errorCode
     )
 
     @Nested
@@ -67,8 +72,7 @@ class MetricCollectionHookTest {
             hook.afterAgentComplete(context, agentResponse(success = true, toolsUsed = listOf("tool1", "tool2")))
 
             val events = ringBuffer.drain(10)
-            events.size shouldBe 1
-            val event = events[0].shouldBeInstanceOf<AgentExecutionEvent>()
+            val event = events.filterIsInstance<AgentExecutionEvent>().single()
             event.tenantId shouldBe "tenant-1"
             event.runId shouldBe "run-1"
             event.userId shouldBe "user-1"
@@ -80,23 +84,22 @@ class MetricCollectionHookTest {
 
         @Test
         fun `publishes execution event on failure with errorCode`() = runTest {
-            val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "errorCode" to "TOOL_ERROR"))
-            hook.afterAgentComplete(context, agentResponse(success = false))
+            val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1"))
+            hook.afterAgentComplete(context, agentResponse(success = false, errorCode = "TOOL_ERROR"))
 
             val events = ringBuffer.drain(10)
-            events.size shouldBe 1
-            val event = events[0].shouldBeInstanceOf<AgentExecutionEvent>()
+            val event = events.filterIsInstance<AgentExecutionEvent>().single()
             event.success shouldBe false
             event.errorCode shouldBe "TOOL_ERROR"
         }
 
         @Test
-        fun `errorCode is null when success is true even if metadata has errorCode`() = runTest {
-            val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "errorCode" to "TOOL_ERROR"))
-            hook.afterAgentComplete(context, agentResponse(success = true))
+        fun `errorCode is null when success is true even if response has errorCode`() = runTest {
+            val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1"))
+            hook.afterAgentComplete(context, agentResponse(success = true, errorCode = "TOOL_ERROR"))
 
             val events = ringBuffer.drain(10)
-            val event = events[0].shouldBeInstanceOf<AgentExecutionEvent>()
+            val event = events.filterIsInstance<AgentExecutionEvent>().single()
             event.errorCode shouldBe null
         }
 
@@ -111,7 +114,7 @@ class MetricCollectionHookTest {
             ))
             hook.afterAgentComplete(context, agentResponse())
 
-            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<AgentExecutionEvent>()
+            val event = ringBuffer.drain(10).filterIsInstance<AgentExecutionEvent>().single()
             event.llmDurationMs shouldBe 300
             event.toolDurationMs shouldBe 150
             event.guardDurationMs shouldBe 20
@@ -122,7 +125,7 @@ class MetricCollectionHookTest {
         fun `missing metadata values default to zero`() = runTest {
             hook.afterAgentComplete(hookContext(), agentResponse())
 
-            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<AgentExecutionEvent>()
+            val event = ringBuffer.drain(10).filterIsInstance<AgentExecutionEvent>().single()
             event.llmDurationMs shouldBe 0
             event.toolDurationMs shouldBe 0
             event.guardDurationMs shouldBe 0
@@ -150,7 +153,7 @@ class MetricCollectionHookTest {
         fun `uses default tenantId when metadata has no tenantId`() = runTest {
             hook.afterAgentComplete(hookContext(metadata = mutableMapOf()), agentResponse())
 
-            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<AgentExecutionEvent>()
+            val event = ringBuffer.drain(10).filterIsInstance<AgentExecutionEvent>().single()
             event.tenantId shouldBe "default"
         }
     }
@@ -274,7 +277,7 @@ class MetricCollectionHookTest {
             )
             hook.afterToolCall(toolCallContext(metadata = meta), toolCallResult())
 
-            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<ToolCallEvent>()
+            val event = ringBuffer.drain(10).filterIsInstance<ToolCallEvent>().single()
             event.toolSource shouldBe "mcp"
             event.mcpServerName shouldBe "payment-server"
         }
@@ -304,8 +307,126 @@ class MetricCollectionHookTest {
         fun `uses default tenantId when metadata has no tenantId`() = runTest {
             hook.afterToolCall(toolCallContext(metadata = mutableMapOf()), toolCallResult())
 
-            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<ToolCallEvent>()
+            val event = ringBuffer.drain(10).filterIsInstance<ToolCallEvent>().single()
             event.tenantId shouldBe "default"
+        }
+    }
+
+    @Nested
+    inner class GuardEventEmission {
+
+        @Test
+        fun `emits guard allowed event when guardDurationMs present`() = runTest {
+            val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "guardDurationMs" to "15"))
+            hook.afterAgentComplete(context, agentResponse())
+
+            val guardEvent = ringBuffer.drain(10).filterIsInstance<GuardEvent>().single()
+            guardEvent.tenantId shouldBe "tenant-1"
+            guardEvent.action shouldBe "allowed"
+            guardEvent.stage shouldBe "all"
+            guardEvent.category shouldBe "none"
+        }
+
+        @Test
+        fun `does not emit guard event when guardDurationMs absent`() = runTest {
+            hook.afterAgentComplete(hookContext(), agentResponse())
+
+            val guardEvents = ringBuffer.drain(10).filterIsInstance<GuardEvent>()
+            guardEvents.size shouldBe 0
+        }
+    }
+
+    @Nested
+    inner class SessionEventEmission {
+
+        @Test
+        fun `emits session event when sessionId present`() = runTest {
+            val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "sessionId" to "sess-42"))
+            hook.afterAgentComplete(context, agentResponse(totalDurationMs = 750))
+
+            val sessionEvent = ringBuffer.drain(10).filterIsInstance<SessionEvent>().single()
+            sessionEvent.tenantId shouldBe "tenant-1"
+            sessionEvent.sessionId shouldBe "sess-42"
+            sessionEvent.userId shouldBe "user-1"
+            sessionEvent.turnCount shouldBe 1
+            sessionEvent.totalDurationMs shouldBe 750
+        }
+
+        @Test
+        fun `does not emit session event when sessionId absent`() = runTest {
+            hook.afterAgentComplete(hookContext(), agentResponse())
+
+            val sessionEvents = ringBuffer.drain(10).filterIsInstance<SessionEvent>()
+            sessionEvents.size shouldBe 0
+        }
+    }
+
+    @Nested
+    inner class McpHealthEventEmission {
+
+        private fun toolCallContext(
+            toolName: String = "check_order",
+            callIndex: Int = 0,
+            metadata: MutableMap<String, Any> = mutableMapOf("tenantId" to "tenant-1")
+        ) = ToolCallContext(
+            agentContext = hookContext(metadata = metadata),
+            toolName = toolName,
+            toolParams = emptyMap(),
+            callIndex = callIndex
+        )
+
+        private fun toolCallResult(
+            success: Boolean = true,
+            durationMs: Long = 100,
+            errorMessage: String? = null
+        ) = ToolCallResult(
+            success = success,
+            output = "result",
+            errorMessage = errorMessage,
+            durationMs = durationMs
+        )
+
+        @Test
+        fun `emits MCP health event for MCP tool calls`() = runTest {
+            val meta = mutableMapOf<String, Any>(
+                "tenantId" to "tenant-1",
+                "toolSource_check_order" to "mcp",
+                "mcpServer_check_order" to "payment-server"
+            )
+            hook.afterToolCall(toolCallContext(metadata = meta), toolCallResult(durationMs = 45))
+
+            val mcpEvent = ringBuffer.drain(10).filterIsInstance<McpHealthEvent>().single()
+            mcpEvent.tenantId shouldBe "tenant-1"
+            mcpEvent.serverName shouldBe "payment-server"
+            mcpEvent.status shouldBe "CONNECTED"
+            mcpEvent.responseTimeMs shouldBe 45
+            mcpEvent.errorClass shouldBe null
+        }
+
+        @Test
+        fun `emits FAILED status for failed MCP tool calls`() = runTest {
+            val meta = mutableMapOf<String, Any>(
+                "tenantId" to "tenant-1",
+                "toolSource_check_order" to "mcp",
+                "mcpServer_check_order" to "payment-server"
+            )
+            hook.afterToolCall(
+                toolCallContext(metadata = meta),
+                toolCallResult(success = false, errorMessage = "Connection timeout after 15s")
+            )
+
+            val mcpEvent = ringBuffer.drain(10).filterIsInstance<McpHealthEvent>().single()
+            mcpEvent.status shouldBe "FAILED"
+            mcpEvent.errorClass shouldBe "timeout"
+            mcpEvent.errorMessage shouldBe "Connection timeout after 15s"
+        }
+
+        @Test
+        fun `does not emit MCP health event for local tool calls`() = runTest {
+            hook.afterToolCall(toolCallContext(), toolCallResult())
+
+            val mcpEvents = ringBuffer.drain(10).filterIsInstance<McpHealthEvent>()
+            mcpEvents.size shouldBe 0
         }
     }
 }

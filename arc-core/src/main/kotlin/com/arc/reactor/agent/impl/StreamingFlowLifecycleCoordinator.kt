@@ -30,7 +30,9 @@ internal class StreamingFlowLifecycleCoordinator(
                 collectedContent = state.collectedContent.toString(),
                 lastIterationContent = state.lastIterationContent.toString(),
                 streamErrorMessage = state.streamErrorMessage,
+                streamErrorCode = state.streamErrorCode?.name,
                 toolsUsed = toolsUsed,
+                startTime = startTime,
                 emit = emit
             )
             recordStreamingMetrics(state, toolsUsed, startTime)

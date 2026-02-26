@@ -119,3 +119,23 @@ data class EvalResultEvent(
     val failureDetail: String? = null,
     val tags: List<String> = emptyList()
 ) : MetricEvent()
+
+data class QuotaEvent(
+    override val time: Instant = Instant.now(),
+    override val tenantId: String,
+    val action: String,
+    val currentUsage: Long = 0,
+    val quotaLimit: Long = 0,
+    val usagePercent: Double = 0.0,
+    val reason: String? = null
+) : MetricEvent()
+
+data class HitlEvent(
+    override val time: Instant = Instant.now(),
+    override val tenantId: String,
+    val runId: String,
+    val toolName: String,
+    val approved: Boolean,
+    val waitMs: Long = 0,
+    val rejectionReason: String? = null
+) : MetricEvent()

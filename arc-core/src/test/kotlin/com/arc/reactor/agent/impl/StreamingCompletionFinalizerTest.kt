@@ -44,7 +44,9 @@ class StreamingCompletionFinalizerTest {
             collectedContent = "stream done",
             lastIterationContent = "final chunk",
             streamErrorMessage = null,
+            streamErrorCode = null,
             toolsUsed = listOf("search"),
+            startTime = 1_000L,
             emit = {}
         )
 
@@ -83,7 +85,9 @@ class StreamingCompletionFinalizerTest {
             collectedContent = "abcd",
             lastIterationContent = "abcd",
             streamErrorMessage = null,
+            streamErrorCode = null,
             toolsUsed = emptyList(),
+            startTime = 1_000L,
             emit = { emitted.add(it) }
         )
 
@@ -113,7 +117,9 @@ class StreamingCompletionFinalizerTest {
             collectedContent = "abc",
             lastIterationContent = "abc",
             streamErrorMessage = null,
+            streamErrorCode = null,
             toolsUsed = emptyList(),
+            startTime = 1_000L,
             emit = { emitted.add(it) }
         )
 
@@ -144,7 +150,9 @@ class StreamingCompletionFinalizerTest {
                 collectedContent = "",
                 lastIterationContent = "",
                 streamErrorMessage = "error",
+                streamErrorCode = "UNKNOWN",
                 toolsUsed = emptyList(),
+                startTime = 1_000L,
                 emit = {}
             )
             fail("Expected CancellationException")
@@ -171,7 +179,9 @@ class StreamingCompletionFinalizerTest {
                 collectedContent = "too-long",
                 lastIterationContent = "too-long",
                 streamErrorMessage = null,
+                streamErrorCode = null,
                 toolsUsed = emptyList(),
+                startTime = 1_000L,
                 emit = { throw CancellationException("cancelled") }
             )
             fail("Expected CancellationException")

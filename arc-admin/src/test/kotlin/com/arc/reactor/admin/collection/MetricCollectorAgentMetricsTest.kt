@@ -2,26 +2,33 @@ package com.arc.reactor.admin.collection
 
 import com.arc.reactor.admin.model.GuardEvent
 import com.arc.reactor.admin.model.TokenUsageEvent
+import com.arc.reactor.admin.pricing.CostCalculator
+import com.arc.reactor.admin.pricing.InMemoryModelPricingStore
+import com.arc.reactor.admin.pricing.ModelPricing
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.resilience.CircuitBreakerState
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
 
 class MetricCollectorAgentMetricsTest {
 
     private lateinit var ringBuffer: MetricRingBuffer
     private val healthMonitor = PipelineHealthMonitor()
+    private val pricingStore = InMemoryModelPricingStore()
+    private val costCalculator = CostCalculator(pricingStore)
     private lateinit var metrics: MetricCollectorAgentMetrics
     private val defaultMetadata = mapOf<String, Any>("tenantId" to "tenant-1")
 
     @BeforeEach
     fun setUp() {
         ringBuffer = MetricRingBuffer(64)
-        metrics = MetricCollectorAgentMetrics(ringBuffer, healthMonitor)
+        metrics = MetricCollectorAgentMetrics(ringBuffer, healthMonitor, costCalculator)
     }
 
     @Nested
@@ -196,6 +203,38 @@ class MetricCollectorAgentMetricsTest {
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<TokenUsageEvent>()
             event.tenantId shouldBe "default"
         }
+
+        @Test
+        fun `calculates cost for known model pricing`() {
+            pricingStore.save(
+                ModelPricing(
+                    provider = "openai",
+                    model = "gpt-4",
+                    promptPricePer1k = BigDecimal("0.03"),
+                    completionPricePer1k = BigDecimal("0.06")
+                )
+            )
+
+            metrics.recordTokenUsage(
+                TokenUsage(promptTokens = 1000, completionTokens = 500, totalTokens = 1500),
+                mapOf("tenantId" to "tenant-1", "model" to "gpt-4")
+            )
+
+            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<TokenUsageEvent>()
+            event.estimatedCostUsd shouldBeGreaterThan BigDecimal.ZERO
+            event.provider shouldBe "openai"
+        }
+
+        @Test
+        fun `returns zero cost for unknown model pricing`() {
+            metrics.recordTokenUsage(
+                TokenUsage(promptTokens = 100, completionTokens = 50, totalTokens = 150),
+                mapOf("tenantId" to "tenant-1", "model" to "unknown-model-xyz")
+            )
+
+            val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<TokenUsageEvent>()
+            event.estimatedCostUsd shouldBe BigDecimal.ZERO
+        }
     }
 
     @Nested
@@ -243,7 +282,7 @@ class MetricCollectorAgentMetricsTest {
         fun `records drop when buffer is full`() {
             // Min capacity is 64 (MetricRingBuffer coerces to at least 64)
             val tinyBuffer = MetricRingBuffer(64)
-            val tinyMetrics = MetricCollectorAgentMetrics(tinyBuffer, healthMonitor)
+            val tinyMetrics = MetricCollectorAgentMetrics(tinyBuffer, healthMonitor, costCalculator)
 
             // Fill buffer to capacity
             repeat(64) {

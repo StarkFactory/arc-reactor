@@ -42,14 +42,20 @@ internal class ExecutionResultFinalizer(
         attemptLongerResponse: suspend (String, Int, AgentCommand) -> String?
     ): AgentResult {
         val guarded = applyOutputGuardPipeline(result, command, toolsUsed, startTime)
-        if (!guarded.success && guarded.errorCode == AgentErrorCode.OUTPUT_GUARD_REJECTED) return guarded
+        if (!guarded.success && guarded.errorCode == AgentErrorCode.OUTPUT_GUARD_REJECTED) {
+            runAfterCompletionHook(hookContext, guarded, toolsUsed, startTime)
+            return guarded
+        }
 
         val bounded = applyOutputBoundaryRule(guarded, command, startTime, attemptLongerResponse)
-        if (!bounded.success && bounded.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT) return bounded
+        if (!bounded.success && bounded.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT) {
+            runAfterCompletionHook(hookContext, bounded, toolsUsed, startTime)
+            return bounded
+        }
 
         val filtered = applyResponseFilters(bounded, command, toolsUsed, startTime)
         conversationManager.saveHistory(command, filtered)
-        runAfterCompletionHook(hookContext, filtered, toolsUsed)
+        runAfterCompletionHook(hookContext, filtered, toolsUsed, startTime)
         return recordFinalExecution(filtered, startTime)
     }
 
@@ -138,7 +144,8 @@ internal class ExecutionResultFinalizer(
     private suspend fun runAfterCompletionHook(
         hookContext: HookContext,
         result: AgentResult,
-        toolsUsed: List<String>
+        toolsUsed: List<String>,
+        startTime: Long
     ) {
         try {
             hookExecutor?.executeAfterAgentComplete(
@@ -147,7 +154,9 @@ internal class ExecutionResultFinalizer(
                     success = result.success,
                     response = result.content,
                     errorMessage = result.errorMessage,
-                    toolsUsed = toolsUsed
+                    toolsUsed = toolsUsed,
+                    totalDurationMs = nowMs() - startTime,
+                    errorCode = result.errorCode?.name
                 )
             )
         } catch (e: Exception) {

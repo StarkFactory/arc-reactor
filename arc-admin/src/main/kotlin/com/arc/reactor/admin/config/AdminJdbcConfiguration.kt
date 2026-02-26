@@ -6,7 +6,7 @@ import com.arc.reactor.admin.alert.AlertNotifier
 import com.arc.reactor.admin.alert.AlertRuleStore
 import com.arc.reactor.admin.alert.AlertScheduler
 import com.arc.reactor.admin.alert.BaselineCalculator
-import com.arc.reactor.admin.alert.InMemoryAlertRuleStore
+import com.arc.reactor.admin.alert.JdbcAlertRuleStore
 import com.arc.reactor.admin.alert.LogAlertNotifier
 import com.arc.reactor.admin.alert.QuotaEnforcerHook
 import com.arc.reactor.admin.collection.JdbcMetricEventStore
@@ -116,10 +116,10 @@ class AdminJdbcConfiguration {
         BaselineCalculator(jdbcTemplate)
 
     @Bean
-    @ConditionalOnMissingBean
-    fun alertRuleStore(): AlertRuleStore {
-        logger.info { "Using InMemoryAlertRuleStore (JDBC variant can be added later)" }
-        return InMemoryAlertRuleStore()
+    @Primary
+    fun jdbcAlertRuleStore(jdbcTemplate: JdbcTemplate): AlertRuleStore {
+        logger.info { "Using JdbcAlertRuleStore" }
+        return JdbcAlertRuleStore(jdbcTemplate)
     }
 
     @Bean
@@ -140,10 +140,11 @@ class AdminJdbcConfiguration {
         tenantStore: TenantStore,
         queryService: MetricQueryService,
         circuitBreakerRegistry: com.arc.reactor.resilience.CircuitBreakerRegistry,
-        healthMonitor: PipelineHealthMonitor
+        healthMonitor: PipelineHealthMonitor,
+        ringBuffer: MetricRingBuffer
     ): QuotaEnforcerHook {
         logger.info { "QuotaEnforcerHook registered (order=5, fail-open)" }
-        return QuotaEnforcerHook(tenantStore, queryService, circuitBreakerRegistry, healthMonitor)
+        return QuotaEnforcerHook(tenantStore, queryService, circuitBreakerRegistry, healthMonitor, ringBuffer)
     }
 
     // --- Alerting ---

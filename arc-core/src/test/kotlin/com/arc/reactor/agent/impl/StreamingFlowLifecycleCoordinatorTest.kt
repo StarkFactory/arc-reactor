@@ -24,7 +24,7 @@ class StreamingFlowLifecycleCoordinatorTest {
         val completionFinalizer = mockk<StreamingCompletionFinalizer>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery {
-            completionFinalizer.finalize(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            completionFinalizer.finalize(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } returns Unit
         var closeCalled = false
         val coordinator = StreamingFlowLifecycleCoordinator(
@@ -59,7 +59,9 @@ class StreamingFlowLifecycleCoordinatorTest {
                 collectedContent = "stream-body",
                 lastIterationContent = "last-iteration",
                 streamErrorMessage = null,
+                streamErrorCode = null,
                 toolsUsed = listOf("search"),
+                startTime = 1_000L,
                 emit = any()
             )
         }
@@ -76,7 +78,7 @@ class StreamingFlowLifecycleCoordinatorTest {
         val completionFinalizer = mockk<StreamingCompletionFinalizer>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery {
-            completionFinalizer.finalize(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            completionFinalizer.finalize(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } returns Unit
         val coordinator = StreamingFlowLifecycleCoordinator(
             streamingCompletionFinalizer = completionFinalizer,
@@ -116,7 +118,7 @@ class StreamingFlowLifecycleCoordinatorTest {
         val completionFinalizer = mockk<StreamingCompletionFinalizer>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery {
-            completionFinalizer.finalize(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            completionFinalizer.finalize(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws IllegalStateException("finalizer failed")
         var closeCalled = false
         val coordinator = StreamingFlowLifecycleCoordinator(

@@ -73,5 +73,6 @@ data class AgentResponse(
     val response: String? = null,
     val errorMessage: String? = null,
     val toolsUsed: List<String> = emptyList(),
-    val totalDurationMs: Long = 0
+    val totalDurationMs: Long = 0,
+    val errorCode: String? = null
 )

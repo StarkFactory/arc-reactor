@@ -3,6 +3,7 @@ package com.arc.reactor.agent.impl
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.hook.model.HookContext
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
@@ -35,7 +36,8 @@ internal class StreamingReActLoopExecutor(
     private val callWithRetry: suspend (
         suspend () -> Flux<org.springframework.ai.chat.model.ChatResponse>
     ) -> Flux<org.springframework.ai.chat.model.ChatResponse>,
-    private val buildChatOptions: (AgentCommand, Boolean) -> ChatOptions
+    private val buildChatOptions: (AgentCommand, Boolean) -> ChatOptions,
+    private val recordTokenUsage: (TokenUsage, Map<String, Any>) -> Unit = { _, _ -> }
 ) {
 
     suspend fun execute(
@@ -55,6 +57,8 @@ internal class StreamingReActLoopExecutor(
         var totalToolCalls = 0
         var lastIterationContent = ""
         val collectedContent = StringBuilder()
+        var totalLlmDurationMs = 0L
+        var totalToolDurationMs = 0L
 
         val messages = mutableListOf<Message>()
         if (conversationHistory.isNotEmpty()) {
@@ -67,9 +71,11 @@ internal class StreamingReActLoopExecutor(
             messageTrimmer.trim(messages, systemPrompt)
 
             val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
+            val llmStart = System.nanoTime()
             val flux = callWithRetry { requestSpec.stream().chatResponse() }
             var pendingToolCalls: List<AssistantMessage.ToolCall> = emptyList()
             val currentChunkText = StringBuilder()
+            var lastChunkMeta: org.springframework.ai.chat.metadata.ChatResponseMetadata? = null
 
             flux.asFlow().collect { chunk ->
                 val text = chunk.result.output.text
@@ -83,10 +89,35 @@ internal class StreamingReActLoopExecutor(
                 if (!chunkToolCalls.isNullOrEmpty()) {
                     pendingToolCalls = chunkToolCalls
                 }
+                val chunkUsage = chunk.metadata.usage
+                if (chunkUsage != null && chunkUsage.totalTokens > 0) {
+                    lastChunkMeta = chunk.metadata
+                }
+            }
+            totalLlmDurationMs += (System.nanoTime() - llmStart) / 1_000_000
+
+            lastChunkMeta?.let { meta ->
+                meta.usage?.let { usage ->
+                    val enrichedMetadata = buildMap<String, Any> {
+                        putAll(hookContext.metadata)
+                        put("runId", hookContext.runId)
+                        meta.model?.let { put("model", it) }
+                    }
+                    recordTokenUsage(
+                        TokenUsage(
+                            promptTokens = usage.promptTokens.toInt(),
+                            completionTokens = usage.completionTokens.toInt(),
+                            totalTokens = usage.totalTokens.toInt()
+                        ),
+                        enrichedMetadata
+                    )
+                }
             }
 
             lastIterationContent = currentIterationContent.toString()
             if (pendingToolCalls.isEmpty() || activeTools.isEmpty()) {
+                hookContext.metadata["llmDurationMs"] = totalLlmDurationMs
+                hookContext.metadata["toolDurationMs"] = totalToolDurationMs
                 return StreamingLoopResult(
                     success = true,
                     collectedContent = collectedContent.toString(),
@@ -105,6 +136,7 @@ internal class StreamingReActLoopExecutor(
             }
 
             val totalToolCallsCounter = AtomicInteger(totalToolCalls)
+            val toolStart = System.nanoTime()
             val toolResponses = toolCallOrchestrator.executeInParallel(
                 pendingToolCalls,
                 activeTools,
@@ -114,6 +146,7 @@ internal class StreamingReActLoopExecutor(
                 maxToolCalls,
                 allowedTools
             )
+            totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
             totalToolCalls = totalToolCallsCounter.get()
 
             for (toolCall in pendingToolCalls) {

@@ -21,12 +21,20 @@ private val logger = KotlinLogging.logger {}
  *         +-- On call(), invokes worker AgentExecutor.execute()
  * ```
  *
+ * ## Metadata Propagation
+ * When [parentCommand] is provided, the worker agent inherits the parent's
+ * [metadata][AgentCommand.metadata] and [userId][AgentCommand.userId].
+ * This ensures tenant-scoped metrics (quota, cost, HITL) are correctly attributed
+ * to the originating tenant even in multi-agent orchestration.
+ *
  * @param node Worker agent node definition
  * @param agentExecutor Executor for the worker agent
+ * @param parentCommand Parent agent command for metadata propagation (optional for backward compatibility)
  */
 class WorkerAgentTool(
     private val node: AgentNode,
-    private val agentExecutor: AgentExecutor
+    private val agentExecutor: AgentExecutor,
+    private val parentCommand: AgentCommand? = null
 ) : ToolCallback {
 
     override val name = "delegate_to_${node.name}"
@@ -57,7 +65,9 @@ class WorkerAgentTool(
             AgentCommand(
                 systemPrompt = node.systemPrompt,
                 userPrompt = instruction,
-                maxToolCalls = node.maxToolCalls
+                maxToolCalls = node.maxToolCalls,
+                userId = parentCommand?.userId,
+                metadata = parentCommand?.metadata ?: emptyMap()
             )
         )
 

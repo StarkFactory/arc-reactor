@@ -1,6 +1,9 @@
 package com.arc.reactor.admin.collection
 
 import com.arc.reactor.admin.model.AgentExecutionEvent
+import com.arc.reactor.admin.model.GuardEvent
+import com.arc.reactor.admin.model.McpHealthEvent
+import com.arc.reactor.admin.model.SessionEvent
 import com.arc.reactor.admin.model.ToolCallEvent
 import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.AfterToolCallHook
@@ -39,7 +42,7 @@ class MetricCollectionHook(
                 sessionId = context.metadata["sessionId"]?.toString(),
                 channel = context.channel,
                 success = response.success,
-                errorCode = if (!response.success) context.metadata["errorCode"]?.toString() else null,
+                errorCode = if (!response.success) response.errorCode else null,
                 durationMs = response.totalDurationMs,
                 llmDurationMs = context.metadata["llmDurationMs"]?.toString()?.toLongOrNull() ?: 0,
                 toolDurationMs = context.metadata["toolDurationMs"]?.toString()?.toLongOrNull() ?: 0,
@@ -48,11 +51,14 @@ class MetricCollectionHook(
                 toolCount = response.toolsUsed.size,
                 personaId = context.metadata["personaId"]?.toString(),
                 promptTemplateId = context.metadata["promptTemplateId"]?.toString(),
-                intentCategory = context.metadata["intentCategory"]?.toString()
+                intentCategory = context.metadata["intentCategory"]?.toString(),
+                fallbackUsed = context.metadata["fallbackUsed"] == true
             )
             if (!ringBuffer.publish(event)) {
                 healthMonitor.recordDrop(1)
             }
+            publishGuardEvent(context, event)
+            publishSessionEvent(context, response)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -78,11 +84,60 @@ class MetricCollectionHook(
             if (!ringBuffer.publish(event)) {
                 healthMonitor.recordDrop(1)
             }
+            publishMcpHealthEvent(event)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             healthMonitor.recordDrop(1)
             logger.warn(e) { "Failed to record tool call metric for ${context.toolName}" }
+        }
+    }
+
+    private fun publishGuardEvent(context: HookContext, execution: AgentExecutionEvent) {
+        val guardDurationMs = context.metadata["guardDurationMs"]?.toString()?.toLongOrNull() ?: return
+        val action = if (execution.guardRejected) "rejected" else "allowed"
+        val guardEvent = GuardEvent(
+            tenantId = execution.tenantId,
+            userId = execution.userId,
+            channel = execution.channel,
+            stage = execution.guardStage ?: "all",
+            category = execution.guardCategory ?: "none",
+            action = action
+        )
+        if (!ringBuffer.publish(guardEvent)) {
+            healthMonitor.recordDrop(1)
+        }
+    }
+
+    private fun publishSessionEvent(context: HookContext, response: AgentResponse) {
+        val sessionId = context.metadata["sessionId"]?.toString() ?: return
+        val tenantId = context.metadata["tenantId"]?.toString() ?: "default"
+        val sessionEvent = SessionEvent(
+            tenantId = tenantId,
+            sessionId = sessionId,
+            userId = context.userId,
+            channel = context.channel,
+            turnCount = 1,
+            totalDurationMs = response.totalDurationMs
+        )
+        if (!ringBuffer.publish(sessionEvent)) {
+            healthMonitor.recordDrop(1)
+        }
+    }
+
+    private fun publishMcpHealthEvent(toolCall: ToolCallEvent) {
+        if (toolCall.toolSource != "mcp") return
+        val serverName = toolCall.mcpServerName ?: return
+        val mcpEvent = McpHealthEvent(
+            tenantId = toolCall.tenantId,
+            serverName = serverName,
+            status = if (toolCall.success) "CONNECTED" else "FAILED",
+            responseTimeMs = toolCall.durationMs,
+            errorClass = toolCall.errorClass,
+            errorMessage = toolCall.errorMessage
+        )
+        if (!ringBuffer.publish(mcpEvent)) {
+            healthMonitor.recordDrop(1)
         }
     }
 

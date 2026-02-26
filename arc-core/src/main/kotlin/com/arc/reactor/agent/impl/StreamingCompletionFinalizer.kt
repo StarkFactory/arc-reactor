@@ -19,7 +19,8 @@ internal class StreamingCompletionFinalizer(
     private val boundaries: BoundaryProperties,
     private val conversationManager: ConversationManager,
     private val hookExecutor: HookExecutor?,
-    private val agentMetrics: AgentMetrics
+    private val agentMetrics: AgentMetrics,
+    private val nowMs: () -> Long = System::currentTimeMillis
 ) {
 
     suspend fun finalize(
@@ -30,7 +31,9 @@ internal class StreamingCompletionFinalizer(
         collectedContent: String,
         lastIterationContent: String,
         streamErrorMessage: String?,
+        streamErrorCode: String?,
         toolsUsed: List<String>,
+        startTime: Long,
         emit: suspend (String) -> Unit
     ) {
         if (streamSuccess) {
@@ -38,21 +41,21 @@ internal class StreamingCompletionFinalizer(
             emitBoundaryMarkers(collectedContent, emit)
         }
 
-        if (streamStarted) {
-            try {
-                hookExecutor?.executeAfterAgentComplete(
-                    context = hookContext,
-                    response = AgentResponse(
-                        success = streamSuccess,
-                        response = if (streamSuccess) collectedContent else null,
-                        errorMessage = if (!streamSuccess) (streamErrorMessage ?: "Streaming failed") else null,
-                        toolsUsed = toolsUsed
-                    )
+        try {
+            hookExecutor?.executeAfterAgentComplete(
+                context = hookContext,
+                response = AgentResponse(
+                    success = streamSuccess,
+                    response = if (streamSuccess) collectedContent else null,
+                    errorMessage = if (!streamSuccess) (streamErrorMessage ?: "Streaming failed") else null,
+                    toolsUsed = toolsUsed,
+                    totalDurationMs = nowMs() - startTime,
+                    errorCode = if (!streamSuccess) streamErrorCode else null
                 )
-            } catch (hookEx: Exception) {
-                hookEx.throwIfCancellation()
-                logger.error(hookEx) { "AfterAgentComplete hook failed in streaming finally" }
-            }
+            )
+        } catch (hookEx: Exception) {
+            hookEx.throwIfCancellation()
+            logger.error(hookEx) { "AfterAgentComplete hook failed in streaming finally" }
         }
     }
 

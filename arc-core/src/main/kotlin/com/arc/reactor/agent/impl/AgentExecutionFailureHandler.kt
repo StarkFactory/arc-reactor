@@ -50,7 +50,13 @@ internal class AgentExecutionFailureHandler(
         try {
             hookExecutor?.executeAfterAgentComplete(
                 context = hookContext,
-                response = AgentResponse(success = false, errorMessage = failResult.errorMessage)
+                response = AgentResponse(
+                    success = false,
+                    errorMessage = failResult.errorMessage,
+                    toolsUsed = hookContext.toolsUsed.toList(),
+                    totalDurationMs = failResult.durationMs,
+                    errorCode = failResult.errorCode?.name
+                )
             )
         } catch (hookEx: Exception) {
             hookEx.throwIfCancellation()

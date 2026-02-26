@@ -55,6 +55,8 @@ internal class ManualReActLoopExecutor(
         var activeTools = initialTools
         var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
         var totalTokenUsage: TokenUsage? = null
+        var totalLlmDurationMs = 0L
+        var totalToolDurationMs = 0L
 
         val messages = mutableListOf<Message>()
         if (conversationHistory.isNotEmpty()) {
@@ -66,25 +68,35 @@ internal class ManualReActLoopExecutor(
             messageTrimmer.trim(messages, systemPrompt)
 
             val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
+            val llmStart = System.nanoTime()
             val chatResponse = callWithRetry {
                 runInterruptible { requestSpec.call().chatResponse() }
             }
+            totalLlmDurationMs += (System.nanoTime() - llmStart) / 1_000_000
 
             totalTokenUsage = accumulateTokenUsage(chatResponse, totalTokenUsage)
-            chatResponse?.metadata?.usage?.let { usage ->
+            chatResponse?.metadata?.let { meta ->
+                val usage = meta.usage ?: return@let
+                val enrichedMetadata = buildMap<String, Any> {
+                    putAll(hookContext.metadata)
+                    put("runId", hookContext.runId)
+                    meta.model?.let { put("model", it) }
+                }
                 recordTokenUsage(
                     TokenUsage(
                         promptTokens = usage.promptTokens.toInt(),
                         completionTokens = usage.completionTokens.toInt(),
                         totalTokens = usage.totalTokens.toInt()
                     ),
-                    hookContext.metadata
+                    enrichedMetadata
                 )
             }
 
             val assistantOutput = chatResponse?.results?.firstOrNull()?.output
             val pendingToolCalls = assistantOutput?.toolCalls.orEmpty()
             if (pendingToolCalls.isEmpty() || activeTools.isEmpty()) {
+                hookContext.metadata["llmDurationMs"] = totalLlmDurationMs
+                hookContext.metadata["toolDurationMs"] = totalToolDurationMs
                 return validateAndRepairResponse(
                     assistantOutput?.text.orEmpty(),
                     command.responseFormat,
@@ -100,6 +112,7 @@ internal class ManualReActLoopExecutor(
             messages.add(assistantMessage)
 
             val totalToolCallsCounter = AtomicInteger(totalToolCalls)
+            val toolStart = System.nanoTime()
             val toolResponses = toolCallOrchestrator.executeInParallel(
                 pendingToolCalls,
                 activeTools,
@@ -109,6 +122,7 @@ internal class ManualReActLoopExecutor(
                 maxToolCalls,
                 allowedTools
             )
+            totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
             totalToolCalls = totalToolCallsCounter.get()
 
             messages.add(
