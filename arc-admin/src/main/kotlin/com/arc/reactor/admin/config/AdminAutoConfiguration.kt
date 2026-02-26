@@ -108,11 +108,4 @@ class AdminAutoConfiguration {
         logger.info { "AgentTracingHooks registered (order=199)" }
         return AgentTracingHooks(tracer)
     }
-
-    @Bean
-    @ConditionalOnMissingBean
-    fun metricIngestionController(
-        ringBuffer: MetricRingBuffer
-    ): com.arc.reactor.admin.controller.MetricIngestionController =
-        com.arc.reactor.admin.controller.MetricIngestionController(ringBuffer)
 }

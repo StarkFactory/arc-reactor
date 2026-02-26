@@ -6,15 +6,22 @@ import com.arc.reactor.admin.model.McpHealthEvent
 import com.arc.reactor.admin.model.ToolCallEvent
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.math.BigDecimal
 import java.time.Instant
 
 @Tag(name = "Metric Ingestion", description = "Metric ingestion endpoint for MCP servers and external sources")
+@RestController
+@ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 @RequestMapping("/api/admin/metrics/ingest")
 class MetricIngestionController(
     private val ringBuffer: MetricRingBuffer

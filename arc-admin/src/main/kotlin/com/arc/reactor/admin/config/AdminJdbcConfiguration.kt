@@ -10,9 +10,6 @@ import com.arc.reactor.admin.alert.InMemoryAlertRuleStore
 import com.arc.reactor.admin.alert.LogAlertNotifier
 import com.arc.reactor.admin.alert.QuotaEnforcerHook
 import com.arc.reactor.admin.collection.JdbcMetricEventStore
-import com.arc.reactor.admin.collection.TenantResolver
-import com.arc.reactor.admin.controller.PlatformAdminController
-import com.arc.reactor.admin.controller.TenantAdminController
 import com.arc.reactor.admin.collection.MetricEventStore
 import com.arc.reactor.admin.collection.MetricRingBuffer
 import com.arc.reactor.admin.collection.MetricWriter
@@ -171,34 +168,4 @@ class AdminJdbcConfiguration {
         scheduler.start()
         return scheduler
     }
-
-    // --- REST Controllers (depend on JDBC services) ---
-
-    @Bean
-    @ConditionalOnMissingBean
-    fun tenantAdminController(
-        tenantResolver: TenantResolver,
-        tenantStore: TenantStore,
-        dashboardService: DashboardService,
-        queryService: MetricQueryService,
-        sloService: SloService,
-        alertStore: AlertRuleStore,
-        exportService: ExportService
-    ): TenantAdminController = TenantAdminController(
-        tenantResolver, tenantStore, dashboardService, queryService, sloService, alertStore, exportService
-    )
-
-    @Bean
-    @ConditionalOnMissingBean
-    fun platformAdminController(
-        tenantStore: TenantStore,
-        tenantService: com.arc.reactor.admin.tenant.TenantService,
-        queryService: MetricQueryService,
-        pricingStore: com.arc.reactor.admin.pricing.ModelPricingStore,
-        healthMonitor: PipelineHealthMonitor,
-        alertStore: AlertRuleStore,
-        alertEvaluator: AlertEvaluator
-    ): PlatformAdminController = PlatformAdminController(
-        tenantStore, tenantService, queryService, pricingStore, healthMonitor, alertStore, alertEvaluator
-    )
 }

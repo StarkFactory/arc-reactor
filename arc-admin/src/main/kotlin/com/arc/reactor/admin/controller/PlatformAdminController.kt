@@ -14,6 +14,8 @@ import com.arc.reactor.admin.tenant.TenantService
 import com.arc.reactor.admin.tenant.TenantStore
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -22,9 +24,17 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
+import javax.sql.DataSource
 
 @Tag(name = "Platform Admin", description = "Platform-wide administration APIs (ADMIN)")
+@RestController
+@ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
+@ConditionalOnBean(DataSource::class)
 @RequestMapping("/api/admin/platform")
 class PlatformAdminController(
     private val tenantStore: TenantStore,
