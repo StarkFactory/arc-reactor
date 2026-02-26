@@ -3,7 +3,6 @@ package com.arc.reactor.controller
 import com.arc.reactor.feedback.Feedback
 import com.arc.reactor.feedback.FeedbackRating
 import com.arc.reactor.feedback.FeedbackStore
-import com.arc.reactor.hook.impl.CapturedExecutionMetadata
 import com.arc.reactor.hook.impl.FeedbackMetadataCaptureHook
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag

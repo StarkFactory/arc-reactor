@@ -1,7 +1,6 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.auth.JwtAuthWebFilter
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.config.ChatModelProvider
