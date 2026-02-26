@@ -7,7 +7,6 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.multi.AgentNode
 import com.arc.reactor.agent.multi.MultiAgent
 import com.arc.reactor.agent.multi.MultiAgentResult
-import com.arc.reactor.tool.ToolCallback
 import org.springframework.ai.chat.client.ChatClient
 
 /**

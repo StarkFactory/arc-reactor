@@ -24,7 +24,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import java.math.BigDecimal
 
 class QuotaEnforcerHookTest {
 

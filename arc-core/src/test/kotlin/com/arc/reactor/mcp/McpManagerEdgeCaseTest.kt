@@ -6,7 +6,6 @@ import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope

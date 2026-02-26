@@ -4,7 +4,6 @@ import com.arc.reactor.admin.alert.AlertEvaluator
 import com.arc.reactor.admin.alert.InMemoryAlertRuleStore
 import com.arc.reactor.admin.collection.PipelineHealthMonitor
 import com.arc.reactor.admin.model.AlertRule
-import com.arc.reactor.admin.model.AlertSeverity
 import com.arc.reactor.admin.model.AlertType
 import com.arc.reactor.admin.model.PlatformHealthDashboard
 import com.arc.reactor.admin.model.Tenant

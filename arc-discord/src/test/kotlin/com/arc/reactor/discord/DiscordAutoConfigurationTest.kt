@@ -2,7 +2,6 @@ package com.arc.reactor.discord
 
 import com.arc.reactor.discord.config.DiscordAutoConfiguration
 import com.arc.reactor.discord.config.DiscordProperties
-import com.arc.reactor.discord.service.DiscordMessagingService
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import org.junit.jupiter.api.Nested

@@ -1,8 +1,6 @@
 package com.arc.reactor.intent
 
 import com.arc.reactor.agent.AgentTestFixture
-import com.arc.reactor.agent.config.AgentProperties
-import com.arc.reactor.agent.config.IntentProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode

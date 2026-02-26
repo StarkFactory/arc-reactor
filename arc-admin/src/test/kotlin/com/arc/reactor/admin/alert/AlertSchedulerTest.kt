@@ -1,9 +1,6 @@
 package com.arc.reactor.admin.alert
 
-import com.arc.reactor.admin.model.AlertInstance
 import com.arc.reactor.admin.model.AlertRule
-import com.arc.reactor.admin.model.AlertSeverity
-import com.arc.reactor.admin.model.AlertStatus
 import com.arc.reactor.admin.model.AlertType
 import com.arc.reactor.admin.model.Tenant
 import com.arc.reactor.admin.model.TenantPlan
@@ -19,7 +16,6 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import java.time.Instant
 
 class AlertSchedulerTest {
 

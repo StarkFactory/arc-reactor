@@ -1,6 +1,5 @@
 package com.arc.reactor.admin.query
 
-import com.arc.reactor.admin.model.TimeSeriesPoint
 import com.arc.reactor.admin.model.ToolUsageSummary
 import com.arc.reactor.admin.model.UserUsageSummary
 import io.kotest.matchers.collections.shouldHaveSize

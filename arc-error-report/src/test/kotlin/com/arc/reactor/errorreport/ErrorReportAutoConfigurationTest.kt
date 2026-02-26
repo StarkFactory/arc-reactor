@@ -3,7 +3,6 @@ package com.arc.reactor.errorreport
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.errorreport.config.ErrorReportAutoConfiguration
 import com.arc.reactor.errorreport.handler.ErrorReportHandler
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.mockk.mockk

@@ -4,8 +4,6 @@ import com.arc.reactor.agent.AgentTestFixture
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.MediaConverter
-import com.arc.reactor.agent.model.ResponseFormat
-import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.TokenEstimator
 import io.mockk.coEvery
@@ -16,7 +14,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
-import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.prompt.ChatOptions
 import java.util.concurrent.atomic.AtomicInteger

@@ -7,7 +7,6 @@ import com.arc.reactor.agent.config.SummaryProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.Message
-import com.arc.reactor.agent.model.MessageRole
 import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.InMemoryMemoryStore
 import io.mockk.coEvery

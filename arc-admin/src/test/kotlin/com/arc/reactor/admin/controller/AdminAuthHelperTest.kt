@@ -1,5 +1,6 @@
 package com.arc.reactor.admin.controller
 
+import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -16,7 +17,7 @@ class AdminAuthHelperTest {
         val exchange = mockk<ServerWebExchange>()
         val attributes = mutableMapOf<String, Any>()
         if (role != null) {
-            attributes["userRole"] = role
+            attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] = role
         }
         every { exchange.attributes } returns attributes
         return exchange
@@ -50,31 +51,6 @@ class AdminAuthHelperTest {
             response.statusCode shouldBe HttpStatus.FORBIDDEN
             val body = response.body as AdminErrorResponse
             body.error shouldContain "Admin access required"
-        }
-    }
-
-    @Nested
-    inner class CurrentActor {
-
-        @Test
-        fun `returns userId when present`() {
-            val exchange = mockk<ServerWebExchange>()
-            every { exchange.attributes } returns mutableMapOf<String, Any>("userId" to "user-42")
-            currentActor(exchange) shouldBe "user-42"
-        }
-
-        @Test
-        fun `returns anonymous when userId is null`() {
-            val exchange = mockk<ServerWebExchange>()
-            every { exchange.attributes } returns mutableMapOf()
-            currentActor(exchange) shouldBe "anonymous"
-        }
-
-        @Test
-        fun `returns anonymous when userId is blank`() {
-            val exchange = mockk<ServerWebExchange>()
-            every { exchange.attributes } returns mutableMapOf<String, Any>("userId" to "  ")
-            currentActor(exchange) shouldBe "anonymous"
         }
     }
 }

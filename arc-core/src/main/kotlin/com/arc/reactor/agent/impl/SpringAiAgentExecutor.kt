@@ -7,10 +7,8 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
-import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
-import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.resilience.CircuitBreaker
 import com.arc.reactor.resilience.FallbackStrategy
@@ -40,9 +38,7 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.prompt.ChatOptions
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout

@@ -4,8 +4,6 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaAttachment
-import com.arc.reactor.agent.model.Message
-import com.arc.reactor.agent.model.MessageRole
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.auth.JwtAuthWebFilter
@@ -245,15 +243,42 @@ class ChatController(
      * 5. Hardcoded fallback
      */
     private fun resolveSystemPrompt(request: ChatRequest): String {
-        if (request.personaId != null && personaStore != null) {
-            personaStore.get(request.personaId)?.systemPrompt?.let { return it }
+        request.personaId?.let { personaId ->
+            resolvePersonaPromptSafely(personaId)?.let { return it }
         }
-        if (request.promptTemplateId != null && promptTemplateStore != null) {
-            promptTemplateStore.getActiveVersion(request.promptTemplateId)?.content?.let { return it }
+        request.promptTemplateId?.let { promptTemplateId ->
+            resolveTemplatePromptSafely(promptTemplateId)?.let { return it }
         }
         if (!request.systemPrompt.isNullOrBlank()) return request.systemPrompt
-        personaStore?.getDefault()?.systemPrompt?.let { return it }
+        resolveDefaultPersonaPromptSafely()?.let { return it }
         return DEFAULT_SYSTEM_PROMPT
+    }
+
+    private fun resolvePersonaPromptSafely(personaId: String): String? {
+        return try {
+            personaStore?.get(personaId)?.systemPrompt
+        } catch (e: Exception) {
+            logger.warn(e) { "Persona lookup failed for personaId='$personaId'; falling back to default prompt" }
+            null
+        }
+    }
+
+    private fun resolveTemplatePromptSafely(promptTemplateId: String): String? {
+        return try {
+            promptTemplateStore?.getActiveVersion(promptTemplateId)?.content
+        } catch (e: Exception) {
+            logger.warn(e) { "Prompt template lookup failed for promptTemplateId='$promptTemplateId'" }
+            null
+        }
+    }
+
+    private fun resolveDefaultPersonaPromptSafely(): String? {
+        return try {
+            personaStore?.getDefault()?.systemPrompt
+        } catch (e: Exception) {
+            logger.warn(e) { "Default persona lookup failed; using hardcoded fallback system prompt" }
+            null
+        }
     }
 
     /**
@@ -272,7 +297,12 @@ class ChatController(
 
         if (request.promptTemplateId == null || promptTemplateStore == null) return withTenant
 
-        val activeVersion = promptTemplateStore.getActiveVersion(request.promptTemplateId) ?: return withTenant
+        val activeVersion = try {
+            promptTemplateStore.getActiveVersion(request.promptTemplateId)
+        } catch (e: Exception) {
+            logger.warn(e) { "Prompt template metadata lookup failed for id='${request.promptTemplateId}'" }
+            null
+        } ?: return withTenant
         return withTenant + mapOf(
             "promptTemplateId" to request.promptTemplateId,
             "promptVersionId" to activeVersion.id,

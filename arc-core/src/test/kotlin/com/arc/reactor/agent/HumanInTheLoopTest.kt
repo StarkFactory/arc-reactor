@@ -2,9 +2,7 @@ package com.arc.reactor.agent
 
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
-import com.arc.reactor.approval.AlwaysApprovePolicy
 import com.arc.reactor.approval.InMemoryPendingApprovalStore
-import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.approval.ToolNameApprovalPolicy
 import io.mockk.every
 import kotlinx.coroutines.async
@@ -14,7 +12,6 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 
 class HumanInTheLoopTest {

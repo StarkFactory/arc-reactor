@@ -7,6 +7,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.persona.PersonaStore
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -14,7 +15,6 @@ import io.mockk.slot
 import org.springframework.http.HttpHeaders
 import org.springframework.http.server.reactive.ServerHttpRequest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -95,7 +95,10 @@ class ChatControllerTest {
             assertEquals("gpt-4o", captured.model) { "model should be forwarded" }
             assertEquals("custom prompt", captured.systemPrompt) { "custom systemPrompt should be used" }
             assertEquals("user-123", captured.userId) { "userId should be forwarded" }
-            assertEquals(mapOf("key" to "value", "channel" to "web", "tenantId" to "default"), captured.metadata) { "metadata should be forwarded with tenantId" }
+            assertEquals(
+                mapOf("key" to "value", "channel" to "web", "tenantId" to "default"),
+                captured.metadata
+            ) { "metadata should be forwarded with tenantId" }
             assertEquals(ResponseFormat.JSON, captured.responseFormat) { "responseFormat should be forwarded" }
             assertEquals("""{"type":"object"}""", captured.responseSchema) { "responseSchema should be forwarded" }
         }
@@ -109,6 +112,26 @@ class ChatControllerTest {
 
             assertTrue(commandSlot.captured.systemPrompt.contains("helpful AI assistant")) {
                 "Default system prompt should contain 'helpful AI assistant'"
+            }
+        }
+
+        @Test
+        fun `should fallback to hardcoded prompt when default persona lookup fails`() = runTest {
+            val failingPersonaStore = mockk<PersonaStore>()
+            every { failingPersonaStore.getDefault() } throws RuntimeException("relation personas does not exist")
+
+            val fallbackController = ChatController(
+                agentExecutor = agentExecutor,
+                personaStore = failingPersonaStore
+            )
+
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            fallbackController.chat(ChatRequest(message = "hello"), exchange)
+
+            assertTrue(commandSlot.captured.systemPrompt.contains("helpful AI assistant")) {
+                "Controller should fallback to hardcoded prompt when persona lookup throws"
             }
         }
 

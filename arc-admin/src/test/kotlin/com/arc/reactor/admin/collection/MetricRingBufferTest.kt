@@ -1,7 +1,6 @@
 package com.arc.reactor.admin.collection
 
 import com.arc.reactor.admin.model.AgentExecutionEvent
-import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested

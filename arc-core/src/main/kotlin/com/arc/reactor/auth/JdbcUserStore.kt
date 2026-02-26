@@ -3,7 +3,6 @@ package com.arc.reactor.auth
 import mu.KotlinLogging
 import org.springframework.jdbc.core.JdbcTemplate
 import java.sql.ResultSet
-import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
 

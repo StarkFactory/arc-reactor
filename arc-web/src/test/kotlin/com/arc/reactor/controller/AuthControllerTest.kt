@@ -1,9 +1,6 @@
 package com.arc.reactor.controller
 
-import com.arc.reactor.auth.AuthProperties
-import com.arc.reactor.auth.AuthProvider
 import com.arc.reactor.auth.DefaultAuthProvider
-import com.arc.reactor.auth.InMemoryUserStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.JwtTokenProvider
 import com.arc.reactor.auth.User

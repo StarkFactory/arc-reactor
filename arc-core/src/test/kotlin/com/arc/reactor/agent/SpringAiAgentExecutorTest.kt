@@ -1,17 +1,11 @@
 package com.arc.reactor.agent
 
-import com.arc.reactor.agent.config.AgentProperties
-import com.arc.reactor.agent.config.ConcurrencyProperties
-import com.arc.reactor.agent.config.GuardProperties
 import com.arc.reactor.agent.config.LlmProperties
-import com.arc.reactor.agent.config.RagProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
-import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.guard.RequestGuard
-import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
 import com.arc.reactor.hook.AfterAgentCompleteHook
@@ -32,11 +26,9 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.metadata.ChatResponseMetadata
 import org.springframework.ai.chat.metadata.Usage
 import org.springframework.ai.chat.model.ChatResponse
-import org.springframework.ai.chat.model.Generation
 
 class SpringAiAgentExecutorTest {
 

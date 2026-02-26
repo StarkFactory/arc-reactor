@@ -13,7 +13,6 @@ import com.arc.reactor.rag.model.RetrievedDocument
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.slot
-import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
