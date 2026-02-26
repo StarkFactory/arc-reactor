@@ -33,7 +33,7 @@ class HitlEventHook(
             val meta = context.agentContext.metadata
             val toolName = context.toolName
             val waitMs = meta["hitlWaitMs_$toolName"]?.toString()?.toLongOrNull() ?: return
-            val approved = meta["hitlApproved_$toolName"]?.toString()?.toBoolean() ?: true
+            val approved = meta["hitlApproved_$toolName"]?.toString()?.toBoolean() ?: false
             val reason = meta["hitlRejectionReason_$toolName"]?.toString()
 
             val event = HitlEvent(

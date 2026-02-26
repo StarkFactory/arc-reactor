@@ -146,7 +146,7 @@ class HitlEventHookTest {
         }
 
         @Test
-        fun `defaults approved to true when hitlApproved not set`() = runTest {
+        fun `defaults approved to false when hitlApproved not set (fail-close)`() = runTest {
             val ctx = toolCallContext(
                 "send_email",
                 mutableMapOf(
@@ -158,7 +158,7 @@ class HitlEventHookTest {
             hook.afterToolCall(ctx, successResult)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<HitlEvent>()
-            event.approved shouldBe true
+            event.approved shouldBe false
         }
     }
 

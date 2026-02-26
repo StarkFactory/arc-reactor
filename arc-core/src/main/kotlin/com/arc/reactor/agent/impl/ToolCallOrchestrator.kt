@@ -108,6 +108,7 @@ internal class ToolCallOrchestrator(
             result = ToolCallResult(
                 success = toolSuccess,
                 output = toolOutput,
+                errorMessage = if (!toolSuccess) toolOutput else null,
                 durationMs = toolDurationMs
             )
         )
