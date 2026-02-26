@@ -9,6 +9,7 @@ dependencies {
     runtimeOnly(project(":arc-discord"))
     runtimeOnly(project(":arc-line"))
     runtimeOnly(project(":arc-error-report"))
+    runtimeOnly(project(":arc-admin"))
 }
 
 springBoot {

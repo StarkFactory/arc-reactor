@@ -9,7 +9,7 @@ Arc Reactor provides a framework-agnostic `AgentMetrics` interface for recording
 
 ## AgentMetrics Interface
 
-The interface provides 9 metric recording methods across 5 categories:
+The interface provides 14 metric recording methods across 7 categories:
 
 ### Execution Metrics
 
@@ -29,6 +29,7 @@ The interface provides 9 metric recording methods across 5 categories:
 | Method | When Called | Parameters |
 |--------|-----------|------------|
 | `recordGuardRejection(stage, reason)` | When the Guard pipeline rejects a request | Stage name (e.g., "InjectionDetection"), rejection reason |
+| `recordGuardRejection(stage, reason, metadata)` | Same, with request metadata | Stage, reason, metadata map |
 
 ### Resilience Metrics
 
@@ -44,6 +45,20 @@ The interface provides 9 metric recording methods across 5 categories:
 | Method | When Called | Parameters |
 |--------|-----------|------------|
 | `recordTokenUsage(usage)` | After each LLM call | `TokenUsage(promptTokens, completionTokens, totalTokens)` |
+| `recordTokenUsage(usage, metadata)` | Same, with request metadata | TokenUsage, metadata map |
+
+### Output Guard Metrics
+
+| Method | When Called | Parameters |
+|--------|-----------|------------|
+| `recordOutputGuardAction(stage, action, reason)` | When output guard processes response | Stage, action ("allowed"/"modified"/"rejected"), reason |
+| `recordOutputGuardAction(stage, action, reason, metadata)` | Same, with request metadata | Stage, action, reason, metadata map |
+
+### Boundary Metrics
+
+| Method | When Called | Parameters |
+|--------|-----------|------------|
+| `recordBoundaryViolation(violation, policy, limit, actual)` | When output boundary policy triggers | Violation type (e.g., "output_too_long"), policy action (e.g., "truncate"), limit, actual |
 
 ## Implementation
 
@@ -175,6 +190,43 @@ class MetricsConfig {
 
 All methods added in 2.6.0+ have **default empty implementations** in the interface. Existing custom `AgentMetrics` implementations will continue to work without changes. Only the original 3 methods (`recordExecution`, `recordToolCall`, `recordGuardRejection`) are abstract.
 
+The metadata overloads (added in 2.7.0) delegate to the non-metadata variants by default, so existing implementations do not need to override them.
+
+## arc-admin Metric Pipeline
+
+The `arc-admin` module provides a production-grade metric collection pipeline that replaces `NoOpAgentMetrics` with tenant-scoped observability.
+
+### Components
+
+| Component | Role |
+|-----------|------|
+| `MetricCollectorAgentMetrics` | `@Primary` `AgentMetrics` implementation. Publishes guard/token events to the ring buffer. |
+| `MetricCollectionHook` | `AfterAgentCompleteHook` + `AfterToolCallHook`. Captures enriched execution/tool events with latency breakdown, sessionId, userId. |
+| `MetricRingBuffer` | Lock-free ring buffer (Disruptor-inspired, default 8192 slots). Producers never block; full buffer → drop + counter. |
+| `MetricWriter` | Scheduled drain of the ring buffer → batched JDBC flush via `MetricEventStore`. |
+
+### Data Flow
+
+```
+Agent thread                           Background writer
+    |                                       |
+    +-- MetricCollectorAgentMetrics --|      |
+    +-- MetricCollectionHook --------|      |
+                                     v      |
+                              MetricRingBuffer
+                                     |      |
+                                     +------+
+                                     v
+                              MetricWriter (scheduled)
+                                     |
+                                     v
+                              MetricEventStore (JDBC)
+```
+
+### Tenant Propagation
+
+Tenant ID is resolved from `metadata["tenantId"]` passed through the metadata overloads, **not** from ThreadLocal. This ensures correct tenant attribution in async/coroutine contexts.
+
 ## Metric Points in the Pipeline
 
 ```
@@ -194,6 +246,11 @@ LLM Call -----> recordTokenUsage()
   +--> [circuit breaker state change] --> recordCircuitBreakerStateChange()
   |
   +--> [fallback triggered] --> recordFallbackAttempt() (per model)
+  |
+  v
+Output Guard ----[action]----> recordOutputGuardAction()
+  |
+  +--> [boundary violation] --> recordBoundaryViolation()
   |
   v
 Response

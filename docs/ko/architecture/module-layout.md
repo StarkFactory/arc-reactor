@@ -12,6 +12,7 @@
 - `arc-discord`: Discord 채널 게이트웨이
 - `arc-line`: LINE 채널 게이트웨이
 - `arc-error-report`: 에러 리포팅 확장 모듈
+- `arc-admin`: 관리 대시보드 메트릭 파이프라인, 알림, 테넌트 범위 관측성
 - `arc-app`: 실행 조립(assembly) 모듈
 
 ## `arc-app` 도입 이유
@@ -37,6 +38,7 @@
 
 - channel/web 모듈은 `arc-core`를 의존
 - `arc-app`이 런타임을 조립
+- `arc-admin`은 `arc-core`를 의존(compileOnly)하여 AgentMetrics, Hook 인터페이스 사용
 - `arc-core`는 channel/web로 역방향 runtime 결합을 피해야 함
 
 ## 관련 문서

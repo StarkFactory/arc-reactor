@@ -154,7 +154,7 @@ class SpringAiAgentExecutor(
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::createChatOptions,
         validateAndRepairResponse = structuredResponseRepairer::validateAndRepair,
-        recordTokenUsage = agentMetrics::recordTokenUsage
+        recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) }
     )
     private val streamingReActLoopExecutor = StreamingReActLoopExecutor(
         messageTrimmer = messageTrimmer,
@@ -242,6 +242,7 @@ class SpringAiAgentExecutor(
         val toolsUsed = java.util.concurrent.CopyOnWriteArrayList<String>()
         val runContext = runContextManager.open(command, toolsUsed)
         val hookContext = runContext.hookContext
+        enrichMetadataWithModelInfo(hookContext, command)
 
         try {
             return concurrencySemaphore.withPermit {
@@ -316,6 +317,7 @@ class SpringAiAgentExecutor(
         val toolsUsed = java.util.concurrent.CopyOnWriteArrayList<String>()
         val runContext = runContextManager.open(command, toolsUsed)
         val hookContext = runContext.hookContext
+        enrichMetadataWithModelInfo(hookContext, command)
         var state = StreamingExecutionState()
 
         try {
@@ -335,6 +337,12 @@ class SpringAiAgentExecutor(
                 emit = { marker -> emit(marker) }
             )
         }
+    }
+
+    private fun enrichMetadataWithModelInfo(hookContext: HookContext, command: AgentCommand) {
+        val provider = chatModelProvider?.defaultProvider() ?: properties.llm.defaultProvider
+        hookContext.metadata.putIfAbsent("model", command.model ?: provider)
+        hookContext.metadata.putIfAbsent("provider", provider)
     }
 
     private fun createChatOptions(command: AgentCommand, hasTools: Boolean): ChatOptions {

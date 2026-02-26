@@ -11,6 +11,8 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import org.springframework.http.HttpHeaders
+import org.springframework.http.server.reactive.ServerHttpRequest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -35,12 +37,21 @@ class ChatControllerTest {
     private lateinit var controller: ChatController
     private lateinit var exchange: ServerWebExchange
 
+    private fun mockExchange(attributes: MutableMap<String, Any> = mutableMapOf()): ServerWebExchange {
+        val headers = HttpHeaders()
+        val request = mockk<ServerHttpRequest>()
+        every { request.headers } returns headers
+        val ex = mockk<ServerWebExchange>()
+        every { ex.attributes } returns attributes
+        every { ex.request } returns request
+        return ex
+    }
+
     @BeforeEach
     fun setup() {
         agentExecutor = mockk()
         controller = ChatController(agentExecutor)
-        exchange = mockk()
-        every { exchange.attributes } returns mutableMapOf()
+        exchange = mockExchange()
     }
 
     @Nested
@@ -84,7 +95,7 @@ class ChatControllerTest {
             assertEquals("gpt-4o", captured.model) { "model should be forwarded" }
             assertEquals("custom prompt", captured.systemPrompt) { "custom systemPrompt should be used" }
             assertEquals("user-123", captured.userId) { "userId should be forwarded" }
-            assertEquals(mapOf("key" to "value", "channel" to "web"), captured.metadata) { "metadata should be forwarded" }
+            assertEquals(mapOf("key" to "value", "channel" to "web", "tenantId" to "default"), captured.metadata) { "metadata should be forwarded with tenantId" }
             assertEquals(ResponseFormat.JSON, captured.responseFormat) { "responseFormat should be forwarded" }
             assertEquals("""{"type":"object"}""", captured.responseSchema) { "responseSchema should be forwarded" }
         }
@@ -108,8 +119,8 @@ class ChatControllerTest {
 
             controller.chat(ChatRequest(message = "hello"), exchange)
 
-            assertEquals(mapOf("channel" to "web"), commandSlot.captured.metadata) {
-                "Default metadata should contain channel=web"
+            assertEquals(mapOf("channel" to "web", "tenantId" to "default"), commandSlot.captured.metadata) {
+                "Default metadata should contain channel=web and tenantId=default"
             }
         }
 
@@ -137,8 +148,7 @@ class ChatControllerTest {
 
         @Test
         fun `should resolve userId from exchange attributes when present`() = runTest {
-            val authExchange = mockk<ServerWebExchange>()
-            every { authExchange.attributes } returns mutableMapOf<String, Any>("userId" to "jwt-user-1")
+            val authExchange = mockExchange(mutableMapOf("userId" to "jwt-user-1"))
 
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
@@ -288,7 +298,7 @@ class ChatControllerTest {
             assertEquals(ResponseFormat.TEXT, captured.responseFormat) {
                 "Default response format should be TEXT"
             }
-            assertEquals(mapOf("channel" to "web"), captured.metadata) {
+            assertEquals(mapOf("channel" to "web", "tenantId" to "default"), captured.metadata) {
                 "Default metadata should contain channel=web"
             }
         }

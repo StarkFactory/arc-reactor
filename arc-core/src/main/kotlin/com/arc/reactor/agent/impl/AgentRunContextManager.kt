@@ -30,6 +30,7 @@ internal class AgentRunContextManager(
             toolsUsed = toolsUsed
         )
         hookContext.metadata.putAll(command.metadata)
+        hookContext.metadata["runId"] = runId
         return AgentRunContext(runId = runId, hookContext = hookContext)
     }
 

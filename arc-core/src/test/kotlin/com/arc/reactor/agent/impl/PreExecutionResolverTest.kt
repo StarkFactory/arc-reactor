@@ -72,7 +72,7 @@ class PreExecutionResolverTest {
         assertEquals(AgentErrorCode.GUARD_REJECTED, result?.errorCode)
         assertEquals("blocked", result?.errorMessage)
         assertEquals(500L, result?.durationMs)
-        verify(exactly = 1) { metrics.recordGuardRejection("InputValidation", "blocked") }
+        verify(exactly = 1) { metrics.recordGuardRejection("InputValidation", "blocked", any()) }
         verify(exactly = 1) { metrics.recordExecution(match { !it.success && it.errorCode == AgentErrorCode.GUARD_REJECTED }) }
     }
 

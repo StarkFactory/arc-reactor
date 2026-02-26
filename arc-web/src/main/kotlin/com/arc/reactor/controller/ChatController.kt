@@ -89,7 +89,7 @@ class ChatController(
             userPrompt = request.message,
             model = request.model,
             userId = resolveUserId(exchange, request),
-            metadata = resolveMetadata(request),
+            metadata = resolveMetadata(request, exchange),
             responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
             responseSchema = request.responseSchema,
             media = resolveMediaUrls(request.mediaUrls)
@@ -150,7 +150,7 @@ class ChatController(
             userPrompt = request.message,
             model = request.model,
             userId = resolveUserId(exchange, request),
-            metadata = resolveMetadata(request),
+            metadata = resolveMetadata(request, exchange),
             responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
             responseSchema = request.responseSchema,
             media = resolveMediaUrls(request.mediaUrls)
@@ -258,14 +258,22 @@ class ChatController(
 
     /**
      * Build metadata enriched with prompt version info when a template is used.
+     * Includes tenantId from exchange for coroutine-safe propagation to hooks.
      */
-    private fun resolveMetadata(request: ChatRequest): Map<String, Any> {
+    private fun resolveMetadata(request: ChatRequest, exchange: ServerWebExchange): Map<String, Any> {
         val base = request.metadata ?: emptyMap()
         val withChannel = if (base.containsKey("channel")) base else (base + mapOf("channel" to "web"))
-        if (request.promptTemplateId == null || promptTemplateStore == null) return withChannel
 
-        val activeVersion = promptTemplateStore.getActiveVersion(request.promptTemplateId) ?: return withChannel
-        return withChannel + mapOf(
+        // Always override tenantId from server-side source to prevent client spoofing via metadata
+        val tenantId = exchange.request.headers.getFirst("X-Tenant-Id")
+            ?: exchange.attributes["tenantId"]?.toString()
+            ?: "default"
+        val withTenant = withChannel + ("tenantId" to tenantId)
+
+        if (request.promptTemplateId == null || promptTemplateStore == null) return withTenant
+
+        val activeVersion = promptTemplateStore.getActiveVersion(request.promptTemplateId) ?: return withTenant
+        return withTenant + mapOf(
             "promptTemplateId" to request.promptTemplateId,
             "promptVersionId" to activeVersion.id,
             "promptVersion" to activeVersion.version

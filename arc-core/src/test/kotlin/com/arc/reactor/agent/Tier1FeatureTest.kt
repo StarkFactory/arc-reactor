@@ -200,7 +200,7 @@ class Tier1FeatureTest {
 
             executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello", userId = "user-1"))
 
-            verify { metrics.recordGuardRejection("rateLimit", "Rate limit") }
+            verify { metrics.recordGuardRejection("rateLimit", "Rate limit", any()) }
         }
 
         @Test
