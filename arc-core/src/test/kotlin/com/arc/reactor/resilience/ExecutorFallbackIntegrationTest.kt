@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.prompt.ChatOptions
-import kotlin.coroutines.cancellation.CancellationException
 
 class ExecutorFallbackIntegrationTest {
 

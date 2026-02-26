@@ -2,7 +2,6 @@ package com.arc.reactor.admin.alert
 
 import com.arc.reactor.admin.collection.PipelineHealthMonitor
 import com.arc.reactor.admin.model.AlertRule
-import com.arc.reactor.admin.model.AlertSeverity
 import com.arc.reactor.admin.model.AlertType
 import com.arc.reactor.admin.model.ErrorBudget
 import com.arc.reactor.admin.model.Tenant
@@ -13,8 +12,6 @@ import com.arc.reactor.admin.model.TenantUsage
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.query.SloService
 import com.arc.reactor.admin.tenant.InMemoryTenantStore
-import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.mockk.every
@@ -22,7 +19,6 @@ import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import java.time.Instant
 
 class AlertEvaluatorTest {
 

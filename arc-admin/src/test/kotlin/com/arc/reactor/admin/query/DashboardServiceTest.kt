@@ -1,7 +1,6 @@
 package com.arc.reactor.admin.query
 
 import com.arc.reactor.admin.model.ApdexScore
-import com.arc.reactor.admin.model.CostDashboard
 import com.arc.reactor.admin.model.ErrorBudget
 import com.arc.reactor.admin.model.SliMetric
 import com.arc.reactor.admin.model.SloStatus

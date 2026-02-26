@@ -14,7 +14,6 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.ToolResponseMessage
-import org.springframework.ai.chat.messages.UserMessage
 
 class ContextWindowTest {
 

@@ -2,7 +2,6 @@ package com.arc.reactor.integration
 
 import com.arc.reactor.agent.AgentTestFixture
 import com.arc.reactor.agent.AgentTestFixture.Companion.textChunk
-import com.arc.reactor.agent.AgentTestFixture.Companion.toolCallChunk
 import com.arc.reactor.agent.TrackingTool
 import com.arc.reactor.agent.assertSuccess
 import com.arc.reactor.agent.config.AgentProperties
@@ -14,7 +13,6 @@ import com.arc.reactor.rag.model.RagContext
 import com.arc.reactor.rag.model.RagQuery
 import com.arc.reactor.rag.model.RetrievedDocument
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot

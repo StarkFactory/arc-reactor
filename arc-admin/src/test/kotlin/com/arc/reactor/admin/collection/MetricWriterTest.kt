@@ -9,11 +9,9 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
-import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
 
 class MetricWriterTest {

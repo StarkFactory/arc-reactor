@@ -1,7 +1,6 @@
 package com.arc.reactor.intent
 
 import com.arc.reactor.agent.model.AgentCommand
-import com.arc.reactor.intent.model.ClassificationContext
 import com.arc.reactor.intent.model.ClassifiedIntent
 import com.arc.reactor.intent.model.IntentDefinition
 import com.arc.reactor.intent.model.IntentProfile

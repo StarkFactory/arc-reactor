@@ -2,7 +2,6 @@ package com.arc.reactor.intent
 
 import com.arc.reactor.intent.impl.RuleBasedIntentClassifier
 import com.arc.reactor.intent.model.IntentDefinition
-import com.arc.reactor.intent.model.IntentProfile
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach

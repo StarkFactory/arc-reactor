@@ -3,7 +3,6 @@ package com.arc.reactor.slack
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.slack.config.SlackAutoConfiguration
 import com.arc.reactor.slack.handler.SlackCommandHandler
-import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.security.SlackSignatureVerifier
 import com.arc.reactor.slack.service.SlackMessagingService
 import io.kotest.matchers.booleans.shouldBeFalse

@@ -3,7 +3,6 @@ package com.arc.reactor.line
 import com.arc.reactor.line.config.LineProperties
 import com.arc.reactor.line.controller.LineWebhookController
 import com.arc.reactor.line.handler.LineEventHandler
-import com.arc.reactor.line.model.LineEventCommand
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.matchers.shouldBe

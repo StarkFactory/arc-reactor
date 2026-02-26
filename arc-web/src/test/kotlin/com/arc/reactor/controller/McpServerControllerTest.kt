@@ -10,7 +10,6 @@ import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.mcp.McpSecurityConfig
 import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.mcp.model.McpServer
-import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
 import io.mockk.every
 import io.mockk.mockk

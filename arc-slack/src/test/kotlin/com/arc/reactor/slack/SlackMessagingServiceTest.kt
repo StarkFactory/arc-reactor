@@ -1,6 +1,5 @@
 package com.arc.reactor.slack
 
-import com.arc.reactor.slack.model.SlackApiResult
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.matchers.shouldBe
