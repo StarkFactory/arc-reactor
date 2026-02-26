@@ -123,7 +123,7 @@ class AlertEvaluator(
         val from = now.minus(rule.windowMinutes.toLong().coerceAtLeast(1), ChronoUnit.MINUTES)
 
         val current = when (rule.metric) {
-            "hourly_cost" -> queryService.getCurrentMonthUsage(tenantId).costUsd.toDouble()
+            "hourly_cost" -> queryService.getHourlyCost(tenantId, from, now)
             else -> return null
         }
 

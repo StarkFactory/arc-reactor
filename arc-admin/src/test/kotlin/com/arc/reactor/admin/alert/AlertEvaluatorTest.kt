@@ -138,12 +138,8 @@ class AlertEvaluatorTest {
             every { baselineCalculator.getBaseline("t1", "hourly_cost") } returns
                 Baseline(mean = 10.0, stdDev = 2.0, sampleCount = 168)
 
-            // Mock getCurrentMonthUsage to return high cost
-            every { queryService.getCurrentMonthUsage("t1") } returns
-                com.arc.reactor.admin.model.TenantUsage(
-                    tenantId = "t1", requests = 100, tokens = 5000,
-                    costUsd = java.math.BigDecimal("25.0") // 25 > 10 + 3*2 = 16
-                )
+            // Mock getHourlyCost to return high hourly cost (25 > 10 + 3*2 = 16)
+            every { queryService.getHourlyCost("t1", any(), any()) } returns 25.0
 
             evaluator.evaluate(rule)
 

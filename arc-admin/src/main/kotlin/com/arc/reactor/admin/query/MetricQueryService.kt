@@ -166,10 +166,10 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
             jdbcTemplate.queryForObject(
                 """SELECT COALESCE(MAX(consecutive), 0) FROM (
                        SELECT server_name,
-                              COUNT(*) FILTER (WHERE status != 'healthy') AS consecutive
+                              COUNT(*) FILTER (WHERE status NOT IN ('healthy', 'CONNECTED')) AS consecutive
                        FROM (
                            SELECT server_name, status,
-                                  SUM(CASE WHEN status = 'healthy' THEN 1 ELSE 0 END)
+                                  SUM(CASE WHEN status IN ('healthy', 'CONNECTED') THEN 1 ELSE 0 END)
                                       OVER (PARTITION BY server_name ORDER BY time) AS grp
                            FROM metric_mcp_health
                            WHERE tenant_id = ? AND time >= NOW() - INTERVAL '1 hour'
@@ -182,6 +182,16 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
             logger.debug(e) { "Failed to query MCP consecutive failures for tenant=$tenantId" }
             null
         }
+    }
+
+    fun getHourlyCost(tenantId: String, from: Instant, to: Instant): Double {
+        val result = jdbcTemplate.queryForMap(
+            """SELECT COALESCE(AVG(total_cost_usd), 0) AS avg_hourly_cost
+               FROM metric_executions_hourly
+               WHERE tenant_id = ? AND bucket >= ? AND bucket < ?""",
+            tenantId, Timestamp.from(from), Timestamp.from(to)
+        )
+        return (result["avg_hourly_cost"] as? Number)?.toDouble() ?: 0.0
     }
 
     fun getAggregateRefreshLagMs(): Long? {
