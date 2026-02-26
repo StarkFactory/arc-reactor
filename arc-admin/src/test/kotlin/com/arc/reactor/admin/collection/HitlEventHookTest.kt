@@ -26,7 +26,8 @@ class HitlEventHookTest {
 
     private fun toolCallContext(
         toolName: String,
-        metadata: MutableMap<String, Any> = mutableMapOf()
+        metadata: MutableMap<String, Any> = mutableMapOf(),
+        callIndex: Int = 0
     ): ToolCallContext = ToolCallContext(
         agentContext = HookContext(
             runId = "run-1",
@@ -36,7 +37,7 @@ class HitlEventHookTest {
         ),
         toolName = toolName,
         toolParams = emptyMap(),
-        callIndex = 0
+        callIndex = callIndex
     )
 
     private val successResult = ToolCallResult(success = true, durationMs = 100)
@@ -159,6 +160,34 @@ class HitlEventHookTest {
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<HitlEvent>()
             event.approved shouldBe false
+        }
+
+        @Test
+        fun `prefers callIndex specific keys when same tool is called multiple times`() = runTest {
+            val sharedMetadata = mutableMapOf<String, Any>(
+                "tenantId" to "tenant-1",
+                "hitlWaitMs_send_email" to "9999",
+                "hitlApproved_send_email" to "true",
+                "hitlWaitMs_send_email_0" to "1500",
+                "hitlApproved_send_email_0" to "false",
+                "hitlRejectionReason_send_email_0" to "first denied",
+                "hitlWaitMs_send_email_1" to "2300",
+                "hitlApproved_send_email_1" to "true"
+            )
+            val firstCall = toolCallContext("send_email", sharedMetadata, callIndex = 0)
+            val secondCall = toolCallContext("send_email", sharedMetadata, callIndex = 1)
+
+            hook.afterToolCall(firstCall, successResult)
+            hook.afterToolCall(secondCall, successResult)
+
+            val events = ringBuffer.drain(10).map { it.shouldBeInstanceOf<HitlEvent>() }
+            events.size shouldBe 2
+            events[0].approved shouldBe false
+            events[0].waitMs shouldBe 1500
+            events[0].rejectionReason shouldBe "first denied"
+            events[1].approved shouldBe true
+            events[1].waitMs shouldBe 2300
+            events[1].rejectionReason shouldBe null
         }
     }
 

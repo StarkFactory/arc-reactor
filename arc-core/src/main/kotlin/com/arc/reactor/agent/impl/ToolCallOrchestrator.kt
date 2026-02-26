@@ -96,6 +96,7 @@ internal class ToolCallOrchestrator(
 
         // Human-in-the-Loop: check if tool call requires approval
         checkToolApproval(toolName, toolCallContext, hookContext)?.let { rejection ->
+            publishBlockedToolCallResult(toolCallContext, toolName, rejection)
             return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, rejection)
         }
 
@@ -152,16 +153,17 @@ internal class ToolCallOrchestrator(
                 toolName = toolName,
                 arguments = toolCallContext.toolParams
             )
+            val keySuffix = hitlMetadataSuffix(toolCallContext)
             val hitlWaitMs = (System.nanoTime() - hitlStartNanos) / 1_000_000
-            hookContext.metadata["hitlWaitMs_$toolName"] = hitlWaitMs
-            hookContext.metadata["hitlApproved_$toolName"] = response.approved
+            hookContext.metadata["hitlWaitMs_$keySuffix"] = hitlWaitMs
+            hookContext.metadata["hitlApproved_$keySuffix"] = response.approved
             if (response.approved) {
                 logger.info { "Tool '$toolName' approved by human (waited ${hitlWaitMs}ms)" }
                 null // Continue execution
             } else {
                 val reason = response.reason ?: "Rejected by human"
                 logger.info { "Tool '$toolName' rejected by human: $reason (waited ${hitlWaitMs}ms)" }
-                hookContext.metadata["hitlRejectionReason_$toolName"] = reason
+                hookContext.metadata["hitlRejectionReason_$keySuffix"] = reason
                 "Tool call rejected by human: $reason"
             }
         } catch (e: Exception) {
@@ -170,6 +172,27 @@ internal class ToolCallOrchestrator(
             logger.error(e) { reason }
             "Tool call blocked: $reason"
         }
+    }
+
+    private suspend fun publishBlockedToolCallResult(
+        context: ToolCallContext,
+        toolName: String,
+        message: String
+    ) {
+        hookExecutor?.executeAfterToolCall(
+            context = context,
+            result = ToolCallResult(
+                success = false,
+                output = message,
+                errorMessage = message,
+                durationMs = 0
+            )
+        )
+        agentMetrics.recordToolCall(toolName, 0, false)
+    }
+
+    private fun hitlMetadataSuffix(context: ToolCallContext): String {
+        return "${context.toolName}_${context.callIndex}"
     }
 
     private suspend fun invokeToolAdapter(
