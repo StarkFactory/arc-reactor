@@ -89,7 +89,7 @@ internal class StreamingReActLoopExecutor(
                 if (!chunkToolCalls.isNullOrEmpty()) {
                     pendingToolCalls = chunkToolCalls
                 }
-                val chunkUsage = chunk.metadata?.usage
+                val chunkUsage = chunk.metadata.usage
                 if (chunkUsage != null && chunkUsage.totalTokens > 0) {
                     lastChunkMeta = chunk.metadata
                 }
