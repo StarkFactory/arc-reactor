@@ -57,6 +57,12 @@ provider 의존성은 `arc-core/build.gradle.kts`에서 관리합니다.
 처음 로컬 실행은 필수 값 1개만 있으면 됩니다:
 
 ```bash
+./scripts/dev/bootstrap-local.sh --api-key your-api-key --run
+```
+
+수동으로 실행하려면:
+
+```bash
 export GEMINI_API_KEY=your-api-key
 ./gradlew :arc-app:bootRun
 ```
@@ -96,6 +102,9 @@ class OrderTool : LocalTool {
 #### CLI에서 실행
 
 ```bash
+./scripts/dev/bootstrap-local.sh --api-key your-api-key --run
+
+# 또는 수동 실행
 export GEMINI_API_KEY=your-api-key
 ./gradlew :arc-app:bootRun
 ```
