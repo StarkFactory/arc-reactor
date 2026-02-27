@@ -5,6 +5,8 @@ import com.arc.reactor.errorreport.handler.ErrorReportHandler
 import com.arc.reactor.errorreport.model.ErrorReportRequest
 import com.arc.reactor.errorreport.model.ErrorReportResponse
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import kotlinx.coroutines.CoroutineScope
@@ -47,6 +49,11 @@ class ErrorReportController(
 
     @PostMapping
     @Operation(summary = "Submit a production error report for AI-powered analysis")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Error report accepted for processing"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "401", description = "Invalid or missing API key")
+    ])
     suspend fun report(
         @Valid @RequestBody request: ErrorReportRequest,
         @RequestHeader(value = "X-API-Key", required = false) apiKey: String?

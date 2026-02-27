@@ -5,6 +5,10 @@ import com.arc.reactor.agent.multi.example.CustomerServiceExample
 import com.arc.reactor.agent.multi.example.ReportPipelineExample
 import com.arc.reactor.controller.ChatRequest
 import com.arc.reactor.controller.ChatResponse
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
+import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -26,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController
  */
 // @RestController  <- Uncomment to activate
 // @RequestMapping("/api/multi")
+// @Tag(name = "Multi-Agent Examples", description = "Multi-agent orchestration example endpoints")
 class MultiAgentExampleController(
     private val customerService: CustomerServiceExample,
     private val reportPipeline: ReportPipelineExample,
@@ -41,6 +46,11 @@ class MultiAgentExampleController(
      *   -d '{"message": "I want to cancel my order and get a refund"}'
      * ```
      */
+    @Operation(summary = "Supervisor: delegate to the right specialist agent")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Agent response"),
+        ApiResponse(responseCode = "400", description = "Invalid request")
+    ])
     @PostMapping("/supervisor")
     suspend fun supervisor(
         @Valid @RequestBody request: ChatRequest
@@ -65,6 +75,11 @@ class MultiAgentExampleController(
      *   -d '{"message": "Write a report about AI trends in 2025"}'
      * ```
      */
+    @Operation(summary = "Sequential: research → write → review pipeline")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Agent response"),
+        ApiResponse(responseCode = "400", description = "Invalid request")
+    ])
     @PostMapping("/sequential")
     suspend fun sequential(
         @Valid @RequestBody request: ChatRequest
@@ -89,6 +104,11 @@ class MultiAgentExampleController(
      *   -d '{"message": "Review this code: fun add(a: Int, b: Int) = a + b"}'
      * ```
      */
+    @Operation(summary = "Parallel: security + style + logic review concurrently")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Agent response"),
+        ApiResponse(responseCode = "400", description = "Invalid request")
+    ])
     @PostMapping("/parallel")
     suspend fun parallel(
         @Valid @RequestBody request: ChatRequest

@@ -4,6 +4,8 @@ import com.arc.reactor.slack.model.SlackChallengeResponse
 import com.arc.reactor.slack.processor.SlackEventProcessor
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import mu.KotlinLogging
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -42,6 +44,10 @@ class SlackEventController(
 ) {
     @PostMapping("/events")
     @Operation(summary = "Handle Slack events (webhook endpoint)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Event accepted or URL verification challenge response"),
+        ApiResponse(responseCode = "400", description = "Invalid payload")
+    ])
     suspend fun handleEvent(
         @RequestBody payload: String,
         @RequestHeader(name = "X-Slack-Retry-Num", required = false) retryNum: String? = null,

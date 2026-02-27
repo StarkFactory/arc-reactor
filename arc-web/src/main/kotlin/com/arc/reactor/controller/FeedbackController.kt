@@ -5,6 +5,8 @@ import com.arc.reactor.feedback.FeedbackRating
 import com.arc.reactor.feedback.FeedbackStore
 import com.arc.reactor.hook.impl.FeedbackMetadataCaptureHook
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.http.HttpStatus
@@ -43,6 +45,10 @@ class FeedbackController(
      * Enrichment priority: explicit request values > cached metadata > empty defaults.
      */
     @Operation(summary = "Submit feedback on an agent response")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "201", description = "Feedback submitted"),
+        ApiResponse(responseCode = "400", description = "Invalid rating value")
+    ])
     @PostMapping
     fun submitFeedback(
         @RequestBody request: SubmitFeedbackRequest
@@ -77,6 +83,11 @@ class FeedbackController(
      * List feedback with optional filters. Requires Admin.
      */
     @Operation(summary = "List feedback with filters (Admin)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of feedback entries"),
+        ApiResponse(responseCode = "400", description = "Invalid filter parameters"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping
     fun listFeedback(
         @RequestParam(required = false) rating: String?,
@@ -108,6 +119,10 @@ class FeedbackController(
      * Export feedback in eval-testing schema format. Requires Admin.
      */
     @Operation(summary = "Export feedback in eval-testing format (Admin)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Exported feedback data"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/export")
     fun exportFeedback(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -126,6 +141,10 @@ class FeedbackController(
      * Get a single feedback entry by ID.
      */
     @Operation(summary = "Get feedback by ID")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Feedback entry"),
+        ApiResponse(responseCode = "404", description = "Feedback not found")
+    ])
     @GetMapping("/{feedbackId}")
     fun getFeedback(@PathVariable feedbackId: String): ResponseEntity<FeedbackResponse> {
         val feedback = feedbackStore.get(feedbackId)
@@ -137,6 +156,10 @@ class FeedbackController(
      * Delete a feedback entry. Requires Admin.
      */
     @Operation(summary = "Delete feedback (Admin)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "204", description = "Feedback deleted"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @DeleteMapping("/{feedbackId}")
     fun deleteFeedback(
         @PathVariable feedbackId: String,

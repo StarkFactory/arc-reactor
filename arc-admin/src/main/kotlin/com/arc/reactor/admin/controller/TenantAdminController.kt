@@ -8,6 +8,8 @@ import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.query.SloService
 import com.arc.reactor.admin.tenant.TenantStore
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -43,6 +45,11 @@ class TenantAdminController(
 ) {
 
     @Operation(summary = "Get tenant overview dashboard")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tenant overview dashboard"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Tenant not found")
+    ])
     @GetMapping("/overview")
     fun overview(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -53,6 +60,10 @@ class TenantAdminController(
     }
 
     @Operation(summary = "Get tenant usage dashboard")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tenant usage dashboard"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/usage")
     fun usage(
         @RequestParam(required = false) fromMs: Long?,
@@ -66,6 +77,10 @@ class TenantAdminController(
     }
 
     @Operation(summary = "Get tenant quality dashboard")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tenant quality dashboard"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/quality")
     fun quality(
         @RequestParam(required = false) fromMs: Long?,
@@ -79,6 +94,10 @@ class TenantAdminController(
     }
 
     @Operation(summary = "Get tenant tools dashboard")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tenant tools dashboard"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/tools")
     fun tools(
         @RequestParam(required = false) fromMs: Long?,
@@ -92,6 +111,10 @@ class TenantAdminController(
     }
 
     @Operation(summary = "Get tenant cost dashboard")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tenant cost dashboard"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/cost")
     fun cost(
         @RequestParam(required = false) fromMs: Long?,
@@ -105,6 +128,11 @@ class TenantAdminController(
     }
 
     @Operation(summary = "Get tenant SLO status")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tenant SLO status"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Tenant not found")
+    ])
     @GetMapping("/slo")
     fun slo(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -121,6 +149,10 @@ class TenantAdminController(
     }
 
     @Operation(summary = "List active alerts for tenant")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of active alerts for the tenant"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/alerts")
     fun alerts(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -129,6 +161,11 @@ class TenantAdminController(
     }
 
     @Operation(summary = "Get tenant current month quota usage")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tenant quota and current month usage"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Tenant not found")
+    ])
     @GetMapping("/quota")
     fun quota(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -149,6 +186,10 @@ class TenantAdminController(
     }
 
     @Operation(summary = "Export executions as CSV")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "CSV file of executions"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/export/executions")
     fun exportExecutions(
         @RequestParam(required = false) fromMs: Long?,
@@ -167,6 +208,10 @@ class TenantAdminController(
     }
 
     @Operation(summary = "Export tool calls as CSV")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "CSV file of tool calls"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/export/tools")
     fun exportTools(
         @RequestParam(required = false) fromMs: Long?,

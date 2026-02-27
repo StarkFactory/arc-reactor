@@ -6,6 +6,8 @@ import com.arc.reactor.rag.ingestion.RagIngestionCandidateStatus
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
 import com.arc.reactor.rag.ingestion.toDocument
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
@@ -41,6 +43,10 @@ class RagIngestionCandidateController(
 ) {
 
     @Operation(summary = "List RAG ingestion candidates (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of RAG ingestion candidates"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping
     fun list(
         @RequestParam(required = false) status: RagIngestionCandidateStatus?,
@@ -54,6 +60,13 @@ class RagIngestionCandidateController(
     }
 
     @Operation(summary = "Approve candidate and ingest to VectorStore (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Candidate approved and ingested"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Candidate not found"),
+        ApiResponse(responseCode = "409", description = "Candidate already reviewed"),
+        ApiResponse(responseCode = "503", description = "VectorStore not configured")
+    ])
     @PostMapping("/{id}/approve")
     fun approve(
         @PathVariable id: String,
@@ -103,6 +116,12 @@ class RagIngestionCandidateController(
     }
 
     @Operation(summary = "Reject candidate (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Candidate rejected"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Candidate not found"),
+        ApiResponse(responseCode = "409", description = "Candidate already reviewed")
+    ])
     @PostMapping("/{id}/reject")
     fun reject(
         @PathVariable id: String,

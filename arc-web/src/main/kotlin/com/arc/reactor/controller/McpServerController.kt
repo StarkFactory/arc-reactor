@@ -8,6 +8,8 @@ import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
 import com.arc.reactor.support.throwIfCancellation
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -49,6 +51,9 @@ class McpServerController(
      * List all registered MCP servers with connection status.
      */
     @Operation(summary = "List all registered MCP servers")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of MCP servers")
+    ])
     @GetMapping
     fun listServers(): List<McpServerResponse> {
         return mcpManager.listServers().map { it.toResponse() }
@@ -58,6 +63,12 @@ class McpServerController(
      * Register a new MCP server and optionally connect.
      */
     @Operation(summary = "Register a new MCP server (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "201", description = "MCP server registered"),
+        ApiResponse(responseCode = "400", description = "Invalid request or transport type"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "409", description = "MCP server already exists")
+    ])
     @PostMapping
     suspend fun registerServer(
         @Valid @RequestBody request: RegisterMcpServerRequest,
@@ -116,6 +127,10 @@ class McpServerController(
      * Get server details including connection status and tool list.
      */
     @Operation(summary = "Get server details with tools")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "MCP server details"),
+        ApiResponse(responseCode = "404", description = "MCP server not found")
+    ])
     @GetMapping("/{name}")
     fun getServer(@PathVariable name: String): ResponseEntity<Any> {
         val server = mcpServerStore.findByName(name)
@@ -144,6 +159,12 @@ class McpServerController(
      * Requires reconnection to apply transport changes.
      */
     @Operation(summary = "Update MCP server configuration (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "MCP server updated"),
+        ApiResponse(responseCode = "400", description = "Invalid transport type"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "MCP server not found")
+    ])
     @PutMapping("/{name}")
     fun updateServer(
         @PathVariable name: String,
@@ -193,6 +214,11 @@ class McpServerController(
      * Disconnect and remove an MCP server.
      */
     @Operation(summary = "Disconnect and remove an MCP server (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "204", description = "MCP server removed"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "MCP server not found")
+    ])
     @DeleteMapping("/{name}")
     suspend fun deleteServer(
         @PathVariable name: String,
@@ -220,6 +246,12 @@ class McpServerController(
      * Connect to a registered MCP server.
      */
     @Operation(summary = "Connect to a registered MCP server (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Connected to MCP server"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "MCP server not found"),
+        ApiResponse(responseCode = "503", description = "Failed to connect to MCP server")
+    ])
     @PostMapping("/{name}/connect")
     suspend fun connectServer(
         @PathVariable name: String,
@@ -255,6 +287,11 @@ class McpServerController(
      * Disconnect from an MCP server (without removing).
      */
     @Operation(summary = "Disconnect from an MCP server (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Disconnected from MCP server"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "MCP server not found")
+    ])
     @PostMapping("/{name}/disconnect")
     suspend fun disconnectServer(
         @PathVariable name: String,

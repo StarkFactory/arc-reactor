@@ -4,6 +4,8 @@ import com.arc.reactor.slack.model.SlackCommandAckResponse
 import com.arc.reactor.slack.model.SlackSlashCommand
 import com.arc.reactor.slack.processor.SlackCommandProcessor
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.MediaType
@@ -44,6 +46,10 @@ class SlackCommandController(
 
     @PostMapping("/commands", consumes = [MediaType.APPLICATION_FORM_URLENCODED_VALUE])
     @Operation(summary = "Handle Slack slash command")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Command acknowledged"),
+        ApiResponse(responseCode = "400", description = "Invalid or missing required command fields")
+    ])
     fun handleSlashCommandEndpoint(
         @ModelAttribute form: SlackSlashCommandForm
     ): ResponseEntity<SlackCommandAckResponse> = handleSlashCommand(

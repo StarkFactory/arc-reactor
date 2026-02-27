@@ -3,6 +3,8 @@ package com.arc.reactor.controller
 import com.arc.reactor.scheduler.DynamicSchedulerService
 import com.arc.reactor.scheduler.ScheduledJob
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -37,6 +39,10 @@ class SchedulerController(
 ) {
 
     @Operation(summary = "List all scheduled jobs")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of scheduled jobs"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping
     fun listJobs(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -44,6 +50,11 @@ class SchedulerController(
     }
 
     @Operation(summary = "Create a new scheduled job (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "201", description = "Scheduled job created"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping
     fun createJob(
         @Valid @RequestBody request: CreateScheduledJobRequest,
@@ -56,6 +67,11 @@ class SchedulerController(
     }
 
     @Operation(summary = "Get scheduled job details")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Scheduled job details"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Scheduled job not found")
+    ])
     @GetMapping("/{id}")
     fun getJob(@PathVariable id: String, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -65,6 +81,12 @@ class SchedulerController(
     }
 
     @Operation(summary = "Update a scheduled job (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Scheduled job updated"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Scheduled job not found")
+    ])
     @PutMapping("/{id}")
     fun updateJob(
         @PathVariable id: String,
@@ -79,6 +101,11 @@ class SchedulerController(
     }
 
     @Operation(summary = "Delete a scheduled job (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "204", description = "Scheduled job deleted"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Scheduled job not found")
+    ])
     @DeleteMapping("/{id}")
     fun deleteJob(
         @PathVariable id: String,
@@ -94,6 +121,11 @@ class SchedulerController(
     }
 
     @Operation(summary = "Trigger immediate execution of a scheduled job (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Job triggered"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Scheduled job not found")
+    ])
     @PostMapping("/{id}/trigger")
     fun triggerJob(
         @PathVariable id: String,

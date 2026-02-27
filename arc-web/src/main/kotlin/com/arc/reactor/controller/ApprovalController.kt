@@ -3,6 +3,8 @@ package com.arc.reactor.controller
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
@@ -38,6 +40,10 @@ class ApprovalController(
 ) {
 
     @Operation(summary = "List pending approval requests")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of pending approvals"),
+        ApiResponse(responseCode = "403", description = "Access denied")
+    ])
     @GetMapping
     fun listPending(exchange: ServerWebExchange): ResponseEntity<Any> {
         val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
@@ -50,6 +56,10 @@ class ApprovalController(
     }
 
     @Operation(summary = "Approve a pending tool call")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Approval action result"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/{id}/approve")
     fun approve(
         @PathVariable id: String,
@@ -69,6 +79,10 @@ class ApprovalController(
     }
 
     @Operation(summary = "Reject a pending tool call")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Rejection action result"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/{id}/reject")
     fun reject(
         @PathVariable id: String,

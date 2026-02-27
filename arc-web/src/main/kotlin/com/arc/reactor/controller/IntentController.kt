@@ -4,6 +4,8 @@ import com.arc.reactor.intent.IntentRegistry
 import com.arc.reactor.intent.model.IntentDefinition
 import com.arc.reactor.intent.model.IntentProfile
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -42,6 +44,10 @@ class IntentController(
 ) {
 
     @Operation(summary = "List all intent definitions")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of intent definitions"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping
     fun listIntents(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -49,6 +55,11 @@ class IntentController(
     }
 
     @Operation(summary = "Get an intent definition by name")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Intent definition"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Intent not found")
+    ])
     @GetMapping("/{intentName}")
     fun getIntent(
         @PathVariable intentName: String,
@@ -60,6 +71,12 @@ class IntentController(
     }
 
     @Operation(summary = "Create a new intent definition (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "201", description = "Intent created"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "409", description = "Intent already exists")
+    ])
     @PostMapping
     fun createIntent(
         @Valid @RequestBody request: CreateIntentRequest,
@@ -81,6 +98,11 @@ class IntentController(
     }
 
     @Operation(summary = "Update an existing intent definition (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Intent updated"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Intent not found")
+    ])
     @PutMapping("/{intentName}")
     fun updateIntent(
         @PathVariable intentName: String,
@@ -103,6 +125,10 @@ class IntentController(
     }
 
     @Operation(summary = "Delete an intent definition (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "204", description = "Intent deleted"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @DeleteMapping("/{intentName}")
     fun deleteIntent(
         @PathVariable intentName: String,

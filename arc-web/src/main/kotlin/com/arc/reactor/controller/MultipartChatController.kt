@@ -7,6 +7,8 @@ import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.persona.PersonaStore
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactive.awaitSingle
 import org.springframework.core.io.buffer.DataBuffer
@@ -52,6 +54,10 @@ class MultipartChatController(
      * ```
      */
     @Operation(summary = "Multipart chat with file attachments")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Chat response"),
+        ApiResponse(responseCode = "400", description = "Invalid file or multimodal disabled")
+    ])
     @PostMapping("/multipart", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     suspend fun chatMultipart(
         @RequestPart("message") message: String,
