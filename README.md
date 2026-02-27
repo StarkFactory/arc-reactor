@@ -81,15 +81,19 @@ git clone https://github.com/StarkFactory/arc-reactor.git
 cd arc-reactor
 ```
 
-### 2. Set one provider key (Gemini default)
+### 2. Fast path (bootstrap + run)
+
+```bash
+./scripts/dev/bootstrap-local.sh --api-key your-api-key --run
+```
+
+The bootstrap script copies `examples/config/application.quickstart.yml` to
+`arc-core/src/main/resources/application-local.yml` (if missing), validates key presence, and starts the app.
+
+### 3. Manual path (Gemini default)
 
 ```bash
 export GEMINI_API_KEY=your-api-key
-```
-
-### 3. Run
-
-```bash
 ./gradlew :arc-app:bootRun
 ```
 
