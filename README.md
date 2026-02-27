@@ -1,6 +1,7 @@
 # Arc Reactor
 
 [![CI](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml/badge.svg)](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-4.4.0-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v4.4.0)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.10-purple.svg)](https://kotlinlang.org)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-green.svg)](https://spring.io/projects/spring-boot)
@@ -8,71 +9,59 @@
 
 [한국어](README.ko.md)
 
-**Enterprise-oriented, centrally managed AI Agent runtime built on Spring AI.**
+**Enterprise-oriented AI Agent runtime built on Spring AI. Fork it, customize it, deploy it.**
 
-Arc Reactor is an open-source project template that you fork and operate as your own AI agent platform.
-It focuses on governance and runtime control: Guard pipeline, Hook lifecycle, dynamic MCP registration,
-Human-in-the-Loop approvals, tool policy, prompt/version management, audit logging, and multi-channel
-integration (Web, Slack, Discord, LINE).
+## What is Arc Reactor?
 
-> Arc Reactor is **not** a drop-in framework dependency. The intended model is: **fork -> customize -> deploy**.
+Arc Reactor is an open-source project template for teams who need a production-ready AI Agent
+platform with strong governance controls. Rather than a library you add to an existing project,
+Arc Reactor is a full application you fork and operate as your own platform.
 
-## Fork Responsibility Boundary
+The runtime is built around a **ReAct loop** (Reasoning + Acting): the LLM decides which tools to
+call, calls them through Arc Reactor's tool system, observes the results, and repeats until it
+produces a final answer. Every step of that loop passes through configurable safety and governance
+layers before it reaches users.
 
-- Arc Reactor is provided **AS IS** under Apache-2.0 (`LICENSE`).
-- Upstream maintainers are responsible for this upstream repository only.
-- Downstream fork operators are solely responsible for their own deployment and operations:
-  security hardening, secrets, access control, compliance, incident response, and production change management.
-- Upstream maintainers do not assume liability for outages, breaches, data loss, or compliance failures in
-  downstream forks or customized deployments.
-- No SLA, warranty, or indemnification is provided for downstream operations.
+Arc Reactor solves the hard operational problems that appear after a proof-of-concept becomes a
+production service: controlling which tools run on which channels, maintaining conversation history
+across restarts, versioning prompts, auditing every action, approving high-risk tool invocations
+before they execute, and integrating chat into Slack, Discord, and LINE alongside the web API.
 
-## Why Arc Reactor for Enterprise
+> Arc Reactor is **not** a drop-in library. The intended model is: **fork → customize → deploy**.
+> Upstream maintainers are responsible for the upstream repository only. Downstream fork operators
+> are solely responsible for their own deployments, security hardening, compliance, and incident
+> response. No SLA, warranty, or indemnification is provided for downstream operations.
 
-- Central control plane APIs for prompts, personas, MCP servers, tool policy, output guard rules, approvals, and audits
-- Execution safety by default: guard fail-close, bounded ReAct loops, timeout controls, and optional circuit breaker
-- Channel-aware governance (for example deny write tools on chat channels, require approval on web)
-- Multi-agent orchestration patterns (Sequential, Parallel, Supervisor)
-- Production diagnostics: Swagger/OpenAPI, actuator endpoints, metrics hooks, and operational controllers
+## Features
 
-## Platform Model
+- **ReAct execution engine** — bounded tool-call iterations, configurable retry, automatic context
+  trimming, and structured output (Text / JSON / YAML) with validation and auto-repair
+- **5-stage Guard pipeline** — fail-close input validation: rate limiting, input length, Unicode
+  normalization, classification (optional), and canary token detection
+- **4-point Hook lifecycle** — BeforeStart, AfterToolCall, BeforeResponse, AfterComplete — for
+  audit logging, billing, policy enforcement, and side effects
+- **Dynamic MCP registration** — register Model Context Protocol servers (STDIO or SSE) at runtime
+  via REST API without restart; per-server access policy control
+- **Human-in-the-Loop approvals** — queue tool invocations for human review before execution
+- **Tool policy engine** — channel-aware write-tool governance: deny write tools on Slack, allow
+  specific tools on Discord, etc.
+- **Prompt template versioning** — store, version, and promote prompt variants; Prompt Lab for
+  automated evaluation with LLM judge scoring
+- **RAG pipeline** — query transformation, PGVector retrieval, reranking, and context injection;
+  dynamic ingestion governance via API
+- **Multi-agent orchestration** — Sequential, Parallel, and Supervisor patterns with
+  WorkerAgentTool wrapping
+- **Multi-channel delivery** — REST + SSE streaming, Slack (Socket Mode / HTTP), Discord, LINE
+- **Admin audit log** — tamper-evident log of every admin action, accessible via API
+- **Output guard rules** — runtime-configurable content policy applied to LLM responses
+- **Resilience** — circuit breaker, configurable request/tool timeouts, fallback model chain
+- **Observability** — OpenAPI/Swagger, Spring Actuator, Prometheus metrics, OpenTelemetry tracing
+- **Security** — optional JWT authentication, security headers (HSTS, CSP), CORS control, MCP
+  server allowlist
+- **Kubernetes-ready** — production Helm chart with HPA, ingress, secret management, liveness and
+  readiness probes, graceful shutdown
 
-Arc Reactor separates concerns into three layers:
-
-1. **Control Plane**: Admin APIs for policy/governance/state changes
-2. **Execution Plane**: ReAct runtime (LLM + tool loop + safety pipelines)
-3. **Channel Plane**: Delivery gateways (REST, Slack, Discord, LINE)
-
-```text
-User / Channel Gateway
-        |
-        v
-+------------------------------+
-| Guard Pipeline (fail-close)  |
-+------------------------------+
-        |
-        v
-+------------------------------+
-| Hook BeforeStart             |
-+------------------------------+
-        |
-        v
-+------------------------------+
-| ReAct Executor               |
-| LLM <-> Tool Loop            |
-| + retry / timeout / trimming |
-+------------------------------+
-        |
-        v
-+------------------------------+
-| Hook AfterComplete           |
-+------------------------------+
-        |
-        v
-Response + Audit + Metrics
-```
-
-## Quick Start (Local)
+## Quick Start
 
 ### 1. Clone
 
@@ -81,36 +70,121 @@ git clone https://github.com/StarkFactory/arc-reactor.git
 cd arc-reactor
 ```
 
-### 2. Fast path (bootstrap + run)
+### 2. Set your API key and run
+
+**Fast path (bootstrap script):**
 
 ```bash
-./scripts/dev/bootstrap-local.sh --api-key your-api-key --run
+./scripts/dev/bootstrap-local.sh --api-key your-gemini-api-key --run
 ```
 
-The bootstrap script copies `examples/config/application.quickstart.yml` to
-`arc-core/src/main/resources/application-local.yml` (if missing), validates key presence, and starts the app.
-
-### 3. Manual path (Gemini default)
+**Manual path:**
 
 ```bash
-export GEMINI_API_KEY=your-api-key
+export GEMINI_API_KEY=your-gemini-api-key
 ./gradlew :arc-app:bootRun
 ```
 
-### 4. Smoke test
+Gemini is the default provider. To use OpenAI or Anthropic instead, set
+`SPRING_AI_OPENAI_API_KEY` or `SPRING_AI_ANTHROPIC_API_KEY`.
+
+### 3. Smoke test
 
 ```bash
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message":"What is 3 + 5?"}'
+  -d '{"message": "What is 3 + 5?"}'
 ```
 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
-- Health: `http://localhost:8080/actuator/health`
+- Health check: `http://localhost:8080/actuator/health`
 
-## Production Bootstrap (Recommended Baseline)
+## Architecture
 
-Start from this minimal enterprise profile and tighten from there:
+Arc Reactor separates concerns into three planes:
+
+1. **Control Plane** — Admin APIs for policy, governance, and state management
+2. **Execution Plane** — ReAct runtime (LLM + tool loop + safety pipelines)
+3. **Channel Plane** — Delivery gateways (REST, Slack, Discord, LINE)
+
+Request flow:
+
+```
+User / Channel Gateway
+        |
+        v
++----------------------------------+
+|  Guard Pipeline (fail-close)     |
+|  Rate limit → Input validation   |
+|  → Unicode → Classification      |
++----------------------------------+
+        |
+        v
++----------------------------------+
+|  Hook: BeforeStart               |
++----------------------------------+
+        |
+        v
++----------------------------------+
+|  ReAct Executor                  |
+|  LLM <-> Tool Loop               |
+|  Retry / timeout / context trim  |
+|  Structured output validation    |
++----------------------------------+
+        |
+        v
++----------------------------------+
+|  Hook: AfterComplete             |
++----------------------------------+
+        |
+        v
+Response + Audit Log + Metrics
+```
+
+## Modules
+
+| Module | Description | When to use |
+|---|---|---|
+| `arc-app` | Executable assembly (`bootRun`, `bootJar`) | Always — entry point |
+| `arc-core` | Agent engine: ReAct loop, Guard, Hook, memory, RAG, MCP, policy | Always — core runtime |
+| `arc-web` | REST controllers, OpenAPI spec, security headers, CORS | Always — HTTP API |
+| `arc-admin` | Admin module: metrics, tracing, ops dashboard | Optional — enable with `arc.reactor.admin.enabled=true` |
+| `arc-slack` | Slack gateway (Socket Mode and HTTP Events) | When integrating with Slack |
+| `arc-discord` | Discord gateway | When integrating with Discord |
+| `arc-line` | LINE Messaging API gateway | When integrating with LINE |
+| `arc-error-report` | Error-reporting extension (dedicated agent for error analysis) | Optional feature module |
+
+## Configuration
+
+Key properties with their defaults. Full reference: [`docs/en/getting-started/configuration-quickstart.md`](docs/en/getting-started/configuration-quickstart.md).
+
+```yaml
+arc:
+  reactor:
+    max-tool-calls: 10               # Max tool iterations per request
+    max-tools-per-request: 20        # Max distinct tools exposed to LLM
+
+    llm:
+      default-provider: gemini
+      temperature: 0.7
+      max-output-tokens: 4096
+
+    concurrency:
+      max-concurrent-requests: 20
+      request-timeout-ms: 30000      # 30 seconds
+      tool-call-timeout-ms: 15000    # 15 seconds per tool
+
+    guard:
+      enabled: true
+      rate-limit-per-minute: 20
+      rate-limit-per-hour: 200
+
+    boundaries:
+      input-min-chars: 1
+      input-max-chars: 10000
+```
+
+### Production bootstrap (recommended baseline)
 
 ```yaml
 spring:
@@ -136,62 +210,101 @@ arc:
       enabled: true
     rag:
       enabled: true
-      ingestion:
-        enabled: true
-        dynamic:
-          enabled: true
     mcp:
       security:
         allowed-server-names: [atlassian, filesystem]
 ```
 
-Recommended environment variables:
+### Feature toggles
 
-- `GEMINI_API_KEY` (or another provider key)
-- `JWT_SECRET`
-- `SPRING_DATASOURCE_URL`
-- `SPRING_DATASOURCE_USERNAME`
-- `SPRING_DATASOURCE_PASSWORD`
-- `SPRING_FLYWAY_ENABLED=true`
+| Feature | Default | Property |
+|---|---|---|
+| Guard | ON | `arc.reactor.guard.enabled` |
+| Security headers | ON | `arc.reactor.security-headers.enabled` |
+| Multimodal upload | ON | — |
+| Auth (JWT) | OFF | `arc.reactor.auth.enabled` |
+| Approval (HITL) | OFF | `arc.reactor.approval.enabled` |
+| Tool policy | OFF | `arc.reactor.tool-policy.dynamic.enabled` |
+| RAG | OFF | `arc.reactor.rag.enabled` |
+| Intent classification | OFF | `arc.reactor.intent.enabled` |
+| Scheduler | OFF | `arc.reactor.scheduler.enabled` |
+| Feedback | OFF | `arc.reactor.feedback.enabled` |
+| CORS | OFF | `arc.reactor.cors.enabled` |
+| Circuit breaker | OFF | `arc.reactor.circuit-breaker.enabled` |
+| Output guard | OFF | `arc.reactor.output-guard.enabled` |
+| Admin module | OFF | `arc.reactor.admin.enabled` |
 
-## API Version Contract
+## Deployment Options
 
-- Request header (optional): `X-Arc-Api-Version` (default: `v1`)
-- Unsupported version -> `400 Bad Request` with standard `ErrorResponse`
-- Response headers:
-  - `X-Arc-Api-Version` (current version)
-  - `X-Arc-Api-Supported-Versions` (comma-separated supported set)
-- Config:
-  - `arc.reactor.api-version.enabled=true` (default)
-  - `arc.reactor.api-version.current=v1` (default)
-  - `arc.reactor.api-version.supported=v1` (default)
+### Local JVM
 
-## Enterprise Control Plane APIs
+```bash
+export GEMINI_API_KEY=your-api-key
+./gradlew :arc-app:bootRun
+```
 
-| Capability | API Base | Activation |
+### Docker Compose (app + PostgreSQL)
+
+Includes pgvector for RAG workloads:
+
+```bash
+cp .env.example .env
+# Edit .env — set GEMINI_API_KEY and optionally DB credentials
+
+docker-compose up -d
+```
+
+To stop: `docker-compose down`
+
+### Pre-built Docker image (ghcr.io)
+
+Images are published automatically on every version tag:
+
+```bash
+docker pull ghcr.io/starkfactory/arc-reactor:4.4.0
+docker run -e GEMINI_API_KEY=your-key -p 8080:8080 ghcr.io/starkfactory/arc-reactor:4.4.0
+```
+
+Available tags: exact version (e.g. `4.4.0`), minor stream (e.g. `4.4`), short SHA (`sha-<commit>`).
+
+### Kubernetes (Helm)
+
+A production-ready Helm chart is included at `helm/arc-reactor/`:
+
+```bash
+helm install arc-reactor ./helm/arc-reactor \
+  -f helm/arc-reactor/values-production.yaml \
+  --set secrets.geminiApiKey=your-api-key
+```
+
+The chart includes HPA, ingress, secret management, liveness/readiness probes, and graceful
+shutdown. Requires Kubernetes 1.25+. See [`helm/arc-reactor/README.md`](helm/arc-reactor/README.md)
+for the full reference.
+
+## Control Plane API Reference
+
+| Capability | API base | Activation |
 |---|---|---|
 | Chat runtime | `/api/chat` | Always |
-| API version contract | all `/api/**` | Always (`arc.reactor.api-version.enabled=true` by default) |
-| Session/model ops | `/api/sessions`, `/api/models` | Always |
+| SSE streaming | `/api/chat/stream` | Always |
+| Session and model ops | `/api/sessions`, `/api/models` | Always |
 | Persona management | `/api/personas` | Always |
 | Prompt template versioning | `/api/prompt-templates` | Always |
-| MCP registry and lifecycle | `/api/mcp/servers` | Always |
-| MCP access policy proxy | `/api/mcp/servers/{name}/access-policy` | Always |
-| Output guard rule admin | `/api/output-guard/rules` | Always |
+| MCP server registry | `/api/mcp/servers` | Always |
+| MCP access policy | `/api/mcp/servers/{name}/access-policy` | Always |
+| Output guard rules | `/api/output-guard/rules` | Always |
 | Admin audit logs | `/api/admin/audits` | Always |
 | Ops dashboard | `/api/ops` | Always |
 | Authentication | `/api/auth` | `arc.reactor.auth.enabled=true` |
-| Human-in-the-Loop approval queue | `/api/approvals` | `arc.reactor.approval.enabled=true` |
+| Human-in-the-Loop approvals | `/api/approvals` | `arc.reactor.approval.enabled=true` |
 | Dynamic tool policy | `/api/tool-policy` | `arc.reactor.tool-policy.dynamic.enabled=true` |
 | Intent registry | `/api/intents` | `arc.reactor.intent.enabled=true` |
-| RAG document APIs | `/api/documents` | `arc.reactor.rag.enabled=true` |
+| RAG documents | `/api/documents` | `arc.reactor.rag.enabled=true` |
 | RAG ingestion governance | `/api/rag-ingestion/policy`, `/api/rag-ingestion/candidates` | `arc.reactor.rag.ingestion.dynamic.enabled=true` |
-| Scheduler (cron MCP execution) | `/api/scheduler/jobs` | `arc.reactor.scheduler.enabled=true` |
-| Feedback APIs | `/api/feedback` | `arc.reactor.feedback.enabled=true` |
+| Scheduler (cron MCP) | `/api/scheduler/jobs` | `arc.reactor.scheduler.enabled=true` |
+| Feedback | `/api/feedback` | `arc.reactor.feedback.enabled=true` |
 
-## Control Plane API Walkthrough
-
-### 1. Register an MCP server
+### Example: Register an MCP server
 
 ```bash
 curl -X POST http://localhost:8080/api/mcp/servers \
@@ -208,7 +321,7 @@ curl -X POST http://localhost:8080/api/mcp/servers \
   }'
 ```
 
-### 2. Apply dynamic tool policy (requires `tool-policy.dynamic.enabled=true`)
+### Example: Apply a tool policy
 
 ```bash
 curl -X PUT http://localhost:8080/api/tool-policy \
@@ -217,15 +330,11 @@ curl -X PUT http://localhost:8080/api/tool-policy \
     "enabled": true,
     "writeToolNames": ["jira_create_issue", "bitbucket_merge_pr"],
     "denyWriteChannels": ["slack"],
-    "allowWriteToolNamesInDenyChannels": ["jira_create_issue"],
-    "allowWriteToolNamesByChannel": {
-      "discord": ["jira_create_issue"]
-    },
-    "denyWriteMessage": "Error: Write tools are disabled in this channel"
+    "allowWriteToolNamesInDenyChannels": ["jira_create_issue"]
   }'
 ```
 
-### 3. Submit chat with a managed prompt template
+### Example: Chat with a prompt template
 
 ```bash
 curl -X POST http://localhost:8080/api/chat \
@@ -233,214 +342,88 @@ curl -X POST http://localhost:8080/api/chat \
   -d '{
     "message": "Summarize incident INC-1234",
     "promptTemplateId": "incident-template",
-    "metadata": {"channel": "web", "sessionId": "ops-session-1"}
+    "metadata": {"channel": "web"}
   }'
 ```
 
-### 4. Review pending approvals (when HITL is enabled)
+## Persistence
 
-```bash
-curl http://localhost:8080/api/approvals
-```
+Arc Reactor uses PostgreSQL for all durable state. In-memory stores are available for development
+but data is lost on restart.
 
-If your deployment enables auth, include `Authorization: Bearer <token>` in all admin calls.
-
-## Runtime Capabilities
-
-| Area | What You Get |
+| Domain | Store |
 |---|---|
-| Agent loop | ReAct execution with bounded tool-call iterations |
-| Safety | 5-stage guard pipeline + optional output guard policy |
-| Extensibility | 4 hook lifecycle points and custom tool callbacks |
-| Tooling | Local tools + MCP tools (STDIO/SSE) with runtime registration |
-| Memory | Session-based conversation history (InMemory/JDBC) |
-| RAG | Query transform, retrieval, rerank, context injection |
-| Output modes | Text/JSON/YAML structured output with validation/repair |
-| Concurrency | Request timeout, tool timeout, concurrent tool execution |
-| Resilience | Retry, circuit breaker, fallback model chain (opt-in) |
-| Multi-agent | Sequential / Parallel / Supervisor orchestrators |
-| Governance | Tool policy, approval flow, admin audit, prompt/version management |
-
-## Feature Toggles (Safe Defaults)
-
-| Feature | Default |
-|---|---|
-| Guard | ON |
-| Security headers | ON |
-| Multimodal upload | ON |
-| Auth (JWT) | OFF |
-| Approval (HITL) | OFF |
-| Tool policy dynamic control | OFF |
-| RAG | OFF |
-| RAG ingestion dynamic control | OFF |
-| Intent classification | OFF |
-| Scheduler | OFF |
-| Feedback | OFF |
-| CORS | OFF |
-| Circuit breaker | OFF |
-| Fallback strategy | OFF |
-| Output guard | OFF |
-
-## Security Notes for Production
-
-- Enable auth in production. If auth is disabled, admin checks treat requests as admin for convenience.
-- Provide a strong `JWT_SECRET` via environment variable; do not commit secrets.
-- Restrict MCP server exposure with `arc.reactor.mcp.security.allowed-server-names`.
-- Keep write tools under policy control (`tool-policy`) and approval gates (`approval`) for high-risk actions.
-- Keep `spring.flyway.enabled=true` with PostgreSQL so governance data is durable across restarts.
-
-## Build, Test, and Run Commands
-
-```bash
-./gradlew test
-./gradlew :arc-core:test
-./gradlew :arc-web:test
-./gradlew :arc-slack:test
-./gradlew :arc-discord:test
-./gradlew :arc-line:test
-./gradlew compileKotlin compileTestKotlin
-./gradlew :arc-app:bootRun
-```
-
-With PostgreSQL/JDBC dependencies included:
-
-```bash
-./gradlew :arc-core:test -Pdb=true
-```
-
-## Module Layout
-
-| Module | Role |
-|---|---|
-| `arc-app/` | Executable assembly module (`bootRun`, `bootJar`) |
-| `arc-core/` | Agent engine (ReAct, guard, hook, memory, RAG, MCP, policy) |
-| `arc-web/` | REST controllers, OpenAPI, security headers/CORS |
-| `arc-slack/` | Slack gateway |
-| `arc-discord/` | Discord gateway |
-| `arc-line/` | LINE gateway |
-| `arc-error-report/` | Error-reporting extension module |
-
-## Persistence Strategy
-
-Arc Reactor requires PostgreSQL in runtime and uses JDBC-backed stores.
-Startup fails fast when `spring.datasource.url` is missing or not `jdbc:postgresql:...`.
-
-| Domain State | Runtime backing |
-|---|---|
-| Conversation memory | PostgreSQL (JDBC) |
-| Personas | PostgreSQL (JDBC) |
-| Prompt templates/versions | PostgreSQL (JDBC) |
-| MCP server registry | PostgreSQL (JDBC) |
-| Output guard rules + audits | PostgreSQL (JDBC) |
+| Conversation memory | PostgreSQL (JDBC) or InMemory |
+| Personas | PostgreSQL (JDBC) or InMemory |
+| Prompt templates and versions | PostgreSQL (JDBC) |
+| MCP server registry | PostgreSQL (JDBC) or InMemory |
+| Output guard rules and audits | PostgreSQL (JDBC) |
 | Admin audit logs | PostgreSQL (JDBC) |
-| Approval requests (HITL) | PostgreSQL (JDBC, when `arc.reactor.approval.enabled=true`) |
-| Feedback | PostgreSQL (JDBC, when `arc.reactor.feedback.enabled=true`) |
-| Scheduler jobs | PostgreSQL (JDBC, when `arc.reactor.scheduler.enabled=true`) |
+| Approval requests (HITL) | PostgreSQL (JDBC) |
 | Tool policy store | PostgreSQL (JDBC) |
-| RAG ingestion policy store | PostgreSQL (JDBC) |
+| RAG ingestion policy | PostgreSQL (JDBC) |
+| Feedback | PostgreSQL (JDBC) |
+| Scheduler jobs | PostgreSQL (JDBC) |
 
-## Quality Signals
+Schema migrations are managed by Flyway. Enable with `SPRING_FLYWAY_ENABLED=true`.
 
-Verified locally on **February 21, 2026**:
+## Documentation
 
-- `./gradlew test`: passed
-- `./gradlew compileKotlin compileTestKotlin`: passed
-- Test report aggregate: **1425 tests**, **0 failures**, **0 errors**, **1 skipped**
+- [Docs home](docs/en/README.md)
+- [Getting started](docs/en/getting-started/README.md)
+- [Configuration quickstart](docs/en/getting-started/configuration-quickstart.md)
+- [Deployment guide](docs/en/getting-started/deployment.md)
+- [Kubernetes reference](docs/en/getting-started/kubernetes-reference.md)
+- [Architecture overview](docs/en/architecture/README.md)
+- [ReAct loop internals](docs/en/architecture/react-loop.md)
+- [MCP runtime management](docs/en/architecture/mcp/runtime-management.md)
+- [Prompt Lab](docs/en/architecture/prompt-lab.md)
+- [Authentication](docs/en/governance/authentication.md)
+- [Human-in-the-loop](docs/en/governance/human-in-the-loop.md)
+- [Tool policy admin](docs/en/governance/tool-policy-admin.md)
+- [Security release framework](docs/en/governance/security-release-framework.md)
+- [Support and compatibility policy](docs/en/governance/support-policy.md)
+- [Tools reference](docs/en/reference/tools.md)
+- [Metrics reference](docs/en/reference/metrics.md)
+- [Slack integration](docs/en/integrations/slack/ops-runbook.md)
+- [Agent benchmarking](docs/en/engineering/agent-benchmarking.md)
+- [Release notes](docs/en/releases/README.md)
 
-Repository-level quality guards include:
+## Security Notes
 
-- CI workflow (`.github/workflows/ci.yml`) with docs-link guard and duration guard
-- Security baseline workflow (`.github/workflows/security-baseline.yml`) for secret and vulnerability scans
-- Nightly matrix workflow (`.github/workflows/nightly-matrix.yml`)
-- Release workflow (`.github/workflows/release.yml`)
-- Slack runtime validation workflow (`.github/workflows/slack-runtime-validation.yml`)
-
-Maturity snapshot (repository state on February 21, 2026):
-
-- 7 Gradle modules (`arc-app`, `arc-core`, `arc-web`, `arc-slack`, `arc-discord`, `arc-line`, `arc-error-report`)
-- 22 REST controllers in `arc-web`
-- 61 English documentation files under `docs/en`
-- 435 Kotlin source files and 190 Kotlin test files
-
-## What to Customize After Forking
-
-- Implement business tools in `arc-core/src/main/kotlin/com/arc/reactor/tool/`
-- Replace/extend guard stages for domain-specific policy decisions
-- Add lifecycle hooks for audit, billing, policy enforcement, and side-effect controls
-- Configure auth and admin role model for your environment
-- Register MCP servers through API and apply per-server access policy
-- Provision PostgreSQL and configure `spring.datasource.*` + Flyway
-
-## Deployment Options
-
-### Local JVM
-
-```bash
-export GEMINI_API_KEY=your-api-key
-./gradlew :arc-app:bootRun
-```
-
-### Docker Compose (app + PostgreSQL)
-
-```bash
-cp .env.example .env
-# edit .env
-
-docker-compose up -d
-docker-compose down
-```
-
-### Pre-built Image (ghcr.io)
-
-Every version tag publishes a pre-built image to GitHub Container Registry:
-
-```bash
-docker pull ghcr.io/starkfactory/arc-reactor:4.3.0
-docker run -e GEMINI_API_KEY=your-key -p 8080:8080 ghcr.io/starkfactory/arc-reactor:4.3.0
-```
-
-Available tags: exact version (e.g. `4.3.0`), minor stream (e.g. `4.3`), and short SHA (`sha-<commit>`).
-
-## Documentation Map
-
-- Docs home: `docs/en/README.md`
-- Architecture: `docs/en/architecture/architecture.md`
-- ReAct internals: `docs/en/architecture/react-loop.md`
-- MCP runtime: `docs/en/architecture/mcp/runtime-management.md`
-- Tool reference: `docs/en/reference/tools.md`
-- Configuration quickstart: `docs/en/getting-started/configuration-quickstart.md`
-- Deployment: `docs/en/getting-started/deployment.md`
-- Kubernetes reference: `docs/en/getting-started/kubernetes-reference.md`
-- Authentication: `docs/en/governance/authentication.md`
-- Human-in-the-loop: `docs/en/governance/human-in-the-loop.md`
-- Tool policy admin: `docs/en/governance/tool-policy-admin.md`
-- Security release framework: `docs/en/governance/security-release-framework.md`
-- Support and compatibility policy: `docs/en/governance/support-policy.md`
-- Metrics: `docs/en/reference/metrics.md`
-- Agent benchmarking: `docs/en/engineering/agent-benchmarking.md`
+- Enable JWT auth in production. When auth is disabled, all requests are treated as admin.
+- Provide `JWT_SECRET` via environment variable (minimum 32 bytes); do not commit secrets.
+- Restrict MCP server exposure with `arc.reactor.mcp.security.allowed-server-names`.
+- Use tool policy and approval gates for high-risk write operations.
+- Enable Flyway with PostgreSQL so governance data is durable across restarts.
+- Security policy: [`SECURITY.md`](SECURITY.md)
 
 ## Known Constraints
 
-- MCP SDK `0.17.2` does not support streamable HTTP transport. Use **SSE** or **STDIO**.
-- PostgreSQL is required at runtime (`spring.datasource.url=jdbc:postgresql://...`).
-- External integration tests are opt-in (`-PincludeIntegration`, `-PincludeExternalIntegration`).
+- MCP SDK `0.17.2` does not support streamable HTTP transport. Use SSE or STDIO.
+- PostgreSQL is required for persistent stores (`spring.datasource.url=jdbc:postgresql://...`).
+- External integration tests are opt-in: `./gradlew test -PincludeIntegration -PincludeExternalIntegration`.
 
-## Open-Source Release Readiness Checklist
+## Build and Test Commands
 
-Before broad public adoption, strongly consider adding:
-
-- Public benchmark baseline (latency/throughput by scenario)
-- Compatibility and support policy (LTS window, deprecation policy)
-- Security scan summary publication policy in release notes
-- Kubernetes reference manifests (or Helm chart) for standard enterprise deployment
+```bash
+./gradlew test                                       # Full test suite
+./gradlew test --tests "com.arc.reactor.agent.*"    # Package filter
+./gradlew compileKotlin compileTestKotlin           # Compile check (target: 0 warnings)
+./gradlew :arc-core:test -Pdb=true                 # Include PostgreSQL/PGVector/Flyway deps
+./gradlew test -PincludeIntegration                # Include @Tag("integration") tests
+./gradlew :arc-app:bootRun                         # Run locally
+```
 
 ## Contributing
 
-- Contribution guide: `CONTRIBUTING.md`
-- Support policy: `SUPPORT.md`
-- Security policy: `SECURITY.md`
-- Changelog: `CHANGELOG.md`
+1. Fork the repository and create a feature branch: `git checkout -b feature/my-feature`
+2. Make changes, write or update tests, and ensure `./gradlew test` passes
+3. Follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages
+4. Open a pull request — CI must be green before merge
+
+Full guide: [`CONTRIBUTING.md`](CONTRIBUTING.md) | [`SUPPORT.md`](SUPPORT.md) | [`CHANGELOG.md`](CHANGELOG.md)
 
 ## License
 
-Apache License 2.0. See `LICENSE`.
+Apache License 2.0. See [`LICENSE`](LICENSE).

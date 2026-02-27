@@ -1,325 +1,307 @@
 # Arc Reactor
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![CI](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml/badge.svg)](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-4.4.0-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v4.4.0)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.10-purple.svg)](https://kotlinlang.org)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-green.svg)](https://spring.io/projects/spring-boot)
 [![Spring AI](https://img.shields.io/badge/Spring%20AI-1.1.2-orange.svg)](https://spring.io/projects/spring-ai)
 
-[English](README.md)
+한국어 문서 / [English](README.md)
 
-**Fork해서 바로 쓰는 AI Agent 오픈소스 프로젝트**
+**Spring AI 기반의 엔터프라이즈급 AI Agent 런타임. Fork하고, 커스터마이즈하고, 배포하세요.**
 
-Arc Reactor는 Spring AI 기반의 AI Agent 프로젝트입니다. Guard, Hook, Memory, RAG, MCP, ReAct 루프 등 프로덕션에 필요한 패턴이 이미 구조화되어 있습니다. Fork하고, 도구를 붙이고, 배포하세요.
+## Arc Reactor란?
 
-> **이것은 라이브러리나 프레임워크가 아닙니다.** `implementation(...)` 으로 가져다 쓰는 게 아니라, Fork해서 내 프로젝트로 만드는 구조입니다.
+Arc Reactor는 강력한 거버넌스 제어가 필요한 팀을 위한 프로덕션 수준의 AI Agent 플랫폼 템플릿입니다.
+기존 프로젝트에 추가하는 라이브러리가 아니라, Fork하여 자체 플랫폼으로 운영하는 완전한 애플리케이션입니다.
 
-## Fork 운영 책임 경계
+런타임의 핵심은 **ReAct 루프** (Reasoning + Acting)입니다. LLM이 어떤 Tool을 호출할지 결정하고,
+Arc Reactor의 Tool 시스템을 통해 실행한 뒤 결과를 관찰하고, 최종 답변을 생성할 때까지 반복합니다.
+이 과정의 모든 단계는 사용자에게 도달하기 전에 구성 가능한 안전 및 거버넌스 레이어를 통과합니다.
 
-- Arc Reactor는 Apache-2.0 라이선스로 **있는 그대로(AS IS)** 제공됩니다 (`LICENSE`).
-- 업스트림 메인테이너 책임 범위는 이 업스트림 저장소 자체에 한정됩니다.
-- 각 기업/팀의 포크 운영자는 자신의 배포/운영에 대해 전적인 책임을 집니다:
-  보안 하드닝, 시크릿 관리, 접근통제, 컴플라이언스, 사고 대응, 운영 변경 관리.
-- 포크/커스텀 배포에서 발생한 장애, 침해, 데이터 손실, 컴플라이언스 위반에 대해
-  업스트림 메인테이너는 책임을 지지 않습니다.
-- 포크 운영에 대한 SLA, 보증, 배상은 제공되지 않습니다.
+Arc Reactor는 PoC가 프로덕션 서비스로 전환된 이후 나타나는 어려운 운영 문제들을 해결합니다.
+어떤 채널에서 어떤 Tool을 실행할지 제어하고, 재시작 후에도 대화 기록을 유지하고, 프롬프트를
+버전 관리하고, 모든 작업을 감사하고, 위험도 높은 Tool 실행을 사전에 승인받고, 웹 API와 함께
+Slack, Discord, LINE으로 챗 서비스를 통합하는 문제들이 그 예입니다.
 
-## 시작하기
+> Arc Reactor는 라이브러리가 아닙니다. 권장 사용 방식은 **Fork → 커스터마이즈 → 배포**입니다.
+> 업스트림 메인테이너는 업스트림 레포지터리에 대해서만 책임을 집니다. 다운스트림 Fork 운영자는
+> 자신의 배포, 보안 강화, 컴플라이언스, 인시던트 대응에 대해 전적으로 책임집니다.
+> 다운스트림 운영에 대한 SLA, 보증, 손해배상은 제공되지 않습니다.
 
-### 1. Fork & Clone
+## 주요 기능
+
+- **ReAct 실행 엔진** — 제한된 Tool 호출 반복 횟수, 설정 가능한 재시도, 자동 컨텍스트 트리밍,
+  구조화된 출력(Text / JSON / YAML)과 유효성 검증 및 자동 복구
+- **5단계 Guard 파이프라인** — 실패 시 차단(fail-close) 입력 검증: 요청 속도 제한, 입력 길이,
+  Unicode 정규화, 분류(선택), Canary Token 감지
+- **4개 Hook 생애주기** — BeforeStart, AfterToolCall, BeforeResponse, AfterComplete —
+  감사 로깅, 과금, 정책 적용, 사이드 이펙트 처리용
+- **동적 MCP 등록** — REST API를 통해 재시작 없이 런타임에 MCP(Model Context Protocol) 서버(STDIO 또는 SSE) 등록; 서버별 접근 정책 제어
+- **Human-in-the-Loop 승인** — Tool 실행 전 사람의 검토를 위한 큐잉
+- **Tool 정책 엔진** — 채널별 쓰기 Tool 거버넌스: Slack에서 쓰기 Tool 차단, Discord에서 특정 Tool 허용 등
+- **프롬프트 템플릿 버전 관리** — 프롬프트 변형 저장, 버전 관리, 승격; LLM Judge 점수를 활용한 자동 평가를 위한 Prompt Lab
+- **RAG 파이프라인** — 쿼리 변환, PGVector 검색, 리랭킹, 컨텍스트 주입; API를 통한 동적 수집 거버넌스
+- **멀티 에이전트 오케스트레이션** — Sequential, Parallel, Supervisor 패턴과 WorkerAgentTool 래핑
+- **멀티채널 전송** — REST + SSE 스트리밍, Slack(Socket Mode / HTTP), Discord, LINE
+- **관리자 감사 로그** — API로 접근 가능한 모든 관리자 작업의 감사 로그
+- **출력 Guard 규칙** — LLM 응답에 적용되는 런타임 설정 가능한 콘텐츠 정책
+- **복원성** — 서킷 브레이커, 설정 가능한 요청/Tool 타임아웃, 폴백 모델 체인
+- **관찰 가능성** — OpenAPI/Swagger, Spring Actuator, Prometheus 메트릭, OpenTelemetry 트레이싱
+- **보안** — 선택적 JWT 인증, 보안 헤더(HSTS, CSP), CORS 제어, MCP 서버 허용 목록
+- **Kubernetes 지원** — HPA, Ingress, 시크릿 관리, Liveness/Readiness Probe, Graceful Shutdown을 포함한 프로덕션용 Helm 차트
+
+## 빠른 시작
+
+### 1. 클론
 
 ```bash
-# GitHub에서 Fork 후
-git clone https://github.com/<your-username>/arc-reactor.git
+git clone https://github.com/StarkFactory/arc-reactor.git
 cd arc-reactor
 ```
 
-### 2. LLM Provider 설정
+### 2. API 키 설정 후 실행
 
-환경 변수로 provider API 키를 설정합니다:
+**빠른 방법 (부트스트랩 스크립트):**
 
 ```bash
-# 기본 provider (arc-core에 기본 활성화): Google Gemini
-export GEMINI_API_KEY=your-api-key
-
-# 선택 provider (의존성을 implementation으로 전환한 경우)
-# export SPRING_AI_OPENAI_API_KEY=your-api-key
-# export SPRING_AI_ANTHROPIC_API_KEY=your-api-key
+./scripts/dev/bootstrap-local.sh --api-key your-gemini-api-key --run
 ```
 
-provider 의존성은 `arc-core/build.gradle.kts`에서 관리합니다.
-
-- 기본: `spring-ai-starter-model-google-genai` 활성화
-- OpenAI/Anthropic: 기본 `compileOnly`
-- provider를 전환하면 `arc-core/build.gradle.kts`에서 대상 의존성을 `implementation(...)`으로 변경
-
-#### 최소 실행 설정 (fork 친화)
-
-처음 로컬 실행은 필수 값 1개만 있으면 됩니다:
+**수동 방법:**
 
 ```bash
-./scripts/dev/bootstrap-local.sh --api-key your-api-key --run
-```
-
-수동으로 실행하려면:
-
-```bash
-export GEMINI_API_KEY=your-api-key
+export GEMINI_API_KEY=your-gemini-api-key
 ./gradlew :arc-app:bootRun
 ```
 
-그 외 기능은 전부 opt-in(`auth`, `rag`, `cors`, `circuit-breaker`)이라서 필요할 때 단계적으로 켜면 됩니다.
-`docs/ko/getting-started/configuration-quickstart.md`부터 보고, 필요 시 `configuration.md`로 확장하세요.
+기본 LLM 제공자는 Gemini입니다. OpenAI나 Anthropic을 사용하려면
+`SPRING_AI_OPENAI_API_KEY` 또는 `SPRING_AI_ANTHROPIC_API_KEY`를 설정하세요.
 
-### 3. 도구 만들기
-
-`arc-core/src/main/kotlin/com/arc/reactor/tool/`에 비즈니스 로직 도구를 추가합니다:
-
-```kotlin
-@Component
-class OrderTool : LocalTool {
-    override val category = DefaultToolCategory.SEARCH
-
-    @Tool(description = "주문 상태를 조회합니다")
-    fun getOrderStatus(@ToolParam("주문 번호") orderId: String): String {
-        return orderRepository.findById(orderId)?.status ?: "주문을 찾을 수 없습니다"
-    }
-}
-```
-
-### 4. 실행
-
-#### IntelliJ에서 실행
-
-1. **Gradle Tool Window**에서 `arc-app > Tasks > application > bootRun` 실행
-2. **Run/Debug Configuration → Environment variables**에 입력:
-   ```
-   GEMINI_API_KEY=AIzaSy_your_actual_key
-   ```
-3. Run
-
-> PostgreSQL도 사용하려면: `GEMINI_API_KEY=your_key;SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor;SPRING_DATASOURCE_USERNAME=arc;SPRING_DATASOURCE_PASSWORD=arc`
-
-#### CLI에서 실행
+### 3. 동작 확인
 
 ```bash
-./scripts/dev/bootstrap-local.sh --api-key your-api-key --run
-
-# 또는 수동 실행
-export GEMINI_API_KEY=your-api-key
-./gradlew :arc-app:bootRun
-```
-
-#### Docker Compose로 실행
-
-```bash
-cp .env.example .env
-# .env 파일에서 GEMINI_API_KEY를 실제 키로 수정
-
-docker-compose up -d          # 백엔드 + PostgreSQL 시작
-docker-compose up app          # PostgreSQL 없이 백엔드만 시작
-docker-compose down            # 중지
-```
-
-#### API 테스트
-
-```bash
-# 일반 응답
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "3 + 5는 얼마야?"}'
-
-# 스트리밍
-curl -N -X POST http://localhost:8080/api/chat/stream \
-  -H "Content-Type: application/json" \
-  -d '{"message": "안녕하세요"}'
-
-# 사용 가능 모델 조회
-curl http://localhost:8080/api/models
-
-# 세션 목록 조회
-curl http://localhost:8080/api/sessions
+  -d '{"message": "3 더하기 5는?"}'
 ```
 
-> 인증 활성화 시 모든 요청에 `Authorization: Bearer <token>` 헤더가 필요합니다. [인증](#인증-opt-in) 섹션을 참고하세요.
-
-## 프로젝트가 제공하는 것
-
-| 기능 | 설명 | 커스터마이징 |
-|------|------|-------------|
-| **ReAct 루프** | Think -> Act -> Observe 자율 실행 | `maxToolCalls`로 루프 제한 |
-| **Guard (5단계)** | Rate Limit -> 입력검증 -> 인젝션탐지 -> 분류 -> 권한 | 각 단계 교체/추가 가능 |
-| **Hook (4 라이프사이클)** | 에이전트 시작/종료, 도구 호출 전/후 | `@Component`로 Hook 추가 |
-| **Memory** | 세션별 대화 기록 (InMemory / PostgreSQL) | `MemoryStore` 구현으로 교체 |
-| **RAG** | Query변환 -> 검색 -> 재순위 -> 컨텍스트빌드 | 4단계 각각 교체 가능 |
-| **MCP** | Model Context Protocol (STDIO/SSE) | 외부 MCP 서버 연결 |
-| **컨텍스트 윈도우 관리** | 토큰 기반 메시지 트리밍 | 토큰 예산 설정 |
-| **LLM 재시도** | 지수 백오프 + 지터 | 재시도 조건/횟수 설정 |
-| **병렬 도구 실행** | 코루틴 기반 동시 실행 | 자동 (설정 불필요) |
-| **Structured Output** | JSON 응답 모드 | `responseFormat = JSON` |
-| **응답 캐싱** | Caffeine 기반 응답 캐시 (opt-in) | `cache.enabled`, 온도 기반 적격성 |
-| **서킷 브레이커** | Kotlin 네이티브 서킷 브레이커 (opt-in) | `circuit-breaker.enabled`, 실패 임계값 |
-| **우아한 성능 저하** | 실패 시 순차적 모델 폴백 (opt-in) | `fallback.enabled`, 폴백 모델 목록 |
-| **응답 필터** | 후처리 파이프라인 (예: 최대 길이) | `ResponseFilter` `@Component`로 추가 |
-| **관측성 메트릭** | 파이프라인 전체 9개 메트릭 포인트 | `AgentMetrics`를 Micrometer 등으로 교체 |
-| **멀티에이전트** | Sequential / Parallel / Supervisor | DSL 빌더 API |
-| **인증** | JWT 인증 + WebFilter (opt-in) | `AuthProvider` / `UserStore` 교체 |
-| **페르소나 관리** | 시스템 프롬프트 템플릿 CRUD API | `PersonaStore` 교체 |
-| **세션 관리** | 세션 조회/삭제 REST API | 자동 활성화 |
-| **Web UI** | React 채팅 인터페이스 ([arc-reactor-web](https://github.com/eqprog/arc-reactor-web)) | Fork해서 커스터마이즈 |
-
-## 멀티에이전트
-
-여러 전문 에이전트가 협력하는 3가지 패턴을 지원합니다:
-
-```kotlin
-// Sequential: A의 출력 → B의 입력 → C의 입력
-val result = MultiAgent.sequential()
-    .node("researcher") { systemPrompt = "자료를 조사하라" }
-    .node("writer") { systemPrompt = "조사 결과로 글을 작성하라" }
-    .execute(command, agentFactory)
-
-// Parallel: 동시 실행 후 결과 병합
-val result = MultiAgent.parallel()
-    .node("security") { systemPrompt = "보안 분석" }
-    .node("style") { systemPrompt = "스타일 검사" }
-    .execute(command, agentFactory)
-
-// Supervisor: 매니저가 워커에게 작업 위임
-val result = MultiAgent.supervisor()
-    .node("order") { systemPrompt = "주문 처리"; description = "주문 조회/변경" }
-    .node("refund") { systemPrompt = "환불 처리"; description = "환불 신청/확인" }
-    .execute(command, agentFactory)
-```
-
-> 자세한 설명은 [멀티에이전트 가이드](docs/ko/architecture/multi-agent.md)를 참고하세요.
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- 헬스 체크: `http://localhost:8080/actuator/health`
 
 ## 아키텍처
 
+Arc Reactor는 세 가지 플레인으로 역할을 구분합니다.
+
+1. **Control Plane** — 정책, 거버넌스, 상태 관리를 위한 관리자 API
+2. **Execution Plane** — ReAct 런타임 (LLM + Tool 루프 + 안전 파이프라인)
+3. **Channel Plane** — 전송 게이트웨이 (REST, Slack, Discord, LINE)
+
+요청 흐름:
+
 ```
-User Request
-     │
-     ▼
-┌─────────────────────────────────────────────────┐
-│  GUARD PIPELINE                                 │
-│  RateLimit → InputValid → InjDetect → Classify → Permission │
-└─────────────────────────────────────────────────┘
-     │
-     ▼
-┌─────────────────────────────────────────────────┐
-│  HOOK: BeforeAgentStart                         │
-└─────────────────────────────────────────────────┘
-     │
-     ▼
-┌─────────────────────────────────────────────────┐
-│  AGENT EXECUTOR (ReAct Loop)                    │
-│  1. Memory 로드 + 컨텍스트 윈도우 트리밍       │
-│  2. 도구 선택 (Local + MCP)                     │
-│  3. LLM 호출 (재시도 포함)                      │
-│  4. 도구 병렬 실행 (Hook 포함)                  │
-│  5. 응답 반환 또는 루프 계속                    │
-└─────────────────────────────────────────────────┘
-     │
-     ▼
-┌─────────────────────────────────────────────────┐
-│  HOOK: AfterAgentComplete                       │
-└─────────────────────────────────────────────────┘
-     │
-     ▼
-  Response
-```
-
-## 어디를 수정하면 되나요?
-
-Fork 후 수정이 필요한 부분과 건드릴 필요 없는 부분을 구분했습니다:
-
-### 수정할 곳 (내 비즈니스 로직)
-
-| 파일/패키지 | 할 일 |
-|-------------|-------|
-| `arc-core/src/main/kotlin/com/arc/reactor/tool/` | **도구 추가** — `LocalTool` + `@Tool` 어노테이션으로 비즈니스 로직 연결 |
-| `arc-core/src/main/resources/application.yml` (또는 외부 env/config) | **설정 변경** — LLM provider, Guard 임계값, RAG on/off 등 |
-| `arc-core/src/main/kotlin/com/arc/reactor/guard/impl/` | **커스텀 Guard** — 비즈니스 규칙에 맞는 분류/권한 단계 구현 |
-| `arc-core/src/main/kotlin/com/arc/reactor/hook/` | **커스텀 Hook** — 감사 로그, 빌링, 알림 등 `@Component`로 추가 |
-| `arc-web/src/main/kotlin/com/arc/reactor/controller/` | **API 수정** — 인증 추가, 엔드포인트 변경 등 |
-
-### 건드릴 필요 없는 곳 (이미 구조화됨)
-
-| 파일/패키지 | 역할 |
-|-------------|------|
-| `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/SpringAiAgentExecutor.kt` | ReAct 루프, 재시도, 컨텍스트 관리 — 그대로 사용 |
-| `arc-core/src/main/kotlin/com/arc/reactor/guard/impl/GuardPipeline.kt` | Guard 파이프라인 오케스트레이션 — 그대로 사용 |
-| `arc-core/src/main/kotlin/com/arc/reactor/hook/HookExecutor.kt` | Hook 실행 엔진 — 그대로 사용 |
-| `arc-core/src/main/kotlin/com/arc/reactor/memory/` | 대화 기록 관리 — InMemory/JDBC 자동 선택 |
-| `arc-core/src/main/kotlin/com/arc/reactor/rag/impl/` | RAG 파이프라인 — 설정으로 제어 |
-| `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/` | Spring Boot 자동 설정 — 그대로 사용 |
-
-## 커스터마이징 예시
-
-### Guard 단계 추가
-
-```kotlin
-@Component
-class BusinessHoursGuard : GuardStage {
-    override val stageName = "business-hours"
-    override val order = 35  // InjectionDetection(30) 이후
-
-    override suspend fun check(command: GuardCommand): GuardResult {
-        val hour = LocalTime.now().hour
-        if (hour < 9 || hour >= 18) {
-            return GuardResult.Rejected(
-                reason = "업무 시간(09-18시)에만 이용 가능합니다",
-                category = RejectionCategory.UNAUTHORIZED,
-                stage = stageName
-            )
-        }
-        return GuardResult.Allowed.DEFAULT
-    }
-}
+사용자 / 채널 게이트웨이
+        |
+        v
++----------------------------------+
+|  Guard 파이프라인 (fail-close)   |
+|  요청 속도 제한 → 입력 검증      |
+|  → Unicode → 분류               |
++----------------------------------+
+        |
+        v
++----------------------------------+
+|  Hook: BeforeStart               |
++----------------------------------+
+        |
+        v
++----------------------------------+
+|  ReAct 실행기                    |
+|  LLM <-> Tool 루프               |
+|  재시도 / 타임아웃 / 컨텍스트 트리밍  |
+|  구조화 출력 유효성 검증         |
++----------------------------------+
+        |
+        v
++----------------------------------+
+|  Hook: AfterComplete             |
++----------------------------------+
+        |
+        v
+응답 + 감사 로그 + 메트릭
 ```
 
-### Hook 추가 (감사 로그)
+## 모듈 구성
 
-```kotlin
-@Component
-class AuditHook : AfterAgentCompleteHook {
-    override val order = 100
+| 모듈 | 설명 | 사용 시기 |
+|---|---|---|
+| `arc-app` | 실행 가능한 어셈블리 (`bootRun`, `bootJar`) | 항상 — 진입점 |
+| `arc-core` | Agent 엔진: ReAct 루프, Guard, Hook, 메모리, RAG, MCP, 정책 | 항상 — 핵심 런타임 |
+| `arc-web` | REST 컨트롤러, OpenAPI 스펙, 보안 헤더, CORS | 항상 — HTTP API |
+| `arc-admin` | 관리자 모듈: 메트릭, 트레이싱, 운영 대시보드 | 선택 — `arc.reactor.admin.enabled=true` |
+| `arc-slack` | Slack 게이트웨이 (Socket Mode 및 HTTP Events) | Slack 통합 시 |
+| `arc-discord` | Discord 게이트웨이 | Discord 통합 시 |
+| `arc-line` | LINE Messaging API 게이트웨이 | LINE 통합 시 |
+| `arc-error-report` | 오류 보고 확장 모듈 (오류 분석 전용 Agent) | 선택적 기능 모듈 |
 
-    override suspend fun afterAgentComplete(context: HookContext, response: AgentResponse) {
-        logger.info("User=${context.userId} prompt='${context.userPrompt}' " +
-            "tools=${context.toolsUsed} success=${response.success}")
-    }
-}
+## 설정
+
+주요 속성과 기본값입니다. 전체 레퍼런스: [`docs/en/getting-started/configuration-quickstart.md`](docs/en/getting-started/configuration-quickstart.md)
+
+```yaml
+arc:
+  reactor:
+    max-tool-calls: 10               # 요청당 최대 Tool 반복 횟수
+    max-tools-per-request: 20        # LLM에 노출할 최대 Tool 수
+
+    llm:
+      default-provider: gemini
+      temperature: 0.7
+      max-output-tokens: 4096
+
+    concurrency:
+      max-concurrent-requests: 20
+      request-timeout-ms: 30000      # 30초
+      tool-call-timeout-ms: 15000    # Tool당 15초
+
+    guard:
+      enabled: true
+      rate-limit-per-minute: 20
+      rate-limit-per-hour: 200
+
+    boundaries:
+      input-min-chars: 1
+      input-max-chars: 10000
 ```
 
-### 에러 메시지 한국어화
+### 프로덕션 기본 설정 (권장 베이스라인)
 
-```kotlin
-@Bean
-fun errorMessageResolver() = ErrorMessageResolver { code, _ ->
-    when (code) {
-        AgentErrorCode.RATE_LIMITED -> "요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
-        AgentErrorCode.TIMEOUT -> "요청 시간이 초과되었습니다."
-        AgentErrorCode.GUARD_REJECTED -> "요청이 거부되었습니다."
-        else -> code.defaultMessage
-    }
-}
+```yaml
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  flyway:
+    enabled: true
+
+arc:
+  reactor:
+    auth:
+      enabled: true
+      jwt-secret: ${JWT_SECRET}
+    approval:
+      enabled: true
+    tool-policy:
+      enabled: true
+      dynamic:
+        enabled: true
+    output-guard:
+      enabled: true
+    rag:
+      enabled: true
+    mcp:
+      security:
+        allowed-server-names: [atlassian, filesystem]
 ```
 
-### PostgreSQL Memory 활성화
+### Feature Toggle
 
-빌드/실행 시 `-Pdb=true`를 사용하고 datasource 설정(env 또는 `application.yml`)을 제공하면 됩니다.
-코드 변경 없이 `DataSource` 빈이 감지되면 `JdbcMemoryStore`로 자동 전환됩니다.
+| 기능 | 기본값 | 속성 |
+|---|---|---|
+| Guard | ON | `arc.reactor.guard.enabled` |
+| 보안 헤더 | ON | `arc.reactor.security-headers.enabled` |
+| 멀티모달 업로드 | ON | — |
+| 인증 (JWT) | OFF | `arc.reactor.auth.enabled` |
+| 승인 (HITL) | OFF | `arc.reactor.approval.enabled` |
+| Tool 정책 | OFF | `arc.reactor.tool-policy.dynamic.enabled` |
+| RAG | OFF | `arc.reactor.rag.enabled` |
+| 인텐트 분류 | OFF | `arc.reactor.intent.enabled` |
+| 스케줄러 | OFF | `arc.reactor.scheduler.enabled` |
+| 피드백 | OFF | `arc.reactor.feedback.enabled` |
+| CORS | OFF | `arc.reactor.cors.enabled` |
+| 서킷 브레이커 | OFF | `arc.reactor.circuit-breaker.enabled` |
+| 출력 Guard | OFF | `arc.reactor.output-guard.enabled` |
+| 관리자 모듈 | OFF | `arc.reactor.admin.enabled` |
 
-### MCP 서버 연결
+## 배포 옵션
 
-REST API로 MCP 서버를 등록합니다:
+### 로컬 JVM
+
+```bash
+export GEMINI_API_KEY=your-api-key
+./gradlew :arc-app:bootRun
+```
+
+### Docker Compose (앱 + PostgreSQL)
+
+RAG 워크로드를 위한 pgvector 포함:
+
+```bash
+cp .env.example .env
+# .env 편집 — GEMINI_API_KEY 및 DB 자격 증명 설정
+
+docker-compose up -d
+```
+
+종료: `docker-compose down`
+
+### 사전 빌드 Docker 이미지 (ghcr.io)
+
+모든 버전 태그에서 이미지가 자동으로 게시됩니다:
+
+```bash
+docker pull ghcr.io/starkfactory/arc-reactor:4.4.0
+docker run -e GEMINI_API_KEY=your-key -p 8080:8080 ghcr.io/starkfactory/arc-reactor:4.4.0
+```
+
+사용 가능한 태그: 정확한 버전(예: `4.4.0`), 마이너 스트림(예: `4.4`), 짧은 SHA(`sha-<commit>`).
+
+### Kubernetes (Helm)
+
+프로덕션용 Helm 차트가 `helm/arc-reactor/`에 포함되어 있습니다:
+
+```bash
+helm install arc-reactor ./helm/arc-reactor \
+  -f helm/arc-reactor/values-production.yaml \
+  --set secrets.geminiApiKey=your-api-key
+```
+
+HPA, Ingress, 시크릿 관리, Liveness/Readiness Probe, Graceful Shutdown을 포함합니다.
+Kubernetes 1.25 이상이 필요합니다. 전체 레퍼런스는 [`helm/arc-reactor/README.md`](helm/arc-reactor/README.md)를 참조하세요.
+
+## Control Plane API 레퍼런스
+
+| 기능 | API 기본 경로 | 활성화 조건 |
+|---|---|---|
+| 챗 런타임 | `/api/chat` | 항상 |
+| SSE 스트리밍 | `/api/chat/stream` | 항상 |
+| 세션 및 모델 관리 | `/api/sessions`, `/api/models` | 항상 |
+| 페르소나 관리 | `/api/personas` | 항상 |
+| 프롬프트 템플릿 버전 관리 | `/api/prompt-templates` | 항상 |
+| MCP 서버 레지스트리 | `/api/mcp/servers` | 항상 |
+| MCP 접근 정책 | `/api/mcp/servers/{name}/access-policy` | 항상 |
+| 출력 Guard 규칙 | `/api/output-guard/rules` | 항상 |
+| 관리자 감사 로그 | `/api/admin/audits` | 항상 |
+| 운영 대시보드 | `/api/ops` | 항상 |
+| 인증 | `/api/auth` | `arc.reactor.auth.enabled=true` |
+| Human-in-the-Loop 승인 | `/api/approvals` | `arc.reactor.approval.enabled=true` |
+| 동적 Tool 정책 | `/api/tool-policy` | `arc.reactor.tool-policy.dynamic.enabled=true` |
+| 인텐트 레지스트리 | `/api/intents` | `arc.reactor.intent.enabled=true` |
+| RAG 문서 | `/api/documents` | `arc.reactor.rag.enabled=true` |
+| RAG 수집 거버넌스 | `/api/rag-ingestion/policy`, `/api/rag-ingestion/candidates` | `arc.reactor.rag.ingestion.dynamic.enabled=true` |
+| 스케줄러 (cron MCP) | `/api/scheduler/jobs` | `arc.reactor.scheduler.enabled=true` |
+| 피드백 | `/api/feedback` | `arc.reactor.feedback.enabled=true` |
+
+### 예시: MCP 서버 등록
 
 ```bash
 curl -X POST http://localhost:8080/api/mcp/servers \
   -H "Content-Type: application/json" \
   -d '{
     "name": "filesystem",
-    "description": "로컬 파일시스템 도구",
+    "description": "로컬 파일 Tool",
     "transportType": "STDIO",
     "config": {
       "command": "npx",
@@ -329,167 +311,108 @@ curl -X POST http://localhost:8080/api/mcp/servers \
   }'
 ```
 
-> **참고:** MCP SDK 0.17.2는 Streamable HTTP 전송을 지원하지 않습니다. 원격 서버는 SSE를 사용하세요. 자세한 내용은 [MCP 통합 가이드](docs/ko/architecture/mcp.md)를 참고하세요.
+### 예시: Tool 정책 적용
 
-## 인증 (Opt-in)
-
-Arc Reactor에는 JWT 인증 시스템이 내장되어 있습니다. **기본적으로 비활성화** — 사용자별 세션 격리가 필요할 때만 활성화하세요.
-
-```yaml
-arc:
-  reactor:
-    auth:
-      enabled: true                    # JWT 인증 활성화
-      jwt-secret: ${JWT_SECRET}        # HMAC 서명 시크릿 (필수)
-      jwt-expiration-ms: 86400000      # 토큰 유효기간 (기본: 24시간)
+```bash
+curl -X PUT http://localhost:8080/api/tool-policy \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": true,
+    "writeToolNames": ["jira_create_issue", "bitbucket_merge_pr"],
+    "denyWriteChannels": ["slack"],
+    "allowWriteToolNamesInDenyChannels": ["jira_create_issue"]
+  }'
 ```
 
-활성화 시:
-- `POST /api/auth/register` — 회원가입
-- `POST /api/auth/login` — JWT 토큰 발급
-- `GET /api/auth/me` — 현재 사용자 프로필
-- 다른 모든 엔드포인트에 `Authorization: Bearer <token>` 필요
-- 세션이 사용자별로 자동 격리됨
+### 예시: 프롬프트 템플릿으로 챗 요청
 
-커스텀 인증 (LDAP, SSO 등)을 사용하려면 `AuthProvider` 인터페이스를 구현하세요:
-
-```kotlin
-@Bean
-fun authProvider(): AuthProvider = MyLdapAuthProvider()
+```bash
+curl -X POST http://localhost:8080/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "INC-1234 인시던트 요약해줘",
+    "promptTemplateId": "incident-template",
+    "metadata": {"channel": "web"}
+  }'
 ```
 
-## API 버전 계약
+## 영속성
 
-- 요청 헤더(선택): `X-Arc-Api-Version` (기본값: `v1`)
-- 미지원 버전 요청 -> 표준 `ErrorResponse`와 함께 `400 Bad Request`
-- 응답 헤더:
-  - `X-Arc-Api-Version` (현재 버전)
-  - `X-Arc-Api-Supported-Versions` (지원 버전 목록, 콤마 구분)
-- 설정:
-  - `arc.reactor.api-version.enabled=true` (기본값)
-  - `arc.reactor.api-version.current=v1` (기본값)
-  - `arc.reactor.api-version.supported=v1` (기본값)
+Arc Reactor는 모든 영구 상태에 PostgreSQL을 사용합니다. 개발 환경에서는 인메모리 저장소를 사용할 수 있지만, 재시작 시 데이터가 초기화됩니다.
 
-## 설정 레퍼런스
+| 도메인 | 저장소 |
+|---|---|
+| 대화 메모리 | PostgreSQL (JDBC) 또는 InMemory |
+| 페르소나 | PostgreSQL (JDBC) 또는 InMemory |
+| 프롬프트 템플릿 및 버전 | PostgreSQL (JDBC) |
+| MCP 서버 레지스트리 | PostgreSQL (JDBC) 또는 InMemory |
+| 출력 Guard 규칙 및 감사 | PostgreSQL (JDBC) |
+| 관리자 감사 로그 | PostgreSQL (JDBC) |
+| 승인 요청 (HITL) | PostgreSQL (JDBC) |
+| Tool 정책 저장소 | PostgreSQL (JDBC) |
+| RAG 수집 정책 | PostgreSQL (JDBC) |
+| 피드백 | PostgreSQL (JDBC) |
+| 스케줄러 작업 | PostgreSQL (JDBC) |
 
-```yaml
-arc:
-  reactor:
-    max-tools-per-request: 20    # 요청당 최대 도구 수
-    max-tool-calls: 10           # ReAct 루프 최대 도구 호출 횟수
-
-    llm:
-      temperature: 0.3
-      max-output-tokens: 4096
-      max-conversation-turns: 10
-      max-context-window-tokens: 128000
-
-    retry:
-      max-attempts: 3
-      initial-delay-ms: 1000
-      multiplier: 2.0
-      max-delay-ms: 10000
-
-    guard:
-      enabled: true
-      rate-limit-per-minute: 10
-      rate-limit-per-hour: 100
-      injection-detection-enabled: true
-
-    boundaries:
-      input-min-chars: 1
-      input-max-chars: 5000
-
-    rag:
-      enabled: false
-      similarity-threshold: 0.7
-      top-k: 10
-      rerank-enabled: true
-      max-context-tokens: 4000
-
-    concurrency:
-      max-concurrent-requests: 20
-      request-timeout-ms: 30000
-
-    cache:                           # 응답 캐싱 (opt-in)
-      enabled: false
-      max-size: 1000
-      ttl-minutes: 60
-      cacheable-temperature: 0.0     # 온도가 이 값 이하일 때만 캐시
-
-    circuit-breaker:                 # 서킷 브레이커 (opt-in)
-      enabled: false
-      failure-threshold: 5
-      reset-timeout-ms: 30000
-      half-open-max-calls: 1
-
-    fallback:                        # 우아한 성능 저하 (opt-in)
-      enabled: false
-      models: []                     # 예: [openai, anthropic]
-
-    auth:
-      enabled: false                 # JWT 인증 (opt-in)
-      jwt-secret: ""                 # HMAC 시크릿 (활성화 시 필수)
-      jwt-expiration-ms: 86400000    # 토큰 유효기간 (24시간)
-```
-
-## 프로젝트 구조
-
-Arc Reactor는 멀티모듈 Gradle 프로젝트입니다:
-
-- `arc-app/`: 실행 조립 모듈 (`:arc-app:bootRun`, `:arc-app:bootJar`)
-- `arc-core/`: 에이전트 엔진/라이브러리 (guard, hook, tool, memory, RAG, MCP, 정책)
-- `arc-web/`: REST API 컨트롤러 및 웹 통합
-- `arc-slack/`: Slack 게이트웨이
-- `arc-discord/`: Discord 게이트웨이
-- `arc-line/`: LINE 게이트웨이
-- `arc-error-report/`: 에러 리포팅 확장
-
-핵심 구현 진입점:
-
-- `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/SpringAiAgentExecutor.kt`
-- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/ArcReactorAutoConfiguration.kt`
-- `arc-core/src/main/kotlin/com/arc/reactor/agent/config/AgentProperties.kt`
-- `arc-web/src/main/kotlin/com/arc/reactor/controller/ChatController.kt`
+스키마 마이그레이션은 Flyway로 관리됩니다. `SPRING_FLYWAY_ENABLED=true`로 활성화하세요.
 
 ## 문서
 
-- **[문서 홈](docs/ko/README.md)** — 패키지형 문서 인덱스
-- [모듈 레이아웃 가이드](docs/ko/architecture/module-layout.md) — 현재 Gradle 모듈과 런타임 조립 구조
-- [테스트/성능 가이드](docs/ko/engineering/testing-and-performance.md) — 로컬 피드백 루프 최적화
-- [Slack 운영 런북](docs/ko/integrations/slack/ops-runbook.md) — 메트릭/부하테스트/백프레셔 운영
-- [아키텍처 가이드](docs/ko/architecture/architecture.md) — 내부 구조와 에러 처리 체계
-- [ReAct 루프 내부 구현](docs/ko/architecture/react-loop.md) — 핵심 실행 엔진, 도구 병렬 실행, 컨텍스트 트리밍, 재시도
-- [Guard & Hook 시스템](docs/ko/architecture/guard-hook.md) — 5단계 보안 파이프라인, 4가지 생명주기 확장점
-- [메모리 & RAG 파이프라인](docs/ko/architecture/memory-rag.md) — 대화 기록 관리, 4단계 검색 증강 생성
-- [도구(Tool) 가이드](docs/ko/reference/tools.md) — 3가지 도구 유형, 등록 방법, MCP 연결
-- [MCP 통합 가이드](docs/ko/architecture/mcp.md) — McpManager, STDIO/SSE 트랜스포트, 도구 동적 로드
-- [설정 Quickstart](docs/ko/getting-started/configuration-quickstart.md) — 첫 실행용 최소 설정
-- [설정 레퍼런스](docs/ko/getting-started/configuration.md) — 전체 YAML 설정, 자동 구성, 프로덕션 예시
-- [관측성 & 메트릭](docs/ko/reference/metrics.md) — AgentMetrics 인터페이스, Micrometer 통합, 메트릭 포인트
-- [복원력 가이드](docs/ko/architecture/resilience.md) — 서킷 브레이커, 재시도, 우아한 성능 저하
-- [응답 처리](docs/ko/architecture/response-processing.md) — 응답 필터, 캐싱, 구조화 출력
-- [데이터 모델 & API](docs/ko/reference/api-models.md) — AgentCommand/Result, 에러 처리, 메트릭, REST API
-- [멀티에이전트 가이드](docs/ko/architecture/multi-agent.md) — Sequential / Parallel / Supervisor 패턴
-- [Supervisor 패턴 Deep Dive](docs/ko/architecture/supervisor-pattern.md) — WorkerAgentTool 원리, 실제 사용법
-- [배포 가이드](docs/ko/getting-started/deployment.md) — Docker, 환경 변수, 프로덕션 체크리스트
-- [인증 가이드](docs/ko/governance/authentication.md) — JWT 인증, AuthProvider 커스터마이징, 세션 격리
-- [세션 & 페르소나 가이드](docs/ko/architecture/session-management.md) — 세션 API, 페르소나 관리, 데이터 아키텍처
-- [프롬프트 버저닝 가이드](docs/ko/governance/prompt-versioning.md) — 시스템 프롬프트 버전 관리, 배포, 롤백
-- [기능 인벤토리](docs/ko/reference/feature-inventory.md) — 전체 기능 매트릭스, 데이터 아키텍처, DB 스키마
+- [문서 홈](docs/en/README.md)
+- [시작하기](docs/en/getting-started/README.md)
+- [설정 퀵스타트](docs/en/getting-started/configuration-quickstart.md)
+- [배포 가이드](docs/en/getting-started/deployment.md)
+- [Kubernetes 레퍼런스](docs/en/getting-started/kubernetes-reference.md)
+- [아키텍처 개요](docs/en/architecture/README.md)
+- [ReAct 루프 내부 구조](docs/en/architecture/react-loop.md)
+- [MCP 런타임 관리](docs/en/architecture/mcp/runtime-management.md)
+- [Prompt Lab](docs/en/architecture/prompt-lab.md)
+- [인증](docs/en/governance/authentication.md)
+- [Human-in-the-loop](docs/en/governance/human-in-the-loop.md)
+- [Tool 정책 관리](docs/en/governance/tool-policy-admin.md)
+- [보안 릴리즈 프레임워크](docs/en/governance/security-release-framework.md)
+- [지원 및 호환성 정책](docs/en/governance/support-policy.md)
+- [Tool 레퍼런스](docs/en/reference/tools.md)
+- [메트릭 레퍼런스](docs/en/reference/metrics.md)
+- [Slack 통합](docs/en/integrations/slack/ops-runbook.md)
+- [Agent 벤치마킹](docs/en/engineering/agent-benchmarking.md)
+- [릴리즈 노트](docs/en/releases/README.md)
 
-## 요구사항
+## 프로덕션 보안 주의사항
 
-- Java 21+
-- Spring Boot 3.5+
-- Spring AI 1.1+
-- Kotlin 2.3+
+- 프로덕션 환경에서는 JWT 인증을 활성화하세요. 인증이 비활성화되면 모든 요청이 관리자로 처리됩니다.
+- `JWT_SECRET`은 환경 변수로 제공하세요 (최소 32바이트). 시크릿을 코드에 커밋하지 마세요.
+- `arc.reactor.mcp.security.allowed-server-names`로 MCP 서버 노출을 제한하세요.
+- 고위험 쓰기 작업에는 Tool 정책과 승인 게이트를 사용하세요.
+- PostgreSQL과 함께 Flyway를 활성화하여 거버넌스 데이터가 재시작 후에도 유지되도록 하세요.
+- 보안 정책: [`SECURITY.md`](SECURITY.md)
+
+## 알려진 제약사항
+
+- MCP SDK `0.17.2`는 Streamable HTTP 전송을 지원하지 않습니다. SSE 또는 STDIO를 사용하세요.
+- 영구 저장소를 위해서는 PostgreSQL이 필요합니다 (`spring.datasource.url=jdbc:postgresql://...`).
+- 외부 통합 테스트는 명시적으로 활성화해야 합니다: `./gradlew test -PincludeIntegration -PincludeExternalIntegration`.
+
+## 빌드 및 테스트 명령어
+
+```bash
+./gradlew test                                       # 전체 테스트 실행
+./gradlew test --tests "com.arc.reactor.agent.*"    # 패키지 필터
+./gradlew compileKotlin compileTestKotlin           # 컴파일 확인 (목표: 경고 0개)
+./gradlew :arc-core:test -Pdb=true                 # PostgreSQL/PGVector/Flyway 의존성 포함
+./gradlew test -PincludeIntegration                # @Tag("integration") 테스트 포함
+./gradlew :arc-app:bootRun                         # 로컬 실행
+```
+
+## 기여하기
+
+1. 레포지터리를 Fork하고 기능 브랜치를 생성하세요: `git checkout -b feature/my-feature`
+2. 변경사항을 만들고, 테스트를 작성하거나 업데이트한 후 `./gradlew test`가 통과하는지 확인하세요
+3. [Conventional Commits](https://www.conventionalcommits.org/) 형식으로 커밋 메시지를 작성하세요
+4. Pull Request를 열어주세요 — CI가 통과해야 머지됩니다
+
+전체 가이드: [`CONTRIBUTING.md`](CONTRIBUTING.md) | [`SUPPORT.md`](SUPPORT.md) | [`CHANGELOG.md`](CHANGELOG.md)
 
 ## 라이선스
 
-Apache License 2.0 - [LICENSE](LICENSE) 참조
-
-## Acknowledgments
-
-- [Spring AI](https://spring.io/projects/spring-ai) 기반
-- [Model Context Protocol](https://modelcontextprotocol.io) 통합
+Apache License 2.0. [`LICENSE`](LICENSE) 파일을 참조하세요.
