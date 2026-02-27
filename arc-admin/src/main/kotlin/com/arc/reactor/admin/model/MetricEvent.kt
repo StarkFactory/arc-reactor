@@ -90,7 +90,12 @@ data class GuardEvent(
     val reasonClass: String? = null,
     val reasonDetail: String? = null,
     val isOutputGuard: Boolean = false,
-    val action: String = "rejected"
+    val action: String = "rejected",
+    val inputHash: String? = null,
+    val sessionId: String? = null,
+    val requestId: String? = null,
+    val pipelineLatencyMs: Long = 0,
+    val stageLatencyMs: Long = 0
 ) : MetricEvent()
 
 data class McpHealthEvent(
