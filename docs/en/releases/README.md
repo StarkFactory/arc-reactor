@@ -3,6 +3,7 @@
 Versioned release notes and upgrade highlights.
 
 - GitHub Release automation runs on tag push (`v*`) via `.github/workflows/release.yml`.
+- [Migration Guide: 3.x → 4.x](migration-3x-to-4x.md)
 - [v4.1.0](v4.1.0.md)
 - [v4.0.1](v4.0.1.md)
 - [v4.0.0](v4.0.0.md)
