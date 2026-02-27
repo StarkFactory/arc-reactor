@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 
 class JwtSecretValidatorTest {
@@ -12,7 +13,8 @@ class JwtSecretValidatorTest {
     inner class EmptySecret {
 
         @Test
-        fun `should throw IllegalStateException for empty secret`() {
+        @Tag("regression")
+        fun `should fail fast on startup when auth enabled with empty JWT secret`() {
             val exception = assertThrows(IllegalStateException::class.java) {
                 JwtSecretValidator("")
             }
@@ -39,7 +41,8 @@ class JwtSecretValidatorTest {
         }
 
         @Test
-        fun `should throw IllegalStateException for 31-byte secret`() {
+        @Tag("regression")
+        fun `should fail fast on startup when auth enabled with 31-byte JWT secret`() {
             assertThrows(IllegalStateException::class.java) {
                 JwtSecretValidator("a".repeat(31))
             }
