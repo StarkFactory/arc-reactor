@@ -3,6 +3,7 @@ package com.arc.reactor.agent.impl
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
+import com.arc.reactor.guard.tool.ToolOutputSanitizer
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.HookContext
@@ -27,7 +28,8 @@ internal class ToolCallOrchestrator(
     private val toolApprovalPolicy: ToolApprovalPolicy?,
     private val pendingApprovalStore: PendingApprovalStore?,
     private val agentMetrics: AgentMetrics,
-    private val parseToolArguments: (String?) -> Map<String, Any?> = ::parseToolArguments
+    private val parseToolArguments: (String?) -> Map<String, Any?> = ::parseToolArguments,
+    private val toolOutputSanitizer: ToolOutputSanitizer? = null
 ) {
 
     suspend fun executeInParallel(
@@ -101,8 +103,15 @@ internal class ToolCallOrchestrator(
         }
 
         val toolStartTime = System.currentTimeMillis()
-        val (toolOutput, toolSuccess) = invokeToolAdapter(toolName, toolCall, tools, toolsUsed)
+        val (rawOutput, toolSuccess) = invokeToolAdapter(toolName, toolCall, tools, toolsUsed)
+        var toolOutput = rawOutput
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
+
+        // Sanitize tool output for indirect injection defense
+        if (toolOutputSanitizer != null && toolSuccess) {
+            val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
+            toolOutput = sanitized.content
+        }
 
         hookExecutor?.executeAfterToolCall(
             context = toolCallContext,
