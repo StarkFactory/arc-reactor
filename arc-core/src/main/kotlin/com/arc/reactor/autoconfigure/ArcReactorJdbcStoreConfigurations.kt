@@ -7,6 +7,8 @@ import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.audit.JdbcAdminAuditStore
 import com.arc.reactor.feedback.FeedbackStore
 import com.arc.reactor.feedback.JdbcFeedbackStore
+import com.arc.reactor.promptlab.ExperimentStore
+import com.arc.reactor.promptlab.JdbcExperimentStore
 import com.arc.reactor.guard.output.policy.JdbcOutputGuardRuleAuditStore
 import com.arc.reactor.guard.output.policy.JdbcOutputGuardRuleStore
 import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditStore
@@ -122,6 +124,20 @@ class JdbcMemoryStoreConfiguration {
     fun jdbcFeedbackStore(
         jdbcTemplate: JdbcTemplate
     ): FeedbackStore = JdbcFeedbackStore(jdbcTemplate = jdbcTemplate)
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.prompt-lab", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun jdbcExperimentStore(
+        jdbcTemplate: JdbcTemplate,
+        transactionTemplate: TransactionTemplate
+    ): ExperimentStore = JdbcExperimentStore(
+        jdbcTemplate = jdbcTemplate,
+        transactionTemplate = transactionTemplate
+    )
 
     @Bean
     @Primary
