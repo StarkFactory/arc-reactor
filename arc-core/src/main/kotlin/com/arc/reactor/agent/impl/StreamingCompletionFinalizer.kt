@@ -5,6 +5,9 @@ import com.arc.reactor.agent.config.OutputMinViolationMode
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.guard.output.OutputGuardContext
+import com.arc.reactor.guard.output.OutputGuardPipeline
+import com.arc.reactor.guard.output.OutputGuardResult
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
@@ -20,6 +23,7 @@ internal class StreamingCompletionFinalizer(
     private val conversationManager: ConversationManager,
     private val hookExecutor: HookExecutor?,
     private val agentMetrics: AgentMetrics,
+    private val outputGuardPipeline: OutputGuardPipeline? = null,
     private val nowMs: () -> Long = System::currentTimeMillis
 ) {
 
@@ -37,6 +41,7 @@ internal class StreamingCompletionFinalizer(
         emit: suspend (String) -> Unit
     ) {
         if (streamSuccess) {
+            applyStreamingOutputGuard(command, collectedContent, toolsUsed, startTime, emit)
             conversationManager.saveStreamingHistory(command, lastIterationContent)
             emitBoundaryMarkers(collectedContent, emit)
         }
@@ -56,6 +61,51 @@ internal class StreamingCompletionFinalizer(
         } catch (hookEx: Exception) {
             hookEx.throwIfCancellation()
             logger.error(hookEx) { "AfterAgentComplete hook failed in streaming finally" }
+        }
+    }
+
+    private suspend fun applyStreamingOutputGuard(
+        command: AgentCommand,
+        collectedContent: String,
+        toolsUsed: List<String>,
+        startTime: Long,
+        emit: suspend (String) -> Unit
+    ) {
+        if (outputGuardPipeline == null || collectedContent.isEmpty()) return
+
+        try {
+            val guardContext = OutputGuardContext(
+                command = command,
+                toolsUsed = toolsUsed,
+                durationMs = nowMs() - startTime
+            )
+            when (val result = outputGuardPipeline.check(collectedContent, guardContext)) {
+                is OutputGuardResult.Allowed -> {
+                    agentMetrics.recordOutputGuardAction("pipeline", "allowed", "", command.metadata)
+                }
+                is OutputGuardResult.Modified -> {
+                    agentMetrics.recordOutputGuardAction(
+                        result.stage ?: "unknown", "modified", result.reason, command.metadata
+                    )
+                    logger.warn { "Streaming output guard modified content: ${result.reason}" }
+                    emit(StreamEventMarker.error(
+                        "Output guard modified response: ${result.reason}"
+                    ))
+                }
+                is OutputGuardResult.Rejected -> {
+                    agentMetrics.recordOutputGuardAction(
+                        result.stage ?: "unknown", "rejected", result.reason, command.metadata
+                    )
+                    logger.warn { "Streaming output guard rejected: ${result.reason}" }
+                    emit(StreamEventMarker.error(
+                        "Output guard rejected response: ${result.reason}"
+                    ))
+                }
+            }
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.error(e) { "Streaming output guard failed" }
+            emit(StreamEventMarker.error("Output guard check failed"))
         }
     }
 
