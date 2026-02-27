@@ -20,6 +20,26 @@ import org.springframework.core.env.Environment
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.web.server.WebFilter
 
+private const val JWT_SECRET_MIN_BYTES = 32
+
+/**
+ * Validates JWT secret at application startup.
+ *
+ * Fails fast with a clear, actionable error message so misconfiguration
+ * is caught before the context fully initialises rather than at the first
+ * authenticated request.
+ */
+class JwtSecretValidator(secret: String) {
+    init {
+        check(secret.toByteArray().size >= JWT_SECRET_MIN_BYTES) {
+            "arc.reactor.auth.jwt-secret must be set to at least $JWT_SECRET_MIN_BYTES characters " +
+                "when auth.enabled=true. " +
+                "Current length: ${secret.toByteArray().size} bytes. " +
+                "Generate with: openssl rand -base64 32"
+        }
+    }
+}
+
 /**
  * Auth Configuration (only when arc.reactor.auth.enabled=true)
  */
@@ -68,6 +88,10 @@ class AuthConfiguration {
     }
 
     @Bean
+    fun jwtSecretValidator(authProperties: AuthProperties): JwtSecretValidator =
+        JwtSecretValidator(authProperties.jwtSecret)
+
+    @Bean
     @ConditionalOnMissingBean
     fun userStore(): UserStore = InMemoryUserStore()
 
@@ -77,7 +101,7 @@ class AuthConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    fun jwtTokenProvider(authProperties: AuthProperties): JwtTokenProvider =
+    fun jwtTokenProvider(authProperties: AuthProperties, jwtSecretValidator: JwtSecretValidator): JwtTokenProvider =
         JwtTokenProvider(authProperties)
 
     @Bean
