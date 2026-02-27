@@ -15,8 +15,57 @@ env:
   INTEGRATION_TEST_MAX_SECONDS: "150"
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ci_relevant: ${{ steps.filter.outputs.ci_relevant }}
+      runtime_deploy: ${{ steps.filter.outputs.runtime_deploy }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Detect Changed Paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            ci_relevant:
+              - 'arc-*/src/**'
+              - 'arc-*/build.gradle.kts'
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+              - 'gradle.properties'
+              - 'gradle/**'
+              - 'buildSrc/**'
+              - 'scripts/**'
+              - 'Dockerfile'
+              - '.dockerignore'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/security-baseline.yml'
+              - '.github/workflows/release.yml'
+              - '.github/actions/**'
+            runtime_deploy:
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'compose*.yml'
+              - 'docker/**'
+              - 'arc-*/src/main/**'
+              - 'arc-*/src/main/resources/**'
+              - 'arc-app/**'
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+              - 'gradle.properties'
+              - 'gradle/**'
+              - 'buildSrc/**'
+              - 'scripts/deploy/**'
+              - '.github/workflows/release.yml'
+
   build:
     runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.ci_relevant == 'true'
 
     strategy:
       matrix:
@@ -78,7 +127,8 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [changes, build]
+    if: github.event_name == 'push' || needs.changes.outputs.ci_relevant == 'true'
 
     strategy:
       matrix:
@@ -117,7 +167,8 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
-    needs: [build, integration]
+    needs: [changes, build, integration]
+    if: github.event_name == 'push' || needs.changes.outputs.runtime_deploy == 'true'
 
     steps:
       - uses: actions/checkout@v6
