@@ -16,6 +16,7 @@ import com.arc.reactor.prompt.PromptTemplateStore
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -82,6 +83,11 @@ class ChatController(
      * ```
      */
     @Operation(summary = "Send a message and receive a complete response")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Chat response"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "500", description = "Server or LLM error")
+    ])
     @PostMapping
     suspend fun chat(
         @Valid @RequestBody request: ChatRequest,
@@ -143,6 +149,10 @@ class ChatController(
             )
         ]
     )
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "500", description = "Server or LLM error")
+    ])
     @PostMapping("/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     suspend fun chatStream(
         @Valid @RequestBody request: ChatRequest,

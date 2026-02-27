@@ -7,6 +7,8 @@ import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +46,10 @@ class LineWebhookController(
 
     @PostMapping("/webhook")
     @Operation(summary = "Handle LINE webhook events")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Webhook payload accepted"),
+        ApiResponse(responseCode = "400", description = "Invalid payload")
+    ])
     suspend fun handleWebhook(
         @RequestBody payload: String
     ): ResponseEntity<Any> {

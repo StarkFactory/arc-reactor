@@ -6,6 +6,8 @@ import com.arc.reactor.rag.ingestion.RagIngestionPolicy
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyProvider
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyStore
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Size
@@ -34,6 +36,10 @@ class RagIngestionPolicyController(
 ) {
 
     @Operation(summary = "Get RAG ingestion policy state (effective + stored) (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Current RAG ingestion policy state"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping
     fun get(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -48,6 +54,11 @@ class RagIngestionPolicyController(
     }
 
     @Operation(summary = "Update stored RAG ingestion policy (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "RAG ingestion policy updated"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PutMapping
     fun update(
         @Valid @RequestBody request: UpdateRagIngestionPolicyRequest,
@@ -70,6 +81,10 @@ class RagIngestionPolicyController(
     }
 
     @Operation(summary = "Delete stored RAG ingestion policy (reset to config defaults) (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "204", description = "RAG ingestion policy deleted, reset to config defaults"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @DeleteMapping
     fun delete(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()

@@ -3,6 +3,8 @@ package com.arc.reactor.controller
 import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -36,6 +38,9 @@ class PersonaController(
      * List all personas.
      */
     @Operation(summary = "List all personas")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of personas")
+    ])
     @GetMapping
     fun listPersonas(): List<PersonaResponse> {
         return personaStore.list().map { it.toResponse() }
@@ -45,6 +50,10 @@ class PersonaController(
      * Get a persona by ID.
      */
     @Operation(summary = "Get a persona by ID")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Persona details"),
+        ApiResponse(responseCode = "404", description = "Persona not found")
+    ])
     @GetMapping("/{personaId}")
     fun getPersona(@PathVariable personaId: String): ResponseEntity<PersonaResponse> {
         val persona = personaStore.get(personaId)
@@ -56,6 +65,11 @@ class PersonaController(
      * Create a new persona. Requires ADMIN role when auth is enabled.
      */
     @Operation(summary = "Create a new persona (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "201", description = "Persona created"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping
     fun createPersona(
         @Valid @RequestBody request: CreatePersonaRequest,
@@ -77,6 +91,12 @@ class PersonaController(
      * Requires ADMIN role when auth is enabled.
      */
     @Operation(summary = "Update an existing persona (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Persona updated"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Persona not found")
+    ])
     @PutMapping("/{personaId}")
     fun updatePersona(
         @PathVariable personaId: String,
@@ -98,6 +118,10 @@ class PersonaController(
      * Requires ADMIN role when auth is enabled.
      */
     @Operation(summary = "Delete a persona (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "204", description = "Persona deleted"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @DeleteMapping("/{personaId}")
     fun deletePersona(
         @PathVariable personaId: String,

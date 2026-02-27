@@ -13,6 +13,8 @@ import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.tenant.TenantService
 import com.arc.reactor.admin.tenant.TenantStore
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -48,6 +50,10 @@ class PlatformAdminController(
     // --- Platform Health ---
 
     @Operation(summary = "Get platform health dashboard")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Platform health dashboard"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/health")
     fun health(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -64,6 +70,10 @@ class PlatformAdminController(
     // --- Tenant Management ---
 
     @Operation(summary = "List all tenants")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of tenants"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/tenants")
     fun listTenants(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -71,6 +81,11 @@ class PlatformAdminController(
     }
 
     @Operation(summary = "Get tenant by ID")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tenant details"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Tenant not found")
+    ])
     @GetMapping("/tenants/{id}")
     fun getTenant(
         @PathVariable id: String,
@@ -83,6 +98,11 @@ class PlatformAdminController(
     }
 
     @Operation(summary = "Create a new tenant")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "201", description = "Tenant created"),
+        ApiResponse(responseCode = "400", description = "Invalid request or plan"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/tenants")
     fun createTenant(
         @jakarta.validation.Valid @RequestBody request: CreateTenantRequest,
@@ -105,6 +125,11 @@ class PlatformAdminController(
     }
 
     @Operation(summary = "Suspend a tenant")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tenant suspended"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Tenant not found")
+    ])
     @PostMapping("/tenants/{id}/suspend")
     fun suspendTenant(
         @PathVariable id: String,
@@ -119,6 +144,11 @@ class PlatformAdminController(
     }
 
     @Operation(summary = "Activate a tenant")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tenant activated"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Tenant not found")
+    ])
     @PostMapping("/tenants/{id}/activate")
     fun activateTenant(
         @PathVariable id: String,
@@ -133,6 +163,10 @@ class PlatformAdminController(
     }
 
     @Operation(summary = "Get tenant analytics summary")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tenant analytics summary"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/tenants/analytics")
     fun tenantAnalytics(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -159,6 +193,10 @@ class PlatformAdminController(
     // --- Pricing Management ---
 
     @Operation(summary = "List all model pricing entries")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of model pricing entries"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/pricing")
     fun listPricing(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -166,6 +204,10 @@ class PlatformAdminController(
     }
 
     @Operation(summary = "Create or update model pricing")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Model pricing saved"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/pricing")
     fun upsertPricing(
         @RequestBody pricing: ModelPricing,
@@ -178,6 +220,10 @@ class PlatformAdminController(
     // --- Alert Management ---
 
     @Operation(summary = "List all alert rules")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of alert rules"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/alerts/rules")
     fun listAlertRules(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -185,6 +231,10 @@ class PlatformAdminController(
     }
 
     @Operation(summary = "Create or update an alert rule")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Alert rule saved"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/alerts/rules")
     fun saveAlertRule(
         @RequestBody rule: AlertRule,
@@ -195,6 +245,11 @@ class PlatformAdminController(
     }
 
     @Operation(summary = "Delete an alert rule")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "204", description = "Alert rule deleted"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Alert rule not found")
+    ])
     @DeleteMapping("/alerts/rules/{id}")
     fun deleteAlertRule(
         @PathVariable id: String,
@@ -209,6 +264,10 @@ class PlatformAdminController(
     }
 
     @Operation(summary = "List all active alerts (platform-wide)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of active alerts"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/alerts")
     fun activeAlerts(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -216,6 +275,10 @@ class PlatformAdminController(
     }
 
     @Operation(summary = "Resolve an alert")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Alert resolved"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/alerts/{id}/resolve")
     fun resolveAlert(
         @PathVariable id: String,
@@ -227,6 +290,10 @@ class PlatformAdminController(
     }
 
     @Operation(summary = "Trigger alert evaluation now")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Alert evaluation completed"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/alerts/evaluate")
     fun evaluateAlerts(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()

@@ -6,6 +6,8 @@ import com.arc.reactor.policy.tool.ToolPolicy
 import com.arc.reactor.policy.tool.ToolPolicyProvider
 import com.arc.reactor.policy.tool.ToolPolicyStore
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Size
@@ -34,6 +36,10 @@ class ToolPolicyController(
 ) {
 
     @Operation(summary = "Get tool policy state (effective + stored) (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Current tool policy state"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping
     fun get(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -50,6 +56,11 @@ class ToolPolicyController(
     }
 
     @Operation(summary = "Update stored tool policy (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Tool policy updated"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PutMapping
     fun update(
         @Valid @RequestBody request: UpdateToolPolicyRequest,
@@ -73,6 +84,10 @@ class ToolPolicyController(
     }
 
     @Operation(summary = "Delete stored tool policy (reset to config defaults) (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "204", description = "Tool policy deleted, reset to config defaults"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @DeleteMapping
     fun delete(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()

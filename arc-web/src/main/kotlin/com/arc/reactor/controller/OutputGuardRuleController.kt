@@ -10,6 +10,8 @@ import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
 import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
 import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
@@ -45,6 +47,10 @@ class OutputGuardRuleController(
 ) {
 
     @Operation(summary = "List output guard rules")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of output guard rules"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping
     fun listRules(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -52,6 +58,10 @@ class OutputGuardRuleController(
     }
 
     @Operation(summary = "List output guard rule audit logs (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of audit logs"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/audits")
     fun listAudits(
         @RequestParam(required = false) @Min(1) @Max(1000) limit: Int?,
@@ -64,6 +74,11 @@ class OutputGuardRuleController(
     }
 
     @Operation(summary = "Create output guard rule (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "201", description = "Output guard rule created"),
+        ApiResponse(responseCode = "400", description = "Invalid action or regex pattern"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping
     fun createRule(
         @Valid @RequestBody request: CreateOutputGuardRuleRequest,
@@ -103,6 +118,12 @@ class OutputGuardRuleController(
     }
 
     @Operation(summary = "Update output guard rule (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Output guard rule updated"),
+        ApiResponse(responseCode = "400", description = "Invalid action or regex pattern"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Output guard rule not found")
+    ])
     @PutMapping("/{id}")
     fun updateRule(
         @PathVariable id: String,
@@ -151,6 +172,11 @@ class OutputGuardRuleController(
     }
 
     @Operation(summary = "Delete output guard rule (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "204", description = "Output guard rule deleted"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Output guard rule not found")
+    ])
     @DeleteMapping("/{id}")
     fun deleteRule(
         @PathVariable id: String,
@@ -172,6 +198,11 @@ class OutputGuardRuleController(
     }
 
     @Operation(summary = "Dry-run output guard policy simulation (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Simulation result"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/simulate")
     fun simulate(
         @Valid @RequestBody request: OutputGuardSimulationRequest,

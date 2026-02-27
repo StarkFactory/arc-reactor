@@ -2,6 +2,8 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.audit.AdminAuditStore
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
@@ -20,6 +22,10 @@ class AdminAuditController(
 ) {
 
     @Operation(summary = "List admin audit logs (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of admin audit logs"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping
     fun list(
         @RequestParam(required = false) @Min(1) @Max(1000) limit: Int?,

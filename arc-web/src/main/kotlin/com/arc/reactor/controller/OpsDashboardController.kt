@@ -5,6 +5,8 @@ import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.mcp.model.McpServerStatus
 import io.micrometer.core.instrument.MeterRegistry
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.ResponseEntity
@@ -25,6 +27,10 @@ class OpsDashboardController(
 ) {
 
     @Operation(summary = "Get operations dashboard snapshot (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Operations dashboard snapshot"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/dashboard")
     fun dashboard(
         @RequestParam(required = false) names: List<String>?,
@@ -45,6 +51,10 @@ class OpsDashboardController(
     }
 
     @Operation(summary = "List available ops metric names (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of available metric names"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/metrics/names")
     fun metricNames(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()

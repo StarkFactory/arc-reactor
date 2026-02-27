@@ -7,6 +7,8 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import mu.KotlinLogging
@@ -37,6 +39,12 @@ class McpAccessPolicyController(
     private val adminWebClientFactory: McpAdminWebClientFactory = McpAdminWebClientFactory()
 ) {
     @Operation(summary = "Get access policy from MCP server admin API")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Current access policy"),
+        ApiResponse(responseCode = "400", description = "Invalid MCP server configuration"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "MCP server not found")
+    ])
     @GetMapping
     suspend fun getPolicy(
         @PathVariable name: String,
@@ -57,6 +65,12 @@ class McpAccessPolicyController(
     }
 
     @Operation(summary = "Update access policy on MCP server admin API")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Access policy updated"),
+        ApiResponse(responseCode = "400", description = "Invalid policy or MCP server configuration"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "MCP server not found")
+    ])
     @PutMapping
     suspend fun updatePolicy(
         @PathVariable name: String,
@@ -96,6 +110,12 @@ class McpAccessPolicyController(
     }
 
     @Operation(summary = "Clear dynamic policy on MCP server admin API")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Access policy cleared"),
+        ApiResponse(responseCode = "400", description = "Invalid MCP server configuration"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "MCP server not found")
+    ])
     @DeleteMapping
     suspend fun clearPolicy(
         @PathVariable name: String,

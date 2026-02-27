@@ -14,6 +14,8 @@ import com.arc.reactor.promptlab.model.TestQuery
 import com.arc.reactor.promptlab.model.TierStats
 import com.arc.reactor.promptlab.model.Trial
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -70,6 +72,11 @@ class PromptLabController(
     // ── Experiment CRUD ──
 
     @Operation(summary = "Create a new experiment (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "201", description = "Experiment created"),
+        ApiResponse(responseCode = "400", description = "Invalid request or limits exceeded"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/experiments")
     fun createExperiment(
         @Valid @RequestBody request: CreateExperimentRequest,
@@ -100,6 +107,10 @@ class PromptLabController(
     }
 
     @Operation(summary = "List experiments with optional filters")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of experiments"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/experiments")
     fun listExperiments(
         @RequestParam(required = false) status: ExperimentStatus?,
@@ -112,6 +123,11 @@ class PromptLabController(
     }
 
     @Operation(summary = "Get experiment details")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Experiment details"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Experiment not found")
+    ])
     @GetMapping("/experiments/{id}")
     fun getExperiment(
         @PathVariable id: String,
@@ -124,6 +140,13 @@ class PromptLabController(
     }
 
     @Operation(summary = "Run experiment asynchronously (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "202", description = "Experiment run started"),
+        ApiResponse(responseCode = "400", description = "Experiment not in PENDING state or limits exceeded"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Experiment not found"),
+        ApiResponse(responseCode = "429", description = "Max concurrent experiments reached")
+    ])
     @PostMapping("/experiments/{id}/run")
     fun runExperiment(
         @PathVariable id: String,
@@ -163,6 +186,12 @@ class PromptLabController(
     }
 
     @Operation(summary = "Cancel a running experiment (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Experiment cancelled"),
+        ApiResponse(responseCode = "400", description = "Experiment is not RUNNING"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Experiment not found")
+    ])
     @PostMapping("/experiments/{id}/cancel")
     fun cancelExperiment(
         @PathVariable id: String,
@@ -189,6 +218,11 @@ class PromptLabController(
     }
 
     @Operation(summary = "Get experiment execution status (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Experiment status"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Experiment not found")
+    ])
     @GetMapping("/experiments/{id}/status")
     fun getStatus(
         @PathVariable id: String,
@@ -209,6 +243,10 @@ class PromptLabController(
     }
 
     @Operation(summary = "Get experiment trial data (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Experiment trial data"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @GetMapping("/experiments/{id}/trials")
     fun getTrials(
         @PathVariable id: String,
@@ -220,6 +258,11 @@ class PromptLabController(
     }
 
     @Operation(summary = "Get experiment report (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Experiment report"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Report not found")
+    ])
     @GetMapping("/experiments/{id}/report")
     fun getReport(
         @PathVariable id: String,
@@ -232,6 +275,10 @@ class PromptLabController(
     }
 
     @Operation(summary = "Delete experiment (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "204", description = "Experiment deleted"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @DeleteMapping("/experiments/{id}")
     fun deleteExperiment(
         @PathVariable id: String,
@@ -245,6 +292,11 @@ class PromptLabController(
     // ── Automation Endpoints ──
 
     @Operation(summary = "Run full auto-optimization pipeline (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "202", description = "Auto-optimization pipeline started"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/auto-optimize")
     fun autoOptimize(
         @Valid @RequestBody request: AutoOptimizeRequest,
@@ -270,6 +322,11 @@ class PromptLabController(
     }
 
     @Operation(summary = "Analyze feedback for a template (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Feedback analysis results"),
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/analyze")
     suspend fun analyzeFeedback(
         @Valid @RequestBody request: AnalyzeFeedbackRequest,
@@ -284,6 +341,12 @@ class PromptLabController(
     }
 
     @Operation(summary = "Activate recommended version from experiment (ADMIN/HITL)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Recommended version activated"),
+        ApiResponse(responseCode = "400", description = "No report available or version activation failed"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Experiment not found")
+    ])
     @PostMapping("/experiments/{id}/activate")
     fun activateRecommended(
         @PathVariable id: String,

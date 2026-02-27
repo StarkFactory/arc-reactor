@@ -5,6 +5,8 @@ import com.arc.reactor.admin.model.EvalResultEvent
 import com.arc.reactor.admin.model.McpHealthEvent
 import com.arc.reactor.admin.model.ToolCallEvent
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
@@ -32,6 +34,11 @@ class MetricIngestionController(
     }
 
     @Operation(summary = "Ingest MCP health event")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "202", description = "Event accepted"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "503", description = "Metric buffer full")
+    ])
     @PostMapping("/mcp-health")
     fun ingestMcpHealth(@RequestBody request: McpHealthRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -56,6 +63,11 @@ class MetricIngestionController(
     }
 
     @Operation(summary = "Ingest MCP tool call event")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "202", description = "Event accepted"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "503", description = "Metric buffer full")
+    ])
     @PostMapping("/tool-call")
     fun ingestToolCall(@RequestBody request: ToolCallRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -83,6 +95,11 @@ class MetricIngestionController(
     }
 
     @Operation(summary = "Ingest eval result event")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "202", description = "Event accepted"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "503", description = "Metric buffer full")
+    ])
     @PostMapping("/eval-result")
     fun ingestEvalResult(@RequestBody request: EvalResultRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -112,6 +129,11 @@ class MetricIngestionController(
     }
 
     @Operation(summary = "Batch ingest eval results from a single eval run")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Batch ingestion summary"),
+        ApiResponse(responseCode = "400", description = "Invalid request or batch size exceeded"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/eval-results")
     fun ingestEvalResults(@RequestBody request: EvalRunResultsRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -151,6 +173,11 @@ class MetricIngestionController(
     }
 
     @Operation(summary = "Batch ingest multiple MCP health events")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Batch ingestion summary"),
+        ApiResponse(responseCode = "400", description = "Batch size exceeded"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
     @PostMapping("/batch")
     fun ingestBatch(@RequestBody requests: List<McpHealthRequest>, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
