@@ -11,7 +11,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
@@ -39,11 +38,9 @@ class SchedulerController(
 
     @Operation(summary = "List all scheduled jobs")
     @GetMapping
-    fun listJobs(exchange: ServerWebExchange): List<ScheduledJobResponse> {
-        if (!isAdmin(exchange)) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required")
-        }
-        return schedulerService.list().map { it.toResponse() }
+    fun listJobs(exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+        return ResponseEntity.ok(schedulerService.list().map { it.toResponse() })
     }
 
     @Operation(summary = "Create a new scheduled job (ADMIN)")
@@ -61,9 +58,7 @@ class SchedulerController(
     @Operation(summary = "Get scheduled job details")
     @GetMapping("/{id}")
     fun getJob(@PathVariable id: String, exchange: ServerWebExchange): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required")
-        }
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val job = schedulerService.findById(id)
             ?: return jobNotFound(id)
         return ResponseEntity.ok(job.toResponse())

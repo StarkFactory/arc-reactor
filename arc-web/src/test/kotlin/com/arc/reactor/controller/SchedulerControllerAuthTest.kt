@@ -8,9 +8,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
-import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.server.ServerWebExchange
 
 class SchedulerControllerAuthTest {
@@ -20,21 +18,17 @@ class SchedulerControllerAuthTest {
 
     @Test
     fun `listJobs rejects non-admin`() {
-        val thrown = assertThrows<ResponseStatusException> {
-            controller.listJobs(exchange(userId = "user-1", role = UserRole.USER))
-        }
+        val response = controller.listJobs(exchange(userId = "user-1", role = UserRole.USER))
 
-        assertEquals(HttpStatus.FORBIDDEN, thrown.statusCode)
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Non-admin list should be forbidden" }
         verify(exactly = 0) { schedulerService.list() }
     }
 
     @Test
     fun `getJob rejects non-admin`() {
-        val thrown = assertThrows<ResponseStatusException> {
-            controller.getJob("job-1", exchange(userId = "user-1", role = UserRole.USER))
-        }
+        val response = controller.getJob("job-1", exchange(userId = "user-1", role = UserRole.USER))
 
-        assertEquals(HttpStatus.FORBIDDEN, thrown.statusCode)
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Non-admin get should be forbidden" }
         verify(exactly = 0) { schedulerService.findById(any()) }
     }
 
@@ -42,9 +36,12 @@ class SchedulerControllerAuthTest {
     fun `listJobs allows admin`() {
         every { schedulerService.list() } returns emptyList()
 
-        val result = controller.listJobs(exchange(userId = "admin-1", role = UserRole.ADMIN))
+        val response = controller.listJobs(exchange(userId = "admin-1", role = UserRole.ADMIN))
+        @Suppress("UNCHECKED_CAST")
+        val result = response.body as List<ScheduledJobResponse>
 
-        assertEquals(0, result.size)
+        assertEquals(HttpStatus.OK, response.statusCode) { "Admin list should succeed" }
+        assertEquals(0, result.size) { "Empty scheduler list should be returned as empty body list" }
         verify(exactly = 1) { schedulerService.list() }
     }
 
