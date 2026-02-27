@@ -390,6 +390,17 @@ docker-compose up -d
 docker-compose down
 ```
 
+### Pre-built Image (ghcr.io)
+
+Every version tag publishes a pre-built image to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/starkfactory/arc-reactor:4.3.0
+docker run -e GEMINI_API_KEY=your-key -p 8080:8080 ghcr.io/starkfactory/arc-reactor:4.3.0
+```
+
+Available tags: exact version (e.g. `4.3.0`), minor stream (e.g. `4.3`), and short SHA (`sha-<commit>`).
+
 ## Documentation Map
 
 - Docs home: `docs/en/README.md`
