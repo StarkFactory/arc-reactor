@@ -66,6 +66,12 @@ Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-patter
 | Feature | Default | Property |
 |---------|---------|----------|
 | Guard | ON | `arc.reactor.guard.enabled` |
+| Unicode Normalization | ON | `arc.reactor.guard.unicode-normalization-enabled` |
+| Classification | OFF | `arc.reactor.guard.classification-enabled` |
+| LLM Classification | OFF | `arc.reactor.guard.classification-llm-enabled` |
+| Canary Token | OFF | `arc.reactor.guard.canary-token-enabled` |
+| Tool Output Sanitizer | OFF | `arc.reactor.guard.tool-output-sanitization-enabled` |
+| Guard Audit | ON | `arc.reactor.guard.audit-enabled` |
 | Security Headers | ON | `arc.reactor.security-headers.enabled` |
 | Auth (JWT) | OFF | `arc.reactor.auth.enabled` |
 | RAG | OFF | `arc.reactor.rag.enabled` |

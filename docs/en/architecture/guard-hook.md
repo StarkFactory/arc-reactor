@@ -6,14 +6,28 @@
 
 ### Overview
 
-Guard is a 5-stage security pipeline that validates all incoming requests **before execution** of the AI agent.
+Guard is a multi-layer security system covering both **input** (before execution) and **output** (after execution). The architecture is organized into 5 defense layers aligned with the OWASP LLM Top 10 (2025).
 
 ```
-Request → [RateLimit] → [InputValidation] → [InjectionDetection] → [Classification] → [Permission] → Pass
-            order=1        order=2              order=3                order=4            order=5
+Request
+  │
+  ▼
+[Input Guard Pipeline] ── 6 ordered stages, fail-close
+  │  L0: UnicodeNormalization → RateLimit → InputValidation → InjectionDetection
+  │  L1: Classification → TopicDriftDetection (opt-in)
+  │
+  ▼
+[Agent Execution] ── ReAct loop with tool calls
+  │  L3: ToolOutputSanitizer (opt-in, wraps tool outputs)
+  │
+  ▼
+[Output Guard Pipeline] ── 4 ordered stages, fail-close
+  │  L2: SystemPromptLeakageGuard (opt-in)
+  │      PiiMaskingGuard → DynamicRuleGuard → RegexPatternGuard
+  │
+  ▼
+Response
 ```
-
-If any stage returns `Rejected`, the pipeline stops immediately and returns a failure without executing the agent.
 
 ### Core Interfaces
 
@@ -25,7 +39,7 @@ interface RequestGuard {
 }
 ```
 
-**GuardStage** — Individual check stage:
+**GuardStage** — Individual input check stage:
 
 ```kotlin
 interface GuardStage {
@@ -34,6 +48,18 @@ interface GuardStage {
     val enabled: Boolean     // Can be disabled
 
     suspend fun check(command: GuardCommand): GuardResult
+}
+```
+
+**OutputGuardStage** — Individual output check stage:
+
+```kotlin
+interface OutputGuardStage {
+    val stageName: String
+    val order: Int get() = 0
+    val enabled: Boolean get() = true
+
+    suspend fun check(content: String, context: OutputGuardContext): OutputGuardResult
 }
 ```
 
@@ -63,6 +89,16 @@ sealed class GuardResult {
 }
 ```
 
+**Output result (sealed class):**
+
+```kotlin
+sealed class OutputGuardResult {
+    data class Allowed(...)
+    data class Modified(val content: String, val reason: String, val stage: String?)
+    data class Rejected(val reason: String, val stage: String?, val category: OutputRejectionCategory?)
+}
+```
+
 **Rejection categories:**
 
 | Category | Description |
@@ -74,22 +110,40 @@ sealed class GuardResult {
 | `UNAUTHORIZED` | Insufficient permissions |
 | `SYSTEM_ERROR` | Error within the guard stage itself |
 
-### 5-Stage Pipeline
+### 5-Layer Defense Architecture
 
-#### Stage 1: RateLimit (order=1)
+#### Layer 0: Static Fast Filters (always ON, 0ms LLM cost)
+
+##### Stage 0: UnicodeNormalization (order=0)
+
+```kotlin
+class UnicodeNormalizationStage : GuardStage
+```
+
+Defends against homoglyph and invisible-character attacks:
+
+- **NFKC normalization**: fullwidth Latin → ASCII (e.g., `ｉｇｎｏｒｅ` → `ignore`)
+- **Zero-width character stripping**: U+200B/C/D/E/F, U+FEFF, U+00AD, U+2060-2064, U+180E, Unicode Tag Block (U+E0000-E007F)
+- **Homoglyph replacement**: Cyrillic а→a, е→e, о→o, р→p, с→c, etc. (15 common mappings)
+- **Rejection**: If zero-width character ratio exceeds threshold (default 10%)
+- Returns normalized text via `GuardResult.Allowed(hints = ["normalized:$text"])` — downstream stages see the cleaned text
+
+##### Stage 1: RateLimit (order=1)
 
 ```kotlin
 class DefaultRateLimitStage(
     private val requestsPerMinute: Int = 10,
-    private val requestsPerHour: Int = 100
+    private val requestsPerHour: Int = 100,
+    private val tenantRateLimits: Map<String, TenantRateLimit> = emptyMap()
 ) : RateLimitStage
 ```
 
 - Tracks per-user request counts using a Caffeine cache
 - Applies two windows: per-minute and per-hour
+- **Tenant-aware**: Cache key is `"$tenantId:$userId"`, supports per-tenant overrides via `tenantRateLimits`
 - Cache TTL automatically resets counters
 
-#### Stage 2: InputValidation (order=2)
+##### Stage 2: InputValidation (order=2)
 
 ```kotlin
 class DefaultInputValidationStage(
@@ -101,75 +155,196 @@ class DefaultInputValidationStage(
 - Rejects empty strings
 - Rejects input exceeding maximum length (default 10,000 characters)
 
-#### Stage 3: InjectionDetection (order=3)
+##### Stage 3: InjectionDetection (order=3)
 
 ```kotlin
 class DefaultInjectionDetectionStage : InjectionDetectionStage
 ```
 
-Detects prompt injection attacks using regex patterns:
+Detects prompt injection attacks using 28 regex patterns:
 
-- **Role change attempts:** `"ignore previous"`, `"you are now"`, `"act as"`
-- **System prompt extraction:** `"show me your prompt"`, `"repeat your instructions"`
-- **Output manipulation:** `"output the following"`, `"print exactly"`
-- **Encoding bypass:** `"base64"`, `"rot13"`, `"hex encode"`
-- **Delimiter injection:** `###`, `---`, `===`, `<<<>>>`
+- **Role change attempts**: `"ignore previous"`, `"you are now"`, `"act as"`
+- **System prompt extraction**: `"show me your prompt"`, `"repeat your instructions"`
+- **Output manipulation**: `"output the following"`, `"print exactly"`
+- **Encoding bypass**: `"base64"`, `"rot13"`, `"hex encode"`
+- **Delimiter injection**: `###`, `---` (5+), `===` (5+), `<<<>>>`
+- **ChatML / Llama tokens**: `<|im_start|>`, `<|im_end|>`, `[INST]`, `<start_of_turn>`
+- **Authority escalation**: `"developer mode"`, `"system override"`
+- **Safety override**: `"override safety filter"`, `"override content policy"`
+- **Many-shot jailbreak**: 3+ sequential `example N` markers
+- **Unicode escape sequences**: 4+ consecutive `\uXXXX` patterns
 
-#### Stage 4: Classification (order=4)
+#### Layer 1: Classification (opt-in)
+
+##### Stage 4: Classification (order=4)
 
 ```kotlin
-class DefaultClassificationStage : ClassificationStage
+class CompositeClassificationStage(
+    ruleBasedStage: RuleBasedClassificationStage,
+    llmStage: LlmClassificationStage? = null  // null when LLM classification disabled
+) : ClassificationStage
 ```
 
-The default implementation is a pass-through (allows all requests). In production, implement LLM-based or rule-based content classification.
+Two-tier classification:
+- **Rule-based** (always): Keyword matching against `blockedCategories` (e.g., malware, weapons, self_harm)
+- **LLM-based** (opt-in): Uses `ChatClient` for semantic classification. Fail-open — LLM errors return `Allowed`
 
-#### Stage 5: Permission (order=5)
+Enable: `arc.reactor.guard.classification-enabled=true`, `arc.reactor.guard.classification-llm-enabled=true`
+
+##### Stage 6: TopicDriftDetection (order=6)
 
 ```kotlin
-class DefaultPermissionStage : PermissionStage
+class TopicDriftDetectionStage : GuardStage
 ```
 
-The default implementation is a pass-through (allows all users). In production, integrate RBAC or a custom permission system.
+Defends against **Crescendo attacks** (multi-turn progressive jailbreaks):
+- Reads `conversationHistory` from `GuardCommand.metadata`
+- Scores escalating sensitivity patterns across a sliding window (last 5 turns)
+- Pattern escalation: hypothetical → what if → for research → step by step → bypass/override
+- Configurable `maxDriftScore` threshold (default 0.7)
+
+#### Layer 2: System Prompt Protection (opt-in)
+
+Prevents system prompt leakage via canary token injection:
+
+```kotlin
+class CanaryTokenProvider(seed: String)       // Generates deterministic CANARY-{8hex} token
+class CanarySystemPromptPostProcessor         // Appends canary clause to system prompt
+class SystemPromptLeakageOutputGuard          // Output guard stage (order=5)
+```
+
+- **CanaryTokenProvider** generates a SHA-256 deterministic token from a seed
+- **CanarySystemPromptPostProcessor** appends `"The following token is secret..."` to the system prompt
+- **SystemPromptLeakageOutputGuard** checks output for: (1) canary token presence, (2) leakage phrases (`"my system prompt is"`, `"I was instructed to"`)
+
+Enable: `arc.reactor.guard.canary-token-enabled=true`
+
+#### Layer 3: Tool Output Sanitization (opt-in)
+
+Defends against **indirect prompt injection** via tool outputs:
+
+```kotlin
+class ToolOutputSanitizer {
+    fun sanitize(toolName: String, output: String): SanitizedOutput
+}
+```
+
+- Wraps tool output with data-instruction separation markers
+- Strips injection patterns (role override, system delimiter, prompt override, data exfiltration attempts)
+- Detected patterns → replaced with `[SANITIZED]`
+- Integrates with `ToolCallOrchestrator` as an optional parameter
+
+Enable: `arc.reactor.guard.tool-output-sanitization-enabled=true`
+
+#### Layer 4: Audit & Observability (always ON when arc-admin enabled)
+
+```kotlin
+interface GuardAuditPublisher {
+    fun publish(command: GuardCommand, stage: String, result: String,
+                reason: String?, stageLatencyMs: Long, pipelineLatencyMs: Long)
+}
+```
+
+- **GuardPipeline** records per-stage and pipeline-total latency, publishes via `GuardAuditPublisher`
+- **OutputGuardPipeline** records per-stage actions via `onStageComplete` callback wired to `AgentMetrics`
+- **MetricGuardAuditPublisher** (arc-admin): Publishes `GuardEvent` to `MetricRingBuffer` with SHA-256 input hash (never raw text)
+- **Streaming support**: Output guard runs post-completion on collected content; emits `StreamEventMarker.error()` on rejection/modification
+
+### Output Guard Pipeline
+
+The output guard runs **after** agent execution completes, validating the response:
+
+```kotlin
+class OutputGuardPipeline(
+    stages: List<OutputGuardStage>,
+    private val onStageComplete: ((stage: String, action: String, reason: String) -> Unit)? = null
+)
+```
+
+**Built-in output guard stages:**
+
+| Stage | Order | Default | Description |
+|-------|-------|---------|-------------|
+| `SystemPromptLeakageOutputGuard` | 5 | opt-in | Canary token + leakage pattern detection |
+| `PiiMaskingOutputGuard` | 10 | opt-in | Masks PII (phone, email, SSN, credit card) |
+| `DynamicRuleOutputGuard` | 15 | opt-in | Runtime-configurable rules (REST API managed) |
+| `RegexPatternOutputGuard` | 20 | opt-in | Static regex pattern filtering |
+
+**Result types:**
+- `Allowed` — response passes unchanged
+- `Modified` — response content replaced (e.g., PII masked)
+- `Rejected` — response blocked entirely
+
+**Streaming mode**: Output guard runs post-completion on the fully collected content. On rejection/modification, emits `StreamEventMarker.error()` events to the SSE client.
 
 ### GuardPipeline Execution Flow
 
 ```kotlin
-class GuardPipeline(stages: List<GuardStage>) : RequestGuard {
-
-    // Only enabled stages, sorted by order
-    private val sortedStages = stages.filter { it.enabled }.sortedBy { it.order }
+class GuardPipeline(
+    stages: List<GuardStage>,
+    private val auditPublisher: GuardAuditPublisher? = null
+) : RequestGuard {
 
     override suspend fun guard(command: GuardCommand): GuardResult {
-        if (sortedStages.isEmpty()) return GuardResult.Allowed.DEFAULT
-
+        var currentCommand = command
         for (stage in sortedStages) {
-            try {
-                when (val result = stage.check(command)) {
-                    is Allowed  -> continue        // Next stage
-                    is Rejected -> return result    // Stop immediately
+            when (val result = stage.check(currentCommand)) {
+                is Allowed -> {
+                    // Apply normalized text from hints (UnicodeNormalizationStage)
+                    val norm = result.hints.firstOrNull { it.startsWith("normalized:") }
+                    if (norm != null) currentCommand = currentCommand.copy(
+                        text = norm.removePrefix("normalized:")
+                    )
+                    continue
                 }
-            } catch (e: Exception) {
-                // Fail-Close: Reject on error
-                return GuardResult.Rejected(
-                    reason = "Security check failed",
-                    category = RejectionCategory.SYSTEM_ERROR,
-                    stage = stage.stageName
-                )
+                is Rejected -> return result  // Stop immediately
             }
         }
-
-        return GuardResult.Allowed.DEFAULT  // All stages passed
+        return GuardResult.Allowed.DEFAULT
     }
 }
 ```
 
 ### Fail-Close Policy
 
-Guard **always operates as Fail-Close**:
+Guard **always operates as Fail-Close** — both input and output:
 
 - If an exception occurs in a guard stage -> **request is rejected**
 - This ensures security is never bypassed
 - This is a key difference from Hooks (Hooks default to Fail-Open)
+
+### OWASP LLM Top 10 Coverage
+
+| OWASP | Threat | Layer | Stage | Default |
+|-------|--------|-------|-------|---------|
+| LLM01 | Direct Prompt Injection | L0 | UnicodeNormalization + InjectionDetection | ON |
+| LLM01 | Indirect Injection (tool) | L3 | ToolOutputSanitizer | opt-in |
+| LLM01 | Multi-turn Jailbreak | L1 | TopicDriftDetection | opt-in |
+| LLM02 | PII in Responses | Output | PiiMaskingOutputGuard | opt-in |
+| LLM07 | System Prompt Leakage | L2 | CanaryToken + LeakageGuard | opt-in |
+| LLM10 | Resource Exhaustion | L0 | Tenant-aware RateLimit | ON |
+
+### Configuration
+
+```yaml
+arc:
+  reactor:
+    guard:
+      enabled: true                            # Master toggle
+      rate-limit-per-minute: 10                # Per-user per-minute limit
+      rate-limit-per-hour: 100                 # Per-user per-hour limit
+      injection-detection-enabled: true        # Regex-based injection detection
+      unicode-normalization-enabled: true      # NFKC + homoglyph + zero-width
+      classification-enabled: false            # Rule-based classification (opt-in)
+      classification-llm-enabled: false        # LLM classification (opt-in)
+      canary-token-enabled: false              # System prompt leakage protection (opt-in)
+      tool-output-sanitization-enabled: false   # Indirect injection defense (opt-in)
+      audit-enabled: true                      # Guard audit trail
+      tenant-rate-limits:                      # Per-tenant overrides
+        tenant-abc:
+          per-minute: 50
+          per-hour: 500
+```
 
 ### Executor Integration
 
@@ -178,7 +353,8 @@ Guard **always operates as Fail-Close**:
 private suspend fun checkGuard(command: AgentCommand): GuardResult.Rejected? {
     if (guard == null) return null
     val userId = command.userId ?: "anonymous"  // Defend against null userId
-    val result = guard.guard(GuardCommand(userId = userId, text = command.userPrompt))
+    val result = guard.guard(GuardCommand(userId = userId, text = command.userPrompt,
+        metadata = command.metadata))
     return result as? GuardResult.Rejected
 }
 ```

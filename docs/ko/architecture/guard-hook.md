@@ -6,14 +6,28 @@
 
 ### 개요
 
-Guard는 AI 에이전트로 들어오는 모든 요청을 **실행 전에** 검증하는 5단계 보안 파이프라인입니다.
+Guard는 **입력**(실행 전)과 **출력**(실행 후)을 모두 커버하는 다계층 보안 시스템입니다. OWASP LLM Top 10 (2025)에 맞춰 5개 방어 레이어로 구성됩니다.
 
 ```
-요청 → [RateLimit] → [InputValidation] → [InjectionDetection] → [Classification] → [Permission] → 통과
-         order=1        order=2              order=3                order=4            order=5
+요청
+  │
+  ▼
+[Input Guard Pipeline] ── 6개 정렬된 단계, fail-close
+  │  L0: UnicodeNormalization → RateLimit → InputValidation → InjectionDetection
+  │  L1: Classification → TopicDriftDetection (opt-in)
+  │
+  ▼
+[에이전트 실행] ── ReAct 루프 + 도구 호출
+  │  L3: ToolOutputSanitizer (opt-in, 도구 출력 래핑)
+  │
+  ▼
+[Output Guard Pipeline] ── 4개 정렬된 단계, fail-close
+  │  L2: SystemPromptLeakageGuard (opt-in)
+  │      PiiMaskingGuard → DynamicRuleGuard → RegexPatternGuard
+  │
+  ▼
+응답
 ```
-
-하나라도 `Rejected`를 반환하면 즉시 파이프라인이 중단되고, 에이전트 실행 없이 실패를 반환합니다.
 
 ### 핵심 인터페이스
 
@@ -25,7 +39,7 @@ interface RequestGuard {
 }
 ```
 
-**GuardStage** — 개별 검사 단계:
+**GuardStage** — 개별 입력 검사 단계:
 
 ```kotlin
 interface GuardStage {
@@ -34,6 +48,18 @@ interface GuardStage {
     val enabled: Boolean     // 비활성화 가능
 
     suspend fun check(command: GuardCommand): GuardResult
+}
+```
+
+**OutputGuardStage** — 개별 출력 검사 단계:
+
+```kotlin
+interface OutputGuardStage {
+    val stageName: String
+    val order: Int get() = 0
+    val enabled: Boolean get() = true
+
+    suspend fun check(content: String, context: OutputGuardContext): OutputGuardResult
 }
 ```
 
@@ -63,6 +89,16 @@ sealed class GuardResult {
 }
 ```
 
+**출력 결과 (sealed class):**
+
+```kotlin
+sealed class OutputGuardResult {
+    data class Allowed(...)
+    data class Modified(val content: String, val reason: String, val stage: String?)
+    data class Rejected(val reason: String, val stage: String?, val category: OutputRejectionCategory?)
+}
+```
+
 **거부 카테고리:**
 
 | 카테고리 | 설명 |
@@ -74,22 +110,40 @@ sealed class GuardResult {
 | `UNAUTHORIZED` | 권한 없음 |
 | `SYSTEM_ERROR` | Guard 단계 자체 오류 |
 
-### 5단계 파이프라인
+### 5계층 방어 아키텍처
 
-#### Stage 1: RateLimit (order=1)
+#### Layer 0: 정적 고속 필터 (항상 ON, LLM 비용 0ms)
+
+##### Stage 0: UnicodeNormalization (order=0)
+
+```kotlin
+class UnicodeNormalizationStage : GuardStage
+```
+
+호모글리프 및 비가시 문자 공격 방어:
+
+- **NFKC 정규화**: 전각 라틴 → ASCII (예: `ｉｇｎｏｒｅ` → `ignore`)
+- **Zero-width 문자 제거**: U+200B/C/D/E/F, U+FEFF, U+00AD, U+2060-2064, U+180E, Unicode Tag Block (U+E0000-E007F)
+- **호모글리프 치환**: 키릴 문자 а→a, е→e, о→o, р→p, с→c 등 (15개 매핑)
+- **거부**: Zero-width 문자 비율이 임계치(기본 10%) 초과 시
+- 정규화된 텍스트를 `GuardResult.Allowed(hints = ["normalized:$text"])`로 반환 — 이후 단계는 정리된 텍스트를 검사
+
+##### Stage 1: RateLimit (order=1)
 
 ```kotlin
 class DefaultRateLimitStage(
     private val requestsPerMinute: Int = 10,
-    private val requestsPerHour: Int = 100
+    private val requestsPerHour: Int = 100,
+    private val tenantRateLimits: Map<String, TenantRateLimit> = emptyMap()
 ) : RateLimitStage
 ```
 
 - Caffeine 캐시로 사용자별 요청 수 추적
 - 분당/시간당 두 가지 윈도우 적용
+- **테넌트 인식**: 캐시 키가 `"$tenantId:$userId"`, `tenantRateLimits`로 테넌트별 오버라이드 지원
 - 캐시 TTL이 자동으로 카운터를 리셋
 
-#### Stage 2: InputValidation (order=2)
+##### Stage 2: InputValidation (order=2)
 
 ```kotlin
 class DefaultInputValidationStage(
@@ -101,75 +155,196 @@ class DefaultInputValidationStage(
 - 빈 문자열 거부
 - 최대 길이 초과 거부 (기본 10,000자)
 
-#### Stage 3: InjectionDetection (order=3)
+##### Stage 3: InjectionDetection (order=3)
 
 ```kotlin
 class DefaultInjectionDetectionStage : InjectionDetectionStage
 ```
 
-정규식 패턴으로 프롬프트 인젝션 공격을 탐지합니다:
+28개 정규식 패턴으로 프롬프트 인젝션 공격을 탐지합니다:
 
-- **역할 변경 시도:** `"ignore previous"`, `"you are now"`, `"act as"`
-- **시스템 프롬프트 추출:** `"show me your prompt"`, `"repeat your instructions"`
-- **출력 조작:** `"output the following"`, `"print exactly"`
-- **인코딩 우회:** `"base64"`, `"rot13"`, `"hex encode"`
-- **구분자 인젝션:** `###`, `---`, `===`, `<<<>>>`
+- **역할 변경 시도**: `"ignore previous"`, `"you are now"`, `"act as"`
+- **시스템 프롬프트 추출**: `"show me your prompt"`, `"repeat your instructions"`
+- **출력 조작**: `"output the following"`, `"print exactly"`
+- **인코딩 우회**: `"base64"`, `"rot13"`, `"hex encode"`
+- **구분자 인젝션**: `###`, `---` (5개 이상), `===` (5개 이상), `<<<>>>`
+- **ChatML / Llama 토큰**: `<|im_start|>`, `<|im_end|>`, `[INST]`, `<start_of_turn>`
+- **권한 상승**: `"developer mode"`, `"system override"`
+- **안전 필터 우회**: `"override safety filter"`, `"override content policy"`
+- **Many-shot 탈옥**: 3개 이상 연속 `example N` 마커
+- **유니코드 이스케이프**: 4개 이상 연속 `\uXXXX` 패턴
 
-#### Stage 4: Classification (order=4)
+#### Layer 1: 분류 (opt-in)
+
+##### Stage 4: Classification (order=4)
 
 ```kotlin
-class DefaultClassificationStage : ClassificationStage
+class CompositeClassificationStage(
+    ruleBasedStage: RuleBasedClassificationStage,
+    llmStage: LlmClassificationStage? = null  // LLM 분류 비활성화 시 null
+) : ClassificationStage
 ```
 
-기본 구현은 패스스루(모든 요청 허용)입니다. 프로덕션에서는 LLM 기반 또는 규칙 기반 콘텐츠 분류를 구현합니다.
+2단계 분류:
+- **규칙 기반** (항상): `blockedCategories` (예: malware, weapons, self_harm) 키워드 매칭
+- **LLM 기반** (opt-in): `ChatClient`로 의미 분류. Fail-open — LLM 오류 시 `Allowed` 반환
 
-#### Stage 5: Permission (order=5)
+활성화: `arc.reactor.guard.classification-enabled=true`, `arc.reactor.guard.classification-llm-enabled=true`
+
+##### Stage 6: TopicDriftDetection (order=6)
 
 ```kotlin
-class DefaultPermissionStage : PermissionStage
+class TopicDriftDetectionStage : GuardStage
 ```
 
-기본 구현은 패스스루(모든 사용자 허용)입니다. 프로덕션에서는 RBAC 또는 사용자 정의 권한 시스템을 통합합니다.
+**크레센도 공격** (다회차 점진적 탈옥) 방어:
+- `GuardCommand.metadata`에서 `conversationHistory` 읽기
+- 슬라이딩 윈도우(최근 5턴)로 민감도 상승 패턴 점수 산출
+- 패턴 에스컬레이션: 가정 → what if → 연구 목적 → 단계별 → 우회/오버라이드
+- `maxDriftScore` 임계치 설정 가능 (기본 0.7)
+
+#### Layer 2: 시스템 프롬프트 보호 (opt-in)
+
+카나리 토큰 주입으로 시스템 프롬프트 유출을 방지합니다:
+
+```kotlin
+class CanaryTokenProvider(seed: String)       // SHA-256 기반 결정적 CANARY-{8hex} 토큰 생성
+class CanarySystemPromptPostProcessor         // 시스템 프롬프트에 카나리 절 추가
+class SystemPromptLeakageOutputGuard          // 출력 가드 단계 (order=5)
+```
+
+- **CanaryTokenProvider**: SHA-256 시드에서 결정적 토큰 생성
+- **CanarySystemPromptPostProcessor**: `"다음 토큰은 비밀이며..."` 절을 시스템 프롬프트에 추가
+- **SystemPromptLeakageOutputGuard**: 출력에서 (1) 카나리 토큰 존재, (2) 유출 문구 (`"my system prompt is"`, `"I was instructed to"`) 탐지
+
+활성화: `arc.reactor.guard.canary-token-enabled=true`
+
+#### Layer 3: 도구 출력 정제 (opt-in)
+
+도구 출력을 통한 **간접 프롬프트 인젝션** 방어:
+
+```kotlin
+class ToolOutputSanitizer {
+    fun sanitize(toolName: String, output: String): SanitizedOutput
+}
+```
+
+- 도구 출력을 데이터-명령어 분리 마커로 래핑
+- 인젝션 패턴 제거 (역할 오버라이드, 시스템 구분자, 프롬프트 오버라이드, 데이터 유출 시도)
+- 탐지된 패턴 → `[SANITIZED]`로 대체
+- `ToolCallOrchestrator`에 선택적 파라미터로 통합
+
+활성화: `arc.reactor.guard.tool-output-sanitization-enabled=true`
+
+#### Layer 4: 감사 & 관측성 (arc-admin 활성화 시 항상 ON)
+
+```kotlin
+interface GuardAuditPublisher {
+    fun publish(command: GuardCommand, stage: String, result: String,
+                reason: String?, stageLatencyMs: Long, pipelineLatencyMs: Long)
+}
+```
+
+- **GuardPipeline**: 단계별/파이프라인 전체 지연 시간 기록, `GuardAuditPublisher`로 발행
+- **OutputGuardPipeline**: `onStageComplete` 콜백으로 단계별 액션을 `AgentMetrics`에 기록
+- **MetricGuardAuditPublisher** (arc-admin): `MetricRingBuffer`에 `GuardEvent` 발행 (SHA-256 입력 해시, 원문 아님)
+- **스트리밍 지원**: 출력 가드가 수집된 전체 콘텐츠에 대해 후처리 실행; 거부/수정 시 `StreamEventMarker.error()` 발출
+
+### Output Guard 파이프라인
+
+출력 가드는 에이전트 실행 **후** 응답을 검증합니다:
+
+```kotlin
+class OutputGuardPipeline(
+    stages: List<OutputGuardStage>,
+    private val onStageComplete: ((stage: String, action: String, reason: String) -> Unit)? = null
+)
+```
+
+**기본 제공 출력 가드 단계:**
+
+| 단계 | Order | 기본값 | 설명 |
+|------|-------|--------|------|
+| `SystemPromptLeakageOutputGuard` | 5 | opt-in | 카나리 토큰 + 유출 패턴 탐지 |
+| `PiiMaskingOutputGuard` | 10 | opt-in | PII 마스킹 (전화번호, 이메일, 주민번호, 신용카드) |
+| `DynamicRuleOutputGuard` | 15 | opt-in | 런타임 설정 가능 규칙 (REST API 관리) |
+| `RegexPatternOutputGuard` | 20 | opt-in | 정적 정규식 패턴 필터링 |
+
+**결과 유형:**
+- `Allowed` — 응답 그대로 통과
+- `Modified` — 응답 내용 변경 (예: PII 마스킹)
+- `Rejected` — 응답 전체 차단
+
+**스트리밍 모드**: 출력 가드가 수집된 전체 콘텐츠에 후처리 실행. 거부/수정 시 `StreamEventMarker.error()` 이벤트를 SSE 클라이언트로 전송.
 
 ### GuardPipeline 실행 흐름
 
 ```kotlin
-class GuardPipeline(stages: List<GuardStage>) : RequestGuard {
-
-    // 활성화된 단계만 order 순으로 정렬
-    private val sortedStages = stages.filter { it.enabled }.sortedBy { it.order }
+class GuardPipeline(
+    stages: List<GuardStage>,
+    private val auditPublisher: GuardAuditPublisher? = null
+) : RequestGuard {
 
     override suspend fun guard(command: GuardCommand): GuardResult {
-        if (sortedStages.isEmpty()) return GuardResult.Allowed.DEFAULT
-
+        var currentCommand = command
         for (stage in sortedStages) {
-            try {
-                when (val result = stage.check(command)) {
-                    is Allowed  -> continue        // 다음 단계
-                    is Rejected -> return result    // 즉시 중단
+            when (val result = stage.check(currentCommand)) {
+                is Allowed -> {
+                    // UnicodeNormalizationStage의 정규화된 텍스트 적용
+                    val norm = result.hints.firstOrNull { it.startsWith("normalized:") }
+                    if (norm != null) currentCommand = currentCommand.copy(
+                        text = norm.removePrefix("normalized:")
+                    )
+                    continue
                 }
-            } catch (e: Exception) {
-                // Fail-Close: 에러 발생 시 거부
-                return GuardResult.Rejected(
-                    reason = "Security check failed",
-                    category = RejectionCategory.SYSTEM_ERROR,
-                    stage = stage.stageName
-                )
+                is Rejected -> return result  // 즉시 중단
             }
         }
-
-        return GuardResult.Allowed.DEFAULT  // 모든 단계 통과
+        return GuardResult.Allowed.DEFAULT
     }
 }
 ```
 
 ### Fail-Close 정책
 
-Guard는 **항상 Fail-Close**입니다:
+Guard는 입력과 출력 모두 **항상 Fail-Close**입니다:
 
 - Guard 단계에서 예외가 발생하면 → **요청 거부**
 - 이는 보안이 절대 우회되지 않도록 보장합니다
 - Hook과의 핵심 차이점입니다 (Hook은 기본 Fail-Open)
+
+### OWASP LLM Top 10 커버리지
+
+| OWASP | 위협 | 레이어 | 단계 | 기본값 |
+|-------|------|--------|------|--------|
+| LLM01 | 직접 프롬프트 인젝션 | L0 | UnicodeNormalization + InjectionDetection | ON |
+| LLM01 | 간접 인젝션 (도구) | L3 | ToolOutputSanitizer | opt-in |
+| LLM01 | 다회차 탈옥 | L1 | TopicDriftDetection | opt-in |
+| LLM02 | 응답 내 PII | Output | PiiMaskingOutputGuard | opt-in |
+| LLM07 | 시스템 프롬프트 유출 | L2 | CanaryToken + LeakageGuard | opt-in |
+| LLM10 | 리소스 고갈 | L0 | 테넌트 인식 RateLimit | ON |
+
+### 설정
+
+```yaml
+arc:
+  reactor:
+    guard:
+      enabled: true                            # 마스터 토글
+      rate-limit-per-minute: 10                # 사용자별 분당 제한
+      rate-limit-per-hour: 100                 # 사용자별 시간당 제한
+      injection-detection-enabled: true        # 정규식 기반 인젝션 탐지
+      unicode-normalization-enabled: true      # NFKC + 호모글리프 + zero-width
+      classification-enabled: false            # 규칙 기반 분류 (opt-in)
+      classification-llm-enabled: false        # LLM 분류 (opt-in)
+      canary-token-enabled: false              # 시스템 프롬프트 유출 보호 (opt-in)
+      tool-output-sanitization-enabled: false   # 간접 인젝션 방어 (opt-in)
+      audit-enabled: true                      # Guard 감사 추적
+      tenant-rate-limits:                      # 테넌트별 오버라이드
+        tenant-abc:
+          per-minute: 50
+          per-hour: 500
+```
 
 ### Executor 통합
 
@@ -178,7 +353,8 @@ Guard는 **항상 Fail-Close**입니다:
 private suspend fun checkGuard(command: AgentCommand): GuardResult.Rejected? {
     if (guard == null) return null
     val userId = command.userId ?: "anonymous"  // null userId 방어
-    val result = guard.guard(GuardCommand(userId = userId, text = command.userPrompt))
+    val result = guard.guard(GuardCommand(userId = userId, text = command.userPrompt,
+        metadata = command.metadata))
     return result as? GuardResult.Rejected
 }
 ```
