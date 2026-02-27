@@ -291,7 +291,7 @@ class ChatController(
         val base = request.metadata ?: emptyMap()
         val withChannel = if (base.containsKey("channel")) base else (base + mapOf("channel" to "web"))
 
-        val tenantId = resolveTenantId(exchange)
+        val tenantId = TenantContextResolver.resolveTenantId(exchange, authProperties.enabled)
         val withTenant = withChannel + ("tenantId" to tenantId)
 
         if (request.promptTemplateId == null || promptTemplateStore == null) return withTenant
@@ -307,27 +307,6 @@ class ChatController(
             "promptVersionId" to activeVersion.id,
             "promptVersion" to activeVersion.version
         )
-    }
-
-    private fun resolveTenantId(exchange: ServerWebExchange): String {
-        val resolvedTenantId = exchange.attributes[RESOLVED_TENANT_ID_ATTRIBUTE]?.toString()?.trim()
-            ?.takeIf { it.isNotBlank() }
-        val legacyTenantId = exchange.attributes[LEGACY_TENANT_ID_ATTRIBUTE]?.toString()?.trim()
-            ?.takeIf { it.isNotBlank() }
-        val tenantHeader = exchange.request.headers.getFirst(TENANT_HEADER_NAME)?.trim()
-            ?.takeIf { it.isNotBlank() }
-
-        val serverTenantId = resolvedTenantId ?: legacyTenantId
-        if (serverTenantId != null && tenantHeader != null && serverTenantId != tenantHeader) {
-            throw ServerWebInputException("Tenant header does not match resolved tenant context")
-        }
-
-        val effectiveTenantId = serverTenantId ?: tenantHeader
-        if (effectiveTenantId != null) return effectiveTenantId
-        if (authProperties.enabled) {
-            throw ServerWebInputException("Missing tenant context")
-        }
-        return DEFAULT_TENANT_ID
     }
 
     /**
@@ -375,11 +354,6 @@ class ChatController(
     }
 
     companion object {
-        private const val TENANT_HEADER_NAME = "X-Tenant-Id"
-        private const val RESOLVED_TENANT_ID_ATTRIBUTE = "resolvedTenantId"
-        private const val LEGACY_TENANT_ID_ATTRIBUTE = "tenantId"
-        private const val DEFAULT_TENANT_ID = "default"
-
         internal const val DEFAULT_SYSTEM_PROMPT =
             "You are a helpful AI assistant. You can use tools when needed. " +
                 "Answer in the same language as the user's message."

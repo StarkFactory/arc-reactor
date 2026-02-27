@@ -3,6 +3,7 @@ package com.arc.reactor.controller
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaAttachment
+import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.persona.PersonaStore
 import mu.KotlinLogging
@@ -39,7 +40,8 @@ private val logger = KotlinLogging.logger {}
 )
 class MultipartChatController(
     private val agentExecutor: AgentExecutor,
-    private val personaStore: PersonaStore? = null
+    private val personaStore: PersonaStore? = null,
+    private val authProperties: AuthProperties = AuthProperties()
 ) {
 
     /**
@@ -69,6 +71,7 @@ class MultipartChatController(
         val resolvedSystemPrompt = resolveSystemPrompt(systemPrompt, personaId)
         val resolvedUserId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
             ?: userId ?: "anonymous"
+        val resolvedTenantId = TenantContextResolver.resolveTenantId(exchange, authProperties.enabled)
 
         val result = agentExecutor.execute(
             AgentCommand(
@@ -76,6 +79,10 @@ class MultipartChatController(
                 userPrompt = message,
                 model = model,
                 userId = resolvedUserId,
+                metadata = mapOf(
+                    "channel" to "web",
+                    "tenantId" to resolvedTenantId
+                ),
                 media = mediaAttachments
             )
         )
