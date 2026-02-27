@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.agent.AgentExecutor
+import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.auth.AuthProperties
@@ -8,8 +9,9 @@ import com.arc.reactor.persona.PersonaStore
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactive.awaitSingle
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.core.io.buffer.DataBuffer
 import org.springframework.core.io.buffer.DataBufferUtils
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.util.MimeType
@@ -17,27 +19,24 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.server.ServerWebExchange
+import reactor.core.publisher.Flux
 
 /**
  * Multipart Chat Controller — file upload endpoint for multimodal LLMs.
  *
- * Only registered when `arc.reactor.multimodal.enabled=true` (default).
- * Set `arc.reactor.multimodal.enabled=false` to disable file uploads entirely.
+ * Validates file count and per-file size before loading bytes into memory,
+ * preventing DoS via unbounded file uploads.
  */
 @Tag(name = "Chat", description = "AI agent chat endpoints")
 @RestController
 @RequestMapping("/api/chat")
-@ConditionalOnProperty(
-    prefix = "arc.reactor.multimodal",
-    name = ["enabled"],
-    havingValue = "true",
-    matchIfMissing = true
-)
 class MultipartChatController(
     private val agentExecutor: AgentExecutor,
     private val personaStore: PersonaStore? = null,
-    private val authProperties: AuthProperties = AuthProperties()
+    private val authProperties: AuthProperties = AuthProperties(),
+    private val properties: AgentProperties = AgentProperties()
 ) {
     private val systemPromptResolver = SystemPromptResolver(personaStore = personaStore)
 
@@ -63,7 +62,10 @@ class MultipartChatController(
         @RequestPart("userId", required = false) userId: String?,
         exchange: ServerWebExchange
     ): ChatResponse {
-        val mediaAttachments = files.map { file -> filePartToMediaAttachment(file) }
+        validateMultimodalEnabled()
+        validateFileCount(files.size)
+
+        val mediaAttachments = files.map { file -> readFileWithSizeLimit(file) }
 
         val resolvedSystemPrompt = systemPromptResolver.resolve(
             personaId = personaId,
@@ -95,15 +97,22 @@ class MultipartChatController(
         )
     }
 
-    private suspend fun filePartToMediaAttachment(file: FilePart): MediaAttachment {
-        val bytes = DataBufferUtils.join(file.content())
-            .map { buffer ->
-                val bytes = ByteArray(buffer.readableByteCount())
-                buffer.read(bytes)
-                DataBufferUtils.release(buffer)
-                bytes
-            }
-            .awaitSingle()
+    private fun validateMultimodalEnabled() {
+        if (!properties.multimodal.enabled) {
+            throw FileSizeLimitException("Multimodal file upload is disabled")
+        }
+    }
+
+    private fun validateFileCount(count: Int) {
+        val max = properties.multimodal.maxFilesPerRequest
+        if (count > max) {
+            throw FileSizeLimitException("Too many files: $count exceeds limit of $max")
+        }
+    }
+
+    private suspend fun readFileWithSizeLimit(file: FilePart): MediaAttachment {
+        val maxBytes = properties.multimodal.maxFileSizeBytes
+        val bytes = collectWithSizeLimit(file.content(), maxBytes, file.filename())
 
         val mimeType = file.headers().contentType?.let { MimeType(it.type, it.subtype) }
             ?: MimeType("application", "octet-stream")
@@ -114,4 +123,32 @@ class MultipartChatController(
             name = file.filename()
         )
     }
+
+    private suspend fun collectWithSizeLimit(
+        content: Flux<DataBuffer>,
+        maxBytes: Long,
+        filename: String
+    ): ByteArray {
+        var accumulated = 0L
+        val checkedContent = content.doOnNext { buffer ->
+            accumulated += buffer.readableByteCount()
+            if (accumulated > maxBytes) {
+                throw FileSizeLimitException("File '$filename' exceeds size limit of ${maxBytes}B")
+            }
+        }
+        return DataBufferUtils.join(checkedContent)
+            .map { buffer ->
+                val bytes = ByteArray(buffer.readableByteCount())
+                buffer.read(bytes)
+                DataBufferUtils.release(buffer)
+                bytes
+            }
+            .awaitSingle()
+    }
 }
+
+/**
+ * Exception thrown when a file upload violates size or count limits.
+ * Mapped to HTTP 400 Bad Request by [GlobalExceptionHandler].
+ */
+class FileSizeLimitException(message: String) : ResponseStatusException(HttpStatus.BAD_REQUEST, message)

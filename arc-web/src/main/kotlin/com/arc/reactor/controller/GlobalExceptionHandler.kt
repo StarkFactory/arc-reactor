@@ -47,6 +47,16 @@ class GlobalExceptionHandler {
         )
     }
 
+    @ExceptionHandler(FileSizeLimitException::class)
+    fun handleFileSizeLimit(ex: FileSizeLimitException): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.badRequest().body(
+            ErrorResponse(
+                error = ex.reason ?: "File upload limit exceeded",
+                timestamp = Instant.now().toString()
+            )
+        )
+    }
+
     @ExceptionHandler(NoResourceFoundException::class)
     fun handleNotFound(ex: NoResourceFoundException): ResponseEntity<ErrorResponse> {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(

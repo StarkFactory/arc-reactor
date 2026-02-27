@@ -117,12 +117,20 @@ data class ToolPolicyDynamicProperties(
  * arc:
  *   reactor:
  *     multimodal:
- *       enabled: false   # disable file uploads and media URL processing
+ *       enabled: false              # disable file uploads and media URL processing
+ *       max-file-size-bytes: 10485760  # 10MB per file
+ *       max-files-per-request: 5
  * ```
  */
 data class MultimodalProperties(
     /** Enable multimodal support (file uploads via /api/chat/multipart and mediaUrls in JSON requests) */
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+
+    /** Maximum allowed size per uploaded file in bytes. Default 10MB. */
+    val maxFileSizeBytes: Long = 10 * 1024 * 1024,
+
+    /** Maximum number of files allowed per multipart request. Default 5. */
+    val maxFilesPerRequest: Int = 5
 )
 
 data class RagProperties(
