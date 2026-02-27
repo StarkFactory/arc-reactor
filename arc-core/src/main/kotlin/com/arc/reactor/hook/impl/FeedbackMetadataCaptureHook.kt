@@ -26,6 +26,7 @@ data class CapturedExecutionMetadata(
     val toolsUsed: List<String>,
     val durationMs: Long,
     val sessionId: String?,
+    val templateId: String? = null,
     val capturedAt: Instant = Instant.now()
 )
 
@@ -66,6 +67,7 @@ class FeedbackMetadataCaptureHook(
                 toolsUsed = response.toolsUsed,
                 durationMs = response.totalDurationMs,
                 sessionId = context.metadata["sessionId"]?.toString(),
+                templateId = context.metadata["promptTemplateId"]?.toString(),
                 capturedAt = Instant.now(clock)
             )
             cache[context.runId] = metadata

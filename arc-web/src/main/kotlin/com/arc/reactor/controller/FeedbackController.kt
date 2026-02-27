@@ -65,7 +65,8 @@ class FeedbackController(
             promptVersion = request.promptVersion,
             toolsUsed = request.toolsUsed ?: metadata?.toolsUsed,
             durationMs = request.durationMs ?: metadata?.durationMs,
-            tags = request.tags
+            tags = request.tags,
+            templateId = request.templateId ?: metadata?.templateId
         )
 
         val saved = feedbackStore.save(feedback)
@@ -83,6 +84,7 @@ class FeedbackController(
         @RequestParam(required = false) to: String?,
         @RequestParam(required = false) intent: String?,
         @RequestParam(required = false) sessionId: String?,
+        @RequestParam(required = false) templateId: String?,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -96,7 +98,8 @@ class FeedbackController(
             from = fromInstant,
             to = toInstant,
             intent = intent,
-            sessionId = sessionId
+            sessionId = sessionId,
+            templateId = templateId
         )
         return ResponseEntity.ok(results.map { it.toResponse() })
     }
@@ -184,7 +187,8 @@ data class SubmitFeedbackRequest(
     val promptVersion: Int? = null,
     val toolsUsed: List<String>? = null,
     val durationMs: Long? = null,
-    val tags: List<String>? = null
+    val tags: List<String>? = null,
+    val templateId: String? = null
 )
 
 // --- Response DTO ---
@@ -205,7 +209,8 @@ data class FeedbackResponse(
     val promptVersion: Int?,
     val toolsUsed: List<String>?,
     val durationMs: Long?,
-    val tags: List<String>?
+    val tags: List<String>?,
+    val templateId: String?
 )
 
 // --- Mapping extensions ---
@@ -226,7 +231,8 @@ private fun Feedback.toResponse() = FeedbackResponse(
     promptVersion = promptVersion,
     toolsUsed = toolsUsed,
     durationMs = durationMs,
-    tags = tags
+    tags = tags,
+    templateId = templateId
 )
 
 private fun Feedback.toExportItem() = mapOf(
@@ -245,5 +251,6 @@ private fun Feedback.toExportItem() = mapOf(
     "promptVersion" to promptVersion,
     "toolsUsed" to toolsUsed,
     "durationMs" to durationMs,
-    "tags" to tags
+    "tags" to tags,
+    "templateId" to templateId
 )
