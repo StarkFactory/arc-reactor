@@ -4,7 +4,10 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.http.HttpHeaders
 import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.web.server.ServerWebExchange
@@ -22,6 +25,12 @@ class TenantContextResolverTest {
         every { exchange.attributes } returns attributes
         every { exchange.request } returns request
         return exchange
+    }
+
+    private fun exchangeWithTenantHeader(tenantId: String): ServerWebExchange {
+        val headers = HttpHeaders()
+        headers.add("X-Tenant-Id", tenantId)
+        return mockExchange(headers = headers)
     }
 
     @Test
@@ -81,6 +90,87 @@ class TenantContextResolverTest {
 
         assertTrue(exception.reason?.contains("Tenant header does not match resolved tenant context") == true) {
             "Tenant spoofing mismatch should be blocked"
+        }
+    }
+
+    @Nested
+    inner class TenantIdFormatValidation {
+
+        @ParameterizedTest(name = "valid tenant id: \"{0}\"")
+        @ValueSource(strings = ["abc", "ABC", "tenant-1", "tenant_1", "A1b2C3", "a", "a-b_c-1"])
+        fun `accepts valid tenant id formats`(tenantId: String) {
+            val result = TenantContextResolver.resolveTenantId(exchangeWithTenantHeader(tenantId), authEnabled = false)
+
+            assertEquals(tenantId, result) {
+                "Valid tenant ID '$tenantId' should be accepted and returned as-is"
+            }
+        }
+
+        @Test
+        fun `accepts tenant id of exactly 64 characters`() {
+            val tenantId = "a".repeat(64)
+            val result = TenantContextResolver.resolveTenantId(exchangeWithTenantHeader(tenantId), authEnabled = false)
+
+            assertEquals(tenantId, result) {
+                "Tenant ID of exactly 64 characters should be accepted"
+            }
+        }
+
+        @Test
+        fun `rejects tenant id of 65 characters`() {
+            val tenantId = "a".repeat(65)
+
+            val exception = try {
+                TenantContextResolver.resolveTenantId(exchangeWithTenantHeader(tenantId), authEnabled = false)
+                throw AssertionError("Tenant ID exceeding 64 chars should be rejected")
+            } catch (e: ServerWebInputException) {
+                e
+            }
+
+            assertTrue(exception.reason?.contains("Invalid tenant ID format") == true) {
+                "Tenant ID of 65 characters should be rejected with format error"
+            }
+        }
+
+        @Test
+        fun `treats blank tenant header as missing tenant`() {
+            val tenantId = TenantContextResolver.resolveTenantId(
+                exchangeWithTenantHeader("   "),
+                authEnabled = false
+            )
+
+            assertEquals("default", tenantId) {
+                "Blank tenant header should be treated as absent and fall back to default"
+            }
+        }
+
+        @ParameterizedTest(name = "invalid tenant id: \"{0}\"")
+        @ValueSource(strings = [
+            "tenant id",
+            "tenant.name",
+            "tenant@domain",
+            "tenant/path",
+            "tenant\\path",
+            "<script>",
+            "'; DROP TABLE tenants; --",
+            "tenant\u0000null",
+            "tenant\ninjection",
+            "tenant\rinjection",
+            "tenant!",
+            "tenant#",
+            "tenant%20"
+        ])
+        fun `rejects invalid tenant id formats`(tenantId: String) {
+            val exception = try {
+                TenantContextResolver.resolveTenantId(exchangeWithTenantHeader(tenantId), authEnabled = false)
+                throw AssertionError("Invalid tenant ID '$tenantId' should have been rejected")
+            } catch (e: ServerWebInputException) {
+                e
+            }
+
+            assertTrue(exception.reason?.contains("Invalid tenant ID format") == true) {
+                "Tenant ID '$tenantId' should be rejected with format validation error"
+            }
         }
     }
 }
