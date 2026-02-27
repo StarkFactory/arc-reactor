@@ -128,7 +128,45 @@ data class GuardProperties(
     val rateLimitPerHour: Int = 100,
 
     /** Injection detection enabled */
-    val injectionDetectionEnabled: Boolean = true
+    val injectionDetectionEnabled: Boolean = true,
+
+    /** Unicode normalization enabled (NFKC + zero-width strip + homoglyph) */
+    val unicodeNormalizationEnabled: Boolean = true,
+
+    /** Maximum zero-width character ratio before rejection (0.0-1.0) */
+    val maxZeroWidthRatio: Double = 0.1,
+
+    /** Classification enabled (rule-based + optional LLM) */
+    val classificationEnabled: Boolean = false,
+
+    /** LLM-based classification enabled (requires classificationEnabled) */
+    val classificationLlmEnabled: Boolean = false,
+
+    /** Canary token for system prompt leakage detection */
+    val canaryTokenEnabled: Boolean = false,
+
+    /** Tool output sanitization enabled */
+    val toolOutputSanitizationEnabled: Boolean = false,
+
+    /** Guard audit trail enabled */
+    val auditEnabled: Boolean = true,
+
+    /** Topic drift detection enabled (Crescendo attack defense) */
+    val topicDriftEnabled: Boolean = false,
+
+    /** Canary token seed (override per deployment for unique tokens) */
+    val canarySeed: String = "arc-reactor-canary",
+
+    /** Tenant-specific rate limits */
+    val tenantRateLimits: Map<String, TenantRateLimit> = emptyMap()
+)
+
+data class TenantRateLimit(
+    /** Requests per minute for this tenant */
+    val perMinute: Int,
+
+    /** Requests per hour for this tenant */
+    val perHour: Int
 )
 
 data class ConcurrencyProperties(

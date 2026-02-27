@@ -1,5 +1,6 @@
 package com.arc.reactor.guard.impl
 
+import com.arc.reactor.agent.config.TenantRateLimit
 import com.arc.reactor.guard.ClassificationStage
 import com.arc.reactor.guard.InjectionDetectionStage
 import com.arc.reactor.guard.InputValidationStage
@@ -21,10 +22,12 @@ private val logger = KotlinLogging.logger {}
  * Default Rate Limit Implementation
  *
  * Caffeine cache-based per-minute and per-hour limits.
+ * Supports tenant-aware rate limiting via tenantRateLimits map.
  */
 class DefaultRateLimitStage(
     private val requestsPerMinute: Int = 10,
-    private val requestsPerHour: Int = 100
+    private val requestsPerHour: Int = 100,
+    private val tenantRateLimits: Map<String, TenantRateLimit> = emptyMap()
 ) : RateLimitStage {
 
     private val minuteCache: Cache<String, AtomicInteger> = Caffeine.newBuilder()
@@ -36,22 +39,29 @@ class DefaultRateLimitStage(
         .build()
 
     override suspend fun check(command: GuardCommand): GuardResult {
+        val tenantId = command.metadata["tenantId"]?.toString()
         val userId = command.userId
+        val cacheKey = if (tenantId != null) "$tenantId:$userId" else userId
+
+        // Resolve limits: tenant-specific override → global default fallback
+        val tenantLimit = if (tenantId != null) tenantRateLimits[tenantId] else null
+        val perMinute = tenantLimit?.perMinute ?: requestsPerMinute
+        val perHour = tenantLimit?.perHour ?: requestsPerHour
 
         // Per-minute check
-        val minuteCount = minuteCache.get(userId) { AtomicInteger(0) }
-        if (minuteCount.incrementAndGet() > requestsPerMinute) {
+        val minuteCount = minuteCache.get(cacheKey) { AtomicInteger(0) }
+        if (minuteCount.incrementAndGet() > perMinute) {
             return GuardResult.Rejected(
-                reason = "Rate limit exceeded: $requestsPerMinute requests per minute",
+                reason = "Rate limit exceeded: $perMinute requests per minute",
                 category = RejectionCategory.RATE_LIMITED
             )
         }
 
         // Per-hour check
-        val hourCount = hourCache.get(userId) { AtomicInteger(0) }
-        if (hourCount.incrementAndGet() > requestsPerHour) {
+        val hourCount = hourCache.get(cacheKey) { AtomicInteger(0) }
+        if (hourCount.incrementAndGet() > perHour) {
             return GuardResult.Rejected(
-                reason = "Rate limit exceeded: $requestsPerHour requests per hour",
+                reason = "Rate limit exceeded: $perHour requests per hour",
                 category = RejectionCategory.RATE_LIMITED
             )
         }
@@ -136,7 +146,7 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage {
             // Role change attempts
             Regex("(?i)(ignore|forget|disregard).*(previous|above|prior|all).*instructions?"),
             Regex("(?i)you are now"),
-            Regex("(?i)act as"),
+            Regex("(?i)\\bact as (a |an )?(unrestricted|unfiltered|different|new|evil|hacker|jailbroken)"),
             Regex("(?i)pretend (to be|you're|you are)"),
             Regex("(?i)new (role|persona|character|identity)"),
 
@@ -149,14 +159,43 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage {
             Regex("(?i)from now on"),
 
             // Encoding/obfuscation attempts
-            Regex("(?i)base64"),
+            Regex("(?i)(decode|convert|translate).*base64.*(this|the|my|following)"),
             Regex("(?i)\\\\x[0-9a-f]{2}"),
 
             // Delimiter injection
             Regex("```system"),
             Regex("\\[SYSTEM\\]"),
             Regex("<\\|im_start\\|>"),
-            Regex("<\\|endoftext\\|>")
+            Regex("<\\|endoftext\\|>"),
+
+            // --- 2025 vectors ---
+
+            // ChatML token smuggling
+            Regex("<\\|im_end\\|>"),
+            Regex("<\\|assistant\\|>"),
+            Regex("<\\|user\\|>"),
+
+            // Llama/Gemma format injection
+            Regex("\\[INST\\]"),
+            Regex("\\[/INST\\]"),
+            Regex("<start_of_turn>"),
+            Regex("<end_of_turn>"),
+
+            // Instruction hierarchy / authority escalation
+            Regex("(?i)(developer|system)\\s*(mode|override|prompt)"),
+
+            // Safety override attempts
+            Regex("(?i)override\\s+(safety|content|security)\\s+(filter|policy)"),
+
+            // Context separator injection (20+ consecutive dashes or equals)
+            Regex("-{20,}"),
+            Regex("={20,}"),
+
+            // Many-shot jailbreak (3+ numbered examples in a single message)
+            Regex("(?is)example\\s*\\d+.*example\\s*\\d+.*example\\s*\\d+"),
+
+            // Encoding bypass (rot13, deobfuscate)
+            Regex("(?i)(rot13|deobfuscate).*this.*(text|message)")
         )
     }
 }
