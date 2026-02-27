@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.core.io.buffer.DefaultDataBufferFactory
@@ -129,7 +130,8 @@ class MultipartChatControllerTest {
     inner class FileSizeValidation {
 
         @Test
-        fun `should reject file exceeding maxFileSizeBytes`() = runTest {
+        @Tag("regression")
+        fun `should reject file exceeding configured size limit`() = runTest {
             val oversizedContent = ByteArray(1025) { 0x42 }
             val controller = controllerWith(MultimodalProperties(maxFileSizeBytes = 1024))
 
@@ -178,7 +180,8 @@ class MultipartChatControllerTest {
     inner class FileCountValidation {
 
         @Test
-        fun `should reject request exceeding maxFilesPerRequest`() = runTest {
+        @Tag("regression")
+        fun `should reject request when file count exceeds configured limit`() = runTest {
             val controller = controllerWith(MultimodalProperties(maxFilesPerRequest = 2))
             val files = listOf(mockFilePart("a.png"), mockFilePart("b.png"), mockFilePart("c.png"))
 

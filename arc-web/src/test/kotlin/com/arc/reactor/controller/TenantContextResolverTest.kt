@@ -5,6 +5,7 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -117,7 +118,8 @@ class TenantContextResolverTest {
         }
 
         @Test
-        fun `rejects tenant id of 65 characters`() {
+        @Tag("regression")
+        fun `should reject X-Tenant-Id header exceeding 64 characters`() {
             val tenantId = "a".repeat(65)
 
             val exception = try {
@@ -144,7 +146,8 @@ class TenantContextResolverTest {
             }
         }
 
-        @ParameterizedTest(name = "invalid tenant id: \"{0}\"")
+        @Tag("regression")
+        @ParameterizedTest(name = "should reject X-Tenant-Id header containing injection or invalid characters: \"{0}\"")
         @ValueSource(strings = [
             "tenant id",
             "tenant.name",
@@ -160,7 +163,7 @@ class TenantContextResolverTest {
             "tenant#",
             "tenant%20"
         ])
-        fun `rejects invalid tenant id formats`(tenantId: String) {
+        fun `should reject X-Tenant-Id header containing injection attempt or invalid characters`(tenantId: String) {
             val exception = try {
                 TenantContextResolver.resolveTenantId(exchangeWithTenantHeader(tenantId), authEnabled = false)
                 throw AssertionError("Invalid tenant ID '$tenantId' should have been rejected")
