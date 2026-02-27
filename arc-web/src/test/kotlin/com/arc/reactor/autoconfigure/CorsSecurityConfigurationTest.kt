@@ -54,7 +54,7 @@ class CorsSecurityConfigurationTest {
             assertTrue(defaults.allowedMethods.contains("GET")) { "GET should be allowed" }
             assertTrue(defaults.allowedMethods.contains("POST")) { "POST should be allowed" }
             assertTrue(defaults.allowedMethods.contains("OPTIONS")) { "OPTIONS should be allowed for preflight" }
-            assertTrue(defaults.allowCredentials) { "Credentials should be allowed by default" }
+            assertFalse(defaults.allowCredentials) { "Credentials should be denied by default (opt-in for security)" }
             assertEquals(3600, defaults.maxAge) { "Default max-age should be 3600 seconds" }
         }
     }

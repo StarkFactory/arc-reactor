@@ -69,6 +69,15 @@ class SecurityHeadersWebFilterTest {
                 exchange.response.headers.getFirst("Referrer-Policy")
             ) { "Referrer-Policy should be strict-origin-when-cross-origin" }
         }
+
+        @Test
+        fun `should set Strict-Transport-Security`() {
+            val exchange = executeFilter()
+            assertEquals(
+                "max-age=31536000; includeSubDomains",
+                exchange.response.headers.getFirst("Strict-Transport-Security")
+            ) { "HSTS header should enforce HTTPS for one year including subdomains" }
+        }
     }
 
     @Nested

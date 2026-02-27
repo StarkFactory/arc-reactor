@@ -17,7 +17,7 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource
  * - `allowed-origins` : Allowed origins (default: `http://localhost:3000`)
  * - `allowed-methods` : Allowed HTTP methods (default: GET, POST, PUT, DELETE, OPTIONS)
  * - `allowed-headers` : Allowed headers (default: `*`)
- * - `allow-credentials` : Allow credentials (default: true)
+ * - `allow-credentials` : Allow credentials (default: false)
  * - `max-age` : Preflight cache duration in seconds (default: 3600)
  */
 @Configuration

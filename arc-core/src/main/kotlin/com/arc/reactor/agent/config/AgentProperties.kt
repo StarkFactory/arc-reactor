@@ -198,7 +198,7 @@ data class CorsProperties(
     val allowedHeaders: List<String> = listOf("*"),
 
     /** Allow credentials (cookies, Authorization header) */
-    val allowCredentials: Boolean = true,
+    val allowCredentials: Boolean = false,
 
     /** Preflight cache duration in seconds */
     val maxAge: Long = 3600
