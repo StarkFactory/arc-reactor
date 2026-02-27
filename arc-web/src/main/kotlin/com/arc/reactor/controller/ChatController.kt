@@ -6,6 +6,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.intent.model.ClassificationContext
@@ -63,6 +64,7 @@ class ChatController(
     private val personaStore: PersonaStore? = null,
     private val promptTemplateStore: PromptTemplateStore? = null,
     private val properties: AgentProperties = AgentProperties(),
+    private val authProperties: AuthProperties = AuthProperties(),
     private val intentResolver: IntentResolver? = null,
     private val memoryStore: MemoryStore? = null
 ) {
@@ -289,10 +291,7 @@ class ChatController(
         val base = request.metadata ?: emptyMap()
         val withChannel = if (base.containsKey("channel")) base else (base + mapOf("channel" to "web"))
 
-        // Always override tenantId from server-side source to prevent client spoofing via metadata
-        val tenantId = exchange.request.headers.getFirst("X-Tenant-Id")
-            ?: exchange.attributes["tenantId"]?.toString()
-            ?: "default"
+        val tenantId = resolveTenantId(exchange)
         val withTenant = withChannel + ("tenantId" to tenantId)
 
         if (request.promptTemplateId == null || promptTemplateStore == null) return withTenant
@@ -308,6 +307,27 @@ class ChatController(
             "promptVersionId" to activeVersion.id,
             "promptVersion" to activeVersion.version
         )
+    }
+
+    private fun resolveTenantId(exchange: ServerWebExchange): String {
+        val resolvedTenantId = exchange.attributes[RESOLVED_TENANT_ID_ATTRIBUTE]?.toString()?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val legacyTenantId = exchange.attributes[LEGACY_TENANT_ID_ATTRIBUTE]?.toString()?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val tenantHeader = exchange.request.headers.getFirst(TENANT_HEADER_NAME)?.trim()
+            ?.takeIf { it.isNotBlank() }
+
+        val serverTenantId = resolvedTenantId ?: legacyTenantId
+        if (serverTenantId != null && tenantHeader != null && serverTenantId != tenantHeader) {
+            throw ServerWebInputException("Tenant header does not match resolved tenant context")
+        }
+
+        val effectiveTenantId = serverTenantId ?: tenantHeader
+        if (effectiveTenantId != null) return effectiveTenantId
+        if (authProperties.enabled) {
+            throw ServerWebInputException("Missing tenant context")
+        }
+        return DEFAULT_TENANT_ID
     }
 
     /**
@@ -355,6 +375,11 @@ class ChatController(
     }
 
     companion object {
+        private const val TENANT_HEADER_NAME = "X-Tenant-Id"
+        private const val RESOLVED_TENANT_ID_ATTRIBUTE = "resolvedTenantId"
+        private const val LEGACY_TENANT_ID_ATTRIBUTE = "tenantId"
+        private const val DEFAULT_TENANT_ID = "default"
+
         internal const val DEFAULT_SYSTEM_PROMPT =
             "You are a helpful AI assistant. You can use tools when needed. " +
                 "Answer in the same language as the user's message."
