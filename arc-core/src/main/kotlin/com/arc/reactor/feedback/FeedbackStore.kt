@@ -40,6 +40,7 @@ interface FeedbackStore {
      * @param to Filter by timestamp <= to
      * @param intent Filter by intent (exact match)
      * @param sessionId Filter by session ID (exact match)
+     * @param templateId Filter by prompt template ID (exact match)
      * @return Filtered list, ordered by timestamp descending
      */
     fun list(
@@ -47,7 +48,8 @@ interface FeedbackStore {
         from: Instant? = null,
         to: Instant? = null,
         intent: String? = null,
-        sessionId: String? = null
+        sessionId: String? = null,
+        templateId: String? = null
     ): List<Feedback>
 
     /**
@@ -87,7 +89,8 @@ class InMemoryFeedbackStore : FeedbackStore {
         from: Instant?,
         to: Instant?,
         intent: String?,
-        sessionId: String?
+        sessionId: String?,
+        templateId: String?
     ): List<Feedback> {
         return entries.values.toList()
             .asSequence()
@@ -96,6 +99,7 @@ class InMemoryFeedbackStore : FeedbackStore {
             .filter { to == null || !it.timestamp.isAfter(to) }
             .filter { intent == null || it.intent == intent }
             .filter { sessionId == null || it.sessionId == sessionId }
+            .filter { templateId == null || it.templateId == templateId }
             .sortedByDescending { it.timestamp }
             .toList()
     }

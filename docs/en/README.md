@@ -24,3 +24,4 @@
 - [Slack Ops Runbook](integrations/slack/ops-runbook.md)
 - [Testing and Performance](engineering/testing-and-performance.md)
 - [Agent Benchmarking](engineering/agent-benchmarking.md)
+- [Prompt Lab](architecture/prompt-lab.md)

@@ -1,6 +1,7 @@
 package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.promptlab.autoconfigure.PromptLabConfiguration
 import org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration
 import org.springframework.ai.model.google.genai.autoconfigure.chat.GoogleGenAiChatAutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfiguration
@@ -32,6 +33,7 @@ import org.springframework.context.annotation.Import
     JdbcIntentRegistryConfiguration::class,
     SchedulerConfiguration::class,
     MemorySummaryConfiguration::class,
-    JdbcConversationSummaryStoreConfiguration::class
+    JdbcConversationSummaryStoreConfiguration::class,
+    PromptLabConfiguration::class
 )
 class ArcReactorAutoConfiguration

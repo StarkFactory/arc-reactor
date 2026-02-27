@@ -32,6 +32,7 @@ enum class FeedbackRating {
  * @param toolsUsed List of tools invoked during execution
  * @param durationMs Total execution duration in milliseconds
  * @param tags Arbitrary tags for filtering
+ * @param templateId Prompt template ID used for the response
  */
 data class Feedback(
     val feedbackId: String = UUID.randomUUID().toString(),
@@ -49,5 +50,6 @@ data class Feedback(
     val promptVersion: Int? = null,
     val toolsUsed: List<String>? = null,
     val durationMs: Long? = null,
-    val tags: List<String>? = null
+    val tags: List<String>? = null,
+    val templateId: String? = null
 )

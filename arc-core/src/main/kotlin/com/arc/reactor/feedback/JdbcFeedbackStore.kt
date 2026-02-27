@@ -24,8 +24,8 @@ class JdbcFeedbackStore(
             """INSERT INTO feedback (
                 feedback_id, query, response, rating, timestamp, comment,
                 session_id, run_id, user_id, intent, domain, model,
-                prompt_version, tools_used, duration_ms, tags
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                prompt_version, tools_used, duration_ms, tags, template_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             feedback.feedbackId,
             feedback.query,
             feedback.response,
@@ -41,7 +41,8 @@ class JdbcFeedbackStore(
             feedback.promptVersion,
             feedback.toolsUsed?.let { objectMapper.writeValueAsString(it) },
             feedback.durationMs,
-            feedback.tags?.let { objectMapper.writeValueAsString(it) }
+            feedback.tags?.let { objectMapper.writeValueAsString(it) },
+            feedback.templateId
         )
         return feedback
     }
@@ -67,7 +68,8 @@ class JdbcFeedbackStore(
         from: Instant?,
         to: Instant?,
         intent: String?,
-        sessionId: String?
+        sessionId: String?,
+        templateId: String?
     ): List<Feedback> {
         val conditions = mutableListOf<String>()
         val params = mutableListOf<Any>()
@@ -91,6 +93,10 @@ class JdbcFeedbackStore(
         if (sessionId != null) {
             conditions.add("session_id = ?")
             params.add(sessionId)
+        }
+        if (templateId != null) {
+            conditions.add("template_id = ?")
+            params.add(templateId)
         }
 
         val where = if (conditions.isEmpty()) "" else " WHERE ${conditions.joinToString(" AND ")}"
@@ -137,7 +143,8 @@ class JdbcFeedbackStore(
                 promptVersion = rs.getObject("prompt_version") as? Int,
                 toolsUsed = parseJsonList(rs.getString("tools_used")),
                 durationMs = rs.getObject("duration_ms") as? Long,
-                tags = parseJsonList(rs.getString("tags"))
+                tags = parseJsonList(rs.getString("tags")),
+                templateId = rs.getString("template_id")
             )
         }
     }

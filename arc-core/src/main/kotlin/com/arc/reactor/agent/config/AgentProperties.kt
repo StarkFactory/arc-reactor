@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.config
 
+import com.arc.reactor.promptlab.PromptLabProperties
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
@@ -77,7 +78,10 @@ data class AgentProperties(
     val boundaries: BoundaryProperties = BoundaryProperties(),
 
     /** Conversation memory configuration */
-    val memory: MemoryProperties = MemoryProperties()
+    val memory: MemoryProperties = MemoryProperties(),
+
+    /** Prompt Lab configuration */
+    val promptLab: PromptLabProperties = PromptLabProperties()
 )
 
 data class LlmProperties(

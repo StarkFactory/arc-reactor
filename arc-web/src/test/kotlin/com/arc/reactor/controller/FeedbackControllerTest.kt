@@ -223,13 +223,13 @@ class FeedbackControllerTest {
             every {
                 feedbackStore.list(
                     rating = null, from = null, to = null,
-                    intent = null, sessionId = null
+                    intent = null, sessionId = null, templateId = null
                 )
             } returns listOf(sampleFeedback())
 
             val response = controller.listFeedback(
                 rating = null, from = null, to = null,
-                intent = null, sessionId = null,
+                intent = null, sessionId = null, templateId = null,
                 exchange = adminExchange()
             )
 
@@ -243,7 +243,7 @@ class FeedbackControllerTest {
         fun `should return 403 for non-admin user`() = runTest {
             val response = controller.listFeedback(
                 rating = null, from = null, to = null,
-                intent = null, sessionId = null,
+                intent = null, sessionId = null, templateId = null,
                 exchange = userExchange()
             )
 
@@ -258,7 +258,8 @@ class FeedbackControllerTest {
                     from = Instant.parse("2026-01-01T00:00:00Z"),
                     to = Instant.parse("2026-02-01T00:00:00Z"),
                     intent = "refund",
-                    sessionId = "s-42"
+                    sessionId = "s-42",
+                    templateId = null
                 )
             } returns emptyList()
 
@@ -268,6 +269,7 @@ class FeedbackControllerTest {
                 to = "2026-02-01T00:00:00Z",
                 intent = "refund",
                 sessionId = "s-42",
+                templateId = null,
                 exchange = adminExchange()
             )
 
@@ -278,7 +280,8 @@ class FeedbackControllerTest {
                     from = Instant.parse("2026-01-01T00:00:00Z"),
                     to = Instant.parse("2026-02-01T00:00:00Z"),
                     intent = "refund",
-                    sessionId = "s-42"
+                    sessionId = "s-42",
+                    templateId = null
                 )
             }
         }
@@ -291,7 +294,8 @@ class FeedbackControllerTest {
                     from = null,
                     to = null,
                     intent = null,
-                    sessionId = null
+                    sessionId = null,
+                    templateId = null
                 )
             } returns emptyList()
 
@@ -301,6 +305,7 @@ class FeedbackControllerTest {
                 to = null,
                 intent = null,
                 sessionId = null,
+                templateId = null,
                 exchange = adminExchange()
             )
 
@@ -311,7 +316,8 @@ class FeedbackControllerTest {
                     from = null,
                     to = null,
                     intent = null,
-                    sessionId = null
+                    sessionId = null,
+                    templateId = null
                 )
             }
         }
@@ -321,13 +327,13 @@ class FeedbackControllerTest {
             every {
                 feedbackStore.list(
                     rating = null, from = null, to = null,
-                    intent = null, sessionId = null
+                    intent = null, sessionId = null, templateId = null
                 )
             } returns emptyList()
 
             val response = controller.listFeedback(
                 rating = null, from = null, to = null,
-                intent = null, sessionId = null,
+                intent = null, sessionId = null, templateId = null,
                 exchange = noAuthExchange()
             )
 
@@ -432,6 +438,7 @@ class FeedbackControllerTest {
                     to = null,
                     intent = null,
                     sessionId = null,
+                    templateId = null,
                     exchange = adminExchange()
                 )
             }
@@ -449,6 +456,7 @@ class FeedbackControllerTest {
                     to = "2026-13-45T99:99:99Z",
                     intent = null,
                     sessionId = null,
+                    templateId = null,
                     exchange = adminExchange()
                 )
             }
@@ -466,6 +474,7 @@ class FeedbackControllerTest {
                     to = null,
                     intent = null,
                     sessionId = null,
+                    templateId = null,
                     exchange = adminExchange()
                 )
             }
