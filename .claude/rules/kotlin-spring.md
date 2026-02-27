@@ -6,6 +6,8 @@
 - `ArcToolCallbackAdapter` uses `runBlocking(Dispatchers.IO)` (Spring AI interface constraint)
 - Never compile Regex in hot paths. Extract to `companion object` or top-level `val`
 - Prefer `content.orEmpty()` over `content!!` (avoids unnecessary non-null assertion warnings)
+- Logging: `private val logger = KotlinLogging.logger {}` at file top-level (before the class declaration)
+- Method ≤20 lines, line ≤120 chars. English-only comments and KDoc
 
 ## Spring Boot
 
@@ -13,6 +15,8 @@
 - `@ConditionalOnClass` + `@ConditionalOnBean` — optional dependencies (PostgreSQL, VectorStore, etc.)
 - `compileOnly` dependency = optional. Users switch to `implementation` when needed
 - Example packages: `@Component` is commented out. Prevents auto-registration in production
+- All controllers MUST have `@Tag`. All endpoints MUST have `@Operation(summary = "...")` (Swagger/OpenAPI)
+- Admin auth: always use `AdminAuthSupport.isAdmin(exchange)` and `forbiddenResponse()` — do NOT duplicate inline
 
 ## New Feature Checklist
 
