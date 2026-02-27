@@ -34,6 +34,7 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 8. **MCP servers**: registered via REST API only (`POST /api/mcp/servers`). Do NOT hardcode in `application.yml`
 9. **Guard null userId**: always fall back to `"anonymous"`. Skipping the guard is a security vulnerability
 10. **Spring AI mock chain**: explicitly mock `.options(any<ChatOptions>())` in streaming tests
+11. **toolsUsed list**: only append a tool name after confirming its adapter exists. Appending LLM-hallucinated names pollutes the response metadata
 
 ## Code Rules
 

@@ -31,6 +31,7 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 | `autoconfigure/ArcReactorAutoConfiguration.kt` | All bean auto-configuration |
 | `agent/multi/SupervisorOrchestrator.kt` | Multi-agent orchestration |
 | `agent/config/AgentProperties.kt` | All settings (`arc.reactor.*`) |
+| `memory/ConversationManager.kt` | Conversation history management (extracted from executor) |
 | `test/../AgentTestFixture.kt` | Shared mock setup for agent tests |
 
 ### Domain Terms
@@ -106,15 +107,22 @@ Full config: `agent/config/AgentPolicyAndFeatureProperties.kt`
 4. Default Persona (`isDefault=true`) from PersonaStore
 5. Hardcoded fallback: "You are a helpful AI assistant..."
 
+### Error Responses
+
+- Standard DTO: `ErrorResponse(error, details?, timestamp)` from `GlobalExceptionHandler.kt`
+- `GlobalExceptionHandler`: validation → 400 (field details), malformed input → 400, not found → 404, generic → 500 (masked, no stack trace)
+- All 403 responses MUST include `ErrorResponse` body — never empty `build()`
+- Never use raw `mapOf(...)` for error responses — always use `ErrorResponse`
+
 ### Admin Access Control
 
 - MUST use `AdminAuthSupport.kt` — `isAdmin(exchange)` + `forbiddenResponse()`. Do NOT duplicate these
 - `isAdmin()` = `role == null || role == ADMIN` — auth disabled means all requests are admin
-- All 403 responses MUST include `ErrorResponse` body (never empty `build()`)
+- Exception: `SessionController` uses its own `sessionForbidden()` (distinct error message "Access denied" vs generic 403)
 
 ### Error Codes
 
-`RATE_LIMITED` | `TIMEOUT` | `CONTEXT_TOO_LONG` | `TOOL_ERROR` | `GUARD_REJECTED` | `HOOK_REJECTED` | `INVALID_RESPONSE` | `CIRCUIT_BREAKER_OPEN` | `UNKNOWN`
+`RATE_LIMITED` | `TIMEOUT` | `CONTEXT_TOO_LONG` | `TOOL_ERROR` | `GUARD_REJECTED` | `HOOK_REJECTED` | `INVALID_RESPONSE` | `OUTPUT_GUARD_REJECTED` | `OUTPUT_TOO_SHORT` | `CIRCUIT_BREAKER_OPEN` | `UNKNOWN`
 
 ## Code Conventions
 
