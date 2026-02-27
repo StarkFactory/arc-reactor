@@ -1,19 +1,17 @@
 package com.arc.reactor.controller
 
-import com.arc.reactor.approval.ApprovalSummary
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.server.ServerWebExchange
 
 /**
@@ -41,13 +39,14 @@ class ApprovalController(
 
     @Operation(summary = "List pending approval requests")
     @GetMapping
-    fun listPending(exchange: ServerWebExchange): List<ApprovalSummary> {
+    fun listPending(exchange: ServerWebExchange): ResponseEntity<Any> {
         val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
-        return when {
+        val pending = when {
             isAdmin(exchange) -> pendingApprovalStore.listPending()
             userId != null -> pendingApprovalStore.listPendingByUser(userId)
-            else -> throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required")
+            else -> return forbiddenResponse()
         }
+        return ResponseEntity.ok(pending)
     }
 
     @Operation(summary = "Approve a pending tool call")
@@ -56,14 +55,16 @@ class ApprovalController(
         @PathVariable id: String,
         @RequestBody(required = false) request: ApproveRequest?,
         exchange: ServerWebExchange
-    ): ApprovalActionResponse {
+    ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required")
+            return forbiddenResponse()
         }
         val success = pendingApprovalStore.approve(id, request?.modifiedArguments)
-        return ApprovalActionResponse(
-            success = success,
-            message = if (success) "Approved" else "Approval not found or already resolved"
+        return ResponseEntity.ok(
+            ApprovalActionResponse(
+                success = success,
+                message = if (success) "Approved" else "Approval not found or already resolved"
+            )
         )
     }
 
@@ -73,14 +74,16 @@ class ApprovalController(
         @PathVariable id: String,
         @RequestBody(required = false) request: RejectRequest?,
         exchange: ServerWebExchange
-    ): ApprovalActionResponse {
+    ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required")
+            return forbiddenResponse()
         }
         val success = pendingApprovalStore.reject(id, request?.reason)
-        return ApprovalActionResponse(
-            success = success,
-            message = if (success) "Rejected" else "Approval not found or already resolved"
+        return ResponseEntity.ok(
+            ApprovalActionResponse(
+                success = success,
+                message = if (success) "Rejected" else "Approval not found or already resolved"
+            )
         )
     }
 }

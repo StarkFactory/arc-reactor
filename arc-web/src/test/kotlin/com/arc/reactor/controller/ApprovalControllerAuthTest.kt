@@ -11,9 +11,7 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
-import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
@@ -27,9 +25,12 @@ class ApprovalControllerAuthTest {
         val ex = exchange()
         every { store.listPending() } returns listOf(summary("ap-0", "user-0"))
 
-        val result = controller.listPending(ex)
+        val response = controller.listPending(ex)
+        @Suppress("UNCHECKED_CAST")
+        val result = response.body as List<ApprovalSummary>
 
-        assertEquals(1, result.size)
+        assertEquals(HttpStatus.OK, response.statusCode) { "Anonymous request should be accepted as admin" }
+        assertEquals(1, result.size) { "Should return pending approvals for admin path" }
         verify(exactly = 1) { store.listPending() }
         verify(exactly = 0) { store.listPendingByUser(any()) }
     }
@@ -38,9 +39,12 @@ class ApprovalControllerAuthTest {
     fun `listPending returns all for admin`() {
         every { store.listPending() } returns listOf(summary("ap-1", "user-1"))
 
-        val result = controller.listPending(exchange(userId = "admin-1", role = UserRole.ADMIN))
+        val response = controller.listPending(exchange(userId = "admin-1", role = UserRole.ADMIN))
+        @Suppress("UNCHECKED_CAST")
+        val result = response.body as List<ApprovalSummary>
 
-        assertEquals(1, result.size)
+        assertEquals(HttpStatus.OK, response.statusCode) { "Admin request should return 200" }
+        assertEquals(1, result.size) { "Admin should receive all pending approvals" }
         verify(exactly = 1) { store.listPending() }
         verify(exactly = 0) { store.listPendingByUser(any()) }
     }
@@ -49,21 +53,24 @@ class ApprovalControllerAuthTest {
     fun `listPending returns own requests for user`() {
         every { store.listPendingByUser("user-1") } returns listOf(summary("ap-2", "user-1"))
 
-        val result = controller.listPending(exchange(userId = "user-1", role = UserRole.USER))
+        val response = controller.listPending(exchange(userId = "user-1", role = UserRole.USER))
+        @Suppress("UNCHECKED_CAST")
+        val result = response.body as List<ApprovalSummary>
 
-        assertEquals(1, result.size)
-        assertEquals("user-1", result.first().userId)
+        assertEquals(HttpStatus.OK, response.statusCode) { "User should be allowed to list own approvals" }
+        assertEquals(1, result.size) { "User should receive only own pending approvals" }
+        assertEquals("user-1", result.first().userId) { "Listed approval should belong to requesting user" }
         verify(exactly = 1) { store.listPendingByUser("user-1") }
         verify(exactly = 0) { store.listPending() }
     }
 
     @Test
     fun `approve rejects non-admin`() {
-        val thrown = assertThrows<ResponseStatusException> {
-            controller.approve("ap-3", null, exchange(userId = "user-1", role = UserRole.USER))
-        }
+        val response = controller.approve("ap-3", null, exchange(userId = "user-1", role = UserRole.USER))
+        val body = response.body as ErrorResponse
 
-        assertEquals(HttpStatus.FORBIDDEN, thrown.statusCode)
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Non-admin approval action should be forbidden" }
+        assertEquals("Admin access required", body.error) { "Forbidden responses should use standard admin message" }
         verify(exactly = 0) { store.approve(any(), any()) }
     }
 
@@ -76,9 +83,19 @@ class ApprovalControllerAuthTest {
             null,
             exchange(userId = "admin-1", role = UserRole.ADMIN)
         )
+        val body = response.body as ApprovalActionResponse
 
-        assertTrue(response.success)
+        assertEquals(HttpStatus.OK, response.statusCode) { "Admin approval action should succeed" }
+        assertTrue(body.success) { "Approved action should return success=true" }
         verify(exactly = 1) { store.approve("ap-4", null) }
+    }
+
+    @Test
+    fun `reject rejects non-admin`() {
+        val response = controller.reject("ap-5", null, exchange(userId = "user-1", role = UserRole.USER))
+
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Non-admin reject action should be forbidden" }
+        verify(exactly = 0) { store.reject(any(), any()) }
     }
 
     private fun exchange(userId: String? = null, role: UserRole? = null): ServerWebExchange {
