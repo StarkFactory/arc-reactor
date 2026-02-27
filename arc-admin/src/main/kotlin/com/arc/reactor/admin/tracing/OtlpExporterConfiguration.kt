@@ -18,6 +18,10 @@ private val logger = KotlinLogging.logger {}
 
 @Configuration
 @ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
+@ConditionalOnProperty(
     prefix = "arc.reactor.admin.tracing", name = ["enabled"],
     havingValue = "true", matchIfMissing = true
 )
