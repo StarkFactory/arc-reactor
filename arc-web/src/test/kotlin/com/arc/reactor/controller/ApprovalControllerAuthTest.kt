@@ -23,15 +23,14 @@ class ApprovalControllerAuthTest {
     private val controller = ApprovalController(store)
 
     @Test
-    fun `listPending rejects anonymous request`() {
+    fun `listPending treats anonymous as admin when auth is disabled`() {
         val ex = exchange()
+        every { store.listPending() } returns listOf(summary("ap-0", "user-0"))
 
-        val thrown = assertThrows<ResponseStatusException> {
-            controller.listPending(ex)
-        }
+        val result = controller.listPending(ex)
 
-        assertEquals(HttpStatus.FORBIDDEN, thrown.statusCode)
-        verify(exactly = 0) { store.listPending() }
+        assertEquals(1, result.size)
+        verify(exactly = 1) { store.listPending() }
         verify(exactly = 0) { store.listPendingByUser(any()) }
     }
 
