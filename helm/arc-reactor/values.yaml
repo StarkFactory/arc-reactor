@@ -1,0 +1,222 @@
+# ===========================================
+# Arc Reactor - Helm Chart Values
+# ===========================================
+# Override any value via --set or a values file.
+# Example:
+#   helm install arc-reactor ./helm/arc-reactor \
+#     --set secrets.geminiApiKey=xxx \
+#     --set postgresql.host=mydb
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/starkfactory/arc-reactor
+  # Defaults to Chart.appVersion when empty
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: arc-reactor.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: arc-reactor-tls
+  #    hosts:
+  #      - arc-reactor.example.com
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  # targetMemoryUtilizationPercentage: 80
+
+# Additional volumes
+volumes: []
+volumeMounts: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Deployment strategy
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Graceful shutdown — must be > spring.lifecycle.timeout-per-shutdown-phase (30s)
+terminationGracePeriodSeconds: 35
+
+# Liveness / readiness probes
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: 8080
+  initialDelaySeconds: 45
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# ===========================================
+# Arc Reactor application configuration
+# ===========================================
+config:
+  # Spring profile (set to "prod" to activate production-oriented settings)
+  springProfilesActive: "prod"
+
+  server:
+    port: "8080"
+
+  llm:
+    defaultProvider: "gemini"
+    temperature: "0.7"
+    maxOutputTokens: "4096"
+    maxConversationTurns: "10"
+    maxContextWindowTokens: "128000"
+    googleSearchRetrievalEnabled: "false"
+
+  concurrency:
+    maxConcurrentRequests: "20"
+    requestTimeoutMs: "30000"
+    toolCallTimeoutMs: "15000"
+
+  guard:
+    enabled: "true"
+    rateLimitPerMinute: "20"
+    rateLimitPerHour: "200"
+    injectionDetectionEnabled: "true"
+    unicodeNormalizationEnabled: "true"
+    classificationEnabled: "false"
+    auditEnabled: "true"
+
+  agent:
+    maxToolCalls: "10"
+    maxToolsPerRequest: "20"
+
+  rag:
+    enabled: "false"
+
+  cors:
+    enabled: "false"
+
+  auth:
+    enabled: "false"
+
+  circuitBreaker:
+    enabled: "false"
+
+  flyway:
+    enabled: "false"
+
+  logging:
+    level: "INFO"
+
+# ===========================================
+# Secrets (set via --set or external secret manager)
+# ===========================================
+secrets:
+  # LLM provider API keys — at least one must be set
+  geminiApiKey: ""
+  openaiApiKey: ""
+  anthropicApiKey: ""
+  # JWT secret — required when config.auth.enabled=true
+  jwtSecret: ""
+  # Optional: datasource password (also configurable from postgresql.password)
+  datasourcePassword: ""
+
+# Use an existing Kubernetes Secret instead of creating one
+existingSecret: ""
+
+# ===========================================
+# PostgreSQL connection (external database)
+# ===========================================
+postgresql:
+  # Set enabled: true to deploy a bundled PostgreSQL instance (dev/testing only).
+  # For production, point host/port/database/username/password at an external DB.
+  enabled: false
+  host: ""
+  port: 5432
+  database: arcreactor
+  username: arc
+  # Password can also be supplied via secrets.datasourcePassword
+  password: ""
+  # Use pgvector image for RAG vector search support
+  image:
+    repository: pgvector/pgvector
+    tag: pg16
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce

@@ -1,0 +1,45 @@
+Arc Reactor has been deployed!
+
+Release name : {{ .Release.Name }}
+Namespace    : {{ .Release.Namespace }}
+App version  : {{ .Chart.AppVersion }}
+
+{{- if .Values.ingress.enabled }}
+Ingress URL(s):
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else if eq .Values.service.type "LoadBalancer" }}
+  Run this to retrieve the external IP:
+    kubectl get svc --namespace {{ .Release.Namespace }} {{ include "arc-reactor.fullname" . }} -w
+{{- else if eq .Values.service.type "NodePort" }}
+  Run these to get the node port:
+    export NODE_PORT=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "arc-reactor.fullname" . }} -o jsonpath="{.spec.ports[0].nodePort}")
+    export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo "http://${NODE_IP}:${NODE_PORT}"
+{{- else }}
+  Forward port 8080 to your local machine:
+    kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "arc-reactor.fullname" . }} 8080:8080
+
+  Then open: http://127.0.0.1:8080/swagger-ui.html
+{{- end }}
+
+Health probes:
+  Liveness  : GET /actuator/health/liveness
+  Readiness : GET /actuator/health/readiness
+
+{{- if .Values.autoscaling.enabled }}
+
+Autoscaling is enabled ({{ .Values.autoscaling.minReplicas }} – {{ .Values.autoscaling.maxReplicas }} replicas).
+{{- end }}
+
+{{- if not (or .Values.secrets.geminiApiKey .Values.secrets.openaiApiKey .Values.secrets.anthropicApiKey .Values.existingSecret) }}
+
+WARNING: No LLM API key is configured!
+  Set at least one via:
+    --set secrets.geminiApiKey=<key>
+    --set secrets.openaiApiKey=<key>
+    --set secrets.anthropicApiKey=<key>
+  Or point to an existing Kubernetes Secret:
+    --set existingSecret=<secret-name>
+{{- end }}

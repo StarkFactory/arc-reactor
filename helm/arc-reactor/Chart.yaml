@@ -1,0 +1,22 @@
+apiVersion: v2
+name: arc-reactor
+description: A Spring AI-based AI Agent framework — fork and attach tools to use.
+type: application
+version: 0.1.0
+appVersion: "4.3.0"
+home: https://github.com/StarkFactory/arc-reactor
+sources:
+  - https://github.com/StarkFactory/arc-reactor
+keywords:
+  - ai
+  - agent
+  - llm
+  - spring-ai
+  - kotlin
+  - react-loop
+  - mcp
+maintainers:
+  - name: StarkFactory
+    url: https://github.com/StarkFactory
+annotations:
+  category: AI/ML

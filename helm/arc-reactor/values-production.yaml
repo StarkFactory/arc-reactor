@@ -1,0 +1,75 @@
+# ===========================================
+# Arc Reactor - Production Values Override
+# ===========================================
+# Usage:
+#   helm install arc-reactor ./helm/arc-reactor \
+#     -f helm/arc-reactor/values-production.yaml \
+#     --set secrets.geminiApiKey=xxx \
+#     --set postgresql.host=mydb.example.com \
+#     --set postgresql.password=securepassword
+
+replicaCount: 2
+
+image:
+  pullPolicy: IfNotPresent
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+resources:
+  limits:
+    cpu: 4000m
+    memory: 2Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+config:
+  springProfilesActive: "prod"
+  logging:
+    level: "WARN"
+
+  llm:
+    temperature: "0.3"
+    maxOutputTokens: "4096"
+    maxConversationTurns: "20"
+
+  concurrency:
+    maxConcurrentRequests: "50"
+    requestTimeoutMs: "30000"
+    toolCallTimeoutMs: "15000"
+
+  guard:
+    enabled: "true"
+    rateLimitPerMinute: "60"
+    rateLimitPerHour: "600"
+    auditEnabled: "true"
+
+  agent:
+    maxToolCalls: "10"
+    maxToolsPerRequest: "20"
+
+  flyway:
+    enabled: "true"
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - arc-reactor
+          topologyKey: kubernetes.io/hostname
