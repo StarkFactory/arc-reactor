@@ -15,16 +15,9 @@ class NoOpResponseCacheTest {
         val cache = NoOpResponseCache()
 
         cache.put("key1", CachedResponse(content = "stored"))
+        cache.invalidateAll()
         val result = cache.get("key1")
 
         assertNull(result) { "NoOp cache should always return null" }
-    }
-
-    @Test
-    fun `invalidateAll does not throw`() {
-        val cache = NoOpResponseCache()
-
-        // Should not throw
-        cache.invalidateAll()
     }
 }

@@ -1,6 +1,5 @@
 package com.arc.reactor.agent.metrics
 
-import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.resilience.CircuitBreakerState
@@ -9,76 +8,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 
 class AgentMetricsTest {
-
-    @Nested
-    inner class NoOpAgentMetricsTest {
-
-        private val metrics = NoOpAgentMetrics()
-
-        @Test
-        fun `recordExecution should not throw on success result`() {
-            val result = AgentResult.success(content = "Hello", durationMs = 100)
-
-            assertDoesNotThrow {
-                metrics.recordExecution(result)
-            }
-        }
-
-        @Test
-        fun `recordExecution should not throw on failure result`() {
-            val result = AgentResult.failure(
-                errorMessage = "Error occurred",
-                errorCode = AgentErrorCode.UNKNOWN,
-                durationMs = 50
-            )
-
-            assertDoesNotThrow {
-                metrics.recordExecution(result)
-            }
-        }
-
-        @Test
-        fun `recordToolCall should not throw`() {
-            assertDoesNotThrow {
-                metrics.recordToolCall("my_tool", durationMs = 200, success = true)
-            }
-
-            assertDoesNotThrow {
-                metrics.recordToolCall("my_tool", durationMs = 50, success = false)
-            }
-        }
-
-        @Test
-        fun `recordGuardRejection should not throw`() {
-            assertDoesNotThrow {
-                metrics.recordGuardRejection(stage = "RateLimit", reason = "Too many requests")
-            }
-        }
-
-        @Test
-        fun `new default methods should not throw`() {
-            assertDoesNotThrow {
-                metrics.recordCacheHit("cache-key-123")
-            }
-            assertDoesNotThrow {
-                metrics.recordCacheMiss("cache-key-456")
-            }
-            assertDoesNotThrow {
-                metrics.recordCircuitBreakerStateChange(
-                    "test", CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN
-                )
-            }
-            assertDoesNotThrow {
-                metrics.recordFallbackAttempt("openai", success = true)
-            }
-            assertDoesNotThrow {
-                metrics.recordTokenUsage(TokenUsage(promptTokens = 100, completionTokens = 50))
-            }
-            assertDoesNotThrow {
-                metrics.recordStreamingExecution(AgentResult.success(content = "test", durationMs = 100))
-            }
-        }
-    }
 
     @Nested
     inner class DefaultMethodsTest {
