@@ -35,21 +35,10 @@ class MetricCollectorAgentMetricsTest {
     inner class DelegatedToHook {
 
         @Test
-        fun `recordExecution is no-op (handled by MetricCollectionHook)`() {
+        fun `execution and tool metrics are delegated to hook as no-op`() {
             val result = AgentResult(success = true, content = "ok")
             metrics.recordExecution(result)
-            ringBuffer.size() shouldBe 0
-        }
-
-        @Test
-        fun `recordToolCall is no-op (handled by MetricCollectionHook)`() {
             metrics.recordToolCall("check_order", 100, true)
-            ringBuffer.size() shouldBe 0
-        }
-
-        @Test
-        fun `recordStreamingExecution is no-op (handled by MetricCollectionHook)`() {
-            val result = AgentResult(success = true, content = "ok")
             metrics.recordStreamingExecution(result)
             ringBuffer.size() shouldBe 0
         }
@@ -301,31 +290,11 @@ class MetricCollectorAgentMetricsTest {
     inner class NoOpMethods {
 
         @Test
-        fun `cache hit is no-op`() {
+        fun `non-pipeline metrics methods are no-op`() {
             metrics.recordCacheHit("key")
-            ringBuffer.size() shouldBe 0
-        }
-
-        @Test
-        fun `cache miss is no-op`() {
             metrics.recordCacheMiss("key")
-            ringBuffer.size() shouldBe 0
-        }
-
-        @Test
-        fun `circuit breaker state change is no-op`() {
             metrics.recordCircuitBreakerStateChange("cb", CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN)
-            ringBuffer.size() shouldBe 0
-        }
-
-        @Test
-        fun `fallback attempt is no-op`() {
             metrics.recordFallbackAttempt("gpt-4", true)
-            ringBuffer.size() shouldBe 0
-        }
-
-        @Test
-        fun `boundary violation is no-op`() {
             metrics.recordBoundaryViolation("input_too_long", "max_input", 5000, 6000)
             ringBuffer.size() shouldBe 0
         }

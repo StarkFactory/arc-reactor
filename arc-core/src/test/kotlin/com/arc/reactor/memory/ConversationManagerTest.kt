@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.SystemMessage
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class ConversationManagerTest {
 
@@ -462,15 +463,19 @@ class ConversationManagerTest {
             every { memory.getHistory() } returns messages
             every { summaryStore.get("s1") } returns null
 
+            val firstCallStarted = CountDownLatch(1)
             val secondCallLatch = CountDownLatch(1)
-            var callCount = 0
+            val callCount = AtomicInteger(0)
             coEvery { summaryService.summarize(any(), any()) } coAnswers {
-                callCount++
-                if (callCount == 1) {
+                val current = callCount.incrementAndGet()
+                if (current == 1) {
+                    firstCallStarted.countDown()
                     delay(5000) // First call blocks long
                 }
-                secondCallLatch.countDown()
-                SummarizationResult(narrative = "summary-$callCount", facts = emptyList())
+                if (current == 2) {
+                    secondCallLatch.countDown()
+                }
+                SummarizationResult(narrative = "summary-$current", facts = emptyList())
             }
 
             val manager = DefaultConversationManager(
@@ -484,6 +489,9 @@ class ConversationManagerTest {
 
             // Trigger two rapid saves — second should cancel first
             manager.saveHistory(command, AgentResult.success("r1"))
+            assertTrue(firstCallStarted.await(3, TimeUnit.SECONDS)) {
+                "First summarization should start before triggering second save"
+            }
             manager.saveHistory(command, AgentResult.success("r2"))
 
             assertTrue(secondCallLatch.await(3, TimeUnit.SECONDS)) {
