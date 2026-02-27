@@ -31,6 +31,23 @@ Spring AI-based AI Agent framework. Fork and attach tools to use.
 - For Claude workflows, split deep/specialized guidance into modular rule files and import only when needed
 - Prefer explicit checklists and executable commands over vague guidance
 
+### Agent Instruction Authoring Rules (Codex + Claude)
+
+- Write rules as imperative, testable statements (`MUST`/`SHOULD`) and avoid narrative prose
+- Put highest-risk constraints first: security, data integrity, merge gates, then style/conventions
+- Keep one rule per bullet, and include the concrete command/path when possible
+- Prefer short sections with stable names so agents can retrieve only needed blocks quickly
+- Add examples only when they remove ambiguity (for example, exact curl payload or Gradle command)
+- Keep `AGENTS.md` and `CLAUDE.md` content-equivalent after every policy update
+
+### Agent Working Loop (Default)
+
+1. Before substantial edits, write a short plan with explicit verification steps
+2. Implement in a focused branch with small, reviewable commits
+3. Run targeted tests during iteration, then full `./gradlew test` before PR
+4. Open PR with risk summary, validation commands, and expected side effects
+5. Merge only after required checks (`build`, `integration`, `docker`) are all green
+
 ### PR and CI Gate (Mandatory)
 
 - Required checks are merge gates: `build`, `integration`, `docker`
@@ -167,6 +184,21 @@ Full config: see `agent/config/AgentPolicyAndFeatureProperties.kt`
 - `@Nested` inner classes for logical grouping. `AtomicInteger` for concurrency counting
 - `coEvery`/`coVerify` for suspend mocks, `runTest` preferred over `runBlocking`
 - Mock `requestSpec.options(any<ChatOptions>())` explicitly for streaming tests
+
+### Test Portfolio Strategy (Open-source, Risk-first)
+
+- Do not maximize test count blindly; maximize defect detection per maintenance cost
+- Require tests for critical invariants: security boundaries, tenant isolation, authz, persistence integrity, orchestration loops
+- Use the fastest meaningful level first: unit for pure logic/edges, slice/integration for wiring and persistence behavior, end-to-end only for top user journeys and cross-module contracts
+- Keep slow or environment-sensitive tests explicitly tagged and out of default fast loops
+- Add regression tests for every production bug with a failing-before/fixed-after assertion
+- Avoid brittle tests that lock internal implementation details instead of observable behavior
+
+### Test Execution Cadence
+
+- Local loop (fast): run focused test targets for touched packages/classes
+- Pre-push gate: run full `./gradlew test`
+- CI gate: required checks plus optional profile tests when relevant (`-Pdb=true`, `-Pauth=true`, `-PincludeIntegration`)
 
 For test patterns and examples: @docs/en/implementation-guide.md
 
