@@ -157,8 +157,8 @@ class JdbcExperimentStore(
                     objectMapper.writeValueAsString(trial.evaluations),
                     Timestamp.from(trial.executedAt)
                 )
-            } catch (_: DuplicateKeyException) {
-                // Trial already saved — idempotent skip on retry
+            } catch (e: DuplicateKeyException) {
+                logger.debug { "Trial ${trial.id} already saved — idempotent skip on retry" }
             }
         }
     }

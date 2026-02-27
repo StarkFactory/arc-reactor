@@ -1,5 +1,9 @@
 -- Experiment tables for Prompt Lab persistent storage.
 -- Stores experiments, individual trial results, and generated reports.
+--
+-- No FK constraints: matches project-wide convention (see V1-V24).
+-- Cascade delete is handled in application code (JdbcExperimentStore.delete)
+-- wrapped in a transaction for atomicity.
 
 CREATE TABLE IF NOT EXISTS experiments (
     id                    VARCHAR(36)   PRIMARY KEY,

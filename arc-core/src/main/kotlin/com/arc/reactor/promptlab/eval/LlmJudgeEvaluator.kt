@@ -40,7 +40,7 @@ class LlmJudgeEvaluator(
         config: EvaluationConfig
     ): EvaluationResult {
         if (tokenCounter.get() >= config.llmJudgeBudgetTokens) {
-            logger.info { "LLM judge budget exhausted: ${tokenCounter.get()}" }
+            logger.warn { "LLM judge budget exhausted: ${tokenCounter.get()}/${config.llmJudgeBudgetTokens} tokens" }
             return budgetExhaustedResult()
         }
 
@@ -120,9 +120,9 @@ class LlmJudgeEvaluator(
 
     private fun budgetExhaustedResult() = EvaluationResult(
         tier = EvaluationTier.LLM_JUDGE,
-        passed = true,
-        score = 0.5,
-        reason = "Budget exhausted"
+        passed = false,
+        score = 0.0,
+        reason = "Budget exhausted — skipped LLM judge evaluation"
     )
 
     private fun fallbackResult(error: String) = EvaluationResult(

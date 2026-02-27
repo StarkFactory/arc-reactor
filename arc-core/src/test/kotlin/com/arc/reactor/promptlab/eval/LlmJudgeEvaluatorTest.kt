@@ -117,8 +117,8 @@ class LlmJudgeEvaluatorTest {
 
             val result = evaluator.evaluate("Response", defaultQuery, config)
 
-            assertTrue(result.passed) { "Budget exhausted should pass" }
-            assertEquals(0.5, result.score) { "Score should be 0.5" }
+            assertFalse(result.passed) { "Budget exhausted should not pass" }
+            assertEquals(0.0, result.score) { "Score should be 0.0" }
             assertTrue(result.reason.contains("Budget exhausted")) {
                 "Reason should mention budget exhaustion"
             }
@@ -135,7 +135,7 @@ class LlmJudgeEvaluatorTest {
 
             val result = evaluator.evaluate("Response", defaultQuery, config)
 
-            assertEquals(0.5, result.score) { "Should return budget exhausted score" }
+            assertEquals(0.0, result.score) { "Should return budget exhausted score" }
         }
     }
 
