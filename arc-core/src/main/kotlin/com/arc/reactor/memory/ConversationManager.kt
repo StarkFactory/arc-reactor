@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
@@ -199,7 +200,7 @@ class DefaultConversationManager(
         activeSummarizations.remove(sessionId)?.cancel()
     }
 
-    private fun triggerAsyncSummarization(metadata: Map<String, Any>) {
+    private suspend fun triggerAsyncSummarization(metadata: Map<String, Any>) {
         if (!isSummaryEnabled()) return
         val sessionId = metadata["sessionId"]?.toString() ?: return
         val memory = memoryStore?.get(sessionId) ?: return
@@ -210,7 +211,9 @@ class DefaultConversationManager(
         val splitIndex = calculateSplitIndex(allMessages.size)
         if (splitIndex == 0) return
 
-        activeSummarizations[sessionId]?.cancel()
+        activeSummarizations[sessionId]?.let { previousJob ->
+            previousJob.cancelAndJoin()
+        }
 
         val job = asyncScope.launch {
             try {

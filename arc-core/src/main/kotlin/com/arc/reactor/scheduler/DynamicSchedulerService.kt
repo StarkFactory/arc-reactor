@@ -105,9 +105,15 @@ class DynamicSchedulerService(
                     "Registered cron job: ${job.name} [${job.cronExpression}] " +
                         "→ ${job.mcpServerName}/${job.toolName}"
                 }
+            } else {
+                val message = "Failed to register cron job '${job.name}': scheduler returned null future"
+                logger.warn { message }
+                markSchedulingFailure(job, message)
             }
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "Failed to register cron job: ${job.name}" }
+            markSchedulingFailure(job, "Failed to register cron job: ${e.message}")
         }
     }
 
@@ -275,6 +281,10 @@ class DynamicSchedulerService(
     private fun formatSlackMessage(job: ScheduledJob, result: String): String {
         val truncated = if (result.length > 3000) result.take(3000) + "\n..." else result
         return "*[${job.name}]* scheduled task result:\n```\n$truncated\n```"
+    }
+
+    private fun markSchedulingFailure(job: ScheduledJob, message: String) {
+        store.updateExecutionResult(job.id, JobExecutionStatus.FAILED, message)
     }
 }
 

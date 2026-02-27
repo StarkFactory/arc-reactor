@@ -4,9 +4,7 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.auth.AuthProperties
-import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.persona.PersonaStore
-import mu.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactive.awaitSingle
@@ -20,8 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
-
-private val logger = KotlinLogging.logger {}
 
 /**
  * Multipart Chat Controller — file upload endpoint for multimodal LLMs.
@@ -43,6 +39,7 @@ class MultipartChatController(
     private val personaStore: PersonaStore? = null,
     private val authProperties: AuthProperties = AuthProperties()
 ) {
+    private val systemPromptResolver = SystemPromptResolver(personaStore = personaStore)
 
     /**
      * Multipart chat - send a message with file attachments (images, audio, etc.)
@@ -68,9 +65,12 @@ class MultipartChatController(
     ): ChatResponse {
         val mediaAttachments = files.map { file -> filePartToMediaAttachment(file) }
 
-        val resolvedSystemPrompt = resolveSystemPrompt(systemPrompt, personaId)
-        val resolvedUserId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
-            ?: userId ?: "anonymous"
+        val resolvedSystemPrompt = systemPromptResolver.resolve(
+            personaId = personaId,
+            promptTemplateId = null,
+            systemPrompt = systemPrompt
+        )
+        val resolvedUserId = resolveUserId(exchange, userId)
         val resolvedTenantId = TenantContextResolver.resolveTenantId(exchange, authProperties.enabled)
 
         val result = agentExecutor.execute(
@@ -93,31 +93,6 @@ class MultipartChatController(
             toolsUsed = result.toolsUsed,
             errorMessage = result.errorMessage
         )
-    }
-
-    private fun resolveSystemPrompt(systemPrompt: String?, personaId: String?): String {
-        personaId?.let { resolvePersonaPromptSafely(it)?.let { prompt -> return prompt } }
-        if (!systemPrompt.isNullOrBlank()) return systemPrompt
-        resolveDefaultPersonaPromptSafely()?.let { return it }
-        return ChatController.DEFAULT_SYSTEM_PROMPT
-    }
-
-    private fun resolvePersonaPromptSafely(personaId: String): String? {
-        return try {
-            personaStore?.get(personaId)?.systemPrompt
-        } catch (e: Exception) {
-            logger.warn(e) { "Persona lookup failed for personaId='$personaId'; using fallback prompt" }
-            null
-        }
-    }
-
-    private fun resolveDefaultPersonaPromptSafely(): String? {
-        return try {
-            personaStore?.getDefault()?.systemPrompt
-        } catch (e: Exception) {
-            logger.warn(e) { "Default persona lookup failed in multipart chat; using fallback prompt" }
-            null
-        }
     }
 
     private suspend fun filePartToMediaAttachment(file: FilePart): MediaAttachment {

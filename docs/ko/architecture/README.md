@@ -6,6 +6,7 @@ Arc Reactor 내부 동작을 설명하는 아키텍처 문서 모음입니다.
 
 - [아키텍처 개요](architecture.md)
 - [모듈 레이아웃](module-layout.md)
+- [프로젝트 백과사전(레이어/요청흐름)](layered-architecture.md)
 - [ReAct 루프](react-loop.md)
 - [Streaming ReAct](streaming-react.md)
 - [Guard와 Hook](guard-hook.md)

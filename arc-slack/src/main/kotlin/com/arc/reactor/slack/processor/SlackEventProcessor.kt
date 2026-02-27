@@ -12,8 +12,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.withTimeoutOrNull
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -25,9 +23,11 @@ class SlackEventProcessor(
     properties: SlackProperties
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val semaphore = Semaphore(properties.maxConcurrentRequests)
-    private val requestTimeoutMs = properties.requestTimeoutMs
-    private val failFastOnSaturation = properties.failFastOnSaturation
+    private val backpressureLimiter = SlackBackpressureLimiter(
+        maxConcurrentRequests = properties.maxConcurrentRequests,
+        requestTimeoutMs = properties.requestTimeoutMs,
+        failFastOnSaturation = properties.failFastOnSaturation
+    )
     private val notifyOnDrop = properties.notifyOnDrop
     private val deduplicator = SlackEventDeduplicator(
         enabled = properties.eventDedupEnabled,
@@ -77,7 +77,7 @@ class SlackEventProcessor(
             return
         }
 
-        if (failFastOnSaturation && !semaphore.tryAcquire()) {
+        if (backpressureLimiter.rejectImmediatelyIfConfigured()) {
             logger.warn {
                 "Slack event rejected due to saturation: " +
                     "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
@@ -94,23 +94,21 @@ class SlackEventProcessor(
         }
 
         scope.launch {
-            if (!failFastOnSaturation) {
-                val acquired = acquirePermitWithTimeout()
-                if (!acquired) {
-                    logger.warn {
-                        "Slack event dropped due to queue timeout: " +
-                            "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
-                    }
-                    metricsRecorder.recordDropped(
-                        entrypoint = entrypoint,
-                        reason = "queue_timeout",
-                        eventType = eventType
-                    )
-                    if (notifyOnDrop) {
-                        notifyBusyIfInteractive(command)
-                    }
-                    return@launch
+            val acquired = backpressureLimiter.acquireForQueuedMode()
+            if (!acquired) {
+                logger.warn {
+                    "Slack event dropped due to queue timeout: " +
+                        "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
                 }
+                metricsRecorder.recordDropped(
+                    entrypoint = entrypoint,
+                    reason = "queue_timeout",
+                    eventType = eventType
+                )
+                if (notifyOnDrop) {
+                    notifyBusyIfInteractive(command)
+                }
+                return@launch
             }
 
             val started = System.currentTimeMillis()
@@ -142,20 +140,9 @@ class SlackEventProcessor(
                     durationMs = System.currentTimeMillis() - started
                 )
             } finally {
-                semaphore.release()
+                backpressureLimiter.release()
             }
         }
-    }
-
-    private suspend fun acquirePermitWithTimeout(): Boolean {
-        if (requestTimeoutMs <= 0) {
-            semaphore.acquire()
-            return true
-        }
-        return withTimeoutOrNull(requestTimeoutMs) {
-            semaphore.acquire()
-            true
-        } ?: false
     }
 
     private suspend fun notifyBusyIfInteractive(command: SlackEventCommand) {
