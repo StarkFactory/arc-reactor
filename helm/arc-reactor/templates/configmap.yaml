@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "arc-reactor.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "arc-reactor.labels" . | nindent 4 }}
+data:
+  # Spring profile
+  SPRING_PROFILES_ACTIVE: {{ .Values.config.springProfilesActive | quote }}
+
+  # Server
+  SERVER_PORT: {{ .Values.config.server.port | quote }}
+
+  # Spring graceful shutdown timeout — keep aligned with terminationGracePeriodSeconds
+  SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: "30s"
+
+  # Flyway
+  SPRING_FLYWAY_ENABLED: {{ .Values.config.flyway.enabled | quote }}
+
+  {{- $dsUrl := include "arc-reactor.datasourceUrl" . }}
+  {{- if $dsUrl }}
+  SPRING_DATASOURCE_URL: {{ $dsUrl | quote }}
+  SPRING_DATASOURCE_USERNAME: {{ .Values.postgresql.username | quote }}
+  {{- end }}
+
+  # LLM
+  ARC_REACTOR_LLM_DEFAULT_PROVIDER: {{ .Values.config.llm.defaultProvider | quote }}
+  ARC_REACTOR_LLM_TEMPERATURE: {{ .Values.config.llm.temperature | quote }}
+  ARC_REACTOR_LLM_MAX_OUTPUT_TOKENS: {{ .Values.config.llm.maxOutputTokens | quote }}
+  ARC_REACTOR_LLM_MAX_CONVERSATION_TURNS: {{ .Values.config.llm.maxConversationTurns | quote }}
+  ARC_REACTOR_LLM_MAX_CONTEXT_WINDOW_TOKENS: {{ .Values.config.llm.maxContextWindowTokens | quote }}
+  ARC_REACTOR_LLM_GOOGLE_SEARCH_RETRIEVAL_ENABLED: {{ .Values.config.llm.googleSearchRetrievalEnabled | quote }}
+
+  # Concurrency
+  ARC_REACTOR_CONCURRENCY_MAX_CONCURRENT_REQUESTS: {{ .Values.config.concurrency.maxConcurrentRequests | quote }}
+  ARC_REACTOR_CONCURRENCY_REQUEST_TIMEOUT_MS: {{ .Values.config.concurrency.requestTimeoutMs | quote }}
+  ARC_REACTOR_CONCURRENCY_TOOL_CALL_TIMEOUT_MS: {{ .Values.config.concurrency.toolCallTimeoutMs | quote }}
+
+  # Guard
+  ARC_REACTOR_GUARD_ENABLED: {{ .Values.config.guard.enabled | quote }}
+  ARC_REACTOR_GUARD_RATE_LIMIT_PER_MINUTE: {{ .Values.config.guard.rateLimitPerMinute | quote }}
+  ARC_REACTOR_GUARD_RATE_LIMIT_PER_HOUR: {{ .Values.config.guard.rateLimitPerHour | quote }}
+  ARC_REACTOR_GUARD_INJECTION_DETECTION_ENABLED: {{ .Values.config.guard.injectionDetectionEnabled | quote }}
+  ARC_REACTOR_GUARD_UNICODE_NORMALIZATION_ENABLED: {{ .Values.config.guard.unicodeNormalizationEnabled | quote }}
+  ARC_REACTOR_GUARD_CLASSIFICATION_ENABLED: {{ .Values.config.guard.classificationEnabled | quote }}
+  ARC_REACTOR_GUARD_AUDIT_ENABLED: {{ .Values.config.guard.auditEnabled | quote }}
+
+  # Agent
+  ARC_REACTOR_MAX_TOOL_CALLS: {{ .Values.config.agent.maxToolCalls | quote }}
+  ARC_REACTOR_MAX_TOOLS_PER_REQUEST: {{ .Values.config.agent.maxToolsPerRequest | quote }}
+
+  # Features
+  ARC_REACTOR_RAG_ENABLED: {{ .Values.config.rag.enabled | quote }}
+  ARC_REACTOR_CORS_ENABLED: {{ .Values.config.cors.enabled | quote }}
+  ARC_REACTOR_AUTH_ENABLED: {{ .Values.config.auth.enabled | quote }}
+  ARC_REACTOR_CIRCUIT_BREAKER_ENABLED: {{ .Values.config.circuitBreaker.enabled | quote }}
+
+  # Logging
+  LOGGING_LEVEL_COM_ARC_REACTOR: {{ .Values.config.logging.level | quote }}

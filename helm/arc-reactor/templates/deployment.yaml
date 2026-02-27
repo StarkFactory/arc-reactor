@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arc-reactor.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "arc-reactor.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "arc-reactor.selectorLabels" . | nindent 6 }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  template:
+    metadata:
+      annotations:
+        # Force pod rollout when the ConfigMap or Secret changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "arc-reactor.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "arc-reactor.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ include "arc-reactor.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.server.port | int }}
+              protocol: TCP
+          # Non-secret environment variables from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: {{ include "arc-reactor.fullname" . }}
+          # Secret environment variables
+          env:
+            {{- $secretName := include "arc-reactor.secretName" . }}
+            {{- if or .Values.secrets.geminiApiKey (and .Values.existingSecret) }}
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: GEMINI_API_KEY
+                  optional: true
+            {{- end }}
+            {{- if or .Values.secrets.openaiApiKey (and .Values.existingSecret) }}
+            - name: SPRING_AI_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: SPRING_AI_OPENAI_API_KEY
+                  optional: true
+            {{- end }}
+            {{- if or .Values.secrets.anthropicApiKey (and .Values.existingSecret) }}
+            - name: SPRING_AI_ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: SPRING_AI_ANTHROPIC_API_KEY
+                  optional: true
+            {{- end }}
+            {{- if or .Values.secrets.jwtSecret (and .Values.existingSecret) }}
+            - name: ARC_REACTOR_AUTH_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: ARC_REACTOR_AUTH_JWT_SECRET
+                  optional: true
+            {{- end }}
+            {{- $dbPassword := coalesce .Values.secrets.datasourcePassword .Values.postgresql.password "" }}
+            {{- if or $dbPassword (and .Values.existingSecret) }}
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: SPRING_DATASOURCE_PASSWORD
+                  optional: true
+            {{- end }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            # tmpfs for Spring temp files (read-only root FS)
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
