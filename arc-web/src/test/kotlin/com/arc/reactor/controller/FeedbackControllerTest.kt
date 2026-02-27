@@ -317,7 +317,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should return 403 when auth is disabled`() = runTest {
+        fun `should allow admin list when auth is disabled`() = runTest {
             every {
                 feedbackStore.list(
                     rating = null, from = null, to = null,
@@ -331,7 +331,9 @@ class FeedbackControllerTest {
                 exchange = noAuthExchange()
             )
 
-            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should fail-close when no auth" }
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "Auth-disabled mode should treat request as admin"
+            }
         }
     }
 

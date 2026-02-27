@@ -154,14 +154,16 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should return 403 when auth is disabled`() = runTest {
+        fun `should allow admin write when auth is disabled`() = runTest {
             val slot = slot<Persona>()
             every { personaStore.save(capture(slot)) } answers { slot.captured }
 
             val request = CreatePersonaRequest(name = "test", systemPrompt = "test")
             val response = controller.createPersona(request, noAuthExchange())
 
-            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should fail-close when no auth" }
+            assertEquals(HttpStatus.CREATED, response.statusCode) {
+                "Auth-disabled mode should treat request as admin"
+            }
         }
 
         @Test

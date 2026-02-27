@@ -72,12 +72,15 @@ class DocumentControllerTest {
         }
 
         @Test
-        fun `should return 403 when auth is disabled`() {
+        fun `should allow admin write when auth is disabled`() {
             val request = DocumentController.AddDocumentRequest(content = "Test content")
 
             val response = controller.addDocument(request, noAuthExchange())
 
-            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should fail-close when no auth" }
+            assertEquals(HttpStatus.CREATED, response.statusCode) {
+                "Auth-disabled mode should treat request as admin"
+            }
+            verify(exactly = 1) { vectorStore.add(any()) }
         }
 
         @Test
