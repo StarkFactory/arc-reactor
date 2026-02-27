@@ -8,6 +8,11 @@ Per-module reference documentation for the Arc Reactor framework. Each document 
 |---|---|
 | [arc-core](./arc-core.md) | Agent executor, Guard pipeline, Hook system, Tool abstraction, auto-configuration, RAG, memory, Prompt Lab, resilience |
 | [arc-web](./arc-web.md) | REST controllers, SSE streaming, security filters, authentication, tenant resolution, global exception handler |
+| [arc-admin](./arc-admin.md) | Operational control plane: metrics, tracing, tenant management, cost tracking, alerting, quota enforcement |
+| [arc-slack](./arc-slack.md) | Slack integration via Socket Mode or Events API, with signature verification and backpressure |
+| [arc-discord](./arc-discord.md) | Discord integration via Discord4J gateway, with mention-only mode and 2000-char splitting |
+| [arc-line](./arc-line.md) | LINE Messaging API integration with webhook signature verification and reply/push fallback |
+| [arc-error-report](./arc-error-report.md) | AI-powered production error analysis: receives stack traces, investigates via MCP tools, reports to Slack |
 
 ## Quick Navigation
 
