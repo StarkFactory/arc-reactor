@@ -15,6 +15,7 @@ import reactor.core.publisher.Mono
  * - `Content-Security-Policy: default-src 'self'` — restricts resource loading
  * - `X-XSS-Protection: 0` — disables legacy XSS filter (modern best practice)
  * - `Referrer-Policy: strict-origin-when-cross-origin` — limits referrer info
+ * - `Strict-Transport-Security: max-age=31536000; includeSubDomains` — enforces HTTPS
  *
  * Enabled by default. Disable via `arc.reactor.security-headers.enabled=false`.
  */
@@ -29,6 +30,7 @@ class SecurityHeadersWebFilter : WebFilter, Ordered {
             set("Content-Security-Policy", "default-src 'self'")
             set("X-XSS-Protection", "0")
             set("Referrer-Policy", "strict-origin-when-cross-origin")
+            set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         }
         return chain.filter(exchange)
     }
