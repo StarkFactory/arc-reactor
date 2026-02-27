@@ -37,7 +37,8 @@ data class User(
  * Auth is opt-in: disabled by default. Set `arc.reactor.auth.enabled=true` to activate.
  *
  * @param enabled Whether JWT authentication is active (default: false)
- * @param jwtSecret HMAC secret for JWT signing (required when enabled)
+ * @param jwtSecret HMAC secret for JWT signing (required when enabled).
+ *   Must be at least 32 characters long. Generate with: `openssl rand -base64 32`
  * @param jwtExpirationMs Token lifetime in milliseconds (default: 24 hours)
  * @param publicPaths URL prefixes that bypass authentication
  */

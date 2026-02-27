@@ -554,6 +554,61 @@ class ArcReactorAutoConfigurationTest {
                     }
                 }
         }
+
+        @Test
+        fun `should fail context startup when auth enabled with empty jwt secret`() {
+            contextRunner
+                .withPropertyValues(
+                    "arc.reactor.auth.enabled=true",
+                    "arc.reactor.auth.jwt-secret="
+                )
+                .run { context ->
+                    assertTrue(context.startupFailure != null) {
+                        "Context should fail to start when auth.enabled=true and jwt-secret is empty"
+                    }
+                    val message = context.startupFailure!!.message ?: ""
+                    assertTrue(message.contains("arc.reactor.auth.jwt-secret") || causeChainContains(context.startupFailure!!, "arc.reactor.auth.jwt-secret")) {
+                        "Failure cause should reference arc.reactor.auth.jwt-secret"
+                    }
+                }
+        }
+
+        @Test
+        fun `should fail context startup when auth enabled with short jwt secret`() {
+            contextRunner
+                .withPropertyValues(
+                    "arc.reactor.auth.enabled=true",
+                    "arc.reactor.auth.jwt-secret=tooshort"
+                )
+                .run { context ->
+                    assertTrue(context.startupFailure != null) {
+                        "Context should fail to start when auth.enabled=true and jwt-secret is shorter than 32 bytes"
+                    }
+                }
+        }
+
+        @Test
+        fun `should start normally when auth disabled with empty jwt secret`() {
+            contextRunner
+                .withPropertyValues("arc.reactor.auth.enabled=false")
+                .run { context ->
+                    assertNull(context.startupFailure) {
+                        "Context should start successfully when auth is disabled, even with no jwt-secret"
+                    }
+                    assertFalse(context.containsBean("jwtSecretValidator")) {
+                        "jwtSecretValidator bean should not exist when auth is disabled"
+                    }
+                }
+        }
+
+        private fun causeChainContains(throwable: Throwable, substring: String): Boolean {
+            var current: Throwable? = throwable
+            while (current != null) {
+                if (current.message?.contains(substring) == true) return true
+                current = current.cause
+            }
+            return false
+        }
     }
 
     // ── Memory Summary Configuration ────────────────────────────────
