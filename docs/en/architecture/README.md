@@ -18,6 +18,7 @@ Core architecture docs for Arc Reactor internals.
 - [Multi-Agent](multi-agent.md)
 - [Supervisor Pattern](supervisor-pattern.md)
 - [Intent Classification](intent-classification.md)
+- [Prompt Lab](prompt-lab.md)
 - [Implementation Guide](implementation-guide.md)
 
 ## Sub-Packages

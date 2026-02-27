@@ -21,3 +21,4 @@
 - [Slack 운영 런북](integrations/slack/ops-runbook.md)
 - [테스트/성능 가이드](engineering/testing-and-performance.md)
 - [PR/CI/릴리즈 운영 프로세스](engineering/ci-pr-release-process.md)
+- [Prompt Lab](architecture/prompt-lab.md)
