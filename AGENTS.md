@@ -1,269 +1,67 @@
-# Arc Reactor
+# Arc Reactor — Agent Instructions
 
-Spring AI-based AI Agent framework. Fork and attach tools to use.
+Spring AI-based AI Agent framework (Kotlin/Spring Boot). See CLAUDE.md for full context.
 
-## Tech Stack
-
-- Kotlin 2.3.10, Spring Boot 3.5.9, Spring AI 1.1.2, JDK 21, Gradle 8.12
-- Test: JUnit 5 + MockK 1.14.9 + Kotest assertions 5.9.1
-- DB: H2 (test), PostgreSQL (prod, optional)
-
-## Commands
+## Validate Commands
 
 ```bash
-./gradlew test                                             # Full test suite
-./gradlew test --tests "com.arc.reactor.agent.*"           # Package filter
-./gradlew test --tests "*.SpringAiAgentExecutorTest"       # Single file
-./gradlew compileKotlin compileTestKotlin                  # Compile check (maintain 0 warnings)
-./gradlew bootRun                                          # Run (GEMINI_API_KEY required)
-./gradlew test -Pdb=true                                   # Include PostgreSQL/PGVector/Flyway deps
-./gradlew test -Pauth=true                                 # Include JWT/Spring Security Crypto deps
-./gradlew test -PincludeIntegration                        # Include @Tag("integration") tests
+./gradlew compileKotlin compileTestKotlin   # Must produce 0 warnings
+./gradlew test                              # Must pass before any PR
+./gradlew test --tests "*.YourTestClass"    # Run single test during iteration
 ```
 
-## Agent Playbook (Optimized)
+CI merge gate: `build`, `integration`, `docker` checks must all be green.
 
-### Instruction Hierarchy and File Strategy
+## Architecture at a Glance
 
-- Keep `AGENTS.md` as Codex-first canonical project policy; keep it synchronized with this file
-- Use nearest-scope instruction files for submodules/packages when rules differ (more specific path wins)
-- Keep agent instruction files concise and non-duplicated; prefer linking to detailed docs over repeating long prose
-- For Claude workflows, split deep/specialized guidance into modular rule files and import only when needed
-- Prefer explicit checklists and executable commands over vague guidance
+Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete) → Response**
 
-### Agent Instruction Authoring Rules (Codex + Claude)
+- `SpringAiAgentExecutor.kt` — Core loop (~1,060 lines). Touch with caution
+- `ArcReactorAutoConfiguration.kt` — All beans. Override via `@ConditionalOnMissingBean`
+- `AgentPolicyAndFeatureProperties.kt` — All `arc.reactor.*` config properties
 
-- Write rules as imperative, testable statements (`MUST`/`SHOULD`) and avoid narrative prose
-- Put highest-risk constraints first: security, data integrity, merge gates, then style/conventions
-- Keep one rule per bullet, and include the concrete command/path when possible
-- Prefer short sections with stable names so agents can retrieve only needed blocks quickly
-- Add examples only when they remove ambiguity (for example, exact curl payload or Gradle command)
-- Keep `AGENTS.md` and `CLAUDE.md` content-equivalent after every policy update
+**Guard = fail-close** (blocked). **Hook = fail-open** (log & continue). Security logic in Guard only.
 
-### Agent Working Loop (Default)
+## Critical Gotchas (bugs waiting to happen)
 
-1. Before substantial edits, write a short plan with explicit verification steps
-2. Implement in a focused branch with small, reviewable commits
-3. Run targeted tests during iteration, then full `./gradlew test` before PR
-4. Open PR with risk summary, validation commands, and expected side effects
-5. Merge only after required checks (`build`, `integration`, `docker`) are all green
+1. **CancellationException**: in every `suspend fun`, catch and rethrow `CancellationException` BEFORE any generic `catch (e: Exception)`. Failure breaks structured concurrency silently
+2. **ReAct infinite loop**: when `maxToolCalls` is reached, set `activeTools = emptyList()`. Logging only causes an infinite loop
+3. **.forEach in coroutines**: use `for (item in list)` not `list.forEach {}`. The lambda is not suspend-capable
+4. **Message pair integrity**: `AssistantMessage(toolCalls)` and `ToolResponseMessage` must always be added/removed as a pair
+5. **Context trimming**: Phase 2 guard condition is `>` not `>=`. Off-by-one drops the last UserMessage
+6. **AssistantMessage constructor**: it is protected — use `AssistantMessage.builder().content().toolCalls().build()`
+7. **API key env vars**: NEVER set provider keys with empty string defaults in `application.yml`. Use only `GEMINI_API_KEY`, `SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`
+8. **MCP servers**: registered via REST API only (`POST /api/mcp/servers`). Do NOT hardcode in `application.yml`
+9. **Guard null userId**: always fall back to `"anonymous"`. Skipping the guard is a security vulnerability
+10. **Spring AI mock chain**: explicitly mock `.options(any<ChatOptions>())` in streaming tests
 
-### PR and CI Gate (Mandatory)
+## Code Rules
 
-- Required checks are merge gates: `build`, `integration`, `docker`
-- Do not merge if required checks are failing or pending
-- Keep PR branch up-to-date with target branch before merge when required checks enforce it
-- Dependency-only PRs default to squash merge unless maintainers request otherwise
+- All interfaces are coroutine-based (`suspend fun`). No blocking calls except `ArcToolCallbackAdapter` (Spring AI constraint)
+- Method ≤20 lines, line ≤120 chars. English-only comments and KDoc
+- Logging: `private val logger = KotlinLogging.logger {}` at file top-level, before the class
+- All controllers need `@Tag`. All endpoints need `@Operation(summary = "...")`
+- Admin auth: use `AdminAuthSupport.isAdmin(exchange)` and `forbiddenResponse()` — do NOT duplicate
 
-### Cost and LLM Governance
+## Extension Points
 
-- Any feature that adds LLM calls (for example, summarization/compression paths) must include cost impact review
-- For Slack-origin short operational questions, prefer low-cost model routes and keep expensive add-on paths opt-in
-- Capture and monitor per-request metrics: `llm_calls_total`, `prompt_tokens`, `completion_tokens`, `tool_calls_total`, `estimated_cost_usd`
-- PR descriptions for new LLM paths should include expected call-frequency delta and token/cost assumptions
-
-### Dependency Upgrade Policy
-
-- Patch/minor upgrades: merge after green CI and no behavior-risk findings
-- Major upgrades: require compatibility notes, migration impact, and rollback plan
-- Spring Boot major upgrades are blocked by default without explicit maintainer approval
-
-## Architecture
-
-Request flow: Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete) → Response
-
-- `SpringAiAgentExecutor` (~1,060 lines) — Core executor. Modify with caution
-- `ArcReactorAutoConfiguration` — All bean auto-configuration. Override via @ConditionalOnMissingBean
-- `ConversationManager` — Conversation history management, extracted from executor
-
-Details: @docs/en/architecture.md, @docs/en/tools.md, @docs/en/supervisor-pattern.md
-
-### Feature Toggles
-
-| Feature | Default | Property |
-|---------|---------|----------|
-| Guard | ON | `arc.reactor.guard.enabled` |
-| Unicode Normalization | ON | `arc.reactor.guard.unicode-normalization-enabled` |
-| Classification | OFF | `arc.reactor.guard.classification-enabled` |
-| LLM Classification | OFF | `arc.reactor.guard.classification-llm-enabled` |
-| Canary Token | OFF | `arc.reactor.guard.canary-token-enabled` |
-| Tool Output Sanitizer | OFF | `arc.reactor.guard.tool-output-sanitization-enabled` |
-| Guard Audit | ON | `arc.reactor.guard.audit-enabled` |
-| Security Headers | ON | `arc.reactor.security-headers.enabled` |
-| Auth (JWT) | OFF | `arc.reactor.auth.enabled` |
-| RAG | OFF | `arc.reactor.rag.enabled` |
-| CORS | OFF | `arc.reactor.cors.enabled` |
-| Circuit Breaker | OFF | `arc.reactor.circuit-breaker.enabled` |
-| Feedback | OFF | `arc.reactor.feedback.enabled` |
-| Memory Summary | OFF | `arc.reactor.memory.summary.enabled` |
-| Flyway | OFF | `SPRING_FLYWAY_ENABLED` env var |
-
-### Guard vs Hook Error Policy
-
-- **Guard**: Always **fail-close** — rejection = request blocked
-- **Hook**: Default **fail-open** (log & continue). Set `failOnError=true` for fail-close
-- IMPORTANT: Security-critical logic belongs in Guard, not Hook
-
-### Structured Output
-
-- `ResponseFormat`: `TEXT` (default), `JSON`, `YAML`
-- JSON/YAML validated via Jackson ObjectMapper / SnakeYAML after LLM response
-- Auto-strips markdown code fences (` ```json ` / ` ```yaml `)
-- Invalid output → one LLM repair call → still invalid → `INVALID_RESPONSE` error
-- Streaming mode rejects all non-TEXT formats (returns error chunk)
-
-### SSE Streaming Events
-
-`POST /api/chat/stream` emits 5 event types: `message` (LLM token), `tool_start`, `tool_end`, `error` (typed error), `done`
-
-### REST API Endpoints
-
-| Controller | Base Path | Condition |
-|------------|-----------|-----------|
-| ChatController | `/api/chat` | Always |
-| SessionController | `/api/sessions`, `/api/models` | Always |
-| PersonaController | `/api/personas` | Always |
-| PromptTemplateController | `/api/prompt-templates` | Always (write = Admin) |
-| McpServerController | `/api/mcp/servers` | Always (write = Admin) |
-| AuthController | `/api/auth` | `auth.enabled=true` |
-| DocumentController | `/api/documents` | `rag.enabled=true` |
-
-### System Prompt Resolution (priority order)
-
-1. `personaId` → PersonaStore lookup
-2. `promptTemplateId` → active PromptVersion content
-3. `request.systemPrompt` → direct override
-4. Default Persona (`isDefault=true`) from PersonaStore
-5. Hardcoded fallback: "You are a helpful AI assistant..."
-
-### Admin Access Control
-
-- Admin-only: Persona/Document/MCP server/PromptTemplate write ops
-- Shared utility: `AdminAuthSupport.kt` — `isAdmin(exchange)` + `forbiddenResponse()`
-- **MUST use shared functions** — do NOT duplicate `isAdmin`/`forbidden` in individual controllers
-- `isAdmin()` = `role == null || role == ADMIN` — when auth is disabled, **all requests treated as admin**
-- Session ownership: `SessionController` uses its own `sessionForbidden()` (different error message)
-
-### Error Responses
-
-- **Standard DTO**: `ErrorResponse(error, details?, timestamp)` from `GlobalExceptionHandler.kt`
-- All 403 responses MUST include `ErrorResponse` body (never empty `build()`)
-- All error `mapOf(...)` patterns replaced with `ErrorResponse` — maintain consistency
-- `GlobalExceptionHandler`: validation→400 (field errors), input→400, generic→500 (masked, no stack trace)
-
-### Error Codes
-
-`RATE_LIMITED` | `TIMEOUT` | `CONTEXT_TOO_LONG` | `TOOL_ERROR` | `GUARD_REJECTED` | `HOOK_REJECTED` | `INVALID_RESPONSE` | `CIRCUIT_BREAKER_OPEN` | `UNKNOWN` — Override via `ErrorMessageResolver` (i18n)
-
-### Key Defaults
-
-| Property | Default | Property | Default |
-|----------|---------|----------|---------|
-| `max-tool-calls` | 10 | `concurrency.request-timeout-ms` | 30000 |
-| `max-tools-per-request` | 20 | `concurrency.tool-call-timeout-ms` | 15000 |
-| `llm.temperature` | 0.3 | `guard.rate-limit-per-minute` | 10 |
-| `llm.max-context-window-tokens` | 128000 | `guard.max-input-length` | 10000 |
-| `boundaries.input-max-chars` | 5000 | | |
-
-Full config: see `agent/config/AgentPolicyAndFeatureProperties.kt`
-
-## Code Conventions
-
-- `suspend fun` everywhere — executor, tool, guard, hook are all coroutine-based
-- **Method ≤20 lines, line ≤120 chars**. All comments and KDoc in English
-- Logging: top-level `private val logger = KotlinLogging.logger {}` before class
-- Null handling: `content.orEmpty()` over `content!!`, elvis `?: "anonymous"` for fallbacks
-- `compileOnly` = optional dependency. Example packages: `@Component` always commented out
-- Interfaces at package root, implementations in `impl/`, data classes in `model/`
-- Swagger: All controllers MUST have `@Tag`. All endpoints MUST have `@Operation(summary = "...")`
+| Component | Rule |
+|-----------|------|
+| ToolCallback | Return `"Error: ..."` strings — never throw |
+| GuardStage | Built-in use orders 1–5. Custom: start at 10+ |
+| Hook | Wrap in try-catch. Always rethrow `CancellationException` |
+| Bean | `@ConditionalOnMissingBean` required. `ObjectProvider<T>` for optional deps |
 
 ## Testing Rules
 
-- **All new features must have tests**. Every bug fix must include a regression test
-- **Run `./gradlew test` after every change**
-- **PR CI gate is mandatory**: open/merge PRs only when required checks (`build`, `integration`, `docker`) are green
-- If CI fails, fix root cause (or update the PR with explicit rationale) before requesting/continuing review
-- `AgentTestFixture` for agent tests: `mockCallResponse()`, `mockToolCallResponse()`, `mockFinalResponse()`, `TrackingTool`
-- `AgentResultAssertions`: `assertSuccess()`, `assertFailure()`, `assertErrorCode()`, `assertErrorContains()`
-- IMPORTANT: ALL assertions MUST have failure messages — no bare `assertTrue(x)`
-- `assertInstanceOf` over `assertTrue(x is Type)` — returns cast object
-- `@Nested` inner classes for logical grouping. `AtomicInteger` for concurrency counting
-- `coEvery`/`coVerify` for suspend mocks, `runTest` preferred over `runBlocking`
-- Mock `requestSpec.options(any<ChatOptions>())` explicitly for streaming tests
+- Every new feature needs tests. Every bug fix needs a regression test
+- Use `AgentTestFixture`: `mockCallResponse()`, `mockToolCallResponse()`, `mockFinalResponse()`, `TrackingTool`
+- Use `AgentResultAssertions`: `assertSuccess()`, `assertFailure()`, `assertErrorCode()`, `assertErrorContains()`
+- ALL assertions must have failure messages — no bare `assertTrue(x)`
+- `coEvery`/`coVerify` for suspend mocks. Prefer `runTest` over `runBlocking`
 
-### Test Portfolio Strategy (Open-source, Risk-first)
+## PR Rules
 
-- Do not maximize test count blindly; maximize defect detection per maintenance cost
-- Require tests for critical invariants: security boundaries, tenant isolation, authz, persistence integrity, orchestration loops
-- Use the fastest meaningful level first: unit for pure logic/edges, slice/integration for wiring and persistence behavior, end-to-end only for top user journeys and cross-module contracts
-- Keep slow or environment-sensitive tests explicitly tagged and out of default fast loops
-- Add regression tests for every production bug with a failing-before/fixed-after assertion
-- Avoid brittle tests that lock internal implementation details instead of observable behavior
-
-### Test Execution Cadence
-
-- Local loop (fast): run focused test targets for touched packages/classes
-- Pre-push gate: run full `./gradlew test`
-- CI gate: required checks plus optional profile tests when relevant (`-Pdb=true`, `-Pauth=true`, `-PincludeIntegration`)
-
-For test patterns and examples: @docs/en/implementation-guide.md
-
-## Implementation Guide
-
-When adding new ToolCallback, GuardStage, Hook, or Bean — follow templates in @docs/en/implementation-guide.md
-
-Key rules:
-- **ToolCallback**: Return errors as strings (`"Error: ..."`) — do NOT throw exceptions
-- **GuardStage**: order 1-5 are built-in stages. Use 10+ for custom stages
-- **Hook**: MUST wrap logic in try-catch. Always rethrow `CancellationException`
-- **Bean**: `@ConditionalOnMissingBean` on all beans. `ObjectProvider<T>` for optional deps. JDBC stores use `@Primary`
-
-## MCP Registration
-
-- **IMPORTANT: MCP servers are registered ONLY via REST API**, never hardcoded
-- **Do NOT** add MCP server URLs in `application.yml` or create MCP configuration classes
-
-```
-POST /api/mcp/servers
-SSE:   { "name": "my-server", "transportType": "SSE", "config": { "url": "http://localhost:8081/sse" } }
-STDIO: { "name": "fs-server", "transportType": "STDIO", "config": { "command": "npx", "args": [...] } }
-```
-
-- `autoConnect` defaults to `true`. SSE timeout: 30s. Output truncated at 50,000 chars
-- HTTP transport: **NOT supported** in MCP SDK 0.17.2
-- Persistence: InMemory (default, lost on restart) or JDBC (auto with DataSource)
-
-## Critical Gotchas
-
-- **MUST: CancellationException** — Always catch & rethrow before generic `Exception` in ALL `suspend fun`. Prevents breaking structured concurrency
-- **MUST: ReAct loop** — On maxToolCalls reached, set `activeTools = emptyList()`. Logging only → infinite loop
-- **MUST: .forEach in coroutines** — Use `for` loop instead. `.forEach {}` creates non-suspend lambda
-- **Context trimming**: Protect last UserMessage. Phase 2 guard uses `>` (not `>=`)
-- **Message pair integrity**: AssistantMessage(toolCalls) + ToolResponseMessage — always remove together
-- **Guard null userId**: Use "anonymous" fallback. Skipping guard = security vulnerability
-- **toolsUsed**: Only add after confirming adapter exists (prevents LLM-hallucinated tool names)
-- **Hook/Memory**: Always wrap in try-catch, log errors, never let exceptions propagate
-- **AssistantMessage**: Constructor is protected → use `AssistantMessage.builder().content().toolCalls().build()`
-- **Spring AI mock chain**: Explicitly mock `.options(any<ChatOptions>())` returns requestSpec
-- **Spring AI providers**: NEVER declare provider keys with empty defaults in `application.yml`. Use env vars only: `GEMINI_API_KEY`, `SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`
-- **MCP SDK**: Follow version pinned in `build.gradle.kts`. Do not hardcode transport assumptions; verify support matrix before adding new transport behavior
-
-For code examples of anti-patterns: @docs/en/implementation-guide.md
-
-## Domain Terms
-
-- **ReAct**: Reasoning + Acting loop (LLM thinks → uses tools → repeats)
-- **Guard**: Pre-validation pipeline (5 stages, fail-close)
-- **Hook**: Lifecycle extensions (4 types, default fail-open)
-- **MCP**: Model Context Protocol (external tool servers)
-- **WorkerAgentTool**: Agent wrapped as ToolCallback (Supervisor pattern core)
-
-## Key Files
-
-| File | Role |
-|------|------|
-| `agent/impl/SpringAiAgentExecutor.kt` | Core ReAct loop, retry, context management |
-| `agent/multi/SupervisorOrchestrator.kt` | Multi-agent orchestration |
-| `autoconfigure/ArcReactorAutoConfiguration.kt` | All bean auto-configuration |
-| `agent/config/AgentProperties.kt` | All settings (`arc.reactor.*`) |
-| `test/../AgentTestFixture.kt` | Test shared mock setup |
+- Include cost impact notes for any PR that adds LLM calls
+- Patch/minor dep upgrades: merge after green CI. Major: migration notes + rollback plan required
+- Spring Boot major upgrades are blocked without explicit maintainer approval
