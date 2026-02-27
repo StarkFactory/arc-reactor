@@ -131,6 +131,13 @@ management:
       probes:
         enabled: true
 
+# ----- Spring WebFlux Multipart (optional override) -----
+# Uncomment to cap in-memory buffer before Arc Reactor's per-file limit is evaluated.
+# spring:
+#   webflux:
+#     multipart:
+#       max-in-memory-size: 10MB
+
 # ----- Logging -----
 logging:
   level:
