@@ -18,7 +18,9 @@ import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.guard.RequestGuard
+import com.arc.reactor.guard.canary.SystemPromptPostProcessor
 import com.arc.reactor.guard.output.OutputGuardPipeline
+import com.arc.reactor.guard.tool.ToolOutputSanitizer
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.hook.model.HookContext
@@ -87,7 +89,9 @@ class SpringAiAgentExecutor(
     private val fallbackStrategy: FallbackStrategy? = null,
     private val outputGuardPipeline: OutputGuardPipeline? = null,
     private val intentResolver: IntentResolver? = null,
-    private val blockedIntents: Set<String> = emptySet()
+    private val blockedIntents: Set<String> = emptySet(),
+    private val systemPromptPostProcessor: SystemPromptPostProcessor? = null,
+    private val toolOutputSanitizer: ToolOutputSanitizer? = null
 ) : AgentExecutor {
 
     init {
@@ -100,7 +104,7 @@ class SpringAiAgentExecutor(
 
     private val concurrencySemaphore = Semaphore(properties.concurrency.maxConcurrentRequests)
     private val runContextManager = AgentRunContextManager()
-    private val systemPromptBuilder = SystemPromptBuilder()
+    private val systemPromptBuilder = SystemPromptBuilder(postProcessor = systemPromptPostProcessor)
     private val ragContextRetriever = RagContextRetriever(
         enabled = properties.rag.enabled,
         topK = properties.rag.topK,
@@ -136,7 +140,8 @@ class SpringAiAgentExecutor(
         hookExecutor = hookExecutor,
         toolApprovalPolicy = toolApprovalPolicy,
         pendingApprovalStore = pendingApprovalStore,
-        agentMetrics = agentMetrics
+        agentMetrics = agentMetrics,
+        toolOutputSanitizer = toolOutputSanitizer
     )
     private val retryExecutor = RetryExecutor(
         retry = properties.retry,
@@ -164,7 +169,8 @@ class SpringAiAgentExecutor(
         boundaries = properties.boundaries,
         conversationManager = conversationManager,
         hookExecutor = hookExecutor,
-        agentMetrics = agentMetrics
+        agentMetrics = agentMetrics,
+        outputGuardPipeline = outputGuardPipeline
     )
     private val streamingFlowLifecycleCoordinator = StreamingFlowLifecycleCoordinator(
         streamingCompletionFinalizer = streamingCompletionFinalizer,

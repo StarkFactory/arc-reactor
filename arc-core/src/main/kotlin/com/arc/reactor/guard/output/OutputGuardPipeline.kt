@@ -21,7 +21,10 @@ private val logger = KotlinLogging.logger {}
  *
  * If all stages pass, returns the final [OutputGuardResult] (Allowed or last Modified).
  */
-class OutputGuardPipeline(stages: List<OutputGuardStage>) {
+class OutputGuardPipeline(
+    stages: List<OutputGuardStage>,
+    private val onStageComplete: ((stage: String, action: String, reason: String) -> Unit)? = null
+) {
 
     private val sorted: List<OutputGuardStage> = stages
         .filter { it.enabled }
@@ -54,14 +57,19 @@ class OutputGuardPipeline(stages: List<OutputGuardStage>) {
             }
 
             when (result) {
-                is OutputGuardResult.Allowed -> continue
+                is OutputGuardResult.Allowed -> {
+                    onStageComplete?.invoke(stage.stageName, "allowed", "")
+                    continue
+                }
                 is OutputGuardResult.Modified -> {
                     logger.info { "OutputGuardStage '${stage.stageName}' modified content: ${result.reason}" }
+                    onStageComplete?.invoke(stage.stageName, "modified", result.reason)
                     currentContent = result.content
                     lastModified = result.copy(stage = stage.stageName)
                 }
                 is OutputGuardResult.Rejected -> {
                     logger.warn { "OutputGuardStage '${stage.stageName}' rejected: ${result.reason}" }
+                    onStageComplete?.invoke(stage.stageName, "rejected", result.reason)
                     return result.copy(stage = stage.stageName)
                 }
             }

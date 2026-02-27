@@ -1,6 +1,7 @@
 package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.guard.output.OutputGuardPipeline
 import com.arc.reactor.guard.output.OutputGuardStage
 import com.arc.reactor.guard.output.impl.DynamicRuleOutputGuard
@@ -63,6 +64,14 @@ class OutputGuardConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    fun outputGuardPipeline(stages: List<OutputGuardStage>): OutputGuardPipeline =
-        OutputGuardPipeline(stages)
+    fun outputGuardPipeline(
+        stages: List<OutputGuardStage>,
+        agentMetrics: AgentMetrics
+    ): OutputGuardPipeline =
+        OutputGuardPipeline(
+            stages = stages,
+            onStageComplete = { stage, action, reason ->
+                agentMetrics.recordOutputGuardAction(stage, action, reason)
+            }
+        )
 }

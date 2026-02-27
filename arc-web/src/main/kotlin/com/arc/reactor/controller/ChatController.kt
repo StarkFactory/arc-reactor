@@ -7,7 +7,6 @@ import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.auth.AuthProperties
-import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.intent.model.ClassificationContext
 import com.arc.reactor.memory.MemoryStore
@@ -68,6 +67,10 @@ class ChatController(
     private val intentResolver: IntentResolver? = null,
     private val memoryStore: MemoryStore? = null
 ) {
+    private val systemPromptResolver = SystemPromptResolver(
+        personaStore = personaStore,
+        promptTemplateStore = promptTemplateStore
+    )
 
     /**
      * Standard chat - returns the full response at once
@@ -88,7 +91,7 @@ class ChatController(
             systemPrompt = resolveSystemPrompt(request),
             userPrompt = request.message,
             model = request.model,
-            userId = resolveUserId(exchange, request),
+            userId = resolveUserId(exchange, request.userId),
             metadata = resolveMetadata(request, exchange),
             responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
             responseSchema = request.responseSchema,
@@ -149,7 +152,7 @@ class ChatController(
             systemPrompt = resolveSystemPrompt(request),
             userPrompt = request.message,
             model = request.model,
-            userId = resolveUserId(exchange, request),
+            userId = resolveUserId(exchange, request.userId),
             metadata = resolveMetadata(request, exchange),
             responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
             responseSchema = request.responseSchema,
@@ -171,7 +174,7 @@ class ChatController(
                 )
             }
 
-        val userId = resolveUserId(exchange, request)
+        val userId = resolveUserId(exchange, request.userId)
         return eventFlow.asFlux()
             .doOnCancel { logger.debug { "SSE stream cancelled by client (userId=$userId)" } }
     }
@@ -225,62 +228,19 @@ class ChatController(
     }
 
     /**
-     * Resolve userId with priority:
-     * 1. JWT token (from WebFilter via exchange attributes)
-     * 2. Request body userId field
-     * 3. "anonymous" fallback
-     */
-    private fun resolveUserId(exchange: ServerWebExchange, request: ChatRequest): String {
-        return exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
-            ?: request.userId
-            ?: "anonymous"
-    }
-
-    /**
      * Resolve the system prompt with priority:
-     * 1. personaId → lookup from PersonaStore
-     * 2. promptTemplateId → active version from PromptTemplateStore
-     * 3. request.systemPrompt → direct override
-     * 4. Default persona from PersonaStore
-     * 5. Hardcoded fallback
+     * 1. personaId
+     * 2. promptTemplateId
+     * 3. request.systemPrompt
+     * 4. default persona
+     * 5. hardcoded fallback
      */
     private fun resolveSystemPrompt(request: ChatRequest): String {
-        request.personaId?.let { personaId ->
-            resolvePersonaPromptSafely(personaId)?.let { return it }
-        }
-        request.promptTemplateId?.let { promptTemplateId ->
-            resolveTemplatePromptSafely(promptTemplateId)?.let { return it }
-        }
-        if (!request.systemPrompt.isNullOrBlank()) return request.systemPrompt
-        resolveDefaultPersonaPromptSafely()?.let { return it }
-        return DEFAULT_SYSTEM_PROMPT
-    }
-
-    private fun resolvePersonaPromptSafely(personaId: String): String? {
-        return try {
-            personaStore?.get(personaId)?.systemPrompt
-        } catch (e: Exception) {
-            logger.warn(e) { "Persona lookup failed for personaId='$personaId'; falling back to default prompt" }
-            null
-        }
-    }
-
-    private fun resolveTemplatePromptSafely(promptTemplateId: String): String? {
-        return try {
-            promptTemplateStore?.getActiveVersion(promptTemplateId)?.content
-        } catch (e: Exception) {
-            logger.warn(e) { "Prompt template lookup failed for promptTemplateId='$promptTemplateId'" }
-            null
-        }
-    }
-
-    private fun resolveDefaultPersonaPromptSafely(): String? {
-        return try {
-            personaStore?.getDefault()?.systemPrompt
-        } catch (e: Exception) {
-            logger.warn(e) { "Default persona lookup failed; using hardcoded fallback system prompt" }
-            null
-        }
+        return systemPromptResolver.resolve(
+            personaId = request.personaId,
+            promptTemplateId = request.promptTemplateId,
+            systemPrompt = request.systemPrompt
+        )
     }
 
     /**
@@ -353,11 +313,6 @@ class ChatController(
         return uri
     }
 
-    companion object {
-        internal const val DEFAULT_SYSTEM_PROMPT =
-            "You are a helpful AI assistant. You can use tools when needed. " +
-                "Answer in the same language as the user's message."
-    }
 }
 
 /**

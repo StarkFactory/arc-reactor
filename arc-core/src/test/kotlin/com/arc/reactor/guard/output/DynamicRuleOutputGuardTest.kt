@@ -103,4 +103,82 @@ class DynamicRuleOutputGuardTest {
         val second = guard.check("password: x", context)
         (second as OutputGuardResult.Modified).content shouldBe "[REDACTED]"
     }
+
+    @Test
+    fun `empty store returns Allowed`() = runTest {
+        val store = InMemoryOutputGuardRuleStore()
+        val guard = DynamicRuleOutputGuard(store, refreshIntervalMs = 0)
+
+        val result = guard.check("any content here", context)
+        result shouldBe OutputGuardResult.Allowed.DEFAULT
+    }
+
+    @Test
+    fun `disabled rule is skipped`() = runTest {
+        val store = InMemoryOutputGuardRuleStore()
+        store.save(
+            OutputGuardRule(
+                name = "Disabled rule",
+                pattern = "(?i)secret",
+                action = OutputGuardRuleAction.REJECT,
+                enabled = false
+            )
+        )
+        val guard = DynamicRuleOutputGuard(store, refreshIntervalMs = 0)
+
+        val result = guard.check("this is SECRET", context)
+        result shouldBe OutputGuardResult.Allowed.DEFAULT
+    }
+
+    @Test
+    fun `cache serves stale rules within refresh interval`() = runTest {
+        val store = InMemoryOutputGuardRuleStore()
+        val saved = store.save(
+            OutputGuardRule(
+                name = "Mask secret",
+                pattern = "(?i)secret",
+                action = OutputGuardRuleAction.MASK
+            )
+        )
+        // Long refresh interval — cache will NOT reload after store changes
+        val guard = DynamicRuleOutputGuard(store, refreshIntervalMs = 60_000)
+
+        // First call loads cache
+        val first = guard.check("SECRET data", context)
+        (first is OutputGuardResult.Modified) shouldBe true
+
+        // Delete rule from store — but cache won't reload due to long interval
+        store.delete(saved.id)
+
+        // Should still match because cache is stale (within refresh interval)
+        val second = guard.check("SECRET data", context)
+        (second is OutputGuardResult.Modified) shouldBe true
+    }
+
+    @Test
+    fun `multiple mask rules apply cumulatively`() = runTest {
+        val store = InMemoryOutputGuardRuleStore()
+        store.save(
+            OutputGuardRule(
+                name = "Mask password",
+                pattern = "(?i)password\\s*:\\s*\\S+",
+                action = OutputGuardRuleAction.MASK,
+                priority = 10
+            )
+        )
+        store.save(
+            OutputGuardRule(
+                name = "Mask email",
+                pattern = "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+                action = OutputGuardRuleAction.MASK,
+                priority = 20
+            )
+        )
+        val guard = DynamicRuleOutputGuard(store, refreshIntervalMs = 0)
+
+        val result = guard.check("password: abc123 and email: user@test.com", context)
+        val modified = result as OutputGuardResult.Modified
+        (modified.content.contains("abc123")) shouldBe false
+        (modified.content.contains("user@test.com")) shouldBe false
+    }
 }

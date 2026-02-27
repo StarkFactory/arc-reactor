@@ -35,15 +35,24 @@ For Gradle module boundaries and runtime assembly entrypoints, see
 
 ### 1. Guard Pipeline (Security Checks)
 
+**Input Guard** (before execution):
 ```
-Request → RateLimit → InputValidation → InjectionDetection → Classification → Permission → Pass
-          (10/min)    (10,000 char limit) (prompt injection)    (categorization)  (authorization)
+Request → UnicodeNorm → RateLimit → InputValidation → InjectionDetection → Classification → Pass
+          (order=0)     (10/min)    (10,000 chars)     (28 regex patterns)    (opt-in)
 ```
 
-- Each stage implements the `GuardStage` interface
+**Output Guard** (after execution):
+```
+Response → SystemPromptLeakage → PiiMasking → DynamicRule → RegexPattern → Pass
+           (opt-in, order=5)     (order=10)    (order=15)    (order=20)
+```
+
+- 5-layer defense architecture aligned with OWASP LLM Top 10 (2025)
+- Each stage implements `GuardStage` (input) or `OutputGuardStage` (output)
 - Execution order is determined by the `order` field (lower values execute first)
 - If any stage returns `Rejected`, processing stops immediately
 - Register as a `@Component` bean and it is automatically added to the pipeline
+- See [Guard & Hook Guide](guard-hook.md) for full layer details and OWASP coverage
 
 ### 2. Hook System (Lifecycle)
 
@@ -178,6 +187,7 @@ Implement `ErrorMessageResolver` to customize error messages (e.g., localization
 | `AgentMetrics` | `@ConditionalOnMissingBean` | NoOpAgentMetrics |
 | `TokenEstimator` | `@ConditionalOnMissingBean` | DefaultTokenEstimator |
 | `HookExecutor` | Collects registered Hook beans | Empty Hook list |
-| `RequestGuard` | `guard.enabled = true` | RateLimit + InputValidation + InjectionDetection |
+| `RequestGuard` | `guard.enabled = true` | UnicodeNorm + RateLimit + InputValidation + InjectionDetection |
+| `OutputGuardPipeline` | Output guard stages present | PiiMasking, DynamicRule, RegexPattern (opt-in each) |
 
 All beans are declared with `@ConditionalOnMissingBean`, so registering your own bean will override the auto-configured default.

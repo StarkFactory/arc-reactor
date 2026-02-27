@@ -36,7 +36,8 @@ internal class PreExecutionResolver(
             GuardCommand(
                 userId = userId,
                 text = command.userPrompt,
-                systemPrompt = command.systemPrompt
+                systemPrompt = command.systemPrompt,
+                metadata = command.metadata
             )
         )
         return result as? GuardResult.Rejected

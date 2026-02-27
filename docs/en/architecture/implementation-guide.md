@@ -24,7 +24,7 @@ class MyTool : ToolCallback {
 ```kotlin
 class MyGuard : GuardStage {
     override val stageName = "MyGuard"
-    override val order = 35  // 1=RateLimit 2=InputValidation 3=Injection 4=Classification 5=Permission
+    override val order = 35  // 0=UnicodeNorm 1=RateLimit 2=InputValidation 3=Injection 4=Classification 5=Permission 6=TopicDrift
     override suspend fun check(command: GuardCommand): GuardResult {
         if (invalid) return GuardResult.Rejected("reason", RejectionCategory.INVALID_INPUT, stageName)
         return GuardResult.Allowed.DEFAULT

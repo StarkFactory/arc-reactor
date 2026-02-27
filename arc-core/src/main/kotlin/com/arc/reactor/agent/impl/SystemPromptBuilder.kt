@@ -1,8 +1,11 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.model.ResponseFormat
+import com.arc.reactor.guard.canary.SystemPromptPostProcessor
 
-class SystemPromptBuilder {
+class SystemPromptBuilder(
+    private val postProcessor: SystemPromptPostProcessor? = null
+) {
 
     fun build(
         basePrompt: String,
@@ -22,7 +25,8 @@ class SystemPromptBuilder {
             ResponseFormat.TEXT -> {}
         }
 
-        return parts.joinToString("\n\n")
+        val result = parts.joinToString("\n\n")
+        return postProcessor?.process(result) ?: result
     }
 
     private fun buildJsonInstruction(responseSchema: String?): String = buildString {

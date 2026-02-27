@@ -10,8 +10,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.withTimeoutOrNull
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -23,9 +21,11 @@ class SlackCommandProcessor(
     properties: SlackProperties
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val semaphore = Semaphore(properties.maxConcurrentRequests)
-    private val requestTimeoutMs = properties.requestTimeoutMs
-    private val failFastOnSaturation = properties.failFastOnSaturation
+    private val backpressureLimiter = SlackBackpressureLimiter(
+        maxConcurrentRequests = properties.maxConcurrentRequests,
+        requestTimeoutMs = properties.requestTimeoutMs,
+        failFastOnSaturation = properties.failFastOnSaturation
+    )
     private val notifyOnDrop = properties.notifyOnDrop
 
     fun submit(command: SlackSlashCommand, entrypoint: String): Boolean {
@@ -34,7 +34,7 @@ class SlackCommandProcessor(
     }
 
     private fun processAsync(command: SlackSlashCommand, entrypoint: String): Boolean {
-        if (failFastOnSaturation && !semaphore.tryAcquire()) {
+        if (backpressureLimiter.rejectImmediatelyIfConfigured()) {
             logger.warn {
                 "Slack slash command rejected due to saturation: " +
                     "entrypoint=$entrypoint, channel=${command.channelId}"
@@ -48,26 +48,24 @@ class SlackCommandProcessor(
         }
 
         scope.launch {
-            if (!failFastOnSaturation) {
-                val acquired = acquirePermitWithTimeout()
-                if (!acquired) {
-                    logger.warn {
-                        "Slack slash command dropped due to queue timeout: " +
-                            "entrypoint=$entrypoint, channel=${command.channelId}"
-                    }
-                    metricsRecorder.recordDropped(
-                        entrypoint = entrypoint,
-                        reason = "queue_timeout",
-                        eventType = command.command
-                    )
-                    if (notifyOnDrop) {
-                        messagingService.sendResponseUrl(
-                            responseUrl = command.responseUrl,
-                            text = BUSY_RESPONSE_TEXT
-                        )
-                    }
-                    return@launch
+            val acquired = backpressureLimiter.acquireForQueuedMode()
+            if (!acquired) {
+                logger.warn {
+                    "Slack slash command dropped due to queue timeout: " +
+                        "entrypoint=$entrypoint, channel=${command.channelId}"
                 }
+                metricsRecorder.recordDropped(
+                    entrypoint = entrypoint,
+                    reason = "queue_timeout",
+                    eventType = command.command
+                )
+                if (notifyOnDrop) {
+                    messagingService.sendResponseUrl(
+                        responseUrl = command.responseUrl,
+                        text = BUSY_RESPONSE_TEXT
+                    )
+                }
+                return@launch
             }
 
             val started = System.currentTimeMillis()
@@ -89,21 +87,10 @@ class SlackCommandProcessor(
                     durationMs = System.currentTimeMillis() - started
                 )
             } finally {
-                semaphore.release()
+                backpressureLimiter.release()
             }
         }
         return true
-    }
-
-    private suspend fun acquirePermitWithTimeout(): Boolean {
-        if (requestTimeoutMs <= 0) {
-            semaphore.acquire()
-            return true
-        }
-        return withTimeoutOrNull(requestTimeoutMs) {
-            semaphore.acquire()
-            true
-        } ?: false
     }
 
     companion object {
