@@ -3,5 +3,6 @@
 기여자 대상 엔지니어링 문서 모음입니다.
 
 - [테스트/성능 가이드](testing-and-performance.md)
+- [PR/CI/릴리즈 운영 프로세스](ci-pr-release-process.md)
 - [시나리오 가정 검증](scenario-assumption-validation.md)
 - [Spring AI 버그 컨트리뷰션](spring-ai-bug-contribution.md)
