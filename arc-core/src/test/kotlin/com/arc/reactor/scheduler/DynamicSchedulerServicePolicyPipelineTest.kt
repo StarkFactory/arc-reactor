@@ -30,8 +30,8 @@ class DynamicSchedulerServicePolicyPipelineTest {
 
         every { tool.name } returns "danger_tool"
         coEvery { tool.call(any()) } returns "ok"
-        coEvery { mcpManager.ensureConnected(job.mcpServerName) } returns true
-        every { mcpManager.getToolCallbacks(job.mcpServerName) } returns listOf(tool)
+        coEvery { mcpManager.ensureConnected(job.mcpServerName!!) } returns true
+        every { mcpManager.getToolCallbacks(job.mcpServerName!!) } returns listOf(tool)
 
         val hookExecutor = HookExecutor(
             beforeToolCallHooks = listOf(object : BeforeToolCallHook {
@@ -67,8 +67,8 @@ class DynamicSchedulerServicePolicyPipelineTest {
 
         every { tool.name } returns "danger_tool"
         coEvery { tool.call(any()) } returns "ok"
-        coEvery { mcpManager.ensureConnected(job.mcpServerName) } returns true
-        every { mcpManager.getToolCallbacks(job.mcpServerName) } returns listOf(tool)
+        coEvery { mcpManager.ensureConnected(job.mcpServerName!!) } returns true
+        every { mcpManager.getToolCallbacks(job.mcpServerName!!) } returns listOf(tool)
         every { approvalPolicy.requiresApproval("danger_tool", any()) } returns true
         coEvery {
             pendingApprovalStore.requestApproval(
@@ -115,8 +115,8 @@ class DynamicSchedulerServicePolicyPipelineTest {
 
         every { tool.name } returns "danger_tool"
         coEvery { tool.call(any()) } returns "ok"
-        coEvery { mcpManager.ensureConnected(job.mcpServerName) } returns true
-        every { mcpManager.getToolCallbacks(job.mcpServerName) } returns listOf(tool)
+        coEvery { mcpManager.ensureConnected(job.mcpServerName!!) } returns true
+        every { mcpManager.getToolCallbacks(job.mcpServerName!!) } returns listOf(tool)
         every { approvalPolicy.requiresApproval("danger_tool", any()) } returns true
 
         val service = DynamicSchedulerService(
@@ -146,8 +146,8 @@ class DynamicSchedulerServicePolicyPipelineTest {
 
         every { tool.name } returns "danger_tool"
         coEvery { tool.call(any()) } returns "ok"
-        coEvery { mcpManager.ensureConnected(job.mcpServerName) } returns true
-        every { mcpManager.getToolCallbacks(job.mcpServerName) } returns listOf(tool)
+        coEvery { mcpManager.ensureConnected(job.mcpServerName!!) } returns true
+        every { mcpManager.getToolCallbacks(job.mcpServerName!!) } returns listOf(tool)
         every { approvalPolicy.requiresApproval("danger_tool", any()) } returns true
         coEvery {
             pendingApprovalStore.requestApproval(
@@ -194,8 +194,8 @@ class DynamicSchedulerServicePolicyPipelineTest {
         val pendingApprovalStore = mockk<PendingApprovalStore>()
 
         every { tool.name } returns "danger_tool"
-        coEvery { mcpManager.ensureConnected(job.mcpServerName) } returns true
-        every { mcpManager.getToolCallbacks(job.mcpServerName) } returns listOf(tool)
+        coEvery { mcpManager.ensureConnected(job.mcpServerName!!) } returns true
+        every { mcpManager.getToolCallbacks(job.mcpServerName!!) } returns listOf(tool)
         every { approvalPolicy.requiresApproval("danger_tool", any()) } returns true
         coEvery {
             pendingApprovalStore.requestApproval(

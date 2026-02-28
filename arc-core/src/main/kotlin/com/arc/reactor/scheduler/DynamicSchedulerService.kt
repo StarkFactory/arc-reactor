@@ -1,5 +1,7 @@
 package com.arc.reactor.scheduler
 
+import com.arc.reactor.agent.AgentExecutor
+import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.hook.HookExecutor
@@ -8,6 +10,7 @@ import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.mcp.McpManager
+import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
 import kotlinx.coroutines.runBlocking
@@ -26,15 +29,16 @@ private val logger = KotlinLogging.logger {}
 /**
  * Dynamic Scheduler Service
  *
- * Manages cron-scheduled MCP tool executions at runtime.
+ * Manages cron-scheduled job executions at runtime.
  * Jobs can be created, updated, deleted, and triggered manually via REST API.
  *
+ * Supports two execution modes:
+ * - **MCP_TOOL**: Directly invokes a single MCP tool (original behavior).
+ * - **AGENT**: Runs the full ReAct agent loop, allowing the LLM to reason over
+ *   multiple MCP tools and produce a natural-language summary.
+ *
  * On startup, loads all enabled jobs from the store and registers cron triggers.
- * Each job execution:
- * 1. Ensures the MCP server is connected
- * 2. Finds and invokes the target tool
- * 3. Optionally sends result to Slack via SlackMessageSender
- * 4. Records execution status in the store
+ * Each job execution optionally sends its result to a Slack channel.
  */
 class DynamicSchedulerService(
     private val store: ScheduledJobStore,
@@ -43,12 +47,15 @@ class DynamicSchedulerService(
     private val slackMessageSender: SlackMessageSender? = null,
     private val hookExecutor: HookExecutor? = null,
     private val toolApprovalPolicy: ToolApprovalPolicy? = null,
-    private val pendingApprovalStore: PendingApprovalStore? = null
+    private val pendingApprovalStore: PendingApprovalStore? = null,
+    private val agentExecutor: AgentExecutor? = null,
+    private val personaStore: PersonaStore? = null
 ) {
 
     companion object {
         private const val SCHEDULER_ACTOR = "scheduler"
         private const val SCHEDULER_CHANNEL = "scheduler"
+        private const val DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant."
     }
 
     private val scheduledFutures = ConcurrentHashMap<String, ScheduledFuture<*>>()
@@ -101,10 +108,11 @@ class DynamicSchedulerService(
             val future = taskScheduler.schedule({ executeJob(job) }, trigger)
             if (future != null) {
                 scheduledFutures[job.id] = future
-                logger.info {
-                    "Registered cron job: ${job.name} [${job.cronExpression}] " +
-                        "→ ${job.mcpServerName}/${job.toolName}"
+                val target = when (job.jobType) {
+                    ScheduledJobType.MCP_TOOL -> "→ ${job.mcpServerName}/${job.toolName}"
+                    ScheduledJobType.AGENT -> "→ agent(personaId=${job.personaId})"
                 }
+                logger.info { "Registered cron job: ${job.name} [${job.cronExpression}] $target" }
             } else {
                 val message = "Failed to register cron job '${job.name}': scheduler returned null future"
                 logger.warn { message }
@@ -132,6 +140,48 @@ class DynamicSchedulerService(
 
     private fun cancelJob(id: String) {
         scheduledFutures.remove(id)?.cancel(false)
+    }
+
+    private fun executeJob(job: ScheduledJob): String {
+        logger.info { "Executing scheduled job: ${job.name} [${job.jobType}]" }
+        store.updateExecutionResult(job.id, JobExecutionStatus.RUNNING, null)
+
+        return try {
+            val result = when (job.jobType) {
+                ScheduledJobType.MCP_TOOL -> executeMcpToolJob(job)
+                ScheduledJobType.AGENT -> executeAgentJob(job)
+            }
+
+            sendSlackIfConfigured(job, result)
+            store.updateExecutionResult(job.id, JobExecutionStatus.SUCCESS, result)
+            logger.info { "Scheduled job completed: ${job.name}" }
+            result
+        } catch (e: Exception) {
+            val errorMsg = "Job '${job.name}' failed: ${e.message}"
+            logger.error(e) { errorMsg }
+            store.updateExecutionResult(job.id, JobExecutionStatus.FAILED, errorMsg)
+            errorMsg
+        }
+    }
+
+    // ── MCP_TOOL mode ─────────────────────────────────────────────────────────
+
+    private fun executeMcpToolJob(job: ScheduledJob): String = runBlocking {
+        val serverName = job.mcpServerName
+            ?: throw IllegalStateException("mcpServerName is required for MCP_TOOL job: ${job.name}")
+        val toolName = job.toolName
+            ?: throw IllegalStateException("toolName is required for MCP_TOOL job: ${job.name}")
+
+        val connected = mcpManager.ensureConnected(serverName)
+        if (!connected) {
+            throw IllegalStateException("MCP server '$serverName' is not connected")
+        }
+
+        val tools = mcpManager.getToolCallbacks(serverName)
+        val tool = tools.find { it.name == toolName }
+            ?: throw IllegalStateException("Tool '$toolName' not found on server '$serverName'")
+
+        executeToolWithPolicies(job, tool)
     }
 
     private suspend fun executeToolWithPolicies(job: ScheduledJob, tool: ToolCallback): String {
@@ -226,6 +276,50 @@ class DynamicSchedulerService(
         return hookExecutor.executeBeforeToolCall(context) as? HookResult.Reject
     }
 
+    // ── AGENT mode ────────────────────────────────────────────────────────────
+
+    private fun executeAgentJob(job: ScheduledJob): String {
+        val executor = agentExecutor
+            ?: throw IllegalStateException("AgentExecutor not available for AGENT job '${job.name}'. " +
+                "Ensure the agent bean is configured.")
+
+        val prompt = job.agentPrompt
+            ?: throw IllegalStateException("agentPrompt is required for AGENT job '${job.name}'")
+
+        val command = AgentCommand(
+            systemPrompt = resolveSystemPrompt(job),
+            userPrompt = prompt,
+            model = job.agentModel,
+            maxToolCalls = job.agentMaxToolCalls ?: 10,
+            userId = SCHEDULER_ACTOR,
+            metadata = mapOf(
+                "schedulerJobId" to job.id,
+                "schedulerJobName" to job.name,
+                "channel" to SCHEDULER_CHANNEL
+            )
+        )
+
+        return runBlocking {
+            val result = executor.execute(command)
+            if (result.success) {
+                result.content ?: "Agent completed with no content"
+            } else {
+                throw IllegalStateException("Agent execution failed: ${result.errorMessage}")
+            }
+        }
+    }
+
+    private fun resolveSystemPrompt(job: ScheduledJob): String {
+        job.agentSystemPrompt?.let { if (it.isNotBlank()) return it }
+        job.personaId?.let { id ->
+            personaStore?.get(id)?.systemPrompt?.let { return it }
+        }
+        personaStore?.getDefault()?.systemPrompt?.let { return it }
+        return DEFAULT_SYSTEM_PROMPT
+    }
+
+    // ── Shared helpers ────────────────────────────────────────────────────────
+
     private fun buildHookContext(job: ScheduledJob): HookContext {
         val runId = "scheduler-${job.id}-${System.currentTimeMillis()}"
         return HookContext(
@@ -236,51 +330,28 @@ class DynamicSchedulerService(
         ).also { context ->
             context.metadata["schedulerJobId"] = job.id
             context.metadata["schedulerJobName"] = job.name
-            context.metadata["schedulerMcpServer"] = job.mcpServerName
+            context.metadata["schedulerJobType"] = job.jobType.name
+            if (job.jobType == ScheduledJobType.MCP_TOOL) {
+                context.metadata["schedulerMcpServer"] = job.mcpServerName.orEmpty()
+            }
         }
     }
 
-    private fun executeJob(job: ScheduledJob): String {
-        logger.info { "Executing scheduled job: ${job.name}" }
-        store.updateExecutionResult(job.id, JobExecutionStatus.RUNNING, null)
-
-        return try {
-            val result = runBlocking {
-                val connected = mcpManager.ensureConnected(job.mcpServerName)
-                if (!connected) {
-                    throw IllegalStateException("MCP server '${job.mcpServerName}' is not connected")
-                }
-
-                val tools = mcpManager.getToolCallbacks(job.mcpServerName)
-                val tool = tools.find { it.name == job.toolName }
-                    ?: throw IllegalStateException("Tool '${job.toolName}' not found on server '${job.mcpServerName}'")
-
-                executeToolWithPolicies(job, tool)
-            }
-
-            // Send to Slack if configured
-            if (!job.slackChannelId.isNullOrBlank() && slackMessageSender != null) {
-                try {
-                    slackMessageSender.sendMessage(job.slackChannelId, formatSlackMessage(job, result))
-                } catch (e: Exception) {
-                    logger.warn(e) { "Failed to send Slack message for job: ${job.name}" }
-                }
-            }
-
-            store.updateExecutionResult(job.id, JobExecutionStatus.SUCCESS, result)
-            logger.info { "Scheduled job completed: ${job.name}" }
-            result
+    private fun sendSlackIfConfigured(job: ScheduledJob, result: String) {
+        if (job.slackChannelId.isNullOrBlank() || slackMessageSender == null) return
+        try {
+            slackMessageSender.sendMessage(job.slackChannelId, formatSlackMessage(job, result))
         } catch (e: Exception) {
-            val errorMsg = "Job '${job.name}' failed: ${e.message}"
-            logger.error(e) { errorMsg }
-            store.updateExecutionResult(job.id, JobExecutionStatus.FAILED, errorMsg)
-            errorMsg
+            logger.warn(e) { "Failed to send Slack message for job: ${job.name}" }
         }
     }
 
     private fun formatSlackMessage(job: ScheduledJob, result: String): String {
         val truncated = if (result.length > 3000) result.take(3000) + "\n..." else result
-        return "*[${job.name}]* scheduled task result:\n```\n$truncated\n```"
+        return when (job.jobType) {
+            ScheduledJobType.MCP_TOOL -> "*[${job.name}]* scheduled task result:\n```\n$truncated\n```"
+            ScheduledJobType.AGENT -> "*[${job.name}]* 브리핑:\n$truncated"
+        }
     }
 
     private fun markSchedulingFailure(job: ScheduledJob, message: String) {
@@ -292,6 +363,6 @@ class DynamicSchedulerService(
  * Interface for sending Slack messages.
  * Decouples scheduler from arc-slack module dependency.
  */
-interface SlackMessageSender {
+fun interface SlackMessageSender {
     fun sendMessage(channelId: String, text: String)
 }

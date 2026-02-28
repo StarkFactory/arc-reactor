@@ -18,15 +18,22 @@ class JdbcScheduledJobStore(
 
     private val rowMapper = RowMapper<ScheduledJob> { rs, _ ->
         val argsJson = rs.getString("tool_arguments")
+        val jobTypeStr = rs.getString("job_type")
         ScheduledJob(
             id = rs.getString("id"),
             name = rs.getString("name"),
             description = rs.getString("description"),
             cronExpression = rs.getString("cron_expression"),
             timezone = rs.getString("timezone"),
+            jobType = if (jobTypeStr != null) ScheduledJobType.valueOf(jobTypeStr) else ScheduledJobType.MCP_TOOL,
             mcpServerName = rs.getString("mcp_server_name"),
             toolName = rs.getString("tool_name"),
             toolArguments = if (argsJson.isNullOrBlank()) emptyMap() else mapper.readValue(argsJson),
+            agentPrompt = rs.getString("agent_prompt"),
+            personaId = rs.getString("persona_id"),
+            agentSystemPrompt = rs.getString("agent_system_prompt"),
+            agentModel = rs.getString("agent_model"),
+            agentMaxToolCalls = rs.getObject("agent_max_tool_calls") as? Int,
             slackChannelId = rs.getString("slack_channel_id"),
             enabled = rs.getBoolean("enabled"),
             lastRunAt = rs.getTimestamp("last_run_at")?.toInstant(),
@@ -51,11 +58,17 @@ class JdbcScheduledJobStore(
         val now = Instant.now()
         val saved = job.copy(id = id, createdAt = now, updatedAt = now)
         jdbcTemplate.update(
-            """INSERT INTO scheduled_jobs (id, name, description, cron_expression, timezone,
-               mcp_server_name, tool_name, tool_arguments, slack_channel_id, enabled, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO scheduled_jobs (
+                id, name, description, cron_expression, timezone, job_type,
+                mcp_server_name, tool_name, tool_arguments,
+                agent_prompt, persona_id, agent_system_prompt, agent_model, agent_max_tool_calls,
+                slack_channel_id, enabled, created_at, updated_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             saved.id, saved.name, saved.description, saved.cronExpression, saved.timezone,
+            saved.jobType.name,
             saved.mcpServerName, saved.toolName, mapper.writeValueAsString(saved.toolArguments),
+            saved.agentPrompt, saved.personaId, saved.agentSystemPrompt,
+            saved.agentModel, saved.agentMaxToolCalls,
             saved.slackChannelId, saved.enabled,
             java.sql.Timestamp.from(saved.createdAt), java.sql.Timestamp.from(saved.updatedAt)
         )
@@ -65,11 +78,17 @@ class JdbcScheduledJobStore(
     override fun update(id: String, job: ScheduledJob): ScheduledJob? {
         val now = Instant.now()
         val rows = jdbcTemplate.update(
-            """UPDATE scheduled_jobs SET name = ?, description = ?, cron_expression = ?, timezone = ?,
-               mcp_server_name = ?, tool_name = ?, tool_arguments = ?, slack_channel_id = ?,
-               enabled = ?, updated_at = ? WHERE id = ?""",
-            job.name, job.description, job.cronExpression, job.timezone,
+            """UPDATE scheduled_jobs SET
+                name = ?, description = ?, cron_expression = ?, timezone = ?, job_type = ?,
+                mcp_server_name = ?, tool_name = ?, tool_arguments = ?,
+                agent_prompt = ?, persona_id = ?, agent_system_prompt = ?,
+                agent_model = ?, agent_max_tool_calls = ?,
+                slack_channel_id = ?, enabled = ?, updated_at = ?
+               WHERE id = ?""",
+            job.name, job.description, job.cronExpression, job.timezone, job.jobType.name,
             job.mcpServerName, job.toolName, mapper.writeValueAsString(job.toolArguments),
+            job.agentPrompt, job.personaId, job.agentSystemPrompt,
+            job.agentModel, job.agentMaxToolCalls,
             job.slackChannelId, job.enabled, java.sql.Timestamp.from(now), id
         )
         return if (rows > 0) findById(id) else null

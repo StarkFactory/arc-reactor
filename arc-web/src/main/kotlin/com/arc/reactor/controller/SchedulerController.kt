@@ -2,6 +2,7 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.scheduler.DynamicSchedulerService
 import com.arc.reactor.scheduler.ScheduledJob
+import com.arc.reactor.scheduler.ScheduledJobType
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -19,18 +20,21 @@ import java.time.Instant
 /**
  * Dynamic Scheduler API Controller
  *
- * Provides REST APIs for managing scheduled MCP tool executions.
- * Admin-only access when auth is enabled.
+ * Provides REST APIs for managing scheduled jobs. Admin-only access when auth is enabled.
+ *
+ * ## Job Types
+ * - **MCP_TOOL** (default): Invokes a single MCP tool on a schedule.
+ * - **AGENT**: Runs the full ReAct agent loop and produces a natural-language result.
  *
  * ## Endpoints
- * - GET    /api/scheduler/jobs            : List all scheduled jobs
- * - POST   /api/scheduler/jobs            : Create a new scheduled job
- * - GET    /api/scheduler/jobs/{id}       : Get job details
- * - PUT    /api/scheduler/jobs/{id}       : Update a job
- * - DELETE /api/scheduler/jobs/{id}       : Delete a job
+ * - GET    /api/scheduler/jobs              : List all scheduled jobs
+ * - POST   /api/scheduler/jobs              : Create a new scheduled job
+ * - GET    /api/scheduler/jobs/{id}         : Get job details
+ * - PUT    /api/scheduler/jobs/{id}         : Update a job
+ * - DELETE /api/scheduler/jobs/{id}         : Delete a job
  * - POST   /api/scheduler/jobs/{id}/trigger : Trigger immediate execution
  */
-@Tag(name = "Scheduler", description = "Dynamic scheduled MCP tool execution (ADMIN only)")
+@Tag(name = "Scheduler", description = "Dynamic scheduled job execution (ADMIN only)")
 @RestController
 @RequestMapping("/api/scheduler/jobs")
 @ConditionalOnBean(DynamicSchedulerService::class)
@@ -62,7 +66,12 @@ class SchedulerController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
 
-        val job = schedulerService.create(request.toScheduledJob())
+        val job = try {
+            schedulerService.create(request.toScheduledJob())
+        } catch (e: IllegalArgumentException) {
+            return ResponseEntity.badRequest()
+                .body(ErrorResponse(error = e.message ?: "Invalid request", timestamp = Instant.now().toString()))
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(job.toResponse())
     }
 
@@ -75,8 +84,7 @@ class SchedulerController(
     @GetMapping("/{id}")
     fun getJob(@PathVariable id: String, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val job = schedulerService.findById(id)
-            ?: return jobNotFound(id)
+        val job = schedulerService.findById(id) ?: return jobNotFound(id)
         return ResponseEntity.ok(job.toResponse())
     }
 
@@ -95,8 +103,12 @@ class SchedulerController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
 
-        val updated = schedulerService.update(id, request.toScheduledJob())
-            ?: return jobNotFound(id)
+        val updated = try {
+            schedulerService.update(id, request.toScheduledJob()) ?: return jobNotFound(id)
+        } catch (e: IllegalArgumentException) {
+            return ResponseEntity.badRequest()
+                .body(ErrorResponse(error = e.message ?: "Invalid request", timestamp = Instant.now().toString()))
+        }
         return ResponseEntity.ok(updated.toResponse())
     }
 
@@ -107,15 +119,9 @@ class SchedulerController(
         ApiResponse(responseCode = "404", description = "Scheduled job not found")
     ])
     @DeleteMapping("/{id}")
-    fun deleteJob(
-        @PathVariable id: String,
-        exchange: ServerWebExchange
-    ): ResponseEntity<Any> {
+    fun deleteJob(@PathVariable id: String, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-
-        schedulerService.findById(id)
-            ?: return jobNotFound(id)
-
+        schedulerService.findById(id) ?: return jobNotFound(id)
         schedulerService.delete(id)
         return ResponseEntity.noContent().build()
     }
@@ -127,12 +133,8 @@ class SchedulerController(
         ApiResponse(responseCode = "404", description = "Scheduled job not found")
     ])
     @PostMapping("/{id}/trigger")
-    fun triggerJob(
-        @PathVariable id: String,
-        exchange: ServerWebExchange
-    ): ResponseEntity<Any> {
+    fun triggerJob(@PathVariable id: String, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-
         val result = schedulerService.trigger(id)
         return ResponseEntity.ok(mapOf("result" to result))
     }
@@ -147,9 +149,15 @@ class SchedulerController(
         description = description,
         cronExpression = cronExpression,
         timezone = timezone,
+        jobType = jobType.name,
         mcpServerName = mcpServerName,
         toolName = toolName,
         toolArguments = toolArguments,
+        agentPrompt = agentPrompt,
+        personaId = personaId,
+        agentSystemPrompt = agentSystemPrompt,
+        agentModel = agentModel,
+        agentMaxToolCalls = agentMaxToolCalls,
         slackChannelId = slackChannelId,
         enabled = enabled,
         lastRunAt = lastRunAt?.toEpochMilli(),
@@ -168,25 +176,58 @@ data class CreateScheduledJobRequest(
     @field:NotBlank(message = "Cron expression is required")
     val cronExpression: String,
     val timezone: String = "Asia/Seoul",
-    @field:NotBlank(message = "MCP server name is required")
-    val mcpServerName: String,
-    @field:NotBlank(message = "Tool name is required")
-    val toolName: String,
+
+    /** MCP_TOOL (default) or AGENT */
+    val jobType: String = "MCP_TOOL",
+
+    // MCP_TOOL mode
+    val mcpServerName: String? = null,
+    val toolName: String? = null,
     val toolArguments: Map<String, Any> = emptyMap(),
+
+    // AGENT mode
+    val agentPrompt: String? = null,
+    val personaId: String? = null,
+    val agentSystemPrompt: String? = null,
+    val agentModel: String? = null,
+    val agentMaxToolCalls: Int? = null,
+
     val slackChannelId: String? = null,
     val enabled: Boolean = true
 ) {
-    fun toScheduledJob() = ScheduledJob(
-        name = name,
-        description = description,
-        cronExpression = cronExpression,
-        timezone = timezone,
-        mcpServerName = mcpServerName,
-        toolName = toolName,
-        toolArguments = toolArguments,
-        slackChannelId = slackChannelId,
-        enabled = enabled
-    )
+    fun toScheduledJob(): ScheduledJob {
+        val type = parseJobType(jobType)
+        validate(type)
+        return ScheduledJob(
+            name = name,
+            description = description,
+            cronExpression = cronExpression,
+            timezone = timezone,
+            jobType = type,
+            mcpServerName = mcpServerName,
+            toolName = toolName,
+            toolArguments = toolArguments,
+            agentPrompt = agentPrompt,
+            personaId = personaId,
+            agentSystemPrompt = agentSystemPrompt,
+            agentModel = agentModel,
+            agentMaxToolCalls = agentMaxToolCalls,
+            slackChannelId = slackChannelId,
+            enabled = enabled
+        )
+    }
+
+    private fun validate(type: ScheduledJobType) {
+        when (type) {
+            ScheduledJobType.MCP_TOOL -> {
+                require(!mcpServerName.isNullOrBlank()) { "mcpServerName is required for MCP_TOOL jobs" }
+                require(!toolName.isNullOrBlank()) { "toolName is required for MCP_TOOL jobs" }
+            }
+            ScheduledJobType.AGENT -> {
+                require(!agentPrompt.isNullOrBlank()) { "agentPrompt is required for AGENT jobs" }
+            }
+        }
+    }
 }
 
 data class UpdateScheduledJobRequest(
@@ -196,25 +237,53 @@ data class UpdateScheduledJobRequest(
     @field:NotBlank(message = "Cron expression is required")
     val cronExpression: String,
     val timezone: String = "Asia/Seoul",
-    @field:NotBlank(message = "MCP server name is required")
-    val mcpServerName: String,
-    @field:NotBlank(message = "Tool name is required")
-    val toolName: String,
+
+    val jobType: String = "MCP_TOOL",
+
+    // MCP_TOOL mode
+    val mcpServerName: String? = null,
+    val toolName: String? = null,
     val toolArguments: Map<String, Any> = emptyMap(),
+
+    // AGENT mode
+    val agentPrompt: String? = null,
+    val personaId: String? = null,
+    val agentSystemPrompt: String? = null,
+    val agentModel: String? = null,
+    val agentMaxToolCalls: Int? = null,
+
     val slackChannelId: String? = null,
     val enabled: Boolean = true
 ) {
-    fun toScheduledJob() = ScheduledJob(
-        name = name,
-        description = description,
-        cronExpression = cronExpression,
-        timezone = timezone,
-        mcpServerName = mcpServerName,
-        toolName = toolName,
-        toolArguments = toolArguments,
-        slackChannelId = slackChannelId,
-        enabled = enabled
-    )
+    fun toScheduledJob(): ScheduledJob {
+        val type = parseJobType(jobType)
+        when (type) {
+            ScheduledJobType.MCP_TOOL -> {
+                require(!mcpServerName.isNullOrBlank()) { "mcpServerName is required for MCP_TOOL jobs" }
+                require(!toolName.isNullOrBlank()) { "toolName is required for MCP_TOOL jobs" }
+            }
+            ScheduledJobType.AGENT -> {
+                require(!agentPrompt.isNullOrBlank()) { "agentPrompt is required for AGENT jobs" }
+            }
+        }
+        return ScheduledJob(
+            name = name,
+            description = description,
+            cronExpression = cronExpression,
+            timezone = timezone,
+            jobType = type,
+            mcpServerName = mcpServerName,
+            toolName = toolName,
+            toolArguments = toolArguments,
+            agentPrompt = agentPrompt,
+            personaId = personaId,
+            agentSystemPrompt = agentSystemPrompt,
+            agentModel = agentModel,
+            agentMaxToolCalls = agentMaxToolCalls,
+            slackChannelId = slackChannelId,
+            enabled = enabled
+        )
+    }
 }
 
 data class ScheduledJobResponse(
@@ -223,9 +292,15 @@ data class ScheduledJobResponse(
     val description: String?,
     val cronExpression: String,
     val timezone: String,
-    val mcpServerName: String,
-    val toolName: String,
+    val jobType: String,
+    val mcpServerName: String?,
+    val toolName: String?,
     val toolArguments: Map<String, Any>,
+    val agentPrompt: String?,
+    val personaId: String?,
+    val agentSystemPrompt: String?,
+    val agentModel: String?,
+    val agentMaxToolCalls: Int?,
     val slackChannelId: String?,
     val enabled: Boolean,
     val lastRunAt: Long?,
@@ -234,3 +309,10 @@ data class ScheduledJobResponse(
     val createdAt: Long,
     val updatedAt: Long
 )
+
+private fun parseJobType(value: String): ScheduledJobType =
+    try {
+        ScheduledJobType.valueOf(value.uppercase())
+    } catch (e: IllegalArgumentException) {
+        throw IllegalArgumentException("Invalid jobType '$value'. Must be one of: ${ScheduledJobType.entries.joinToString()}")
+    }
