@@ -90,7 +90,7 @@ data class ToolPolicyProperties(
      *   reactor:
      *     tool-policy:
      *       enabled: true
-     *       deny-write-channels: [slack, discord]
+     *       deny-write-channels: [slack]
      *       allow-write-tool-names-by-channel:
      *         slack: [jira_create_issue]
      * ```

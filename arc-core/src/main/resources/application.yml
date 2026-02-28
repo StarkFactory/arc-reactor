@@ -105,13 +105,6 @@ arc:
       event-dedup-enabled: ${ARC_REACTOR_SLACK_EVENT_DEDUP_ENABLED:true}
       event-dedup-ttl-seconds: ${ARC_REACTOR_SLACK_EVENT_DEDUP_TTL_SECONDS:600}
       event-dedup-max-entries: ${ARC_REACTOR_SLACK_EVENT_DEDUP_MAX_ENTRIES:10000}
-    discord:
-      enabled: ${ARC_REACTOR_DISCORD_ENABLED:false}
-      token: ${DISCORD_BOT_TOKEN:}
-    line:
-      enabled: ${ARC_REACTOR_LINE_ENABLED:false}
-      channel-token: ${LINE_CHANNEL_TOKEN:}
-      channel-secret: ${LINE_CHANNEL_SECRET:}
 
 # ----- API Documentation -----
 springdoc:
