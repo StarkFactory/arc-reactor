@@ -318,6 +318,38 @@ curl -X POST http://localhost:8080/api/mcp/servers \
   }'
 ```
 
+### Example: Register Atlassian MCP for access-policy proxy
+
+For Atlassian MCP access-policy proxying, include admin credentials in `config`:
+
+```bash
+curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "atlassian",
+    "transportType": "SSE",
+    "config": {
+      "url": "http://localhost:8085/sse",
+      "adminToken": "change-me",
+      "adminHmacRequired": true,
+      "adminHmacSecret": "change-me-hmac"
+    },
+    "autoConnect": true
+  }'
+```
+
+Then proxy policy updates via Arc Reactor:
+
+```bash
+curl -X PUT http://localhost:8080/api/mcp/servers/atlassian/access-policy \
+  -H "Content-Type: application/json" \
+  -d '{
+    "allowedJiraProjectKeys": ["JAR","FSD"],
+    "allowedConfluenceSpaceKeys": ["MFS","FRONTEND"],
+    "allowedBitbucketRepositories": ["jarvis","arc-reactor"]
+  }'
+```
+
 ### Example: Apply a tool policy
 
 ```bash

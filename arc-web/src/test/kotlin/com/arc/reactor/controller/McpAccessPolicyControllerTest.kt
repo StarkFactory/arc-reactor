@@ -12,14 +12,21 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.web.server.ServerWebExchange
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 class McpAccessPolicyControllerTest {
 
@@ -36,22 +43,31 @@ class McpAccessPolicyControllerTest {
         controller = McpAccessPolicyController(store, auditStore, meterRegistry)
     }
 
-    private fun adminExchange(userId: String = "admin-user"): ServerWebExchange {
+    private fun adminExchange(
+        userId: String = "admin-user",
+        headers: HttpHeaders = HttpHeaders()
+    ): ServerWebExchange {
         val exchange = mockk<ServerWebExchange>(relaxed = true)
+        val request = mockk<ServerHttpRequest>(relaxed = true)
         val attrs = mutableMapOf<String, Any>(
             JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.ADMIN,
             JwtAuthWebFilter.USER_ID_ATTRIBUTE to userId
         )
+        every { request.headers } returns headers
+        every { exchange.request } returns request
         every { exchange.attributes } returns attrs
         return exchange
     }
 
     private fun userExchange(): ServerWebExchange {
         val exchange = mockk<ServerWebExchange>(relaxed = true)
+        val request = mockk<ServerHttpRequest>(relaxed = true)
         val attrs = mutableMapOf<String, Any>(
             JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.USER,
             JwtAuthWebFilter.USER_ID_ATTRIBUTE to "regular-user"
         )
+        every { request.headers } returns HttpHeaders()
+        every { exchange.request } returns request
         every { exchange.attributes } returns attrs
         return exchange
     }
@@ -182,7 +198,8 @@ class McpAccessPolicyControllerTest {
 
             val request = UpdateMcpAccessPolicyRequest(
                 allowedJiraProjectKeys = listOf("CORE", "OPS"),
-                allowedConfluenceSpaceKeys = listOf("PLATFORM")
+                allowedConfluenceSpaceKeys = listOf("PLATFORM"),
+                allowedBitbucketRepositories = listOf("jarvis", "platform-api")
             )
 
             val response = controller.updatePolicy(
@@ -207,6 +224,9 @@ class McpAccessPolicyControllerTest {
             }
             assertTrue(audits.first().detail.orEmpty().contains("confluenceSpaces=1")) {
                 "Audit detail should include Confluence space count"
+            }
+            assertTrue(audits.first().detail.orEmpty().contains("bitbucketRepos=2")) {
+                "Audit detail should include Bitbucket repository count"
             }
         }
 
@@ -283,6 +303,29 @@ class McpAccessPolicyControllerTest {
             val body = response.body as ErrorResponse
             assertTrue(body.error.contains("allowedConfluenceSpaceKeys[0] has invalid format")) {
                 "Expected invalid Confluence key format error, got: ${body.error}"
+            }
+        }
+
+        @Test
+        fun `updatePolicy should reject invalid bitbucket repository format`() = runTest {
+            val invalidRequest = UpdateMcpAccessPolicyRequest(
+                allowedJiraProjectKeys = listOf("CORE"),
+                allowedConfluenceSpaceKeys = listOf("SPACE"),
+                allowedBitbucketRepositories = listOf("repo/name")
+            )
+
+            val response = controller.updatePolicy(
+                name = "invalid-bb-repo",
+                request = invalidRequest,
+                exchange = adminExchange()
+            )
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "Expected 400 BAD_REQUEST for invalid Bitbucket repository format"
+            }
+            val body = response.body as ErrorResponse
+            assertTrue(body.error.contains("allowedBitbucketRepositories[0] has invalid format")) {
+                "Expected invalid Bitbucket repo format error, got: ${body.error}"
             }
         }
     }
@@ -391,5 +434,110 @@ class McpAccessPolicyControllerTest {
                 server.stop(0)
             }
         }
+
+        @Test
+        fun `updatePolicy should forward hmac actor and request id headers`() = runTest {
+            val secret = "hmac-secret"
+            var capturedActor: String? = null
+            var capturedRequestId: String? = null
+
+            val server = HttpServer.create(InetSocketAddress(0), 0)
+            server.createContext("/admin/access-policy") { exchange ->
+                if (exchange.requestMethod != "PUT") {
+                    exchange.sendResponseHeaders(405, -1)
+                    exchange.close()
+                    return@createContext
+                }
+                if (exchange.requestHeaders.getFirst("X-Admin-Token") != "admin-secret") {
+                    exchange.sendResponseHeaders(401, -1)
+                    exchange.close()
+                    return@createContext
+                }
+
+                val body = exchange.requestBody.readBytes().toString(StandardCharsets.UTF_8)
+                capturedActor = exchange.requestHeaders.getFirst("X-Admin-Actor")
+                capturedRequestId = exchange.requestHeaders.getFirst("X-Request-Id")
+                val timestamp = exchange.requestHeaders.getFirst("X-Admin-Timestamp")
+                val signature = exchange.requestHeaders.getFirst("X-Admin-Signature")
+                val expectedSignature = sign(
+                    secret = secret,
+                    method = "PUT",
+                    path = "/admin/access-policy",
+                    query = "",
+                    body = body,
+                    timestamp = timestamp.orEmpty()
+                )
+                if (timestamp.isNullOrBlank() || signature != expectedSignature) {
+                    exchange.sendResponseHeaders(401, -1)
+                    exchange.close()
+                    return@createContext
+                }
+
+                val payload = """{"ok":true}""".toByteArray(StandardCharsets.UTF_8)
+                exchange.sendResponseHeaders(200, payload.size.toLong())
+                exchange.responseBody.use { it.write(payload) }
+            }
+            server.start()
+
+            try {
+                val port = server.address.port
+                saveServer(
+                    name = "hmac-proxy-server",
+                    config = mapOf(
+                        "url" to "http://localhost:$port/sse",
+                        "adminToken" to "admin-secret",
+                        "adminHmacSecret" to secret,
+                        "adminHmacRequired" to true
+                    )
+                )
+
+                val request = UpdateMcpAccessPolicyRequest(
+                    allowedJiraProjectKeys = listOf("CORE"),
+                    allowedConfluenceSpaceKeys = listOf("SPACE"),
+                    allowedBitbucketRepositories = listOf("jarvis")
+                )
+                val exchange = adminExchange(
+                    userId = "ops-admin",
+                    headers = HttpHeaders().apply { set("X-Request-Id", "req-from-client") }
+                )
+
+                val response = controller.updatePolicy(
+                    name = "hmac-proxy-server",
+                    request = request,
+                    exchange = exchange
+                )
+
+                assertEquals(HttpStatus.OK, response.statusCode) {
+                    "Expected successful upstream proxy response with valid HMAC"
+                }
+                assertEquals("ops-admin", capturedActor) {
+                    "Controller should forward current admin actor to MCP admin API"
+                }
+                assertEquals("req-from-client", capturedRequestId) {
+                    "Controller should forward request ID for traceability"
+                }
+                assertNotNull(response.body, "Successful response body should not be null")
+            } finally {
+                server.stop(0)
+            }
+        }
+    }
+
+    private fun sign(
+        secret: String,
+        method: String,
+        path: String,
+        query: String,
+        body: String,
+        timestamp: String
+    ): String {
+        val bodyHash = MessageDigest.getInstance("SHA-256")
+            .digest(body.toByteArray(StandardCharsets.UTF_8))
+            .joinToString("") { byte -> "%02x".format(byte) }
+        val canonical = listOf(method, path, query, timestamp, bodyHash).joinToString("\n")
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(secret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256"))
+        return mac.doFinal(canonical.toByteArray(StandardCharsets.UTF_8))
+            .joinToString("") { byte -> "%02x".format(byte) }
     }
 }

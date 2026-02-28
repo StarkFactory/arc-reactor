@@ -21,6 +21,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
@@ -51,12 +52,19 @@ class McpAccessPolicyController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val response = proxy(name, HttpMethod.GET, null)
+        val actor = currentActor(exchange)
+        val response = proxy(
+            name = name,
+            method = HttpMethod.GET,
+            body = null,
+            actor = actor,
+            requestId = resolveRequestId(exchange)
+        )
         recordAdminAudit(
             store = adminAuditStore,
             category = "mcp_access_policy",
             action = "READ",
-            actor = currentActor(exchange),
+            actor = actor,
             resourceType = "mcp_server",
             resourceId = name,
             detail = "status=${response.statusCode.value()}"
@@ -78,6 +86,7 @@ class McpAccessPolicyController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        val actor = currentActor(exchange)
         val validationError = validatePolicyRequest(request)
         if (validationError != null) {
             val response = errorResponse(HttpStatus.BAD_REQUEST, validationError)
@@ -85,26 +94,34 @@ class McpAccessPolicyController(
                 store = adminAuditStore,
                 category = "mcp_access_policy",
                 action = "UPDATE",
-                actor = currentActor(exchange),
+                actor = actor,
                 resourceType = "mcp_server",
                 resourceId = name,
                 detail = "status=${response.statusCode.value()}, validationError=$validationError, " +
                     "jiraProjects=${request.allowedJiraProjectKeys.size}, " +
-                    "confluenceSpaces=${request.allowedConfluenceSpaceKeys.size}"
+                    "confluenceSpaces=${request.allowedConfluenceSpaceKeys.size}, " +
+                    "bitbucketRepos=${request.allowedBitbucketRepositories.size}"
             )
             return response
         }
-        val response = proxy(name, HttpMethod.PUT, request)
+        val response = proxy(
+            name = name,
+            method = HttpMethod.PUT,
+            body = request,
+            actor = actor,
+            requestId = resolveRequestId(exchange)
+        )
         recordAdminAudit(
             store = adminAuditStore,
             category = "mcp_access_policy",
             action = "UPDATE",
-            actor = currentActor(exchange),
+            actor = actor,
             resourceType = "mcp_server",
             resourceId = name,
             detail = "status=${response.statusCode.value()}, " +
                 "jiraProjects=${request.allowedJiraProjectKeys.size}, " +
-                "confluenceSpaces=${request.allowedConfluenceSpaceKeys.size}"
+                "confluenceSpaces=${request.allowedConfluenceSpaceKeys.size}, " +
+                "bitbucketRepos=${request.allowedBitbucketRepositories.size}"
         )
         return response
     }
@@ -122,12 +139,19 @@ class McpAccessPolicyController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val response = proxy(name, HttpMethod.DELETE, null)
+        val actor = currentActor(exchange)
+        val response = proxy(
+            name = name,
+            method = HttpMethod.DELETE,
+            body = null,
+            actor = actor,
+            requestId = resolveRequestId(exchange)
+        )
         recordAdminAudit(
             store = adminAuditStore,
             category = "mcp_access_policy",
             action = "DELETE",
-            actor = currentActor(exchange),
+            actor = actor,
             resourceType = "mcp_server",
             resourceId = name,
             detail = "status=${response.statusCode.value()}, reset_to_env_defaults=true"
@@ -138,7 +162,9 @@ class McpAccessPolicyController(
     private suspend fun proxy(
         name: String,
         method: HttpMethod,
-        body: Any?
+        body: Any?,
+        actor: String,
+        requestId: String
     ): ResponseEntity<Any> {
         val startedAtNanos = System.nanoTime()
         val server = mcpServerStore.findByName(name)
@@ -161,6 +187,13 @@ class McpAccessPolicyController(
                 message = "MCP server '$name' has no admin token. Set config.adminToken"
             )
                 .also { observeProxyCall(name, method, it.statusCode.value(), startedAtNanos) }
+        val hmacSettings = McpAdminHmacSettings.from(config)
+        if (hmacSettings.required && !hmacSettings.isEnabled()) {
+            return errorResponse(
+                status = HttpStatus.BAD_REQUEST,
+                message = "MCP server '$name' requires HMAC but config.adminHmacSecret is missing"
+            ).also { observeProxyCall(name, method, it.statusCode.value(), startedAtNanos) }
+        }
         val timeoutMs = resolveAdminTimeoutMs(config)
         val connectTimeoutMs = resolveAdminConnectTimeoutMs(config, timeoutMs)
 
@@ -170,6 +203,18 @@ class McpAccessPolicyController(
                 HttpMethod.GET -> client.get()
                     .uri("/admin/access-policy")
                     .header("X-Admin-Token", token)
+                    .header("X-Admin-Actor", actor)
+                    .header("X-Request-Id", requestId)
+                    .headers { headers ->
+                        applyHmacHeaders(
+                            headers = headers,
+                            settings = hmacSettings,
+                            method = "GET",
+                            path = ADMIN_ACCESS_POLICY_PATH,
+                            query = "",
+                            body = ""
+                        )
+                    }
                     .exchangeToMono { response ->
                         response.bodyToMono(String::class.java)
                             .defaultIfEmpty("")
@@ -180,7 +225,24 @@ class McpAccessPolicyController(
                 HttpMethod.PUT -> client.put()
                     .uri("/admin/access-policy")
                     .header("X-Admin-Token", token)
-                    .bodyValue(body ?: emptyMap<String, Any>())
+                    .header("X-Admin-Actor", actor)
+                    .header("X-Request-Id", requestId)
+                    .let { requestSpec ->
+                        val payloadJson = objectMapper.writeValueAsString(body ?: emptyMap<String, Any>())
+                        requestSpec
+                            .header("Content-Type", "application/json")
+                            .headers { headers ->
+                                applyHmacHeaders(
+                                    headers = headers,
+                                    settings = hmacSettings,
+                                    method = "PUT",
+                                    path = ADMIN_ACCESS_POLICY_PATH,
+                                    query = "",
+                                    body = payloadJson
+                                )
+                            }
+                            .bodyValue(payloadJson)
+                    }
                     .exchangeToMono { response ->
                         response.bodyToMono(String::class.java)
                             .defaultIfEmpty("")
@@ -191,6 +253,18 @@ class McpAccessPolicyController(
                 HttpMethod.DELETE -> client.delete()
                     .uri("/admin/access-policy")
                     .header("X-Admin-Token", token)
+                    .header("X-Admin-Actor", actor)
+                    .header("X-Request-Id", requestId)
+                    .headers { headers ->
+                        applyHmacHeaders(
+                            headers = headers,
+                            settings = hmacSettings,
+                            method = "DELETE",
+                            path = ADMIN_ACCESS_POLICY_PATH,
+                            query = "",
+                            body = ""
+                        )
+                    }
                     .exchangeToMono { response ->
                         response.bodyToMono(String::class.java)
                             .defaultIfEmpty("")
@@ -235,7 +309,34 @@ class McpAccessPolicyController(
             maxLength = MAX_SPACE_KEY_LENGTH,
             pattern = CONFLUENCE_SPACE_KEY_PATTERN
         )?.let { return it }
+        validatePolicyKeys(
+            fieldName = "allowedBitbucketRepositories",
+            keys = request.allowedBitbucketRepositories,
+            maxItems = MAX_BITBUCKET_REPOS,
+            maxLength = MAX_BITBUCKET_REPO_LENGTH,
+            pattern = BITBUCKET_REPO_PATTERN
+        )?.let { return it }
         return null
+    }
+
+    private fun applyHmacHeaders(
+        headers: org.springframework.http.HttpHeaders,
+        settings: McpAdminHmacSettings,
+        method: String,
+        path: String,
+        query: String,
+        body: String
+    ) {
+        val secret = settings.secret ?: return
+        val signed = McpAdminRequestSigner.sign(
+            method = method,
+            path = path,
+            query = query,
+            body = body,
+            secret = secret
+        )
+        headers.set("X-Admin-Timestamp", signed.timestamp)
+        headers.set("X-Admin-Signature", signed.signature)
     }
 
     private fun validatePolicyKeys(
@@ -306,6 +407,14 @@ class McpAccessPolicyController(
         }
     }
 
+    private fun resolveRequestId(exchange: ServerWebExchange): String {
+        val requestId = exchange.request.headers.getFirst("X-Request-Id")?.trim().orEmpty()
+        if (requestId.isNotBlank()) return requestId
+        val correlationId = exchange.request.headers.getFirst("X-Correlation-Id")?.trim().orEmpty()
+        if (correlationId.isNotBlank()) return correlationId
+        return "arc-${UUID.randomUUID()}"
+    }
+
     private fun errorResponse(status: HttpStatus, message: String): ResponseEntity<Any> {
         return ResponseEntity.status(status)
             .body(ErrorResponse(error = message, timestamp = Instant.now().toString()))
@@ -365,21 +474,26 @@ class McpAccessPolicyController(
         private const val METRIC_PROXY_DURATION = "arc.reactor.mcp.access_policy.proxy.duration"
         private const val MAX_PROJECT_KEYS = 200
         private const val MAX_SPACE_KEYS = 200
+        private const val MAX_BITBUCKET_REPOS = 200
         private const val MAX_JIRA_KEY_LENGTH = 50
         private const val MAX_SPACE_KEY_LENGTH = 64
+        private const val MAX_BITBUCKET_REPO_LENGTH = 120
         private const val DEFAULT_ADMIN_TIMEOUT_MS = 10_000L
         private const val MIN_ADMIN_TIMEOUT_MS = 100L
         private const val MAX_ADMIN_TIMEOUT_MS = 120_000L
         private const val DEFAULT_ADMIN_CONNECT_TIMEOUT_MS = 3_000L
         private const val MIN_ADMIN_CONNECT_TIMEOUT_MS = 100
         private const val MAX_ADMIN_CONNECT_TIMEOUT_MS = 30_000
+        private const val ADMIN_ACCESS_POLICY_PATH = "/admin/access-policy"
         private val JIRA_PROJECT_KEY_PATTERN = Regex("^[A-Z][A-Z0-9_]*$")
         private val CONFLUENCE_SPACE_KEY_PATTERN = Regex("^[A-Za-z0-9][A-Za-z0-9_-]*$")
+        private val BITBUCKET_REPO_PATTERN = Regex("^[A-Za-z0-9][A-Za-z0-9._-]*$")
         private val objectMapper = jacksonObjectMapper()
     }
 }
 
 data class UpdateMcpAccessPolicyRequest(
     val allowedJiraProjectKeys: List<String> = emptyList(),
-    val allowedConfluenceSpaceKeys: List<String> = emptyList()
+    val allowedConfluenceSpaceKeys: List<String> = emptyList(),
+    val allowedBitbucketRepositories: List<String> = emptyList()
 )
