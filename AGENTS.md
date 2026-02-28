@@ -36,6 +36,16 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 10. **Spring AI mock chain**: explicitly mock `.options(any<ChatOptions>())` in streaming tests
 11. **toolsUsed list**: only append a tool name after confirming its adapter exists. Appending LLM-hallucinated names pollutes the response metadata
 
+## Key Defaults
+
+| Property | Default | Property | Default |
+|----------|---------|----------|---------|
+| `max-tool-calls` | 10 | `concurrency.request-timeout-ms` | 30000 |
+| `max-tools-per-request` | 20 | `concurrency.tool-call-timeout-ms` | 15000 |
+| `llm.temperature` | 0.3 | `guard.rate-limit-per-minute` | 10 |
+| `llm.max-context-window-tokens` | 128000 | `guard.rate-limit-per-hour` | 100 |
+| `boundaries.input-max-chars` | 5000 | | |
+
 ## Code Rules
 
 - All interfaces are coroutine-based (`suspend fun`). No blocking calls except `ArcToolCallbackAdapter` (Spring AI constraint)
