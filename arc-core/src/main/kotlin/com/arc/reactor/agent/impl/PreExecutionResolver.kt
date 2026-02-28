@@ -13,6 +13,8 @@ import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.intent.model.ClassificationContext
 import com.arc.reactor.support.throwIfCancellation
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -23,7 +25,8 @@ internal class PreExecutionResolver(
     private val intentResolver: IntentResolver?,
     private val blockedIntents: Set<String>,
     private val agentMetrics: AgentMetrics,
-    private val nowMs: () -> Long = System::currentTimeMillis
+    private val nowMs: () -> Long = System::currentTimeMillis,
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
 ) {
 
     /**
@@ -56,27 +59,34 @@ internal class PreExecutionResolver(
         hookContext: HookContext,
         startTime: Long
     ): AgentResult? {
+        val guardSpan = tracer.startSpan("arc.agent.guard")
         val guardStartTime = nowMs()
-        checkGuard(command)?.let { rejection ->
+        try {
+            checkGuard(command)?.let { rejection ->
+                hookContext.metadata["guardDurationMs"] = nowMs() - guardStartTime
+                guardSpan.setAttribute("guard.result", "rejected")
+                agentMetrics.recordGuardRejection(
+                    stage = rejection.stage ?: "unknown",
+                    reason = rejection.reason,
+                    metadata = command.metadata
+                )
+                return AgentResult.failure(
+                    errorMessage = rejection.reason,
+                    errorCode = AgentErrorCode.GUARD_REJECTED,
+                    durationMs = nowMs() - startTime
+                ).also { agentMetrics.recordExecution(it) }
+            }
             hookContext.metadata["guardDurationMs"] = nowMs() - guardStartTime
-            agentMetrics.recordGuardRejection(
-                stage = rejection.stage ?: "unknown",
-                reason = rejection.reason,
-                metadata = command.metadata
-            )
-            return AgentResult.failure(
-                errorMessage = rejection.reason,
-                errorCode = AgentErrorCode.GUARD_REJECTED,
-                durationMs = nowMs() - startTime
-            ).also { agentMetrics.recordExecution(it) }
-        }
-        hookContext.metadata["guardDurationMs"] = nowMs() - guardStartTime
-        checkBeforeHooks(hookContext)?.let { rejection ->
-            return AgentResult.failure(
-                errorMessage = rejection.reason,
-                errorCode = AgentErrorCode.HOOK_REJECTED,
-                durationMs = nowMs() - startTime
-            ).also { agentMetrics.recordExecution(it) }
+            guardSpan.setAttribute("guard.result", "passed")
+            checkBeforeHooks(hookContext)?.let { rejection ->
+                return AgentResult.failure(
+                    errorMessage = rejection.reason,
+                    errorCode = AgentErrorCode.HOOK_REJECTED,
+                    durationMs = nowMs() - startTime
+                ).also { agentMetrics.recordExecution(it) }
+            }
+        } finally {
+            guardSpan.close()
         }
         return null
     }

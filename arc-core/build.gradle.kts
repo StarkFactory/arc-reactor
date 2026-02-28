@@ -41,6 +41,10 @@ dependencies {
     compileOnly("io.micrometer:micrometer-core")
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 
+    // Optional: OpenTelemetry API (users provide the SDK at runtime)
+    compileOnly(platform("io.opentelemetry:opentelemetry-bom:1.44.1"))
+    compileOnly("io.opentelemetry:opentelemetry-api")
+
     // LLM Providers
     implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
     implementation("org.springframework.ai:spring-ai-starter-model-google-genai-embedding")
@@ -90,6 +94,8 @@ dependencies {
     }
 
     // Test
+    testImplementation(platform("io.opentelemetry:opentelemetry-bom:1.44.1"))
+    testImplementation("io.opentelemetry:opentelemetry-api")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.projectreactor:reactor-test")
     testImplementation("org.springframework.boot:spring-boot-starter-jdbc")
@@ -103,6 +109,7 @@ dependencies {
     testRuntimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
     testRuntimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
     testImplementation("org.springframework.security:spring-security-crypto")
+    testImplementation("org.springframework.ai:spring-ai-starter-model-anthropic")
 }
 
 tasks.withType<Test> {

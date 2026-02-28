@@ -80,6 +80,7 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 | Memory Summary | OFF | `arc.reactor.memory.summary.enabled` |
 | Admin Module | OFF | `arc.reactor.admin.enabled` |
 | Flyway | OFF | `SPRING_FLYWAY_ENABLED` env var |
+| Prompt Caching (Anthropic) | OFF | `arc.reactor.llm.prompt-caching.enabled` |
 
 ### REST API Endpoints
 

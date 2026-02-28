@@ -25,6 +25,8 @@ import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
@@ -69,7 +71,8 @@ class ArcReactorExecutorConfiguration {
         responseCacheProvider: ObjectProvider<ResponseCache>,
         fallbackStrategyProvider: ObjectProvider<FallbackStrategy>,
         outputGuardPipelineProvider: ObjectProvider<OutputGuardPipeline>,
-        intentResolverProvider: ObjectProvider<IntentResolver>
+        intentResolverProvider: ObjectProvider<IntentResolver>,
+        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -96,6 +99,7 @@ class ArcReactorExecutorConfiguration {
         outputGuardPipeline = outputGuardPipelineProvider.ifAvailable,
         intentResolver = intentResolverProvider.ifAvailable,
         blockedIntents = properties.intent.blockedIntents,
-        transientErrorClassifier = ::defaultTransientErrorClassifier
+        transientErrorClassifier = ::defaultTransientErrorClassifier,
+        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() }
     )
 }

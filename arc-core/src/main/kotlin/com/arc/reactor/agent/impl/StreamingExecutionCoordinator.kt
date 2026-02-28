@@ -7,6 +7,7 @@ import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.agent.model.ErrorMessageResolver
+import com.arc.reactor.hook.impl.UserMemoryInjectionHook
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.support.throwIfCancellation
@@ -74,7 +75,7 @@ internal class StreamingExecutionCoordinator(
                 val effectiveCommand = validateStreamingPreconditions(command, hookContext, state, emit)
                     ?: return@withTimeout
                 state.streamStarted = true
-                val setup = prepareLoopSetup(effectiveCommand)
+                val setup = prepareLoopSetup(effectiveCommand, hookContext)
                 val loopResult = runLoop(effectiveCommand, setup, hookContext, toolsUsed, emit)
                 state.streamSuccess = loopResult.success
                 state.collectedContent.append(loopResult.collectedContent)
@@ -122,11 +123,18 @@ internal class StreamingExecutionCoordinator(
         return effectiveCommand
     }
 
-    private suspend fun prepareLoopSetup(command: AgentCommand): StreamingLoopSetup {
+    private suspend fun prepareLoopSetup(command: AgentCommand, hookContext: HookContext): StreamingLoopSetup {
         val conversationHistory = conversationManager.loadHistory(command)
         val ragContext = ragContextRetriever.retrieve(command)
+        val userMemoryContext =
+            hookContext.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
+        val baseSystemPrompt = if (userMemoryContext != null) {
+            "${command.systemPrompt}\n\n[User Context]\n$userMemoryContext"
+        } else {
+            command.systemPrompt
+        }
         val systemPrompt = systemPromptBuilder.build(
-            command.systemPrompt,
+            baseSystemPrompt,
             ragContext,
             command.responseFormat,
             command.responseSchema

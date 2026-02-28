@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Import
 @AutoConfiguration(after = [GoogleGenAiChatAutoConfiguration::class, ChatClientAutoConfiguration::class])
 @EnableConfigurationProperties(AgentProperties::class)
 @Import(
+    TracingConfiguration::class,
     ArcReactorCoreBeansConfiguration::class,
     ArcReactorHookAndMcpConfiguration::class,
     ArcReactorRuntimeConfiguration::class,
@@ -34,6 +35,9 @@ import org.springframework.context.annotation.Import
     SchedulerConfiguration::class,
     MemorySummaryConfiguration::class,
     JdbcConversationSummaryStoreConfiguration::class,
-    PromptLabConfiguration::class
+    UserMemoryConfiguration::class,
+    JdbcUserMemoryStoreConfiguration::class,
+    PromptLabConfiguration::class,
+    PromptCachingConfiguration::class
 )
 class ArcReactorAutoConfiguration

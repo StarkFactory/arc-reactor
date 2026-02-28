@@ -153,7 +153,48 @@ data class RagProperties(
     val ingestion: RagIngestionProperties = RagIngestionProperties(),
 
     /** Maximum context tokens */
-    val maxContextTokens: Int = 4000
+    val maxContextTokens: Int = 4000,
+
+    /** Hybrid search configuration (BM25 + Vector) */
+    val hybrid: RagHybridProperties = RagHybridProperties()
+)
+
+/**
+ * Hybrid search (BM25 + vector) configuration.
+ *
+ * When enabled, BM25 keyword scores are fused with vector similarity scores
+ * via Reciprocal Rank Fusion (RRF) to improve retrieval of proper nouns.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     rag:
+ *       hybrid:
+ *         enabled: true
+ *         bm25-weight: 0.5
+ *         vector-weight: 0.5
+ *         rrf-k: 60.0
+ * ```
+ */
+data class RagHybridProperties(
+    /** Enable hybrid BM25 + vector search. Requires arc.reactor.rag.enabled=true. */
+    val enabled: Boolean = false,
+
+    /** RRF weight for BM25 ranks (0.0–1.0) */
+    val bm25Weight: Double = 0.5,
+
+    /** RRF weight for vector search ranks (0.0–1.0) */
+    val vectorWeight: Double = 0.5,
+
+    /** RRF smoothing constant K — higher value reduces rank-position sensitivity */
+    val rrfK: Double = 60.0,
+
+    /** BM25 term-frequency saturation parameter */
+    val bm25K1: Double = 1.5,
+
+    /** BM25 length normalization parameter */
+    val bm25B: Double = 0.75
 )
 
 data class RagIngestionProperties(
@@ -461,7 +502,33 @@ enum class OutputMinViolationMode {
  */
 data class MemoryProperties(
     /** Hierarchical summary configuration */
-    val summary: SummaryProperties = SummaryProperties()
+    val summary: SummaryProperties = SummaryProperties(),
+
+    /** Per-user long-term memory configuration */
+    val user: UserMemoryProperties = UserMemoryProperties()
+)
+
+/**
+ * Per-user long-term memory configuration.
+ *
+ * When enabled, the agent remembers user-specific facts, preferences, and recent topics
+ * across conversation sessions. Memory is injected into the system prompt automatically.
+ */
+data class UserMemoryProperties(
+    /** Enable per-user long-term memory. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Maximum number of recent topics to retain per user. */
+    val maxRecentTopics: Int = 10,
+
+    /** JDBC-specific settings */
+    val jdbc: UserMemoryJdbcProperties = UserMemoryJdbcProperties()
+)
+
+/** JDBC-specific settings for user memory persistence. */
+data class UserMemoryJdbcProperties(
+    /** Database table name for user memory records. */
+    val tableName: String = "user_memories"
 )
 
 /**
@@ -486,4 +553,26 @@ data class SummaryProperties(
 
     /** Maximum token budget for the narrative summary. */
     val maxNarrativeTokens: Int = 500
+)
+
+
+/**
+ * Tracing configuration for Arc Reactor.
+ *
+ * When enabled, agent request spans, guard spans, LLM call spans, and tool call spans
+ * are emitted. If OpenTelemetry is not on the classpath, a no-op tracer is used and
+ * all operations are zero-cost.
+ */
+data class TracingProperties(
+    /** Enable span emission. Default ON — the no-op tracer has zero overhead when OTel is absent. */
+    val enabled: Boolean = true,
+
+    /** Service name attached to spans as `service.name`. */
+    val serviceName: String = "arc-reactor",
+
+    /**
+     * Include user ID as a span attribute.
+     * Disabled by default to prevent accidental PII leakage in traces.
+     */
+    val includeUserId: Boolean = false
 )

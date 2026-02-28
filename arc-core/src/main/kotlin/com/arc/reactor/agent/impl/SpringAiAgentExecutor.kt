@@ -22,6 +22,7 @@ import com.arc.reactor.guard.canary.SystemPromptPostProcessor
 import com.arc.reactor.guard.output.OutputGuardPipeline
 import com.arc.reactor.guard.tool.ToolOutputSanitizer
 import com.arc.reactor.hook.HookExecutor
+import com.arc.reactor.hook.impl.UserMemoryInjectionHook
 import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
@@ -35,6 +36,8 @@ import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
@@ -91,7 +94,8 @@ class SpringAiAgentExecutor(
     private val intentResolver: IntentResolver? = null,
     private val blockedIntents: Set<String> = emptySet(),
     private val systemPromptPostProcessor: SystemPromptPostProcessor? = null,
-    private val toolOutputSanitizer: ToolOutputSanitizer? = null
+    private val toolOutputSanitizer: ToolOutputSanitizer? = null,
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
 ) : AgentExecutor {
 
     init {
@@ -155,7 +159,8 @@ class SpringAiAgentExecutor(
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::createChatOptions,
         validateAndRepairResponse = structuredResponseRepairer::validateAndRepair,
-        recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) }
+        recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) },
+        tracer = tracer
     )
     private val streamingReActLoopExecutor = StreamingReActLoopExecutor(
         messageTrimmer = messageTrimmer,
@@ -191,7 +196,8 @@ class SpringAiAgentExecutor(
         hookExecutor = hookExecutor,
         intentResolver = intentResolver,
         blockedIntents = blockedIntents,
-        agentMetrics = agentMetrics
+        agentMetrics = agentMetrics,
+        tracer = tracer
     )
     private val streamingExecutionCoordinator = StreamingExecutionCoordinator(
         concurrencySemaphore = concurrencySemaphore,
@@ -247,25 +253,42 @@ class SpringAiAgentExecutor(
         val hookContext = runContext.hookContext
         enrichMetadataWithModelInfo(hookContext, command)
 
+        val spanAttrs = buildMap<String, String> {
+            put("session.id", command.metadata["sessionId"]?.toString().orEmpty())
+            put("agent.mode", (command.metadata["mode"] ?: command.mode.name.lowercase()).toString())
+            if (properties.tracing.includeUserId) {
+                put("user.id", command.userId ?: "anonymous")
+            }
+        }
+        val requestSpan = tracer.startSpan("arc.agent.request", spanAttrs)
         try {
             val queueStart = System.nanoTime()
-            return concurrencySemaphore.withPermit {
+            val result = concurrencySemaphore.withPermit {
                 hookContext.metadata["queueWaitMs"] = (System.nanoTime() - queueStart) / 1_000_000
                 withTimeout(properties.concurrency.requestTimeoutMs) {
                     agentExecutionCoordinator.execute(command, hookContext, toolsUsed, startTime)
                 }
             }
+            if (!result.success) {
+                requestSpan.setAttribute("error.code", result.errorCode?.name ?: "UNKNOWN")
+                result.errorMessage?.let { requestSpan.setAttribute("error.message", it.take(500)) }
+            }
+            return result
         } catch (e: BlockedIntentException) {
             logger.info { "Blocked intent: ${e.intentName}" }
+            requestSpan.setError(e)
             return executionFailureHandler.handle(AgentErrorCode.GUARD_REJECTED, e, hookContext, startTime)
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             logger.warn { "Request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
+            requestSpan.setError(e)
             return executionFailureHandler.handle(AgentErrorCode.TIMEOUT, e, hookContext, startTime)
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Agent execution failed" }
+            requestSpan.setError(e)
             return executionFailureHandler.handle(agentErrorPolicy.classify(e), e, hookContext, startTime)
         } finally {
+            requestSpan.close()
             runContextManager.close()
         }
     }
@@ -403,8 +426,15 @@ class SpringAiAgentExecutor(
         try {
             val maxToolCalls = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
             val allowedTools = resolveIntentAllowedTools(command)
+            val userMemoryContext =
+                hookContext.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
+            val baseSystemPrompt = if (userMemoryContext != null) {
+                "${command.systemPrompt}\n\n[User Context]\n$userMemoryContext"
+            } else {
+                command.systemPrompt
+            }
             val systemPrompt = systemPromptBuilder.build(
-                command.systemPrompt, ragContext,
+                baseSystemPrompt, ragContext,
                 command.responseFormat, command.responseSchema
             )
             val activeChatClient = resolveChatClient(command)

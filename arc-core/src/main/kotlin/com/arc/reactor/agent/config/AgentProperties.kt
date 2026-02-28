@@ -81,7 +81,10 @@ data class AgentProperties(
     val memory: MemoryProperties = MemoryProperties(),
 
     /** Prompt Lab configuration */
-    val promptLab: PromptLabProperties = PromptLabProperties()
+    val promptLab: PromptLabProperties = PromptLabProperties(),
+
+    /** Tracing configuration */
+    val tracing: TracingProperties = TracingProperties()
 )
 
 data class LlmProperties(
@@ -104,7 +107,56 @@ data class LlmProperties(
     val maxConversationTurns: Int = 10,
 
     /** Maximum context window tokens (for token-based message trimming) */
-    val maxContextWindowTokens: Int = 128000
+    val maxContextWindowTokens: Int = 128000,
+
+    /** Anthropic prompt caching configuration */
+    val promptCaching: PromptCachingProperties = PromptCachingProperties()
+)
+
+/**
+ * Anthropic Prompt Caching configuration.
+ *
+ * When enabled, repeating content (system prompts, tool definitions) is marked with
+ * `cache_control: {"type": "ephemeral"}` so Anthropic can reuse cached tokens across requests.
+ * This can reduce prompt token costs by 80-90% for requests that share a common prefix.
+ *
+ * Only supported for the `anthropic` provider. Requests to other providers are unaffected.
+ *
+ * Minimum cacheable token count enforced by Anthropic API:
+ * - claude-3-5-sonnet-20241022 and later: 1024 tokens
+ * - claude-3-haiku: 2048 tokens
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     llm:
+ *       prompt-caching:
+ *         enabled: true
+ *         provider: anthropic
+ *         cache-system-prompt: true
+ *         cache-tools: true
+ *         min-cacheable-tokens: 1024
+ * ```
+ */
+data class PromptCachingProperties(
+    /** Enable Anthropic prompt caching. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** LLM provider to apply caching for. Only "anthropic" is supported. */
+    val provider: String = "anthropic",
+
+    /** Whether to mark the system prompt for caching. */
+    val cacheSystemPrompt: Boolean = true,
+
+    /** Whether to mark tool definitions for caching. */
+    val cacheTools: Boolean = true,
+
+    /**
+     * Minimum estimated token count before marking content for caching.
+     * Prevents cache_control on short prompts that Anthropic would reject.
+     */
+    val minCacheableTokens: Int = 1024
 )
 
 data class RetryProperties(

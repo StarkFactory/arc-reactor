@@ -6,6 +6,8 @@ import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.hook.model.HookContext
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
 import kotlinx.coroutines.runInterruptible
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
@@ -37,7 +39,8 @@ internal class ManualReActLoopExecutor(
         TokenUsage?,
         List<String>
     ) -> AgentResult,
-    private val recordTokenUsage: (TokenUsage, Map<String, Any>) -> Unit
+    private val recordTokenUsage: (TokenUsage, Map<String, Any>) -> Unit,
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
 ) {
 
     suspend fun execute(
@@ -52,6 +55,7 @@ internal class ManualReActLoopExecutor(
         maxToolCalls: Int
     ): AgentResult {
         var totalToolCalls = 0
+        var llmCallIndex = 0
         var activeTools = initialTools
         var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
         var totalTokenUsage: TokenUsage? = null
@@ -69,9 +73,16 @@ internal class ManualReActLoopExecutor(
 
             val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
             val llmStart = System.nanoTime()
-            val chatResponse = callWithRetry {
-                runInterruptible { requestSpec.call().chatResponse() }
+            val llmSpan = tracer.startSpan(
+                "arc.agent.llm.call",
+                mapOf("llm.call.index" to llmCallIndex.toString())
+            )
+            val chatResponse = try {
+                callWithRetry { runInterruptible { requestSpec.call().chatResponse() } }
+            } finally {
+                llmSpan.close()
             }
+            llmCallIndex++
             totalLlmDurationMs += (System.nanoTime() - llmStart) / 1_000_000
 
             totalTokenUsage = accumulateTokenUsage(chatResponse, totalTokenUsage)
@@ -113,15 +124,28 @@ internal class ManualReActLoopExecutor(
 
             val totalToolCallsCounter = AtomicInteger(totalToolCalls)
             val toolStart = System.nanoTime()
-            val toolResponses = toolCallOrchestrator.executeInParallel(
-                pendingToolCalls,
-                activeTools,
-                hookContext,
-                toolsUsed,
-                totalToolCallsCounter,
-                maxToolCalls,
-                allowedTools
-            )
+            val toolSpans = pendingToolCalls.mapIndexed { idx, tc ->
+                tracer.startSpan(
+                    "arc.agent.tool.call",
+                    mapOf(
+                        "tool.name" to tc.name(),
+                        "tool.call.index" to (totalToolCalls + idx).toString()
+                    )
+                )
+            }
+            val toolResponses = try {
+                toolCallOrchestrator.executeInParallel(
+                    pendingToolCalls,
+                    activeTools,
+                    hookContext,
+                    toolsUsed,
+                    totalToolCallsCounter,
+                    maxToolCalls,
+                    allowedTools
+                )
+            } finally {
+                toolSpans.forEach { it.close() }
+            }
             totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
             totalToolCalls = totalToolCallsCounter.get()
 
