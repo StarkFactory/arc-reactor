@@ -385,5 +385,5 @@ Sample response:
 ## Related
 
 - [Multi-Agent Guide](../architecture/multi-agent.md) — Parallel pattern details
-- [CodeReviewExample.kt](../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/CodeReviewExample.kt) — Framework built-in parallel example
+- [CodeReviewExample.kt](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/CodeReviewExample.kt) — Framework built-in parallel example
 - [Structured Output](../architecture/response-processing.md)

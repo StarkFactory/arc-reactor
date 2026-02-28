@@ -417,5 +417,5 @@ The pipeline runs three sequential LLM-agent executions. The total duration repo
 
 - [Multi-Agent Guide](../architecture/multi-agent.md) — Full pattern documentation
 - [Supervisor Pattern Deep Dive](../architecture/supervisor-pattern.md)
-- [ReportPipelineExample.kt](../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/ReportPipelineExample.kt) — Built-in sequential example
-- [CustomerServiceExample.kt](../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/CustomerServiceExample.kt) — Built-in supervisor example
+- [ReportPipelineExample.kt](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/ReportPipelineExample.kt) — Built-in sequential example
+- [CustomerServiceExample.kt](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/CustomerServiceExample.kt) — Built-in supervisor example
