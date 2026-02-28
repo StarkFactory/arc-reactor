@@ -46,8 +46,8 @@ class ArcToolCallbackAdapterTest {
             }
         }
 
-        assertTrue(error.message.orEmpty().contains("timed out after 30ms"))
-        assertTrue(error.message.orEmpty().contains("slow_tool"))
+        assertTrue(error.message.orEmpty().contains("timed out after 30ms"), "Timeout error should mention the timeout duration")
+        assertTrue(error.message.orEmpty().contains("slow_tool"), "Timeout error should mention the tool name")
         assertTrue(elapsedMs < 200, "Expected timeout to abort before full tool delay, elapsed=${elapsedMs}ms")
     }
 }

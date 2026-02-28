@@ -71,7 +71,7 @@ class OpsDashboardControllerTest {
         assertEquals(HttpStatus.OK, response.statusCode)
 
         val body = response.body as OpsDashboardResponse
-        assertTrue(body.ragEnabled)
+        assertTrue(body.ragEnabled, "RAG should be reported as enabled in dashboard body")
         assertEquals(1, body.metrics.size)
         assertEquals("arc.slack.inbound.total", body.metrics.first().name)
         assertEquals(3.0, body.metrics.first().measurements["count"])
@@ -92,7 +92,7 @@ class OpsDashboardControllerTest {
         val response = controller.metricNames(exchange = adminExchange())
         assertEquals(HttpStatus.OK, response.statusCode)
         val names = response.body as List<*>
-        assertTrue(names.contains("arc.slack.inbound.total"))
-        assertTrue(names.contains("jvm.gc.pause"))
+        assertTrue(names.contains("arc.slack.inbound.total"), "Metric names should include arc.slack.inbound.total")
+        assertTrue(names.contains("jvm.gc.pause"), "Metric names should include jvm.gc.pause")
     }
 }

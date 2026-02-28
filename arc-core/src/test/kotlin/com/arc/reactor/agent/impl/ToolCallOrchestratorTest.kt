@@ -53,7 +53,7 @@ class ToolCallOrchestratorTest {
         )
 
         assertEquals(1, responses.size)
-        assertTrue(responses[0].responseData().contains("not allowed"))
+        assertTrue(responses[0].responseData().contains("not allowed"), "Blocked tool response should contain 'not allowed'")
     }
 
     @Test
@@ -88,7 +88,7 @@ class ToolCallOrchestratorTest {
         )
 
         assertEquals(1, responses.size)
-        assertTrue(responses[0].responseData().contains("approval store unavailable", ignoreCase = true))
+        assertTrue(responses[0].responseData().contains("approval store unavailable", ignoreCase = true), "Response should indicate approval store is unavailable")
         coVerify(exactly = 0) { tool.call(any()) }
     }
 
@@ -134,8 +134,8 @@ class ToolCallOrchestratorTest {
         )
 
         assertEquals(1, responses.size)
-        assertTrue(responses[0].responseData().contains("Tool call blocked"))
-        assertTrue(responses[0].responseData().contains("Approval check failed"))
+        assertTrue(responses[0].responseData().contains("Tool call blocked"), "Response should indicate tool call was blocked")
+        assertTrue(responses[0].responseData().contains("Approval check failed"), "Response should indicate approval check failed")
         coVerify(exactly = 0) { tool.call(any()) }
     }
 
@@ -270,7 +270,7 @@ class ToolCallOrchestratorTest {
         )
 
         assertEquals(1, responses.size)
-        assertTrue(responses[0].responseData().contains("Maximum tool call limit"))
+        assertTrue(responses[0].responseData().contains("Maximum tool call limit"), "Response should indicate max tool call limit was reached")
     }
 
     private fun toolCall(id: String, name: String, arguments: String = "{}"): AssistantMessage.ToolCall {

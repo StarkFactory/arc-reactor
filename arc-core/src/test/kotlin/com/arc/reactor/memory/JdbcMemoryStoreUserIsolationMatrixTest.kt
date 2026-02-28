@@ -72,7 +72,7 @@ class JdbcMemoryStoreUserIsolationMatrixTest {
             }
         }
 
-        assertTrue(store.listSessionsByUserId("unknown-user").isEmpty())
+        assertTrue(store.listSessionsByUserId("unknown-user").isEmpty(), "Unknown user should have no sessions")
     }
 
     @Test

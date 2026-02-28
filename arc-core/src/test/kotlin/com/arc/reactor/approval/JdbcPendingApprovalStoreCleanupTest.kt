@@ -59,7 +59,7 @@ class JdbcPendingApprovalStoreCleanupTest {
 
         val pending = store.listPending()
 
-        assertTrue(pending.isEmpty())
+        assertTrue(pending.isEmpty(), "listPending should return empty after cleanup removes expired resolved records")
         val ids = jdbcTemplate.queryForList("SELECT id FROM pending_approvals ORDER BY id", String::class.java)
         assertEquals(listOf("fresh-approved"), ids)
     }

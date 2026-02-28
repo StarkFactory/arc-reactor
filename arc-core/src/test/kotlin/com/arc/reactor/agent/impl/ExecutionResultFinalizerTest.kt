@@ -62,7 +62,7 @@ class ExecutionResultFinalizerTest {
             attemptLongerResponse = { _, _, _ -> null }
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "Finalizer should return success when output guard and boundaries pass")
         assertEquals("hello!", result.content)
         coVerify(exactly = 1) {
             conversationManager.saveHistory(command, match { it.success && it.content == "hello!" })
@@ -115,7 +115,7 @@ class ExecutionResultFinalizerTest {
             attemptLongerResponse = { _, _, _ -> null }
         )
 
-        assertFalse(result.success)
+        assertFalse(result.success, "Result should fail when output guard rejects the response")
         assertEquals(AgentErrorCode.OUTPUT_GUARD_REJECTED, result.errorCode)
         coVerify(exactly = 0) { conversationManager.saveHistory(command, match { true }) }
         coVerify(exactly = 1) {
@@ -152,7 +152,7 @@ class ExecutionResultFinalizerTest {
             attemptLongerResponse = { _, _, _ -> null }
         )
 
-        assertFalse(result.success)
+        assertFalse(result.success, "Result should fail when output is too short and mode is FAIL")
         assertEquals(AgentErrorCode.OUTPUT_TOO_SHORT, result.errorCode)
         verify(exactly = 1) { metrics.recordExecution(match { !it.success && it.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT }) }
     }
@@ -182,7 +182,7 @@ class ExecutionResultFinalizerTest {
             attemptLongerResponse = { _, _, _ -> "long enough response" }
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "Result should succeed after retry produces a longer response")
         assertEquals("long enough response", result.content)
         verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "retry_once", 10, 5) }
         verify(exactly = 1) { metrics.recordExecution(match { it.success && it.content == "long enough response" }) }

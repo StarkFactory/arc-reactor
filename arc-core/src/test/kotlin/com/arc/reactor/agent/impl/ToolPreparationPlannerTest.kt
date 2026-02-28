@@ -33,8 +33,8 @@ class ToolPreparationPlannerTest {
         val prepared = planner.prepareForPrompt("hello")
 
         assertEquals(3, prepared.size)
-        assertTrue(prepared[0] === localA)
-        assertTrue(prepared[1] === localB)
+        assertTrue(prepared[0] === localA, "First prepared tool should be localA (identity check)")
+        assertTrue(prepared[1] === localB, "Second prepared tool should be localB (identity check)")
         assertInstanceOf(ArcToolCallbackAdapter::class.java, prepared[2]) {
             "Third prepared tool should wrap callback as ArcToolCallbackAdapter"
         }
@@ -85,6 +85,6 @@ class ToolPreparationPlannerTest {
 
         verify(exactly = 0) { selector.select(any(), any()) }
         assertEquals(1, prepared.size)
-        assertTrue(prepared.first() === local)
+        assertTrue(prepared.first() === local, "Local tool should be returned as-is without wrapping")
     }
 }

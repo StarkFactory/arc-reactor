@@ -47,7 +47,7 @@ class OutputBoundaryEnforcerTest {
             attemptLongerResponse = { _, _, _ -> null }
         )
 
-        assertNull(result)
+        assertNull(result, "Enforcer should return null (drop response) when mode=FAIL and content is too short")
         verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "fail", 10, 5) }
     }
 
@@ -65,7 +65,7 @@ class OutputBoundaryEnforcerTest {
             attemptLongerResponse = { _, _, _ -> "long enough response" }
         )
 
-        assertTrue(result?.success == true)
+        assertTrue(result?.success == true, "Retry result should be successful when retry content meets minimum length")
         assertEquals("long enough response", result?.content)
         verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "retry_once", 10, 5) }
     }

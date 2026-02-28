@@ -88,6 +88,6 @@ class ArcToolCallbackAdapterFuzzTest {
         val ex = assertThrows(CancellationException::class.java) {
             adapter.call("{}")
         }
-        assertTrue(ex.message.orEmpty().contains("cancelled"))
+        assertTrue(ex.message.orEmpty().contains("cancelled"), "CancellationException message should indicate cancellation")
     }
 }

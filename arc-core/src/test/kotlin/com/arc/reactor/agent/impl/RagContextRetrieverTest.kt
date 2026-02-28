@@ -30,7 +30,7 @@ class RagContextRetrieverTest {
 
         val result = retriever.retrieve(AgentCommand(systemPrompt = "sys", userPrompt = "hello"))
 
-        assertNull(result)
+        assertNull(result, "Disabled retriever should return null without calling pipeline")
         coVerify(exactly = 0) { pipeline.retrieve(any()) }
     }
 
@@ -82,7 +82,7 @@ class RagContextRetrieverTest {
 
         val result = retriever.retrieve(AgentCommand(systemPrompt = "sys", userPrompt = "hello"))
 
-        assertNull(result)
+        assertNull(result, "Retriever should return null when pipeline throws a non-cancellation exception")
     }
 
     @Test

@@ -29,7 +29,7 @@ class RagIngestionPolicyProviderTest {
         val provider = RagIngestionPolicyProvider(props, store)
         val current = provider.current()
 
-        assertFalse(current.enabled)
+        assertFalse(current.enabled, "Policy should be disabled when master switch is off")
         assertEquals(emptySet<String>(), current.allowedChannels)
     }
 
@@ -53,7 +53,7 @@ class RagIngestionPolicyProviderTest {
         val provider = RagIngestionPolicyProvider(props, store)
         val current = provider.current()
 
-        assertTrue(current.enabled)
+        assertTrue(current.enabled, "Policy should be enabled when both master and dynamic switches are on")
         assertEquals(setOf("slack"), current.allowedChannels)
         assertEquals(1, current.minQueryChars)
         assertEquals(1, current.minResponseChars)

@@ -29,8 +29,8 @@ class ChatOptionsFactoryTest {
 
         assertInstanceOf(GoogleGenAiChatOptions::class.java, options)
         assertEquals(0.3, options.temperature)
-        assertTrue(readBooleanOption(options, "googleSearchRetrieval"))
-        assertTrue(readBooleanOption(options, "internalToolExecutionEnabled"))
+        assertTrue(readBooleanOption(options, "googleSearchRetrieval"), "googleSearchRetrieval should be enabled for Gemini")
+        assertTrue(readBooleanOption(options, "internalToolExecutionEnabled"), "internalToolExecutionEnabled should be enabled for Gemini with tools")
     }
 
     @Test
@@ -48,7 +48,7 @@ class ChatOptionsFactoryTest {
 
         assertInstanceOf(GoogleGenAiChatOptions::class.java, options)
         assertEquals(0.9, options.temperature)
-        assertFalse(readBooleanOption(options, "internalToolExecutionEnabled"))
+        assertFalse(readBooleanOption(options, "internalToolExecutionEnabled"), "internalToolExecutionEnabled should be disabled when command overrides temperature")
     }
 
     @Test
@@ -61,7 +61,7 @@ class ChatOptionsFactoryTest {
 
         assertInstanceOf(ToolCallingChatOptions::class.java, options)
         assertEquals(2048, options.maxTokens)
-        assertFalse(readBooleanOption(options, "internalToolExecutionEnabled"))
+        assertFalse(readBooleanOption(options, "internalToolExecutionEnabled"), "internalToolExecutionEnabled should be disabled for non-Gemini provider")
     }
 
     @Test
@@ -72,8 +72,8 @@ class ChatOptionsFactoryTest {
             fallbackProvider = "gemini"
         )
 
-        assertFalse(options is ToolCallingChatOptions)
-        assertFalse(options is GoogleGenAiChatOptions)
+        assertFalse(options is ToolCallingChatOptions, "Non-Gemini provider without tools should not produce ToolCallingChatOptions")
+        assertFalse(options is GoogleGenAiChatOptions, "Non-Gemini provider should not produce GoogleGenAiChatOptions")
         assertEquals(2048, options.maxTokens)
     }
 

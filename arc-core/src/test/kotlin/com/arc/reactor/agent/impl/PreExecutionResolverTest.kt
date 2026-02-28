@@ -41,7 +41,7 @@ class PreExecutionResolverTest {
 
         val rejection = resolver.checkGuard(AgentCommand(systemPrompt = "sys", userPrompt = "hi", userId = null))
 
-        assertNull(rejection)
+        assertNull(rejection, "Guard should pass (null rejection) when guard returns Pass result")
         coVerify(exactly = 1) { guard.guard(match { it.userId == "anonymous" && it.text == "hi" }) }
     }
 

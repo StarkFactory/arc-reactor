@@ -61,7 +61,7 @@ class ManualReActLoopExecutorTest {
             maxToolCalls = 3
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "Single-turn manual loop execution should succeed")
         assertEquals("validated", result.content)
         assertEquals(listOf(false), optionsUsed)
     }
@@ -117,10 +117,10 @@ class ManualReActLoopExecutorTest {
             maxToolCalls = 1
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "ReAct loop should succeed after tool call and final response")
         assertEquals("done", result.content)
-        assertTrue(optionsUsed.contains(true))
-        assertTrue(optionsUsed.contains(false))
+        assertTrue(optionsUsed.contains(true), "First iteration should use tools (tools enabled)")
+        assertTrue(optionsUsed.contains(false), "Final iteration after maxToolCalls should disable tools")
     }
 
     private fun org.springframework.ai.chat.model.ChatResponse.mutateWithToolCalls(

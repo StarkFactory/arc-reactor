@@ -95,7 +95,7 @@ class StreamingCompletionFinalizerTest {
         assertEquals(1, emitted.size)
         val parsed = StreamEventMarker.parse(emitted.first())
         assertEquals("error", parsed?.first)
-        assertTrue(parsed?.second?.contains("Boundary violation [output_too_long]") == true)
+        assertTrue(parsed?.second?.contains("Boundary violation [output_too_long]") == true, "Error marker should describe output_too_long boundary violation")
     }
 
     @Test
@@ -127,7 +127,7 @@ class StreamingCompletionFinalizerTest {
         assertEquals(1, emitted.size)
         val parsed = StreamEventMarker.parse(emitted.first())
         assertEquals("error", parsed?.first)
-        assertTrue(parsed?.second?.contains("Boundary violation [output_too_short]") == true)
+        assertTrue(parsed?.second?.contains("Boundary violation [output_too_short]") == true, "Error marker should describe output_too_short boundary violation")
     }
 
     @Test

@@ -48,8 +48,8 @@ class AgentRunContextManagerTest {
         manager.open(command, toolsUsed)
         manager.close()
 
-        assertNull(MDC.get("runId"))
-        assertNull(MDC.get("userId"))
-        assertNull(MDC.get("sessionId"))
+        assertNull(MDC.get("runId"), "MDC runId should be cleared after close()")
+        assertNull(MDC.get("userId"), "MDC userId should be cleared after close()")
+        assertNull(MDC.get("sessionId"), "MDC sessionId should be cleared after close()")
     }
 }

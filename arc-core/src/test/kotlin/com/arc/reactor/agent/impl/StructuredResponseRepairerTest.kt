@@ -37,7 +37,7 @@ class StructuredResponseRepairerTest {
             toolsUsed = listOf("tool-a")
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "TEXT format should always pass validation and return success")
         assertEquals("plain text", result.content)
         assertEquals(listOf("tool-a"), result.toolsUsed)
         assertEquals(usage, result.tokenUsage)
@@ -66,7 +66,7 @@ class StructuredResponseRepairerTest {
             toolsUsed = emptyList()
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "LLM-repaired JSON should produce a successful result")
         assertEquals("""{"ok":true}""", result.content)
     }
 
@@ -93,7 +93,7 @@ class StructuredResponseRepairerTest {
             toolsUsed = emptyList()
         )
 
-        assertFalse(result.success)
+        assertFalse(result.success, "Should fail when LLM repair does not produce valid JSON")
         assertEquals(AgentErrorCode.INVALID_RESPONSE, result.errorCode)
     }
 

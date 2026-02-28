@@ -124,7 +124,7 @@ class ToolPolicyIntegrationTest {
         val effective = state["effective"] as Map<String, Any>
         assertEquals(true, effective["enabled"])
         assertEquals("blocked on slack", effective["denyWriteMessage"])
-        assertNotNull(state["stored"])
+        assertNotNull(state["stored"], "GET response should include the stored policy")
     }
 
     @Test
@@ -144,8 +144,8 @@ class ToolPolicyIntegrationTest {
             .expectStatus().isOk
 
         // Approval policy becomes dynamic: write tools require approval
-        assertTrue(toolApprovalPolicy.requiresApproval("jira_create_issue", emptyMap()))
-        assertTrue(!toolApprovalPolicy.requiresApproval("confluence_get_page", emptyMap()))
+        assertTrue(toolApprovalPolicy.requiresApproval("jira_create_issue", emptyMap()), "jira_create_issue should require approval as a write tool")
+        assertTrue(!toolApprovalPolicy.requiresApproval("confluence_get_page", emptyMap()), "confluence_get_page should not require approval as a read tool")
 
         // Slack channel: blocked by hook
         val toolCtx = ToolCallContext(

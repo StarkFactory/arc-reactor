@@ -26,9 +26,9 @@ class ToolArgumentParserFuzzTest {
 
     @Test
     fun `parser should return empty map for null and blank`() {
-        assertTrue(parseToolArguments(null).isEmpty())
-        assertTrue(parseToolArguments("").isEmpty())
-        assertTrue(parseToolArguments("   ").isEmpty())
+        assertTrue(parseToolArguments(null).isEmpty(), "null argument should parse to empty map")
+        assertTrue(parseToolArguments("").isEmpty(), "empty string should parse to empty map")
+        assertTrue(parseToolArguments("   ").isEmpty(), "blank string should parse to empty map")
     }
 
     @Test
@@ -63,7 +63,7 @@ class ToolArgumentParserFuzzTest {
         assertInstanceOf(List::class.java, parsed2["arr"]) {
             "arr key should contain a list value"
         }
-        assertTrue(parsed2.containsKey("nullValue"))
+        assertTrue(parsed2.containsKey("nullValue"), "Parsed map should contain 'nullValue' key for explicit JSON null")
     }
 
     @Test

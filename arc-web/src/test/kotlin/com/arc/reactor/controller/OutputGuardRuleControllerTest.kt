@@ -82,7 +82,7 @@ class OutputGuardRuleControllerTest {
             assertEquals(HttpStatus.CREATED, response.statusCode)
             assertEquals(OutputGuardRuleAction.REJECT, captured.captured.action)
             assertEquals(10, captured.captured.priority)
-            assertTrue(captured.captured.id.isNotBlank())
+            assertTrue(captured.captured.id.isNotBlank(), "Created rule should have a non-blank ID")
             verifyOrder {
                 store.save(any())
                 invalidationBus.touch()
@@ -189,7 +189,7 @@ class OutputGuardRuleControllerTest {
 
             assertEquals(HttpStatus.OK, response.statusCode)
             val body = response.body as OutputGuardSimulationResponse
-            assertTrue(body.blocked)
+            assertTrue(body.blocked, "Simulation should report the response as blocked")
             assertEquals("r1", body.blockedByRuleId)
             assertEquals(1, body.matchedRules.size)
             verify {

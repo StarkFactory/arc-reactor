@@ -50,7 +50,7 @@ class DynamicSchedulerServicePolicyPipelineTest {
 
         val result = service.trigger(job.id)
 
-        assertTrue(result.contains("blocked by policy"))
+        assertTrue(result.contains("blocked by policy"), "Result should contain hook rejection reason")
         assertEquals(JobExecutionStatus.FAILED, store.lastStatus)
         coVerify(exactly = 0) { tool.call(any()) }
     }
@@ -90,7 +90,7 @@ class DynamicSchedulerServicePolicyPipelineTest {
 
         val result = service.trigger(job.id)
 
-        assertTrue(result.contains("rejected by human"))
+        assertTrue(result.contains("rejected by human"), "Result should indicate human approval rejection")
         assertEquals(JobExecutionStatus.FAILED, store.lastStatus)
         coVerify(exactly = 1) {
             pendingApprovalStore.requestApproval(
@@ -129,7 +129,7 @@ class DynamicSchedulerServicePolicyPipelineTest {
 
         val result = service.trigger(job.id)
 
-        assertTrue(result.contains("approval store unavailable", ignoreCase = true))
+        assertTrue(result.contains("approval store unavailable", ignoreCase = true), "Result should indicate missing approval store")
         assertEquals(JobExecutionStatus.FAILED, store.lastStatus)
         coVerify(exactly = 0) { tool.call(any()) }
     }
@@ -169,7 +169,7 @@ class DynamicSchedulerServicePolicyPipelineTest {
 
         val result = service.trigger(job.id)
 
-        assertTrue(result.contains("approval check failed", ignoreCase = true))
+        assertTrue(result.contains("approval check failed", ignoreCase = true), "Result should indicate approval check exception")
         assertEquals(JobExecutionStatus.FAILED, store.lastStatus)
         coVerify(exactly = 1) {
             pendingApprovalStore.requestApproval(

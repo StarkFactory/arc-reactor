@@ -58,13 +58,13 @@ class AgentRunContextManagerFuzzTest {
             if (includeSession) {
                 assertEquals(metadata["sessionId"].toString(), MDC.get("sessionId"))
             } else {
-                assertNull(MDC.get("sessionId"))
+                assertNull(MDC.get("sessionId"), "MDC sessionId should be null when no sessionId provided")
             }
 
             manager.close()
-            assertNull(MDC.get("runId"))
-            assertNull(MDC.get("userId"))
-            assertNull(MDC.get("sessionId"))
+            assertNull(MDC.get("runId"), "MDC runId should be cleared after close()")
+            assertNull(MDC.get("userId"), "MDC userId should be cleared after close()")
+            assertNull(MDC.get("sessionId"), "MDC sessionId should be cleared after close()")
         }
     }
 
@@ -78,7 +78,7 @@ class AgentRunContextManagerFuzzTest {
         toolsUsed.add("tool-a")
         toolsUsed.add("tool-b")
 
-        assertTrue(context.hookContext.toolsUsed === toolsUsed)
+        assertTrue(context.hookContext.toolsUsed === toolsUsed, "hookContext.toolsUsed should be the same reference as the passed-in list")
         assertEquals(listOf("tool-a", "tool-b"), context.hookContext.toolsUsed.toList())
 
         manager.close()

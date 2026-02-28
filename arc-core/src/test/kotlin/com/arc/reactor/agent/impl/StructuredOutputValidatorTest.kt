@@ -23,9 +23,9 @@ class StructuredOutputValidatorTest {
 
     @Test
     fun `should validate json and yaml`() {
-        assertTrue(validator.isValidFormat("""{"name":"arc"}""", ResponseFormat.JSON))
-        assertTrue(validator.isValidFormat("name: arc", ResponseFormat.YAML))
-        assertFalse(validator.isValidFormat("{bad", ResponseFormat.JSON))
-        assertFalse(validator.isValidFormat(": bad", ResponseFormat.YAML))
+        assertTrue(validator.isValidFormat("""{"name":"arc"}""", ResponseFormat.JSON), "Valid JSON object should pass validation")
+        assertTrue(validator.isValidFormat("name: arc", ResponseFormat.YAML), "Valid YAML should pass validation")
+        assertFalse(validator.isValidFormat("{bad", ResponseFormat.JSON), "Malformed JSON should fail validation")
+        assertFalse(validator.isValidFormat(": bad", ResponseFormat.YAML), "Malformed YAML should fail validation")
     }
 }

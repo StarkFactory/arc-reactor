@@ -51,15 +51,15 @@ class AgentErrorPolicyTest {
     fun `delegates transient checks to injected classifier`() {
         val customPolicy = AgentErrorPolicy { e -> e.message == "retry-me" }
 
-        assertTrue(customPolicy.isTransient(RuntimeException("retry-me")))
-        assertFalse(customPolicy.isTransient(RuntimeException("do-not-retry")))
+        assertTrue(customPolicy.isTransient(RuntimeException("retry-me")), "Custom classifier should mark 'retry-me' as transient")
+        assertFalse(customPolicy.isTransient(RuntimeException("do-not-retry")), "Custom classifier should not mark 'do-not-retry' as transient")
     }
 
     @Test
     fun `default transient classifier detects common transient messages`() {
-        assertTrue(defaultTransientErrorClassifier(RuntimeException("HTTP 503 Service Unavailable")))
-        assertTrue(defaultTransientErrorClassifier(RuntimeException("Connection reset by peer")))
-        assertTrue(defaultTransientErrorClassifier(RuntimeException("Too many requests")))
-        assertFalse(defaultTransientErrorClassifier(RuntimeException("Validation failed")))
+        assertTrue(defaultTransientErrorClassifier(RuntimeException("HTTP 503 Service Unavailable")), "HTTP 503 should be classified as transient")
+        assertTrue(defaultTransientErrorClassifier(RuntimeException("Connection reset by peer")), "Connection reset should be classified as transient")
+        assertTrue(defaultTransientErrorClassifier(RuntimeException("Too many requests")), "Rate limit error should be classified as transient")
+        assertFalse(defaultTransientErrorClassifier(RuntimeException("Validation failed")), "Validation failure should not be classified as transient")
     }
 }

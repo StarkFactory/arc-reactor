@@ -85,7 +85,7 @@ class McpManagerTest {
         val synced = manager.listServers().first { it.name == "sync-target" }
         assertEquals("after", synced.description)
         assertEquals("http://localhost:8082/sse", synced.config["url"])
-        assertTrue(synced.autoConnect)
+        assertTrue(synced.autoConnect, "autoConnect should be updated to true after syncRuntimeServer")
     }
 
     @Test

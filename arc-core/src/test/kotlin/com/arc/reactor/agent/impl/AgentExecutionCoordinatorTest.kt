@@ -62,10 +62,10 @@ class AgentExecutionCoordinatorTest {
             startTime = 1_000L
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "Cached response should produce a successful result")
         assertEquals("cached", result.content)
         assertEquals(500L, result.durationMs)
-        assertFalse(executeCalled)
+        assertFalse(executeCalled, "Agent executor should not be called when cache hit")
         verify(exactly = 1) { metrics.recordCacheHit(expectedKey) }
         verify(exactly = 0) { metrics.recordCacheMiss(expectedKey) }
     }
@@ -108,7 +108,7 @@ class AgentExecutionCoordinatorTest {
             startTime = 1_000L
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "Fallback strategy should produce a successful result")
         assertEquals("fallback", result.content)
         assertEquals("fallback", finalizedInput?.content)
         coVerify(exactly = 1) { fallback.execute(command, match { it.message == "boom" }) }
@@ -149,7 +149,7 @@ class AgentExecutionCoordinatorTest {
             startTime = 1_000L
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "Finalized response should produce a successful result")
         assertEquals("final", result.content)
         verify(exactly = 1) { metrics.recordCacheMiss(expectedKey) }
         coVerify(exactly = 1) { responseCache.put(expectedKey, match { it.content == "final" && it.toolsUsed == listOf("tool") }) }

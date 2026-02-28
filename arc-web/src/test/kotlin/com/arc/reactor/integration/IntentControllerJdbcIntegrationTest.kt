@@ -108,7 +108,7 @@ class IntentControllerJdbcIntegrationTest {
             .returnResult()
             .responseBody
             .orEmpty()
-        assertTrue(list.any { it["name"] == "refund" })
+        assertTrue(list.any { it["name"] == "refund" }, "Intent list should contain the created 'refund' intent")
 
         // Update
         adminClient.put()
@@ -125,7 +125,7 @@ class IntentControllerJdbcIntegrationTest {
             .exchange()
             .expectStatus().isOk
 
-        assertFalse(queryBoolean("SELECT enabled FROM intent_definitions WHERE name = ?", "refund"))
+        assertFalse(queryBoolean("SELECT enabled FROM intent_definitions WHERE name = ?", "refund"), "Intent should be disabled after PUT update")
 
         // Get
         val get = adminClient.get()

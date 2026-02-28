@@ -185,7 +185,7 @@ class ScenarioAssumptionValidationTest {
 
         assertEquals(1, chunks.size)
         val parsed = StreamEventMarker.parse(chunks.first())
-        assertNotNull(parsed)
+        assertNotNull(parsed, "Streaming error chunk should be a parseable StreamEventMarker")
         assertEquals("error", parsed?.first)
         assertTrue(parsed?.second?.contains("Structured JSON output is not supported in streaming mode") == true) {
             "Streaming with JSON response format should emit INVALID_RESPONSE marker"

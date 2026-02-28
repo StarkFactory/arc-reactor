@@ -65,7 +65,7 @@ class RagIngestionCaptureHookTest {
             response = AgentResponse(success = true, response = "ok")
         )
 
-        assertTrue(store.list(limit = 10).isEmpty())
+        assertTrue(store.list(limit = 10).isEmpty(), "Blocked pattern should prevent candidate from being captured")
     }
 
     @Test
@@ -90,10 +90,10 @@ class RagIngestionCaptureHookTest {
         )
 
         val saved = store.list(limit = 10).firstOrNull()
-        assertNotNull(saved)
+        assertNotNull(saved, "Auto-ingestion should produce a candidate record in the store")
         assertEquals(RagIngestionCandidateStatus.INGESTED, saved!!.status)
         assertEquals("system:auto", saved.reviewedBy)
-        assertNotNull(saved.ingestedDocumentId)
+        assertNotNull(saved.ingestedDocumentId, "Auto-ingested candidate should have a non-null ingestedDocumentId")
         verify(exactly = 1) { vectorStore.add(any<List<org.springframework.ai.document.Document>>()) }
     }
 

@@ -116,7 +116,7 @@ class OutputGuardPolicyEngineIntegrationTest {
         assertEquals(10, queryInt("SELECT priority FROM output_guard_rules WHERE id = ?", maskRule["id"].asText()))
 
         val blockedSim = simulate("SECRET password: p@ss", includeDisabled = false)
-        assertTrue(blockedSim["blocked"].asBoolean())
+        assertTrue(blockedSim["blocked"].asBoolean(), "Simulation should be blocked by REJECT rule matching 'SECRET password'")
         assertEquals(rejectRule["id"].asText(), blockedSim["blockedByRuleId"].asText())
 
         updateRule(
@@ -124,13 +124,13 @@ class OutputGuardPolicyEngineIntegrationTest {
             body = mapOf("enabled" to false, "priority" to 50)
         )
 
-        assertFalse(queryBoolean("SELECT enabled FROM output_guard_rules WHERE id = ?", rejectRule["id"].asText()))
+        assertFalse(queryBoolean("SELECT enabled FROM output_guard_rules WHERE id = ?", rejectRule["id"].asText()), "Reject rule should be disabled in DB after update")
         assertEquals(50, queryInt("SELECT priority FROM output_guard_rules WHERE id = ?", rejectRule["id"].asText()))
 
         val maskedSim = simulate("SECRET password: p@ss", includeDisabled = false)
-        assertFalse(maskedSim["blocked"].asBoolean())
-        assertTrue(maskedSim["modified"].asBoolean())
-        assertTrue(maskedSim["resultContent"].asText().contains("[REDACTED]"))
+        assertFalse(maskedSim["blocked"].asBoolean(), "Should not be blocked after reject rule is disabled")
+        assertTrue(maskedSim["modified"].asBoolean(), "Content should be modified (masked) by the MASK rule")
+        assertTrue(maskedSim["resultContent"].asText().contains("[REDACTED]"), "Masked content should contain '[REDACTED]'")
 
         deleteRule(maskRule["id"].asText())
 
@@ -138,16 +138,16 @@ class OutputGuardPolicyEngineIntegrationTest {
         assertEquals(0, queryInt("SELECT COUNT(*) FROM output_guard_rules WHERE id = ?", maskRule["id"].asText()))
 
         val finalSim = simulate("SECRET password: p@ss", includeDisabled = false)
-        assertFalse(finalSim["blocked"].asBoolean())
-        assertFalse(finalSim["modified"].asBoolean())
+        assertFalse(finalSim["blocked"].asBoolean(), "Should not be blocked after all rules are deleted")
+        assertFalse(finalSim["modified"].asBoolean(), "Should not be modified after all rules are deleted")
         assertEquals("SECRET password: p@ss", finalSim["resultContent"].asText())
 
         val audits = listAudits(limit = 50)
         val actions = audits.map { it["action"].asText() }
-        assertTrue(actions.count { it == "CREATE" } >= 2)
-        assertTrue(actions.any { it == "UPDATE" })
-        assertTrue(actions.any { it == "DELETE" })
-        assertTrue(actions.count { it == "SIMULATE" } >= 3)
+        assertTrue(actions.count { it == "CREATE" } >= 2, "Audit log should contain at least 2 CREATE actions, got: $actions")
+        assertTrue(actions.any { it == "UPDATE" }, "Audit log should contain at least 1 UPDATE action, got: $actions")
+        assertTrue(actions.any { it == "DELETE" }, "Audit log should contain at least 1 DELETE action, got: $actions")
+        assertTrue(actions.count { it == "SIMULATE" } >= 3, "Audit log should contain at least 3 SIMULATE actions, got: $actions")
         assertEquals(audits.size, countRows("output_guard_rule_audits"))
     }
 

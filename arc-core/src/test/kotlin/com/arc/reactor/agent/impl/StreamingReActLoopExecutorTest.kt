@@ -60,7 +60,7 @@ class StreamingReActLoopExecutorTest {
             emit = { emitted.add(it) }
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "Single-turn streaming execution should succeed")
         assertEquals("hello", result.collectedContent)
         assertEquals("hello", result.lastIterationContent)
         assertEquals(listOf("hello"), emitted)
@@ -116,13 +116,13 @@ class StreamingReActLoopExecutorTest {
             emit = { emitted.add(it) }
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "ReAct loop should succeed after tool call and final response")
         assertEquals("thinkingdone", result.collectedContent)
         assertEquals("done", result.lastIterationContent)
-        assertTrue(optionsUsed.contains(true))
-        assertTrue(optionsUsed.contains(false))
-        assertTrue(emitted.contains(StreamEventMarker.toolStart("search")))
-        assertTrue(emitted.contains(StreamEventMarker.toolEnd("search")))
+        assertTrue(optionsUsed.contains(true), "First iteration should use tools (tools enabled)")
+        assertTrue(optionsUsed.contains(false), "Final iteration after maxToolCalls should disable tools")
+        assertTrue(emitted.contains(StreamEventMarker.toolStart("search")), "toolStart marker for 'search' should be emitted")
+        assertTrue(emitted.contains(StreamEventMarker.toolEnd("search")), "toolEnd marker for 'search' should be emitted")
         coVerify(exactly = 1) {
             toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any())
         }

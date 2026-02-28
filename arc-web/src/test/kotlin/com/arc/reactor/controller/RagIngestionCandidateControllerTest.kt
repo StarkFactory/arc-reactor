@@ -99,10 +99,10 @@ class RagIngestionCandidateControllerTest {
 
         assertEquals(HttpStatus.OK, response.statusCode)
         val updated = store.findById(candidate.id)
-        assertNotNull(updated)
+        assertNotNull(updated, "Approved candidate should still be findable in the store")
         assertEquals(RagIngestionCandidateStatus.INGESTED, updated!!.status)
         assertEquals("admin-1", updated.reviewedBy)
-        assertNotNull(updated.ingestedDocumentId)
+        assertNotNull(updated.ingestedDocumentId, "Approved candidate should have a non-null ingestedDocumentId")
         verify(exactly = 1) { vectorStore.add(any<List<org.springframework.ai.document.Document>>()) }
     }
 

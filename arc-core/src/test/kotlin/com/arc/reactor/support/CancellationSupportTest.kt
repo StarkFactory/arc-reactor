@@ -29,7 +29,7 @@ class CancellationSupportTest {
     fun `runSuspendCatchingNonCancellation should return success`() = runTest {
         val result = runSuspendCatchingNonCancellation { "ok" }
 
-        assertTrue(result.isSuccess)
+        assertTrue(result.isSuccess, "Non-throwing suspend block should return Success result")
         assertEquals("ok", result.getOrNull())
     }
 
@@ -39,7 +39,7 @@ class CancellationSupportTest {
             error("boom")
         }
 
-        assertTrue(result.isFailure)
+        assertTrue(result.isFailure, "Block throwing non-cancellation exception should return Failure result")
         assertEquals("boom", result.exceptionOrNull()?.message)
     }
 

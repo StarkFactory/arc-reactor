@@ -36,7 +36,7 @@ class RetryExecutorTest {
         assertEquals("ok", result)
         assertEquals(3, attempts)
         assertEquals(2, delays.size)
-        assertTrue(delays.all { it in 75..625 })
+        assertTrue(delays.all { it in 75..625 }, "All retry delays should be within exponential backoff range [75ms, 625ms]")
     }
 
     @Test

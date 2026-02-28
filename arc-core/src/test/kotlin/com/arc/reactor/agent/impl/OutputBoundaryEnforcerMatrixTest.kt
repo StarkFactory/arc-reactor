@@ -62,7 +62,7 @@ class OutputBoundaryEnforcerMatrixTest {
                 command = command,
                 attemptLongerResponse = { _, _, _ -> null }
             )
-            assertNotNull(result)
+            assertNotNull(result, "len=$len: truncation enforcer should return non-null result")
             val content = result?.content.orEmpty()
             if (len > max) {
                 assertEquals(source.take(max) + "\n\n[Response truncated]", content, "len=$len")
@@ -98,7 +98,7 @@ class OutputBoundaryEnforcerMatrixTest {
                 }
             )
 
-            assertNotNull(result)
+            assertNotNull(result, "len=$len: retry-once enforcer should return non-null result")
             val content = result?.content.orEmpty()
             if (len < min) {
                 assertEquals(min, content.length, "len=$len should be upgraded by retry")
@@ -131,7 +131,7 @@ class OutputBoundaryEnforcerMatrixTest {
                 attemptLongerResponse = { _, _, _ -> "tiny" }
             )
 
-            assertNotNull(result)
+            assertNotNull(result, "len=$len: enforcer should return non-null result even when retry content is too short")
             assertEquals(source, result?.content, "len=$len should remain original when retry fails")
             checked++
         }
