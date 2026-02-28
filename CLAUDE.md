@@ -62,11 +62,23 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 | Guard Audit | ON | `arc.reactor.guard.audit-enabled` |
 | Security Headers | ON | `arc.reactor.security-headers.enabled` |
 | Auth (JWT) | OFF | `arc.reactor.auth.enabled` |
+| Multimodal Upload | ON | `arc.reactor.multimodal.enabled` |
+| MCP Reconnection | ON | `arc.reactor.mcp.reconnection.enabled` |
 | RAG | OFF | `arc.reactor.rag.enabled` |
+| RAG Ingestion | OFF | `arc.reactor.rag.ingestion.enabled` |
+| Approval (HITL) | OFF | `arc.reactor.approval.enabled` |
+| Tool Policy | OFF | `arc.reactor.tool-policy.enabled` |
+| Output Guard | OFF | `arc.reactor.output-guard.enabled` |
+| Intent Classification | OFF | `arc.reactor.intent.enabled` |
+| Scheduler | OFF | `arc.reactor.scheduler.enabled` |
+| Cache | OFF | `arc.reactor.cache.enabled` |
+| Fallback | OFF | `arc.reactor.fallback.enabled` |
+| Webhook | OFF | `arc.reactor.webhook.enabled` |
 | CORS | OFF | `arc.reactor.cors.enabled` |
 | Circuit Breaker | OFF | `arc.reactor.circuit-breaker.enabled` |
 | Feedback | OFF | `arc.reactor.feedback.enabled` |
 | Memory Summary | OFF | `arc.reactor.memory.summary.enabled` |
+| Admin Module | OFF | `arc.reactor.admin.enabled` |
 | Flyway | OFF | `SPRING_FLYWAY_ENABLED` env var |
 
 ### REST API Endpoints

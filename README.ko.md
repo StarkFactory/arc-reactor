@@ -252,11 +252,11 @@ docker-compose up -d
 모든 버전 태그에서 이미지가 자동으로 게시됩니다:
 
 ```bash
-docker pull ghcr.io/starkfactory/arc-reactor:4.4.0
-docker run -e GEMINI_API_KEY=your-key -p 8080:8080 ghcr.io/starkfactory/arc-reactor:4.4.0
+docker pull ghcr.io/starkfactory/arc-reactor:4.5.0
+docker run -e GEMINI_API_KEY=your-key -p 8080:8080 ghcr.io/starkfactory/arc-reactor:4.5.0
 ```
 
-사용 가능한 태그: 정확한 버전(예: `4.4.0`), 마이너 스트림(예: `4.4`), 짧은 SHA(`sha-<commit>`).
+사용 가능한 태그: 정확한 버전(예: `4.5.0`), 마이너 스트림(예: `4.5`), 짧은 SHA(`sha-<commit>`).
 
 ### Kubernetes (Helm)
 

@@ -261,11 +261,11 @@ To stop: `docker-compose down`
 Images are published automatically on every version tag:
 
 ```bash
-docker pull ghcr.io/starkfactory/arc-reactor:4.4.0
-docker run -e GEMINI_API_KEY=your-key -p 8080:8080 ghcr.io/starkfactory/arc-reactor:4.4.0
+docker pull ghcr.io/starkfactory/arc-reactor:4.5.0
+docker run -e GEMINI_API_KEY=your-key -p 8080:8080 ghcr.io/starkfactory/arc-reactor:4.5.0
 ```
 
-Available tags: exact version (e.g. `4.4.0`), minor stream (e.g. `4.4`), short SHA (`sha-<commit>`).
+Available tags: exact version (e.g. `4.5.0`), minor stream (e.g. `4.5`), short SHA (`sha-<commit>`).
 
 ### Kubernetes (Helm)
 
