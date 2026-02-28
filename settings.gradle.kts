@@ -1,6 +1,6 @@
 rootProject.name = "arc-reactor"
 
-include("arc-core", "arc-web", "arc-slack", "arc-error-report", "arc-teams")
+include("arc-core", "arc-web", "arc-slack", "arc-error-report", "arc-google", "arc-teams")
 include("arc-admin")
 include("arc-app")
 
