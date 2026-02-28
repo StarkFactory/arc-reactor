@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import kotlinx.coroutines.runBlocking
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
@@ -28,6 +29,7 @@ import org.springframework.web.server.ServerWebExchange
 @Tag(name = "User Memory", description = "Per-user long-term memory management")
 @RestController
 @RequestMapping("/api/user-memory")
+@ConditionalOnBean(UserMemoryManager::class)
 class UserMemoryController(
     private val userMemoryManager: UserMemoryManager
 ) {
