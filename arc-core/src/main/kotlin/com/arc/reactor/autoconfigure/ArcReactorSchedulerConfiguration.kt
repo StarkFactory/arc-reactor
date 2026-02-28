@@ -1,10 +1,12 @@
 package com.arc.reactor.autoconfigure
 
+import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.mcp.McpManager
+import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.scheduler.DynamicSchedulerService
 import com.arc.reactor.scheduler.ScheduledJobStore
 import com.arc.reactor.scheduler.SlackMessageSender
@@ -19,7 +21,10 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler
 /**
  * Dynamic Scheduler Configuration (only when arc.reactor.scheduler.enabled=true)
  *
- * Provides cron-based MCP tool execution with dynamic job management.
+ * Provides cron-based job execution with dynamic job management.
+ * Supports two execution modes:
+ * - **MCP_TOOL**: Directly invokes a single MCP tool.
+ * - **AGENT**: Runs the full ReAct agent loop for multi-source briefing.
  */
 @Configuration
 @ConditionalOnProperty(
@@ -47,7 +52,9 @@ class SchedulerConfiguration {
         slackMessageSender: ObjectProvider<SlackMessageSender>,
         hookExecutorProvider: ObjectProvider<HookExecutor>,
         toolApprovalPolicyProvider: ObjectProvider<ToolApprovalPolicy>,
-        pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>
+        pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>,
+        agentExecutorProvider: ObjectProvider<AgentExecutor>,
+        personaStoreProvider: ObjectProvider<PersonaStore>
     ): DynamicSchedulerService = DynamicSchedulerService(
         store = scheduledJobStore,
         taskScheduler = schedulerTaskScheduler,
@@ -55,6 +62,8 @@ class SchedulerConfiguration {
         slackMessageSender = slackMessageSender.ifAvailable,
         hookExecutor = hookExecutorProvider.ifAvailable,
         toolApprovalPolicy = toolApprovalPolicyProvider.ifAvailable,
-        pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable
+        pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable,
+        agentExecutor = agentExecutorProvider.ifAvailable,
+        personaStore = personaStoreProvider.ifAvailable
     )
 }
