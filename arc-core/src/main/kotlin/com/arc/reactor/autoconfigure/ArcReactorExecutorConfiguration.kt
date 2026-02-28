@@ -23,6 +23,7 @@ import com.arc.reactor.resilience.CircuitBreakerRegistry
 import com.arc.reactor.resilience.FallbackStrategy
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.tool.LocalTool
+import com.arc.reactor.tool.LocalToolFilter
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
 import com.arc.reactor.tracing.ArcReactorTracer
@@ -53,6 +54,7 @@ class ArcReactorExecutorConfiguration {
         chatModelProvider: ChatModelProvider,
         properties: AgentProperties,
         localTools: List<LocalTool>,
+        localToolFilters: List<LocalToolFilter>,
         toolCallbacks: List<ToolCallback>,
         toolSelector: ToolSelector,
         requestGuard: RequestGuard?,
@@ -78,6 +80,7 @@ class ArcReactorExecutorConfiguration {
         chatModelProvider = chatModelProvider,
         properties = properties,
         localTools = localTools,
+        localToolFilters = localToolFilters,
         toolCallbacks = toolCallbacks,
         toolSelector = toolSelector,
         guard = requestGuard,

@@ -34,6 +34,7 @@ import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.support.runSuspendCatchingNonCancellation
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.LocalTool
+import com.arc.reactor.tool.LocalToolFilter
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
 import com.arc.reactor.tracing.ArcReactorTracer
@@ -71,6 +72,7 @@ class SpringAiAgentExecutor(
     private val chatModelProvider: ChatModelProvider? = null,
     private val properties: AgentProperties,
     private val localTools: List<LocalTool> = emptyList(),
+    private val localToolFilters: List<LocalToolFilter> = emptyList(),
     private val toolCallbacks: List<ToolCallback> = emptyList(),
     private val toolSelector: ToolSelector? = null,
     private val guard: RequestGuard? = null,
@@ -132,7 +134,8 @@ class SpringAiAgentExecutor(
         mcpToolCallbacks = mcpToolCallbacks,
         toolSelector = toolSelector,
         maxToolsPerRequest = properties.maxToolsPerRequest,
-        fallbackToolTimeoutMs = properties.concurrency.toolCallTimeoutMs
+        fallbackToolTimeoutMs = properties.concurrency.toolCallTimeoutMs,
+        localToolFilters = localToolFilters
     )
     private val messageTrimmer = ConversationMessageTrimmer(
         maxContextWindowTokens = properties.llm.maxContextWindowTokens,

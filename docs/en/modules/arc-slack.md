@@ -36,6 +36,39 @@ implementation("com.arc.reactor:arc-slack")
 
 An `AgentExecutor` bean must be present for the event and command handlers to activate. Without it, only the messaging service and signature verifier are registered.
 
+## Slack Local Tools
+
+`arc-slack` now also provides Slack tools directly as Arc Reactor `LocalTool` beans (no external Slack MCP server required).
+
+Enable with:
+
+```yaml
+arc:
+  reactor:
+    slack:
+      tools:
+        enabled: true
+        bot-token: "${SLACK_BOT_TOKEN}"
+        tool-exposure:
+          scope-aware-enabled: true
+          fail-open-on-scope-resolution-error: true
+```
+
+When enabled, 11 tools are registered:
+- `send_message`
+- `reply_to_thread`
+- `list_channels`
+- `find_channel`
+- `read_messages`
+- `read_thread_replies`
+- `add_reaction`
+- `get_user_info`
+- `find_user`
+- `search_messages`
+- `upload_file`
+
+If `tool-exposure.scope-aware-enabled=true`, tool visibility is filtered by granted Slack OAuth scopes.
+
 ## Key Components
 
 | Class | Role |

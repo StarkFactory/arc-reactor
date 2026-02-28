@@ -8,6 +8,8 @@ import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.approval.AlwaysApprovePolicy
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.approval.ToolNameApprovalPolicy
+import com.arc.reactor.audit.AdminAuditStore
+import com.arc.reactor.audit.InMemoryAdminAuditStore
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
 import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
@@ -99,6 +101,10 @@ class ArcReactorCoreBeansConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun mcpServerStore(): McpServerStore = InMemoryMcpServerStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun adminAuditStore(): AdminAuditStore = InMemoryAdminAuditStore()
 
     @Bean
     fun postgresRequirementMarker(environment: Environment): Any {

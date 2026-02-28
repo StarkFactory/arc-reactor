@@ -36,6 +36,39 @@ implementation("com.arc.reactor:arc-slack")
 
 이벤트 및 명령어 핸들러를 활성화하려면 `AgentExecutor` 빈이 있어야 합니다. 없으면 메시징 서비스와 서명 검증기만 등록됩니다.
 
+## Slack 로컬 도구(LocalTool)
+
+이제 `arc-slack`은 외부 Slack MCP 서버 없이도 Slack 도구를 Arc Reactor `LocalTool` 빈으로 직접 제공합니다.
+
+활성화 설정:
+
+```yaml
+arc:
+  reactor:
+    slack:
+      tools:
+        enabled: true
+        bot-token: "${SLACK_BOT_TOKEN}"
+        tool-exposure:
+          scope-aware-enabled: true
+          fail-open-on-scope-resolution-error: true
+```
+
+활성화 시 아래 11개 도구가 등록됩니다:
+- `send_message`
+- `reply_to_thread`
+- `list_channels`
+- `find_channel`
+- `read_messages`
+- `read_thread_replies`
+- `add_reaction`
+- `get_user_info`
+- `find_user`
+- `search_messages`
+- `upload_file`
+
+`tool-exposure.scope-aware-enabled=true`이면 Slack OAuth scope를 기준으로 도구 노출이 자동 필터링됩니다.
+
 ## 주요 컴포넌트
 
 | 클래스 | 역할 |
