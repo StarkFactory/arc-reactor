@@ -475,6 +475,23 @@ class DynamicSchedulerService(
         }
     }
 
+    private fun sendTeamsIfConfigured(job: ScheduledJob, result: String) {
+        if (job.teamsWebhookUrl.isNullOrBlank() || teamsMessageSender == null) return
+        try {
+            teamsMessageSender.sendMessage(job.teamsWebhookUrl, formatTeamsMessage(job, result))
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to send Teams message for job: ${job.name}" }
+        }
+    }
+
+    private fun formatTeamsMessage(job: ScheduledJob, result: String): String {
+        val truncated = if (result.length > 3000) result.take(3000) + "\n..." else result
+        return when (job.jobType) {
+            ScheduledJobType.MCP_TOOL -> "**[${job.name}]** scheduled task result:\n```\n$truncated\n```"
+            ScheduledJobType.AGENT -> "**[${job.name}]** 브리핑:\n$truncated"
+        }
+    }
+
     private fun markSchedulingFailure(job: ScheduledJob, message: String) {
         store.updateExecutionResult(job.id, JobExecutionStatus.FAILED, message)
     }
