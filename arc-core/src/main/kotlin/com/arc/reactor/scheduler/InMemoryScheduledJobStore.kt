@@ -42,6 +42,10 @@ class InMemoryScheduledJobStore : ScheduledJobStore {
             agentModel = job.agentModel,
             agentMaxToolCalls = job.agentMaxToolCalls,
             slackChannelId = job.slackChannelId,
+            teamsWebhookUrl = job.teamsWebhookUrl,
+            retryOnFailure = job.retryOnFailure,
+            maxRetryCount = job.maxRetryCount,
+            executionTimeoutMs = job.executionTimeoutMs,
             enabled = job.enabled,
             updatedAt = Instant.now()
         )

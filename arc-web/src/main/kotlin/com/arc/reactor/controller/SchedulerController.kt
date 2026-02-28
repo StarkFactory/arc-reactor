@@ -2,6 +2,7 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.scheduler.DynamicSchedulerService
 import com.arc.reactor.scheduler.ScheduledJob
+import com.arc.reactor.scheduler.ScheduledJobExecution
 import com.arc.reactor.scheduler.ScheduledJobType
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -27,12 +28,14 @@ import java.time.Instant
  * - **AGENT**: Runs the full ReAct agent loop and produces a natural-language result.
  *
  * ## Endpoints
- * - GET    /api/scheduler/jobs              : List all scheduled jobs
- * - POST   /api/scheduler/jobs              : Create a new scheduled job
- * - GET    /api/scheduler/jobs/{id}         : Get job details
- * - PUT    /api/scheduler/jobs/{id}         : Update a job
- * - DELETE /api/scheduler/jobs/{id}         : Delete a job
- * - POST   /api/scheduler/jobs/{id}/trigger : Trigger immediate execution
+ * - GET    /api/scheduler/jobs                   : List all scheduled jobs
+ * - POST   /api/scheduler/jobs                   : Create a new scheduled job
+ * - GET    /api/scheduler/jobs/{id}              : Get job details
+ * - PUT    /api/scheduler/jobs/{id}              : Update a job
+ * - DELETE /api/scheduler/jobs/{id}              : Delete a job
+ * - POST   /api/scheduler/jobs/{id}/trigger      : Trigger immediate execution
+ * - POST   /api/scheduler/jobs/{id}/dry-run      : Dry-run (execute without side effects)
+ * - GET    /api/scheduler/jobs/{id}/executions   : Execution history
  */
 @Tag(name = "Scheduler", description = "Dynamic scheduled job execution (ADMIN only)")
 @RestController
@@ -139,6 +142,37 @@ class SchedulerController(
         return ResponseEntity.ok(mapOf("result" to result))
     }
 
+    @Operation(summary = "Dry-run a scheduled job without recording status or sending notifications (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Dry-run result"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Scheduled job not found")
+    ])
+    @PostMapping("/{id}/dry-run")
+    fun dryRunJob(@PathVariable id: String, exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+        val result = schedulerService.dryRun(id)
+        return ResponseEntity.ok(mapOf("result" to result, "dryRun" to true))
+    }
+
+    @Operation(summary = "Get execution history for a scheduled job (ADMIN)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Execution history"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "Scheduled job not found")
+    ])
+    @GetMapping("/{id}/executions")
+    fun getExecutions(
+        @PathVariable id: String,
+        @RequestParam(defaultValue = "20") limit: Int,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+        schedulerService.findById(id) ?: return jobNotFound(id)
+        val executions = schedulerService.getExecutions(id, limit.coerceIn(1, 100))
+        return ResponseEntity.ok(executions.map { it.toResponse() })
+    }
+
     private fun jobNotFound(id: String): ResponseEntity<Any> =
         ResponseEntity.status(HttpStatus.NOT_FOUND)
             .body(ErrorResponse(error = "Scheduled job not found: $id", timestamp = Instant.now().toString()))
@@ -159,12 +193,28 @@ class SchedulerController(
         agentModel = agentModel,
         agentMaxToolCalls = agentMaxToolCalls,
         slackChannelId = slackChannelId,
+        teamsWebhookUrl = teamsWebhookUrl,
+        retryOnFailure = retryOnFailure,
+        maxRetryCount = maxRetryCount,
+        executionTimeoutMs = executionTimeoutMs,
         enabled = enabled,
         lastRunAt = lastRunAt?.toEpochMilli(),
         lastStatus = lastStatus?.name,
         lastResult = lastResult,
         createdAt = createdAt.toEpochMilli(),
         updatedAt = updatedAt.toEpochMilli()
+    )
+
+    private fun ScheduledJobExecution.toResponse() = ScheduledJobExecutionResponse(
+        id = id,
+        jobId = jobId,
+        jobName = jobName,
+        status = status.name,
+        result = result,
+        durationMs = durationMs,
+        dryRun = dryRun,
+        startedAt = startedAt.toEpochMilli(),
+        completedAt = completedAt?.toEpochMilli()
     )
 }
 
@@ -193,6 +243,10 @@ data class CreateScheduledJobRequest(
     val agentMaxToolCalls: Int? = null,
 
     val slackChannelId: String? = null,
+    val teamsWebhookUrl: String? = null,
+    val retryOnFailure: Boolean = false,
+    val maxRetryCount: Int = 3,
+    val executionTimeoutMs: Long? = null,
     val enabled: Boolean = true
 ) {
     fun toScheduledJob(): ScheduledJob {
@@ -213,6 +267,10 @@ data class CreateScheduledJobRequest(
             agentModel = agentModel,
             agentMaxToolCalls = agentMaxToolCalls,
             slackChannelId = slackChannelId,
+            teamsWebhookUrl = teamsWebhookUrl,
+            retryOnFailure = retryOnFailure,
+            maxRetryCount = maxRetryCount,
+            executionTimeoutMs = executionTimeoutMs,
             enabled = enabled
         )
     }
@@ -253,6 +311,10 @@ data class UpdateScheduledJobRequest(
     val agentMaxToolCalls: Int? = null,
 
     val slackChannelId: String? = null,
+    val teamsWebhookUrl: String? = null,
+    val retryOnFailure: Boolean = false,
+    val maxRetryCount: Int = 3,
+    val executionTimeoutMs: Long? = null,
     val enabled: Boolean = true
 ) {
     fun toScheduledJob(): ScheduledJob {
@@ -281,6 +343,10 @@ data class UpdateScheduledJobRequest(
             agentModel = agentModel,
             agentMaxToolCalls = agentMaxToolCalls,
             slackChannelId = slackChannelId,
+            teamsWebhookUrl = teamsWebhookUrl,
+            retryOnFailure = retryOnFailure,
+            maxRetryCount = maxRetryCount,
+            executionTimeoutMs = executionTimeoutMs,
             enabled = enabled
         )
     }
@@ -302,12 +368,28 @@ data class ScheduledJobResponse(
     val agentModel: String?,
     val agentMaxToolCalls: Int?,
     val slackChannelId: String?,
+    val teamsWebhookUrl: String?,
+    val retryOnFailure: Boolean,
+    val maxRetryCount: Int,
+    val executionTimeoutMs: Long?,
     val enabled: Boolean,
     val lastRunAt: Long?,
     val lastStatus: String?,
     val lastResult: String?,
     val createdAt: Long,
     val updatedAt: Long
+)
+
+data class ScheduledJobExecutionResponse(
+    val id: String,
+    val jobId: String,
+    val jobName: String,
+    val status: String,
+    val result: String?,
+    val durationMs: Long,
+    val dryRun: Boolean,
+    val startedAt: Long,
+    val completedAt: Long?
 )
 
 private fun parseJobType(value: String): ScheduledJobType =

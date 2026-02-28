@@ -35,6 +35,10 @@ class JdbcScheduledJobStore(
             agentModel = rs.getString("agent_model"),
             agentMaxToolCalls = rs.getObject("agent_max_tool_calls") as? Int,
             slackChannelId = rs.getString("slack_channel_id"),
+            teamsWebhookUrl = rs.getString("teams_webhook_url"),
+            retryOnFailure = rs.getBoolean("retry_on_failure"),
+            maxRetryCount = rs.getInt("max_retry_count"),
+            executionTimeoutMs = rs.getObject("execution_timeout_ms") as? Long,
             enabled = rs.getBoolean("enabled"),
             lastRunAt = rs.getTimestamp("last_run_at")?.toInstant(),
             lastStatus = rs.getString("last_status")?.let { JobExecutionStatus.valueOf(it) },
@@ -62,14 +66,18 @@ class JdbcScheduledJobStore(
                 id, name, description, cron_expression, timezone, job_type,
                 mcp_server_name, tool_name, tool_arguments,
                 agent_prompt, persona_id, agent_system_prompt, agent_model, agent_max_tool_calls,
-                slack_channel_id, enabled, created_at, updated_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                slack_channel_id, teams_webhook_url,
+                retry_on_failure, max_retry_count, execution_timeout_ms,
+                enabled, created_at, updated_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             saved.id, saved.name, saved.description, saved.cronExpression, saved.timezone,
             saved.jobType.name,
             saved.mcpServerName, saved.toolName, mapper.writeValueAsString(saved.toolArguments),
             saved.agentPrompt, saved.personaId, saved.agentSystemPrompt,
             saved.agentModel, saved.agentMaxToolCalls,
-            saved.slackChannelId, saved.enabled,
+            saved.slackChannelId, saved.teamsWebhookUrl,
+            saved.retryOnFailure, saved.maxRetryCount, saved.executionTimeoutMs,
+            saved.enabled,
             java.sql.Timestamp.from(saved.createdAt), java.sql.Timestamp.from(saved.updatedAt)
         )
         return saved
@@ -83,13 +91,17 @@ class JdbcScheduledJobStore(
                 mcp_server_name = ?, tool_name = ?, tool_arguments = ?,
                 agent_prompt = ?, persona_id = ?, agent_system_prompt = ?,
                 agent_model = ?, agent_max_tool_calls = ?,
-                slack_channel_id = ?, enabled = ?, updated_at = ?
+                slack_channel_id = ?, teams_webhook_url = ?,
+                retry_on_failure = ?, max_retry_count = ?, execution_timeout_ms = ?,
+                enabled = ?, updated_at = ?
                WHERE id = ?""",
             job.name, job.description, job.cronExpression, job.timezone, job.jobType.name,
             job.mcpServerName, job.toolName, mapper.writeValueAsString(job.toolArguments),
             job.agentPrompt, job.personaId, job.agentSystemPrompt,
             job.agentModel, job.agentMaxToolCalls,
-            job.slackChannelId, job.enabled, java.sql.Timestamp.from(now), id
+            job.slackChannelId, job.teamsWebhookUrl,
+            job.retryOnFailure, job.maxRetryCount, job.executionTimeoutMs,
+            job.enabled, java.sql.Timestamp.from(now), id
         )
         return if (rows > 0) findById(id) else null
     }

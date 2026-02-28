@@ -8,8 +8,11 @@ import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.scheduler.DynamicSchedulerService
+import com.arc.reactor.scheduler.InMemoryScheduledJobExecutionStore
+import com.arc.reactor.scheduler.ScheduledJobExecutionStore
 import com.arc.reactor.scheduler.ScheduledJobStore
 import com.arc.reactor.scheduler.SlackMessageSender
+import com.arc.reactor.scheduler.TeamsMessageSender
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -34,6 +37,11 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler
 class SchedulerConfiguration {
 
     @Bean
+    @ConditionalOnMissingBean
+    fun inMemoryScheduledJobExecutionStore(): ScheduledJobExecutionStore =
+        InMemoryScheduledJobExecutionStore()
+
+    @Bean
     @ConditionalOnMissingBean(name = ["schedulerTaskScheduler"])
     fun schedulerTaskScheduler(properties: AgentProperties): TaskScheduler {
         val scheduler = ThreadPoolTaskScheduler()
@@ -50,20 +58,24 @@ class SchedulerConfiguration {
         schedulerTaskScheduler: TaskScheduler,
         mcpManager: McpManager,
         slackMessageSender: ObjectProvider<SlackMessageSender>,
+        teamsMessageSenderProvider: ObjectProvider<TeamsMessageSender>,
         hookExecutorProvider: ObjectProvider<HookExecutor>,
         toolApprovalPolicyProvider: ObjectProvider<ToolApprovalPolicy>,
         pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>,
         agentExecutorProvider: ObjectProvider<AgentExecutor>,
-        personaStoreProvider: ObjectProvider<PersonaStore>
+        personaStoreProvider: ObjectProvider<PersonaStore>,
+        executionStoreProvider: ObjectProvider<ScheduledJobExecutionStore>
     ): DynamicSchedulerService = DynamicSchedulerService(
         store = scheduledJobStore,
         taskScheduler = schedulerTaskScheduler,
         mcpManager = mcpManager,
         slackMessageSender = slackMessageSender.ifAvailable,
+        teamsMessageSender = teamsMessageSenderProvider.ifAvailable,
         hookExecutor = hookExecutorProvider.ifAvailable,
         toolApprovalPolicy = toolApprovalPolicyProvider.ifAvailable,
         pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable,
         agentExecutor = agentExecutorProvider.ifAvailable,
-        personaStore = personaStoreProvider.ifAvailable
+        personaStore = personaStoreProvider.ifAvailable,
+        executionStore = executionStoreProvider.ifAvailable
     )
 }
