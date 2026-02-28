@@ -1,1 +1,2 @@
 com.arc.reactor.slack.config.SlackAutoConfiguration
+com.arc.reactor.slack.tools.config.SlackToolsAutoConfiguration

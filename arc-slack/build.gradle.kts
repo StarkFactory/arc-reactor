@@ -14,6 +14,11 @@ dependencies {
     // Arc Reactor Core
     implementation(project(":arc-core"))
 
+    // Spring Boot Core + observability
+    implementation("org.springframework.boot:spring-boot-starter")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-aop")
+
     // Slack API Client
     implementation("com.slack.api:slack-api-client:1.47.0")
     implementation("com.slack.api:slack-api-model-kotlin-extension:1.47.0")
@@ -29,6 +34,9 @@ dependencies {
     // Kotlin Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.10.2")
+
+    // Spring AI tool annotations (@Tool, @ToolParam)
+    compileOnly("org.springframework.ai:spring-ai-model")
 
     // Logging
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")

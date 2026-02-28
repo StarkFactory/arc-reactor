@@ -105,6 +105,12 @@ arc:
       event-dedup-enabled: ${ARC_REACTOR_SLACK_EVENT_DEDUP_ENABLED:true}
       event-dedup-ttl-seconds: ${ARC_REACTOR_SLACK_EVENT_DEDUP_TTL_SECONDS:600}
       event-dedup-max-entries: ${ARC_REACTOR_SLACK_EVENT_DEDUP_MAX_ENTRIES:10000}
+      tools:
+        enabled: ${ARC_REACTOR_SLACK_TOOLS_ENABLED:false}
+        bot-token: ${SLACK_BOT_TOKEN:}
+        tool-exposure:
+          scope-aware-enabled: ${ARC_REACTOR_SLACK_TOOLS_SCOPE_AWARE_ENABLED:false}
+          fail-open-on-scope-resolution-error: ${ARC_REACTOR_SLACK_TOOLS_FAIL_OPEN:true}
 
 # ----- API Documentation -----
 springdoc:

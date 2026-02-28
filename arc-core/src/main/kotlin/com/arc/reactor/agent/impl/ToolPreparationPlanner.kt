@@ -1,8 +1,12 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.tool.LocalTool
+import com.arc.reactor.tool.LocalToolFilter
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
+import mu.KotlinLogging
+
+private val logger = KotlinLogging.logger {}
 
 internal class ToolPreparationPlanner(
     private val localTools: List<LocalTool>,
@@ -10,11 +14,18 @@ internal class ToolPreparationPlanner(
     private val mcpToolCallbacks: () -> List<ToolCallback>,
     private val toolSelector: ToolSelector?,
     private val maxToolsPerRequest: Int,
-    private val fallbackToolTimeoutMs: Long
+    private val fallbackToolTimeoutMs: Long,
+    private val localToolFilters: List<LocalToolFilter> = emptyList()
 ) {
 
     fun prepareForPrompt(userPrompt: String): List<Any> {
-        val localToolInstances = localTools.toList()
+        val localToolInstances = localToolFilters.fold(localTools.toList()) { acc, filter ->
+            runCatching { filter.filter(acc) }
+                .getOrElse { ex ->
+                    logger.warn(ex) { "LocalToolFilter failed; keeping previously resolved tool list" }
+                    acc
+                }
+        }
         val allCallbacks = toolCallbacks + mcpToolCallbacks()
         val selectedCallbacks = if (toolSelector != null && allCallbacks.isNotEmpty()) {
             toolSelector.select(userPrompt, allCallbacks)

@@ -37,6 +37,14 @@ arc:
     # Optional feature toggles (all opt-in except guard/security headers)
     # rag:
     #   enabled: true
+    # slack:
+    #   enabled: true
+    #   bot-token: ${SLACK_BOT_TOKEN}
+    #   app-token: ${SLACK_APP_TOKEN}
+    #   signing-secret: ${SLACK_SIGNING_SECRET}
+    #   tools:
+    #     enabled: true
+    #     bot-token: ${SLACK_BOT_TOKEN}
     # auth:
     #   enabled: true
     # cors:
