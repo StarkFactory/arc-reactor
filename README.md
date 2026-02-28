@@ -1,7 +1,7 @@
 # Arc Reactor
 
 [![CI](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml/badge.svg)](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-4.4.0-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v4.4.0)
+[![Version](https://img.shields.io/badge/version-4.5.0-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v4.5.0)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.10-purple.svg)](https://kotlinlang.org)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-green.svg)](https://spring.io/projects/spring-boot)

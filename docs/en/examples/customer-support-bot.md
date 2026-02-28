@@ -352,5 +352,5 @@ The refund request will return a response indicating approval is pending. An ope
 ## Related
 
 - [Guard & Hook System](../architecture/guard-hook.md)
-- [ToolCallback interface](../../arc-core/src/main/kotlin/com/arc/reactor/tool/ToolCallback.kt)
-- [ToolApprovalPolicy](../../arc-core/src/main/kotlin/com/arc/reactor/approval/ToolApprovalPolicy.kt)
+- [ToolCallback interface](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/ToolCallback.kt)
+- [ToolApprovalPolicy](../../../arc-core/src/main/kotlin/com/arc/reactor/approval/ToolApprovalPolicy.kt)
