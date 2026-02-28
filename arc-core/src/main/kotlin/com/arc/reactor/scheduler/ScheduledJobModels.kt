@@ -44,6 +44,15 @@ data class ScheduledJob(
 
     // Common
     val slackChannelId: String? = null,
+    val teamsWebhookUrl: String? = null,
+
+    /** Retry on failure. When true, job is retried up to maxRetryCount times. */
+    val retryOnFailure: Boolean = false,
+    /** Maximum retry attempts when retryOnFailure=true. */
+    val maxRetryCount: Int = 3,
+    /** Per-job execution timeout in milliseconds. Null = use global default. */
+    val executionTimeoutMs: Long? = null,
+
     val enabled: Boolean = true,
     val lastRunAt: Instant? = null,
     val lastStatus: JobExecutionStatus? = null,
@@ -55,3 +64,16 @@ data class ScheduledJob(
 enum class JobExecutionStatus {
     SUCCESS, FAILED, RUNNING, SKIPPED
 }
+
+/** A single execution record for a scheduled job. */
+data class ScheduledJobExecution(
+    val id: String = "",
+    val jobId: String,
+    val jobName: String,
+    val status: JobExecutionStatus,
+    val result: String? = null,
+    val durationMs: Long = 0,
+    val dryRun: Boolean = false,
+    val startedAt: Instant = Instant.now(),
+    val completedAt: Instant? = null
+)
