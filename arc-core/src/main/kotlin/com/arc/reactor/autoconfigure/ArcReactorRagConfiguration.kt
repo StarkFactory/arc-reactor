@@ -7,10 +7,12 @@ import com.arc.reactor.rag.DocumentRetriever
 import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.impl.DefaultRagPipeline
+import com.arc.reactor.rag.impl.HybridRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
 import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
+import com.arc.reactor.rag.search.Bm25Scorer
 import mu.KotlinLogging
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
@@ -19,6 +21,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Primary
 
 /**
  * RAG Configuration
@@ -100,10 +103,64 @@ class RagConfiguration {
     }
 
     /**
-     * RAG Pipeline
+     * BM25 Scorer — only created when hybrid search is enabled.
+     * Users can override with a custom [Bm25Scorer] bean.
      */
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.rag.hybrid", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun bm25Scorer(properties: AgentProperties): Bm25Scorer {
+        val hybrid = properties.rag.hybrid
+        ragLogger.info { "RAG Hybrid: creating Bm25Scorer (k1=${hybrid.bm25K1}, b=${hybrid.bm25B})" }
+        return Bm25Scorer(k1 = hybrid.bm25K1, b = hybrid.bm25B)
+    }
+
+    /**
+     * Hybrid RAG Pipeline (BM25 + Vector + RRF).
+     *
+     * Registered as @Primary so it takes precedence over [DefaultRagPipeline] when hybrid search is active.
+     * Only created when both arc.reactor.rag.enabled=true and arc.reactor.rag.hybrid.enabled=true.
+     * [DefaultRagPipeline] is suppressed by @ConditionalOnMissingBean(RagPipeline::class) on the fallback bean.
+     */
+    @Bean
+    @Primary
+    @ConditionalOnMissingBean(RagPipeline::class)
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.rag.hybrid", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun hybridRagPipeline(
+        queryTransformer: QueryTransformer,
+        retriever: DocumentRetriever,
+        reranker: DocumentReranker,
+        bm25Scorer: Bm25Scorer,
+        properties: AgentProperties
+    ): HybridRagPipeline {
+        val hybrid = properties.rag.hybrid
+        ragLogger.info {
+            "RAG Hybrid: creating HybridRagPipeline " +
+                "(vectorWeight=${hybrid.vectorWeight}, bm25Weight=${hybrid.bm25Weight}, rrfK=${hybrid.rrfK})"
+        }
+        return HybridRagPipeline(
+            retriever = retriever,
+            bm25Scorer = bm25Scorer,
+            queryTransformer = queryTransformer,
+            reranker = reranker,
+            vectorWeight = hybrid.vectorWeight,
+            bm25Weight = hybrid.bm25Weight,
+            rrfK = hybrid.rrfK,
+            maxContextTokens = properties.rag.maxContextTokens
+        )
+    }
+
+    /**
+     * Default RAG Pipeline — used when hybrid search is disabled.
+     */
+    @Bean
+    @ConditionalOnMissingBean(RagPipeline::class)
     fun ragPipeline(
         queryTransformer: QueryTransformer,
         retriever: DocumentRetriever,
