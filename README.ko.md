@@ -23,7 +23,7 @@ Arc Reactor의 Tool 시스템을 통해 실행한 뒤 결과를 관찰하고, �
 Arc Reactor는 PoC가 프로덕션 서비스로 전환된 이후 나타나는 어려운 운영 문제들을 해결합니다.
 어떤 채널에서 어떤 Tool을 실행할지 제어하고, 재시작 후에도 대화 기록을 유지하고, 프롬프트를
 버전 관리하고, 모든 작업을 감사하고, 위험도 높은 Tool 실행을 사전에 승인받고, 웹 API와 함께
-Slack, Discord, LINE으로 챗 서비스를 통합하는 문제들이 그 예입니다.
+Slack으로 챗 서비스를 통합하는 문제들이 그 예입니다.
 
 > Arc Reactor는 라이브러리가 아닙니다. 권장 사용 방식은 **Fork → 커스터마이즈 → 배포**입니다.
 > 업스트림 메인테이너는 업스트림 레포지터리에 대해서만 책임을 집니다. 다운스트림 Fork 운영자는
@@ -40,11 +40,11 @@ Slack, Discord, LINE으로 챗 서비스를 통합하는 문제들이 그 예입
   감사 로깅, 과금, 정책 적용, 사이드 이펙트 처리용
 - **동적 MCP 등록** — REST API를 통해 재시작 없이 런타임에 MCP(Model Context Protocol) 서버(STDIO 또는 SSE) 등록; 서버별 접근 정책 제어
 - **Human-in-the-Loop 승인** — Tool 실행 전 사람의 검토를 위한 큐잉
-- **Tool 정책 엔진** — 채널별 쓰기 Tool 거버넌스: Slack에서 쓰기 Tool 차단, Discord에서 특정 Tool 허용 등
+- **Tool 정책 엔진** — 채널별 쓰기 Tool 거버넌스: 특정 채널에서 쓰기 Tool 차단, 채널별 허용 Tool 목록 설정
 - **프롬프트 템플릿 버전 관리** — 프롬프트 변형 저장, 버전 관리, 승격; LLM Judge 점수를 활용한 자동 평가를 위한 Prompt Lab
 - **RAG 파이프라인** — 쿼리 변환, PGVector 검색, 리랭킹, 컨텍스트 주입; API를 통한 동적 수집 거버넌스
 - **멀티 에이전트 오케스트레이션** — Sequential, Parallel, Supervisor 패턴과 WorkerAgentTool 래핑
-- **멀티채널 전송** — REST + SSE 스트리밍, Slack(Socket Mode / HTTP), Discord, LINE
+- **멀티채널 전송** — REST + SSE 스트리밍, Slack(Socket Mode / HTTP)
 - **관리자 감사 로그** — API로 접근 가능한 모든 관리자 작업의 감사 로그
 - **출력 Guard 규칙** — LLM 응답에 적용되는 런타임 설정 가능한 콘텐츠 정책
 - **복원성** — 서킷 브레이커, 설정 가능한 요청/Tool 타임아웃, 폴백 모델 체인
@@ -141,8 +141,6 @@ Arc Reactor는 세 가지 플레인으로 역할을 구분합니다.
 | `arc-web` | REST 컨트롤러, OpenAPI 스펙, 보안 헤더, CORS | 항상 — HTTP API |
 | `arc-admin` | 관리자 모듈: 메트릭, 트레이싱, 운영 대시보드 | 선택 — `arc.reactor.admin.enabled=true` |
 | `arc-slack` | Slack 게이트웨이 (Socket Mode 및 HTTP Events) | Slack 통합 시 |
-| `arc-discord` | Discord 게이트웨이 | Discord 통합 시 |
-| `arc-line` | LINE Messaging API 게이트웨이 | LINE 통합 시 |
 | `arc-error-report` | 오류 보고 확장 모듈 (오류 분석 전용 Agent) | 선택적 기능 모듈 |
 
 ## 설정

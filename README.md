@@ -25,7 +25,7 @@ layers before it reaches users.
 Arc Reactor solves the hard operational problems that appear after a proof-of-concept becomes a
 production service: controlling which tools run on which channels, maintaining conversation history
 across restarts, versioning prompts, auditing every action, approving high-risk tool invocations
-before they execute, and integrating chat into Slack, Discord, and LINE alongside the web API.
+before they execute, and integrating chat into Slack alongside the web API.
 
 > Arc Reactor is **not** a drop-in library. The intended model is: **fork → customize → deploy**.
 > Upstream maintainers are responsible for the upstream repository only. Downstream fork operators
@@ -43,15 +43,14 @@ before they execute, and integrating chat into Slack, Discord, and LINE alongsid
 - **Dynamic MCP registration** — register Model Context Protocol servers (STDIO or SSE) at runtime
   via REST API without restart; per-server access policy control
 - **Human-in-the-Loop approvals** — queue tool invocations for human review before execution
-- **Tool policy engine** — channel-aware write-tool governance: deny write tools on Slack, allow
-  specific tools on Discord, etc.
+- **Tool policy engine** — channel-aware write-tool governance: deny write tools on specific channels, allow-list tools per channel
 - **Prompt template versioning** — store, version, and promote prompt variants; Prompt Lab for
   automated evaluation with LLM judge scoring
 - **RAG pipeline** — query transformation, PGVector retrieval, reranking, and context injection;
   dynamic ingestion governance via API
 - **Multi-agent orchestration** — Sequential, Parallel, and Supervisor patterns with
   WorkerAgentTool wrapping
-- **Multi-channel delivery** — REST + SSE streaming, Slack (Socket Mode / HTTP), Discord, LINE
+- **Multi-channel delivery** — REST + SSE streaming, Slack (Socket Mode / HTTP)
 - **Admin audit log** — tamper-evident log of every admin action, accessible via API
 - **Output guard rules** — runtime-configurable content policy applied to LLM responses
 - **Resilience** — circuit breaker, configurable request/tool timeouts, fallback model chain
@@ -150,8 +149,6 @@ Response + Audit Log + Metrics
 | `arc-web` | REST controllers, OpenAPI spec, security headers, CORS | Always — HTTP API |
 | `arc-admin` | Admin module: metrics, tracing, ops dashboard | Optional — enable with `arc.reactor.admin.enabled=true` |
 | `arc-slack` | Slack gateway (Socket Mode and HTTP Events) | When integrating with Slack |
-| `arc-discord` | Discord gateway | When integrating with Discord |
-| `arc-line` | LINE Messaging API gateway | When integrating with LINE |
 | `arc-error-report` | Error-reporting extension (dedicated agent for error analysis) | Optional feature module |
 
 ## Configuration
