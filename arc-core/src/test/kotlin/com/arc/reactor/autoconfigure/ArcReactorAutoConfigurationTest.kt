@@ -580,6 +580,98 @@ class ArcReactorAutoConfigurationTest {
         }
     }
 
+    // ── Runtime Preflight Configuration ───────────────────────────
+
+    @Nested
+    inner class RuntimePreflightConfigurationTests {
+
+        @Test
+        fun `should fail startup when legacy auth toggle is explicitly false`() {
+            contextRunner
+                .withPropertyValues("arc.reactor.auth.enabled=false")
+                .run { context ->
+                    assertTrue(context.startupFailure != null) {
+                        "Context should fail when arc.reactor.auth.enabled=false is provided"
+                    }
+                    assertTrue(failureContains(context.startupFailure, "no longer supported")) {
+                        "Failure message should explain that auth.enabled=false is not supported"
+                    }
+                }
+        }
+
+        @Test
+        fun `should keep startup healthy when legacy auth toggle is true`() {
+            contextRunner
+                .withPropertyValues("arc.reactor.auth.enabled=true")
+                .run { context ->
+                    assertNull(context.startupFailure) {
+                        "Context should still start when legacy auth.enabled=true is provided"
+                    }
+                }
+        }
+
+        @Test
+        fun `should fail startup when default tenant id is invalid`() {
+            contextRunner
+                .withPropertyValues("arc.reactor.auth.default-tenant-id=tenant invalid")
+                .run { context ->
+                    assertTrue(context.startupFailure != null) {
+                        "Context should fail when default tenant id is invalid"
+                    }
+                    assertTrue(failureContains(context.startupFailure, "default-tenant-id")) {
+                        "Failure should reference arc.reactor.auth.default-tenant-id"
+                    }
+                }
+        }
+
+        @Test
+        fun `should fail startup when postgres required and datasource username is blank`() {
+            contextRunner
+                .withPropertyValues(
+                    "arc.reactor.postgres.required=true",
+                    "spring.datasource.url=jdbc:postgresql://localhost:5432/arc",
+                    "spring.datasource.username=",
+                    "spring.datasource.password=arc"
+                )
+                .run { context ->
+                    assertTrue(context.startupFailure != null) {
+                        "Context should fail when username is missing under postgres-required mode"
+                    }
+                    assertTrue(failureContains(context.startupFailure, "spring.datasource.username")) {
+                        "Failure should clearly point to spring.datasource.username"
+                    }
+                }
+        }
+
+        @Test
+        fun `should fail startup when postgres required and datasource password is blank`() {
+            contextRunner
+                .withPropertyValues(
+                    "arc.reactor.postgres.required=true",
+                    "spring.datasource.url=jdbc:postgresql://localhost:5432/arc",
+                    "spring.datasource.username=arc",
+                    "spring.datasource.password="
+                )
+                .run { context ->
+                    assertTrue(context.startupFailure != null) {
+                        "Context should fail when password is missing under postgres-required mode"
+                    }
+                    assertTrue(failureContains(context.startupFailure, "spring.datasource.password")) {
+                        "Failure should clearly point to spring.datasource.password"
+                    }
+                }
+        }
+
+        private fun failureContains(throwable: Throwable?, fragment: String): Boolean {
+            var current: Throwable? = throwable
+            while (current != null) {
+                if (current.message?.contains(fragment) == true) return true
+                current = current.cause
+            }
+            return false
+        }
+    }
+
     // ── Auth Configuration ──────────────────────────────────────────
 
     @Nested

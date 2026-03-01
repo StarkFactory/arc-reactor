@@ -119,12 +119,11 @@ arc:
 
 **Solution:**
 
-1. Keep auth enabled in configuration:
+1. Keep runtime auth secret configured:
 ```yaml
 arc:
   reactor:
     auth:
-      enabled: true
       jwt-secret: ${JWT_SECRET}
 ```
 
@@ -138,19 +137,68 @@ Auth dependencies are included by default in current builds.
 
 ---
 
+## Startup: "arc.reactor.auth.enabled=false is no longer supported"
+
+**Symptom:** Startup fails with a message that `arc.reactor.auth.enabled=false` is not supported.
+
+**Cause:** Auth toggle was removed. Arc Reactor authentication is always required now.
+
+**Solution:**
+
+1. Remove `arc.reactor.auth.enabled` from all configs/env/Helm values.
+2. Keep only:
+```yaml
+arc:
+  reactor:
+    auth:
+      jwt-secret: ${JWT_SECRET}
+```
+3. Set a valid default tenant if needed:
+```yaml
+arc:
+  reactor:
+    auth:
+      default-tenant-id: default
+```
+
+---
+
+## Startup: "spring.datasource.username/password is required"
+
+**Symptom:** Startup fails in postgres-required mode with missing datasource username/password.
+
+**Cause:** `arc.reactor.postgres.required=true` is active, but DB credentials are missing.
+
+**Solution:**
+
+```bash
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
+export SPRING_DATASOURCE_USERNAME=arc
+export SPRING_DATASOURCE_PASSWORD=arc
+```
+
+For local non-production runs only:
+
+```bash
+export ARC_REACTOR_POSTGRES_REQUIRED=false
+```
+
+---
+
 ## Sessions: Users can see each other's sessions
 
 **Symptom:** All users share the same conversation history (no isolation).
 
-**Cause:** When authentication is disabled, all requests use the `anonymous` userId. Sessions are not isolated.
+**Cause:** Requests are made with the same user identity (for example same shared token),
+or the client does not propagate per-user auth correctly.
 
-**Solution:** Enable authentication. When JWT auth is active, each user gets a unique userId extracted from their token, and session access is automatically scoped to that user.
+**Solution:** Ensure each end user uses a distinct JWT identity. Session access is scoped by
+`userId` extracted from token.
 
 ```yaml
 arc:
   reactor:
     auth:
-      enabled: true
       jwt-secret: ${JWT_SECRET}
 ```
 

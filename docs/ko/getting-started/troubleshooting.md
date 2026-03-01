@@ -45,3 +45,31 @@
 참고:
 
 - [모듈 레이아웃](../architecture/module-layout.md)
+
+## 5) `arc.reactor.auth.enabled=false` 오류로 기동 실패
+
+원인:
+
+- `arc.reactor.auth.enabled` 토글은 제거되었고, 인증은 항상 필수다.
+
+해결:
+
+- `arc.reactor.auth.enabled` 설정을 모두 제거
+- `ARC_REACTOR_AUTH_JWT_SECRET`만 필수 설정
+- 필요 시 `ARC_REACTOR_AUTH_DEFAULT_TENANT_ID` 설정
+
+## 6) postgres-required 모드에서 username/password 누락
+
+원인:
+
+- `arc.reactor.postgres.required=true` 상태에서 DB 계정 정보가 비어 있음
+
+해결:
+
+- `SPRING_DATASOURCE_URL`
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
+
+로컬 비프로덕션에서만 예외적으로:
+
+- `ARC_REACTOR_POSTGRES_REQUIRED=false`

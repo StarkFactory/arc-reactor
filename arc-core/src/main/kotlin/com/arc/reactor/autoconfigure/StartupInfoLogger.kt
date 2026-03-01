@@ -24,6 +24,13 @@ class StartupInfoLogger(
         val port = environment.getProperty("server.port", "8080")
         val provider = chatModelProvider.defaultProvider()
         val authEnabled = authProperties != null
+        val defaultTenantId = authProperties?.defaultTenantId ?: "n/a"
+        val publicActuatorHealth = environment.getProperty(
+            "arc.reactor.auth.public-actuator-health",
+            "false"
+        )
+        val postgresRequired = environment.getProperty("arc.reactor.postgres.required", "true")
+        val datasourceConfigured = !environment.getProperty("spring.datasource.url").isNullOrBlank()
         val ragEnabled = environment.getProperty("arc.reactor.rag.enabled", "false")
         val guardEnabled = environment.getProperty("arc.reactor.guard.enabled", "true")
 
@@ -36,6 +43,9 @@ class StartupInfoLogger(
             |  Health:   http://localhost:$port/actuator/health
             |  Provider: $provider
             |  Auth:     ${if (authEnabled) "enabled" else "disabled"}
+            |  Tenant:   $defaultTenantId
+            |  Probe:    public-actuator-health=$publicActuatorHealth
+            |  DB:       postgres-required=$postgresRequired, datasource-configured=$datasourceConfigured
             |  RAG:      ${if (ragEnabled == "true") "enabled" else "disabled"}
             |  Guard:    ${if (guardEnabled == "true") "enabled" else "disabled"}
             |================================
