@@ -79,3 +79,43 @@ Operations notes:
 - Each rule has `priority` (lower value applies first).
 - Rule updates trigger immediate cache invalidation (no wait for periodic refresh).
 - Use `simulate` first, then persist validated rules.
+
+## 6) MCP duplicate tool-name cleanup
+
+When multiple MCP servers expose the same tool name, Arc Reactor keeps one server
+per tool and logs warnings such as:
+
+- `Duplicate MCP tool name 'send_message' detected across servers...`
+
+Use the cleanup script to detect and remove fully redundant servers.
+
+- Script: `scripts/ops/cleanup_mcp_duplicate_servers.py`
+- Default mode: dry-run (no deletion)
+
+Example (dry-run):
+
+```bash
+scripts/ops/cleanup_mcp_duplicate_servers.py \
+  --base-url http://localhost:8080 \
+  --email admin@arc-reactor.local \
+  --password 'admin-pass-123' \
+  --tenant-id default
+```
+
+Apply deletion:
+
+```bash
+scripts/ops/cleanup_mcp_duplicate_servers.py \
+  --base-url http://localhost:8080 \
+  --email admin@arc-reactor.local \
+  --password 'admin-pass-123' \
+  --tenant-id default \
+  --keep qa-slack-mcp \
+  --apply
+```
+
+Notes:
+
+- `--keep` can be repeated to pin servers that must never be deleted.
+- Only servers whose entire tool set is shadowed are deletion candidates.
+- Prefer running dry-run first and verifying with `GET /api/mcp/servers/{name}`.

@@ -79,3 +79,43 @@ scripts/load/run-slack-load-test.sh
 - 각 규칙은 `priority`(낮을수록 먼저 적용)를 갖는다.
 - 관리 API로 규칙 변경 시 캐시 무효화가 즉시 발생해, 주기 캐시를 기다리지 않고 반영된다.
 - `simulate`로 차단/마스킹 결과를 사전 검증한 뒤 저장 규칙을 적용할 수 있다.
+
+## 6) MCP 중복 Tool 이름 정리
+
+여러 MCP 서버가 같은 Tool 이름을 노출하면 Arc Reactor는 Tool별로 하나의 서버만
+선택해 사용하고, 아래와 같은 경고를 남긴다.
+
+- `Duplicate MCP tool name 'send_message' detected across servers...`
+
+완전히 중복된 서버를 정리할 때 아래 스크립트를 사용한다.
+
+- 스크립트: `scripts/ops/cleanup_mcp_duplicate_servers.py`
+- 기본 동작: dry-run (삭제하지 않고 리포트만 수행)
+
+예시 (dry-run):
+
+```bash
+scripts/ops/cleanup_mcp_duplicate_servers.py \
+  --base-url http://localhost:8080 \
+  --email admin@arc-reactor.local \
+  --password 'admin-pass-123' \
+  --tenant-id default
+```
+
+삭제 적용:
+
+```bash
+scripts/ops/cleanup_mcp_duplicate_servers.py \
+  --base-url http://localhost:8080 \
+  --email admin@arc-reactor.local \
+  --password 'admin-pass-123' \
+  --tenant-id default \
+  --keep qa-slack-mcp \
+  --apply
+```
+
+운영 포인트:
+
+- `--keep`는 여러 번 지정 가능하며, 해당 서버는 삭제 대상에서 제외된다.
+- 서버의 전체 Tool 세트가 전부 가려진(shadowed) 경우에만 삭제 후보가 된다.
+- 항상 dry-run으로 먼저 확인하고, `GET /api/mcp/servers/{name}`로 최종 검증 후 적용한다.
