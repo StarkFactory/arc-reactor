@@ -114,8 +114,24 @@ scripts/ops/cleanup_mcp_duplicate_servers.py \
   --apply
 ```
 
+장시간 실패 서버까지 함께 정리:
+
+```bash
+scripts/ops/cleanup_mcp_duplicate_servers.py \
+  --base-url http://localhost:8080 \
+  --email admin@arc-reactor.local \
+  --password 'admin-pass-123' \
+  --tenant-id default \
+  --cleanup-stale \
+  --stale-status FAILED \
+  --stale-min-age-seconds 7200 \
+  --apply
+```
+
 운영 포인트:
 
 - `--keep`는 여러 번 지정 가능하며, 해당 서버는 삭제 대상에서 제외된다.
 - 서버의 전체 Tool 세트가 전부 가려진(shadowed) 경우에만 삭제 후보가 된다.
+- `--cleanup-stale`를 켜면 상태/경과시간 기준 stale 서버(`FAILED` 기본)를 함께 후보로 잡는다.
+- `--max-duplicate-tools`, `--max-redundant-servers`, `--fail-on-threshold`로 경고/CI 실패 기준을 둘 수 있다.
 - 항상 dry-run으로 먼저 확인하고, `GET /api/mcp/servers/{name}`로 최종 검증 후 적용한다.

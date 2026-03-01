@@ -7,6 +7,7 @@
 - [거버넌스](governance/README.md)
 - [레퍼런스](reference/README.md)
 - [통합](integrations/README.md)
+- [운영](operations/README.md)
 - [엔지니어링](engineering/README.md)
 - [릴리즈](releases/README.md)
 
@@ -18,6 +19,7 @@
 - [ReAct 루프](architecture/react-loop.md)
 - [인증](governance/authentication.md)
 - [도구 가이드](reference/tools.md)
+- [테넌트 온보딩 런북](operations/tenant-onboarding-runbook.md)
 - [Slack 운영 런북](integrations/slack/ops-runbook.md)
 - [테스트/성능 가이드](engineering/testing-and-performance.md)
 - [PR/CI/릴리즈 운영 프로세스](engineering/ci-pr-release-process.md)

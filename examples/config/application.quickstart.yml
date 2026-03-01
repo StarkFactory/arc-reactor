@@ -5,7 +5,8 @@
 #   3) export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
 #   4) export SPRING_DATASOURCE_USERNAME=arc
 #   5) export SPRING_DATASOURCE_PASSWORD=arc
-#   6) ./gradlew :arc-app:bootRun
+#   6) export SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA=true   # recommended when enabling RAG
+#   7) ./gradlew :arc-app:bootRun
 #
 # This file is intentionally small. For full settings see:
 # - docs/en/getting-started/configuration.md

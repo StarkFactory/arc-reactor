@@ -78,6 +78,7 @@ export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
 export SPRING_DATASOURCE_USERNAME=arc
 export SPRING_DATASOURCE_PASSWORD=arc
+export SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA=true
 ./gradlew :arc-app:bootRun
 ```
 
@@ -117,6 +118,9 @@ curl -X POST http://localhost:8080/api/chat \
 
 # 실행 중인 인스턴스 대상으로 런타임 계약 검증까지 포함
 ./scripts/dev/pre-open-check.sh --with-runtime --base-url http://localhost:8080
+
+# ask/react/approval/vector/metrics 에이전트 시나리오 QA까지 포함
+./scripts/dev/pre-open-check.sh --with-runtime --with-agent-e2e --base-url http://localhost:8080
 ```
 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
@@ -129,6 +133,7 @@ curl -X POST http://localhost:8080/api/chat \
 | `GEMINI_API_KEY` (또는 다른 provider 키) | `ChatClient` provider 빈 생성에 필요 |
 | `ARC_REACTOR_AUTH_JWT_SECRET` | JWT 인증 필터/토큰 발급에 필수 |
 | PostgreSQL datasource 환경 변수 (`SPRING_DATASOURCE_*`) | 런타임 preflight 기본값(`arc.reactor.postgres.required=true`) 충족 |
+| `SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA=true` | RAG 사용 시 `vector` 확장/스키마 자동 초기화를 위해 권장 |
 
 ### 인증/테넌트 모델 (중요)
 

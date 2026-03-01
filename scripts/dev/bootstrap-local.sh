@@ -12,6 +12,7 @@ jwt_secret="${ARC_REACTOR_AUTH_JWT_SECRET:-}"
 datasource_url="${SPRING_DATASOURCE_URL:-jdbc:postgresql://localhost:5432/arcreactor}"
 datasource_username="${SPRING_DATASOURCE_USERNAME:-arc}"
 datasource_password="${SPRING_DATASOURCE_PASSWORD:-arc}"
+pgvector_initialize_schema="${SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA:-true}"
 
 usage() {
   cat <<'EOF'
@@ -106,6 +107,7 @@ fi
 
 echo "PostgreSQL DSN: $datasource_url"
 echo "PostgreSQL user: $datasource_username"
+echo "PGVector initialize-schema: $pgvector_initialize_schema"
 
 if [[ "$run_app" == "true" ]]; then
   echo "Starting application (:arc-app:bootRun)..."
@@ -115,6 +117,7 @@ if [[ "$run_app" == "true" ]]; then
   SPRING_DATASOURCE_URL="$datasource_url" \
   SPRING_DATASOURCE_USERNAME="$datasource_username" \
   SPRING_DATASOURCE_PASSWORD="$datasource_password" \
+  SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA="$pgvector_initialize_schema" \
   ./gradlew :arc-app:bootRun
   exit 0
 fi
@@ -127,5 +130,6 @@ Next step:
   export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
   export SPRING_DATASOURCE_USERNAME=arc
   export SPRING_DATASOURCE_PASSWORD=arc
+  export SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA=true
   ./gradlew :arc-app:bootRun
 EOF

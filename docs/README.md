@@ -10,6 +10,7 @@ This documentation is organized by domain instead of a flat file list:
 - `governance`: auth, approval, policy and prompt operations
 - `reference`: models, features, metrics, tool references
 - `integrations`: channel/provider specific guides
+- `operations`: production runbooks and reliability procedures
 - `engineering`: test strategy and contributor-facing technical operations
 - `releases`: release notes and upgrade highlights
 

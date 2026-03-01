@@ -86,6 +86,7 @@ export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
 export SPRING_DATASOURCE_USERNAME=arc
 export SPRING_DATASOURCE_PASSWORD=arc
+export SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA=true
 ./gradlew :arc-app:bootRun
 ```
 
@@ -125,6 +126,9 @@ curl -X POST http://localhost:8080/api/chat \
 
 # Include runtime contract verification against a running instance
 ./scripts/dev/pre-open-check.sh --with-runtime --base-url http://localhost:8080
+
+# Include agent scenario QA (ask/react/approval/vector/metrics)
+./scripts/dev/pre-open-check.sh --with-runtime --with-agent-e2e --base-url http://localhost:8080
 ```
 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
@@ -137,6 +141,7 @@ curl -X POST http://localhost:8080/api/chat \
 | `GEMINI_API_KEY` (or another provider key) | Creates the `ChatClient` provider bean |
 | `ARC_REACTOR_AUTH_JWT_SECRET` | Required for JWT auth filter and token issuance |
 | PostgreSQL datasource env (`SPRING_DATASOURCE_*`) | Required by runtime preflight (`arc.reactor.postgres.required=true`) |
+| `SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA=true` | Recommended when enabling RAG to auto-create `vector` extension/schema |
 
 ### Auth and tenant model (important)
 
