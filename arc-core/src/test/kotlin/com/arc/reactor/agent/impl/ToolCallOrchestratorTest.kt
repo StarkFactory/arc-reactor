@@ -21,8 +21,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.tool.definition.ToolDefinition
+import org.springframework.ai.tool.metadata.ToolMetadata
 import org.springframework.ai.tool.annotation.Tool
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.system.measureTimeMillis
 
 class ToolCallOrchestratorTest {
 
@@ -55,7 +58,9 @@ class ToolCallOrchestratorTest {
         )
 
         assertEquals(1, responses.size)
-        assertTrue(responses[0].responseData().contains("not allowed"), "Blocked tool response should contain 'not allowed'")
+        assertTrue(responses[0].responseData().contains("not allowed")) {
+            "Blocked tool response should contain 'not allowed'"
+        }
     }
 
     @Test
@@ -90,7 +95,9 @@ class ToolCallOrchestratorTest {
         )
 
         assertEquals(1, responses.size)
-        assertTrue(responses[0].responseData().contains("approval store unavailable", ignoreCase = true), "Response should indicate approval store is unavailable")
+        assertTrue(
+            responses[0].responseData().contains("approval store unavailable", ignoreCase = true)
+        ) { "Response should indicate approval store is unavailable" }
         coVerify(exactly = 0) { tool.call(any()) }
     }
 
@@ -136,8 +143,12 @@ class ToolCallOrchestratorTest {
         )
 
         assertEquals(1, responses.size)
-        assertTrue(responses[0].responseData().contains("Tool call blocked"), "Response should indicate tool call was blocked")
-        assertTrue(responses[0].responseData().contains("Approval check failed"), "Response should indicate approval check failed")
+        assertTrue(responses[0].responseData().contains("Tool call blocked")) {
+            "Response should indicate tool call was blocked"
+        }
+        assertTrue(responses[0].responseData().contains("Approval check failed")) {
+            "Response should indicate approval check failed"
+        }
         coVerify(exactly = 0) { tool.call(any()) }
     }
 
@@ -279,6 +290,105 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
+    fun `should execute explicit spring callback and normalize quoted output`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("text" to "arc") }
+        )
+        val toolCall = toolCall(id = "id-1", name = "spring_echo", arguments = """{"text":"arc"}""")
+        val toolsUsed = mutableListOf<String>()
+        val springCallback = FakeSpringToolCallback("spring_echo") { input ->
+            if (input.contains("\"text\":\"arc\"")) "\"spring:arc\"" else "\"spring:unknown\""
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(springCallback),
+            hookContext = hookContext,
+            toolsUsed = toolsUsed,
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertEquals("spring:arc", responses[0].responseData())
+        assertEquals(listOf("spring_echo"), toolsUsed)
+    }
+
+    @Test
+    fun `should prefer explicit spring callback over reflected LocalTool callback on name collision`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("text" to "arc") }
+        )
+        val toolCall = toolCall(id = "id-1", name = "spring_echo", arguments = """{"text":"arc"}""")
+        val toolsUsed = mutableListOf<String>()
+        val localTool = SpringEchoLocalTool()
+        val explicitCallback = FakeSpringToolCallback("spring_echo") { "\"explicit:arc\"" }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(localTool, explicitCallback),
+            hookContext = hookContext,
+            toolsUsed = toolsUsed,
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertEquals("explicit:arc", responses[0].responseData())
+        assertEquals(listOf("spring_echo"), toolsUsed)
+    }
+
+    @Test
+    fun `should timeout explicit spring callback when blocking call exceeds timeout`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 40,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val toolCall = toolCall(id = "id-1", name = "blocking_spring")
+        val toolsUsed = mutableListOf<String>()
+        val springCallback = FakeSpringToolCallback("blocking_spring") {
+            Thread.sleep(250)
+            "late"
+        }
+
+        lateinit var responses: List<org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse>
+        val elapsedMs = measureTimeMillis {
+            responses = orchestrator.executeInParallel(
+                toolCalls = listOf(toolCall),
+                tools = listOf(springCallback),
+                hookContext = hookContext,
+                toolsUsed = toolsUsed,
+                totalToolCallsCounter = AtomicInteger(0),
+                maxToolCalls = 10,
+                allowedTools = null
+            )
+        }
+
+        assertEquals(1, responses.size)
+        assertTrue(responses[0].responseData().contains("timed out after 40ms")) {
+            "Timeout response should mention 40ms timeout"
+        }
+        assertEquals(listOf("blocking_spring"), toolsUsed)
+        assertTrue(elapsedMs < 220) { "Blocking callback should timeout early, elapsed=${elapsedMs}ms" }
+    }
+
+    @Test
     fun `should stop when max tool calls reached`() = runBlocking {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
@@ -301,7 +411,9 @@ class ToolCallOrchestratorTest {
         )
 
         assertEquals(1, responses.size)
-        assertTrue(responses[0].responseData().contains("Maximum tool call limit"), "Response should indicate max tool call limit was reached")
+        assertTrue(responses[0].responseData().contains("Maximum tool call limit")) {
+            "Response should indicate max tool call limit was reached"
+        }
     }
 
     private fun toolCall(id: String, name: String, arguments: String = "{}"): AssistantMessage.ToolCall {
@@ -315,5 +427,25 @@ class ToolCallOrchestratorTest {
     private class EchoLocalTool : LocalTool {
         @Tool(description = "Echo text")
         fun echo_text(text: String): String = "echo:$text"
+    }
+
+    private class SpringEchoLocalTool : LocalTool {
+        @Tool(description = "Echo text with colliding name")
+        fun spring_echo(text: String): String = "local:$text"
+    }
+
+    private class FakeSpringToolCallback(
+        private val name: String,
+        private val handler: (String) -> String
+    ) : org.springframework.ai.tool.ToolCallback {
+        override fun getToolDefinition(): ToolDefinition = ToolDefinition.builder()
+            .name(name)
+            .description("fake")
+            .inputSchema("""{"type":"object","properties":{}}""")
+            .build()
+
+        override fun getToolMetadata(): ToolMetadata = ToolMetadata.builder().build()
+
+        override fun call(toolInput: String): String = handler(toolInput)
     }
 }

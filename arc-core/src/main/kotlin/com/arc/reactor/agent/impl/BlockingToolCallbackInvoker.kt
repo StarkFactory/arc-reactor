@@ -3,6 +3,7 @@ package com.arc.reactor.agent.impl
 import com.arc.reactor.tool.ToolCallback
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withTimeout
 
 /**
@@ -16,7 +17,9 @@ internal class BlockingToolCallbackInvoker(
         val timeoutMs = resolveTimeoutMs(toolCallback)
         return runBlocking(Dispatchers.IO) {
             withTimeout(timeoutMs) {
-                toolCallback.call(arguments)?.toString().orEmpty()
+                runInterruptible {
+                    runBlocking { toolCallback.call(arguments)?.toString().orEmpty() }
+                }
             }
         }
     }
