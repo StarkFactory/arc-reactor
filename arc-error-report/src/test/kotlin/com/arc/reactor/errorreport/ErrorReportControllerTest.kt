@@ -24,13 +24,15 @@ class ErrorReportControllerTest {
         apiKey: String = "",
         requestTimeoutMs: Long = 120_000,
         maxConcurrentRequests: Int = 3,
+        maxStackTraceLength: Int = 30_000,
         handlerOverride: ErrorReportHandler = handler
     ): WebTestClient {
         val properties = ErrorReportProperties(
             enabled = true,
             apiKey = apiKey,
             requestTimeoutMs = requestTimeoutMs,
-            maxConcurrentRequests = maxConcurrentRequests
+            maxConcurrentRequests = maxConcurrentRequests,
+            maxStackTraceLength = maxStackTraceLength
         )
         val controller = ErrorReportController(handlerOverride, properties)
         return WebTestClient.bindToController(controller).build()
@@ -218,6 +220,30 @@ class ErrorReportControllerTest {
 
             waitUntil(500) { started.get() } shouldBe true
             waitUntil(1500) { cancelled.get() } shouldBe true
+        }
+    }
+
+    @Nested
+    inner class ConfigurationHardening {
+
+        @Test
+        fun `accepts request when max concurrent requests is zero`() {
+            val client = createClient(maxConcurrentRequests = 0)
+            client.post().uri("/api/error-report")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(validBody)
+                .exchange()
+                .expectStatus().isOk
+        }
+
+        @Test
+        fun `accepts request when max stack trace length is negative`() {
+            val client = createClient(maxStackTraceLength = -1)
+            client.post().uri("/api/error-report")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(validBody)
+                .exchange()
+                .expectStatus().isOk
         }
     }
 }
