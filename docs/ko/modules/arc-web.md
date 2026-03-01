@@ -151,7 +151,6 @@ class ApiKeyWebFilter : WebFilter {
 1. `resolvedTenantId` exchange 속성 (JWT 필터가 설정)
 2. `tenantId` exchange 속성 (레거시)
 3. `X-Tenant-Id` 요청 헤더 (`^[a-zA-Z0-9_-]{1,64}$` 형식 검증)
-4. 기본값 `"default"` (fallback)
 
 테넌트 컨텍스트가 없으면 요청이 HTTP 400으로 거부됩니다.
 
@@ -179,7 +178,7 @@ fun isAdmin(exchange: ServerWebExchange): Boolean {
 2. `promptTemplateId` → 활성 `PromptVersion` 내용
 3. `request.systemPrompt` → 직접 재정의
 4. 기본 Persona (`isDefault=true`) from `PersonaStore`
-5. 하드코딩된 폴백: `"You are a helpful AI assistant."`
+5. 하드코딩된 폴백: `"You are a helpful AI assistant. You can use tools when needed. Answer in the same language as the user's message."`
 
 ### 커스텀 AuthProvider
 

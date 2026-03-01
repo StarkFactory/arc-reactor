@@ -113,9 +113,7 @@ class UserMemoryController(
 
     /**
      * Determines whether the caller is authorized to access the given userId's memory.
-     *
-     * When auth is disabled (role == null), all requests are allowed.
-     * When auth is enabled, only the owner or an admin can access.
+     * Only the owner or an admin can access.
      */
     private fun canAccess(userId: String, exchange: ServerWebExchange): Boolean {
         if (isAdmin(exchange)) return true

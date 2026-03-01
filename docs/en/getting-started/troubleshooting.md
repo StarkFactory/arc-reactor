@@ -231,7 +231,7 @@ arc:
 
 **Cause:** Template create/update/delete operations require the `ADMIN` role.
 
-**Solution:** The first admin user is auto-created on startup when auth is enabled. Check your logs for the admin credentials, or set them via environment variables:
+**Solution:** The first admin user is auto-created on startup. Check your logs for the admin credentials, or set them via environment variables:
 
 ```bash
 export ARC_REACTOR_AUTH_ADMIN_EMAIL=admin@example.com

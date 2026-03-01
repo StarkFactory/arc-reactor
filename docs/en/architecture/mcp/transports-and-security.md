@@ -18,7 +18,7 @@ This prevents long test and startup stalls when a server definition is wrong.
 
 ## Security Notes
 
-- Keep admin APIs protected when auth is enabled.
+- Authentication is runtime-required; keep admin APIs protected with role checks.
 - Prefer explicit server allowlists for production.
 - Treat MCP tool output as untrusted input and enforce output/tool policies.
 

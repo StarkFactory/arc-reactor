@@ -17,6 +17,7 @@ import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.ResponseStatusException
 import java.time.Instant
 
 /**
@@ -48,30 +49,29 @@ class SessionController(
 
     /**
      * List all sessions with summary metadata.
-     * When auth is enabled, sessions are filtered by the authenticated userId.
+     * Sessions are filtered by the authenticated userId.
      */
     @Operation(summary = "List all conversation sessions")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "List of sessions")
+        ApiResponse(responseCode = "200", description = "List of sessions"),
+        ApiResponse(responseCode = "401", description = "Missing authenticated user context")
     ])
     @GetMapping("/sessions")
     fun listSessions(exchange: ServerWebExchange): List<SessionResponse> {
-        val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
-        val sessions = if (userId != null) {
-            memoryStore.listSessionsByUserId(userId)
-        } else {
-            memoryStore.listSessions()
-        }
+        val userId = authenticatedUserId(exchange)
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing authenticated user context")
+        val sessions = memoryStore.listSessionsByUserId(userId)
         return sessions.map { it.toResponse() }
     }
 
     /**
      * Get all messages for a specific session.
-     * When auth is enabled, verifies session ownership.
+     * Verifies session ownership.
      */
     @Operation(summary = "Get messages for a specific session")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Session messages"),
+        ApiResponse(responseCode = "401", description = "Missing authenticated user context"),
         ApiResponse(responseCode = "403", description = "Access denied to session"),
         ApiResponse(responseCode = "404", description = "Session not found")
     ])
@@ -80,8 +80,8 @@ class SessionController(
         @PathVariable sessionId: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
-        if (userId != null && !isSessionOwner(sessionId, userId)) {
+        val userId = authenticatedUserId(exchange) ?: return unauthorizedResponse()
+        if (!isSessionOwner(sessionId, userId)) {
             return sessionForbidden()
         }
 
@@ -103,6 +103,7 @@ class SessionController(
     @Operation(summary = "Export a session as JSON or Markdown")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Exported session data"),
+        ApiResponse(responseCode = "401", description = "Missing authenticated user context"),
         ApiResponse(responseCode = "403", description = "Access denied to session"),
         ApiResponse(responseCode = "404", description = "Session not found")
     ])
@@ -112,8 +113,8 @@ class SessionController(
         @RequestParam(defaultValue = "json") format: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
-        if (userId != null && !isSessionOwner(sessionId, userId)) {
+        val userId = authenticatedUserId(exchange) ?: return unauthorizedResponse()
+        if (!isSessionOwner(sessionId, userId)) {
             return sessionForbidden()
         }
 
@@ -157,11 +158,12 @@ class SessionController(
 
     /**
      * Delete a session and all its messages.
-     * When auth is enabled, verifies session ownership.
+     * Verifies session ownership.
      */
     @Operation(summary = "Delete a session and all its messages")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Session deleted"),
+        ApiResponse(responseCode = "401", description = "Missing authenticated user context"),
         ApiResponse(responseCode = "403", description = "Access denied to session")
     ])
     @DeleteMapping("/sessions/{sessionId}")
@@ -169,8 +171,8 @@ class SessionController(
         @PathVariable sessionId: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
-        if (userId != null && !isSessionOwner(sessionId, userId)) {
+        val userId = authenticatedUserId(exchange) ?: return unauthorizedResponse()
+        if (!isSessionOwner(sessionId, userId)) {
             return sessionForbidden()
         }
 
@@ -184,6 +186,15 @@ class SessionController(
         val owner = memoryStore.getSessionOwner(sessionId)
         // No owner recorded (legacy data or InMemory without userId) — allow access
         return owner == null || owner == userId
+    }
+
+    private fun authenticatedUserId(exchange: ServerWebExchange): String? {
+        return exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
+    }
+
+    private fun unauthorizedResponse(): ResponseEntity<Any> {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(ErrorResponse(error = "Authentication required", timestamp = Instant.now().toString()))
     }
 
     private fun sessionForbidden(): ResponseEntity<Any> {

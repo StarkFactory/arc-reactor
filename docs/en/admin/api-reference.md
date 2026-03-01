@@ -194,7 +194,7 @@ Personas are named system prompt configurations. The default persona is applied 
 
 List all personas.
 
-**Auth**: Public (no auth required even when auth is enabled)
+**Auth**: Authenticated user (JWT required)
 
 **Response `200 OK`**:
 ```json
@@ -216,7 +216,7 @@ List all personas.
 
 Get a persona by ID.
 
-**Auth**: Public
+**Auth**: Authenticated user (JWT required)
 
 **Response `200 OK`**: Single `PersonaResponse` object (same shape as list item).
 
@@ -294,7 +294,7 @@ Versioned system prompt templates. Each template holds multiple versions with li
 
 List all prompt templates.
 
-**Auth**: Public
+**Auth**: Authenticated (no admin role required)
 
 **Response `200 OK`**:
 ```json
@@ -315,7 +315,7 @@ List all prompt templates.
 
 Get a template with all its versions.
 
-**Auth**: Public
+**Auth**: Authenticated (no admin role required)
 
 **Response `200 OK`**:
 ```json
@@ -462,7 +462,7 @@ Dynamic MCP (Model Context Protocol) server registration and lifecycle managemen
 
 List all registered MCP servers with connection status.
 
-**Auth**: Public
+**Auth**: Admin required
 
 **Response `200 OK`**:
 ```json
@@ -538,7 +538,7 @@ Register a new MCP server and optionally connect to it.
 
 Get server details including connection status and available tools.
 
-**Auth**: Public
+**Auth**: Admin required
 
 **Response `200 OK`**:
 ```json
@@ -1391,7 +1391,7 @@ Add multiple documents at once.
 
 Search documents by semantic similarity.
 
-**Auth**: Public (no admin check)
+**Auth**: Authenticated (no admin role required)
 
 **Request body**:
 ```json
@@ -2053,7 +2053,7 @@ Rating values: `POSITIVE`, `NEGATIVE`, `NEUTRAL`
 
 Submit feedback on an agent response. If `runId` is provided, the system automatically enriches the feedback with metadata from that run (query, response, session, tools used, duration).
 
-**Auth**: Public (no auth check)
+**Auth**: Authenticated (no admin role required)
 
 **Request body**:
 ```json
@@ -2151,7 +2151,7 @@ Export all feedback in eval-testing schema format.
 
 Get a single feedback entry by ID.
 
-**Auth**: Public (no auth check)
+**Auth**: Authenticated (no admin role required)
 
 **Response `200 OK`**: `FeedbackResponse` object
 

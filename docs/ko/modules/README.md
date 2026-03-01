@@ -24,5 +24,5 @@ Arc Reactor 프레임워크의 모듈별 레퍼런스 문서입니다. 각 문�
 - 모든 REST 엔드포인트 이해 → [arc-web: API 레퍼런스](./arc-web.md#api-레퍼런스)
 - 보안 헤더 / CORS 추가 → [arc-web: 설정](./arc-web.md#설정)
 - MCP 서버 등록 → [arc-web: MCP 서버](./arc-web.md#mcp-서버)
-- JWT 인증 활성화 → [arc-web: 인증](./arc-web.md#인증-arcreactorauthenabled-true-필요)
+- JWT 인증 설정 → [arc-web: 인증](./arc-web.md#인증-arcreactorauth)
 - 오류 메시지 재정의 (다국어 지원) → [arc-core: ErrorMessageResolver](./arc-core.md#errormessageresolver----커스텀-오류-메시지)

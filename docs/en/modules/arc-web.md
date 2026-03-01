@@ -152,7 +152,6 @@ The `TenantContextResolver` resolves the tenant ID in this priority order:
 1. `resolvedTenantId` exchange attribute (set by JWT filter)
 2. `tenantId` exchange attribute (legacy)
 3. `X-Tenant-Id` request header (validated against `^[a-zA-Z0-9_-]{1,64}$`)
-4. Default `"default"` (fallback)
 
 When no tenant context is present, the request is rejected with HTTP 400.
 
@@ -180,7 +179,7 @@ Always use the shared `isAdmin()` function. Do not duplicate this logic in custo
 2. `promptTemplateId` → active `PromptVersion` content
 3. `request.systemPrompt` → direct override
 4. Default persona (`isDefault=true`) from `PersonaStore`
-5. Hardcoded fallback: `"You are a helpful AI assistant."`
+5. Hardcoded fallback: `"You are a helpful AI assistant. You can use tools when needed. Answer in the same language as the user's message."`
 
 ### Custom AuthProvider
 

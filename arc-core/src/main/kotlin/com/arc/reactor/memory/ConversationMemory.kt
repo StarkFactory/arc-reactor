@@ -168,7 +168,7 @@ interface MemoryStore {
     /**
      * List session summaries owned by a specific user.
      *
-     * When authentication is enabled, this filters sessions by userId.
+     * Implementations should filter sessions by userId.
      * Default implementation falls back to [listSessions] for backward compatibility.
      *
      * @param userId Owner user ID

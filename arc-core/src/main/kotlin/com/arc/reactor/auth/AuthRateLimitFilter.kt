@@ -20,7 +20,7 @@ private val logger = KotlinLogging.logger {}
  * Limits login/register attempts per IP address to prevent brute-force attacks.
  * Returns HTTP 429 when the limit is exceeded.
  *
- * Only registered when auth is enabled.
+ * Authentication is runtime-required, so this filter is always active.
  */
 class AuthRateLimitFilter(
     private val maxAttemptsPerMinute: Int = 5

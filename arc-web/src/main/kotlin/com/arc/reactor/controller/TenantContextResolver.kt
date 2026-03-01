@@ -7,6 +7,18 @@ private val TENANT_ID_PATTERN = Regex("^[a-zA-Z0-9_-]{1,64}$")
 private const val TENANT_ID_INVALID_MSG =
     "Invalid tenant ID format. Only alphanumeric characters, hyphens, and underscores are allowed (max 64 chars)"
 
+/**
+ * Resolves tenant context for chat and multipart chat endpoints.
+ *
+ * Resolution order:
+ * 1) `resolvedTenantId` exchange attribute (authoritative tenant from JWT filter)
+ * 2) legacy `tenantId` exchange attribute (compatibility)
+ * 3) `X-Tenant-Id` request header (validated format)
+ *
+ * Fail-close behavior:
+ * - If authoritative context and header both exist but mismatch -> 400
+ * - If no tenant context is available -> 400
+ */
 internal object TenantContextResolver {
     private const val TENANT_HEADER_NAME = "X-Tenant-Id"
     private const val RESOLVED_TENANT_ID_ATTRIBUTE = "resolvedTenantId"

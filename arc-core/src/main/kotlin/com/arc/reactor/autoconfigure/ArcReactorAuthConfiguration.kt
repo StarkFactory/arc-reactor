@@ -122,7 +122,7 @@ class AuthConfiguration {
 }
 
 /**
- * JDBC Auth Configuration (when JDBC is available and auth is enabled)
+ * JDBC Auth Configuration (when JDBC is available and datasource URL is configured)
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate", "io.jsonwebtoken.Jwts"])

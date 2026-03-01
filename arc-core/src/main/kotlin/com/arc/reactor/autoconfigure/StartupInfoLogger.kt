@@ -16,15 +16,14 @@ private val logger = KotlinLogging.logger {}
 class StartupInfoLogger(
     private val environment: Environment,
     private val chatModelProvider: ChatModelProvider,
-    private val authProperties: AuthProperties?
+    private val authProperties: AuthProperties
 ) {
 
     @EventListener(ApplicationReadyEvent::class)
     fun logStartupInfo() {
         val port = environment.getProperty("server.port", "8080")
         val provider = chatModelProvider.defaultProvider()
-        val authEnabled = authProperties != null
-        val defaultTenantId = authProperties?.defaultTenantId ?: "n/a"
+        val defaultTenantId = authProperties.defaultTenantId
         val publicActuatorHealth = environment.getProperty(
             "arc.reactor.auth.public-actuator-health",
             "false"
@@ -42,7 +41,7 @@ class StartupInfoLogger(
             |  Swagger:  http://localhost:$port/swagger-ui.html
             |  Health:   http://localhost:$port/actuator/health
             |  Provider: $provider
-            |  Auth:     ${if (authEnabled) "enabled" else "disabled"}
+            |  Auth:     enabled (required)
             |  Tenant:   $defaultTenantId
             |  Probe:    public-actuator-health=$publicActuatorHealth
             |  DB:       postgres-required=$postgresRequired, datasource-configured=$datasourceConfigured

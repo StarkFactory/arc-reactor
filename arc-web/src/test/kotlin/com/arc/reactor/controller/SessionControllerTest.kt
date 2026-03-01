@@ -47,7 +47,8 @@ class SessionControllerTest {
             memoryStore, chatModelProvider, summaryStoreProvider, conversationManagerProvider
         )
         exchange = mockk()
-        every { exchange.attributes } returns mutableMapOf()
+        every { exchange.attributes } returns mutableMapOf(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
+        every { memoryStore.getSessionOwner(any()) } returns null
     }
 
     @Nested
@@ -55,7 +56,7 @@ class SessionControllerTest {
 
         @Test
         fun `should return empty list when no sessions exist`() = runTest {
-            every { memoryStore.listSessions() } returns emptyList()
+            every { memoryStore.listSessionsByUserId("user-1") } returns emptyList()
 
             val result = controller.listSessions(exchange)
 
@@ -65,7 +66,7 @@ class SessionControllerTest {
         @Test
         fun `should return session summaries with correct fields`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
-            every { memoryStore.listSessions() } returns listOf(
+            every { memoryStore.listSessionsByUserId("user-1") } returns listOf(
                 SessionSummary("session-1", 5, now, "Hello, how are you?")
             )
 
@@ -82,7 +83,7 @@ class SessionControllerTest {
         @Test
         fun `should return multiple sessions`() = runTest {
             val now = Instant.now()
-            every { memoryStore.listSessions() } returns listOf(
+            every { memoryStore.listSessionsByUserId("user-1") } returns listOf(
                 SessionSummary("s-1", 3, now, "First"),
                 SessionSummary("s-2", 1, now.minusSeconds(60), "Second")
             )
@@ -92,6 +93,19 @@ class SessionControllerTest {
             assertEquals(2, result.size) { "Expected 2 sessions" }
             assertEquals("s-1", result[0].sessionId) { "First session should be s-1" }
             assertEquals("s-2", result[1].sessionId) { "Second session should be s-2" }
+        }
+
+        @Test
+        fun `should reject list request when authenticated user context is missing`() = runTest {
+            every { exchange.attributes } returns mutableMapOf()
+
+            val exception = assertThrows(org.springframework.web.server.ResponseStatusException::class.java) {
+                controller.listSessions(exchange)
+            }
+
+            assertEquals(HttpStatus.UNAUTHORIZED, exception.statusCode) {
+                "Missing user context should fail-close with 401"
+            }
         }
     }
 
@@ -342,16 +356,14 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should skip ownership check when auth is disabled`() = runTest {
-            // No userId attribute = auth disabled
+        fun `should return 401 when authenticated user context is missing`() = runTest {
             every { exchange.attributes } returns mutableMapOf()
-            val memory = mockk<ConversationMemory>()
-            every { memoryStore.get("session-1") } returns memory
-            every { memory.getHistory() } returns emptyList()
 
             val response = controller.getSession("session-1", exchange)
 
-            assertEquals(HttpStatus.OK, response.statusCode) { "Should allow access when auth is disabled" }
+            assertEquals(HttpStatus.UNAUTHORIZED, response.statusCode) {
+                "Missing user context should fail-close with 401"
+            }
         }
     }
 

@@ -62,7 +62,7 @@ class PersonaController(
     }
 
     /**
-     * Create a new persona. Requires ADMIN role when auth is enabled.
+     * Create a new persona. Requires ADMIN role.
      */
     @Operation(summary = "Create a new persona (ADMIN)")
     @ApiResponses(value = [
@@ -88,7 +88,7 @@ class PersonaController(
 
     /**
      * Update an existing persona. Only provided fields are changed.
-     * Requires ADMIN role when auth is enabled.
+     * Requires ADMIN role.
      */
     @Operation(summary = "Update an existing persona (ADMIN)")
     @ApiResponses(value = [
@@ -115,7 +115,7 @@ class PersonaController(
 
     /**
      * Delete a persona. Idempotent — returns 204 even if not found.
-     * Requires ADMIN role when auth is enabled.
+     * Requires ADMIN role.
      */
     @Operation(summary = "Delete a persona (ADMIN)")
     @ApiResponses(value = [

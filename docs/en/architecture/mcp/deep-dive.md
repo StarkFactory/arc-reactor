@@ -442,15 +442,15 @@ ApplicationReadyEvent
 
 ## REST API -- Dynamic Server Management
 
-Built-in REST API for managing MCP servers at runtime. All write operations require admin role when auth is enabled.
+Built-in REST API for managing MCP servers at runtime. Authentication is required for all endpoints, and ADMIN role is required for all operations.
 
 ### Endpoints
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| `GET` | `/api/mcp/servers` | List all servers with status | Read |
+| `GET` | `/api/mcp/servers` | List all servers with status | Admin |
 | `POST` | `/api/mcp/servers` | Register + auto-connect | Admin |
-| `GET` | `/api/mcp/servers/{name}` | Server details + tool list | Read |
+| `GET` | `/api/mcp/servers/{name}` | Server details + tool list | Admin |
 | `PUT` | `/api/mcp/servers/{name}` | Update config | Admin |
 | `DELETE` | `/api/mcp/servers/{name}` | Disconnect + remove | Admin |
 | `POST` | `/api/mcp/servers/{name}/connect` | Connect | Admin |

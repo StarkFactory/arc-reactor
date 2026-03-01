@@ -24,5 +24,5 @@ Per-module reference documentation for the Arc Reactor framework. Each document 
 - Understand all REST endpoints → [arc-web: API Reference](./arc-web.md#api-reference)
 - Add security headers / CORS → [arc-web: Configuration](./arc-web.md#configuration)
 - Register an MCP server → [arc-web: MCP Servers](./arc-web.md#mcp-servers)
-- Enable JWT authentication → [arc-web: Auth](./arc-web.md#authentication-requires-arcreactorauthenabled-true)
+- Configure JWT authentication → [arc-web: Auth](./arc-web.md#authentication-arcreactorauth)
 - Override error messages (i18n) → [arc-core: ErrorMessageResolver](./arc-core.md#errormessageresolver----custom-error-messages)

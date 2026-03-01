@@ -52,7 +52,7 @@
 | **Retry** | Implemented | — | — |
 | **Tool Usage Display** | Implemented | — | SSE `tool_start`/`tool_end` events |
 | **Response Time Display** | Implemented | — | Measured on frontend |
-| **User Authentication** | Implemented | localStorage (token) | Login/signup UI shown automatically when backend auth is enabled |
+| **User Authentication** | Implemented | localStorage (token) | Login/signup UI shown automatically because backend auth is always required |
 | **Persona Selection** | Implemented | Reflected in settings | Persona list query + selection + inline CRUD |
 | **Session Server Sync** | Implemented | localStorage + server | GET/DELETE /api/sessions integration |
 
@@ -76,7 +76,7 @@
 │  │   ├── model, systemPrompt, responseFormat                     │
 │  │   ├── darkMode, showMetadata                                  │
 │  │   └── sidebarOpen                                             │
-│  └── arc-reactor-auth-token  (JWT token, when auth is enabled)   │
+│  └── arc-reactor-auth-token  (JWT token, required for API access) │
 │                                                                  │
 │  POST /api/chat/stream ──────────────────────┐                   │
 │  { message, userId, model, systemPrompt,     │                   │
@@ -181,7 +181,7 @@ ChatContext.tsx                     ChatController.kt
 **Deployment state:**
 - Without PostgreSQL connection → `InMemoryMemoryStore` (lost on server restart)
 - With PostgreSQL connection → `JdbcMemoryStore` (persistent storage)
-- With authentication enabled → sessions auto-isolated by `userId`, localStorage also namespaced per userId
+- Because authentication is always enabled → sessions auto-isolated by `userId`, localStorage also namespaced per userId
 
 ---
 

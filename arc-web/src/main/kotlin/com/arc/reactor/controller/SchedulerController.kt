@@ -21,7 +21,7 @@ import java.time.Instant
 /**
  * Dynamic Scheduler API Controller
  *
- * Provides REST APIs for managing scheduled jobs. Admin-only access when auth is enabled.
+ * Provides REST APIs for managing scheduled jobs. All operations require ADMIN role.
  *
  * ## Job Types
  * - **MCP_TOOL** (default): Invokes a single MCP tool on a schedule.

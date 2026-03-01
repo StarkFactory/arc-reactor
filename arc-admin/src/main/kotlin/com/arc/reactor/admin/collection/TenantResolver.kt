@@ -86,7 +86,7 @@ class TenantWebFilter(
         val header = exchange.request.headers.getFirst(TenantResolver.HEADER_NAME)
         if (!header.isNullOrBlank()) return header
 
-        // 2. Check exchange attribute (set by upstream auth filter)
+        // 2. Check legacy exchange attribute key used by older filters/adapters.
         val attr = exchange.attributes["tenantId"] as? String
         if (!attr.isNullOrBlank()) return attr
 

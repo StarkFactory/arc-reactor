@@ -442,15 +442,15 @@ ApplicationReadyEvent
 
 ## REST API — 동적 서버 관리
 
-런타임에 MCP 서버를 관리하는 내장 REST API입니다. 인증 활성화 시 쓰기 작업은 관리자(Admin) 권한이 필요합니다.
+런타임에 MCP 서버를 관리하는 내장 REST API입니다. 모든 엔드포인트에 인증이 필요하며, 모든 작업은 관리자(Admin) 권한이 필요합니다.
 
 ### 엔드포인트
 
 | 메서드 | 경로 | 설명 | 권한 |
 |--------|------|------|------|
-| `GET` | `/api/mcp/servers` | 전체 서버 목록 (상태 포함) | 읽기 |
+| `GET` | `/api/mcp/servers` | 전체 서버 목록 (상태 포함) | 관리자 |
 | `POST` | `/api/mcp/servers` | 등록 + 자동 연결 | 관리자 |
-| `GET` | `/api/mcp/servers/{name}` | 상세 조회 (도구 목록 포함) | 읽기 |
+| `GET` | `/api/mcp/servers/{name}` | 상세 조회 (도구 목록 포함) | 관리자 |
 | `PUT` | `/api/mcp/servers/{name}` | 설정 수정 | 관리자 |
 | `DELETE` | `/api/mcp/servers/{name}` | 연결 해제 + 제거 | 관리자 |
 | `POST` | `/api/mcp/servers/{name}/connect` | 연결 | 관리자 |

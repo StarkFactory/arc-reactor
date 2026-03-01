@@ -27,7 +27,7 @@ private val logger = KotlinLogging.logger {}
  * MCP Server Management API Controller
  *
  * Provides REST APIs for dynamic MCP server registration and management.
- * Admin-only for write operations when auth is enabled.
+ * All operations require ADMIN role.
  *
  * ## Endpoints
  * - GET    /api/mcp/servers                    : List all servers with status

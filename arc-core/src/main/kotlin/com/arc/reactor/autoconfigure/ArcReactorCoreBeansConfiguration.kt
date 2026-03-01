@@ -290,8 +290,8 @@ class ArcReactorCoreBeansConfiguration {
     fun startupInfoLogger(
         environment: Environment,
         chatModelProvider: ChatModelProvider,
-        authProperties: ObjectProvider<com.arc.reactor.auth.AuthProperties>
-    ): StartupInfoLogger = StartupInfoLogger(environment, chatModelProvider, authProperties.ifAvailable)
+        authProperties: com.arc.reactor.auth.AuthProperties
+    ): StartupInfoLogger = StartupInfoLogger(environment, chatModelProvider, authProperties)
 
     /**
      * Error Message Resolver (default: English messages)
