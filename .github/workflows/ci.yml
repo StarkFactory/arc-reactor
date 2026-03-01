@@ -144,6 +144,12 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
+      - name: Run API Regression Flow Test (Duration Guard)
+        run: |
+          DURATION_LABEL="api regression flow" bash scripts/ci/run-with-duration-guard.sh "120" \
+            ./gradlew :arc-web:test -PincludeIntegration \
+            --tests "com.arc.reactor.integration.ApiRegressionFlowIntegrationTest"
+
       - name: Run Integration Tests (core + web, Duration Guard)
         run: DURATION_LABEL="integration api suite" bash scripts/ci/run-with-duration-guard.sh "$INTEGRATION_TEST_MAX_SECONDS" ./gradlew :arc-core:test :arc-web:test -PincludeIntegration --tests "com.arc.reactor.integration.*"
 
