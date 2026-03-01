@@ -77,7 +77,7 @@ class ConversationMessageTrimmer(
         while (totalTokens > budget && messages.size > 1) {
             val protectedIdx = messages.indexOfLast { it is UserMessage }.coerceAtLeast(0)
             val removeStartIdx = protectedIdx + 1
-            if (removeStartIdx >= messages.size - 1) break
+            if (removeStartIdx > messages.size - 1) break
 
             val subList = messages.subList(removeStartIdx, messages.size)
             val removeCount = calculateRemoveGroupSize(subList)

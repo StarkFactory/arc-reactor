@@ -179,4 +179,24 @@ class ConversationMessageTrimmerTest {
         assertEquals("keep", (messages[0] as UserMessage).text)
         assertEquals("final", (messages[1] as AssistantMessage).text)
     }
+
+    @Test
+    fun `should trim trailing assistant when it is the only post-user message over budget`() {
+        val messages = mutableListOf<Message>(
+            UserMessage("keep"),
+            AssistantMessage("very-long-assistant-message")
+        )
+
+        val trimmer = ConversationMessageTrimmer(
+            maxContextWindowTokens = 6,
+            outputReserveTokens = 0,
+            tokenEstimator = tokenEstimator
+        )
+
+        trimmer.trim(messages, systemPrompt = "")
+
+        assertEquals(1, messages.size, "Trailing assistant message should be trimmed when over budget")
+        assertInstanceOf(UserMessage::class.java, messages[0], "Last user message must be preserved")
+        assertEquals("keep", (messages[0] as UserMessage).text, "Preserved user message should remain unchanged")
+    }
 }
