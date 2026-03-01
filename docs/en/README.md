@@ -7,6 +7,7 @@
 - [Governance](governance/README.md)
 - [Reference](reference/README.md)
 - [Integrations](integrations/README.md)
+- [Operations](operations/README.md)
 - [Engineering](engineering/README.md)
 - [Releases](releases/README.md)
 
@@ -21,6 +22,7 @@
 - [Security Release Framework](governance/security-release-framework.md)
 - [Support and Compatibility Policy](governance/support-policy.md)
 - [Tools Reference](reference/tools.md)
+- [Tenant Onboarding Runbook](operations/tenant-onboarding-runbook.md)
 - [Slack Ops Runbook](integrations/slack/ops-runbook.md)
 - [Testing and Performance](engineering/testing-and-performance.md)
 - [Agent Benchmarking](engineering/agent-benchmarking.md)

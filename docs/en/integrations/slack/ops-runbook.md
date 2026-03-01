@@ -114,8 +114,24 @@ scripts/ops/cleanup_mcp_duplicate_servers.py \
   --apply
 ```
 
+Include stale-server cleanup (for long-lived failed connections):
+
+```bash
+scripts/ops/cleanup_mcp_duplicate_servers.py \
+  --base-url http://localhost:8080 \
+  --email admin@arc-reactor.local \
+  --password 'admin-pass-123' \
+  --tenant-id default \
+  --cleanup-stale \
+  --stale-status FAILED \
+  --stale-min-age-seconds 7200 \
+  --apply
+```
+
 Notes:
 
 - `--keep` can be repeated to pin servers that must never be deleted.
 - Only servers whose entire tool set is shadowed are deletion candidates.
+- `--cleanup-stale` adds stale candidates by status/age (default stale status: `FAILED`).
+- Use `--max-duplicate-tools`, `--max-redundant-servers`, and `--fail-on-threshold` for alert/CI guardrails.
 - Prefer running dry-run first and verifying with `GET /api/mcp/servers/{name}`.

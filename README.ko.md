@@ -117,6 +117,9 @@ curl -X POST http://localhost:8080/api/chat \
 
 # 실행 중인 인스턴스 대상으로 런타임 계약 검증까지 포함
 ./scripts/dev/pre-open-check.sh --with-runtime --base-url http://localhost:8080
+
+# ask/react/approval/vector/metrics 에이전트 시나리오 QA까지 포함
+./scripts/dev/pre-open-check.sh --with-runtime --with-agent-e2e --base-url http://localhost:8080
 ```
 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`

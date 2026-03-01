@@ -6,7 +6,7 @@
 
 - `CI`는 워크플로 파일 하나(`.github/workflows/ci.yml`)입니다.
 - 하지만 그 안에 `build`, `integration`, `docker` 3개 job이 있어서 GitHub PR 체크에는 각각 별도 항목으로 표시됩니다.
-- 현재 merge 게이트(필수 체크)는 `build`, `integration`, `docker`입니다.
+- 현재 merge 게이트(필수 체크)는 `pre_open`, `build`, `integration`, `docker`입니다.
 
 즉, "CI 한 개냐?" 기준으로는 `예`, "docker도 포함되냐?" 기준으로도 `예`입니다.
 
@@ -20,6 +20,7 @@
 PR 체크 화면에 보통 아래 이름으로 나타납니다.
 
 - `build (21)`
+- `pre_open`
 - `integration (21)`
 - `docker`
 - `Secret Scan (Gitleaks)`
@@ -35,9 +36,10 @@ GitHub 보호 브랜치의 required status check는 `successful`뿐 아니라 `s
 실행 순서(의존성):
 
 1. `changes` 실행 (변경 파일 분류)
-2. `build` 실행 (`needs: changes`, 조건부)
-3. `integration` 실행 (`needs: [changes, build]`, 조건부)
-4. `docker` 실행 (`needs: [changes, build, integration]`, 조건부)
+2. `pre_open` 실행 (`needs: changes`, 조건부)
+3. `build` 실행 (`needs: [changes, pre_open]`, 조건부)
+4. `integration` 실행 (`needs: [changes, build]`, 조건부)
+5. `docker` 실행 (`needs: [changes, build, integration]`, 조건부)
 
 ### 3.0 경로 기반 분기 규칙
 
@@ -71,7 +73,15 @@ GitHub 보호 브랜치의 required status check는 `successful`뿐 아니라 `s
 "파일 경로 규칙으로 판정"입니다.
 문서/릴리즈노트/테스트 전용 변경은 기본적으로 이 그룹에 들어가지 않으므로 `docker`를 생략합니다.
 
-### 3.1 `build` job
+### 3.1 `pre_open` job
+
+주요 단계:
+
+1. JDK/Gradle 설정
+2. Gitleaks CLI 설치
+3. `scripts/dev/pre-open-check.sh` 실행 (duration guard 적용)
+
+### 3.2 `build` job
 
 주요 단계:
 
@@ -79,8 +89,7 @@ GitHub 보호 브랜치의 required status check는 `successful`뿐 아니라 `s
 2. 문서/정합성 가드
 3. 빌드(`./gradlew build -x test`)
 4. 안전 게이트 테스트(핵심 보안/인가 경로 타깃 실행)
-5. 전체 테스트(`./gradlew test`, duration guard 적용)
-6. 테스트 리포트 업로드
+5. 테스트 리포트 업로드
 
 문서/정합성 가드 스크립트:
 
@@ -89,7 +98,7 @@ GitHub 보호 브랜치의 required status check는 `successful`뿐 아니라 `s
 - `scripts/ci/check-default-config-alignment.py`
 - `scripts/ci/check-file-size-guard.sh`
 
-### 3.2 `integration` job
+### 3.3 `integration` job
 
 주요 단계:
 
@@ -103,7 +112,7 @@ GitHub 보호 브랜치의 required status check는 `successful`뿐 아니라 `s
 ./gradlew :arc-core:test :arc-web:test -PincludeIntegration --tests "com.arc.reactor.integration.*"
 ```
 
-### 3.3 `docker` job
+### 3.4 `docker` job
 
 주요 단계:
 
@@ -187,11 +196,12 @@ PR 전/중:
 
 1. 로컬 `./gradlew test`
 2. PR 생성 후 `build`, `integration`, `docker` 통과 확인
-3. 보안 스캔 실패 시 원인 분석 후 수정
+3. `pre_open` 통과 확인
+4. 보안 스캔 실패 시 원인 분석 후 수정
 
 merge:
 
-1. 필수 체크 3개 green 확인
+1. 필수 체크 4개(`pre_open`, `build`, `integration`, `docker`) green 확인
 2. 머지 방식 선택(일반 기능 PR은 보통 squash)
 
 release:
@@ -206,7 +216,7 @@ release:
 - PR 체크에 `CI` 하나만 보이지 않고 여러 줄로 보이는 이유:
   - 워크플로 1개 안의 job이 각각 status check로 분리 표시되기 때문입니다.
 - `docker`는 별도 워크플로가 아니라 `CI` 워크플로 내부 job입니다.
-- merge 게이트는 정책 파일(`AGENTS.md`) 기준 `build`, `integration`, `docker`입니다.
+- merge 게이트는 정책 파일(`AGENTS.md`) 기준 `pre_open`, `build`, `integration`, `docker`입니다.
 
 ## 10. 참고 파일
 
