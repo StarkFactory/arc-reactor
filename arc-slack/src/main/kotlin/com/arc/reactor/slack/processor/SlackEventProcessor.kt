@@ -6,6 +6,7 @@ import com.arc.reactor.slack.controller.SlackEventDeduplicator
 import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackEventCommand
+import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.databind.JsonNode
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +21,8 @@ class SlackEventProcessor(
     private val eventHandler: SlackEventHandler,
     private val messagingService: SlackMessagingService,
     private val metricsRecorder: SlackMetricsRecorder,
-    properties: SlackProperties
+    properties: SlackProperties,
+    private val threadTracker: SlackThreadTracker? = null
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val backpressureLimiter = SlackBackpressureLimiter(
@@ -117,6 +119,20 @@ class SlackEventProcessor(
                     "app_mention" -> eventHandler.handleAppMention(command)
                     "message" -> {
                         if (command.threadTs != null) {
+                            if (threadTracker != null &&
+                                !threadTracker.isTracked(command.channelId, command.threadTs)
+                            ) {
+                                logger.debug {
+                                    "Ignoring untracked Slack thread message: " +
+                                        "entrypoint=$entrypoint, channel=${command.channelId}, thread=${command.threadTs}"
+                                }
+                                metricsRecorder.recordDropped(
+                                    entrypoint = entrypoint,
+                                    reason = "untracked_thread",
+                                    eventType = eventType
+                                )
+                                return@launch
+                            }
                             eventHandler.handleMessage(command)
                         }
                     }

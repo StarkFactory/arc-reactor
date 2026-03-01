@@ -3,12 +3,18 @@ package com.arc.reactor.slack
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.slack.config.SlackAutoConfiguration
 import com.arc.reactor.slack.handler.SlackCommandHandler
+import com.arc.reactor.slack.metrics.MicrometerSlackMetricsRecorder
+import com.arc.reactor.slack.metrics.NoOpSlackMetricsRecorder
+import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.security.SlackSignatureVerifier
 import com.arc.reactor.slack.service.SlackMessagingService
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.mockk.mockk
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
@@ -84,6 +90,38 @@ class SlackAutoConfigurationTest {
                 )
                 .run { context ->
                     context.getBean(SlackCommandHandler::class.java).shouldNotBeNull()
+                }
+        }
+
+        @Test
+        fun `slack metrics recorder uses Micrometer implementation when MeterRegistry exists`() {
+            contextRunner
+                .withBean(
+                    MeterRegistry::class.java,
+                    java.util.function.Supplier { SimpleMeterRegistry() }
+                )
+                .withPropertyValues(
+                    "arc.reactor.slack.enabled=true",
+                    "arc.reactor.slack.signing-secret=test-secret",
+                    "arc.reactor.slack.bot-token=xoxb-test"
+                )
+                .run { context ->
+                    context.getBean(SlackMetricsRecorder::class.java)
+                        .shouldBeInstanceOf<MicrometerSlackMetricsRecorder>()
+                }
+        }
+
+        @Test
+        fun `slack metrics recorder falls back to NoOp when MeterRegistry is absent`() {
+            contextRunner
+                .withPropertyValues(
+                    "arc.reactor.slack.enabled=true",
+                    "arc.reactor.slack.signing-secret=test-secret",
+                    "arc.reactor.slack.bot-token=xoxb-test"
+                )
+                .run { context ->
+                    context.getBean(SlackMetricsRecorder::class.java)
+                        .shouldBeInstanceOf<NoOpSlackMetricsRecorder>()
                 }
         }
     }

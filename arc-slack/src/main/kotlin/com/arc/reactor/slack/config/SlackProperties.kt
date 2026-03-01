@@ -67,6 +67,15 @@ data class SlackProperties(
     /** Max in-memory event_id entries kept for deduplication */
     val eventDedupMaxEntries: Int = 10000,
 
+    /** Track Slack threads initiated by Arc Reactor to avoid unrelated thread side effects */
+    val threadTrackingEnabled: Boolean = true,
+
+    /** Retention time (seconds) for tracked Slack threads */
+    val threadTrackingTtlSeconds: Long = 86400,
+
+    /** Max in-memory tracked thread entries */
+    val threadTrackingMaxEntries: Int = 20000,
+
     /** Socket Mode WebSocket backend implementation */
     val socketBackend: SlackSocketBackend = SlackSocketBackend.JAVA_WEBSOCKET,
 

@@ -4,6 +4,7 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.slack.model.SlackEventCommand
+import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import mu.KotlinLogging
 
@@ -20,7 +21,8 @@ private val logger = KotlinLogging.logger {}
 class DefaultSlackEventHandler(
     private val agentExecutor: AgentExecutor,
     private val messagingService: SlackMessagingService,
-    private val defaultProvider: String = "configured backend model"
+    private val defaultProvider: String = "configured backend model",
+    private val threadTracker: SlackThreadTracker? = null
 ) : SlackEventHandler {
 
     override suspend fun handleAppMention(command: SlackEventCommand) {
@@ -32,6 +34,7 @@ class DefaultSlackEventHandler(
         }
 
         val threadTs = command.threadTs ?: command.ts
+        threadTracker?.track(command.channelId, threadTs)
         executeAndRespond(command.channelId, threadTs, command.userId, cleanText)
     }
 
@@ -40,6 +43,7 @@ class DefaultSlackEventHandler(
         if (text.isBlank()) return
 
         val threadTs = command.threadTs ?: command.ts
+        threadTracker?.track(command.channelId, threadTs)
         executeAndRespond(command.channelId, threadTs, command.userId, text)
     }
 
@@ -72,11 +76,17 @@ class DefaultSlackEventHandler(
                 ":warning: ${result.errorMessage ?: "An error occurred while processing your request."}"
             }
 
-            messagingService.sendMessage(
+            val sendResult = messagingService.sendMessage(
                 channelId = channelId,
                 text = responseText,
                 threadTs = threadTs
             )
+            if (!sendResult.ok) {
+                logger.warn {
+                    "Failed to send Slack event response: " +
+                        "channel=$channelId thread=$threadTs error=${sendResult.error}"
+                }
+            }
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Failed to process Slack event for channel=$channelId, thread=$threadTs" }

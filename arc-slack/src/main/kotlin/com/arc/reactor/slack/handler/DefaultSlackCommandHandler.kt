@@ -3,6 +3,7 @@ package com.arc.reactor.slack.handler
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.slack.model.SlackSlashCommand
+import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
@@ -20,7 +21,8 @@ private val logger = KotlinLogging.logger {}
 class DefaultSlackCommandHandler(
     private val agentExecutor: AgentExecutor,
     private val messagingService: SlackMessagingService,
-    private val defaultProvider: String = "configured backend model"
+    private val defaultProvider: String = "configured backend model",
+    private val threadTracker: SlackThreadTracker? = null
 ) : SlackCommandHandler {
 
     override suspend fun handleSlashCommand(command: SlackSlashCommand) {
@@ -68,6 +70,7 @@ class DefaultSlackCommandHandler(
         prompt: String,
         threadTs: String
     ) {
+        threadTracker?.track(command.channelId, threadTs)
         val sessionId = "slack-${command.channelId}-$threadTs"
         val result = executeAgent(command, prompt, sessionId)
         val responseText = toResponseText(result)

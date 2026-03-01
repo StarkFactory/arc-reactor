@@ -3,23 +3,46 @@ package com.arc.reactor.errorreport
 import com.arc.reactor.errorreport.config.ErrorReportProperties
 import com.arc.reactor.errorreport.controller.ErrorReportController
 import com.arc.reactor.errorreport.handler.ErrorReportHandler
+import com.arc.reactor.errorreport.model.ErrorReportRequest
 import com.arc.reactor.errorreport.model.ErrorReportResponse
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeBlank
+import kotlinx.coroutines.delay
 import io.mockk.mockk
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.WebTestClient
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.cancellation.CancellationException
 
 class ErrorReportControllerTest {
 
     private val handler = mockk<ErrorReportHandler>(relaxed = true)
 
-    private fun createClient(apiKey: String = ""): WebTestClient {
-        val properties = ErrorReportProperties(enabled = true, apiKey = apiKey)
-        val controller = ErrorReportController(handler, properties)
+    private fun createClient(
+        apiKey: String = "",
+        requestTimeoutMs: Long = 120_000,
+        maxConcurrentRequests: Int = 3,
+        handlerOverride: ErrorReportHandler = handler
+    ): WebTestClient {
+        val properties = ErrorReportProperties(
+            enabled = true,
+            apiKey = apiKey,
+            requestTimeoutMs = requestTimeoutMs,
+            maxConcurrentRequests = maxConcurrentRequests
+        )
+        val controller = ErrorReportController(handlerOverride, properties)
         return WebTestClient.bindToController(controller).build()
+    }
+
+    private fun waitUntil(timeoutMs: Long, condition: () -> Boolean): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (condition()) return true
+            Thread.sleep(20)
+        }
+        return condition()
     }
 
     private val validBody = mapOf(
@@ -160,6 +183,41 @@ class ErrorReportControllerTest {
                 .bodyValue(validBody)
                 .exchange()
                 .expectStatus().isOk
+        }
+    }
+
+    @Nested
+    inner class TimeoutBehavior {
+
+        @Test
+        fun `cancels handler when processing exceeds timeout`() {
+            val started = AtomicBoolean(false)
+            val cancelled = AtomicBoolean(false)
+            val slowHandler = object : ErrorReportHandler {
+                override suspend fun handle(requestId: String, request: ErrorReportRequest) {
+                    started.set(true)
+                    try {
+                        delay(500)
+                    } catch (e: CancellationException) {
+                        cancelled.set(true)
+                        throw e
+                    }
+                }
+            }
+            val client = createClient(
+                requestTimeoutMs = 50,
+                maxConcurrentRequests = 1,
+                handlerOverride = slowHandler
+            )
+
+            client.post().uri("/api/error-report")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(validBody)
+                .exchange()
+                .expectStatus().isOk
+
+            waitUntil(500) { started.get() } shouldBe true
+            waitUntil(1500) { cancelled.get() } shouldBe true
         }
     }
 }

@@ -14,6 +14,7 @@ import com.arc.reactor.slack.processor.SlackCommandProcessor
 import com.arc.reactor.slack.processor.SlackEventProcessor
 import com.arc.reactor.slack.security.SlackSignatureVerifier
 import com.arc.reactor.slack.security.SlackSignatureWebFilter
+import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
@@ -42,15 +43,15 @@ import org.springframework.web.server.WebFilter
 class SlackAutoConfiguration {
 
     @Bean
-    @ConditionalOnMissingBean
-    fun slackMetricsRecorder(): SlackMetricsRecorder = NoOpSlackMetricsRecorder()
-
-    @Bean
     @ConditionalOnClass(MeterRegistry::class)
     @ConditionalOnBean(MeterRegistry::class)
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(SlackMetricsRecorder::class)
     fun micrometerSlackMetricsRecorder(registry: MeterRegistry): SlackMetricsRecorder =
         MicrometerSlackMetricsRecorder(registry)
+
+    @Bean
+    @ConditionalOnMissingBean(value = [SlackMetricsRecorder::class, MeterRegistry::class])
+    fun slackMetricsRecorder(): SlackMetricsRecorder = NoOpSlackMetricsRecorder()
 
     @Bean
     @ConditionalOnMissingBean
@@ -58,6 +59,20 @@ class SlackAutoConfiguration {
         SlackSignatureVerifier(
             signingSecret = properties.signingSecret,
             timestampToleranceSeconds = properties.timestampToleranceSeconds
+        )
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.slack",
+        name = ["thread-tracking-enabled"],
+        havingValue = "true",
+        matchIfMissing = true
+    )
+    fun slackThreadTracker(properties: SlackProperties): SlackThreadTracker =
+        SlackThreadTracker(
+            ttlSeconds = properties.threadTrackingTtlSeconds,
+            maxEntries = properties.threadTrackingMaxEntries
         )
 
     @Bean("slackSignatureWebFilter")
@@ -97,11 +112,13 @@ class SlackAutoConfiguration {
     fun slackEventHandler(
         agentExecutor: AgentExecutor,
         messagingService: SlackMessagingService,
-        agentProperties: ObjectProvider<AgentProperties>
+        agentProperties: ObjectProvider<AgentProperties>,
+        threadTracker: ObjectProvider<SlackThreadTracker>
     ): SlackEventHandler = DefaultSlackEventHandler(
         agentExecutor = agentExecutor,
         messagingService = messagingService,
-        defaultProvider = agentProperties.ifAvailable?.llm?.defaultProvider ?: "configured backend model"
+        defaultProvider = agentProperties.ifAvailable?.llm?.defaultProvider ?: "configured backend model",
+        threadTracker = threadTracker.ifAvailable
     )
 
     @Bean
@@ -110,11 +127,13 @@ class SlackAutoConfiguration {
     fun slackCommandHandler(
         agentExecutor: AgentExecutor,
         messagingService: SlackMessagingService,
-        agentProperties: ObjectProvider<AgentProperties>
+        agentProperties: ObjectProvider<AgentProperties>,
+        threadTracker: ObjectProvider<SlackThreadTracker>
     ): SlackCommandHandler = DefaultSlackCommandHandler(
         agentExecutor = agentExecutor,
         messagingService = messagingService,
-        defaultProvider = agentProperties.ifAvailable?.llm?.defaultProvider ?: "configured backend model"
+        defaultProvider = agentProperties.ifAvailable?.llm?.defaultProvider ?: "configured backend model",
+        threadTracker = threadTracker.ifAvailable
     )
 
     @Bean
@@ -124,12 +143,14 @@ class SlackAutoConfiguration {
         eventHandler: SlackEventHandler,
         messagingService: SlackMessagingService,
         metricsRecorder: SlackMetricsRecorder,
-        properties: SlackProperties
+        properties: SlackProperties,
+        threadTracker: ObjectProvider<SlackThreadTracker>
     ): SlackEventProcessor = SlackEventProcessor(
         eventHandler = eventHandler,
         messagingService = messagingService,
         metricsRecorder = metricsRecorder,
-        properties = properties
+        properties = properties,
+        threadTracker = threadTracker.ifAvailable
     )
 
     @Bean

@@ -7,6 +7,7 @@ import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.slack.handler.DefaultSlackCommandHandler
 import com.arc.reactor.slack.model.SlackApiResult
 import com.arc.reactor.slack.model.SlackSlashCommand
+import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -129,6 +130,24 @@ class DefaultSlackCommandHandlerTest {
                     "ephemeral"
                 )
             }
+        }
+
+        @Test
+        fun `tracks thread when channel post succeeds`() = runTest {
+            val tracker = SlackThreadTracker()
+            val trackingHandler = DefaultSlackCommandHandler(agentExecutor, messagingService, threadTracker = tracker)
+            coEvery {
+                messagingService.sendMessage("C123", any(), null)
+            } returns SlackApiResult(ok = true, ts = "1111.2222", channel = "C123")
+            coEvery {
+                messagingService.sendMessage("C123", any(), "1111.2222")
+            } returns SlackApiResult(ok = true, ts = "1111.3333", channel = "C123")
+            coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
+                AgentResult(success = true, content = "Tracked")
+
+            trackingHandler.handleSlashCommand(slashCommand())
+
+            tracker.isTracked("C123", "1111.2222") shouldBe true
         }
     }
 
