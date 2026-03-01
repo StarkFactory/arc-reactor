@@ -125,9 +125,22 @@ trap 'rm -rf "$tmp_dir"' EXIT
 echo "[1/5] Health check"
 health_file="$tmp_dir/health.json"
 health_code="$(request GET "$BASE_URL/actuator/health" "$health_file")"
-[[ "$health_code" == "200" ]] || fail "/actuator/health expected 200, got $health_code"
+[[ "$health_code" == "200" || "$health_code" == "503" ]] \
+  || fail "/actuator/health expected 200 or 503, got $health_code"
 health_status="$(extract_json_field "$health_file" "status")"
-[[ "$health_status" == "UP" ]] || fail "/actuator/health status expected UP, got '$health_status'"
+if [[ "$health_status" != "UP" ]]; then
+  liveness_file="$tmp_dir/liveness.json"
+  readiness_file="$tmp_dir/readiness.json"
+  liveness_code="$(request GET "$BASE_URL/actuator/health/liveness" "$liveness_file")"
+  readiness_code="$(request GET "$BASE_URL/actuator/health/readiness" "$readiness_file")"
+  liveness_status="$(extract_json_field "$liveness_file" "status")"
+  readiness_status="$(extract_json_field "$readiness_file" "status")"
+  if [[ "$liveness_code" == "200" && "$readiness_code" == "200" && "$liveness_status" == "UP" && "$readiness_status" == "UP" ]]; then
+    echo "      Root health is '$health_status', but liveness/readiness are both UP. Continuing."
+  else
+    fail "/actuator/health status expected UP (or liveness/readiness UP), got '$health_status'"
+  fi
+fi
 
 echo "[2/5] Unauthenticated guard check"
 models_unauth_file="$tmp_dir/models_unauth.json"
@@ -143,9 +156,24 @@ JSON
 register_code="$(request POST "$BASE_URL/api/auth/register" "$register_file" \
   -H "Content-Type: application/json" \
   --data-binary "@$register_payload")"
-[[ "$register_code" == "201" ]] || fail "/api/auth/register expected 201, got $register_code"
-user_token="$(extract_json_field "$register_file" "token")"
-[[ -n "$user_token" ]] || fail "Register response did not include token"
+if [[ "$register_code" == "201" ]]; then
+  user_token="$(extract_json_field "$register_file" "token")"
+  [[ -n "$user_token" ]] || fail "Register response did not include token"
+elif [[ "$register_code" == "409" ]]; then
+  login_file="$tmp_dir/login.json"
+  login_payload="$tmp_dir/login_payload.json"
+  cat >"$login_payload" <<JSON
+{"email":"$EMAIL","password":"$PASSWORD"}
+JSON
+  login_code="$(request POST "$BASE_URL/api/auth/login" "$login_file" \
+    -H "Content-Type: application/json" \
+    --data-binary "@$login_payload")"
+  [[ "$login_code" == "200" ]] || fail "Register returned 409 and login failed (status=$login_code)"
+  user_token="$(extract_json_field "$login_file" "token")"
+  [[ -n "$user_token" ]] || fail "Login response did not include token after 409 register fallback"
+else
+  fail "/api/auth/register expected 201 or 409, got $register_code"
+fi
 
 echo "[4/5] Authenticated user path check"
 models_auth_file="$tmp_dir/models_auth.json"

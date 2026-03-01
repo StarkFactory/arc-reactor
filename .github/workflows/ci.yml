@@ -13,6 +13,7 @@ env:
   SAFETY_TEST_MAX_SECONDS: "120"
   INTEGRATION_TEST_MAX_SECONDS: "150"
   PRE_OPEN_MAX_SECONDS: "1200"
+  CI_RUNTIME_BASE_URL: ""
 
 jobs:
   changes:
@@ -96,8 +97,13 @@ jobs:
 
       - name: Run Pre-Open Gate
         run: |
+          set -euo pipefail
+          args=()
+          if [ -n "${CI_RUNTIME_BASE_URL}" ]; then
+            args+=(--with-runtime --with-agent-e2e --base-url "${CI_RUNTIME_BASE_URL}")
+          fi
           DURATION_LABEL="pre-open gate" bash scripts/ci/run-with-duration-guard.sh \
-            "$PRE_OPEN_MAX_SECONDS" ./scripts/dev/pre-open-check.sh
+            "$PRE_OPEN_MAX_SECONDS" ./scripts/dev/pre-open-check.sh "${args[@]}"
 
   build:
     runs-on: ubuntu-latest

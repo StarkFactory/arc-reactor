@@ -31,7 +31,7 @@ class HttpResult:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Find and optionally delete redundant MCP servers."
+        description="Find and optionally delete redundant/stale MCP servers."
     )
     parser.add_argument(
         "--base-url",
@@ -120,6 +120,8 @@ def request_json(
         payload = exc.read().decode("utf-8")
         parsed = json.loads(payload) if payload else payload
         return HttpResult(status=exc.code, body=parsed)
+    except urllib.error.URLError as exc:
+        return HttpResult(status=0, body=f"network_error: {exc.reason}")
 
 
 def resolve_token(args: argparse.Namespace) -> str:

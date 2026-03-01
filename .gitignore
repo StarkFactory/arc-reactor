@@ -33,6 +33,10 @@ Thumbs.db
 *.log
 logs/
 
+# Python
+__pycache__/
+*.pyc
+
 # Local configuration
 application-local.yml
 application-local.properties

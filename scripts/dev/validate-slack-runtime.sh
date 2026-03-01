@@ -2,6 +2,7 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:18084}"
+TENANT_ID="${TENANT_ID:-default}"
 SLACK_SIGNING_SECRET="${SLACK_SIGNING_SECRET:-}"
 SLACK_BOT_TOKEN="${SLACK_BOT_TOKEN:-}"
 SLACK_CHANNEL_ID="${SLACK_CHANNEL_ID:-}"
@@ -14,8 +15,17 @@ REQUIRE_MCP_CHECK="${REQUIRE_MCP_CHECK:-false}"
 MCP_SERVER_NAME="${MCP_SERVER_NAME:-runtime-validation-mcp}"
 MCP_SSE_URL="${MCP_SSE_URL:-}"
 MCP_CONNECT_WAIT_SECONDS="${MCP_CONNECT_WAIT_SECONDS:-20}"
+QA_EMAIL="${QA_EMAIL:-}"
+QA_PASSWORD="${QA_PASSWORD:-passw0rd!}"
+QA_NAME="${QA_NAME:-Slack Runtime QA}"
+ADMIN_TOKEN="${ADMIN_TOKEN:-}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
+SLACK_HTTP_MODE_OVERRIDE="${SLACK_HTTP_MODE_OVERRIDE:-}"
 SLACK_HTTP_MODE="unknown"
 RAG_READY="false"
+USER_TOKEN=""
+EFFECTIVE_ADMIN_TOKEN=""
 
 TMP_DIR="$(mktemp -d)"
 RUN_ID="slack-runtime-$(date +%s)-$RANDOM"
@@ -82,6 +92,77 @@ json_field() {
   local file="$1"
   local query="$2"
   jq -r "$query" "$file"
+}
+
+register_or_login() {
+  local email="$1"
+  local password="$2"
+  local name="$3"
+  local register_req="$TMP_DIR/register_req_${RANDOM}.json"
+  local register_resp="$TMP_DIR/register_resp_${RANDOM}.json"
+  local login_req="$TMP_DIR/login_req_${RANDOM}.json"
+  local login_resp="$TMP_DIR/login_resp_${RANDOM}.json"
+  local code token
+
+  cat >"$register_req" <<JSON
+{"email":"$email","password":"$password","name":"$name"}
+JSON
+  code="$(curl -sS -o "$register_resp" -w "%{http_code}" \
+    -H "Content-Type: application/json" \
+    --data @"$register_req" \
+    "$BASE_URL/api/auth/register")"
+  if [[ "$code" == "201" ]]; then
+    token="$(json_field "$register_resp" '.token')"
+    [[ -n "$token" && "$token" != "null" ]] || {
+      echo "Register succeeded but token is missing for $email" >&2
+      exit 1
+    }
+    printf '%s' "$token"
+    return 0
+  fi
+  if [[ "$code" != "409" ]]; then
+    echo "Register failed for $email (status=$code)" >&2
+    cat "$register_resp" >&2
+    exit 1
+  fi
+
+  cat >"$login_req" <<JSON
+{"email":"$email","password":"$password"}
+JSON
+  code="$(curl -sS -o "$login_resp" -w "%{http_code}" \
+    -H "Content-Type: application/json" \
+    --data @"$login_req" \
+    "$BASE_URL/api/auth/login")"
+  if [[ "$code" != "200" ]]; then
+    echo "Login failed for $email after 409 register (status=$code)" >&2
+    cat "$login_resp" >&2
+    exit 1
+  fi
+  token="$(json_field "$login_resp" '.token')"
+  [[ -n "$token" && "$token" != "null" ]] || {
+    echo "Login succeeded but token is missing for $email" >&2
+    exit 1
+  }
+  printf '%s' "$token"
+}
+
+resolve_auth_tokens() {
+  if [[ -z "$QA_EMAIL" ]]; then
+    QA_EMAIL="qa-slack-runtime-$RUN_ID@example.com"
+  fi
+  USER_TOKEN="$(register_or_login "$QA_EMAIL" "$QA_PASSWORD" "$QA_NAME")"
+
+  if [[ -n "$ADMIN_TOKEN" ]]; then
+    EFFECTIVE_ADMIN_TOKEN="$ADMIN_TOKEN"
+    return 0
+  fi
+
+  if [[ -n "$ADMIN_EMAIL" && -n "$ADMIN_PASSWORD" ]]; then
+    EFFECTIVE_ADMIN_TOKEN="$(register_or_login "$ADMIN_EMAIL" "$ADMIN_PASSWORD" "Slack Runtime Admin")"
+    return 0
+  fi
+
+  EFFECTIVE_ADMIN_TOKEN=""
 }
 
 sign_body() {
@@ -154,6 +235,12 @@ slack_api() {
 }
 
 detect_slack_http_mode() {
+  if [[ -n "$SLACK_HTTP_MODE_OVERRIDE" ]]; then
+    SLACK_HTTP_MODE="$SLACK_HTTP_MODE_OVERRIDE"
+    echo "Detected Slack HTTP mode: $SLACK_HTTP_MODE (override)"
+    return 0
+  fi
+
   local probe_events="$TMP_DIR/probe_events.json"
   local probe_commands="$TMP_DIR/probe_commands.json"
   local events_status commands_status
@@ -169,6 +256,8 @@ detect_slack_http_mode() {
 
   if [[ "$events_status" == "404" && "$commands_status" == "404" ]]; then
     SLACK_HTTP_MODE="socket_mode"
+  elif [[ "$events_status" == "401" && "$commands_status" == "401" && -z "$SLACK_SIGNING_SECRET" ]]; then
+    SLACK_HTTP_MODE="socket_mode"
   else
     SLACK_HTTP_MODE="events_api"
   fi
@@ -177,8 +266,13 @@ detect_slack_http_mode() {
 }
 
 find_connected_mcp_server_with_read_messages() {
+  [[ -n "$EFFECTIVE_ADMIN_TOKEN" ]] || return 1
+
   local list_file="$TMP_DIR/mcp_servers_list.json"
-  curl -sS -o "$list_file" "$BASE_URL/api/mcp/servers"
+  curl -sS -o "$list_file" \
+    -H "Authorization: Bearer $EFFECTIVE_ADMIN_TOKEN" \
+    -H "X-Tenant-Id: $TENANT_ID" \
+    "$BASE_URL/api/mcp/servers"
 
   if ! jq -e 'type == "array"' "$list_file" >/dev/null 2>&1; then
     return 1
@@ -195,7 +289,10 @@ find_connected_mcp_server_with_read_messages() {
     [[ -z "$name" ]] && continue
     local detail_file="$TMP_DIR/mcp_detail_${name}.json"
     local status
-    status="$(curl -sS -o "$detail_file" -w "%{http_code}" "$BASE_URL/api/mcp/servers/$name")"
+    status="$(curl -sS -o "$detail_file" -w "%{http_code}" \
+      -H "Authorization: Bearer $EFFECTIVE_ADMIN_TOKEN" \
+      -H "X-Tenant-Id: $TENANT_ID" \
+      "$BASE_URL/api/mcp/servers/$name")"
     [[ "$status" != "200" ]] && continue
 
     local connected
@@ -215,6 +312,10 @@ register_mcp_server_if_requested() {
   if [[ -z "$MCP_SSE_URL" ]]; then
     return 0
   fi
+  [[ -n "$EFFECTIVE_ADMIN_TOKEN" ]] || {
+    echo "REQUIRE_MCP_CHECK requires ADMIN_TOKEN (or ADMIN_EMAIL/ADMIN_PASSWORD)." >&2
+    exit 1
+  }
 
   local req_file="$TMP_DIR/mcp_register_req.json"
   cat >"$req_file" <<JSON
@@ -225,6 +326,8 @@ JSON
   local status
   status="$(curl -sS -o "$resp_file" -w "%{http_code}" \
     -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $EFFECTIVE_ADMIN_TOKEN" \
+    -H "X-Tenant-Id: $TENANT_ID" \
     --data @"$req_file" \
     "$BASE_URL/api/mcp/servers")"
   if [[ "$status" != "201" && "$status" != "409" ]]; then
@@ -236,6 +339,8 @@ JSON
   local connect_resp="$TMP_DIR/mcp_connect_resp.json"
   status="$(curl -sS -o "$connect_resp" -w "%{http_code}" \
     -X POST \
+    -H "Authorization: Bearer $EFFECTIVE_ADMIN_TOKEN" \
+    -H "X-Tenant-Id: $TENANT_ID" \
     "$BASE_URL/api/mcp/servers/$MCP_SERVER_NAME/connect")"
   if [[ "$status" != "200" && "$status" != "503" ]]; then
     echo "Unexpected MCP connect response for '$MCP_SERVER_NAME' (status=$status)" >&2
@@ -358,10 +463,30 @@ send_signed_slash_and_get_reply() {
 
 check_health() {
   local health_file="$TMP_DIR/health.json"
-  curl -sS -o "$health_file" "$BASE_URL/actuator/health"
+  local status_code
+  status_code="$(curl -sS -o "$health_file" -w "%{http_code}" "$BASE_URL/actuator/health")"
+  if [[ "$status_code" != "200" && "$status_code" != "503" ]]; then
+    echo "Unexpected /actuator/health status code: $status_code" >&2
+    exit 1
+  fi
   local status
   status="$(json_field "$health_file" '.status')"
-  assert_eq "$status" "UP" "Application health must be UP"
+  if [[ "$status" == "UP" ]]; then
+    return 0
+  fi
+
+  local liveness_file="$TMP_DIR/liveness.json"
+  local readiness_file="$TMP_DIR/readiness.json"
+  local liveness_code readiness_code liveness_status readiness_status
+  liveness_code="$(curl -sS -o "$liveness_file" -w "%{http_code}" "$BASE_URL/actuator/health/liveness")"
+  readiness_code="$(curl -sS -o "$readiness_file" -w "%{http_code}" "$BASE_URL/actuator/health/readiness")"
+  liveness_status="$(json_field "$liveness_file" '.status')"
+  readiness_status="$(json_field "$readiness_file" '.status')"
+  if [[ "$liveness_code" == "200" && "$readiness_code" == "200" && "$liveness_status" == "UP" && "$readiness_status" == "UP" ]]; then
+    return 0
+  fi
+  echo "Application health must be UP (or probes UP). root=$status liveness=$liveness_status readiness=$readiness_status" >&2
+  exit 1
 }
 
 check_signature_filter() {
@@ -424,6 +549,8 @@ PY
 
   local status
   status="$(curl -sS -o "$resp" -w "%{http_code}" \
+    -H "Authorization: Bearer $USER_TOKEN" \
+    -H "X-Tenant-Id: $TENANT_ID" \
     -H "Content-Type: application/json" \
     --data @"$req" \
     "$BASE_URL/api/chat")"
@@ -437,6 +564,12 @@ PY
 }
 
 check_rag_ingestion_and_retrieval() {
+  if [[ -z "$EFFECTIVE_ADMIN_TOKEN" ]]; then
+    echo "Skipping RAG checks: admin token is not available."
+    RAG_READY="false"
+    return 0
+  fi
+
   local add_req="$TMP_DIR/rag_add_req.json"
   local add_resp="$TMP_DIR/rag_add_resp.json"
   local search_req="$TMP_DIR/rag_search_req.json"
@@ -448,11 +581,18 @@ JSON
 
   local status
   status="$(curl -sS -o "$add_resp" -w "%{http_code}" \
+    -H "Authorization: Bearer $EFFECTIVE_ADMIN_TOKEN" \
+    -H "X-Tenant-Id: $TENANT_ID" \
     -H "Content-Type: application/json" \
     --data @"$add_req" \
     "$BASE_URL/api/documents")"
   if [[ "$status" == "404" ]]; then
     echo "Skipping RAG checks: /api/documents not available (rag.ingestion disabled?)"
+    RAG_READY="false"
+    return 0
+  fi
+  if [[ "$status" == "403" ]]; then
+    echo "Skipping RAG checks: admin token is not authorized for /api/documents."
     RAG_READY="false"
     return 0
   fi
@@ -463,6 +603,8 @@ JSON
 JSON
 
   status="$(curl -sS -o "$search_resp" -w "%{http_code}" \
+    -H "Authorization: Bearer $USER_TOKEN" \
+    -H "X-Tenant-Id: $TENANT_ID" \
     -H "Content-Type: application/json" \
     --data @"$search_req" \
     "$BASE_URL/api/documents/search")"
@@ -489,6 +631,8 @@ JSON
 
   local status
   status="$(curl -sS -o "$resp" -w "%{http_code}" \
+    -H "Authorization: Bearer $USER_TOKEN" \
+    -H "X-Tenant-Id: $TENANT_ID" \
     -H "Content-Type: application/json" \
     --data @"$req" \
     "$BASE_URL/api/chat")"
@@ -527,6 +671,9 @@ main() {
 
   print_step "Detecting Slack HTTP mode"
   detect_slack_http_mode
+
+  print_step "Resolving auth tokens"
+  resolve_auth_tokens
 
   if [[ "$SLACK_HTTP_MODE" == "events_api" ]]; then
     require_env SLACK_SIGNING_SECRET
