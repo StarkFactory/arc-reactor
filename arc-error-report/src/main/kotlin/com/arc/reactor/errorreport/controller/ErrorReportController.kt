@@ -12,9 +12,11 @@ import jakarta.validation.Valid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
@@ -85,7 +87,13 @@ class ErrorReportController(
         scope.launch {
             semaphore.withPermit {
                 try {
-                    handler.handle(requestId, request)
+                    withTimeout(properties.requestTimeoutMs.coerceAtLeast(1)) {
+                        handler.handle(requestId, request)
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    logger.error(e) {
+                        "Error report processing timed out requestId=$requestId timeoutMs=${properties.requestTimeoutMs}"
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {

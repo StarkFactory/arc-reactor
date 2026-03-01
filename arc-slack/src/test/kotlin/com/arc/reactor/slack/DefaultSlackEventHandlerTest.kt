@@ -5,7 +5,9 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.slack.handler.DefaultSlackEventHandler
+import com.arc.reactor.slack.model.SlackApiResult
 import com.arc.reactor.slack.model.SlackEventCommand
+import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -130,6 +132,22 @@ class DefaultSlackEventHandlerTest {
 
             commandSlot.captured.metadata["channel"] shouldBe "slack"
         }
+
+        @Test
+        fun `tracks mention thread for follow up routing`() = runTest {
+            val tracker = SlackThreadTracker()
+            val trackingHandler = DefaultSlackEventHandler(
+                agentExecutor = agentExecutor,
+                messagingService = messagingService,
+                threadTracker = tracker
+            )
+            coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
+                AgentResult(success = true, content = "Done")
+
+            trackingHandler.handleAppMention(command(channelId = "C789", ts = "1111.2222"))
+
+            tracker.isTracked("C789", "1111.2222") shouldBe true
+        }
     }
 
     @Nested
@@ -226,6 +244,20 @@ class DefaultSlackEventHandlerTest {
 
             coVerify {
                 messagingService.sendMessage("C456", match { it.shouldContain(":x:"); true }, "1234.5678")
+            }
+        }
+
+        @Test
+        fun `does not throw when Slack sendMessage returns non-ok result`() = runTest {
+            coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
+                AgentResult(success = true, content = "The answer is 42")
+            coEvery { messagingService.sendMessage(any(), any(), any()) } returns
+                SlackApiResult(ok = false, error = "not_in_channel")
+
+            handler.handleAppMention(command())
+
+            coVerify(exactly = 1) {
+                messagingService.sendMessage("C456", "The answer is 42", "1234.5678")
             }
         }
     }

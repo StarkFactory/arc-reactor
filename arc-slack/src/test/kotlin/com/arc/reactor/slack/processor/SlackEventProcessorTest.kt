@@ -4,6 +4,7 @@ import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackEventCommand
+import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.matchers.shouldBe
@@ -33,8 +34,11 @@ class SlackEventProcessorTest {
     private val messagingService = mockk<SlackMessagingService>(relaxed = true)
     private val metricsRecorder = mockk<SlackMetricsRecorder>(relaxed = true)
 
-    private fun buildProcessor(properties: SlackProperties): SlackEventProcessor =
-        SlackEventProcessor(eventHandler, messagingService, metricsRecorder, properties)
+    private fun buildProcessor(
+        properties: SlackProperties,
+        threadTracker: SlackThreadTracker? = null
+    ): SlackEventProcessor =
+        SlackEventProcessor(eventHandler, messagingService, metricsRecorder, properties, threadTracker)
 
     private fun defaultProperties(
         maxConcurrentRequests: Int = 5,
@@ -120,6 +124,39 @@ class SlackEventProcessorTest {
         fun `thread message dispatches to handleMessage`() = runTest {
             val processor = buildProcessor(defaultProperties())
             val payload = threadMessagePayload()
+
+            processor.submitEventCallback(payload, "events_api")
+
+            coVerify(timeout = 2000) {
+                eventHandler.handleMessage(match { it.threadTs == "1000.000" })
+            }
+        }
+
+        @Test
+        fun `thread message is ignored when tracker is enabled and thread is untracked`() = runTest {
+            val tracker = SlackThreadTracker()
+            val processor = buildProcessor(defaultProperties(), tracker)
+            val payload = threadMessagePayload(threadTs = "2000.000")
+
+            processor.submitEventCallback(payload, "events_api")
+            delay(300)
+
+            coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
+            verify {
+                metricsRecorder.recordDropped(
+                    entrypoint = "events_api",
+                    reason = "untracked_thread",
+                    eventType = "message"
+                )
+            }
+        }
+
+        @Test
+        fun `thread message dispatches when tracker contains thread`() = runTest {
+            val tracker = SlackThreadTracker()
+            tracker.track("C456", "1000.000")
+            val processor = buildProcessor(defaultProperties(), tracker)
+            val payload = threadMessagePayload(threadTs = "1000.000")
 
             processor.submitEventCallback(payload, "events_api")
 
