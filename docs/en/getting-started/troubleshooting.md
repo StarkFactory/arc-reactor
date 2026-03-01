@@ -185,6 +185,27 @@ export ARC_REACTOR_POSTGRES_REQUIRED=false
 
 ---
 
+## Startup: "Migration checksum mismatch for migration version <N>"
+
+**Symptom:** Startup fails with Flyway validation errors such as checksum mismatch on an already
+applied migration version.
+
+**Cause:** A previously applied `V*.sql` migration file was modified/renamed/deleted, so Flyway
+detected divergent schema history.
+
+**Solution (preferred):**
+
+1. Revert edits to the existing `V<version>__*.sql` file.
+2. Add a new migration version for additional schema changes.
+3. Redeploy.
+
+**Emergency path:** If immediate recovery is required and revert is not possible, use controlled
+`flyway repair` only with explicit approval and DB backup.
+
+Detailed procedure: [Database Migration Runbook](../operations/database-migration-runbook.md)
+
+---
+
 ## Sessions: Users can see each other's sessions
 
 **Symptom:** All users share the same conversation history (no isolation).

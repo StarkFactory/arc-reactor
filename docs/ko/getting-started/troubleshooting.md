@@ -73,3 +73,23 @@
 로컬 비프로덕션에서만 예외적으로:
 
 - `ARC_REACTOR_POSTGRES_REQUIRED=false`
+
+## 7) `Migration checksum mismatch for migration version <N>`로 기동 실패
+
+원인:
+
+- 이미 적용된 `V*.sql` 마이그레이션 파일이 수정/이름변경/삭제되어 Flyway 검증이 실패함.
+
+해결(권장):
+
+1. 기존 `V<version>__*.sql` 변경을 되돌림
+2. 추가 변경은 새 버전 마이그레이션(`V<next>__*.sql`)으로 작성
+3. 재배포
+
+긴급 복구:
+
+- 되돌리기 어려운 상황에서만, 승인/백업 후 `flyway repair` 절차 사용
+
+상세 절차:
+
+- [데이터베이스 마이그레이션 런북](database-migration-runbook.md)

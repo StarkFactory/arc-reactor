@@ -16,6 +16,7 @@ Use this checklist before tagging a public release.
 - [ ] Dependency vulnerability review completed
 - [ ] No secrets in repository diff
 - [ ] Runtime hardening defaults verified (auth/policy/guard settings)
+- [ ] Flyway migration immutability guard passed (no edits to existing `V*.sql`)
 
 ## Artifact and Release
 

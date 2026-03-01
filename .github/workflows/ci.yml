@@ -95,6 +95,9 @@ jobs:
       - name: Structural File-Size Guard
         run: bash scripts/ci/check-file-size-guard.sh
 
+      - name: Flyway Migration Immutability Guard
+        run: bash scripts/ci/check-flyway-migration-immutability.sh
+
       - name: Build
         run: ./gradlew build -x test
 

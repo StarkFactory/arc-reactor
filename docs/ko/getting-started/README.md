@@ -7,4 +7,5 @@
 - [설정 레퍼런스](configuration.md)
 - [배포](deployment.md)
 - [트러블슈팅](troubleshooting.md)
+- [DB 마이그레이션 런북](database-migration-runbook.md)
 - [챗봇 튜토리얼(요약)](tutorial-chatbot.md)
