@@ -25,7 +25,7 @@
 | **대화 이력 조회** | `GET /api/sessions/{id}` | 활성 | 특정 세션의 전체 메시지 이력 |
 | **세션 삭제** | `DELETE /api/sessions/{id}` | 활성 | 서버 측 세션 데이터 삭제 |
 | **사용 가능 모델 조회** | `GET /api/models` | 활성 | 등록된 LLM provider 목록 + 기본 모델 |
-| **JWT 인증** | `POST /api/auth/*` | **필수** | 런타임은 `arc.reactor.auth.enabled=true`를 요구 |
+| **JWT 인증** | `POST /api/auth/*` | **필수** | 런타임은 `arc.reactor.auth.jwt-secret`을 요구 |
 | **페르소나 관리** | `GET/POST/PUT/DELETE /api/personas` | 활성 | 시스템 프롬프트 템플릿 CRUD |
 | **사용자별 세션 격리** | 내부 (API 없음) | **opt-in** | 인증 활성 시 userId로 세션 필터링 |
 | **응답 캐싱** | 내부 (API 없음) | **opt-in** | Caffeine 기반 캐시, SHA-256 키, 온도 기반 적격성 |
@@ -302,13 +302,12 @@ services:
 ### 5.3 인증 활성화 배포
 
 ```bash
-# Docker 빌드 시 auth + db 플래그 활성화
-# Dockerfile에서 ARG ENABLE_DB, ARG ENABLE_AUTH → -Pdb=true -Pauth=true
+# Docker 빌드 시 DB 플래그 활성화
+# Dockerfile에서 ARG ENABLE_DB → -Pdb=true
 docker compose up -d
 
 # 환경 변수 예시 (.env)
 GEMINI_API_KEY=your-key
-ARC_REACTOR_AUTH_ENABLED=true
 ARC_REACTOR_AUTH_JWT_SECRET=your-256-bit-secret
 ```
 
@@ -541,11 +540,11 @@ arc:
 | `ErrorMessageResolver` | `DefaultErrorMessageResolver` | 항상 | `@Bean` 등록 |
 | `PersonaStore` | `InMemoryPersonaStore` | PersonaStore 없을 때 | `@Bean` 등록 |
 | `PersonaStore` | `JdbcPersonaStore` | DataSource + JdbcTemplate 있을 때 | `@Bean` 등록 |
-| `AuthProvider` | `DefaultAuthProvider` | auth.enabled=true | `@Bean` 등록 |
-| `UserStore` | `InMemoryUserStore` | auth.enabled=true, DataSource 없을 때 | `@Bean` 등록 |
-| `UserStore` | `JdbcUserStore` | auth.enabled=true, DataSource 있을 때 | `@Bean` 등록 |
-| `JwtTokenProvider` | — | auth.enabled=true | — |
-| `JwtAuthWebFilter` | — | auth.enabled=true | — |
+| `AuthProvider` | `DefaultAuthProvider` | 항상 | `@Bean` 등록 |
+| `UserStore` | `InMemoryUserStore` | DataSource 없을 때 | `@Bean` 등록 |
+| `UserStore` | `JdbcUserStore` | DataSource 있을 때 | `@Bean` 등록 |
+| `JwtTokenProvider` | — | 항상 | — |
+| `JwtAuthWebFilter` | — | 항상 | — |
 
 ---
 

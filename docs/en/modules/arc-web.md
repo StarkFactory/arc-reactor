@@ -20,7 +20,7 @@ All controllers are registered as Spring beans and can be replaced with your own
 | `PersonaController` | CRUD for named system prompt personas | `controller` |
 | `PromptTemplateController` | Versioned prompt template management | `controller` |
 | `McpServerController` | Dynamic MCP server registration and lifecycle | `controller` |
-| `AuthController` | JWT register/login/me (conditional on `auth.enabled`) | `controller` |
+| `AuthController` | JWT register/login/me | `controller` |
 | `DocumentController` | Vector store document add/search/delete (RAG) | `controller` |
 | `FeedbackController` | Thumbs-up/down feedback capture | `controller` |
 | `IntentController` | Intent registry CRUD | `controller` |
@@ -76,9 +76,12 @@ Headers applied when enabled:
 
 | Property | Default | Description |
 |---|---|---|
-| `enabled` | `true` (runtime required) | JWT authentication |
+| `jwt-secret` | (empty) | JWT signing secret (minimum 32 bytes, required) |
+| `default-tenant-id` | `default` | Tenant claim value issued in JWT tokens |
+| `public-actuator-health` | `false` | Add `/actuator/health` to public paths |
 
-`JwtAuthWebFilter` validates the `Authorization: Bearer <token>` header and sets user ID and role attributes on the exchange. Runtime startup fails when `auth.enabled=false`.
+`JwtAuthWebFilter` validates the `Authorization: Bearer <token>` header and sets user ID and role
+attributes on the exchange. Runtime startup fails when `arc.reactor.auth.jwt-secret` is missing or short.
 
 ### Multimodal (`arc.reactor.multimodal`)
 
@@ -146,12 +149,12 @@ class ApiKeyWebFilter : WebFilter {
 
 The `TenantContextResolver` resolves the tenant ID in this priority order:
 
-1. `resolvedTenantId` exchange attribute (set by JWT filter when auth is enabled)
+1. `resolvedTenantId` exchange attribute (set by JWT filter)
 2. `tenantId` exchange attribute (legacy)
 3. `X-Tenant-Id` request header (validated against `^[a-zA-Z0-9_-]{1,64}$`)
-4. Default `"default"` (only when caller runs with auth disabled, e.g. test harness)
+4. Default `"default"` (fallback)
 
-When `auth.enabled=true` and no tenant context is present, the request is rejected with HTTP 400.
+When no tenant context is present, the request is rejected with HTTP 400.
 
 ### Admin Authorization
 
@@ -281,7 +284,7 @@ interface AuthProvider {
 | `POST` | `/api/mcp/servers/{name}/connect` | Connect to server | Admin |
 | `POST` | `/api/mcp/servers/{name}/disconnect` | Disconnect from server | Admin |
 
-### Authentication (requires `arc.reactor.auth.enabled=true`)
+### Authentication
 
 | Method | Path | Description | Auth Required |
 |---|---|---|---|
@@ -402,4 +405,4 @@ curl -X POST http://localhost:8080/api/mcp/servers \
 
 **Multipart file uploads are DoS-protected.** The `MultipartChatController` enforces per-file size limits during streaming (before bytes are fully loaded into memory). Do not bypass this by setting very high `max-file-size-bytes` without understanding the memory impact.
 
-**Auth is mandatory.** Keep `arc.reactor.auth.enabled=true` and provide a valid JWT secret in every runtime environment.
+**Auth is mandatory.** Provide a valid JWT secret in every runtime environment.

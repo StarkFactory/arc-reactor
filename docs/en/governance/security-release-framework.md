@@ -78,7 +78,7 @@ cosign verify-blob \
 
 ## Arc Reactor-Specific Hardening
 
-- Keep `arc.reactor.auth.enabled=true` in production.
+- Keep `ARC_REACTOR_AUTH_JWT_SECRET` set to a strong value in production.
 - Keep admin APIs behind JWT role checks and network restrictions.
 - Use `arc.reactor.mcp.security.allowed-server-names` allowlist.
 - Treat MCP server credentials as secrets managed outside Git.

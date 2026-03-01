@@ -2,15 +2,14 @@
 
 ## 한 줄 요약
 
-**JWT 인증은 런타임 필수(`arc.reactor.auth.enabled=true`).** 기업은 `AuthProvider` 인터페이스만 구현하면 LDAP/SSO 등 커스텀 인증으로 교체 가능.
+**JWT 인증은 런타임 필수.** 기업은 `AuthProvider` 인터페이스만 구현하면 LDAP/SSO 등 커스텀 인증으로 교체 가능.
 
 ---
 
 ## 런타임 필수 조건
 
-런타임 환경에서는 인증을 항상 활성화해야 한다:
+런타임 환경에서는 인증이 항상 활성화된다:
 
-- `arc.reactor.auth.enabled=true`
 - `arc.reactor.auth.jwt-secret`에 32바이트 이상 시크릿 설정
 - 인증 설정이 없거나 잘못되면 애플리케이션 기동 실패
 
@@ -48,7 +47,7 @@
 | WebFilter (not Interceptor) | WebFlux reactive 호환 |
 | `ServerWebExchange.attributes` | ThreadLocal이 아닌 reactive-safe 방식 |
 | JJWT + spring-security-crypto만 | Spring Security 전체가 아닌 라이브러리만 사용 |
-| `-Pauth=true` 빌드 플래그 | 선택적 의존성 — 필요 없으면 바이너리에 미포함 |
+| Auth 의존성 기본 포함 | 실행 시 Bean 누락/혼선 방지 |
 
 ---
 
@@ -71,35 +70,28 @@ arc:
 ### 빌드 (build.gradle.kts)
 
 ```bash
-# 개발: auth 의존성 없이 빌드 (기본)
+# 개발/프로덕션 기본: auth 의존성 포함
 ./gradlew :arc-app:bootRun
 
-# 프로덕션: auth 의존성 포함 빌드
-./gradlew :arc-app:bootJar -Pauth=true
-
 # DB + Auth 모두 포함
-./gradlew :arc-app:bootJar -Pdb=true -Pauth=true
+./gradlew :arc-app:bootJar -Pdb=true
 ```
-
-`-Pauth=true` 플래그를 사용하면 JJWT와 spring-security-crypto가 `compileOnly`에서 `implementation`으로 전환된다.
 
 ### Docker
 
 ```dockerfile
 # Dockerfile에서 ARG로 제어
-ARG ENABLE_AUTH=false
-RUN ./gradlew :arc-app:bootJar -Pdb=true -Pauth=${ENABLE_AUTH}
+ARG ENABLE_DB=true
+RUN GRADLE_ARGS=":arc-app:bootJar"; \
+    if [ "$ENABLE_DB" = "true" ]; then GRADLE_ARGS="$GRADLE_ARGS -Pdb=true"; fi; \
+    ./gradlew $GRADLE_ARGS
 ```
 
 ```yaml
 # docker-compose.yml
 services:
   app:
-    build:
-      args:
-        ENABLE_AUTH: "true"
     environment:
-      ARC_REACTOR_AUTH_ENABLED: "true"
       ARC_REACTOR_AUTH_JWT_SECRET: "your-256-bit-secret-here-minimum-32-bytes"
 ```
 
@@ -107,7 +99,10 @@ services:
 
 ## API 엔드포인트
 
-인증 활성 시 `AuthController`가 자동 등록된다.
+`AuthController`는 항상 등록된다.
+
+발급되는 JWT에는 `tenantId` 클레임이 포함되며 기본값은 `default`이다
+(`arc.reactor.auth.default-tenant-id`로 변경 가능).
 
 ### POST /api/auth/register — 회원가입
 
@@ -232,10 +227,10 @@ curl -X POST http://localhost:8080/api/auth/change-password \
 
 ### 자동 구성 빈
 
-모든 auth 빈은 `@ConditionalOnProperty(prefix = "arc.reactor.auth", name = ["enabled"], havingValue = "true")` 조건 하에 등록된다.
+모든 auth 빈은 auth 의존성이 classpath에 있으면 항상 등록된다.
 
 ```
-arc.reactor.auth.enabled=true
+arc.reactor.auth.jwt-secret 설정
   │
   ├── AuthProperties
   ├── JwtTokenProvider

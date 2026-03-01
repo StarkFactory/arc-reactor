@@ -12,8 +12,6 @@ WORKDIR /workspace
 # PostgreSQL/JDBC is required at runtime.
 # Set ENABLE_DB=false only for specialized library-only builds.
 ARG ENABLE_DB=true
-# Pass --build-arg ENABLE_AUTH=true to include JWT auth in runtime
-ARG ENABLE_AUTH=false
 
 COPY gradle/ gradle/
 COPY gradlew settings.gradle.kts build.gradle.kts ./
@@ -23,7 +21,6 @@ RUN ./gradlew dependencies --no-daemon || true
 COPY arc-core/src/ arc-core/src/
 RUN GRADLE_ARGS=":arc-app:bootJar --no-daemon -x test"; \
     if [ "$ENABLE_DB" = "true" ]; then GRADLE_ARGS="$GRADLE_ARGS -Pdb=true"; fi; \
-    if [ "$ENABLE_AUTH" = "true" ]; then GRADLE_ARGS="$GRADLE_ARGS -Pauth=true"; fi; \
     ./gradlew $GRADLE_ARGS
 
 # Stage 2: Run

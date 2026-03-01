@@ -308,7 +308,7 @@ REST API paths are unchanged. No migration is required for clients.
 | Personas | `/api/personas` | Unchanged |
 | Prompt Templates | `/api/prompt-templates` | Unchanged |
 | MCP Servers | `/api/mcp/servers` | Unchanged |
-| Auth | `/api/auth` | Unchanged (when `auth.enabled=true`) |
+| Auth | `/api/auth` | Unchanged |
 | Documents | `/api/documents` | Unchanged (when `rag.enabled=true`) |
 
 ### New API versioning header (4.0.0+)
@@ -454,7 +454,7 @@ spring:
 
 **Step 4: Admin access**
 
-Admin APIs follow the existing RBAC model. When `auth.enabled=false`, all requests are treated as admin. When auth is enabled, the `ADMIN` role is required.
+Admin APIs follow the existing RBAC model. Authentication is mandatory and the `ADMIN` role is required for admin operations.
 
 ### Enabling Hierarchical Memory Summarization
 

@@ -1,7 +1,11 @@
 # Quickstart profile (minimal)
 # Usage:
 #   1) export GEMINI_API_KEY=your-key
-#   2) ./gradlew :arc-app:bootRun
+#   2) export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
+#   3) export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
+#   4) export SPRING_DATASOURCE_USERNAME=arc
+#   5) export SPRING_DATASOURCE_PASSWORD=arc
+#   6) ./gradlew :arc-app:bootRun
 #
 # This file is intentionally small. For full settings see:
 # - docs/en/getting-started/configuration.md
@@ -11,6 +15,10 @@ server:
   port: 8080
 
 spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
   ai:
     google:
       genai:
@@ -21,6 +29,8 @@ spring:
 
 arc:
   reactor:
+    auth:
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}
     llm:
       default-provider: gemini
       temperature: 0.3

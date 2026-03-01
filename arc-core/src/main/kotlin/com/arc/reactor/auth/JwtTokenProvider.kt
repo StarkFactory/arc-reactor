@@ -16,6 +16,7 @@ private val logger = KotlinLogging.logger {}
  * Claims:
  * - `sub` : userId
  * - `email` : user email
+ * - `tenantId` : tenant identifier
  * - `iat` : issued at
  * - `exp` : expiration
  */
@@ -49,6 +50,7 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
             .subject(user.id)
             .claim("email", user.email)
             .claim("role", user.role.name)
+            .claim("tenantId", authProperties.defaultTenantId)
             .issuedAt(now)
             .expiration(expiry)
             .signWith(secretKey)
@@ -90,6 +92,27 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
             UserRole.valueOf(roleName)
         } catch (e: Exception) {
             logger.debug { "JWT role extraction failed: ${e.message}" }
+            null
+        }
+    }
+
+    /**
+     * Validate a JWT token and extract the tenantId claim.
+     *
+     * @return tenantId if present/valid, null if invalid or missing
+     */
+    fun extractTenantId(token: String): String? {
+        return try {
+            val claims = Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .payload
+            claims.get("tenantId", String::class.java)
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            logger.debug { "JWT tenant extraction failed: ${e.message}" }
             null
         }
     }

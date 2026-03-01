@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.util.UUID
@@ -29,17 +28,15 @@ import java.util.UUID
  * Authentication API Controller
  *
  * Provides user registration, login, and profile endpoints.
- * Only registered as a bean when `arc.reactor.auth.enabled=true`.
  *
  * ## Endpoints
  * - POST /api/auth/register : Create a new account and receive JWT
  * - POST /api/auth/login    : Authenticate and receive JWT
  * - GET  /api/auth/me       : Get current user profile (requires token)
  */
-@Tag(name = "Authentication", description = "JWT authentication (requires arc.reactor.auth.enabled=true)")
+@Tag(name = "Authentication", description = "JWT authentication")
 @RestController
 @RequestMapping("/api/auth")
-@ConditionalOnProperty(prefix = "arc.reactor.auth", name = ["enabled"], havingValue = "true")
 class AuthController(
     private val authProvider: AuthProvider,
     private val userStore: UserStore,

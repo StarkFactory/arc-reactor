@@ -5,7 +5,6 @@ import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.config.MultimodalProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
-import com.arc.reactor.auth.AuthProperties
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -33,7 +32,7 @@ class MultipartChatControllerTest {
     private val agentExecutor = mockk<AgentExecutor>()
 
     private fun mockExchange(
-        attributes: MutableMap<String, Any> = mutableMapOf(),
+        attributes: MutableMap<String, Any> = mutableMapOf("resolvedTenantId" to "default"),
         headers: HttpHeaders = HttpHeaders()
     ): ServerWebExchange {
         val request = mockk<ServerHttpRequest>()
@@ -74,7 +73,10 @@ class MultipartChatControllerTest {
             val controller = MultipartChatController(agentExecutor = agentExecutor)
             val headers = HttpHeaders()
             headers.add("X-Tenant-Id", "tenant-multipart")
-            val exchange = mockExchange(headers = headers)
+            val exchange = mockExchange(
+                attributes = mutableMapOf("resolvedTenantId" to "tenant-multipart"),
+                headers = headers
+            )
 
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
@@ -99,29 +101,24 @@ class MultipartChatControllerTest {
         }
 
         @Test
-        fun `should reject multipart request when auth enabled and tenant is missing`() = runTest {
-            val strictController = MultipartChatController(
-                agentExecutor = agentExecutor,
-                authProperties = AuthProperties(enabled = true)
-            )
-
+        fun `should reject multipart request when tenant is missing`() = runTest {
             val exception = try {
-                strictController.chatMultipart(
+                MultipartChatController(agentExecutor = agentExecutor).chatMultipart(
                     message = "describe image",
                     files = listOf(mockFilePart()),
                     model = null,
                     systemPrompt = null,
                     personaId = null,
                     userId = null,
-                    exchange = mockExchange()
+                    exchange = mockExchange(attributes = mutableMapOf())
                 )
-                throw AssertionError("Auth-enabled multipart should reject missing tenant context")
+                throw AssertionError("Multipart should reject missing tenant context")
             } catch (e: ServerWebInputException) {
                 e
             }
 
             assertTrue(exception.reason?.contains("Missing tenant context") == true) {
-                "Auth-enabled multipart requests should fail-close without tenant context"
+                "Multipart requests should fail-close without tenant context"
             }
         }
     }

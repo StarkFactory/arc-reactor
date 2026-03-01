@@ -53,7 +53,8 @@ arc:
     fallback:
       enabled: ${ARC_REACTOR_FALLBACK_ENABLED:false}
     auth:
-      enabled: ${ARC_REACTOR_AUTH_ENABLED:false}
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET:}
+      default-tenant-id: ${ARC_REACTOR_AUTH_DEFAULT_TENANT_ID:default}
     cors:
       enabled: ${ARC_REACTOR_CORS_ENABLED:false}
 

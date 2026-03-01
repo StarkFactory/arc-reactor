@@ -289,7 +289,7 @@ JDBC 전환 조건:
 | Guard | ON | `arc.reactor.guard.enabled` |
 | Security Headers | ON | `arc.reactor.security-headers.enabled` |
 | API Version Filter | ON | `arc.reactor.api-version.enabled` |
-| Auth(JWT) | OFF | `arc.reactor.auth.enabled` |
+| Auth(JWT) | REQUIRED | `arc.reactor.auth.jwt-secret` |
 | CORS | OFF | `arc.reactor.cors.enabled` |
 | RAG | OFF | `arc.reactor.rag.enabled` |
 | Intent | OFF | `arc.reactor.intent.enabled` |

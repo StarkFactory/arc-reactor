@@ -23,7 +23,7 @@ class StartupInfoLogger(
     fun logStartupInfo() {
         val port = environment.getProperty("server.port", "8080")
         val provider = chatModelProvider.defaultProvider()
-        val authEnabled = authProperties?.enabled ?: false
+        val authEnabled = authProperties != null
         val ragEnabled = environment.getProperty("arc.reactor.rag.enabled", "false")
         val guardEnabled = environment.getProperty("arc.reactor.guard.enabled", "true")
 

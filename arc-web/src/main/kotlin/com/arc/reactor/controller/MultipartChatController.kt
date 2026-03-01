@@ -4,7 +4,6 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaAttachment
-import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.persona.PersonaStore
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -37,7 +36,6 @@ import reactor.core.publisher.Flux
 class MultipartChatController(
     private val agentExecutor: AgentExecutor,
     private val personaStore: PersonaStore? = null,
-    private val authProperties: AuthProperties = AuthProperties(),
     private val properties: AgentProperties = AgentProperties()
 ) {
     private val systemPromptResolver = SystemPromptResolver(personaStore = personaStore)
@@ -79,7 +77,7 @@ class MultipartChatController(
             systemPrompt = systemPrompt
         )
         val resolvedUserId = resolveUserId(exchange, userId)
-        val resolvedTenantId = TenantContextResolver.resolveTenantId(exchange, authProperties.enabled)
+        val resolvedTenantId = TenantContextResolver.resolveTenantId(exchange)
 
         val result = agentExecutor.execute(
             AgentCommand(

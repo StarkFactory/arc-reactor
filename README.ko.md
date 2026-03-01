@@ -72,8 +72,12 @@ cd arc-reactor
 **수동 방법:**
 
 ```bash
+docker compose up -d db
 export GEMINI_API_KEY=your-gemini-api-key
 export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
+export SPRING_DATASOURCE_USERNAME=arc
+export SPRING_DATASOURCE_PASSWORD=arc
 ./gradlew :arc-app:bootRun
 ```
 
@@ -83,7 +87,14 @@ export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 ### 3. 동작 확인
 
 ```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"qa@example.com","password":"passw0rd!","name":"QA"}' \
+  | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+
 curl -X POST http://localhost:8080/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-Id: default" \
   -H "Content-Type: application/json" \
   -d '{"message": "3 더하기 5는?"}'
 ```
@@ -212,7 +223,7 @@ arc:
 | Guard | ON | `arc.reactor.guard.enabled` |
 | 보안 헤더 | ON | `arc.reactor.security-headers.enabled` |
 | 멀티모달 업로드 | ON | — |
-| 인증 (JWT) | 필수 | `arc.reactor.auth.enabled=true` |
+| 인증 (JWT) | 필수 | `arc.reactor.auth.jwt-secret` |
 | 승인 (HITL) | OFF | `arc.reactor.approval.enabled` |
 | Tool 정책 | OFF | `arc.reactor.tool-policy.dynamic.enabled` |
 | RAG | OFF | `arc.reactor.rag.enabled` |
@@ -285,7 +296,7 @@ Kubernetes 1.25 이상이 필요합니다. 전체 레퍼런스는 [`helm/arc-rea
 | 출력 Guard 규칙 | `/api/output-guard/rules` | `arc.reactor.output-guard.enabled=true` + `arc.reactor.output-guard.dynamic-rules-enabled=true` |
 | 관리자 감사 로그 | `/api/admin/audits` | 항상 |
 | 운영 대시보드 | `/api/ops` | 항상 |
-| 인증 | `/api/auth` | `arc.reactor.auth.enabled=true` |
+| 인증 | `/api/auth` | 항상 |
 | Human-in-the-Loop 승인 | `/api/approvals` | `arc.reactor.approval.enabled=true` |
 | 동적 Tool 정책 | `/api/tool-policy` | `arc.reactor.tool-policy.dynamic.enabled=true` |
 | 인텐트 레지스트리 | `/api/intents` | `arc.reactor.intent.enabled=true` |
@@ -380,7 +391,7 @@ Arc Reactor는 모든 영구 상태에 PostgreSQL을 사용합니다. 개발 환
 
 ## 프로덕션 보안 주의사항
 
-- JWT 인증은 필수입니다. 모든 환경에서 `arc.reactor.auth.enabled=true`를 유지하세요.
+- JWT 인증은 필수입니다. 모든 환경에서 `ARC_REACTOR_AUTH_JWT_SECRET`을 설정하세요.
 - `ARC_REACTOR_AUTH_JWT_SECRET`은 환경 변수로 제공하세요 (최소 32바이트). 시크릿을 코드에 커밋하지 마세요.
 - `arc.reactor.mcp.security.allowed-server-names`로 MCP 서버 노출을 제한하세요.
 - 고위험 쓰기 작업에는 Tool 정책과 승인 게이트를 사용하세요.

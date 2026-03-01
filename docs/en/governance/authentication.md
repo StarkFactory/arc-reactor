@@ -2,15 +2,14 @@
 
 ## TL;DR
 
-**JWT authentication is runtime-required (`arc.reactor.auth.enabled=true`).** Enterprises can swap in custom authentication (LDAP/SSO, etc.) by implementing the `AuthProvider` interface.
+**JWT authentication is runtime-required.** Enterprises can swap in custom authentication (LDAP/SSO, etc.) by implementing the `AuthProvider` interface.
 
 ---
 
 ## Runtime Requirement
 
-Authentication must stay enabled in runtime environments:
+Authentication is always enabled in runtime environments:
 
-- `arc.reactor.auth.enabled=true`
 - `arc.reactor.auth.jwt-secret` configured with a 32+ byte secret
 - Missing or invalid auth configuration fails startup
 
@@ -50,7 +49,7 @@ Request
 | WebFilter (not Interceptor) | WebFlux reactive compatible |
 | `ServerWebExchange.attributes` | Reactive-safe approach, not ThreadLocal |
 | JJWT + spring-security-crypto only | Uses only the libraries, not the full Spring Security framework |
-| `-Pauth=true` build flag | Optional dependency -- excluded from binary when not needed |
+| Auth deps enabled by default | Reduces startup confusion and runtime bean mismatch |
 
 ---
 
@@ -73,35 +72,28 @@ arc:
 ### Build (build.gradle.kts)
 
 ```bash
-# Development: Build without auth dependencies (default)
+# Development/production default: auth dependencies included
 ./gradlew :arc-app:bootRun
 
-# Production: Build with auth dependencies included
-./gradlew :arc-app:bootJar -Pauth=true
-
 # DB + Auth both included
-./gradlew :arc-app:bootJar -Pdb=true -Pauth=true
+./gradlew :arc-app:bootJar -Pdb=true
 ```
-
-When the `-Pauth=true` flag is used, JJWT and spring-security-crypto switch from `compileOnly` to `implementation`.
 
 ### Docker
 
 ```dockerfile
 # Control via ARG in Dockerfile
-ARG ENABLE_AUTH=false
-RUN ./gradlew :arc-app:bootJar -Pdb=true -Pauth=${ENABLE_AUTH}
+ARG ENABLE_DB=true
+RUN GRADLE_ARGS=":arc-app:bootJar"; \
+    if [ "$ENABLE_DB" = "true" ]; then GRADLE_ARGS="$GRADLE_ARGS -Pdb=true"; fi; \
+    ./gradlew $GRADLE_ARGS
 ```
 
 ```yaml
 # docker-compose.yml
 services:
   app:
-    build:
-      args:
-        ENABLE_AUTH: "true"
     environment:
-      ARC_REACTOR_AUTH_ENABLED: "true"
       ARC_REACTOR_AUTH_JWT_SECRET: "your-256-bit-secret-here-minimum-32-bytes"
 ```
 
@@ -109,7 +101,10 @@ services:
 
 ## API Endpoints
 
-When authentication is enabled, `AuthController` is automatically registered.
+`AuthController` is always registered.
+
+Issued JWT tokens include a `tenantId` claim. Default is `default` (configurable with
+`arc.reactor.auth.default-tenant-id`).
 
 ### POST /api/auth/register -- Sign Up
 
@@ -234,10 +229,10 @@ curl -X POST http://localhost:8080/api/auth/change-password \
 
 ### Auto-Configuration Beans
 
-All auth beans are registered under the condition `@ConditionalOnProperty(prefix = "arc.reactor.auth", name = ["enabled"], havingValue = "true")`.
+All auth beans are always registered when auth dependencies are on the classpath.
 
 ```
-arc.reactor.auth.enabled=true
+arc.reactor.auth.jwt-secret set
   |
   +-- AuthProperties
   +-- JwtTokenProvider

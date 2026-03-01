@@ -80,8 +80,12 @@ cd arc-reactor
 **Manual path:**
 
 ```bash
+docker compose up -d db
 export GEMINI_API_KEY=your-gemini-api-key
 export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
+export SPRING_DATASOURCE_USERNAME=arc
+export SPRING_DATASOURCE_PASSWORD=arc
 ./gradlew :arc-app:bootRun
 ```
 
@@ -91,7 +95,14 @@ Gemini is the default provider. To use OpenAI or Anthropic instead, set
 ### 3. Smoke test
 
 ```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"qa@example.com","password":"passw0rd!","name":"QA"}' \
+  | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+
 curl -X POST http://localhost:8080/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-Id: default" \
   -H "Content-Type: application/json" \
   -d '{"message": "What is 3 + 5?"}'
 ```
@@ -220,7 +231,7 @@ arc:
 | Guard | ON | `arc.reactor.guard.enabled` |
 | Security headers | ON | `arc.reactor.security-headers.enabled` |
 | Multimodal upload | ON | — |
-| Auth (JWT) | REQUIRED | `arc.reactor.auth.enabled=true` |
+| Auth (JWT) | REQUIRED | `arc.reactor.auth.jwt-secret` |
 | Approval (HITL) | OFF | `arc.reactor.approval.enabled` |
 | Tool policy | OFF | `arc.reactor.tool-policy.dynamic.enabled` |
 | RAG | OFF | `arc.reactor.rag.enabled` |
@@ -294,7 +305,7 @@ for the full reference.
 | Output guard rules | `/api/output-guard/rules` | `arc.reactor.output-guard.enabled=true` + `arc.reactor.output-guard.dynamic-rules-enabled=true` |
 | Admin audit logs | `/api/admin/audits` | Always |
 | Ops dashboard | `/api/ops` | Always |
-| Authentication | `/api/auth` | `arc.reactor.auth.enabled=true` |
+| Authentication | `/api/auth` | Always |
 | Human-in-the-Loop approvals | `/api/approvals` | `arc.reactor.approval.enabled=true` |
 | Dynamic tool policy | `/api/tool-policy` | `arc.reactor.tool-policy.dynamic.enabled=true` |
 | Intent registry | `/api/intents` | `arc.reactor.intent.enabled=true` |
@@ -422,7 +433,7 @@ Schema migrations are managed by Flyway. Enable with `SPRING_FLYWAY_ENABLED=true
 
 ## Security Notes
 
-- JWT auth is mandatory. Keep `arc.reactor.auth.enabled=true` in all environments.
+- JWT auth is mandatory. Set `ARC_REACTOR_AUTH_JWT_SECRET` in all environments.
 - Provide `ARC_REACTOR_AUTH_JWT_SECRET` via environment variable (minimum 32 bytes); do not commit secrets.
 - Restrict MCP server exposure with `arc.reactor.mcp.security.allowed-server-names`.
 - Use tool policy and approval gates for high-risk write operations.

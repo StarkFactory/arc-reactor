@@ -22,7 +22,6 @@ class JwtTokenProviderTest {
     fun setup() {
         tokenProvider = JwtTokenProvider(
             AuthProperties(
-                enabled = true,
                 jwtSecret = testSecret,
                 jwtExpirationMs = 86_400_000
             )
@@ -101,13 +100,35 @@ class JwtTokenProviderTest {
     }
 
     @Nested
+    inner class TenantClaim {
+
+        @Test
+        fun `token should contain default tenant claim`() {
+            val token = tokenProvider.createToken(testUser)
+
+            val tenantId = tokenProvider.extractTenantId(token)
+
+            assertEquals("default", tenantId) {
+                "extractTenantId should return default tenant claim when issuing tokens"
+            }
+        }
+
+        @Test
+        fun `extractTenantId should return null for invalid token`() {
+            val tenantId = tokenProvider.extractTenantId("invalid.token.value")
+
+            assertNull(tenantId) { "extractTenantId should return null for invalid token" }
+        }
+    }
+
+    @Nested
     inner class SecretValidation {
 
         @Test
         fun `should reject secret shorter than 32 bytes`() {
             val exception = assertThrows(IllegalArgumentException::class.java) {
                 JwtTokenProvider(
-                    AuthProperties(enabled = true, jwtSecret = "too-short")
+                    AuthProperties(jwtSecret = "too-short")
                 )
             }
             assertTrue(exception.message!!.contains("at least 32 bytes")) {
@@ -119,7 +140,7 @@ class JwtTokenProviderTest {
         fun `should reject empty secret`() {
             assertThrows(IllegalArgumentException::class.java) {
                 JwtTokenProvider(
-                    AuthProperties(enabled = true, jwtSecret = "")
+                    AuthProperties(jwtSecret = "")
                 )
             }
         }
@@ -127,7 +148,7 @@ class JwtTokenProviderTest {
         @Test
         fun `should accept secret of exactly 32 bytes`() {
             val provider = JwtTokenProvider(
-                AuthProperties(enabled = true, jwtSecret = "a".repeat(32))
+                AuthProperties(jwtSecret = "a".repeat(32))
             )
             val token = provider.createToken(testUser)
             assertNotNull(token) { "Should create token with 32-byte secret" }
@@ -158,7 +179,6 @@ class JwtTokenProviderTest {
             // Create a provider with 1ms expiration
             val shortLivedProvider = JwtTokenProvider(
                 AuthProperties(
-                    enabled = true,
                     jwtSecret = testSecret,
                     jwtExpirationMs = 1
                 )

@@ -32,7 +32,6 @@ class JwtAuthWebFilterTest {
     fun setup() {
         jwtTokenProvider = mockk()
         authProperties = AuthProperties(
-            enabled = true,
             jwtSecret = "arc-reactor-test-jwt-secret-key-at-least-32-chars-long",
             jwtExpirationMs = 86_400_000,
             publicPaths = listOf("/api/auth/login", "/api/auth/register")
@@ -52,6 +51,7 @@ class JwtAuthWebFilterTest {
         every { request.headers } returns headers
         every { chain.filter(exchange) } returns Mono.empty()
         every { response.setComplete() } returns Mono.empty()
+        every { jwtTokenProvider.extractTenantId(any()) } returns null
     }
 
     @Nested
@@ -146,6 +146,26 @@ class JwtAuthWebFilterTest {
             }
             assertEquals(UserRole.USER, attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE]) {
                 "userRole should be stored in exchange attributes"
+            }
+            assertEquals("default", attributes[JwtAuthWebFilter.RESOLVED_TENANT_ID_ATTRIBUTE]) {
+                "resolvedTenantId should default to auth default tenant when token tenant is absent"
+            }
+            verify(exactly = 1) { chain.filter(exchange) }
+        }
+
+        @Test
+        fun `should set resolvedTenantId from token claim when present`() {
+            every { request.uri } returns URI.create("http://localhost/api/chat")
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+            every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
+            every { jwtTokenProvider.extractRole("valid-token") } returns UserRole.USER
+            every { jwtTokenProvider.extractTenantId("valid-token") } returns "tenant-acme"
+
+            val result = filter.filter(exchange, chain)
+            result.block()
+
+            assertEquals("tenant-acme", attributes[JwtAuthWebFilter.RESOLVED_TENANT_ID_ATTRIBUTE]) {
+                "resolvedTenantId should be copied from token tenant claim"
             }
             verify(exactly = 1) { chain.filter(exchange) }
         }

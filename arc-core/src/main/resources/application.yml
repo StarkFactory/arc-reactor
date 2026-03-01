@@ -66,8 +66,8 @@ arc:
       rate-limit-per-hour: 200
 
     auth:
-      enabled: ${ARC_REACTOR_AUTH_ENABLED:true}
       jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET:}
+      default-tenant-id: ${ARC_REACTOR_AUTH_DEFAULT_TENANT_ID:default}
       public-actuator-health: ${ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH:false}
 
     boundaries:

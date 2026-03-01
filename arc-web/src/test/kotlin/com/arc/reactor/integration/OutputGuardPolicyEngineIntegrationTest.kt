@@ -35,7 +35,6 @@ import org.springframework.test.web.reactive.server.WebTestClient
         "arc.reactor.output-guard.enabled=true",
         "arc.reactor.output-guard.dynamic-rules-enabled=true",
         "arc.reactor.output-guard.dynamic-rules-refresh-ms=600000",
-        "arc.reactor.auth.enabled=true",
         "arc.reactor.auth.jwt-secret=integration-test-jwt-secret-32-bytes",
         "arc.reactor.postgres.required=false"
     ]

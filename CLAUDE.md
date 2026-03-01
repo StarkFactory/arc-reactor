@@ -17,7 +17,6 @@ Spring AI-based AI Agent framework (Kotlin/Spring Boot). Fork and attach tools t
 ./gradlew compileKotlin compileTestKotlin                  # Compile check (0 warnings required)
 ./gradlew bootRun                                          # Run (GEMINI_API_KEY required)
 ./gradlew test -Pdb=true                                   # Include PostgreSQL/PGVector/Flyway deps
-./gradlew test -Pauth=true                                 # Include JWT/Spring Security Crypto deps
 ./gradlew test -PincludeIntegration                        # Include @Tag("integration") tests
 ```
 
@@ -61,7 +60,7 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 | Tool Output Sanitizer | OFF | `arc.reactor.guard.tool-output-sanitization-enabled` |
 | Guard Audit | ON | `arc.reactor.guard.audit-enabled` |
 | Security Headers | ON | `arc.reactor.security-headers.enabled` |
-| Auth (JWT) | REQUIRED | `arc.reactor.auth.enabled=true` |
+| Auth (JWT) | REQUIRED | `arc.reactor.auth.jwt-secret` |
 | Multimodal Upload | ON | `arc.reactor.multimodal.enabled` |
 | MCP Reconnection | ON | `arc.reactor.mcp.reconnection.enabled` |
 | RAG | OFF | `arc.reactor.rag.enabled` |
@@ -91,7 +90,7 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 | PersonaController | `/api/personas` | Always |
 | PromptTemplateController | `/api/prompt-templates` | Always (write = Admin) |
 | McpServerController | `/api/mcp/servers` | Always (write = Admin) |
-| AuthController | `/api/auth` | `auth.enabled=true` |
+| AuthController | `/api/auth` | Always |
 | DocumentController | `/api/documents` | `rag.enabled=true` |
 
 ### Key Defaults

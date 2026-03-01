@@ -39,7 +39,6 @@ cp examples/config/application.quickstart.yml arc-core/src/main/resources/applic
 All major features are opt-in by default (except guard/security headers):
 
 - `arc.reactor.rag.enabled`
-- `arc.reactor.auth.enabled`
 - `arc.reactor.cors.enabled`
 - `arc.reactor.circuit-breaker.enabled`
 - `arc.reactor.cache.enabled`

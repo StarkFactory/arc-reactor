@@ -8,9 +8,9 @@
 
 ### 런타임 필수 조건
 
-Arc Reactor 런타임은 `arc.reactor.auth.enabled=true`를 필수로 요구합니다. 인증이 비활성화되면 애플리케이션은 기동에 실패합니다.
+Arc Reactor 런타임은 인증을 필수로 요구합니다. auth secret이 없거나 잘못되면 애플리케이션은 기동에 실패합니다.
 
-`arc.reactor.auth.enabled=true` 및 `arc.reactor.auth.jwt-secret=<secret>`을 설정합니다 (최소 32바이트; `openssl rand -base64 32`로 생성).
+`arc.reactor.auth.jwt-secret=<secret>`을 설정합니다 (최소 32바이트; `openssl rand -base64 32`로 생성).
 
 **1단계: 회원가입 또는 로그인**
 
@@ -63,7 +63,7 @@ Authorization: Bearer <token>
 
 ## 인증 엔드포인트
 
-> **활성화 조건**: `arc.reactor.auth.enabled=true`인 경우에만 등록됩니다.
+> **활성화 조건**: 항상 등록됩니다.
 
 ### POST /api/auth/register
 

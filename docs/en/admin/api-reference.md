@@ -8,9 +8,9 @@ This document covers every admin-accessible endpoint in Arc Reactor. It is sourc
 
 ### Runtime Requirement
 
-Arc Reactor runtime requires `arc.reactor.auth.enabled=true`. Startup fails fast when authentication is disabled.
+Arc Reactor runtime requires authentication. Startup fails fast when auth secret is missing or invalid.
 
-Set `arc.reactor.auth.enabled=true` and `arc.reactor.auth.jwt-secret=<secret>` (minimum 32 bytes, generate with `openssl rand -base64 32`).
+Set `arc.reactor.auth.jwt-secret=<secret>` (minimum 32 bytes, generate with `openssl rand -base64 32`).
 
 **Step 1: Register or login**
 
@@ -63,7 +63,7 @@ All error responses use this standard DTO:
 
 ## Authentication Endpoints
 
-> **Condition**: Only registered when `arc.reactor.auth.enabled=true`.
+> **Condition**: Always registered.
 
 ### POST /api/auth/register
 

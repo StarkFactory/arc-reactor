@@ -6,7 +6,6 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
-import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.intent.model.ClassificationContext
 import com.arc.reactor.memory.MemoryStore
@@ -64,7 +63,6 @@ class ChatController(
     private val personaStore: PersonaStore? = null,
     private val promptTemplateStore: PromptTemplateStore? = null,
     private val properties: AgentProperties = AgentProperties(),
-    private val authProperties: AuthProperties = AuthProperties(),
     private val intentResolver: IntentResolver? = null,
     private val memoryStore: MemoryStore? = null
 ) {
@@ -261,7 +259,7 @@ class ChatController(
         val base = request.metadata ?: emptyMap()
         val withChannel = if (base.containsKey("channel")) base else (base + mapOf("channel" to "web"))
 
-        val tenantId = TenantContextResolver.resolveTenantId(exchange, authProperties.enabled)
+        val tenantId = TenantContextResolver.resolveTenantId(exchange)
         val withTenant = withChannel + ("tenantId" to tenantId)
 
         if (request.promptTemplateId == null || promptTemplateStore == null) return withTenant

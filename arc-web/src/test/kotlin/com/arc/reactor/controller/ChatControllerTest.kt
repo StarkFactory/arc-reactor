@@ -7,7 +7,6 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
-import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.persona.PersonaStore
 import io.mockk.coEvery
 import io.mockk.every
@@ -39,7 +38,7 @@ class ChatControllerTest {
     private lateinit var exchange: ServerWebExchange
 
     private fun mockExchange(
-        attributes: MutableMap<String, Any> = mutableMapOf(),
+        attributes: MutableMap<String, Any> = mutableMapOf("resolvedTenantId" to "default"),
         headers: HttpHeaders = HttpHeaders()
     ): ServerWebExchange {
         val request = mockk<ServerHttpRequest>()
@@ -190,40 +189,31 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should reject request when auth enabled and tenant context is missing`() = runTest {
-            val strictController = ChatController(
-                agentExecutor = agentExecutor,
-                authProperties = AuthProperties(enabled = true)
-            )
-
+        fun `should reject request when tenant context is missing`() = runTest {
             val ex = try {
-                strictController.chat(ChatRequest(message = "hello"), mockExchange())
+                controller.chat(ChatRequest(message = "hello"), mockExchange(attributes = mutableMapOf()))
                 throw AssertionError("Missing tenant context should throw ServerWebInputException")
             } catch (e: ServerWebInputException) {
                 e
             }
             assertTrue(ex.reason?.contains("Missing tenant context") == true) {
-                "Auth-enabled mode should fail-close without tenant context"
+                "Requests without tenant context should fail-close"
             }
         }
 
         @Test
-        fun `should allow request when auth enabled and tenant header is provided`() = runTest {
-            val strictController = ChatController(
-                agentExecutor = agentExecutor,
-                authProperties = AuthProperties(enabled = true)
-            )
+        fun `should allow request when tenant header is provided`() = runTest {
             val headers = HttpHeaders()
             headers.add("X-Tenant-Id", "tenant-secure")
-            val tenantExchange = mockExchange(headers = headers)
+            val tenantExchange = mockExchange(attributes = mutableMapOf(), headers = headers)
 
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
-            strictController.chat(ChatRequest(message = "hello"), tenantExchange)
+            controller.chat(ChatRequest(message = "hello"), tenantExchange)
 
             assertEquals("tenant-secure", commandSlot.captured.metadata["tenantId"]) {
-                "Auth-enabled mode should accept explicit tenant context"
+                "Tenant header should be accepted when no resolved tenant exists"
             }
         }
 
@@ -251,7 +241,7 @@ class ChatControllerTest {
 
         @Test
         fun `should resolve userId from exchange attributes when present`() = runTest {
-            val authExchange = mockExchange(mutableMapOf("userId" to "jwt-user-1"))
+            val authExchange = mockExchange(mutableMapOf("userId" to "jwt-user-1", "resolvedTenantId" to "default"))
 
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")

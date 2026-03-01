@@ -77,7 +77,6 @@ class ArcReactorAutoConfigurationTest {
     private val contextRunner = ApplicationContextRunner()
         .withPropertyValues(
             "arc.reactor.postgres.required=false",
-            "arc.reactor.auth.enabled=true",
             "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
         )
         .withConfiguration(AutoConfigurations.of(ArcReactorAutoConfiguration::class.java))
@@ -602,10 +601,9 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register auth beans when enabled`() {
+        fun `should register auth beans with jdbc datasource`() {
             jdbcContextRunner
                 .withPropertyValues(
-                    "arc.reactor.auth.enabled=true",
                     "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
                 )
                 .run { context ->
@@ -625,16 +623,15 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should use in-memory user store when auth enabled and datasource url is blank`() {
+        fun `should use in-memory user store when datasource url is blank`() {
             contextRunner
                 .withPropertyValues(
                     "spring.datasource.url=",
-                    "arc.reactor.auth.enabled=true",
                     "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
                 )
                 .run { context ->
                     assertNull(context.startupFailure) {
-                        "Context should start when auth is enabled and datasource URL is blank"
+                        "Context should start when datasource URL is blank"
                     }
                     assertInstanceOf(
                         InMemoryUserStore::class.java,
@@ -648,7 +645,6 @@ class ArcReactorAutoConfigurationTest {
         fun `should append actuator health to public paths when enabled`() {
             jdbcContextRunner
                 .withPropertyValues(
-                    "arc.reactor.auth.enabled=true",
                     "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough",
                     "arc.reactor.auth.public-actuator-health=true"
                 )
@@ -664,12 +660,11 @@ class ArcReactorAutoConfigurationTest {
         fun `should fail context startup when auth enabled with empty jwt secret`() {
             contextRunner
                 .withPropertyValues(
-                    "arc.reactor.auth.enabled=true",
                     "arc.reactor.auth.jwt-secret="
                 )
                 .run { context ->
                     assertTrue(context.startupFailure != null) {
-                        "Context should fail to start when auth.enabled=true and jwt-secret is empty"
+                        "Context should fail to start when jwt-secret is empty"
                     }
                     val message = context.startupFailure!!.message ?: ""
                     assertTrue(message.contains("arc.reactor.auth.jwt-secret") || causeChainContains(context.startupFailure!!, "arc.reactor.auth.jwt-secret")) {
@@ -682,30 +677,11 @@ class ArcReactorAutoConfigurationTest {
         fun `should fail context startup when auth enabled with short jwt secret`() {
             contextRunner
                 .withPropertyValues(
-                    "arc.reactor.auth.enabled=true",
                     "arc.reactor.auth.jwt-secret=tooshort"
                 )
                 .run { context ->
                     assertTrue(context.startupFailure != null) {
-                        "Context should fail to start when auth.enabled=true and jwt-secret is shorter than 32 bytes"
-                    }
-                }
-        }
-
-        @Test
-        fun `should fail context startup when auth is disabled`() {
-            contextRunner
-                .withPropertyValues("arc.reactor.auth.enabled=false")
-                .run { context ->
-                    assertTrue(context.startupFailure != null) {
-                        "Context should fail to start when auth is disabled"
-                    }
-                    val message = context.startupFailure!!.message ?: ""
-                    assertTrue(
-                        message.contains("arc.reactor.auth.enabled") ||
-                            causeChainContains(context.startupFailure!!, "arc.reactor.auth.enabled")
-                    ) {
-                        "Failure cause should reference arc.reactor.auth.enabled requirement"
+                        "Context should fail to start when jwt-secret is shorter than 32 bytes"
                     }
                 }
         }

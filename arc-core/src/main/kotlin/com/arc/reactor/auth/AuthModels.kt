@@ -34,18 +34,18 @@ data class User(
 /**
  * Authentication configuration properties (prefix: arc.reactor.auth).
  *
- * Auth is mandatory for Arc Reactor runtime. `arc.reactor.auth.enabled` must stay true.
+ * Auth is mandatory for Arc Reactor runtime.
  *
- * @param enabled Whether JWT authentication is active (default: false; runtime startup enforces true)
- * @param jwtSecret HMAC secret for JWT signing (required when enabled).
+ * @param jwtSecret HMAC secret for JWT signing.
  *   Must be at least 32 characters long. Generate with: `openssl rand -base64 32`
  * @param jwtExpirationMs Token lifetime in milliseconds (default: 24 hours)
+ * @param defaultTenantId Default tenant ID to embed in issued JWT tokens when no tenant context is provided
  * @param publicPaths URL prefixes that bypass authentication
  */
 data class AuthProperties(
-    val enabled: Boolean = false,
     val jwtSecret: String = "",
     val jwtExpirationMs: Long = 86_400_000,
+    val defaultTenantId: String = "default",
     val publicPaths: List<String> = listOf(
         "/api/auth/login", "/api/auth/register",
         "/v3/api-docs", "/swagger-ui", "/webjars"

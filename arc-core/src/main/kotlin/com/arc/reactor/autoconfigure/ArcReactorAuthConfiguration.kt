@@ -13,7 +13,6 @@ import com.arc.reactor.auth.UserStore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
@@ -34,7 +33,6 @@ class JwtSecretValidator(secret: String) {
     init {
         check(secret.toByteArray().size >= JWT_SECRET_MIN_BYTES) {
             "arc.reactor.auth.jwt-secret must be set to at least $JWT_SECRET_MIN_BYTES characters " +
-                "when auth.enabled=true. " +
                 "Current length: ${secret.toByteArray().size} bytes. " +
                 "Generate with: openssl rand -base64 32"
         }
@@ -42,13 +40,9 @@ class JwtSecretValidator(secret: String) {
 }
 
 /**
- * Auth Configuration (only when arc.reactor.auth.enabled=true)
+ * Auth Configuration
  */
 @Configuration
-@ConditionalOnProperty(
-    prefix = "arc.reactor.auth", name = ["enabled"],
-    havingValue = "true", matchIfMissing = false
-)
 @ConditionalOnClass(name = ["io.jsonwebtoken.Jwts"])
 class AuthConfiguration {
 
@@ -76,10 +70,12 @@ class AuthConfiguration {
             ?: defaultPublicPaths
 
         return AuthProperties(
-            enabled = true,
             jwtSecret = environment.getProperty("arc.reactor.auth.jwt-secret", ""),
             jwtExpirationMs = environment.getProperty(
                 "arc.reactor.auth.jwt-expiration-ms", Long::class.java, 86_400_000L
+            ),
+            defaultTenantId = environment.getProperty(
+                "arc.reactor.auth.default-tenant-id", "default"
             ),
             publicPaths = publicPaths,
             loginRateLimitPerMinute = environment.getProperty(
@@ -135,10 +131,6 @@ class JdbcAuthConfiguration {
 
     @Bean
     @Primary
-    @ConditionalOnProperty(
-        prefix = "arc.reactor.auth", name = ["enabled"],
-        havingValue = "true", matchIfMissing = false
-    )
     fun jdbcUserStore(
         jdbcTemplate: JdbcTemplate
     ): UserStore = JdbcUserStore(jdbcTemplate)

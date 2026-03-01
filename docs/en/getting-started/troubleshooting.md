@@ -115,11 +115,11 @@ arc:
 
 **Symptom:** `POST /api/auth/login` returns 404 Not Found instead of working.
 
-**Cause:** Authentication is disabled by default. The `AuthController` bean is not registered unless explicitly enabled.
+**Cause:** You are running an old/custom binary that does not include current auth components.
 
 **Solution:**
 
-1. Enable auth in configuration:
+1. Keep auth enabled in configuration:
 ```yaml
 arc:
   reactor:
@@ -128,12 +128,13 @@ arc:
       jwt-secret: ${JWT_SECRET}
 ```
 
-2. Include auth dependencies at build time:
+2. Rebuild with default settings and run the latest artifact:
 ```bash
-./gradlew :arc-app:bootRun -Pauth=true
+./gradlew clean :arc-app:bootJar -Pdb=true
+java -jar arc-app/build/libs/arc-app-*.jar
 ```
 
-Or switch from `compileOnly` to `implementation` in `build.gradle.kts` for JJWT and Spring Security Crypto.
+Auth dependencies are included by default in current builds.
 
 ---
 

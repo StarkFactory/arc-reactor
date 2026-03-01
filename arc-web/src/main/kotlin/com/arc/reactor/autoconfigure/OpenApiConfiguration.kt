@@ -39,7 +39,7 @@ class OpenApiConfiguration(
                     .title("Arc Reactor API")
                     .description(
                         "AI Agent framework REST API. " +
-                            "Authentication is mandatory (`arc.reactor.auth.enabled=true`). " +
+                            "Authentication is mandatory. " +
                             "API version contract: request `X-Arc-Api-Version` (default: v1)."
                     )
                     .version(resolveVersion())

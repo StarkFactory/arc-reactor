@@ -18,12 +18,14 @@ private val logger = KotlinLogging.logger {}
  * On success, stores the userId in [ServerWebExchange.getAttributes] for downstream use.
  * Public paths (login, register) are allowed through without a token.
  *
- * This filter is only registered when `arc.reactor.auth.enabled=true`.
+ * This filter is always registered in Arc Reactor runtime.
  */
 class JwtAuthWebFilter(
     private val jwtTokenProvider: JwtTokenProvider,
     private val authProperties: AuthProperties
 ) : WebFilter, Ordered {
+
+    private val tenantPattern = Regex("^[a-zA-Z0-9_-]{1,64}$")
 
     override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE
 
@@ -51,7 +53,15 @@ class JwtAuthWebFilter(
         exchange.attributes[USER_ID_ATTRIBUTE] = userId
         val role = jwtTokenProvider.extractRole(token) ?: UserRole.USER
         exchange.attributes[USER_ROLE_ATTRIBUTE] = role
+        val tenantId = resolveTenantId(token)
+        exchange.attributes[RESOLVED_TENANT_ID_ATTRIBUTE] = tenantId
         return chain.filter(exchange)
+    }
+
+    private fun resolveTenantId(token: String): String {
+        val tokenTenant = jwtTokenProvider.extractTenantId(token)
+            ?.takeIf { tenantPattern.matches(it) }
+        return tokenTenant ?: authProperties.defaultTenantId
     }
 
     private fun isPublicPath(path: String): Boolean {
@@ -70,5 +80,8 @@ class JwtAuthWebFilter(
 
         /** Key used to store the authenticated user's [UserRole] in ServerWebExchange attributes. */
         const val USER_ROLE_ATTRIBUTE = "userRole"
+
+        /** Key used to store the resolved tenant ID in ServerWebExchange attributes. */
+        const val RESOLVED_TENANT_ID_ATTRIBUTE = "resolvedTenantId"
     }
 }

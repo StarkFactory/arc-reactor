@@ -79,19 +79,11 @@ dependencies {
         compileOnly("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
     }
 
-    // Optional: JWT Auth (JJWT + Spring Security Crypto for BCrypt)
-    // Pass -Pauth=true to include in runtime classpath (e.g., Docker builds)
-    if (project.hasProperty("auth")) {
-        implementation("io.jsonwebtoken:jjwt-api:0.13.0")
-        runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
-        runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
-        implementation("org.springframework.security:spring-security-crypto")
-    } else {
-        compileOnly("io.jsonwebtoken:jjwt-api:0.13.0")
-        compileOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
-        compileOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
-        compileOnly("org.springframework.security:spring-security-crypto")
-    }
+    // JWT Auth (JJWT + Spring Security Crypto for BCrypt)
+    implementation("io.jsonwebtoken:jjwt-api:0.13.0")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
+    implementation("org.springframework.security:spring-security-crypto")
 
     // Test
     testImplementation(platform("io.opentelemetry:opentelemetry-bom:1.44.1"))

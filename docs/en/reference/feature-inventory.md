@@ -25,7 +25,7 @@
 | **Conversation History** | `GET /api/sessions/{id}` | Active | Full message history for a specific session |
 | **Session Deletion** | `DELETE /api/sessions/{id}` | Active | Server-side session data deletion |
 | **Available Models** | `GET /api/models` | Active | Registered LLM provider list + default model |
-| **JWT Authentication** | `POST /api/auth/*` | **required** | Runtime requires `arc.reactor.auth.enabled=true` |
+| **JWT Authentication** | `POST /api/auth/*` | **required** | Runtime requires `arc.reactor.auth.jwt-secret` |
 | **Persona Management** | `GET/POST/PUT/DELETE /api/personas` | Active | System prompt template CRUD |
 | **Per-User Session Isolation** | Internal (no API) | **opt-in** | Sessions filtered by userId when authentication is enabled |
 | **Response Caching** | Internal (no API) | **opt-in** | Caffeine-based cache, SHA-256 keys, temperature-based eligibility |
@@ -302,13 +302,12 @@ services:
 ### 5.3 Deployment with Authentication Enabled
 
 ```bash
-# Enable auth + db flags during Docker build
-# In Dockerfile: ARG ENABLE_DB, ARG ENABLE_AUTH → -Pdb=true -Pauth=true
+# Enable db flag during Docker build
+# In Dockerfile: ARG ENABLE_DB → -Pdb=true
 docker compose up -d
 
 # Environment variable example (.env)
 GEMINI_API_KEY=your-key
-ARC_REACTOR_AUTH_ENABLED=true
 ARC_REACTOR_AUTH_JWT_SECRET=your-256-bit-secret
 ```
 
@@ -541,11 +540,11 @@ All beans are registered with `@ConditionalOnMissingBean`, so users can override
 | `ErrorMessageResolver` | `DefaultErrorMessageResolver` | Always | Register `@Bean` |
 | `PersonaStore` | `InMemoryPersonaStore` | When no PersonaStore | Register `@Bean` |
 | `PersonaStore` | `JdbcPersonaStore` | When DataSource + JdbcTemplate present | Register `@Bean` |
-| `AuthProvider` | `DefaultAuthProvider` | auth.enabled=true | Register `@Bean` |
-| `UserStore` | `InMemoryUserStore` | auth.enabled=true, no DataSource | Register `@Bean` |
-| `UserStore` | `JdbcUserStore` | auth.enabled=true, DataSource present | Register `@Bean` |
-| `JwtTokenProvider` | — | auth.enabled=true | — |
-| `JwtAuthWebFilter` | — | auth.enabled=true | — |
+| `AuthProvider` | `DefaultAuthProvider` | Always | Register `@Bean` |
+| `UserStore` | `InMemoryUserStore` | No DataSource | Register `@Bean` |
+| `UserStore` | `JdbcUserStore` | DataSource present | Register `@Bean` |
+| `JwtTokenProvider` | — | Always | — |
+| `JwtAuthWebFilter` | — | Always | — |
 
 ---
 

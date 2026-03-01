@@ -7,6 +7,10 @@ server:
   port: 8080
 
 spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   ai:
     # Default provider: Gemini
     google:
@@ -25,8 +29,8 @@ spring:
 arc:
   reactor:
     auth:
-      enabled: true
       jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}
+      default-tenant-id: ${ARC_REACTOR_AUTH_DEFAULT_TENANT_ID:default}
     llm:
       default-provider: gemini
       temperature: 0.3
