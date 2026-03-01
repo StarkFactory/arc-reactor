@@ -39,11 +39,11 @@ kubectl apply -f deploy/k8s/optional/ingress.yaml
 
 ## Recommended Production Defaults
 
-- `ARC_REACTOR_AUTH_ENABLED=true`
 - `ARC_REACTOR_APPROVAL_ENABLED=true`
 - `ARC_REACTOR_TOOL_POLICY_DYNAMIC_ENABLED=true`
 - `ARC_REACTOR_OUTPUT_GUARD_ENABLED=true`
 - `ARC_REACTOR_RAG_ENABLED=true` (if RAG is required)
+- `ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH=true` (for liveness/readiness probes)
 - `SPRING_FLYWAY_ENABLED=true`
 
 ## Operational Checks

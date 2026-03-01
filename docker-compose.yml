@@ -20,6 +20,9 @@ services:
     environment:
       # LLM Provider
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # Auth (required)
+      ARC_REACTOR_AUTH_JWT_SECRET: ${ARC_REACTOR_AUTH_JWT_SECRET}
+      ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH: "true"
       # PostgreSQL connection (when using db service)
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:-arcreactor}
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-arc}

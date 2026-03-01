@@ -78,14 +78,11 @@ spec:
                   key: SPRING_AI_ANTHROPIC_API_KEY
                   optional: true
             {{- end }}
-            {{- if or .Values.secrets.jwtSecret (and .Values.existingSecret) }}
             - name: ARC_REACTOR_AUTH_JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: ARC_REACTOR_AUTH_JWT_SECRET
-                  optional: true
-            {{- end }}
             {{- $dbPassword := coalesce .Values.secrets.datasourcePassword .Values.postgresql.password "" }}
             {{- if or $dbPassword (and .Values.existingSecret) }}
             - name: SPRING_DATASOURCE_PASSWORD

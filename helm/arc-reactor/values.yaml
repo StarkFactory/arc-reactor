@@ -159,10 +159,9 @@ config:
   rag:
     enabled: "false"
 
-  cors:
-    enabled: "false"
+  authPublicActuatorHealth: "true"
 
-  auth:
+  cors:
     enabled: "false"
 
   circuitBreaker:
@@ -182,7 +181,7 @@ secrets:
   geminiApiKey: ""
   openaiApiKey: ""
   anthropicApiKey: ""
-  # JWT secret — required when config.auth.enabled=true
+  # JWT secret — required
   jwtSecret: ""
   # Optional: datasource password (also configurable from postgresql.password)
   datasourcePassword: ""

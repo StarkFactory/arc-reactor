@@ -53,7 +53,8 @@ kubectl -n arc-reactor logs deploy/arc-reactor --tail=200
 
 ## Important Notes
 
-- Keep `arc.reactor.auth.enabled=true` for production control-plane security.
+- Authentication is always enabled; set a strong `ARC_REACTOR_AUTH_JWT_SECRET`.
+- Keep `ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH=true` for unauthenticated probe endpoints.
 - Keep `SPRING_FLYWAY_ENABLED=true` when using PostgreSQL.
 - Replace image tag with a pinned release tag (avoid `latest`).
 - Integrate external secret management (Vault, ESO, or cloud secret manager).

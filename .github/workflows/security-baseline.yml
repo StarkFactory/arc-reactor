@@ -80,7 +80,7 @@ jobs:
           java-version: '21'
           cache: gradle
       - name: Build executable jar for dependency scan
-        run: ./gradlew --no-daemon :arc-app:bootJar -Pdb=true -Pauth=true -x test
+        run: ./gradlew --no-daemon :arc-app:bootJar -Pdb=true -x test
       - name: Verify scan target exists
         run: ls -1 arc-app/build/libs/*.jar
       - name: Run Grype dependency scan (HIGH/CRITICAL, fixed only)

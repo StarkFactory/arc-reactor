@@ -135,7 +135,7 @@ kubectl delete secret arc-reactor
 | `secrets.geminiApiKey` | Google Gemini API key | `""` |
 | `secrets.openaiApiKey` | OpenAI API key | `""` |
 | `secrets.anthropicApiKey` | Anthropic API key | `""` |
-| `secrets.jwtSecret` | JWT signing secret (when auth enabled) | `""` |
+| `secrets.jwtSecret` | JWT signing secret (required) | `""` |
 | `secrets.datasourcePassword` | Datasource password | `""` |
 | `existingSecret` | Name of an existing Kubernetes Secret | `""` |
 
@@ -157,7 +157,7 @@ kubectl delete secret arc-reactor
 | `config.agent.maxToolCalls` | Maximum tool calls per request | `10` |
 | `config.agent.maxToolsPerRequest` | Maximum tools per request | `20` |
 | `config.rag.enabled` | Enable RAG | `false` |
-| `config.auth.enabled` | Enable JWT authentication | `false` |
+| `config.authPublicActuatorHealth` | Expose `/actuator/health*` without JWT (for probes) | `true` |
 | `config.flyway.enabled` | Enable Flyway migrations | `false` |
 | `config.logging.level` | Application log level | `INFO` |
 

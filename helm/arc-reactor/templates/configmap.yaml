@@ -52,8 +52,8 @@ data:
 
   # Features
   ARC_REACTOR_RAG_ENABLED: {{ .Values.config.rag.enabled | quote }}
+  ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH: {{ .Values.config.authPublicActuatorHealth | quote }}
   ARC_REACTOR_CORS_ENABLED: {{ .Values.config.cors.enabled | quote }}
-  ARC_REACTOR_AUTH_ENABLED: {{ .Values.config.auth.enabled | quote }}
   ARC_REACTOR_CIRCUIT_BREAKER_ENABLED: {{ .Values.config.circuitBreaker.enabled | quote }}
 
   # Logging
