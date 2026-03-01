@@ -2,6 +2,7 @@ package com.arc.reactor.memory.impl
 
 import com.arc.reactor.memory.UserMemoryStore
 import com.arc.reactor.memory.model.UserMemory
+import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
@@ -56,6 +57,7 @@ class JdbcUserMemoryStore(
             )
             results.firstOrNull()
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "Failed to load user memory for $userId" }
             null
         }
