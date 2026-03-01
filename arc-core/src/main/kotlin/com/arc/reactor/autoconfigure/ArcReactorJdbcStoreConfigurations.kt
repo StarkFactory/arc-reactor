@@ -31,6 +31,7 @@ import com.arc.reactor.rag.ingestion.RagIngestionPolicyStore
 import com.arc.reactor.scheduler.JdbcScheduledJobStore
 import com.arc.reactor.scheduler.ScheduledJobStore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -43,7 +44,7 @@ import org.springframework.transaction.support.TransactionTemplate
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
-@ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
+@ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
 class JdbcMemoryStoreConfiguration {
 
     @Bean
@@ -159,7 +160,7 @@ class JdbcMemoryStoreConfiguration {
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
-@ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
+@ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
 class JdbcToolPolicyStoreConfiguration {
 
     @Bean
@@ -178,7 +179,7 @@ class JdbcToolPolicyStoreConfiguration {
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
-@ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
+@ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
 class JdbcRagIngestionPolicyStoreConfiguration {
 
     @Bean

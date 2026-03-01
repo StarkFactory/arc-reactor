@@ -13,6 +13,10 @@ import com.arc.reactor.audit.InMemoryAdminAuditStore
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
 import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
+import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditStore
+import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
+import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleAuditStore
+import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleStore
 import com.arc.reactor.hook.impl.FeedbackMetadataCaptureHook
 import com.arc.reactor.mcp.InMemoryMcpServerStore
 import com.arc.reactor.mcp.McpServerStore
@@ -256,4 +260,12 @@ class ArcReactorCoreBeansConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun outputGuardRuleEvaluator(): OutputGuardRuleEvaluator = OutputGuardRuleEvaluator()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun outputGuardRuleStore(): OutputGuardRuleStore = InMemoryOutputGuardRuleStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun outputGuardRuleAuditStore(): OutputGuardRuleAuditStore = InMemoryOutputGuardRuleAuditStore()
 }

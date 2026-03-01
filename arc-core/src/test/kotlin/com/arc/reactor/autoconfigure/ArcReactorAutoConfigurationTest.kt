@@ -8,6 +8,12 @@ import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.impl.DefaultInputValidationStage
 import com.arc.reactor.guard.impl.GuardPipeline
+import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleAuditStore
+import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleStore
+import com.arc.reactor.guard.output.policy.JdbcOutputGuardRuleAuditStore
+import com.arc.reactor.guard.output.policy.JdbcOutputGuardRuleStore
+import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditStore
+import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.impl.WebhookNotificationHook
 import com.arc.reactor.mcp.DefaultMcpManager
@@ -22,6 +28,9 @@ import com.arc.reactor.memory.InMemoryMemoryStore
 import com.arc.reactor.memory.JdbcMemoryStore
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.TokenEstimator
+import com.arc.reactor.memory.UserMemoryStore
+import com.arc.reactor.memory.impl.InMemoryUserMemoryStore
+import com.arc.reactor.memory.impl.JdbcUserMemoryStore
 import com.arc.reactor.memory.summary.ConversationSummaryService
 import com.arc.reactor.memory.summary.ConversationSummaryStore
 import com.arc.reactor.memory.summary.InMemoryConversationSummaryStore
@@ -41,6 +50,7 @@ import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
 import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
+import com.arc.reactor.auth.InMemoryUserStore
 import com.arc.reactor.auth.UserStore
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import com.arc.reactor.tool.AllToolSelector
@@ -173,6 +183,22 @@ class ArcReactorAutoConfigurationTest {
                 assertNotNull(context.getBean(HookExecutor::class.java)) {
                     "HookExecutor should be registered by default"
                 }
+            }
+        }
+
+        @Test
+        fun `should register in-memory output guard stores by default`() {
+            contextRunner.run { context ->
+                assertInstanceOf(
+                    InMemoryOutputGuardRuleStore::class.java,
+                    context.getBean(OutputGuardRuleStore::class.java),
+                    "OutputGuardRuleStore should default to in-memory"
+                )
+                assertInstanceOf(
+                    InMemoryOutputGuardRuleAuditStore::class.java,
+                    context.getBean(OutputGuardRuleAuditStore::class.java),
+                    "OutputGuardRuleAuditStore should default to in-memory"
+                )
             }
         }
     }
@@ -470,6 +496,15 @@ class ArcReactorAutoConfigurationTest {
                     JdbcMcpServerStore::class.java, context.getBean(McpServerStore::class.java),
                     "McpServerStore should be JdbcMcpServerStore when datasource is configured"
                 )
+                assertInstanceOf(
+                    JdbcOutputGuardRuleStore::class.java, context.getBean(OutputGuardRuleStore::class.java),
+                    "OutputGuardRuleStore should be JDBC when datasource is configured"
+                )
+                assertInstanceOf(
+                    JdbcOutputGuardRuleAuditStore::class.java,
+                    context.getBean(OutputGuardRuleAuditStore::class.java),
+                    "OutputGuardRuleAuditStore should be JDBC when datasource is configured"
+                )
             }
         }
 
@@ -492,7 +527,53 @@ class ArcReactorAutoConfigurationTest {
                     InMemoryMcpServerStore::class.java, context.getBean(McpServerStore::class.java),
                     "McpServerStore should be InMemoryMcpServerStore without datasource"
                 )
+                assertInstanceOf(
+                    InMemoryOutputGuardRuleStore::class.java, context.getBean(OutputGuardRuleStore::class.java),
+                    "OutputGuardRuleStore should be InMemoryOutputGuardRuleStore without datasource"
+                )
+                assertInstanceOf(
+                    InMemoryOutputGuardRuleAuditStore::class.java,
+                    context.getBean(OutputGuardRuleAuditStore::class.java),
+                    "OutputGuardRuleAuditStore should be InMemoryOutputGuardRuleAuditStore without datasource"
+                )
             }
+        }
+
+        @Test
+        fun `should keep in-memory stores when datasource url is blank`() {
+            contextRunner
+                .withPropertyValues("spring.datasource.url=")
+                .run { context ->
+                    assertNull(context.startupFailure) {
+                        "Context should start when spring.datasource.url is blank"
+                    }
+                    assertInstanceOf(
+                        InMemoryMemoryStore::class.java, context.getBean(MemoryStore::class.java),
+                        "MemoryStore should stay in-memory when datasource URL is blank"
+                    )
+                    assertInstanceOf(
+                        InMemoryPersonaStore::class.java, context.getBean(PersonaStore::class.java),
+                        "PersonaStore should stay in-memory when datasource URL is blank"
+                    )
+                    assertInstanceOf(
+                        InMemoryPromptTemplateStore::class.java, context.getBean(PromptTemplateStore::class.java),
+                        "PromptTemplateStore should stay in-memory when datasource URL is blank"
+                    )
+                    assertInstanceOf(
+                        InMemoryMcpServerStore::class.java, context.getBean(McpServerStore::class.java),
+                        "McpServerStore should stay in-memory when datasource URL is blank"
+                    )
+                    assertInstanceOf(
+                        InMemoryOutputGuardRuleStore::class.java,
+                        context.getBean(OutputGuardRuleStore::class.java),
+                        "OutputGuardRuleStore should stay in-memory when datasource URL is blank"
+                    )
+                    assertInstanceOf(
+                        InMemoryOutputGuardRuleAuditStore::class.java,
+                        context.getBean(OutputGuardRuleAuditStore::class.java),
+                        "OutputGuardRuleAuditStore should stay in-memory when datasource URL is blank"
+                    )
+                }
         }
     }
 
@@ -536,6 +617,26 @@ class ArcReactorAutoConfigurationTest {
                     assertTrue(context.containsBean("adminInitializer")) {
                         "AdminInitializer should exist when auth is enabled"
                     }
+                }
+        }
+
+        @Test
+        fun `should use in-memory user store when auth enabled and datasource url is blank`() {
+            contextRunner
+                .withPropertyValues(
+                    "spring.datasource.url=",
+                    "arc.reactor.auth.enabled=true",
+                    "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
+                )
+                .run { context ->
+                    assertNull(context.startupFailure) {
+                        "Context should start when auth is enabled and datasource URL is blank"
+                    }
+                    assertInstanceOf(
+                        InMemoryUserStore::class.java,
+                        context.getBean(UserStore::class.java),
+                        "UserStore should fallback to in-memory when datasource URL is blank"
+                    )
                 }
         }
 
@@ -697,6 +798,65 @@ class ArcReactorAutoConfigurationTest {
                     assertTrue(context.containsBean("conversationSummaryService")) {
                         "ConversationSummaryService bean must exist when summary is enabled"
                     }
+                }
+        }
+
+        @Test
+        fun `should use in-memory summary store when datasource url is blank`() {
+            contextRunner
+                .withUserConfiguration(MockChatClientConfig::class.java)
+                .withPropertyValues(
+                    "spring.datasource.url=",
+                    "arc.reactor.memory.summary.enabled=true",
+                    "arc.reactor.llm.default-provider=chatModel"
+                )
+                .run { context ->
+                    assertNull(context.startupFailure) {
+                        "Context should start when summary is enabled and datasource URL is blank"
+                    }
+                    assertInstanceOf(
+                        InMemoryConversationSummaryStore::class.java,
+                        context.getBean(ConversationSummaryStore::class.java),
+                        "Summary store should fallback to in-memory when datasource URL is blank"
+                    )
+                }
+        }
+    }
+
+    // ── User Memory Configuration ──────────────────────────────────
+
+    @Nested
+    inner class UserMemoryConfigurationTests {
+
+        @Test
+        fun `should use in-memory user memory store when datasource url is blank`() {
+            contextRunner
+                .withPropertyValues(
+                    "spring.datasource.url=",
+                    "arc.reactor.memory.user.enabled=true"
+                )
+                .run { context ->
+                    assertNull(context.startupFailure) {
+                        "Context should start when user memory is enabled and datasource URL is blank"
+                    }
+                    assertInstanceOf(
+                        InMemoryUserMemoryStore::class.java,
+                        context.getBean(UserMemoryStore::class.java),
+                        "UserMemoryStore should fallback to in-memory when datasource URL is blank"
+                    )
+                }
+        }
+
+        @Test
+        fun `should use jdbc user memory store when datasource is configured`() {
+            jdbcContextRunner
+                .withPropertyValues("arc.reactor.memory.user.enabled=true")
+                .run { context ->
+                    assertInstanceOf(
+                        JdbcUserMemoryStore::class.java,
+                        context.getBean(UserMemoryStore::class.java),
+                        "UserMemoryStore should be JDBC when datasource is configured"
+                    )
                 }
         }
     }
