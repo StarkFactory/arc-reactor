@@ -6,13 +6,9 @@
 
 ## 인증
 
-### 인증 비활성화 (기본값)
+### 런타임 필수 조건
 
-`arc.reactor.auth.enabled=false`(기본값)인 경우 `JwtAuthWebFilter`가 등록되지 않습니다. `isAdmin()` 검사는 exchange에서 role 속성을 읽는데, 설정되지 않았으므로 `null`입니다. `null` role은 admin으로 취급되므로 **모든 요청이 admin으로 처리**되며 토큰이 필요 없습니다.
-
-로컬 개발 및 폐쇄망 배포에 적합한 기본값입니다.
-
-### 인증 활성화 (프로덕션)
+Arc Reactor 런타임은 `arc.reactor.auth.enabled=true`를 필수로 요구합니다. 인증이 비활성화되면 애플리케이션은 기동에 실패합니다.
 
 `arc.reactor.auth.enabled=true` 및 `arc.reactor.auth.jwt-secret=<secret>`을 설정합니다 (최소 32바이트; `openssl rand -base64 32`로 생성).
 
@@ -45,7 +41,7 @@ Authorization: Bearer <token>
 
 ### Admin vs User 접근
 
-- **Admin 필수**: 설정을 생성·수정·삭제하는 엔드포인트. 인증이 비활성화된 경우 모든 호출자가 admin으로 처리됩니다.
+- **Admin 필수**: 설정을 생성·수정·삭제하는 엔드포인트.
 - **인증 필요**: 유효한 JWT가 필요하지만 ADMIN role은 요구하지 않는 엔드포인트.
 - **공개**: 인증 불필요.
 

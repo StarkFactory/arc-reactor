@@ -64,6 +64,10 @@ subprojects {
 
     // Keep root `./gradlew bootRun` deterministic by exposing runnable boot tasks only from :arc-app.
     tasks.matching { it.name == "bootRun" || it.name == "resolveMainClassName" }.configureEach {
-        enabled = project.name == "arc-app"
+        enabled = when (project.name) {
+            "arc-app" -> true
+            "arc-app-lite" -> gradle.startParameter.taskNames.any { it.contains("arc-app-lite") }
+            else -> false
+        }
     }
 }

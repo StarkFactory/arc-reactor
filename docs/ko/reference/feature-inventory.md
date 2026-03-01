@@ -25,7 +25,7 @@
 | **대화 이력 조회** | `GET /api/sessions/{id}` | 활성 | 특정 세션의 전체 메시지 이력 |
 | **세션 삭제** | `DELETE /api/sessions/{id}` | 활성 | 서버 측 세션 데이터 삭제 |
 | **사용 가능 모델 조회** | `GET /api/models` | 활성 | 등록된 LLM provider 목록 + 기본 모델 |
-| **JWT 인증** | `POST /api/auth/*` | **opt-in** | `arc.reactor.auth.enabled=true` 시 활성화 |
+| **JWT 인증** | `POST /api/auth/*` | **필수** | 런타임은 `arc.reactor.auth.enabled=true`를 요구 |
 | **페르소나 관리** | `GET/POST/PUT/DELETE /api/personas` | 활성 | 시스템 프롬프트 템플릿 CRUD |
 | **사용자별 세션 격리** | 내부 (API 없음) | **opt-in** | 인증 활성 시 userId로 세션 필터링 |
 | **응답 캐싱** | 내부 (API 없음) | **opt-in** | Caffeine 기반 캐시, SHA-256 키, 온도 기반 적격성 |
@@ -345,7 +345,7 @@ cd arc-reactor && docker compose up -d
   "message": "사용자 입력 텍스트 (필수, NotBlank)",
   "model": "gemini | openai | anthropic | vertex | null (서버 기본값)",
   "systemPrompt": "커스텀 시스템 프롬프트 | null (기본 프롬프트)",
-  "userId": "인증 비활성 시 프론트에서 전송 (인증 활성 시 서버가 JWT에서 추출)",
+  "userId": "선택적 클라이언트 힌트 (권한 기준 userId는 서버가 JWT에서 추출)",
   "metadata": {
     "sessionId": "UUID (세션 식별자)"
   },
@@ -361,7 +361,7 @@ cd arc-reactor && docker compose up -d
 | `message` | **항상** | LLM에 userPrompt로 전달 |
 | `model` | 설정 시 | `ChatModelProvider`에서 해당 provider의 ChatModel 선택 |
 | `systemPrompt` | 설정 시 | LLM 시스템 프롬프트 (기본: "You are a helpful AI assistant...") |
-| `userId` | 인증 비활성 시 전송 | Guard rate limit 키, 로그 식별자 (인증 활성 시 JWT에서 자동 추출) |
+| `userId` | 선택 | Guard rate limit 키, 로그 식별자 (권한 기준 userId는 JWT 값 사용) |
 | `metadata.sessionId` | **항상** | `ConversationManager`에서 대화 이력 로드/저장 |
 | `responseFormat` | TEXT 아닐 때 | 응답 형식 (JSON 모드 시 시스템 프롬프트에 JSON 지시 추가) |
 | `responseSchema` | 미사용 | JSON 모드 시 스키마 강제 |

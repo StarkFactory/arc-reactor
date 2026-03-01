@@ -132,6 +132,18 @@ class ArcReactorCoreBeansConfiguration {
     }
 
     @Bean
+    fun authRequirementMarker(environment: Environment): Any {
+        val authEnabled = environment.getProperty("arc.reactor.auth.enabled", Boolean::class.java, false)
+        if (!authEnabled) {
+            throw BeanInitializationException(
+                "Arc Reactor requires JWT authentication. Set arc.reactor.auth.enabled=true " +
+                    "and configure arc.reactor.auth.jwt-secret (minimum 32 bytes)."
+            )
+        }
+        return Any()
+    }
+
+    @Bean
     @ConditionalOnMissingBean
     fun toolPolicyStore(properties: AgentProperties): ToolPolicyStore =
         InMemoryToolPolicyStore(initial = ToolPolicy.fromProperties(properties.toolPolicy))

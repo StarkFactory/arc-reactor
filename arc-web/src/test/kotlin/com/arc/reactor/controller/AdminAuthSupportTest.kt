@@ -42,9 +42,9 @@ class AdminAuthSupportTest {
         }
 
         @Test
-        fun `returns true when role is null auth disabled`() {
-            assertTrue(isAdmin(exchangeWithRole(null))) {
-                "Auth-disabled mode should treat null role as admin"
+        fun `returns false when role is null`() {
+            assertFalse(isAdmin(exchangeWithRole(null))) {
+                "Null role should fail-close as non-admin"
             }
         }
     }

@@ -24,6 +24,9 @@ spring:
 
 arc:
   reactor:
+    auth:
+      enabled: true
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}
     llm:
       default-provider: gemini
       temperature: 0.3
@@ -45,8 +48,6 @@ arc:
     #   tools:
     #     enabled: true
     #     bot-token: ${SLACK_BOT_TOKEN}
-    # auth:
-    #   enabled: true
     # cors:
     #   enabled: true
     # circuit-breaker:

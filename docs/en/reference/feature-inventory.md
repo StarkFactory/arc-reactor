@@ -25,7 +25,7 @@
 | **Conversation History** | `GET /api/sessions/{id}` | Active | Full message history for a specific session |
 | **Session Deletion** | `DELETE /api/sessions/{id}` | Active | Server-side session data deletion |
 | **Available Models** | `GET /api/models` | Active | Registered LLM provider list + default model |
-| **JWT Authentication** | `POST /api/auth/*` | **opt-in** | Activated when `arc.reactor.auth.enabled=true` |
+| **JWT Authentication** | `POST /api/auth/*` | **required** | Runtime requires `arc.reactor.auth.enabled=true` |
 | **Persona Management** | `GET/POST/PUT/DELETE /api/personas` | Active | System prompt template CRUD |
 | **Per-User Session Isolation** | Internal (no API) | **opt-in** | Sessions filtered by userId when authentication is enabled |
 | **Response Caching** | Internal (no API) | **opt-in** | Caffeine-based cache, SHA-256 keys, temperature-based eligibility |
@@ -345,7 +345,7 @@ Request sent from the frontend to the backend:
   "message": "User input text (required, NotBlank)",
   "model": "gemini | openai | anthropic | vertex | null (server default)",
   "systemPrompt": "Custom system prompt | null (default prompt)",
-  "userId": "Sent from frontend when auth is disabled (extracted from JWT by server when auth is enabled)",
+  "userId": "Optional client hint (server extracts authoritative userId from JWT)",
   "metadata": {
     "sessionId": "UUID (session identifier)"
   },
@@ -361,7 +361,7 @@ Request sent from the frontend to the backend:
 | `message` | **Always** | Passed to LLM as userPrompt |
 | `model` | When configured | `ChatModelProvider` selects the ChatModel for the corresponding provider |
 | `systemPrompt` | When configured | LLM system prompt (default: "You are a helpful AI assistant...") |
-| `userId` | Sent when auth is disabled | Guard rate limit key, log identifier (auto-extracted from JWT when auth is enabled) |
+| `userId` | Optional | Guard rate limit key, log identifier (JWT userId is authoritative) |
 | `metadata.sessionId` | **Always** | `ConversationManager` loads/saves conversation history |
 | `responseFormat` | When not TEXT | Response format (JSON mode adds JSON instructions to system prompt) |
 | `responseSchema` | Not used | Schema enforcement in JSON mode |

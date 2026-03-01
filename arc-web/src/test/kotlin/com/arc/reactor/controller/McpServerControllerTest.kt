@@ -61,7 +61,10 @@ class McpServerControllerTest {
 
         @Test
         fun `should return empty list when no servers registered`() {
-            val result = controller.listServers()
+            val response = controller.listServers(adminExchange())
+            assertEquals(HttpStatus.OK, response.statusCode) { "Admin list should return 200" }
+            @Suppress("UNCHECKED_CAST")
+            val result = response.body as List<McpServerResponse>
             assertTrue(result.isEmpty()) { "Expected empty list, got ${result.size} servers" }
         }
 
@@ -73,11 +76,22 @@ class McpServerControllerTest {
                 config = mapOf("url" to "http://localhost:8081/sse")
             ))
 
-            val result = controller.listServers()
+            val response = controller.listServers(adminExchange())
+            assertEquals(HttpStatus.OK, response.statusCode) { "Admin list should return 200" }
+            @Suppress("UNCHECKED_CAST")
+            val result = response.body as List<McpServerResponse>
             assertEquals(1, result.size) { "Expected 1 server" }
             assertEquals("test-sse", result[0].name)
             assertEquals("SSE", result[0].transportType)
             assertEquals("PENDING", result[0].status)
+        }
+
+        @Test
+        fun `should reject non-admin list`() {
+            val response = controller.listServers(userExchange())
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "Non-admin should receive 403 when listing servers"
+            }
         }
     }
 
@@ -235,7 +249,7 @@ class McpServerControllerTest {
                 autoConnect = false
             ))
 
-            val response = controller.getServer("detail-test")
+            val response = controller.getServer("detail-test", adminExchange())
             assertEquals(HttpStatus.OK, response.statusCode) {
                 "Expected 200 OK"
             }
@@ -250,9 +264,17 @@ class McpServerControllerTest {
 
         @Test
         fun `should return 404 for unknown server`() {
-            val response = controller.getServer("nonexistent")
+            val response = controller.getServer("nonexistent", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
                 "Expected 404 NOT_FOUND for unknown server"
+            }
+        }
+
+        @Test
+        fun `should reject non-admin get detail`() {
+            val response = controller.getServer("detail-test", userExchange())
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "Non-admin should receive 403 for server detail"
             }
         }
     }
@@ -547,12 +569,15 @@ class McpServerControllerTest {
             assertEquals(HttpStatus.CREATED, created.statusCode) { "Step 1: Register should succeed" }
 
             // 2. Verify in list
-            val list = controller.listServers()
+            val listResponse = controller.listServers(exchange)
+            assertEquals(HttpStatus.OK, listResponse.statusCode) { "Step 2: list should return 200" }
+            @Suppress("UNCHECKED_CAST")
+            val list = listResponse.body as List<McpServerResponse>
             assertEquals(1, list.size) { "Step 2: Should have 1 server" }
             assertEquals("lifecycle-server", list[0].name)
 
             // 3. Get detail
-            val detail = controller.getServer("lifecycle-server")
+            val detail = controller.getServer("lifecycle-server", exchange)
             assertEquals(HttpStatus.OK, detail.statusCode) { "Step 3: Get should succeed" }
             assertEquals("Initial", (detail.body as McpServerDetailResponse).description)
 
@@ -565,7 +590,7 @@ class McpServerControllerTest {
             assertEquals(HttpStatus.OK, updated.statusCode) { "Step 4: Update should succeed" }
 
             // 5. Verify update
-            val afterUpdate = controller.getServer("lifecycle-server")
+            val afterUpdate = controller.getServer("lifecycle-server", exchange)
             assertEquals("Updated", (afterUpdate.body as McpServerDetailResponse).description) {
                 "Step 5: Description should be updated"
             }
@@ -575,7 +600,10 @@ class McpServerControllerTest {
             assertEquals(HttpStatus.NO_CONTENT, deleted.statusCode) { "Step 6: Delete should succeed" }
 
             // 7. Verify gone
-            assertTrue(controller.listServers().isEmpty()) { "Step 7: List should be empty after delete" }
+            val afterDeleteListResponse = controller.listServers(exchange)
+            @Suppress("UNCHECKED_CAST")
+            val afterDeleteList = afterDeleteListResponse.body as List<McpServerResponse>
+            assertTrue(afterDeleteList.isEmpty()) { "Step 7: List should be empty after delete" }
         }
 
         @Test
@@ -599,7 +627,9 @@ class McpServerControllerTest {
             }
 
             // List should have only trusted
-            val list = secureController.listServers()
+            val listResponse = secureController.listServers(adminExchange())
+            @Suppress("UNCHECKED_CAST")
+            val list = listResponse.body as List<McpServerResponse>
             assertEquals(1, list.size) { "Only trusted server should be listed" }
             assertEquals("trusted", list[0].name)
         }
@@ -650,7 +680,7 @@ class McpServerControllerTest {
                 "Register endpoint must persist server into controller store"
             }
 
-            val detailResponse = localController.getServer("decoupled-register")
+            val detailResponse = localController.getServer("decoupled-register", adminExchange())
             assertEquals(HttpStatus.OK, detailResponse.statusCode) {
                 "Get server should succeed after decoupled register persistence"
             }

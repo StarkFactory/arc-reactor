@@ -55,7 +55,7 @@ before they execute, and integrating chat into Slack alongside the web API.
 - **Output guard rules** — runtime-configurable content policy applied to LLM responses
 - **Resilience** — circuit breaker, configurable request/tool timeouts, fallback model chain
 - **Observability** — OpenAPI/Swagger, Spring Actuator, Prometheus metrics, OpenTelemetry tracing
-- **Security** — optional JWT authentication, security headers (HSTS, CSP), CORS control, MCP
+- **Security** — JWT authentication, security headers (HSTS, CSP), CORS control, MCP
   server allowlist
 - **Kubernetes-ready** — production Helm chart with HPA, ingress, secret management, liveness and
   readiness probes, graceful shutdown
@@ -81,6 +81,7 @@ cd arc-reactor
 
 ```bash
 export GEMINI_API_KEY=your-gemini-api-key
+export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 ./gradlew :arc-app:bootRun
 ```
 
@@ -145,6 +146,7 @@ Response + Audit Log + Metrics
 | Module | Description | When to use |
 |---|---|---|
 | `arc-app` | Executable assembly (`bootRun`, `bootJar`) | Always — entry point |
+| `arc-app-lite` | Minimal executable assembly (`bootJar`) without slack/admin/error-report runtime modules | When minimizing attack surface and image size |
 | `arc-core` | Agent engine: ReAct loop, Guard, Hook, memory, RAG, MCP, policy | Always — core runtime |
 | `arc-web` | REST controllers, OpenAPI spec, security headers, CORS | Always — HTTP API |
 | `arc-admin` | Admin module: metrics, tracing, ops dashboard | Optional — enable with `arc.reactor.admin.enabled=true` |
@@ -219,7 +221,7 @@ arc:
 | Guard | ON | `arc.reactor.guard.enabled` |
 | Security headers | ON | `arc.reactor.security-headers.enabled` |
 | Multimodal upload | ON | — |
-| Auth (JWT) | OFF | `arc.reactor.auth.enabled` |
+| Auth (JWT) | REQUIRED | `arc.reactor.auth.enabled=true` |
 | Approval (HITL) | OFF | `arc.reactor.approval.enabled` |
 | Tool policy | OFF | `arc.reactor.tool-policy.dynamic.enabled` |
 | RAG | OFF | `arc.reactor.rag.enabled` |
@@ -237,7 +239,17 @@ arc:
 
 ```bash
 export GEMINI_API_KEY=your-api-key
+export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 ./gradlew :arc-app:bootRun
+```
+
+### Lite bootJar (core + web only)
+
+```bash
+./gradlew :arc-app-lite:bootJar
+java -jar arc-app-lite/build/libs/arc-app-lite-*.jar \
+  --spring.ai.google.genai.api-key=$GEMINI_API_KEY \
+  --arc.reactor.auth.jwt-secret=$ARC_REACTOR_AUTH_JWT_SECRET
 ```
 
 ### Docker Compose (app + PostgreSQL)
@@ -287,9 +299,9 @@ for the full reference.
 | Session and model ops | `/api/sessions`, `/api/models` | Always |
 | Persona management | `/api/personas` | Always |
 | Prompt template versioning | `/api/prompt-templates` | Always |
-| MCP server registry | `/api/mcp/servers` | Always |
+| MCP server registry | `/api/mcp/servers` | Always (ADMIN for read/write) |
 | MCP access policy | `/api/mcp/servers/{name}/access-policy` | Always |
-| Output guard rules | `/api/output-guard/rules` | Always |
+| Output guard rules | `/api/output-guard/rules` | `arc.reactor.output-guard.enabled=true` + `arc.reactor.output-guard.dynamic-rules-enabled=true` |
 | Admin audit logs | `/api/admin/audits` | Always |
 | Ops dashboard | `/api/ops` | Always |
 | Authentication | `/api/auth` | `arc.reactor.auth.enabled=true` |
@@ -420,8 +432,8 @@ Schema migrations are managed by Flyway. Enable with `SPRING_FLYWAY_ENABLED=true
 
 ## Security Notes
 
-- Enable JWT auth in production. When auth is disabled, all requests are treated as admin.
-- Provide `JWT_SECRET` via environment variable (minimum 32 bytes); do not commit secrets.
+- JWT auth is mandatory. Keep `arc.reactor.auth.enabled=true` in all environments.
+- Provide `ARC_REACTOR_AUTH_JWT_SECRET` via environment variable (minimum 32 bytes); do not commit secrets.
 - Restrict MCP server exposure with `arc.reactor.mcp.security.allowed-server-names`.
 - Use tool policy and approval gates for high-risk write operations.
 - Enable Flyway with PostgreSQL so governance data is durable across restarts.

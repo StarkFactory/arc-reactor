@@ -160,7 +160,7 @@ class TenantAdminControllerTest {
             )
             every { dashboardService.getOverview("t1") } returns overview
 
-            val response = controller.overview(exchangeWithRole(null))
+            val response = controller.overview(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             response.body shouldBe overview
@@ -170,7 +170,7 @@ class TenantAdminControllerTest {
         fun `returns 404 when dashboard returns null`() {
             every { dashboardService.getOverview("t1") } returns null
 
-            val response = controller.overview(exchangeWithRole(null))
+            val response = controller.overview(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.NOT_FOUND
         }
@@ -188,7 +188,7 @@ class TenantAdminControllerTest {
             )
             every { sloService.getSloStatus("t1", 0.995, 10000L) } returns sloStatus
 
-            val response = controller.slo(exchangeWithRole(null))
+            val response = controller.slo(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             response.body shouldBe sloStatus
@@ -196,7 +196,7 @@ class TenantAdminControllerTest {
 
         @Test
         fun `returns 404 when tenant not found`() {
-            val response = controller.slo(exchangeWithTenant("unknown"))
+            val response = controller.slo(exchangeWithTenant("unknown", UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.NOT_FOUND
         }
@@ -210,7 +210,7 @@ class TenantAdminControllerTest {
             every { queryService.getCurrentMonthUsage("t1") } returns
                 TenantUsage("t1", 500, 250000, BigDecimal("5.00"))
 
-            val response = controller.quota(exchangeWithRole(null))
+            val response = controller.quota(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             @Suppress("UNCHECKED_CAST")
@@ -220,7 +220,7 @@ class TenantAdminControllerTest {
 
         @Test
         fun `quota returns 404 for unknown tenant`() {
-            val response = controller.quota(exchangeWithTenant("unknown"))
+            val response = controller.quota(exchangeWithTenant("unknown", UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.NOT_FOUND
         }
@@ -231,7 +231,7 @@ class TenantAdminControllerTest {
 
         @Test
         fun `returns active alerts for tenant`() {
-            val response = controller.alerts(exchangeWithRole(null))
+            val response = controller.alerts(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             @Suppress("UNCHECKED_CAST")
@@ -246,7 +246,7 @@ class TenantAdminControllerTest {
         fun `returns 200 with usage dashboard`() {
             every { dashboardService.getUsage(any(), any(), any()) } returns UsageDashboard()
 
-            val response = controller.usage(null, null, exchangeWithRole(null))
+            val response = controller.usage(null, null, exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
         }
@@ -262,7 +262,7 @@ class TenantAdminControllerTest {
                 writer.write("time,run_id\n")
             }
 
-            val response = controller.exportExecutions(null, null, exchangeWithRole(null))
+            val response = controller.exportExecutions(null, null, exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             response.headers["Content-Disposition"]?.first() shouldBe "attachment; filename=executions.csv"

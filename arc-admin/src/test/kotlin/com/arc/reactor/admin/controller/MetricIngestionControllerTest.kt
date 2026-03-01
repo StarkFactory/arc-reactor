@@ -37,7 +37,7 @@ class MetricIngestionControllerTest {
     fun setUp() {
         ringBuffer = MetricRingBuffer(64)
         controller = MetricIngestionController(ringBuffer)
-        adminExchange = exchangeWithRole(null) // null role = admin (auth disabled)
+        adminExchange = exchangeWithRole(UserRole.ADMIN)
     }
 
     @Nested

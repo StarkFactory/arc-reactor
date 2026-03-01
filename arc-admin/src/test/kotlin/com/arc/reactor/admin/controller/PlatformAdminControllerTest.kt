@@ -171,7 +171,7 @@ class PlatformAdminControllerTest {
             healthMonitor.updateBufferUsage(25.0)
             healthMonitor.recordWrite(100, 50)
 
-            val response = controller.health(exchangeWithRole(null))
+            val response = controller.health(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             val dashboard = response.body.shouldBeInstanceOf<PlatformHealthDashboard>()
@@ -185,7 +185,7 @@ class PlatformAdminControllerTest {
 
         @Test
         fun `listTenants returns all tenants`() {
-            val response = controller.listTenants(exchangeWithRole(null))
+            val response = controller.listTenants(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             @Suppress("UNCHECKED_CAST")
@@ -194,7 +194,7 @@ class PlatformAdminControllerTest {
 
         @Test
         fun `getTenant returns existing tenant`() {
-            val response = controller.getTenant("t1", exchangeWithRole(null))
+            val response = controller.getTenant("t1", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             (response.body as Tenant).id shouldBe "t1"
@@ -202,7 +202,7 @@ class PlatformAdminControllerTest {
 
         @Test
         fun `getTenant returns 404 for unknown`() {
-            val response = controller.getTenant("unknown", exchangeWithRole(null))
+            val response = controller.getTenant("unknown", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.NOT_FOUND
         }
@@ -213,7 +213,7 @@ class PlatformAdminControllerTest {
                 Tenant(name = "New", slug = "new-tenant", plan = TenantPlan.STARTER)
 
             val request = CreateTenantRequest("New", "new-tenant", "STARTER")
-            val response = controller.createTenant(request, exchangeWithRole(null))
+            val response = controller.createTenant(request, exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.CREATED
         }
@@ -221,7 +221,7 @@ class PlatformAdminControllerTest {
         @Test
         fun `createTenant returns 400 for invalid plan`() {
             val request = CreateTenantRequest("New", "new-tenant", "INVALID_PLAN")
-            val response = controller.createTenant(request, exchangeWithRole(null))
+            val response = controller.createTenant(request, exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.BAD_REQUEST
         }
@@ -230,7 +230,7 @@ class PlatformAdminControllerTest {
         fun `suspendTenant returns 404 when tenant not found`() {
             every { tenantService.suspend("unknown") } throws IllegalArgumentException("Tenant not found")
 
-            val response = controller.suspendTenant("unknown", exchangeWithRole(null))
+            val response = controller.suspendTenant("unknown", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.NOT_FOUND
         }
@@ -239,7 +239,7 @@ class PlatformAdminControllerTest {
         fun `activateTenant returns 200`() {
             every { tenantService.activate("t1") } returns testTenant.copy(status = TenantStatus.ACTIVE)
 
-            val response = controller.activateTenant("t1", exchangeWithRole(null))
+            val response = controller.activateTenant("t1", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
         }
@@ -252,7 +252,7 @@ class PlatformAdminControllerTest {
         fun `listPricing returns all pricing entries`() {
             pricingStore.save(ModelPricing(provider = "openai", model = "gpt-4"))
 
-            val response = controller.listPricing(exchangeWithRole(null))
+            val response = controller.listPricing(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             @Suppress("UNCHECKED_CAST")
@@ -263,7 +263,7 @@ class PlatformAdminControllerTest {
         fun `upsertPricing saves pricing`() {
             val pricing = ModelPricing(provider = "anthropic", model = "claude-3")
 
-            val response = controller.upsertPricing(pricing, exchangeWithRole(null))
+            val response = controller.upsertPricing(pricing, exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             pricingStore.findAll() shouldHaveSize 1
@@ -279,7 +279,7 @@ class PlatformAdminControllerTest {
                 AlertRule(name = "Test Rule", type = AlertType.STATIC_THRESHOLD, metric = "error_rate", threshold = 0.1)
             )
 
-            val response = controller.listAlertRules(exchangeWithRole(null))
+            val response = controller.listAlertRules(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             @Suppress("UNCHECKED_CAST")
@@ -290,7 +290,7 @@ class PlatformAdminControllerTest {
         fun `saveAlertRule creates rule`() {
             val rule = AlertRule(name = "New Rule", type = AlertType.STATIC_THRESHOLD, metric = "latency_p99", threshold = 5000.0)
 
-            val response = controller.saveAlertRule(rule, exchangeWithRole(null))
+            val response = controller.saveAlertRule(rule, exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             alertStore.findAllRules() shouldHaveSize 1
@@ -301,21 +301,21 @@ class PlatformAdminControllerTest {
             val rule = AlertRule(id = "del-1", name = "Delete Me", type = AlertType.STATIC_THRESHOLD, metric = "error_rate", threshold = 0.1)
             alertStore.saveRule(rule)
 
-            val response = controller.deleteAlertRule("del-1", exchangeWithRole(null))
+            val response = controller.deleteAlertRule("del-1", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.NO_CONTENT
         }
 
         @Test
         fun `deleteAlertRule returns 404 when not found`() {
-            val response = controller.deleteAlertRule("nonexistent", exchangeWithRole(null))
+            val response = controller.deleteAlertRule("nonexistent", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.NOT_FOUND
         }
 
         @Test
         fun `activeAlerts returns empty list initially`() {
-            val response = controller.activeAlerts(exchangeWithRole(null))
+            val response = controller.activeAlerts(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             @Suppress("UNCHECKED_CAST")
@@ -324,14 +324,14 @@ class PlatformAdminControllerTest {
 
         @Test
         fun `resolveAlert returns 200`() {
-            val response = controller.resolveAlert("alert-1", exchangeWithRole(null))
+            val response = controller.resolveAlert("alert-1", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
         }
 
         @Test
         fun `evaluateAlerts triggers evaluation`() {
-            val response = controller.evaluateAlerts(exchangeWithRole(null))
+            val response = controller.evaluateAlerts(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             verify { alertEvaluator.evaluateAll() }
@@ -346,7 +346,7 @@ class PlatformAdminControllerTest {
             every { queryService.getCurrentMonthUsage(any()) } returns
                 TenantUsage("t1", 500, 25000, BigDecimal("5.00"))
 
-            val response = controller.tenantAnalytics(exchangeWithRole(null))
+            val response = controller.tenantAnalytics(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
             @Suppress("UNCHECKED_CAST")
@@ -357,7 +357,7 @@ class PlatformAdminControllerTest {
         fun `handles queryService exception gracefully`() {
             every { queryService.getCurrentMonthUsage(any()) } throws RuntimeException("DB error")
 
-            val response = controller.tenantAnalytics(exchangeWithRole(null))
+            val response = controller.tenantAnalytics(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
         }

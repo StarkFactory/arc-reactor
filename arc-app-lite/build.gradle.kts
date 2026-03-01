@@ -5,9 +5,6 @@ plugins {
 dependencies {
     implementation(project(":arc-core"))
     runtimeOnly(project(":arc-web"))
-    runtimeOnly(project(":arc-slack"))
-    runtimeOnly(project(":arc-error-report"))
-    runtimeOnly(project(":arc-admin"))
 }
 
 springBoot {

@@ -76,9 +76,9 @@ Headers applied when enabled:
 
 | Property | Default | Description |
 |---|---|---|
-| `enabled` | `false` | JWT authentication (opt-in) |
+| `enabled` | `true` (runtime required) | JWT authentication |
 
-When `auth.enabled=false`, all requests are treated as admin. When `true`, `JwtAuthWebFilter` validates the `Authorization: Bearer <token>` header and sets user ID and role attributes on the exchange.
+`JwtAuthWebFilter` validates the `Authorization: Bearer <token>` header and sets user ID and role attributes on the exchange. Runtime startup fails when `auth.enabled=false`.
 
 ### Multimodal (`arc.reactor.multimodal`)
 
@@ -149,7 +149,7 @@ The `TenantContextResolver` resolves the tenant ID in this priority order:
 1. `resolvedTenantId` exchange attribute (set by JWT filter when auth is enabled)
 2. `tenantId` exchange attribute (legacy)
 3. `X-Tenant-Id` request header (validated against `^[a-zA-Z0-9_-]{1,64}$`)
-4. Default `"default"` (when auth is disabled)
+4. Default `"default"` (only when caller runs with auth disabled, e.g. test harness)
 
 When `auth.enabled=true` and no tenant context is present, the request is rejected with HTTP 400.
 
@@ -161,11 +161,11 @@ Controllers that perform write operations call `isAdmin(exchange)` from `AdminAu
 // AdminAuthSupport.kt
 fun isAdmin(exchange: ServerWebExchange): Boolean {
     val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-    return role == null || role == UserRole.ADMIN
+    return role == UserRole.ADMIN
 }
 ```
 
-When auth is disabled, `role` is always null, so all requests are treated as admin. This provides backward compatibility for unauthenticated deployments.
+Missing role fails closed as non-admin.
 
 Always use the shared `isAdmin()` function. Do not duplicate this logic in custom controllers.
 
@@ -402,4 +402,4 @@ curl -X POST http://localhost:8080/api/mcp/servers \
 
 **Multipart file uploads are DoS-protected.** The `MultipartChatController` enforces per-file size limits during streaming (before bytes are fully loaded into memory). Do not bypass this by setting very high `max-file-size-bytes` without understanding the memory impact.
 
-**When auth is disabled, all requests are admin.** This is intentional for development and single-tenant deployments. In production with multi-tenant requirements, always enable `arc.reactor.auth.enabled=true`.
+**Auth is mandatory.** Keep `arc.reactor.auth.enabled=true` and provide a valid JWT secret in every runtime environment.

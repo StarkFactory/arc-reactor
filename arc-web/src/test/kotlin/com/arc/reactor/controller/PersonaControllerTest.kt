@@ -154,15 +154,15 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should allow admin write when auth is disabled`() = runTest {
+        fun `should reject create when role is missing`() = runTest {
             val slot = slot<Persona>()
             every { personaStore.save(capture(slot)) } answers { slot.captured }
 
             val request = CreatePersonaRequest(name = "test", systemPrompt = "test")
             val response = controller.createPersona(request, noAuthExchange())
 
-            assertEquals(HttpStatus.CREATED, response.statusCode) {
-                "Auth-disabled mode should treat request as admin"
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "Missing role should be rejected"
             }
         }
 

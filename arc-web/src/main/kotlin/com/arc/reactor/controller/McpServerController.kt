@@ -52,11 +52,13 @@ class McpServerController(
      */
     @Operation(summary = "List all registered MCP servers")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "List of MCP servers")
+        ApiResponse(responseCode = "200", description = "List of MCP servers"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping
-    fun listServers(): List<McpServerResponse> {
-        return mcpManager.listServers().map { it.toResponse() }
+    fun listServers(exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+        return ResponseEntity.ok(mcpManager.listServers().map { it.toResponse() })
     }
 
     /**
@@ -129,10 +131,15 @@ class McpServerController(
     @Operation(summary = "Get server details with tools")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "MCP server details"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
         ApiResponse(responseCode = "404", description = "MCP server not found")
     ])
     @GetMapping("/{name}")
-    fun getServer(@PathVariable name: String): ResponseEntity<Any> {
+    fun getServer(
+        @PathVariable name: String,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val server = mcpServerStore.findByName(name)
             ?: return mcpNotFound(name)
 

@@ -7,13 +7,13 @@ import org.springframework.web.server.ServerWebExchange
  *
  * Policy:
  * - [UserRole.ADMIN] is treated as admin.
- * - null role is also treated as admin for auth-disabled compatibility.
+ * - null role is treated as non-admin (fail-close).
  */
 object AdminAuthorizationSupport {
 
     fun isAdmin(exchange: ServerWebExchange): Boolean {
         val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-        return role == null || role == UserRole.ADMIN
+        return role == UserRole.ADMIN
     }
 
     fun currentActor(exchange: ServerWebExchange): String {

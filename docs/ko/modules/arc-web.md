@@ -76,9 +76,9 @@
 
 | 프로퍼티 | 기본값 | 설명 |
 |---|---|---|
-| `enabled` | `false` | JWT 인증 (선택적 활성화) |
+| `enabled` | `true` (런타임 필수) | JWT 인증 |
 
-`auth.enabled=false`이면 모든 요청이 관리자로 처리됩니다. `true`이면 `JwtAuthWebFilter`가 `Authorization: Bearer <token>` 헤더를 검증하고 exchange에 사용자 ID와 역할 속성을 설정합니다.
+`JwtAuthWebFilter`가 `Authorization: Bearer <token>` 헤더를 검증하고 exchange에 사용자 ID와 역할 속성을 설정합니다. `auth.enabled=false`이면 런타임 기동이 실패합니다.
 
 ### 멀티모달 (`arc.reactor.multimodal`)
 
@@ -161,11 +161,11 @@ class ApiKeyWebFilter : WebFilter {
 // AdminAuthSupport.kt
 fun isAdmin(exchange: ServerWebExchange): Boolean {
     val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-    return role == null || role == UserRole.ADMIN
+    return role == UserRole.ADMIN
 }
 ```
 
-인증이 비활성화되면 `role`이 항상 null이므로 모든 요청이 관리자로 처리됩니다. 이는 인증 없는 배포 환경과의 하위 호환성을 위한 설계입니다.
+`role`이 없으면 fail-close로 비관리자 처리됩니다.
 
 항상 공유 `isAdmin()` 함수를 사용하세요. 커스텀 컨트롤러에서 이 로직을 복제하지 마세요.
 
@@ -402,4 +402,4 @@ curl -X POST http://localhost:8080/api/mcp/servers \
 
 **멀티파트 파일 업로드는 DoS에 대비한 보호 기능이 있습니다.** `MultipartChatController`는 스트리밍 중에 (바이트가 완전히 메모리에 로드되기 전에) 파일당 크기 제한을 적용합니다. `max-file-size-bytes`를 매우 높게 설정하면 메모리에 미치는 영향을 충분히 이해한 후 진행하세요.
 
-**인증이 비활성화되면 모든 요청이 관리자입니다.** 이는 개발 및 단일 테넌트 배포에서는 의도된 동작입니다. 멀티 테넌트 프로덕션 환경에서는 항상 `arc.reactor.auth.enabled=true`를 설정하세요.
+**인증은 필수입니다.** 모든 런타임 환경에서 `arc.reactor.auth.enabled=true`를 유지하고 유효한 JWT 시크릿을 제공하세요.

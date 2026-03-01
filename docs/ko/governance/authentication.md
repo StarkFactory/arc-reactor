@@ -2,19 +2,17 @@
 
 ## 한 줄 요약
 
-**`arc.reactor.auth.enabled=true` 하나로 켜지는 opt-in JWT 인증.** 기업은 `AuthProvider` 인터페이스만 구현하면 LDAP/SSO 등 커스텀 인증으로 교체 가능.
+**JWT 인증은 런타임 필수(`arc.reactor.auth.enabled=true`).** 기업은 `AuthProvider` 인터페이스만 구현하면 LDAP/SSO 등 커스텀 인증으로 교체 가능.
 
 ---
 
-## 왜 opt-in인가?
+## 런타임 필수 조건
 
-Arc Reactor는 로컬 개발과 빠른 프로토타이핑이 중요하다. 인증은 필요할 때만 켜야 한다:
+런타임 환경에서는 인증을 항상 활성화해야 한다:
 
-- **로컬 개발** → 인증 없이 바로 채팅 (`arc.reactor.auth.enabled=false`, 기본값)
-- **팀/사내 배포** → 인증 켜서 사용자별 세션 격리 (`arc.reactor.auth.enabled=true`)
-- **기업 fork** → `AuthProvider` 교체로 사내 인증 시스템 연동
-
-인증 비활성 시 auth 관련 빈은 하나도 등록되지 않는다. 기존 코드에 영향 zero.
+- `arc.reactor.auth.enabled=true`
+- `arc.reactor.auth.jwt-secret`에 32바이트 이상 시크릿 설정
+- 인증 설정이 없거나 잘못되면 애플리케이션 기동 실패
 
 ---
 

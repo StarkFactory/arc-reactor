@@ -19,6 +19,7 @@ import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import mu.KotlinLogging
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -39,6 +40,18 @@ private val logger = KotlinLogging.logger {}
 @Tag(name = "Output Guard Rules", description = "Dynamic output guard regex rules (ADMIN only for write operations)")
 @RestController
 @RequestMapping("/api/output-guard/rules")
+@ConditionalOnProperty(
+    prefix = "arc.reactor.output-guard",
+    name = ["enabled"],
+    havingValue = "true",
+    matchIfMissing = false
+)
+@ConditionalOnProperty(
+    prefix = "arc.reactor.output-guard",
+    name = ["dynamic-rules-enabled"],
+    havingValue = "true",
+    matchIfMissing = true
+)
 class OutputGuardRuleController(
     private val store: OutputGuardRuleStore,
     private val auditStore: OutputGuardRuleAuditStore,

@@ -65,6 +65,11 @@ arc:
       rate-limit-per-minute: 20
       rate-limit-per-hour: 200
 
+    auth:
+      enabled: ${ARC_REACTOR_AUTH_ENABLED:true}
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET:}
+      public-actuator-health: ${ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH:false}
+
     boundaries:
       input-min-chars: 1
       input-max-chars: 10000

@@ -75,7 +75,11 @@ import org.springframework.context.annotation.Configuration
 class ArcReactorAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()
-        .withPropertyValues("arc.reactor.postgres.required=false")
+        .withPropertyValues(
+            "arc.reactor.postgres.required=false",
+            "arc.reactor.auth.enabled=true",
+            "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
+        )
         .withConfiguration(AutoConfigurations.of(ArcReactorAutoConfiguration::class.java))
 
     private val jdbcContextRunner = contextRunner
@@ -583,16 +587,16 @@ class ArcReactorAutoConfigurationTest {
     inner class AuthConfigurationTests {
 
         @Test
-        fun `should not register auth beans by default`() {
+        fun `should register auth beans by default`() {
             contextRunner.run { context ->
-                assertFalse(context.containsBean("userStore")) {
-                    "UserStore should not exist when auth is disabled"
+                assertTrue(context.containsBean("userStore")) {
+                    "UserStore should exist by default because auth is mandatory"
                 }
-                assertFalse(context.containsBean("jwtTokenProvider")) {
-                    "JwtTokenProvider should not exist when auth is disabled"
+                assertTrue(context.containsBean("jwtTokenProvider")) {
+                    "JwtTokenProvider should exist by default"
                 }
-                assertFalse(context.containsBean("adminInitializer")) {
-                    "AdminInitializer should not exist when auth is disabled"
+                assertTrue(context.containsBean("adminInitializer")) {
+                    "AdminInitializer should exist by default"
                 }
             }
         }
@@ -689,15 +693,19 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should start normally when auth disabled with empty jwt secret`() {
+        fun `should fail context startup when auth is disabled`() {
             contextRunner
                 .withPropertyValues("arc.reactor.auth.enabled=false")
                 .run { context ->
-                    assertNull(context.startupFailure) {
-                        "Context should start successfully when auth is disabled, even with no jwt-secret"
+                    assertTrue(context.startupFailure != null) {
+                        "Context should fail to start when auth is disabled"
                     }
-                    assertFalse(context.containsBean("jwtSecretValidator")) {
-                        "jwtSecretValidator bean should not exist when auth is disabled"
+                    val message = context.startupFailure!!.message ?: ""
+                    assertTrue(
+                        message.contains("arc.reactor.auth.enabled") ||
+                            causeChainContains(context.startupFailure!!, "arc.reactor.auth.enabled")
+                    ) {
+                        "Failure cause should reference arc.reactor.auth.enabled requirement"
                     }
                 }
         }
