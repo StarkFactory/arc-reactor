@@ -146,7 +146,6 @@ Response + Audit Log + Metrics
 | Module | Description | When to use |
 |---|---|---|
 | `arc-app` | Executable assembly (`bootRun`, `bootJar`) | Always — entry point |
-| `arc-app-lite` | Minimal executable assembly (`bootJar`) without slack/admin/error-report runtime modules | When minimizing attack surface and image size |
 | `arc-core` | Agent engine: ReAct loop, Guard, Hook, memory, RAG, MCP, policy | Always — core runtime |
 | `arc-web` | REST controllers, OpenAPI spec, security headers, CORS | Always — HTTP API |
 | `arc-admin` | Admin module: metrics, tracing, ops dashboard | Optional — enable with `arc.reactor.admin.enabled=true` |
@@ -241,15 +240,6 @@ arc:
 export GEMINI_API_KEY=your-api-key
 export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 ./gradlew :arc-app:bootRun
-```
-
-### Lite bootJar (core + web only)
-
-```bash
-./gradlew :arc-app-lite:bootJar
-java -jar arc-app-lite/build/libs/arc-app-lite-*.jar \
-  --spring.ai.google.genai.api-key=$GEMINI_API_KEY \
-  --arc.reactor.auth.jwt-secret=$ARC_REACTOR_AUTH_JWT_SECRET
 ```
 
 ### Docker Compose (app + PostgreSQL)

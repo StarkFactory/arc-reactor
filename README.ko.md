@@ -138,7 +138,6 @@ Arc Reactor는 세 가지 플레인으로 역할을 구분합니다.
 | 모듈 | 설명 | 사용 시기 |
 |---|---|---|
 | `arc-app` | 실행 가능한 어셈블리 (`bootRun`, `bootJar`) | 항상 — 진입점 |
-| `arc-app-lite` | Slack/Admin/Error-report 런타임 모듈이 빠진 최소 실행 어셈블리 (`bootJar`) | 공격면/이미지 크기 최소화가 필요할 때 |
 | `arc-core` | Agent 엔진: ReAct 루프, Guard, Hook, 메모리, RAG, MCP, 정책 | 항상 — 핵심 런타임 |
 | `arc-web` | REST 컨트롤러, OpenAPI 스펙, 보안 헤더, CORS | 항상 — HTTP API |
 | `arc-admin` | 관리자 모듈: 메트릭, 트레이싱, 운영 대시보드 | 선택 — `arc.reactor.admin.enabled=true` |
@@ -233,15 +232,6 @@ arc:
 export GEMINI_API_KEY=your-api-key
 export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 ./gradlew :arc-app:bootRun
-```
-
-### Lite bootJar (core + web only)
-
-```bash
-./gradlew :arc-app-lite:bootJar
-java -jar arc-app-lite/build/libs/arc-app-lite-*.jar \
-  --spring.ai.google.genai.api-key=$GEMINI_API_KEY \
-  --arc.reactor.auth.jwt-secret=$ARC_REACTOR_AUTH_JWT_SECRET
 ```
 
 ### Docker Compose (앱 + PostgreSQL)
