@@ -13,8 +13,7 @@ server:
 #   export SPRING_AI_OPENAI_API_KEY=your-key
 #   export SPRING_AI_ANTHROPIC_API_KEY=your-key
 #
-# Note: this default app keeps empty fallbacks for local startup/tests.
-# In production, provide keys via environment variables (without relying on empty defaults).
+# API keys must be provided via environment variables (no empty-string fallback defaults).
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
@@ -27,12 +26,12 @@ spring:
   ai:
     google:
       genai:
-        api-key: ${GEMINI_API_KEY:}
+        api-key: ${GEMINI_API_KEY}
         chat:
           options:
             model: gemini-2.0-flash
         embedding:
-          api-key: ${GEMINI_API_KEY:}
+          api-key: ${GEMINI_API_KEY}
           text:
             options:
               model: gemini-embedding-001
