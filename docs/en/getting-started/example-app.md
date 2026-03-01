@@ -1,269 +1,119 @@
-# Example Application & Tool Addition Guide
+# Example App and Tool Extension Guide
 
-## Project Structure
+Arc Reactor is an executable multi-module Spring Boot application intended to be forked and customized.
 
-Arc Reactor is a **core project that you fork and attach your own tools to**.
-It is not a library -- it is a Spring Boot application that you run directly.
+## Current module layout (high-level)
 
-```
-src/main/kotlin/com/arc/reactor/
-├── ArcReactorApplication.kt          ← Main entry point
-├── config/
-│   └── ChatClientConfig.kt           ← ChatClient bean configuration
-├── controller/
-│   └── ChatController.kt             ← REST API endpoints
-├── tool/
-│   ├── ToolCallback.kt               ← Tool interface (key!)
-│   └── example/
-│       ├── CalculatorTool.kt          ← Example: calculator tool
-│       └── DateTimeTool.kt            ← Example: current time tool
-├── agent/                             ← Agent core (no need to modify)
-├── guard/                             ← Security guard (no need to modify)
-├── hook/                              ← Hook system (no need to modify)
-├── memory/                            ← Conversation memory (no need to modify)
-└── rag/                               ← RAG pipeline (no need to modify)
+```text
+arc-app         Executable assembly (bootRun / bootJar)
+arc-core        Agent runtime (ReAct loop, guard/hook, tool abstractions, memory, auth)
+arc-web         REST/SSE controllers and web API layer
+arc-admin       Admin control-plane features (metrics/tracing/tenant dashboards)
+arc-slack       Slack channel integration
+arc-error-report Optional error-reporting feature module
 ```
 
----
-
-## Quick Start
-
-### 1. Set Up Gemini API Key
+## Minimal local run
 
 ```bash
-# Get your key at https://aistudio.google.com/apikey
 export GEMINI_API_KEY=your-api-key
-```
-
-### 2. Run
-
-```bash
+export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
+export SPRING_DATASOURCE_USERNAME=arc
+export SPRING_DATASOURCE_PASSWORD=arc
 ./gradlew :arc-app:bootRun
 ```
 
-### 3. Test Calls
+## First API calls
 
 ```bash
-# Standard response
-curl -X POST http://localhost:8080/api/chat \
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"message": "What is 3 + 5?"}'
+  -d '{"email":"qa@example.com","password":"passw0rd!","name":"QA"}' \
+  | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
 
-# Streaming response (SSE)
-curl -X POST http://localhost:8080/api/chat/stream \
+curl -X POST http://localhost:8080/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-Id: default" \
   -H "Content-Type: application/json" \
-  -d '{"message": "What time is it in Seoul right now?"}' \
-  --no-buffer
+  -d '{"message":"What is 3 + 5?"}'
 ```
 
----
+Streaming:
 
-## Adding Your Own Tools
+```bash
+curl -N -X POST http://localhost:8080/api/chat/stream \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-Id: default" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Give me a 3-line summary of ReAct."}'
+```
 
-### The Key Point: Just 3 Steps
+## Add your own tool (ToolCallback style)
 
-1. Implement the `ToolCallback` interface
-2. Annotate with `@Component`
-3. Done! (Auto-registered)
-
-### Example: Creating a Weather Tool
+`ToolCallback` is the framework-agnostic adapter point used by the runtime.
 
 ```kotlin
-package com.arc.reactor.tool.example
+package com.arc.reactor.tool.custom
 
 import com.arc.reactor.tool.ToolCallback
 import org.springframework.stereotype.Component
 
 @Component
 class WeatherTool : ToolCallback {
+    override val name: String = "get_weather"
+    override val description: String = "Get current weather by city name"
 
-    // 1. Tool name (the LLM calls this tool by this name)
-    override val name = "get_weather"
-
-    // 2. Description (the LLM uses this to decide when to use the tool)
-    override val description = "Get current weather for a city"
-
-    // 3. Input schema (tells the LLM what parameters to send)
     override val inputSchema: String
         get() = """
             {
               "type": "object",
               "properties": {
-                "city": {
-                  "type": "string",
-                  "description": "City name (e.g., Seoul, Tokyo)"
-                }
+                "city": {"type": "string", "description": "City name"}
               },
               "required": ["city"]
             }
         """.trimIndent()
 
-    // 4. Actual logic
     override suspend fun call(arguments: Map<String, Any?>): Any {
         val city = arguments["city"] as? String
-            ?: return "Error: city parameter is required"
-
-        // Put your actual weather API call logic here
-        return "Current weather in $city: Clear, 22 degrees"
+            ?: return "Error: city is required"
+        return "Weather for $city: Clear, 22C"
     }
 }
 ```
 
-By simply adding this one file, the LLM will automatically recognize the tool and call it when needed.
+## Add your own tool (LocalTool + @Tool style)
 
----
+For strongly typed method-based tools, use `LocalTool` with Spring AI `@Tool`.
 
-## Included Example Tools
+```kotlin
+package com.arc.reactor.tool.custom
 
-### CalculatorTool
+import com.arc.reactor.tool.LocalTool
+import org.springframework.ai.tool.annotation.Tool
+import org.springframework.stereotype.Component
 
-A math calculation tool. Performs basic arithmetic operations (add, subtract, multiply, divide).
+@Component
+class RepoTool : LocalTool {
 
-```
-User: "What is 152 times 38?"
-LLM: [calls calculator tool] -> "152.0 * 38.0 = 5776.0"
-LLM: "152 times 38 is 5,776."
-```
-
-### DateTimeTool
-
-A current date/time lookup tool. Supports timezone specification.
-
-```
-User: "What time is it in New York right now?"
-LLM: [calls current_datetime tool, timezone="America/New_York"]
-LLM: "It is currently 2026-02-06 10:30:00 (Thursday) in New York."
-```
-
----
-
-## API Endpoints
-
-### POST /api/chat
-
-Standard response. Returns the complete result at once.
-
-**Request:**
-```json
-{
-  "message": "What is 3 + 5?",
-  "systemPrompt": "You are a math teacher.",
-  "userId": "user-123"
+    @Tool(description = "Get repository default branch")
+    suspend fun getDefaultBranch(repo: String): String {
+        return "main"
+    }
 }
 ```
 
-**Response:**
-```json
-{
-  "content": "3 + 5 is 8!",
-  "success": true,
-  "toolsUsed": ["calculator"],
-  "errorMessage": null
-}
-```
+## Validation checklist after adding tools
 
-### POST /api/chat/stream
+- Tool bean is discovered by Spring (`@Component` or explicit `@Bean`)
+- Tool name/description are clear enough for LLM selection
+- Tool returns `"Error: ..."` on recoverable failure instead of throwing
+- Integration smoke test confirms tool appears in `toolsUsed`
 
-Streaming response (SSE). Delivers tokens in real time.
+## Next docs
 
-```
-data: Let
-data: me
-data: calculate
-data: .
-[tool executing...]
-data: 3
-data:  +
-data:  5
-data:  is
-data:  8
-data: !
-```
-
----
-
-## Configuration (application.yml)
-
-```yaml
-# Gemini configuration
-spring:
-  ai:
-    google:
-      genai:
-        api-key: ${GEMINI_API_KEY}
-        chat:
-          options:
-            model: gemini-2.0-flash  # Can be changed to gemini-2.0-pro, etc.
-
-# Agent configuration
-arc:
-  reactor:
-    max-tool-calls: 10              # Maximum number of tool calls per request
-    llm:
-      temperature: 0.7              # Creativity (0.0 ~ 1.0)
-      max-output-tokens: 4096       # Maximum response length
-    guard:
-      enabled: true                 # Enable security guard
-      rate-limit-per-minute: 60     # Request rate limit per minute
-```
-
----
-
-## Changing LLM Providers
-
-The default is Gemini (API Key). To use a different provider, modify `build.gradle.kts`.
-
-### Using OpenAI
-
-```kotlin
-// build.gradle.kts
-implementation("org.springframework.ai:spring-ai-starter-model-openai")
-// compileOnly("org.springframework.ai:spring-ai-starter-model-google-genai")  <- comment out
-```
-
-```yaml
-# application.yml
-spring:
-  ai:
-    openai:
-      api-key: ${SPRING_AI_OPENAI_API_KEY}
-      chat:
-        options:
-          model: gpt-4o-mini
-```
-
-### Using Anthropic (Claude)
-
-```kotlin
-// build.gradle.kts
-implementation("org.springframework.ai:spring-ai-starter-model-anthropic")
-// compileOnly("org.springframework.ai:spring-ai-starter-model-google-genai")  <- comment out
-```
-
-```yaml
-# application.yml
-spring:
-  ai:
-    anthropic:
-      api-key: ${SPRING_AI_ANTHROPIC_API_KEY}
-      chat:
-        options:
-          model: claude-sonnet-4-5-20250929
-```
-
----
-
-## How It Works (Brief Overview)
-
-```
-1. User sends a message to /api/chat
-2. ChatController calls AgentExecutor.execute()
-3. Guard pipeline performs security checks (Rate Limit, Injection Detection, etc.)
-4. Message + registered tool list are sent to the LLM
-5. LLM decides to call tools -> tools execute -> results are passed back to the LLM
-6. LLM generates the final response
-7. Response is returned to the user
-```
-
-The key point is that **step 5 repeats automatically** (ReAct loop).
-If the LLM wants to call more tools, it keeps calling them; when it has enough information, it produces the final answer.
+- [Configuration quickstart](configuration-quickstart.md)
+- [Configuration reference](configuration.md)
+- [Tool reference](../reference/tools.md)
+- [MCP runtime management](../architecture/mcp/runtime-management.md)

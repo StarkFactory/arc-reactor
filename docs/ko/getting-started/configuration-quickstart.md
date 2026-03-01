@@ -1,32 +1,42 @@
 # 설정 Quickstart
 
-Arc Reactor를 fork해서 사용할 때는 최소 설정부터 시작하세요.
+Arc Reactor를 fork해서 사용할 때는 먼저 "확실히 동작하는 최소 실행 상태"를 만든 뒤 기능을 점진적으로 켜는 것이 안전합니다.
 
-## 1) 빠른 시작(bootstrap 스크립트)
+## 1) 빠른 경로 (bootstrap 스크립트)
 
 ```bash
 ./scripts/dev/bootstrap-local.sh --api-key your-api-key --run
 ```
 
-이 스크립트는 `examples/config/application.quickstart.yml`을
-`arc-core/src/main/resources/application-local.yml`로 복사(없을 때),
-`GEMINI_API_KEY`를 검증하고 `:arc-app:bootRun`까지 실행합니다.
+이 스크립트가 수행하는 작업:
 
-## 2) 필수 값(수동 경로)
+- `examples/config/application.quickstart.yml`을 `arc-core/src/main/resources/application-local.yml`로 복사(없을 때)
+- `GEMINI_API_KEY` 검증
+- `ARC_REACTOR_AUTH_JWT_SECRET`이 없으면 개발용 시크릿 자동 생성
+- PostgreSQL 연결 환경 변수와 함께 `:arc-app:bootRun` 실행
 
-첫 실행에 필요한 환경 변수는 1개입니다:
+## 2) 수동 경로 (필수 값)
+
+Arc Reactor는 기동 전 preflight 검사를 수행합니다. 아래 값이 모두 필요합니다.
 
 ```bash
 export GEMINI_API_KEY=your-api-key
+export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
+export SPRING_DATASOURCE_USERNAME=arc
+export SPRING_DATASOURCE_PASSWORD=arc
 ./gradlew :arc-app:bootRun
 ```
 
-## 3) 로컬 YAML 파일(선택)
+필수 값이 없거나 형식이 잘못되면 서버는 즉시 기동 실패합니다.
 
-명시적인 로컬 설정이 필요하면 quickstart 예시부터 시작하세요:
+## 3) 로컬 YAML 파일 (선택)
+
+아래 템플릿에서 시작하세요.
 
 - [`application.yml.example`](../../../application.yml.example)
 - [`examples/config/application.quickstart.yml`](../../../examples/config/application.quickstart.yml)
+- [`examples/config/application.advanced.yml`](../../../examples/config/application.advanced.yml)
 
 예시:
 
@@ -34,18 +44,34 @@ export GEMINI_API_KEY=your-api-key
 cp examples/config/application.quickstart.yml arc-core/src/main/resources/application-local.yml
 ```
 
-## 4) 기능은 단계적으로 활성화
+## 4) 첫 API 스모크 테스트
 
-주요 기능은 기본적으로 opt-in입니다(guard/security headers 제외):
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"qa@example.com","password":"passw0rd!","name":"QA"}' \
+  | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+
+curl -s -X POST http://localhost:8080/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-Id: default" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"한 문장으로 인사해줘."}'
+```
+
+## 5) 선택 기능 점진 활성화
+
+대표적인 opt-in 토글:
 
 - `arc.reactor.rag.enabled`
-- `arc.reactor.cors.enabled`
-- `arc.reactor.circuit-breaker.enabled`
-- `arc.reactor.cache.enabled`
+- `arc.reactor.rag.ingestion.enabled`
+- `arc.reactor.approval.enabled`
+- `arc.reactor.tool-policy.dynamic.enabled`
+- `arc.reactor.output-guard.enabled`
+- `arc.reactor.admin.enabled`
 
-## 5) 전체 설정이 필요하면
-
-다음 문서/예시로 확장하세요:
+## 6) 전체 설정이 필요하면
 
 - 전체 레퍼런스: [configuration.md](configuration.md)
-- 고급 예시: [`examples/config/application.advanced.yml`](../../../examples/config/application.advanced.yml)
+- 트러블슈팅: [troubleshooting.md](troubleshooting.md)
+- 배포 가이드: [deployment.md](deployment.md)

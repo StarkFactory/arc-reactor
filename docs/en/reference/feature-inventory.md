@@ -1,6 +1,6 @@
 # Arc Reactor Feature Inventory & Data Architecture
 
-> Last updated: 2026-02-11
+> Last updated: 2026-03-01
 
 ---
 
@@ -27,7 +27,7 @@
 | **Available Models** | `GET /api/models` | Active | Registered LLM provider list + default model |
 | **JWT Authentication** | `POST /api/auth/*` | **required** | Runtime requires `arc.reactor.auth.jwt-secret` |
 | **Persona Management** | `GET/POST/PUT/DELETE /api/personas` | Active | System prompt template CRUD |
-| **Per-User Session Isolation** | Internal (no API) | **opt-in** | Sessions filtered by userId when authentication is enabled |
+| **Per-User Session Isolation** | Internal (no API) | Active | Sessions are filtered by JWT-derived userId (auth is always required) |
 | **Response Caching** | Internal (no API) | **opt-in** | Caffeine-based cache, SHA-256 keys, temperature-based eligibility |
 | **Circuit Breaker** | Internal (no API) | **opt-in** | Kotlin-native CB: CLOSED → OPEN → HALF_OPEN state machine |
 | **Graceful Degradation** | Internal (no API) | **opt-in** | Sequential model fallback on primary model failure |
@@ -299,7 +299,7 @@ services:
 - **Pros:** Permanent conversation history preservation, context persists after server restart
 - **Cons:** Requires DB management
 
-### 5.3 Deployment with Authentication Enabled
+### 5.3 Deployment (authentication is always enabled)
 
 ```bash
 # Enable db flag during Docker build
@@ -311,7 +311,7 @@ GEMINI_API_KEY=your-key
 ARC_REACTOR_AUTH_JWT_SECRET=your-256-bit-secret
 ```
 
-When authentication is enabled, the following happens automatically:
+With current runtime defaults, the following happens automatically:
 - All APIs require a JWT token (except `/api/auth/login`, `/api/auth/register`)
 - Sessions are isolated by userId (users cannot access other users' sessions)
 - user_id column is automatically added to conversation_messages (Flyway V4)
@@ -441,9 +441,9 @@ arc:
       input-max-chars: 5000         # Max input length (characters)
 
     auth:
-      enabled: false                 # Enable JWT authentication (opt-in)
-      jwt-secret: ""                 # HMAC signing secret (required when enabled)
+      jwt-secret: ""                 # HMAC signing secret (required, min 32 bytes)
       jwt-expiration-ms: 86400000    # Token validity period (24 hours)
+      default-tenant-id: default     # Default tenant claim for issued JWT
       public-paths:                  # Paths accessible without authentication
         - /api/auth/login
         - /api/auth/register
@@ -556,7 +556,11 @@ Areas that need modification when using arc-reactor after forking:
 
 ```bash
 # .env file
-GEMINI_API_KEY=your-key          # or another provider key
+GEMINI_API_KEY=your-key
+ARC_REACTOR_AUTH_JWT_SECRET=replace-with-32-byte-secret
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
+SPRING_DATASOURCE_USERNAME=arc
+SPRING_DATASOURCE_PASSWORD=arc
 ```
 
 ### 12.2 Adding Tools

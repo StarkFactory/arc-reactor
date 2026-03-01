@@ -1,7 +1,7 @@
 # Arc Reactor
 
 [![CI](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml/badge.svg)](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-4.5.0-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v4.5.0)
+[![Version](https://img.shields.io/badge/version-4.7.2-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v4.7.2)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.10-purple.svg)](https://kotlinlang.org)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-green.svg)](https://spring.io/projects/spring-boot)
@@ -61,7 +61,7 @@ git clone https://github.com/StarkFactory/arc-reactor.git
 cd arc-reactor
 ```
 
-### 2. API 키 설정 후 실행
+### 2. 필수 환경 변수 설정 후 실행
 
 **빠른 방법 (부트스트랩 스크립트):**
 
@@ -80,6 +80,13 @@ export SPRING_DATASOURCE_USERNAME=arc
 export SPRING_DATASOURCE_PASSWORD=arc
 ./gradlew :arc-app:bootRun
 ```
+
+필수 런타임 값이 없으면 Arc Reactor는 기동 시점에 즉시 실패합니다:
+
+- `ARC_REACTOR_AUTH_JWT_SECRET` (최소 32바이트)
+- `SPRING_DATASOURCE_URL` (`jdbc:postgresql://...` 형식)
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
 
 기본 LLM 제공자는 Gemini입니다. OpenAI나 Anthropic을 사용하려면
 `SPRING_AI_OPENAI_API_KEY` 또는 `SPRING_AI_ANTHROPIC_API_KEY`를 설정하세요.
@@ -101,6 +108,23 @@ curl -X POST http://localhost:8080/api/chat \
 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - 헬스 체크: `http://localhost:8080/actuator/health`
+
+### 런타임 필수 조건 요약
+
+| 필수 항목 | 이유 |
+|---|---|
+| `GEMINI_API_KEY` (또는 다른 provider 키) | `ChatClient` provider 빈 생성에 필요 |
+| `ARC_REACTOR_AUTH_JWT_SECRET` | JWT 인증 필터/토큰 발급에 필수 |
+| PostgreSQL datasource 환경 변수 (`SPRING_DATASOURCE_*`) | 런타임 preflight 기본값(`arc.reactor.postgres.required=true`) 충족 |
+
+### 인증/테넌트 모델 (중요)
+
+- 인증은 항상 필수이며 `arc.reactor.auth.enabled` 토글은 제거되었습니다.
+- `/api/auth/*`에서 발급되는 JWT에는 `tenantId` 클레임이 포함됩니다 (기본값: `default`).
+- 런타임 테넌트 해석 우선순위:
+  1. JWT의 `tenantId` 클레임
+  2. `X-Tenant-Id` 요청 헤더
+- 테넌트 컨텍스트가 없으면 `/api/chat`, `/api/chat/stream`은 fail-close로 HTTP 400을 반환합니다.
 
 ## 아키텍처
 
@@ -157,7 +181,7 @@ Arc Reactor는 세 가지 플레인으로 역할을 구분합니다.
 
 ## 설정
 
-주요 속성과 기본값입니다. 전체 레퍼런스: [`docs/en/getting-started/configuration-quickstart.md`](docs/en/getting-started/configuration-quickstart.md)
+주요 속성과 기본값입니다. 전체 레퍼런스: [`docs/ko/getting-started/configuration-quickstart.md`](docs/ko/getting-started/configuration-quickstart.md)
 
 ```yaml
 arc:
@@ -199,8 +223,7 @@ spring:
 arc:
   reactor:
     auth:
-      enabled: true
-      jwt-secret: ${JWT_SECRET}
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}
     approval:
       enabled: true
     tool-policy:
@@ -263,11 +286,20 @@ docker-compose up -d
 모든 버전 태그에서 이미지가 자동으로 게시됩니다:
 
 ```bash
-docker pull ghcr.io/starkfactory/arc-reactor:4.5.0
-docker run -e GEMINI_API_KEY=your-key -p 8080:8080 ghcr.io/starkfactory/arc-reactor:4.5.0
+docker pull ghcr.io/starkfactory/arc-reactor:4.7.2
+docker run -p 8080:8080 \
+  -e GEMINI_API_KEY=your-key \
+  -e ARC_REACTOR_AUTH_JWT_SECRET=replace-with-32-byte-secret \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/arcreactor \
+  -e SPRING_DATASOURCE_USERNAME=arc \
+  -e SPRING_DATASOURCE_PASSWORD=arc \
+  ghcr.io/starkfactory/arc-reactor:4.7.2
 ```
 
-사용 가능한 태그: 정확한 버전(예: `4.5.0`), 마이너 스트림(예: `4.5`), 짧은 SHA(`sha-<commit>`).
+사용 가능한 태그: 정확한 버전(예: `4.7.2`), 마이너 스트림(예: `4.7`), 짧은 SHA(`sha-<commit>`).
+
+로컬 비프로덕션 실험에서 PostgreSQL 없이 실행하려면
+`-e ARC_REACTOR_POSTGRES_REQUIRED=false`를 추가하세요(프로덕션 비권장).
 
 ### Kubernetes (Helm)
 
@@ -369,25 +401,22 @@ Arc Reactor는 모든 영구 상태에 PostgreSQL을 사용합니다. 개발 환
 
 ## 문서
 
-- [문서 홈](docs/en/README.md)
-- [시작하기](docs/en/getting-started/README.md)
-- [설정 퀵스타트](docs/en/getting-started/configuration-quickstart.md)
-- [배포 가이드](docs/en/getting-started/deployment.md)
-- [Kubernetes 레퍼런스](docs/en/getting-started/kubernetes-reference.md)
-- [아키텍처 개요](docs/en/architecture/README.md)
-- [ReAct 루프 내부 구조](docs/en/architecture/react-loop.md)
-- [MCP 런타임 관리](docs/en/architecture/mcp/runtime-management.md)
-- [Prompt Lab](docs/en/architecture/prompt-lab.md)
-- [인증](docs/en/governance/authentication.md)
-- [Human-in-the-loop](docs/en/governance/human-in-the-loop.md)
-- [Tool 정책 관리](docs/en/governance/tool-policy-admin.md)
-- [보안 릴리즈 프레임워크](docs/en/governance/security-release-framework.md)
-- [지원 및 호환성 정책](docs/en/governance/support-policy.md)
-- [Tool 레퍼런스](docs/en/reference/tools.md)
-- [메트릭 레퍼런스](docs/en/reference/metrics.md)
-- [Slack 통합](docs/en/integrations/slack/ops-runbook.md)
-- [Agent 벤치마킹](docs/en/engineering/agent-benchmarking.md)
-- [릴리즈 노트](docs/en/releases/README.md)
+- [문서 홈](docs/ko/README.md)
+- [시작하기](docs/ko/getting-started/README.md)
+- [설정 퀵스타트](docs/ko/getting-started/configuration-quickstart.md)
+- [배포 가이드](docs/ko/getting-started/deployment.md)
+- [아키텍처 개요](docs/ko/architecture/README.md)
+- [ReAct 루프 내부 구조](docs/ko/architecture/react-loop.md)
+- [MCP 런타임 관리](docs/ko/architecture/mcp/runtime-management.md)
+- [Prompt Lab](docs/ko/architecture/prompt-lab.md)
+- [인증](docs/ko/governance/authentication.md)
+- [Human-in-the-loop](docs/ko/governance/human-in-the-loop.md)
+- [Tool 정책 관리](docs/ko/governance/tool-policy-admin.md)
+- [Tool 레퍼런스](docs/ko/reference/tools.md)
+- [메트릭 레퍼런스](docs/ko/reference/metrics.md)
+- [Slack 통합](docs/ko/integrations/slack/ops-runbook.md)
+- [엔지니어링 가이드](docs/ko/engineering/README.md)
+- [릴리즈 노트](docs/ko/releases/README.md)
 
 ## 프로덕션 보안 주의사항
 
@@ -401,7 +430,8 @@ Arc Reactor는 모든 영구 상태에 PostgreSQL을 사용합니다. 개발 환
 ## 알려진 제약사항
 
 - MCP SDK `0.17.2`는 Streamable HTTP 전송을 지원하지 않습니다. SSE 또는 STDIO를 사용하세요.
-- 영구 저장소를 위해서는 PostgreSQL이 필요합니다 (`spring.datasource.url=jdbc:postgresql://...`).
+- 기본 런타임 preflight에서 PostgreSQL datasource를 요구합니다 (`arc.reactor.postgres.required=true`).
+  로컬 비프로덕션 실험에서만 `ARC_REACTOR_POSTGRES_REQUIRED=false`를 사용하세요.
 - 외부 통합 테스트는 명시적으로 활성화해야 합니다: `./gradlew test -PincludeIntegration -PincludeExternalIntegration`.
 
 ## 빌드 및 테스트 명령어

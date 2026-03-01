@@ -1,118 +1,109 @@
 # Deployment Guide
 
-## Running Locally
+This guide covers local runtime, Docker image execution, and Docker Compose baseline deployment.
 
-### 1. Environment Setup
+## Runtime prerequisites (current defaults)
+
+Arc Reactor startup preflight requires:
+
+- `GEMINI_API_KEY` (or another enabled provider key)
+- `ARC_REACTOR_AUTH_JWT_SECRET` (minimum 32 bytes)
+- PostgreSQL datasource settings
+  - `SPRING_DATASOURCE_URL` (`jdbc:postgresql://...`)
+  - `SPRING_DATASOURCE_USERNAME`
+  - `SPRING_DATASOURCE_PASSWORD`
+
+> For local non-production experiments only, you can disable the PostgreSQL preflight check with
+> `ARC_REACTOR_POSTGRES_REQUIRED=false`.
+
+## Run locally with Gradle
 
 ```bash
-cp .env.example .env
-# Set GEMINI_API_KEY in the .env file
-```
-
-### 2. Run with Gradle
-
-```bash
+export GEMINI_API_KEY=your-api-key
+export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
+export SPRING_DATASOURCE_USERNAME=arc
+export SPRING_DATASOURCE_PASSWORD=arc
 ./gradlew :arc-app:bootRun
 ```
 
-The API will start at `http://localhost:8080`.
-
-## Docker Deployment
-
-For Kubernetes production baseline, see [Kubernetes Deployment Reference](kubernetes-reference.md).
-
-### Docker Only
+Alternative:
 
 ```bash
-# Build JAR
+./scripts/dev/bootstrap-local.sh --api-key your-api-key --run
+```
+
+## Docker image
+
+```bash
 ./gradlew :arc-app:bootJar
-
-# Build Docker image
 docker build -t arc-reactor:latest .
-
-# Run
 docker run -p 8080:8080 \
   -e GEMINI_API_KEY=your-api-key \
+  -e ARC_REACTOR_AUTH_JWT_SECRET=replace-with-32-byte-secret \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/arcreactor \
+  -e SPRING_DATASOURCE_USERNAME=arc \
+  -e SPRING_DATASOURCE_PASSWORD=arc \
   arc-reactor:latest
 ```
 
-### Docker Compose (Recommended)
-
-Run together with PostgreSQL:
+## Docker Compose baseline (recommended)
 
 ```bash
-# Set up .env file
 cp .env.example .env
-# Set GEMINI_API_KEY
-
-# Build JAR and run
-./gradlew :arc-app:bootJar
-docker compose up -d
+# Edit GEMINI_API_KEY and ARC_REACTOR_AUTH_JWT_SECRET
+docker compose up -d --build
 ```
 
-`docker-compose.yml` automatically configures the following:
-- **app**: Arc Reactor (port 8080)
-- **postgres**: PostgreSQL 16 (port 5432, persistent volume)
-- The app starts once PostgreSQL reaches a healthy state
-- `JdbcMemoryStore` is automatically activated (DataSource detected)
+`docker-compose.yml` includes:
 
-## Environment Variables
+- `app`: Arc Reactor runtime
+- `db`: pgvector/PostgreSQL 16
+- health checks and startup dependency ordering
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `GEMINI_API_KEY` | Yes | - | Google Gemini API key |
-| `SPRING_AI_OPENAI_API_KEY` | - | - | OpenAI API key (when switching provider) |
-| `SPRING_AI_ANTHROPIC_API_KEY` | - | - | Anthropic API key (when switching provider) |
-| `DB_HOST` | - | `localhost` | PostgreSQL host |
-| `DB_PORT` | - | `5432` | PostgreSQL port |
-| `DB_NAME` | - | `arc_reactor` | Database name |
-| `DB_USERNAME` | - | `arc` | DB username |
-| `DB_PASSWORD` | - | `arc_password` | DB password |
-| `SERVER_PORT` | - | `8080` | Server port |
+Stop stack:
 
-## Production Checklist
+```bash
+docker compose down
+```
+
+## Required environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | Yes (unless using another provider) | Gemini API key |
+| `ARC_REACTOR_AUTH_JWT_SECRET` | Yes | JWT signing secret, minimum 32 bytes |
+| `SPRING_DATASOURCE_URL` | Yes | PostgreSQL JDBC URL |
+| `SPRING_DATASOURCE_USERNAME` | Yes | PostgreSQL username |
+| `SPRING_DATASOURCE_PASSWORD` | Yes | PostgreSQL password |
+| `SPRING_AI_OPENAI_API_KEY` | Optional | OpenAI provider key |
+| `SPRING_AI_ANTHROPIC_API_KEY` | Optional | Anthropic provider key |
+
+## Production checklist
 
 ### Security
 
-- [ ] Add API authentication (Spring Security or custom filter)
-- [ ] Configure CORS (set allowed domains in `application.yml`)
-- [ ] Adjust rate limit (`arc.reactor.guard.rate-limit-per-minute`)
-- [ ] Never commit `.env` files to Git
+- [ ] Keep authentication enabled (always-on); do not use legacy `arc.reactor.auth.enabled`
+- [ ] Set a strong `ARC_REACTOR_AUTH_JWT_SECRET` via secret manager
+- [ ] Restrict MCP server exposure (`arc.reactor.mcp.security.allowed-server-names`)
+- [ ] Configure CORS allow-list when cross-origin access is needed
+- [ ] Keep `ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH=false` unless probes are intentionally unauthenticated
 
-### Performance
+### Reliability
 
-- [ ] Adjust `max-concurrent-requests` to match server specs
-- [ ] Set `request-timeout-ms` appropriately (default 30 seconds)
-- [ ] Set `max-context-window-tokens` to match the LLM model
+- [ ] Use PostgreSQL with Flyway enabled
+- [ ] Tune `arc.reactor.concurrency.request-timeout-ms` and `tool-call-timeout-ms`
+- [ ] Set rate limits appropriate to your traffic profile
 
-### Monitoring
+### Observability
 
-- [ ] Register an `AgentMetrics` implementation (Prometheus, Datadog, etc.)
-- [ ] Configure logging level (`logging.level.com.arc.reactor=INFO`)
-- [ ] Add audit logging via Hooks
+- [ ] Expose actuator metrics (`management.endpoints.web.exposure.include`)
+- [ ] Enable Prometheus scraping if needed
+- [ ] If using `arc-admin`, validate metric pipeline and tenant dashboards
 
-### Database
+## Related docs
 
-- [ ] Verify Flyway migrations when using PostgreSQL
-- [ ] Configure session TTL (`memory.session-ttl`)
-- [ ] Schedule periodic cleanup
-
-## Changing LLM Provider
-
-Change the dependency in `build.gradle.kts`:
-
-```kotlin
-// Google Gemini (default)
-implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
-
-// OpenAI
-// implementation("org.springframework.ai:spring-ai-starter-model-openai")
-
-// Anthropic
-// implementation("org.springframework.ai:spring-ai-starter-model-anthropic")
-
-// Azure OpenAI
-// implementation("org.springframework.ai:spring-ai-starter-model-azure-openai")
-```
-
-Add the corresponding provider configuration in `application.yml`.
+- [Configuration quickstart](configuration-quickstart.md)
+- [Configuration reference](configuration.md)
+- [Kubernetes reference](kubernetes-reference.md)
+- [Troubleshooting](troubleshooting.md)

@@ -1,7 +1,7 @@
 # Arc Reactor
 
 [![CI](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml/badge.svg)](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-4.5.0-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v4.5.0)
+[![Version](https://img.shields.io/badge/version-4.7.2-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v4.7.2)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.10-purple.svg)](https://kotlinlang.org)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-green.svg)](https://spring.io/projects/spring-boot)
@@ -69,7 +69,7 @@ git clone https://github.com/StarkFactory/arc-reactor.git
 cd arc-reactor
 ```
 
-### 2. Set your API key and run
+### 2. Set required environment variables and run
 
 **Fast path (bootstrap script):**
 
@@ -88,6 +88,13 @@ export SPRING_DATASOURCE_USERNAME=arc
 export SPRING_DATASOURCE_PASSWORD=arc
 ./gradlew :arc-app:bootRun
 ```
+
+Arc Reactor fails fast at startup when required runtime values are missing:
+
+- `ARC_REACTOR_AUTH_JWT_SECRET` (minimum 32 bytes)
+- `SPRING_DATASOURCE_URL` (must be `jdbc:postgresql://...`)
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
 
 Gemini is the default provider. To use OpenAI or Anthropic instead, set
 `SPRING_AI_OPENAI_API_KEY` or `SPRING_AI_ANTHROPIC_API_KEY`.
@@ -109,6 +116,23 @@ curl -X POST http://localhost:8080/api/chat \
 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - Health check: `http://localhost:8080/actuator/health`
+
+### Runtime requirements at a glance
+
+| Requirement | Why |
+|---|---|
+| `GEMINI_API_KEY` (or another provider key) | Creates the `ChatClient` provider bean |
+| `ARC_REACTOR_AUTH_JWT_SECRET` | Required for JWT auth filter and token issuance |
+| PostgreSQL datasource env (`SPRING_DATASOURCE_*`) | Required by runtime preflight (`arc.reactor.postgres.required=true`) |
+
+### Auth and tenant model (important)
+
+- Authentication is always required. `arc.reactor.auth.enabled` is removed.
+- JWT tokens issued by `/api/auth/*` include `tenantId` claim (default: `default`).
+- Runtime resolves tenant in this order:
+  1. `tenantId` claim from JWT
+  2. `X-Tenant-Id` request header
+- If no tenant context is found, `/api/chat` and `/api/chat/stream` fail-close with HTTP 400.
 
 ## Architecture
 
@@ -207,8 +231,7 @@ spring:
 arc:
   reactor:
     auth:
-      enabled: true
-      jwt-secret: ${JWT_SECRET}
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}
     approval:
       enabled: true
     tool-policy:
@@ -271,11 +294,20 @@ To stop: `docker-compose down`
 Images are published automatically on every version tag:
 
 ```bash
-docker pull ghcr.io/starkfactory/arc-reactor:4.5.0
-docker run -e GEMINI_API_KEY=your-key -p 8080:8080 ghcr.io/starkfactory/arc-reactor:4.5.0
+docker pull ghcr.io/starkfactory/arc-reactor:4.7.2
+docker run -p 8080:8080 \
+  -e GEMINI_API_KEY=your-key \
+  -e ARC_REACTOR_AUTH_JWT_SECRET=replace-with-32-byte-secret \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/arcreactor \
+  -e SPRING_DATASOURCE_USERNAME=arc \
+  -e SPRING_DATASOURCE_PASSWORD=arc \
+  ghcr.io/starkfactory/arc-reactor:4.7.2
 ```
 
-Available tags: exact version (e.g. `4.5.0`), minor stream (e.g. `4.5`), short SHA (`sha-<commit>`).
+Available tags: exact version (e.g. `4.7.2`), minor stream (e.g. `4.7`), short SHA (`sha-<commit>`).
+
+For local non-production experiments without PostgreSQL, add
+`-e ARC_REACTOR_POSTGRES_REQUIRED=false` (not recommended for production).
 
 ### Kubernetes (Helm)
 
@@ -443,7 +475,8 @@ Schema migrations are managed by Flyway. Enable with `SPRING_FLYWAY_ENABLED=true
 ## Known Constraints
 
 - MCP SDK `0.17.2` does not support streamable HTTP transport. Use SSE or STDIO.
-- PostgreSQL is required for persistent stores (`spring.datasource.url=jdbc:postgresql://...`).
+- PostgreSQL datasource is required by default runtime preflight (`arc.reactor.postgres.required=true`).
+  For local non-production experiments only, set `ARC_REACTOR_POSTGRES_REQUIRED=false`.
 - External integration tests are opt-in: `./gradlew test -PincludeIntegration -PincludeExternalIntegration`.
 
 ## Build and Test Commands

@@ -50,7 +50,7 @@ If running in Docker, ensure Node.js is installed in your image.
 
 ## Auth: "JWT secret must be at least 32 bytes"
 
-**Symptom:** Application fails to start with `IllegalArgumentException` when auth is enabled.
+**Symptom:** Application fails to start with `IllegalArgumentException` during auth initialization.
 
 **Cause:** The `arc.reactor.auth.jwt-secret` value is shorter than 32 bytes (required for HS256 HMAC).
 
@@ -61,15 +61,14 @@ If running in Docker, ensure Node.js is installed in your image.
 openssl rand -base64 32
 
 # Set as environment variable
-export JWT_SECRET=$(openssl rand -base64 32)
+export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 ```
 
 ```yaml
 arc:
   reactor:
     auth:
-      enabled: true
-      jwt-secret: ${JWT_SECRET}
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}
 ```
 
 ---
@@ -105,8 +104,9 @@ arc:
 ```yaml
 arc:
   reactor:
-    mcp-security:
-      max-tool-output-length: 100000  # Default: 50000
+    mcp:
+      security:
+        max-tool-output-length: 100000  # Default: 50000
 ```
 
 ---
@@ -124,7 +124,7 @@ arc:
 arc:
   reactor:
     auth:
-      jwt-secret: ${JWT_SECRET}
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}
 ```
 
 2. Rebuild with default settings and run the latest artifact:
@@ -151,7 +151,7 @@ Auth dependencies are included by default in current builds.
 arc:
   reactor:
     auth:
-      jwt-secret: ${JWT_SECRET}
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}
 ```
 3. Set a valid default tenant if needed:
 ```yaml
@@ -199,7 +199,7 @@ or the client does not propagate per-user auth correctly.
 arc:
   reactor:
     auth:
-      jwt-secret: ${JWT_SECRET}
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}
 ```
 
 ---
@@ -212,12 +212,10 @@ arc:
 
 **Solution:** The first admin user is auto-created on startup when auth is enabled. Check your logs for the admin credentials, or set them via environment variables:
 
-```yaml
-arc:
-  reactor:
-    auth:
-      admin-email: admin@example.com
-      admin-password: ${ADMIN_PASSWORD}
+```bash
+export ARC_REACTOR_AUTH_ADMIN_EMAIL=admin@example.com
+export ARC_REACTOR_AUTH_ADMIN_PASSWORD='change-me-now'
+export ARC_REACTOR_AUTH_ADMIN_NAME='Platform Admin'
 ```
 
 Users with `USER` role can still read templates (`GET` endpoints).
@@ -226,18 +224,23 @@ Users with `USER` role can still read templates (`GET` endpoints).
 
 ## Startup: "Failed to configure a DataSource"
 
-**Symptom:** Application fails to start with a DataSource auto-configuration error.
+**Symptom:** Application fails to start with datasource or JDBC connection errors.
 
-**Cause:** Spring detects `spring.datasource.url` in your configuration but the JDBC driver is not on the classpath (it's `compileOnly` by default).
+**Cause:** Datasource is required by default (`arc.reactor.postgres.required=true`) and one of the datasource values is missing/invalid.
 
 **Solution:**
 
 ```bash
-# Include DB dependencies at runtime
-./gradlew :arc-app:bootRun -Pdb=true
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
+export SPRING_DATASOURCE_USERNAME=arc
+export SPRING_DATASOURCE_PASSWORD=arc
 ```
 
-Or switch `spring-boot-starter-jdbc` and `postgresql` from `compileOnly` to `implementation` in `build.gradle.kts`.
+For local non-production experiments only:
+
+```bash
+export ARC_REACTOR_POSTGRES_REQUIRED=false
+```
 
 ---
 

@@ -1,6 +1,6 @@
 # Arc Reactor 기능 인벤토리 & 데이터 아키텍처
 
-> 마지막 업데이트: 2026-02-11
+> 마지막 업데이트: 2026-03-01
 
 ---
 
@@ -27,7 +27,7 @@
 | **사용 가능 모델 조회** | `GET /api/models` | 활성 | 등록된 LLM provider 목록 + 기본 모델 |
 | **JWT 인증** | `POST /api/auth/*` | **필수** | 런타임은 `arc.reactor.auth.jwt-secret`을 요구 |
 | **페르소나 관리** | `GET/POST/PUT/DELETE /api/personas` | 활성 | 시스템 프롬프트 템플릿 CRUD |
-| **사용자별 세션 격리** | 내부 (API 없음) | **opt-in** | 인증 활성 시 userId로 세션 필터링 |
+| **사용자별 세션 격리** | 내부 (API 없음) | 활성 | JWT에서 추출한 userId 기준으로 세션이 격리됨 (인증 항상 필수) |
 | **응답 캐싱** | 내부 (API 없음) | **opt-in** | Caffeine 기반 캐시, SHA-256 키, 온도 기반 적격성 |
 | **서킷 브레이커** | 내부 (API 없음) | **opt-in** | Kotlin 네이티브 CB: CLOSED → OPEN → HALF_OPEN 상태 머신 |
 | **우아한 성능 저하** | 내부 (API 없음) | **opt-in** | 기본 모델 실패 시 순차 모델 폴백 |
@@ -299,7 +299,7 @@ services:
 - **장점:** 대화 이력 영구 보존, 서버 재시작 후에도 컨텍스트 유지
 - **단점:** DB 관리 필요
 
-### 5.3 인증 활성화 배포
+### 5.3 기본 배포 (인증은 항상 활성)
 
 ```bash
 # Docker 빌드 시 DB 플래그 활성화
@@ -311,7 +311,7 @@ GEMINI_API_KEY=your-key
 ARC_REACTOR_AUTH_JWT_SECRET=your-256-bit-secret
 ```
 
-인증 활성 시 자동으로:
+현재 기본 런타임에서는 자동으로:
 - 모든 API에 JWT 토큰 필요 (`/api/auth/login`, `/api/auth/register` 제외)
 - 세션이 userId로 격리 (다른 사용자의 세션 접근 불가)
 - conversation_messages에 user_id 컬럼 자동 추가 (Flyway V4)
@@ -441,9 +441,9 @@ arc:
       input-max-chars: 5000         # 최대 입력 길이 (자)
 
     auth:
-      enabled: false                 # JWT 인증 활성화 (opt-in)
-      jwt-secret: ""                 # HMAC 서명 시크릿 (활성화 시 필수)
+      jwt-secret: ""                 # HMAC 서명 시크릿 (필수, 최소 32바이트)
       jwt-expiration-ms: 86400000    # 토큰 유효기간 (24시간)
+      default-tenant-id: default     # 발급 JWT의 기본 tenant claim
       public-paths:                  # 인증 없이 접근 가능한 경로
         - /api/auth/login
         - /api/auth/register
@@ -556,7 +556,11 @@ arc-reactor를 fork하여 사용할 때 수정이 필요한 부분:
 
 ```bash
 # .env 파일
-GEMINI_API_KEY=your-key          # 또는 다른 프로바이더 키
+GEMINI_API_KEY=your-key
+ARC_REACTOR_AUTH_JWT_SECRET=replace-with-32-byte-secret
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
+SPRING_DATASOURCE_USERNAME=arc
+SPRING_DATASOURCE_PASSWORD=arc
 ```
 
 ### 12.2 도구 추가
