@@ -16,6 +16,7 @@ Use this checklist before tagging a public release.
 - [ ] Tag release workflow security-gates job passed (Gitleaks + Trivy)
 - [ ] Dependency vulnerability review completed
 - [ ] No secrets in repository diff
+- [ ] External/provider credentials rotated or revalidated before release
 - [ ] Runtime hardening defaults verified (auth/policy/guard settings)
 - [ ] Flyway migration immutability guard passed (no edits to existing `V*.sql`)
 
@@ -37,3 +38,4 @@ Use this checklist before tagging a public release.
 - `docs/en/governance/security-release-framework.md`
 - `docs/en/governance/support-policy.md`
 - `docs/en/getting-started/kubernetes-reference.md`
+- `scripts/dev/pre-open-check.sh`

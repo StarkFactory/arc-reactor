@@ -109,6 +109,16 @@ curl -X POST http://localhost:8080/api/chat \
 ./scripts/dev/validate-runtime-contract.sh --base-url http://localhost:8080
 ```
 
+### 4. 오픈 전 최종 점검 (원커맨드)
+
+```bash
+# docs + compile + tests + gitleaks 실행
+./scripts/dev/pre-open-check.sh
+
+# 실행 중인 인스턴스 대상으로 런타임 계약 검증까지 포함
+./scripts/dev/pre-open-check.sh --with-runtime --base-url http://localhost:8080
+```
+
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - 헬스 체크: `http://localhost:8080/actuator/health`
 

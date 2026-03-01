@@ -117,6 +117,16 @@ curl -X POST http://localhost:8080/api/chat \
 ./scripts/dev/validate-runtime-contract.sh --base-url http://localhost:8080
 ```
 
+### 4. Pre-open checklist (single command)
+
+```bash
+# Runs docs + compile + tests + gitleaks
+./scripts/dev/pre-open-check.sh
+
+# Include runtime contract verification against a running instance
+./scripts/dev/pre-open-check.sh --with-runtime --base-url http://localhost:8080
+```
+
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - Health check: `http://localhost:8080/actuator/health`
 
