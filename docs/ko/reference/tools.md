@@ -135,7 +135,8 @@ curl -X POST http://localhost:8080/api/mcp/servers \
 
 **특징:**
 - 도구 구현이 외부 서버에 있음 (코드 작성 불필요)
-- 오픈소스 MCP 서버가 많음 (파일, DB, GitHub, Slack 등)
+- 오픈소스 MCP 서버가 많음 (파일, DB, GitHub, 이슈 트래커 등)
+- Slack은 기본적으로 `arc-slack` LocalTool 사용을 권장하며, 외부 메시징 MCP 어댑터는 레거시/외부 환경에서만 선택적으로 사용합니다.
 - 연결하면 도구가 자동으로 등록됨
 - STDIO(로컬 프로세스)와 SSE(HTTP) 전송 방식 지원
 
@@ -171,6 +172,7 @@ curl -X POST http://localhost:8080/api/mcp/servers \
    LocalTool 목록 (@Component로 자동 발견)
    + ToolCallback 목록 (@Component로 자동 발견)
    + MCP 도구 목록 (McpManager에서 가져옴)
+   → tool name 기준 콜백 중복 제거 (먼저 나온 콜백 우선)
       ↓
 2. 도구 필터링 (ToolSelector)
    사용자 프롬프트를 분석해서 관련 도구만 선택
@@ -188,6 +190,9 @@ curl -X POST http://localhost:8080/api/mcp/servers \
 6. 결과를 LLM에 전달
    LLM이 도구 결과를 바탕으로 최종 응답 생성
 ```
+
+동일한 tool name을 가진 콜백이 여러 개면 Arc Reactor는 병합된 콜백 목록에서 먼저 나온 콜백만 유지하고, 이후 중복은 warning 로그와 함께 제거합니다.
+MCP 서버 간 충돌만 놓고 보면 서버 이름 사전순으로 앞선 서버의 콜백이 유지됩니다.
 
 ---
 

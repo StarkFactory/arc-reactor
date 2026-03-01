@@ -87,4 +87,37 @@ class ToolPreparationPlannerTest {
         assertEquals(1, prepared.size)
         assertTrue(prepared.first() === local, "Local tool should be returned as-is without wrapping")
     }
+
+    @Test
+    fun `deduplicates callback names across local callback lists and mcp callbacks`() {
+        val callbackFromLocalList = AgentTestFixture.toolCallback("duplicate-tool")
+        val callbackFromMcp = AgentTestFixture.toolCallback("duplicate-tool")
+        val uniqueCallback = AgentTestFixture.toolCallback("unique-tool")
+        val planner = ToolPreparationPlanner(
+            localTools = emptyList(),
+            toolCallbacks = listOf(callbackFromLocalList, uniqueCallback),
+            mcpToolCallbacks = { listOf(callbackFromMcp) },
+            toolSelector = null,
+            maxToolsPerRequest = 10,
+            fallbackToolTimeoutMs = 150
+        )
+
+        val prepared = planner.prepareForPrompt("run duplicate check")
+
+        assertEquals(2, prepared.size, "Expected duplicate callback names to be removed before wrapping")
+        assertTrue(
+            prepared.all { it is ArcToolCallbackAdapter },
+            "Expected only wrapped callback tools in prepared list"
+        )
+        val wrappedCallbacks = prepared.map { (it as ArcToolCallbackAdapter).arcCallback }
+        assertEquals(
+            listOf("duplicate-tool", "unique-tool"),
+            wrappedCallbacks.map(ToolCallback::name),
+            "Expected first duplicate callback to be kept in stable order"
+        )
+        assertTrue(
+            wrappedCallbacks.first() === callbackFromLocalList,
+            "Expected duplicate resolution to keep the first callback instance"
+        )
+    }
 }

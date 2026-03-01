@@ -38,7 +38,7 @@ implementation("com.arc.reactor:arc-slack")
 
 ## Slack 로컬 도구(LocalTool)
 
-이제 `arc-slack`은 외부 Slack MCP 서버 없이도 Slack 도구를 Arc Reactor `LocalTool` 빈으로 직접 제공합니다.
+이제 `arc-slack`은 별도 외부 Slack 어댑터 없이도 Slack 도구를 Arc Reactor `LocalTool` 빈으로 직접 제공합니다.
 
 활성화 설정:
 
@@ -75,8 +75,8 @@ arc:
 |---|---|
 | `SlackAutoConfiguration` | 모든 빈 연결; 조건부로 Socket Mode 또는 Events API 빈 생성 |
 | `SlackSocketModeGateway` | 지수 백오프 재연결로 WebSocket 연결을 유지하는 `SmartLifecycle` 빈 |
-| `SlackEventController` | Events API 콜백용 HTTP 엔드포인트 (`POST /slack/events`) |
-| `SlackCommandController` | 슬래시 명령어용 HTTP 엔드포인트 (`POST /slack/commands`) |
+| `SlackEventController` | Events API 콜백용 HTTP 엔드포인트 (`POST /api/slack/events`) |
+| `SlackCommandController` | 슬래시 명령어용 HTTP 엔드포인트 (`POST /api/slack/commands`) |
 | `SlackEventProcessor` | 중복 제거와 배압을 적용한 뒤 `SlackEventHandler`로 디스패치 |
 | `SlackCommandProcessor` | 배압 적용 후 `SlackCommandHandler`로 디스패치 |
 | `SlackBackpressureLimiter` | 세마포어 기반 동시성 가드; fail-fast 또는 큐 모드 |

@@ -52,7 +52,11 @@ Validate Slack-first production paths end-to-end before release, including input
 ./gradlew test
 
 # 5) Live runtime path validation (requires running app + Slack env vars)
+# Default: Slack/local-tool path checks (MCP checks skipped)
 BASE_URL=http://localhost:18084 scripts/dev/validate-slack-runtime.sh
+
+# Optional: include MCP path checks as well
+REQUIRE_MCP_CHECK=true BASE_URL=http://localhost:18084 scripts/dev/validate-slack-runtime.sh
 ```
 
 ## Triage Checklist

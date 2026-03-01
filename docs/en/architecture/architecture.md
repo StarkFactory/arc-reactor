@@ -134,7 +134,7 @@ Query → DocumentRetriever → DocumentReranker → Context Builder → Injecte
 McpManager
 ├── register(server)    → Configure STDIO or SSE transport
 ├── connect(name)       → Connect to server + retrieve tool list
-└── getAllToolCallbacks() → Return all connected MCP tools
+└── getAllToolCallbacks() → Return MCP tools deduplicated by tool name
 ```
 
 - Tools from external MCP servers are automatically added to the agent's tool list

@@ -10,7 +10,7 @@ Per-module reference documentation for the Arc Reactor framework. Each document 
 | [arc-web](./arc-web.md) | REST controllers, SSE streaming, security filters, authentication, tenant resolution, global exception handler |
 | [arc-admin](./arc-admin.md) | Operational control plane: metrics, tracing, tenant management, cost tracking, alerting, quota enforcement |
 | [arc-slack](./arc-slack.md) | Slack integration via Socket Mode or Events API, with signature verification and backpressure |
-| [arc-error-report](./arc-error-report.md) | AI-powered production error analysis: receives stack traces, investigates via MCP tools, reports to Slack |
+| [arc-error-report](./arc-error-report.md) | AI-powered production error analysis: receives stack traces, investigates via registered tools (MCP/local), reports to Slack |
 
 ## Quick Navigation
 
