@@ -47,7 +47,24 @@ class ErrorReportController(
     private val properties: ErrorReportProperties
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val semaphore = Semaphore(properties.maxConcurrentRequests)
+    private val effectiveMaxConcurrentRequests = properties.maxConcurrentRequests.coerceAtLeast(1)
+    private val effectiveMaxStackTraceLength = properties.maxStackTraceLength.coerceAtLeast(1)
+    private val semaphore = Semaphore(effectiveMaxConcurrentRequests)
+
+    init {
+        if (properties.maxConcurrentRequests < 1) {
+            logger.warn {
+                "Invalid maxConcurrentRequests=${properties.maxConcurrentRequests}; " +
+                    "using $effectiveMaxConcurrentRequests"
+            }
+        }
+        if (properties.maxStackTraceLength < 1) {
+            logger.warn {
+                "Invalid maxStackTraceLength=${properties.maxStackTraceLength}; " +
+                    "using $effectiveMaxStackTraceLength"
+            }
+        }
+    }
 
     @PostMapping
     @Operation(summary = "Submit a production error report for AI-powered analysis")
@@ -72,8 +89,8 @@ class ErrorReportController(
 
         val requestId = UUID.randomUUID().toString()
 
-        val truncatedRequest = if (request.stackTrace.length > properties.maxStackTraceLength) {
-            request.copy(stackTrace = request.stackTrace.take(properties.maxStackTraceLength) + "\n... [truncated]")
+        val truncatedRequest = if (request.stackTrace.length > effectiveMaxStackTraceLength) {
+            request.copy(stackTrace = request.stackTrace.take(effectiveMaxStackTraceLength) + "\n... [truncated]")
         } else {
             request
         }
