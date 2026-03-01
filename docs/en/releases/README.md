@@ -3,6 +3,7 @@
 Versioned release notes and upgrade highlights.
 
 - GitHub Release automation runs on tag push (`v*`) via `.github/workflows/release.yml`.
+- [v4.7.3](v4.7.3.md) — 2026-03-01 — Mandatory JWT auth + tenant fail-close, Docker image source scope fix, Flyway immutability CI guard and runbook
 - [v4.7.2](v4.7.2.md) — 2026-03-01 — Tool callback deduplication, Slack local-tool documentation alignment, RAG example endpoint fixes
 - [v4.7.1](v4.7.1.md) — 2026-03-01 — Slack runtime hardening, error-report timeout enforcement, mode-aware validation script
 - [v4.5.0](v4.5.0.md) — 2026-02-28 — Documentation overhaul, CLAUDE.md/AGENTS.md rewrite, gitleaks config
