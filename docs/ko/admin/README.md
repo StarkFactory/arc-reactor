@@ -8,15 +8,7 @@
 
 ## 빠른 시작
 
-### 인증 비활성화 (기본값)
-
-모든 요청이 admin으로 처리됩니다. 토큰이 필요 없습니다.
-
-```bash
-curl http://localhost:8080/api/personas
-```
-
-### 인증 활성화 (프로덕션)
+### 런타임 인증 필수
 
 1. 토큰을 받기 위해 로그인합니다:
    ```bash
@@ -30,6 +22,9 @@ curl http://localhost:8080/api/personas
    curl http://localhost:8080/api/personas \
      -H "Authorization: Bearer <token>"
    ```
+
+3. 관리자 엔드포인트는 `ADMIN` role 토큰이 필요합니다.
+   일반 사용자 토큰은 `403 Forbidden`을 반환합니다.
 
 ## 주요 관리자 작업
 

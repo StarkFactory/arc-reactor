@@ -112,6 +112,9 @@ curl -X POST http://localhost:8080/api/chat \
   -H "X-Tenant-Id: default" \
   -H "Content-Type: application/json" \
   -d '{"message": "What is 3 + 5?"}'
+
+# Contract smoke (no LLM call): auth + admin guard expectations
+./scripts/dev/validate-runtime-contract.sh --base-url http://localhost:8080
 ```
 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`

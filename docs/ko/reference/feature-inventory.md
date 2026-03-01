@@ -76,7 +76,7 @@
 │  │   ├── model, systemPrompt, responseFormat                     │
 │  │   ├── darkMode, showMetadata                                  │
 │  │   └── sidebarOpen                                             │
-│  └── arc-reactor-auth-token  (JWT 토큰, 인증 활성 시)            │
+│  └── arc-reactor-auth-token  (JWT 토큰, 런타임 인증 필수)        │
 │                                                                  │
 │  POST /api/chat/stream ──────────────────────┐                   │
 │  { message, userId, model, systemPrompt,     │                   │
@@ -181,7 +181,7 @@ ChatContext.tsx                     ChatController.kt
 **배포 상태:**
 - PostgreSQL 미연결 시 → `InMemoryMemoryStore` (서버 재시작 시 유실)
 - PostgreSQL 연결 시 → `JdbcMemoryStore` (영구 저장)
-- 인증 활성 시 → `userId`로 세션 자동 격리, localStorage도 userId별 네임스페이스
+- 런타임 인증 필수 → `userId`로 세션 자동 격리, localStorage도 userId별 네임스페이스
 
 ---
 

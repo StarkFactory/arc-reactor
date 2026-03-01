@@ -4,9 +4,9 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 3.9.x   | :white_check_mark: |
-| 3.8.x   | :warning: security/critical fixes only |
-| < 3.8   | :x:                |
+| 4.7.x   | :white_check_mark: |
+| 4.6.x   | :warning: security/critical fixes only |
+| < 4.6   | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -42,6 +42,18 @@ The following are in scope for security reports:
 - Denial of service via legitimate API usage (rate limiting is configurable)
 - Issues requiring physical access to the server
 
+## Credential Exposure Response
+
+If an API key, bot token, webhook URL, or signing secret is exposed:
+
+1. Revoke and rotate the credential immediately
+2. Invalidate active sessions/tokens that may have been impacted
+3. Review audit logs and provider logs for abuse indicators
+4. Remove exposed values from code, docs, and CI logs
+5. Add a post-incident note (impact, timeline, remediation)
+
+Treat credential exposure as a security incident even if no abuse is confirmed.
+
 ## Fork Responsibility Boundary
 
 This policy applies to the upstream Arc Reactor repository and supported upstream versions only.
@@ -70,3 +82,4 @@ When using Arc Reactor in production:
 3. **Use environment variables** - Never hardcode API keys in configuration files
 4. **Monitor hook events** - Use `AfterAgentCompleteHook` for security audit logging
 5. **Keep dependencies updated** - Regularly update Spring Boot and Spring AI versions
+6. **Enforce JWT + tenant isolation** - Do not bypass auth or tenant context checks in production

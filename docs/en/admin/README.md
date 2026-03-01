@@ -8,15 +8,7 @@ This section contains administration guides for Arc Reactor.
 
 ## Quick Start
 
-### Auth disabled (default)
-
-All requests are treated as admin. No token is required.
-
-```bash
-curl http://localhost:8080/api/personas
-```
-
-### Auth enabled (production)
+### Runtime auth requirement
 
 1. Login to get a token:
    ```bash
@@ -30,6 +22,9 @@ curl http://localhost:8080/api/personas
    curl http://localhost:8080/api/personas \
      -H "Authorization: Bearer <token>"
    ```
+
+3. Admin endpoints require an `ADMIN` role token.
+   User tokens receive `403 Forbidden`.
 
 ## Key Admin Operations
 

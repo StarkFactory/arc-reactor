@@ -36,7 +36,7 @@ Requests without a valid token to protected endpoints return `401 Unauthorized`.
 | Header | Required | Description |
 |--------|----------|-------------|
 | `Content-Type` | Yes (write operations) | Must be `application/json` |
-| `Authorization` | When auth enabled | `Bearer <JWT>` |
+| `Authorization` | Required for protected endpoints | `Bearer <JWT>` |
 | `X-Tenant-Id` | Optional (arc-admin module) | Tenant isolation identifier. Alphanumeric, hyphens, underscores. Max 64 chars. |
 
 ### Admin vs User Access
@@ -2748,7 +2748,7 @@ All error responses use the standard format:
 | HTTP Status | When |
 |-------------|------|
 | `400 Bad Request` | Validation failure, invalid parameter value, constraint violation |
-| `401 Unauthorized` | Missing or invalid JWT (auth enabled only) |
+| `401 Unauthorized` | Missing or invalid JWT |
 | `403 Forbidden` | Non-admin user attempting admin endpoint |
 | `404 Not Found` | Resource does not exist |
 | `409 Conflict` | Resource already exists (duplicate name or email) |

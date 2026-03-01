@@ -59,6 +59,12 @@ curl -s -X POST http://localhost:8080/api/chat \
   -d '{"message":"Say hello in one sentence."}'
 ```
 
+Optional contract check (no LLM call):
+
+```bash
+./scripts/dev/validate-runtime-contract.sh --base-url http://localhost:8080
+```
+
 ## 5) Enable optional features gradually
 
 Common opt-in toggles:

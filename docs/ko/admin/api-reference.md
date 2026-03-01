@@ -36,7 +36,7 @@ Authorization: Bearer <token>
 | 헤더 | 필수 여부 | 설명 |
 |------|---------|------|
 | `Content-Type` | 쓰기 작업 시 필수 | `application/json` 이어야 합니다 |
-| `Authorization` | 인증 활성화 시 필수 | `Bearer <JWT>` |
+| `Authorization` | 보호된 엔드포인트에서 필수 | `Bearer <JWT>` |
 | `X-Tenant-Id` | 선택 (arc-admin 모듈) | 테넌트 격리 식별자. 영숫자, 하이픈, 언더스코어. 최대 64자 |
 
 ### Admin vs User 접근
@@ -1977,7 +1977,7 @@ MCP 헬스 이벤트를 일괄 인제스트합니다. 배치당 최대 1000개.
 | HTTP 상태 | 발생 시점 |
 |----------|---------|
 | `400 Bad Request` | 유효성 실패, 잘못된 파라미터 값, 제약 조건 위반 |
-| `401 Unauthorized` | 누락되거나 유효하지 않은 JWT (인증 활성화 시) |
+| `401 Unauthorized` | 누락되거나 유효하지 않은 JWT |
 | `403 Forbidden` | 비-admin 사용자가 admin 엔드포인트 접근 시도 |
 | `404 Not Found` | 리소스 없음 |
 | `409 Conflict` | 리소스 이미 존재 (중복 이름 또는 이메일) |

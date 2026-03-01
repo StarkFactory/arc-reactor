@@ -61,7 +61,6 @@ Request
 arc:
   reactor:
     auth:
-      enabled: true                    # Enable JWT authentication
       jwt-secret: ${JWT_SECRET}        # HS256 signing secret (32+ bytes recommended)
       jwt-expiration-ms: 86400000      # Token validity period (default: 24 hours)
       public-paths:                    # Paths accessible without authentication
@@ -72,17 +71,17 @@ arc:
 ### Build (build.gradle.kts)
 
 ```bash
-# Development/production default: auth dependencies included
+# Authentication is runtime-required and included by default
 ./gradlew :arc-app:bootRun
 
-# DB + Auth both included
+# Build bootJar with DB support
 ./gradlew :arc-app:bootJar -Pdb=true
 ```
 
 ### Docker
 
 ```dockerfile
-# Control via ARG in Dockerfile
+# Build includes auth by default; ARG controls DB packaging
 ARG ENABLE_DB=true
 RUN GRADLE_ARGS=":arc-app:bootJar"; \
     if [ "$ENABLE_DB" = "true" ]; then GRADLE_ARGS="$GRADLE_ARGS -Pdb=true"; fi; \
@@ -307,7 +306,7 @@ class RedisUserStore(private val redisTemplate: RedisTemplate<String, User>) : U
 
 ## Session Isolation
 
-When authentication is enabled, per-user session isolation is automatic:
+Because authentication is always required, per-user session isolation is automatic:
 
 ### Backend
 
@@ -319,7 +318,7 @@ When authentication is enabled, per-user session isolation is automatic:
 
 ### Frontend
 
-1. On app startup, `GET /api/models` probe -- 401 means auth required, 200 means auth disabled
+1. On app startup, `GET /api/models` without JWT returns `401` (expected runtime contract)
 2. On successful login, JWT token is stored in `localStorage`
 3. `fetchWithAuth()` -- automatically injects `Authorization: Bearer <token>` on all API requests
 4. `localStorage` keys are namespaced per userId: `arc-reactor-sessions:{userId}`

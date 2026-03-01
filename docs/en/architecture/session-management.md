@@ -2,7 +2,7 @@
 
 ## One-Line Summary
 
-**Manage conversation history via session REST APIs and centrally manage system prompts with personas.** When authentication is enabled, per-user session isolation is automatically applied.
+**Manage conversation history via session REST APIs and centrally manage system prompts with personas.** Runtime requires authentication, so per-user session isolation is always applied.
 
 ---
 
@@ -43,7 +43,7 @@ curl http://localhost:8080/api/sessions
 - `preview`: First 50 characters of the first user message
 - `lastActivity`: Epoch milliseconds of the last message
 - Sorted by most recent activity
-- **When authentication is enabled**: Only returns sessions belonging to the current user
+- Returns only sessions belonging to the current authenticated user
 
 ### GET /api/sessions/{id} — Session Details
 
@@ -61,7 +61,7 @@ curl http://localhost:8080/api/sessions/a1b2c3d4-...
 }
 ```
 
-- **When authentication is enabled**: Accessing another user's session returns 403 Forbidden
+- Accessing another user's session returns 403 Forbidden
 
 ### DELETE /api/sessions/{id} — Delete Session
 
@@ -72,7 +72,7 @@ curl -X DELETE http://localhost:8080/api/sessions/a1b2c3d4-...
 
 - Completely deletes session data from the MemoryStore
 - When hierarchical memory is enabled, also deletes the conversation summary
-- **When authentication is enabled**: Deleting another user's session returns 403 Forbidden
+- Deleting another user's session returns 403 Forbidden
 
 ### GET /api/models — Model List
 
@@ -165,7 +165,7 @@ ChatContext.tsx                     ChatController.kt
 
 ## Per-User Session Isolation
 
-Automatically activated when authentication is enabled.
+Automatically active in runtime (authentication is required).
 
 ### Backend Isolation
 
@@ -331,7 +331,7 @@ CREATE TABLE conversation_messages (
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- V4: Per-user isolation (when authentication is enabled)
+-- V4: Per-user isolation
 ALTER TABLE conversation_messages
     ADD COLUMN IF NOT EXISTS user_id VARCHAR(36) NOT NULL DEFAULT 'anonymous';
 ```

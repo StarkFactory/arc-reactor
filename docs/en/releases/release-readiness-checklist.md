@@ -7,6 +7,7 @@ Use this checklist before tagging a public release.
 - [ ] `./gradlew test` passed
 - [ ] Required integration suites passed for release scope
 - [ ] Docs link checks passed (`bash scripts/dev/check-docs.sh`)
+- [ ] Runtime contract smoke passed (`./scripts/dev/validate-runtime-contract.sh`)
 - [ ] Release notes prepared under `docs/en/releases/<tag>.md`
 
 ## Security Gates

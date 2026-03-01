@@ -59,7 +59,6 @@
 arc:
   reactor:
     auth:
-      enabled: true                    # JWT 인증 활성화
       jwt-secret: ${JWT_SECRET}        # HS256 서명 시크릿 (32바이트 이상 권장)
       jwt-expiration-ms: 86400000      # 토큰 유효기간 (기본: 24시간)
       public-paths:                    # 인증 없이 접근 가능한 경로
@@ -70,17 +69,17 @@ arc:
 ### 빌드 (build.gradle.kts)
 
 ```bash
-# 개발/프로덕션 기본: auth 의존성 포함
+# 인증은 런타임 필수이며 기본 포함
 ./gradlew :arc-app:bootRun
 
-# DB + Auth 모두 포함
+# DB 지원 포함 bootJar 빌드
 ./gradlew :arc-app:bootJar -Pdb=true
 ```
 
 ### Docker
 
 ```dockerfile
-# Dockerfile에서 ARG로 제어
+# 인증은 기본 포함, ARG는 DB 패키징만 제어
 ARG ENABLE_DB=true
 RUN GRADLE_ARGS=":arc-app:bootJar"; \
     if [ "$ENABLE_DB" = "true" ]; then GRADLE_ARGS="$GRADLE_ARGS -Pdb=true"; fi; \
@@ -305,7 +304,7 @@ class RedisUserStore(private val redisTemplate: RedisTemplate<String, User>) : U
 
 ## 세션 격리
 
-인증 활성 시 자동으로 사용자별 세션이 격리된다:
+인증이 항상 필수이므로 사용자별 세션이 자동으로 격리된다:
 
 ### 백엔드
 
@@ -317,7 +316,7 @@ class RedisUserStore(private val redisTemplate: RedisTemplate<String, User>) : U
 
 ### 프론트엔드
 
-1. 앱 시작 시 `GET /api/models` 프로브 → 401이면 auth 필요, 200이면 auth 비활성
+1. 앱 시작 시 JWT 없이 `GET /api/models` 호출 → `401` 반환이 정상 런타임 계약
 2. 로그인 성공 → JWT 토큰을 `localStorage`에 저장
 3. `fetchWithAuth()` — 모든 API 요청에 `Authorization: Bearer <token>` 자동 주입
 4. `localStorage` 키를 userId별 네임스페이스로 분리: `arc-reactor-sessions:{userId}`

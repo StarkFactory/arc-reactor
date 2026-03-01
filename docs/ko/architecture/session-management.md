@@ -2,7 +2,7 @@
 
 ## 한 줄 요약
 
-**세션 REST API로 대화 이력을 관리하고, 페르소나로 시스템 프롬프트를 중앙 관리한다.** 인증 활성 시 사용자별 세션 격리가 자동 적용.
+**세션 REST API로 대화 이력을 관리하고, 페르소나로 시스템 프롬프트를 중앙 관리한다.** 런타임에서 인증이 필수이므로 사용자별 세션 격리가 항상 적용된다.
 
 ---
 
@@ -43,7 +43,7 @@ curl http://localhost:8080/api/sessions
 - `preview`: 첫 번째 user 메시지의 앞 50자
 - `lastActivity`: 마지막 메시지의 epoch milliseconds
 - 최근 활동순으로 정렬
-- **인증 활성 시**: 현재 사용자의 세션만 반환
+- 현재 인증된 사용자의 세션만 반환
 
 ### GET /api/sessions/{id} — 세션 상세
 
@@ -61,7 +61,7 @@ curl http://localhost:8080/api/sessions/a1b2c3d4-...
 }
 ```
 
-- **인증 활성 시**: 다른 사용자의 세션 접근 → 403 Forbidden
+- 다른 사용자의 세션 접근 → 403 Forbidden
 
 ### DELETE /api/sessions/{id} — 세션 삭제
 
@@ -71,7 +71,7 @@ curl -X DELETE http://localhost:8080/api/sessions/a1b2c3d4-...
 ```
 
 - MemoryStore에서 세션 데이터 완전 삭제
-- **인증 활성 시**: 다른 사용자의 세션 삭제 → 403 Forbidden
+- 다른 사용자의 세션 삭제 → 403 Forbidden
 
 ### GET /api/models — 모델 목록
 
@@ -160,7 +160,7 @@ ChatContext.tsx                     ChatController.kt
 
 ## 사용자별 세션 격리
 
-인증 활성 시 자동으로 작동한다.
+런타임에서 자동으로 작동한다(인증 필수).
 
 ### 백엔드 격리
 
@@ -326,7 +326,7 @@ CREATE TABLE conversation_messages (
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- V4: 사용자별 격리 (인증 활성 시)
+-- V4: 사용자별 격리
 ALTER TABLE conversation_messages
     ADD COLUMN IF NOT EXISTS user_id VARCHAR(36) NOT NULL DEFAULT 'anonymous';
 ```

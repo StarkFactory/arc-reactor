@@ -59,6 +59,12 @@ curl -s -X POST http://localhost:8080/api/chat \
   -d '{"message":"한 문장으로 인사해줘."}'
 ```
 
+선택 계약 점검(LLM 호출 없음):
+
+```bash
+./scripts/dev/validate-runtime-contract.sh --base-url http://localhost:8080
+```
+
 ## 5) 선택 기능 점진 활성화
 
 대표적인 opt-in 토글:

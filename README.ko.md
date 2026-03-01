@@ -104,6 +104,9 @@ curl -X POST http://localhost:8080/api/chat \
   -H "X-Tenant-Id: default" \
   -H "Content-Type: application/json" \
   -d '{"message": "3 더하기 5는?"}'
+
+# 계약 스모크(LLM 호출 없음): 인증 + 관리자 가드 기대 동작 검증
+./scripts/dev/validate-runtime-contract.sh --base-url http://localhost:8080
 ```
 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
