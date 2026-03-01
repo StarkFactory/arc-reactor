@@ -12,8 +12,6 @@ import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.resilience.CircuitBreakerOpenException
 import com.arc.reactor.resilience.CircuitBreakerRegistry
 import com.github.benmanes.caffeine.cache.Caffeine
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import java.time.Duration
 import java.time.YearMonth
@@ -87,9 +85,8 @@ class QuotaEnforcerHook(
         val usage = try {
             circuitBreaker.execute {
                 usageCache.getIfPresent(tenantId)
-                    ?: runBlocking(Dispatchers.IO) {
-                        queryService.getCurrentMonthUsage(tenantId)
-                    }.also { usageCache.put(tenantId, it) }
+                    ?: queryService.getCurrentMonthUsage(tenantId)
+                        .also { usageCache.put(tenantId, it) }
             }
         } catch (e: CircuitBreakerOpenException) {
             logger.warn { "Quota check circuit breaker OPEN for tenant=$tenantId, allowing request" }
