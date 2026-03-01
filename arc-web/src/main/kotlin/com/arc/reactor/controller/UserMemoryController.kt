@@ -8,7 +8,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
-import kotlinx.coroutines.runBlocking
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -44,12 +43,12 @@ class UserMemoryController(
         ApiResponse(responseCode = "403", description = "Access denied")
     ])
     @GetMapping("/{userId}")
-    fun getUserMemory(
+    suspend fun getUserMemory(
         @PathVariable userId: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!canAccess(userId, exchange)) return forbiddenResponse()
-        val memory = runBlocking { userMemoryManager.get(userId) }
+        val memory = userMemoryManager.get(userId)
             ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(memory.toResponse())
     }
@@ -64,13 +63,13 @@ class UserMemoryController(
         ApiResponse(responseCode = "403", description = "Access denied")
     ])
     @PutMapping("/{userId}/facts")
-    fun updateFact(
+    suspend fun updateFact(
         @PathVariable userId: String,
         @Valid @RequestBody request: KeyValueRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!canAccess(userId, exchange)) return forbiddenResponse()
-        runBlocking { userMemoryManager.updateFact(userId, request.key, request.value) }
+        userMemoryManager.updateFact(userId, request.key, request.value)
         return ResponseEntity.ok(mapOf("updated" to true))
     }
 
@@ -84,13 +83,13 @@ class UserMemoryController(
         ApiResponse(responseCode = "403", description = "Access denied")
     ])
     @PutMapping("/{userId}/preferences")
-    fun updatePreference(
+    suspend fun updatePreference(
         @PathVariable userId: String,
         @Valid @RequestBody request: KeyValueRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!canAccess(userId, exchange)) return forbiddenResponse()
-        runBlocking { userMemoryManager.updatePreference(userId, request.key, request.value) }
+        userMemoryManager.updatePreference(userId, request.key, request.value)
         return ResponseEntity.ok(mapOf("updated" to true))
     }
 
@@ -103,12 +102,12 @@ class UserMemoryController(
         ApiResponse(responseCode = "403", description = "Access denied")
     ])
     @DeleteMapping("/{userId}")
-    fun deleteUserMemory(
+    suspend fun deleteUserMemory(
         @PathVariable userId: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!canAccess(userId, exchange)) return forbiddenResponse()
-        runBlocking { userMemoryManager.delete(userId) }
+        userMemoryManager.delete(userId)
         return ResponseEntity.noContent().build()
     }
 
