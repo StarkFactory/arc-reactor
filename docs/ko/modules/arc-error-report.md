@@ -2,7 +2,7 @@
 
 ## 개요
 
-arc-error-report는 프로덕션 에러 보고서를 수신하고 자율 AI 기반 근본 원인 분석을 트리거하는 HTTP 엔드포인트를 제공합니다. 분석 에이전트는 MCP 도구를 사용하여 리포지토리, 이슈 트래커, 문서 시스템, 메시징 시스템에 걸쳐 에러를 조사한 뒤 Slack으로 형식화된 인시던트 보고서를 전송합니다.
+arc-error-report는 프로덕션 에러 보고서를 수신하고 자율 AI 기반 근본 원인 분석을 트리거하는 HTTP 엔드포인트를 제공합니다. 분석 에이전트는 런타임에 등록된 도구(MCP 서버 도구 및/또는 로컬 도구)를 사용하여 리포지토리, 이슈 트래커, 문서 시스템, 메시징 시스템에 걸쳐 에러를 조사한 뒤 Slack으로 형식화된 인시던트 보고서를 전송합니다.
 
 엔드포인트는 보고서를 접수하고 즉시 반환합니다(비동기 처리 방식). 에이전트는 백그라운드에서 세마포어로 동시성을 제한하며 실행됩니다.
 
@@ -53,18 +53,18 @@ implementation("com.arc.reactor:arc-error-report")
 
 `DefaultErrorReportHandler`는 에이전트에게 다음 단계를 지시하는 고정 system prompt와 함께 `AgentExecutor.execute()`를 호출합니다:
 
-1. Bitbucket MCP 도구로 리포지토리 클론 또는 위치 파악
-2. 리포지토리 로드 및 인덱싱 후 Error Log MCP로 스택 트레이스 분석
+1. 리포지토리 도구(일반적으로 MCP 기반)로 리포지토리 클론 또는 위치 파악
+2. 리포지토리 로드 및 인덱싱 후 에러 분석 도구로 스택 트레이스 분석
 3. 특정 파일 검사 및 에러 패턴 검색
 4. Jira에서 관련 이슈 검색 및 담당 개발자 파악
 5. Confluence에서 관련 런북 검색
-6. 지정된 채널에 형식화된 Slack 메시지 작성 및 전송
+6. 지정된 채널에 형식화된 Slack 메시지 작성 및 전송 (가능하면 내장 Slack LocalTool 우선 사용)
 
 User prompt는 `ErrorReportRequest`의 필드(서비스명, 리포지토리 슬러그, Slack 채널, 환경, 타임스탬프, 메타데이터, 전체 스택 트레이스)로 구성됩니다.
 
-**MCP 도구 의존성:**
+**도구 의존성:**
 
-분석 품질은 런타임에 등록된 MCP 서버에 전적으로 의존합니다. System prompt는 Bitbucket MCP, Error Log MCP, Jira MCP, Confluence MCP, Slack MCP를 카테고리로 참조합니다. 도구 카테고리를 사용할 수 없으면 에이전트는 건너뛰고 접근 가능한 도구로 계속 진행합니다.
+분석 품질은 런타임에 사용 가능한 도구에 좌우됩니다. 리포지토리/Jira/Confluence/에러 분석 도구는 보통 MCP 서버로 등록합니다. Slack 전송은 `arc-slack`의 내장 LocalTool(`send_message`, `reply_to_thread`)로 처리할 수 있으며, 별도 외부 Slack 어댑터가 필수는 아닙니다. 도구 카테고리를 사용할 수 없으면 에이전트는 건너뛰고 접근 가능한 도구로 계속 진행합니다.
 
 **비동기 처리:**
 
@@ -132,7 +132,7 @@ class MyErrorReportHandler(
 
 ## 주의사항
 
-**MCP 서버는 런타임에 등록해야 합니다.** 에러 분석 에이전트는 관련 MCP 서버(Bitbucket, Error Log, Jira, Confluence, Slack)가 `POST /api/mcp/servers`로 등록되어 있을 때만 의미 있는 결과를 냅니다. MCP 도구 없이는 에이전트가 기본 지식으로만 스택 트레이스를 분석할 수 있고 Slack 메시지를 보낼 수 없습니다.
+**필요 도구는 런타임에 준비되어야 합니다.** 리포지토리/Jira/Confluence/에러 분석 도구는 보통 `POST /api/mcp/servers`로 등록합니다. Slack 전송은 `arc-slack` LocalTool을 사용합니다. 필요한 도구가 부족하면 분석은 부분적으로만 수행되거나 Slack 전송이 생략될 수 있습니다.
 
 **엔드포인트는 분석 완료가 아닌 즉시 200을 반환합니다.** 호출자는 결과를 폴링하지 않아야 합니다. 결과 엔드포인트가 없습니다. 요청에 지정된 Slack 채널에서 분석 출력을 확인하세요.
 

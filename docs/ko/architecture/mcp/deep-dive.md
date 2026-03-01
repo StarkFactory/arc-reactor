@@ -21,7 +21,7 @@ Arc Reactor Agent
             │
             ├── filesystem MCP 서버 → 파일 읽기/쓰기
             ├── database MCP 서버  → SQL 쿼리
-            └── slack MCP 서버     → 메시지 전송
+            └── 이슈 트래커 MCP 서버 → 티켓 조회/수정
 ```
 
 ## 지원 트랜스포트
@@ -152,6 +152,9 @@ class DefaultMcpManager(
 
     // 서버별 Mutex (connect/disconnect 원자성 보장)
     private val serverMutexes = ConcurrentHashMap<String, Mutex>()
+
+    // 중복 MCP 도구 warning 로그 중복 방지 캐시
+    private val duplicateToolWarningKeys = ConcurrentHashMap.newKeySet<String>()
 }
 ```
 
@@ -190,7 +193,11 @@ mutexFor(serverName).withLock {
    └── Mutex 해제
 
 3. getAllToolCallbacks()
-   └── toolCallbacksCache.values.flatten() — 캐시에서 즉시 반환
+   ├── deduplicateCallbacksByName(toolCallbacksCache)
+   │   ├── 서버 이름을 사전순으로 순회
+   │   ├── 동일 tool name은 첫 콜백만 유지
+   │   └── 중복은 kept/dropped 쌍 기준으로 warning 1회 로그
+   └── 중복 제거된 콜백을 캐시에서 즉시 반환
 
 4. disconnect(serverName)
    ├── Mutex 획득
@@ -278,7 +285,7 @@ class McpToolCallback(
 ```kotlin
 private fun selectAndPrepareTools(userPrompt: String): List<Any> {
     val localToolInstances = localTools.toList()          // @Tool 어노테이션 도구
-    val allCallbacks = toolCallbacks + mcpToolCallbacks() // ToolCallback + MCP 도구
+    val allCallbacks = deduplicateCallbacks(toolCallbacks + mcpToolCallbacks()) // ToolCallback + MCP 도구
     val selectedCallbacks = toolSelector?.select(userPrompt, allCallbacks) ?: allCallbacks
     val wrappedCallbacks = selectedCallbacks.map { ArcToolCallbackAdapter(it) }
     return (localToolInstances + wrappedCallbacks).take(maxToolsPerRequest)
@@ -286,6 +293,7 @@ private fun selectAndPrepareTools(userPrompt: String): List<Any> {
 ```
 
 `mcpToolCallbacks`는 `{ mcpManager.getAllToolCallbacks() }` 람다로 주입됩니다. 매 요청마다 호출되므로, 런타임 중에 MCP 서버를 추가/제거하면 즉시 반영됩니다.
+`getAllToolCallbacks()`는 서버 간 동일 tool name을 중복 제거해서 반환하며, 충돌 시 서버 이름 사전순으로 앞선 서버의 콜백을 유지합니다.
 
 ### 자동 구성
 

@@ -26,7 +26,7 @@ internal class ToolPreparationPlanner(
                     acc
                 }
         }
-        val allCallbacks = toolCallbacks + mcpToolCallbacks()
+        val allCallbacks = deduplicateCallbacks(toolCallbacks + mcpToolCallbacks())
         val selectedCallbacks = if (toolSelector != null && allCallbacks.isNotEmpty()) {
             toolSelector.select(userPrompt, allCallbacks)
         } else {
@@ -39,5 +39,18 @@ internal class ToolPreparationPlanner(
             )
         }
         return (localToolInstances + wrappedCallbacks).take(maxToolsPerRequest)
+    }
+
+    private fun deduplicateCallbacks(callbacks: List<ToolCallback>): List<ToolCallback> {
+        if (callbacks.isEmpty()) return emptyList()
+
+        val uniqueByName = LinkedHashMap<String, ToolCallback>()
+        for (callback in callbacks) {
+            val existing = uniqueByName.putIfAbsent(callback.name, callback)
+            if (existing != null && existing !== callback) {
+                logger.warn { "Duplicate tool callback name '${callback.name}' detected; keeping first callback" }
+            }
+        }
+        return uniqueByName.values.toList()
     }
 }

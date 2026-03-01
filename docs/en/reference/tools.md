@@ -135,7 +135,8 @@ curl -X POST http://localhost:8080/api/mcp/servers \
 
 **Features:**
 - Tool implementation resides on an external server (no code writing required)
-- Many open-source MCP servers available (filesystem, DB, GitHub, Slack, etc.)
+- Many open-source MCP servers available (filesystem, DB, GitHub, issue trackers, etc.)
+- For Slack, prefer built-in `arc-slack` LocalTools; external messaging MCP adapters are optional only for legacy/external setups.
 - Tools are automatically registered upon connection
 - Supports STDIO (local process) and SSE (HTTP) transport modes
 
@@ -171,6 +172,7 @@ so from the agent's perspective, they are used identically to local tools.
    LocalTool list (auto-discovered via @Component)
    + ToolCallback list (auto-discovered via @Component)
    + MCP tool list (fetched from McpManager)
+   -> Deduplicate callbacks by tool name (first callback wins)
       |
 2. Tool Filtering (ToolSelector)
    Analyzes the user prompt and selects only relevant tools
@@ -188,6 +190,9 @@ so from the agent's perspective, they are used identically to local tools.
 6. Return Result to LLM
    LLM generates the final response based on the tool result
 ```
+
+If multiple callbacks share the same tool name, Arc Reactor keeps the first callback from the merged callback list and drops later duplicates with a warning log.
+For MCP-only collisions across servers, the callback from the lexicographically first server name is kept.
 
 ---
 

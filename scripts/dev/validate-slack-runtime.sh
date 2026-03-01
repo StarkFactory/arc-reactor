@@ -10,8 +10,8 @@ SLASH_COMMAND="${SLASH_COMMAND:-/jarvis}"
 RAG_CODE="${RAG_CODE:-ORBIT-LIME-9721}"
 WAIT_SECONDS="${WAIT_SECONDS:-20}"
 POLL_INTERVAL_SECONDS="${POLL_INTERVAL_SECONDS:-2}"
-REQUIRE_MCP_CHECK="${REQUIRE_MCP_CHECK:-true}"
-MCP_SERVER_NAME="${MCP_SERVER_NAME:-slack-mcp-runtime-validation}"
+REQUIRE_MCP_CHECK="${REQUIRE_MCP_CHECK:-false}"
+MCP_SERVER_NAME="${MCP_SERVER_NAME:-runtime-validation-mcp}"
 MCP_SSE_URL="${MCP_SSE_URL:-}"
 MCP_CONNECT_WAIT_SECONDS="${MCP_CONNECT_WAIT_SECONDS:-20}"
 SLACK_HTTP_MODE="unknown"
@@ -506,14 +506,14 @@ check_slack_rag_reply() {
   assert_contains "$reply" "$RAG_CODE" "Slack thread RAG reply must contain codename"
 }
 
-check_slack_mcp_reply() {
+check_slack_tool_reply() {
   local prompt="[run:$RUN_ID] Read 1 latest message from channel $SLACK_CHANNEL_ID and summarize it in one sentence."
   local reply
   reply="$(send_signed_slash_and_get_reply "$prompt" "slash_mcp")"
   assert_not_contains "$reply" ":warning: An unknown error occurred." \
-    "Slack MCP reply must not degrade to unknown error"
+    "Slack tool reply must not degrade to unknown error"
   assert_not_contains "$reply" "An unknown error occurred" \
-    "Slack MCP reply must include actionable content"
+    "Slack tool reply must include actionable content"
 }
 
 main() {
@@ -569,10 +569,10 @@ main() {
   fi
 
   if [[ "$SLACK_HTTP_MODE" == "events_api" ]] && is_true "$REQUIRE_MCP_CHECK"; then
-    print_step "Checking Slack slash path with MCP answer"
-    check_slack_mcp_reply
+    print_step "Checking Slack slash path with tool-assisted answer"
+    check_slack_tool_reply
   elif is_true "$REQUIRE_MCP_CHECK"; then
-    print_step "Skipping Slack slash MCP reply check in socket_mode"
+    print_step "Skipping Slack slash tool-assisted reply check in socket_mode"
   fi
 
   printf "\nPASS: Slack runtime validation completed successfully (run_id=%s)\n" "$RUN_ID"

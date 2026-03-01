@@ -21,7 +21,7 @@ Arc Reactor Agent
             |
             +-- filesystem MCP server -> file read/write
             +-- database MCP server   -> SQL queries
-            +-- slack MCP server      -> send messages
+            +-- issue tracker MCP server -> ticket search/update
 ```
 
 ## Supported Transports
@@ -152,6 +152,9 @@ class DefaultMcpManager(
 
     // Per-server Mutex (ensures connect/disconnect atomicity)
     private val serverMutexes = ConcurrentHashMap<String, Mutex>()
+
+    // Duplicate MCP tool warning dedup cache (avoid repeated logs)
+    private val duplicateToolWarningKeys = ConcurrentHashMap.newKeySet<String>()
 }
 ```
 
@@ -190,7 +193,11 @@ mutexFor(serverName).withLock {
    +-- Release Mutex
 
 3. getAllToolCallbacks()
-   +-- toolCallbacksCache.values.flatten() -- Return immediately from cache
+   +-- deduplicateCallbacksByName(toolCallbacksCache)
+       +-- Iterate servers in sorted name order
+       +-- Keep first callback for each tool name
+       +-- Drop duplicates and log warning once per kept/dropped pair
+   +-- Return deduplicated callbacks from cache
 
 4. disconnect(serverName)
    +-- Acquire Mutex
@@ -278,7 +285,7 @@ When `SpringAiAgentExecutor` collects tools:
 ```kotlin
 private fun selectAndPrepareTools(userPrompt: String): List<Any> {
     val localToolInstances = localTools.toList()          // @Tool annotation tools
-    val allCallbacks = toolCallbacks + mcpToolCallbacks() // ToolCallback + MCP tools
+    val allCallbacks = deduplicateCallbacks(toolCallbacks + mcpToolCallbacks()) // ToolCallback + MCP tools
     val selectedCallbacks = toolSelector?.select(userPrompt, allCallbacks) ?: allCallbacks
     val wrappedCallbacks = selectedCallbacks.map { ArcToolCallbackAdapter(it) }
     return (localToolInstances + wrappedCallbacks).take(maxToolsPerRequest)
@@ -286,6 +293,7 @@ private fun selectAndPrepareTools(userPrompt: String): List<Any> {
 ```
 
 `mcpToolCallbacks` is injected as a `{ mcpManager.getAllToolCallbacks() }` lambda. Since it is called on every request, adding or removing MCP servers at runtime is reflected immediately.
+`getAllToolCallbacks()` returns callbacks deduplicated by tool name across servers. For collisions, the callback from the lexicographically first server name is kept.
 
 ### Auto-Configuration
 

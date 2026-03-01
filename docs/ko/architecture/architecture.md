@@ -125,7 +125,7 @@ Query → DocumentRetriever → DocumentReranker → Context Builder → System 
 McpManager
 ├── register(server)    → STDIO 또는 SSE 트랜스포트 설정
 ├── connect(name)       → 서버 연결 + 도구 목록 조회
-└── getAllToolCallbacks() → 연결된 모든 MCP 도구 반환
+└── getAllToolCallbacks() → tool name 기준 중복 제거된 MCP 도구 반환
 ```
 
 - 외부 MCP 서버의 도구가 자동으로 에이전트의 도구 목록에 추가됨

@@ -12,6 +12,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
+import java.util.LinkedHashMap
 import java.util.concurrent.ConcurrentHashMap
 
 private val logger = KotlinLogging.logger {}
@@ -75,6 +76,7 @@ class DefaultMcpManager(
     private val toolCallbacksCache = ConcurrentHashMap<String, List<ToolCallback>>()
     private val statuses = ConcurrentHashMap<String, McpServerStatus>()
     private val serverMutexes = ConcurrentHashMap<String, Mutex>()
+    private val duplicateToolWarningKeys = ConcurrentHashMap.newKeySet<String>()
 
     private val reconnectScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val storeSync = McpStoreSync(store)
@@ -215,7 +217,15 @@ class DefaultMcpManager(
     }
 
     override fun getAllToolCallbacks(): List<ToolCallback> {
-        return toolCallbacksCache.values.flatten()
+        return deduplicateCallbacksByName(toolCallbacksCache) { toolName, keptServer, droppedServer ->
+            val warningKey = "$toolName|$keptServer|$droppedServer"
+            if (duplicateToolWarningKeys.add(warningKey)) {
+                logger.warn {
+                    "Duplicate MCP tool name '$toolName' detected across servers. " +
+                        "Keeping '$keptServer', ignoring '$droppedServer'."
+                }
+            }
+        }
     }
 
     override fun getToolCallbacks(serverName: String): List<ToolCallback> {
@@ -241,4 +251,25 @@ class DefaultMcpManager(
         statuses.clear()
         serverMutexes.clear()
     }
+}
+
+internal fun deduplicateCallbacksByName(
+    toolCallbacksByServer: Map<String, List<ToolCallback>>,
+    onDuplicate: (toolName: String, keptServer: String, droppedServer: String) -> Unit = { _, _, _ -> }
+): List<ToolCallback> {
+    if (toolCallbacksByServer.isEmpty()) return emptyList()
+
+    val selectedByToolName = LinkedHashMap<String, Pair<String, ToolCallback>>()
+    for (serverName in toolCallbacksByServer.keys.sorted()) {
+        val callbacks = toolCallbacksByServer[serverName].orEmpty()
+        for (callback in callbacks) {
+            val existing = selectedByToolName[callback.name]
+            if (existing == null) {
+                selectedByToolName[callback.name] = serverName to callback
+            } else {
+                onDuplicate(callback.name, existing.first, serverName)
+            }
+        }
+    }
+    return selectedByToolName.values.map { it.second }
 }

@@ -36,7 +36,8 @@ private val logger = KotlinLogging.logger {}
  * Receives error reports from production servers and triggers autonomous AI analysis.
  *
  * Processing is asynchronous -- the endpoint returns 200 immediately.
- * The AI agent analyzes the error using MCP tools and sends the report to Slack.
+ * The AI agent analyzes the error using registered tools (MCP and/or local tools)
+ * and sends the report to Slack.
  */
 @RestController
 @RequestMapping("/api/error-report")

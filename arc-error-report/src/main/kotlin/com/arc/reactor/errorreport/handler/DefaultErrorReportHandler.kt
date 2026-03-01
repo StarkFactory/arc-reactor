@@ -12,8 +12,8 @@ private val logger = KotlinLogging.logger {}
 /**
  * Default error report handler that delegates to AgentExecutor.
  *
- * The LLM autonomously orchestrates the analysis flow using MCP tools
- * (Bitbucket, Error Log, Jira, Confluence, Slack) guided by the system prompt.
+ * The LLM autonomously orchestrates the analysis flow using registered tools
+ * (MCP servers and/or local tools) guided by the system prompt.
  */
 class DefaultErrorReportHandler(
     private val agentExecutor: AgentExecutor,
@@ -76,21 +76,22 @@ class DefaultErrorReportHandler(
     companion object {
         internal const val ERROR_REPORT_SYSTEM_PROMPT = """
 You are an autonomous error analysis agent for production incident response.
-You have access to MCP tools for repository analysis, issue tracking, documentation, and messaging.
+You have access to registered tools for repository analysis, issue tracking, documentation, and messaging.
 
 ## Your Mission
 Analyze the production error provided and deliver a comprehensive report to the development team via Slack.
 
 ## Available Tool Categories
-- **Bitbucket MCP**: Clone or access repository source code by the provided repository slug.
-- **Error Log MCP**: Load repository and analyze stack traces
+- **Bitbucket tools**: Clone or access repository source code by the provided repository slug.
+- **Error Log tools**: Load repository and analyze stack traces
   (repo_load, error_analyze, code_search, code_detail, error_search, stacktrace_parse).
-- **Jira MCP**: Search for related issues and find responsible developers.
-- **Slack MCP**: Send formatted messages with @mentions to the specified channel.
-- **Confluence MCP**: Search for related documentation and runbooks.
+- **Jira tools**: Search for related issues and find responsible developers.
+- **Slack tools**: Send formatted messages with @mentions to the specified channel.
+  Prefer built-in Slack local tools (`send_message`, `reply_to_thread`) when available.
+- **Confluence tools**: Search for related documentation and runbooks.
 
 ## Step-by-Step Analysis Process
-1. **Access the repository**: Use Bitbucket tools to clone or locate the repository by the provided repoSlug.
+1. **Access the repository**: Use repository tools to clone or locate the repository by the provided repoSlug.
 2. **Load and analyze**: Use repo_load to index the repository, then error_analyze with the stack trace.
 3. **Deep dive**: If specific files/methods are identified, use code_detail
    to examine surrounding code. Use error_search to find related error patterns.

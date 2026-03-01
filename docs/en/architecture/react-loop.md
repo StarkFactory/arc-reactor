@@ -368,8 +368,8 @@ private fun selectAndPrepareTools(userPrompt: String): List<Any> {
     // 1. LocalTool (@Tool annotation-based)
     val localToolInstances = localTools.toList()
 
-    // 2. Collect ToolCallback + MCP tools
-    val allCallbacks = toolCallbacks + mcpToolCallbacks()
+    // 2. Collect ToolCallback + MCP tools, then deduplicate by tool name
+    val allCallbacks = deduplicateCallbacks(toolCallbacks + mcpToolCallbacks())
 
     // 3. Filter via ToolSelector (based on user prompt)
     val selectedCallbacks = toolSelector?.select(userPrompt, allCallbacks)
@@ -382,6 +382,9 @@ private fun selectAndPrepareTools(userPrompt: String): List<Any> {
     return (localToolInstances + wrappedCallbacks).take(maxToolsPerRequest)
 }
 ```
+
+Duplicate callback names are resolved before selection and wrapping.
+The first callback in the merged callback list is kept, and later duplicates are dropped with a warning log.
 
 ## ArcToolCallbackAdapter
 

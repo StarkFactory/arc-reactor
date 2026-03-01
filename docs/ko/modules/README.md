@@ -10,7 +10,7 @@ Arc Reactor 프레임워크의 모듈별 레퍼런스 문서입니다. 각 문�
 | [arc-web](./arc-web.md) | REST 컨트롤러, SSE 스트리밍, 보안 필터, 인증, 테넌트 해석, 전역 예외 처리기 |
 | [arc-admin](./arc-admin.md) | 운영 제어 플레인: 메트릭, 추적, 테넌트 관리, 비용 추적, 알림, 할당량 강제 |
 | [arc-slack](./arc-slack.md) | Socket Mode 또는 Events API를 통한 Slack 연동, 서명 검증 및 배압 제한 포함 |
-| [arc-error-report](./arc-error-report.md) | AI 기반 프로덕션 에러 분석: 스택 트레이스 수신, MCP 도구로 조사, Slack 보고 |
+| [arc-error-report](./arc-error-report.md) | AI 기반 프로덕션 에러 분석: 스택 트레이스 수신, 등록된 도구(MCP/로컬)로 조사, Slack 보고 |
 
 ## 빠른 탐색
 

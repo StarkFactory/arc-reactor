@@ -72,24 +72,32 @@ To deploy to staging, run: ./deploy.sh --env staging...
 Arc Reactor exposes a document ingestion API when RAG is enabled:
 
 ```bash
-# Ingest a PDF
+# Ingest a document with source metadata
 curl -X POST http://localhost:8080/api/documents \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@hr-policy.pdf" \
-  -F "source=hr-policy.pdf" \
-  -F "metadata={\"category\":\"hr\",\"department\":\"people-ops\"}"
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Employees are entitled to 20 days of annual leave per year...",
+    "metadata": {
+      "source": "hr-policy.pdf",
+      "category": "hr",
+      "department": "people-ops"
+    }
+  }'
 
 # Ingest Markdown text directly
-curl -X POST http://localhost:8080/api/documents/text \
+curl -X POST http://localhost:8080/api/documents \
   -H "Content-Type: application/json" \
   -d '{
     "content": "## On-call Policy\nEach engineer rotates on-call weekly...",
-    "source": "engineering-runbook.md",
-    "metadata": {"category": "engineering", "team": "platform"}
+    "metadata": {
+      "source": "engineering-runbook.md",
+      "category": "engineering",
+      "team": "platform"
+    }
   }'
 ```
 
-Documents are split into chunks, embedded, and stored in the configured `VectorStore`. The `source` field appears in the `[Source: ...]` header injected into the system prompt.
+Documents are split into chunks, embedded, and stored in the configured `VectorStore`. The `metadata.source` field appears in the `[Source: ...]` header injected into the system prompt.
 
 ## Ingestion Review Queue (Managed Mode)
 
@@ -359,12 +367,14 @@ class KnowledgeBaseController(
 
 ```bash
 # Ingest a document
-curl -X POST http://localhost:8080/api/documents/text \
+curl -X POST http://localhost:8080/api/documents \
   -H "Content-Type: application/json" \
   -d '{
     "content": "Employees receive 20 days of annual leave per year, accrued monthly.",
-    "source": "hr-leave-policy.md",
-    "metadata": {"category": "hr"}
+    "metadata": {
+      "source": "hr-leave-policy.md",
+      "category": "hr"
+    }
   }'
 
 # Ask a question (will retrieve the above document)

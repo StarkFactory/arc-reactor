@@ -368,8 +368,8 @@ private fun selectAndPrepareTools(userPrompt: String): List<Any> {
     // 1. LocalTool (@Tool 어노테이션 기반)
     val localToolInstances = localTools.toList()
 
-    // 2. ToolCallback + MCP 도구 수집
-    val allCallbacks = toolCallbacks + mcpToolCallbacks()
+    // 2. ToolCallback + MCP 도구 수집 후 도구 이름 기준 중복 제거
+    val allCallbacks = deduplicateCallbacks(toolCallbacks + mcpToolCallbacks())
 
     // 3. ToolSelector로 필터링 (사용자 프롬프트 기반)
     val selectedCallbacks = toolSelector?.select(userPrompt, allCallbacks)
@@ -382,6 +382,9 @@ private fun selectAndPrepareTools(userPrompt: String): List<Any> {
     return (localToolInstances + wrappedCallbacks).take(maxToolsPerRequest)
 }
 ```
+
+콜백 이름이 중복되면 선택/래핑 전에 먼저 정리됩니다.
+병합된 콜백 목록에서 먼저 등장한 콜백을 유지하고, 이후 중복 항목은 warning 로그를 남기고 제거합니다.
 
 ## ArcToolCallbackAdapter
 

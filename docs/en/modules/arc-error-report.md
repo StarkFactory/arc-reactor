@@ -2,7 +2,7 @@
 
 ## Overview
 
-arc-error-report provides an HTTP endpoint that receives production error reports and triggers autonomous AI-powered root cause analysis. The analysis agent uses MCP tools to investigate the error across the repository, issue tracker, documentation, and messaging systems, then sends a formatted incident report to Slack.
+arc-error-report provides an HTTP endpoint that receives production error reports and triggers autonomous AI-powered root cause analysis. The analysis agent uses registered tools (MCP servers and/or local tools) to investigate the error across the repository, issue tracker, documentation, and messaging systems, then sends a formatted incident report to Slack.
 
 The endpoint accepts the report and returns immediately (202-style async processing). The agent runs in the background using a semaphore to bound concurrency.
 
@@ -53,18 +53,18 @@ All properties are under the prefix `arc.reactor.error-report`.
 
 `DefaultErrorReportHandler` calls `AgentExecutor.execute()` with a fixed system prompt that instructs the agent to:
 
-1. Clone or locate the repository via Bitbucket MCP tools
-2. Load and index the repository, then analyze the stack trace using Error Log MCP
+1. Clone or locate the repository via repository tools (commonly MCP-backed)
+2. Load and index the repository, then analyze the stack trace using error analysis tools
 3. Examine specific files and search for error patterns
 4. Search Jira for related issues and identify responsible developers
 5. Search Confluence for relevant runbooks
-6. Compose and send a formatted Slack message to the specified channel
+6. Compose and send a formatted Slack message to the specified channel (prefer built-in Slack local tools when available)
 
 The user prompt is constructed from the incoming `ErrorReportRequest` fields: service name, repository slug, Slack channel, environment, timestamp, metadata, and the full stack trace.
 
-**MCP tool dependency:**
+**Tool dependency:**
 
-The analysis quality depends entirely on which MCP servers are registered at runtime. The system prompt references Bitbucket MCP, Error Log MCP, Jira MCP, Confluence MCP, and Slack MCP by category. If a tool category is unavailable, the agent skips it and continues with whatever tools are accessible.
+The analysis quality depends on which tools are available at runtime. Repository/Jira/Confluence/error-analysis tools are commonly provided via MCP servers. Slack delivery can be handled by built-in `arc-slack` local tools (`send_message`, `reply_to_thread`) without any external Slack adapter. If a tool category is unavailable, the agent skips it and continues with whatever tools are accessible.
 
 **Async processing:**
 
@@ -137,7 +137,7 @@ class MyErrorReportHandler(
 
 ## Common Pitfalls / Notes
 
-**MCP servers must be registered at runtime.** The error analysis agent produces meaningful output only when the relevant MCP servers (Bitbucket, Error Log, Jira, Confluence, Slack) are registered via `POST /api/mcp/servers`. Without MCP tools, the agent can only analyze the stack trace with its base knowledge and cannot send a Slack message.
+**Required tools must be available at runtime.** Repository/Jira/Confluence/error-analysis tools are typically registered through `POST /api/mcp/servers`. Slack sending uses `arc-slack` local tools when enabled. If required tools are missing, the agent falls back to partial analysis and may not be able to deliver a Slack report.
 
 **The endpoint returns 200 immediately, not when analysis is done.** Callers should not poll for a result — there is no result endpoint. Monitor the Slack channel specified in the request for the analysis output.
 

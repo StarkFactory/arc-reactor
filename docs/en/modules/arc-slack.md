@@ -38,7 +38,7 @@ An `AgentExecutor` bean must be present for the event and command handlers to ac
 
 ## Slack Local Tools
 
-`arc-slack` now also provides Slack tools directly as Arc Reactor `LocalTool` beans (no external Slack MCP server required).
+`arc-slack` now also provides Slack tools directly as Arc Reactor `LocalTool` beans (no external Slack adapter required).
 
 Enable with:
 
@@ -75,8 +75,8 @@ If `tool-exposure.scope-aware-enabled=true`, tool visibility is filtered by gran
 |---|---|
 | `SlackAutoConfiguration` | Wires all beans; conditionally creates Socket Mode or Events API beans |
 | `SlackSocketModeGateway` | `SmartLifecycle` bean that maintains the WebSocket connection with exponential-backoff reconnect |
-| `SlackEventController` | HTTP endpoint for Events API callbacks (`POST /slack/events`) |
-| `SlackCommandController` | HTTP endpoint for slash commands (`POST /slack/commands`) |
+| `SlackEventController` | HTTP endpoint for Events API callbacks (`POST /api/slack/events`) |
+| `SlackCommandController` | HTTP endpoint for slash commands (`POST /api/slack/commands`) |
 | `SlackEventProcessor` | Applies deduplication and backpressure, then dispatches to `SlackEventHandler` |
 | `SlackCommandProcessor` | Applies backpressure, then dispatches to `SlackCommandHandler` |
 | `SlackBackpressureLimiter` | Semaphore-based concurrency guard; fail-fast or queue mode |
