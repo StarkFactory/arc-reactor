@@ -18,9 +18,9 @@ private val logger = KotlinLogging.logger {}
  * Auto-configuration for Arc Reactor core tracing.
  *
  * Bean resolution order (first match wins via [@ConditionalOnMissingBean]):
- * 1. [otelTracer] — created when OTel API is present, an [io.opentelemetry.api.OpenTelemetry]
+ * 1. [arcReactorOtelTracer] — created when OTel API is present, an [io.opentelemetry.api.OpenTelemetry]
  *    bean exists in the context, and `arc.reactor.tracing.enabled=true` (the default).
- * 2. [noOpTracer] — created as a fallback when [otelTracer] was not registered.
+ * 2. [noOpTracer] — created as a fallback when [arcReactorOtelTracer] was not registered.
  *
  * Users can override either bean by providing their own [ArcReactorTracer] bean.
  * This configuration is completely independent of the admin module and does NOT
@@ -45,12 +45,12 @@ class TracingConfiguration {
     )
     @ConditionalOnClass(name = ["io.opentelemetry.api.OpenTelemetry"])
     @ConditionalOnBean(type = ["io.opentelemetry.api.OpenTelemetry"])
-    fun otelTracer(
+    fun arcReactorOtelTracer(
         openTelemetryProvider: ObjectProvider<io.opentelemetry.api.OpenTelemetry>,
         properties: AgentProperties
     ): ArcReactorTracer {
         val otel = requireNotNull(openTelemetryProvider.ifAvailable) {
-            "OpenTelemetry bean required for otelTracer"
+            "OpenTelemetry bean required for arcReactorOtelTracer"
         }
         val tracer = otel.getTracer(properties.tracing.serviceName)
         logger.info { "ArcReactorTracer: OTel active (service=${properties.tracing.serviceName})" }
