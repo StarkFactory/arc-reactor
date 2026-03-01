@@ -9,6 +9,7 @@ import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
+import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.tool.annotation.Tool
 import java.util.concurrent.atomic.AtomicInteger
 
 class ToolCallOrchestratorTest {
@@ -248,6 +250,35 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
+    fun `should execute LocalTool annotated method and append toolsUsed`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("text" to "arc") }
+        )
+        val toolCall = toolCall(id = "id-1", name = "echo_text", arguments = """{"text":"arc"}""")
+        val toolsUsed = mutableListOf<String>()
+        val localTool = EchoLocalTool()
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(localTool),
+            hookContext = hookContext,
+            toolsUsed = toolsUsed,
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertEquals("echo:arc", responses[0].responseData())
+        assertEquals(listOf("echo_text"), toolsUsed)
+    }
+
+    @Test
     fun `should stop when max tool calls reached`() = runBlocking {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
@@ -279,5 +310,10 @@ class ToolCallOrchestratorTest {
         every { toolCall.name() } returns name
         every { toolCall.arguments() } returns arguments
         return toolCall
+    }
+
+    private class EchoLocalTool : LocalTool {
+        @Tool(description = "Echo text")
+        fun echo_text(text: String): String = "echo:$text"
     }
 }

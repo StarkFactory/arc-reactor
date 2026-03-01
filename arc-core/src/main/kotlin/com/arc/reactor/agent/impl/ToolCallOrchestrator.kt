@@ -9,15 +9,19 @@ import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
+import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
+import org.springframework.aop.framework.Advised
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
+import org.springframework.ai.tool.method.MethodToolCallbackProvider
 import java.util.concurrent.atomic.AtomicInteger
 
 private val logger = KotlinLogging.logger {}
@@ -41,11 +45,13 @@ internal class ToolCallOrchestrator(
         maxToolCalls: Int,
         allowedTools: Set<String>?
     ): List<ToolResponseMessage.ToolResponse> = coroutineScope {
+        val springCallbacksByName = resolveSpringToolCallbacksByName(tools)
         toolCalls.map { toolCall ->
             async {
                 executeSingleToolCall(
                     toolCall = toolCall,
                     tools = tools,
+                    springCallbacksByName = springCallbacksByName,
                     hookContext = hookContext,
                     toolsUsed = toolsUsed,
                     totalToolCallsCounter = totalToolCallsCounter,
@@ -59,6 +65,7 @@ internal class ToolCallOrchestrator(
     private suspend fun executeSingleToolCall(
         toolCall: AssistantMessage.ToolCall,
         tools: List<Any>,
+        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
         hookContext: HookContext,
         toolsUsed: MutableList<String>,
         totalToolCallsCounter: AtomicInteger,
@@ -103,7 +110,13 @@ internal class ToolCallOrchestrator(
         }
 
         val toolStartTime = System.currentTimeMillis()
-        val (rawOutput, toolSuccess) = invokeToolAdapter(toolName, toolCall, tools, toolsUsed)
+        val (rawOutput, toolSuccess) = invokeToolAdapter(
+            toolName = toolName,
+            toolCall = toolCall,
+            tools = tools,
+            springCallbacksByName = springCallbacksByName,
+            toolsUsed = toolsUsed
+        )
         var toolOutput = rawOutput
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
@@ -208,12 +221,13 @@ internal class ToolCallOrchestrator(
         toolName: String,
         toolCall: AssistantMessage.ToolCall,
         tools: List<Any>,
+        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
         toolsUsed: MutableList<String>
     ): Pair<String, Boolean> {
         val adapter = findToolAdapter(toolName, tools)
-        return if (adapter != null) {
+        if (adapter != null) {
             toolsUsed.add(toolName)
-            try {
+            return try {
                 val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
                 val output = withTimeout(timeoutMs) {
                     adapter.call(toolCall.arguments())
@@ -228,10 +242,30 @@ internal class ToolCallOrchestrator(
                 logger.error(e) { "Tool $toolName execution failed" }
                 Pair("Error: ${e.message}", false)
             }
-        } else {
-            logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
-            Pair("Error: Tool '$toolName' not found", false)
         }
+
+        val springCallback = springCallbacksByName[toolName]
+        if (springCallback != null) {
+            toolsUsed.add(toolName)
+            return try {
+                val output = withTimeout(toolCallTimeoutMs) {
+                    runInterruptible {
+                        springCallback.call(toolCall.arguments().orEmpty())
+                    }
+                }
+                Pair(normalizeSpringToolOutput(output), true)
+            } catch (e: TimeoutCancellationException) {
+                logger.error { "Tool $toolName timed out after ${toolCallTimeoutMs}ms" }
+                Pair("Error: Tool '$toolName' timed out after ${toolCallTimeoutMs}ms", false)
+            } catch (e: Exception) {
+                e.throwIfCancellation()
+                logger.error(e) { "Tool $toolName execution failed" }
+                Pair("Error: ${e.message}", false)
+            }
+        }
+
+        logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
+        return Pair("Error: Tool '$toolName' not found", false)
     }
 
     /**
@@ -239,5 +273,56 @@ internal class ToolCallOrchestrator(
      */
     private fun findToolAdapter(toolName: String, tools: List<Any>): ArcToolCallbackAdapter? {
         return tools.filterIsInstance<ArcToolCallbackAdapter>().firstOrNull { it.arcCallback.name == toolName }
+    }
+
+    private fun resolveSpringToolCallbacksByName(
+        tools: List<Any>
+    ): Map<String, org.springframework.ai.tool.ToolCallback> {
+        val localTools = tools.filterIsInstance<LocalTool>()
+            .map { unwrapAopProxy(it) }
+            .distinctBy { System.identityHashCode(it) }
+        val reflectedCallbacks = if (localTools.isEmpty()) {
+            emptyList()
+        } else {
+            runCatching {
+                MethodToolCallbackProvider.builder()
+                    .toolObjects(*localTools.toTypedArray())
+                    .build()
+                    .toolCallbacks
+                    .toList()
+            }.getOrElse { ex ->
+                logger.warn(ex) { "Failed to resolve @Tool callbacks from LocalTool beans; skipping local tool callback map." }
+                emptyList()
+            }
+        }
+
+        val explicitCallbacks = tools
+            .filterIsInstance<org.springframework.ai.tool.ToolCallback>()
+            .filterNot { it is ArcToolCallbackAdapter }
+
+        val byName = LinkedHashMap<String, org.springframework.ai.tool.ToolCallback>()
+        (explicitCallbacks + reflectedCallbacks).forEach { callback ->
+            val name = callback.toolDefinition.name()
+            if (name.isNotBlank()) {
+                byName.putIfAbsent(name, callback)
+            }
+        }
+        return byName
+    }
+
+    private fun unwrapAopProxy(bean: Any): Any {
+        if (bean !is Advised) return bean
+        return runCatching { bean.targetSource.target }
+            .getOrNull()
+            ?: bean
+    }
+
+    private fun normalizeSpringToolOutput(output: String): String {
+        return runCatching { springToolOutputMapper.readValue(output, String::class.java) }
+            .getOrElse { output }
+    }
+
+    companion object {
+        private val springToolOutputMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
     }
 }
