@@ -323,7 +323,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should allow admin list when auth is disabled`() = runTest {
+        fun `should reject list when role is missing`() = runTest {
             every {
                 feedbackStore.list(
                     rating = null, from = null, to = null,
@@ -337,8 +337,8 @@ class FeedbackControllerTest {
                 exchange = noAuthExchange()
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode) {
-                "Auth-disabled mode should treat request as admin"
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "Missing role should be rejected"
             }
         }
     }

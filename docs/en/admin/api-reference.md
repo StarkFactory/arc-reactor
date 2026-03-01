@@ -6,13 +6,9 @@ This document covers every admin-accessible endpoint in Arc Reactor. It is sourc
 
 ## Authentication
 
-### Auth Disabled (default)
+### Runtime Requirement
 
-When `arc.reactor.auth.enabled=false` (the default), the `JwtAuthWebFilter` is not registered. The `isAdmin()` check reads the role attribute from the exchange, which will be `null` because nothing set it. A `null` role is treated as admin, so **all requests are treated as admin** with no token required.
-
-This is the correct default for private deployments and local development.
-
-### Auth Enabled (production)
+Arc Reactor runtime requires `arc.reactor.auth.enabled=true`. Startup fails fast when authentication is disabled.
 
 Set `arc.reactor.auth.enabled=true` and `arc.reactor.auth.jwt-secret=<secret>` (minimum 32 bytes, generate with `openssl rand -base64 32`).
 
@@ -45,7 +41,7 @@ Requests without a valid token to protected endpoints return `401 Unauthorized`.
 
 ### Admin vs User Access
 
-- **Admin required**: Endpoints that create, modify, or delete configuration. When auth is disabled, all callers are treated as admin.
+- **Admin required**: Endpoints that create, modify, or delete configuration.
 - **Authenticated**: Endpoints that require a valid JWT but not necessarily the ADMIN role.
 - **Public**: No authentication required.
 

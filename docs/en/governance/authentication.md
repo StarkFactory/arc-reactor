@@ -2,19 +2,17 @@
 
 ## TL;DR
 
-**Opt-in JWT authentication enabled with a single `arc.reactor.auth.enabled=true`.** Enterprises can swap in custom authentication (LDAP/SSO, etc.) by simply implementing the `AuthProvider` interface.
+**JWT authentication is runtime-required (`arc.reactor.auth.enabled=true`).** Enterprises can swap in custom authentication (LDAP/SSO, etc.) by implementing the `AuthProvider` interface.
 
 ---
 
-## Why Opt-in?
+## Runtime Requirement
 
-Local development and rapid prototyping are important for Arc Reactor. Authentication should only be enabled when needed:
+Authentication must stay enabled in runtime environments:
 
-- **Local development** -- Chat without authentication (`arc.reactor.auth.enabled=false`, default)
-- **Team/internal deployment** -- Enable authentication for per-user session isolation (`arc.reactor.auth.enabled=true`)
-- **Enterprise fork** -- Swap `AuthProvider` to integrate with internal authentication systems
-
-When authentication is disabled, no auth-related beans are registered at all. Zero impact on existing code.
+- `arc.reactor.auth.enabled=true`
+- `arc.reactor.auth.jwt-secret` configured with a 32+ byte secret
+- Missing or invalid auth configuration fails startup
 
 ---
 

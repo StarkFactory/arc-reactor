@@ -8,6 +8,7 @@ import com.arc.reactor.memory.summary.InMemoryConversationSummaryStore
 import com.arc.reactor.memory.summary.JdbcConversationSummaryStore
 import com.arc.reactor.memory.summary.LlmConversationSummaryService
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
@@ -52,7 +53,7 @@ class MemorySummaryConfiguration {
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
-@ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
+@ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
 class JdbcConversationSummaryStoreConfiguration {
 
     @Bean

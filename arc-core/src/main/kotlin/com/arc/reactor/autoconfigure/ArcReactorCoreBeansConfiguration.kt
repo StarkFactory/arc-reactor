@@ -13,6 +13,10 @@ import com.arc.reactor.audit.InMemoryAdminAuditStore
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
 import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
+import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditStore
+import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
+import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleAuditStore
+import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleStore
 import com.arc.reactor.hook.impl.FeedbackMetadataCaptureHook
 import com.arc.reactor.mcp.InMemoryMcpServerStore
 import com.arc.reactor.mcp.McpServerStore
@@ -122,6 +126,18 @@ class ArcReactorCoreBeansConfiguration {
         if (!url.startsWith("jdbc:postgresql:")) {
             throw BeanInitializationException(
                 "Arc Reactor requires PostgreSQL JDBC URL. Current spring.datasource.url='$url'"
+            )
+        }
+        return Any()
+    }
+
+    @Bean
+    fun authRequirementMarker(environment: Environment): Any {
+        val authEnabled = environment.getProperty("arc.reactor.auth.enabled", Boolean::class.java, false)
+        if (!authEnabled) {
+            throw BeanInitializationException(
+                "Arc Reactor requires JWT authentication. Set arc.reactor.auth.enabled=true " +
+                    "and configure arc.reactor.auth.jwt-secret (minimum 32 bytes)."
             )
         }
         return Any()
@@ -256,4 +272,12 @@ class ArcReactorCoreBeansConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun outputGuardRuleEvaluator(): OutputGuardRuleEvaluator = OutputGuardRuleEvaluator()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun outputGuardRuleStore(): OutputGuardRuleStore = InMemoryOutputGuardRuleStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun outputGuardRuleAuditStore(): OutputGuardRuleAuditStore = InMemoryOutputGuardRuleAuditStore()
 }

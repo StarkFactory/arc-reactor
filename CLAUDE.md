@@ -61,7 +61,7 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 | Tool Output Sanitizer | OFF | `arc.reactor.guard.tool-output-sanitization-enabled` |
 | Guard Audit | ON | `arc.reactor.guard.audit-enabled` |
 | Security Headers | ON | `arc.reactor.security-headers.enabled` |
-| Auth (JWT) | OFF | `arc.reactor.auth.enabled` |
+| Auth (JWT) | REQUIRED | `arc.reactor.auth.enabled=true` |
 | Multimodal Upload | ON | `arc.reactor.multimodal.enabled` |
 | MCP Reconnection | ON | `arc.reactor.mcp.reconnection.enabled` |
 | RAG | OFF | `arc.reactor.rag.enabled` |
@@ -130,7 +130,7 @@ Full config: `agent/config/AgentPolicyAndFeatureProperties.kt`
 ### Admin Access Control
 
 - MUST use `AdminAuthSupport.kt` — `isAdmin(exchange)` + `forbiddenResponse()`. Do NOT duplicate these
-- `isAdmin()` = `role == null || role == ADMIN` — auth disabled means all requests are admin
+- `isAdmin()` = `role == ADMIN` — missing role must fail-close as non-admin
 - Exception: `SessionController` uses its own `sessionForbidden()` (distinct error message "Access denied" vs generic 403)
 
 ### Error Codes

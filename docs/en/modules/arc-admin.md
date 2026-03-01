@@ -104,7 +104,7 @@ Incoming HTTP requests pass through `TenantWebFilter`, which calls `TenantResolv
 
 **Admin access control:**
 
-All admin endpoints use `AdminAuthHelper.isAdmin(exchange)` and `forbiddenResponse()` from the shared `AdminAuthHelper` file. When `arc.reactor.auth.enabled=false`, all requests are treated as admin.
+All admin endpoints use `AdminAuthHelper.isAdmin(exchange)` and `forbiddenResponse()` from the shared `AdminAuthHelper` file. Missing role fails closed as non-admin.
 
 ## Code Examples
 

@@ -21,17 +21,15 @@ class ApprovalControllerAuthTest {
     private val controller = ApprovalController(store)
 
     @Test
-    fun `listPending treats anonymous as admin when auth is disabled`() {
+    fun `listPending rejects anonymous request`() {
         val ex = exchange()
-        every { store.listPending() } returns listOf(summary("ap-0", "user-0"))
 
         val response = controller.listPending(ex)
-        @Suppress("UNCHECKED_CAST")
-        val result = response.body as List<ApprovalSummary>
 
-        assertEquals(HttpStatus.OK, response.statusCode) { "Anonymous request should be accepted as admin" }
-        assertEquals(1, result.size) { "Should return pending approvals for admin path" }
-        verify(exactly = 1) { store.listPending() }
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+            "Anonymous request should be rejected when role is missing"
+        }
+        verify(exactly = 0) { store.listPending() }
         verify(exactly = 0) { store.listPendingByUser(any()) }
     }
 

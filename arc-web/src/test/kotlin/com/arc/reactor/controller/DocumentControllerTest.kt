@@ -72,15 +72,15 @@ class DocumentControllerTest {
         }
 
         @Test
-        fun `should allow admin write when auth is disabled`() {
+        fun `should reject write when role is missing`() {
             val request = DocumentController.AddDocumentRequest(content = "Test content")
 
             val response = controller.addDocument(request, noAuthExchange())
 
-            assertEquals(HttpStatus.CREATED, response.statusCode) {
-                "Auth-disabled mode should treat request as admin"
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "Missing role should be rejected"
             }
-            verify(exactly = 1) { vectorStore.add(any()) }
+            verify(exactly = 0) { vectorStore.add(any()) }
         }
 
         @Test

@@ -34,9 +34,9 @@ data class User(
 /**
  * Authentication configuration properties (prefix: arc.reactor.auth).
  *
- * Auth is opt-in: disabled by default. Set `arc.reactor.auth.enabled=true` to activate.
+ * Auth is mandatory for Arc Reactor runtime. `arc.reactor.auth.enabled` must stay true.
  *
- * @param enabled Whether JWT authentication is active (default: false)
+ * @param enabled Whether JWT authentication is active (default: false; runtime startup enforces true)
  * @param jwtSecret HMAC secret for JWT signing (required when enabled).
  *   Must be at least 32 characters long. Generate with: `openssl rand -base64 32`
  * @param jwtExpirationMs Token lifetime in milliseconds (default: 24 hours)

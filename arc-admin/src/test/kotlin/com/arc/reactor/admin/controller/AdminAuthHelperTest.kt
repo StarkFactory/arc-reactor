@@ -37,8 +37,8 @@ class AdminAuthHelperTest {
         }
 
         @Test
-        fun `returns true when role is null (auth disabled)`() {
-            isAdmin(exchangeWithRole(null)) shouldBe true
+        fun `returns false when role is null`() {
+            isAdmin(exchangeWithRole(null)) shouldBe false
         }
     }
 

@@ -39,7 +39,7 @@ class OpenApiConfiguration(
                     .title("Arc Reactor API")
                     .description(
                         "AI Agent framework REST API. " +
-                            "Authentication endpoints are only available when `arc.reactor.auth.enabled=true`. " +
+                            "Authentication is mandatory (`arc.reactor.auth.enabled=true`). " +
                             "API version contract: request `X-Arc-Api-Version` (default: v1)."
                     )
                     .version(resolveVersion())
@@ -55,7 +55,7 @@ class OpenApiConfiguration(
                             .bearerFormat("JWT")
                             .description(
                                 "JWT token obtained from POST /api/auth/login. " +
-                                    "Only required when arc.reactor.auth.enabled=true."
+                                    "Required for all protected endpoints."
                             )
                     )
             )

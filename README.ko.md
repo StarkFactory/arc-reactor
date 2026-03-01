@@ -49,7 +49,7 @@ Slack으로 챗 서비스를 통합하는 문제들이 그 예입니다.
 - **출력 Guard 규칙** — LLM 응답에 적용되는 런타임 설정 가능한 콘텐츠 정책
 - **복원성** — 서킷 브레이커, 설정 가능한 요청/Tool 타임아웃, 폴백 모델 체인
 - **관찰 가능성** — OpenAPI/Swagger, Spring Actuator, Prometheus 메트릭, OpenTelemetry 트레이싱
-- **보안** — 선택적 JWT 인증, 보안 헤더(HSTS, CSP), CORS 제어, MCP 서버 허용 목록
+- **보안** — JWT 인증, 보안 헤더(HSTS, CSP), CORS 제어, MCP 서버 허용 목록
 - **Kubernetes 지원** — HPA, Ingress, 시크릿 관리, Liveness/Readiness Probe, Graceful Shutdown을 포함한 프로덕션용 Helm 차트
 
 ## 빠른 시작
@@ -73,6 +73,7 @@ cd arc-reactor
 
 ```bash
 export GEMINI_API_KEY=your-gemini-api-key
+export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 ./gradlew :arc-app:bootRun
 ```
 
@@ -211,7 +212,7 @@ arc:
 | Guard | ON | `arc.reactor.guard.enabled` |
 | 보안 헤더 | ON | `arc.reactor.security-headers.enabled` |
 | 멀티모달 업로드 | ON | — |
-| 인증 (JWT) | OFF | `arc.reactor.auth.enabled` |
+| 인증 (JWT) | 필수 | `arc.reactor.auth.enabled=true` |
 | 승인 (HITL) | OFF | `arc.reactor.approval.enabled` |
 | Tool 정책 | OFF | `arc.reactor.tool-policy.dynamic.enabled` |
 | RAG | OFF | `arc.reactor.rag.enabled` |
@@ -229,6 +230,7 @@ arc:
 
 ```bash
 export GEMINI_API_KEY=your-api-key
+export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 ./gradlew :arc-app:bootRun
 ```
 
@@ -278,9 +280,9 @@ Kubernetes 1.25 이상이 필요합니다. 전체 레퍼런스는 [`helm/arc-rea
 | 세션 및 모델 관리 | `/api/sessions`, `/api/models` | 항상 |
 | 페르소나 관리 | `/api/personas` | 항상 |
 | 프롬프트 템플릿 버전 관리 | `/api/prompt-templates` | 항상 |
-| MCP 서버 레지스트리 | `/api/mcp/servers` | 항상 |
+| MCP 서버 레지스트리 | `/api/mcp/servers` | 항상 (조회/쓰기 모두 ADMIN) |
 | MCP 접근 정책 | `/api/mcp/servers/{name}/access-policy` | 항상 |
-| 출력 Guard 규칙 | `/api/output-guard/rules` | 항상 |
+| 출력 Guard 규칙 | `/api/output-guard/rules` | `arc.reactor.output-guard.enabled=true` + `arc.reactor.output-guard.dynamic-rules-enabled=true` |
 | 관리자 감사 로그 | `/api/admin/audits` | 항상 |
 | 운영 대시보드 | `/api/ops` | 항상 |
 | 인증 | `/api/auth` | `arc.reactor.auth.enabled=true` |
@@ -378,8 +380,8 @@ Arc Reactor는 모든 영구 상태에 PostgreSQL을 사용합니다. 개발 환
 
 ## 프로덕션 보안 주의사항
 
-- 프로덕션 환경에서는 JWT 인증을 활성화하세요. 인증이 비활성화되면 모든 요청이 관리자로 처리됩니다.
-- `JWT_SECRET`은 환경 변수로 제공하세요 (최소 32바이트). 시크릿을 코드에 커밋하지 마세요.
+- JWT 인증은 필수입니다. 모든 환경에서 `arc.reactor.auth.enabled=true`를 유지하세요.
+- `ARC_REACTOR_AUTH_JWT_SECRET`은 환경 변수로 제공하세요 (최소 32바이트). 시크릿을 코드에 커밋하지 마세요.
 - `arc.reactor.mcp.security.allowed-server-names`로 MCP 서버 노출을 제한하세요.
 - 고위험 쓰기 작업에는 Tool 정책과 승인 게이트를 사용하세요.
 - PostgreSQL과 함께 Flyway를 활성화하여 거버넌스 데이터가 재시작 후에도 유지되도록 하세요.

@@ -11,6 +11,7 @@ import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.JwtTokenProvider
 import com.arc.reactor.auth.UserStore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
@@ -129,7 +130,7 @@ class AuthConfiguration {
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate", "io.jsonwebtoken.Jwts"])
-@ConditionalOnProperty(prefix = "spring.datasource", name = ["url"])
+@ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
 class JdbcAuthConfiguration {
 
     @Bean
