@@ -267,7 +267,7 @@ class DefaultConversationManager(
         fun toSpringAiMessage(msg: com.arc.reactor.agent.model.Message): Message {
             return when (msg.role) {
                 MessageRole.USER -> MediaConverter.buildUserMessage(msg.content, msg.media)
-                MessageRole.ASSISTANT -> AssistantMessage(msg.content)
+                MessageRole.ASSISTANT -> AssistantMessage.builder().content(msg.content).build()
                 MessageRole.SYSTEM -> SystemMessage(msg.content)
                 MessageRole.TOOL -> ToolResponseMessage.builder()
                     .responses(listOf(ToolResponseMessage.ToolResponse("", "tool", msg.content)))

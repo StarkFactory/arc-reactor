@@ -8,6 +8,7 @@ import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.gmail.Gmail
 import com.google.api.services.gmail.GmailScopes
 import com.google.auth.http.HttpCredentialsAdapter
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -52,6 +53,7 @@ class GoogleGmailTool(
             val messages = searchMessages(query, maxResults)
             objectMapper.writeValueAsString(messages)
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "GoogleGmailTool failed" }
             "Error: ${e.message}"
         }

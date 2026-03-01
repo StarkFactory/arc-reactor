@@ -9,6 +9,7 @@ import com.google.api.client.util.DateTime
 import com.google.api.services.calendar.Calendar
 import com.google.api.services.calendar.CalendarScopes
 import com.google.auth.http.HttpCredentialsAdapter
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 import java.time.LocalDate
 import java.time.ZoneId
@@ -49,6 +50,7 @@ class GoogleCalendarTool(
             val events = fetchEvents(date)
             objectMapper.writeValueAsString(events)
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "GoogleCalendarTool failed" }
             "Error: ${e.message}"
         }

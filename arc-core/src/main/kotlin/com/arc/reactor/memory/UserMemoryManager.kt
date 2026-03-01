@@ -1,6 +1,7 @@
 package com.arc.reactor.memory
 
 import com.arc.reactor.memory.model.UserMemory
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -38,6 +39,7 @@ class UserMemoryManager(
         try {
             store.addRecentTopic(userId, topic, maxRecentTopics)
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "Failed to record topic for user $userId" }
         }
     }

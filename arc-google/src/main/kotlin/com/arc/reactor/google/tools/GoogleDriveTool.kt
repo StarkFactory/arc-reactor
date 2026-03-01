@@ -8,6 +8,7 @@ import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
 import com.google.api.services.drive.DriveScopes
 import com.google.auth.http.HttpCredentialsAdapter
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -52,6 +53,7 @@ class GoogleDriveTool(
             val files = searchFiles(query, maxResults)
             objectMapper.writeValueAsString(files)
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "GoogleDriveTool failed" }
             "Error: ${e.message}"
         }

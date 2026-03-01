@@ -6,6 +6,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
 class GoogleCalendarToolTest {
@@ -90,5 +91,19 @@ class GoogleCalendarToolTest {
             result.contains("service-account-key-path"),
             "Error message should contain the configuration key hint"
         )
+    }
+
+    @Test
+    fun `call rethrows CancellationException for structured concurrency`() = runTest {
+        every {
+            credentialProvider.getCredentials(any())
+        } throws java.util.concurrent.CancellationException("cancelled")
+
+        try {
+            tool.call(mapOf("date" to "2025-01-15"))
+            fail("CancellationException must be rethrown from GoogleCalendarTool.call")
+        } catch (_: java.util.concurrent.CancellationException) {
+            // expected
+        }
     }
 }

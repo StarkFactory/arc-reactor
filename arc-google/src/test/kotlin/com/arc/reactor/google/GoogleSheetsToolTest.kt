@@ -6,6 +6,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
 class GoogleSheetsToolTest {
@@ -94,5 +95,19 @@ class GoogleSheetsToolTest {
             (result as String).startsWith("Error:"),
             "Result must start with 'Error:' when IllegalArgumentException is thrown"
         )
+    }
+
+    @Test
+    fun `call rethrows CancellationException for structured concurrency`() = runTest {
+        every {
+            credentialProvider.getCredentials(any())
+        } throws java.util.concurrent.CancellationException("cancelled")
+
+        try {
+            tool.call(mapOf("spreadsheet_id" to "sheet123", "range" to "Sheet1!A1:B2"))
+            fail("CancellationException must be rethrown from GoogleSheetsTool.call")
+        } catch (_: java.util.concurrent.CancellationException) {
+            // expected
+        }
     }
 }

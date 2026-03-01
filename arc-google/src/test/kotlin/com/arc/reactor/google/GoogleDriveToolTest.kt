@@ -6,6 +6,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
 class GoogleDriveToolTest {
@@ -91,5 +92,19 @@ class GoogleDriveToolTest {
             (result as String).startsWith("Error:"),
             "Result must start with 'Error:' when IllegalArgumentException is thrown"
         )
+    }
+
+    @Test
+    fun `call rethrows CancellationException for structured concurrency`() = runTest {
+        every {
+            credentialProvider.getCredentials(any())
+        } throws java.util.concurrent.CancellationException("cancelled")
+
+        try {
+            tool.call(mapOf("query" to "name contains 'report'"))
+            fail("CancellationException must be rethrown from GoogleDriveTool.call")
+        } catch (_: java.util.concurrent.CancellationException) {
+            // expected
+        }
     }
 }

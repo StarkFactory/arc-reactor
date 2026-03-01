@@ -7,6 +7,7 @@ import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.sheets.v4.Sheets
 import com.google.api.services.sheets.v4.SheetsScopes
 import com.google.auth.http.HttpCredentialsAdapter
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -51,6 +52,7 @@ class GoogleSheetsTool(
                 ?: return "Error: range is required"
             fetchRange(spreadsheetId, range)
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "GoogleSheetsTool failed" }
             "Error: ${e.message}"
         }

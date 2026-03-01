@@ -3,6 +3,7 @@ package com.arc.reactor.memory
 import com.arc.reactor.memory.impl.InMemoryUserMemoryStore
 import com.arc.reactor.memory.model.UserMemory
 import kotlinx.coroutines.test.runTest
+import java.util.concurrent.CancellationException
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -214,6 +215,29 @@ class UserMemoryStoreTest {
             assertEquals(3, loaded!!.recentTopics.size, "recentTopics should stay at maxRecentTopics=3")
             assertFalse(loaded.recentTopics.contains("a"), "Oldest topic 'a' should be evicted")
             assertTrue(loaded.recentTopics.contains("d"), "New topic 'd' should be present")
+        }
+
+        @Test
+        fun `recordTopic rethrows CancellationException for structured concurrency`() = runTest {
+            val cancellingStore = object : UserMemoryStore {
+                override suspend fun get(userId: String): UserMemory? = null
+                override suspend fun save(userId: String, memory: UserMemory) = Unit
+                override suspend fun delete(userId: String) = Unit
+                override suspend fun updateFact(userId: String, key: String, value: String) = Unit
+                override suspend fun updatePreference(userId: String, key: String, value: String) = Unit
+
+                override suspend fun addRecentTopic(userId: String, topic: String, maxTopics: Int) {
+                    throw CancellationException("cancelled")
+                }
+            }
+            val cancellingManager = UserMemoryManager(store = cancellingStore)
+
+            try {
+                cancellingManager.recordTopic("topic-user", "new-topic")
+                fail("CancellationException must be rethrown from UserMemoryManager.recordTopic")
+            } catch (_: CancellationException) {
+                // expected
+            }
         }
     }
 }
