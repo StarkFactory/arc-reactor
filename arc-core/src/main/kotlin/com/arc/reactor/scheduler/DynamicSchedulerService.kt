@@ -115,6 +115,8 @@ class DynamicSchedulerService(
 
     fun findById(id: String): ScheduledJob? = store.findById(id)
 
+    fun findByName(name: String): ScheduledJob? = store.findByName(name)
+
     private fun registerJob(job: ScheduledJob) {
         try {
             val zone = ZoneId.of(job.timezone)
