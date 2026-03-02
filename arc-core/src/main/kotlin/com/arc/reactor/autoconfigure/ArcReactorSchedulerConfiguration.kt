@@ -85,8 +85,11 @@ class SchedulerConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    fun createScheduledJobTool(service: DynamicSchedulerService): CreateScheduledJobTool =
-        CreateScheduledJobTool(service)
+    fun createScheduledJobTool(
+        service: DynamicSchedulerService,
+        properties: AgentProperties
+    ): CreateScheduledJobTool =
+        CreateScheduledJobTool(service, properties.scheduler.defaultTimezone)
 
     @Bean
     @ConditionalOnMissingBean

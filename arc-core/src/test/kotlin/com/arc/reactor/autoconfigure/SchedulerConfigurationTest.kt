@@ -79,7 +79,7 @@ class SchedulerConfigurationTest {
 
         @Test
         fun `custom tool bean overrides default via ConditionalOnMissingBean`() {
-            val customTool = CreateScheduledJobTool(mockk(relaxed = true))
+            val customTool = CreateScheduledJobTool(mockk(relaxed = true), "UTC")
             contextRunner
                 .withPropertyValues("arc.reactor.scheduler.enabled=true")
                 .withBean(CreateScheduledJobTool::class.java, { customTool })

@@ -19,7 +19,7 @@ class CreateScheduledJobToolTest {
 
     private val objectMapper = jacksonObjectMapper()
     private val schedulerService = mockk<DynamicSchedulerService>()
-    private val tool = CreateScheduledJobTool(schedulerService)
+    private val tool = CreateScheduledJobTool(schedulerService, "Asia/Seoul")
 
     @Test
     fun `has null category so it is always loaded`() {

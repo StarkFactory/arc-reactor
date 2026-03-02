@@ -21,7 +21,8 @@ class UpdateScheduledJobTool(
     @Tool(
         description = """Update an existing scheduled job. Only provide the fields you want to change.
 Use list_scheduled_jobs to find the job first. You can change the cron schedule, prompt, Slack channel, timezone, or enable/disable the job.
-Cron format is Spring 6-field: "second minute hour day month weekday"."""
+Cron format is Spring 6-field: "second minute hour day month weekday".
+NOTE: Changing agentPrompt alters what the job executes on every future run. Confirm with the user before modifying prompts."""
     )
     fun update_scheduled_job(
         @ToolParam(description = "ID of the job to update (optional if jobName is provided)", required = false)

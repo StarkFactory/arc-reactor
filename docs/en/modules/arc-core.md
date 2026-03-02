@@ -240,6 +240,8 @@ All tools have `category = null` (always loaded regardless of user prompt keywor
 
 **Cost note:** AGENT-mode schedules invoke the LLM on each execution. Consider cost implications when creating high-frequency schedules.
 
+**Security note:** `update_scheduled_job` can modify `agentPrompt`, changing what a job executes on future runs. In multi-user environments, enable `ToolApprovalPolicy` to require human approval before prompt modifications.
+
 ### MCP (`arc.reactor.mcp`)
 
 | Property | Default | Description |

@@ -1,5 +1,6 @@
 package com.arc.reactor.scheduler.tool
 
+import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.scheduler.DynamicSchedulerService
 import com.arc.reactor.scheduler.ScheduledJob
 import com.arc.reactor.scheduler.ScheduledJobType
@@ -17,7 +18,8 @@ private val logger = KotlinLogging.logger {}
  * a cron expression and appropriate parameters.
  */
 class CreateScheduledJobTool(
-    private val schedulerService: DynamicSchedulerService
+    private val schedulerService: DynamicSchedulerService,
+    private val defaultTimezone: String
 ) : LocalTool {
 
     @Tool(
@@ -33,7 +35,7 @@ IMPORTANT: AGENT mode schedules invoke the LLM on each execution, which incurs A
         @ToolParam(description = "Prompt to execute on each run") agentPrompt: String,
         @ToolParam(description = "Slack channel ID to send results to (optional)", required = false)
         slackChannelId: String? = null,
-        @ToolParam(description = "Timezone (default: Asia/Seoul)", required = false)
+        @ToolParam(description = "Timezone for the schedule (e.g. 'Asia/Seoul', 'UTC', 'America/New_York'). Uses server default if not specified.", required = false)
         timezone: String? = null
     ): String {
         if (name.isBlank()) return errorJson("name is required")
@@ -51,7 +53,7 @@ IMPORTANT: AGENT mode schedules invoke the LLM on each execution, which incurs A
                 ScheduledJob(
                     name = trimmedName,
                     cronExpression = cronExpression.trim(),
-                    timezone = timezone?.trim() ?: "Asia/Seoul",
+                    timezone = timezone?.trim() ?: defaultTimezone,
                     jobType = ScheduledJobType.AGENT,
                     agentPrompt = agentPrompt.trim(),
                     slackChannelId = slackChannelId?.trim()?.ifBlank { null }

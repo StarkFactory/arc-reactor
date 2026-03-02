@@ -240,6 +240,8 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 
 **비용 주의:** AGENT 모드 스케줄은 실행마다 LLM을 호출합니다. 고빈도 스케줄 생성 시 비용 영향을 고려하세요.
 
+**보안 참고:** `update_scheduled_job`은 `agentPrompt`를 수정할 수 있어, 향후 실행되는 내용이 변경됩니다. 멀티 사용자 환경에서는 `ToolApprovalPolicy`를 활성화하여 프롬프트 수정 전 사람의 승인을 요구하세요.
+
 ### MCP (`arc.reactor.mcp`)
 
 | 프로퍼티 | 기본값 | 설명 |

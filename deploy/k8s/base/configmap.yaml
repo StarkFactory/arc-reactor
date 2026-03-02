@@ -18,6 +18,8 @@ data:
   ARC_REACTOR_RAG_INGESTION_ENABLED: "true"
   ARC_REACTOR_RAG_INGESTION_DYNAMIC_ENABLED: "true"
 
+  # COST WARNING: AGENT-mode scheduled jobs invoke the LLM on each execution.
+  # High-frequency schedules may incur significant API costs.
   ARC_REACTOR_SCHEDULER_ENABLED: "true"
 
   ARC_REACTOR_CONCURRENCY_MAX_CONCURRENT_REQUESTS: "20"

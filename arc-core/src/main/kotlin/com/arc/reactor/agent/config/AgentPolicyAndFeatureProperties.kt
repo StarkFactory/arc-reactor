@@ -431,7 +431,10 @@ data class SchedulerProperties(
     val enabled: Boolean = false,
 
     /** Thread pool size for scheduled task execution. */
-    val threadPoolSize: Int = 5
+    val threadPoolSize: Int = 5,
+
+    /** Default timezone for scheduled jobs when not specified by the user. */
+    val defaultTimezone: String = java.time.ZoneId.systemDefault().id
 )
 
 /**
