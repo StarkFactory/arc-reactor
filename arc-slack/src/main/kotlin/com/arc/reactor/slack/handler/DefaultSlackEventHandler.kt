@@ -70,11 +70,7 @@ class DefaultSlackEventHandler(
                 )
             )
 
-            val responseText = if (result.success) {
-                result.content ?: "I processed your request but have no response."
-            } else {
-                ":warning: ${result.errorMessage ?: "An error occurred while processing your request."}"
-            }
+            val responseText = SlackResponseTextFormatter.fromResult(result, userPrompt)
 
             val sendResult = messagingService.sendMessage(
                 channelId = channelId,

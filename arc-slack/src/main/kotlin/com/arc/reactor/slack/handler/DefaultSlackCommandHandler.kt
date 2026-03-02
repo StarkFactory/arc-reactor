@@ -22,12 +22,13 @@ class DefaultSlackCommandHandler(
     private val agentExecutor: AgentExecutor,
     private val messagingService: SlackMessagingService,
     private val defaultProvider: String = "configured backend model",
-    private val threadTracker: SlackThreadTracker? = null
+    private val threadTracker: SlackThreadTracker? = null,
+    private val reminderStore: SlackReminderStore? = null
 ) : SlackCommandHandler {
 
     override suspend fun handleSlashCommand(command: SlackSlashCommand) {
-        val prompt = command.text.trim()
-        if (prompt.isBlank()) {
+        val rawPrompt = command.text.trim()
+        if (rawPrompt.isBlank()) {
             messagingService.sendResponseUrl(
                 responseUrl = command.responseUrl,
                 text = "Please enter a question. Example: /jarvis What are my tasks today?"
@@ -36,11 +37,31 @@ class DefaultSlackCommandHandler(
         }
 
         try {
-            val threadTs = postQuestionToChannel(command)
-            if (threadTs != null) {
-                executeAndReplyInThread(command, prompt, threadTs)
-            } else {
-                executeAndReplyByResponseUrl(command, prompt)
+            when (val intent = SlackSlashIntentParser.parse(rawPrompt)) {
+                is SlackSlashIntent.ReminderAdd -> {
+                    handleReminderAdd(command, intent)
+                    return
+                }
+
+                SlackSlashIntent.ReminderList -> {
+                    handleReminderList(command)
+                    return
+                }
+
+                is SlackSlashIntent.ReminderDone -> {
+                    handleReminderDone(command, intent)
+                    return
+                }
+
+                SlackSlashIntent.ReminderClear -> {
+                    handleReminderClear(command)
+                    return
+                }
+
+                is SlackSlashIntent.Agent -> {
+                    handleAgentIntent(command, intent, rawPrompt)
+                    return
+                }
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
@@ -49,6 +70,19 @@ class DefaultSlackCommandHandler(
                 responseUrl = command.responseUrl,
                 text = ":x: An internal error occurred. Please try again later."
             )
+        }
+    }
+
+    private suspend fun handleAgentIntent(
+        command: SlackSlashCommand,
+        intent: SlackSlashIntent.Agent,
+        originalPrompt: String
+    ) {
+        val threadTs = postQuestionToChannel(command)
+        if (threadTs != null) {
+            executeAndReplyInThread(command, intent, originalPrompt, threadTs)
+        } else {
+            executeAndReplyByResponseUrl(command, intent, originalPrompt)
         }
     }
 
@@ -64,16 +98,16 @@ class DefaultSlackCommandHandler(
         }
         return result.ts
     }
-
     private suspend fun executeAndReplyInThread(
         command: SlackSlashCommand,
-        prompt: String,
+        intent: SlackSlashIntent.Agent,
+        originalPrompt: String,
         threadTs: String
     ) {
         threadTracker?.track(command.channelId, threadTs)
         val sessionId = "slack-${command.channelId}-$threadTs"
-        val result = executeAgent(command, prompt, sessionId)
-        val responseText = toResponseText(result)
+        val result = executeAgent(command, intent, sessionId)
+        val responseText = SlackResponseTextFormatter.fromResult(result, originalPrompt)
 
         val sendResult = messagingService.sendMessage(
             channelId = command.channelId,
@@ -90,10 +124,14 @@ class DefaultSlackCommandHandler(
         }
     }
 
-    private suspend fun executeAndReplyByResponseUrl(command: SlackSlashCommand, prompt: String) {
+    private suspend fun executeAndReplyByResponseUrl(
+        command: SlackSlashCommand,
+        intent: SlackSlashIntent.Agent,
+        originalPrompt: String
+    ) {
         val sessionId = "slack-cmd-${command.channelId}-${command.userId}-${System.currentTimeMillis()}"
-        val result = executeAgent(command, prompt, sessionId)
-        val responseText = toResponseText(result)
+        val result = executeAgent(command, intent, sessionId)
+        val responseText = SlackResponseTextFormatter.fromResult(result, originalPrompt)
 
         val sent = messagingService.sendResponseUrl(
             responseUrl = command.responseUrl,
@@ -106,30 +144,84 @@ class DefaultSlackCommandHandler(
 
     private suspend fun executeAgent(
         command: SlackSlashCommand,
-        prompt: String,
+        intent: SlackSlashIntent.Agent,
         sessionId: String
     ): com.arc.reactor.agent.model.AgentResult {
         return agentExecutor.execute(
             AgentCommand(
                 systemPrompt = SlackSystemPromptFactory.build(defaultProvider),
-                userPrompt = prompt,
+                userPrompt = intent.prompt,
                 userId = command.userId,
                 metadata = mapOf(
                     "sessionId" to sessionId,
                     "source" to "slack",
                     "channel" to "slack",
                     "entrypoint" to "slash",
-                    "channelId" to command.channelId
+                    "channelId" to command.channelId,
+                    "intent" to intent.mode.name.lowercase()
                 )
             )
         )
     }
 
-    private fun toResponseText(result: com.arc.reactor.agent.model.AgentResult): String {
-        return if (result.success) {
-            result.content ?: "I processed your request but have no response."
-        } else {
-            ":warning: ${result.errorMessage ?: "An error occurred while processing your request."}"
+    private suspend fun handleReminderAdd(command: SlackSlashCommand, intent: SlackSlashIntent.ReminderAdd) {
+        val store = reminderStore ?: return sendReminderUnavailable(command)
+        val reminder = store.add(command.userId, intent.text)
+        messagingService.sendResponseUrl(
+            responseUrl = command.responseUrl,
+            responseType = "ephemeral",
+            text = "Saved reminder #${reminder.id}: ${reminder.text}"
+        )
+    }
+
+    private suspend fun handleReminderList(command: SlackSlashCommand) {
+        val store = reminderStore ?: return sendReminderUnavailable(command)
+        val reminders = store.list(command.userId)
+        if (reminders.isEmpty()) {
+            messagingService.sendResponseUrl(
+                responseUrl = command.responseUrl,
+                responseType = "ephemeral",
+                text = "No saved reminders. Try: /jarvis remind Follow up with design review at 3pm"
+            )
+            return
         }
+        val body = reminders.joinToString(separator = "\n") { "- #${it.id} ${it.text}" }
+        messagingService.sendResponseUrl(
+            responseUrl = command.responseUrl,
+            responseType = "ephemeral",
+            text = "Your reminders:\n$body"
+        )
+    }
+    private suspend fun handleReminderDone(command: SlackSlashCommand, intent: SlackSlashIntent.ReminderDone) {
+        val store = reminderStore ?: return sendReminderUnavailable(command)
+        val reminder = store.done(command.userId, intent.id)
+        val text = if (reminder != null) {
+            "Completed reminder #${reminder.id}: ${reminder.text}"
+        } else {
+            "Reminder #${intent.id} was not found. Use /jarvis remind list."
+        }
+        messagingService.sendResponseUrl(
+            responseUrl = command.responseUrl,
+            responseType = "ephemeral",
+            text = text
+        )
+    }
+
+    private suspend fun handleReminderClear(command: SlackSlashCommand) {
+        val store = reminderStore ?: return sendReminderUnavailable(command)
+        val removed = store.clear(command.userId)
+        messagingService.sendResponseUrl(
+            responseUrl = command.responseUrl,
+            responseType = "ephemeral",
+            text = "Cleared $removed reminder(s)."
+        )
+    }
+
+    private suspend fun sendReminderUnavailable(command: SlackSlashCommand) {
+        messagingService.sendResponseUrl(
+            responseUrl = command.responseUrl,
+            responseType = "ephemeral",
+            text = "Reminder feature is temporarily unavailable. Please try again later."
+        )
     }
 }
