@@ -14,6 +14,8 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -106,7 +108,9 @@ class McpServerController(
 
         if (request.autoConnect) {
             try {
-                mcpManager.connect(server.name)
+                withContext(Dispatchers.IO) {
+                    mcpManager.connect(server.name)
+                }
             } catch (e: Exception) {
                 e.throwIfCancellation()
                 logger.warn(e) { "Auto-connect failed for '${server.name}'" }
@@ -269,7 +273,9 @@ class McpServerController(
         mcpServerStore.findByName(name)
             ?: return mcpNotFound(name)
 
-        val success = mcpManager.connect(name)
+        val success = withContext(Dispatchers.IO) {
+            mcpManager.connect(name)
+        }
         val status = mcpManager.getStatus(name) ?: McpServerStatus.FAILED
 
         recordAdminAudit(
