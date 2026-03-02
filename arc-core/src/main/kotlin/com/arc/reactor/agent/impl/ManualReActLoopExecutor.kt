@@ -14,6 +14,7 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.prompt.ChatOptions
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import java.util.concurrent.atomic.AtomicInteger
 
 private val logger = KotlinLogging.logger {}
@@ -141,7 +142,8 @@ internal class ManualReActLoopExecutor(
                     toolsUsed,
                     totalToolCallsCounter,
                     maxToolCalls,
-                    allowedTools
+                    allowedTools,
+                    normalizeToolResponseToJson = shouldNormalizeToolResponses(chatOptions)
                 )
             } finally {
                 toolSpans.forEach { it.close() }
@@ -180,5 +182,9 @@ internal class ManualReActLoopExecutor(
                 totalTokens = it.totalTokens + current.totalTokens
             )
         } ?: current
+    }
+
+    private fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean {
+        return chatOptions is GoogleGenAiChatOptions
     }
 }

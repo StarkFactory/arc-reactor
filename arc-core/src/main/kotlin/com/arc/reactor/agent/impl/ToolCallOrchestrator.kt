@@ -43,7 +43,8 @@ internal class ToolCallOrchestrator(
         toolsUsed: MutableList<String>,
         totalToolCallsCounter: AtomicInteger,
         maxToolCalls: Int,
-        allowedTools: Set<String>?
+        allowedTools: Set<String>?,
+        normalizeToolResponseToJson: Boolean = false
     ): List<ToolResponseMessage.ToolResponse> = coroutineScope {
         val springCallbacksByName = resolveSpringToolCallbacksByName(tools)
         toolCalls.map { toolCall ->
@@ -56,7 +57,8 @@ internal class ToolCallOrchestrator(
                     toolsUsed = toolsUsed,
                     totalToolCallsCounter = totalToolCallsCounter,
                     maxToolCalls = maxToolCalls,
-                    allowedTools = allowedTools
+                    allowedTools = allowedTools,
+                    normalizeToolResponseToJson = normalizeToolResponseToJson
                 )
             }
         }.awaitAll()
@@ -70,14 +72,17 @@ internal class ToolCallOrchestrator(
         toolsUsed: MutableList<String>,
         totalToolCallsCounter: AtomicInteger,
         maxToolCalls: Int,
-        allowedTools: Set<String>?
+        allowedTools: Set<String>?,
+        normalizeToolResponseToJson: Boolean
     ): ToolResponseMessage.ToolResponse {
         val currentCount = totalToolCallsCounter.getAndIncrement()
         if (currentCount >= maxToolCalls) {
             logger.warn { "maxToolCalls ($maxToolCalls) reached, stopping tool execution" }
-            return ToolResponseMessage.ToolResponse(
-                toolCall.id(), toolCall.name(),
-                "Error: Maximum tool call limit ($maxToolCalls) reached"
+            return buildToolResponse(
+                toolCall = toolCall,
+                toolName = toolCall.name(),
+                output = "Error: Maximum tool call limit ($maxToolCalls) reached",
+                normalizeToolResponseToJson = normalizeToolResponseToJson
             )
         }
 
@@ -86,7 +91,12 @@ internal class ToolCallOrchestrator(
             val msg = "Error: Tool '$toolName' is not allowed for this request"
             logger.info { "Tool call blocked by allowlist: tool=$toolName allowedTools=${allowedTools.size}" }
             agentMetrics.recordToolCall(toolName, 0, false)
-            return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, msg)
+            return buildToolResponse(
+                toolCall = toolCall,
+                toolName = toolName,
+                output = msg,
+                normalizeToolResponseToJson = normalizeToolResponseToJson
+            )
         }
 
         val toolCallContext = ToolCallContext(
@@ -98,15 +108,23 @@ internal class ToolCallOrchestrator(
 
         checkBeforeToolCallHook(toolCallContext)?.let { rejection ->
             logger.info { "Tool call $toolName rejected by hook: ${rejection.reason}" }
-            return ToolResponseMessage.ToolResponse(
-                toolCall.id(), toolName, "Tool call rejected: ${rejection.reason}"
+            return buildToolResponse(
+                toolCall = toolCall,
+                toolName = toolName,
+                output = "Tool call rejected: ${rejection.reason}",
+                normalizeToolResponseToJson = normalizeToolResponseToJson
             )
         }
 
         // Human-in-the-Loop: check if tool call requires approval
         checkToolApproval(toolName, toolCallContext, hookContext)?.let { rejection ->
             publishBlockedToolCallResult(toolCallContext, toolName, rejection)
-            return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, rejection)
+            return buildToolResponse(
+                toolCall = toolCall,
+                toolName = toolName,
+                output = rejection,
+                normalizeToolResponseToJson = normalizeToolResponseToJson
+            )
         }
 
         val toolStartTime = System.currentTimeMillis()
@@ -137,7 +155,12 @@ internal class ToolCallOrchestrator(
         )
 
         agentMetrics.recordToolCall(toolName, toolDurationMs, toolSuccess)
-        return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, toolOutput)
+        return buildToolResponse(
+            toolCall = toolCall,
+            toolName = toolName,
+            output = toolOutput,
+            normalizeToolResponseToJson = normalizeToolResponseToJson
+        )
     }
 
     private suspend fun checkBeforeToolCallHook(context: ToolCallContext): HookResult.Reject? {
@@ -315,6 +338,20 @@ internal class ToolCallOrchestrator(
         return runCatching { bean.targetSource.target }
             .getOrNull()
             ?: bean
+    }
+
+    private fun buildToolResponse(
+        toolCall: AssistantMessage.ToolCall,
+        toolName: String,
+        output: String,
+        normalizeToolResponseToJson: Boolean
+    ): ToolResponseMessage.ToolResponse {
+        val responseData = if (normalizeToolResponseToJson) {
+            ToolResponsePayloadNormalizer.normalizeForStrictJsonProvider(output)
+        } else {
+            output
+        }
+        return ToolResponseMessage.ToolResponse(toolCall.id(), toolName, responseData)
     }
 
     private fun normalizeSpringToolOutput(output: String): String {

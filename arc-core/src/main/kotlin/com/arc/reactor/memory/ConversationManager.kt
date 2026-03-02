@@ -5,6 +5,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.agent.model.MessageRole
+import com.arc.reactor.agent.impl.ToolResponsePayloadNormalizer
 import com.arc.reactor.memory.summary.ConversationSummary
 import com.arc.reactor.memory.summary.ConversationSummaryService
 import com.arc.reactor.memory.summary.ConversationSummaryStore
@@ -270,7 +271,15 @@ class DefaultConversationManager(
                 MessageRole.ASSISTANT -> AssistantMessage.builder().content(msg.content).build()
                 MessageRole.SYSTEM -> SystemMessage(msg.content)
                 MessageRole.TOOL -> ToolResponseMessage.builder()
-                    .responses(listOf(ToolResponseMessage.ToolResponse("", "tool", msg.content)))
+                    .responses(
+                        listOf(
+                            ToolResponseMessage.ToolResponse(
+                                "",
+                                "tool",
+                                ToolResponsePayloadNormalizer.normalizeForStrictJsonProvider(msg.content)
+                            )
+                        )
+                    )
                     .build()
             }
         }

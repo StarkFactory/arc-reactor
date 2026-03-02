@@ -11,6 +11,7 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.prompt.ChatOptions
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import reactor.core.publisher.Flux
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.reactive.asFlow
@@ -144,7 +145,8 @@ internal class StreamingReActLoopExecutor(
                 toolsUsed,
                 totalToolCallsCounter,
                 maxToolCalls,
-                allowedTools
+                allowedTools,
+                normalizeToolResponseToJson = shouldNormalizeToolResponses(chatOptions)
             )
             totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
             totalToolCalls = totalToolCallsCounter.get()
@@ -165,5 +167,9 @@ internal class StreamingReActLoopExecutor(
                 chatOptions = buildChatOptions(command, false)
             }
         }
+    }
+
+    private fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean {
+        return chatOptions is GoogleGenAiChatOptions
     }
 }
