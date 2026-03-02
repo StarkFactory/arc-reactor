@@ -63,7 +63,7 @@ class PersonaControllerTest {
         fun `should return default persona in list`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             every { personaStore.list() } returns listOf(
-                Persona("default", "Default Assistant", "You are helpful.", true, now, now)
+                Persona("default", "Default Assistant", "You are helpful.", true, createdAt = now, updatedAt = now)
             )
 
             val result = controller.listPersonas()
@@ -77,8 +77,8 @@ class PersonaControllerTest {
         fun `should return multiple personas with correct fields`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             every { personaStore.list() } returns listOf(
-                Persona("default", "Default", "prompt-1", true, now, now),
-                Persona("custom-1", "Python Expert", "You are a Python expert.", false, now, now)
+                Persona("default", "Default", "prompt-1", true, createdAt = now, updatedAt = now),
+                Persona("custom-1", "Python Expert", "You are a Python expert.", false, createdAt = now, updatedAt = now)
             )
 
             val result = controller.listPersonas()
@@ -105,7 +105,7 @@ class PersonaControllerTest {
         fun `should return persona with correct fields`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             every { personaStore.get("p-1") } returns Persona(
-                "p-1", "Customer Agent", "You handle customer inquiries.", false, now, now
+                "p-1", "Customer Agent", "You handle customer inquiries.", false, createdAt = now, updatedAt = now
             )
 
             val response = controller.getPersona("p-1")
@@ -118,6 +118,33 @@ class PersonaControllerTest {
             assertFalse(body.isDefault) { "Should not be default" }
             assertEquals(now.toEpochMilli(), body.createdAt) { "CreatedAt should be epoch millis" }
             assertEquals(now.toEpochMilli(), body.updatedAt) { "UpdatedAt should be epoch millis" }
+        }
+
+        @Test
+        fun `should return extended fields in response`() = runTest {
+            val now = Instant.parse("2026-02-08T12:00:00Z")
+            every { personaStore.get("ext-1") } returns Persona(
+                id = "ext-1",
+                name = "Expert",
+                systemPrompt = "prompt",
+                description = "A domain expert",
+                responseGuideline = "Use bullet points.",
+                welcomeMessage = "Hello!",
+                icon = "🧑‍💻",
+                isActive = false,
+                createdAt = now,
+                updatedAt = now
+            )
+
+            val response = controller.getPersona("ext-1")
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
+            val body = response.body!!
+            assertEquals("A domain expert", body.description) { "Description should match" }
+            assertEquals("Use bullet points.", body.responseGuideline) { "Guideline should match" }
+            assertEquals("Hello!", body.welcomeMessage) { "Welcome message should match" }
+            assertEquals("🧑‍💻", body.icon) { "Icon should match" }
+            assertFalse(body.isActive) { "isActive should be false" }
         }
     }
 
@@ -180,6 +207,53 @@ class PersonaControllerTest {
 
             assertTrue(slot.captured.isDefault) { "Saved persona should have isDefault=true" }
         }
+
+        @Test
+        fun `should pass extended fields to store when creating persona`() = runTest {
+            val slot = slot<Persona>()
+            every { personaStore.save(capture(slot)) } answers { slot.captured }
+
+            val request = CreatePersonaRequest(
+                name = "Expert",
+                systemPrompt = "You are an expert.",
+                description = "A domain expert",
+                responseGuideline = "Use bullet points.",
+                welcomeMessage = "Hello!",
+                icon = "🧑‍💻",
+                isActive = true
+            )
+            val response = controller.createPersona(request, adminExchange())
+
+            assertEquals(HttpStatus.CREATED, response.statusCode) { "Should return 201" }
+            val body = response.body as PersonaResponse
+            assertEquals("A domain expert", body.description) { "Description should match" }
+            assertEquals("Use bullet points.", body.responseGuideline) { "Guideline should match" }
+            assertEquals("Hello!", body.welcomeMessage) { "Welcome message should match" }
+            assertEquals("🧑‍💻", body.icon) { "Icon should match" }
+            assertTrue(body.isActive) { "isActive should be true" }
+
+            // Verify captured persona
+            assertEquals("A domain expert", slot.captured.description) { "Stored description should match" }
+            assertEquals("Use bullet points.", slot.captured.responseGuideline) { "Stored guideline should match" }
+        }
+
+        @Test
+        fun `should default isActive to true and extended fields to null`() = runTest {
+            val slot = slot<Persona>()
+            every { personaStore.save(capture(slot)) } answers { slot.captured }
+
+            val request = CreatePersonaRequest(
+                name = "Minimal",
+                systemPrompt = "prompt"
+            )
+            controller.createPersona(request, adminExchange())
+
+            assertTrue(slot.captured.isActive) { "isActive should default to true" }
+            assertNull(slot.captured.description) { "Description should default to null" }
+            assertNull(slot.captured.responseGuideline) { "Guideline should default to null" }
+            assertNull(slot.captured.welcomeMessage) { "Welcome message should default to null" }
+            assertNull(slot.captured.icon) { "Icon should default to null" }
+        }
     }
 
     @Nested
@@ -187,7 +261,8 @@ class PersonaControllerTest {
 
         @Test
         fun `should return 404 when updating nonexistent persona`() = runTest {
-            every { personaStore.update("nonexistent", any(), any(), any()) } returns null
+            every { personaStore.update("nonexistent",
+                any(), any(), any(), any(), any(), any(), any(), any()) } returns null
 
             val response = controller.updatePersona(
                 "nonexistent",
@@ -201,8 +276,10 @@ class PersonaControllerTest {
         @Test
         fun `should return updated persona with correct fields`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
-            every { personaStore.update("p-1", "Updated Name", null, null) } returns Persona(
-                "p-1", "Updated Name", "original prompt", false, now, now.plusSeconds(10)
+            every { personaStore.update("p-1", "Updated Name",
+                null, null, null, null, null, null, null) } returns Persona(
+                "p-1", "Updated Name", "original prompt", false,
+                createdAt = now, updatedAt = now.plusSeconds(10)
             )
 
             val response = controller.updatePersona(
@@ -229,8 +306,9 @@ class PersonaControllerTest {
         @Test
         fun `should pass isDefault change to store`() = runTest {
             val now = Instant.now()
-            every { personaStore.update("p-1", null, null, true) } returns Persona(
-                "p-1", "Name", "prompt", true, now, now
+            every { personaStore.update("p-1", null, null, true,
+                null, null, null, null, null) } returns Persona(
+                "p-1", "Name", "prompt", true, createdAt = now, updatedAt = now
             )
 
             val response = controller.updatePersona(
