@@ -1,5 +1,7 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.rag.chunking.DocumentChunker
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -12,6 +14,7 @@ import mu.KotlinLogging
 import org.springframework.ai.document.Document
 import org.springframework.ai.vectorstore.SearchRequest
 import org.springframework.ai.vectorstore.VectorStore
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -37,7 +40,9 @@ private val logger = KotlinLogging.logger {}
 @RequestMapping("/api/documents")
 @ConditionalOnProperty(prefix = "arc.reactor.rag", name = ["enabled"], havingValue = "true")
 class DocumentController(
-    private val vectorStore: VectorStore
+    private val vectorStore: VectorStore,
+    private val documentChunkerProvider: ObjectProvider<DocumentChunker>,
+    private val properties: AgentProperties
 ) {
 
     /**
@@ -60,15 +65,22 @@ class DocumentController(
         val metadata = request.metadata?.toMutableMap() ?: mutableMapOf()
 
         val document = Document(id, request.content, metadata)
-        vectorStore.add(listOf(document))
+        val chunks = documentChunkerProvider.ifAvailable?.chunk(document)
+            ?: listOf(document)
+        vectorStore.add(chunks)
 
-        logger.info { "Document added: id=$id, contentLength=${request.content.length}" }
+        logger.info {
+            "Document added: id=$id, chunks=${chunks.size}, " +
+                "contentLength=${request.content.length}"
+        }
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
             DocumentResponse(
                 id = id,
                 content = request.content,
-                metadata = metadata
+                metadata = metadata,
+                chunkCount = chunks.size,
+                chunkIds = chunks.map { it.id }
             )
         )
     }
@@ -88,15 +100,17 @@ class DocumentController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        val chunker = documentChunkerProvider.ifAvailable
         val documents = request.documents.map { doc ->
             val id = UUID.randomUUID().toString()
             val metadata = doc.metadata?.toMutableMap() ?: mutableMapOf()
             Document(id, doc.content, metadata)
         }
 
-        vectorStore.add(documents)
+        val chunks = chunker?.chunk(documents) ?: documents
+        vectorStore.add(chunks)
 
-        logger.info { "Batch added ${documents.size} documents" }
+        logger.info { "Batch added ${documents.size} documents (${chunks.size} chunks)" }
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
             BatchDocumentResponse(
@@ -150,8 +164,21 @@ class DocumentController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        vectorStore.delete(request.ids)
-        logger.info { "Deleted ${request.ids.size} documents" }
+
+        // Each ID may be a parent document — derive deterministic chunk IDs to clean up.
+        // VectorStore.delete is idempotent: non-existent IDs are silently ignored.
+        // Skip derivation for IDs that are already chunk IDs.
+        val maxChunks = properties.rag.chunking.maxNumChunks
+        val allIds = request.ids.flatMap { id ->
+            if (DocumentChunker.isChunkId(id)) {
+                listOf(id)
+            } else {
+                listOf(id) + DocumentChunker.deriveChunkIds(id, maxChunks)
+            }
+        }.distinct()
+
+        vectorStore.delete(allIds)
+        logger.info { "Deleted documents: ${request.ids.size} requested IDs -> ${allIds.size} total IDs" }
         return ResponseEntity.noContent().build()
     }
 
@@ -188,7 +215,9 @@ class DocumentController(
     data class DocumentResponse(
         val id: String,
         val content: String,
-        val metadata: Map<String, Any>
+        val metadata: Map<String, Any>,
+        val chunkCount: Int = 1,
+        val chunkIds: List<String> = emptyList()
     )
 
     data class BatchDocumentResponse(
