@@ -37,7 +37,11 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | `OutputGuardPipeline` | Post-execution response validation (PII, regex, dynamic rules) | `guard.output` |
 | `ExperimentOrchestrator` | Prompt Lab — A/B experiment runner | `promptlab` |
 | `SupervisorOrchestrator` | Multi-agent supervisor pattern | `agent.multi` |
-| `DynamicSchedulerService` | Cron-scheduled MCP tool execution | `scheduler` |
+| `DynamicSchedulerService` | Cron-scheduled MCP tool and agent execution | `scheduler` |
+| `CreateScheduledJobTool` | Agent tool — create scheduled jobs via natural language | `scheduler.tool` |
+| `ListScheduledJobsTool` | Agent tool — list all scheduled jobs | `scheduler.tool` |
+| `UpdateScheduledJobTool` | Agent tool — partial update of scheduled jobs | `scheduler.tool` |
+| `DeleteScheduledJobTool` | Agent tool — delete scheduled jobs by ID or name | `scheduler.tool` |
 
 ---
 
@@ -222,6 +226,21 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 |---|---|---|
 | `enabled` | `false` | Dynamic cron scheduler |
 | `thread-pool-size` | `5` | Scheduler thread pool |
+
+When `enabled=true`, four agent tools are auto-registered (`@ConditionalOnMissingBean`):
+
+| Tool | Description |
+|---|---|
+| `create_scheduled_job` | Create a new AGENT-mode scheduled job (LLM converts natural language to cron) |
+| `list_scheduled_jobs` | List all jobs with status, cron, timezone, and last execution result |
+| `update_scheduled_job` | Partial update — change cron, prompt, Slack channel, timezone, or enable/disable |
+| `delete_scheduled_job` | Delete a job by ID or name |
+
+All tools have `category = null` (always loaded regardless of user prompt keywords) and return JSON error strings on failure (never throw).
+
+**Cost note:** AGENT-mode schedules invoke the LLM on each execution. Consider cost implications when creating high-frequency schedules.
+
+**Security note:** `update_scheduled_job` can modify `agentPrompt`, changing what a job executes on future runs. In multi-user environments, enable `ToolApprovalPolicy` to require human approval before prompt modifications.
 
 ### MCP (`arc.reactor.mcp`)
 

@@ -1,6 +1,8 @@
 package com.arc.reactor.slack
 
 import com.arc.reactor.agent.AgentExecutor
+import com.arc.reactor.scheduler.SlackMessageSender
+import com.arc.reactor.slack.adapter.SlackMessageSenderAdapter
 import com.arc.reactor.slack.config.SlackAutoConfiguration
 import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.metrics.MicrometerSlackMetricsRecorder
@@ -122,6 +124,50 @@ class SlackAutoConfigurationTest {
                 .run { context ->
                     context.getBean(SlackMetricsRecorder::class.java)
                         .shouldBeInstanceOf<NoOpSlackMetricsRecorder>()
+                }
+        }
+    }
+
+    @Nested
+    inner class SlackMessageSenderAdapterWiring {
+
+        @Test
+        fun `SlackMessageSender adapter bean is created when Slack is enabled`() {
+            contextRunner
+                .withPropertyValues(
+                    "arc.reactor.slack.enabled=true",
+                    "arc.reactor.slack.signing-secret=test-secret",
+                    "arc.reactor.slack.bot-token=xoxb-test"
+                )
+                .run { context ->
+                    context.getBean(SlackMessageSender::class.java)
+                        .shouldBeInstanceOf<SlackMessageSenderAdapter>()
+                }
+        }
+
+        @Test
+        fun `SlackMessageSender adapter is NOT created when Slack is disabled`() {
+            contextRunner
+                .withPropertyValues("arc.reactor.slack.enabled=false")
+                .run { context ->
+                    context.getBeansOfType(SlackMessageSender::class.java).isEmpty()
+                        .shouldBeTrue()
+                }
+        }
+
+        @Test
+        fun `custom SlackMessageSender overrides adapter via ConditionalOnMissingBean`() {
+            val customSender = SlackMessageSender { _, _ -> }
+            contextRunner
+                .withPropertyValues(
+                    "arc.reactor.slack.enabled=true",
+                    "arc.reactor.slack.signing-secret=test-secret",
+                    "arc.reactor.slack.bot-token=xoxb-test"
+                )
+                .withBean(SlackMessageSender::class.java, { customSender })
+                .run { context ->
+                    val bean = context.getBean(SlackMessageSender::class.java)
+                    (bean === customSender).shouldBeTrue()
                 }
         }
     }

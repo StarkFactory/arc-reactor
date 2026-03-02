@@ -15,7 +15,9 @@ import com.arc.reactor.slack.processor.SlackEventProcessor
 import com.arc.reactor.slack.security.SlackSignatureVerifier
 import com.arc.reactor.slack.security.SlackSignatureWebFilter
 import com.arc.reactor.slack.session.SlackThreadTracker
+import com.arc.reactor.slack.adapter.SlackMessageSenderAdapter
 import com.arc.reactor.slack.service.SlackMessagingService
+import com.arc.reactor.scheduler.SlackMessageSender
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.beans.factory.ObjectProvider
@@ -105,6 +107,12 @@ class SlackAutoConfiguration {
             retryDefaultDelayMs = properties.apiRetryDefaultDelayMs,
             metricsRecorder = metricsRecorder
         )
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun slackMessageSenderAdapter(
+        messagingService: SlackMessagingService
+    ): SlackMessageSender = SlackMessageSenderAdapter(messagingService)
 
     @Bean
     @ConditionalOnMissingBean

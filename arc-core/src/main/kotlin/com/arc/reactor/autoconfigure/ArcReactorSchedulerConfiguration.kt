@@ -13,6 +13,10 @@ import com.arc.reactor.scheduler.ScheduledJobExecutionStore
 import com.arc.reactor.scheduler.ScheduledJobStore
 import com.arc.reactor.scheduler.SlackMessageSender
 import com.arc.reactor.scheduler.TeamsMessageSender
+import com.arc.reactor.scheduler.tool.CreateScheduledJobTool
+import com.arc.reactor.scheduler.tool.DeleteScheduledJobTool
+import com.arc.reactor.scheduler.tool.ListScheduledJobsTool
+import com.arc.reactor.scheduler.tool.UpdateScheduledJobTool
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -78,4 +82,27 @@ class SchedulerConfiguration {
         personaStore = personaStoreProvider.ifAvailable,
         executionStore = executionStoreProvider.ifAvailable
     )
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun createScheduledJobTool(
+        service: DynamicSchedulerService,
+        properties: AgentProperties
+    ): CreateScheduledJobTool =
+        CreateScheduledJobTool(service, properties.scheduler.defaultTimezone)
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun listScheduledJobsTool(service: DynamicSchedulerService): ListScheduledJobsTool =
+        ListScheduledJobsTool(service)
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun updateScheduledJobTool(service: DynamicSchedulerService): UpdateScheduledJobTool =
+        UpdateScheduledJobTool(service)
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun deleteScheduledJobTool(service: DynamicSchedulerService): DeleteScheduledJobTool =
+        DeleteScheduledJobTool(service)
 }
