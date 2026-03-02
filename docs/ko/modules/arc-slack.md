@@ -188,6 +188,18 @@ class MySlackEventHandler(
 }
 ```
 
+## 스케줄러 연동 (SlackMessageSenderAdapter)
+
+`arc-slack`과 스케줄러(`arc.reactor.scheduler.enabled=true`)가 모두 활성화되면, `SlackAutoConfiguration`이 `SlackMessageSenderAdapter` 빈을 등록하여 `DynamicSchedulerService`와 Slack을 연결합니다.
+
+이 어댑터는 `arc-core`에 정의된 `SlackMessageSender` fun interface를 구현하며, `SlackMessagingService.sendMessage()` (suspend 함수)를 `runBlocking(Dispatchers.IO)`로 래핑합니다. 스케줄 작업이 완료되면 스케줄러가 `sendSlackIfConfigured()`를 호출하고, 이 어댑터를 통해 설정된 Slack 채널에 결과를 전송합니다.
+
+추가 설정은 필요 없습니다 — `SchedulerConfiguration`의 `ObjectProvider<SlackMessageSender>`를 통해 자동 와이어링됩니다.
+
+| 클래스 | 역할 |
+|---|---|
+| `SlackMessageSenderAdapter` | 블로킹 `SlackMessageSender`를 suspend `SlackMessagingService`로 브릿지 |
+
 ## 주의사항
 
 **Socket Mode는 `app-token`이 필요합니다.** `transport-mode=SOCKET_MODE`이고 `app-token`이 비어 있으면, `SlackSocketModeGateway.start()`에서 즉시 `IllegalStateException`이 발생합니다.

@@ -37,7 +37,11 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | `OutputGuardPipeline` | 실행 후 응답 검증 (PII, 정규식, 동적 규칙) | `guard.output` |
 | `ExperimentOrchestrator` | Prompt Lab — A/B 실험 실행기 | `promptlab` |
 | `SupervisorOrchestrator` | 멀티 에이전트 supervisor 패턴 | `agent.multi` |
-| `DynamicSchedulerService` | cron 기반 동적 MCP Tool 실행 | `scheduler` |
+| `DynamicSchedulerService` | cron 기반 동적 MCP Tool 및 에이전트 실행 | `scheduler` |
+| `CreateScheduledJobTool` | 에이전트 도구 — 자연어로 스케줄 생성 | `scheduler.tool` |
+| `ListScheduledJobsTool` | 에이전트 도구 — 스케줄 목록 조회 | `scheduler.tool` |
+| `UpdateScheduledJobTool` | 에이전트 도구 — 스케줄 부분 수정 | `scheduler.tool` |
+| `DeleteScheduledJobTool` | 에이전트 도구 — ID 또는 이름으로 스케줄 삭제 | `scheduler.tool` |
 
 ---
 
@@ -222,6 +226,19 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 |---|---|---|
 | `enabled` | `false` | 동적 cron 스케줄러 |
 | `thread-pool-size` | `5` | 스케줄러 스레드 풀 크기 |
+
+`enabled=true`이면 4개의 에이전트 도구가 자동 등록됩니다 (`@ConditionalOnMissingBean`):
+
+| 도구 | 설명 |
+|---|---|
+| `create_scheduled_job` | AGENT 모드 스케줄 생성 (LLM이 자연어를 cron으로 변환) |
+| `list_scheduled_jobs` | 모든 작업의 상태, cron, 타임존, 마지막 실행 결과 조회 |
+| `update_scheduled_job` | 부분 수정 — cron, 프롬프트, Slack 채널, 타임존, 활성/비활성 변경 |
+| `delete_scheduled_job` | ID 또는 이름으로 작업 삭제 |
+
+모든 도구는 `category = null` (사용자 프롬프트 키워드와 무관하게 항상 로드)이며, 실패 시 JSON 에러 문자열을 반환합니다 (예외를 던지지 않음).
+
+**비용 주의:** AGENT 모드 스케줄은 실행마다 LLM을 호출합니다. 고빈도 스케줄 생성 시 비용 영향을 고려하세요.
 
 ### MCP (`arc.reactor.mcp`)
 

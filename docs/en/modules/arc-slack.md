@@ -192,6 +192,18 @@ class MySlackEventHandler(
 }
 ```
 
+## Scheduler Integration (SlackMessageSenderAdapter)
+
+When both `arc-slack` and the scheduler (`arc.reactor.scheduler.enabled=true`) are active, `SlackAutoConfiguration` registers a `SlackMessageSenderAdapter` bean that bridges `DynamicSchedulerService` to Slack.
+
+This adapter implements the `SlackMessageSender` fun interface (defined in `arc-core`) by wrapping `SlackMessagingService.sendMessage()` (a suspend function) with `runBlocking(Dispatchers.IO)`. When a scheduled job completes, the scheduler calls `sendSlackIfConfigured()` which uses this adapter to post the result to the configured Slack channel.
+
+No additional configuration is required — the adapter is auto-wired via `ObjectProvider<SlackMessageSender>` in `SchedulerConfiguration`.
+
+| Class | Role |
+|---|---|
+| `SlackMessageSenderAdapter` | Bridges blocking `SlackMessageSender` to suspend `SlackMessagingService` |
+
 ## Common Pitfalls / Notes
 
 **Socket Mode requires `app-token`.** If `transport-mode=SOCKET_MODE` and `app-token` is blank, `SlackSocketModeGateway.start()` throws `IllegalStateException` immediately.
