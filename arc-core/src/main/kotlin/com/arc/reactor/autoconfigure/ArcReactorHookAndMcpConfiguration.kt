@@ -15,6 +15,7 @@ import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.mcp.McpSecurityConfig
 import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.policy.tool.ToolExecutionPolicyEngine
+import com.arc.reactor.rag.chunking.DocumentChunker
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyProvider
 import org.springframework.ai.vectorstore.VectorStore
@@ -117,10 +118,12 @@ class ArcReactorHookAndMcpConfiguration {
     fun ragIngestionCaptureHook(
         policyProvider: RagIngestionPolicyProvider,
         candidateStore: RagIngestionCandidateStore,
-        vectorStoreProvider: ObjectProvider<VectorStore>
+        vectorStoreProvider: ObjectProvider<VectorStore>,
+        documentChunkerProvider: ObjectProvider<DocumentChunker>
     ): RagIngestionCaptureHook = RagIngestionCaptureHook(
         policyProvider = policyProvider,
         candidateStore = candidateStore,
-        vectorStore = vectorStoreProvider.ifAvailable
+        vectorStore = vectorStoreProvider.ifAvailable,
+        documentChunker = documentChunkerProvider.ifAvailable
     )
 }

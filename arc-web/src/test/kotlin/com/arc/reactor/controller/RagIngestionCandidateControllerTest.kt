@@ -3,6 +3,7 @@ package com.arc.reactor.controller
 import com.arc.reactor.audit.InMemoryAdminAuditStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
+import com.arc.reactor.rag.chunking.DocumentChunker
 import com.arc.reactor.rag.ingestion.InMemoryRagIngestionCandidateStore
 import com.arc.reactor.rag.ingestion.RagIngestionCandidate
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStatus
@@ -25,6 +26,7 @@ class RagIngestionCandidateControllerTest {
     private lateinit var vectorStore: VectorStore
     private lateinit var vectorStoreProvider: ObjectProvider<VectorStore>
     private lateinit var noVectorStoreProvider: ObjectProvider<VectorStore>
+    private lateinit var documentChunkerProvider: ObjectProvider<DocumentChunker>
 
     @BeforeEach
     fun setup() {
@@ -35,6 +37,8 @@ class RagIngestionCandidateControllerTest {
         every { vectorStoreProvider.ifAvailable } returns vectorStore
         noVectorStoreProvider = mockk()
         every { noVectorStoreProvider.ifAvailable } returns null
+        documentChunkerProvider = mockk()
+        every { documentChunkerProvider.ifAvailable } returns null
     }
 
     private fun controller(
@@ -43,7 +47,8 @@ class RagIngestionCandidateControllerTest {
         return RagIngestionCandidateController(
             store = store,
             adminAuditStore = adminAuditStore,
-            vectorStoreProvider = provider
+            vectorStoreProvider = provider,
+            documentChunkerProvider = documentChunkerProvider
         )
     }
 
