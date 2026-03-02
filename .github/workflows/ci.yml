@@ -156,7 +156,7 @@ jobs:
             --tests "com.arc.reactor.controller.SchedulerControllerAuthTest"
 
       - name: Upload Test Results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-java-${{ matrix.java }}
@@ -204,7 +204,7 @@ jobs:
           fi
 
       - name: Upload Integration Test Results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: integration-test-results-java-${{ matrix.java }}

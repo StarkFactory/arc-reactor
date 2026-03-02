@@ -42,7 +42,7 @@ jobs:
         run: bash scripts/ci/summarize-junit-failures.sh "$MATRIX_TEST_RESULTS_DIR" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Matrix Test Results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: matrix-test-results
