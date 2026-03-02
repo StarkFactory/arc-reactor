@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.prompt.PromptTemplateStore
 import mu.KotlinLogging
@@ -25,9 +26,15 @@ internal class SystemPromptResolver(
         return DEFAULT_SYSTEM_PROMPT
     }
 
+    private fun buildEffectivePrompt(persona: Persona): String {
+        val base = persona.systemPrompt
+        val guideline = persona.responseGuideline
+        return if (!guideline.isNullOrBlank()) "$base\n\n$guideline" else base
+    }
+
     private fun resolvePersonaPromptSafely(personaId: String): String? {
         return try {
-            personaStore?.get(personaId)?.systemPrompt
+            personaStore?.get(personaId)?.let { buildEffectivePrompt(it) }
         } catch (e: Exception) {
             logger.warn(e) { "Persona lookup failed for personaId='$personaId'; falling back to default prompt" }
             null
@@ -45,7 +52,7 @@ internal class SystemPromptResolver(
 
     private fun resolveDefaultPersonaPromptSafely(): String? {
         return try {
-            personaStore?.getDefault()?.systemPrompt
+            personaStore?.getDefault()?.takeIf { it.isActive }?.let { buildEffectivePrompt(it) }
         } catch (e: Exception) {
             logger.warn(e) { "Default persona lookup failed; using hardcoded fallback system prompt" }
             null
