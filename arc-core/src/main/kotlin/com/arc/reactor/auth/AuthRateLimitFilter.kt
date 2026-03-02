@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger
 private val logger = KotlinLogging.logger {}
 
 /**
- * Rate limiting filter for authentication endpoints.
+ * Rate limiting filter for brute-force-prone authentication endpoints.
  *
  * Limits login/register attempts per IP address to prevent brute-force attacks.
  * Returns HTTP 429 when the limit is exceeded.
@@ -35,8 +35,9 @@ class AuthRateLimitFilter(
 
     override fun filter(exchange: ServerWebExchange, chain: WebFilterChain): Mono<Void> {
         val path = exchange.request.uri.path
+        val method = exchange.request.method
 
-        if (!path.startsWith("/api/auth/")) {
+        if (!isRateLimitedAuthPath(path, method.name())) {
             return chain.filter(exchange)
         }
 
@@ -45,7 +46,12 @@ class AuthRateLimitFilter(
         val count = counter.incrementAndGet()
 
         if (count > maxAttemptsPerMinute) {
-            logger.warn { "Auth rate limit exceeded for IP=$ip ($count/$maxAttemptsPerMinute/min)" }
+            if (count == maxAttemptsPerMinute + 1) {
+                logger.warn {
+                    "Auth rate limit exceeded for IP=$ip ($count/$maxAttemptsPerMinute/min); " +
+                        "suppressing repeated warnings for this IP for 1 minute"
+                }
+            }
             return tooManyRequests(exchange)
         }
 
@@ -66,5 +72,12 @@ class AuthRateLimitFilter(
         val body = """{"error":"Too many authentication attempts. Please try again later."}"""
         val buffer = exchange.response.bufferFactory().wrap(body.toByteArray())
         return exchange.response.writeWith(Mono.just(buffer))
+    }
+
+    private fun isRateLimitedAuthPath(path: String, method: String?): Boolean {
+        if (method != "POST") {
+            return false
+        }
+        return path == "/api/auth/login" || path == "/api/auth/register"
     }
 }

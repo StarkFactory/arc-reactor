@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.core.Ordered
 import org.springframework.core.io.buffer.DefaultDataBufferFactory
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.http.server.reactive.ServerHttpResponse
@@ -41,6 +42,7 @@ class AuthRateLimitFilterTest {
         every { exchange.request } returns request
         every { exchange.response } returns response
         every { request.headers } returns headers
+        every { request.method } returns HttpMethod.POST
         every { request.remoteAddress } returns InetSocketAddress("127.0.0.1", 12345)
         every { chain.filter(exchange) } returns Mono.empty()
         every { response.bufferFactory() } returns DefaultDataBufferFactory()
@@ -67,6 +69,18 @@ class AuthRateLimitFilterTest {
             result.block()
 
             verify(exactly = 1) { chain.filter(exchange) }
+        }
+
+        @Test
+        fun `should not rate limit auth me endpoint`() {
+            every { request.uri } returns URI.create("http://localhost/api/auth/me")
+
+            for (i in 1..4) {
+                filter.filter(exchange, chain).block()
+            }
+
+            verify(exactly = 4) { chain.filter(exchange) }
+            verify(exactly = 0) { response.statusCode = HttpStatus.TOO_MANY_REQUESTS }
         }
     }
 
