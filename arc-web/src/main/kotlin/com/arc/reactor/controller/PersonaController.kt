@@ -80,7 +80,12 @@ class PersonaController(
             id = UUID.randomUUID().toString(),
             name = request.name,
             systemPrompt = request.systemPrompt,
-            isDefault = request.isDefault
+            isDefault = request.isDefault,
+            description = request.description,
+            responseGuideline = request.responseGuideline,
+            welcomeMessage = request.welcomeMessage,
+            icon = request.icon,
+            isActive = request.isActive
         )
         val saved = personaStore.save(persona)
         return ResponseEntity.status(HttpStatus.CREATED).body(saved.toResponse())
@@ -108,7 +113,12 @@ class PersonaController(
             personaId = personaId,
             name = request.name,
             systemPrompt = request.systemPrompt,
-            isDefault = request.isDefault
+            isDefault = request.isDefault,
+            description = request.description,
+            responseGuideline = request.responseGuideline,
+            welcomeMessage = request.welcomeMessage,
+            icon = request.icon,
+            isActive = request.isActive
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
     }
@@ -140,13 +150,23 @@ data class CreatePersonaRequest(
     val name: String,
     @field:NotBlank(message = "systemPrompt must not be blank")
     val systemPrompt: String,
-    val isDefault: Boolean = false
+    val isDefault: Boolean = false,
+    val description: String? = null,
+    val responseGuideline: String? = null,
+    val welcomeMessage: String? = null,
+    val icon: String? = null,
+    val isActive: Boolean = true
 )
 
 data class UpdatePersonaRequest(
     val name: String? = null,
     val systemPrompt: String? = null,
-    val isDefault: Boolean? = null
+    val isDefault: Boolean? = null,
+    val description: String? = null,
+    val responseGuideline: String? = null,
+    val welcomeMessage: String? = null,
+    val icon: String? = null,
+    val isActive: Boolean? = null
 )
 
 // --- Response DTO ---
@@ -156,6 +176,11 @@ data class PersonaResponse(
     val name: String,
     val systemPrompt: String,
     val isDefault: Boolean,
+    val description: String?,
+    val responseGuideline: String?,
+    val welcomeMessage: String?,
+    val icon: String?,
+    val isActive: Boolean,
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -167,6 +192,11 @@ private fun Persona.toResponse() = PersonaResponse(
     name = name,
     systemPrompt = systemPrompt,
     isDefault = isDefault,
+    description = description,
+    responseGuideline = responseGuideline,
+    welcomeMessage = welcomeMessage,
+    icon = icon,
+    isActive = isActive,
     createdAt = createdAt.toEpochMilli(),
     updatedAt = updatedAt.toEpochMilli()
 )
