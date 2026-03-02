@@ -101,7 +101,12 @@ class OutputGuardRuleController(
         val action = parseAction(request.action)
             ?: return ResponseEntity.badRequest()
                 .body(ErrorResponse(error = "Invalid action: ${request.action}", timestamp = Instant.now().toString()))
-        val regexError = validateRegex(request.pattern.trim())
+        val trimmedPattern = request.pattern.trim()
+        if (trimmedPattern.isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(ErrorResponse(error = "Invalid pattern: pattern must not be blank after trimming", timestamp = Instant.now().toString()))
+        }
+        val regexError = validateRegex(trimmedPattern)
         if (regexError != null) {
             return ResponseEntity.badRequest()
                 .body(ErrorResponse(error = "Invalid pattern: $regexError", timestamp = Instant.now().toString()))
@@ -150,7 +155,12 @@ class OutputGuardRuleController(
                 .body(ErrorResponse(error = "Invalid action: ${request.action}", timestamp = Instant.now().toString()))
         }
         if (request.pattern != null) {
-            val regexError = validateRegex(request.pattern.trim())
+            val trimmedPattern = request.pattern.trim()
+            if (trimmedPattern.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(ErrorResponse(error = "Invalid pattern: pattern must not be blank after trimming", timestamp = Instant.now().toString()))
+            }
+            val regexError = validateRegex(trimmedPattern)
             if (regexError != null) {
                 return ResponseEntity.badRequest()
                     .body(ErrorResponse(error = "Invalid pattern: $regexError", timestamp = Instant.now().toString()))
