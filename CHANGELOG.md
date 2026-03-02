@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Extended `Persona` model with five new fields: `description`, `responseGuideline`, `welcomeMessage`,
+  `icon`, and `isActive` for richer persona management and admin playground support.
+- `SystemPromptResolver.buildEffectivePrompt()` combines `systemPrompt` + `responseGuideline` into a
+  single effective prompt, applied to both explicit and default persona resolution paths.
+- Flyway migration `V29__add_persona_fields.sql` adding the five new columns to the `personas` table.
+- `PersonaController` Create/Update DTOs extended with all new fields; backward-compatible defaults
+  (`isActive=true`, others nullable).
+- Comprehensive test coverage: `PersonaStoreTest` (5), `JdbcPersonaStoreTest` (5),
+  `PersonaControllerTest` (3), and `SystemPromptResolverTest` (6 — new file).
+
 ## [4.1.0] - 2026-02-26
 
 ### Added

@@ -145,6 +145,121 @@ class PersonaStoreTest {
     }
 
     @Nested
+    inner class ExtendedFields {
+
+        @Test
+        fun `should save and retrieve all extended fields`() {
+            val persona = Persona(
+                id = "ext-1",
+                name = "Expert",
+                systemPrompt = "You are an expert.",
+                description = "A domain expert persona",
+                responseGuideline = "Always respond in bullet points.",
+                welcomeMessage = "Hello! How can I help?",
+                icon = "🧑‍💻",
+                isActive = true
+            )
+
+            store.save(persona)
+            val retrieved = store.get("ext-1")
+
+            assertNotNull(retrieved) { "Persona with extended fields should be retrievable" }
+            assertEquals("A domain expert persona", retrieved!!.description) { "Description should match" }
+            assertEquals("Always respond in bullet points.", retrieved.responseGuideline) { "Response guideline should match" }
+            assertEquals("Hello! How can I help?", retrieved.welcomeMessage) { "Welcome message should match" }
+            assertEquals("🧑‍💻", retrieved.icon) { "Icon should match" }
+            assertTrue(retrieved.isActive) { "isActive should be true" }
+        }
+
+        @Test
+        fun `should default extended fields to null and isActive to true`() {
+            val persona = Persona(id = "minimal", name = "Minimal", systemPrompt = "prompt")
+
+            store.save(persona)
+            val retrieved = store.get("minimal")
+
+            assertNotNull(retrieved) { "Minimal persona should be retrievable" }
+            assertNull(retrieved!!.description) { "Description should default to null" }
+            assertNull(retrieved.responseGuideline) { "Response guideline should default to null" }
+            assertNull(retrieved.welcomeMessage) { "Welcome message should default to null" }
+            assertNull(retrieved.icon) { "Icon should default to null" }
+            assertTrue(retrieved.isActive) { "isActive should default to true" }
+        }
+
+        @Test
+        fun `should update extended fields independently`() {
+            store.save(Persona(
+                id = "upd-ext",
+                name = "Original",
+                systemPrompt = "prompt",
+                description = "Old desc",
+                responseGuideline = "Old guideline"
+            ))
+
+            val updated = store.update(
+                "upd-ext",
+                description = "New desc",
+                responseGuideline = "New guideline",
+                icon = "🎯"
+            )
+
+            assertNotNull(updated) { "Update should return the updated persona" }
+            assertEquals("New desc", updated!!.description) { "Description should be updated" }
+            assertEquals("New guideline", updated.responseGuideline) { "Guideline should be updated" }
+            assertEquals("🎯", updated.icon) { "Icon should be updated" }
+            assertEquals("Original", updated.name) { "Name should remain unchanged" }
+            assertEquals("prompt", updated.systemPrompt) { "System prompt should remain unchanged" }
+        }
+
+        @Test
+        fun `should preserve existing extended fields when update sends null`() {
+            store.save(Persona(
+                id = "preserve",
+                name = "Persona",
+                systemPrompt = "prompt",
+                description = "Keep this",
+                icon = "🔥"
+            ))
+
+            val updated = store.update("preserve", name = "Renamed")
+
+            assertNotNull(updated) { "Update should return the updated persona" }
+            assertEquals("Renamed", updated!!.name) { "Name should be updated" }
+            assertEquals("Keep this", updated.description) { "Description should be preserved when null is passed" }
+            assertEquals("🔥", updated.icon) { "Icon should be preserved when null is passed" }
+        }
+
+        @Test
+        fun `should set isActive to false`() {
+            store.save(Persona(id = "deactivate", name = "Active", systemPrompt = "prompt", isActive = true))
+
+            val updated = store.update("deactivate", isActive = false)
+
+            assertNotNull(updated) { "Update should return the updated persona" }
+            assertFalse(updated!!.isActive) { "isActive should be false after deactivation" }
+        }
+
+        @Test
+        fun `should clear nullable fields when empty string is sent`() {
+            store.save(Persona(
+                id = "clearable",
+                name = "Persona",
+                systemPrompt = "prompt",
+                description = "Has description",
+                icon = "🔥",
+                welcomeMessage = "Hello"
+            ))
+
+            val updated = store.update("clearable", description = "", icon = "", welcomeMessage = "")
+
+            assertNotNull(updated) { "Update should return the updated persona" }
+            assertNull(updated!!.description) { "Description should be cleared to null" }
+            assertNull(updated.icon) { "Icon should be cleared to null" }
+            assertNull(updated.welcomeMessage) { "Welcome message should be cleared to null" }
+        }
+    }
+
+    @Nested
     inner class ConcurrentDefaultHandling {
 
         @Test
