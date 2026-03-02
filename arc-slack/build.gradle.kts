@@ -43,7 +43,7 @@ dependencies {
     implementation("io.micrometer:micrometer-core")
 
     // Swagger (for @Tag, @Operation)
-    implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.6")
+    implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:3.0.2")
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")

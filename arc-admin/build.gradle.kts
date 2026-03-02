@@ -44,7 +44,7 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
 
     // API Documentation (annotations only — runtime provided by arc-web's springdoc)
-    compileOnly("org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.6")
+    compileOnly("org.springdoc:springdoc-openapi-starter-webflux-ui:3.0.2")
 
     // Spring AI (for observation auto-config detection)
     implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))
