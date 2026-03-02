@@ -163,10 +163,10 @@ class InMemoryPersonaStore : PersonaStore {
                 name = name ?: existing.name,
                 systemPrompt = systemPrompt ?: existing.systemPrompt,
                 isDefault = isDefault ?: existing.isDefault,
-                description = description ?: existing.description,
-                responseGuideline = responseGuideline ?: existing.responseGuideline,
-                welcomeMessage = welcomeMessage ?: existing.welcomeMessage,
-                icon = icon ?: existing.icon,
+                description = resolveNullableField(description, existing.description),
+                responseGuideline = resolveNullableField(responseGuideline, existing.responseGuideline),
+                welcomeMessage = resolveNullableField(welcomeMessage, existing.welcomeMessage),
+                icon = resolveNullableField(icon, existing.icon),
                 isActive = isActive ?: existing.isActive,
                 updatedAt = Instant.now()
             )
@@ -177,6 +177,17 @@ class InMemoryPersonaStore : PersonaStore {
 
     override fun delete(personaId: String) {
         personas.remove(personaId)
+    }
+
+    /**
+     * Resolve nullable field update: null = no change, empty = clear to null, value = set.
+     */
+    private fun resolveNullableField(newValue: String?, existing: String?): String? {
+        return when {
+            newValue == null -> existing
+            newValue.isEmpty() -> null
+            else -> newValue
+        }
     }
 
     private fun clearDefault() {

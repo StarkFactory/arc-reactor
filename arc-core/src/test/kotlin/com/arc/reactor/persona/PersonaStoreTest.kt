@@ -238,6 +238,25 @@ class PersonaStoreTest {
             assertNotNull(updated) { "Update should return the updated persona" }
             assertFalse(updated!!.isActive) { "isActive should be false after deactivation" }
         }
+
+        @Test
+        fun `should clear nullable fields when empty string is sent`() {
+            store.save(Persona(
+                id = "clearable",
+                name = "Persona",
+                systemPrompt = "prompt",
+                description = "Has description",
+                icon = "🔥",
+                welcomeMessage = "Hello"
+            ))
+
+            val updated = store.update("clearable", description = "", icon = "", welcomeMessage = "")
+
+            assertNotNull(updated) { "Update should return the updated persona" }
+            assertNull(updated!!.description) { "Description should be cleared to null" }
+            assertNull(updated.icon) { "Icon should be cleared to null" }
+            assertNull(updated.welcomeMessage) { "Welcome message should be cleared to null" }
+        }
     }
 
     @Nested

@@ -54,7 +54,7 @@ class PersonaControllerTest {
         fun `should return empty list when no personas exist`() = runTest {
             every { personaStore.list() } returns emptyList()
 
-            val result = controller.listPersonas()
+            val result = controller.listPersonas(activeOnly = false)
 
             assertTrue(result.isEmpty()) { "Expected empty list, got ${result.size} personas" }
         }
@@ -66,7 +66,7 @@ class PersonaControllerTest {
                 Persona("default", "Default Assistant", "You are helpful.", true, createdAt = now, updatedAt = now)
             )
 
-            val result = controller.listPersonas()
+            val result = controller.listPersonas(activeOnly = false)
 
             assertEquals(1, result.size) { "Should have 1 persona" }
             assertEquals("default", result[0].id) { "ID should be 'default'" }
@@ -81,7 +81,7 @@ class PersonaControllerTest {
                 Persona("custom-1", "Python Expert", "You are a Python expert.", false, createdAt = now, updatedAt = now)
             )
 
-            val result = controller.listPersonas()
+            val result = controller.listPersonas(activeOnly = false)
 
             assertEquals(2, result.size) { "Should have 2 personas" }
             assertEquals("Python Expert", result[1].name) { "Second persona name should match" }

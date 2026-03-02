@@ -119,5 +119,23 @@ class SystemPromptResolverTest {
                 "Should fall back to hardcoded default"
             }
         }
+
+        @Test
+        fun `should skip inactive default persona`() {
+            every { personaStore.get(any()) } returns null
+            every { personaStore.getDefault() } returns Persona(
+                id = "inactive-default",
+                name = "Disabled Default",
+                systemPrompt = "Should not be used.",
+                isDefault = true,
+                isActive = false
+            )
+
+            val result = resolver.resolve(null, null, null)
+
+            assertEquals(SystemPromptResolver.DEFAULT_SYSTEM_PROMPT, result) {
+                "Inactive default persona should be skipped, falling back to hardcoded default"
+            }
+        }
     }
 }

@@ -52,7 +52,7 @@ internal class SystemPromptResolver(
 
     private fun resolveDefaultPersonaPromptSafely(): String? {
         return try {
-            personaStore?.getDefault()?.let { buildEffectivePrompt(it) }
+            personaStore?.getDefault()?.takeIf { it.isActive }?.let { buildEffectivePrompt(it) }
         } catch (e: Exception) {
             logger.warn(e) { "Default persona lookup failed; using hardcoded fallback system prompt" }
             null

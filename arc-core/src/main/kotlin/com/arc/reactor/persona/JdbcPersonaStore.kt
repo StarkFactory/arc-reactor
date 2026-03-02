@@ -90,10 +90,10 @@ class JdbcPersonaStore(
         val updatedName = name ?: existing.name
         val updatedPrompt = systemPrompt ?: existing.systemPrompt
         val updatedDefault = isDefault ?: existing.isDefault
-        val updatedDescription = description ?: existing.description
-        val updatedGuideline = responseGuideline ?: existing.responseGuideline
-        val updatedWelcome = welcomeMessage ?: existing.welcomeMessage
-        val updatedIcon = icon ?: existing.icon
+        val updatedDescription = resolveNullableField(description, existing.description)
+        val updatedGuideline = resolveNullableField(responseGuideline, existing.responseGuideline)
+        val updatedWelcome = resolveNullableField(welcomeMessage, existing.welcomeMessage)
+        val updatedIcon = resolveNullableField(icon, existing.icon)
         val updatedActive = isActive ?: existing.isActive
         val updatedAt = Instant.now()
 
@@ -133,6 +133,14 @@ class JdbcPersonaStore(
 
     override fun delete(personaId: String) {
         jdbcTemplate.update("DELETE FROM personas WHERE id = ?", personaId)
+    }
+
+    private fun resolveNullableField(newValue: String?, existing: String?): String? {
+        return when {
+            newValue == null -> existing
+            newValue.isEmpty() -> null
+            else -> newValue
+        }
     }
 
     private fun clearDefault() {

@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -42,8 +43,12 @@ class PersonaController(
         ApiResponse(responseCode = "200", description = "List of personas")
     ])
     @GetMapping
-    fun listPersonas(): List<PersonaResponse> {
-        return personaStore.list().map { it.toResponse() }
+    fun listPersonas(
+        @RequestParam(required = false, defaultValue = "false") activeOnly: Boolean
+    ): List<PersonaResponse> {
+        val personas = personaStore.list()
+        val filtered = if (activeOnly) personas.filter { it.isActive } else personas
+        return filtered.map { it.toResponse() }
     }
 
     /**
@@ -154,6 +159,7 @@ data class CreatePersonaRequest(
     val description: String? = null,
     val responseGuideline: String? = null,
     val welcomeMessage: String? = null,
+    @field:Size(max = 20, message = "icon must be 20 characters or fewer")
     val icon: String? = null,
     val isActive: Boolean = true
 )
@@ -165,6 +171,7 @@ data class UpdatePersonaRequest(
     val description: String? = null,
     val responseGuideline: String? = null,
     val welcomeMessage: String? = null,
+    @field:Size(max = 20, message = "icon must be 20 characters or fewer")
     val icon: String? = null,
     val isActive: Boolean? = null
 )
