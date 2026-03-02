@@ -6,6 +6,12 @@ import com.arc.reactor.rag.DocumentReranker
 import com.arc.reactor.rag.DocumentRetriever
 import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.rag.RagPipeline
+import com.arc.reactor.memory.DefaultTokenEstimator
+import com.arc.reactor.memory.TokenEstimator
+import com.arc.reactor.rag.chunking.DocumentChunker
+import com.arc.reactor.rag.chunking.InstrumentedDocumentChunker
+import com.arc.reactor.rag.chunking.NoOpDocumentChunker
+import com.arc.reactor.rag.chunking.TokenBasedDocumentChunker
 import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HybridRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
@@ -13,6 +19,7 @@ import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import com.arc.reactor.rag.search.Bm25Scorer
+import io.micrometer.core.instrument.MeterRegistry
 import mu.KotlinLogging
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
@@ -172,4 +179,40 @@ class RagConfiguration {
         reranker = reranker,
         maxContextTokens = properties.rag.maxContextTokens
     )
+
+    /**
+     * Document Chunker — splits long documents into smaller chunks for better embedding quality.
+     * Returns NoOpDocumentChunker when chunking is disabled.
+     * Wraps with [InstrumentedDocumentChunker] when MeterRegistry is available.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun documentChunker(
+        properties: AgentProperties,
+        tokenEstimatorProvider: ObjectProvider<TokenEstimator>,
+        meterRegistryProvider: ObjectProvider<MeterRegistry>
+    ): DocumentChunker {
+        val chunking = properties.rag.chunking
+        if (!chunking.enabled) {
+            ragLogger.info { "RAG: Chunking disabled, using NoOpDocumentChunker" }
+            return NoOpDocumentChunker()
+        }
+        val tokenEstimator = tokenEstimatorProvider.ifAvailable ?: DefaultTokenEstimator()
+        ragLogger.info {
+            "RAG: Using TokenBasedDocumentChunker " +
+                "(chunkSize=${chunking.chunkSize}, overlap=${chunking.overlap})"
+        }
+        val base: DocumentChunker = TokenBasedDocumentChunker(
+            chunkSize = chunking.chunkSize,
+            minChunkSizeChars = chunking.minChunkSizeChars,
+            minChunkThreshold = chunking.minChunkThreshold,
+            overlap = chunking.overlap,
+            keepSeparator = chunking.keepSeparator,
+            maxNumChunks = chunking.maxNumChunks,
+            tokenEstimator = tokenEstimator
+        )
+        val registry = meterRegistryProvider.ifAvailable ?: return base
+        ragLogger.info { "RAG: Wrapping chunker with InstrumentedDocumentChunker" }
+        return InstrumentedDocumentChunker(base, registry)
+    }
 }

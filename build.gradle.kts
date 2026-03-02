@@ -1,6 +1,8 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 val coroutinesVersion = "1.10.2"
+val jacksonVersion = "2.21.1"       // GHSA-72hv-8253-57qq (async parser DoS)
+val jackson3Version = "3.1.0"       // GHSA-72hv-8253-57qq (async parser DoS)
 
 plugins {
     kotlin("jvm") version "2.3.10" apply false
@@ -18,6 +20,9 @@ subprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
     apply(plugin = "org.jetbrains.kotlin.plugin.spring")
     apply(plugin = "io.spring.dependency-management")
+
+    // Override Jackson 2.x BOM managed by Spring Boot (GHSA-72hv-8253-57qq)
+    extra["jackson-bom.version"] = jacksonVersion
 
     configure<JavaPluginExtension> {
         sourceCompatibility = JavaVersion.VERSION_21
@@ -58,6 +63,14 @@ subprojects {
             ) {
                 useVersion(coroutinesVersion)
                 because("Align coroutine modules to a single version and avoid mixed runtime classpath")
+            }
+            // Jackson 3.x: force upgrade for GHSA-72hv-8253-57qq (async parser DoS)
+            if (requested.group == "tools.jackson.core" ||
+                requested.group == "tools.jackson" ||
+                requested.group == "tools.jackson.dataformat"
+            ) {
+                useVersion(jackson3Version)
+                because("GHSA-72hv-8253-57qq: async parser number-length bypass DoS")
             }
         }
     }

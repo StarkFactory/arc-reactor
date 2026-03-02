@@ -103,6 +103,7 @@ dependencies {
     testRuntimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
     testImplementation("org.springframework.security:spring-security-crypto")
     testImplementation("org.springframework.ai:spring-ai-starter-model-anthropic")
+    testImplementation("io.micrometer:micrometer-core")
 }
 
 tasks.withType<Test> {

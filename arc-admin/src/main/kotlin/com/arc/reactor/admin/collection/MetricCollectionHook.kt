@@ -94,7 +94,11 @@ class MetricCollectionHook(
     }
 
     private fun publishGuardEvent(context: HookContext, execution: AgentExecutionEvent) {
-        val guardDurationMs = context.metadata["guardDurationMs"]?.toString()?.toLongOrNull() ?: return
+        val guardDurationMs = context.metadata["guardDurationMs"]?.toString()?.toLongOrNull()
+        if (guardDurationMs == null) {
+            logger.debug { "guardDurationMs missing in metadata, skipping guard event for runId=${context.runId}" }
+            return
+        }
         val action = if (execution.guardRejected) "rejected" else "allowed"
         val guardEvent = GuardEvent(
             tenantId = execution.tenantId,

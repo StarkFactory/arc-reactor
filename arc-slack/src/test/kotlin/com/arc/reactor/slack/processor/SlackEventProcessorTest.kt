@@ -12,7 +12,6 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.verify
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Nested
@@ -139,7 +138,7 @@ class SlackEventProcessorTest {
             val payload = threadMessagePayload(threadTs = "2000.000")
 
             processor.submitEventCallback(payload, "events_api")
-            delay(300)
+            Thread.sleep(500)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
             verify {
@@ -174,7 +173,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(payload, "events_api")
-            delay(300)
+            Thread.sleep(500)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -187,7 +186,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(payload, "events_api")
-            delay(300)
+            Thread.sleep(500)
 
             coVerify(exactly = 0) { eventHandler.handleAppMention(any()) }
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
@@ -221,7 +220,7 @@ class SlackEventProcessorTest {
             processor.submitEventCallback(payload, "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            delay(100) // allow recordHandler call to be dispatched after handler completes
+            Thread.sleep(200) // allow recordHandler call to be dispatched after handler completes
             coVerify {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
@@ -245,7 +244,7 @@ class SlackEventProcessorTest {
             processor.submitEventCallback(payload, "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            delay(100)
+            Thread.sleep(200)
             coVerify {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
@@ -269,7 +268,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(botMessagePayload(), "events_api")
-            delay(300)
+            Thread.sleep(500)
 
             coVerify(exactly = 0) { eventHandler.handleAppMention(any()) }
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
@@ -280,7 +279,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(subtypeMessagePayload(), "events_api")
-            delay(300)
+            Thread.sleep(500)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -290,7 +289,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(noUserPayload(), "events_api")
-            delay(300)
+            Thread.sleep(500)
 
             coVerify(exactly = 0) { eventHandler.handleAppMention(any()) }
         }
@@ -383,8 +382,10 @@ class SlackEventProcessorTest {
         fun `events are dropped when semaphore is saturated in fail-fast mode`() = runTest {
             val processedCount = AtomicInteger(0)
             val holdLatch = CountDownLatch(1)
+            val acquiredLatch = CountDownLatch(1)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {
                 processedCount.incrementAndGet()
+                acquiredLatch.countDown()
                 holdLatch.await(5, TimeUnit.SECONDS) // hold semaphore
             }
 
@@ -395,7 +396,7 @@ class SlackEventProcessorTest {
             // First event holds the semaphore
             val (p1, _, _) = mentionPayload(user = "U1")
             processor.submitEventCallback(p1, "events_api")
-            delay(100) // let first event acquire permit
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true
 
             // Subsequent events must be dropped
             repeat(3) { i ->
@@ -404,7 +405,7 @@ class SlackEventProcessorTest {
             }
 
             holdLatch.countDown()
-            delay(300) // let processing settle
+            Thread.sleep(500) // let processing settle
 
             processedCount.get() shouldBe 1
         }
@@ -412,7 +413,9 @@ class SlackEventProcessorTest {
         @Test
         fun `recordDropped with queue_overflow is emitted for fail-fast rejections`() = runTest {
             val holdLatch = CountDownLatch(1)
+            val acquiredLatch = CountDownLatch(1)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {
+                acquiredLatch.countDown()
                 holdLatch.await(5, TimeUnit.SECONDS)
             }
 
@@ -421,7 +424,7 @@ class SlackEventProcessorTest {
             )
             val (p1, _, _) = mentionPayload(user = "U1")
             processor.submitEventCallback(p1, "events_api")
-            delay(100) // semaphore acquired by first event
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true
 
             val (p2, _, _) = mentionPayload(user = "U2")
             processor.submitEventCallback(p2, "events_api")
@@ -439,7 +442,9 @@ class SlackEventProcessorTest {
         @Test
         fun `notifyOnDrop sends busy message to channel when enabled`() = runTest {
             val holdLatch = CountDownLatch(1)
+            val acquiredLatch = CountDownLatch(1)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {
+                acquiredLatch.countDown()
                 holdLatch.await(5, TimeUnit.SECONDS)
             }
             coEvery { messagingService.sendMessage(any(), any(), any()) } returns
@@ -454,7 +459,7 @@ class SlackEventProcessorTest {
             )
             val (p1, _, _) = mentionPayload(user = "U1", ts = "1000.001")
             processor.submitEventCallback(p1, "events_api")
-            delay(100)
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true
 
             val (p2, _, _) = mentionPayload(user = "U2", ts = "1000.002")
             processor.submitEventCallback(p2, "events_api")
@@ -473,7 +478,9 @@ class SlackEventProcessorTest {
         @Test
         fun `notifyOnDrop is suppressed when disabled`() = runTest {
             val holdLatch = CountDownLatch(1)
+            val acquiredLatch = CountDownLatch(1)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {
+                acquiredLatch.countDown()
                 holdLatch.await(5, TimeUnit.SECONDS)
             }
 
@@ -486,12 +493,12 @@ class SlackEventProcessorTest {
             )
             val (p1, _, _) = mentionPayload(user = "U1")
             processor.submitEventCallback(p1, "events_api")
-            delay(100)
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true
 
             val (p2, _, _) = mentionPayload(user = "U2")
             processor.submitEventCallback(p2, "events_api")
             holdLatch.countDown()
-            delay(300)
+            Thread.sleep(500)
 
             coVerify(exactly = 0) { messagingService.sendMessage(any(), any(), any()) }
         }
@@ -597,7 +604,11 @@ class SlackEventProcessorTest {
 
         @Test
         fun `semaphore is always released even when handler throws`() = runTest {
-            coEvery { eventHandler.handleAppMention(any()) } throws RuntimeException("forced error")
+            val firstHandled = CountDownLatch(1)
+            coEvery { eventHandler.handleAppMention(any()) } coAnswers {
+                firstHandled.countDown()
+                throw RuntimeException("forced error")
+            }
 
             val processor = buildProcessor(
                 defaultProperties(maxConcurrentRequests = 1, failFastOnSaturation = false)
@@ -605,7 +616,8 @@ class SlackEventProcessorTest {
 
             val (p1, _, _) = mentionPayload(user = "U1")
             processor.submitEventCallback(p1, "events_api")
-            delay(300) // wait for first handler call and release
+            firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
+            Thread.sleep(200) // allow semaphore release in finally block
 
             // If semaphore was not released, this second event would time out
             val processedSecond = AtomicInteger(0)

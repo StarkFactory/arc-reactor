@@ -79,6 +79,11 @@ arc:
       enabled: ${ARC_REACTOR_RAG_ENABLED:false}
       similarity-threshold: 0.3
       query-transformer: ${ARC_REACTOR_RAG_QUERY_TRANSFORMER:passthrough}
+      chunking:
+        enabled: ${ARC_REACTOR_RAG_CHUNKING_ENABLED:false}
+        chunk-size: ${ARC_REACTOR_RAG_CHUNKING_CHUNK_SIZE:512}
+        min-chunk-threshold: ${ARC_REACTOR_RAG_CHUNKING_MIN_CHUNK_THRESHOLD:512}
+        overlap: ${ARC_REACTOR_RAG_CHUNKING_OVERLAP:50}
       ingestion:
         enabled: ${ARC_REACTOR_RAG_INGESTION_ENABLED:false}
         dynamic:

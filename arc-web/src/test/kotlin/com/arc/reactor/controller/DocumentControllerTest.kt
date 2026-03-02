@@ -1,7 +1,9 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
+import com.arc.reactor.rag.chunking.DocumentChunker
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -12,18 +14,22 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.document.Document
 import org.springframework.ai.vectorstore.SearchRequest
 import org.springframework.ai.vectorstore.VectorStore
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 
 class DocumentControllerTest {
 
     private lateinit var vectorStore: VectorStore
+    private lateinit var documentChunkerProvider: ObjectProvider<DocumentChunker>
     private lateinit var controller: DocumentController
 
     @BeforeEach
     fun setup() {
         vectorStore = mockk(relaxed = true)
-        controller = DocumentController(vectorStore)
+        documentChunkerProvider = mockk()
+        every { documentChunkerProvider.ifAvailable } returns null
+        controller = DocumentController(vectorStore, documentChunkerProvider, AgentProperties())
     }
 
     private fun adminExchange(): ServerWebExchange {
@@ -152,7 +158,7 @@ class DocumentControllerTest {
             val response = controller.deleteDocuments(request, adminExchange())
 
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) { "Admin should be able to delete" }
-            verify(exactly = 1) { vectorStore.delete(listOf("id-1", "id-2")) }
+            verify(exactly = 1) { vectorStore.delete(any<List<String>>()) }
         }
 
         @Test

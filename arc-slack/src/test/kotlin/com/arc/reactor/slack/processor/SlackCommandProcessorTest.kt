@@ -80,7 +80,9 @@ class SlackCommandProcessorTest {
         @Test
         fun `submit returns false when saturated in fail-fast mode`() = runTest {
             val holdLatch = CountDownLatch(1)
+            val acquiredLatch = CountDownLatch(1)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
+                acquiredLatch.countDown()
                 holdLatch.await(5, TimeUnit.SECONDS)
             }
 
@@ -89,7 +91,7 @@ class SlackCommandProcessorTest {
             )
 
             processor.submit(buildCommand(userId = "U1"), "events_api") shouldBe true
-            delay(100) // let first command acquire the permit
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // deterministic: wait for permit acquisition
 
             val rejected = processor.submit(buildCommand(userId = "U2"), "events_api")
             rejected shouldBe false
@@ -109,8 +111,10 @@ class SlackCommandProcessorTest {
         @Test
         fun `submit returns true again after semaphore is released`() = runTest {
             val holdLatch = CountDownLatch(1)
+            val acquiredLatch = CountDownLatch(1)
             val releasedLatch = CountDownLatch(1)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
+                acquiredLatch.countDown()
                 holdLatch.await(5, TimeUnit.SECONDS)
                 releasedLatch.countDown()
             }
@@ -120,11 +124,11 @@ class SlackCommandProcessorTest {
             )
 
             processor.submit(buildCommand(userId = "U1"), "events_api")
-            delay(100) // let first acquire permit
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // deterministic: wait for permit acquisition
 
             holdLatch.countDown() // release
             releasedLatch.await(5, TimeUnit.SECONDS)
-            delay(100) // let semaphore release propagate
+            Thread.sleep(200) // let semaphore release propagate on Dispatchers.Default
 
             val result = processor.submit(buildCommand(userId = "U2"), "events_api")
             result shouldBe true
@@ -163,7 +167,7 @@ class SlackCommandProcessorTest {
             processor.submit(buildCommand(), "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            delay(100)
+            Thread.sleep(200) // allow recordHandler dispatch on Dispatchers.Default
             coVerify {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
@@ -186,7 +190,7 @@ class SlackCommandProcessorTest {
             processor.submit(buildCommand(), "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            delay(100)
+            Thread.sleep(200) // allow recordHandler dispatch on Dispatchers.Default
             coVerify {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
@@ -208,7 +212,9 @@ class SlackCommandProcessorTest {
         @Test
         fun `recordDropped with queue_overflow is emitted when saturated`() = runTest {
             val holdLatch = CountDownLatch(1)
+            val acquiredLatch = CountDownLatch(1)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
+                acquiredLatch.countDown()
                 holdLatch.await(5, TimeUnit.SECONDS)
             }
 
@@ -216,7 +222,7 @@ class SlackCommandProcessorTest {
                 defaultProperties(maxConcurrentRequests = 1, failFastOnSaturation = true)
             )
             processor.submit(buildCommand(userId = "U1"), "events_api")
-            delay(100)
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // deterministic: wait for permit acquisition
 
             processor.submit(buildCommand(userId = "U2"), "events_api")
             holdLatch.countDown()
@@ -276,7 +282,9 @@ class SlackCommandProcessorTest {
         @Test
         fun `notifyOnDrop is suppressed when disabled`() = runTest {
             val holdLatch = CountDownLatch(1)
+            val acquiredLatch = CountDownLatch(1)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
+                acquiredLatch.countDown()
                 holdLatch.await(5, TimeUnit.SECONDS)
             }
 
@@ -288,11 +296,11 @@ class SlackCommandProcessorTest {
                 )
             )
             processor.submit(buildCommand(userId = "U1"), "events_api")
-            delay(100)
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // deterministic: wait for permit acquisition
             processor.submit(buildCommand(userId = "U2"), "events_api")
 
             holdLatch.countDown()
-            delay(300)
+            Thread.sleep(500) // let processing settle on Dispatchers.Default
 
             coVerify(exactly = 0) { messagingService.sendResponseUrl(any(), any(), any()) }
         }
@@ -392,14 +400,19 @@ class SlackCommandProcessorTest {
 
         @Test
         fun `semaphore is released after handler throws allowing next command to proceed`() = runTest {
-            coEvery { commandHandler.handleSlashCommand(any()) } throws RuntimeException("forced")
+            val firstHandled = CountDownLatch(1)
+            coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
+                firstHandled.countDown()
+                throw RuntimeException("forced")
+            }
 
             val processor = buildProcessor(
                 defaultProperties(maxConcurrentRequests = 1, failFastOnSaturation = false)
             )
 
             processor.submit(buildCommand(userId = "U1"), "events_api")
-            delay(300) // let handler run and fail
+            firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
+            Thread.sleep(200) // allow semaphore release in finally block on Dispatchers.Default
 
             // Reset mock to succeed for next command
             val secondLatch = CountDownLatch(1)
@@ -426,7 +439,7 @@ class SlackCommandProcessorTest {
             repeat(totalCommands) { i -> processor.submit(buildCommand(userId = "U$i"), "events_api") }
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            delay(100)
+            Thread.sleep(200) // allow recordHandler dispatch on Dispatchers.Default
             coVerify(exactly = totalCommands) {
                 metricsRecorder.recordHandler(any(), any(), success = true, durationMs = any())
             }

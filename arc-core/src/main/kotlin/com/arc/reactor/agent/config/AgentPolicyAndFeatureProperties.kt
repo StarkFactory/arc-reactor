@@ -156,7 +156,10 @@ data class RagProperties(
     val maxContextTokens: Int = 4000,
 
     /** Hybrid search configuration (BM25 + Vector) */
-    val hybrid: RagHybridProperties = RagHybridProperties()
+    val hybrid: RagHybridProperties = RagHybridProperties(),
+
+    /** Document chunking configuration */
+    val chunking: RagChunkingProperties = RagChunkingProperties()
 )
 
 /**

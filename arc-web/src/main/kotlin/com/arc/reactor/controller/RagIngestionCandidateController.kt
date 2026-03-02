@@ -1,10 +1,11 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.audit.AdminAuditStore
+import com.arc.reactor.rag.chunking.DocumentChunker
 import com.arc.reactor.rag.ingestion.RagIngestionCandidate
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStatus
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
-import com.arc.reactor.rag.ingestion.toDocument
+import com.arc.reactor.rag.ingestion.toDocuments
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -39,7 +40,8 @@ import java.util.UUID
 class RagIngestionCandidateController(
     private val store: RagIngestionCandidateStore,
     private val adminAuditStore: AdminAuditStore,
-    private val vectorStoreProvider: ObjectProvider<VectorStore>
+    private val vectorStoreProvider: ObjectProvider<VectorStore>,
+    private val documentChunkerProvider: ObjectProvider<DocumentChunker>
 ) {
 
     @Operation(summary = "List RAG ingestion candidates (ADMIN)")
@@ -90,7 +92,11 @@ class RagIngestionCandidateController(
             )
 
         val documentId = UUID.randomUUID().toString()
-        vectorStore.add(listOf(candidate.toDocument(documentId = documentId)))
+        val documents = candidate.toDocuments(
+            documentId = documentId,
+            chunker = documentChunkerProvider.ifAvailable
+        )
+        vectorStore.add(documents)
 
         val reviewed = store.updateReview(
             id = id,

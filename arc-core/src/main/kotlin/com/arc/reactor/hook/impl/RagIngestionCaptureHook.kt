@@ -3,11 +3,12 @@ package com.arc.reactor.hook.impl
 import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
+import com.arc.reactor.rag.chunking.DocumentChunker
 import com.arc.reactor.rag.ingestion.RagIngestionCandidate
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStatus
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyProvider
-import com.arc.reactor.rag.ingestion.toDocument
+import com.arc.reactor.rag.ingestion.toDocuments
 import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 import org.springframework.ai.vectorstore.VectorStore
@@ -27,7 +28,8 @@ private val logger = KotlinLogging.logger {}
 class RagIngestionCaptureHook(
     private val policyProvider: RagIngestionPolicyProvider,
     private val candidateStore: RagIngestionCandidateStore,
-    private val vectorStore: VectorStore? = null
+    private val vectorStore: VectorStore? = null,
+    private val documentChunker: DocumentChunker? = null
 ) : AfterAgentCompleteHook {
 
     override val order: Int = 260
@@ -71,7 +73,11 @@ class RagIngestionCaptureHook(
             }
 
             val documentId = UUID.randomUUID().toString()
-            vectorStore.add(listOf(baseCandidate.toDocument(documentId = documentId)))
+            val documents = baseCandidate.toDocuments(
+                documentId = documentId,
+                chunker = documentChunker
+            )
+            vectorStore.add(documents)
             candidateStore.save(
                 baseCandidate.copy(
                     status = RagIngestionCandidateStatus.INGESTED,
