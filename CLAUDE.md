@@ -30,136 +30,46 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 | `autoconfigure/ArcReactorAutoConfiguration.kt` | All bean auto-configuration |
 | `agent/multi/SupervisorOrchestrator.kt` | Multi-agent orchestration |
 | `agent/config/AgentProperties.kt` | All settings (`arc.reactor.*`) |
-| `memory/ConversationManager.kt` | Conversation history management (extracted from executor) |
+| `agent/config/AgentPolicyAndFeatureProperties.kt` | All feature toggle defaults |
+| `memory/ConversationManager.kt` | Conversation history management |
 | `test/../AgentTestFixture.kt` | Shared mock setup for agent tests |
 
-### Domain Terms
+**Guard = fail-close** (rejected = request blocked). **Hook = fail-open** (log & continue, set `failOnError=true` for fail-close). Security logic MUST go in Guard only.
 
-| Term | Meaning |
-|------|---------|
-| **ReAct** | Reasoning + Acting loop (LLM thinks → uses tools → repeats) |
-| **Guard** | Pre-validation pipeline (5 built-in stages, fail-close) |
-| **Hook** | Lifecycle extensions (4 types: BeforeStart, AfterComplete, etc., default fail-open) |
-| **MCP** | Model Context Protocol — external tool servers |
-| **WorkerAgentTool** | Agent wrapped as ToolCallback (Supervisor pattern core) |
+## Critical Gotchas
 
-### Guard vs Hook Error Policy
+These cause subtle bugs — read before touching the ReAct loop or coroutine boundaries:
 
-- **Guard**: Always **fail-close** — rejection = request blocked. Security-critical logic MUST go here
-- **Hook**: Default **fail-open** (log & continue). Set `failOnError=true` for fail-close
-
-### Feature Toggles
-
-| Feature | Default | Property |
-|---------|---------|----------|
-| Guard | ON | `arc.reactor.guard.enabled` |
-| Unicode Normalization | ON | `arc.reactor.guard.unicode-normalization-enabled` |
-| Classification | OFF | `arc.reactor.guard.classification-enabled` |
-| LLM Classification | OFF | `arc.reactor.guard.classification-llm-enabled` |
-| Canary Token | OFF | `arc.reactor.guard.canary-token-enabled` |
-| Tool Output Sanitizer | OFF | `arc.reactor.guard.tool-output-sanitization-enabled` |
-| Guard Audit | ON | `arc.reactor.guard.audit-enabled` |
-| Security Headers | ON | `arc.reactor.security-headers.enabled` |
-| Auth (JWT) | REQUIRED | `arc.reactor.auth.jwt-secret` |
-| Multimodal Upload | ON | `arc.reactor.multimodal.enabled` |
-| MCP Reconnection | ON | `arc.reactor.mcp.reconnection.enabled` |
-| RAG | OFF | `arc.reactor.rag.enabled` |
-| RAG Ingestion | OFF | `arc.reactor.rag.ingestion.enabled` |
-| Approval (HITL) | OFF | `arc.reactor.approval.enabled` |
-| Tool Policy | OFF | `arc.reactor.tool-policy.enabled` |
-| Output Guard | OFF | `arc.reactor.output-guard.enabled` |
-| Intent Classification | OFF | `arc.reactor.intent.enabled` |
-| Scheduler | OFF | `arc.reactor.scheduler.enabled` |
-| Cache | OFF | `arc.reactor.cache.enabled` |
-| Fallback | OFF | `arc.reactor.fallback.enabled` |
-| Webhook | OFF | `arc.reactor.webhook.enabled` |
-| CORS | OFF | `arc.reactor.cors.enabled` |
-| Circuit Breaker | OFF | `arc.reactor.circuit-breaker.enabled` |
-| Feedback | OFF | `arc.reactor.feedback.enabled` |
-| Memory Summary | OFF | `arc.reactor.memory.summary.enabled` |
-| Admin Module | OFF | `arc.reactor.admin.enabled` |
-| Flyway | OFF | `SPRING_FLYWAY_ENABLED` env var |
-| Prompt Caching (Anthropic) | OFF | `arc.reactor.llm.prompt-caching.enabled` |
-
-### REST API Endpoints
-
-| Controller | Base Path | Condition |
-|------------|-----------|-----------|
-| ChatController | `/api/chat` | Always |
-| SessionController | `/api/sessions`, `/api/models` | Always |
-| PersonaController | `/api/personas` | Always |
-| PromptTemplateController | `/api/prompt-templates` | Always (write = Admin) |
-| McpServerController | `/api/mcp/servers` | Always (write = Admin) |
-| AuthController | `/api/auth` | Always |
-| DocumentController | `/api/documents` | `rag.enabled=true` |
-
-### Key Defaults
-
-| Property | Default | Property | Default |
-|----------|---------|----------|---------|
-| `max-tool-calls` | 10 | `concurrency.request-timeout-ms` | 30000 |
-| `max-tools-per-request` | 20 | `concurrency.tool-call-timeout-ms` | 15000 |
-| `llm.temperature` | 0.3 | `guard.rate-limit-per-minute` | 10 |
-| `llm.max-context-window-tokens` | 128000 | `guard.max-input-length` | 10000 |
-| `boundaries.input-max-chars` | 5000 | | |
-
-Full config: `agent/config/AgentPolicyAndFeatureProperties.kt`
-
-### Structured Output & SSE
-
-- `ResponseFormat`: `TEXT` (default), `JSON`, `YAML`. Streaming rejects non-TEXT formats
-- Invalid JSON/YAML → one LLM repair call → still invalid → `INVALID_RESPONSE` error
-- `POST /api/chat/stream` emits: `message`, `tool_start`, `tool_end`, `error`, `done`
-
-### System Prompt Resolution (priority order)
-
-1. `personaId` → PersonaStore lookup
-2. `promptTemplateId` → active PromptVersion content
-3. `request.systemPrompt` → direct override
-4. Default Persona (`isDefault=true`) from PersonaStore
-5. Hardcoded fallback: "You are a helpful AI assistant..."
-
-### Error Responses
-
-- Standard DTO: `ErrorResponse(error, details?, timestamp)` from `GlobalExceptionHandler.kt`
-- `GlobalExceptionHandler`: validation → 400 (field details), malformed input → 400, not found → 404, generic → 500 (masked, no stack trace)
-- All 403 responses MUST include `ErrorResponse` body — never empty `build()`
-- Never use raw `mapOf(...)` for error responses — always use `ErrorResponse`
-
-### Admin Access Control
-
-- MUST use `AdminAuthSupport.kt` — `isAdmin(exchange)` + `forbiddenResponse()`. Do NOT duplicate these
-- `isAdmin()` = `role == ADMIN` — missing role must fail-close as non-admin
-- Exception: `SessionController` uses its own `sessionForbidden()` (distinct error message "Access denied" vs generic 403)
-
-### Error Codes
-
-`RATE_LIMITED` | `TIMEOUT` | `CONTEXT_TOO_LONG` | `TOOL_ERROR` | `GUARD_REJECTED` | `HOOK_REJECTED` | `INVALID_RESPONSE` | `OUTPUT_GUARD_REJECTED` | `OUTPUT_TOO_SHORT` | `CIRCUIT_BREAKER_OPEN` | `UNKNOWN`
+- **CancellationException**: catch & rethrow BEFORE generic `Exception` in ALL `suspend fun`. Breaking this corrupts structured concurrency
+- **ReAct maxToolCalls**: set `activeTools = emptyList()` when limit reached. Logging only → infinite loop
+- **.forEach in coroutines**: use `for` loop. `.forEach {}` creates a non-suspend lambda
+- **Message pair integrity**: `AssistantMessage(toolCalls)` + `ToolResponseMessage` always added/removed together
+- **Context trimming**: protect last UserMessage. Phase 2 guard condition uses `>` not `>=`
+- **Guard null userId**: use "anonymous" fallback. Skipping guard = security vulnerability
+- **toolsUsed**: only append after confirming adapter exists (prevents LLM-hallucinated tool names)
+- **AssistantMessage**: constructor is protected → `AssistantMessage.builder().content().toolCalls().build()`
+- **Spring AI providers**: NEVER declare provider keys with empty defaults in `application.yml`. Env vars only: `GEMINI_API_KEY`, `SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`
+- **Spring AI mock chain**: explicitly mock `.options(any<ChatOptions>())` returning requestSpec
 
 ## Code Conventions
 
-- `suspend fun` everywhere — executor, tool, guard, hook are all coroutine-based
-- Method ≤20 lines, line ≤120 chars. All comments and KDoc in English
-- Logging: `private val logger = KotlinLogging.logger {}` at file top-level (before class)
-- Null: `content.orEmpty()` not `content!!`, elvis `?: "anonymous"` for fallbacks
+See @.claude/rules/kotlin-spring.md for full rules. Key non-obvious rules:
+
 - `compileOnly` = optional dep. Example packages: `@Component` always commented out
 - Interfaces at package root, implementations in `impl/`, data classes in `model/`
-- All controllers: `@Tag` (Swagger). All endpoints: `@Operation(summary = "...")`
+- All 403 responses MUST include `ErrorResponse` body — never empty `build()`
+- Admin auth: MUST use `AdminAuthSupport.isAdmin(exchange)` + `forbiddenResponse()` — do NOT duplicate
 
 ## Testing
 
 ```
-AgentTestFixture helpers: mockCallResponse(), mockToolCallResponse(), mockFinalResponse(), TrackingTool
-AgentResultAssertions:    assertSuccess(), assertFailure(), assertErrorCode(), assertErrorContains()
+AgentTestFixture: mockCallResponse(), mockToolCallResponse(), mockFinalResponse(), TrackingTool
+AgentResultAssertions: assertSuccess(), assertFailure(), assertErrorCode(), assertErrorContains()
 ```
 
 - ALL assertions MUST have failure messages — no bare `assertTrue(x)`
-- `assertInstanceOf` over `assertTrue(x is Type)` — returns cast object
 - `coEvery`/`coVerify` for suspend mocks. `runTest` over `runBlocking`
 - Mock `requestSpec.options(any<ChatOptions>())` explicitly for streaming tests
-- `@Nested` inner classes for grouping. `AtomicInteger` for concurrency counting
-- Test cadence: focused targets during iteration → full `./gradlew test` before PR
-- CI merge gate: `build`, `integration`, `docker` checks must all be green
 
 ## New Feature Checklist
 
@@ -170,16 +80,15 @@ AgentResultAssertions:    assertSuccess(), assertFailure(), assertErrorCode(), a
 5. `./gradlew compileKotlin compileTestKotlin` — verify 0 warnings
 6. `./gradlew test` — verify all tests pass
 
-### Extension point rules
-
-- **ToolCallback**: Return errors as strings (`"Error: ..."`) — do NOT throw exceptions
-- **GuardStage**: built-in stages use orders 1–5. Use 10+ for custom stages
-- **Hook**: MUST wrap logic in try-catch. Always rethrow `CancellationException`
+**Extension point rules:**
+- **ToolCallback**: Return `"Error: ..."` strings — do NOT throw
+- **GuardStage**: built-in orders 1–5. Custom: start at 10+
+- **Hook**: MUST wrap in try-catch. Always rethrow `CancellationException`
 - **Bean**: `@ConditionalOnMissingBean` on all beans. `ObjectProvider<T>` for optional deps. JDBC stores use `@Primary`
 
 ## MCP Registration
 
-MCP servers are registered ONLY via REST API — never hardcode in `application.yml`:
+Registered ONLY via REST API — never hardcode in `application.yml`:
 
 ```
 POST /api/mcp/servers
@@ -187,31 +96,13 @@ SSE:   { "name": "my-server", "transportType": "SSE", "config": { "url": "http:/
 STDIO: { "name": "fs-server", "transportType": "STDIO", "config": { "command": "npx", "args": [...] } }
 ```
 
-- HTTP transport: NOT supported in MCP SDK 0.17.2
-- `autoConnect` defaults to `true`. SSE timeout: 30s. Output truncated at 50,000 chars
-- Persistence: InMemory (default) or JDBC (auto with DataSource)
-
-## Critical Gotchas
-
-These cause subtle bugs — read before touching the ReAct loop or coroutine boundaries:
-
-- **CancellationException**: catch & rethrow BEFORE generic `Exception` in ALL `suspend fun`. Breaking this corrupts structured concurrency
-- **ReAct maxToolCalls**: set `activeTools = emptyList()` when limit reached. Logging only → infinite loop
-- **.forEach in coroutines**: use `for` loop. `.forEach {}` creates a non-suspend lambda
-- **Context trimming**: protect last UserMessage. Phase 2 guard uses `>` not `>=`
-- **Message pair integrity**: `AssistantMessage(toolCalls)` + `ToolResponseMessage` always removed together
-- **Guard null userId**: use "anonymous" fallback. Skipping guard = security vulnerability
-- **toolsUsed**: only add after confirming adapter exists (prevents LLM-hallucinated tool names)
-- **AssistantMessage**: constructor is protected → `AssistantMessage.builder().content().toolCalls().build()`
-- **Spring AI providers**: NEVER declare provider keys with empty defaults in `application.yml`. Env vars only: `GEMINI_API_KEY`, `SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`
-- **Spring AI mock chain**: explicitly mock `.options(any<ChatOptions>())` returning requestSpec
+HTTP transport NOT supported in MCP SDK 0.17.2. Output truncated at 50,000 chars.
 
 ## PR and Dependency Policy
 
 - Required CI merge gates: `build`, `integration`, `docker`
 - Any feature adding LLM calls requires cost impact notes in the PR description
-- Track per-request metrics: `llm_calls_total`, `prompt_tokens`, `completion_tokens`, `tool_calls_total`, `estimated_cost_usd`
-- Patch/minor dep upgrades: merge after green CI. Major: require migration notes + rollback plan
+- Patch/minor dep upgrades: merge after green CI. Major: migration notes + rollback plan required
 - Spring Boot major upgrades blocked without explicit maintainer approval
 
 ## Docs

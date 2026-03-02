@@ -1,6 +1,22 @@
 # Arc Reactor — Agent Instructions
 
-Spring AI-based AI Agent framework (Kotlin/Spring Boot). See CLAUDE.md for full context.
+Spring AI-based AI Agent framework (Kotlin/Spring Boot).
+Provides a ReAct loop, Guard pipeline, Hook lifecycle, MCP integration, and multi-agent orchestration as a drop-in Spring Boot autoconfiguration.
+
+## Environment Setup
+
+Required env vars to run:
+```bash
+GEMINI_API_KEY=...                    # Required for bootRun
+SPRING_AI_OPENAI_API_KEY=...          # Optional — OpenAI backend
+SPRING_AI_ANTHROPIC_API_KEY=...       # Optional — Anthropic backend
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor  # Optional — prod DB
+SPRING_DATASOURCE_USERNAME=arc
+SPRING_DATASOURCE_PASSWORD=arc
+SPRING_FLYWAY_ENABLED=true            # Optional — DB migrations
+```
+
+NEVER set provider API keys with empty string defaults in `application.yml`. Env vars only.
 
 ## Validate Commands
 
@@ -8,9 +24,23 @@ Spring AI-based AI Agent framework (Kotlin/Spring Boot). See CLAUDE.md for full 
 ./gradlew compileKotlin compileTestKotlin   # Must produce 0 warnings
 ./gradlew test                              # Must pass before any PR
 ./gradlew test --tests "*.YourTestClass"    # Run single test during iteration
+./gradlew test -Pdb=true                    # Include PostgreSQL/PGVector/Flyway tests
+./gradlew test -PincludeIntegration         # Include @Tag("integration") tests
 ```
 
 CI merge gate: `build`, `integration`, `docker` checks must all be green.
+
+## Module Structure
+
+| Module | Purpose |
+|--------|---------|
+| `arc-core` | Core framework: agent executor, guard, hooks, tools, RAG, scheduler, personas |
+| `arc-web` | REST controllers, WebFlux, auth, multimodal upload |
+| `arc-slack` | Slack integration (Events API + Socket Mode) |
+| `arc-teams` | MS Teams Incoming Webhook adapter |
+| `arc-google` | Google Workspace tools (Calendar, Sheets, Drive, Gmail) |
+
+All features are opt-in via `@ConditionalOnMissingBean` — override any bean with your own implementation.
 
 ## Architecture at a Glance
 
@@ -18,7 +48,7 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 
 - `SpringAiAgentExecutor.kt` — Core loop (~1,060 lines). Touch with caution
 - `ArcReactorAutoConfiguration.kt` — All beans. Override via `@ConditionalOnMissingBean`
-- `AgentPolicyAndFeatureProperties.kt` — All `arc.reactor.*` config properties
+- `AgentPolicyAndFeatureProperties.kt` — All `arc.reactor.*` config properties and feature toggle defaults
 
 **Guard = fail-close** (blocked). **Hook = fail-open** (log & continue). Security logic in Guard only.
 
@@ -30,11 +60,11 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 4. **Message pair integrity**: `AssistantMessage(toolCalls)` and `ToolResponseMessage` must always be added/removed as a pair
 5. **Context trimming**: Phase 2 guard condition is `>` not `>=`. Off-by-one drops the last UserMessage
 6. **AssistantMessage constructor**: it is protected — use `AssistantMessage.builder().content().toolCalls().build()`
-7. **API key env vars**: NEVER set provider keys with empty string defaults in `application.yml`. Use only `GEMINI_API_KEY`, `SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`
+7. **API key env vars**: NEVER set provider keys with empty string defaults in `application.yml`
 8. **MCP servers**: registered via REST API only (`POST /api/mcp/servers`). Do NOT hardcode in `application.yml`
 9. **Guard null userId**: always fall back to `"anonymous"`. Skipping the guard is a security vulnerability
 10. **Spring AI mock chain**: explicitly mock `.options(any<ChatOptions>())` in streaming tests
-11. **toolsUsed list**: only append a tool name after confirming its adapter exists. Appending LLM-hallucinated names pollutes the response metadata
+11. **toolsUsed list**: only append a tool name after confirming its adapter exists
 
 ## Key Defaults
 
@@ -53,6 +83,7 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 - Logging: `private val logger = KotlinLogging.logger {}` at file top-level, before the class
 - All controllers need `@Tag`. All endpoints need `@Operation(summary = "...")`
 - Admin auth: use `AdminAuthSupport.isAdmin(exchange)` and `forbiddenResponse()` — do NOT duplicate
+- All 403 responses MUST include `ErrorResponse` body — never empty `build()`
 
 ## Extension Points
 
@@ -70,6 +101,7 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 - Use `AgentResultAssertions`: `assertSuccess()`, `assertFailure()`, `assertErrorCode()`, `assertErrorContains()`
 - ALL assertions must have failure messages — no bare `assertTrue(x)`
 - `coEvery`/`coVerify` for suspend mocks. Prefer `runTest` over `runBlocking`
+- For timing-sensitive tests: use `CountDownLatch` + `Thread.sleep()`, NOT `delay()` (virtual clock only)
 
 ## PR Rules
 
