@@ -19,8 +19,8 @@ package com.arc.reactor.agent.config
  * ```
  */
 data class RagChunkingProperties(
-    /** Enable document chunking. */
-    val enabled: Boolean = true,
+    /** Enable document chunking. Opt-in to avoid surprise behavior changes on upgrade. */
+    val enabled: Boolean = false,
 
     /** Target chunk size in tokens (approx 4 chars = 1 token). */
     val chunkSize: Int = 512,

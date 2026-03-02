@@ -74,13 +74,14 @@ class DocumentController(
                 "contentLength=${request.content.length}"
         }
 
+        val chunked = chunks.size > 1
         return ResponseEntity.status(HttpStatus.CREATED).body(
             DocumentResponse(
                 id = id,
                 content = request.content,
                 metadata = metadata,
                 chunkCount = chunks.size,
-                chunkIds = chunks.map { it.id }
+                chunkIds = if (chunked) chunks.map { it.id } else emptyList()
             )
         )
     }
@@ -115,6 +116,7 @@ class DocumentController(
         return ResponseEntity.status(HttpStatus.CREATED).body(
             BatchDocumentResponse(
                 count = documents.size,
+                totalChunks = chunks.size,
                 ids = documents.map { it.id }
             )
         )
@@ -168,6 +170,8 @@ class DocumentController(
         // Each ID may be a parent document — derive deterministic chunk IDs to clean up.
         // VectorStore.delete is idempotent: non-existent IDs are silently ignored.
         // Skip derivation for IDs that are already chunk IDs.
+        // TODO: Store chunk_total in parent metadata at write time to avoid O(maxNumChunks)
+        //       derivation per ID. Current brute-force is correct but generates phantom IDs.
         val maxChunks = properties.rag.chunking.maxNumChunks
         val allIds = request.ids.flatMap { id ->
             if (DocumentChunker.isChunkId(id)) {
@@ -222,6 +226,7 @@ class DocumentController(
 
     data class BatchDocumentResponse(
         val count: Int,
+        val totalChunks: Int,
         val ids: List<String>
     )
 

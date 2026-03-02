@@ -130,6 +130,6 @@ class TokenBasedDocumentChunker(
     }
 
     companion object {
-        private val SENTENCE_ENDS = charArrayOf('.', '!', '?')
+        private val SENTENCE_ENDS = charArrayOf('.', '!', '?', '。', '！', '？')
     }
 }
