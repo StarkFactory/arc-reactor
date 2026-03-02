@@ -31,7 +31,7 @@ dependencies {
     implementation("io.micrometer:micrometer-tracing-bridge-otel")
 
     // OpenTelemetry SDK
-    implementation(platform("io.opentelemetry:opentelemetry-bom:1.44.1"))
+    implementation(platform("io.opentelemetry:opentelemetry-bom:1.59.0"))
     implementation("io.opentelemetry:opentelemetry-sdk")
     implementation("io.opentelemetry:opentelemetry-sdk-trace")
     implementation("io.opentelemetry:opentelemetry-exporter-otlp")
