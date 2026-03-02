@@ -19,7 +19,7 @@ dependencies {
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
 
     // Google API client libraries
-    implementation("com.google.auth:google-auth-library-oauth2-http:1.30.0")
+    implementation("com.google.auth:google-auth-library-oauth2-http:1.43.0")
     implementation("com.google.apis:google-api-services-calendar:v3-rev20250404-2.0.0")
     implementation("com.google.apis:google-api-services-sheets:v4-rev20250603-2.0.0")
     implementation("com.google.apis:google-api-services-drive:v3-rev20250511-2.0.0")
