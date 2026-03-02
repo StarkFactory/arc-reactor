@@ -20,6 +20,17 @@ Spring AI-based AI Agent framework (Kotlin/Spring Boot). Fork and attach tools t
 ./gradlew test -PincludeIntegration                        # Include @Tag("integration") tests
 ```
 
+
+## Default Config Quick Reference
+
+| Key | Default | Key | Default |
+|-----|---------|-----|---------|
+| `max-tool-calls` | 10 | `concurrency.request-timeout-ms` | 30000 |
+| `max-tools-per-request` | 20 | `concurrency.tool-call-timeout-ms` | 15000 |
+| `llm.temperature` | 0.3 | `guard.rate-limit-per-minute` | 10 |
+| `llm.max-context-window-tokens` | 128000 | `guard.rate-limit-per-hour` | 100 |
+| `boundaries.input-max-chars` | 5000 | | |
+
 ## Architecture
 
 Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete) → Response**
@@ -46,6 +57,7 @@ These cause subtle bugs — read before touching the ReAct loop or coroutine bou
 - **Message pair integrity**: `AssistantMessage(toolCalls)` + `ToolResponseMessage` always added/removed together
 - **Context trimming**: protect last UserMessage. Phase 2 guard condition uses `>` not `>=`
 - **Guard null userId**: use "anonymous" fallback. Skipping guard = security vulnerability
+- **Output guard errors**: preserve exact codes `OUTPUT_GUARD_REJECTED` and `OUTPUT_TOO_SHORT` in mappings/tests/docs
 - **toolsUsed**: only append after confirming adapter exists (prevents LLM-hallucinated tool names)
 - **AssistantMessage**: constructor is protected → `AssistantMessage.builder().content().toolCalls().build()`
 - **Spring AI providers**: NEVER declare provider keys with empty defaults in `application.yml`. Env vars only: `GEMINI_API_KEY`, `SPRING_AI_OPENAI_API_KEY`, `SPRING_AI_ANTHROPIC_API_KEY`
