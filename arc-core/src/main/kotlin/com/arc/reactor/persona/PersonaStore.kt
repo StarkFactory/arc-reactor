@@ -13,6 +13,11 @@ import java.util.concurrent.ConcurrentHashMap
  * @param name Display name (e.g. "Customer Support Agent", "Python Expert")
  * @param systemPrompt The actual system prompt text sent to the LLM
  * @param isDefault Whether this is the default persona (at most one)
+ * @param description Short description of what this persona does
+ * @param responseGuideline Additional response style/format instructions appended to systemPrompt
+ * @param welcomeMessage Initial greeting message shown when persona is selected
+ * @param icon Emoji or short icon identifier for UI display
+ * @param isActive Whether this persona is available for selection
  * @param createdAt Creation timestamp
  * @param updatedAt Last modification timestamp
  */
@@ -21,6 +26,11 @@ data class Persona(
     val name: String,
     val systemPrompt: String,
     val isDefault: Boolean = false,
+    val description: String? = null,
+    val responseGuideline: String? = null,
+    val welcomeMessage: String? = null,
+    val icon: String? = null,
+    val isActive: Boolean = true,
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now()
 )
@@ -67,7 +77,17 @@ interface PersonaStore {
      *
      * @return Updated persona, or null if not found
      */
-    fun update(personaId: String, name: String?, systemPrompt: String?, isDefault: Boolean?): Persona?
+    fun update(
+        personaId: String,
+        name: String? = null,
+        systemPrompt: String? = null,
+        isDefault: Boolean? = null,
+        description: String? = null,
+        responseGuideline: String? = null,
+        welcomeMessage: String? = null,
+        icon: String? = null,
+        isActive: Boolean? = null
+    ): Persona?
 
     /**
      * Delete a persona by ID. Idempotent — no error if not found.
@@ -121,7 +141,17 @@ class InMemoryPersonaStore : PersonaStore {
         return persona
     }
 
-    override fun update(personaId: String, name: String?, systemPrompt: String?, isDefault: Boolean?): Persona? {
+    override fun update(
+        personaId: String,
+        name: String?,
+        systemPrompt: String?,
+        isDefault: Boolean?,
+        description: String?,
+        responseGuideline: String?,
+        welcomeMessage: String?,
+        icon: String?,
+        isActive: Boolean?
+    ): Persona? {
         synchronized(this) {
             val existing = personas[personaId] ?: return null
 
@@ -133,6 +163,11 @@ class InMemoryPersonaStore : PersonaStore {
                 name = name ?: existing.name,
                 systemPrompt = systemPrompt ?: existing.systemPrompt,
                 isDefault = isDefault ?: existing.isDefault,
+                description = description ?: existing.description,
+                responseGuideline = responseGuideline ?: existing.responseGuideline,
+                welcomeMessage = welcomeMessage ?: existing.welcomeMessage,
+                icon = icon ?: existing.icon,
+                isActive = isActive ?: existing.isActive,
                 updatedAt = Instant.now()
             )
             personas[personaId] = updated
