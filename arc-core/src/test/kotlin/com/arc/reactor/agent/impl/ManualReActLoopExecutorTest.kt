@@ -79,7 +79,7 @@ class ManualReActLoopExecutorTest {
 
         val toolOrchestrator = mockk<ToolCallOrchestrator>()
         coEvery {
-            toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any())
+            toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
         } coAnswers {
             (it.invocation.args[4] as AtomicInteger).set(1)
             listOf(ToolResponseMessage.ToolResponse("tc-1", "search", "ok"))

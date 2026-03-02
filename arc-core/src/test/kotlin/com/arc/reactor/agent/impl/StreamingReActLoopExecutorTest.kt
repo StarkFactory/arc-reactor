@@ -80,7 +80,7 @@ class StreamingReActLoopExecutorTest {
 
         val toolOrchestrator = mockk<ToolCallOrchestrator>()
         coEvery {
-            toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any())
+            toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
         } coAnswers {
             (it.invocation.args[4] as AtomicInteger).set(1)
             listOf(ToolResponseMessage.ToolResponse("tc-1", "search", "ok"))
@@ -124,7 +124,7 @@ class StreamingReActLoopExecutorTest {
         assertTrue(emitted.contains(StreamEventMarker.toolStart("search")), "toolStart marker for 'search' should be emitted")
         assertTrue(emitted.contains(StreamEventMarker.toolEnd("search")), "toolEnd marker for 'search' should be emitted")
         coVerify(exactly = 1) {
-            toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any())
+            toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
 }

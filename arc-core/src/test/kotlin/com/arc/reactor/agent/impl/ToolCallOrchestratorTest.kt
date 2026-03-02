@@ -11,6 +11,7 @@ import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -29,6 +30,7 @@ import kotlin.system.measureTimeMillis
 
 class ToolCallOrchestratorTest {
 
+    private val objectMapper = jacksonObjectMapper()
     private val hookContext = HookContext(
         runId = "run-1",
         userId = "user-1",
@@ -414,6 +416,72 @@ class ToolCallOrchestratorTest {
         assertTrue(responses[0].responseData().contains("Maximum tool call limit")) {
             "Response should indicate max tool call limit was reached"
         }
+    }
+
+    @Test
+    fun `should wrap plain text output when strict json normalization is enabled`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val toolCall = toolCall(id = "id-1", name = "search")
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = "Error: backend down"
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null,
+            normalizeToolResponseToJson = true
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val payload = objectMapper.readValue(responses[0].responseData(), Map::class.java) as Map<String, Any?>
+        assertEquals("Error: backend down", payload["result"])
+    }
+
+    @Test
+    fun `should preserve valid json output when strict json normalization is enabled`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val toolCall = toolCall(id = "id-1", name = "search")
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = """{"status":"ok"}"""
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null,
+            normalizeToolResponseToJson = true
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val payload = objectMapper.readValue(responses[0].responseData(), Map::class.java) as Map<String, Any?>
+        assertEquals("ok", payload["status"])
     }
 
     private fun toolCall(id: String, name: String, arguments: String = "{}"): AssistantMessage.ToolCall {
