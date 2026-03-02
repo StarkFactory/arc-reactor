@@ -6,6 +6,7 @@ import com.arc.reactor.slack.handler.DefaultSlackCommandHandler
 import com.arc.reactor.slack.handler.DefaultSlackEventHandler
 import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.handler.SlackEventHandler
+import com.arc.reactor.slack.handler.SlackReminderStore
 import com.arc.reactor.slack.gateway.SlackSocketModeGateway
 import com.arc.reactor.slack.metrics.MicrometerSlackMetricsRecorder
 import com.arc.reactor.slack.metrics.NoOpSlackMetricsRecorder
@@ -77,6 +78,11 @@ class SlackAutoConfiguration {
             maxEntries = properties.threadTrackingMaxEntries
         )
 
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun slackReminderStore(): SlackReminderStore = SlackReminderStore()
+
     @Bean("slackSignatureWebFilter")
     @ConditionalOnMissingBean(name = ["slackSignatureWebFilter"])
     @ConditionalOnProperty(
@@ -136,12 +142,14 @@ class SlackAutoConfiguration {
         agentExecutor: AgentExecutor,
         messagingService: SlackMessagingService,
         agentProperties: ObjectProvider<AgentProperties>,
-        threadTracker: ObjectProvider<SlackThreadTracker>
+        threadTracker: ObjectProvider<SlackThreadTracker>,
+        reminderStore: ObjectProvider<SlackReminderStore>
     ): SlackCommandHandler = DefaultSlackCommandHandler(
         agentExecutor = agentExecutor,
         messagingService = messagingService,
         defaultProvider = agentProperties.ifAvailable?.llm?.defaultProvider ?: "configured backend model",
-        threadTracker = threadTracker.ifAvailable
+        threadTracker = threadTracker.ifAvailable,
+        reminderStore = reminderStore.ifAvailable
     )
 
     @Bean
