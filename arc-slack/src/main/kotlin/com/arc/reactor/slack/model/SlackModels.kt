@@ -44,8 +44,11 @@ data class SlackEventCommand(
     val channelId: String,
     val text: String,
     val ts: String,
-    val threadTs: String?
-)
+    val threadTs: String?,
+    val channelType: String? = null
+) {
+    fun isDirectMessageChannel(): Boolean = channelType == "im" || channelType == "mpim"
+}
 
 /**
  * Internal command for slash command processing.

@@ -8,6 +8,7 @@ data class SlackToolsProperties(
     val enabled: Boolean = false,
     val botToken: String = "",
     val toolExposure: ToolExposureProperties = ToolExposureProperties(),
+    val canvas: CanvasToolsProperties = CanvasToolsProperties(),
     val writeIdempotency: WriteIdempotencyProperties = WriteIdempotencyProperties(),
     val resilience: ResilienceProperties = ResilienceProperties()
 ) {
@@ -32,12 +33,27 @@ data class SlackToolsProperties(
         require(resilience.circuitBreaker.openStateDurationMs > 0) {
             "arc.reactor.slack.tools.resilience.circuit-breaker.open-state-duration-ms must be greater than 0."
         }
+        require(canvas.maxOwnedCanvasIds > 0) {
+            "arc.reactor.slack.tools.canvas.max-owned-canvas-ids must be greater than 0."
+        }
     }
 }
 
 data class ToolExposureProperties(
     val scopeAwareEnabled: Boolean = false,
-    val failOpenOnScopeResolutionError: Boolean = true
+    val failOpenOnScopeResolutionError: Boolean = true,
+    val conversationScopeMode: ConversationScopeMode = ConversationScopeMode.PUBLIC_ONLY
+)
+
+enum class ConversationScopeMode {
+    PUBLIC_ONLY,
+    INCLUDE_PRIVATE_AND_DM
+}
+
+data class CanvasToolsProperties(
+    val enabled: Boolean = false,
+    val allowlistEnforced: Boolean = true,
+    val maxOwnedCanvasIds: Int = 5000
 )
 
 data class WriteIdempotencyProperties(

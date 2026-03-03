@@ -114,12 +114,18 @@ arc:
       event-dedup-enabled: ${ARC_REACTOR_SLACK_EVENT_DEDUP_ENABLED:true}
       event-dedup-ttl-seconds: ${ARC_REACTOR_SLACK_EVENT_DEDUP_TTL_SECONDS:600}
       event-dedup-max-entries: ${ARC_REACTOR_SLACK_EVENT_DEDUP_MAX_ENTRIES:10000}
+      process-direct-messages-without-thread: ${ARC_REACTOR_SLACK_PROCESS_DM_WITHOUT_THREAD:false}
       tools:
         enabled: ${ARC_REACTOR_SLACK_TOOLS_ENABLED:false}
         bot-token: ${SLACK_BOT_TOKEN:}
         tool-exposure:
           scope-aware-enabled: ${ARC_REACTOR_SLACK_TOOLS_SCOPE_AWARE_ENABLED:false}
           fail-open-on-scope-resolution-error: ${ARC_REACTOR_SLACK_TOOLS_FAIL_OPEN:true}
+          conversation-scope-mode: ${ARC_REACTOR_SLACK_TOOLS_CONVERSATION_SCOPE_MODE:public_only}
+        canvas:
+          enabled: ${ARC_REACTOR_SLACK_TOOLS_CANVAS_ENABLED:false}
+          allowlist-enforced: ${ARC_REACTOR_SLACK_TOOLS_CANVAS_ALLOWLIST_ENFORCED:true}
+          max-owned-canvas-ids: ${ARC_REACTOR_SLACK_TOOLS_CANVAS_MAX_OWNED_IDS:5000}
 
 # ----- API Documentation -----
 springdoc:

@@ -5,9 +5,13 @@ import com.arc.reactor.slack.tools.health.SlackApiHealthIndicator
 import com.arc.reactor.slack.tools.health.SlackToolsReadinessHealthIndicator
 import com.arc.reactor.slack.tools.observability.ToolObservabilityAspect
 import com.arc.reactor.slack.tools.tool.AddReactionTool
+import com.arc.reactor.slack.tools.tool.AppendCanvasTool
+import com.arc.reactor.slack.tools.tool.CanvasOwnershipPolicyService
+import com.arc.reactor.slack.tools.tool.CreateCanvasTool
 import com.arc.reactor.slack.tools.tool.FindChannelTool
 import com.arc.reactor.slack.tools.tool.FindUserTool
 import com.arc.reactor.slack.tools.tool.GetUserInfoTool
+import com.arc.reactor.slack.tools.tool.InMemoryCanvasOwnershipPolicyService
 import com.arc.reactor.slack.tools.tool.InMemoryWriteOperationIdempotencyService
 import com.arc.reactor.slack.tools.tool.ListChannelsTool
 import com.arc.reactor.slack.tools.tool.ReadMessagesTool
@@ -22,6 +26,8 @@ import com.arc.reactor.slack.tools.usecase.FindChannelUseCase
 import com.arc.reactor.slack.tools.usecase.FindUserUseCase
 import com.arc.reactor.slack.tools.usecase.GetUserInfoUseCase
 import com.arc.reactor.slack.tools.usecase.ListChannelsUseCase
+import com.arc.reactor.slack.tools.usecase.AppendCanvasUseCase
+import com.arc.reactor.slack.tools.usecase.CreateCanvasUseCase
 import com.arc.reactor.slack.tools.usecase.ReadMessagesUseCase
 import com.arc.reactor.slack.tools.usecase.ReadThreadRepliesUseCase
 import com.arc.reactor.slack.tools.usecase.ReplyToThreadUseCase
@@ -37,6 +43,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -68,8 +75,9 @@ class SlackToolsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(name = ["slackScopeAwareLocalToolFilter"])
     fun slackScopeAwareLocalToolFilter(
+        properties: SlackToolsProperties,
         toolExposureResolver: ToolExposureResolver
-    ): LocalToolFilter = createSlackScopeAwareLocalToolFilter(toolExposureResolver)
+    ): LocalToolFilter = createSlackScopeAwareLocalToolFilter(properties, toolExposureResolver)
 
     @Bean
     @ConditionalOnMissingBean
@@ -135,6 +143,36 @@ class SlackToolsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.slack.tools.canvas",
+        name = ["enabled"],
+        havingValue = "true"
+    )
+    fun canvasOwnershipPolicyService(properties: SlackToolsProperties): CanvasOwnershipPolicyService =
+        InMemoryCanvasOwnershipPolicyService(properties.canvas)
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.slack.tools.canvas",
+        name = ["enabled"],
+        havingValue = "true"
+    )
+    fun createCanvasUseCase(slackApiClient: SlackApiClient): CreateCanvasUseCase =
+        CreateCanvasUseCase(slackApiClient)
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.slack.tools.canvas",
+        name = ["enabled"],
+        havingValue = "true"
+    )
+    fun appendCanvasUseCase(slackApiClient: SlackApiClient): AppendCanvasUseCase =
+        AppendCanvasUseCase(slackApiClient)
+
+    @Bean
+    @ConditionalOnMissingBean
     fun sendMessageTool(
         sendMessageUseCase: SendMessageUseCase,
         idempotencyService: WriteOperationIdempotencyService
@@ -193,7 +231,44 @@ class SlackToolsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    fun slackApiHealthIndicator(methodsClient: MethodsClient): SlackApiHealthIndicator = SlackApiHealthIndicator(methodsClient)
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.slack.tools.canvas",
+        name = ["enabled"],
+        havingValue = "true"
+    )
+    fun createCanvasTool(
+        createCanvasUseCase: CreateCanvasUseCase,
+        canvasOwnershipPolicyService: CanvasOwnershipPolicyService,
+        idempotencyService: WriteOperationIdempotencyService
+    ): CreateCanvasTool = CreateCanvasTool(
+        createCanvasUseCase = createCanvasUseCase,
+        canvasOwnershipPolicyService = canvasOwnershipPolicyService,
+        idempotencyService = idempotencyService
+    )
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.slack.tools.canvas",
+        name = ["enabled"],
+        havingValue = "true"
+    )
+    fun appendCanvasTool(
+        appendCanvasUseCase: AppendCanvasUseCase,
+        canvasOwnershipPolicyService: CanvasOwnershipPolicyService,
+        idempotencyService: WriteOperationIdempotencyService
+    ): AppendCanvasTool = AppendCanvasTool(
+        appendCanvasUseCase = appendCanvasUseCase,
+        canvasOwnershipPolicyService = canvasOwnershipPolicyService,
+        idempotencyService = idempotencyService
+    )
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun slackApiHealthIndicator(
+        methodsClient: MethodsClient,
+        properties: SlackToolsProperties
+    ): SlackApiHealthIndicator = SlackApiHealthIndicator(methodsClient, properties)
 
     @Bean
     @ConditionalOnMissingBean
@@ -208,21 +283,29 @@ class SlackToolsAutoConfiguration {
         getUserInfoTool: GetUserInfoTool,
         findUserTool: FindUserTool,
         searchMessagesTool: SearchMessagesTool,
-        uploadFileTool: UploadFileTool
+        uploadFileTool: UploadFileTool,
+        createCanvasToolProvider: ObjectProvider<CreateCanvasTool>,
+        appendCanvasToolProvider: ObjectProvider<AppendCanvasTool>
     ): SlackToolsReadinessHealthIndicator = SlackToolsReadinessHealthIndicator(
-        tools = listOf(
-            sendMessageTool,
-            replyToThreadTool,
-            listChannelsTool,
-            findChannelTool,
-            readMessagesTool,
-            readThreadRepliesTool,
-            addReactionTool,
-            getUserInfoTool,
-            findUserTool,
-            searchMessagesTool,
-            uploadFileTool
-        )
+        tools = buildList {
+            addAll(
+                listOf(
+                    sendMessageTool,
+                    replyToThreadTool,
+                    listChannelsTool,
+                    findChannelTool,
+                    readMessagesTool,
+                    readThreadRepliesTool,
+                    addReactionTool,
+                    getUserInfoTool,
+                    findUserTool,
+                    searchMessagesTool,
+                    uploadFileTool
+                )
+            )
+            createCanvasToolProvider.ifAvailable?.let(::add)
+            appendCanvasToolProvider.ifAvailable?.let(::add)
+        }
     )
 
     @Bean

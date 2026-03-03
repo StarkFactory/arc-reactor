@@ -9,6 +9,7 @@ private val logger = KotlinLogging.logger {}
 data class ToolCandidate(
     val name: String,
     val requiredScopes: Set<String>,
+    val requiredAnyScopes: Set<String> = emptySet(),
     val toolObject: Any
 )
 
@@ -86,7 +87,10 @@ class ToolExposureResolver(
         }
 
         val exposed = candidates.filter { candidate ->
-            candidate.requiredScopes.all { it in grantedScopes }
+            val requiredAllSatisfied = candidate.requiredScopes.all { it in grantedScopes }
+            val requiredAnySatisfied = candidate.requiredAnyScopes.isEmpty() ||
+                candidate.requiredAnyScopes.any { it in grantedScopes }
+            requiredAllSatisfied && requiredAnySatisfied
         }
         val blocked = candidates.map { it.name }.toSet() - exposed.map { it.name }.toSet()
         if (blocked.isNotEmpty()) {

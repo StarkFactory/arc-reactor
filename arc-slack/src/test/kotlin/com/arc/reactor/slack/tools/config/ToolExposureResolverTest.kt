@@ -100,6 +100,31 @@ class ToolExposureResolverTest {
         assertEquals(emptyList<String>(), resolved)
     }
 
+    @Test
+    fun `required any scopes allow tool when one scope is granted`() {
+        val scopeProvider = mockk<SlackScopeProvider>()
+        every { scopeProvider.resolveGrantedScopes() } returns setOf("groups:history")
+        val resolver = ToolExposureResolver(
+            properties = SlackToolsProperties(
+                botToken = "xoxb-test",
+                toolExposure = ToolExposureProperties(scopeAwareEnabled = true)
+            ),
+            slackScopeProvider = scopeProvider
+        )
+        val candidates = listOf(
+            ToolCandidate(
+                name = "read_messages",
+                requiredScopes = emptySet(),
+                requiredAnyScopes = setOf("channels:history", "groups:history"),
+                toolObject = "read"
+            )
+        )
+
+        val resolved = resolver.resolveToolObjects(candidates)
+
+        assertEquals(listOf("read"), resolved)
+    }
+
     private fun sampleCandidates(): List<ToolCandidate> = listOf(
         ToolCandidate(
             name = "send_message",
