@@ -86,6 +86,31 @@ class SlackEventProcessorTest {
             """"channel":"$channel","text":"reply","ts":"1000.999","thread_ts":"$threadTs"}}"""
     )
 
+    private fun topLevelMessagePayload(
+        user: String = "U1",
+        channel: String = "C1",
+        channelType: String? = null
+    ) = objectMapper.readTree(
+        objectMapper.writeValueAsString(
+            buildMap<String, Any> {
+                put("type", "event_callback")
+                put(
+                    "event",
+                    buildMap<String, String> {
+                        put("type", "message")
+                        put("user", user)
+                        put("channel", channel)
+                        put("text", "top-level")
+                        put("ts", "1.0")
+                        if (channelType != null) {
+                            put("channel_type", channelType)
+                        }
+                    }
+                )
+            }
+        )
+    )
+
     private fun botMessagePayload() = objectMapper.readTree(
         """{"type":"event_callback","event":{"type":"message","user":"U1","channel":"C1",""" +
             """"text":"bot msg","ts":"1.0","bot_id":"B1"}}"""
@@ -166,11 +191,35 @@ class SlackEventProcessorTest {
 
         @Test
         fun `non-thread message does not dispatch to handleMessage`() = runTest {
-            val payload = objectMapper.readTree(
-                """{"type":"event_callback","event":{"type":"message","user":"U1","channel":"C1",""" +
-                    """"text":"top-level","ts":"1.0"}}"""
-            )
+            val payload = topLevelMessagePayload()
             val processor = buildProcessor(defaultProperties())
+
+            processor.submitEventCallback(payload, "events_api")
+            Thread.sleep(500)
+
+            coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
+        }
+
+        @Test
+        fun `non-thread direct message dispatches when dm processing is enabled`() = runTest {
+            val payload = topLevelMessagePayload(channel = "D1", channelType = "im")
+            val processor = buildProcessor(
+                defaultProperties().copy(processDirectMessagesWithoutThread = true)
+            )
+
+            processor.submitEventCallback(payload, "events_api")
+
+            coVerify(timeout = 2000) {
+                eventHandler.handleMessage(match { it.channelId == "D1" && it.threadTs == null })
+            }
+        }
+
+        @Test
+        fun `non-thread channel message remains ignored when dm processing is enabled`() = runTest {
+            val payload = topLevelMessagePayload(channel = "C1", channelType = "channel")
+            val processor = buildProcessor(
+                defaultProperties().copy(processDirectMessagesWithoutThread = true)
+            )
 
             processor.submitEventCallback(payload, "events_api")
             Thread.sleep(500)

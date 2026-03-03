@@ -76,6 +76,12 @@ data class SlackProperties(
     /** Max in-memory tracked thread entries */
     val threadTrackingMaxEntries: Int = 20000,
 
+    /**
+     * If true, top-level direct messages (channel_type=im/mpim) are processed even without thread_ts.
+     * Keep false to preserve thread-only behavior.
+     */
+    val processDirectMessagesWithoutThread: Boolean = false,
+
     /** Socket Mode WebSocket backend implementation */
     val socketBackend: SlackSocketBackend = SlackSocketBackend.JAVA_WEBSOCKET,
 

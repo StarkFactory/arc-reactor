@@ -53,4 +53,17 @@ class SlackToolsAutoConfigurationTest {
                 assertEquals(1, context.getBeansOfType(ToolObservabilityAspect::class.java).size)
             }
     }
+
+    @Test
+    fun `canvas tools are created when canvas feature is enabled`() {
+        contextRunner
+            .withPropertyValues(
+                "arc.reactor.slack.tools.enabled=true",
+                "arc.reactor.slack.tools.bot-token=xoxb-test",
+                "arc.reactor.slack.tools.canvas.enabled=true"
+            )
+            .run { context ->
+                assertEquals(13, context.getBeansOfType(LocalTool::class.java).size)
+            }
+    }
 }

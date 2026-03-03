@@ -1,12 +1,15 @@
 package com.arc.reactor.slack.tools.health
 
+import com.arc.reactor.slack.tools.config.ConversationScopeMode
+import com.arc.reactor.slack.tools.config.SlackToolsProperties
 import com.slack.api.methods.MethodsClient
 import com.slack.api.methods.request.auth.AuthTestRequest
 import org.springframework.boot.actuate.health.Health
 import org.springframework.boot.actuate.health.HealthIndicator
 
 class SlackApiHealthIndicator(
-    private val methodsClient: MethodsClient
+    private val methodsClient: MethodsClient,
+    private val properties: SlackToolsProperties
 ) : HealthIndicator {
 
     override fun health(): Health {
@@ -28,11 +31,24 @@ class SlackApiHealthIndicator(
                     .build()
             }
 
-            val missingScopes = REQUIRED_SCOPES.filterNot { it in grantedScopes }
+            val requiredScopes = requiredAllScopes(properties)
+            val missingScopes = requiredScopes.filterNot { it in grantedScopes }
             if (missingScopes.isNotEmpty()) {
                 return Health.down()
                     .withDetail("error", "missing_scopes")
                     .withDetail("missingScopes", missingScopes.sorted())
+                    .withDetail("grantedScopes", grantedScopes.sorted())
+                    .build()
+            }
+
+            val missingAnyGroups = requiredAnyScopeGroups(properties)
+                .mapNotNull { group ->
+                    if (group.any { it in grantedScopes }) null else group.sorted()
+                }
+            if (missingAnyGroups.isNotEmpty()) {
+                return Health.down()
+                    .withDetail("error", "missing_any_scope_group")
+                    .withDetail("missingAnyScopeGroups", missingAnyGroups)
                     .withDetail("grantedScopes", grantedScopes.sorted())
                     .build()
             }
@@ -67,15 +83,34 @@ class SlackApiHealthIndicator(
     }
 
     private companion object {
-        private val REQUIRED_SCOPES = setOf(
+        private val BASE_REQUIRED_SCOPES = setOf(
             "chat:write",
-            "channels:read",
-            "channels:history",
             "users:read",
             "users:read.email",
             "reactions:write",
-            "files:write",
-            "search:read"
+            "files:write"
         )
+
+        private fun requiredAllScopes(properties: SlackToolsProperties): Set<String> {
+            val scopes = BASE_REQUIRED_SCOPES.toMutableSet()
+            if (properties.canvas.enabled) {
+                scopes.add("canvases:write")
+            }
+            if (properties.toolExposure.conversationScopeMode == ConversationScopeMode.PUBLIC_ONLY) {
+                scopes.add("channels:read")
+                scopes.add("channels:history")
+            }
+            return scopes
+        }
+
+        private fun requiredAnyScopeGroups(properties: SlackToolsProperties): List<Set<String>> {
+            return when (properties.toolExposure.conversationScopeMode) {
+                ConversationScopeMode.PUBLIC_ONLY -> emptyList()
+                ConversationScopeMode.INCLUDE_PRIVATE_AND_DM -> listOf(
+                    setOf("channels:read", "groups:read", "im:read", "mpim:read"),
+                    setOf("channels:history", "groups:history", "im:history", "mpim:history")
+                )
+            }
+        }
     }
 }

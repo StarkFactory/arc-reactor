@@ -3,6 +3,8 @@ package com.arc.reactor.slack.tools.client
 import com.slack.api.methods.MethodsClient
 import com.slack.api.methods.SlackApiException
 import com.slack.api.methods.request.chat.ChatPostMessageRequest
+import com.slack.api.methods.request.canvases.CanvasesCreateRequest
+import com.slack.api.methods.request.canvases.CanvasesEditRequest
 import com.slack.api.methods.request.conversations.ConversationsHistoryRequest
 import com.slack.api.methods.request.conversations.ConversationsListRequest
 import com.slack.api.methods.request.conversations.ConversationsRepliesRequest
@@ -12,6 +14,9 @@ import com.slack.api.methods.request.search.SearchMessagesRequest
 import com.slack.api.methods.request.users.UsersInfoRequest
 import com.slack.api.methods.request.users.UsersListRequest
 import com.slack.api.model.ConversationType
+import com.slack.api.model.canvas.CanvasDocumentChange
+import com.slack.api.model.canvas.CanvasDocumentContent
+import com.slack.api.model.canvas.CanvasEditOperation
 import com.arc.reactor.slack.tools.config.SlackToolsProperties
 import mu.KotlinLogging
 import io.micrometer.core.instrument.MeterRegistry
@@ -394,6 +399,63 @@ class SlackApiClient(
             logger.error(e) { "files.uploadV2 failed for channelId=$channelId filename=$filename" }
             val errorDetails = exceptionErrorDetails(e)
             UploadFileResult(ok = false, error = errorDetails.code, errorDetails = errorDetails)
+        }
+    }
+
+    fun createCanvas(title: String, markdown: String): CanvasCreateResult {
+        return try {
+            val request = CanvasesCreateRequest.builder()
+                .title(title)
+                .markdown(markdown)
+                .build()
+            val response = executeWithRetry("canvases.create", "title=$title") {
+                client.canvasesCreate(request)
+            }
+            CanvasCreateResult(
+                ok = response.isOk,
+                canvasId = response.canvasId,
+                error = response.error,
+                errorDetails = responseErrorDetails(response.error)
+            )
+        } catch (e: Exception) {
+            logger.error(e) { "canvases.create failed for title=$title" }
+            val errorDetails = exceptionErrorDetails(e)
+            CanvasCreateResult(ok = false, error = errorDetails.code, errorDetails = errorDetails)
+        }
+    }
+
+    fun appendCanvas(canvasId: String, markdown: String): CanvasEditResult {
+        return try {
+            val content = CanvasDocumentContent.builder()
+                .type("markdown")
+                .markdown(markdown)
+                .build()
+            val change = CanvasDocumentChange.builder()
+                .operation(CanvasEditOperation.INSERT_AT_END)
+                .documentContent(content)
+                .build()
+            val request = CanvasesEditRequest.builder()
+                .canvasId(canvasId)
+                .changes(listOf(change))
+                .build()
+            val response = executeWithRetry("canvases.edit", "canvasId=$canvasId") {
+                client.canvasesEdit(request)
+            }
+            CanvasEditResult(
+                ok = response.isOk,
+                canvasId = canvasId,
+                error = response.error,
+                errorDetails = responseErrorDetails(response.error)
+            )
+        } catch (e: Exception) {
+            logger.error(e) { "canvases.edit failed for canvasId=$canvasId" }
+            val errorDetails = exceptionErrorDetails(e)
+            CanvasEditResult(
+                ok = false,
+                canvasId = canvasId,
+                error = errorDetails.code,
+                errorDetails = errorDetails
+            )
         }
     }
 
@@ -876,6 +938,20 @@ data class UploadFileResult(
     val fileName: String? = null,
     val title: String? = null,
     val permalink: String? = null,
+    val error: String? = null,
+    val errorDetails: SlackErrorDetails? = null
+)
+
+data class CanvasCreateResult(
+    val ok: Boolean,
+    val canvasId: String? = null,
+    val error: String? = null,
+    val errorDetails: SlackErrorDetails? = null
+)
+
+data class CanvasEditResult(
+    val ok: Boolean,
+    val canvasId: String,
     val error: String? = null,
     val errorDetails: SlackErrorDetails? = null
 )

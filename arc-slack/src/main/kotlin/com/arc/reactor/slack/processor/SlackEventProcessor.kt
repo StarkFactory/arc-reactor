@@ -31,6 +31,7 @@ class SlackEventProcessor(
         failFastOnSaturation = properties.failFastOnSaturation
     )
     private val notifyOnDrop = properties.notifyOnDrop
+    private val processDirectMessagesWithoutThread = properties.processDirectMessagesWithoutThread
     private val deduplicator = SlackEventDeduplicator(
         enabled = properties.eventDedupEnabled,
         ttlSeconds = properties.eventDedupTtlSeconds,
@@ -71,7 +72,8 @@ class SlackEventProcessor(
             channelId = event.path("channel").asText(),
             text = event.path("text").asText(),
             ts = event.path("ts").asText(),
-            threadTs = event.path("thread_ts").asText().takeIf { it.isNotEmpty() }
+            threadTs = event.path("thread_ts").asText().takeIf { it.isNotEmpty() },
+            channelType = event.path("channel_type").asText().takeIf { it.isNotBlank() }
         )
 
         if (command.userId.isBlank() || command.channelId.isBlank()) {
@@ -133,6 +135,11 @@ class SlackEventProcessor(
                                 )
                                 return@launch
                             }
+                            eventHandler.handleMessage(command)
+                        } else if (
+                            processDirectMessagesWithoutThread &&
+                            command.isDirectMessageChannel()
+                        ) {
                             eventHandler.handleMessage(command)
                         }
                     }

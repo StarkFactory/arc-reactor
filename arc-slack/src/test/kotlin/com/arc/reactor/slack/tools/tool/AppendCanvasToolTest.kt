@@ -1,0 +1,38 @@
+package com.arc.reactor.slack.tools.tool
+
+import com.arc.reactor.slack.tools.client.CanvasEditResult
+import com.arc.reactor.slack.tools.usecase.AppendCanvasUseCase
+import io.kotest.matchers.string.shouldContain
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import org.junit.jupiter.api.Test
+
+class AppendCanvasToolTest {
+
+    private val appendCanvasUseCase = mockk<AppendCanvasUseCase>()
+    private val policyService = mockk<CanvasOwnershipPolicyService>()
+    private val tool = AppendCanvasTool(appendCanvasUseCase, policyService)
+
+    @Test
+    fun `blocks edit when canvas is not in allowlist`() {
+        every { policyService.canEdit("F123") } returns false
+
+        val result = tool.append_canvas("F123", "more details")
+
+        result shouldContain "Access denied: canvasId is not in ownership allowlist"
+        verify(exactly = 0) { appendCanvasUseCase.execute(any(), any()) }
+    }
+
+    @Test
+    fun `appends markdown when canvas is allowed`() {
+        every { policyService.canEdit("F123") } returns true
+        every { appendCanvasUseCase.execute("F123", "more details") } returns
+            CanvasEditResult(ok = true, canvasId = "F123")
+
+        val result = tool.append_canvas("F123", "more details")
+
+        result shouldContain "\"ok\":true"
+        verify { appendCanvasUseCase.execute("F123", "more details") }
+    }
+}

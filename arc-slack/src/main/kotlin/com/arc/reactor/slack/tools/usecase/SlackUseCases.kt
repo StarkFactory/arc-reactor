@@ -69,3 +69,13 @@ class UploadFileUseCase(private val slackClient: SlackApiClient) {
         threadTs = threadTs
     )
 }
+
+class CreateCanvasUseCase(private val slackClient: SlackApiClient) {
+    fun execute(title: String, markdown: String): CanvasCreateResult =
+        slackClient.createCanvas(title = title, markdown = markdown)
+}
+
+class AppendCanvasUseCase(private val slackClient: SlackApiClient) {
+    fun execute(canvasId: String, markdown: String): CanvasEditResult =
+        slackClient.appendCanvas(canvasId = canvasId, markdown = markdown)
+}
