@@ -90,33 +90,35 @@ interface ToolCallback {
 class SpringAiToolCallbackAdapter(
     private val springAiCallback: Any  // org.springframework.ai.tool.ToolCallback
 ) : ToolCallback {
-
-    private val nameMethod by lazy {
-        runCatching { springAiCallback::class.java.getMethod("getName") }.getOrNull()
-    }
-
-    private val descriptionMethod by lazy {
-        runCatching { springAiCallback::class.java.getMethod("getDescription") }.getOrNull()
-    }
-
     private val callMethod by lazy {
         runCatching { springAiCallback::class.java.getMethod("call", String::class.java) }.getOrNull()
     }
 
-    override val name: String by lazy {
-        try {
-            nameMethod?.invoke(springAiCallback) as? String ?: "unknown"
-        } catch (e: Exception) {
-            "unknown"
+    private val toolDefinitionMethod by lazy {
+        runCatching { springAiCallback::class.java.getMethod("getToolDefinition") }.getOrNull()
+    }
+
+    private val toolDefinition by lazy {
+        toolDefinitionMethod?.let { getter ->
+            runCatching { getter.invoke(springAiCallback) }.getOrNull()
         }
     }
 
+    override val name: String by lazy {
+        readToolDefinitionProperty("name", "getName")
+            ?: invokeStringMethod(springAiCallback, "getName", "name")
+            ?: "unknown"
+    }
+
     override val description: String by lazy {
-        try {
-            descriptionMethod?.invoke(springAiCallback) as? String ?: ""
-        } catch (e: Exception) {
-            ""
-        }
+        readToolDefinitionProperty("description", "getDescription")
+            ?: invokeStringMethod(springAiCallback, "getDescription", "description").orEmpty()
+    }
+
+    override val inputSchema: String by lazy {
+        readToolDefinitionProperty("inputSchema", "getInputSchema")
+            ?: invokeStringMethod(springAiCallback, "getInputSchema", "inputSchema")
+            ?: super.inputSchema
     }
 
     override suspend fun call(arguments: Map<String, Any?>): Any? {
@@ -133,6 +135,22 @@ class SpringAiToolCallbackAdapter(
 
     /** Returns the original Spring AI ToolCallback (if needed) */
     fun unwrap(): Any = springAiCallback
+
+    private fun readToolDefinitionProperty(vararg methodNames: String): String? {
+        val definition = toolDefinition ?: return null
+        return invokeStringMethod(definition, *methodNames)
+    }
+
+    private fun invokeStringMethod(target: Any, vararg methodNames: String): String? {
+        for (methodName in methodNames) {
+            val value = runCatching {
+                val method = target::class.java.getMethod(methodName)
+                method.invoke(target) as? String
+            }.getOrNull()
+            if (value != null) return value
+        }
+        return null
+    }
 
     companion object {
         private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
