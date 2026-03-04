@@ -116,9 +116,31 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
             },
             tenantId, Timestamp.from(from), Timestamp.from(to), limit
         )
-        return rows.mapIndexed { index, (requests, lastActivity) ->
+
+        if (rows.isNotEmpty()) {
+            return rows.mapIndexed { index, (requests, lastActivity) ->
+                UserUsageSummary(
+                    userLabel = "User-${index + 1}",
+                    requests = requests,
+                    lastActivity = lastActivity
+                )
+            }
+        }
+
+        val channelFallback = jdbcTemplate.query(
+            """SELECT COALESCE(channel, 'unknown') AS channel, COUNT(*) AS requests, MAX(time) AS last_activity
+               FROM metric_agent_executions
+               WHERE tenant_id = ? AND time >= ? AND time < ?
+               GROUP BY channel ORDER BY requests DESC LIMIT ?""",
+            { rs, _ ->
+                Triple(rs.getString("channel"), rs.getLong("requests"), rs.getTimestamp("last_activity")?.toInstant())
+            },
+            tenantId, Timestamp.from(from), Timestamp.from(to), limit
+        )
+
+        return channelFallback.map { (channel, requests, lastActivity) ->
             UserUsageSummary(
-                userLabel = "User-${index + 1}",
+                userLabel = "Channel:${channel}",
                 requests = requests,
                 lastActivity = lastActivity
             )

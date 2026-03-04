@@ -263,6 +263,28 @@ class McpServerControllerTest {
         }
 
         @Test
+        fun `should mask sensitive config values in server details`() {
+            manager.register(McpServer(
+                name = "masked-config",
+                transportType = McpTransportType.SSE,
+                config = mapOf(
+                    "url" to "http://localhost:8081/sse",
+                    "apiKey" to "secret-key-123",
+                    "adminToken" to "token-xyz"
+                ),
+                autoConnect = false
+            ))
+
+            val response = controller.getServer("masked-config", adminExchange())
+            assertEquals(HttpStatus.OK, response.statusCode) { "Expected 200 OK" }
+
+            val body = response.body as McpServerDetailResponse
+            assertEquals("http://localhost:8081/sse", body.config["url"])
+            assertEquals("********", body.config["apiKey"])
+            assertEquals("********", body.config["adminToken"])
+        }
+
+        @Test
         fun `should return 404 for unknown server`() {
             val response = controller.getServer("nonexistent", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {

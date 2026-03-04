@@ -166,6 +166,12 @@ class PlatformAdminControllerTest {
         }
 
         @Test
+        fun `listTenants returns 403 for ADMIN_MANAGER role`() {
+            val response = controller.listTenants(exchangeWithRole(UserRole.ADMIN_MANAGER))
+            response.statusCode shouldBe HttpStatus.FORBIDDEN
+        }
+
+        @Test
         fun `user role update returns 403 for ADMIN_MANAGER role`() {
             val response = controller.updateUserRole(
                 "u-1",
@@ -190,6 +196,12 @@ class PlatformAdminControllerTest {
             val dashboard = response.body.shouldBeInstanceOf<PlatformHealthDashboard>()
             dashboard.pipelineBufferUsage shouldBe 25.0
             dashboard.pipelineWriteLatencyMs shouldBe 50
+        }
+
+        @Test
+        fun `returns health dashboard for ADMIN_MANAGER`() {
+            val response = controller.health(exchangeWithRole(UserRole.ADMIN_MANAGER))
+            response.statusCode shouldBe HttpStatus.OK
         }
     }
 
@@ -470,6 +482,16 @@ class PlatformAdminControllerTest {
             every { queryService.getCurrentMonthUsage(any()) } throws RuntimeException("DB error")
 
             val response = controller.tenantAnalytics(exchangeWithRole(UserRole.ADMIN))
+
+            response.statusCode shouldBe HttpStatus.OK
+        }
+
+        @Test
+        fun `returns analytics summary for ADMIN_MANAGER`() {
+            every { queryService.getCurrentMonthUsage(any()) } returns
+                TenantUsage("t1", 100, 1000, BigDecimal("1.00"))
+
+            val response = controller.tenantAnalytics(exchangeWithRole(UserRole.ADMIN_MANAGER))
 
             response.statusCode shouldBe HttpStatus.OK
         }

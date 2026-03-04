@@ -223,5 +223,19 @@ class MetricQueryServiceTest {
             users[0].userLabel shouldBe "User-1"
             users[0].requests shouldBe 50
         }
+
+        @Test
+        fun `falls back to channel summaries when user identifiers are unavailable`() {
+            every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returnsMany listOf(
+                emptyList<Pair<Long, Instant?>>(),
+                listOf(Triple("slack", 42L, now))
+            )
+
+            val users = service.getTopUsers("t1", thirtyDaysAgo, now)
+
+            users shouldHaveSize 1
+            users[0].userLabel shouldBe "Channel:slack"
+            users[0].requests shouldBe 42
+        }
     }
 }

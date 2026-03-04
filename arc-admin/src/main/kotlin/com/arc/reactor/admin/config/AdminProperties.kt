@@ -9,6 +9,7 @@ data class AdminProperties(
     val timescaleEnabled: Boolean = true,
     val tracing: TracingProperties = TracingProperties(),
     val collection: CollectionProperties = CollectionProperties(),
+    val privacy: PrivacyProperties = PrivacyProperties(),
     val retention: RetentionProperties = RetentionProperties(),
     val slo: SloProperties = SloProperties(),
     val scaling: ScalingProperties = ScalingProperties()
@@ -32,6 +33,20 @@ data class CollectionProperties(
     val flushIntervalMs: Long = 1000,
     val batchSize: Int = 1000,
     val writerThreads: Int = 1
+)
+
+data class PrivacyProperties(
+    /**
+     * Store actor identifiers in admin metrics/traces.
+     * Keep disabled to avoid persisting personally identifiable metadata.
+     */
+    val storeUserIdentifiers: Boolean = false,
+
+    /**
+     * Store conversation/session identifiers in admin metrics/traces.
+     * Keep disabled for privacy-first deployments.
+     */
+    val storeSessionIdentifiers: Boolean = false
 )
 
 data class RetentionProperties(

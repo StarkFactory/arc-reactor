@@ -8,10 +8,10 @@ import java.time.Instant
 class ExportService(private val jdbcTemplate: JdbcTemplate) {
 
     fun exportExecutionsCsv(tenantId: String, from: Instant, to: Instant, writer: Writer) {
-        writer.write("time,run_id,user_id,success,duration_ms,error_code,tool_count\n")
+        writer.write("time,run_id,success,duration_ms,error_code,tool_count\n")
 
         jdbcTemplate.query(
-            """SELECT time, run_id, user_id, success, duration_ms, error_code, tool_count
+            """SELECT time, run_id, success, duration_ms, error_code, tool_count
                FROM metric_agent_executions
                WHERE tenant_id = ? AND time >= ? AND time < ?
                ORDER BY time DESC""",
@@ -19,7 +19,6 @@ class ExportService(private val jdbcTemplate: JdbcTemplate) {
                 writer.write(
                     "${escapeCsv(rs.getTimestamp("time")?.toString())}," +
                         "${escapeCsv(rs.getString("run_id"))}," +
-                        "${escapeCsv(rs.getString("user_id"))}," +
                         "${rs.getBoolean("success")}," +
                         "${rs.getLong("duration_ms")}," +
                         "${escapeCsv(rs.getString("error_code"))}," +

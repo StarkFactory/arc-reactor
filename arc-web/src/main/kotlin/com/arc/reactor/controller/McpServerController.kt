@@ -155,7 +155,7 @@ class McpServerController(
             name = server.name,
             description = server.description,
             transportType = server.transportType.name,
-            config = server.config,
+            config = sanitizeConfig(server.config),
             version = server.version,
             autoConnect = server.autoConnect,
             status = status.name,
@@ -355,6 +355,17 @@ class McpServerController(
         }
     }
 
+    private fun sanitizeConfig(config: Map<String, Any>): Map<String, Any> {
+        return config.mapValues { (key, value) ->
+            if (isSensitiveConfigKey(key)) MASKED_VALUE else value
+        }
+    }
+
+    private fun isSensitiveConfigKey(key: String): Boolean {
+        val normalized = key.lowercase()
+        return SENSITIVE_KEY_MARKERS.any { normalized.contains(it) }
+    }
+
     // ---- DTOs ----
 
     private fun McpServer.toResponse() = McpServerResponse(
@@ -368,6 +379,18 @@ class McpServerController(
         createdAt = createdAt.toEpochMilli(),
         updatedAt = updatedAt.toEpochMilli()
     )
+
+    companion object {
+        private const val MASKED_VALUE = "********"
+        private val SENSITIVE_KEY_MARKERS = listOf(
+            "token",
+            "secret",
+            "password",
+            "api_key",
+            "apikey",
+            "credential"
+        )
+    }
 }
 
 data class RegisterMcpServerRequest(

@@ -75,8 +75,8 @@ class MetricCollectionHookTest {
             val event = events.filterIsInstance<AgentExecutionEvent>().single()
             event.tenantId shouldBe "tenant-1"
             event.runId shouldBe "run-1"
-            event.userId shouldBe "user-1"
-            event.sessionId shouldBe "sess-1"
+            event.userId shouldBe null
+            event.sessionId shouldBe null
             event.success shouldBe true
             event.toolCount shouldBe 2
             event.durationMs shouldBe 500
@@ -340,9 +340,24 @@ class MetricCollectionHookTest {
     inner class SessionEventEmission {
 
         @Test
-        fun `emits session event when sessionId present`() = runTest {
+        fun `does not emit session event when identifier storage is disabled`() = runTest {
             val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "sessionId" to "sess-42"))
             hook.afterAgentComplete(context, agentResponse(totalDurationMs = 750))
+
+            val sessionEvents = ringBuffer.drain(10).filterIsInstance<SessionEvent>()
+            sessionEvents.size shouldBe 0
+        }
+
+        @Test
+        fun `emits session event when sessionId present`() = runTest {
+            val sessionEnabledHook = MetricCollectionHook(
+                ringBuffer = ringBuffer,
+                healthMonitor = healthMonitor,
+                storeUserIdentifiers = true,
+                storeSessionIdentifiers = true
+            )
+            val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "sessionId" to "sess-42"))
+            sessionEnabledHook.afterAgentComplete(context, agentResponse(totalDurationMs = 750))
 
             val sessionEvent = ringBuffer.drain(10).filterIsInstance<SessionEvent>().single()
             sessionEvent.tenantId shouldBe "tenant-1"

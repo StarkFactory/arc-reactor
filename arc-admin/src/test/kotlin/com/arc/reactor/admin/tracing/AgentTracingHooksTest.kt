@@ -86,7 +86,11 @@ class AgentTracingHooksTest {
 
         every { tracer.nextSpan() } returns agentSpan
 
-        hooks = AgentTracingHooks(tracer)
+        hooks = AgentTracingHooks(
+            tracer = tracer,
+            storeUserIdentifiers = true,
+            storeSessionIdentifiers = true
+        )
     }
 
     private fun hookContext(
@@ -178,6 +182,21 @@ class AgentTracingHooksTest {
             verify { agentSpan.tag("session_id", "sess-1") }
             verify { agentSpan.tag("channel", "api") }
             verify { agentSpan.tag("gen_ai.agent.name", "test-agent") }
+        }
+
+        @Test
+        fun `beforeAgentStart skips user and session tags when identifier storage is disabled`() = runTest {
+            val capturedTags = mutableMapOf<String, String>()
+            val noIdentifierSpan = capturingSpan(capturedTags)
+            val noIdentifierTracer = mockk<Tracer>()
+            every { noIdentifierTracer.nextSpan() } returns noIdentifierSpan
+            val noIdentifierHooks = AgentTracingHooks(noIdentifierTracer)
+
+            noIdentifierHooks.beforeAgentStart(hookContext(runId = "run-99", userId = "user-99"))
+
+            capturedTags["run_id"] shouldBe "run-99"
+            capturedTags.containsKey("user_id") shouldBe false
+            capturedTags.containsKey("session_id") shouldBe false
         }
 
         @Test

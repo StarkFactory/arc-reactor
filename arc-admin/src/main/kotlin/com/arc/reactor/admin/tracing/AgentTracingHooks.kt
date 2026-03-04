@@ -31,7 +31,9 @@ private data class ToolSpanEntry(
  * Spring AI's gen_ai.client.operation span is auto-created and becomes a child.
  */
 class AgentTracingHooks(
-    private val tracer: Tracer
+    private val tracer: Tracer,
+    private val storeUserIdentifiers: Boolean = false,
+    private val storeSessionIdentifiers: Boolean = false
 ) : BeforeAgentStartHook, AfterAgentCompleteHook, BeforeToolCallHook, AfterToolCallHook {
 
     override val order: Int = 199
@@ -43,15 +45,21 @@ class AgentTracingHooks(
 
     override suspend fun beforeAgentStart(context: HookContext): HookResult {
         try {
-            val span = tracer.nextSpan()
+            var span = tracer.nextSpan()
                 .name("gen_ai.agent.execute")
                 .tag("run_id", context.runId)
-                .tag("user_id", context.userId)
-                .tag("session_id", context.metadata["sessionId"]?.toString().orEmpty())
                 .tag("tenant_id", context.metadata["tenantId"]?.toString() ?: "default")
                 .tag("channel", context.channel.orEmpty())
                 .tag("gen_ai.agent.name", context.metadata["agentName"]?.toString() ?: "default")
-                .start()
+
+            if (storeUserIdentifiers) {
+                span = span.tag("user_id", context.userId)
+            }
+            if (storeSessionIdentifiers) {
+                span = span.tag("session_id", context.metadata["sessionId"]?.toString().orEmpty())
+            }
+
+            span = span.start()
 
             agentSpans[context.runId] = span
 

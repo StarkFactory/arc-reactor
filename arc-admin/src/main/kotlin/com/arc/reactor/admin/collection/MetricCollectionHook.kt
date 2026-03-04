@@ -19,14 +19,16 @@ private val logger = KotlinLogging.logger {}
 /**
  * Hook that enriches metric events with context from the hook system.
  *
- * Captures latency breakdown (LLM/tool/guard), userId, sessionId,
- * and other context not available via AgentMetrics interface alone.
+ * Captures latency breakdown (LLM/tool/guard) and contextual metadata.
+ * user/session identifiers are persisted only when explicitly enabled.
  *
  * Order 200: runs after standard hooks, capturing final state.
  */
 class MetricCollectionHook(
     private val ringBuffer: MetricRingBuffer,
-    private val healthMonitor: PipelineHealthMonitor
+    private val healthMonitor: PipelineHealthMonitor,
+    private val storeUserIdentifiers: Boolean = false,
+    private val storeSessionIdentifiers: Boolean = false
 ) : AfterAgentCompleteHook, AfterToolCallHook {
 
     override val order: Int = 200
@@ -38,8 +40,8 @@ class MetricCollectionHook(
             val event = AgentExecutionEvent(
                 tenantId = context.metadata["tenantId"]?.toString() ?: "default",
                 runId = context.runId,
-                userId = context.userId,
-                sessionId = context.metadata["sessionId"]?.toString(),
+                userId = sanitizedUserId(context.userId),
+                sessionId = sanitizedSessionId(context),
                 channel = context.channel,
                 success = response.success,
                 errorCode = if (!response.success) response.errorCode else null,
@@ -114,12 +116,12 @@ class MetricCollectionHook(
     }
 
     private fun publishSessionEvent(context: HookContext, response: AgentResponse) {
-        val sessionId = context.metadata["sessionId"]?.toString() ?: return
+        val sessionId = sanitizedSessionId(context) ?: return
         val tenantId = context.metadata["tenantId"]?.toString() ?: "default"
         val sessionEvent = SessionEvent(
             tenantId = tenantId,
             sessionId = sessionId,
-            userId = context.userId,
+            userId = sanitizedUserId(context.userId),
             channel = context.channel,
             turnCount = 1,
             totalDurationMs = response.totalDurationMs
@@ -154,5 +156,15 @@ class MetricCollectionHook(
             errorMessage.contains("not found", ignoreCase = true) -> "not_found"
             else -> "unknown"
         }
+    }
+
+    private fun sanitizedUserId(userId: String?): String? {
+        if (!storeUserIdentifiers) return null
+        return userId?.takeIf { it.isNotBlank() }
+    }
+
+    private fun sanitizedSessionId(context: HookContext): String? {
+        if (!storeSessionIdentifiers) return null
+        return context.metadata["sessionId"]?.toString()?.takeIf { it.isNotBlank() }
     }
 }

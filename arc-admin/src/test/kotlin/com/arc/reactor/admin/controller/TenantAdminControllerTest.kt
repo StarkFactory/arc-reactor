@@ -144,6 +144,30 @@ class TenantAdminControllerTest {
             val response = controller.exportTools(null, null, exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
+
+        @Test
+        fun `overview allows ADMIN_MANAGER role`() {
+            every { dashboardService.getOverview("t1") } returns OverviewDashboard()
+
+            val response = controller.overview(exchangeWithRole(UserRole.ADMIN_MANAGER))
+
+            response.statusCode shouldBe HttpStatus.OK
+        }
+
+        @Test
+        fun `usage allows ADMIN_MANAGER role`() {
+            every { dashboardService.getUsage(any(), any(), any()) } returns UsageDashboard()
+
+            val response = controller.usage(null, null, exchangeWithRole(UserRole.ADMIN_MANAGER))
+
+            response.statusCode shouldBe HttpStatus.OK
+        }
+
+        @Test
+        fun `exportExecutions remains developer-admin only for ADMIN_MANAGER role`() {
+            val response = controller.exportExecutions(null, null, exchangeWithRole(UserRole.ADMIN_MANAGER))
+            response.statusCode shouldBe HttpStatus.FORBIDDEN
+        }
     }
 
     @Nested
