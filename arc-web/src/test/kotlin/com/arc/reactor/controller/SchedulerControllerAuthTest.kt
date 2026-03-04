@@ -33,6 +33,16 @@ class SchedulerControllerAuthTest {
     }
 
     @Test
+    fun `listJobs rejects ADMIN_MANAGER`() {
+        val response = controller.listJobs(exchange(userId = "manager-1", role = UserRole.ADMIN_MANAGER))
+
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+            "Manager-scope admin should be forbidden from developer scheduler controls"
+        }
+        verify(exactly = 0) { schedulerService.list() }
+    }
+
+    @Test
     fun `listJobs allows admin`() {
         every { schedulerService.list() } returns emptyList()
 
@@ -42,6 +52,19 @@ class SchedulerControllerAuthTest {
 
         assertEquals(HttpStatus.OK, response.statusCode) { "Admin list should succeed" }
         assertEquals(0, result.size) { "Empty scheduler list should be returned as empty body list" }
+        verify(exactly = 1) { schedulerService.list() }
+    }
+
+    @Test
+    fun `listJobs allows ADMIN_DEVELOPER`() {
+        every { schedulerService.list() } returns emptyList()
+
+        val response = controller.listJobs(exchange(userId = "dev-admin-1", role = UserRole.ADMIN_DEVELOPER))
+        @Suppress("UNCHECKED_CAST")
+        val result = response.body as List<ScheduledJobResponse>
+
+        assertEquals(HttpStatus.OK, response.statusCode) { "Developer-scope admin list should succeed" }
+        assertEquals(0, result.size) { "Scheduler list should be empty when service returns empty list" }
         verify(exactly = 1) { schedulerService.list() }
     }
 

@@ -138,7 +138,7 @@ class FeedbackControllerTest {
             assertEquals(listOf("calculator", "search"), saved.toolsUsed) { "toolsUsed should be auto-enriched" }
             assertEquals(1500L, saved.durationMs) { "durationMs should be auto-enriched" }
             assertEquals("cached-session", saved.sessionId) { "sessionId should be auto-enriched from metadata" }
-            assertEquals("user-7", saved.userId) { "userId should be auto-enriched" }
+            assertNull(saved.userId) { "userId should not be stored in feedback records" }
         }
 
         @Test
@@ -164,8 +164,7 @@ class FeedbackControllerTest {
                 response = "My explicit response",
                 toolsUsed = listOf("explicit-tool"),
                 durationMs = 100,
-                sessionId = "explicit-session",
-                userId = "explicit-user"
+                sessionId = "explicit-session"
             )
             controller.submitFeedback(request)
 
@@ -175,7 +174,7 @@ class FeedbackControllerTest {
             assertEquals(listOf("explicit-tool"), saved.toolsUsed) { "Explicit toolsUsed should take precedence" }
             assertEquals(100L, saved.durationMs) { "Explicit durationMs should take precedence" }
             assertEquals("explicit-session", saved.sessionId) { "Explicit sessionId should take precedence" }
-            assertEquals("explicit-user", saved.userId) { "Explicit userId should take precedence" }
+            assertNull(saved.userId) { "userId should not be stored in feedback records" }
         }
 
         @Test

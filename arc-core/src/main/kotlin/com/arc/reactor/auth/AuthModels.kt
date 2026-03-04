@@ -5,11 +5,34 @@ import java.time.Instant
 /**
  * User role for access control.
  *
- * - [ADMIN] can manage prompt templates and system configuration
+ * - [ADMIN] can access all admin areas (legacy full-access role)
+ * - [ADMIN_DEVELOPER] can access developer/admin control surfaces
+ * - [ADMIN_MANAGER] can access manager-facing dashboards
  * - [USER] has standard access (chat, persona selection)
  */
 enum class UserRole {
-    USER, ADMIN
+    USER,
+    ADMIN,
+    ADMIN_MANAGER,
+    ADMIN_DEVELOPER;
+
+    fun isAnyAdmin(): Boolean = this == ADMIN || this == ADMIN_MANAGER || this == ADMIN_DEVELOPER
+
+    fun isDeveloperAdmin(): Boolean = this == ADMIN || this == ADMIN_DEVELOPER
+
+    fun adminScope(): AdminScope? = when (this) {
+        ADMIN -> AdminScope.FULL
+        ADMIN_MANAGER -> AdminScope.MANAGER
+        ADMIN_DEVELOPER -> AdminScope.DEVELOPER
+        USER -> null
+    }
+}
+
+/**
+ * Coarse-grained admin scope for frontend workspace decisions.
+ */
+enum class AdminScope {
+    FULL, MANAGER, DEVELOPER
 }
 
 /**

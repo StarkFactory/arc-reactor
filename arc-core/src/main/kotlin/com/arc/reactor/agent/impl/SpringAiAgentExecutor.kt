@@ -269,7 +269,7 @@ class SpringAiAgentExecutor(
             val queueStart = System.nanoTime()
             val result = concurrencySemaphore.withPermit {
                 hookContext.metadata["queueWaitMs"] = (System.nanoTime() - queueStart) / 1_000_000
-                withTimeout(properties.concurrency.requestTimeoutMs) {
+                executeWithRequestTimeout(properties.concurrency.requestTimeoutMs) {
                     agentExecutionCoordinator.execute(command, hookContext, toolsUsed, startTime)
                 }
             }
@@ -294,6 +294,18 @@ class SpringAiAgentExecutor(
         } finally {
             requestSpan.close()
             runContextManager.close()
+        }
+    }
+
+    private suspend fun <T> executeWithRequestTimeout(
+        requestTimeoutMs: Long,
+        block: suspend () -> T
+    ): T {
+        if (requestTimeoutMs <= 0L) {
+            return block()
+        }
+        return withTimeout(requestTimeoutMs) {
+            block()
         }
     }
 

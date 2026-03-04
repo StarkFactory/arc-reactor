@@ -20,18 +20,10 @@ import org.springframework.web.server.ServerWebExchange
 
 class OpsDashboardControllerTest {
 
-    private fun adminExchange(): ServerWebExchange {
+    private fun exchange(role: UserRole): ServerWebExchange {
         val exchange = mockk<ServerWebExchange>()
         every { exchange.attributes } returns mutableMapOf<String, Any>(
-            JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.ADMIN
-        )
-        return exchange
-    }
-
-    private fun userExchange(): ServerWebExchange {
-        val exchange = mockk<ServerWebExchange>()
-        every { exchange.attributes } returns mutableMapOf<String, Any>(
-            JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.USER
+            JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to role
         )
         return exchange
     }
@@ -52,7 +44,7 @@ class OpsDashboardControllerTest {
             meterRegistryProvider = provider(null)
         )
 
-        val response = controller.dashboard(names = null, exchange = userExchange())
+        val response = controller.dashboard(names = null, exchange = exchange(UserRole.USER))
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
     }
 
@@ -67,7 +59,10 @@ class OpsDashboardControllerTest {
             meterRegistryProvider = provider(registry)
         )
 
-        val response = controller.dashboard(names = listOf("arc.slack.inbound.total"), exchange = adminExchange())
+        val response = controller.dashboard(
+            names = listOf("arc.slack.inbound.total"),
+            exchange = exchange(UserRole.ADMIN)
+        )
         assertEquals(HttpStatus.OK, response.statusCode)
 
         val body = response.body as OpsDashboardResponse
@@ -75,6 +70,30 @@ class OpsDashboardControllerTest {
         assertEquals(1, body.metrics.size)
         assertEquals("arc.slack.inbound.total", body.metrics.first().name)
         assertEquals(3.0, body.metrics.first().measurements["count"])
+    }
+
+    @Test
+    fun `dashboard allows ADMIN_MANAGER`() {
+        val controller = OpsDashboardController(
+            mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
+            properties = AgentProperties(),
+            meterRegistryProvider = provider(null)
+        )
+
+        val response = controller.dashboard(names = null, exchange = exchange(UserRole.ADMIN_MANAGER))
+        assertEquals(HttpStatus.OK, response.statusCode)
+    }
+
+    @Test
+    fun `dashboard allows ADMIN_DEVELOPER`() {
+        val controller = OpsDashboardController(
+            mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
+            properties = AgentProperties(),
+            meterRegistryProvider = provider(null)
+        )
+
+        val response = controller.dashboard(names = null, exchange = exchange(UserRole.ADMIN_DEVELOPER))
+        assertEquals(HttpStatus.OK, response.statusCode)
     }
 
     @Test
@@ -89,7 +108,7 @@ class OpsDashboardControllerTest {
             meterRegistryProvider = provider(registry)
         )
 
-        val response = controller.metricNames(exchange = adminExchange())
+        val response = controller.metricNames(exchange = exchange(UserRole.ADMIN))
         assertEquals(HttpStatus.OK, response.statusCode)
         val names = response.body as List<*>
         assertTrue(names.contains("arc.slack.inbound.total"), "Metric names should include arc.slack.inbound.total")

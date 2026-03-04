@@ -15,6 +15,13 @@ fun isAdmin(exchange: ServerWebExchange): Boolean {
 }
 
 /**
+ * Broad admin access check for dashboard-like read surfaces.
+ */
+fun isAnyAdmin(exchange: ServerWebExchange): Boolean {
+    return AdminAuthorizationSupport.isAnyAdmin(exchange)
+}
+
+/**
  * Standard 403 Forbidden response for non-admin users.
  */
 fun forbiddenResponse(): ResponseEntity<Any> {

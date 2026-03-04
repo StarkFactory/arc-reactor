@@ -39,10 +39,12 @@ class ApprovalControllerAuthTest {
 
         val response = controller.listPending(exchange(userId = "admin-1", role = UserRole.ADMIN))
         @Suppress("UNCHECKED_CAST")
-        val result = response.body as List<ApprovalSummary>
+        val result = response.body as List<AdminApprovalSummaryResponse>
 
         assertEquals(HttpStatus.OK, response.statusCode) { "Admin request should return 200" }
         assertEquals(1, result.size) { "Admin should receive all pending approvals" }
+        assertEquals("ap-1", result.first().id) { "Mapped response should preserve approval id" }
+        assertEquals("PENDING", result.first().status) { "Mapped response should expose status text" }
         verify(exactly = 1) { store.listPending() }
         verify(exactly = 0) { store.listPendingByUser(any()) }
     }
@@ -53,11 +55,11 @@ class ApprovalControllerAuthTest {
 
         val response = controller.listPending(exchange(userId = "user-1", role = UserRole.USER))
         @Suppress("UNCHECKED_CAST")
-        val result = response.body as List<ApprovalSummary>
+        val result = response.body as List<AdminApprovalSummaryResponse>
 
         assertEquals(HttpStatus.OK, response.statusCode) { "User should be allowed to list own approvals" }
         assertEquals(1, result.size) { "User should receive only own pending approvals" }
-        assertEquals("user-1", result.first().userId) { "Listed approval should belong to requesting user" }
+        assertEquals("ap-2", result.first().id) { "User list should contain mapped approval entry" }
         verify(exactly = 1) { store.listPendingByUser("user-1") }
         verify(exactly = 0) { store.listPending() }
     }

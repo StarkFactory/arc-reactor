@@ -35,6 +35,20 @@ class AdminAuthSupportTest {
         }
 
         @Test
+        fun `returns true when role is ADMIN_DEVELOPER`() {
+            assertTrue(isAdmin(exchangeWithRole(UserRole.ADMIN_DEVELOPER))) {
+                "ADMIN_DEVELOPER role should be treated as developer admin"
+            }
+        }
+
+        @Test
+        fun `returns false when role is ADMIN_MANAGER`() {
+            assertFalse(isAdmin(exchangeWithRole(UserRole.ADMIN_MANAGER))) {
+                "ADMIN_MANAGER role should not be treated as developer admin"
+            }
+        }
+
+        @Test
         fun `returns false when role is USER`() {
             assertFalse(isAdmin(exchangeWithRole(UserRole.USER))) {
                 "USER role should not be treated as admin"
@@ -45,6 +59,31 @@ class AdminAuthSupportTest {
         fun `returns false when role is null`() {
             assertFalse(isAdmin(exchangeWithRole(null))) {
                 "Null role should fail-close as non-admin"
+            }
+        }
+    }
+
+    @Nested
+    inner class IsAnyAdmin {
+
+        @Test
+        fun `returns true when role is ADMIN_MANAGER`() {
+            assertTrue(isAnyAdmin(exchangeWithRole(UserRole.ADMIN_MANAGER))) {
+                "ADMIN_MANAGER role should be treated as admin for manager surfaces"
+            }
+        }
+
+        @Test
+        fun `returns true when role is ADMIN_DEVELOPER`() {
+            assertTrue(isAnyAdmin(exchangeWithRole(UserRole.ADMIN_DEVELOPER))) {
+                "ADMIN_DEVELOPER role should be treated as admin for manager surfaces"
+            }
+        }
+
+        @Test
+        fun `returns false when role is USER`() {
+            assertFalse(isAnyAdmin(exchangeWithRole(UserRole.USER))) {
+                "USER role should not be treated as admin"
             }
         }
     }

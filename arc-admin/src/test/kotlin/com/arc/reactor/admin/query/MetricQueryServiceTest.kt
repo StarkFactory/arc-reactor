@@ -1,7 +1,6 @@
 package com.arc.reactor.admin.query
 
 import com.arc.reactor.admin.model.ToolUsageSummary
-import com.arc.reactor.admin.model.UserUsageSummary
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -212,16 +211,16 @@ class MetricQueryServiceTest {
     inner class GetTopUsers {
 
         @Test
-        fun `returns user usage summaries`() {
+        fun `returns anonymized user usage summaries`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns listOf(
-                UserUsageSummary("user1", 50, lastActivity = now),
-                UserUsageSummary("user2", 30, lastActivity = now)
+                50L to now,
+                30L to now
             )
 
             val users = service.getTopUsers("t1", thirtyDaysAgo, now)
 
             users shouldHaveSize 2
-            users[0].userId shouldBe "user1"
+            users[0].userLabel shouldBe "User-1"
             users[0].requests shouldBe 50
         }
     }

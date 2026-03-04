@@ -81,7 +81,10 @@ class AgentTestFixture {
             llm = LlmProperties(),
             guard = GuardProperties(),
             rag = RagProperties(),
-            concurrency = ConcurrencyProperties()
+            // Disable request timeout by default in unit tests using runTest.
+            // Virtual time can otherwise fast-forward withTimeout(30s) and
+            // produce false-positive TIMEOUT failures.
+            concurrency = ConcurrencyProperties(requestTimeoutMs = 0)
         )
 
         /** Create a simple tool callback that returns a fixed result. */

@@ -139,6 +139,26 @@ class OutputGuardRuleControllerTest {
             val response = controller.listRules(userExchange())
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
         }
+
+        @Test
+        fun `redacts actor identifiers in audit responses`() {
+            every { auditStore.list(any()) } returns listOf(
+                OutputGuardRuleAuditLog(
+                    action = OutputGuardRuleAuditAction.UPDATE,
+                    actor = "80b18ee9-d20d-4359-bc5a-a40c4754f958",
+                    ruleId = "r1",
+                    detail = "updated"
+                )
+            )
+
+            val response = controller.listAudits(limit = 10, exchange = adminExchange())
+
+            assertEquals(HttpStatus.OK, response.statusCode, "Admin should be able to list output guard audits")
+            @Suppress("UNCHECKED_CAST")
+            val body = response.body as List<OutputGuardRuleAuditResponse>
+            assertEquals(1, body.size, "Expected one output guard audit row")
+            assertEquals("admin", body.first().actor, "Output guard audit actor should be anonymized")
+        }
     }
 
     @Nested

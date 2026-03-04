@@ -12,6 +12,9 @@ import com.arc.reactor.admin.pricing.ModelPricingStore
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.tenant.TenantService
 import com.arc.reactor.admin.tenant.TenantStore
+import com.arc.reactor.auth.User
+import com.arc.reactor.auth.UserRole
+import com.arc.reactor.auth.UserStore
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import javax.sql.DataSource
@@ -44,7 +48,8 @@ class PlatformAdminController(
     private val pricingStore: ModelPricingStore,
     private val healthMonitor: PipelineHealthMonitor,
     private val alertStore: AlertRuleStore,
-    private val alertEvaluator: AlertEvaluator
+    private val alertEvaluator: AlertEvaluator,
+    private val userStore: UserStore
 ) {
 
     // --- Platform Health ---
@@ -68,6 +73,60 @@ class PlatformAdminController(
     }
 
     // --- Tenant Management ---
+
+    @Operation(summary = "Get user by email")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "User details"),
+        ApiResponse(responseCode = "400", description = "Email is required"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "User not found")
+    ])
+    @GetMapping("/users/by-email")
+    fun getUserByEmail(
+        @RequestParam email: String,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+
+        val normalizedEmail = email.trim()
+        if (normalizedEmail.isBlank()) {
+            return ResponseEntity.badRequest().body(AdminErrorResponse(error = "email is required"))
+        }
+
+        val user = userStore.findByEmail(normalizedEmail) ?: return ResponseEntity.notFound().build()
+        return ResponseEntity.ok(user.toAdminUserResponse())
+    }
+
+    @Operation(summary = "Update user role")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "User role updated"),
+        ApiResponse(responseCode = "400", description = "Invalid role or invalid self-downgrade"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "404", description = "User not found")
+    ])
+    @PostMapping("/users/{id}/role")
+    fun updateUserRole(
+        @PathVariable id: String,
+        @jakarta.validation.Valid @RequestBody request: UpdateUserRoleRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+
+        val nextRole = parseUserRole(request.role) ?: return ResponseEntity.badRequest()
+            .body(AdminErrorResponse(error = "invalid role: ${request.role}"))
+
+        val actorId = currentActor(exchange)
+        val retainsDeveloperScope = nextRole == UserRole.ADMIN || nextRole == UserRole.ADMIN_DEVELOPER
+        if (actorId == id && !retainsDeveloperScope) {
+            return ResponseEntity.badRequest().body(
+                AdminErrorResponse(error = "cannot remove developer scope from current actor")
+            )
+        }
+
+        val user = userStore.findById(id) ?: return ResponseEntity.notFound().build()
+        val updated = userStore.update(user.copy(role = nextRole))
+        return ResponseEntity.ok(updated.toAdminUserResponse())
+    }
 
     @Operation(summary = "List all tenants")
     @ApiResponses(value = [
@@ -315,3 +374,32 @@ data class CreateTenantRequest(
     @field:jakarta.validation.constraints.Size(max = 20)
     val plan: String = "FREE"
 )
+
+data class UpdateUserRoleRequest(
+    @field:jakarta.validation.constraints.NotBlank
+    val role: String
+)
+
+data class AdminUserResponse(
+    val id: String,
+    val email: String,
+    val name: String,
+    val role: String,
+    val adminScope: String?,
+    val createdAt: String
+)
+
+private fun User.toAdminUserResponse(): AdminUserResponse = AdminUserResponse(
+    id = id,
+    email = email,
+    name = name,
+    role = role.name,
+    adminScope = role.adminScope()?.name,
+    createdAt = createdAt.toString()
+)
+
+private fun parseUserRole(rawRole: String): UserRole? = try {
+    UserRole.valueOf(rawRole.trim().uppercase())
+} catch (_: IllegalArgumentException) {
+    null
+}

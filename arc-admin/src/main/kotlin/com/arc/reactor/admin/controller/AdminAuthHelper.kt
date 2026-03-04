@@ -19,6 +19,10 @@ fun isAdmin(exchange: ServerWebExchange): Boolean {
     return AdminAuthorizationSupport.isAdmin(exchange)
 }
 
+fun currentActor(exchange: ServerWebExchange): String {
+    return AdminAuthorizationSupport.currentActor(exchange)
+}
+
 fun forbiddenResponse(): ResponseEntity<Any> =
     ResponseEntity.status(HttpStatus.FORBIDDEN)
         .body(AdminErrorResponse(error = "Admin access required"))

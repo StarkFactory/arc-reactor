@@ -52,7 +52,7 @@ class ApprovalController(
             userId != null -> pendingApprovalStore.listPendingByUser(userId)
             else -> return forbiddenResponse()
         }
-        return ResponseEntity.ok(pending)
+        return ResponseEntity.ok(pending.map { it.toAdminResponse() })
     }
 
     @Operation(summary = "Approve a pending tool call")
@@ -114,3 +114,23 @@ data class ApprovalActionResponse(
     val success: Boolean,
     val message: String
 )
+
+data class AdminApprovalSummaryResponse(
+    val id: String,
+    val runId: String,
+    val toolName: String,
+    val arguments: Map<String, Any?>,
+    val requestedAt: String,
+    val status: String
+)
+
+private fun com.arc.reactor.approval.ApprovalSummary.toAdminResponse(): AdminApprovalSummaryResponse {
+    return AdminApprovalSummaryResponse(
+        id = id,
+        runId = runId,
+        toolName = toolName,
+        arguments = arguments,
+        requestedAt = requestedAt.toString(),
+        status = status.name
+    )
+}

@@ -391,7 +391,7 @@ private fun OutputGuardRuleAuditLog.toResponse() = OutputGuardRuleAuditResponse(
     id = id,
     ruleId = ruleId,
     action = action.name,
-    actor = actor,
+    actor = ADMIN_ACTOR_LABEL,
     detail = detail,
     createdAt = createdAt.toEpochMilli()
 )
@@ -406,3 +406,5 @@ private fun validateRegex(pattern: String): String? {
         null
     }.getOrElse { it.message ?: "invalid regex" }
 }
+
+private const val ADMIN_ACTOR_LABEL = "admin"

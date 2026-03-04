@@ -171,8 +171,6 @@ class RagIngestionCandidateController(
 data class RagIngestionCandidateResponse(
     val id: String,
     val runId: String,
-    val userId: String,
-    val sessionId: String?,
     val channel: String?,
     val query: String,
     val response: String,
@@ -192,8 +190,6 @@ data class ReviewRagIngestionCandidateRequest(
 private fun RagIngestionCandidate.toResponse(): RagIngestionCandidateResponse = RagIngestionCandidateResponse(
     id = id,
     runId = runId,
-    userId = userId,
-    sessionId = sessionId,
     channel = channel,
     query = query,
     response = response,
