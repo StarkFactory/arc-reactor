@@ -29,7 +29,7 @@ data class TimeSeriesPoint(
 )
 
 data class UserUsageSummary(
-    val userId: String,
+    val userLabel: String,
     val requests: Long = 0,
     val tokens: Long = 0,
     val lastActivity: Instant? = null

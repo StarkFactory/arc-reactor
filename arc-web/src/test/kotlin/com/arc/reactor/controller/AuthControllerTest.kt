@@ -4,6 +4,7 @@ import com.arc.reactor.auth.DefaultAuthProvider
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.JwtTokenProvider
 import com.arc.reactor.auth.User
+import com.arc.reactor.auth.UserRole
 import com.arc.reactor.auth.UserStore
 import io.mockk.every
 import io.mockk.mockk
@@ -56,6 +57,7 @@ class AuthControllerTest {
             assertEquals("new@test.com", response.body!!.user!!.email) { "Email should match" }
             assertEquals("New User", response.body!!.user!!.name) { "Name should match" }
             assertEquals("USER", response.body!!.user!!.role) { "Registered user should always be USER" }
+            assertNull(response.body!!.user!!.adminScope) { "Registered non-admin user should not have adminScope" }
             assertNull(response.body!!.error) { "Error should be null on success" }
         }
 
@@ -173,6 +175,33 @@ class AuthControllerTest {
             assertEquals("user-1", response.body!!.id) { "User ID should match" }
             assertEquals("tony@stark.com", response.body!!.email) { "Email should match" }
             assertEquals("Tony Stark", response.body!!.name) { "Name should match" }
+            assertNull(response.body!!.adminScope) { "USER role should not have adminScope in response" }
+        }
+
+        @Test
+        fun `should return adminScope for manager admin`() {
+            val exchange = mockk<ServerWebExchange>()
+            val attributes = mutableMapOf<String, Any>(
+                JwtAuthWebFilter.USER_ID_ATTRIBUTE to "admin-manager-1"
+            )
+            every { exchange.attributes } returns attributes
+
+            val managerUser = User(
+                id = "admin-manager-1",
+                email = "manager@stark.com",
+                name = "Manager Admin",
+                passwordHash = "hashed",
+                role = UserRole.ADMIN_MANAGER
+            )
+            every { authProvider.getUserById("admin-manager-1") } returns managerUser
+
+            val response = controller.me(exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200 OK" }
+            assertEquals("ADMIN_MANAGER", response.body!!.role) { "Role should match ADMIN_MANAGER" }
+            assertEquals("MANAGER", response.body!!.adminScope) {
+                "Manager admin role should return MANAGER adminScope"
+            }
         }
 
         @Test

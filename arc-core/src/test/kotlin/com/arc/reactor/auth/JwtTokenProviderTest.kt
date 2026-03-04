@@ -83,6 +83,18 @@ class JwtTokenProviderTest {
         }
 
         @Test
+        fun `token should preserve ADMIN_MANAGER role claim`() {
+            val managerAdmin = testUser.copy(role = UserRole.ADMIN_MANAGER)
+            val token = tokenProvider.createToken(managerAdmin)
+
+            val role = tokenProvider.extractRole(token)
+
+            assertEquals(UserRole.ADMIN_MANAGER, role) {
+                "extractRole should return ADMIN_MANAGER for manager-scope admin user"
+            }
+        }
+
+        @Test
         fun `default user should have USER role in token`() {
             val token = tokenProvider.createToken(testUser)
 

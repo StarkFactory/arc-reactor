@@ -15,7 +15,9 @@ import com.arc.reactor.admin.pricing.ModelPricing
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.tenant.InMemoryTenantStore
 import com.arc.reactor.admin.tenant.TenantService
+import com.arc.reactor.auth.User
 import com.arc.reactor.auth.UserRole
+import com.arc.reactor.auth.UserStore
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -38,9 +40,10 @@ class PlatformAdminControllerTest {
     private val healthMonitor = PipelineHealthMonitor()
     private val alertStore = InMemoryAlertRuleStore()
     private val alertEvaluator = mockk<AlertEvaluator>(relaxed = true)
+    private val userStore = mockk<UserStore>()
 
     private val controller = PlatformAdminController(
-        tenantStore, tenantService, queryService, pricingStore, healthMonitor, alertStore, alertEvaluator
+        tenantStore, tenantService, queryService, pricingStore, healthMonitor, alertStore, alertEvaluator, userStore
     )
 
     private val testTenant = Tenant(
@@ -161,6 +164,16 @@ class PlatformAdminControllerTest {
             val response = controller.tenantAnalytics(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
+
+        @Test
+        fun `user role update returns 403 for ADMIN_MANAGER role`() {
+            val response = controller.updateUserRole(
+                "u-1",
+                UpdateUserRoleRequest(role = "ADMIN_DEVELOPER"),
+                exchangeWithRole(UserRole.ADMIN_MANAGER)
+            )
+            response.statusCode shouldBe HttpStatus.FORBIDDEN
+        }
     }
 
     @Nested
@@ -242,6 +255,105 @@ class PlatformAdminControllerTest {
             val response = controller.activateTenant("t1", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
+        }
+    }
+
+    @Nested
+    inner class UserRoleManagement {
+
+        @Test
+        fun `getUserByEmail returns 400 when email is blank`() {
+            val response = controller.getUserByEmail("   ", exchangeWithRole(UserRole.ADMIN))
+            response.statusCode shouldBe HttpStatus.BAD_REQUEST
+        }
+
+        @Test
+        fun `getUserByEmail returns 404 when user not found`() {
+            every { userStore.findByEmail("missing@test.com") } returns null
+
+            val response = controller.getUserByEmail("missing@test.com", exchangeWithRole(UserRole.ADMIN))
+            response.statusCode shouldBe HttpStatus.NOT_FOUND
+        }
+
+        @Test
+        fun `getUserByEmail returns user details when found`() {
+            val user = User(
+                id = "u-1",
+                email = "dev@test.com",
+                name = "Dev Admin",
+                passwordHash = "hashed",
+                role = UserRole.ADMIN_DEVELOPER
+            )
+            every { userStore.findByEmail("dev@test.com") } returns user
+
+            val response = controller.getUserByEmail("dev@test.com", exchangeWithRole(UserRole.ADMIN))
+
+            response.statusCode shouldBe HttpStatus.OK
+            val body = response.body.shouldBeInstanceOf<AdminUserResponse>()
+            body.role shouldBe "ADMIN_DEVELOPER"
+            body.adminScope shouldBe "DEVELOPER"
+        }
+
+        @Test
+        fun `updateUserRole returns 400 for invalid role`() {
+            val response = controller.updateUserRole(
+                "u-1",
+                UpdateUserRoleRequest(role = "INVALID_ROLE"),
+                exchangeWithRole(UserRole.ADMIN)
+            )
+            response.statusCode shouldBe HttpStatus.BAD_REQUEST
+        }
+
+        @Test
+        fun `updateUserRole returns 400 when current actor removes own developer scope`() {
+            val exchange = mockk<ServerWebExchange>()
+            every { exchange.attributes } returns mutableMapOf(
+                "userRole" to UserRole.ADMIN,
+                "userId" to "u-1"
+            )
+
+            val response = controller.updateUserRole(
+                "u-1",
+                UpdateUserRoleRequest(role = "ADMIN_MANAGER"),
+                exchange
+            )
+            response.statusCode shouldBe HttpStatus.BAD_REQUEST
+        }
+
+        @Test
+        fun `updateUserRole returns 404 when user missing`() {
+            every { userStore.findById("missing-id") } returns null
+
+            val response = controller.updateUserRole(
+                "missing-id",
+                UpdateUserRoleRequest(role = "ADMIN_MANAGER"),
+                exchangeWithRole(UserRole.ADMIN)
+            )
+            response.statusCode shouldBe HttpStatus.NOT_FOUND
+        }
+
+        @Test
+        fun `updateUserRole persists updated role`() {
+            val user = User(
+                id = "u-2",
+                email = "manager@test.com",
+                name = "Manager",
+                passwordHash = "hashed",
+                role = UserRole.USER
+            )
+            every { userStore.findById("u-2") } returns user
+            every { userStore.update(any()) } answers { firstArg() }
+
+            val response = controller.updateUserRole(
+                "u-2",
+                UpdateUserRoleRequest(role = "ADMIN_MANAGER"),
+                exchangeWithRole(UserRole.ADMIN_DEVELOPER)
+            )
+
+            response.statusCode shouldBe HttpStatus.OK
+            val body = response.body.shouldBeInstanceOf<AdminUserResponse>()
+            body.role shouldBe "ADMIN_MANAGER"
+            body.adminScope shouldBe "MANAGER"
         }
     }
 

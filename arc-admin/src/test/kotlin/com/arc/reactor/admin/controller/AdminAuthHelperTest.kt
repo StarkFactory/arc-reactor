@@ -32,6 +32,16 @@ class AdminAuthHelperTest {
         }
 
         @Test
+        fun `returns true when role is ADMIN_DEVELOPER`() {
+            isAdmin(exchangeWithRole(UserRole.ADMIN_DEVELOPER)) shouldBe true
+        }
+
+        @Test
+        fun `returns false when role is ADMIN_MANAGER`() {
+            isAdmin(exchangeWithRole(UserRole.ADMIN_MANAGER)) shouldBe false
+        }
+
+        @Test
         fun `returns false when role is USER`() {
             isAdmin(exchangeWithRole(UserRole.USER)) shouldBe false
         }
@@ -39,6 +49,28 @@ class AdminAuthHelperTest {
         @Test
         fun `returns false when role is null`() {
             isAdmin(exchangeWithRole(null)) shouldBe false
+        }
+    }
+
+    @Nested
+    inner class CurrentActor {
+
+        @Test
+        fun `returns user id when present`() {
+            val exchange = mockk<ServerWebExchange>()
+            every { exchange.attributes } returns mutableMapOf(
+                JwtAuthWebFilter.USER_ID_ATTRIBUTE to "admin-1"
+            )
+
+            currentActor(exchange) shouldBe "admin-1"
+        }
+
+        @Test
+        fun `returns anonymous when user id missing`() {
+            val exchange = mockk<ServerWebExchange>()
+            every { exchange.attributes } returns mutableMapOf()
+
+            currentActor(exchange) shouldBe "anonymous"
         }
     }
 

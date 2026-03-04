@@ -98,7 +98,7 @@ class DashboardServiceTest {
                 TimeSeriesPoint(now.minus(1, ChronoUnit.HOURS), 100.0)
             )
             every { queryService.getTopUsers(any(), any(), any()) } returns listOf(
-                UserUsageSummary("user1", 50)
+                UserUsageSummary("User-1", 50)
             )
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns
                 listOf("web" to 80L, "api" to 20L)

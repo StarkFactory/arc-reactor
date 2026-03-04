@@ -71,9 +71,9 @@ internal class StreamingExecutionCoordinator(
         val queueStart = System.nanoTime()
         concurrencySemaphore.withPermit {
             hookContext.metadata["queueWaitMs"] = (System.nanoTime() - queueStart) / 1_000_000
-            withTimeout(requestTimeoutMs) {
+            executeWithRequestTimeout {
                 val effectiveCommand = validateStreamingPreconditions(command, hookContext, state, emit)
-                    ?: return@withTimeout
+                    ?: return@executeWithRequestTimeout
                 state.streamStarted = true
                 val setup = prepareLoopSetup(effectiveCommand, hookContext)
                 val loopResult = runLoop(effectiveCommand, setup, hookContext, toolsUsed, emit)
@@ -81,6 +81,16 @@ internal class StreamingExecutionCoordinator(
                 state.collectedContent.append(loopResult.collectedContent)
                 state.lastIterationContent = StringBuilder(loopResult.lastIterationContent)
             }
+        }
+    }
+
+    private suspend fun executeWithRequestTimeout(block: suspend () -> Unit) {
+        if (requestTimeoutMs <= 0L) {
+            block()
+            return
+        }
+        withTimeout(requestTimeoutMs) {
+            block()
         }
     }
 

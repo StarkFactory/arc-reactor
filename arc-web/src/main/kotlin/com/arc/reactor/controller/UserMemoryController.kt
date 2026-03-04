@@ -17,7 +17,7 @@ import org.springframework.web.server.ServerWebExchange
  * User Memory API Controller
  *
  * Provides REST APIs for managing per-user long-term memory.
- * Each user can access their own memory. Admin users can access any user's memory.
+ * Each user can access only their own memory.
  *
  * ## Endpoints
  * - GET    /api/user-memory/{userId}              : Retrieve full memory record
@@ -113,12 +113,11 @@ class UserMemoryController(
 
     /**
      * Determines whether the caller is authorized to access the given userId's memory.
-     * Only the owner or an admin can access.
+     * Only the owner can access.
      */
     private fun canAccess(userId: String, exchange: ServerWebExchange): Boolean {
-        if (isAdmin(exchange)) return true
         val callerId = currentActor(exchange)
-        return callerId == userId
+        return callerId.isNotBlank() && callerId == userId
     }
 }
 
@@ -132,7 +131,6 @@ data class KeyValueRequest(
 )
 
 data class UserMemoryResponse(
-    val userId: String,
     val facts: Map<String, String>,
     val preferences: Map<String, String>,
     val recentTopics: List<String>,
@@ -140,7 +138,6 @@ data class UserMemoryResponse(
 )
 
 private fun UserMemory.toResponse() = UserMemoryResponse(
-    userId = userId,
     facts = facts,
     preferences = preferences,
     recentTopics = recentTopics,

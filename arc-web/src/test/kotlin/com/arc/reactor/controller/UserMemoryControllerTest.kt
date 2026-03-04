@@ -68,7 +68,6 @@ class UserMemoryControllerTest {
         val body = assertInstanceOf(UserMemoryResponse::class.java, response.body) {
             "Response body should be UserMemoryResponse"
         }
-        assertEquals("user-1", body.userId) { "userId should match" }
         assertEquals("platform", body.facts["team"]) { "facts should be mapped" }
         assertEquals("ko", body.preferences["lang"]) { "preferences should be mapped" }
         assertEquals(listOf("mcp", "rag"), body.recentTopics) { "recent topics should be mapped" }
@@ -109,15 +108,13 @@ class UserMemoryControllerTest {
     }
 
     @Test
-    fun `delete user memory should allow admin for any target`() = runTest {
-        coEvery { userMemoryManager.delete("target-user") } returns Unit
-
+    fun `delete user memory should reject admin for another user`() = runTest {
         val response = controller.deleteUserMemory("target-user", adminExchange("admin-1"))
 
-        assertEquals(HttpStatus.NO_CONTENT, response.statusCode) {
-            "Admin delete should return 204"
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+            "Admin should not access another user's memory"
         }
-        coVerify(exactly = 1) { userMemoryManager.delete("target-user") }
+        coVerify(exactly = 0) { userMemoryManager.delete(any()) }
     }
 
     private fun userExchange(userId: String): ServerWebExchange {

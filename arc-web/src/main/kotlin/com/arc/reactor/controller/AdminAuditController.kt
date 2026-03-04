@@ -40,7 +40,7 @@ class AdminAuditController(
                 id = it.id,
                 category = it.category,
                 action = it.action,
-                actor = it.actor,
+                actor = ADMIN_ACTOR_LABEL,
                 resourceType = it.resourceType,
                 resourceId = it.resourceId,
                 detail = it.detail,
@@ -50,6 +50,8 @@ class AdminAuditController(
         return ResponseEntity.ok(rows)
     }
 }
+
+private const val ADMIN_ACTOR_LABEL = "admin"
 
 data class AdminAuditResponse(
     val id: String,

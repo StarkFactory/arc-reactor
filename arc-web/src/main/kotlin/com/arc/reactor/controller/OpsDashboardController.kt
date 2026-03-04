@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
-@Tag(name = "Ops Dashboard", description = "Operational dashboard APIs (ADMIN)")
+@Tag(name = "Ops Dashboard", description = "Operational dashboard APIs (ADMIN/ADMIN_MANAGER/ADMIN_DEVELOPER)")
 @RestController
 @RequestMapping("/api/ops")
 class OpsDashboardController(
@@ -26,7 +26,7 @@ class OpsDashboardController(
     private val meterRegistryProvider: ObjectProvider<MeterRegistry>
 ) {
 
-    @Operation(summary = "Get operations dashboard snapshot (ADMIN)")
+    @Operation(summary = "Get operations dashboard snapshot (admin)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Operations dashboard snapshot"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -36,7 +36,7 @@ class OpsDashboardController(
         @RequestParam(required = false) names: List<String>?,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
 
         val metricNames = names?.filter { it.isNotBlank() }?.toSet()?.takeIf { it.isNotEmpty() } ?: DEFAULT_METRIC_NAMES
         val registry = meterRegistryProvider.ifAvailable
@@ -50,14 +50,14 @@ class OpsDashboardController(
         return ResponseEntity.ok(response)
     }
 
-    @Operation(summary = "List available ops metric names (ADMIN)")
+    @Operation(summary = "List available ops metric names (admin)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of available metric names"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping("/metrics/names")
     fun metricNames(exchange: ServerWebExchange): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val registry = meterRegistryProvider.ifAvailable
         val names = registry?.meters
             ?.asSequence()

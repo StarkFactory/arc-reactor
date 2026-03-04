@@ -106,20 +106,23 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
     }
 
     fun getTopUsers(tenantId: String, from: Instant, to: Instant, limit: Int = 10): List<UserUsageSummary> {
-        return jdbcTemplate.query(
+        val rows = jdbcTemplate.query(
             """SELECT user_id, COUNT(*) AS requests, MAX(time) AS last_activity
                FROM metric_agent_executions
                WHERE tenant_id = ? AND time >= ? AND time < ? AND user_id IS NOT NULL
                GROUP BY user_id ORDER BY requests DESC LIMIT ?""",
             { rs, _ ->
-                UserUsageSummary(
-                    userId = rs.getString("user_id"),
-                    requests = rs.getLong("requests"),
-                    lastActivity = rs.getTimestamp("last_activity").toInstant()
-                )
+                rs.getLong("requests") to rs.getTimestamp("last_activity")?.toInstant()
             },
             tenantId, Timestamp.from(from), Timestamp.from(to), limit
         )
+        return rows.mapIndexed { index, (requests, lastActivity) ->
+            UserUsageSummary(
+                userLabel = "User-${index + 1}",
+                requests = requests,
+                lastActivity = lastActivity
+            )
+        }
     }
 
     fun getToolRanking(tenantId: String, from: Instant, to: Instant): List<ToolUsageSummary> {
