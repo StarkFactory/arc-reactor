@@ -14,6 +14,29 @@ class SpringAiToolCallbackAdapterTest {
         fun call(args: String): String = "Result: $args"
     }
 
+    class DefinitionOnlyCallback {
+        fun getToolDefinition(): FakeDefinition = FakeDefinition()
+        fun call(args: String): String = "Definition: $args"
+    }
+
+    class FakeDefinition {
+        fun getName(): String = "definition-tool"
+        fun getDescription(): String = "Provided via ToolDefinition"
+        fun getInputSchema(): String = """{"type":"object","properties":{"query":{"type":"string"}}}"""
+    }
+
+    class SpringApiCallback : org.springframework.ai.tool.ToolCallback {
+        private val definition = org.springframework.ai.tool.definition.ToolDefinition.builder()
+            .name("spring-tool")
+            .description("Provided via Spring ToolDefinition")
+            .inputSchema("""{"type":"object","properties":{"id":{"type":"string"}}}""")
+            .build()
+
+        override fun getToolDefinition(): org.springframework.ai.tool.definition.ToolDefinition = definition
+
+        override fun call(toolInput: String): String = "Spring: $toolInput"
+    }
+
     // Object with no matching methods at all
     class EmptyObject
 
@@ -89,6 +112,36 @@ class SpringAiToolCallbackAdapterTest {
         assertTrue(json.contains("\"arc\""), "JSON should contain 'arc' value, got: $json")
         assertTrue(json.contains("\"count\""), "JSON should contain 'count' key, got: $json")
         assertTrue(json.contains("42"), "JSON should contain 42 value, got: $json")
+    }
+
+    @Test
+    fun `tool definition metadata is preferred when available`() {
+        val adapter = SpringAiToolCallbackAdapter(DefinitionOnlyCallback())
+
+        assertEquals("definition-tool", adapter.name) { "Name should come from ToolDefinition when getName is absent" }
+        assertEquals(
+            "Provided via ToolDefinition",
+            adapter.description
+        ) { "Description should come from ToolDefinition when getDescription is absent" }
+        assertEquals(
+            """{"type":"object","properties":{"query":{"type":"string"}}}""",
+            adapter.inputSchema
+        ) { "Input schema should come from ToolDefinition" }
+    }
+
+    @Test
+    fun `spring ai tool definition metadata with name methods is supported`() {
+        val adapter = SpringAiToolCallbackAdapter(SpringApiCallback())
+
+        assertEquals("spring-tool", adapter.name) { "Name should come from ToolDefinition.name()" }
+        assertEquals(
+            "Provided via Spring ToolDefinition",
+            adapter.description
+        ) { "Description should come from ToolDefinition.description()" }
+        assertEquals(
+            """{"type":"object","properties":{"id":{"type":"string"}}}""",
+            adapter.inputSchema
+        ) { "Input schema should come from ToolDefinition.inputSchema()" }
     }
 
     @Test
