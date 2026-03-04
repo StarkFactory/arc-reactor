@@ -34,7 +34,6 @@
 
 ### P2-5. 미사용 코드 (기능에 영향 없음)
 - `PassthroughQueryTransformer` - 사용자 유틸이므로 유지 가능
-- `DefaultClassificationStage`/`DefaultPermissionStage` - 확장 포인트 (pass-through)
 - `McpServer.autoConnect` 필드 - 미처리
 
 ### P2-6. 테스트 갭
