@@ -9,6 +9,8 @@ import com.arc.reactor.intent.model.IntentResult
 import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.model.ChatResponse
@@ -138,12 +140,14 @@ class LlmIntentClassifier(
         }
     }
 
-    private fun callLlm(prompt: String): String {
-        val response: ChatResponse? = chatClient
-            .prompt()
-            .user(prompt)
-            .call()
-            .chatResponse()
+    private suspend fun callLlm(prompt: String): String {
+        val response: ChatResponse? = runInterruptible(Dispatchers.IO) {
+            chatClient
+                .prompt()
+                .user(prompt)
+                .call()
+                .chatResponse()
+        }
 
         return response?.result?.output?.text.orEmpty()
     }

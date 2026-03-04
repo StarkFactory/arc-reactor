@@ -8,6 +8,7 @@ import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.tracing.ArcReactorTracer
 import com.arc.reactor.tracing.NoOpArcReactorTracer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
@@ -79,7 +80,9 @@ internal class ManualReActLoopExecutor(
                 mapOf("llm.call.index" to llmCallIndex.toString())
             )
             val chatResponse = try {
-                callWithRetry { runInterruptible { requestSpec.call().chatResponse() } }
+                callWithRetry {
+                    runInterruptible(Dispatchers.IO) { requestSpec.call().chatResponse() }
+                }
             } finally {
                 llmSpan.close()
             }

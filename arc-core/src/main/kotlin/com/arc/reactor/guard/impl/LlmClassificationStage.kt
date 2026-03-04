@@ -5,6 +5,7 @@ import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
 import com.arc.reactor.support.throwIfCancellation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
@@ -28,7 +29,7 @@ class LlmClassificationStage(
     override suspend fun check(command: GuardCommand): GuardResult {
         return try {
             val truncatedInput = command.text.take(500)
-            val response = runInterruptible {
+            val response = runInterruptible(Dispatchers.IO) {
                 chatClient.prompt()
                     .system(CLASSIFICATION_PROMPT)
                     .user(truncatedInput)

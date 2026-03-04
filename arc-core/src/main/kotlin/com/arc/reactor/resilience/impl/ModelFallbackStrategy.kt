@@ -7,6 +7,8 @@ import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.resilience.FallbackStrategy
 import com.arc.reactor.support.throwIfCancellation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -44,7 +46,7 @@ class ModelFallbackStrategy(
             try {
                 logger.info { "Attempting fallback to model: $model" }
                 val chatClient = chatModelProvider.getChatClient(model)
-                val response = kotlinx.coroutines.runInterruptible {
+                val response = runInterruptible(Dispatchers.IO) {
                     chatClient.prompt()
                         .system(command.systemPrompt)
                         .user(command.userPrompt)

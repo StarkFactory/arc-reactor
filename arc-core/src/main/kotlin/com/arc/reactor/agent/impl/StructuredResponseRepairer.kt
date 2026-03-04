@@ -7,6 +7,7 @@ import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.support.runSuspendCatchingNonCancellation
+import kotlinx.coroutines.Dispatchers
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
 
@@ -59,7 +60,7 @@ internal class StructuredResponseRepairer(
                 "Fix it and return ONLY valid $formatName with no explanation or code fences:\n\n$invalidContent"
 
             val activeChatClient = resolveChatClient(command)
-            val response = kotlinx.coroutines.runInterruptible {
+            val response = kotlinx.coroutines.runInterruptible(Dispatchers.IO) {
                 activeChatClient
                     .prompt()
                     .user(repairPrompt)

@@ -43,6 +43,7 @@ import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.prompt.ChatOptions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Semaphore
@@ -317,7 +318,7 @@ class SpringAiAgentExecutor(
                 $shortContent
             """.trimIndent()
             val activeChatClient = resolveChatClient(command)
-            val response = kotlinx.coroutines.runInterruptible {
+            val response = kotlinx.coroutines.runInterruptible(Dispatchers.IO) {
                 activeChatClient
                     .prompt()
                     .user(retryPrompt)
