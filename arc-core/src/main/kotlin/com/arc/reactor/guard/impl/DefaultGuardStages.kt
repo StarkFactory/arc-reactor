@@ -1,10 +1,8 @@
 package com.arc.reactor.guard.impl
 
 import com.arc.reactor.agent.config.TenantRateLimit
-import com.arc.reactor.guard.ClassificationStage
 import com.arc.reactor.guard.InjectionDetectionStage
 import com.arc.reactor.guard.InputValidationStage
-import com.arc.reactor.guard.PermissionStage
 import com.arc.reactor.guard.RateLimitStage
 import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
@@ -197,31 +195,5 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage {
             // Encoding bypass (rot13, deobfuscate)
             Regex("(?i)(rot13|deobfuscate).*this.*(text|message)")
         )
-    }
-}
-
-/**
- * Default Classification Implementation (pass-through)
- *
- * In production, use LLM-based or rule-based classification.
- */
-class DefaultClassificationStage : ClassificationStage {
-    override suspend fun check(command: GuardCommand): GuardResult {
-        // Default implementation allows all requests
-        // Override with LLM-based or rule-based classification in production
-        return GuardResult.Allowed.DEFAULT
-    }
-}
-
-/**
- * Default Permission Implementation (pass-through)
- *
- * In production, verify user permissions.
- */
-class DefaultPermissionStage : PermissionStage {
-    override suspend fun check(command: GuardCommand): GuardResult {
-        // Default implementation allows all users
-        // Override with permission system integration in production
-        return GuardResult.Allowed.DEFAULT
     }
 }
