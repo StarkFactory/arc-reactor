@@ -3,6 +3,7 @@
 버전별 릴리즈 노트와 업그레이드 요약입니다.
 
 - 태그(`v*`) 푸시 시 `.github/workflows/release.yml`로 GitHub Release가 자동 생성됩니다.
+- [v4.7.4](../../en/releases/v4.7.4.md) — 2026-03-04 — LLM/Tool 경로 이벤트루프 블로킹 해소 + ToolDefinition 메타데이터 어댑터 호환성 수정
 - [v4.7.3](../../en/releases/v4.7.3.md) — 2026-03-01 — JWT 인증 강제 + 테넌트 fail-close, Docker 이미지 소스 범위 수정, Flyway 불변성 CI 가드/런북 추가
 - [v4.7.2](../../en/releases/v4.7.2.md) — 2026-03-01 — Tool callback dedup, Slack 문서 정합성, RAG 예시 엔드포인트 수정
 - [v4.7.1](../../en/releases/v4.7.1.md) — 2026-03-01 — Slack 런타임 하드닝, error-report timeout 검증 강화
