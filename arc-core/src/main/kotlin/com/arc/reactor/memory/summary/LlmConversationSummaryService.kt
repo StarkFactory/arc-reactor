@@ -4,6 +4,7 @@ import com.arc.reactor.agent.model.Message
 import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
@@ -63,7 +64,7 @@ class LlmConversationSummaryService(
     }
 
     private suspend fun callLlm(userPrompt: String): String {
-        val response = runInterruptible {
+        val response = runInterruptible(Dispatchers.IO) {
             chatClient.prompt()
                 .system(SYSTEM_PROMPT.format(maxNarrativeTokens))
                 .user(userPrompt)
