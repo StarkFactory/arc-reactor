@@ -11,6 +11,7 @@ import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.support.throwIfCancellation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -272,7 +273,7 @@ internal class ToolCallOrchestrator(
             toolsUsed.add(toolName)
             return try {
                 val output = withTimeout(toolCallTimeoutMs) {
-                    runInterruptible {
+                    runInterruptible(Dispatchers.IO) {
                         springCallback.call(toolCall.arguments().orEmpty())
                     }
                 }

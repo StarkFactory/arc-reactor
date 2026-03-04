@@ -17,7 +17,7 @@ internal class BlockingToolCallbackInvoker(
         val timeoutMs = resolveTimeoutMs(toolCallback)
         return runBlocking(Dispatchers.IO) {
             withTimeout(timeoutMs) {
-                runInterruptible {
+                runInterruptible(Dispatchers.IO) {
                     runBlocking { toolCallback.call(arguments)?.toString().orEmpty() }
                 }
             }
