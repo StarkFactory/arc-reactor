@@ -61,7 +61,7 @@ class PlatformAdminController(
     ])
     @GetMapping("/health")
     fun health(exchange: ServerWebExchange): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val snapshot = healthMonitor.snapshot()
         val dashboard = PlatformHealthDashboard(
             pipelineBufferUsage = snapshot.bufferUsagePercent,
@@ -228,7 +228,7 @@ class PlatformAdminController(
     ])
     @GetMapping("/tenants/analytics")
     fun tenantAnalytics(exchange: ServerWebExchange): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenants = tenantStore.findAll()
         val summaries = tenants.map { tenant ->
             val usage = try {

@@ -52,7 +52,7 @@ class TenantAdminController(
     ])
     @GetMapping("/overview")
     fun overview(exchange: ServerWebExchange): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val overview = dashboardService.getOverview(tenantId)
             ?: return ResponseEntity.notFound().build()
@@ -70,7 +70,7 @@ class TenantAdminController(
         @RequestParam(required = false) toMs: Long?,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val (from, to) = resolveTimeRange(fromMs, toMs)
         return ResponseEntity.ok(dashboardService.getUsage(tenantId, from, to))
@@ -87,7 +87,7 @@ class TenantAdminController(
         @RequestParam(required = false) toMs: Long?,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val (from, to) = resolveTimeRange(fromMs, toMs)
         return ResponseEntity.ok(dashboardService.getQuality(tenantId, from, to))
@@ -104,7 +104,7 @@ class TenantAdminController(
         @RequestParam(required = false) toMs: Long?,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val (from, to) = resolveTimeRange(fromMs, toMs)
         return ResponseEntity.ok(dashboardService.getTools(tenantId, from, to))
@@ -121,7 +121,7 @@ class TenantAdminController(
         @RequestParam(required = false) toMs: Long?,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val (from, to) = resolveTimeRange(fromMs, toMs)
         return ResponseEntity.ok(dashboardService.getCost(tenantId, from, to))
@@ -135,7 +135,7 @@ class TenantAdminController(
     ])
     @GetMapping("/slo")
     fun slo(exchange: ServerWebExchange): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val tenant = tenantStore.findById(tenantId)
             ?: return ResponseEntity.notFound().build()
@@ -155,7 +155,7 @@ class TenantAdminController(
     ])
     @GetMapping("/alerts")
     fun alerts(exchange: ServerWebExchange): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         return ResponseEntity.ok(alertStore.findActiveAlerts(tenantId))
     }
@@ -168,7 +168,7 @@ class TenantAdminController(
     ])
     @GetMapping("/quota")
     fun quota(exchange: ServerWebExchange): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val tenant = tenantStore.findById(tenantId)
             ?: return ResponseEntity.notFound().build()

@@ -53,6 +53,25 @@ class AdminAuthHelperTest {
     }
 
     @Nested
+    inner class IsAnyAdmin {
+
+        @Test
+        fun `returns true when role is ADMIN_MANAGER`() {
+            isAnyAdmin(exchangeWithRole(UserRole.ADMIN_MANAGER)) shouldBe true
+        }
+
+        @Test
+        fun `returns true when role is ADMIN_DEVELOPER`() {
+            isAnyAdmin(exchangeWithRole(UserRole.ADMIN_DEVELOPER)) shouldBe true
+        }
+
+        @Test
+        fun `returns false when role is USER`() {
+            isAnyAdmin(exchangeWithRole(UserRole.USER)) shouldBe false
+        }
+    }
+
+    @Nested
     inner class CurrentActor {
 
         @Test

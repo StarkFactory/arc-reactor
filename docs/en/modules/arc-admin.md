@@ -73,6 +73,8 @@ All properties are under the prefix `arc.reactor.admin`.
 | `collection.flush-interval-ms` | `1000` | How often `MetricWriter` drains the buffer |
 | `collection.batch-size` | `1000` | Max events per DB write batch |
 | `collection.writer-threads` | `1` | Writer thread count (must stay at 1 — drain is single-consumer) |
+| `privacy.store-user-identifiers` | `false` | Store `userId` in admin metrics/traces |
+| `privacy.store-session-identifiers` | `false` | Store `sessionId` in admin metrics/traces |
 | `retention.raw-days` | `90` | Raw metric retention in TimescaleDB |
 | `retention.hourly-days` | `365` | Hourly aggregate retention |
 | `retention.daily-days` | `1825` | Daily aggregate retention (5 years) |
@@ -104,7 +106,7 @@ Incoming HTTP requests pass through `TenantWebFilter`, which calls `TenantResolv
 
 **Admin access control:**
 
-All admin endpoints use `AdminAuthHelper.isAdmin(exchange)` and `forbiddenResponse()` from the shared `AdminAuthHelper` file. Missing role fails closed as non-admin.
+Write endpoints use `AdminAuthHelper.isAdmin(exchange)` (developer admin scope), while dashboard/read-only endpoints can use `AdminAuthHelper.isAnyAdmin(exchange)` to include manager admins. Missing role fails closed as non-admin.
 
 ## Code Examples
 
