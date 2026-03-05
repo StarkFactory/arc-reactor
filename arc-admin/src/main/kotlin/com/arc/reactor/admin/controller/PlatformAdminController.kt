@@ -12,6 +12,7 @@ import com.arc.reactor.admin.pricing.ModelPricingStore
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.tenant.TenantService
 import com.arc.reactor.admin.tenant.TenantStore
+import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.auth.User
 import com.arc.reactor.auth.UserRole
 import com.arc.reactor.auth.UserStore
@@ -49,7 +50,8 @@ class PlatformAdminController(
     private val healthMonitor: PipelineHealthMonitor,
     private val alertStore: AlertRuleStore,
     private val alertEvaluator: AlertEvaluator,
-    private val userStore: UserStore
+    private val userStore: UserStore,
+    private val adminAuditStore: AdminAuditStore
 ) {
 
     // --- Platform Health ---
@@ -125,6 +127,15 @@ class PlatformAdminController(
 
         val user = userStore.findById(id) ?: return ResponseEntity.notFound().build()
         val updated = userStore.update(user.copy(role = nextRole))
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "platform_user",
+            action = "ROLE_UPDATE",
+            actor = currentActor(exchange),
+            resourceType = "user",
+            resourceId = id,
+            detail = "role:${user.role.name}->${nextRole.name}"
+        )
         return ResponseEntity.ok(updated.toAdminUserResponse())
     }
 
@@ -177,6 +188,15 @@ class PlatformAdminController(
                 )
             }
             val tenant = tenantService.create(request.name, request.slug, plan)
+            recordAdminAudit(
+                store = adminAuditStore,
+                category = "platform_tenant",
+                action = "CREATE",
+                actor = currentActor(exchange),
+                resourceType = "tenant",
+                resourceId = tenant.id,
+                detail = "slug=${tenant.slug};plan=${tenant.plan.name}"
+            )
             ResponseEntity.status(201).body(tenant)
         } catch (e: IllegalArgumentException) {
             ResponseEntity.badRequest().body(AdminErrorResponse(error = e.message ?: "Invalid request"))
@@ -196,7 +216,16 @@ class PlatformAdminController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         return try {
-            ResponseEntity.ok(tenantService.suspend(id))
+            val tenant = tenantService.suspend(id)
+            recordAdminAudit(
+                store = adminAuditStore,
+                category = "platform_tenant",
+                action = "SUSPEND",
+                actor = currentActor(exchange),
+                resourceType = "tenant",
+                resourceId = tenant.id
+            )
+            ResponseEntity.ok(tenant)
         } catch (e: IllegalArgumentException) {
             ResponseEntity.notFound().build()
         }
@@ -215,7 +244,16 @@ class PlatformAdminController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         return try {
-            ResponseEntity.ok(tenantService.activate(id))
+            val tenant = tenantService.activate(id)
+            recordAdminAudit(
+                store = adminAuditStore,
+                category = "platform_tenant",
+                action = "ACTIVATE",
+                actor = currentActor(exchange),
+                resourceType = "tenant",
+                resourceId = tenant.id
+            )
+            ResponseEntity.ok(tenant)
         } catch (e: IllegalArgumentException) {
             ResponseEntity.notFound().build()
         }
@@ -273,7 +311,16 @@ class PlatformAdminController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return ResponseEntity.ok(pricingStore.save(pricing))
+        val saved = pricingStore.save(pricing)
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "platform_pricing",
+            action = "UPSERT",
+            actor = currentActor(exchange),
+            resourceType = "model_pricing",
+            resourceId = "${saved.provider}:${saved.model}"
+        )
+        return ResponseEntity.ok(saved)
     }
 
     // --- Alert Management ---
@@ -300,7 +347,16 @@ class PlatformAdminController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return ResponseEntity.ok(alertStore.saveRule(rule))
+        val saved = alertStore.saveRule(rule)
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "platform_alert",
+            action = "RULE_UPSERT",
+            actor = currentActor(exchange),
+            resourceType = "alert_rule",
+            resourceId = saved.id
+        )
+        return ResponseEntity.ok(saved)
     }
 
     @Operation(summary = "Delete an alert rule")
@@ -316,6 +372,14 @@ class PlatformAdminController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         return if (alertStore.deleteRule(id)) {
+            recordAdminAudit(
+                store = adminAuditStore,
+                category = "platform_alert",
+                action = "RULE_DELETE",
+                actor = currentActor(exchange),
+                resourceType = "alert_rule",
+                resourceId = id
+            )
             ResponseEntity.noContent().build()
         } else {
             ResponseEntity.notFound().build()
@@ -345,6 +409,14 @@ class PlatformAdminController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         alertStore.resolveAlert(id)
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "platform_alert",
+            action = "ALERT_RESOLVE",
+            actor = currentActor(exchange),
+            resourceType = "alert",
+            resourceId = id
+        )
         return ResponseEntity.ok().build()
     }
 
@@ -357,6 +429,13 @@ class PlatformAdminController(
     fun evaluateAlerts(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         alertEvaluator.evaluateAll()
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "platform_alert",
+            action = "ALERT_EVALUATE",
+            actor = currentActor(exchange),
+            resourceType = "alert_rule_set"
+        )
         return ResponseEntity.ok(mapOf("status" to "evaluation complete"))
     }
 }

@@ -23,6 +23,8 @@ import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpHeaders
+import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.math.BigDecimal
@@ -53,6 +55,10 @@ class TenantAdminControllerTest {
 
     private fun exchangeWithRole(role: UserRole?): ServerWebExchange {
         val exchange = mockk<ServerWebExchange>()
+        val headers = mockk<HttpHeaders>()
+        every { headers.getFirst(TenantResolver.HEADER_NAME) } returns null
+        val request = mockk<ServerHttpRequest>()
+        every { request.headers } returns headers
         val attributes = mutableMapOf<String, Any>(
             TenantResolver.EXCHANGE_ATTR_KEY to "t1"
         )
@@ -60,11 +66,16 @@ class TenantAdminControllerTest {
             attributes["userRole"] = role
         }
         every { exchange.attributes } returns attributes
+        every { exchange.request } returns request
         return exchange
     }
 
     private fun exchangeWithTenant(tenantId: String, role: UserRole? = null): ServerWebExchange {
         val exchange = mockk<ServerWebExchange>()
+        val headers = mockk<HttpHeaders>()
+        every { headers.getFirst(TenantResolver.HEADER_NAME) } returns null
+        val request = mockk<ServerHttpRequest>()
+        every { request.headers } returns headers
         val attributes = mutableMapOf<String, Any>(
             TenantResolver.EXCHANGE_ATTR_KEY to tenantId
         )
@@ -72,6 +83,7 @@ class TenantAdminControllerTest {
             attributes["userRole"] = role
         }
         every { exchange.attributes } returns attributes
+        every { exchange.request } returns request
         return exchange
     }
 

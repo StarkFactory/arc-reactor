@@ -1,6 +1,9 @@
 package com.arc.reactor.admin.collection
 
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
+import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.auth.UserRole
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
@@ -95,8 +98,28 @@ class TenantResolverTest {
         }
 
         @Test
-        fun `header takes priority over attribute`() {
-            val exchange = mockExchange(headerTenantId = "from-header", attrTenantId = "from-attr")
+        fun `rejects request when header mismatches resolved tenant context`() {
+            val exchange = mockExchange(
+                headerTenantId = "from-header",
+                attrTenantId = "from-attr",
+                role = UserRole.USER
+            )
+            val chain = mockk<WebFilterChain>()
+
+            every { chain.filter(any()) } returns Mono.empty()
+
+            shouldThrow<org.springframework.web.server.ServerWebInputException> {
+                filter.filter(exchange, chain).block()
+            }
+        }
+
+        @Test
+        fun `allows admin tenant override when header mismatches resolved context`() {
+            val exchange = mockExchange(
+                headerTenantId = "from-header",
+                resolvedTenantId = "from-attr",
+                role = UserRole.ADMIN_MANAGER
+            )
             val chain = mockk<WebFilterChain>()
 
             var capturedTenantId: String? = null
@@ -108,6 +131,37 @@ class TenantResolverTest {
             filter.filter(exchange, chain).block()
 
             capturedTenantId shouldBe "from-header"
+        }
+
+        @Test
+        fun `accepts header when it matches resolved tenant context`() {
+            val exchange = mockExchange(
+                headerTenantId = "from-attr",
+                resolvedTenantId = "from-attr",
+                attrTenantId = "legacy-value"
+            )
+            val chain = mockk<WebFilterChain>()
+
+            var capturedTenantId: String? = null
+            every { chain.filter(any()) } answers {
+                capturedTenantId = resolver.currentTenantId()
+                Mono.empty()
+            }
+
+            filter.filter(exchange, chain).block()
+
+            capturedTenantId shouldBe "from-attr"
+        }
+
+        @Test
+        fun `rejects malformed tenant header`() {
+            val exchange = mockExchange(headerTenantId = "tenant-1;DROP TABLE users")
+            val chain = mockk<WebFilterChain>()
+            every { chain.filter(any()) } returns Mono.empty()
+
+            shouldThrow<org.springframework.web.server.ServerWebInputException> {
+                filter.filter(exchange, chain).block()
+            }
         }
 
         @Test
@@ -144,7 +198,9 @@ class TenantResolverTest {
 
         private fun mockExchange(
             headerTenantId: String? = null,
-            attrTenantId: String? = null
+            attrTenantId: String? = null,
+            resolvedTenantId: String? = null,
+            role: UserRole? = null
         ): ServerWebExchange {
             val headers = mockk<HttpHeaders>()
             every { headers.getFirst("X-Tenant-Id") } returns headerTenantId
@@ -154,7 +210,13 @@ class TenantResolverTest {
 
             val attributes = mutableMapOf<String, Any>()
             if (attrTenantId != null) {
-                attributes["tenantId"] = attrTenantId
+                attributes[TenantResolver.LEGACY_ATTR_KEY] = attrTenantId
+            }
+            if (resolvedTenantId != null) {
+                attributes[TenantResolver.EXCHANGE_ATTR_KEY] = resolvedTenantId
+            }
+            if (role != null) {
+                attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] = role
             }
 
             val exchange = mockk<ServerWebExchange>()

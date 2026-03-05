@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.auth.AuthProvider
+import com.arc.reactor.auth.AuthProperties
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -40,7 +41,8 @@ import java.util.UUID
 class AuthController(
     private val authProvider: AuthProvider,
     private val userStore: UserStore,
-    private val jwtTokenProvider: JwtTokenProvider
+    private val jwtTokenProvider: JwtTokenProvider,
+    private val authProperties: AuthProperties
 ) {
 
     /**
@@ -50,10 +52,20 @@ class AuthController(
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "User registered, JWT returned"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Self-registration disabled"),
         ApiResponse(responseCode = "409", description = "Email already registered")
     ])
     @PostMapping("/register")
     fun register(@Valid @RequestBody request: RegisterRequest): ResponseEntity<AuthResponse> {
+        if (!authProperties.selfRegistrationEnabled) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                AuthResponse(
+                    token = "",
+                    user = null,
+                    error = "Self-registration is disabled. Contact an administrator."
+                )
+            )
+        }
         if (userStore.existsByEmail(request.email)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(AuthResponse(token = "", user = null, error = "Email already registered"))

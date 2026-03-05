@@ -15,6 +15,7 @@ import com.arc.reactor.admin.pricing.ModelPricing
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.tenant.InMemoryTenantStore
 import com.arc.reactor.admin.tenant.TenantService
+import com.arc.reactor.audit.InMemoryAdminAuditStore
 import com.arc.reactor.auth.User
 import com.arc.reactor.auth.UserRole
 import com.arc.reactor.auth.UserStore
@@ -41,9 +42,18 @@ class PlatformAdminControllerTest {
     private val alertStore = InMemoryAlertRuleStore()
     private val alertEvaluator = mockk<AlertEvaluator>(relaxed = true)
     private val userStore = mockk<UserStore>()
+    private val adminAuditStore = InMemoryAdminAuditStore()
 
     private val controller = PlatformAdminController(
-        tenantStore, tenantService, queryService, pricingStore, healthMonitor, alertStore, alertEvaluator, userStore
+        tenantStore,
+        tenantService,
+        queryService,
+        pricingStore,
+        healthMonitor,
+        alertStore,
+        alertEvaluator,
+        userStore,
+        adminAuditStore
     )
 
     private val testTenant = Tenant(
@@ -366,6 +376,12 @@ class PlatformAdminControllerTest {
             val body = response.body.shouldBeInstanceOf<AdminUserResponse>()
             body.role shouldBe "ADMIN_MANAGER"
             body.adminScope shouldBe "MANAGER"
+
+            val audit = adminAuditStore.list(limit = 1).first()
+            audit.category shouldBe "platform_user"
+            audit.action shouldBe "ROLE_UPDATE"
+            audit.resourceType shouldBe "user"
+            audit.resourceId shouldBe "u-2"
         }
     }
 
@@ -391,6 +407,12 @@ class PlatformAdminControllerTest {
 
             response.statusCode shouldBe HttpStatus.OK
             pricingStore.findAll() shouldHaveSize 1
+
+            val audit = adminAuditStore.list(limit = 1).first()
+            audit.category shouldBe "platform_pricing"
+            audit.action shouldBe "UPSERT"
+            audit.resourceType shouldBe "model_pricing"
+            audit.resourceId shouldBe "anthropic:claude-3"
         }
     }
 
@@ -459,6 +481,10 @@ class PlatformAdminControllerTest {
 
             response.statusCode shouldBe HttpStatus.OK
             verify { alertEvaluator.evaluateAll() }
+
+            val audit = adminAuditStore.list(limit = 1).first()
+            audit.category shouldBe "platform_alert"
+            audit.action shouldBe "ALERT_EVALUATE"
         }
     }
 

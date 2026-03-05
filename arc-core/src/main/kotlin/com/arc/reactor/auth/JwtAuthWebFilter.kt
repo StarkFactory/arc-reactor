@@ -22,7 +22,8 @@ private val logger = KotlinLogging.logger {}
  */
 class JwtAuthWebFilter(
     private val jwtTokenProvider: JwtTokenProvider,
-    private val authProperties: AuthProperties
+    private val authProperties: AuthProperties,
+    private val authProvider: AuthProvider? = null
 ) : WebFilter, Ordered {
 
     private val tenantPattern = Regex("^[a-zA-Z0-9_-]{1,64}$")
@@ -51,11 +52,21 @@ class JwtAuthWebFilter(
 
         // Store userId and role in exchange attributes for downstream controllers
         exchange.attributes[USER_ID_ATTRIBUTE] = userId
-        val role = jwtTokenProvider.extractRole(token) ?: UserRole.USER
+        val role = resolveUserRole(userId, token) ?: return unauthorized(exchange)
         exchange.attributes[USER_ROLE_ATTRIBUTE] = role
         val tenantId = resolveTenantId(token)
         exchange.attributes[RESOLVED_TENANT_ID_ATTRIBUTE] = tenantId
         return chain.filter(exchange)
+    }
+
+    private fun resolveUserRole(userId: String, token: String): UserRole? {
+        val tokenRole = jwtTokenProvider.extractRole(token) ?: UserRole.USER
+        val resolvedUser = authProvider?.getUserById(userId)
+        if (authProvider != null && resolvedUser == null) {
+            logger.warn { "Rejecting token for missing userId=$userId" }
+            return null
+        }
+        return resolvedUser?.role ?: tokenRole
     }
 
     private fun resolveTenantId(token: String): String {

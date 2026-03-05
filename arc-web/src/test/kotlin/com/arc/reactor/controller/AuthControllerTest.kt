@@ -1,5 +1,6 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.auth.DefaultAuthProvider
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.JwtTokenProvider
@@ -21,6 +22,7 @@ class AuthControllerTest {
     private lateinit var authProvider: DefaultAuthProvider
     private lateinit var userStore: UserStore
     private lateinit var jwtTokenProvider: JwtTokenProvider
+    private lateinit var authProperties: AuthProperties
     private lateinit var controller: AuthController
 
     @BeforeEach
@@ -28,7 +30,8 @@ class AuthControllerTest {
         authProvider = mockk()
         userStore = mockk()
         jwtTokenProvider = mockk()
-        controller = AuthController(authProvider, userStore, jwtTokenProvider)
+        authProperties = AuthProperties(selfRegistrationEnabled = true)
+        controller = AuthController(authProvider, userStore, jwtTokenProvider, authProperties)
     }
 
     @Nested
@@ -97,6 +100,29 @@ class AuthControllerTest {
 
             assertEquals("fresh-token", response.body!!.token) { "Token should be returned in response" }
             verify(exactly = 1) { jwtTokenProvider.createToken(any()) }
+        }
+
+        @Test
+        fun `should return 403 when self-registration is disabled`() {
+            val disabledController = AuthController(
+                authProvider = authProvider,
+                userStore = userStore,
+                jwtTokenProvider = jwtTokenProvider,
+                authProperties = AuthProperties(selfRegistrationEnabled = false)
+            )
+            val request = RegisterRequest(
+                email = "blocked@test.com",
+                password = "password123",
+                name = "Blocked User"
+            )
+            val response = disabledController.register(request)
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "Disabled self-registration should return 403 FORBIDDEN"
+            }
+            assertTrue(response.body?.error?.contains("disabled", ignoreCase = true) == true) {
+                "Error message should explain that self-registration is disabled"
+            }
         }
     }
 
