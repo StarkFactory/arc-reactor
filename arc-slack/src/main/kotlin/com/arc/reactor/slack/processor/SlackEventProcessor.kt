@@ -6,6 +6,7 @@ import com.arc.reactor.slack.controller.SlackEventDeduplicator
 import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackEventCommand
+import com.arc.reactor.slack.proactive.ProactiveChannelStore
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.databind.JsonNode
@@ -23,7 +24,8 @@ class SlackEventProcessor(
     private val messagingService: SlackMessagingService,
     private val metricsRecorder: SlackMetricsRecorder,
     properties: SlackProperties,
-    private val threadTracker: SlackThreadTracker? = null
+    private val threadTracker: SlackThreadTracker? = null,
+    private val proactiveChannelStore: ProactiveChannelStore? = null
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val backpressureLimiter = SlackBackpressureLimiter(
@@ -34,7 +36,6 @@ class SlackEventProcessor(
     private val notifyOnDrop = properties.notifyOnDrop
     private val processDirectMessagesWithoutThread = properties.processDirectMessagesWithoutThread
     private val proactiveEnabled = properties.proactiveEnabled
-    private val proactiveChannelIds = properties.proactiveChannelIds.toSet()
     private val proactiveSemaphore = Semaphore(properties.proactiveMaxConcurrent.coerceAtLeast(1))
     private val deduplicator = SlackEventDeduplicator(
         enabled = properties.eventDedupEnabled,
@@ -192,7 +193,7 @@ class SlackEventProcessor(
 
     private fun isProactiveCandidate(command: SlackEventCommand): Boolean {
         if (!proactiveEnabled) return false
-        if (command.channelId !in proactiveChannelIds) return false
+        if (proactiveChannelStore == null || !proactiveChannelStore.isEnabled(command.channelId)) return false
         if (command.isDirectMessageChannel()) return false
         return true
     }

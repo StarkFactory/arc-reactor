@@ -12,6 +12,8 @@ import com.arc.reactor.slack.gateway.SlackSocketModeGateway
 import com.arc.reactor.slack.metrics.MicrometerSlackMetricsRecorder
 import com.arc.reactor.slack.metrics.NoOpSlackMetricsRecorder
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
+import com.arc.reactor.slack.proactive.InMemoryProactiveChannelStore
+import com.arc.reactor.slack.proactive.ProactiveChannelStore
 import com.arc.reactor.slack.processor.SlackCommandProcessor
 import com.arc.reactor.slack.processor.SlackEventProcessor
 import com.arc.reactor.slack.security.SlackSignatureVerifier
@@ -84,6 +86,14 @@ class SlackAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun slackReminderStore(): SlackReminderStore = SlackReminderStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun proactiveChannelStore(properties: SlackProperties): ProactiveChannelStore {
+        val store = InMemoryProactiveChannelStore()
+        store.seedFromConfig(properties.proactiveChannelIds)
+        return store
+    }
 
     @Bean("slackSignatureWebFilter")
     @ConditionalOnMissingBean(name = ["slackSignatureWebFilter"])
@@ -180,13 +190,15 @@ class SlackAutoConfiguration {
         messagingService: SlackMessagingService,
         metricsRecorder: SlackMetricsRecorder,
         properties: SlackProperties,
-        threadTracker: ObjectProvider<SlackThreadTracker>
+        threadTracker: ObjectProvider<SlackThreadTracker>,
+        proactiveChannelStore: ObjectProvider<ProactiveChannelStore>
     ): SlackEventProcessor = SlackEventProcessor(
         eventHandler = eventHandler,
         messagingService = messagingService,
         metricsRecorder = metricsRecorder,
         properties = properties,
-        threadTracker = threadTracker.ifAvailable
+        threadTracker = threadTracker.ifAvailable,
+        proactiveChannelStore = proactiveChannelStore.ifAvailable
     )
 
     @Bean
