@@ -48,6 +48,8 @@ application-local.properties
 # Test outputs
 test-results/
 test-output/
+artifacts/
+.cache/
 
 # Secrets (never commit)
 **/secrets/
