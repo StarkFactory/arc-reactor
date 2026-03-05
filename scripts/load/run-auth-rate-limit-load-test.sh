@@ -12,6 +12,13 @@ VUS="${VUS:-10}"
 DURATION="${DURATION:-1m}"
 SLEEP_SECONDS="${SLEEP_SECONDS:-0.1}"
 FORWARDED_FOR="${FORWARDED_FOR:-198.51.100.77}"
+SUMMARY_EXPORT="${SUMMARY_EXPORT:-}"
+
+k6_args=()
+if [[ -n "$SUMMARY_EXPORT" ]]; then
+  mkdir -p "$(dirname "$SUMMARY_EXPORT")"
+  k6_args+=(--summary-export "$SUMMARY_EXPORT")
+fi
 
 cat <<INFO
 Running auth rate-limit load test
@@ -20,6 +27,7 @@ Running auth rate-limit load test
   VUS=$VUS
   DURATION=$DURATION
   FORWARDED_FOR=$FORWARDED_FOR
+  SUMMARY_EXPORT=${SUMMARY_EXPORT:-<none>}
 INFO
 
 BASE_URL="$BASE_URL" \
@@ -28,4 +36,4 @@ VUS="$VUS" \
 DURATION="$DURATION" \
 SLEEP_SECONDS="$SLEEP_SECONDS" \
 FORWARDED_FOR="$FORWARDED_FOR" \
-k6 run scripts/load/auth-rate-limit-load.js
+k6 run "${k6_args[@]}" scripts/load/auth-rate-limit-load.js

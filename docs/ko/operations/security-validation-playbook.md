@@ -24,6 +24,7 @@
 
 ```bash
 BASE_URL=http://localhost:8080 VUS=10 DURATION=1m \
+  SUMMARY_EXPORT=artifacts/k6/auth-rate-limit-summary.json \
   ./scripts/load/run-auth-rate-limit-load-test.sh
 ```
 
@@ -37,6 +38,7 @@ BASE_URL=http://localhost:8080 VUS=10 DURATION=1m \
 
 ```bash
 BASE_URL=http://localhost:8080 AUTH_TOKEN="$USER_TOKEN" MODE=mixed VUS=5 DURATION=1m \
+  SUMMARY_EXPORT=artifacts/k6/chat-guard-summary.json \
   ./scripts/load/run-chat-guard-load-test.sh
 ```
 
@@ -46,7 +48,21 @@ BASE_URL=http://localhost:8080 AUTH_TOKEN="$USER_TOKEN" MODE=mixed VUS=5 DURATIO
 - `chat_guard_unexpected_status_ratio < 1%`
 - `http_req_duration p95 < 2000ms`
 
-## 4) 보안 베이스라인 스캔 (소스/FS)
+## 4) Stream 보안 계약 부하 검증 (Chat/stream fail-close)
+
+```bash
+BASE_URL=http://localhost:8080 AUTH_TOKEN="$USER_TOKEN" MODE=mixed VUS=5 DURATION=1m \
+  SUMMARY_EXPORT=artifacts/k6/chat-stream-security-summary.json \
+  ./scripts/load/run-chat-stream-security-load-test.sh
+```
+
+권장 통과 기준:
+
+- `chat_stream_contract_failure_ratio < 1%`
+- `chat_stream_unexpected_status_ratio < 1%`
+- `http_req_duration p95 < 2000ms`
+
+## 5) 보안 베이스라인 스캔 (소스/FS)
 
 ```bash
 ./scripts/dev/run-security-baseline-local.sh
@@ -58,7 +74,21 @@ BASE_URL=http://localhost:8080 AUTH_TOKEN="$USER_TOKEN" MODE=mixed VUS=5 DURATIO
 - `artifacts/security-baseline/<timestamp>/trivy-fs.json`
 - `artifacts/security-baseline/<timestamp>/summary.md`
 
-## 5) 결과 보고 포맷 (CTO 제출)
+## 6) CTO 1페이지 요약 자동 생성
+
+```bash
+./scripts/dev/generate-cto-security-onepager.sh \
+  --baseline-summary artifacts/security-baseline/latest-fast/summary.md \
+  --auth-k6 artifacts/k6/auth-rate-limit-summary.json \
+  --chat-guard-k6 artifacts/k6/chat-guard-summary.json \
+  --chat-stream-k6 artifacts/k6/chat-stream-security-summary.json
+```
+
+산출물:
+
+- `artifacts/cto/cto-security-onepager-<timestamp>.md`
+
+## 7) 결과 보고 포맷 (CTO 제출)
 
 - 실행 시각/환경(브랜치, 커밋 SHA, DB/Redis/LLM 사용 여부)
 - 실패 항목(있다면 재현 명령 + 로그 스니펫)
