@@ -4,24 +4,31 @@ import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.auth.DefaultAuthProvider
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.JwtTokenProvider
+import com.arc.reactor.auth.TokenRevocationStore
 import com.arc.reactor.auth.User
 import com.arc.reactor.auth.UserRole
 import com.arc.reactor.auth.UserStore
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.just
+import io.mockk.Runs
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.web.server.ServerWebExchange
+import java.time.Instant
 
 class AuthControllerTest {
 
     private lateinit var authProvider: DefaultAuthProvider
     private lateinit var userStore: UserStore
     private lateinit var jwtTokenProvider: JwtTokenProvider
+    private lateinit var tokenRevocationStore: TokenRevocationStore
     private lateinit var authProperties: AuthProperties
     private lateinit var controller: AuthController
 
@@ -30,8 +37,9 @@ class AuthControllerTest {
         authProvider = mockk()
         userStore = mockk()
         jwtTokenProvider = mockk()
+        tokenRevocationStore = mockk(relaxed = true)
         authProperties = AuthProperties(selfRegistrationEnabled = true)
-        controller = AuthController(authProvider, userStore, jwtTokenProvider, authProperties)
+        controller = AuthController(authProvider, userStore, jwtTokenProvider, authProperties, tokenRevocationStore)
     }
 
     @Nested
@@ -108,7 +116,8 @@ class AuthControllerTest {
                 authProvider = authProvider,
                 userStore = userStore,
                 jwtTokenProvider = jwtTokenProvider,
-                authProperties = AuthProperties(selfRegistrationEnabled = false)
+                authProperties = AuthProperties(selfRegistrationEnabled = false),
+                tokenRevocationStore = tokenRevocationStore
             )
             val request = RegisterRequest(
                 email = "blocked@test.com",
@@ -242,6 +251,44 @@ class AuthControllerTest {
                 "Missing userId should return 401 UNAUTHORIZED"
             }
             assertNull(response.body) { "Response body should be null for 401" }
+        }
+    }
+
+    @Nested
+    inner class Logout {
+
+        @Test
+        fun `should revoke token and return 200 when bearer token is provided`() {
+            val exchange = mockk<ServerWebExchange>()
+            val request = mockk<ServerHttpRequest>()
+            val headers = HttpHeaders().apply {
+                set(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+            }
+            every { exchange.request } returns request
+            every { request.headers } returns headers
+            every { jwtTokenProvider.extractTokenId("valid-token") } returns "jti-123"
+            val expiresAt = Instant.now().plusSeconds(3600)
+            every { jwtTokenProvider.extractExpiration("valid-token") } returns expiresAt
+            every { tokenRevocationStore.revoke("jti-123", expiresAt) } just Runs
+
+            val response = controller.logout(exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Logout should return 200 OK" }
+            verify(exactly = 1) { tokenRevocationStore.revoke("jti-123", expiresAt) }
+        }
+
+        @Test
+        fun `should return 401 when authorization header is missing`() {
+            val exchange = mockk<ServerWebExchange>()
+            val request = mockk<ServerHttpRequest>()
+            every { exchange.request } returns request
+            every { request.headers } returns HttpHeaders()
+
+            val response = controller.logout(exchange)
+
+            assertEquals(HttpStatus.UNAUTHORIZED, response.statusCode) {
+                "Missing Authorization header should return 401 UNAUTHORIZED"
+            }
         }
     }
 }

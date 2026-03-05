@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.auth.DefaultAuthProvider
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.JwtTokenProvider
+import com.arc.reactor.auth.TokenRevocationStore
 import com.arc.reactor.auth.User
 import com.arc.reactor.auth.UserStore
 import jakarta.validation.Valid
@@ -16,6 +17,7 @@ import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
@@ -42,7 +44,8 @@ class AuthController(
     private val authProvider: AuthProvider,
     private val userStore: UserStore,
     private val jwtTokenProvider: JwtTokenProvider,
-    private val authProperties: AuthProperties
+    private val authProperties: AuthProperties,
+    private val tokenRevocationStore: TokenRevocationStore
 ) {
 
     /**
@@ -177,6 +180,27 @@ class AuthController(
         userStore.update(updatedUser)
 
         return ResponseEntity.ok(mapOf("message" to "Password changed successfully"))
+    }
+
+    @Operation(summary = "Logout current session by revoking current JWT")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Logout succeeded"),
+        ApiResponse(responseCode = "401", description = "Missing or invalid JWT")
+    ])
+    @PostMapping("/logout")
+    fun logout(exchange: ServerWebExchange): ResponseEntity<Any> {
+        val authHeader = exchange.request.headers.getFirst(HttpHeaders.AUTHORIZATION)
+            ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        if (!authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        }
+        val token = authHeader.substring(7)
+        val tokenId = jwtTokenProvider.extractTokenId(token)
+        val expiresAt = jwtTokenProvider.extractExpiration(token)
+        if (tokenId != null && expiresAt != null) {
+            tokenRevocationStore.revoke(tokenId, expiresAt)
+        }
+        return ResponseEntity.ok(mapOf("message" to "Logged out"))
     }
 }
 

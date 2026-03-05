@@ -23,7 +23,8 @@ private val logger = KotlinLogging.logger {}
 class JwtAuthWebFilter(
     private val jwtTokenProvider: JwtTokenProvider,
     private val authProperties: AuthProperties,
-    private val authProvider: AuthProvider? = null
+    private val authProvider: AuthProvider? = null,
+    private val tokenRevocationStore: TokenRevocationStore? = null
 ) : WebFilter, Ordered {
 
     private val tenantPattern = Regex("^[a-zA-Z0-9_-]{1,64}$")
@@ -49,6 +50,9 @@ class JwtAuthWebFilter(
         if (userId == null) {
             return unauthorized(exchange)
         }
+        if (isRevoked(token)) {
+            return unauthorized(exchange)
+        }
 
         // Store userId and role in exchange attributes for downstream controllers
         exchange.attributes[USER_ID_ATTRIBUTE] = userId
@@ -67,6 +71,15 @@ class JwtAuthWebFilter(
             return null
         }
         return resolvedUser?.role ?: tokenRole
+    }
+
+    private fun isRevoked(token: String): Boolean {
+        val tokenId = jwtTokenProvider.extractTokenId(token) ?: return false
+        val revoked = tokenRevocationStore?.isRevoked(tokenId) == true
+        if (revoked) {
+            logger.warn { "Rejected revoked token jti=$tokenId" }
+        }
+        return revoked
     }
 
     private fun resolveTenantId(token: String): String {

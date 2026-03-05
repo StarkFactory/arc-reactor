@@ -9,6 +9,7 @@ import com.arc.reactor.auth.InMemoryUserStore
 import com.arc.reactor.auth.JdbcUserStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.JwtTokenProvider
+import com.arc.reactor.auth.TokenRevocationStore
 import com.arc.reactor.auth.UserStore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
@@ -115,8 +116,14 @@ class AuthConfiguration {
     fun jwtAuthWebFilter(
         jwtTokenProvider: JwtTokenProvider,
         authProperties: AuthProperties,
-        authProvider: AuthProvider
-    ): WebFilter = JwtAuthWebFilter(jwtTokenProvider, authProperties, authProvider)
+        authProvider: AuthProvider,
+        tokenRevocationStore: TokenRevocationStore
+    ): WebFilter = JwtAuthWebFilter(
+        jwtTokenProvider = jwtTokenProvider,
+        authProperties = authProperties,
+        authProvider = authProvider,
+        tokenRevocationStore = tokenRevocationStore
+    )
 
     @Bean
     @ConditionalOnMissingBean
