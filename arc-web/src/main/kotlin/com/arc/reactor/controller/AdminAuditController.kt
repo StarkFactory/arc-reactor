@@ -40,7 +40,7 @@ class AdminAuditController(
                 id = it.id,
                 category = it.category,
                 action = it.action,
-                actor = ADMIN_ACTOR_LABEL,
+                actor = toAdminAccountRef(it.actor),
                 resourceType = it.resourceType,
                 resourceId = it.resourceId,
                 detail = it.detail,
@@ -51,7 +51,10 @@ class AdminAuditController(
     }
 }
 
-private const val ADMIN_ACTOR_LABEL = "admin"
+private fun toAdminAccountRef(actor: String?): String {
+    val accountId = actor?.trim()?.takeIf { it.isNotBlank() } ?: "unknown"
+    return "admin-account:$accountId"
+}
 
 data class AdminAuditResponse(
     val id: String,

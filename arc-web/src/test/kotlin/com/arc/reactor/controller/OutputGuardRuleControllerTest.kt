@@ -141,7 +141,7 @@ class OutputGuardRuleControllerTest {
         }
 
         @Test
-        fun `redacts actor identifiers in audit responses`() {
+        fun `returns admin account reference in audit responses`() {
             every { auditStore.list(any()) } returns listOf(
                 OutputGuardRuleAuditLog(
                     action = OutputGuardRuleAuditAction.UPDATE,
@@ -157,7 +157,11 @@ class OutputGuardRuleControllerTest {
             @Suppress("UNCHECKED_CAST")
             val body = response.body as List<OutputGuardRuleAuditResponse>
             assertEquals(1, body.size, "Expected one output guard audit row")
-            assertEquals("admin", body.first().actor, "Output guard audit actor should be anonymized")
+            assertEquals(
+                "admin-account:80b18ee9-d20d-4359-bc5a-a40c4754f958",
+                body.first().actor,
+                "Output guard audit actor should expose account identifier only"
+            )
         }
     }
 

@@ -54,7 +54,7 @@ class AdminAuditControllerTest {
     }
 
     @Test
-    fun `list redacts actor identifiers`() {
+    fun `list exposes admin account reference without profile fields`() {
         val store = InMemoryAdminAuditStore()
         store.save(
             AdminAuditLog(
@@ -71,10 +71,14 @@ class AdminAuditControllerTest {
         @Suppress("UNCHECKED_CAST")
         val rows = response.body as List<AdminAuditResponse>
         assertEquals(1, rows.size, "Expected exactly one audit row")
-        assertEquals("admin", rows.first().actor, "Actor should be anonymized in API responses")
+        assertEquals(
+            "admin-account:80b18ee9-d20d-4359-bc5a-a40c4754f958",
+            rows.first().actor,
+            "Actor should expose only admin account identifier"
+        )
         assertTrue(
-            !rows.first().actor.contains("80b18ee9"),
-            "Raw actor identifiers must not leak in API responses"
+            !rows.first().actor.contains("Tony"),
+            "Actor should not expose profile/name fields"
         )
     }
 }
