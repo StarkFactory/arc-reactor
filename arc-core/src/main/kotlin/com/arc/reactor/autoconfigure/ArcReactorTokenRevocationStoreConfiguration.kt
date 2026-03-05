@@ -3,16 +3,15 @@ package com.arc.reactor.autoconfigure
 import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.auth.InMemoryTokenRevocationStore
 import com.arc.reactor.auth.JdbcTokenRevocationStore
-import com.arc.reactor.auth.RedisTokenRevocationStore
 import com.arc.reactor.auth.TokenRevocationStore
 import com.arc.reactor.auth.TokenRevocationStoreType
 import mu.KotlinLogging
+import org.springframework.beans.factory.ListableBeanFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
-import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.jdbc.core.JdbcTemplate
 
 private val logger = KotlinLogging.logger {}
@@ -34,7 +33,7 @@ class ArcReactorTokenRevocationStoreConfiguration {
     fun tokenRevocationStore(
         authProperties: AuthProperties,
         jdbcTemplate: ObjectProvider<JdbcTemplate>,
-        redisTemplate: ObjectProvider<StringRedisTemplate>,
+        beanFactory: ListableBeanFactory,
         environment: Environment
     ): TokenRevocationStore {
         return when (authProperties.tokenRevocationStore) {
@@ -54,13 +53,9 @@ class ArcReactorTokenRevocationStoreConfiguration {
             }
 
             TokenRevocationStoreType.REDIS -> {
-                val redis = redisTemplate.ifAvailable
-                if (redis != null && isRedisAvailable(redis)) {
-                    val keyPrefix = environment.getProperty(
-                        "arc.reactor.auth.token-revocation-redis-key-prefix",
-                        "arc:auth:revoked"
-                    )
-                    RedisTokenRevocationStore(redis, keyPrefix = keyPrefix)
+                val redisStore = buildRedisStoreOrNull(beanFactory, environment)
+                if (redisStore != null) {
+                    redisStore
                 } else {
                     logger.warn {
                         "token-revocation-store=redis requested but Redis is unavailable; " +
@@ -72,13 +67,53 @@ class ArcReactorTokenRevocationStoreConfiguration {
         }
     }
 
-    private fun isRedisAvailable(redisTemplate: StringRedisTemplate): Boolean {
+    private fun buildRedisStoreOrNull(
+        beanFactory: ListableBeanFactory,
+        environment: Environment
+    ): TokenRevocationStore? {
+        val redisTemplate = resolveRedisTemplate(beanFactory) ?: return null
+        if (!isRedisAvailable(redisTemplate)) return null
+        val keyPrefix = environment.getProperty(
+            "arc.reactor.auth.token-revocation-redis-key-prefix",
+            "arc:auth:revoked"
+        )
+        return instantiateRedisStore(redisTemplate, keyPrefix)
+    }
+
+    private fun resolveRedisTemplate(beanFactory: ListableBeanFactory): Any? {
+        val redisTemplateClass = runCatching { Class.forName(STRING_REDIS_TEMPLATE_CLASS) }.getOrNull()
+            ?: return null
+        return runCatching {
+            beanFactory.getBeanProvider(redisTemplateClass).getIfAvailable()
+        }.getOrNull()
+    }
+
+    private fun instantiateRedisStore(redisTemplate: Any, keyPrefix: String): TokenRevocationStore? {
         return try {
-            redisTemplate.hasKey("__arc:redis:availability__")
+            val redisTemplateClass = Class.forName(STRING_REDIS_TEMPLATE_CLASS)
+            val redisStoreClass = Class.forName(REDIS_STORE_CLASS)
+            val ctor = redisStoreClass.getConstructor(redisTemplateClass, String::class.java)
+            ctor.newInstance(redisTemplate, keyPrefix) as TokenRevocationStore
+        } catch (e: Exception) {
+            logger.warn(e) { "Redis token revocation store instantiation failed" }
+            null
+        }
+    }
+
+    private fun isRedisAvailable(redisTemplate: Any): Boolean {
+        return try {
+            val hasKeyMethod = redisTemplate.javaClass.getMethod("hasKey", String::class.java)
+            hasKeyMethod.invoke(redisTemplate, "__arc:redis:availability__")
             true
         } catch (e: Exception) {
             logger.warn(e) { "Redis connectivity probe failed during token revocation store selection" }
             false
         }
+    }
+
+    companion object {
+        private const val STRING_REDIS_TEMPLATE_CLASS =
+            "org.springframework.data.redis.core.StringRedisTemplate"
+        private const val REDIS_STORE_CLASS = "com.arc.reactor.auth.RedisTokenRevocationStore"
     }
 }

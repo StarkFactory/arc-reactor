@@ -84,11 +84,11 @@ class SecurityHeadersWebFilterTest {
     inner class Ordering {
 
         @Test
-        fun `should have order just after HIGHEST_PRECEDENCE`() {
+        fun `should have highest precedence order`() {
             assertEquals(
-                Ordered.HIGHEST_PRECEDENCE + 1,
+                Ordered.HIGHEST_PRECEDENCE,
                 filter.order
-            ) { "Filter should run right after HIGHEST_PRECEDENCE" }
+            ) { "Filter should run before auth/rate-limit filters to cover early exits" }
         }
     }
 }

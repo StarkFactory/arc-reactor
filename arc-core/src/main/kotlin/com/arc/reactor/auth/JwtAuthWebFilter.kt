@@ -29,7 +29,7 @@ class JwtAuthWebFilter(
 
     private val tenantPattern = Regex("^[a-zA-Z0-9_-]{1,64}$")
 
-    override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE
+    override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE + 2
 
     override fun filter(exchange: ServerWebExchange, chain: WebFilterChain): Mono<Void> {
         val path = exchange.request.uri.path

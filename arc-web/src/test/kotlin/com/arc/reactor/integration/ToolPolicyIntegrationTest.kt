@@ -78,6 +78,15 @@ class ToolPolicyIntegrationTest {
     @BeforeEach
     fun setUpSchema() {
         jdbcTemplate.update("DELETE FROM tool_policy")
+        jdbcTemplate.update("DELETE FROM users")
+        jdbcTemplate.update(
+            "INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+            "integration-admin",
+            "integration-admin@arc.dev",
+            "Integration Admin",
+            "ignored",
+            "ADMIN"
+        )
         toolPolicyProvider.invalidate()
         val token = jwtTokenProvider.createToken(adminUser())
         adminClient = webTestClient.mutate()

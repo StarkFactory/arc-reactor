@@ -21,7 +21,7 @@ import reactor.core.publisher.Mono
  */
 class SecurityHeadersWebFilter : WebFilter, Ordered {
 
-    override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE + 1
+    override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE
 
     override fun filter(exchange: ServerWebExchange, chain: WebFilterChain): Mono<Void> {
         exchange.response.headers.apply {

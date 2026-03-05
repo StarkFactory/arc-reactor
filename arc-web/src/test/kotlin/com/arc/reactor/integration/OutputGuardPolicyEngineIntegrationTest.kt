@@ -87,6 +87,15 @@ class OutputGuardPolicyEngineIntegrationTest {
         )
         jdbcTemplate.execute("DELETE FROM output_guard_rule_audits")
         jdbcTemplate.execute("DELETE FROM output_guard_rules")
+        jdbcTemplate.update("DELETE FROM users")
+        jdbcTemplate.update(
+            "INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+            "integration-admin",
+            "integration-admin@arc.dev",
+            "Integration Admin",
+            "ignored",
+            "ADMIN"
+        )
         val token = jwtTokenProvider.createToken(adminUser())
         adminClient = webTestClient.mutate()
             .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer $token")
