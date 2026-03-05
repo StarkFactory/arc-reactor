@@ -29,6 +29,9 @@ dependencies {
     implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))
     compileOnly("org.springframework.ai:spring-ai-vector-store")
 
+    // Optional: Slack module (compileOnly — only active when arc-slack is on classpath)
+    compileOnly(project(":arc-slack"))
+
     // Optional: JWT Auth (compileOnly since auth may not be enabled)
     compileOnly("io.jsonwebtoken:jjwt-api:0.13.0")
     compileOnly("org.springframework.security:spring-security-crypto")

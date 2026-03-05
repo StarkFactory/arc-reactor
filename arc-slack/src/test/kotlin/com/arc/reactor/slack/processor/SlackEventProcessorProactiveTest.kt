@@ -4,6 +4,7 @@ import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackEventCommand
+import com.arc.reactor.slack.proactive.InMemoryProactiveChannelStore
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.matchers.shouldBe
@@ -43,8 +44,17 @@ class SlackEventProcessorProactiveTest {
         failFastOnSaturation = true
     )
 
-    private fun buildProcessor(properties: SlackProperties) =
-        SlackEventProcessor(eventHandler, messagingService, metricsRecorder, properties)
+    private fun buildProcessor(
+        properties: SlackProperties,
+        channelIds: List<String> = properties.proactiveChannelIds
+    ): SlackEventProcessor {
+        val store = InMemoryProactiveChannelStore()
+        store.seedFromConfig(channelIds)
+        return SlackEventProcessor(
+            eventHandler, messagingService, metricsRecorder, properties,
+            proactiveChannelStore = store
+        )
+    }
 
     private fun channelMessagePayload(
         channel: String = "C_PROACTIVE",
@@ -75,7 +85,7 @@ class SlackEventProcessorProactiveTest {
 
         @Test
         fun `does not dispatch proactive for non-allowlisted channel`() = runTest {
-            val processor = buildProcessor(proactiveProperties(channelIds = listOf("C_OTHER")))
+            val processor = buildProcessor(proactiveProperties(), channelIds = listOf("C_OTHER"))
 
             processor.submitEventCallback(
                 channelMessagePayload(channel = "C_NOT_LISTED"), "events_api"

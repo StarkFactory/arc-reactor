@@ -12,6 +12,7 @@ import com.arc.reactor.slack.controller.SlackEventController
 import com.arc.reactor.slack.handler.DefaultSlackEventHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackApiResult
+import com.arc.reactor.slack.proactive.InMemoryProactiveChannelStore
 import com.arc.reactor.slack.processor.SlackEventProcessor
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.arc.reactor.slack.session.SlackThreadTracker
@@ -67,12 +68,15 @@ class SlackCrossToolAndProactiveE2ETest {
             threadTracker = threadTracker,
             mcpManager = mcpManager
         )
+        val proactiveStore = InMemoryProactiveChannelStore()
+        proactiveStore.seedFromConfig(properties.proactiveChannelIds)
         val eventProcessor = SlackEventProcessor(
             eventHandler = eventHandler,
             messagingService = messagingService,
             metricsRecorder = metricsRecorder,
             properties = properties,
-            threadTracker = threadTracker
+            threadTracker = threadTracker,
+            proactiveChannelStore = proactiveStore
         )
         return SlackEventController(objectMapper, eventProcessor)
     }
