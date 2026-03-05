@@ -43,8 +43,20 @@ kubectl apply -f deploy/k8s/optional/ingress.yaml
 - `ARC_REACTOR_TOOL_POLICY_DYNAMIC_ENABLED=true`
 - `ARC_REACTOR_OUTPUT_GUARD_ENABLED=true`
 - `ARC_REACTOR_RAG_ENABLED=true` (if RAG is required)
+- `ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE=jdbc` (distributed JWT revocation across pods)
 - `ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH=true` (for liveness/readiness probes)
 - `SPRING_FLYWAY_ENABLED=true`
+
+## Optional Redis Runtime Features
+
+Enable Redis only when you need semantic cache or Redis-backed token revocation:
+
+- `ARC_REACTOR_CACHE_ENABLED=true`
+- `ARC_REACTOR_CACHE_SEMANTIC_ENABLED=true`
+- `SPRING_DATA_REDIS_HOST=<redis-host>`
+- `SPRING_DATA_REDIS_PORT=6379`
+
+If Redis is not reachable at startup, Arc Reactor falls back to in-memory cache/revocation behavior.
 
 ## Operational Checks
 

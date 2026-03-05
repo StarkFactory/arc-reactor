@@ -159,6 +159,19 @@ config:
   rag:
     enabled: "false"
 
+  cache:
+    enabled: "false"
+    semanticEnabled: "false"
+
+  redis:
+    host: ""
+    port: "6379"
+
+  auth:
+    publicActuatorHealth: "true"
+    tokenRevocationStore: "memory"
+    tokenRevocationRedisKeyPrefix: "arc:auth:revoked"
+  # Deprecated (kept for backward compatibility): use config.auth.publicActuatorHealth
   authPublicActuatorHealth: "true"
 
   cors:

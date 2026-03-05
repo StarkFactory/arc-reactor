@@ -4,6 +4,7 @@ import com.arc.reactor.auth.InMemoryTokenRevocationStore
 import com.arc.reactor.auth.JdbcTokenRevocationStore
 import com.arc.reactor.auth.RedisTokenRevocationStore
 import com.arc.reactor.auth.TokenRevocationStore
+import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -65,11 +66,24 @@ class TokenRevocationStoreAutoConfigurationTest {
     fun `should use Redis token revocation store when configured`() {
         baseRunner
             .withPropertyValues("arc.reactor.auth.token-revocation-store=redis")
-            .withUserConfiguration(RedisTokenRevocationDepsConfig::class.java)
+            .withUserConfiguration(AvailableRedisTokenRevocationDepsConfig::class.java)
             .run { context ->
                 val store = context.getBean(TokenRevocationStore::class.java)
                 assertInstanceOf(RedisTokenRevocationStore::class.java, store) {
                     "Redis token revocation store should be selected when configured"
+                }
+            }
+    }
+
+    @Test
+    fun `should fall back to in-memory when redis template exists but redis is unreachable`() {
+        baseRunner
+            .withPropertyValues("arc.reactor.auth.token-revocation-store=redis")
+            .withUserConfiguration(UnavailableRedisTokenRevocationDepsConfig::class.java)
+            .run { context ->
+                val store = context.getBean(TokenRevocationStore::class.java)
+                assertInstanceOf(InMemoryTokenRevocationStore::class.java, store) {
+                    "Unreachable Redis must fall back to in-memory token revocation store"
                 }
             }
     }
@@ -111,8 +125,23 @@ class TokenRevocationStoreAutoConfigurationTest {
 }
 
 @Configuration
-private class RedisTokenRevocationDepsConfig {
+private class AvailableRedisTokenRevocationDepsConfig {
 
     @Bean
-    fun stringRedisTemplate(): StringRedisTemplate = mockk(relaxed = true)
+    fun stringRedisTemplate(): StringRedisTemplate {
+        val template = mockk<StringRedisTemplate>(relaxed = true)
+        every { template.hasKey(any()) } returns false
+        return template
+    }
+}
+
+@Configuration
+private class UnavailableRedisTokenRevocationDepsConfig {
+
+    @Bean
+    fun stringRedisTemplate(): StringRedisTemplate {
+        val template = mockk<StringRedisTemplate>(relaxed = true)
+        every { template.hasKey(any()) } throws RuntimeException("redis down")
+        return template
+    }
 }

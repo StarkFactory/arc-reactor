@@ -4,6 +4,7 @@ import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.cache.impl.CaffeineResponseCache
 import com.arc.reactor.cache.impl.RedisSemanticResponseCache
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
@@ -28,11 +29,23 @@ class SemanticCacheAutoConfigurationTest {
     @Test
     fun `should register RedisSemanticResponseCache when redis and embedding beans exist`() {
         baseRunner
-            .withUserConfiguration(SemanticCacheDepsConfig::class.java)
+            .withUserConfiguration(AvailableSemanticCacheDepsConfig::class.java)
             .run { context ->
                 val cache = context.getBean(ResponseCache::class.java)
                 assertInstanceOf(RedisSemanticResponseCache::class.java, cache) {
                     "RedisSemanticResponseCache should be selected as primary ResponseCache"
+                }
+            }
+    }
+
+    @Test
+    fun `should fall back to CaffeineResponseCache when redis is unreachable`() {
+        baseRunner
+            .withUserConfiguration(UnavailableSemanticCacheDepsConfig::class.java)
+            .run { context ->
+                val cache = context.getBean(ResponseCache::class.java)
+                assertInstanceOf(CaffeineResponseCache::class.java, cache) {
+                    "Unreachable Redis should fall back to CaffeineResponseCache"
                 }
             }
     }
@@ -49,10 +62,31 @@ class SemanticCacheAutoConfigurationTest {
 }
 
 @Configuration
-private class SemanticCacheDepsConfig {
+private class AvailableSemanticCacheDepsConfig {
 
     @Bean
-    fun stringRedisTemplate(): StringRedisTemplate = mockk(relaxed = true)
+    fun stringRedisTemplate(): StringRedisTemplate {
+        val template = mockk<StringRedisTemplate>(relaxed = true)
+        every { template.hasKey(any()) } returns false
+        return template
+    }
+
+    @Bean
+    fun embeddingModel(): EmbeddingModel = mockk(relaxed = true)
+
+    @Bean
+    fun objectMapper(): ObjectMapper = ObjectMapper()
+}
+
+@Configuration
+private class UnavailableSemanticCacheDepsConfig {
+
+    @Bean
+    fun stringRedisTemplate(): StringRedisTemplate {
+        val template = mockk<StringRedisTemplate>(relaxed = true)
+        every { template.hasKey(any()) } throws RuntimeException("redis down")
+        return template
+    }
 
     @Bean
     fun embeddingModel(): EmbeddingModel = mockk(relaxed = true)

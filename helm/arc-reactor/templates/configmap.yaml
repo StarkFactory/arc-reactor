@@ -52,7 +52,15 @@ data:
 
   # Features
   ARC_REACTOR_RAG_ENABLED: {{ .Values.config.rag.enabled | quote }}
-  ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH: {{ .Values.config.authPublicActuatorHealth | quote }}
+  ARC_REACTOR_CACHE_ENABLED: {{ .Values.config.cache.enabled | quote }}
+  ARC_REACTOR_CACHE_SEMANTIC_ENABLED: {{ .Values.config.cache.semanticEnabled | quote }}
+  ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH: {{ coalesce .Values.config.auth.publicActuatorHealth .Values.config.authPublicActuatorHealth | quote }}
+  ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE: {{ .Values.config.auth.tokenRevocationStore | quote }}
+  ARC_REACTOR_AUTH_TOKEN_REVOCATION_REDIS_KEY_PREFIX: {{ .Values.config.auth.tokenRevocationRedisKeyPrefix | quote }}
+  {{- if .Values.config.redis.host }}
+  SPRING_DATA_REDIS_HOST: {{ .Values.config.redis.host | quote }}
+  SPRING_DATA_REDIS_PORT: {{ .Values.config.redis.port | quote }}
+  {{- end }}
   ARC_REACTOR_CORS_ENABLED: {{ .Values.config.cors.enabled | quote }}
   ARC_REACTOR_CIRCUIT_BREAKER_ENABLED: {{ .Values.config.circuitBreaker.enabled | quote }}
 
