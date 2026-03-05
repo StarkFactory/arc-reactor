@@ -7,7 +7,7 @@ if ! command -v k6 >/dev/null 2>&1; then
 fi
 
 BASE_URL="${BASE_URL:-http://localhost:8080}"
-CHAT_PATH="${CHAT_PATH:-/api/chat}"
+STREAM_PATH="${STREAM_PATH:-/api/chat/stream}"
 AUTH_TOKEN="${AUTH_TOKEN:-}"
 TENANT_ID="${TENANT_ID:-default}"
 OTHER_TENANT_ID="${OTHER_TENANT_ID:-other-tenant}"
@@ -21,7 +21,7 @@ SUMMARY_EXPORT="${SUMMARY_EXPORT:-}"
 if [[ -z "$AUTH_TOKEN" ]]; then
   echo "AUTH_TOKEN is required."
   echo "Example:"
-  echo "  AUTH_TOKEN=\"<jwt>\" ./scripts/load/run-chat-guard-load-test.sh"
+  echo "  AUTH_TOKEN=\"<jwt>\" ./scripts/load/run-chat-stream-security-load-test.sh"
   exit 1
 fi
 
@@ -32,9 +32,9 @@ if [[ -n "$SUMMARY_EXPORT" ]]; then
 fi
 
 cat <<INFO
-Running chat guard/filtering load test
+Running chat stream security load test
   BASE_URL=$BASE_URL
-  CHAT_PATH=$CHAT_PATH
+  STREAM_PATH=$STREAM_PATH
   MODE=$MODE
   VUS=$VUS
   DURATION=$DURATION
@@ -44,7 +44,7 @@ Running chat guard/filtering load test
 INFO
 
 BASE_URL="$BASE_URL" \
-CHAT_PATH="$CHAT_PATH" \
+STREAM_PATH="$STREAM_PATH" \
 AUTH_TOKEN="$AUTH_TOKEN" \
 TENANT_ID="$TENANT_ID" \
 OTHER_TENANT_ID="$OTHER_TENANT_ID" \
@@ -53,4 +53,4 @@ OVERSIZED_CHARS="$OVERSIZED_CHARS" \
 VUS="$VUS" \
 DURATION="$DURATION" \
 SLEEP_SECONDS="$SLEEP_SECONDS" \
-k6 run "${k6_args[@]}" scripts/load/chat-guard-load.js
+k6 run "${k6_args[@]}" scripts/load/chat-stream-security-load.js
