@@ -24,6 +24,8 @@ class AgentMetricsTest {
             // New default methods should be callable without override
             assertDoesNotThrow {
                 minimalImpl.recordCacheHit("key")
+                minimalImpl.recordExactCacheHit("key")
+                minimalImpl.recordSemanticCacheHit("key")
                 minimalImpl.recordCacheMiss("key")
                 minimalImpl.recordCircuitBreakerStateChange(
                     "cb", CircuitBreakerState.OPEN, CircuitBreakerState.HALF_OPEN
@@ -88,6 +90,8 @@ class AgentMetricsTest {
         fun `custom implementation should receive new metrics parameters`() {
             var lastCacheKey: String? = null
             var cacheHit = false
+            var exactCacheHits = 0
+            var semanticCacheHits = 0
             var lastCbName: String? = null
             var lastCbFrom: CircuitBreakerState? = null
             var lastCbTo: CircuitBreakerState? = null
@@ -104,6 +108,16 @@ class AgentMetricsTest {
                 override fun recordCacheHit(cacheKey: String) {
                     lastCacheKey = cacheKey
                     cacheHit = true
+                }
+
+                override fun recordExactCacheHit(cacheKey: String) {
+                    lastCacheKey = cacheKey
+                    exactCacheHits++
+                }
+
+                override fun recordSemanticCacheHit(cacheKey: String) {
+                    lastCacheKey = cacheKey
+                    semanticCacheHits++
                 }
 
                 override fun recordCacheMiss(cacheKey: String) {
@@ -137,6 +151,14 @@ class AgentMetricsTest {
             trackingMetrics.recordCacheHit("sha256-abc")
             assertEquals("sha256-abc", lastCacheKey) { "Cache key should be captured" }
             assertTrue(cacheHit) { "Should record as cache hit" }
+
+            trackingMetrics.recordExactCacheHit("sha256-exact")
+            assertEquals("sha256-exact", lastCacheKey) { "Exact cache key should be captured" }
+            assertEquals(1, exactCacheHits) { "Exact cache hit counter should increment" }
+
+            trackingMetrics.recordSemanticCacheHit("sha256-semantic")
+            assertEquals("sha256-semantic", lastCacheKey) { "Semantic cache key should be captured" }
+            assertEquals(1, semanticCacheHits) { "Semantic cache hit counter should increment" }
 
             // Cache miss
             trackingMetrics.recordCacheMiss("sha256-def")

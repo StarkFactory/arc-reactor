@@ -9,8 +9,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.data.redis.core.StringRedisTemplate
-import java.time.Duration
 import java.util.concurrent.CancellationException
+import java.time.Duration
 
 private val logger = KotlinLogging.logger {}
 
@@ -128,9 +128,13 @@ class RedisSemanticResponseCache(
     }
 
     override fun invalidateAll() {
-        logger.warn {
-            "RedisSemanticResponseCache invalidateAll() is intentionally a no-op because wildcard key scans " +
-                "are unsafe in production Redis."
+        try {
+            val pattern = "$keyPrefix:*"
+            val keys = redisTemplate.keys(pattern)
+            val deleted = if (keys.isEmpty()) 0L else redisTemplate.delete(keys)
+            logger.info { "Invalidated $deleted Redis semantic cache keys for prefix=$keyPrefix" }
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to invalidate Redis semantic cache for prefix=$keyPrefix" }
         }
     }
 

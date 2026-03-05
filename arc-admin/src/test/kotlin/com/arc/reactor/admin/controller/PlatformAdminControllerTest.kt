@@ -16,6 +16,7 @@ import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.tenant.InMemoryTenantStore
 import com.arc.reactor.admin.tenant.TenantService
 import com.arc.reactor.audit.InMemoryAdminAuditStore
+import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.auth.User
 import com.arc.reactor.auth.UserRole
 import com.arc.reactor.auth.UserStore
@@ -43,6 +44,7 @@ class PlatformAdminControllerTest {
     private val alertEvaluator = mockk<AlertEvaluator>(relaxed = true)
     private val userStore = mockk<UserStore>()
     private val adminAuditStore = InMemoryAdminAuditStore()
+    private val responseCache = mockk<ResponseCache>(relaxed = true)
 
     private val controller = PlatformAdminController(
         tenantStore,
@@ -53,7 +55,8 @@ class PlatformAdminControllerTest {
         alertStore,
         alertEvaluator,
         userStore,
-        adminAuditStore
+        adminAuditStore,
+        responseCache
     )
 
     private val testTenant = Tenant(
@@ -170,6 +173,12 @@ class PlatformAdminControllerTest {
         }
 
         @Test
+        fun `invalidateResponseCache returns 403 for USER role`() {
+            val response = controller.invalidateResponseCache(exchangeWithRole(UserRole.USER))
+            response.statusCode shouldBe HttpStatus.FORBIDDEN
+        }
+
+        @Test
         fun `tenantAnalytics returns 403 for USER role`() {
             val response = controller.tenantAnalytics(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
@@ -199,6 +208,9 @@ class PlatformAdminControllerTest {
         fun `returns health dashboard for admin`() {
             healthMonitor.updateBufferUsage(25.0)
             healthMonitor.recordWrite(100, 50)
+            healthMonitor.recordExactCacheHit()
+            healthMonitor.recordSemanticCacheHit()
+            healthMonitor.recordCacheMiss()
 
             val response = controller.health(exchangeWithRole(UserRole.ADMIN))
 
@@ -206,6 +218,9 @@ class PlatformAdminControllerTest {
             val dashboard = response.body.shouldBeInstanceOf<PlatformHealthDashboard>()
             dashboard.pipelineBufferUsage shouldBe 25.0
             dashboard.pipelineWriteLatencyMs shouldBe 50
+            dashboard.cacheExactHits shouldBe 1
+            dashboard.cacheSemanticHits shouldBe 1
+            dashboard.cacheMisses shouldBe 1
         }
 
         @Test
@@ -485,6 +500,72 @@ class PlatformAdminControllerTest {
             val audit = adminAuditStore.list(limit = 1).first()
             audit.category shouldBe "platform_alert"
             audit.action shouldBe "ALERT_EVALUATE"
+        }
+    }
+
+    @Nested
+    inner class CacheManagement {
+
+        @Test
+        fun `invalidateResponseCache clears cache and records audit`() {
+            val response = controller.invalidateResponseCache(exchangeWithRole(UserRole.ADMIN))
+
+            response.statusCode shouldBe HttpStatus.OK
+            verify(exactly = 1) { responseCache.invalidateAll() }
+            val body = response.body.shouldBeInstanceOf<CacheInvalidationResponse>()
+            body.invalidated shouldBe true
+            body.cacheEnabled shouldBe true
+
+            val audit = adminAuditStore.list(limit = 1).first()
+            audit.category shouldBe "platform_cache"
+            audit.action shouldBe "INVALIDATE_ALL"
+            audit.resourceType shouldBe "response_cache"
+        }
+
+        @Test
+        fun `invalidateResponseCache returns cache disabled response when cache bean is absent`() {
+            val controllerWithoutCache = PlatformAdminController(
+                tenantStore = tenantStore,
+                tenantService = tenantService,
+                queryService = queryService,
+                pricingStore = pricingStore,
+                healthMonitor = healthMonitor,
+                alertStore = alertStore,
+                alertEvaluator = alertEvaluator,
+                userStore = userStore,
+                adminAuditStore = adminAuditStore,
+                responseCache = null
+            )
+
+            val response = controllerWithoutCache.invalidateResponseCache(exchangeWithRole(UserRole.ADMIN))
+
+            response.statusCode shouldBe HttpStatus.OK
+            val body = response.body.shouldBeInstanceOf<CacheInvalidationResponse>()
+            body.invalidated shouldBe false
+            body.cacheEnabled shouldBe false
+        }
+
+        @Test
+        fun `invalidateResponseCache returns 500 when cache fails`() {
+            val brokenCache = mockk<ResponseCache>()
+            every { brokenCache.invalidateAll() } throws IllegalStateException("boom")
+            val controllerWithBrokenCache = PlatformAdminController(
+                tenantStore = tenantStore,
+                tenantService = tenantService,
+                queryService = queryService,
+                pricingStore = pricingStore,
+                healthMonitor = healthMonitor,
+                alertStore = alertStore,
+                alertEvaluator = alertEvaluator,
+                userStore = userStore,
+                adminAuditStore = adminAuditStore,
+                responseCache = brokenCache
+            )
+
+            val response = controllerWithBrokenCache.invalidateResponseCache(exchangeWithRole(UserRole.ADMIN))
+
+            response.statusCode shouldBe HttpStatus.INTERNAL_SERVER_ERROR
+            response.body.shouldBeInstanceOf<AdminErrorResponse>()
         }
     }
 

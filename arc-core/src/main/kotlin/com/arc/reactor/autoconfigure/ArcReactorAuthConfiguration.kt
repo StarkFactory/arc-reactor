@@ -9,6 +9,7 @@ import com.arc.reactor.auth.InMemoryUserStore
 import com.arc.reactor.auth.JdbcUserStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.JwtTokenProvider
+import com.arc.reactor.auth.TokenRevocationStoreType
 import com.arc.reactor.auth.TokenRevocationStore
 import com.arc.reactor.auth.UserStore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
@@ -90,7 +91,8 @@ class AuthConfiguration {
             publicPaths = publicPaths,
             loginRateLimitPerMinute = environment.getProperty(
                 "arc.reactor.auth.login-rate-limit-per-minute", Int::class.java, 5
-            )
+            ),
+            tokenRevocationStore = parseTokenRevocationStore(environment)
         )
     }
 
@@ -136,6 +138,17 @@ class AuthConfiguration {
     @ConditionalOnMissingBean(name = ["authRateLimitFilter"])
     fun authRateLimitFilter(authProperties: AuthProperties): WebFilter =
         AuthRateLimitFilter(maxAttemptsPerMinute = authProperties.loginRateLimitPerMinute)
+}
+
+private fun parseTokenRevocationStore(environment: Environment): TokenRevocationStoreType {
+    val raw = environment.getProperty("arc.reactor.auth.token-revocation-store", "memory")
+    return try {
+        TokenRevocationStoreType.valueOf(raw.trim().uppercase())
+    } catch (_: IllegalArgumentException) {
+        throw IllegalStateException(
+            "Invalid arc.reactor.auth.token-revocation-store='$raw'. Use one of: memory, jdbc, redis"
+        )
+    }
 }
 
 /**

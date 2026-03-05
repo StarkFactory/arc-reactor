@@ -67,7 +67,7 @@ class AgentExecutionCoordinatorTest {
         assertEquals("cached", result.content)
         assertEquals(500L, result.durationMs)
         assertFalse(executeCalled, "Agent executor should not be called when cache hit")
-        verify(exactly = 1) { metrics.recordCacheHit(expectedKey) }
+        verify(exactly = 1) { metrics.recordExactCacheHit(expectedKey) }
         verify(exactly = 0) { metrics.recordCacheMiss(expectedKey) }
     }
 
@@ -167,6 +167,7 @@ class AgentExecutionCoordinatorTest {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
         val expectedKey = CacheKeyBuilder.buildKey(command, listOf("tool"))
+        coEvery { responseCache.get(expectedKey) } returns null
         coEvery { responseCache.getSemantic(command, listOf("tool"), expectedKey) } returns CachedResponse(
             content = "semantic-hit",
             toolsUsed = listOf("tool")
@@ -199,8 +200,9 @@ class AgentExecutionCoordinatorTest {
 
         assertTrue(result.success, "Semantic cache hit should return success")
         assertEquals("semantic-hit", result.content)
+        coVerify(exactly = 1) { responseCache.get(expectedKey) }
         coVerify(exactly = 1) { responseCache.getSemantic(command, listOf("tool"), expectedKey) }
-        verify(exactly = 1) { metrics.recordCacheHit(expectedKey) }
+        verify(exactly = 1) { metrics.recordSemanticCacheHit(expectedKey) }
     }
 
     private fun testTool(name: String): ToolCallback = object : ToolCallback {

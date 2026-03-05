@@ -1,6 +1,9 @@
 package com.arc.reactor.auth
 
+import org.springframework.data.redis.core.StringRedisTemplate
+import org.springframework.jdbc.core.JdbcTemplate
 import java.time.Instant
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -26,4 +29,75 @@ class InMemoryTokenRevocationStore : TokenRevocationStore {
         }
         return true
     }
+}
+
+/**
+ * JDBC-backed revoked token store for multi-instance deployments.
+ *
+ * Requires Flyway migration `V31__create_token_revocations.sql`.
+ */
+class JdbcTokenRevocationStore(
+    private val jdbcTemplate: JdbcTemplate
+) : TokenRevocationStore {
+
+    override fun revoke(tokenId: String, expiresAt: Instant) {
+        if (expiresAt <= Instant.now()) {
+            return
+        }
+        val updated = jdbcTemplate.update(
+            "UPDATE auth_token_revocations SET expires_at = ?, revoked_at = ? WHERE token_id = ?",
+            java.sql.Timestamp.from(expiresAt),
+            java.sql.Timestamp.from(Instant.now()),
+            tokenId
+        )
+        if (updated == 0) {
+            jdbcTemplate.update(
+                "INSERT INTO auth_token_revocations (token_id, expires_at, revoked_at) VALUES (?, ?, ?)",
+                tokenId,
+                java.sql.Timestamp.from(expiresAt),
+                java.sql.Timestamp.from(Instant.now())
+            )
+        }
+    }
+
+    override fun isRevoked(tokenId: String): Boolean {
+        val expiresAt = jdbcTemplate.query(
+            "SELECT expires_at FROM auth_token_revocations WHERE token_id = ?",
+            { rs, _ -> rs.getTimestamp("expires_at").toInstant() },
+            tokenId
+        ).firstOrNull() ?: return false
+
+        if (expiresAt <= Instant.now()) {
+            jdbcTemplate.update("DELETE FROM auth_token_revocations WHERE token_id = ?", tokenId)
+            return false
+        }
+        return true
+    }
+}
+
+/**
+ * Redis-backed revoked token store for multi-instance deployments.
+ */
+class RedisTokenRevocationStore(
+    private val redisTemplate: StringRedisTemplate,
+    private val keyPrefix: String = "arc:auth:revoked"
+) : TokenRevocationStore {
+
+    init {
+        require(keyPrefix.isNotBlank()) { "keyPrefix must not be blank" }
+    }
+
+    override fun revoke(tokenId: String, expiresAt: Instant) {
+        val ttl = Duration.between(Instant.now(), expiresAt)
+        if (ttl.isNegative || ttl.isZero) {
+            return
+        }
+        redisTemplate.opsForValue().set(redisKey(tokenId), "1", ttl)
+    }
+
+    override fun isRevoked(tokenId: String): Boolean {
+        return redisTemplate.hasKey(redisKey(tokenId)) == true
+    }
+
+    private fun redisKey(tokenId: String): String = "$keyPrefix:$tokenId"
 }

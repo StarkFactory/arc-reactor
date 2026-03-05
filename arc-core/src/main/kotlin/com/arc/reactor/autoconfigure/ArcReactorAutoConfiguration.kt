@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Import
     ArcReactorHookAndMcpConfiguration::class,
     ArcReactorRuntimeConfiguration::class,
     ArcReactorSemanticCacheConfiguration::class,
+    ArcReactorTokenRevocationStoreConfiguration::class,
     ArcReactorExecutorConfiguration::class,
     JdbcMemoryStoreConfiguration::class,
     JdbcToolPolicyStoreConfiguration::class,

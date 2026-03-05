@@ -72,7 +72,10 @@ data class PlatformHealthDashboard(
     val pipelineBufferUsage: Double = 0.0,
     val pipelineDropRate: Double = 0.0,
     val pipelineWriteLatencyMs: Long = 0,
-    val activeAlerts: Int = 0
+    val activeAlerts: Int = 0,
+    val cacheExactHits: Long = 0,
+    val cacheSemanticHits: Long = 0,
+    val cacheMisses: Long = 0
 )
 
 data class ServiceStatus(

@@ -16,6 +16,7 @@ import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.auth.User
 import com.arc.reactor.auth.UserRole
 import com.arc.reactor.auth.UserStore
+import com.arc.reactor.cache.ResponseCache
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -33,6 +34,9 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import javax.sql.DataSource
+import mu.KotlinLogging
+
+private val logger = KotlinLogging.logger {}
 
 @Tag(name = "Platform Admin", description = "Platform-wide administration APIs (ADMIN)")
 @RestController
@@ -51,7 +55,8 @@ class PlatformAdminController(
     private val alertStore: AlertRuleStore,
     private val alertEvaluator: AlertEvaluator,
     private val userStore: UserStore,
-    private val adminAuditStore: AdminAuditStore
+    private val adminAuditStore: AdminAuditStore,
+    private val responseCache: ResponseCache? = null
 ) {
 
     // --- Platform Health ---
@@ -69,7 +74,10 @@ class PlatformAdminController(
             pipelineBufferUsage = snapshot.bufferUsagePercent,
             pipelineDropRate = snapshot.droppedTotal.toDouble(),
             pipelineWriteLatencyMs = snapshot.writeLatencyMs,
-            activeAlerts = alertStore.findActiveAlerts().size
+            activeAlerts = alertStore.findActiveAlerts().size,
+            cacheExactHits = snapshot.cacheExactHitsTotal,
+            cacheSemanticHits = snapshot.cacheSemanticHitsTotal,
+            cacheMisses = snapshot.cacheMissesTotal
         )
         return ResponseEntity.ok(dashboard)
     }
@@ -323,6 +331,48 @@ class PlatformAdminController(
         return ResponseEntity.ok(saved)
     }
 
+    @Operation(summary = "Invalidate response cache entries")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Response cache invalidated"),
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "500", description = "Cache invalidation failed")
+    ])
+    @PostMapping("/cache/invalidate")
+    fun invalidateResponseCache(exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+        val cache = responseCache
+        if (cache == null) {
+            return ResponseEntity.ok(
+                CacheInvalidationResponse(
+                    invalidated = false,
+                    cacheEnabled = false,
+                    message = "Response cache is disabled"
+                )
+            )
+        }
+        return try {
+            cache.invalidateAll()
+            recordAdminAudit(
+                store = adminAuditStore,
+                category = "platform_cache",
+                action = "INVALIDATE_ALL",
+                actor = currentActor(exchange),
+                resourceType = "response_cache"
+            )
+            ResponseEntity.ok(
+                CacheInvalidationResponse(
+                    invalidated = true,
+                    cacheEnabled = true,
+                    message = "Response cache invalidated"
+                )
+            )
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to invalidate response cache" }
+            ResponseEntity.internalServerError()
+                .body(AdminErrorResponse(error = "cache invalidation failed"))
+        }
+    }
+
     // --- Alert Management ---
 
     @Operation(summary = "List all alert rules")
@@ -457,6 +507,12 @@ data class CreateTenantRequest(
 data class UpdateUserRoleRequest(
     @field:jakarta.validation.constraints.NotBlank
     val role: String
+)
+
+data class CacheInvalidationResponse(
+    val invalidated: Boolean,
+    val cacheEnabled: Boolean,
+    val message: String
 )
 
 data class AdminUserResponse(

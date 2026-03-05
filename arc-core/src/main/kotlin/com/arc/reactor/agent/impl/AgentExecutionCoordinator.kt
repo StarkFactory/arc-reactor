@@ -132,22 +132,30 @@ internal class AgentExecutionCoordinator(
         val toolNames = (toolCallbacks + mcpToolCallbacks()).map { it.name }
         val key = CacheKeyBuilder.buildKey(command, toolNames)
         try {
-            val cached = when (val cache = responseCache) {
-                is SemanticResponseCache -> cache.getSemantic(command, toolNames, key)
-                else -> cache.get(key)
-            }
-            cached?.let {
-                logger.debug { "Cache hit for request" }
-                agentMetrics.recordCacheHit(key)
-                return CacheLookupResult(
-                    cacheKey = key,
-                    cachedResult = AgentResult.success(
-                        content = cached.content,
-                        toolsUsed = cached.toolsUsed,
-                        durationMs = nowMs() - startTime
-                    ),
-                    toolNames = toolNames
-                )
+            when (val cache = responseCache) {
+                is SemanticResponseCache -> {
+                    val exact = cache.get(key)
+                    if (exact != null) {
+                        logger.debug { "Exact cache hit for request" }
+                        agentMetrics.recordExactCacheHit(key)
+                        return cacheHitResult(key, exact, startTime, toolNames)
+                    }
+
+                    val semantic = cache.getSemantic(command, toolNames, key)
+                    if (semantic != null) {
+                        logger.debug { "Semantic cache hit for request" }
+                        agentMetrics.recordSemanticCacheHit(key)
+                        return cacheHitResult(key, semantic, startTime, toolNames)
+                    }
+                }
+                else -> {
+                    val exact = cache.get(key)
+                    if (exact != null) {
+                        logger.debug { "Exact cache hit for request" }
+                        agentMetrics.recordExactCacheHit(key)
+                        return cacheHitResult(key, exact, startTime, toolNames)
+                    }
+                }
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
@@ -155,6 +163,23 @@ internal class AgentExecutionCoordinator(
         }
         agentMetrics.recordCacheMiss(key)
         return CacheLookupResult(cacheKey = key, cachedResult = null, toolNames = toolNames)
+    }
+
+    private fun cacheHitResult(
+        cacheKey: String,
+        cached: CachedResponse,
+        startTime: Long,
+        toolNames: List<String>
+    ): CacheLookupResult {
+        return CacheLookupResult(
+            cacheKey = cacheKey,
+            cachedResult = AgentResult.success(
+                content = cached.content,
+                toolsUsed = cached.toolsUsed,
+                durationMs = nowMs() - startTime
+            ),
+            toolNames = toolNames
+        )
     }
 
     private suspend fun attemptFallback(command: AgentCommand, originalResult: AgentResult): AgentResult {

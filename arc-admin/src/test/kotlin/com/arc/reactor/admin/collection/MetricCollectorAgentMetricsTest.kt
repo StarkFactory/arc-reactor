@@ -290,9 +290,20 @@ class MetricCollectorAgentMetricsTest {
     inner class NoOpMethods {
 
         @Test
-        fun `non-pipeline metrics methods are no-op`() {
+        fun `cache counters update without publishing ring-buffer events`() {
             metrics.recordCacheHit("key")
+            metrics.recordExactCacheHit("key")
+            metrics.recordSemanticCacheHit("key")
             metrics.recordCacheMiss("key")
+
+            healthMonitor.cacheExactHitsTotal.get() shouldBe 2
+            healthMonitor.cacheSemanticHitsTotal.get() shouldBe 1
+            healthMonitor.cacheMissesTotal.get() shouldBe 1
+            ringBuffer.size() shouldBe 0
+        }
+
+        @Test
+        fun `remaining non-pipeline metrics methods are no-op`() {
             metrics.recordCircuitBreakerStateChange("cb", CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN)
             metrics.recordFallbackAttempt("gpt-4", true)
             metrics.recordBoundaryViolation("input_too_long", "max_input", 5000, 6000)

@@ -97,8 +97,21 @@ class MetricCollectorAgentMetrics(
         publish(event)
     }
 
-    override fun recordCacheHit(cacheKey: String) { /* tracked separately */ }
-    override fun recordCacheMiss(cacheKey: String) { /* tracked separately */ }
+    override fun recordCacheHit(cacheKey: String) {
+        healthMonitor.recordExactCacheHit()
+    }
+
+    override fun recordExactCacheHit(cacheKey: String) {
+        healthMonitor.recordExactCacheHit()
+    }
+
+    override fun recordSemanticCacheHit(cacheKey: String) {
+        healthMonitor.recordSemanticCacheHit()
+    }
+
+    override fun recordCacheMiss(cacheKey: String) {
+        healthMonitor.recordCacheMiss()
+    }
     override fun recordCircuitBreakerStateChange(name: String, from: CircuitBreakerState, to: CircuitBreakerState) {}
     override fun recordFallbackAttempt(model: String, success: Boolean) {}
     override fun recordBoundaryViolation(violation: String, policy: String, limit: Int, actual: Int) {}

@@ -36,6 +36,15 @@ enum class AdminScope {
 }
 
 /**
+ * Backend type for revoked JWT token persistence.
+ */
+enum class TokenRevocationStoreType {
+    MEMORY,
+    JDBC,
+    REDIS
+}
+
+/**
  * Authenticated user.
  *
  * @param id Unique identifier (UUID)
@@ -65,6 +74,7 @@ data class User(
  * @param defaultTenantId Default tenant ID to embed in issued JWT tokens when no tenant context is provided
  * @param selfRegistrationEnabled Whether `/api/auth/register` is publicly available
  * @param publicPaths URL prefixes that bypass authentication
+ * @param tokenRevocationStore Backend used to track revoked JWT token IDs
  */
 data class AuthProperties(
     val jwtSecret: String = "",
@@ -76,5 +86,6 @@ data class AuthProperties(
         "/v3/api-docs", "/swagger-ui", "/webjars"
     ),
     /** Maximum auth attempts per minute per IP address (brute-force protection) */
-    val loginRateLimitPerMinute: Int = 5
+    val loginRateLimitPerMinute: Int = 5,
+    val tokenRevocationStore: TokenRevocationStoreType = TokenRevocationStoreType.MEMORY
 )

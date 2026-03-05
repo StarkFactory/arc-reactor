@@ -61,6 +61,8 @@ arc:
     auth:
       jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET:}
       default-tenant-id: ${ARC_REACTOR_AUTH_DEFAULT_TENANT_ID:default}
+      token-revocation-store: ${ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE:memory} # memory|jdbc|redis
+      token-revocation-redis-key-prefix: ${ARC_REACTOR_AUTH_TOKEN_REVOCATION_REDIS_KEY_PREFIX:arc:auth:revoked}
     cors:
       enabled: ${ARC_REACTOR_CORS_ENABLED:false}
 
