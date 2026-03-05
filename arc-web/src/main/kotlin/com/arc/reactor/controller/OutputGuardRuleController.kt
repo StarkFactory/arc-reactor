@@ -391,7 +391,7 @@ private fun OutputGuardRuleAuditLog.toResponse() = OutputGuardRuleAuditResponse(
     id = id,
     ruleId = ruleId,
     action = action.name,
-    actor = ADMIN_ACTOR_LABEL,
+    actor = toAdminAccountRef(actor),
     detail = detail,
     createdAt = createdAt.toEpochMilli()
 )
@@ -407,4 +407,7 @@ private fun validateRegex(pattern: String): String? {
     }.getOrElse { it.message ?: "invalid regex" }
 }
 
-private const val ADMIN_ACTOR_LABEL = "admin"
+private fun toAdminAccountRef(actor: String?): String {
+    val accountId = actor?.trim()?.takeIf { it.isNotBlank() } ?: "unknown"
+    return "admin-account:$accountId"
+}

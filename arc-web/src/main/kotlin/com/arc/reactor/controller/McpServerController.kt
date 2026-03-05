@@ -355,9 +355,25 @@ class McpServerController(
         }
     }
 
-    private fun sanitizeConfig(config: Map<String, Any>): Map<String, Any> {
-        return config.mapValues { (key, value) ->
-            if (isSensitiveConfigKey(key)) MASKED_VALUE else value
+    private fun sanitizeConfig(config: Map<String, Any>): Map<String, Any?> {
+        return sanitizeConfigMap(config)
+    }
+
+    private fun sanitizeConfigMap(config: Map<*, *>): Map<String, Any?> {
+        return config.entries.associate { (rawKey, rawValue) ->
+            val key = rawKey?.toString() ?: "unknown"
+            key to sanitizeConfigValue(key, rawValue)
+        }
+    }
+
+    private fun sanitizeConfigValue(key: String?, value: Any?): Any? {
+        if (key != null && isSensitiveConfigKey(key)) {
+            return MASKED_VALUE
+        }
+        return when (value) {
+            is Map<*, *> -> sanitizeConfigMap(value)
+            is List<*> -> value.map { item -> sanitizeConfigValue(null, item) }
+            else -> value
         }
     }
 
@@ -386,6 +402,7 @@ class McpServerController(
             "token",
             "secret",
             "password",
+            "authorization",
             "api_key",
             "apikey",
             "credential"
@@ -451,7 +468,7 @@ data class McpServerDetailResponse(
     val name: String,
     val description: String?,
     val transportType: String,
-    val config: Map<String, Any>,
+    val config: Map<String, Any?>,
     val version: String?,
     val autoConnect: Boolean,
     val status: String,

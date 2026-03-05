@@ -263,14 +263,22 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should mask sensitive config values in server details`() {
+        fun `should mask sensitive config values recursively in server details`() {
             manager.register(McpServer(
                 name = "masked-config",
                 transportType = McpTransportType.SSE,
                 config = mapOf(
                     "url" to "http://localhost:8081/sse",
                     "apiKey" to "secret-key-123",
-                    "adminToken" to "token-xyz"
+                    "adminToken" to "token-xyz",
+                    "headers" to mapOf(
+                        "Authorization" to "Bearer nested-secret",
+                        "X-Trace-Id" to "trace-123"
+                    ),
+                    "targets" to listOf(
+                        mapOf("accessToken" to "list-secret"),
+                        mapOf("name" to "safe-target")
+                    )
                 ),
                 autoConnect = false
             ))
@@ -282,6 +290,14 @@ class McpServerControllerTest {
             assertEquals("http://localhost:8081/sse", body.config["url"])
             assertEquals("********", body.config["apiKey"])
             assertEquals("********", body.config["adminToken"])
+            val headers = body.config["headers"] as Map<*, *>
+            assertEquals("********", headers["Authorization"])
+            assertEquals("trace-123", headers["X-Trace-Id"])
+            val targets = body.config["targets"] as List<*>
+            val firstTarget = targets[0] as Map<*, *>
+            val secondTarget = targets[1] as Map<*, *>
+            assertEquals("********", firstTarget["accessToken"])
+            assertEquals("safe-target", secondTarget["name"])
         }
 
         @Test
