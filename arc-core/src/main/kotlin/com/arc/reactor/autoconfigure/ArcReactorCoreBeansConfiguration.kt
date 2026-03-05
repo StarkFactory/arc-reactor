@@ -10,6 +10,8 @@ import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.approval.ToolNameApprovalPolicy
 import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.audit.InMemoryAdminAuditStore
+import com.arc.reactor.auth.InMemoryTokenRevocationStore
+import com.arc.reactor.auth.TokenRevocationStore
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
 import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
@@ -111,6 +113,10 @@ class ArcReactorCoreBeansConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun adminAuditStore(): AdminAuditStore = InMemoryAdminAuditStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun tokenRevocationStore(): TokenRevocationStore = InMemoryTokenRevocationStore()
 
     @Bean
     fun runtimePreflightMarker(

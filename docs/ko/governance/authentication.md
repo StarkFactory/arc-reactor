@@ -24,7 +24,8 @@
 ┌──────────────────────────────────────────────────────┐
 │  JwtAuthWebFilter (WebFilter, HIGHEST_PRECEDENCE)    │
 │                                                       │
-│  /api/auth/login, /api/auth/register → 통과 (public) │
+│  /api/auth/login(+ /api/auth/register when enabled)   │
+│  → 통과 (public)                                      │
 │  그 외 → Authorization: Bearer <token> 검증           │
 │       → 유효: exchange.attributes["userId"] = userId  │
 │       → 무효: 401 Unauthorized 응답                   │
@@ -61,9 +62,9 @@ arc:
     auth:
       jwt-secret: ${JWT_SECRET}        # HS256 서명 시크릿 (32바이트 이상 권장)
       jwt-expiration-ms: 86400000      # 토큰 유효기간 (기본: 24시간)
+      self-registration-enabled: false # 기본값: 셀프 회원가입 비활성
       public-paths:                    # 인증 없이 접근 가능한 경로
         - /api/auth/login
-        - /api/auth/register
 ```
 
 ### 빌드 (build.gradle.kts)
@@ -105,6 +106,8 @@ services:
 
 ### POST /api/auth/register — 회원가입
 
+`arc.reactor.auth.self-registration-enabled=true`일 때만 활성화된다 (기본값: `false`).
+
 ```bash
 curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
@@ -133,6 +136,15 @@ curl -X POST http://localhost:8080/api/auth/register \
   "token": "",
   "user": null,
   "error": "Email already registered"
+}
+```
+
+**에러 (403 Forbidden, 기본 동작):**
+```json
+{
+  "token": "",
+  "user": null,
+  "error": "Self-registration is disabled. Contact an administrator."
 }
 ```
 
@@ -201,6 +213,13 @@ curl -X POST http://localhost:8080/api/auth/change-password \
   }'
 ```
 
+### POST /api/auth/logout — 현재 토큰 폐기
+
+```bash
+curl -X POST http://localhost:8080/api/auth/logout \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..."
+```
+
 ---
 
 ## 컴포넌트 구조
@@ -219,10 +238,11 @@ curl -X POST http://localhost:8080/api/auth/change-password \
 | `AuthModels.kt` | `User` 데이터 클래스, `AuthProperties` 설정 |
 | `JwtTokenProvider` | JJWT로 토큰 생성 (`createToken`) / 검증 (`validateToken`) |
 | `JwtAuthWebFilter` | WebFilter — 모든 요청에서 Bearer 토큰 검증 |
+| `TokenRevocationStore` | JWT `jti` 폐기 목록을 만료 시각까지 추적 |
 | `DefaultAuthProvider` | BCrypt 비밀번호 검증 기본 구현 |
 | `InMemoryUserStore` | ConcurrentHashMap 기반 (개발용) |
 | `JdbcUserStore` | PostgreSQL `users` 테이블 (프로덕션용) |
-| `AuthController` | REST 엔드포인트 (register, login, me, change-password) |
+| `AuthController` | REST 엔드포인트 (register, login, me, change-password, logout) |
 
 ### 자동 구성 빈
 
@@ -249,8 +269,11 @@ arc.reactor.auth.jwt-secret 설정
 ```
 Header:  { "alg": "HS256" }
 Payload: {
+  "jti": "d4f0...",                // 토큰 ID (폐기 키)
   "sub": "550e8400-...",          // userId
   "email": "user@example.com",    // 사용자 이메일
+  "role": "ADMIN",                // 사용자 역할
+  "tenantId": "default",          // 테넌트 격리 키
   "iat": 1707350400,              // 발급 시각
   "exp": 1707436800               // 만료 시각 (24시간 후)
 }
@@ -364,6 +387,7 @@ CREATE INDEX IF NOT EXISTS idx_conversation_messages_user_session
 | 비밀번호 저장 | BCrypt (spring-security-crypto) |
 | 토큰 서명 | HS256 (HMAC-SHA256) |
 | 토큰 전송 | `Authorization: Bearer` 헤더 |
+| 토큰 폐기 | `POST /api/auth/logout`이 토큰 `jti`를 만료 시점까지 저장 |
 | 토큰 저장 (프론트) | localStorage |
 | CORS | Vite 프록시 또는 nginx reverse proxy 사용 |
 | 비밀번호 검증 | 최소 8자 (`@Size(min=8)`) |

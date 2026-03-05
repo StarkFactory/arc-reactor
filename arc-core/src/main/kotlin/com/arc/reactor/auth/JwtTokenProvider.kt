@@ -3,7 +3,9 @@ package com.arc.reactor.auth
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
 import mu.KotlinLogging
+import java.time.Instant
 import java.util.Date
+import java.util.UUID
 import javax.crypto.SecretKey
 
 private val logger = KotlinLogging.logger {}
@@ -47,6 +49,7 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
         val expiry = Date(now.time + authProperties.jwtExpirationMs)
 
         return Jwts.builder()
+            .id(UUID.randomUUID().toString())
             .subject(user.id)
             .claim("email", user.email)
             .claim("role", user.role.name)
@@ -63,17 +66,7 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
      * @return userId (subject) if valid, null if invalid or expired
      */
     fun validateToken(token: String): String? {
-        return try {
-            val claims = Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .payload
-            claims.subject
-        } catch (e: Exception) {
-            logger.debug { "JWT validation failed: ${e.message}" }
-            null
-        }
+        return parseClaims(token)?.subject
     }
 
     /**
@@ -83,11 +76,7 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
      */
     fun extractRole(token: String): UserRole? {
         return try {
-            val claims = Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .payload
+            val claims = parseClaims(token) ?: return null
             val roleName = claims.get("role", String::class.java) ?: return UserRole.USER
             UserRole.valueOf(roleName)
         } catch (e: Exception) {
@@ -103,16 +92,33 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
      */
     fun extractTenantId(token: String): String? {
         return try {
-            val claims = Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .payload
+            val claims = parseClaims(token) ?: return null
             claims.get("tenantId", String::class.java)
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
         } catch (e: Exception) {
             logger.debug { "JWT tenant extraction failed: ${e.message}" }
+            null
+        }
+    }
+
+    fun extractTokenId(token: String): String? {
+        return parseClaims(token)?.id?.trim()?.takeIf { it.isNotBlank() }
+    }
+
+    fun extractExpiration(token: String): Instant? {
+        return parseClaims(token)?.expiration?.toInstant()
+    }
+
+    private fun parseClaims(token: String): io.jsonwebtoken.Claims? {
+        return try {
+            Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .payload
+        } catch (e: Exception) {
+            logger.debug { "JWT parsing failed: ${e.message}" }
             null
         }
     }

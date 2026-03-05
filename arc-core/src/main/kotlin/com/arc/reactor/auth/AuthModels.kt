@@ -63,14 +63,16 @@ data class User(
  *   Must be at least 32 characters long. Generate with: `openssl rand -base64 32`
  * @param jwtExpirationMs Token lifetime in milliseconds (default: 24 hours)
  * @param defaultTenantId Default tenant ID to embed in issued JWT tokens when no tenant context is provided
+ * @param selfRegistrationEnabled Whether `/api/auth/register` is publicly available
  * @param publicPaths URL prefixes that bypass authentication
  */
 data class AuthProperties(
     val jwtSecret: String = "",
     val jwtExpirationMs: Long = 86_400_000,
     val defaultTenantId: String = "default",
+    val selfRegistrationEnabled: Boolean = false,
     val publicPaths: List<String> = listOf(
-        "/api/auth/login", "/api/auth/register",
+        "/api/auth/login",
         "/v3/api-docs", "/swagger-ui", "/webjars"
     ),
     /** Maximum auth attempts per minute per IP address (brute-force protection) */

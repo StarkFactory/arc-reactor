@@ -1,12 +1,19 @@
 package com.arc.reactor.admin.collection
 
 import com.arc.reactor.admin.tracing.TenantSpanProcessor
+import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.auth.UserRole
 import io.opentelemetry.context.Context
 import org.springframework.core.Ordered
 import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.ServerWebInputException
 import org.springframework.web.server.WebFilter
 import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
+
+private val TENANT_ID_PATTERN = Regex("^[a-zA-Z0-9_-]{1,64}$")
+private const val TENANT_ID_INVALID_MSG =
+    "Invalid tenant ID format. Only alphanumeric characters, hyphens, and underscores are allowed (max 64 chars)"
 
 /**
  * Resolves the current tenant ID.
@@ -23,10 +30,24 @@ class TenantResolver {
      * Resolves tenant ID from exchange attributes/headers. WebFlux-safe — no ThreadLocal.
      */
     fun resolveTenantId(exchange: ServerWebExchange): String {
-        val attr = exchange.attributes[EXCHANGE_ATTR_KEY] as? String
-        if (!attr.isNullOrBlank()) return attr
-        val header = exchange.request.headers.getFirst(HEADER_NAME)
-        if (!header.isNullOrBlank()) return header
+        val resolvedTenantId = exchange.attributes[EXCHANGE_ATTR_KEY]?.toString()?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val legacyTenantId = exchange.attributes[LEGACY_ATTR_KEY]?.toString()?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val tenantHeader = exchange.request.headers.getFirst(HEADER_NAME)?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.also { validateTenantIdFormat(it) }
+
+        val serverTenantId = resolvedTenantId ?: legacyTenantId
+        if (serverTenantId != null && tenantHeader != null && serverTenantId != tenantHeader) {
+            if (!canOverrideTenantContext(exchange)) {
+                throw ServerWebInputException("Tenant header does not match resolved tenant context")
+            }
+            return tenantHeader
+        }
+
+        val effectiveTenantId = serverTenantId ?: tenantHeader
+        if (effectiveTenantId != null) return effectiveTenantId
         return "default"
     }
 
@@ -48,6 +69,18 @@ class TenantResolver {
         private val TENANT_ID = ThreadLocal<String?>()
         const val HEADER_NAME = "X-Tenant-Id"
         const val EXCHANGE_ATTR_KEY = "resolvedTenantId"
+        const val LEGACY_ATTR_KEY = "tenantId"
+    }
+
+    private fun validateTenantIdFormat(tenantId: String) {
+        if (!TENANT_ID_PATTERN.matches(tenantId)) {
+            throw ServerWebInputException(TENANT_ID_INVALID_MSG)
+        }
+    }
+
+    private fun canOverrideTenantContext(exchange: ServerWebExchange): Boolean {
+        val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
+        return role?.isAnyAdmin() == true
     }
 }
 
@@ -82,14 +115,6 @@ class TenantWebFilter(
     }
 
     private fun extractTenantId(exchange: ServerWebExchange): String {
-        // 1. Check request header
-        val header = exchange.request.headers.getFirst(TenantResolver.HEADER_NAME)
-        if (!header.isNullOrBlank()) return header
-
-        // 2. Check legacy exchange attribute key used by older filters/adapters.
-        val attr = exchange.attributes["tenantId"] as? String
-        if (!attr.isNullOrBlank()) return attr
-
-        return "default"
+        return tenantResolver.resolveTenantId(exchange)
     }
 }

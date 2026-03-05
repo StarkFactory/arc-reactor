@@ -12,11 +12,11 @@ Arc Reactor 런타임은 인증을 필수로 요구합니다. auth secret이 없
 
 `arc.reactor.auth.jwt-secret=<secret>`을 설정합니다 (최소 32바이트; `openssl rand -base64 32`로 생성).
 
-**1단계: 회원가입 또는 로그인**
+**1단계: 로그인 (또는 셀프 회원가입이 활성화된 경우 회원가입)**
 
 ```
-POST /api/auth/register
 POST /api/auth/login
+POST /api/auth/register   # 선택: arc.reactor.auth.self-registration-enabled=true 필요
 ```
 
 두 엔드포인트 모두 응답 본문에 `token` 필드를 반환합니다.
@@ -69,6 +69,8 @@ Authorization: Bearer <token>
 
 새 사용자 계정을 등록하고 JWT를 받습니다.
 
+> **활성화 조건**: `arc.reactor.auth.self-registration-enabled=true`일 때만 사용 가능 (기본값: `false`).
+
 **인증**: 공개
 
 **요청 본문**:
@@ -99,7 +101,7 @@ Authorization: Bearer <token>
 }
 ```
 
-**응답 코드**: `201` 성공 | `400` 유효성 오류 | `409` 이메일 이미 등록됨
+**응답 코드**: `201` 성공 | `400` 유효성 오류 | `403` 셀프 회원가입 비활성화 | `409` 이메일 이미 등록됨
 
 ---
 
@@ -176,6 +178,23 @@ Authorization: Bearer <token>
 ```
 
 **응답 코드**: `200` 성공 | `400` 현재 비밀번호 오류 또는 미지원 AuthProvider | `401` 미인증 | `404` 사용자 없음
+
+---
+
+### POST /api/auth/logout
+
+현재 JWT(`jti`)를 폐기하고 현재 세션을 종료합니다.
+
+**인증**: 인증 필요 (유효한 JWT 필요)
+
+**응답 `200 OK`**:
+```json
+{
+  "message": "Logged out"
+}
+```
+
+**응답 코드**: `200` 성공 | `401` 미인증
 
 ---
 

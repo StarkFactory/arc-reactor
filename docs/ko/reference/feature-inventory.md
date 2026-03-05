@@ -312,7 +312,7 @@ ARC_REACTOR_AUTH_JWT_SECRET=your-256-bit-secret
 ```
 
 현재 기본 런타임에서는 자동으로:
-- 모든 API에 JWT 토큰 필요 (`/api/auth/login`, `/api/auth/register` 제외)
+- 모든 API에 JWT 토큰 필요 (`/api/auth/login` 제외, `/api/auth/register`는 활성화 시에만 공개)
 - 세션이 userId로 격리 (다른 사용자의 세션 접근 불가)
 - conversation_messages에 user_id 컬럼 자동 추가 (Flyway V4)
 
@@ -441,12 +441,12 @@ arc:
       input-max-chars: 5000         # 최대 입력 길이 (자)
 
     auth:
-      jwt-secret: ""                 # HMAC 서명 시크릿 (필수, 최소 32바이트)
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}  # HMAC 서명 시크릿 (필수, 최소 32바이트)
       jwt-expiration-ms: 86400000    # 토큰 유효기간 (24시간)
       default-tenant-id: default     # 발급 JWT의 기본 tenant claim
+      self-registration-enabled: false
       public-paths:                  # 인증 없이 접근 가능한 경로
         - /api/auth/login
-        - /api/auth/register
 
     cache:
       enabled: false                # 응답 캐싱 활성화 (opt-in)

@@ -749,6 +749,41 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
+        fun `should disable self-registration by default`() {
+            jdbcContextRunner
+                .withPropertyValues(
+                    "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
+                )
+                .run { context ->
+                    val props = context.getBean(com.arc.reactor.auth.AuthProperties::class.java)
+                    assertFalse(props.selfRegistrationEnabled) {
+                        "selfRegistrationEnabled should default to false for conservative deployments"
+                    }
+                    assertFalse(props.publicPaths.any { it == "/api/auth/register" }) {
+                        "publicPaths should not include /api/auth/register when self registration is disabled"
+                    }
+                }
+        }
+
+        @Test
+        fun `should expose register path when self-registration is enabled`() {
+            jdbcContextRunner
+                .withPropertyValues(
+                    "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough",
+                    "arc.reactor.auth.self-registration-enabled=true"
+                )
+                .run { context ->
+                    val props = context.getBean(com.arc.reactor.auth.AuthProperties::class.java)
+                    assertTrue(props.selfRegistrationEnabled) {
+                        "selfRegistrationEnabled should follow arc.reactor.auth.self-registration-enabled"
+                    }
+                    assertTrue(props.publicPaths.any { it == "/api/auth/register" }) {
+                        "publicPaths should include /api/auth/register when self-registration is enabled"
+                    }
+                }
+        }
+
+        @Test
         fun `should fail context startup when auth enabled with empty jwt secret`() {
             contextRunner
                 .withPropertyValues(

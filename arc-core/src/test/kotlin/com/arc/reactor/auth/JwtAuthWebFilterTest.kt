@@ -20,6 +20,8 @@ class JwtAuthWebFilterTest {
 
     private lateinit var jwtTokenProvider: JwtTokenProvider
     private lateinit var authProperties: AuthProperties
+    private lateinit var authProvider: AuthProvider
+    private lateinit var tokenRevocationStore: TokenRevocationStore
     private lateinit var filter: JwtAuthWebFilter
     private lateinit var exchange: ServerWebExchange
     private lateinit var chain: WebFilterChain
@@ -31,12 +33,14 @@ class JwtAuthWebFilterTest {
     @BeforeEach
     fun setup() {
         jwtTokenProvider = mockk()
+        authProvider = mockk()
+        tokenRevocationStore = mockk()
         authProperties = AuthProperties(
             jwtSecret = "arc-reactor-test-jwt-secret-key-at-least-32-chars-long",
             jwtExpirationMs = 86_400_000,
             publicPaths = listOf("/api/auth/login", "/api/auth/register")
         )
-        filter = JwtAuthWebFilter(jwtTokenProvider, authProperties)
+        filter = JwtAuthWebFilter(jwtTokenProvider, authProperties, authProvider, tokenRevocationStore)
 
         exchange = mockk(relaxed = true)
         chain = mockk()
@@ -52,6 +56,9 @@ class JwtAuthWebFilterTest {
         every { chain.filter(exchange) } returns Mono.empty()
         every { response.setComplete() } returns Mono.empty()
         every { jwtTokenProvider.extractTenantId(any()) } returns null
+        every { jwtTokenProvider.extractTokenId(any()) } returns null
+        every { authProvider.getUserById(any()) } returns null
+        every { tokenRevocationStore.isRevoked(any()) } returns false
     }
 
     @Nested
@@ -137,6 +144,13 @@ class JwtAuthWebFilterTest {
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
             every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
             every { jwtTokenProvider.extractRole("valid-token") } returns UserRole.USER
+            every { authProvider.getUserById("user-42") } returns User(
+                id = "user-42",
+                email = "user@example.com",
+                name = "User",
+                passwordHash = "hashed",
+                role = UserRole.USER
+            )
 
             val result = filter.filter(exchange, chain)
             result.block()
@@ -160,6 +174,13 @@ class JwtAuthWebFilterTest {
             every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
             every { jwtTokenProvider.extractRole("valid-token") } returns UserRole.USER
             every { jwtTokenProvider.extractTenantId("valid-token") } returns "tenant-acme"
+            every { authProvider.getUserById("user-42") } returns User(
+                id = "user-42",
+                email = "user@example.com",
+                name = "User",
+                passwordHash = "hashed",
+                role = UserRole.USER
+            )
 
             val result = filter.filter(exchange, chain)
             result.block()
@@ -168,6 +189,59 @@ class JwtAuthWebFilterTest {
                 "resolvedTenantId should be copied from token tenant claim"
             }
             verify(exactly = 1) { chain.filter(exchange) }
+        }
+
+        @Test
+        fun `should use current role from auth provider over token claim`() {
+            every { request.uri } returns URI.create("http://localhost/api/chat")
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+            every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
+            every { jwtTokenProvider.extractRole("valid-token") } returns UserRole.ADMIN
+            every { authProvider.getUserById("user-42") } returns User(
+                id = "user-42",
+                email = "user@example.com",
+                name = "User",
+                passwordHash = "hashed",
+                role = UserRole.USER
+            )
+
+            val result = filter.filter(exchange, chain)
+            result.block()
+
+            assertEquals(UserRole.USER, attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE]) {
+                "role should follow current persisted user role, not stale token role"
+            }
+            verify(exactly = 1) { chain.filter(exchange) }
+        }
+
+        @Test
+        fun `should return 401 when token user no longer exists`() {
+            every { request.uri } returns URI.create("http://localhost/api/chat")
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+            every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
+            every { jwtTokenProvider.extractRole("valid-token") } returns UserRole.USER
+            every { authProvider.getUserById("user-42") } returns null
+
+            val result = filter.filter(exchange, chain)
+            result.block()
+
+            verify(exactly = 1) { response.statusCode = HttpStatus.UNAUTHORIZED }
+            verify(exactly = 0) { chain.filter(exchange) }
+        }
+
+        @Test
+        fun `should return 401 when token is revoked`() {
+            every { request.uri } returns URI.create("http://localhost/api/chat")
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer revoked-token")
+            every { jwtTokenProvider.validateToken("revoked-token") } returns "user-42"
+            every { jwtTokenProvider.extractTokenId("revoked-token") } returns "jti-42"
+            every { tokenRevocationStore.isRevoked("jti-42") } returns true
+
+            val result = filter.filter(exchange, chain)
+            result.block()
+
+            verify(exactly = 1) { response.statusCode = HttpStatus.UNAUTHORIZED }
+            verify(exactly = 0) { chain.filter(exchange) }
         }
     }
 }

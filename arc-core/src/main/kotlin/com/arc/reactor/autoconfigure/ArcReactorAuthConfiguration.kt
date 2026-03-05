@@ -9,6 +9,7 @@ import com.arc.reactor.auth.InMemoryUserStore
 import com.arc.reactor.auth.JdbcUserStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.JwtTokenProvider
+import com.arc.reactor.auth.TokenRevocationStore
 import com.arc.reactor.auth.UserStore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
@@ -49,10 +50,18 @@ class AuthConfiguration {
     @Bean
     fun authProperties(environment: Environment): AuthProperties {
         val publicPathsCsv = environment.getProperty("arc.reactor.auth.public-paths")
+        val selfRegistrationEnabled = environment.getProperty(
+            "arc.reactor.auth.self-registration-enabled",
+            Boolean::class.java,
+            false
+        )
         val defaultPublicPaths = mutableListOf(
-            "/api/auth/login", "/api/auth/register",
+            "/api/auth/login",
             "/v3/api-docs", "/swagger-ui", "/webjars"
         )
+        if (selfRegistrationEnabled) {
+            defaultPublicPaths.add("/api/auth/register")
+        }
 
         // Convenience option: make health endpoint publicly accessible without requiring users to
         // override the entire public-paths list.
@@ -77,6 +86,7 @@ class AuthConfiguration {
             defaultTenantId = environment.getProperty(
                 "arc.reactor.auth.default-tenant-id", "default"
             ),
+            selfRegistrationEnabled = selfRegistrationEnabled,
             publicPaths = publicPaths,
             loginRateLimitPerMinute = environment.getProperty(
                 "arc.reactor.auth.login-rate-limit-per-minute", Int::class.java, 5
@@ -105,8 +115,15 @@ class AuthConfiguration {
     @ConditionalOnMissingBean(name = ["jwtAuthWebFilter"])
     fun jwtAuthWebFilter(
         jwtTokenProvider: JwtTokenProvider,
-        authProperties: AuthProperties
-    ): WebFilter = JwtAuthWebFilter(jwtTokenProvider, authProperties)
+        authProperties: AuthProperties,
+        authProvider: AuthProvider,
+        tokenRevocationStore: TokenRevocationStore
+    ): WebFilter = JwtAuthWebFilter(
+        jwtTokenProvider = jwtTokenProvider,
+        authProperties = authProperties,
+        authProvider = authProvider,
+        tokenRevocationStore = tokenRevocationStore
+    )
 
     @Bean
     @ConditionalOnMissingBean

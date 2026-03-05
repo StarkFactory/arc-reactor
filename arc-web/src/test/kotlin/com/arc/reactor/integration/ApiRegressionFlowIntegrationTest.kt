@@ -56,6 +56,7 @@ import kotlin.math.min
         "arc.reactor.output-guard.dynamic-rules-enabled=true",
         "arc.reactor.output-guard.dynamic-rules-refresh-ms=600000",
         "arc.reactor.auth.jwt-secret=integration-test-jwt-secret-32-bytes",
+        "arc.reactor.auth.self-registration-enabled=true",
         "arc.reactor.postgres.required=false"
     ]
 )

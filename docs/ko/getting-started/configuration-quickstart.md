@@ -47,6 +47,9 @@ cp examples/config/application.quickstart.yml arc-core/src/main/resources/applic
 ## 4) 첫 API 스모크 테스트
 
 ```bash
+# 런타임 기본값은 셀프 회원가입 비활성입니다.
+export ARC_REACTOR_AUTH_SELF_REGISTRATION_ENABLED=true
+
 TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"qa@example.com","password":"passw0rd!","name":"QA"}' \
