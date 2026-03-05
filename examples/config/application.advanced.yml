@@ -48,6 +48,12 @@ arc:
         enabled: ${ARC_REACTOR_RAG_INGESTION_ENABLED:false}
     cache:
       enabled: ${ARC_REACTOR_CACHE_ENABLED:false}
+      semantic:
+        enabled: ${ARC_REACTOR_CACHE_SEMANTIC_ENABLED:false}
+        similarity-threshold: ${ARC_REACTOR_CACHE_SEMANTIC_SIMILARITY_THRESHOLD:0.92}
+        max-candidates: ${ARC_REACTOR_CACHE_SEMANTIC_MAX_CANDIDATES:50}
+        max-entries-per-scope: ${ARC_REACTOR_CACHE_SEMANTIC_MAX_ENTRIES_PER_SCOPE:1000}
+        key-prefix: ${ARC_REACTOR_CACHE_SEMANTIC_KEY_PREFIX:arc:cache}
     circuit-breaker:
       enabled: ${ARC_REACTOR_CIRCUIT_BREAKER_ENABLED:false}
     fallback:

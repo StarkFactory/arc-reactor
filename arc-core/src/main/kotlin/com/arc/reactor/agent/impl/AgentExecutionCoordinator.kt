@@ -7,6 +7,7 @@ import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.cache.CacheKeyBuilder
 import com.arc.reactor.cache.CachedResponse
 import com.arc.reactor.cache.ResponseCache
+import com.arc.reactor.cache.SemanticResponseCache
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.resilience.FallbackStrategy
@@ -62,6 +63,7 @@ internal class AgentExecutionCoordinator(
         val cacheLookup = resolveCache(effectiveCommand, startTime)
         cacheLookup.cachedResult?.let { return it }
         val resolvedCacheKey = cacheLookup.cacheKey
+        val cacheToolNames = cacheLookup.toolNames
 
         val conversationHistory = conversationManager.loadHistory(effectiveCommand)
         val ragContext = retrieveRagContext(effectiveCommand)
@@ -99,13 +101,20 @@ internal class AgentExecutionCoordinator(
 
         if (resolvedCacheKey != null && finalResult.success && finalResult.content != null) {
             try {
-                responseCache?.put(
-                    resolvedCacheKey,
-                    CachedResponse(
-                        content = finalResult.content,
-                        toolsUsed = finalResult.toolsUsed
-                    )
+                val cacheEntry = CachedResponse(
+                    content = finalResult.content,
+                    toolsUsed = finalResult.toolsUsed
                 )
+                when (val cache = responseCache) {
+                    is SemanticResponseCache -> cache.putSemantic(
+                        command = effectiveCommand,
+                        toolNames = cacheToolNames,
+                        exactKey = resolvedCacheKey,
+                        response = cacheEntry
+                    )
+                    null -> {}
+                    else -> cache.put(resolvedCacheKey, cacheEntry)
+                }
             } catch (e: Exception) {
                 e.throwIfCancellation()
                 logger.warn(e) { "Failed to cache response" }
@@ -117,13 +126,17 @@ internal class AgentExecutionCoordinator(
 
     private suspend fun resolveCache(command: AgentCommand, startTime: Long): CacheLookupResult {
         if (responseCache == null || !isCacheable(command)) {
-            return CacheLookupResult(cacheKey = null, cachedResult = null)
+            return CacheLookupResult(cacheKey = null, cachedResult = null, toolNames = emptyList())
         }
 
         val toolNames = (toolCallbacks + mcpToolCallbacks()).map { it.name }
         val key = CacheKeyBuilder.buildKey(command, toolNames)
         try {
-            responseCache.get(key)?.let { cached ->
+            val cached = when (val cache = responseCache) {
+                is SemanticResponseCache -> cache.getSemantic(command, toolNames, key)
+                else -> cache.get(key)
+            }
+            cached?.let {
                 logger.debug { "Cache hit for request" }
                 agentMetrics.recordCacheHit(key)
                 return CacheLookupResult(
@@ -132,7 +145,8 @@ internal class AgentExecutionCoordinator(
                         content = cached.content,
                         toolsUsed = cached.toolsUsed,
                         durationMs = nowMs() - startTime
-                    )
+                    ),
+                    toolNames = toolNames
                 )
             }
         } catch (e: Exception) {
@@ -140,7 +154,7 @@ internal class AgentExecutionCoordinator(
             logger.warn(e) { "Cache lookup failed, proceeding without cache" }
         }
         agentMetrics.recordCacheMiss(key)
-        return CacheLookupResult(cacheKey = key, cachedResult = null)
+        return CacheLookupResult(cacheKey = key, cachedResult = null, toolNames = toolNames)
     }
 
     private suspend fun attemptFallback(command: AgentCommand, originalResult: AgentResult): AgentResult {
@@ -165,6 +179,7 @@ internal class AgentExecutionCoordinator(
 
     private data class CacheLookupResult(
         val cacheKey: String?,
-        val cachedResult: AgentResult?
+        val cachedResult: AgentResult?,
+        val toolNames: List<String>
     )
 }

@@ -28,7 +28,7 @@
 | **JWT Authentication** | `POST /api/auth/*` | **required** | Runtime requires `arc.reactor.auth.jwt-secret` |
 | **Persona Management** | `GET/POST/PUT/DELETE /api/personas` | Active | System prompt template CRUD |
 | **Per-User Session Isolation** | Internal (no API) | Active | Sessions are filtered by JWT-derived userId (auth is always required) |
-| **Response Caching** | Internal (no API) | **opt-in** | Caffeine-based cache, SHA-256 keys, temperature-based eligibility |
+| **Response Caching** | Internal (no API) | **opt-in** | Scoped SHA-256 keys (user/tenant/session aware), temperature gating, optional Redis semantic fallback |
 | **Circuit Breaker** | Internal (no API) | **opt-in** | Kotlin-native CB: CLOSED → OPEN → HALF_OPEN state machine |
 | **Graceful Degradation** | Internal (no API) | **opt-in** | Sequential model fallback on primary model failure |
 | **Response Filters** | Internal (no API) | Active | Post-processing pipeline (MaxLengthResponseFilter built-in) |
@@ -453,6 +453,12 @@ arc:
       max-size: 1000                # Max cached entries
       ttl-minutes: 60               # Cache TTL (minutes)
       cacheable-temperature: 0.0    # Cache only when temp <= this
+      semantic:
+        enabled: false              # Redis semantic cache fallback (opt-in)
+        similarity-threshold: 0.92
+        max-candidates: 50
+        max-entries-per-scope: 1000
+        key-prefix: arc:cache
 
     circuit-breaker:
       enabled: false                # Enable circuit breaker (opt-in)
@@ -534,7 +540,7 @@ All beans are registered with `@ConditionalOnMissingBean`, so users can override
 | `AgentExecutor` | `SpringAiAgentExecutor` | Always | Register `@Bean` |
 | `AgentMetrics` | `NoOpAgentMetrics` | Always | Register `@Bean` |
 | `ResponseFilterChain` | `ResponseFilterChain` | Always | Add `@Component` ResponseFilter |
-| `ResponseCache` | `CaffeineResponseCache` | cache.enabled=true | Register `@Bean` |
+| `ResponseCache` | `CaffeineResponseCache` (default), `RedisSemanticResponseCache` (primary when semantic enabled + deps available) | cache.enabled=true | Register `@Bean` |
 | `CircuitBreaker` | `DefaultCircuitBreaker` | circuit-breaker.enabled=true | Register `@Bean` |
 | `FallbackStrategy` | `ModelFallbackStrategy` | fallback.enabled=true | Register `@Bean` |
 | `ErrorMessageResolver` | `DefaultErrorMessageResolver` | Always | Register `@Bean` |

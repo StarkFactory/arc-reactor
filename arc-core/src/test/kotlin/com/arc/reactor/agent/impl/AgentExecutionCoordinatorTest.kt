@@ -7,6 +7,7 @@ import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.cache.CacheKeyBuilder
 import com.arc.reactor.cache.CachedResponse
 import com.arc.reactor.cache.ResponseCache
+import com.arc.reactor.cache.SemanticResponseCache
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.resilience.FallbackStrategy
 import com.arc.reactor.tool.ToolCallback
@@ -152,7 +153,54 @@ class AgentExecutionCoordinatorTest {
         assertTrue(result.success, "Finalized response should produce a successful result")
         assertEquals("final", result.content)
         verify(exactly = 1) { metrics.recordCacheMiss(expectedKey) }
-        coVerify(exactly = 1) { responseCache.put(expectedKey, match { it.content == "final" && it.toolsUsed == listOf("tool") }) }
+        coVerify(exactly = 1) {
+            responseCache.put(
+                expectedKey,
+                match { it.content == "final" && it.toolsUsed == listOf("tool") }
+            )
+        }
+    }
+
+    @Test
+    fun `should prefer semantic cache interface when available`() = runBlocking {
+        val responseCache = mockk<SemanticResponseCache>()
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
+        val expectedKey = CacheKeyBuilder.buildKey(command, listOf("tool"))
+        coEvery { responseCache.getSemantic(command, listOf("tool"), expectedKey) } returns CachedResponse(
+            content = "semantic-hit",
+            toolsUsed = listOf("tool")
+        )
+
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = responseCache,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = metrics,
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success("live") },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { it },
+            nowMs = { 2_000L }
+        )
+
+        val result = coordinator.execute(
+            command = command,
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        assertTrue(result.success, "Semantic cache hit should return success")
+        assertEquals("semantic-hit", result.content)
+        coVerify(exactly = 1) { responseCache.getSemantic(command, listOf("tool"), expectedKey) }
+        verify(exactly = 1) { metrics.recordCacheHit(expectedKey) }
     }
 
     private fun testTool(name: String): ToolCallback = object : ToolCallback {

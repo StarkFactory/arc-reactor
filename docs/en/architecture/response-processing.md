@@ -220,6 +220,8 @@ The cache key is a SHA-256 hash of:
 - User prompt
 - Sorted tool names (order-independent)
 - Model name
+- Response format/schema
+- User/tenant/session scope (if present)
 
 Two requests with the same inputs produce the same key, regardless of tool list ordering.
 
@@ -233,6 +235,12 @@ arc:
       max-size: 1000              # Maximum cached entries (default: 1000)
       ttl-minutes: 60             # Time-to-live per entry (default: 60)
       cacheable-temperature: 0.0  # Max temperature for caching (default: 0.0)
+      semantic:
+        enabled: false            # Redis semantic cache (default: false)
+        similarity-threshold: 0.92
+        max-candidates: 50
+        max-entries-per-scope: 1000
+        key-prefix: arc:cache
 ```
 
 | Property | Default | Description |
@@ -241,6 +249,11 @@ arc:
 | `max-size` | `1000` | Maximum number of cached entries |
 | `ttl-minutes` | `60` | Time-to-live in minutes per entry |
 | `cacheable-temperature` | `0.0` | Only cache responses when temperature ≤ this value |
+| `semantic.enabled` | `false` | Enable Redis-backed semantic cache fallback |
+| `semantic.similarity-threshold` | `0.92` | Minimum cosine similarity for semantic hits |
+| `semantic.max-candidates` | `50` | Candidate entries evaluated per semantic lookup |
+| `semantic.max-entries-per-scope` | `1000` | Redis semantic entries retained per scope fingerprint |
+| `semantic.key-prefix` | `arc:cache` | Redis key namespace prefix |
 
 ### Temperature-Based Eligibility
 
@@ -257,6 +270,7 @@ If no temperature is set on the command, the default from `arc.reactor.llm.tempe
 | Implementation | Description |
 |----------------|-------------|
 | `CaffeineResponseCache` | Caffeine-backed cache with TTL and max size. Registered when `cache.enabled=true` |
+| `RedisSemanticResponseCache` | Redis-backed exact+semantic cache (requires Redis + EmbeddingModel + `cache.semantic.enabled=true`) |
 | `NoOpResponseCache` | No-op implementation. All operations are no-ops |
 
 ### Custom Cache Implementation

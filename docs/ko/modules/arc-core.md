@@ -158,6 +158,11 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | `max-size` | `1000` | 최대 캐시 항목 수 |
 | `ttl-minutes` | `60` | 캐시 항목 유효 시간(분) |
 | `cacheable-temperature` | `0.0` | 이 온도 이하에서만 캐싱 |
+| `semantic.enabled` | `false` | Redis 시맨틱 캐시 폴백 (선택적 활성화) |
+| `semantic.similarity-threshold` | `0.92` | 시맨틱 히트 최소 코사인 유사도 |
+| `semantic.max-candidates` | `50` | 조회당 시맨틱 후보 평가 개수 |
+| `semantic.max-entries-per-scope` | `1000` | 스코프별 Redis 시맨틱 캐시 보관 수 |
+| `semantic.key-prefix` | `arc:cache` | Redis 키 네임스페이스 접두사 |
 
 ### 폴백 (`arc.reactor.fallback`)
 

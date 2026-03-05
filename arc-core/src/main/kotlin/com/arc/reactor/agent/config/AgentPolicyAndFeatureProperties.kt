@@ -311,7 +311,33 @@ data class CacheProperties(
     val ttlMinutes: Long = 60,
 
     /** Only cache responses when temperature is at or below this value. */
-    val cacheableTemperature: Double = 0.0
+    val cacheableTemperature: Double = 0.0,
+
+    /** Optional semantic cache configuration (Redis-backed). */
+    val semantic: SemanticCacheProperties = SemanticCacheProperties()
+)
+
+/**
+ * Semantic cache configuration.
+ *
+ * When enabled and Redis + embedding dependencies are available, Arc Reactor adds a semantic cache
+ * layer that can reuse responses for similar prompts within the same request scope.
+ */
+data class SemanticCacheProperties(
+    /** Enable semantic response cache. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Minimum cosine similarity required for semantic cache hit. */
+    val similarityThreshold: Double = 0.92,
+
+    /** Maximum number of recent semantic candidates to evaluate per lookup. */
+    val maxCandidates: Int = 50,
+
+    /** Maximum semantic cache entries per scope fingerprint. */
+    val maxEntriesPerScope: Long = 1000,
+
+    /** Redis key prefix for semantic cache records and indexes. */
+    val keyPrefix: String = "arc:cache"
 )
 
 /**
@@ -489,4 +515,3 @@ enum class OutputMinViolationMode {
     /** Fail with OUTPUT_TOO_SHORT error code. */
     FAIL
 }
-

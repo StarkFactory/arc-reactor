@@ -158,6 +158,11 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 | `max-size` | `1000` | Max cached entries |
 | `ttl-minutes` | `60` | Cache entry TTL |
 | `cacheable-temperature` | `0.0` | Only cache at or below this temperature |
+| `semantic.enabled` | `false` | Redis semantic cache fallback (opt-in) |
+| `semantic.similarity-threshold` | `0.92` | Minimum cosine similarity for semantic hits |
+| `semantic.max-candidates` | `50` | Semantic candidates evaluated per lookup |
+| `semantic.max-entries-per-scope` | `1000` | Redis semantic entries retained per scope |
+| `semantic.key-prefix` | `arc:cache` | Redis key namespace prefix |
 
 ### Fallback (`arc.reactor.fallback`)
 
