@@ -9,6 +9,7 @@ import com.arc.reactor.slack.handler.DefaultSlackCommandHandler
 import com.arc.reactor.slack.handler.DefaultSlackEventHandler
 import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.handler.SlackEventHandler
+import com.arc.reactor.slack.handler.SlackReminderScheduler
 import com.arc.reactor.slack.handler.SlackReminderStore
 import com.arc.reactor.slack.gateway.SlackSocketModeGateway
 import com.arc.reactor.slack.metrics.MicrometerSlackMetricsRecorder
@@ -103,6 +104,14 @@ class SlackAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun slackReminderStore(): SlackReminderStore = SlackReminderStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(value = [SlackReminderStore::class, SlackMessagingService::class])
+    fun slackReminderScheduler(
+        reminderStore: SlackReminderStore,
+        messagingService: SlackMessagingService
+    ): SlackReminderScheduler = SlackReminderScheduler(reminderStore, messagingService)
 
     @Bean
     @ConditionalOnMissingBean
