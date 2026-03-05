@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -32,6 +33,9 @@ class SlackEventProcessor(
     )
     private val notifyOnDrop = properties.notifyOnDrop
     private val processDirectMessagesWithoutThread = properties.processDirectMessagesWithoutThread
+    private val proactiveEnabled = properties.proactiveEnabled
+    private val proactiveChannelIds = properties.proactiveChannelIds.toSet()
+    private val proactiveSemaphore = Semaphore(properties.proactiveMaxConcurrent.coerceAtLeast(1))
     private val deduplicator = SlackEventDeduplicator(
         enabled = properties.eventDedupEnabled,
         ttlSeconds = properties.eventDedupTtlSeconds,
@@ -141,6 +145,8 @@ class SlackEventProcessor(
                             command.isDirectMessageChannel()
                         ) {
                             eventHandler.handleMessage(command)
+                        } else if (isProactiveCandidate(command)) {
+                            handleProactive(command, entrypoint)
                         }
                     }
                 }
@@ -181,6 +187,42 @@ class SlackEventProcessor(
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) { "Failed to send queue-timeout message for channel=${command.channelId}" }
+        }
+    }
+
+    private fun isProactiveCandidate(command: SlackEventCommand): Boolean {
+        if (!proactiveEnabled) return false
+        if (command.channelId !in proactiveChannelIds) return false
+        if (command.isDirectMessageChannel()) return false
+        return true
+    }
+
+    private suspend fun handleProactive(command: SlackEventCommand, entrypoint: String) {
+        if (!proactiveSemaphore.tryAcquire()) {
+            logger.debug {
+                "Proactive evaluation skipped (concurrency limit): channel=${command.channelId}"
+            }
+            metricsRecorder.recordDropped(
+                entrypoint = entrypoint,
+                reason = "proactive_concurrency",
+                eventType = "message"
+            )
+            return
+        }
+
+        try {
+            val responded = eventHandler.handleChannelMessage(command)
+            metricsRecorder.recordHandler(
+                entrypoint = entrypoint,
+                eventType = "proactive",
+                success = responded,
+                durationMs = 0
+            )
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "Proactive handler error: channel=${command.channelId}" }
+        } finally {
+            proactiveSemaphore.release()
         }
     }
 

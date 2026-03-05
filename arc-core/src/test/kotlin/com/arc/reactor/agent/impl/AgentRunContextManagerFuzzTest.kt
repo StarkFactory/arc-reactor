@@ -17,6 +17,7 @@ class AgentRunContextManagerFuzzTest {
     fun cleanup() {
         MDC.remove("runId")
         MDC.remove("userId")
+        MDC.remove("userEmail")
         MDC.remove("sessionId")
     }
 
@@ -34,6 +35,9 @@ class AgentRunContextManagerFuzzTest {
             val metadata = buildMap<String, Any> {
                 put("channel", if (i % 2 == 0) "web" else "slack")
                 put("traceId", "trace-$i")
+                if (i % 5 == 0) {
+                    put("requesterEmail", "user-$i@example.com")
+                }
                 if (includeSession) {
                     put("sessionId", sessionValues[i % sessionValues.size])
                 }
@@ -54,6 +58,8 @@ class AgentRunContextManagerFuzzTest {
             assertEquals(command.userId ?: "anonymous", MDC.get("userId"))
             assertEquals(metadata["channel"]?.toString(), context.hookContext.channel)
             assertEquals("trace-$i", context.hookContext.metadata["traceId"])
+            assertEquals(metadata["requesterEmail"]?.toString(), context.hookContext.userEmail)
+            assertEquals(metadata["requesterEmail"]?.toString(), MDC.get("userEmail"))
 
             if (includeSession) {
                 assertEquals(metadata["sessionId"].toString(), MDC.get("sessionId"))
@@ -64,6 +70,7 @@ class AgentRunContextManagerFuzzTest {
             manager.close()
             assertNull(MDC.get("runId"), "MDC runId should be cleared after close()")
             assertNull(MDC.get("userId"), "MDC userId should be cleared after close()")
+            assertNull(MDC.get("userEmail"), "MDC userEmail should be cleared after close()")
             assertNull(MDC.get("sessionId"), "MDC sessionId should be cleared after close()")
         }
     }

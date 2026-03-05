@@ -263,6 +263,88 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
+    fun `should inject requesterEmail for personal jira tool when assignee is missing`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("project" to "DEV") }
+        )
+        val context = HookContext(
+            runId = "run-1",
+            userId = "user-1",
+            userPrompt = "prompt",
+            metadata = java.util.concurrent.ConcurrentHashMap(mapOf("requesterEmail" to "alice@example.com"))
+        )
+        val toolCall = toolCall(id = "id-1", name = "jira_my_open_issues", arguments = """{"project":"DEV"}""")
+        val callback = object : ToolCallback {
+            override val name: String = "jira_my_open_issues"
+            override val description: String = "Personal Jira tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = arguments["requesterEmail"] ?: "none"
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = context,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertEquals("alice@example.com", responses[0].responseData())
+    }
+
+    @Test
+    fun `should not inject requesterEmail when assigneeAccountId is already provided`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("assigneeAccountId" to "acct-1") }
+        )
+        val context = HookContext(
+            runId = "run-1",
+            userId = "user-1",
+            userPrompt = "prompt",
+            metadata = java.util.concurrent.ConcurrentHashMap(mapOf("requesterEmail" to "alice@example.com"))
+        )
+        val toolCall = toolCall(
+            id = "id-1",
+            name = "jira_daily_briefing",
+            arguments = """{"assigneeAccountId":"acct-1"}"""
+        )
+        val callback = object : ToolCallback {
+            override val name: String = "jira_daily_briefing"
+            override val description: String = "Personal Jira tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                val hasRequester = arguments.containsKey("requesterEmail")
+                val assignee = arguments["assigneeAccountId"]?.toString().orEmpty()
+                return "$assignee|$hasRequester"
+            }
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = context,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertEquals("acct-1|false", responses[0].responseData())
+    }
+
+    @Test
     fun `should execute LocalTool annotated method and append toolsUsed`() = runBlocking {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,

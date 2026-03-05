@@ -2,9 +2,11 @@ package com.arc.reactor.slack.handler
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.slack.model.SlackSlashCommand
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
+import com.arc.reactor.slack.service.SlackUserEmailResolver
 import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
@@ -23,7 +25,9 @@ class DefaultSlackCommandHandler(
     private val messagingService: SlackMessagingService,
     private val defaultProvider: String = "configured backend model",
     private val threadTracker: SlackThreadTracker? = null,
-    private val reminderStore: SlackReminderStore? = null
+    private val reminderStore: SlackReminderStore? = null,
+    private val userEmailResolver: SlackUserEmailResolver? = null,
+    private val mcpManager: McpManager? = null
 ) : SlackCommandHandler {
 
     override suspend fun handleSlashCommand(command: SlackSlashCommand) {
@@ -147,21 +151,42 @@ class DefaultSlackCommandHandler(
         intent: SlackSlashIntent.Agent,
         sessionId: String
     ): com.arc.reactor.agent.model.AgentResult {
+        val requesterEmail = resolveRequesterEmail(command.userId)
+        val metadata = mutableMapOf<String, Any>(
+            "sessionId" to sessionId,
+            "source" to "slack",
+            "channel" to "slack",
+            "entrypoint" to "slash",
+            "channelId" to command.channelId,
+            "intent" to intent.mode.name.lowercase()
+        )
+        if (!requesterEmail.isNullOrBlank()) {
+            metadata["requesterEmail"] = requesterEmail
+            metadata["slackUserEmail"] = requesterEmail
+            metadata["userEmail"] = requesterEmail
+        }
+
         return agentExecutor.execute(
             AgentCommand(
-                systemPrompt = SlackSystemPromptFactory.build(defaultProvider),
+                systemPrompt = SlackSystemPromptFactory.build(
+                    defaultProvider, buildToolSummary()
+                ),
                 userPrompt = intent.prompt,
                 userId = command.userId,
-                metadata = mapOf(
-                    "sessionId" to sessionId,
-                    "source" to "slack",
-                    "channel" to "slack",
-                    "entrypoint" to "slash",
-                    "channelId" to command.channelId,
-                    "intent" to intent.mode.name.lowercase()
-                )
+                metadata = metadata
             )
         )
+    }
+
+    private fun buildToolSummary(): String? {
+        val manager = mcpManager ?: return null
+        val toolsByServer = manager.listServers()
+            .filter { manager.getStatus(it.name)?.name == "CONNECTED" }
+            .associate { server ->
+                server.name to manager.getToolCallbacks(server.name).map { it.name }
+            }
+            .filter { it.value.isNotEmpty() }
+        return SlackSystemPromptFactory.buildToolSummary(toolsByServer)
     }
 
     private suspend fun handleReminderAdd(command: SlackSlashCommand, intent: SlackSlashIntent.ReminderAdd) {
@@ -223,5 +248,16 @@ class DefaultSlackCommandHandler(
             responseType = "ephemeral",
             text = "Reminder feature is temporarily unavailable. Please try again later."
         )
+    }
+
+    private suspend fun resolveRequesterEmail(userId: String): String? {
+        val resolver = userEmailResolver ?: return null
+        return try {
+            resolver.resolveEmail(userId)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "Failed to resolve Slack requester email for userId=$userId" }
+            null
+        }
     }
 }

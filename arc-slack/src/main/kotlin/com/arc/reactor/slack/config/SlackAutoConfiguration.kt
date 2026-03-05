@@ -2,6 +2,7 @@ package com.arc.reactor.slack.config
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.slack.handler.DefaultSlackCommandHandler
 import com.arc.reactor.slack.handler.DefaultSlackEventHandler
 import com.arc.reactor.slack.handler.SlackCommandHandler
@@ -18,6 +19,7 @@ import com.arc.reactor.slack.security.SlackSignatureWebFilter
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.adapter.SlackMessageSenderAdapter
 import com.arc.reactor.slack.service.SlackMessagingService
+import com.arc.reactor.slack.service.SlackUserEmailResolver
 import com.arc.reactor.scheduler.SlackMessageSender
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
@@ -122,17 +124,31 @@ class SlackAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    fun slackUserEmailResolver(properties: SlackProperties): SlackUserEmailResolver =
+        SlackUserEmailResolver(
+            botToken = properties.botToken,
+            enabled = properties.userEmailResolutionEnabled,
+            cacheTtlSeconds = properties.userEmailCacheTtlSeconds,
+            cacheMaxEntries = properties.userEmailCacheMaxEntries
+        )
+
+    @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnBean(AgentExecutor::class)
     fun slackEventHandler(
         agentExecutor: AgentExecutor,
         messagingService: SlackMessagingService,
         agentProperties: ObjectProvider<AgentProperties>,
-        threadTracker: ObjectProvider<SlackThreadTracker>
+        threadTracker: ObjectProvider<SlackThreadTracker>,
+        userEmailResolver: ObjectProvider<SlackUserEmailResolver>,
+        mcpManager: ObjectProvider<McpManager>
     ): SlackEventHandler = DefaultSlackEventHandler(
         agentExecutor = agentExecutor,
         messagingService = messagingService,
         defaultProvider = agentProperties.ifAvailable?.llm?.defaultProvider ?: "configured backend model",
-        threadTracker = threadTracker.ifAvailable
+        threadTracker = threadTracker.ifAvailable,
+        userEmailResolver = userEmailResolver.ifAvailable,
+        mcpManager = mcpManager.ifAvailable
     )
 
     @Bean
@@ -143,13 +159,17 @@ class SlackAutoConfiguration {
         messagingService: SlackMessagingService,
         agentProperties: ObjectProvider<AgentProperties>,
         threadTracker: ObjectProvider<SlackThreadTracker>,
-        reminderStore: ObjectProvider<SlackReminderStore>
+        reminderStore: ObjectProvider<SlackReminderStore>,
+        userEmailResolver: ObjectProvider<SlackUserEmailResolver>,
+        mcpManager: ObjectProvider<McpManager>
     ): SlackCommandHandler = DefaultSlackCommandHandler(
         agentExecutor = agentExecutor,
         messagingService = messagingService,
         defaultProvider = agentProperties.ifAvailable?.llm?.defaultProvider ?: "configured backend model",
         threadTracker = threadTracker.ifAvailable,
-        reminderStore = reminderStore.ifAvailable
+        reminderStore = reminderStore.ifAvailable,
+        userEmailResolver = userEmailResolver.ifAvailable,
+        mcpManager = mcpManager.ifAvailable
     )
 
     @Bean

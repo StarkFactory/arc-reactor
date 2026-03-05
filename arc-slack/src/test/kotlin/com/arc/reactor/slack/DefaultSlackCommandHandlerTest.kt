@@ -10,6 +10,7 @@ import com.arc.reactor.slack.model.SlackApiResult
 import com.arc.reactor.slack.model.SlackSlashCommand
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
+import com.arc.reactor.slack.service.SlackUserEmailResolver
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -93,6 +94,32 @@ class DefaultSlackCommandHandlerTest {
             coVerify(exactly = 1) { messagingService.sendMessage("C123", any(), null) }
             coVerify(exactly = 1) { messagingService.sendMessage("C123", "You have 3 tasks today.", "1111.2222") }
             coVerify(exactly = 0) { messagingService.sendResponseUrl(any(), any(), any()) }
+        }
+
+        @Test
+        fun `includes requester email metadata when resolver succeeds`() = runTest {
+            val resolver = mockk<SlackUserEmailResolver>()
+            val emailHandler = DefaultSlackCommandHandler(
+                agentExecutor = agentExecutor,
+                messagingService = messagingService,
+                userEmailResolver = resolver
+            )
+            coEvery { resolver.resolveEmail("U456") } returns "alice@example.com"
+            coEvery {
+                messagingService.sendMessage("C123", any(), null)
+            } returns SlackApiResult(ok = true, ts = "1111.2222", channel = "C123")
+            coEvery {
+                messagingService.sendMessage("C123", any(), "1111.2222")
+            } returns SlackApiResult(ok = true, ts = "1111.3333", channel = "C123")
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns
+                AgentResult(success = true, content = "Done")
+
+            emailHandler.handleSlashCommand(slashCommand())
+
+            commandSlot.captured.metadata["requesterEmail"] shouldBe "alice@example.com"
+            commandSlot.captured.metadata["slackUserEmail"] shouldBe "alice@example.com"
+            commandSlot.captured.metadata["userEmail"] shouldBe "alice@example.com"
         }
 
         @Test

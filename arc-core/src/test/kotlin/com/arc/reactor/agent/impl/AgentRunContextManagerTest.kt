@@ -14,6 +14,7 @@ class AgentRunContextManagerTest {
     fun cleanup() {
         MDC.remove("runId")
         MDC.remove("userId")
+        MDC.remove("userEmail")
         MDC.remove("sessionId")
     }
 
@@ -25,7 +26,12 @@ class AgentRunContextManagerTest {
             systemPrompt = "sys",
             userPrompt = "hello",
             userId = null,
-            metadata = mapOf("channel" to "slack", "sessionId" to 12345, "trace" to "abc")
+            metadata = mapOf(
+                "channel" to "slack",
+                "sessionId" to 12345,
+                "trace" to "abc",
+                "requesterEmail" to "alice@example.com"
+            )
         )
 
         val context = manager.open(command, toolsUsed)
@@ -33,8 +39,10 @@ class AgentRunContextManagerTest {
         assertEquals("run-1", context.runId)
         assertEquals("anonymous", context.hookContext.userId)
         assertEquals("slack", context.hookContext.channel)
+        assertEquals("alice@example.com", context.hookContext.userEmail)
         assertEquals("abc", context.hookContext.metadata["trace"])
         assertEquals("12345", MDC.get("sessionId"))
+        assertEquals("alice@example.com", MDC.get("userEmail"))
         assertEquals("run-1", MDC.get("runId"))
         assertEquals("anonymous", MDC.get("userId"))
     }
@@ -50,6 +58,7 @@ class AgentRunContextManagerTest {
 
         assertNull(MDC.get("runId"), "MDC runId should be cleared after close()")
         assertNull(MDC.get("userId"), "MDC userId should be cleared after close()")
+        assertNull(MDC.get("userEmail"), "MDC userEmail should be cleared after close()")
         assertNull(MDC.get("sessionId"), "MDC sessionId should be cleared after close()")
     }
 }
