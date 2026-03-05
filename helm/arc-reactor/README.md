@@ -157,7 +157,13 @@ kubectl delete secret arc-reactor
 | `config.agent.maxToolCalls` | Maximum tool calls per request | `10` |
 | `config.agent.maxToolsPerRequest` | Maximum tools per request | `20` |
 | `config.rag.enabled` | Enable RAG | `false` |
-| `config.authPublicActuatorHealth` | Expose `/actuator/health*` without JWT (for probes) | `true` |
+| `config.cache.enabled` | Enable response cache | `false` |
+| `config.cache.semanticEnabled` | Enable Redis semantic cache fallback | `false` |
+| `config.redis.host` | Redis host (optional, required for Redis-backed features) | `""` |
+| `config.redis.port` | Redis port | `6379` |
+| `config.auth.publicActuatorHealth` | Expose `/actuator/health*` without JWT (for probes) | `true` |
+| `config.auth.tokenRevocationStore` | Token revocation backend (`memory`, `jdbc`, `redis`) | `memory` |
+| `config.auth.tokenRevocationRedisKeyPrefix` | Redis key prefix for token revocation entries | `arc:auth:revoked` |
 | `config.flyway.enabled` | Enable Flyway migrations | `false` |
 | `config.logging.level` | Application log level | `INFO` |
 

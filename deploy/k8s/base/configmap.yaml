@@ -18,6 +18,15 @@ data:
   ARC_REACTOR_RAG_INGESTION_ENABLED: "true"
   ARC_REACTOR_RAG_INGESTION_DYNAMIC_ENABLED: "true"
 
+  # Response cache / token revocation backend
+  ARC_REACTOR_CACHE_ENABLED: "false"
+  ARC_REACTOR_CACHE_SEMANTIC_ENABLED: "false"
+  ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE: "jdbc"
+  ARC_REACTOR_AUTH_TOKEN_REVOCATION_REDIS_KEY_PREFIX: "arc:auth:revoked"
+  # Set these only when enabling Redis-backed features:
+  # SPRING_DATA_REDIS_HOST: "redis"
+  # SPRING_DATA_REDIS_PORT: "6379"
+
   # COST WARNING: AGENT-mode scheduled jobs invoke the LLM on each execution.
   # High-frequency schedules may incur significant API costs.
   ARC_REACTOR_SCHEDULER_ENABLED: "true"

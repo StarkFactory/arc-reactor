@@ -58,6 +58,9 @@ config:
     maxToolCalls: "10"
     maxToolsPerRequest: "20"
 
+  auth:
+    tokenRevocationStore: "jdbc"
+
   flyway:
     enabled: "true"
 

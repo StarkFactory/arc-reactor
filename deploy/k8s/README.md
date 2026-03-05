@@ -55,6 +55,10 @@ kubectl -n arc-reactor logs deploy/arc-reactor --tail=200
 
 - Authentication is always enabled; set a strong `ARC_REACTOR_AUTH_JWT_SECRET`.
 - Keep `ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH=true` for unauthenticated probe endpoints.
+- Base config sets `ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE=jdbc` for multi-pod safe JWT revocation.
+- Redis-backed semantic cache is optional. Enable with:
+  `ARC_REACTOR_CACHE_ENABLED=true`, `ARC_REACTOR_CACHE_SEMANTIC_ENABLED=true`,
+  and set `SPRING_DATA_REDIS_HOST`/`SPRING_DATA_REDIS_PORT`.
 - Keep `SPRING_FLYWAY_ENABLED=true` when using PostgreSQL.
 - Replace image tag with a pinned release tag (avoid `latest`).
 - Integrate external secret management (Vault, ESO, or cloud secret manager).

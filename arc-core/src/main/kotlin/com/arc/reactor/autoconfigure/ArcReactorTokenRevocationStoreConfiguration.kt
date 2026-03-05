@@ -10,6 +10,7 @@ import mu.KotlinLogging
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.jdbc.core.JdbcTemplate
@@ -22,8 +23,10 @@ private val logger = KotlinLogging.logger {}
  * Behavior:
  * - `memory` (default) -> in-memory store
  * - `jdbc` -> JDBC store if JdbcTemplate exists, otherwise in-memory fallback
- * - `redis` -> Redis store if StringRedisTemplate exists, otherwise in-memory fallback
+ * - `redis` -> Redis store when template exists and connectivity probe succeeds,
+ *   otherwise in-memory fallback
  */
+@Configuration
 class ArcReactorTokenRevocationStoreConfiguration {
 
     @Bean
@@ -52,7 +55,7 @@ class ArcReactorTokenRevocationStoreConfiguration {
 
             TokenRevocationStoreType.REDIS -> {
                 val redis = redisTemplate.ifAvailable
-                if (redis != null) {
+                if (redis != null && isRedisAvailable(redis)) {
                     val keyPrefix = environment.getProperty(
                         "arc.reactor.auth.token-revocation-redis-key-prefix",
                         "arc:auth:revoked"
@@ -60,12 +63,22 @@ class ArcReactorTokenRevocationStoreConfiguration {
                     RedisTokenRevocationStore(redis, keyPrefix = keyPrefix)
                 } else {
                     logger.warn {
-                        "token-revocation-store=redis requested but StringRedisTemplate is unavailable; " +
+                        "token-revocation-store=redis requested but Redis is unavailable; " +
                             "falling back to in-memory token revocation store"
                     }
                     InMemoryTokenRevocationStore()
                 }
             }
+        }
+    }
+
+    private fun isRedisAvailable(redisTemplate: StringRedisTemplate): Boolean {
+        return try {
+            redisTemplate.hasKey("__arc:redis:availability__")
+            true
+        } catch (e: Exception) {
+            logger.warn(e) { "Redis connectivity probe failed during token revocation store selection" }
+            false
         }
     }
 }
