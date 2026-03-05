@@ -2,7 +2,9 @@ package com.arc.reactor.slack.config
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.feedback.FeedbackStore
 import com.arc.reactor.mcp.McpManager
+import com.arc.reactor.memory.UserMemoryManager
 import com.arc.reactor.slack.handler.DefaultSlackCommandHandler
 import com.arc.reactor.slack.handler.DefaultSlackEventHandler
 import com.arc.reactor.slack.handler.SlackCommandHandler
@@ -18,6 +20,7 @@ import com.arc.reactor.slack.processor.SlackCommandProcessor
 import com.arc.reactor.slack.processor.SlackEventProcessor
 import com.arc.reactor.slack.security.SlackSignatureVerifier
 import com.arc.reactor.slack.security.SlackSignatureWebFilter
+import com.arc.reactor.slack.session.SlackBotResponseTracker
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.adapter.SlackMessageSenderAdapter
 import com.arc.reactor.slack.service.SlackMessagingService
@@ -82,6 +85,20 @@ class SlackAutoConfiguration {
             maxEntries = properties.threadTrackingMaxEntries
         )
 
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.slack",
+        name = ["reaction-feedback-enabled"],
+        havingValue = "true",
+        matchIfMissing = true
+    )
+    fun slackBotResponseTracker(properties: SlackProperties): SlackBotResponseTracker =
+        SlackBotResponseTracker(
+            ttlSeconds = properties.threadTrackingTtlSeconds,
+            maxEntries = properties.threadTrackingMaxEntries
+        )
 
     @Bean
     @ConditionalOnMissingBean
@@ -151,14 +168,20 @@ class SlackAutoConfiguration {
         agentProperties: ObjectProvider<AgentProperties>,
         threadTracker: ObjectProvider<SlackThreadTracker>,
         userEmailResolver: ObjectProvider<SlackUserEmailResolver>,
-        mcpManager: ObjectProvider<McpManager>
+        mcpManager: ObjectProvider<McpManager>,
+        feedbackStore: ObjectProvider<FeedbackStore>,
+        botResponseTracker: ObjectProvider<SlackBotResponseTracker>,
+        userMemoryManager: ObjectProvider<UserMemoryManager>
     ): SlackEventHandler = DefaultSlackEventHandler(
         agentExecutor = agentExecutor,
         messagingService = messagingService,
         defaultProvider = agentProperties.ifAvailable?.llm?.defaultProvider ?: "configured backend model",
         threadTracker = threadTracker.ifAvailable,
         userEmailResolver = userEmailResolver.ifAvailable,
-        mcpManager = mcpManager.ifAvailable
+        mcpManager = mcpManager.ifAvailable,
+        feedbackStore = feedbackStore.ifAvailable,
+        botResponseTracker = botResponseTracker.ifAvailable,
+        userMemoryManager = userMemoryManager.ifAvailable
     )
 
     @Bean
@@ -171,7 +194,8 @@ class SlackAutoConfiguration {
         threadTracker: ObjectProvider<SlackThreadTracker>,
         reminderStore: ObjectProvider<SlackReminderStore>,
         userEmailResolver: ObjectProvider<SlackUserEmailResolver>,
-        mcpManager: ObjectProvider<McpManager>
+        mcpManager: ObjectProvider<McpManager>,
+        userMemoryManager: ObjectProvider<UserMemoryManager>
     ): SlackCommandHandler = DefaultSlackCommandHandler(
         agentExecutor = agentExecutor,
         messagingService = messagingService,
@@ -179,7 +203,8 @@ class SlackAutoConfiguration {
         threadTracker = threadTracker.ifAvailable,
         reminderStore = reminderStore.ifAvailable,
         userEmailResolver = userEmailResolver.ifAvailable,
-        mcpManager = mcpManager.ifAvailable
+        mcpManager = mcpManager.ifAvailable,
+        userMemoryManager = userMemoryManager.ifAvailable
     )
 
     @Bean
@@ -191,14 +216,16 @@ class SlackAutoConfiguration {
         metricsRecorder: SlackMetricsRecorder,
         properties: SlackProperties,
         threadTracker: ObjectProvider<SlackThreadTracker>,
-        proactiveChannelStore: ObjectProvider<ProactiveChannelStore>
+        proactiveChannelStore: ObjectProvider<ProactiveChannelStore>,
+        botResponseTracker: ObjectProvider<SlackBotResponseTracker>
     ): SlackEventProcessor = SlackEventProcessor(
         eventHandler = eventHandler,
         messagingService = messagingService,
         metricsRecorder = metricsRecorder,
         properties = properties,
         threadTracker = threadTracker.ifAvailable,
-        proactiveChannelStore = proactiveChannelStore.ifAvailable
+        proactiveChannelStore = proactiveChannelStore.ifAvailable,
+        botResponseTracker = botResponseTracker.ifAvailable
     )
 
     @Bean

@@ -29,4 +29,17 @@ interface SlackEventHandler {
      * @return true if the agent responded, false if it declined (no useful context)
      */
     suspend fun handleChannelMessage(command: SlackEventCommand): Boolean = false
+
+    /**
+     * Handles a reaction_added event for feedback collection.
+     * Called when a user adds thumbsup/thumbsdown to a tracked bot response.
+     */
+    suspend fun handleReaction(
+        userId: String,
+        channelId: String,
+        messageTs: String,
+        reaction: String,
+        sessionId: String,
+        userPrompt: String
+    ) {}
 }

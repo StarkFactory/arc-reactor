@@ -3,6 +3,7 @@ package com.arc.reactor.slack.handler
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.mcp.McpManager
+import com.arc.reactor.memory.UserMemoryManager
 import com.arc.reactor.slack.model.SlackSlashCommand
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
@@ -27,7 +28,8 @@ class DefaultSlackCommandHandler(
     private val threadTracker: SlackThreadTracker? = null,
     private val reminderStore: SlackReminderStore? = null,
     private val userEmailResolver: SlackUserEmailResolver? = null,
-    private val mcpManager: McpManager? = null
+    private val mcpManager: McpManager? = null,
+    private val userMemoryManager: UserMemoryManager? = null
 ) : SlackCommandHandler {
 
     override suspend fun handleSlashCommand(command: SlackSlashCommand) {
@@ -166,16 +168,34 @@ class DefaultSlackCommandHandler(
             metadata["userEmail"] = requesterEmail
         }
 
+        val userContext = resolveUserContext(command.userId)
+        val systemPrompt = buildString {
+            append(SlackSystemPromptFactory.build(defaultProvider, buildToolSummary()))
+            if (userContext.isNotBlank()) {
+                append("\n\n")
+                append(userContext)
+            }
+        }
+
         return agentExecutor.execute(
             AgentCommand(
-                systemPrompt = SlackSystemPromptFactory.build(
-                    defaultProvider, buildToolSummary()
-                ),
+                systemPrompt = systemPrompt,
                 userPrompt = intent.prompt,
                 userId = command.userId,
                 metadata = metadata
             )
         )
+    }
+
+    private suspend fun resolveUserContext(userId: String): String {
+        val manager = userMemoryManager ?: return ""
+        return try {
+            manager.getContextPrompt(userId)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "Failed to resolve user memory for userId=$userId" }
+            ""
+        }
     }
 
     private fun buildToolSummary(): String? {

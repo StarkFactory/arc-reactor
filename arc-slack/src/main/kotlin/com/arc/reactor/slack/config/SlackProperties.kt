@@ -107,7 +107,13 @@ data class SlackProperties(
     val proactiveChannelIds: List<String> = emptyList(),
 
     /** Maximum concurrent proactive evaluations to prevent LLM cost spikes */
-    val proactiveMaxConcurrent: Int = 2
+    val proactiveMaxConcurrent: Int = 2,
+
+    /** Collect feedback from Slack emoji reactions (thumbsup/thumbsdown) on bot responses */
+    val reactionFeedbackEnabled: Boolean = true,
+
+    /** Inject per-user long-term memory (team, role, preferences) into agent system prompt */
+    val userMemoryEnabled: Boolean = true
 )
 
 enum class SlackTransportMode {
