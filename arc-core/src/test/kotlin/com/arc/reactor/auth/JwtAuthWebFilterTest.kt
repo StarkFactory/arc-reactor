@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.core.Ordered
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.server.reactive.ServerHttpRequest
@@ -242,6 +243,19 @@ class JwtAuthWebFilterTest {
 
             verify(exactly = 1) { response.statusCode = HttpStatus.UNAUTHORIZED }
             verify(exactly = 0) { chain.filter(exchange) }
+        }
+    }
+
+    @Nested
+    inner class FilterOrder {
+
+        @Test
+        fun `should run after security headers and rate-limit filters`() {
+            assertEquals(
+                Ordered.HIGHEST_PRECEDENCE + 2,
+                filter.order,
+                "JWT auth filter should run after security headers and auth rate-limit filters"
+            )
         }
     }
 }
