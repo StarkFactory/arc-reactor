@@ -20,7 +20,7 @@ All controllers are registered as Spring beans and can be replaced with your own
 | `PersonaController` | CRUD for named system prompt personas | `controller` |
 | `PromptTemplateController` | Versioned prompt template management | `controller` |
 | `McpServerController` | Dynamic MCP server registration and lifecycle | `controller` |
-| `AuthController` | JWT register/login/me | `controller` |
+| `AuthController` | JWT register/login/me/change-password/logout | `controller` |
 | `DocumentController` | Vector store document add/search/delete (RAG) | `controller` |
 | `FeedbackController` | Thumbs-up/down feedback capture | `controller` |
 | `IntentController` | Intent registry CRUD | `controller` |
@@ -78,6 +78,7 @@ Headers applied when enabled:
 |---|---|---|
 | `jwt-secret` | (empty) | JWT signing secret (minimum 32 bytes, required) |
 | `default-tenant-id` | `default` | Tenant claim value issued in JWT tokens |
+| `self-registration-enabled` | `false` | Enables `POST /api/auth/register` public sign-up |
 | `public-actuator-health` | `false` | Add `/actuator/health` to public paths |
 
 `JwtAuthWebFilter` validates the `Authorization: Bearer <token>` header and sets user ID and role
@@ -287,10 +288,11 @@ interface AuthProvider {
 
 | Method | Path | Description | Auth Required |
 |---|---|---|---|
-| `POST` | `/api/auth/register` | Register new user | No |
+| `POST` | `/api/auth/register` | Register new user (only when `self-registration-enabled=true`) | No |
 | `POST` | `/api/auth/login` | Login, receive JWT | No |
 | `GET` | `/api/auth/me` | Get current user profile | JWT |
 | `POST` | `/api/auth/change-password` | Change password | JWT |
+| `POST` | `/api/auth/logout` | Revoke current JWT (`jti`) and logout | JWT |
 
 ### Documents (requires `arc.reactor.rag.enabled=true`)
 

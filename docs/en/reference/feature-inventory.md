@@ -312,7 +312,7 @@ ARC_REACTOR_AUTH_JWT_SECRET=your-256-bit-secret
 ```
 
 With current runtime defaults, the following happens automatically:
-- All APIs require a JWT token (except `/api/auth/login`, `/api/auth/register`)
+- All APIs require a JWT token (except `/api/auth/login`, and `/api/auth/register` only when enabled)
 - Sessions are isolated by userId (users cannot access other users' sessions)
 - user_id column is automatically added to conversation_messages (Flyway V4)
 
@@ -441,12 +441,12 @@ arc:
       input-max-chars: 5000         # Max input length (characters)
 
     auth:
-      jwt-secret: ""                 # HMAC signing secret (required, min 32 bytes)
+      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}  # HMAC signing secret (required, min 32 bytes)
       jwt-expiration-ms: 86400000    # Token validity period (24 hours)
       default-tenant-id: default     # Default tenant claim for issued JWT
+      self-registration-enabled: false
       public-paths:                  # Paths accessible without authentication
         - /api/auth/login
-        - /api/auth/register
 
     cache:
       enabled: false                # Enable response caching (opt-in)

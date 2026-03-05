@@ -12,11 +12,11 @@ Arc Reactor runtime requires authentication. Startup fails fast when auth secret
 
 Set `arc.reactor.auth.jwt-secret=<secret>` (minimum 32 bytes, generate with `openssl rand -base64 32`).
 
-**Step 1: Register or login**
+**Step 1: Login (or register if self-registration is enabled)**
 
 ```
-POST /api/auth/register
 POST /api/auth/login
+POST /api/auth/register   # optional: requires arc.reactor.auth.self-registration-enabled=true
 ```
 
 Both return a `token` field in the response body.
@@ -69,6 +69,8 @@ All error responses use this standard DTO:
 
 Register a new user account and receive a JWT.
 
+> **Condition**: Available only when `arc.reactor.auth.self-registration-enabled=true` (default: `false`).
+
 **Auth**: Public
 
 **Request body**:
@@ -99,7 +101,7 @@ Register a new user account and receive a JWT.
 }
 ```
 
-**Response codes**: `201` success | `400` validation error | `409` email already registered
+**Response codes**: `201` success | `400` validation error | `403` self-registration disabled | `409` email already registered
 
 ---
 
@@ -181,6 +183,23 @@ Change the current user's password.
 ```
 
 **Response codes**: `200` success | `400` wrong current password or unsupported auth provider | `401` unauthenticated | `404` user not found
+
+---
+
+### POST /api/auth/logout
+
+Revoke the current JWT (`jti`) and terminate the current session.
+
+**Auth**: Authenticated (requires valid JWT)
+
+**Response `200 OK`**:
+```json
+{
+  "message": "Logged out"
+}
+```
+
+**Response codes**: `200` success | `401` unauthenticated
 
 ---
 

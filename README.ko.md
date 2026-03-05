@@ -95,6 +95,9 @@ export SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA=true
 ### 3. 동작 확인
 
 ```bash
+# 기본값으로는 셀프 회원가입이 비활성화되어 있습니다. 부트스트랩/개발 흐름에서만 활성화하세요.
+export ARC_REACTOR_AUTH_SELF_REGISTRATION_ENABLED=true
+
 TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"qa@example.com","password":"passw0rd!","name":"QA"}' \
@@ -138,7 +141,10 @@ curl -X POST http://localhost:8080/api/chat \
 ### 인증/테넌트 모델 (중요)
 
 - 인증은 항상 필수이며 `arc.reactor.auth.enabled` 토글은 제거되었습니다.
+- 셀프 회원가입 기본값은 비활성화입니다 (`arc.reactor.auth.self-registration-enabled=false`).
 - `/api/auth/*`에서 발급되는 JWT에는 `tenantId` 클레임이 포함됩니다 (기본값: `default`).
+- `POST /api/auth/logout`은 현재 토큰의 `jti`를 만료 시점까지 폐기(revoke)합니다.
+- SSO는 기본 내장 기능이 아니라 선택 확장입니다. `AuthProvider` 커스텀 빈으로 LDAP/OIDC/SAML 등을 연결할 수 있습니다.
 - 런타임 테넌트 해석 우선순위:
   1. JWT의 `tenantId` 클레임
   2. `X-Tenant-Id` 요청 헤더

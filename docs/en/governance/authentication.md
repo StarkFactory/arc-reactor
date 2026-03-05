@@ -24,7 +24,8 @@ Request
 +------------------------------------------------------+
 |  JwtAuthWebFilter (WebFilter, HIGHEST_PRECEDENCE)    |
 |                                                       |
-|  /api/auth/login, /api/auth/register -> pass (public)|
+|  /api/auth/login (+ /api/auth/register when enabled)  |
+|  -> pass (public)                                     |
 |  Others -> Verify Authorization: Bearer <token>       |
 |       -> Valid: exchange.attributes["userId"] = userId|
 |       -> Invalid: 401 Unauthorized response           |
@@ -63,9 +64,9 @@ arc:
     auth:
       jwt-secret: ${JWT_SECRET}        # HS256 signing secret (32+ bytes recommended)
       jwt-expiration-ms: 86400000      # Token validity period (default: 24 hours)
+      self-registration-enabled: false # Default: closed registration (recommended)
       public-paths:                    # Paths accessible without authentication
         - /api/auth/login
-        - /api/auth/register
 ```
 
 ### Build (build.gradle.kts)
@@ -107,6 +108,8 @@ Issued JWT tokens include a `tenantId` claim. Default is `default` (configurable
 
 ### POST /api/auth/register -- Sign Up
 
+Enabled only when `arc.reactor.auth.self-registration-enabled=true` (default: `false`).
+
 ```bash
 curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
@@ -135,6 +138,15 @@ curl -X POST http://localhost:8080/api/auth/register \
   "token": "",
   "user": null,
   "error": "Email already registered"
+}
+```
+
+**Error (403 Forbidden, default):**
+```json
+{
+  "token": "",
+  "user": null,
+  "error": "Self-registration is disabled. Contact an administrator."
 }
 ```
 
@@ -203,6 +215,13 @@ curl -X POST http://localhost:8080/api/auth/change-password \
   }'
 ```
 
+### POST /api/auth/logout -- Revoke Current Token
+
+```bash
+curl -X POST http://localhost:8080/api/auth/logout \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..."
+```
+
 ---
 
 ## Component Structure
@@ -221,10 +240,11 @@ curl -X POST http://localhost:8080/api/auth/change-password \
 | `AuthModels.kt` | `User` data class, `AuthProperties` configuration |
 | `JwtTokenProvider` | Token creation (`createToken`) / validation (`validateToken`) via JJWT |
 | `JwtAuthWebFilter` | WebFilter -- validates Bearer token on every request |
+| `TokenRevocationStore` | Tracks revoked JWT `jti` values until original expiry |
 | `DefaultAuthProvider` | Default BCrypt password verification implementation |
 | `InMemoryUserStore` | ConcurrentHashMap-based (for development) |
 | `JdbcUserStore` | PostgreSQL `users` table (for production) |
-| `AuthController` | REST endpoints (register, login, me, change-password) |
+| `AuthController` | REST endpoints (register, login, me, change-password, logout) |
 
 ### Auto-Configuration Beans
 
@@ -251,8 +271,11 @@ arc.reactor.auth.jwt-secret set
 ```
 Header:  { "alg": "HS256" }
 Payload: {
+  "jti": "d4f0...",                // Token ID (revocation key)
   "sub": "550e8400-...",          // userId
   "email": "user@example.com",    // User email
+  "role": "ADMIN",                // User role
+  "tenantId": "default",          // Tenant isolation key
   "iat": 1707350400,              // Issued at
   "exp": 1707436800               // Expiration (24 hours later)
 }
@@ -366,6 +389,7 @@ Existing data is automatically migrated with `'anonymous'`.
 | Password storage | BCrypt (spring-security-crypto) |
 | Token signing | HS256 (HMAC-SHA256) |
 | Token transmission | `Authorization: Bearer` header |
+| Token revocation | `POST /api/auth/logout` stores token `jti` until expiration |
 | Token storage (frontend) | localStorage |
 | CORS | Vite proxy or nginx reverse proxy |
 | Password validation | Minimum 8 characters (`@Size(min=8)`) |

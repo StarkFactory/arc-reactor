@@ -35,6 +35,9 @@ curl http://localhost:8080/api/admin/platform/tenants \
 Register/login to obtain JWT:
 
 ```bash
+# Register endpoint is optional. Enable only for bootstrap flows.
+export ARC_REACTOR_AUTH_SELF_REGISTRATION_ENABLED=true
+
 curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"user@acme.com","password":"passw0rd!","name":"Acme User"}'

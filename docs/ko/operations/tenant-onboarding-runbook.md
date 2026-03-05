@@ -35,6 +35,9 @@ curl http://localhost:8080/api/admin/platform/tenants \
 회원 가입/로그인으로 JWT를 발급합니다.
 
 ```bash
+# register 엔드포인트는 선택 기능입니다. 부트스트랩 시에만 활성화하세요.
+export ARC_REACTOR_AUTH_SELF_REGISTRATION_ENABLED=true
+
 curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"user@acme.com","password":"passw0rd!","name":"Acme User"}'

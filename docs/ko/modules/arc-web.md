@@ -20,7 +20,7 @@
 | `PersonaController` | 시스템 프롬프트 Persona CRUD | `controller` |
 | `PromptTemplateController` | 버전 관리 프롬프트 템플릿 관리 | `controller` |
 | `McpServerController` | 동적 MCP 서버 등록 및 라이프사이클 | `controller` |
-| `AuthController` | JWT 등록/로그인/프로필 조회 | `controller` |
+| `AuthController` | JWT 등록/로그인/프로필/비밀번호 변경/로그아웃 | `controller` |
 | `DocumentController` | 벡터 스토어 문서 추가/검색/삭제 (RAG) | `controller` |
 | `FeedbackController` | 좋아요/싫어요 피드백 수집 | `controller` |
 | `IntentController` | Intent 레지스트리 CRUD | `controller` |
@@ -78,6 +78,7 @@
 |---|---|---|
 | `jwt-secret` | (비어 있음) | JWT 서명 시크릿 (최소 32바이트, 필수) |
 | `default-tenant-id` | `default` | JWT 토큰에 포함되는 기본 tenant claim |
+| `self-registration-enabled` | `false` | `POST /api/auth/register` 셀프 회원가입 공개 여부 |
 | `public-actuator-health` | `false` | `/actuator/health`를 public path에 추가 |
 
 `JwtAuthWebFilter`가 `Authorization: Bearer <token>` 헤더를 검증하고 exchange에 사용자 ID와 역할 속성을 설정합니다. `arc.reactor.auth.jwt-secret`이 비어 있거나 짧으면 런타임 기동이 실패합니다.
@@ -286,10 +287,11 @@ interface AuthProvider {
 
 | 메서드 | 경로 | 설명 | 인증 필요 |
 |---|---|---|---|
-| `POST` | `/api/auth/register` | 신규 사용자 등록 | 아니오 |
+| `POST` | `/api/auth/register` | 신규 사용자 등록 (`self-registration-enabled=true`일 때만) | 아니오 |
 | `POST` | `/api/auth/login` | 로그인 및 JWT 발급 | 아니오 |
 | `GET` | `/api/auth/me` | 현재 사용자 프로필 조회 | JWT |
 | `POST` | `/api/auth/change-password` | 비밀번호 변경 | JWT |
+| `POST` | `/api/auth/logout` | 현재 JWT(`jti`) 폐기 후 로그아웃 | JWT |
 
 ### 문서 (`arc.reactor.rag.enabled=true` 필요)
 

@@ -103,6 +103,9 @@ Gemini is the default provider. To use OpenAI or Anthropic instead, set
 ### 3. Smoke test
 
 ```bash
+# Self-registration is OFF by default. Enable it only for bootstrap/dev flows.
+export ARC_REACTOR_AUTH_SELF_REGISTRATION_ENABLED=true
+
 TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"qa@example.com","password":"passw0rd!","name":"QA"}' \
@@ -146,7 +149,10 @@ curl -X POST http://localhost:8080/api/chat \
 ### Auth and tenant model (important)
 
 - Authentication is always required. `arc.reactor.auth.enabled` is removed.
+- Self-registration is disabled by default (`arc.reactor.auth.self-registration-enabled=false`).
 - JWT tokens issued by `/api/auth/*` include `tenantId` claim (default: `default`).
+- `POST /api/auth/logout` revokes the current token `jti` until expiry.
+- SSO is optional and extensible: provide a custom `AuthProvider` bean (LDAP/OIDC/SAML/etc.).
 - Runtime resolves tenant in this order:
   1. `tenantId` claim from JWT
   2. `X-Tenant-Id` request header

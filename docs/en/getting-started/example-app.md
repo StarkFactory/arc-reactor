@@ -27,6 +27,9 @@ export SPRING_DATASOURCE_PASSWORD=arc
 ## First API calls
 
 ```bash
+# Self-registration is disabled by default in runtime.
+export ARC_REACTOR_AUTH_SELF_REGISTRATION_ENABLED=true
+
 TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"qa@example.com","password":"passw0rd!","name":"QA"}' \
