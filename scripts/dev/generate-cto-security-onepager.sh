@@ -10,6 +10,7 @@ BASELINE_SUMMARY="${BASELINE_SUMMARY:-artifacts/security-baseline/latest-fast/su
 AUTH_K6_SUMMARY="${AUTH_K6_SUMMARY:-artifacts/k6/auth-rate-limit-summary.json}"
 CHAT_GUARD_K6_SUMMARY="${CHAT_GUARD_K6_SUMMARY:-artifacts/k6/chat-guard-summary.json}"
 CHAT_STREAM_K6_SUMMARY="${CHAT_STREAM_K6_SUMMARY:-artifacts/k6/chat-stream-security-summary.json}"
+CHAT_STREAM_SOAK_K6_SUMMARY="${CHAT_STREAM_SOAK_K6_SUMMARY:-}"
 SERVICE_NAME="${SERVICE_NAME:-arc-reactor}"
 
 usage() {
@@ -24,6 +25,7 @@ Options:
   --auth-k6 <path>             k6 summary json (auth rate-limit)
   --chat-guard-k6 <path>       k6 summary json (chat guard/filtering)
   --chat-stream-k6 <path>      k6 summary json (chat stream security)
+  --chat-stream-soak-k6 <path> k6 summary json (chat stream security soak)
   --service-name <name>        Service name label
   -h, --help                   Show help
 EOF
@@ -54,6 +56,11 @@ while (($# > 0)); do
     --chat-stream-k6)
       [[ $# -ge 2 ]] || { echo "Error: --chat-stream-k6 requires a value" >&2; exit 1; }
       CHAT_STREAM_K6_SUMMARY="$2"
+      shift 2
+      ;;
+    --chat-stream-soak-k6)
+      [[ $# -ge 2 ]] || { echo "Error: --chat-stream-soak-k6 requires a value" >&2; exit 1; }
+      CHAT_STREAM_SOAK_K6_SUMMARY="$2"
       shift 2
       ;;
     --service-name)
@@ -246,7 +253,21 @@ chat_stream_rest="${chat_stream_rest#*|}"
 chat_stream_contract_fail="${chat_stream_rest%%|*}"
 chat_stream_unexpected="${chat_stream_rest#*|}"
 
-for status in "$baseline_status" "$auth_status" "$chat_guard_status" "$chat_stream_status"; do
+chat_stream_soak_status="SKIPPED"
+chat_stream_soak_note="not provided"
+chat_stream_soak_contract_fail="N/A"
+chat_stream_soak_unexpected="N/A"
+if [[ -n "$CHAT_STREAM_SOAK_K6_SUMMARY" ]]; then
+  chat_stream_soak_eval="$(eval_contract_status "$CHAT_STREAM_SOAK_K6_SUMMARY" "chat_stream_contract_failure_ratio" "chat_stream_unexpected_status_ratio")"
+  chat_stream_soak_status="${chat_stream_soak_eval%%|*}"
+  chat_stream_soak_rest="${chat_stream_soak_eval#*|}"
+  chat_stream_soak_note="${chat_stream_soak_rest%%|*}"
+  chat_stream_soak_rest="${chat_stream_soak_rest#*|}"
+  chat_stream_soak_contract_fail="${chat_stream_soak_rest%%|*}"
+  chat_stream_soak_unexpected="${chat_stream_soak_rest#*|}"
+fi
+
+for status in "$baseline_status" "$auth_status" "$chat_guard_status" "$chat_stream_status" "$chat_stream_soak_status"; do
   if [[ "$status" == "FAIL" ]]; then
     any_failure=1
   fi
@@ -283,6 +304,7 @@ cat >"$OUTPUT_PATH" <<EOF
 | Auth Brute-force (k6) | $auth_status | $AUTH_K6_SUMMARY | $auth_note |
 | Chat Guard/Filtering Contract (k6) | $chat_guard_status | $CHAT_GUARD_K6_SUMMARY | $chat_guard_note |
 | Chat Stream Security Contract (k6) | $chat_stream_status | $CHAT_STREAM_K6_SUMMARY | $chat_stream_note |
+| Chat Stream Security Soak (k6) | $chat_stream_soak_status | ${CHAT_STREAM_SOAK_K6_SUMMARY:-N/A} | $chat_stream_soak_note |
 
 ## Key Metrics
 
@@ -298,6 +320,8 @@ cat >"$OUTPUT_PATH" <<EOF
 | chat_guard_unexpected_status_ratio | $chat_guard_unexpected |
 | chat_stream_contract_failure_ratio | $chat_stream_contract_fail |
 | chat_stream_unexpected_status_ratio | $chat_stream_unexpected |
+| chat_stream_soak_contract_failure_ratio | $chat_stream_soak_contract_fail |
+| chat_stream_soak_unexpected_status_ratio | $chat_stream_soak_unexpected |
 
 ## Decision Rule
 
