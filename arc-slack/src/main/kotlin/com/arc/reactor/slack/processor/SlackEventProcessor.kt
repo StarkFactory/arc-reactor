@@ -7,6 +7,7 @@ import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackEventCommand
 import com.arc.reactor.slack.proactive.ProactiveChannelStore
+import com.arc.reactor.slack.session.SlackBotResponseTracker
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.databind.JsonNode
@@ -25,7 +26,8 @@ class SlackEventProcessor(
     private val metricsRecorder: SlackMetricsRecorder,
     properties: SlackProperties,
     private val threadTracker: SlackThreadTracker? = null,
-    private val proactiveChannelStore: ProactiveChannelStore? = null
+    private val proactiveChannelStore: ProactiveChannelStore? = null,
+    private val botResponseTracker: SlackBotResponseTracker? = null
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val backpressureLimiter = SlackBackpressureLimiter(
@@ -68,6 +70,10 @@ class SlackEventProcessor(
     }
 
     private fun processEventAsync(event: JsonNode, eventType: String, entrypoint: String) {
+        if (eventType == "reaction_added") {
+            handleReactionEvent(event, entrypoint)
+            return
+        }
         if (event.path("bot_id").asText().isNotEmpty()) return
         if (event.path("subtype").asText().isNotEmpty()) return
 
@@ -224,6 +230,43 @@ class SlackEventProcessor(
             logger.warn(e) { "Proactive handler error: channel=${command.channelId}" }
         } finally {
             proactiveSemaphore.release()
+        }
+    }
+
+    private fun handleReactionEvent(event: JsonNode, entrypoint: String) {
+        val tracker = botResponseTracker ?: return
+        val item = event.path("item")
+        if (item.path("type").asText() != "message") return
+
+        val userId = event.path("user").asText()
+        val reaction = event.path("reaction").asText()
+        val channelId = item.path("channel").asText()
+        val messageTs = item.path("ts").asText()
+
+        if (userId.isBlank() || reaction.isBlank() || channelId.isBlank() || messageTs.isBlank()) return
+
+        val tracked = tracker.lookup(channelId, messageTs) ?: return
+
+        scope.launch {
+            try {
+                eventHandler.handleReaction(
+                    userId = userId,
+                    channelId = channelId,
+                    messageTs = messageTs,
+                    reaction = reaction,
+                    sessionId = tracked.sessionId,
+                    userPrompt = tracked.userPrompt
+                )
+                metricsRecorder.recordHandler(
+                    entrypoint = entrypoint,
+                    eventType = "reaction_feedback",
+                    success = true,
+                    durationMs = 0
+                )
+            } catch (e: Exception) {
+                e.throwIfCancellation()
+                logger.warn(e) { "Failed to handle reaction event: channel=$channelId" }
+            }
         }
     }
 

@@ -2,9 +2,14 @@ package com.arc.reactor.slack.handler
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.feedback.Feedback
+import com.arc.reactor.feedback.FeedbackRating
+import com.arc.reactor.feedback.FeedbackStore
 import com.arc.reactor.mcp.McpManager
+import com.arc.reactor.memory.UserMemoryManager
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.slack.model.SlackEventCommand
+import com.arc.reactor.slack.session.SlackBotResponseTracker
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.arc.reactor.slack.service.SlackUserEmailResolver
@@ -28,7 +33,10 @@ class DefaultSlackEventHandler(
     private val defaultProvider: String = "configured backend model",
     private val threadTracker: SlackThreadTracker? = null,
     private val userEmailResolver: SlackUserEmailResolver? = null,
-    private val mcpManager: McpManager? = null
+    private val mcpManager: McpManager? = null,
+    private val feedbackStore: FeedbackStore? = null,
+    private val botResponseTracker: SlackBotResponseTracker? = null,
+    private val userMemoryManager: UserMemoryManager? = null
 ) : SlackEventHandler {
 
     override suspend fun handleAppMention(command: SlackEventCommand) {
@@ -59,9 +67,11 @@ class DefaultSlackEventHandler(
         val threadTs = command.ts
         try {
             val toolSummary = buildToolSummary()
-            val systemPrompt = SlackSystemPromptFactory.buildProactive(
+            val userContext = resolveUserContext(command.userId)
+            val basePrompt = SlackSystemPromptFactory.buildProactive(
                 defaultProvider, toolSummary
             )
+            val systemPrompt = if (userContext.isNotBlank()) "$basePrompt\n\n$userContext" else basePrompt
             val sessionId = "slack-proactive-${command.channelId}-$threadTs"
             val metadata = buildMetadata(sessionId, command.channelId, command.userId)
             metadata["entrypoint"] = "proactive"
@@ -97,6 +107,33 @@ class DefaultSlackEventHandler(
         }
     }
 
+    override suspend fun handleReaction(
+        userId: String,
+        channelId: String,
+        messageTs: String,
+        reaction: String,
+        sessionId: String,
+        userPrompt: String
+    ) {
+        val store = feedbackStore ?: return
+        val rating = REACTION_TO_RATING[reaction] ?: return
+        try {
+            store.save(
+                Feedback(
+                    query = userPrompt,
+                    response = "",
+                    rating = rating,
+                    sessionId = sessionId,
+                    userId = userId
+                )
+            )
+            logger.info { "Feedback recorded: user=$userId rating=$rating session=$sessionId" }
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "Failed to save reaction feedback: user=$userId session=$sessionId" }
+        }
+    }
+
     private suspend fun executeAndRespond(
         channelId: String,
         threadTs: String,
@@ -107,12 +144,19 @@ class DefaultSlackEventHandler(
             val sessionId = "slack-$channelId-$threadTs"
             val metadata = buildMetadata(sessionId, channelId, userId)
             val toolSummary = buildToolSummary()
+            val userContext = resolveUserContext(userId)
+
+            val systemPrompt = buildString {
+                append(SlackSystemPromptFactory.build(defaultProvider, toolSummary))
+                if (userContext.isNotBlank()) {
+                    append("\n\n")
+                    append(userContext)
+                }
+            }
 
             val result = agentExecutor.execute(
                 AgentCommand(
-                    systemPrompt = SlackSystemPromptFactory.build(
-                        defaultProvider, toolSummary
-                    ),
+                    systemPrompt = systemPrompt,
                     userPrompt = userPrompt,
                     userId = userId,
                     metadata = metadata
@@ -125,6 +169,9 @@ class DefaultSlackEventHandler(
                 text = responseText,
                 threadTs = threadTs
             )
+            if (sendResult.ok && sendResult.ts != null) {
+                botResponseTracker?.track(channelId, sendResult.ts, sessionId, userPrompt)
+            }
             if (!sendResult.ok) {
                 logger.warn {
                     "Failed to send Slack event response: " +
@@ -189,8 +236,25 @@ class DefaultSlackEventHandler(
         }
     }
 
+    private suspend fun resolveUserContext(userId: String): String {
+        val manager = userMemoryManager ?: return ""
+        return try {
+            manager.getContextPrompt(userId)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "Failed to resolve user memory for userId=$userId" }
+            ""
+        }
+    }
+
     companion object {
         private val MENTION_REGEX = Regex("<@[A-Za-z0-9]+>")
         private const val NO_RESPONSE_MARKER = "[NO_RESPONSE]"
+        val REACTION_TO_RATING = mapOf(
+            "+1" to FeedbackRating.THUMBS_UP,
+            "thumbsup" to FeedbackRating.THUMBS_UP,
+            "-1" to FeedbackRating.THUMBS_DOWN,
+            "thumbsdown" to FeedbackRating.THUMBS_DOWN
+        )
     }
 }
