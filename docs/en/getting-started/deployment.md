@@ -59,7 +59,17 @@ docker compose up -d --build
 
 - `app`: Arc Reactor runtime
 - `db`: pgvector/PostgreSQL 16
+- `redis`: Redis 7 (optional semantic cache / distributed token revocation backend)
 - health checks and startup dependency ordering
+
+Enable Redis-backed runtime features when needed:
+
+```bash
+export ARC_REACTOR_CACHE_ENABLED=true
+export ARC_REACTOR_CACHE_SEMANTIC_ENABLED=true
+export ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE=redis
+docker compose up -d --build
+```
 
 Stop stack:
 
@@ -76,6 +86,9 @@ docker compose down
 | `SPRING_DATASOURCE_URL` | Yes | PostgreSQL JDBC URL |
 | `SPRING_DATASOURCE_USERNAME` | Yes | PostgreSQL username |
 | `SPRING_DATASOURCE_PASSWORD` | Yes | PostgreSQL password |
+| `ARC_REACTOR_CACHE_ENABLED` | Optional | Enable response cache |
+| `ARC_REACTOR_CACHE_SEMANTIC_ENABLED` | Optional | Enable Redis semantic cache layer |
+| `ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE` | Optional | `memory` \| `jdbc` \| `redis` |
 | `SPRING_AI_OPENAI_API_KEY` | Optional | OpenAI provider key |
 | `SPRING_AI_ANTHROPIC_API_KEY` | Optional | Anthropic provider key |
 
