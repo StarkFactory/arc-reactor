@@ -44,6 +44,11 @@ class DefaultSlackCommandHandler(
 
         try {
             when (val intent = SlackSlashIntentParser.parse(rawPrompt)) {
+                SlackSlashIntent.Help -> {
+                    handleHelp(command)
+                    return
+                }
+
                 is SlackSlashIntent.ReminderAdd -> {
                     handleReminderAdd(command, intent)
                     return
@@ -212,10 +217,13 @@ class DefaultSlackCommandHandler(
     private suspend fun handleReminderAdd(command: SlackSlashCommand, intent: SlackSlashIntent.ReminderAdd) {
         val store = reminderStore ?: return sendReminderUnavailable(command)
         val reminder = store.add(command.userId, intent.text)
+        val timeInfo = if (reminder.dueAt != null) {
+            " :bell: I'll DM you at <!date^${reminder.dueAt.epochSecond}^{time}|${reminder.dueAt}>."
+        } else ""
         messagingService.sendResponseUrl(
             responseUrl = command.responseUrl,
             responseType = "ephemeral",
-            text = "Saved reminder #${reminder.id}: ${reminder.text}"
+            text = "Saved reminder #${reminder.id}: ${reminder.text}$timeInfo"
         )
     }
 
@@ -262,6 +270,14 @@ class DefaultSlackCommandHandler(
         )
     }
 
+    private suspend fun handleHelp(command: SlackSlashCommand) {
+        messagingService.sendResponseUrl(
+            responseUrl = command.responseUrl,
+            responseType = "ephemeral",
+            text = HELP_TEXT
+        )
+    }
+
     private suspend fun sendReminderUnavailable(command: SlackSlashCommand) {
         messagingService.sendResponseUrl(
             responseUrl = command.responseUrl,
@@ -279,5 +295,27 @@ class DefaultSlackCommandHandler(
             logger.warn(e) { "Failed to resolve Slack requester email for userId=$userId" }
             null
         }
+    }
+
+    companion object {
+        const val HELP_TEXT = """*Arc Reactor Commands* :robot_face:
+
+*General*
+`/jarvis <question>` — Ask anything (AI agent)
+`/jarvis help` — Show this help message
+
+*Daily Productivity*
+`/jarvis brief [focus]` — Daily brief with 3 priorities + risk check
+`/jarvis my-work [scope]` — Work status summary (In Progress / Waiting / Next)
+
+*Reminders*
+`/jarvis remind <text>` — Save a reminder (add `at HH:mm` for scheduled DM)
+`/jarvis remind list` — List your reminders
+`/jarvis remind done <id>` — Mark reminder as done
+`/jarvis remind clear` — Clear all reminders
+
+*Tips*
+• @mention the bot in any channel for a threaded conversation
+• React with :thumbsup: or :thumbsdown: on bot responses to give feedback"""
     }
 }

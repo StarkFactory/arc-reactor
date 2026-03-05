@@ -1,6 +1,10 @@
 package com.arc.reactor.slack.handler
 
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
@@ -8,18 +12,24 @@ import java.util.concurrent.atomic.AtomicInteger
 data class SlackReminder(
     val id: Int,
     val text: String,
+    val dueAt: Instant? = null,
     val createdAt: Instant = Instant.now()
 )
 
 class SlackReminderStore(
-    private val maxPerUser: Int = DEFAULT_MAX_PER_USER
+    private val maxPerUser: Int = DEFAULT_MAX_PER_USER,
+    private val timezone: ZoneId = ZoneId.of("Asia/Seoul")
 ) {
     private val remindersByUser = ConcurrentHashMap<String, CopyOnWriteArrayList<SlackReminder>>()
     private val sequenceByUser = ConcurrentHashMap<String, AtomicInteger>()
 
     fun add(userId: String, text: String): SlackReminder {
-        val normalizedText = text.trim()
-        val reminder = SlackReminder(id = nextId(userId), text = normalizedText)
+        val parsed = ReminderTimeParser.parse(text.trim(), timezone)
+        val reminder = SlackReminder(
+            id = nextId(userId),
+            text = parsed.cleanText,
+            dueAt = parsed.dueAt
+        )
         val list = listRef(userId)
         list.add(reminder)
         trimOverflow(list)
@@ -43,6 +53,25 @@ class SlackReminderStore(
         return size
     }
 
+    /**
+     * Returns all reminders across all users that are due (dueAt <= now)
+     * and removes them from the store.
+     */
+    fun collectDueReminders(): List<Pair<String, SlackReminder>> {
+        val now = Instant.now()
+        val result = mutableListOf<Pair<String, SlackReminder>>()
+
+        for ((userId, reminders) in remindersByUser) {
+            val due = reminders.filter { it.dueAt != null && !it.dueAt.isAfter(now) }
+            for (reminder in due) {
+                if (reminders.remove(reminder)) {
+                    result.add(userId to reminder)
+                }
+            }
+        }
+        return result
+    }
+
     private fun nextId(userId: String): Int =
         sequenceByUser.computeIfAbsent(userId) { AtomicInteger(0) }.incrementAndGet()
 
@@ -57,5 +86,46 @@ class SlackReminderStore(
 
     companion object {
         private const val DEFAULT_MAX_PER_USER = 50
+    }
+}
+
+internal object ReminderTimeParser {
+    private val atTimeRegex = Regex(
+        """(?:^|\s)at\s+(\d{1,2}):(\d{2})(?:\s*$)""",
+        RegexOption.IGNORE_CASE
+    )
+    private val koreanTimeRegex = Regex(
+        """(?:^|\s)(\d{1,2})시(?:\s*(\d{1,2})분)?(?:\s*에?)(?:\s*$)"""
+    )
+
+    data class ParseResult(val cleanText: String, val dueAt: Instant?)
+
+    fun parse(text: String, timezone: ZoneId): ParseResult {
+        atTimeRegex.find(text)?.let { match ->
+            val hour = match.groupValues[1].toIntOrNull() ?: return ParseResult(text, null)
+            val minute = match.groupValues[2].toIntOrNull() ?: return ParseResult(text, null)
+            val dueAt = resolveTime(hour, minute, timezone) ?: return ParseResult(text, null)
+            val cleanText = text.removeRange(match.range).trim()
+            return ParseResult(cleanText.ifBlank { text.trim() }, dueAt)
+        }
+        koreanTimeRegex.find(text)?.let { match ->
+            val hour = match.groupValues[1].toIntOrNull() ?: return ParseResult(text, null)
+            val minute = match.groupValues[2].toIntOrNull() ?: 0
+            val dueAt = resolveTime(hour, minute, timezone) ?: return ParseResult(text, null)
+            val cleanText = text.removeRange(match.range).trim()
+            return ParseResult(cleanText.ifBlank { text.trim() }, dueAt)
+        }
+        return ParseResult(text, null)
+    }
+
+    private fun resolveTime(hour: Int, minute: Int, timezone: ZoneId): Instant? {
+        if (hour !in 0..23 || minute !in 0..59) return null
+        val now = ZonedDateTime.now(timezone)
+        val time = LocalTime.of(hour, minute)
+        var target = ZonedDateTime.of(LocalDate.now(timezone), time, timezone)
+        if (!target.isAfter(now)) {
+            target = target.plusDays(1)
+        }
+        return target.toInstant()
     }
 }

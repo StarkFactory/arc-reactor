@@ -19,9 +19,12 @@ internal sealed interface SlackSlashIntent {
     data class ReminderDone(val id: Int) : SlackSlashIntent
 
     data object ReminderClear : SlackSlashIntent
+
+    data object Help : SlackSlashIntent
 }
 
 internal object SlackSlashIntentParser {
+    private val helpRegex = Regex("^(help|도움말|도움|commands)$", RegexOption.IGNORE_CASE)
     private val briefRegex = Regex("^(brief|브리프)(?:\\s+(.*))?$", RegexOption.IGNORE_CASE)
     private val myWorkRegex = Regex("^(my-work|mywork|내업무)(?:\\s+(.*))?$", RegexOption.IGNORE_CASE)
     private val remindRegex = Regex("^(remind|리마인드)(?:\\s+(.*))?$", RegexOption.IGNORE_CASE)
@@ -29,6 +32,7 @@ internal object SlackSlashIntentParser {
 
     fun parse(rawText: String): SlackSlashIntent {
         val prompt = rawText.trim()
+        if (helpRegex.matches(prompt)) return SlackSlashIntent.Help
         parseBrief(prompt)?.let { return it }
         parseMyWork(prompt)?.let { return it }
         parseReminder(prompt)?.let { return it }
