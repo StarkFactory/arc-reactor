@@ -116,6 +116,12 @@ class ArcReactorCoreBeansConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.auth",
+        name = ["token-revocation-store"],
+        havingValue = "memory",
+        matchIfMissing = true
+    )
     fun tokenRevocationStore(): TokenRevocationStore = InMemoryTokenRevocationStore()
 
     @Bean

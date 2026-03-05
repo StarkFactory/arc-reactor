@@ -41,6 +41,9 @@ dependencies {
     compileOnly("io.micrometer:micrometer-core")
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 
+    // Optional: Redis semantic cache backend
+    compileOnly("org.springframework.boot:spring-boot-starter-data-redis")
+
     // Optional: OpenTelemetry API (users provide the SDK at runtime)
     compileOnly(platform("io.opentelemetry:opentelemetry-bom:1.59.0"))
     compileOnly("io.opentelemetry:opentelemetry-api")
@@ -96,6 +99,7 @@ dependencies {
     testImplementation("io.kotest:kotest-assertions-core:5.9.1")
     testImplementation("io.kotest.extensions:kotest-extensions-spring:1.3.0")
     testImplementation("io.mockk:mockk:1.14.9")
+    testImplementation("org.springframework.boot:spring-boot-starter-data-redis")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("io.jsonwebtoken:jjwt-api:0.13.0")
     testImplementation("org.flywaydb:flyway-core")

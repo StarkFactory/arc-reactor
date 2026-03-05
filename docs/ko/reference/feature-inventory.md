@@ -28,7 +28,7 @@
 | **JWT 인증** | `POST /api/auth/*` | **필수** | 런타임은 `arc.reactor.auth.jwt-secret`을 요구 |
 | **페르소나 관리** | `GET/POST/PUT/DELETE /api/personas` | 활성 | 시스템 프롬프트 템플릿 CRUD |
 | **사용자별 세션 격리** | 내부 (API 없음) | 활성 | JWT에서 추출한 userId 기준으로 세션이 격리됨 (인증 항상 필수) |
-| **응답 캐싱** | 내부 (API 없음) | **opt-in** | Caffeine 기반 캐시, SHA-256 키, 온도 기반 적격성 |
+| **응답 캐싱** | 내부 (API 없음) | **opt-in** | 사용자/테넌트/세션 스코프를 반영한 SHA-256 키 + 온도 게이팅 + 선택적 Redis 시맨틱 폴백 |
 | **서킷 브레이커** | 내부 (API 없음) | **opt-in** | Kotlin 네이티브 CB: CLOSED → OPEN → HALF_OPEN 상태 머신 |
 | **우아한 성능 저하** | 내부 (API 없음) | **opt-in** | 기본 모델 실패 시 순차 모델 폴백 |
 | **응답 필터** | 내부 (API 없음) | 활성 | 후처리 파이프라인 (MaxLengthResponseFilter 내장) |
@@ -453,6 +453,12 @@ arc:
       max-size: 1000                # 캐시 항목 최대 수
       ttl-minutes: 60               # 캐시 TTL (분)
       cacheable-temperature: 0.0    # 온도가 이 값 이하일 때만 캐시
+      semantic:
+        enabled: false              # Redis 시맨틱 캐시 폴백 (opt-in)
+        similarity-threshold: 0.92
+        max-candidates: 50
+        max-entries-per-scope: 1000
+        key-prefix: arc:cache
 
     circuit-breaker:
       enabled: false                # 서킷 브레이커 활성화 (opt-in)
@@ -534,7 +540,7 @@ arc:
 | `AgentExecutor` | `SpringAiAgentExecutor` | 항상 | `@Bean` 등록 |
 | `AgentMetrics` | `NoOpAgentMetrics` | 항상 | `@Bean` 등록 |
 | `ResponseFilterChain` | `ResponseFilterChain` | 항상 | `@Component` ResponseFilter 추가 |
-| `ResponseCache` | `CaffeineResponseCache` | cache.enabled=true | `@Bean` 등록 |
+| `ResponseCache` | `CaffeineResponseCache` (기본), `RedisSemanticResponseCache` (semantic 활성 + 의존성 존재 시 primary) | cache.enabled=true | `@Bean` 등록 |
 | `CircuitBreaker` | `DefaultCircuitBreaker` | circuit-breaker.enabled=true | `@Bean` 등록 |
 | `FallbackStrategy` | `ModelFallbackStrategy` | fallback.enabled=true | `@Bean` 등록 |
 | `ErrorMessageResolver` | `DefaultErrorMessageResolver` | 항상 | `@Bean` 등록 |

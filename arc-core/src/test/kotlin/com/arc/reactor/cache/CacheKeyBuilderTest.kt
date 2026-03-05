@@ -1,6 +1,7 @@
 package com.arc.reactor.cache
 
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.ResponseFormat
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -80,6 +81,76 @@ class CacheKeyBuilderTest {
         }
 
         @Test
+        fun `different user ids produce different keys`() {
+            val cmd1 = AgentCommand(systemPrompt = "sys", userPrompt = "Hello", userId = "user-a")
+            val cmd2 = AgentCommand(systemPrompt = "sys", userPrompt = "Hello", userId = "user-b")
+
+            val key1 = CacheKeyBuilder.buildKey(cmd1, emptyList())
+            val key2 = CacheKeyBuilder.buildKey(cmd2, emptyList())
+
+            assertNotEquals(key1, key2) { "Different users must not share cache keys" }
+        }
+
+        @Test
+        fun `different session ids produce different keys`() {
+            val cmd1 = AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "Hello",
+                metadata = mapOf("sessionId" to "session-a")
+            )
+            val cmd2 = AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "Hello",
+                metadata = mapOf("sessionId" to "session-b")
+            )
+
+            val key1 = CacheKeyBuilder.buildKey(cmd1, emptyList())
+            val key2 = CacheKeyBuilder.buildKey(cmd2, emptyList())
+
+            assertNotEquals(key1, key2) { "Different sessions must not share cache keys" }
+        }
+
+        @Test
+        fun `different tenant ids produce different keys`() {
+            val cmd1 = AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "Hello",
+                metadata = mapOf("tenantId" to "tenant-a")
+            )
+            val cmd2 = AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "Hello",
+                metadata = mapOf("tenantId" to "tenant-b")
+            )
+
+            val key1 = CacheKeyBuilder.buildKey(cmd1, emptyList())
+            val key2 = CacheKeyBuilder.buildKey(cmd2, emptyList())
+
+            assertNotEquals(key1, key2) { "Different tenants must not share cache keys" }
+        }
+
+        @Test
+        fun `different response schema produces different keys`() {
+            val cmd1 = AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "Hello",
+                responseFormat = ResponseFormat.JSON,
+                responseSchema = """{"type":"object","properties":{"a":{"type":"string"}}}"""
+            )
+            val cmd2 = AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "Hello",
+                responseFormat = ResponseFormat.JSON,
+                responseSchema = """{"type":"object","properties":{"b":{"type":"string"}}}"""
+            )
+
+            val key1 = CacheKeyBuilder.buildKey(cmd1, emptyList())
+            val key2 = CacheKeyBuilder.buildKey(cmd2, emptyList())
+
+            assertNotEquals(key1, key2) { "Different response schema must produce different keys" }
+        }
+
+        @Test
         fun `key is a valid SHA-256 hex string`() {
             val command = AgentCommand(systemPrompt = "sys", userPrompt = "test")
 
@@ -87,6 +158,17 @@ class CacheKeyBuilderTest {
 
             assertEquals(64, key.length) { "SHA-256 hex should be 64 characters" }
             assertTrue(key.matches(Regex("[0-9a-f]+"))) { "Key should be lowercase hex: $key" }
+        }
+
+        @Test
+        fun `scope fingerprint should exclude user prompt text`() {
+            val cmd1 = AgentCommand(systemPrompt = "sys", userPrompt = "Question A")
+            val cmd2 = AgentCommand(systemPrompt = "sys", userPrompt = "Question B")
+
+            val fp1 = CacheKeyBuilder.buildScopeFingerprint(cmd1, listOf("tool1"))
+            val fp2 = CacheKeyBuilder.buildScopeFingerprint(cmd2, listOf("tool1"))
+
+            assertEquals(fp1, fp2) { "Scope fingerprint must stay stable across prompt variants" }
         }
     }
 }

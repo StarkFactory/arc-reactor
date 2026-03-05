@@ -1,0 +1,94 @@
+package com.arc.reactor.autoconfigure
+
+import com.arc.reactor.auth.InMemoryTokenRevocationStore
+import com.arc.reactor.auth.JdbcTokenRevocationStore
+import com.arc.reactor.auth.RedisTokenRevocationStore
+import com.arc.reactor.auth.TokenRevocationStore
+import io.mockk.mockk
+import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Test
+import org.springframework.boot.autoconfigure.AutoConfigurations
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration
+import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.data.redis.core.StringRedisTemplate
+
+class TokenRevocationStoreAutoConfigurationTest {
+
+    private val baseRunner = ApplicationContextRunner()
+        .withPropertyValues(
+            "arc.reactor.postgres.required=false",
+            "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
+        )
+        .withConfiguration(AutoConfigurations.of(ArcReactorAutoConfiguration::class.java))
+
+    @Test
+    fun `should use in-memory token revocation store by default`() {
+        baseRunner.run { context ->
+            val store = context.getBean(TokenRevocationStore::class.java)
+            assertInstanceOf(InMemoryTokenRevocationStore::class.java, store) {
+                "Default token revocation store must be in-memory"
+            }
+        }
+    }
+
+    @Test
+    fun `should use JDBC token revocation store when configured`() {
+        baseRunner
+            .withConfiguration(
+                AutoConfigurations.of(
+                    DataSourceAutoConfiguration::class.java,
+                    JdbcTemplateAutoConfiguration::class.java,
+                    DataSourceTransactionManagerAutoConfiguration::class.java,
+                    TransactionAutoConfiguration::class.java
+                )
+            )
+            .withPropertyValues(
+                "arc.reactor.auth.token-revocation-store=jdbc",
+                "spring.datasource.url=jdbc:h2:mem:token-revocation-config;DB_CLOSE_DELAY=-1",
+                "spring.datasource.driver-class-name=org.h2.Driver"
+            )
+            .run { context ->
+                val store = context.getBean(TokenRevocationStore::class.java)
+                assertInstanceOf(JdbcTokenRevocationStore::class.java, store) {
+                    "JDBC token revocation store should be selected when configured"
+                }
+            }
+    }
+
+    @Test
+    fun `should use Redis token revocation store when configured`() {
+        baseRunner
+            .withPropertyValues("arc.reactor.auth.token-revocation-store=redis")
+            .withUserConfiguration(RedisTokenRevocationDepsConfig::class.java)
+            .run { context ->
+                val store = context.getBean(TokenRevocationStore::class.java)
+                assertInstanceOf(RedisTokenRevocationStore::class.java, store) {
+                    "Redis token revocation store should be selected when configured"
+                }
+            }
+    }
+
+    @Test
+    fun `should fail fast for invalid token revocation store value`() {
+        baseRunner
+            .withPropertyValues("arc.reactor.auth.token-revocation-store=invalid")
+            .run { context ->
+                assertNotNull(context.startupFailure) {
+                    "Context startup should fail for invalid token-revocation-store"
+                }
+            }
+    }
+}
+
+@Configuration
+private class RedisTokenRevocationDepsConfig {
+
+    @Bean
+    fun stringRedisTemplate(): StringRedisTemplate = mockk(relaxed = true)
+}

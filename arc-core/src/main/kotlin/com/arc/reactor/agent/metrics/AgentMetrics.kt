@@ -90,6 +90,28 @@ interface AgentMetrics {
     fun recordCacheHit(cacheKey: String) {}
 
     /**
+     * Record an exact response cache hit (byte-identical request key match).
+     *
+     * Default implementation delegates to [recordCacheHit] for backward compatibility.
+     *
+     * @param cacheKey The cache key that was hit
+     */
+    fun recordExactCacheHit(cacheKey: String) {
+        recordCacheHit(cacheKey)
+    }
+
+    /**
+     * Record a semantic response cache hit (similar prompt match).
+     *
+     * Default implementation delegates to [recordCacheHit] for backward compatibility.
+     *
+     * @param cacheKey The exact cache key derived from the current request
+     */
+    fun recordSemanticCacheHit(cacheKey: String) {
+        recordCacheHit(cacheKey)
+    }
+
+    /**
      * Record a response cache miss.
      *
      * @param cacheKey The cache key that was missed
