@@ -33,7 +33,32 @@ BASE_URL=http://localhost:8080 VUS=10 DURATION=1m \
 - `auth_unexpected_status_ratio < 1%`
 - `http_req_duration p95 < 1000ms`
 
-## 3) 결과 보고 포맷 (CTO 제출)
+## 3) Guard/Filtering 부하 검증 (Chat fail-close 계약)
+
+```bash
+BASE_URL=http://localhost:8080 AUTH_TOKEN="$USER_TOKEN" MODE=mixed VUS=5 DURATION=1m \
+  ./scripts/load/run-chat-guard-load-test.sh
+```
+
+권장 통과 기준:
+
+- `chat_guard_contract_failure_ratio < 1%`
+- `chat_guard_unexpected_status_ratio < 1%`
+- `http_req_duration p95 < 2000ms`
+
+## 4) 보안 베이스라인 스캔 (소스/FS)
+
+```bash
+./scripts/dev/run-security-baseline-local.sh
+```
+
+산출물:
+
+- `artifacts/security-baseline/<timestamp>/gitleaks.sarif`
+- `artifacts/security-baseline/<timestamp>/trivy-fs.json`
+- `artifacts/security-baseline/<timestamp>/summary.md`
+
+## 5) 결과 보고 포맷 (CTO 제출)
 
 - 실행 시각/환경(브랜치, 커밋 SHA, DB/Redis/LLM 사용 여부)
 - 실패 항목(있다면 재현 명령 + 로그 스니펫)
