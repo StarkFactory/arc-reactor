@@ -58,7 +58,19 @@ docker compose up -d --build
 
 - `app`: Arc Reactor 런타임
 - `db`: pgvector/PostgreSQL 16
+- `redis`: Redis 7 (선택형 시멘틱 캐시/분산 토큰 폐기 저장소)
 - health check + 의존 순서 기반 기동
+
+필요 시 Redis 기반 기능 활성화:
+
+```bash
+export ARC_REACTOR_CACHE_ENABLED=true
+export ARC_REACTOR_CACHE_SEMANTIC_ENABLED=true
+export ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE=redis
+docker compose up -d --build
+```
+
+Redis가 없어도 Arc Reactor는 기동되며 인메모리 기본값을 사용합니다.
 
 중지:
 
@@ -75,6 +87,9 @@ docker compose down
 | `SPRING_DATASOURCE_URL` | 예 | PostgreSQL JDBC URL |
 | `SPRING_DATASOURCE_USERNAME` | 예 | PostgreSQL 사용자 |
 | `SPRING_DATASOURCE_PASSWORD` | 예 | PostgreSQL 비밀번호 |
+| `ARC_REACTOR_CACHE_ENABLED` | 선택 | 응답 캐시 활성화 |
+| `ARC_REACTOR_CACHE_SEMANTIC_ENABLED` | 선택 | Redis 시멘틱 캐시 레이어 활성화 |
+| `ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE` | 선택 | `memory` \| `jdbc` \| `redis` |
 | `SPRING_AI_OPENAI_API_KEY` | 선택 | OpenAI provider 키 |
 | `SPRING_AI_ANTHROPIC_API_KEY` | 선택 | Anthropic provider 키 |
 

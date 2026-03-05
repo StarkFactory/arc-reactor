@@ -72,7 +72,7 @@ cd arc-reactor
 **수동 방법:**
 
 ```bash
-docker compose up -d db
+docker compose up -d db redis
 export GEMINI_API_KEY=your-gemini-api-key
 export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
@@ -292,9 +292,9 @@ export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 ./gradlew :arc-app:bootRun
 ```
 
-### Docker Compose (앱 + PostgreSQL)
+### Docker Compose (앱 + PostgreSQL + Redis)
 
-RAG 워크로드를 위한 pgvector 포함:
+RAG 워크로드를 위한 pgvector와, 선택형 시멘틱 캐시/분산 토큰 폐기를 위한 Redis를 포함합니다:
 
 ```bash
 cp .env.example .env
@@ -304,6 +304,19 @@ docker-compose up -d
 ```
 
 종료: `docker-compose down`
+
+이 스택에서 Redis 기반 기능을 활성화하려면:
+
+```bash
+# 시멘틱 캐시
+export ARC_REACTOR_CACHE_ENABLED=true
+export ARC_REACTOR_CACHE_SEMANTIC_ENABLED=true
+
+# 분산 토큰 폐기 저장소
+export ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE=redis
+```
+
+Redis가 없어도 Arc Reactor는 인메모리 기본값으로 계속 동작합니다.
 
 ### 사전 빌드 Docker 이미지 (ghcr.io)
 

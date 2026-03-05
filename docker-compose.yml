@@ -6,7 +6,8 @@
 #   docker-compose up -d    # Start
 #   docker-compose down     # Stop
 #
-# Includes PostgreSQL for persistent conversation history.
+# Includes PostgreSQL for persistent conversation history and Redis for optional
+# semantic cache / distributed token revocation.
 # To run without PostgreSQL: docker-compose up app
 
 services:
@@ -29,6 +30,13 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-arc}
       SPRING_FLYWAY_ENABLED: "true"
       SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA: "true"
+      # Redis (used when response cache / token revocation backend is configured)
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      ARC_REACTOR_CACHE_ENABLED: ${ARC_REACTOR_CACHE_ENABLED:-false}
+      ARC_REACTOR_CACHE_SEMANTIC_ENABLED: ${ARC_REACTOR_CACHE_SEMANTIC_ENABLED:-false}
+      ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE: ${ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE:-memory}
+      ARC_REACTOR_AUTH_TOKEN_REVOCATION_REDIS_KEY_PREFIX: ${ARC_REACTOR_AUTH_TOKEN_REVOCATION_REDIS_KEY_PREFIX:-arc:auth:revoked}
       SPRING_PROFILES_ACTIVE: prod
       # COST WARNING: AGENT-mode scheduled jobs invoke the LLM on each execution.
       # High-frequency schedules may incur significant API costs.
@@ -61,5 +69,20 @@ services:
       retries: 5
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  redisdata:

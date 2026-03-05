@@ -1,45 +1,71 @@
 package com.arc.reactor.autoconfigure
 
+import com.arc.reactor.auth.AuthProperties
+import com.arc.reactor.auth.InMemoryTokenRevocationStore
 import com.arc.reactor.auth.JdbcTokenRevocationStore
 import com.arc.reactor.auth.RedisTokenRevocationStore
 import com.arc.reactor.auth.TokenRevocationStore
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
+import com.arc.reactor.auth.TokenRevocationStoreType
+import mu.KotlinLogging
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.core.env.Environment
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.jdbc.core.JdbcTemplate
 
+private val logger = KotlinLogging.logger {}
+
 /**
- * Optional token revocation store backends.
+ * Token revocation store selection with safe fallback.
  *
- * - memory (default): InMemoryTokenRevocationStore
- * - jdbc: JdbcTokenRevocationStore
- * - redis: RedisTokenRevocationStore
+ * Behavior:
+ * - `memory` (default) -> in-memory store
+ * - `jdbc` -> JDBC store if JdbcTemplate exists, otherwise in-memory fallback
+ * - `redis` -> Redis store if StringRedisTemplate exists, otherwise in-memory fallback
  */
 class ArcReactorTokenRevocationStoreConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(TokenRevocationStore::class)
-    @ConditionalOnClass(JdbcTemplate::class)
-    @ConditionalOnProperty(prefix = "arc.reactor.auth", name = ["token-revocation-store"], havingValue = "jdbc")
-    fun jdbcTokenRevocationStore(jdbcTemplate: JdbcTemplate): TokenRevocationStore {
-        return JdbcTokenRevocationStore(jdbcTemplate)
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(TokenRevocationStore::class)
-    @ConditionalOnClass(StringRedisTemplate::class)
-    @ConditionalOnProperty(prefix = "arc.reactor.auth", name = ["token-revocation-store"], havingValue = "redis")
-    fun redisTokenRevocationStore(
-        redisTemplate: StringRedisTemplate,
+    fun tokenRevocationStore(
+        authProperties: AuthProperties,
+        jdbcTemplate: ObjectProvider<JdbcTemplate>,
+        redisTemplate: ObjectProvider<StringRedisTemplate>,
         environment: Environment
     ): TokenRevocationStore {
-        val keyPrefix = environment.getProperty(
-            "arc.reactor.auth.token-revocation-redis-key-prefix",
-            "arc:auth:revoked"
-        )
-        return RedisTokenRevocationStore(redisTemplate, keyPrefix = keyPrefix)
+        return when (authProperties.tokenRevocationStore) {
+            TokenRevocationStoreType.MEMORY -> InMemoryTokenRevocationStore()
+
+            TokenRevocationStoreType.JDBC -> {
+                val jdbc = jdbcTemplate.ifAvailable
+                if (jdbc != null) {
+                    JdbcTokenRevocationStore(jdbc)
+                } else {
+                    logger.warn {
+                        "token-revocation-store=jdbc requested but JdbcTemplate is unavailable; " +
+                            "falling back to in-memory token revocation store"
+                    }
+                    InMemoryTokenRevocationStore()
+                }
+            }
+
+            TokenRevocationStoreType.REDIS -> {
+                val redis = redisTemplate.ifAvailable
+                if (redis != null) {
+                    val keyPrefix = environment.getProperty(
+                        "arc.reactor.auth.token-revocation-redis-key-prefix",
+                        "arc:auth:revoked"
+                    )
+                    RedisTokenRevocationStore(redis, keyPrefix = keyPrefix)
+                } else {
+                    logger.warn {
+                        "token-revocation-store=redis requested but StringRedisTemplate is unavailable; " +
+                            "falling back to in-memory token revocation store"
+                    }
+                    InMemoryTokenRevocationStore()
+                }
+            }
+        }
     }
 }

@@ -80,7 +80,7 @@ cd arc-reactor
 **Manual path:**
 
 ```bash
-docker compose up -d db
+docker compose up -d db redis
 export GEMINI_API_KEY=your-gemini-api-key
 export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
@@ -300,9 +300,10 @@ export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
 ./gradlew :arc-app:bootRun
 ```
 
-### Docker Compose (app + PostgreSQL)
+### Docker Compose (app + PostgreSQL + Redis)
 
-Includes pgvector for RAG workloads:
+Includes pgvector for RAG workloads and Redis for optional semantic cache / distributed
+token revocation:
 
 ```bash
 cp .env.example .env
@@ -312,6 +313,19 @@ docker-compose up -d
 ```
 
 To stop: `docker-compose down`
+
+To enable Redis-backed runtime features in this stack:
+
+```bash
+# Semantic cache
+export ARC_REACTOR_CACHE_ENABLED=true
+export ARC_REACTOR_CACHE_SEMANTIC_ENABLED=true
+
+# Distributed token revocation store
+export ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE=redis
+```
+
+If Redis is not available, Arc Reactor keeps running with in-memory defaults.
 
 ### Pre-built Docker image (ghcr.io)
 
