@@ -3,6 +3,7 @@
 Versioned release notes and upgrade highlights.
 
 - GitHub Release automation runs on tag push (`v*`) via `.github/workflows/release.yml`.
+- [v4.7.6](v4.7.6.md) — 2026-03-05 — Redis optional-runtime fallback hardening, runtime classpath fix, Helm/K8s config parity
 - [v4.7.4](v4.7.4.md) — 2026-03-04 — Event-loop blocking offload for LLM/tool paths and ToolDefinition metadata adapter compatibility fix
 - [v4.7.3](v4.7.3.md) — 2026-03-01 — Mandatory JWT auth + tenant fail-close, Docker image source scope fix, Flyway immutability CI guard and runbook
 - [v4.7.2](v4.7.2.md) — 2026-03-01 — Tool callback deduplication, Slack local-tool documentation alignment, RAG example endpoint fixes
