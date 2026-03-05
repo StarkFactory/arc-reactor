@@ -75,6 +75,30 @@ class TokenRevocationStoreAutoConfigurationTest {
     }
 
     @Test
+    fun `should fall back to in-memory when redis store is configured without redis template`() {
+        baseRunner
+            .withPropertyValues("arc.reactor.auth.token-revocation-store=redis")
+            .run { context ->
+                val store = context.getBean(TokenRevocationStore::class.java)
+                assertInstanceOf(InMemoryTokenRevocationStore::class.java, store) {
+                    "Missing Redis template must fall back to in-memory token revocation store"
+                }
+            }
+    }
+
+    @Test
+    fun `should fall back to in-memory when jdbc store is configured without jdbc template`() {
+        baseRunner
+            .withPropertyValues("arc.reactor.auth.token-revocation-store=jdbc")
+            .run { context ->
+                val store = context.getBean(TokenRevocationStore::class.java)
+                assertInstanceOf(InMemoryTokenRevocationStore::class.java, store) {
+                    "Missing JdbcTemplate must fall back to in-memory token revocation store"
+                }
+            }
+    }
+
+    @Test
     fun `should fail fast for invalid token revocation store value`() {
         baseRunner
             .withPropertyValues("arc.reactor.auth.token-revocation-store=invalid")

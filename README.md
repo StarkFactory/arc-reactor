@@ -325,6 +325,8 @@ export ARC_REACTOR_CACHE_SEMANTIC_ENABLED=true
 export ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE=redis
 ```
 
+If Redis is not available, Arc Reactor keeps running with in-memory defaults.
+
 ### Pre-built Docker image (ghcr.io)
 
 Images are published automatically on every version tag:

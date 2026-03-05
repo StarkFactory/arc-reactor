@@ -70,6 +70,8 @@ export ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE=redis
 docker compose up -d --build
 ```
 
+Redis가 없어도 Arc Reactor는 기동되며 인메모리 기본값을 사용합니다.
+
 중지:
 
 ```bash

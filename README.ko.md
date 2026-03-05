@@ -316,6 +316,8 @@ export ARC_REACTOR_CACHE_SEMANTIC_ENABLED=true
 export ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE=redis
 ```
 
+Redis가 없어도 Arc Reactor는 인메모리 기본값으로 계속 동작합니다.
+
 ### 사전 빌드 Docker 이미지 (ghcr.io)
 
 모든 버전 태그에서 이미지가 자동으로 게시됩니다:

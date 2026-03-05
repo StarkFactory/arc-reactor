@@ -71,6 +71,8 @@ export ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE=redis
 docker compose up -d --build
 ```
 
+If Redis is unavailable, Arc Reactor still starts and uses in-memory defaults.
+
 Stop stack:
 
 ```bash
