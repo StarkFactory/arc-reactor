@@ -58,6 +58,15 @@ data class SlackProperties(
     /** Default retry delay (ms) when Retry-After header is missing */
     val apiRetryDefaultDelayMs: Long = 1000,
 
+    /** Resolve requester email from Slack users.info and attach to AgentCommand metadata */
+    val userEmailResolutionEnabled: Boolean = true,
+
+    /** In-memory cache TTL (seconds) for resolved Slack user emails */
+    val userEmailCacheTtlSeconds: Long = 3600,
+
+    /** Maximum in-memory cache entries for resolved Slack user emails */
+    val userEmailCacheMaxEntries: Int = 20000,
+
     /** Enable in-memory deduplication for Slack Events API using event_id */
     val eventDedupEnabled: Boolean = true,
 
@@ -89,7 +98,16 @@ data class SlackProperties(
     val socketConnectRetryInitialDelayMs: Long = 1000,
 
     /** Max retry delay for Socket Mode startup connection failures (ms) */
-    val socketConnectRetryMaxDelayMs: Long = 30000
+    val socketConnectRetryMaxDelayMs: Long = 30000,
+
+    /** Enable proactive channel monitoring. Bot observes messages and offers help when relevant. */
+    val proactiveEnabled: Boolean = false,
+
+    /** Channel IDs where proactive monitoring is active. Empty = disabled even if proactiveEnabled. */
+    val proactiveChannelIds: List<String> = emptyList(),
+
+    /** Maximum concurrent proactive evaluations to prevent LLM cost spikes */
+    val proactiveMaxConcurrent: Int = 2
 )
 
 enum class SlackTransportMode {

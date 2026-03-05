@@ -21,4 +21,12 @@ interface SlackEventHandler {
      * Called for thread replies after the initial mention.
      */
     suspend fun handleMessage(command: SlackEventCommand)
+
+    /**
+     * Handles a channel message for proactive assistance.
+     * Called for top-level messages in proactive-enabled channels.
+     *
+     * @return true if the agent responded, false if it declined (no useful context)
+     */
+    suspend fun handleChannelMessage(command: SlackEventCommand): Boolean = false
 }

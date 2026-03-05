@@ -100,10 +100,18 @@ internal class ToolCallOrchestrator(
             )
         }
 
+        val parsedToolParams = parseToolArguments(toolCall.arguments())
+        val effectiveToolParams = enrichToolParamsForPersonalJiraTools(
+            toolName = toolName,
+            toolParams = parsedToolParams,
+            metadata = hookContext.metadata
+        )
+        val toolInput = serializeToolInput(effectiveToolParams, toolCall.arguments())
+
         val toolCallContext = ToolCallContext(
             agentContext = hookContext,
             toolName = toolName,
-            toolParams = parseToolArguments(toolCall.arguments()),
+            toolParams = effectiveToolParams,
             callIndex = currentCount
         )
 
@@ -131,7 +139,7 @@ internal class ToolCallOrchestrator(
         val toolStartTime = System.currentTimeMillis()
         val (rawOutput, toolSuccess) = invokeToolAdapter(
             toolName = toolName,
-            toolCall = toolCall,
+            toolInput = toolInput,
             tools = tools,
             springCallbacksByName = springCallbacksByName,
             toolsUsed = toolsUsed
@@ -243,7 +251,7 @@ internal class ToolCallOrchestrator(
 
     private suspend fun invokeToolAdapter(
         toolName: String,
-        toolCall: AssistantMessage.ToolCall,
+        toolInput: String,
         tools: List<Any>,
         springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
         toolsUsed: MutableList<String>
@@ -254,7 +262,7 @@ internal class ToolCallOrchestrator(
             return try {
                 val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
                 val output = withTimeout(timeoutMs) {
-                    adapter.call(toolCall.arguments())
+                    adapter.call(toolInput)
                 }
                 Pair(output, true)
             } catch (e: TimeoutCancellationException) {
@@ -274,7 +282,7 @@ internal class ToolCallOrchestrator(
             return try {
                 val output = withTimeout(toolCallTimeoutMs) {
                     runInterruptible(Dispatchers.IO) {
-                        springCallback.call(toolCall.arguments().orEmpty())
+                        springCallback.call(toolInput)
                     }
                 }
                 Pair(normalizeSpringToolOutput(output), true)
@@ -360,7 +368,46 @@ internal class ToolCallOrchestrator(
             .getOrElse { output }
     }
 
+    private fun enrichToolParamsForPersonalJiraTools(
+        toolName: String,
+        toolParams: Map<String, Any?>,
+        metadata: Map<String, Any>
+    ): Map<String, Any?> {
+        if (toolName !in personalJiraToolNames) return toolParams
+
+        val hasAssignee = toolParams["assigneeAccountId"]?.toString()?.isNotBlank() == true
+        if (hasAssignee) return toolParams
+
+        val hasRequesterEmail = toolParams["requesterEmail"]?.toString()?.isNotBlank() == true
+        if (hasRequesterEmail) return toolParams
+
+        val requesterEmail = requesterEmailMetadataKeys.asSequence()
+            .mapNotNull { key -> metadata[key]?.toString()?.trim()?.takeIf { it.isNotBlank() } }
+            .firstOrNull()
+            ?: return toolParams
+
+        return toolParams + ("requesterEmail" to requesterEmail)
+    }
+
+    private fun serializeToolInput(toolParams: Map<String, Any?>, rawInput: String?): String {
+        if (toolParams.isEmpty()) {
+            return rawInput.orEmpty().ifBlank { "{}" }
+        }
+        return runCatching {
+            springToolOutputMapper.writeValueAsString(toolParams)
+        }.getOrElse {
+            rawInput.orEmpty().ifBlank { "{}" }
+        }
+    }
+
     companion object {
         private val springToolOutputMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
+        private val personalJiraToolNames = setOf(
+            "jira_my_open_issues",
+            "jira_due_soon_issues",
+            "jira_blocker_digest",
+            "jira_daily_briefing"
+        )
+        private val requesterEmailMetadataKeys = listOf("requesterEmail", "userEmail", "slackUserEmail")
     }
 }

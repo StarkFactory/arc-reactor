@@ -9,6 +9,7 @@ import com.arc.reactor.slack.model.SlackApiResult
 import com.arc.reactor.slack.model.SlackEventCommand
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
+import com.arc.reactor.slack.service.SlackUserEmailResolver
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -131,6 +132,26 @@ class DefaultSlackEventHandlerTest {
             handler.handleAppMention(command())
 
             commandSlot.captured.metadata["channel"] shouldBe "slack"
+        }
+
+        @Test
+        fun `includes requester email metadata when resolver succeeds`() = runTest {
+            val resolver = mockk<SlackUserEmailResolver>()
+            val emailHandler = DefaultSlackEventHandler(
+                agentExecutor = agentExecutor,
+                messagingService = messagingService,
+                userEmailResolver = resolver
+            )
+            val commandSlot = slot<AgentCommand>()
+            coEvery { resolver.resolveEmail("U123") } returns "alice@example.com"
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns
+                AgentResult(success = true, content = "Done")
+
+            emailHandler.handleAppMention(command())
+
+            commandSlot.captured.metadata["requesterEmail"] shouldBe "alice@example.com"
+            commandSlot.captured.metadata["slackUserEmail"] shouldBe "alice@example.com"
+            commandSlot.captured.metadata["userEmail"] shouldBe "alice@example.com"
         }
 
         @Test

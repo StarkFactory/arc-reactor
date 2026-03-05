@@ -47,7 +47,41 @@ spring:
 arc:
   reactor:
     max-tool-calls: 10
-    max-tools-per-request: 20
+    max-tools-per-request: 30
+
+    tool-selection:
+      strategy: ${ARC_REACTOR_TOOL_SELECTION_STRATEGY:semantic}
+      similarity-threshold: ${ARC_REACTOR_TOOL_SELECTION_SIMILARITY_THRESHOLD:0.3}
+      max-results: ${ARC_REACTOR_TOOL_SELECTION_MAX_RESULTS:10}
+
+    approval:
+      enabled: ${ARC_REACTOR_APPROVAL_ENABLED:true}
+
+    tool-policy:
+      enabled: ${ARC_REACTOR_TOOL_POLICY_ENABLED:true}
+      write-tool-names:
+        - jira_create_issue
+        - jira_add_comment
+        - jira_update_issue
+        - jira_transition_issue
+        - jira_assign_issue
+        - jira_link_issues
+        - jira_create_subtask
+        - confluence_create_page
+        - confluence_update_page
+        - confluence_create_runbook
+        - confluence_create_incident_postmortem
+        - confluence_create_sprint_summary
+        - confluence_create_meeting_notes
+        - confluence_create_weekly_status_report
+        - confluence_create_weekly_auto_summary_page
+        - bitbucket_approve_pr
+        - bitbucket_add_pr_comment
+        - work_action_items_to_jira
+        - work_release_readiness_pack
+      deny-write-channels:
+        - slack
+      deny-write-message: "Slack에서는 write 도구를 사용할 수 없습니다. 웹 승인 플로우를 이용하세요."
 
     llm:
       default-provider: gemini
@@ -99,6 +133,10 @@ arc:
       request-timeout-ms: 120000
       max-tool-calls: 25
 
+    mcp:
+      security:
+        allowed-server-names: ${ARC_REACTOR_MCP_ALLOWED_SERVER_NAMES:atlassian}
+
     slack:
       enabled: ${ARC_REACTOR_SLACK_ENABLED:false}
       transport-mode: ${ARC_REACTOR_SLACK_TRANSPORT_MODE:socket_mode}
@@ -113,6 +151,9 @@ arc:
       notify-on-drop: ${ARC_REACTOR_SLACK_NOTIFY_ON_DROP:false}
       api-max-retries: ${ARC_REACTOR_SLACK_API_MAX_RETRIES:2}
       api-retry-default-delay-ms: ${ARC_REACTOR_SLACK_API_RETRY_DEFAULT_DELAY_MS:1000}
+      user-email-resolution-enabled: ${ARC_REACTOR_SLACK_USER_EMAIL_RESOLUTION_ENABLED:true}
+      user-email-cache-ttl-seconds: ${ARC_REACTOR_SLACK_USER_EMAIL_CACHE_TTL_SECONDS:3600}
+      user-email-cache-max-entries: ${ARC_REACTOR_SLACK_USER_EMAIL_CACHE_MAX_ENTRIES:20000}
       event-dedup-enabled: ${ARC_REACTOR_SLACK_EVENT_DEDUP_ENABLED:true}
       event-dedup-ttl-seconds: ${ARC_REACTOR_SLACK_EVENT_DEDUP_TTL_SECONDS:600}
       event-dedup-max-entries: ${ARC_REACTOR_SLACK_EVENT_DEDUP_MAX_ENTRIES:10000}
