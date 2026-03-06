@@ -26,11 +26,12 @@ class OutputBoundaryEnforcerTest {
         val result = enforcer.apply(
             result = AgentResult.success(content = "1234567"),
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            metadata = emptyMap(),
             attemptLongerResponse = { _, _, _ -> null }
         )
 
         assertEquals("12345\n\n[Response truncated]", result?.content)
-        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_long", "truncate", 5, 7) }
+        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_long", "truncate", 5, 7, any()) }
     }
 
     @Test
@@ -44,11 +45,12 @@ class OutputBoundaryEnforcerTest {
         val result = enforcer.apply(
             result = AgentResult.success(content = "short"),
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            metadata = emptyMap(),
             attemptLongerResponse = { _, _, _ -> null }
         )
 
         assertNull(result, "Enforcer should return null (drop response) when mode=FAIL and content is too short")
-        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "fail", 10, 5) }
+        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "fail", 10, 5, any()) }
     }
 
     @Test
@@ -62,12 +64,13 @@ class OutputBoundaryEnforcerTest {
         val result = enforcer.apply(
             result = AgentResult.success(content = "short"),
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            metadata = emptyMap(),
             attemptLongerResponse = { _, _, _ -> "long enough response" }
         )
 
         assertTrue(result?.success == true, "Retry result should be successful when retry content meets minimum length")
         assertEquals("long enough response", result?.content)
-        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "retry_once", 10, 5) }
+        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "retry_once", 10, 5, any()) }
     }
 
     @Test
@@ -81,6 +84,7 @@ class OutputBoundaryEnforcerTest {
         val result = enforcer.apply(
             result = AgentResult.success(content = "short"),
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            metadata = emptyMap(),
             attemptLongerResponse = { _, _, _ -> "tiny" }
         )
 

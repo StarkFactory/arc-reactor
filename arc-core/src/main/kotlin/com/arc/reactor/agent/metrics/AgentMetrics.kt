@@ -201,6 +201,22 @@ interface AgentMetrics {
     fun recordBoundaryViolation(violation: String, policy: String, limit: Int, actual: Int) {}
 
     /**
+     * Record a boundary policy violation with request metadata for drill-down.
+     *
+     * Default implementation delegates to [recordBoundaryViolation] to preserve
+     * backward compatibility with existing implementations.
+     */
+    fun recordBoundaryViolation(
+        violation: String,
+        policy: String,
+        limit: Int,
+        actual: Int,
+        metadata: Map<String, Any>
+    ) {
+        recordBoundaryViolation(violation, policy, limit, actual)
+    }
+
+    /**
      * Record a response that could not be verified from approved sources.
      *
      * Default implementation is a no-op to preserve backward compatibility.

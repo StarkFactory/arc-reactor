@@ -242,7 +242,10 @@ class OpsDashboardController(
                 reason = event.reason,
                 violation = event.violation,
                 policy = event.policy,
-                channel = event.channel
+                channel = event.channel,
+                runId = event.runId,
+                userId = event.userId,
+                queryPreview = event.queryPreview
             )
         }
     }
@@ -333,5 +336,8 @@ data class RecentTrustEventSummary(
     val reason: String?,
     val violation: String?,
     val policy: String?,
-    val channel: String?
+    val channel: String?,
+    val runId: String?,
+    val userId: String?,
+    val queryPreview: String?
 )

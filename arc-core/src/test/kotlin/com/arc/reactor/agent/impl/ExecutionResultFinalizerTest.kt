@@ -199,7 +199,7 @@ class ExecutionResultFinalizerTest {
 
         assertTrue(result.success, "Result should succeed after retry produces a longer response")
         assertEquals("long enough response", result.content)
-        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "retry_once", 10, 5) }
+        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "retry_once", 10, 5, any()) }
         verify(exactly = 1) { metrics.recordExecution(match { it.success && it.content == "long enough response" }) }
     }
 
@@ -234,7 +234,15 @@ class ExecutionResultFinalizerTest {
         )
 
         assertEquals("unverified_sources", result.metadata["blockReason"], "Should mark missing source block reason")
-        verify(exactly = 1) { metrics.recordUnverifiedResponse(command.metadata) }
+        verify(exactly = 1) {
+            metrics.recordUnverifiedResponse(match {
+                it["channel"] == "web" &&
+                    it["runId"] == "run-1" &&
+                    it["userId"] == "u" &&
+                    it["queryPreview"] == "Show the current policy" &&
+                    it["blockReason"] == "unverified_sources"
+            })
+        }
     }
 
     @Test

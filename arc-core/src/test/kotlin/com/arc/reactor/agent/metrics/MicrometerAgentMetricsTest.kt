@@ -34,16 +34,32 @@ class MicrometerAgentMetricsTest {
     fun `keeps recent trust events for dashboard drill-down`() {
         val metrics = MicrometerAgentMetrics(SimpleMeterRegistry())
 
-        metrics.recordOutputGuardAction("pipeline", "modified", "removed unsafe claim")
-        metrics.recordBoundaryViolation("output_too_short", "fail", 200, 12)
-        metrics.recordUnverifiedResponse(mapOf("channel" to "slack"))
+        metrics.recordOutputGuardAction(
+            "pipeline",
+            "modified",
+            "removed unsafe claim",
+            mapOf("runId" to "run-1", "userId" to "eddy", "queryPreview" to "Summarize release blockers")
+        )
+        metrics.recordBoundaryViolation(
+            "output_too_short",
+            "fail",
+            200,
+            12,
+            mapOf("runId" to "run-2", "userId" to "eddy")
+        )
+        metrics.recordUnverifiedResponse(
+            mapOf("channel" to "slack", "runId" to "run-3", "userId" to "eddy", "queryPreview" to "What is our policy?")
+        )
 
         val events = metrics.recentTrustEvents(5)
 
         assertEquals(3, events.size, "Recent trust events should retain output guard, boundary, and source issues")
         assertEquals("unverified_response", events[0].type, "Newest event should be returned first")
         assertEquals("WARN", events[0].severity, "Unverified responses should be marked WARN")
+        assertEquals("run-3", events[0].runId, "Recent unverified event should include run id")
+        assertEquals("What is our policy?", events[0].queryPreview, "Query preview should be retained for drill-down")
         assertEquals("boundary_violation", events[1].type, "Boundary violations should be recorded")
+        assertEquals("eddy", events[1].userId, "Boundary event should retain operator context")
         assertTrue(events[2].reason?.contains("unsafe", ignoreCase = true) == true,
             "Output guard event should preserve the rejection/modification reason")
     }

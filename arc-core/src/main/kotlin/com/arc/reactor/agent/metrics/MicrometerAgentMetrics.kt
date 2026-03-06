@@ -110,6 +110,10 @@ class MicrometerAgentMetrics(
     }
 
     override fun recordOutputGuardAction(stage: String, action: String, reason: String) {
+        recordOutputGuardAction(stage, action, reason, emptyMap())
+    }
+
+    override fun recordOutputGuardAction(stage: String, action: String, reason: String, metadata: Map<String, Any>) {
         Counter.builder(METRIC_OUTPUT_GUARD_ACTIONS)
             .tag("stage", stage)
             .tag("action", action)
@@ -124,13 +128,27 @@ class MicrometerAgentMetrics(
                     severity = if (action.equals("rejected", ignoreCase = true)) "FAIL" else "WARN",
                     action = action,
                     stage = stage,
-                    reason = reason.takeIf { it.isNotBlank() }
+                    reason = reason.takeIf { it.isNotBlank() },
+                    channel = metadataValue(metadata, "channel"),
+                    runId = metadataValue(metadata, "runId"),
+                    userId = metadataValue(metadata, "userId"),
+                    queryPreview = metadataValue(metadata, "queryPreview")
                 )
             )
         }
     }
 
     override fun recordBoundaryViolation(violation: String, policy: String, limit: Int, actual: Int) {
+        recordBoundaryViolation(violation, policy, limit, actual, emptyMap())
+    }
+
+    override fun recordBoundaryViolation(
+        violation: String,
+        policy: String,
+        limit: Int,
+        actual: Int,
+        metadata: Map<String, Any>
+    ) {
         Counter.builder(METRIC_BOUNDARY_VIOLATIONS)
             .tag("violation", violation)
             .tag("policy", policy)
@@ -143,7 +161,11 @@ class MicrometerAgentMetrics(
                 type = "boundary_violation",
                 severity = if (policy.equals("fail", ignoreCase = true)) "FAIL" else "WARN",
                 violation = violation,
-                policy = policy
+                policy = policy,
+                channel = metadataValue(metadata, "channel"),
+                runId = metadataValue(metadata, "runId"),
+                userId = metadataValue(metadata, "userId"),
+                queryPreview = metadataValue(metadata, "queryPreview")
             )
         )
     }
@@ -159,7 +181,11 @@ class MicrometerAgentMetrics(
                 occurredAt = Instant.now(),
                 type = "unverified_response",
                 severity = "WARN",
-                channel = metadata["channel"]?.toString()?.ifBlank { "unknown" } ?: "unknown"
+                channel = metadata["channel"]?.toString()?.ifBlank { "unknown" } ?: "unknown",
+                runId = metadataValue(metadata, "runId"),
+                userId = metadataValue(metadata, "userId"),
+                queryPreview = metadataValue(metadata, "queryPreview"),
+                reason = metadataValue(metadata, "blockReason")
             )
         )
     }
@@ -171,6 +197,10 @@ class MicrometerAgentMetrics(
         while (trustEvents.size > MAX_TRUST_EVENTS) {
             trustEvents.pollLast()
         }
+    }
+
+    private fun metadataValue(metadata: Map<String, Any>, key: String): String? {
+        return metadata[key]?.toString()?.trim()?.takeIf { it.isNotBlank() }
     }
 
     companion object {

@@ -80,6 +80,7 @@ internal class ExecutionResultFinalizer(
         if (!result.success || result.content == null || outputGuardPipeline == null) return result
 
         return try {
+            val trustMetadata = trustEventMetadata(command, hookContext)
             val guardContext = OutputGuardContext(
                 command = command,
                 toolsUsed = toolsUsed,
@@ -88,7 +89,7 @@ internal class ExecutionResultFinalizer(
             when (val guardResult = outputGuardPipeline.check(result.content, guardContext)) {
                 is OutputGuardResult.Allowed -> {
                     recordOutputGuardMetadata(hookContext, "allowed", null, "")
-                    agentMetrics.recordOutputGuardAction("pipeline", "allowed", "", command.metadata)
+                    agentMetrics.recordOutputGuardAction("pipeline", "allowed", "", trustMetadata)
                     result
                 }
 
@@ -98,7 +99,7 @@ internal class ExecutionResultFinalizer(
                         guardResult.stage ?: "unknown",
                         "modified",
                         guardResult.reason,
-                        command.metadata
+                        trustMetadata
                     )
                     result.copy(content = guardResult.content)
                 }
@@ -109,7 +110,7 @@ internal class ExecutionResultFinalizer(
                         guardResult.stage ?: "unknown",
                         "rejected",
                         guardResult.reason,
-                        command.metadata
+                        trustMetadata
                     )
                     outputGuardFailure(reason = guardResult.reason, startTime = startTime)
                 }
@@ -131,7 +132,7 @@ internal class ExecutionResultFinalizer(
     ): AgentResult {
         if (!result.success || result.content == null) return result
 
-        return outputBoundaryEnforcer.apply(result, command, attemptLongerResponse)
+        return outputBoundaryEnforcer.apply(result, command, trustEventMetadata(command, hookContext), attemptLongerResponse)
             ?: outputTooShortFailure(hookContext, startTime)
     }
 
@@ -158,7 +159,9 @@ internal class ExecutionResultFinalizer(
                 hookContext.verifiedSources.toList()
             )
             if (blockedUnverified) {
-                agentMetrics.recordUnverifiedResponse(command.metadata)
+                agentMetrics.recordUnverifiedResponse(
+                    trustEventMetadata(command, hookContext) + mapOf("blockReason" to "unverified_sources")
+                )
             }
             result.copy(content = filteredContent)
         } catch (e: Exception) {
@@ -166,6 +169,27 @@ internal class ExecutionResultFinalizer(
             logger.warn(e) { "Response filter chain failed, using original content" }
             result
         }
+    }
+
+    private fun trustEventMetadata(command: AgentCommand, hookContext: HookContext): Map<String, Any> {
+        val metadata = linkedMapOf<String, Any>()
+        metadata.putAll(command.metadata)
+        metadata["runId"] = hookContext.runId
+        metadata["userId"] = hookContext.userId
+        val channel = hookContext.channel?.takeIf { it.isNotBlank() }
+            ?: command.metadata["channel"]?.toString()?.takeIf { it.isNotBlank() }
+        if (channel != null) {
+            metadata["channel"] = channel
+        }
+        val queryPreview = hookContext.userPrompt
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .takeIf { it.isNotBlank() }
+            ?.let { if (it.length <= 160) it else it.take(159).trimEnd() + "…" }
+        if (queryPreview != null) {
+            metadata["queryPreview"] = queryPreview
+        }
+        return metadata
     }
 
     private suspend fun runAfterCompletionHook(

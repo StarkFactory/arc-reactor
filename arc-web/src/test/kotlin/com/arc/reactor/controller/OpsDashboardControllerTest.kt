@@ -197,9 +197,28 @@ class OpsDashboardControllerTest {
             override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {}
             override fun recordGuardRejection(stage: String, reason: String) {}
             override fun recentTrustEvents(limit: Int): List<RecentTrustEvent> = listOf(
-                RecentTrustEvent(type = "unverified_response", severity = "WARN", channel = "web"),
-                RecentTrustEvent(type = "boundary_violation", severity = "FAIL", violation = "output_too_short"),
-                RecentTrustEvent(type = "output_guard", severity = "FAIL", action = "rejected", reason = "blocked")
+                RecentTrustEvent(
+                    type = "unverified_response",
+                    severity = "WARN",
+                    channel = "web",
+                    runId = "run-1",
+                    userId = "u1",
+                    queryPreview = "Show the current policy"
+                ),
+                RecentTrustEvent(
+                    type = "boundary_violation",
+                    severity = "FAIL",
+                    violation = "output_too_short",
+                    runId = "run-2",
+                    userId = "u2"
+                ),
+                RecentTrustEvent(
+                    type = "output_guard",
+                    severity = "FAIL",
+                    action = "rejected",
+                    reason = "blocked",
+                    runId = "run-3"
+                )
             ).take(limit)
         }
 
@@ -293,5 +312,7 @@ class OpsDashboardControllerTest {
         assertEquals(4L, body.responseTrust.boundaryFailures)
         assertEquals(3, body.recentTrustEvents.size)
         assertEquals("unverified_response", body.recentTrustEvents[0].type)
+        assertEquals("run-1", body.recentTrustEvents[0].runId)
+        assertEquals("Show the current policy", body.recentTrustEvents[0].queryPreview)
     }
 }
