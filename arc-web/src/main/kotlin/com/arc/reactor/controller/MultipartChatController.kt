@@ -97,7 +97,8 @@ class MultipartChatController(
             success = result.success,
             model = model,
             toolsUsed = result.toolsUsed,
-            errorMessage = result.errorMessage
+            errorMessage = result.errorMessage,
+            metadata = result.metadata
         )
     }
 

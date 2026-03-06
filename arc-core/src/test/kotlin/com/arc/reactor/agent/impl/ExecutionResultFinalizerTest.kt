@@ -18,6 +18,7 @@ import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.ResponseFilterContext
+import com.arc.reactor.response.VerifiedSource
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -52,7 +53,15 @@ class ExecutionResultFinalizerTest {
         )
 
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi")
-        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi")
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
+            verifiedSources += VerifiedSource(
+                title = "Policy",
+                url = "https://example.com/policy",
+                toolName = "confluence_answer_question"
+            )
+            metadata["answerMode"] = "knowledge"
+            metadata["freshness"] = mapOf("mode" to "live_confluence", "sourceType" to "confluence")
+        }
         val result = finalizer.finalize(
             result = AgentResult.success(content = "hello"),
             command = command,
@@ -64,6 +73,9 @@ class ExecutionResultFinalizerTest {
 
         assertTrue(result.success, "Finalizer should return success when output guard and boundaries pass")
         assertEquals("hello!", result.content)
+        assertEquals(true, result.metadata["grounded"], "Grounded metadata should be attached")
+        assertEquals("knowledge", result.metadata["answerMode"], "Answer mode should be attached")
+        assertEquals(1, result.metadata["verifiedSourceCount"], "Verified source count should be attached")
         coVerify(exactly = 1) {
             conversationManager.saveHistory(command, match { it.success && it.content == "hello!" })
         }
@@ -117,6 +129,7 @@ class ExecutionResultFinalizerTest {
 
         assertFalse(result.success, "Result should fail when output guard rejects the response")
         assertEquals(AgentErrorCode.OUTPUT_GUARD_REJECTED, result.errorCode)
+        assertEquals("blocked", result.metadata["blockReason"], "Block reason should be captured in metadata")
         coVerify(exactly = 0) { conversationManager.saveHistory(command, match { true }) }
         coVerify(exactly = 1) {
             hookExecutor.executeAfterAgentComplete(
@@ -154,6 +167,7 @@ class ExecutionResultFinalizerTest {
 
         assertFalse(result.success, "Result should fail when output is too short and mode is FAIL")
         assertEquals(AgentErrorCode.OUTPUT_TOO_SHORT, result.errorCode)
+        assertEquals("output_too_short", result.metadata["blockReason"], "Boundary failure should expose block reason")
         verify(exactly = 1) { metrics.recordExecution(match { !it.success && it.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT }) }
     }
 

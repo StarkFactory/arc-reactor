@@ -80,6 +80,7 @@ class MultipartChatControllerTest {
 
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+                .copy(metadata = mapOf("grounded" to true, "verifiedSourceCount" to 2))
 
             val response = controller.chatMultipart(
                 message = "describe image",
@@ -97,6 +98,9 @@ class MultipartChatControllerTest {
             }
             assertEquals("tenant-multipart", commandSlot.captured.metadata["tenantId"]) {
                 "Multipart command should include resolved tenant metadata"
+            }
+            assertEquals(true, response.metadata["grounded"]) {
+                "Multipart response should forward execution metadata"
             }
         }
 

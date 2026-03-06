@@ -65,6 +65,8 @@ class ChatControllerTest {
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success(
                 content = "Hello!",
                 toolsUsed = listOf("calculator")
+            ).copy(
+                metadata = mapOf("grounded" to true, "verifiedSourceCount" to 1)
             )
 
             val request = ChatRequest(message = "Hi there")
@@ -74,6 +76,7 @@ class ChatControllerTest {
             assertEquals("Hello!", response.content) { "Content should match agent result" }
             assertEquals(listOf("calculator"), response.toolsUsed) { "Tools used should be forwarded" }
             assertNull(response.errorMessage) { "Error message should be null on success" }
+            assertEquals(true, response.metadata["grounded"]) { "Metadata should be forwarded in response" }
         }
 
         @Test
@@ -461,7 +464,8 @@ class ChatControllerTest {
                 success = true,
                 model = "gemini",
                 toolsUsed = listOf("calc"),
-                errorMessage = null
+                errorMessage = null,
+                metadata = mapOf("grounded" to true)
             )
 
             assertEquals("result", response.content) { "content should match" }
@@ -469,6 +473,7 @@ class ChatControllerTest {
             assertEquals("gemini", response.model) { "model should match" }
             assertEquals(listOf("calc"), response.toolsUsed) { "toolsUsed should match" }
             assertNull(response.errorMessage) { "errorMessage should be null" }
+            assertEquals(true, response.metadata["grounded"]) { "metadata should match" }
         }
     }
 

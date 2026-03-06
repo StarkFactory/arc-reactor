@@ -278,7 +278,15 @@ class ToolCallOrchestratorTest {
             override val name: String = "confluence_answer_question"
             override val description: String = "Knowledge tool"
             override suspend fun call(arguments: Map<String, Any?>): Any {
-                return """{"sources":[{"title":"Policy","url":"https://example.atlassian.net/wiki/spaces/DEV/pages/1"}]}"""
+                return """
+                    {
+                      "grounded": true,
+                      "answerMode": "knowledge",
+                      "retrievedAt": "2026-03-07T00:00:00Z",
+                      "freshness": {"mode": "live_confluence", "sourceType": "confluence"},
+                      "sources": [{"title":"Policy","url":"https://example.atlassian.net/wiki/spaces/DEV/pages/1"}]
+                    }
+                """.trimIndent()
             }
         }
 
@@ -294,6 +302,9 @@ class ToolCallOrchestratorTest {
 
         assertEquals(1, context.verifiedSources.size)
         assertEquals("Policy", context.verifiedSources.first().title)
+        assertEquals("knowledge", context.metadata["answerMode"])
+        assertEquals(true, context.metadata["grounded"])
+        assertEquals("2026-03-07T00:00:00Z", context.metadata["retrievedAt"])
     }
 
     @Test

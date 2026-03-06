@@ -9,6 +9,8 @@ import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
+import com.arc.reactor.response.ToolResponseSignal
+import com.arc.reactor.response.ToolResponseSignalExtractor
 import com.arc.reactor.response.VerifiedSourceExtractor
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.support.throwIfCancellation
@@ -153,7 +155,7 @@ internal class ToolCallOrchestrator(
             val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
             toolOutput = sanitized.content
         }
-        captureVerifiedSources(hookContext, toolName, toolOutput, toolSuccess)
+        captureToolSignals(hookContext, toolName, toolOutput, toolSuccess)
 
         hookExecutor?.executeAfterToolCall(
             context = toolCallContext,
@@ -174,7 +176,7 @@ internal class ToolCallOrchestrator(
         )
     }
 
-    private fun captureVerifiedSources(
+    private fun captureToolSignals(
         hookContext: HookContext,
         toolName: String,
         toolOutput: String,
@@ -184,6 +186,21 @@ internal class ToolCallOrchestrator(
         VerifiedSourceExtractor.extract(toolName, toolOutput)
             .filterNot { source -> hookContext.verifiedSources.any { it.url == source.url } }
             .forEach(hookContext.verifiedSources::add)
+        ToolResponseSignalExtractor.extract(toolName, toolOutput)?.let { signal ->
+            val signals = getOrCreateToolSignals(hookContext)
+            signals += signal
+            signal.answerMode?.let { hookContext.metadata["answerMode"] = it }
+            signal.grounded?.let { hookContext.metadata["grounded"] = it }
+            signal.freshness?.let { hookContext.metadata["freshness"] = it }
+            signal.retrievedAt?.let { hookContext.metadata["retrievedAt"] = it }
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun getOrCreateToolSignals(hookContext: HookContext): MutableList<ToolResponseSignal> {
+        return hookContext.metadata.getOrPut(TOOL_SIGNALS_METADATA_KEY) {
+            mutableListOf<ToolResponseSignal>()
+        } as MutableList<ToolResponseSignal>
     }
 
     private suspend fun checkBeforeToolCallHook(context: ToolCallContext): HookResult.Reject? {
@@ -415,6 +432,7 @@ internal class ToolCallOrchestrator(
     }
 
     companion object {
+        const val TOOL_SIGNALS_METADATA_KEY = "toolSignals"
         private val springToolOutputMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
         private val personalJiraToolNames = setOf(
             "jira_my_open_issues",
