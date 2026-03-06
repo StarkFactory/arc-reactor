@@ -53,7 +53,7 @@ internal class ExecutionResultFinalizer(
             return bounded
         }
 
-        val filtered = applyResponseFilters(bounded, command, toolsUsed, startTime)
+        val filtered = applyResponseFilters(bounded, command, hookContext, toolsUsed, startTime)
         conversationManager.saveHistory(command, filtered)
         runAfterCompletionHook(hookContext, filtered, toolsUsed, startTime)
         return recordFinalExecution(filtered, startTime)
@@ -121,6 +121,7 @@ internal class ExecutionResultFinalizer(
     private suspend fun applyResponseFilters(
         result: AgentResult,
         command: AgentCommand,
+        hookContext: HookContext,
         toolsUsed: List<String>,
         startTime: Long
     ): AgentResult {
@@ -130,6 +131,7 @@ internal class ExecutionResultFinalizer(
             val context = ResponseFilterContext(
                 command = command,
                 toolsUsed = toolsUsed,
+                verifiedSources = hookContext.verifiedSources.toList(),
                 durationMs = nowMs() - startTime
             )
             val filteredContent = responseFilterChain.apply(result.content, context)

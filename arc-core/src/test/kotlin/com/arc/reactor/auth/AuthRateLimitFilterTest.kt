@@ -28,6 +28,7 @@ class AuthRateLimitFilterTest {
     private lateinit var request: ServerHttpRequest
     private lateinit var response: ServerHttpResponse
     private lateinit var headers: HttpHeaders
+    private var currentStatus: HttpStatus? = null
 
     @BeforeEach
     fun setup() {
@@ -46,6 +47,8 @@ class AuthRateLimitFilterTest {
         every { request.remoteAddress } returns InetSocketAddress("127.0.0.1", 12345)
         every { chain.filter(exchange) } returns Mono.empty()
         every { response.bufferFactory() } returns DefaultDataBufferFactory()
+        every { response.statusCode } answers { currentStatus }
+        currentStatus = HttpStatus.OK
     }
 
     @Nested
@@ -88,20 +91,22 @@ class AuthRateLimitFilterTest {
     inner class RateLimiting {
 
         @Test
-        fun `should allow requests within limit`() {
+        fun `should allow successful requests without consuming the failure budget`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
 
-            for (i in 1..3) {
+            for (i in 1..4) {
                 val result = filter.filter(exchange, chain)
                 result.block()
             }
 
-            verify(exactly = 3) { chain.filter(exchange) }
+            verify(exactly = 4) { chain.filter(exchange) }
+            verify(exactly = 0) { response.statusCode = HttpStatus.TOO_MANY_REQUESTS }
         }
 
         @Test
-        fun `should block requests exceeding limit with 429`() {
+        fun `should block requests exceeding limit with 429 after repeated failures`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
+            currentStatus = HttpStatus.UNAUTHORIZED
 
             // First 3 should pass
             for (i in 1..3) {
@@ -116,8 +121,26 @@ class AuthRateLimitFilterTest {
         }
 
         @Test
-        fun `should also rate limit register endpoint`() {
+        fun `should clear failed attempt history after a successful login`() {
+            every { request.uri } returns URI.create("http://localhost/api/auth/login")
+            currentStatus = HttpStatus.UNAUTHORIZED
+
+            repeat(2) { filter.filter(exchange, chain).block() }
+
+            currentStatus = HttpStatus.OK
+            filter.filter(exchange, chain).block()
+
+            currentStatus = HttpStatus.UNAUTHORIZED
+            repeat(3) { filter.filter(exchange, chain).block() }
+
+            verify(exactly = 6) { chain.filter(exchange) }
+            verify(exactly = 0) { response.statusCode = HttpStatus.TOO_MANY_REQUESTS }
+        }
+
+        @Test
+        fun `should also rate limit register endpoint on validation failures`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/register")
+            currentStatus = HttpStatus.BAD_REQUEST
 
             for (i in 1..4) {
                 filter.filter(exchange, chain).block()
@@ -134,6 +157,7 @@ class AuthRateLimitFilterTest {
         @Test
         fun `should use X-Forwarded-For header when present`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
+            currentStatus = HttpStatus.UNAUTHORIZED
 
             // Exhaust limit for IP from X-Forwarded-For
             headers.set("X-Forwarded-For", "10.0.0.1, 192.168.1.1")
@@ -152,6 +176,7 @@ class AuthRateLimitFilterTest {
         @Test
         fun `should track separate limits per IP`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
+            currentStatus = HttpStatus.UNAUTHORIZED
 
             // 3 requests from IP-A
             headers.set("X-Forwarded-For", "10.0.0.1")

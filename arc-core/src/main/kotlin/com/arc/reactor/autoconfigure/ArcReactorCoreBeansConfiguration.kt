@@ -198,7 +198,7 @@ class ArcReactorCoreBeansConfiguration {
         val publicHealth = environment.getProperty(
             "arc.reactor.auth.public-actuator-health",
             Boolean::class.java,
-            false
+            true
         )
         if (probesEnabled && !publicHealth) {
             logger.warn {

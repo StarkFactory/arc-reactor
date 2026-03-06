@@ -53,6 +53,7 @@ class DynamicSchedulerService(
     private val toolApprovalPolicy: ToolApprovalPolicy? = null,
     private val pendingApprovalStore: PendingApprovalStore? = null,
     private val agentExecutor: AgentExecutor? = null,
+    private val agentExecutorProvider: (() -> AgentExecutor?)? = null,
     private val personaStore: PersonaStore? = null,
     private val executionStore: ScheduledJobExecutionStore? = null
 ) {
@@ -361,6 +362,7 @@ class DynamicSchedulerService(
 
     private suspend fun executeAgentJobSuspend(job: ScheduledJob): String {
         val executor = agentExecutor
+            ?: agentExecutorProvider?.invoke()
             ?: throw IllegalStateException("AgentExecutor not available for AGENT job '${job.name}'. " +
                 "Ensure the agent bean is configured.")
 

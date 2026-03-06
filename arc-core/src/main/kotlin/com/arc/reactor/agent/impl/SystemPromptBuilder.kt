@@ -14,6 +14,7 @@ class SystemPromptBuilder(
         responseSchema: String? = null
     ): String {
         val parts = mutableListOf(basePrompt)
+        parts.add(buildGroundingInstruction(responseFormat))
 
         if (ragContext != null) {
             parts.add(buildRagInstruction(ragContext))
@@ -27,6 +28,20 @@ class SystemPromptBuilder(
 
         val result = parts.joinToString("\n\n")
         return postProcessor?.process(result) ?: result
+    }
+
+    private fun buildGroundingInstruction(responseFormat: ResponseFormat): String = buildString {
+        append("[Grounding Rules]\n")
+        append("Use only facts supported by the retrieved context or tool results.\n")
+        append("If you cannot verify a fact, say you cannot verify it instead of guessing.\n")
+        append("For Jira, Confluence, Bitbucket, policy, documentation, or internal knowledge requests, ")
+        append("call the relevant workspace tool before answering.\n")
+        append("Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.")
+        append("\nDo not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; ")
+        append("use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.")
+        if (responseFormat == ResponseFormat.TEXT) {
+            append("\nEnd the response with a 'Sources' section that lists the supporting links.")
+        }
     }
 
     private fun buildJsonInstruction(responseSchema: String?): String = buildString {

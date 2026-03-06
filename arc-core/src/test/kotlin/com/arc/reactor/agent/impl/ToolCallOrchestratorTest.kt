@@ -263,6 +263,40 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
+    fun `should capture verified sources from tool output`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val toolCall = toolCall(id = "id-1", name = "confluence_answer_question")
+        val context = HookContext(runId = "run-2", userId = "user-2", userPrompt = "policy")
+        val callback = object : ToolCallback {
+            override val name: String = "confluence_answer_question"
+            override val description: String = "Knowledge tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                return """{"sources":[{"title":"Policy","url":"https://example.atlassian.net/wiki/spaces/DEV/pages/1"}]}"""
+            }
+        }
+
+        orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = context,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, context.verifiedSources.size)
+        assertEquals("Policy", context.verifiedSources.first().title)
+    }
+
+    @Test
     fun `should inject requesterEmail for personal jira tool when assignee is missing`() = runBlocking {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,

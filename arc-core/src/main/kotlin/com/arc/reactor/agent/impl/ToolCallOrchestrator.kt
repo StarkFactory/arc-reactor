@@ -9,6 +9,7 @@ import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
+import com.arc.reactor.response.VerifiedSourceExtractor
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.Dispatchers
@@ -152,6 +153,7 @@ internal class ToolCallOrchestrator(
             val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
             toolOutput = sanitized.content
         }
+        captureVerifiedSources(hookContext, toolName, toolOutput, toolSuccess)
 
         hookExecutor?.executeAfterToolCall(
             context = toolCallContext,
@@ -170,6 +172,18 @@ internal class ToolCallOrchestrator(
             output = toolOutput,
             normalizeToolResponseToJson = normalizeToolResponseToJson
         )
+    }
+
+    private fun captureVerifiedSources(
+        hookContext: HookContext,
+        toolName: String,
+        toolOutput: String,
+        toolSuccess: Boolean
+    ) {
+        if (!toolSuccess) return
+        VerifiedSourceExtractor.extract(toolName, toolOutput)
+            .filterNot { source -> hookContext.verifiedSources.any { it.url == source.url } }
+            .forEach(hookContext.verifiedSources::add)
     }
 
     private suspend fun checkBeforeToolCallHook(context: ToolCallContext): HookResult.Reject? {

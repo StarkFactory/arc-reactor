@@ -734,6 +734,20 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
+        fun `should expose actuator health by default`() {
+            jdbcContextRunner
+                .withPropertyValues(
+                    "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
+                )
+                .run { context ->
+                    val props = context.getBean(com.arc.reactor.auth.AuthProperties::class.java)
+                    assertTrue(props.publicPaths.any { it == "/actuator/health" }) {
+                        "publicPaths should include /actuator/health by default"
+                    }
+                }
+        }
+
+        @Test
         fun `should append actuator health to public paths when enabled`() {
             jdbcContextRunner
                 .withPropertyValues(

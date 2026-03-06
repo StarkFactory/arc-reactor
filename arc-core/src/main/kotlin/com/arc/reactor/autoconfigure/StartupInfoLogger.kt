@@ -26,7 +26,7 @@ class StartupInfoLogger(
         val defaultTenantId = authProperties.defaultTenantId
         val publicActuatorHealth = environment.getProperty(
             "arc.reactor.auth.public-actuator-health",
-            "false"
+            "true"
         )
         val postgresRequired = environment.getProperty("arc.reactor.postgres.required", "true")
         val datasourceConfigured = !environment.getProperty("spring.datasource.url").isNullOrBlank()

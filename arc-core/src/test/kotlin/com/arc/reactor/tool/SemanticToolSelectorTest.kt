@@ -118,6 +118,38 @@ class SemanticToolSelectorTest {
                 "Should return all tools on embedding failure"
             }
         }
+
+        @Test
+        fun `should force confluence knowledge tool for answer style prompts`() {
+            val confluenceTools = listOf(
+                createTool("confluence_search_by_text", "Low-level search"),
+                createTool("confluence_answer_question", "Preferred Confluence knowledge tool"),
+                createTool("confluence_get_page", "Get Confluence page metadata"),
+                createTool("jira_search_issues", "Search Jira issues")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns listOf(
+                floatArrayOf(0.9f, 0.1f), // confluence_search_by_text
+                floatArrayOf(0.1f, 0.9f), // confluence_answer_question
+                floatArrayOf(0.2f, 0.8f), // confluence_get_page
+                floatArrayOf(0.0f, 1.0f)  // jira_search_issues
+            )
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(1.0f, 0.0f)
+
+            val selector = SemanticToolSelector(
+                embeddingModel = embeddingModel,
+                similarityThreshold = 0.3,
+                maxResults = 3
+            )
+
+            val result = selector.select("DEV 위키 정책 페이지가 무엇을 설명하는지 알려줘", confluenceTools)
+
+            assertEquals("confluence_answer_question", result.first().name) {
+                "Confluence answer prompts should prioritize confluence_answer_question"
+            }
+            assertFalse(result.any { it.name == "confluence_search_by_text" }) {
+                "Low-level Confluence search tools should be excluded for answer-style prompts"
+            }
+        }
     }
 
     @Nested

@@ -49,6 +49,8 @@ data class ResponseFilterContext(
     val command: AgentCommand,
     /** Tools that were used during execution */
     val toolsUsed: List<String>,
+    /** Verified sources collected from tool outputs */
+    val verifiedSources: List<VerifiedSource> = emptyList(),
     /** Execution duration in milliseconds */
     val durationMs: Long
 )

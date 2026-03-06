@@ -1,5 +1,6 @@
 package com.arc.reactor.autoconfigure
 
+import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.scheduler.DynamicSchedulerService
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
 
 class SchedulerConfigurationTest {
 
@@ -87,6 +90,28 @@ class SchedulerConfigurationTest {
                     val bean = context.getBean(CreateScheduledJobTool::class.java)
                     (bean === customTool).shouldBeTrue()
                 }
+        }
+
+        @Test
+        fun `scheduler service can lazily resolve agent executor without circular dependency`() {
+            contextRunner
+                .withPropertyValues("arc.reactor.scheduler.enabled=true")
+                .withUserConfiguration(CyclicAgentExecutorConfig::class.java)
+                .run { context ->
+                    context.getBean(DynamicSchedulerService::class.java).shouldNotBeNull()
+                    context.getBean(CreateScheduledJobTool::class.java).shouldNotBeNull()
+                    context.getBean(AgentExecutor::class.java).shouldNotBeNull()
+                }
+        }
+    }
+
+    @Configuration
+    class CyclicAgentExecutorConfig {
+
+        @Bean
+        fun agentExecutor(createScheduledJobTool: CreateScheduledJobTool): AgentExecutor {
+            createScheduledJobTool.shouldNotBeNull()
+            return mockk(relaxed = true)
         }
     }
 }

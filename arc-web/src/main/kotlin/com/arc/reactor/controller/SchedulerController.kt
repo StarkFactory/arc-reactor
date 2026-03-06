@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -40,7 +40,7 @@ import java.time.Instant
 @Tag(name = "Scheduler", description = "Dynamic scheduled job execution (ADMIN only)")
 @RestController
 @RequestMapping("/api/scheduler/jobs")
-@ConditionalOnBean(DynamicSchedulerService::class)
+@ConditionalOnProperty(prefix = "arc.reactor.scheduler", name = ["enabled"], havingValue = "true")
 class SchedulerController(
     private val schedulerService: DynamicSchedulerService
 ) {
