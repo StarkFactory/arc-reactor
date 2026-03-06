@@ -7,11 +7,15 @@ import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.DistributionSummary
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
+import java.time.Instant
+import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.TimeUnit
 
 class MicrometerAgentMetrics(
     private val registry: MeterRegistry
-) : AgentMetrics {
+) : AgentMetrics, RecentTrustEventReader {
+
+    private val trustEvents = ConcurrentLinkedDeque<RecentTrustEvent>()
 
     override fun recordExecution(result: AgentResult) {
         Counter.builder(METRIC_EXECUTIONS)
@@ -111,6 +115,19 @@ class MicrometerAgentMetrics(
             .tag("action", action)
             .register(registry)
             .increment()
+
+        if (!action.equals("allowed", ignoreCase = true)) {
+            appendTrustEvent(
+                RecentTrustEvent(
+                    occurredAt = Instant.now(),
+                    type = "output_guard",
+                    severity = if (action.equals("rejected", ignoreCase = true)) "FAIL" else "WARN",
+                    action = action,
+                    stage = stage,
+                    reason = reason.takeIf { it.isNotBlank() }
+                )
+            )
+        }
     }
 
     override fun recordBoundaryViolation(violation: String, policy: String, limit: Int, actual: Int) {
@@ -119,6 +136,16 @@ class MicrometerAgentMetrics(
             .tag("policy", policy)
             .register(registry)
             .increment()
+
+        appendTrustEvent(
+            RecentTrustEvent(
+                occurredAt = Instant.now(),
+                type = "boundary_violation",
+                severity = if (policy.equals("fail", ignoreCase = true)) "FAIL" else "WARN",
+                violation = violation,
+                policy = policy
+            )
+        )
     }
 
     override fun recordUnverifiedResponse(metadata: Map<String, Any>) {
@@ -126,9 +153,28 @@ class MicrometerAgentMetrics(
             .tag("channel", metadata["channel"]?.toString()?.ifBlank { "unknown" } ?: "unknown")
             .register(registry)
             .increment()
+
+        appendTrustEvent(
+            RecentTrustEvent(
+                occurredAt = Instant.now(),
+                type = "unverified_response",
+                severity = "WARN",
+                channel = metadata["channel"]?.toString()?.ifBlank { "unknown" } ?: "unknown"
+            )
+        )
+    }
+
+    override fun recentTrustEvents(limit: Int): List<RecentTrustEvent> = trustEvents.take(limit)
+
+    private fun appendTrustEvent(event: RecentTrustEvent) {
+        trustEvents.addFirst(event)
+        while (trustEvents.size > MAX_TRUST_EVENTS) {
+            trustEvents.pollLast()
+        }
     }
 
     companion object {
+        private const val MAX_TRUST_EVENTS = 100
         private const val METRIC_EXECUTIONS = "arc.agent.executions"
         private const val METRIC_EXECUTION_DURATION = "arc.agent.execution.duration"
         private const val METRIC_ERRORS = "arc.agent.errors"
