@@ -10,6 +10,7 @@ data class ResponseValueSummary(
     val interactiveResponses: Long = 0,
     val scheduledResponses: Long = 0,
     val answerModeCounts: Map<String, Long> = emptyMap(),
+    val channelCounts: Map<String, Long> = emptyMap(),
     val toolFamilyCounts: Map<String, Long> = emptyMap(),
     val laneSummaries: List<ResponseLaneSummary> = emptyList()
 )

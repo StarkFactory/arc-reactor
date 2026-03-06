@@ -116,6 +116,7 @@ class MicrometerAgentMetricsTest {
         assertEquals(3L, summary.interactiveResponses, "Interactive responses should be counted separately")
         assertEquals(1L, summary.scheduledResponses, "Scheduled responses should be counted separately")
         assertEquals(1L, summary.answerModeCounts["knowledge"], "Knowledge answer mode should be tallied")
+        assertEquals(4L, summary.channelCounts["unknown"], "Channel counts should keep missing channel traffic visible")
         assertEquals(1L, summary.toolFamilyCounts["work"], "Tool family counts should track work lane usage")
         assertEquals(2L, summary.laneSummaries.first { it.answerMode == "unknown" }.blockedResponses,
             "Lane summary should track blocked responses for the answer mode")

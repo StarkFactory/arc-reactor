@@ -254,6 +254,7 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
     private val interactiveResponses = AtomicLong()
     private val scheduledResponses = AtomicLong()
     private val answerModeCounts = ConcurrentHashMap<String, AtomicLong>()
+    private val channelCounts = ConcurrentHashMap<String, AtomicLong>()
     private val toolFamilyCounts = ConcurrentHashMap<String, AtomicLong>()
     private val laneSummaries = ConcurrentHashMap<String, ResponseLaneAggregate>()
     private val missingQueryCounts = ConcurrentHashMap<String, MissingQueryAggregate>()
@@ -336,6 +337,7 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
         if (metadata["deliveryMode"] == "scheduled") scheduledResponses.incrementAndGet() else interactiveResponses.incrementAndGet()
         if (blocked) blockedResponses.incrementAndGet()
         incrementBucket(answerModeCounts, answerMode, "unknown")
+        incrementBucket(channelCounts, metadata["channel"]?.toString(), "unknown")
         incrementBucket(toolFamilyCounts, metadata["toolFamily"]?.toString(), "none")
         trackLaneSummary(answerMode, grounded, blocked)
         trackMissingQuery(metadata)
@@ -354,6 +356,7 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
             interactiveResponses = interactiveResponses.get(),
             scheduledResponses = scheduledResponses.get(),
             answerModeCounts = snapshotCounts(answerModeCounts),
+            channelCounts = snapshotCounts(channelCounts),
             toolFamilyCounts = snapshotCounts(toolFamilyCounts),
             laneSummaries = snapshotLaneSummaries()
         )

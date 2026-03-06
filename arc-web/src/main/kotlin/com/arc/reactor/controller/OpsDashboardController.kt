@@ -268,6 +268,9 @@ class OpsDashboardController(
             interactiveResponses = summary.interactiveResponses,
             scheduledResponses = summary.scheduledResponses,
             answerModes = summary.answerModeCounts,
+            channels = summary.channelCounts.entries.map {
+                EmployeeValueBucket(key = it.key, count = it.value)
+            },
             lanes = summary.laneSummaries.map(::toEmployeeValueLaneSummary),
             toolFamilies = summary.toolFamilyCounts.entries.map {
                 EmployeeValueBucket(key = it.key, count = it.value)
@@ -388,6 +391,7 @@ data class EmployeeValueSummary(
     val interactiveResponses: Long,
     val scheduledResponses: Long,
     val answerModes: Map<String, Long>,
+    val channels: List<EmployeeValueBucket>,
     val lanes: List<EmployeeValueLaneSummary>,
     val toolFamilies: List<EmployeeValueBucket>,
     val topMissingQueries: List<MissingQuerySummary>

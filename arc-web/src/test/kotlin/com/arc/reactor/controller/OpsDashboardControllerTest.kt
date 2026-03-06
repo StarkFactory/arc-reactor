@@ -206,6 +206,7 @@ class OpsDashboardControllerTest {
                     interactiveResponses = 9,
                     scheduledResponses = 3,
                     answerModeCounts = mapOf("operational" to 7, "knowledge" to 5),
+                    channelCounts = mapOf("slack" to 8, "web" to 4),
                     toolFamilyCounts = mapOf("jira" to 4, "confluence" to 3, "work" to 2),
                     laneSummaries = listOf(
                         com.arc.reactor.agent.metrics.ResponseLaneSummary(
@@ -352,6 +353,7 @@ class OpsDashboardControllerTest {
         assertEquals(83, body.employeeValue.groundedRatePercent)
         assertEquals(2L, body.employeeValue.blockedResponses)
         assertEquals(7L, body.employeeValue.answerModes["operational"])
+        assertEquals("slack", body.employeeValue.channels.first().key)
         assertEquals(71, body.employeeValue.lanes.first { it.answerMode == "operational" }.groundedRatePercent)
         assertEquals(0, body.employeeValue.lanes.first { it.answerMode == "knowledge" }.blockedResponses)
         assertEquals("What is the CEO of OpenAI?", body.employeeValue.topMissingQueries[0].queryPreview)
