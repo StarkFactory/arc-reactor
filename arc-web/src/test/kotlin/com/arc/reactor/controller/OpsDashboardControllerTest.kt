@@ -127,6 +127,7 @@ class OpsDashboardControllerTest {
         assertEquals(0, body.scheduler.totalJobs)
         assertEquals(0, body.recentSchedulerExecutions.size)
         assertEquals(0, body.approvals.pendingCount)
+        assertEquals(0L, body.employeeValue.observedResponses)
         assertEquals(0, body.recentTrustEvents.size)
     }
 
@@ -197,6 +198,27 @@ class OpsDashboardControllerTest {
             override fun recordExecution(result: AgentResult) {}
             override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {}
             override fun recordGuardRejection(stage: String, reason: String) {}
+            override fun responseValueSummary(): com.arc.reactor.agent.metrics.ResponseValueSummary {
+                return com.arc.reactor.agent.metrics.ResponseValueSummary(
+                    observedResponses = 12,
+                    groundedResponses = 10,
+                    blockedResponses = 2,
+                    interactiveResponses = 9,
+                    scheduledResponses = 3,
+                    answerModeCounts = mapOf("operational" to 7, "knowledge" to 5),
+                    toolFamilyCounts = mapOf("jira" to 4, "confluence" to 3, "work" to 2)
+                )
+            }
+
+            override fun topMissingQueries(limit: Int): List<com.arc.reactor.agent.metrics.MissingQueryInsight> = listOf(
+                com.arc.reactor.agent.metrics.MissingQueryInsight(
+                    queryPreview = "What is the CEO of OpenAI?",
+                    count = 2,
+                    lastOccurredAt = Instant.parse("2026-03-07T09:09:00Z"),
+                    blockReason = "unverified_sources"
+                )
+            )
+
             override fun recentTrustEvents(limit: Int): List<RecentTrustEvent> = listOf(
                 RecentTrustEvent(
                     type = "unverified_response",
@@ -311,6 +333,12 @@ class OpsDashboardControllerTest {
         assertEquals(1L, body.responseTrust.outputGuardRejected)
         assertEquals(3L, body.responseTrust.outputGuardModified)
         assertEquals(4L, body.responseTrust.boundaryFailures)
+        assertEquals(12L, body.employeeValue.observedResponses)
+        assertEquals(10L, body.employeeValue.groundedResponses)
+        assertEquals(83, body.employeeValue.groundedRatePercent)
+        assertEquals(2L, body.employeeValue.blockedResponses)
+        assertEquals(7L, body.employeeValue.answerModes["operational"])
+        assertEquals("What is the CEO of OpenAI?", body.employeeValue.topMissingQueries[0].queryPreview)
         assertEquals(3, body.recentTrustEvents.size)
         assertEquals("unverified_response", body.recentTrustEvents[0].type)
         assertEquals("run-1", body.recentTrustEvents[0].runId)
@@ -362,6 +390,7 @@ class OpsDashboardControllerTest {
         assertEquals(0L, body.responseTrust.outputGuardRejected)
         assertEquals(1L, body.responseTrust.outputGuardModified)
         assertEquals(1L, body.responseTrust.boundaryFailures)
+        assertEquals(0L, body.employeeValue.observedResponses)
         assertEquals(3, body.recentTrustEvents.size)
         assertEquals("unverified_response", body.recentTrustEvents[2].type)
         assertEquals("run-ops-1", body.recentTrustEvents[2].runId)

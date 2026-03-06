@@ -5,6 +5,9 @@ import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
+import com.arc.reactor.approval.InMemoryPendingApprovalStore
+import com.arc.reactor.approval.JdbcPendingApprovalStore
+import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.impl.DefaultInputValidationStage
 import com.arc.reactor.guard.impl.GuardPipeline
@@ -203,6 +206,32 @@ class ArcReactorAutoConfigurationTest {
                     "OutputGuardRuleAuditStore should default to in-memory"
                 )
             }
+        }
+
+        @Test
+        fun `should register in-memory pending approval store when approval is enabled without datasource`() {
+            contextRunner
+                .withPropertyValues("arc.reactor.approval.enabled=true")
+                .run { context ->
+                    assertInstanceOf(
+                        InMemoryPendingApprovalStore::class.java,
+                        context.getBean(PendingApprovalStore::class.java),
+                        "PendingApprovalStore should fall back to in-memory when approval is enabled without JDBC"
+                    )
+                }
+        }
+
+        @Test
+        fun `should prefer jdbc pending approval store when approval is enabled with datasource`() {
+            jdbcContextRunner
+                .withPropertyValues("arc.reactor.approval.enabled=true")
+                .run { context ->
+                    assertInstanceOf(
+                        JdbcPendingApprovalStore::class.java,
+                        context.getBean(PendingApprovalStore::class.java),
+                        "PendingApprovalStore should use JDBC when datasource is configured"
+                    )
+                }
         }
     }
 

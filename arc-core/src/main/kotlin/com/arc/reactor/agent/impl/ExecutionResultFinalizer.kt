@@ -48,6 +48,7 @@ internal class ExecutionResultFinalizer(
             hookContext
         )
         if (!guarded.success && guarded.errorCode == AgentErrorCode.OUTPUT_GUARD_REJECTED) {
+            observeResponse(guarded, command, hookContext, toolsUsed)
             runAfterCompletionHook(hookContext, guarded, toolsUsed, startTime)
             return guarded
         }
@@ -57,6 +58,7 @@ internal class ExecutionResultFinalizer(
             hookContext
         )
         if (!bounded.success && bounded.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT) {
+            observeResponse(bounded, command, hookContext, toolsUsed)
             runAfterCompletionHook(hookContext, bounded, toolsUsed, startTime)
             return bounded
         }
@@ -65,6 +67,7 @@ internal class ExecutionResultFinalizer(
             applyResponseFilters(bounded, command, hookContext, toolsUsed, startTime),
             hookContext
         )
+        observeResponse(filtered, command, hookContext, toolsUsed)
         conversationManager.saveHistory(command, filtered)
         runAfterCompletionHook(hookContext, filtered, toolsUsed, startTime)
         return recordFinalExecution(filtered, startTime)
@@ -189,6 +192,32 @@ internal class ExecutionResultFinalizer(
         if (queryPreview != null) {
             metadata["queryPreview"] = queryPreview
         }
+        return metadata
+    }
+
+    private fun observeResponse(
+        result: AgentResult,
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: List<String>
+    ) {
+        agentMetrics.recordResponseObservation(
+            responseObservationMetadata(result, command, hookContext, toolsUsed)
+        )
+    }
+
+    private fun responseObservationMetadata(
+        result: AgentResult,
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: List<String>
+    ): Map<String, Any> {
+        val metadata = trustEventMetadata(command, hookContext).toMutableMap()
+        metadata["grounded"] = resolveGrounded(result, hookContext)
+        metadata["answerMode"] = resolveAnswerMode(result, hookContext)
+        metadata["deliveryMode"] = if (hookContext.metadata["schedulerJobId"] != null) "scheduled" else "interactive"
+        metadata["toolFamily"] = deriveToolFamily(toolsUsed)
+        resolveBlockReason(result, hookContext)?.let { metadata["blockReason"] = it }
         return metadata
     }
 
@@ -321,6 +350,35 @@ internal class ExecutionResultFinalizer(
                 ?: result.errorMessage?.takeIf { it.isNotBlank() }
         }
         return hookContext.metadata["blockReason"]?.toString()?.takeIf { it.isNotBlank() }
+    }
+
+    private fun resolveGrounded(result: AgentResult, hookContext: HookContext): Boolean {
+        return (result.metadata["grounded"] as? Boolean)
+            ?: (hookContext.metadata["grounded"] as? Boolean)
+            ?: hookContext.verifiedSources.isNotEmpty()
+    }
+
+    private fun resolveAnswerMode(result: AgentResult, hookContext: HookContext): String {
+        return result.metadata["answerMode"]?.toString()?.trim()?.takeIf { it.isNotBlank() }
+            ?: hookContext.metadata["answerMode"]?.toString()?.trim()?.takeIf { it.isNotBlank() }
+            ?: "unknown"
+    }
+
+    private fun deriveToolFamily(toolsUsed: List<String>): String {
+        if (toolsUsed.isEmpty()) return "none"
+        val families = toolsUsed.map(::toolFamily).toSet()
+        return if (families.size == 1) families.first() else "mixed"
+    }
+
+    private fun toolFamily(toolName: String): String {
+        return when {
+            toolName.startsWith("confluence_") -> "confluence"
+            toolName.startsWith("jira_") -> "jira"
+            toolName.startsWith("bitbucket_") -> "bitbucket"
+            toolName.startsWith("work_") -> "work"
+            toolName.startsWith("mcp_") -> "mcp"
+            else -> "other"
+        }
     }
 
     private fun toSourceMap(source: VerifiedSource): Map<String, Any?> {

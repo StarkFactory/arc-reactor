@@ -63,4 +63,62 @@ class MicrometerAgentMetricsTest {
         assertTrue(events[2].reason?.contains("unsafe", ignoreCase = true) == true,
             "Output guard event should preserve the rejection/modification reason")
     }
+
+    @Test
+    fun `tracks response value summary and top missing questions`() {
+        val metrics = MicrometerAgentMetrics(SimpleMeterRegistry())
+
+        metrics.recordResponseObservation(
+            mapOf(
+                "grounded" to true,
+                "answerMode" to "knowledge",
+                "deliveryMode" to "interactive",
+                "toolFamily" to "confluence",
+                "queryPreview" to "What is the on-call policy?"
+            )
+        )
+        metrics.recordResponseObservation(
+            mapOf(
+                "grounded" to true,
+                "answerMode" to "operational",
+                "deliveryMode" to "scheduled",
+                "toolFamily" to "work",
+                "queryPreview" to "Morning briefing"
+            )
+        )
+        metrics.recordResponseObservation(
+            mapOf(
+                "grounded" to false,
+                "answerMode" to "unknown",
+                "deliveryMode" to "interactive",
+                "toolFamily" to "none",
+                "queryPreview" to "Who is the CEO of OpenAI?",
+                "blockReason" to "unverified_sources"
+            )
+        )
+        metrics.recordResponseObservation(
+            mapOf(
+                "grounded" to false,
+                "answerMode" to "unknown",
+                "deliveryMode" to "interactive",
+                "toolFamily" to "none",
+                "queryPreview" to "  who is the CEO of OpenAI?  ",
+                "blockReason" to "unverified_sources"
+            )
+        )
+
+        val summary = metrics.responseValueSummary()
+        val missing = metrics.topMissingQueries(5)
+
+        assertEquals(4L, summary.observedResponses, "Observed response count should include every final response")
+        assertEquals(2L, summary.groundedResponses, "Grounded response count should track verified replies")
+        assertEquals(2L, summary.blockedResponses, "Blocked responses should track source failures")
+        assertEquals(3L, summary.interactiveResponses, "Interactive responses should be counted separately")
+        assertEquals(1L, summary.scheduledResponses, "Scheduled responses should be counted separately")
+        assertEquals(1L, summary.answerModeCounts["knowledge"], "Knowledge answer mode should be tallied")
+        assertEquals(1L, summary.toolFamilyCounts["work"], "Tool family counts should track work lane usage")
+        assertEquals(1, missing.size, "Repeated blocked queries should be aggregated after normalization")
+        assertEquals(2L, missing[0].count, "Top missing query should keep repeated count")
+        assertEquals("Who is the CEO of OpenAI?", missing[0].queryPreview, "Query preview should be preserved")
+    }
 }

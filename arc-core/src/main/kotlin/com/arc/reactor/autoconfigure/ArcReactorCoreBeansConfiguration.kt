@@ -7,6 +7,8 @@ import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.approval.AlwaysApprovePolicy
+import com.arc.reactor.approval.InMemoryPendingApprovalStore
+import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.approval.ToolNameApprovalPolicy
 import com.arc.reactor.audit.AdminAuditStore
@@ -49,6 +51,7 @@ import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.BeanInitializationException
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
@@ -270,6 +273,16 @@ class ArcReactorCoreBeansConfiguration {
         val toolNames = (staticToolNames + properties.toolPolicy.writeToolNames)
         return if (toolNames.isNotEmpty()) ToolNameApprovalPolicy(toolNames) else AlwaysApprovePolicy()
     }
+
+    @Bean
+    @ConditionalOnMissingBean(PendingApprovalStore::class)
+    @ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() == 0")
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.approval", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun pendingApprovalStore(properties: AgentProperties): PendingApprovalStore =
+        InMemoryPendingApprovalStore(defaultTimeoutMs = properties.approval.timeoutMs)
 
     /**
      * Feedback Metadata Capture Hook (only when feedback feature is enabled)

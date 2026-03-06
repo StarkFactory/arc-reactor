@@ -9,6 +9,7 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.TimeUnit
 
@@ -21,6 +22,14 @@ class MicrometerAgentMetrics(
     private val outputGuardRejected = AtomicLong()
     private val outputGuardModified = AtomicLong()
     private val boundaryFailures = AtomicLong()
+    private val observedResponses = AtomicLong()
+    private val groundedResponses = AtomicLong()
+    private val blockedResponses = AtomicLong()
+    private val interactiveResponses = AtomicLong()
+    private val scheduledResponses = AtomicLong()
+    private val answerModeCounts = ConcurrentHashMap<String, AtomicLong>()
+    private val toolFamilyCounts = ConcurrentHashMap<String, AtomicLong>()
+    private val missingQueryCounts = ConcurrentHashMap<String, MissingQueryAggregate>()
 
     override fun recordExecution(result: AgentResult) {
         Counter.builder(METRIC_EXECUTIONS)
@@ -204,17 +213,77 @@ class MicrometerAgentMetrics(
         )
     }
 
+    override fun recordResponseObservation(metadata: Map<String, Any>) {
+        observedResponses.incrementAndGet()
+        if (metadata["grounded"] == true) groundedResponses.incrementAndGet()
+        if (metadata["deliveryMode"] == "scheduled") scheduledResponses.incrementAndGet() else interactiveResponses.incrementAndGet()
+        if (metadata["blockReason"]?.toString()?.isNotBlank() == true) blockedResponses.incrementAndGet()
+        incrementBucket(answerModeCounts, metadata["answerMode"]?.toString(), "unknown")
+        incrementBucket(toolFamilyCounts, metadata["toolFamily"]?.toString(), "none")
+        trackMissingQuery(metadata)
+    }
+
     override fun recentTrustEvents(limit: Int): List<RecentTrustEvent> = trustEvents.take(limit)
     override fun unverifiedResponsesCount(): Long = unverifiedResponses.get()
     override fun outputGuardRejectedCount(): Long = outputGuardRejected.get()
     override fun outputGuardModifiedCount(): Long = outputGuardModified.get()
     override fun boundaryFailuresCount(): Long = boundaryFailures.get()
+    override fun responseValueSummary(): ResponseValueSummary {
+        return ResponseValueSummary(
+            observedResponses = observedResponses.get(),
+            groundedResponses = groundedResponses.get(),
+            blockedResponses = blockedResponses.get(),
+            interactiveResponses = interactiveResponses.get(),
+            scheduledResponses = scheduledResponses.get(),
+            answerModeCounts = snapshotCounts(answerModeCounts),
+            toolFamilyCounts = snapshotCounts(toolFamilyCounts)
+        )
+    }
+
+    override fun topMissingQueries(limit: Int): List<MissingQueryInsight> {
+        return missingQueryCounts.values
+            .sortedWith(compareByDescending<MissingQueryAggregate> { it.count.get() }.thenByDescending { it.lastOccurredAt })
+            .take(limit)
+            .map {
+                MissingQueryInsight(
+                    queryPreview = it.queryPreview,
+                    count = it.count.get(),
+                    lastOccurredAt = it.lastOccurredAt,
+                    blockReason = it.blockReason
+                )
+            }
+    }
 
     private fun appendTrustEvent(event: RecentTrustEvent) {
         trustEvents.addFirst(event)
         while (trustEvents.size > MAX_TRUST_EVENTS) {
             trustEvents.pollLast()
         }
+    }
+
+    private fun trackMissingQuery(metadata: Map<String, Any>) {
+        val blockReason = metadataValue(metadata, "blockReason") ?: return
+        val queryPreview = metadataValue(metadata, "queryPreview") ?: return
+        val aggregate = missingQueryCounts.computeIfAbsent(normalizeMissingQueryKey(queryPreview)) {
+            MissingQueryAggregate(queryPreview = queryPreview, blockReason = blockReason)
+        }
+        aggregate.count.incrementAndGet()
+        aggregate.lastOccurredAt = Instant.now()
+    }
+
+    private fun incrementBucket(
+        counts: ConcurrentHashMap<String, AtomicLong>,
+        rawKey: String?,
+        fallback: String
+    ) {
+        val key = rawKey?.trim()?.ifBlank { fallback } ?: fallback
+        counts.computeIfAbsent(key) { AtomicLong() }.incrementAndGet()
+    }
+
+    private fun snapshotCounts(counts: ConcurrentHashMap<String, AtomicLong>): Map<String, Long> {
+        return counts.entries
+            .sortedByDescending { it.value.get() }
+            .associate { it.key to it.value.get() }
     }
 
     private fun metadataValue(metadata: Map<String, Any>, key: String): String? {
