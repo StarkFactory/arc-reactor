@@ -229,6 +229,7 @@ class OpsDashboardControllerTest {
                 jobId = "j2",
                 jobName = "Release",
                 status = JobExecutionStatus.RUNNING,
+                result = "Running release digest",
                 durationMs = 1500,
                 startedAt = Instant.parse("2026-03-07T09:00:00Z")
             )
@@ -239,6 +240,7 @@ class OpsDashboardControllerTest {
                 jobId = "j3",
                 jobName = "Digest",
                 status = JobExecutionStatus.FAILED,
+                result = "Job 'Digest' failed: MCP server 'atlassian' is not connected",
                 durationMs = 2500,
                 dryRun = true,
                 startedAt = Instant.parse("2026-03-07T09:05:00Z"),
@@ -282,6 +284,8 @@ class OpsDashboardControllerTest {
         assertEquals(2, body.recentSchedulerExecutions.size)
         assertEquals("Release", body.recentSchedulerExecutions[1].jobName)
         assertEquals("AGENT", body.recentSchedulerExecutions[1].jobType)
+        assertEquals("MCP server 'atlassian' is not connected", body.recentSchedulerExecutions[0].failureReason)
+        assertEquals("Running release digest", body.recentSchedulerExecutions[1].resultPreview)
         assertEquals(1, body.approvals.pendingCount)
         assertEquals(2L, body.responseTrust.unverifiedResponses)
         assertEquals(1L, body.responseTrust.outputGuardRejected)

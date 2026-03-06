@@ -201,6 +201,8 @@ class SchedulerController(
         lastRunAt = lastRunAt?.toEpochMilli(),
         lastStatus = lastStatus?.name,
         lastResult = lastResult,
+        lastResultPreview = schedulerResultPreview(lastResult),
+        lastFailureReason = schedulerFailureReason(lastResult),
         createdAt = createdAt.toEpochMilli(),
         updatedAt = updatedAt.toEpochMilli()
     )
@@ -211,6 +213,8 @@ class SchedulerController(
         jobName = jobName,
         status = status.name,
         result = result,
+        resultPreview = schedulerResultPreview(result),
+        failureReason = schedulerFailureReason(result),
         durationMs = durationMs,
         dryRun = dryRun,
         startedAt = startedAt.toEpochMilli(),
@@ -376,6 +380,8 @@ data class ScheduledJobResponse(
     val lastRunAt: Long?,
     val lastStatus: String?,
     val lastResult: String?,
+    val lastResultPreview: String?,
+    val lastFailureReason: String?,
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -386,6 +392,8 @@ data class ScheduledJobExecutionResponse(
     val jobName: String,
     val status: String,
     val result: String?,
+    val resultPreview: String?,
+    val failureReason: String?,
     val durationMs: Long,
     val dryRun: Boolean,
     val startedAt: Long,
