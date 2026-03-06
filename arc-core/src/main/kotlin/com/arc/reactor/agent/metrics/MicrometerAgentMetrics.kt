@@ -9,6 +9,7 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.TimeUnit
 
 class MicrometerAgentMetrics(
@@ -16,6 +17,10 @@ class MicrometerAgentMetrics(
 ) : AgentMetrics, RecentTrustEventReader {
 
     private val trustEvents = ConcurrentLinkedDeque<RecentTrustEvent>()
+    private val unverifiedResponses = AtomicLong()
+    private val outputGuardRejected = AtomicLong()
+    private val outputGuardModified = AtomicLong()
+    private val boundaryFailures = AtomicLong()
 
     override fun recordExecution(result: AgentResult) {
         Counter.builder(METRIC_EXECUTIONS)
@@ -121,6 +126,11 @@ class MicrometerAgentMetrics(
             .increment()
 
         if (!action.equals("allowed", ignoreCase = true)) {
+            if (action.equals("rejected", ignoreCase = true)) {
+                outputGuardRejected.incrementAndGet()
+            } else if (action.equals("modified", ignoreCase = true)) {
+                outputGuardModified.incrementAndGet()
+            }
             appendTrustEvent(
                 RecentTrustEvent(
                     occurredAt = Instant.now(),
@@ -149,6 +159,9 @@ class MicrometerAgentMetrics(
         actual: Int,
         metadata: Map<String, Any>
     ) {
+        if (policy.equals("fail", ignoreCase = true)) {
+            boundaryFailures.incrementAndGet()
+        }
         Counter.builder(METRIC_BOUNDARY_VIOLATIONS)
             .tag("violation", violation)
             .tag("policy", policy)
@@ -171,6 +184,7 @@ class MicrometerAgentMetrics(
     }
 
     override fun recordUnverifiedResponse(metadata: Map<String, Any>) {
+        unverifiedResponses.incrementAndGet()
         Counter.builder(METRIC_UNVERIFIED_RESPONSES)
             .tag("channel", metadata["channel"]?.toString()?.ifBlank { "unknown" } ?: "unknown")
             .register(registry)
@@ -191,6 +205,10 @@ class MicrometerAgentMetrics(
     }
 
     override fun recentTrustEvents(limit: Int): List<RecentTrustEvent> = trustEvents.take(limit)
+    override fun unverifiedResponsesCount(): Long = unverifiedResponses.get()
+    override fun outputGuardRejectedCount(): Long = outputGuardRejected.get()
+    override fun outputGuardModifiedCount(): Long = outputGuardModified.get()
+    override fun boundaryFailuresCount(): Long = boundaryFailures.get()
 
     private fun appendTrustEvent(event: RecentTrustEvent) {
         trustEvents.addFirst(event)

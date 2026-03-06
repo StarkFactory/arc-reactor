@@ -183,39 +183,38 @@ class OpsDashboardController(
     }
 
     private fun responseTrustSummary(registry: MeterRegistry?): ResponseTrustSummary {
-        if (registry == null) {
-            return ResponseTrustSummary(
-                unverifiedResponses = 0,
-                outputGuardRejected = 0,
-                outputGuardModified = 0,
-                boundaryFailures = 0
-            )
-        }
+        val trustReader = agentMetricsProvider.ifAvailable as? RecentTrustEventReader
+        val unverifiedResponses = metricCounterValue(registry, "arc.agent.responses.unverified")
+            .coerceAtLeast(trustReader?.unverifiedResponsesCount() ?: 0)
+        val outputGuardRejected = metricCounterValue(
+            registry,
+            "arc.agent.output.guard.actions",
+            mapOf("action" to "rejected")
+        ).coerceAtLeast(trustReader?.outputGuardRejectedCount() ?: 0)
+        val outputGuardModified = metricCounterValue(
+            registry,
+            "arc.agent.output.guard.actions",
+            mapOf("action" to "modified")
+        ).coerceAtLeast(trustReader?.outputGuardModifiedCount() ?: 0)
+        val boundaryFailures = metricCounterValue(
+            registry,
+            "arc.agent.boundary.violations",
+            mapOf("policy" to "fail")
+        ).coerceAtLeast(trustReader?.boundaryFailuresCount() ?: 0)
         return ResponseTrustSummary(
-            unverifiedResponses = metricCounterValue(registry, "arc.agent.responses.unverified"),
-            outputGuardRejected = metricCounterValue(
-                registry,
-                "arc.agent.output.guard.actions",
-                mapOf("action" to "rejected")
-            ),
-            outputGuardModified = metricCounterValue(
-                registry,
-                "arc.agent.output.guard.actions",
-                mapOf("action" to "modified")
-            ),
-            boundaryFailures = metricCounterValue(
-                registry,
-                "arc.agent.boundary.violations",
-                mapOf("policy" to "fail")
-            )
+            unverifiedResponses = unverifiedResponses,
+            outputGuardRejected = outputGuardRejected,
+            outputGuardModified = outputGuardModified,
+            boundaryFailures = boundaryFailures
         )
     }
 
     private fun metricCounterValue(
-        registry: MeterRegistry,
+        registry: MeterRegistry?,
         name: String,
         requiredTags: Map<String, String> = emptyMap()
     ): Long {
+        if (registry == null) return 0
         return registry.find(name).meters()
             .asSequence()
             .filter { meter ->

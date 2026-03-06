@@ -7,6 +7,10 @@ import java.time.Instant
  */
 interface RecentTrustEventReader {
     fun recentTrustEvents(limit: Int = 20): List<RecentTrustEvent> = emptyList()
+    fun unverifiedResponsesCount(): Long = 0
+    fun outputGuardRejectedCount(): Long = 0
+    fun outputGuardModifiedCount(): Long = 0
+    fun boundaryFailuresCount(): Long = 0
 }
 
 data class RecentTrustEvent(

@@ -3,6 +3,7 @@ package com.arc.reactor.controller
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.config.RagProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.metrics.RecentTrustEvent
 import com.arc.reactor.agent.metrics.RecentTrustEventReader
 import com.arc.reactor.agent.model.AgentResult
@@ -314,5 +315,55 @@ class OpsDashboardControllerTest {
         assertEquals("unverified_response", body.recentTrustEvents[0].type)
         assertEquals("run-1", body.recentTrustEvents[0].runId)
         assertEquals("Show the current policy", body.recentTrustEvents[0].queryPreview)
+    }
+
+    @Test
+    fun `dashboard falls back to in-memory trust metrics when meter registry is unavailable`() {
+        val agentMetrics = NoOpAgentMetrics().apply {
+            recordUnverifiedResponse(
+                mapOf(
+                    "channel" to "web",
+                    "runId" to "run-ops-1",
+                    "userId" to "admin",
+                    "queryPreview" to "List Jira projects",
+                    "blockReason" to "unverified_sources"
+                )
+            )
+            recordOutputGuardAction(
+                stage = "pipeline",
+                action = "modified",
+                reason = "masked",
+                metadata = mapOf("runId" to "run-ops-2")
+            )
+            recordBoundaryViolation(
+                violation = "output_too_short",
+                policy = "fail",
+                limit = 120,
+                actual = 12,
+                metadata = mapOf("runId" to "run-ops-3")
+            )
+        }
+
+        val controller = OpsDashboardController(
+            mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
+            properties = AgentProperties(),
+            meterRegistryProvider = meterRegistryProvider(null),
+            schedulerServiceProvider = schedulerProvider(null),
+            pendingApprovalStoreProvider = approvalProvider(null),
+            executionStoreProvider = executionStoreProvider(null),
+            agentMetricsProvider = agentMetricsProvider(agentMetrics)
+        )
+
+        val response = controller.dashboard(names = null, exchange = exchange(UserRole.ADMIN))
+        assertEquals(HttpStatus.OK, response.statusCode)
+
+        val body = response.body as OpsDashboardResponse
+        assertEquals(1L, body.responseTrust.unverifiedResponses)
+        assertEquals(0L, body.responseTrust.outputGuardRejected)
+        assertEquals(1L, body.responseTrust.outputGuardModified)
+        assertEquals(1L, body.responseTrust.boundaryFailures)
+        assertEquals(3, body.recentTrustEvents.size)
+        assertEquals("unverified_response", body.recentTrustEvents[2].type)
+        assertEquals("run-ops-1", body.recentTrustEvents[2].runId)
     }
 }
