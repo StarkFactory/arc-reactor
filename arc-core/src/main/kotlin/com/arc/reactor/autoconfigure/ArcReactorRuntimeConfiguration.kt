@@ -11,6 +11,7 @@ import com.arc.reactor.resilience.impl.ModelFallbackStrategy
 import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.impl.MaxLengthResponseFilter
+import com.arc.reactor.response.impl.VerifiedSourcesResponseFilter
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.beans.factory.ObjectProvider
@@ -27,6 +28,10 @@ import org.springframework.context.annotation.Bean
  * Processed exclusively via @Import from ArcReactorAutoConfiguration.
  */
 class ArcReactorRuntimeConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(VerifiedSourcesResponseFilter::class)
+    fun verifiedSourcesResponseFilter(): ResponseFilter = VerifiedSourcesResponseFilter()
 
     /**
      * ChatClient — resolves multi-ChatModel ambiguity by selecting the default provider.

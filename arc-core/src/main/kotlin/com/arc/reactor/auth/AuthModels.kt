@@ -83,9 +83,10 @@ data class AuthProperties(
     val selfRegistrationEnabled: Boolean = false,
     val publicPaths: List<String> = listOf(
         "/api/auth/login",
+        "/actuator/health",
         "/v3/api-docs", "/swagger-ui", "/webjars"
     ),
     /** Maximum auth attempts per minute per IP address (brute-force protection) */
-    val loginRateLimitPerMinute: Int = 5,
+    val loginRateLimitPerMinute: Int = 10,
     val tokenRevocationStore: TokenRevocationStoreType = TokenRevocationStoreType.MEMORY
 )

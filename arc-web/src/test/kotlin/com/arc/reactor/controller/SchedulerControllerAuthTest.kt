@@ -3,10 +3,14 @@ package com.arc.reactor.controller
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
 import com.arc.reactor.scheduler.DynamicSchedulerService
+import com.arc.reactor.scheduler.JobExecutionStatus
+import com.arc.reactor.scheduler.ScheduledJob
+import com.arc.reactor.scheduler.ScheduledJobType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
@@ -66,6 +70,31 @@ class SchedulerControllerAuthTest {
         assertEquals(HttpStatus.OK, response.statusCode) { "Developer-scope admin list should succeed" }
         assertEquals(0, result.size) { "Scheduler list should be empty when service returns empty list" }
         verify(exactly = 1) { schedulerService.list() }
+    }
+
+    @Test
+    fun `listJobs exposes latest failure reason and result preview`() {
+        every { schedulerService.list() } returns listOf(
+            ScheduledJob(
+                id = "job-1",
+                name = "Release digest",
+                cronExpression = "0 0 9 * * *",
+                jobType = ScheduledJobType.AGENT,
+                agentPrompt = "Summarize release risk",
+                lastStatus = JobExecutionStatus.FAILED,
+                lastResult = "Job 'Release digest' failed: MCP server 'atlassian' is not connected"
+            )
+        )
+
+        val response = controller.listJobs(exchange(userId = "admin-1", role = UserRole.ADMIN))
+        @Suppress("UNCHECKED_CAST")
+        val result = response.body as List<ScheduledJobResponse>
+
+        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(1, result.size)
+        assertEquals("MCP server 'atlassian' is not connected", result[0].lastFailureReason)
+        assertEquals("Job 'Release digest' failed: MCP server 'atlassian' is not connected", result[0].lastResultPreview)
+        assertNull(result[0].lastRunAt)
     }
 
     private fun exchange(userId: String? = null, role: UserRole? = null): ServerWebExchange {

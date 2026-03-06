@@ -104,7 +104,7 @@ arc:
       default-tenant-id: ${ARC_REACTOR_AUTH_DEFAULT_TENANT_ID:default}
       token-revocation-store: ${ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE:memory}
       token-revocation-redis-key-prefix: ${ARC_REACTOR_AUTH_TOKEN_REVOCATION_REDIS_KEY_PREFIX:arc:auth:revoked}
-      public-actuator-health: ${ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH:false}
+      public-actuator-health: ${ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH:true}
 
     boundaries:
       input-min-chars: 1

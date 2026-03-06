@@ -23,7 +23,7 @@ private val logger = KotlinLogging.logger {}
  * Authentication is runtime-required, so this filter is always active.
  */
 class AuthRateLimitFilter(
-    private val maxAttemptsPerMinute: Int = 5
+    private val maxAttemptsPerMinute: Int = 10
 ) : WebFilter, Ordered {
 
     private val cache = Caffeine.newBuilder()
@@ -41,21 +41,14 @@ class AuthRateLimitFilter(
             return chain.filter(exchange)
         }
 
-        val ip = extractClientIp(exchange)
-        val counter = cache.get(ip) { AtomicInteger(0) }
-        val count = counter.incrementAndGet()
-
-        if (count > maxAttemptsPerMinute) {
-            if (count == maxAttemptsPerMinute + 1) {
-                logger.warn {
-                    "Auth rate limit exceeded for IP=$ip ($count/$maxAttemptsPerMinute/min); " +
-                        "suppressing repeated warnings for this IP for 1 minute"
-                }
-            }
+        val key = rateLimitKey(exchange, path)
+        if (isBlocked(key)) {
             return tooManyRequests(exchange)
         }
 
         return chain.filter(exchange)
+            .doOnSuccess { handleCompletedAttempt(exchange, key) }
+            .doOnError { recordFailure(key) }
     }
 
     private fun extractClientIp(exchange: ServerWebExchange): String {
@@ -66,8 +59,39 @@ class AuthRateLimitFilter(
         return exchange.request.remoteAddress?.address?.hostAddress ?: "unknown"
     }
 
+    private fun rateLimitKey(exchange: ServerWebExchange, path: String): String {
+        return "${extractClientIp(exchange)}:$path"
+    }
+
+    private fun isBlocked(key: String): Boolean {
+        val failures = cache.getIfPresent(key)?.get() ?: 0
+        return failures >= maxAttemptsPerMinute
+    }
+
+    private fun handleCompletedAttempt(exchange: ServerWebExchange, key: String) {
+        val status = exchange.response.statusCode
+        if (status == null || status.is2xxSuccessful) {
+            cache.invalidate(key)
+            return
+        }
+        if (status.value() >= 400) {
+            recordFailure(key)
+        }
+    }
+
+    private fun recordFailure(key: String) {
+        val count = cache.get(key) { AtomicInteger(0) }.incrementAndGet()
+        if (count == maxAttemptsPerMinute) {
+            logger.warn {
+                "Auth failure limit reached for key=$key ($count/$maxAttemptsPerMinute/min); " +
+                    "subsequent attempts will be blocked for 1 minute"
+            }
+        }
+    }
+
     private fun tooManyRequests(exchange: ServerWebExchange): Mono<Void> {
         exchange.response.statusCode = HttpStatus.TOO_MANY_REQUESTS
+        exchange.response.headers.set("Retry-After", "60")
         exchange.response.headers.contentType = MediaType.APPLICATION_JSON
         val body = """{"error":"Too many authentication attempts. Please try again later."}"""
         val buffer = exchange.response.bufferFactory().wrap(body.toByteArray())

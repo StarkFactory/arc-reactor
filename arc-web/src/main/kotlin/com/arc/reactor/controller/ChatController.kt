@@ -110,7 +110,8 @@ class ChatController(
             success = result.success,
             model = command.model,
             toolsUsed = result.toolsUsed,
-            errorMessage = result.errorMessage
+            errorMessage = result.errorMessage,
+            metadata = result.metadata
         )
     }
 
@@ -369,5 +370,6 @@ data class ChatResponse(
     val success: Boolean,
     val model: String? = null,
     val toolsUsed: List<String> = emptyList(),
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val metadata: Map<String, Any> = emptyMap()
 )

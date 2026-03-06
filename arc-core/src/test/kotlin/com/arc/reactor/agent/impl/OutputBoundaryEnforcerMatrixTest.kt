@@ -33,6 +33,7 @@ class OutputBoundaryEnforcerMatrixTest {
             val result = enforcer.apply(
                 result = AgentResult.success("x".repeat(len)),
                 command = command,
+                metadata = emptyMap(),
                 attemptLongerResponse = { _, _, _ -> null }
             )
             if (len < 60) assertNull(result, "len=$len should fail")
@@ -60,6 +61,7 @@ class OutputBoundaryEnforcerMatrixTest {
             val result = enforcer.apply(
                 result = AgentResult.success(source),
                 command = command,
+                metadata = emptyMap(),
                 attemptLongerResponse = { _, _, _ -> null }
             )
             assertNotNull(result, "len=$len: truncation enforcer should return non-null result")
@@ -92,6 +94,7 @@ class OutputBoundaryEnforcerMatrixTest {
             val result = enforcer.apply(
                 result = AgentResult.success(source),
                 command = command,
+                metadata = emptyMap(),
                 attemptLongerResponse = { _, requiredMin, _ ->
                     retryCalls++
                     "R".repeat(requiredMin)
@@ -128,6 +131,7 @@ class OutputBoundaryEnforcerMatrixTest {
             val result = enforcer.apply(
                 result = AgentResult.success(source),
                 command = command,
+                metadata = emptyMap(),
                 attemptLongerResponse = { _, _, _ -> "tiny" }
             )
 

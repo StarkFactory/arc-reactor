@@ -17,7 +17,18 @@ class SystemPromptBuilderTest {
             responseSchema = null
         )
 
-        assertEquals("You are helpful.", prompt)
+        val expected = """
+            You are helpful.
+
+            [Grounding Rules]
+            Use only facts supported by the retrieved context or tool results.
+            If you cannot verify a fact, say you cannot verify it instead of guessing.
+            For Jira, Confluence, Bitbucket, policy, documentation, or internal knowledge requests, call the relevant workspace tool before answering.
+            Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.
+            Do not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.
+            End the response with a 'Sources' section that lists the supporting links.
+        """.trimIndent()
+        assertEquals(expected, prompt)
     }
 
     @Test
@@ -31,6 +42,13 @@ class SystemPromptBuilderTest {
 
         val expected = """
             You are helpful.
+
+            [Grounding Rules]
+            Use only facts supported by the retrieved context or tool results.
+            If you cannot verify a fact, say you cannot verify it instead of guessing.
+            For Jira, Confluence, Bitbucket, policy, documentation, or internal knowledge requests, call the relevant workspace tool before answering.
+            Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.
+            Do not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.
 
             [Retrieved Context]
             The following information was retrieved from the knowledge base and may be relevant.

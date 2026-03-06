@@ -55,13 +55,15 @@ class SemanticToolSelector(
 
     override fun select(prompt: String, availableTools: List<ToolCallback>): List<ToolCallback> {
         if (availableTools.isEmpty()) return emptyList()
-        if (availableTools.size <= maxResults) return availableTools
+        if (availableTools.size <= maxResults) {
+            return applyDeterministicRouting(prompt, availableTools, availableTools)
+        }
 
         return try {
             selectSemantically(prompt, availableTools)
         } catch (e: Exception) {
             logger.warn(e) { "Semantic tool selection failed, falling back to all tools" }
-            availableTools
+            applyDeterministicRouting(prompt, availableTools, availableTools)
         }
     }
 
@@ -88,18 +90,54 @@ class SemanticToolSelector(
             .map { it.first }
 
         // 5. Fallback: if nothing meets threshold, return all
-        if (selected.isEmpty()) {
+        val baseSelection = if (selected.isEmpty()) {
             logger.debug { "No tools above threshold $similarityThreshold, returning all ${availableTools.size} tools" }
-            return availableTools
+            availableTools
+        } else {
+            selected
         }
 
         logger.debug {
             val names = scored.sortedByDescending { it.second }.take(5)
                 .joinToString { "${it.first.name}(${String.format("%.3f", it.second)})" }
-            "Semantic tool selection: top scores = [$names], selected ${selected.size}/${availableTools.size}"
+            "Semantic tool selection: top scores = [$names], selected ${baseSelection.size}/${availableTools.size}"
         }
 
-        return selected
+        return applyDeterministicRouting(prompt, baseSelection, availableTools)
+    }
+
+    private fun applyDeterministicRouting(
+        prompt: String,
+        selected: List<ToolCallback>,
+        availableTools: List<ToolCallback>
+    ): List<ToolCallback> {
+        if (!looksLikeConfluenceKnowledgePrompt(prompt)) return selected
+
+        val availableByName = availableTools.associateBy { it.name }
+        val preferred = PREFERRED_CONFLUENCE_KNOWLEDGE_TOOLS
+            .mapNotNull(availableByName::get)
+        if (preferred.isEmpty()) return selected
+
+        val filtered = if (looksLikeConfluenceAnswerPrompt(prompt)) {
+            selected.filterNot { it.name in LOW_LEVEL_CONFLUENCE_DISCOVERY_TOOLS }
+        } else {
+            selected
+        }
+
+        val ordered = LinkedHashMap<String, ToolCallback>()
+        preferred.forEach { ordered[it.name] = it }
+        filtered.forEach { ordered.putIfAbsent(it.name, it) }
+        return ordered.values.take(maxResults)
+    }
+
+    private fun looksLikeConfluenceKnowledgePrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return CONFLUENCE_KNOWLEDGE_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeConfluenceAnswerPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return CONFLUENCE_ANSWER_HINTS.any { normalized.contains(it) }
     }
 
     private fun refreshEmbeddingsIfNeeded(tools: List<ToolCallback>) {
@@ -132,6 +170,24 @@ class SemanticToolSelector(
     }
 
     companion object {
+        private val PREFERRED_CONFLUENCE_KNOWLEDGE_TOOLS = listOf(
+            "confluence_answer_question",
+            "confluence_get_page_content",
+            "confluence_get_page"
+        )
+        private val LOW_LEVEL_CONFLUENCE_DISCOVERY_TOOLS = setOf(
+            "confluence_search",
+            "confluence_search_by_text"
+        )
+        private val CONFLUENCE_KNOWLEDGE_HINTS = setOf(
+            "confluence", "wiki", "page", "document", "policy", "policies", "guideline", "guidelines",
+            "runbook", "knowledge", "internal", "service", "컨플루언스", "위키", "페이지", "문서",
+            "정책", "규정", "가이드", "런북", "사내", "서비스"
+        )
+        private val CONFLUENCE_ANSWER_HINTS = setOf(
+            "what", "who", "why", "how", "describe", "explain", "summary", "summarize", "tell me",
+            "알려", "설명", "요약", "정리", "무엇", "왜", "어떻게", "누구"
+        )
 
         /**
          * Compute cosine similarity between two vectors.

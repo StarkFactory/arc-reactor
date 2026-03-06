@@ -67,7 +67,7 @@ class AuthConfiguration {
         // Convenience option: make health endpoint publicly accessible without requiring users to
         // override the entire public-paths list.
         val publicActuatorHealth = environment.getProperty(
-            "arc.reactor.auth.public-actuator-health", Boolean::class.java, false
+            "arc.reactor.auth.public-actuator-health", Boolean::class.java, true
         )
         if (publicActuatorHealth) {
             defaultPublicPaths.add("/actuator/health")
@@ -90,7 +90,7 @@ class AuthConfiguration {
             selfRegistrationEnabled = selfRegistrationEnabled,
             publicPaths = publicPaths,
             loginRateLimitPerMinute = environment.getProperty(
-                "arc.reactor.auth.login-rate-limit-per-minute", Int::class.java, 5
+                "arc.reactor.auth.login-rate-limit-per-minute", Int::class.java, 10
             ),
             tokenRevocationStore = parseTokenRevocationStore(environment)
         )

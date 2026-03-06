@@ -18,6 +18,7 @@ internal class OutputBoundaryEnforcer(
     suspend fun apply(
         result: AgentResult,
         command: AgentCommand,
+        metadata: Map<String, Any>,
         attemptLongerResponse: suspend (String, Int, AgentCommand) -> String?
     ): AgentResult? {
         val content = result.content ?: return result
@@ -26,7 +27,7 @@ internal class OutputBoundaryEnforcer(
         val afterMax = if (boundaries.outputMaxChars > 0 && len > boundaries.outputMaxChars) {
             val policy = "truncate"
             agentMetrics.recordBoundaryViolation(
-                "output_too_long", policy, boundaries.outputMaxChars, len
+                "output_too_long", policy, boundaries.outputMaxChars, len, metadata
             )
             logger.info { formatBoundaryViolation("output_too_long", policy, boundaries.outputMaxChars, len) }
             result.copy(content = content.take(boundaries.outputMaxChars) + "\n\n[Response truncated]")
@@ -43,7 +44,7 @@ internal class OutputBoundaryEnforcer(
             OutputMinViolationMode.WARN -> {
                 val policy = OutputMinViolationMode.WARN.name.lowercase()
                 agentMetrics.recordBoundaryViolation(
-                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length
+                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length, metadata
                 )
                 logger.warn {
                     formatBoundaryViolation(
@@ -59,7 +60,7 @@ internal class OutputBoundaryEnforcer(
             OutputMinViolationMode.RETRY_ONCE -> {
                 val policy = OutputMinViolationMode.RETRY_ONCE.name.lowercase()
                 agentMetrics.recordBoundaryViolation(
-                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length
+                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length, metadata
                 )
                 logger.info {
                     formatBoundaryViolation(
@@ -84,7 +85,7 @@ internal class OutputBoundaryEnforcer(
             OutputMinViolationMode.FAIL -> {
                 val policy = OutputMinViolationMode.FAIL.name.lowercase()
                 agentMetrics.recordBoundaryViolation(
-                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length
+                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length, metadata
                 )
                 logger.warn {
                     formatBoundaryViolation(

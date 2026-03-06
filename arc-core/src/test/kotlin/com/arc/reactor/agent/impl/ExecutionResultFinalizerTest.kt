@@ -18,6 +18,8 @@ import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.ResponseFilterContext
+import com.arc.reactor.response.VerifiedSource
+import com.arc.reactor.response.impl.VerifiedSourcesResponseFilter
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -52,7 +54,15 @@ class ExecutionResultFinalizerTest {
         )
 
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi")
-        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi")
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
+            verifiedSources += VerifiedSource(
+                title = "Policy",
+                url = "https://example.com/policy",
+                toolName = "confluence_answer_question"
+            )
+            metadata["answerMode"] = "knowledge"
+            metadata["freshness"] = mapOf("mode" to "live_confluence", "sourceType" to "confluence")
+        }
         val result = finalizer.finalize(
             result = AgentResult.success(content = "hello"),
             command = command,
@@ -64,6 +74,9 @@ class ExecutionResultFinalizerTest {
 
         assertTrue(result.success, "Finalizer should return success when output guard and boundaries pass")
         assertEquals("hello!", result.content)
+        assertEquals(true, result.metadata["grounded"], "Grounded metadata should be attached")
+        assertEquals("knowledge", result.metadata["answerMode"], "Answer mode should be attached")
+        assertEquals(1, result.metadata["verifiedSourceCount"], "Verified source count should be attached")
         coVerify(exactly = 1) {
             conversationManager.saveHistory(command, match { it.success && it.content == "hello!" })
         }
@@ -117,6 +130,7 @@ class ExecutionResultFinalizerTest {
 
         assertFalse(result.success, "Result should fail when output guard rejects the response")
         assertEquals(AgentErrorCode.OUTPUT_GUARD_REJECTED, result.errorCode)
+        assertEquals("blocked", result.metadata["blockReason"], "Block reason should be captured in metadata")
         coVerify(exactly = 0) { conversationManager.saveHistory(command, match { true }) }
         coVerify(exactly = 1) {
             hookExecutor.executeAfterAgentComplete(
@@ -154,6 +168,7 @@ class ExecutionResultFinalizerTest {
 
         assertFalse(result.success, "Result should fail when output is too short and mode is FAIL")
         assertEquals(AgentErrorCode.OUTPUT_TOO_SHORT, result.errorCode)
+        assertEquals("output_too_short", result.metadata["blockReason"], "Boundary failure should expose block reason")
         verify(exactly = 1) { metrics.recordExecution(match { !it.success && it.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT }) }
     }
 
@@ -184,8 +199,50 @@ class ExecutionResultFinalizerTest {
 
         assertTrue(result.success, "Result should succeed after retry produces a longer response")
         assertEquals("long enough response", result.content)
-        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "retry_once", 10, 5) }
+        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "retry_once", 10, 5, any()) }
         verify(exactly = 1) { metrics.recordExecution(match { it.success && it.content == "long enough response" }) }
+    }
+
+    @Test
+    fun `should record unverified response metric when sources are missing`() = runBlocking {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val hookExecutor = mockk<HookExecutor>(relaxed = true)
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = ResponseFilterChain(listOf(VerifiedSourcesResponseFilter())),
+            boundaries = BoundaryProperties(),
+            conversationManager = conversationManager,
+            hookExecutor = hookExecutor,
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+
+        val command = AgentCommand(
+            systemPrompt = "sys",
+            userPrompt = "Show the current policy",
+            metadata = mapOf("channel" to "web")
+        )
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "Here is the policy."),
+            command = command,
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "Show the current policy"),
+            toolsUsed = listOf("jira_list_projects"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertEquals("unverified_sources", result.metadata["blockReason"], "Should mark missing source block reason")
+        verify(exactly = 1) {
+            metrics.recordUnverifiedResponse(match {
+                it["channel"] == "web" &&
+                    it["runId"] == "run-1" &&
+                    it["userId"] == "u" &&
+                    it["queryPreview"] == "Show the current policy" &&
+                    it["blockReason"] == "unverified_sources"
+            })
+        }
     }
 
     @Test

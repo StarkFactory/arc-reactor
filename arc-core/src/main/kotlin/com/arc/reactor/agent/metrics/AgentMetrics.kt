@@ -3,6 +3,9 @@ package com.arc.reactor.agent.metrics
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.resilience.CircuitBreakerState
+import java.time.Instant
+import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Agent metrics interface for observability.
@@ -199,6 +202,31 @@ interface AgentMetrics {
      * @param actual The actual measured value
      */
     fun recordBoundaryViolation(violation: String, policy: String, limit: Int, actual: Int) {}
+
+    /**
+     * Record a boundary policy violation with request metadata for drill-down.
+     *
+     * Default implementation delegates to [recordBoundaryViolation] to preserve
+     * backward compatibility with existing implementations.
+     */
+    fun recordBoundaryViolation(
+        violation: String,
+        policy: String,
+        limit: Int,
+        actual: Int,
+        metadata: Map<String, Any>
+    ) {
+        recordBoundaryViolation(violation, policy, limit, actual)
+    }
+
+    /**
+     * Record a response that could not be verified from approved sources.
+     *
+     * Default implementation is a no-op to preserve backward compatibility.
+     *
+     * @param metadata Request metadata (typically contains tenant/channel info)
+     */
+    fun recordUnverifiedResponse(metadata: Map<String, Any>) {}
 }
 
 /**
@@ -206,8 +234,96 @@ interface AgentMetrics {
  *
  * Used when no metrics backend is configured. All methods are no-ops.
  */
-class NoOpAgentMetrics : AgentMetrics {
+class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
+    private val trustEvents = ConcurrentLinkedDeque<RecentTrustEvent>()
+    private val unverifiedResponses = AtomicLong()
+    private val outputGuardRejected = AtomicLong()
+    private val outputGuardModified = AtomicLong()
+    private val boundaryFailures = AtomicLong()
+
     override fun recordExecution(result: AgentResult) {}
     override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {}
     override fun recordGuardRejection(stage: String, reason: String) {}
+
+    override fun recordOutputGuardAction(stage: String, action: String, reason: String, metadata: Map<String, Any>) {
+        if (action.equals("rejected", ignoreCase = true)) {
+            outputGuardRejected.incrementAndGet()
+        } else if (action.equals("modified", ignoreCase = true)) {
+            outputGuardModified.incrementAndGet()
+        }
+        if (!action.equals("allowed", ignoreCase = true)) {
+            appendTrustEvent(
+                RecentTrustEvent(
+                    occurredAt = Instant.now(),
+                    type = "output_guard",
+                    severity = if (action.equals("rejected", ignoreCase = true)) "FAIL" else "WARN",
+                    action = action,
+                    stage = stage,
+                    reason = metadata["blockReason"]?.toString()?.takeIf { it.isNotBlank() } ?: reason.takeIf { it.isNotBlank() },
+                    channel = metadata["channel"]?.toString(),
+                    runId = metadata["runId"]?.toString(),
+                    userId = metadata["userId"]?.toString(),
+                    queryPreview = metadata["queryPreview"]?.toString()
+                )
+            )
+        }
+    }
+
+    override fun recordBoundaryViolation(
+        violation: String,
+        policy: String,
+        limit: Int,
+        actual: Int,
+        metadata: Map<String, Any>
+    ) {
+        if (policy.equals("fail", ignoreCase = true)) {
+            boundaryFailures.incrementAndGet()
+        }
+        appendTrustEvent(
+            RecentTrustEvent(
+                occurredAt = Instant.now(),
+                type = "boundary_violation",
+                severity = if (policy.equals("fail", ignoreCase = true)) "FAIL" else "WARN",
+                violation = violation,
+                policy = policy,
+                channel = metadata["channel"]?.toString(),
+                runId = metadata["runId"]?.toString(),
+                userId = metadata["userId"]?.toString(),
+                queryPreview = metadata["queryPreview"]?.toString()
+            )
+        )
+    }
+
+    override fun recordUnverifiedResponse(metadata: Map<String, Any>) {
+        unverifiedResponses.incrementAndGet()
+        appendTrustEvent(
+            RecentTrustEvent(
+                occurredAt = Instant.now(),
+                type = "unverified_response",
+                severity = "WARN",
+                reason = metadata["blockReason"]?.toString(),
+                channel = metadata["channel"]?.toString(),
+                runId = metadata["runId"]?.toString(),
+                userId = metadata["userId"]?.toString(),
+                queryPreview = metadata["queryPreview"]?.toString()
+            )
+        )
+    }
+
+    override fun recentTrustEvents(limit: Int): List<RecentTrustEvent> = trustEvents.take(limit)
+    override fun unverifiedResponsesCount(): Long = unverifiedResponses.get()
+    override fun outputGuardRejectedCount(): Long = outputGuardRejected.get()
+    override fun outputGuardModifiedCount(): Long = outputGuardModified.get()
+    override fun boundaryFailuresCount(): Long = boundaryFailures.get()
+
+    private fun appendTrustEvent(event: RecentTrustEvent) {
+        trustEvents.addFirst(event)
+        while (trustEvents.size > MAX_TRUST_EVENTS) {
+            trustEvents.pollLast()
+        }
+    }
+
+    companion object {
+        private const val MAX_TRUST_EVENTS = 100
+    }
 }

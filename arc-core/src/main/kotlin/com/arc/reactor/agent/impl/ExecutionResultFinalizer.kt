@@ -15,6 +15,8 @@ import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.ResponseFilterContext
+import com.arc.reactor.response.ToolResponseSignal
+import com.arc.reactor.response.VerifiedSource
 import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
@@ -41,19 +43,28 @@ internal class ExecutionResultFinalizer(
         startTime: Long,
         attemptLongerResponse: suspend (String, Int, AgentCommand) -> String?
     ): AgentResult {
-        val guarded = applyOutputGuardPipeline(result, command, toolsUsed, startTime)
+        val guarded = enrichResponseMetadata(
+            applyOutputGuardPipeline(result, command, hookContext, toolsUsed, startTime),
+            hookContext
+        )
         if (!guarded.success && guarded.errorCode == AgentErrorCode.OUTPUT_GUARD_REJECTED) {
             runAfterCompletionHook(hookContext, guarded, toolsUsed, startTime)
             return guarded
         }
 
-        val bounded = applyOutputBoundaryRule(guarded, command, startTime, attemptLongerResponse)
+        val bounded = enrichResponseMetadata(
+            applyOutputBoundaryRule(guarded, command, hookContext, startTime, attemptLongerResponse),
+            hookContext
+        )
         if (!bounded.success && bounded.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT) {
             runAfterCompletionHook(hookContext, bounded, toolsUsed, startTime)
             return bounded
         }
 
-        val filtered = applyResponseFilters(bounded, command, toolsUsed, startTime)
+        val filtered = enrichResponseMetadata(
+            applyResponseFilters(bounded, command, hookContext, toolsUsed, startTime),
+            hookContext
+        )
         conversationManager.saveHistory(command, filtered)
         runAfterCompletionHook(hookContext, filtered, toolsUsed, startTime)
         return recordFinalExecution(filtered, startTime)
@@ -62,12 +73,14 @@ internal class ExecutionResultFinalizer(
     private suspend fun applyOutputGuardPipeline(
         result: AgentResult,
         command: AgentCommand,
+        hookContext: HookContext,
         toolsUsed: List<String>,
         startTime: Long
     ): AgentResult {
         if (!result.success || result.content == null || outputGuardPipeline == null) return result
 
         return try {
+            val trustMetadata = trustEventMetadata(command, hookContext)
             val guardContext = OutputGuardContext(
                 command = command,
                 toolsUsed = toolsUsed,
@@ -75,26 +88,29 @@ internal class ExecutionResultFinalizer(
             )
             when (val guardResult = outputGuardPipeline.check(result.content, guardContext)) {
                 is OutputGuardResult.Allowed -> {
-                    agentMetrics.recordOutputGuardAction("pipeline", "allowed", "", command.metadata)
+                    recordOutputGuardMetadata(hookContext, "allowed", null, "")
+                    agentMetrics.recordOutputGuardAction("pipeline", "allowed", "", trustMetadata)
                     result
                 }
 
                 is OutputGuardResult.Modified -> {
+                    recordOutputGuardMetadata(hookContext, "modified", guardResult.stage, guardResult.reason)
                     agentMetrics.recordOutputGuardAction(
                         guardResult.stage ?: "unknown",
                         "modified",
                         guardResult.reason,
-                        command.metadata
+                        trustMetadata
                     )
                     result.copy(content = guardResult.content)
                 }
 
                 is OutputGuardResult.Rejected -> {
+                    recordOutputGuardMetadata(hookContext, "rejected", guardResult.stage, guardResult.reason)
                     agentMetrics.recordOutputGuardAction(
                         guardResult.stage ?: "unknown",
                         "rejected",
                         guardResult.reason,
-                        command.metadata
+                        trustMetadata
                     )
                     outputGuardFailure(reason = guardResult.reason, startTime = startTime)
                 }
@@ -102,6 +118,7 @@ internal class ExecutionResultFinalizer(
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Output guard pipeline failed, rejecting (fail-close)" }
+            recordOutputGuardMetadata(hookContext, "rejected", "pipeline", "Output guard check failed")
             outputGuardFailure(reason = "Output guard check failed", startTime = startTime)
         }
     }
@@ -109,18 +126,20 @@ internal class ExecutionResultFinalizer(
     private suspend fun applyOutputBoundaryRule(
         result: AgentResult,
         command: AgentCommand,
+        hookContext: HookContext,
         startTime: Long,
         attemptLongerResponse: suspend (String, Int, AgentCommand) -> String?
     ): AgentResult {
         if (!result.success || result.content == null) return result
 
-        return outputBoundaryEnforcer.apply(result, command, attemptLongerResponse)
-            ?: outputTooShortFailure(startTime)
+        return outputBoundaryEnforcer.apply(result, command, trustEventMetadata(command, hookContext), attemptLongerResponse)
+            ?: outputTooShortFailure(hookContext, startTime)
     }
 
     private suspend fun applyResponseFilters(
         result: AgentResult,
         command: AgentCommand,
+        hookContext: HookContext,
         toolsUsed: List<String>,
         startTime: Long
     ): AgentResult {
@@ -130,15 +149,47 @@ internal class ExecutionResultFinalizer(
             val context = ResponseFilterContext(
                 command = command,
                 toolsUsed = toolsUsed,
+                verifiedSources = hookContext.verifiedSources.toList(),
                 durationMs = nowMs() - startTime
             )
             val filteredContent = responseFilterChain.apply(result.content, context)
+            val blockedUnverified = captureVerificationBlockReason(
+                hookContext,
+                filteredContent,
+                hookContext.verifiedSources.toList()
+            )
+            if (blockedUnverified) {
+                agentMetrics.recordUnverifiedResponse(
+                    trustEventMetadata(command, hookContext) + mapOf("blockReason" to "unverified_sources")
+                )
+            }
             result.copy(content = filteredContent)
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) { "Response filter chain failed, using original content" }
             result
         }
+    }
+
+    private fun trustEventMetadata(command: AgentCommand, hookContext: HookContext): Map<String, Any> {
+        val metadata = linkedMapOf<String, Any>()
+        metadata.putAll(command.metadata)
+        metadata["runId"] = hookContext.runId
+        metadata["userId"] = hookContext.userId
+        val channel = hookContext.channel?.takeIf { it.isNotBlank() }
+            ?: command.metadata["channel"]?.toString()?.takeIf { it.isNotBlank() }
+        if (channel != null) {
+            metadata["channel"] = channel
+        }
+        val queryPreview = hookContext.userPrompt
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .takeIf { it.isNotBlank() }
+            ?.let { if (it.length <= 160) it else it.take(159).trimEnd() + "…" }
+        if (queryPreview != null) {
+            metadata["queryPreview"] = queryPreview
+        }
+        return metadata
     }
 
     private suspend fun runAfterCompletionHook(
@@ -179,11 +230,140 @@ internal class ExecutionResultFinalizer(
         ).also { agentMetrics.recordExecution(it) }
     }
 
-    private fun outputTooShortFailure(startTime: Long): AgentResult {
+    private fun outputTooShortFailure(hookContext: HookContext, startTime: Long): AgentResult {
+        hookContext.metadata["blockReason"] = "output_too_short"
         return AgentResult.failure(
             errorMessage = errorMessageResolver.resolve(AgentErrorCode.OUTPUT_TOO_SHORT, null),
             errorCode = AgentErrorCode.OUTPUT_TOO_SHORT,
             durationMs = nowMs() - startTime
         ).also { agentMetrics.recordExecution(it) }
+    }
+
+    private fun recordOutputGuardMetadata(
+        hookContext: HookContext,
+        action: String,
+        stage: String?,
+        reason: String
+    ) {
+        hookContext.metadata["outputGuardAction"] = action
+        hookContext.metadata["outputGuardStage"] = stage ?: "pipeline"
+        if (reason.isNotBlank()) {
+            hookContext.metadata["outputGuardReason"] = reason
+            hookContext.metadata["blockReason"] = reason
+        }
+    }
+
+    private fun captureVerificationBlockReason(
+        hookContext: HookContext,
+        filteredContent: String,
+        sources: List<VerifiedSource>
+    ): Boolean {
+        if (sources.isNotEmpty()) return false
+        if (UNVERIFIED_PATTERNS.any { filteredContent.contains(it, ignoreCase = true) }) {
+            hookContext.metadata["blockReason"] = "unverified_sources"
+            return true
+        }
+        return false
+    }
+
+    private fun enrichResponseMetadata(result: AgentResult, hookContext: HookContext): AgentResult {
+        val toolSignals = readToolSignals(hookContext)
+        val verifiedSources = hookContext.verifiedSources.toList()
+        val latestSignal = toolSignals.lastOrNull()
+        val freshness = latestSignal?.freshness ?: hookContext.metadata["freshness"] as? Map<*, *>
+        val outputGuard = buildOutputGuardMetadata(hookContext)
+        val metadata = linkedMapOf<String, Any?>()
+        metadata["grounded"] = latestSignal?.grounded ?: verifiedSources.isNotEmpty()
+        metadata["answerMode"] = latestSignal?.answerMode ?: hookContext.metadata["answerMode"]?.toString()
+        metadata["verifiedSourceCount"] = verifiedSources.size
+        metadata["verifiedSources"] = verifiedSources.map(::toSourceMap)
+        freshness?.let { metadata["freshness"] = sanitizeMap(it) }
+        latestSignal?.retrievedAt?.let { metadata["retrievedAt"] = it }
+        outputGuard?.let { metadata["outputGuard"] = it }
+        resolveBlockReason(result, hookContext)?.let { metadata["blockReason"] = it }
+        if (toolSignals.isNotEmpty()) {
+            metadata["toolSignals"] = toolSignals.map(::toToolSignalMap)
+        }
+
+        val sanitized = linkedMapOf<String, Any>()
+        for ((key, value) in metadata) {
+            val shouldKeep = when (value) {
+                null -> false
+                is String -> value.isNotBlank()
+                is Collection<*> -> value.isNotEmpty()
+                is Map<*, *> -> value.isNotEmpty()
+                else -> true
+            }
+            if (shouldKeep && value != null) {
+                sanitized[key] = value
+            }
+        }
+        return result.copy(metadata = result.metadata + sanitized)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun readToolSignals(hookContext: HookContext): List<ToolResponseSignal> {
+        return hookContext.metadata[ToolCallOrchestrator.TOOL_SIGNALS_METADATA_KEY] as? List<ToolResponseSignal>
+            ?: emptyList()
+    }
+
+    private fun buildOutputGuardMetadata(hookContext: HookContext): Map<String, Any?>? {
+        val action = hookContext.metadata["outputGuardAction"]?.toString()?.takeIf { it.isNotBlank() } ?: return null
+        val data = linkedMapOf<String, Any?>("action" to action)
+        hookContext.metadata["outputGuardStage"]?.toString()?.takeIf { it.isNotBlank() }?.let { data["stage"] = it }
+        hookContext.metadata["outputGuardReason"]?.toString()?.takeIf { it.isNotBlank() }?.let { data["reason"] = it }
+        return data
+    }
+
+    private fun resolveBlockReason(result: AgentResult, hookContext: HookContext): String? {
+        if (!result.success) {
+            return hookContext.metadata["blockReason"]?.toString()?.takeIf { it.isNotBlank() }
+                ?: result.errorMessage?.takeIf { it.isNotBlank() }
+        }
+        return hookContext.metadata["blockReason"]?.toString()?.takeIf { it.isNotBlank() }
+    }
+
+    private fun toSourceMap(source: VerifiedSource): Map<String, Any?> {
+        return linkedMapOf(
+            "title" to source.title,
+            "url" to source.url,
+            "toolName" to source.toolName
+        )
+    }
+
+    private fun toToolSignalMap(signal: ToolResponseSignal): Map<String, Any?> {
+        val data = linkedMapOf<String, Any?>("toolName" to signal.toolName)
+        signal.answerMode?.let { data["answerMode"] = it }
+        signal.grounded?.let { data["grounded"] = it }
+        signal.freshness?.let { data["freshness"] = sanitizeMap(it) }
+        signal.retrievedAt?.let { data["retrievedAt"] = it }
+        return data
+    }
+
+    private fun sanitizeMap(input: Map<*, *>): Map<String, Any?> {
+        val result = linkedMapOf<String, Any?>()
+        for ((key, value) in input) {
+            val normalizedKey = key?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: continue
+            result[normalizedKey] = when (value) {
+                is Map<*, *> -> sanitizeMap(value)
+                is List<*> -> value.map { item ->
+                    when (item) {
+                        is Map<*, *> -> sanitizeMap(item)
+                        else -> item
+                    }
+                }
+                else -> value
+            }
+        }
+        return result
+    }
+
+    companion object {
+        private val UNVERIFIED_PATTERNS = listOf(
+            "couldn't verify",
+            "cannot verify",
+            "검증 가능한 출처를 찾지 못",
+            "확인 가능한 출처를 찾지 못"
+        )
     }
 }

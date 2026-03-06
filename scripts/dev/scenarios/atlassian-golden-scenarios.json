@@ -1203,6 +1203,59 @@
       }
     },
     {
+      "id": "golden-route-confluence_answer_question",
+      "tags": [
+        "golden",
+        "atlassian",
+        "routing",
+        "confluence",
+        "knowledge"
+      ],
+      "matrix": {
+        "channel": [
+          "web",
+          "slack",
+          "api"
+        ],
+        "activity": [
+          "first_contact",
+          "follow_up",
+          "incident",
+          "daily_ops",
+          "release",
+          "handoff"
+        ],
+        "persona": [
+          "pm",
+          "developer",
+          "qa",
+          "oncall"
+        ]
+      },
+      "json": {
+        "message": "[persona={persona} activity={activity} channel={channel}] Confluence를 기준으로 우리 팀의 온콜 정책을 알려줘. 반드시 `confluence_answer_question` 도구를 1회 호출하고, 근거가 부족하면 부족하다고 말하되 한국어 한 문장으로만 답해줘.",
+        "metadata": {
+          "sessionId": "{{run_id}}-golden-{{channel}}-{{activity}}-{{persona}}-confluence_answer_question",
+          "channel": "{{channel}}",
+          "activity": "{{activity}}",
+          "persona": "{{persona}}",
+          "source": "golden-scenario-matrix"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "success": true,
+        "toolsUsedAll": [
+          "confluence_answer_question"
+        ],
+        "contentNotRegex": [
+          "(?i)unknown error occurred",
+          "(?i)an unknown error occurred",
+          "(?i)rate limit exceeded"
+        ]
+      }
+    },
+    {
       "id": "golden-route-confluence_update_page",
       "tags": [
         "golden",

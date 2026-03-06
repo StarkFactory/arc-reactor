@@ -1,5 +1,6 @@
 package com.arc.reactor.hook.model
 
+import com.arc.reactor.response.VerifiedSource
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -26,6 +27,7 @@ data class HookContext(
     val channel: String? = null,
     val startedAt: Instant = Instant.now(),
     val toolsUsed: MutableList<String> = CopyOnWriteArrayList(),
+    val verifiedSources: MutableList<VerifiedSource> = CopyOnWriteArrayList(),
     val metadata: MutableMap<String, Any> = ConcurrentHashMap()
 ) {
     fun durationMs(): Long = Instant.now().toEpochMilli() - startedAt.toEpochMilli()

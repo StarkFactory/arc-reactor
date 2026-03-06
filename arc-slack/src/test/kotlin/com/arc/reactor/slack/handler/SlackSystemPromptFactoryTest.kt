@@ -16,6 +16,10 @@ class SlackSystemPromptFactoryTest {
             val prompt = SlackSystemPromptFactory.build("gemini")
 
             prompt shouldContain "gemini"
+            prompt shouldContain "Use only facts that you can verify"
+            prompt shouldContain "Sources"
+            prompt shouldContain "Prefer `confluence_answer_question`"
+            prompt shouldContain "Do not answer Confluence knowledge questions from `confluence_search`"
             prompt shouldNotContain "[Cross-tool Correlation]"
             prompt shouldNotContain "[Connected Workspace Tools]"
         }
@@ -39,6 +43,7 @@ class SlackSystemPromptFactoryTest {
             val prompt = SlackSystemPromptFactory.build("")
 
             prompt shouldContain "configured backend model"
+            prompt shouldNotContain "best-effort answer with brief assumptions"
         }
     }
 

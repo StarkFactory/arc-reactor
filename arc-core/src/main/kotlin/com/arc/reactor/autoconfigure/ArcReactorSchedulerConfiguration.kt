@@ -78,7 +78,7 @@ class SchedulerConfiguration {
         hookExecutor = hookExecutorProvider.ifAvailable,
         toolApprovalPolicy = toolApprovalPolicyProvider.ifAvailable,
         pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable,
-        agentExecutor = agentExecutorProvider.ifAvailable,
+        agentExecutorProvider = { agentExecutorProvider.ifAvailable },
         personaStore = personaStoreProvider.ifAvailable,
         executionStore = executionStoreProvider.ifAvailable
     )
