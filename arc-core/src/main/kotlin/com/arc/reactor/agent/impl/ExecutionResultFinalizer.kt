@@ -152,7 +152,14 @@ internal class ExecutionResultFinalizer(
                 durationMs = nowMs() - startTime
             )
             val filteredContent = responseFilterChain.apply(result.content, context)
-            captureVerificationBlockReason(hookContext, filteredContent, hookContext.verifiedSources.toList())
+            val blockedUnverified = captureVerificationBlockReason(
+                hookContext,
+                filteredContent,
+                hookContext.verifiedSources.toList()
+            )
+            if (blockedUnverified) {
+                agentMetrics.recordUnverifiedResponse(command.metadata)
+            }
             result.copy(content = filteredContent)
         } catch (e: Exception) {
             e.throwIfCancellation()
@@ -226,11 +233,13 @@ internal class ExecutionResultFinalizer(
         hookContext: HookContext,
         filteredContent: String,
         sources: List<VerifiedSource>
-    ) {
-        if (sources.isNotEmpty()) return
+    ): Boolean {
+        if (sources.isNotEmpty()) return false
         if (UNVERIFIED_PATTERNS.any { filteredContent.contains(it, ignoreCase = true) }) {
             hookContext.metadata["blockReason"] = "unverified_sources"
+            return true
         }
+        return false
     }
 
     private fun enrichResponseMetadata(result: AgentResult, hookContext: HookContext): AgentResult {

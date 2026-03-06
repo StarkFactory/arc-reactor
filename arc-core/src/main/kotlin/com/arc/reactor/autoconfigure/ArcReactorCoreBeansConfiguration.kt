@@ -2,6 +2,7 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.MicrometerAgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
@@ -47,11 +48,13 @@ import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.BeanInitializationException
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
+import io.micrometer.core.instrument.MeterRegistry
 
 private val logger = KotlinLogging.logger {}
 private val tenantIdPattern = Regex("^[a-zA-Z0-9_-]{1,64}$")
@@ -299,6 +302,14 @@ class ArcReactorCoreBeansConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun errorMessageResolver(): ErrorMessageResolver = DefaultErrorMessageResolver()
+
+    /**
+     * Agent Metrics (Micrometer-backed when MeterRegistry is available)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(MeterRegistry::class)
+    fun micrometerAgentMetrics(registry: MeterRegistry): AgentMetrics = MicrometerAgentMetrics(registry)
 
     /**
      * Agent Metrics (default: no-op)

@@ -1,8 +1,12 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.mcp.model.McpServerStatus
+import com.arc.reactor.scheduler.DynamicSchedulerService
+import com.arc.reactor.scheduler.JobExecutionStatus
+import com.arc.reactor.scheduler.ScheduledJobType
 import io.micrometer.core.instrument.MeterRegistry
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -23,7 +27,9 @@ import java.time.Instant
 class OpsDashboardController(
     private val mcpManager: McpManager,
     private val properties: AgentProperties,
-    private val meterRegistryProvider: ObjectProvider<MeterRegistry>
+    private val meterRegistryProvider: ObjectProvider<MeterRegistry>,
+    private val schedulerServiceProvider: ObjectProvider<DynamicSchedulerService>,
+    private val pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>
 ) {
 
     @Operation(summary = "Get operations dashboard snapshot (admin)")
@@ -45,6 +51,9 @@ class OpsDashboardController(
             generatedAt = Instant.now().toEpochMilli(),
             ragEnabled = properties.rag.enabled,
             mcp = mcpSummary(),
+            scheduler = schedulerSummary(),
+            approvals = approvalSummary(),
+            responseTrust = responseTrustSummary(registry),
             metrics = metricNames.map { name -> metricSnapshot(name, registry) }
         )
         return ResponseEntity.ok(response)
@@ -121,6 +130,76 @@ class OpsDashboardController(
         )
     }
 
+    private fun schedulerSummary(): SchedulerOpsSummary {
+        val jobs = schedulerServiceProvider.ifAvailable?.list().orEmpty()
+        val enabledJobs = jobs.count { it.enabled }
+        val runningJobs = jobs.count { it.lastStatus == JobExecutionStatus.RUNNING }
+        val failedJobs = jobs.count { it.enabled && it.lastStatus == JobExecutionStatus.FAILED }
+        val agentJobs = jobs.count { it.enabled && it.jobType == ScheduledJobType.AGENT }
+
+        return SchedulerOpsSummary(
+            totalJobs = jobs.size,
+            enabledJobs = enabledJobs,
+            runningJobs = runningJobs,
+            failedJobs = failedJobs,
+            attentionBacklog = runningJobs + failedJobs,
+            agentJobs = agentJobs
+        )
+    }
+
+    private fun approvalSummary(): ApprovalOpsSummary {
+        val pendingCount = pendingApprovalStoreProvider.ifAvailable?.listPending()?.size ?: 0
+        return ApprovalOpsSummary(pendingCount = pendingCount)
+    }
+
+    private fun responseTrustSummary(registry: MeterRegistry?): ResponseTrustSummary {
+        if (registry == null) {
+            return ResponseTrustSummary(
+                unverifiedResponses = 0,
+                outputGuardRejected = 0,
+                outputGuardModified = 0,
+                boundaryFailures = 0
+            )
+        }
+        return ResponseTrustSummary(
+            unverifiedResponses = metricCounterValue(registry, "arc.agent.responses.unverified"),
+            outputGuardRejected = metricCounterValue(
+                registry,
+                "arc.agent.output.guard.actions",
+                mapOf("action" to "rejected")
+            ),
+            outputGuardModified = metricCounterValue(
+                registry,
+                "arc.agent.output.guard.actions",
+                mapOf("action" to "modified")
+            ),
+            boundaryFailures = metricCounterValue(
+                registry,
+                "arc.agent.boundary.violations",
+                mapOf("policy" to "fail")
+            )
+        )
+    }
+
+    private fun metricCounterValue(
+        registry: MeterRegistry,
+        name: String,
+        requiredTags: Map<String, String> = emptyMap()
+    ): Long {
+        return registry.find(name).meters()
+            .asSequence()
+            .filter { meter ->
+                requiredTags.all { (key, value) -> meter.id.getTag(key) == value }
+            }
+            .sumOf { meter ->
+                meter.measure()
+                    .firstOrNull { it.statistic.toMetricKey() == "count" }
+                    ?.value
+                    ?.toLong()
+                    ?: 0L
+            }
+    }
+
     private fun io.micrometer.core.instrument.Statistic.toMetricKey(): String = name.lowercase()
 
     companion object {
@@ -128,6 +207,9 @@ class OpsDashboardController(
             "arc.agent.executions",
             "arc.agent.errors",
             "arc.agent.tool.calls",
+            "arc.agent.output.guard.actions",
+            "arc.agent.boundary.violations",
+            "arc.agent.responses.unverified",
             "arc.slack.inbound.total",
             "arc.slack.duplicate.total",
             "arc.slack.dropped.total",
@@ -142,6 +224,9 @@ data class OpsDashboardResponse(
     val generatedAt: Long,
     val ragEnabled: Boolean,
     val mcp: McpStatusSummary,
+    val scheduler: SchedulerOpsSummary,
+    val approvals: ApprovalOpsSummary,
+    val responseTrust: ResponseTrustSummary,
     val metrics: List<OpsMetricSnapshot>
 )
 
@@ -154,4 +239,24 @@ data class OpsMetricSnapshot(
     val name: String,
     val meterCount: Int,
     val measurements: Map<String, Double>
+)
+
+data class SchedulerOpsSummary(
+    val totalJobs: Int,
+    val enabledJobs: Int,
+    val runningJobs: Int,
+    val failedJobs: Int,
+    val attentionBacklog: Int,
+    val agentJobs: Int
+)
+
+data class ApprovalOpsSummary(
+    val pendingCount: Int
+)
+
+data class ResponseTrustSummary(
+    val unverifiedResponses: Long,
+    val outputGuardRejected: Long,
+    val outputGuardModified: Long,
+    val boundaryFailures: Long
 )

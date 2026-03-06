@@ -2,10 +2,15 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.config.RagProperties
+import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
 import com.arc.reactor.mcp.DefaultMcpManager
 import com.arc.reactor.mcp.InMemoryMcpServerStore
+import com.arc.reactor.scheduler.DynamicSchedulerService
+import com.arc.reactor.scheduler.JobExecutionStatus
+import com.arc.reactor.scheduler.ScheduledJob
+import com.arc.reactor.scheduler.ScheduledJobType
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
@@ -28,7 +33,7 @@ class OpsDashboardControllerTest {
         return exchange
     }
 
-    private fun provider(registry: MeterRegistry?): ObjectProvider<MeterRegistry> {
+    private fun meterRegistryProvider(registry: MeterRegistry?): ObjectProvider<MeterRegistry> {
         val factory = StaticListableBeanFactory()
         if (registry != null) {
             factory.addBean("meterRegistry", registry)
@@ -36,12 +41,30 @@ class OpsDashboardControllerTest {
         return factory.getBeanProvider(MeterRegistry::class.java)
     }
 
+    private fun schedulerProvider(scheduler: DynamicSchedulerService?): ObjectProvider<DynamicSchedulerService> {
+        val factory = StaticListableBeanFactory()
+        if (scheduler != null) {
+            factory.addBean("schedulerService", scheduler)
+        }
+        return factory.getBeanProvider(DynamicSchedulerService::class.java)
+    }
+
+    private fun approvalProvider(store: PendingApprovalStore?): ObjectProvider<PendingApprovalStore> {
+        val factory = StaticListableBeanFactory()
+        if (store != null) {
+            factory.addBean("pendingApprovalStore", store)
+        }
+        return factory.getBeanProvider(PendingApprovalStore::class.java)
+    }
+
     @Test
     fun `dashboard returns 403 for non-admin`() {
         val controller = OpsDashboardController(
             mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
             properties = AgentProperties(),
-            meterRegistryProvider = provider(null)
+            meterRegistryProvider = meterRegistryProvider(null),
+            schedulerServiceProvider = schedulerProvider(null),
+            pendingApprovalStoreProvider = approvalProvider(null)
         )
 
         val response = controller.dashboard(names = null, exchange = exchange(UserRole.USER))
@@ -56,7 +79,9 @@ class OpsDashboardControllerTest {
         val controller = OpsDashboardController(
             mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
             properties = AgentProperties(rag = RagProperties(enabled = true)),
-            meterRegistryProvider = provider(registry)
+            meterRegistryProvider = meterRegistryProvider(registry),
+            schedulerServiceProvider = schedulerProvider(null),
+            pendingApprovalStoreProvider = approvalProvider(null)
         )
 
         val response = controller.dashboard(
@@ -70,6 +95,8 @@ class OpsDashboardControllerTest {
         assertEquals(1, body.metrics.size)
         assertEquals("arc.slack.inbound.total", body.metrics.first().name)
         assertEquals(3.0, body.metrics.first().measurements["count"])
+        assertEquals(0, body.scheduler.totalJobs)
+        assertEquals(0, body.approvals.pendingCount)
     }
 
     @Test
@@ -77,7 +104,9 @@ class OpsDashboardControllerTest {
         val controller = OpsDashboardController(
             mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
             properties = AgentProperties(),
-            meterRegistryProvider = provider(null)
+            meterRegistryProvider = meterRegistryProvider(null),
+            schedulerServiceProvider = schedulerProvider(null),
+            pendingApprovalStoreProvider = approvalProvider(null)
         )
 
         val response = controller.dashboard(names = null, exchange = exchange(UserRole.ADMIN_MANAGER))
@@ -89,7 +118,9 @@ class OpsDashboardControllerTest {
         val controller = OpsDashboardController(
             mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
             properties = AgentProperties(),
-            meterRegistryProvider = provider(null)
+            meterRegistryProvider = meterRegistryProvider(null),
+            schedulerServiceProvider = schedulerProvider(null),
+            pendingApprovalStoreProvider = approvalProvider(null)
         )
 
         val response = controller.dashboard(names = null, exchange = exchange(UserRole.ADMIN_DEVELOPER))
@@ -105,7 +136,9 @@ class OpsDashboardControllerTest {
         val controller = OpsDashboardController(
             mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
             properties = AgentProperties(),
-            meterRegistryProvider = provider(registry)
+            meterRegistryProvider = meterRegistryProvider(registry),
+            schedulerServiceProvider = schedulerProvider(null),
+            pendingApprovalStoreProvider = approvalProvider(null)
         )
 
         val response = controller.metricNames(exchange = exchange(UserRole.ADMIN))
@@ -113,5 +146,72 @@ class OpsDashboardControllerTest {
         val names = response.body as List<*>
         assertTrue(names.contains("arc.slack.inbound.total"), "Metric names should include arc.slack.inbound.total")
         assertTrue(names.contains("jvm.gc.pause"), "Metric names should include jvm.gc.pause")
+    }
+
+    @Test
+    fun `dashboard includes scheduler approvals and response trust summaries`() {
+        val registry = SimpleMeterRegistry()
+        registry.counter("arc.agent.responses.unverified", "channel", "web").increment(2.0)
+        registry.counter("arc.agent.output.guard.actions", "stage", "pipeline", "action", "rejected").increment(1.0)
+        registry.counter("arc.agent.output.guard.actions", "stage", "pipeline", "action", "modified").increment(3.0)
+        registry.counter("arc.agent.boundary.violations", "violation", "output_too_short", "policy", "fail")
+            .increment(4.0)
+
+        val scheduler = mockk<DynamicSchedulerService>()
+        every { scheduler.list() } returns listOf(
+            ScheduledJob(id = "j1", name = "Morning", cronExpression = "0 9 * * * *", enabled = true),
+            ScheduledJob(
+                id = "j2",
+                name = "Release",
+                cronExpression = "0 0 10 * * *",
+                enabled = true,
+                jobType = ScheduledJobType.AGENT,
+                lastStatus = JobExecutionStatus.RUNNING
+            ),
+            ScheduledJob(
+                id = "j3",
+                name = "Digest",
+                cronExpression = "0 0 11 * * *",
+                enabled = true,
+                lastStatus = JobExecutionStatus.FAILED
+            )
+        )
+
+        val pendingStore = mockk<PendingApprovalStore>()
+        every { pendingStore.listPending() } returns listOf(
+            com.arc.reactor.approval.ApprovalSummary(
+                id = "a1",
+                runId = "run-1",
+                userId = "u1",
+                toolName = "jira_transition_issue",
+                arguments = emptyMap(),
+                requestedAt = java.time.Instant.parse("2026-03-07T09:00:00Z"),
+                status = com.arc.reactor.approval.ApprovalStatus.PENDING
+            )
+        )
+        every { pendingStore.listPendingByUser(any()) } returns emptyList()
+        every { pendingStore.approve(any(), any()) } returns true
+        every { pendingStore.reject(any(), any()) } returns true
+
+        val controller = OpsDashboardController(
+            mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
+            properties = AgentProperties(),
+            meterRegistryProvider = meterRegistryProvider(registry),
+            schedulerServiceProvider = schedulerProvider(scheduler),
+            pendingApprovalStoreProvider = approvalProvider(pendingStore)
+        )
+
+        val response = controller.dashboard(names = null, exchange = exchange(UserRole.ADMIN))
+        assertEquals(HttpStatus.OK, response.statusCode)
+
+        val body = response.body as OpsDashboardResponse
+        assertEquals(3, body.scheduler.totalJobs)
+        assertEquals(2, body.scheduler.attentionBacklog)
+        assertEquals(1, body.scheduler.agentJobs)
+        assertEquals(1, body.approvals.pendingCount)
+        assertEquals(2L, body.responseTrust.unverifiedResponses)
+        assertEquals(1L, body.responseTrust.outputGuardRejected)
+        assertEquals(3L, body.responseTrust.outputGuardModified)
+        assertEquals(4L, body.responseTrust.boundaryFailures)
     }
 }

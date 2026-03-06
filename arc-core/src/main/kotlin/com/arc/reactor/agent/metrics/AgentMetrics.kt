@@ -199,6 +199,15 @@ interface AgentMetrics {
      * @param actual The actual measured value
      */
     fun recordBoundaryViolation(violation: String, policy: String, limit: Int, actual: Int) {}
+
+    /**
+     * Record a response that could not be verified from approved sources.
+     *
+     * Default implementation is a no-op to preserve backward compatibility.
+     *
+     * @param metadata Request metadata (typically contains tenant/channel info)
+     */
+    fun recordUnverifiedResponse(metadata: Map<String, Any>) {}
 }
 
 /**

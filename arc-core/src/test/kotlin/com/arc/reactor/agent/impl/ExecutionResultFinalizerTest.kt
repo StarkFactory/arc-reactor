@@ -19,6 +19,7 @@ import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.ResponseFilterContext
 import com.arc.reactor.response.VerifiedSource
+import com.arc.reactor.response.impl.VerifiedSourcesResponseFilter
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -200,6 +201,40 @@ class ExecutionResultFinalizerTest {
         assertEquals("long enough response", result.content)
         verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "retry_once", 10, 5) }
         verify(exactly = 1) { metrics.recordExecution(match { it.success && it.content == "long enough response" }) }
+    }
+
+    @Test
+    fun `should record unverified response metric when sources are missing`() = runBlocking {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val hookExecutor = mockk<HookExecutor>(relaxed = true)
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = ResponseFilterChain(listOf(VerifiedSourcesResponseFilter())),
+            boundaries = BoundaryProperties(),
+            conversationManager = conversationManager,
+            hookExecutor = hookExecutor,
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+
+        val command = AgentCommand(
+            systemPrompt = "sys",
+            userPrompt = "Show the current policy",
+            metadata = mapOf("channel" to "web")
+        )
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "Here is the policy."),
+            command = command,
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "Show the current policy"),
+            toolsUsed = listOf("jira_list_projects"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertEquals("unverified_sources", result.metadata["blockReason"], "Should mark missing source block reason")
+        verify(exactly = 1) { metrics.recordUnverifiedResponse(command.metadata) }
     }
 
     @Test
