@@ -255,6 +255,7 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
     private val scheduledResponses = AtomicLong()
     private val answerModeCounts = ConcurrentHashMap<String, AtomicLong>()
     private val toolFamilyCounts = ConcurrentHashMap<String, AtomicLong>()
+    private val laneSummaries = ConcurrentHashMap<String, ResponseLaneAggregate>()
     private val missingQueryCounts = ConcurrentHashMap<String, MissingQueryAggregate>()
 
     override fun recordExecution(result: AgentResult) {}
@@ -327,12 +328,16 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
     }
 
     override fun recordResponseObservation(metadata: Map<String, Any>) {
+        val answerMode = metadata["answerMode"]?.toString()?.trim()?.ifBlank { "unknown" } ?: "unknown"
+        val grounded = metadata["grounded"] == true
+        val blocked = metadata["blockReason"]?.toString()?.isNotBlank() == true
         observedResponses.incrementAndGet()
-        if (metadata["grounded"] == true) groundedResponses.incrementAndGet()
+        if (grounded) groundedResponses.incrementAndGet()
         if (metadata["deliveryMode"] == "scheduled") scheduledResponses.incrementAndGet() else interactiveResponses.incrementAndGet()
-        if (metadata["blockReason"]?.toString()?.isNotBlank() == true) blockedResponses.incrementAndGet()
-        incrementBucket(answerModeCounts, metadata["answerMode"]?.toString(), "unknown")
+        if (blocked) blockedResponses.incrementAndGet()
+        incrementBucket(answerModeCounts, answerMode, "unknown")
         incrementBucket(toolFamilyCounts, metadata["toolFamily"]?.toString(), "none")
+        trackLaneSummary(answerMode, grounded, blocked)
         trackMissingQuery(metadata)
     }
 
@@ -349,7 +354,8 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
             interactiveResponses = interactiveResponses.get(),
             scheduledResponses = scheduledResponses.get(),
             answerModeCounts = snapshotCounts(answerModeCounts),
-            toolFamilyCounts = snapshotCounts(toolFamilyCounts)
+            toolFamilyCounts = snapshotCounts(toolFamilyCounts),
+            laneSummaries = snapshotLaneSummaries()
         )
     }
 
@@ -398,6 +404,26 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
         return counts.entries
             .sortedByDescending { it.value.get() }
             .associate { it.key to it.value.get() }
+    }
+
+    private fun trackLaneSummary(answerMode: String, grounded: Boolean, blocked: Boolean) {
+        val aggregate = laneSummaries.computeIfAbsent(answerMode) { ResponseLaneAggregate() }
+        aggregate.observedResponses.incrementAndGet()
+        if (grounded) aggregate.groundedResponses.incrementAndGet()
+        if (blocked) aggregate.blockedResponses.incrementAndGet()
+    }
+
+    private fun snapshotLaneSummaries(): List<ResponseLaneSummary> {
+        return laneSummaries.entries
+            .sortedByDescending { it.value.observedResponses.get() }
+            .map { (answerMode, aggregate) ->
+                ResponseLaneSummary(
+                    answerMode = answerMode,
+                    observedResponses = aggregate.observedResponses.get(),
+                    groundedResponses = aggregate.groundedResponses.get(),
+                    blockedResponses = aggregate.blockedResponses.get()
+                )
+            }
     }
 
     companion object {

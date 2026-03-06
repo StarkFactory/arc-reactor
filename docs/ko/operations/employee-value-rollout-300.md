@@ -175,3 +175,13 @@ Arc Reactor는 `무엇이든 대신 실행하는 범용 에이전트`보다 `사
 4. 문서 정리나 tool source 개선 우선순위를 정한다.
 
 즉 이번 브랜치의 목표는 “더 많은 기능”이 아니라 “반복 실패를 더 빨리 고치는 운영 루프”다.
+
+## 8. lane health를 왜 보는가
+
+직원 300명 기준에서 가장 중요한 질문은 “어떤 lane이 실제로 제품 가치를 만들고 있는가”다.
+
+- `knowledge` lane이 높고 grounded coverage가 좋다면 Confluence-native 전략이 맞다.
+- `operational` lane이 낮고 blocked가 많다면 Jira/Bitbucket source normalization이나 allowlist가 우선이다.
+- `unknown` lane이 계속 높다면 라우팅, source coverage, 문서 구조 중 하나가 비고 있다는 뜻이다.
+
+따라서 lane health는 단순한 통계가 아니라 다음 스프린트 우선순위를 정하는 지표다.

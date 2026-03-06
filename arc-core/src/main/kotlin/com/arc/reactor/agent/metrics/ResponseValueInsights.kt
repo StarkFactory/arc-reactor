@@ -10,7 +10,15 @@ data class ResponseValueSummary(
     val interactiveResponses: Long = 0,
     val scheduledResponses: Long = 0,
     val answerModeCounts: Map<String, Long> = emptyMap(),
-    val toolFamilyCounts: Map<String, Long> = emptyMap()
+    val toolFamilyCounts: Map<String, Long> = emptyMap(),
+    val laneSummaries: List<ResponseLaneSummary> = emptyList()
+)
+
+data class ResponseLaneSummary(
+    val answerMode: String,
+    val observedResponses: Long,
+    val groundedResponses: Long,
+    val blockedResponses: Long
 )
 
 data class MissingQueryInsight(
@@ -26,6 +34,12 @@ internal fun normalizeMissingQueryKey(queryPreview: String): String {
         .lowercase()
         .replace(Regex("\\s+"), " ")
 }
+
+internal data class ResponseLaneAggregate(
+    val observedResponses: AtomicLong = AtomicLong(),
+    val groundedResponses: AtomicLong = AtomicLong(),
+    val blockedResponses: AtomicLong = AtomicLong()
+)
 
 internal data class MissingQueryAggregate(
     val queryPreview: String,

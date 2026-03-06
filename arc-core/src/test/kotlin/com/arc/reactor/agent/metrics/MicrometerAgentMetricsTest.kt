@@ -117,6 +117,10 @@ class MicrometerAgentMetricsTest {
         assertEquals(1L, summary.scheduledResponses, "Scheduled responses should be counted separately")
         assertEquals(1L, summary.answerModeCounts["knowledge"], "Knowledge answer mode should be tallied")
         assertEquals(1L, summary.toolFamilyCounts["work"], "Tool family counts should track work lane usage")
+        assertEquals(2L, summary.laneSummaries.first { it.answerMode == "unknown" }.blockedResponses,
+            "Lane summary should track blocked responses for the answer mode")
+        assertEquals(1L, summary.laneSummaries.first { it.answerMode == "knowledge" }.groundedResponses,
+            "Lane summary should track grounded responses for the answer mode")
         assertEquals(1, missing.size, "Repeated blocked queries should be aggregated after normalization")
         assertEquals(2L, missing[0].count, "Top missing query should keep repeated count")
         assertEquals("Who is the CEO of OpenAI?", missing[0].queryPreview, "Query preview should be preserved")

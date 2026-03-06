@@ -206,7 +206,21 @@ class OpsDashboardControllerTest {
                     interactiveResponses = 9,
                     scheduledResponses = 3,
                     answerModeCounts = mapOf("operational" to 7, "knowledge" to 5),
-                    toolFamilyCounts = mapOf("jira" to 4, "confluence" to 3, "work" to 2)
+                    toolFamilyCounts = mapOf("jira" to 4, "confluence" to 3, "work" to 2),
+                    laneSummaries = listOf(
+                        com.arc.reactor.agent.metrics.ResponseLaneSummary(
+                            answerMode = "operational",
+                            observedResponses = 7,
+                            groundedResponses = 5,
+                            blockedResponses = 2
+                        ),
+                        com.arc.reactor.agent.metrics.ResponseLaneSummary(
+                            answerMode = "knowledge",
+                            observedResponses = 5,
+                            groundedResponses = 5,
+                            blockedResponses = 0
+                        )
+                    )
                 )
             }
 
@@ -338,6 +352,8 @@ class OpsDashboardControllerTest {
         assertEquals(83, body.employeeValue.groundedRatePercent)
         assertEquals(2L, body.employeeValue.blockedResponses)
         assertEquals(7L, body.employeeValue.answerModes["operational"])
+        assertEquals(71, body.employeeValue.lanes.first { it.answerMode == "operational" }.groundedRatePercent)
+        assertEquals(0, body.employeeValue.lanes.first { it.answerMode == "knowledge" }.blockedResponses)
         assertEquals("What is the CEO of OpenAI?", body.employeeValue.topMissingQueries[0].queryPreview)
         assertEquals(3, body.recentTrustEvents.size)
         assertEquals("unverified_response", body.recentTrustEvents[0].type)
@@ -391,6 +407,7 @@ class OpsDashboardControllerTest {
         assertEquals(1L, body.responseTrust.outputGuardModified)
         assertEquals(1L, body.responseTrust.boundaryFailures)
         assertEquals(0L, body.employeeValue.observedResponses)
+        assertEquals(0, body.employeeValue.lanes.size)
         assertEquals(3, body.recentTrustEvents.size)
         assertEquals("unverified_response", body.recentTrustEvents[2].type)
         assertEquals("run-ops-1", body.recentTrustEvents[2].runId)

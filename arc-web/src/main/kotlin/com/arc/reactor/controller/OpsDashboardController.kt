@@ -268,10 +268,28 @@ class OpsDashboardController(
             interactiveResponses = summary.interactiveResponses,
             scheduledResponses = summary.scheduledResponses,
             answerModes = summary.answerModeCounts,
+            lanes = summary.laneSummaries.map(::toEmployeeValueLaneSummary),
             toolFamilies = summary.toolFamilyCounts.entries.map {
                 EmployeeValueBucket(key = it.key, count = it.value)
             },
             topMissingQueries = (reader?.topMissingQueries(5) ?: emptyList()).map(::toMissingQuerySummary)
+        )
+    }
+
+    private fun toEmployeeValueLaneSummary(
+        lane: com.arc.reactor.agent.metrics.ResponseLaneSummary
+    ): EmployeeValueLaneSummary {
+        val groundedRate = if (lane.observedResponses > 0) {
+            ((lane.groundedResponses * 100.0) / lane.observedResponses).toInt()
+        } else {
+            0
+        }
+        return EmployeeValueLaneSummary(
+            answerMode = lane.answerMode,
+            observedResponses = lane.observedResponses,
+            groundedResponses = lane.groundedResponses,
+            blockedResponses = lane.blockedResponses,
+            groundedRatePercent = groundedRate
         )
     }
 
@@ -370,8 +388,17 @@ data class EmployeeValueSummary(
     val interactiveResponses: Long,
     val scheduledResponses: Long,
     val answerModes: Map<String, Long>,
+    val lanes: List<EmployeeValueLaneSummary>,
     val toolFamilies: List<EmployeeValueBucket>,
     val topMissingQueries: List<MissingQuerySummary>
+)
+
+data class EmployeeValueLaneSummary(
+    val answerMode: String,
+    val observedResponses: Long,
+    val groundedResponses: Long,
+    val blockedResponses: Long,
+    val groundedRatePercent: Int
 )
 
 data class EmployeeValueBucket(
