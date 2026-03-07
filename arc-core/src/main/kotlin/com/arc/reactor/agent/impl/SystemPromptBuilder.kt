@@ -360,7 +360,8 @@ class SystemPromptBuilder(
     private fun looksLikeWorkOwnerPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
         val normalized = prompt.lowercase()
-        return WORK_OWNER_HINTS.any { normalized.contains(it) }
+        return !MISSING_ASSIGNEE_HINTS.any { normalized.contains(it) } &&
+            WORK_OWNER_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeWorkItemContextPrompt(prompt: String?): Boolean {
@@ -622,10 +623,18 @@ class SystemPromptBuilder(
         private val REPOSITORY_HINTS = setOf("repository", "repo", "저장소")
         private val BRANCH_HINTS = setOf("branch", "브랜치")
         private val STALE_HINTS = setOf("stale", "오래된", "방치된")
-        private val REVIEW_QUEUE_HINTS = setOf("queue", "대기열")
+        private val REVIEW_QUEUE_HINTS = setOf("queue", "대기열", "리뷰가 필요한", "검토가 필요한", "review needed")
         private val REVIEW_SLA_HINTS = setOf("sla", "응답 지연", "리뷰 sla")
         private val REVIEW_RISK_HINTS = setOf("review risk", "리뷰 리스크", "코드 리뷰 리스크")
-        private val MY_REVIEW_HINTS = setOf("내가 검토", "검토해야", "review for me", "needs review")
+        private val MY_REVIEW_HINTS = setOf(
+            "내가 검토",
+            "검토해야",
+            "review for me",
+            "needs review",
+            "리뷰가 필요한",
+            "검토가 필요한"
+        )
+        private val MISSING_ASSIGNEE_HINTS = setOf("담당자가 없는", "담당자 없는", "미할당", "unassigned", "assignee 없는")
         private val VALIDATE_HINTS = setOf("validate", "검증", "유효성")
         private val SCHEMA_HINTS = setOf("schema", "스키마", "model", "dto")
         private val DETAIL_HINTS = setOf("detail", "상세", "parameter", "response", "security")

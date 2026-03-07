@@ -130,6 +130,25 @@ class CacheKeyBuilderTest {
         }
 
         @Test
+        fun `different requester identities produce different keys`() {
+            val cmd1 = AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "내 일 알려줘",
+                metadata = mapOf("requesterEmail" to "alice@example.com")
+            )
+            val cmd2 = AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "내 일 알려줘",
+                metadata = mapOf("requesterEmail" to "bob@example.com")
+            )
+
+            val key1 = CacheKeyBuilder.buildKey(cmd1, emptyList())
+            val key2 = CacheKeyBuilder.buildKey(cmd2, emptyList())
+
+            assertNotEquals(key1, key2) { "Different requester identities must not share cache keys" }
+        }
+
+        @Test
         fun `different response schema produces different keys`() {
             val cmd1 = AgentCommand(
                 systemPrompt = "sys",

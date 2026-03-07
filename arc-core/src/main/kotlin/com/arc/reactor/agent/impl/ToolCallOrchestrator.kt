@@ -55,11 +55,16 @@ internal class ToolCallOrchestrator(
             return ToolCallResult(success = false, output = message, errorMessage = message, durationMs = 0)
         }
 
+        val effectiveToolParams = enrichToolParamsForRequesterAwareTools(
+            toolName = toolName,
+            toolParams = toolParams,
+            metadata = hookContext.metadata
+        )
         val callIndex = toolsUsed.size
         val toolCallContext = ToolCallContext(
             agentContext = hookContext,
             toolName = toolName,
-            toolParams = toolParams,
+            toolParams = effectiveToolParams,
             callIndex = callIndex
         )
 
@@ -76,7 +81,7 @@ internal class ToolCallOrchestrator(
 
         val toolStartTime = System.currentTimeMillis()
         val springCallbacksByName = resolveSpringToolCallbacksByName(tools)
-        val toolInput = serializeToolInput(toolParams, null)
+        val toolInput = serializeToolInput(effectiveToolParams, null)
         val (rawOutput, toolSuccess) = invokeToolAdapter(
             toolName = toolName,
             toolInput = toolInput,
@@ -168,7 +173,7 @@ internal class ToolCallOrchestrator(
         }
 
         val parsedToolParams = parseToolArguments(toolCall.arguments())
-        val effectiveToolParams = enrichToolParamsForPersonalJiraTools(
+        val effectiveToolParams = enrichToolParamsForRequesterAwareTools(
             toolName = toolName,
             toolParams = parsedToolParams,
             metadata = hookContext.metadata
@@ -464,12 +469,12 @@ internal class ToolCallOrchestrator(
             .getOrElse { output }
     }
 
-    private fun enrichToolParamsForPersonalJiraTools(
+    private fun enrichToolParamsForRequesterAwareTools(
         toolName: String,
         toolParams: Map<String, Any?>,
         metadata: Map<String, Any>
     ): Map<String, Any?> {
-        if (toolName !in personalJiraToolNames) return toolParams
+        if (toolName !in requesterAwareToolNames) return toolParams
 
         val hasAssignee = toolParams["assigneeAccountId"]?.toString()?.isNotBlank() == true
         if (hasAssignee) return toolParams
@@ -499,11 +504,21 @@ internal class ToolCallOrchestrator(
     companion object {
         const val TOOL_SIGNALS_METADATA_KEY = "toolSignals"
         private val springToolOutputMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
-        private val personalJiraToolNames = setOf(
+        private val requesterAwareToolNames = setOf(
             "jira_my_open_issues",
             "jira_due_soon_issues",
             "jira_blocker_digest",
-            "jira_daily_briefing"
+            "jira_daily_briefing",
+            "jira_search_my_issues_by_text",
+            "bitbucket_review_queue",
+            "bitbucket_review_sla_alerts",
+            "bitbucket_my_authored_prs",
+            "work_personal_focus_plan",
+            "work_personal_learning_digest",
+            "work_personal_interrupt_guard",
+            "work_personal_end_of_day_wrapup",
+            "work_prepare_standup_update",
+            "work_personal_document_search"
         )
         private val requesterEmailMetadataKeys = listOf("requesterEmail", "userEmail", "slackUserEmail")
     }

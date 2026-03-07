@@ -246,6 +246,47 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
+    fun `should replace generic unverified copy with identity resolution guidance`() = runBlocking {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val hookExecutor = mockk<HookExecutor>(relaxed = true)
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = conversationManager,
+            hookExecutor = hookExecutor,
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "내가 담당한 Jira 오픈 이슈 목록을 보여줘.")
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = command.userPrompt).apply {
+            metadata["blockReason"] = "identity_unresolved"
+        }
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(
+                content = "검증 가능한 출처를 찾지 못해 답변을 확정할 수 없습니다. 승인된 Jira 자료를 다시 조회해 주세요."
+            ),
+            command = command,
+            hookContext = hookContext,
+            toolsUsed = listOf("jira_my_open_issues"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertEquals(
+            "요청자 계정을 Jira 사용자로 확인할 수 없어 개인화 조회를 확정할 수 없습니다. requesterEmail과 Atlassian 사용자 매핑을 확인해 주세요.",
+            result.content
+        ) {
+            "Identity resolution failures should not surface as generic unverified-source guidance"
+        }
+        assertEquals("identity_unresolved", result.metadata["blockReason"], "Identity failures should keep their dedicated block reason")
+    }
+
+    @Test
     fun `should rethrow cancellation from after hook`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>()
@@ -275,6 +316,45 @@ class ExecutionResultFinalizerTest {
         } catch (_: CancellationException) {
             // expected
         }
+    }
+
+    @Test
+    fun `should synthesize visible upstream auth guidance when tool metadata reports authentication failure`() = runBlocking {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            nowMs = { 1_000L }
+        )
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "휴가 규정을 찾아줘.").apply {
+            metadata[ToolCallOrchestrator.TOOL_SIGNALS_METADATA_KEY] = mutableListOf(
+                ToolResponseSignal(toolName = "confluence_answer_question", grounded = false, blockReason = "upstream_auth_failed")
+            )
+            metadata["blockReason"] = "upstream_auth_failed"
+        }
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(
+                content = "검증 가능한 출처를 찾지 못해 답변을 확정할 수 없습니다. 승인된 Confluence 자료를 다시 조회해 주세요."
+            ),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "휴가 규정을 찾아줘."),
+            hookContext = hookContext,
+            toolsUsed = listOf("confluence_answer_question"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertEquals(
+            "연결된 업무 도구 인증이 실패해 이 조회를 확정할 수 없습니다. 시스템 계정 토큰 설정을 확인해 주세요.",
+            result.content
+        ) {
+            "Upstream auth failures should not surface as generic unverified-source guidance"
+        }
+        assertEquals("upstream_auth_failed", result.metadata["blockReason"], "Auth failures should keep their dedicated block reason")
     }
 
     @Test

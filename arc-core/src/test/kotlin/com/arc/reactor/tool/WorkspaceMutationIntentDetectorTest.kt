@@ -38,6 +38,28 @@ class WorkspaceMutationIntentDetectorTest {
     }
 
     @Test
+    fun `does not treat approval policy discovery as a mutation`() {
+        assertFalse(
+            WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(
+                "Confluence에서 '배포 승인' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘."
+            )
+        ) {
+            "Approval-policy discovery should remain read-only"
+        }
+    }
+
+    @Test
+    fun `does not treat document change summaries as a mutation`() {
+        assertFalse(
+            WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(
+                "오늘 standup용으로 Jira 진행 상황과 Confluence 문서 변경을 같이 요약해줘."
+            )
+        ) {
+            "Document change summaries should remain read-only"
+        }
+    }
+
+    @Test
     fun `detects swagger catalog removals as mutations`() {
         assertTrue(
             WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(

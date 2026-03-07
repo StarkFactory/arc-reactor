@@ -303,7 +303,7 @@ internal class ExecutionResultFinalizer(
         val blockReason = resolveVisibleBlockReason(command, hookContext) ?: return result
         val existingContent = result.content?.trim()
         if (!existingContent.isNullOrBlank()) {
-            if (blockReason == "policy_denied" && UNVERIFIED_PATTERNS.any { existingContent.contains(it, ignoreCase = true) }) {
+            if (UNVERIFIED_PATTERNS.any { existingContent.contains(it, ignoreCase = true) }) {
                 return result.copy(content = buildBlockedResponse(command.userPrompt, blockReason))
             }
             return result
@@ -333,6 +333,30 @@ internal class ExecutionResultFinalizer(
                 "현재 workspace는 읽기 전용이라 변경 작업을 수행할 수 없습니다."
             } else {
                 "The current workspace is read-only, so I can't perform this mutation."
+            }
+
+            "identity_unresolved" -> if (hangul) {
+                "요청자 계정을 Jira 사용자로 확인할 수 없어 개인화 조회를 확정할 수 없습니다. requesterEmail과 Atlassian 사용자 매핑을 확인해 주세요."
+            } else {
+                "I couldn't resolve the requesting user to a Jira identity, so I can't confirm this personalized result. Check the requesterEmail to Atlassian user mapping."
+            }
+
+            "upstream_auth_failed" -> if (hangul) {
+                "연결된 업무 도구 인증이 실패해 이 조회를 확정할 수 없습니다. 시스템 계정 토큰 설정을 확인해 주세요."
+            } else {
+                "I couldn't confirm this result because the connected workspace tool authentication failed. Check the system account token."
+            }
+
+            "upstream_permission_denied" -> if (hangul) {
+                "연결된 업무 도구 계정에 필요한 권한이 없어 이 조회를 수행할 수 없습니다. 시스템 계정 권한을 확인해 주세요."
+            } else {
+                "I couldn't complete this lookup because the connected workspace account is missing the required permission."
+            }
+
+            "upstream_rate_limited" -> if (hangul) {
+                "업무 도구 API rate limit에 걸려 지금은 이 조회를 확정할 수 없습니다. 잠시 후 다시 시도해 주세요."
+            } else {
+                "I couldn't complete this lookup because the workspace API is currently rate limited. Please try again later."
             }
 
             "unverified_sources" -> if (hangul) {

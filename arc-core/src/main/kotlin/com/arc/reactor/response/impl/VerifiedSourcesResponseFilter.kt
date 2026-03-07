@@ -22,6 +22,9 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         if (sources.isEmpty() && (internalReadWithoutLinks || allowsReadOnlyMutationRefusal(context, finalContent))) {
             return finalContent.trimEnd()
         }
+        if (sources.isEmpty() && allowsIdentityResolutionRefusal(finalContent)) {
+            return finalContent.trimEnd()
+        }
         return finalContent.trimEnd() + "\n\n" + buildSourcesBlock(context.command.userPrompt, sources)
     }
 
@@ -34,12 +37,17 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         if (!requiresVerifiedSources(context)) return false
         if (usesOnlyInternalReadTools(context)) return false
         if (allowsReadOnlyMutationRefusal(context, content)) return false
+        if (allowsIdentityResolutionRefusal(content)) return false
         return !alreadyDeclinesVerification(content)
     }
 
     private fun allowsReadOnlyMutationRefusal(context: ResponseFilterContext, content: String): Boolean {
         if (!WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(context.command.userPrompt)) return false
         return READ_ONLY_MUTATION_PATTERNS.any { pattern -> content.contains(pattern, ignoreCase = true) }
+    }
+
+    private fun allowsIdentityResolutionRefusal(content: String): Boolean {
+        return IDENTITY_RESOLUTION_PATTERNS.any { pattern -> content.contains(pattern, ignoreCase = true) }
     }
 
     private fun requiresVerifiedSources(context: ResponseFilterContext): Boolean {
@@ -163,6 +171,14 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
             "검증 가능한 출처를 찾지 못",
             "확인 가능한 출처를 찾지 못",
             "근거를 찾지 못"
+        )
+        private val IDENTITY_RESOLUTION_PATTERNS = listOf(
+            "requester identity could not be resolved",
+            "couldn't resolve the requesting user",
+            "요청자 계정을 jira 사용자로 확인할 수 없어",
+            "요청자 계정을 jira 사용자로 확인할 수 없습니다",
+            "요청자 계정을 확인할 수 없습니다",
+            "개인화 조회에 필요한 사용자 매핑을 확인할 수 없습니다"
         )
         private val READ_ONLY_MUTATION_PATTERNS = listOf(
             "read-only",

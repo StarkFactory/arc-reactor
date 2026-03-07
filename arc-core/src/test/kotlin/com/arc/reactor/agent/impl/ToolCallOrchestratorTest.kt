@@ -294,6 +294,44 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
+    fun `should inject requesterEmail for direct requester-aware work tool`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val toolsUsed = mutableListOf<String>()
+        val context = HookContext(
+            runId = "run-direct",
+            userId = "user-direct",
+            userPrompt = "오늘 개인 focus plan을 만들어줘",
+            metadata = java.util.concurrent.ConcurrentHashMap(
+                mapOf("requesterEmail" to "dig04059@gmail.com")
+            )
+        )
+        val callback = object : ToolCallback {
+            override val name: String = "work_personal_focus_plan"
+            override val description: String = "Personal focus plan"
+            override suspend fun call(arguments: Map<String, Any?>): Any = arguments["requesterEmail"] ?: "none"
+        }
+
+        val result = orchestrator.executeDirectToolCall(
+            toolName = "work_personal_focus_plan",
+            toolParams = emptyMap(),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = context,
+            toolsUsed = toolsUsed
+        )
+
+        assertTrue(result.success) { "Direct requester-aware tool should succeed" }
+        assertEquals("dig04059@gmail.com", result.output)
+        assertEquals(listOf("work_personal_focus_plan"), toolsUsed)
+    }
+
+    @Test
     fun `should capture verified sources from tool output`() = runBlocking {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
@@ -473,6 +511,117 @@ class ToolCallOrchestratorTest {
 
         assertEquals(1, responses.size)
         assertEquals("acct-1|false", responses[0].responseData())
+    }
+
+    @Test
+    fun `should inject requesterEmail for requester-aware work tool when assignee is missing`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("jiraProject" to "DEV") }
+        )
+        val context = HookContext(
+            runId = "run-1",
+            userId = "user-1",
+            userPrompt = "prompt",
+            metadata = java.util.concurrent.ConcurrentHashMap(mapOf("requesterEmail" to "dig04059@gmail.com"))
+        )
+        val toolCall = toolCall(id = "id-1", name = "work_personal_focus_plan", arguments = """{"jiraProject":"DEV"}""")
+        val callback = object : ToolCallback {
+            override val name: String = "work_personal_focus_plan"
+            override val description: String = "Personal work tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = arguments["requesterEmail"] ?: "none"
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = context,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertEquals("dig04059@gmail.com", responses[0].responseData())
+    }
+
+    @Test
+    fun `should inject requesterEmail for requester-aware bitbucket tool when reviewer is missing`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("repo" to "dev") }
+        )
+        val context = HookContext(
+            runId = "run-1",
+            userId = "user-1",
+            userPrompt = "prompt",
+            metadata = java.util.concurrent.ConcurrentHashMap(mapOf("requesterEmail" to "dig04059@gmail.com"))
+        )
+        val toolCall = toolCall(id = "id-1", name = "bitbucket_review_queue", arguments = """{"repo":"dev"}""")
+        val callback = object : ToolCallback {
+            override val name: String = "bitbucket_review_queue"
+            override val description: String = "Personal review queue"
+            override suspend fun call(arguments: Map<String, Any?>): Any = arguments["requesterEmail"] ?: "none"
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = context,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertEquals("dig04059@gmail.com", responses[0].responseData())
+    }
+
+    @Test
+    fun `should inject requesterEmail for requester-aware authored bitbucket tool`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val context = HookContext(
+            runId = "run-1",
+            userId = "user-1",
+            userPrompt = "prompt",
+            metadata = java.util.concurrent.ConcurrentHashMap(mapOf("requesterEmail" to "dig04059@gmail.com"))
+        )
+        val toolCall = toolCall(id = "id-1", name = "bitbucket_my_authored_prs", arguments = "{}")
+        val callback = object : ToolCallback {
+            override val name: String = "bitbucket_my_authored_prs"
+            override val description: String = "My authored pull requests"
+            override suspend fun call(arguments: Map<String, Any?>): Any = arguments["requesterEmail"] ?: "none"
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = context,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertEquals("dig04059@gmail.com", responses[0].responseData())
     }
 
     @Test
