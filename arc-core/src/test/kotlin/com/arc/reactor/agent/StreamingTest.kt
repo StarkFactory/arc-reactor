@@ -15,6 +15,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
@@ -64,6 +65,8 @@ class StreamingTest {
 
         @Test
         fun `should apply system prompt in streaming mode`() = runBlocking {
+            val systemPromptSlot = slot<String>()
+            every { fixture.requestSpec.system(capture(systemPromptSlot)) } returns fixture.requestSpec
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
                 AgentTestFixture.textChunk("Response")
             )
@@ -77,7 +80,13 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Hello")
             ).toList()
 
-            io.mockk.verify { fixture.requestSpec.system("You are helpful.") }
+            val capturedPrompt = systemPromptSlot.captured
+            assertTrue(capturedPrompt.contains("You are helpful.")) {
+                "Streaming mode should preserve the base system prompt. Prompt was: $capturedPrompt"
+            }
+            assertTrue(capturedPrompt.contains("[Grounding Rules]")) {
+                "Streaming mode should include grounding rules. Prompt was: $capturedPrompt"
+            }
         }
 
         @Test

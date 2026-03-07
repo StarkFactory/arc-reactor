@@ -45,9 +45,17 @@ class StructuredOutputTest {
             )
 
             val capturedPrompt = systemSlot.captured
+            assertTrue(capturedPrompt.contains("You are helpful.")) {
+                "TEXT format should preserve the original system prompt. Prompt was: $capturedPrompt"
+            }
+            assertTrue(capturedPrompt.contains("[Grounding Rules]")) {
+                "TEXT format should add grounding rules for verified answers. Prompt was: $capturedPrompt"
+            }
             assertFalse(capturedPrompt.contains("JSON"), "TEXT format should not add JSON instructions")
             assertFalse(capturedPrompt.contains("YAML"), "TEXT format should not add YAML instructions")
-            assertEquals("You are helpful.", capturedPrompt)
+            assertFalse(capturedPrompt.contains("[Response Format]")) {
+                "TEXT format should not add structured response format instructions. Prompt was: $capturedPrompt"
+            }
         }
     }
 

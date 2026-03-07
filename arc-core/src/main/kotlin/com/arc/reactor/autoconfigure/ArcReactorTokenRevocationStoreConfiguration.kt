@@ -102,7 +102,9 @@ class ArcReactorTokenRevocationStoreConfiguration {
 
     private fun isRedisAvailable(redisTemplate: Any): Boolean {
         return try {
-            val hasKeyMethod = redisTemplate.javaClass.getMethod("hasKey", String::class.java)
+            val hasKeyMethod = redisTemplate.javaClass.methods.firstOrNull { method ->
+                method.name == "hasKey" && method.parameterCount == 1
+            } ?: return false
             hasKeyMethod.invoke(redisTemplate, "__arc:redis:availability__")
             true
         } catch (e: Exception) {

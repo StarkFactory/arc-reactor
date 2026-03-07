@@ -1,5 +1,6 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.auth.AdminAuthorizationSupport.maskedAdminAccountRef
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
 import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditAction
@@ -142,10 +143,11 @@ class OutputGuardRuleControllerTest {
 
         @Test
         fun `returns admin account reference in audit responses`() {
+            val rawActor = "80b18ee9-d20d-4359-bc5a-a40c4754f958"
             every { auditStore.list(any()) } returns listOf(
                 OutputGuardRuleAuditLog(
                     action = OutputGuardRuleAuditAction.UPDATE,
-                    actor = "80b18ee9-d20d-4359-bc5a-a40c4754f958",
+                    actor = rawActor,
                     ruleId = "r1",
                     detail = "updated"
                 )
@@ -158,9 +160,13 @@ class OutputGuardRuleControllerTest {
             val body = response.body as List<OutputGuardRuleAuditResponse>
             assertEquals(1, body.size, "Expected one output guard audit row")
             assertEquals(
-                "admin-account:80b18ee9-d20d-4359-bc5a-a40c4754f958",
+                maskedAdminAccountRef(rawActor),
                 body.first().actor,
-                "Output guard audit actor should expose account identifier only"
+                "Output guard audit actor should expose masked account identifier only"
+            )
+            assertTrue(
+                !body.first().actor.contains(rawActor),
+                "Output guard audit actor should not expose raw admin account identifier"
             )
         }
     }
