@@ -14,10 +14,12 @@ class McpManagerTest {
     private fun manager(
         store: McpServerStore? = null,
         securityConfig: McpSecurityConfig = McpSecurityConfig(),
+        securityConfigProvider: () -> McpSecurityConfig = { securityConfig },
         reconnectionProperties: McpReconnectionProperties = McpReconnectionProperties(enabled = false)
     ) = DefaultMcpManager(
         connectionTimeoutMs = 300,
         securityConfig = securityConfig,
+        securityConfigProvider = securityConfigProvider,
         store = store,
         reconnectionProperties = reconnectionProperties
     )
@@ -388,6 +390,38 @@ class McpManagerTest {
             manager.initializeFromStore()
 
             assertTrue(manager.listServers().isEmpty()) { "No servers should be loaded from empty store" }
+        }
+
+        @Test
+        fun `initializeFromStore should skip servers blocked by dynamic allowlist`() = runBlocking {
+            val store = InMemoryMcpServerStore()
+            store.save(McpServer(name = "swagger", transportType = McpTransportType.SSE))
+            store.save(McpServer(name = "trusted", transportType = McpTransportType.SSE))
+
+            var dynamicConfig = McpSecurityConfig(allowedServerNames = setOf("trusted"))
+            val manager = manager(
+                store = store,
+                securityConfigProvider = { dynamicConfig }
+            )
+
+            manager.initializeFromStore()
+
+            assertNull(manager.getStatus("swagger")) {
+                "Blocked stored server should not be loaded into runtime"
+            }
+            assertEquals(McpServerStatus.PENDING, manager.getStatus("trusted")) {
+                "Allowlisted stored server should be available in runtime"
+            }
+
+            dynamicConfig = McpSecurityConfig(allowedServerNames = setOf("swagger"))
+            manager.reapplySecurityPolicy()
+
+            assertNull(manager.getStatus("trusted")) {
+                "Previously allowlisted server should be evicted after allowlist tightening"
+            }
+            assertEquals(McpServerStatus.PENDING, manager.getStatus("swagger")) {
+                "Newly allowlisted stored server should be loaded into runtime"
+            }
         }
     }
 

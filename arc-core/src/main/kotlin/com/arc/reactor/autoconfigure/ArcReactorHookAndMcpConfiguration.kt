@@ -13,6 +13,7 @@ import com.arc.reactor.hook.impl.WriteToolBlockHook
 import com.arc.reactor.mcp.DefaultMcpManager
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.mcp.McpSecurityConfig
+import com.arc.reactor.mcp.McpSecurityPolicyProvider
 import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.policy.tool.ToolExecutionPolicyEngine
 import com.arc.reactor.rag.chunking.DocumentChunker
@@ -33,14 +34,18 @@ class ArcReactorHookAndMcpConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    fun mcpManager(properties: AgentProperties, mcpServerStore: McpServerStore): McpManager {
-        val mcpSecurity = properties.mcp.security
+    fun mcpManager(
+        properties: AgentProperties,
+        mcpServerStore: McpServerStore,
+        mcpSecurityPolicyProvider: McpSecurityPolicyProvider
+    ): McpManager {
         return DefaultMcpManager(
             connectionTimeoutMs = properties.mcp.connectionTimeoutMs,
             securityConfig = McpSecurityConfig(
-                allowedServerNames = mcpSecurity.allowedServerNames,
-                maxToolOutputLength = mcpSecurity.maxToolOutputLength
+                allowedServerNames = properties.mcp.security.allowedServerNames,
+                maxToolOutputLength = properties.mcp.security.maxToolOutputLength
             ),
+            securityConfigProvider = { mcpSecurityPolicyProvider.currentConfig() },
             store = mcpServerStore,
             reconnectionProperties = properties.mcp.reconnection
         )

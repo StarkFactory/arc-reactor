@@ -55,6 +55,32 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
+    fun `should treat swagger spec tools as verified workspace tools`() = runTest {
+        val result = filter.filter(
+            content = "공식 업로드 엔드포인트는 POST /pet/{petId}/uploadImage 입니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "pet 이미지 업로드 API 알려줘"),
+                toolsUsed = listOf("spec_detail"),
+                verifiedSources = listOf(
+                    VerifiedSource(
+                        title = "Swagger Petstore OpenAPI",
+                        url = "https://petstore3.swagger.io/api/v3/openapi.json",
+                        toolName = "spec_detail"
+                    )
+                ),
+                durationMs = 95
+            )
+        )
+
+        assertTrue(result.contains("POST /pet/{petId}/uploadImage")) {
+            "Verified Swagger answer should preserve the model response"
+        }
+        assertTrue(result.contains("[Swagger Petstore OpenAPI](https://petstore3.swagger.io/api/v3/openapi.json)")) {
+            "Swagger-backed answers should include the verified source footer"
+        }
+    }
+
+    @Test
     fun `should block unverified informational answer without workspace tool`() = runTest {
         val result = filter.filter(
             content = "정답은 4입니다.",

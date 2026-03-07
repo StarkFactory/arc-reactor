@@ -14,6 +14,8 @@ import com.arc.reactor.guard.output.policy.JdbcOutputGuardRuleStore
 import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditStore
 import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
 import com.arc.reactor.mcp.JdbcMcpServerStore
+import com.arc.reactor.mcp.JdbcMcpSecurityPolicyStore
+import com.arc.reactor.mcp.McpSecurityPolicyStore
 import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.memory.JdbcMemoryStore
 import com.arc.reactor.memory.MemoryStore
@@ -169,6 +171,25 @@ class JdbcToolPolicyStoreConfiguration {
         jdbcTemplate: JdbcTemplate,
         transactionTemplate: TransactionTemplate
     ): ToolPolicyStore = JdbcToolPolicyStore(
+        jdbcTemplate = jdbcTemplate,
+        transactionTemplate = transactionTemplate
+    )
+}
+
+/**
+ * JDBC MCP security policy store (dynamic MCP allowlist only).
+ */
+@Configuration
+@ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
+@ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
+class JdbcMcpSecurityPolicyStoreConfiguration {
+
+    @Bean
+    @Primary
+    fun jdbcMcpSecurityPolicyStore(
+        jdbcTemplate: JdbcTemplate,
+        transactionTemplate: TransactionTemplate
+    ): McpSecurityPolicyStore = JdbcMcpSecurityPolicyStore(
         jdbcTemplate = jdbcTemplate,
         transactionTemplate = transactionTemplate
     )

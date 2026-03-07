@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
@@ -42,6 +43,8 @@ interface McpManager {
     suspend fun ensureConnected(serverName: String): Boolean
 
     suspend fun initializeFromStore()
+
+    fun reapplySecurityPolicy() {}
 }
 
 /**
@@ -67,6 +70,7 @@ data class McpSecurityConfig(
 class DefaultMcpManager(
     private val connectionTimeoutMs: Long = 30_000,
     private val securityConfig: McpSecurityConfig = McpSecurityConfig(),
+    private val securityConfigProvider: () -> McpSecurityConfig = { securityConfig },
     private val store: McpServerStore? = null,
     private val reconnectionProperties: McpReconnectionProperties = McpReconnectionProperties()
 ) : McpManager, AutoCloseable {
@@ -82,7 +86,7 @@ class DefaultMcpManager(
     private val storeSync = McpStoreSync(store)
     private val connectionSupport = McpConnectionSupport(
         connectionTimeoutMs = connectionTimeoutMs,
-        maxToolOutputLength = securityConfig.maxToolOutputLength
+        maxToolOutputLengthProvider = { currentSecurityConfig().maxToolOutputLength }
     )
     private val reconnectionCoordinator = McpReconnectionCoordinator(
         scope = reconnectScope,
@@ -94,8 +98,17 @@ class DefaultMcpManager(
 
     private fun mutexFor(serverName: String): Mutex = serverMutexes.getOrPut(serverName) { Mutex() }
 
+    private fun currentSecurityConfig(): McpSecurityConfig {
+        return runCatching { securityConfigProvider() }
+            .getOrElse {
+                logger.warn(it) { "Failed to load dynamic MCP security config, using static fallback" }
+                securityConfig
+            }
+    }
+
     private fun allowedBySecurity(serverName: String): Boolean {
-        return securityConfig.allowedServerNames.isEmpty() || serverName in securityConfig.allowedServerNames
+        val allowed = currentSecurityConfig().allowedServerNames
+        return allowed.isEmpty() || serverName in allowed
     }
 
     override fun register(server: McpServer) {
@@ -140,6 +153,10 @@ class DefaultMcpManager(
 
         logger.info { "Loading ${storeServers.size} MCP servers from store" }
         for (server in storeServers) {
+            if (!allowedBySecurity(server.name)) {
+                logger.warn { "Skipping stored MCP server rejected by allowlist: ${server.name}" }
+                continue
+            }
             servers[server.name] = server
             statuses[server.name] = McpServerStatus.PENDING
 
@@ -205,6 +222,38 @@ class DefaultMcpManager(
         toolCallbacksCache.remove(serverName)
         statuses[serverName] = McpServerStatus.DISCONNECTED
     }
+
+    override fun reapplySecurityPolicy() {
+        val blocked = servers.keys.filterNot(::allowedBySecurity)
+        blocked.forEach { serverName ->
+            logger.info { "Evicting MCP server from runtime due to allowlist change: $serverName" }
+            disconnectInternal(serverName)
+            servers.remove(serverName)
+            statuses.remove(serverName)
+            serverMutexes.remove(serverName)
+        }
+
+        storeSync.loadAll()
+            .filter(::shouldLoadStoredServer)
+            .filterNot { servers.containsKey(it.name) }
+            .forEach { server ->
+                logger.info { "Loading newly allowlisted MCP server into runtime: ${server.name}" }
+                servers[server.name] = server
+                statuses[server.name] = McpServerStatus.PENDING
+                if (server.autoConnect) {
+                    reconnectScope.launch {
+                        try {
+                            connect(server.name)
+                        } catch (e: Exception) {
+                            e.throwIfCancellation()
+                            logger.warn(e) { "Failed to auto-connect newly allowlisted MCP server '${server.name}'" }
+                        }
+                    }
+                }
+            }
+    }
+
+    private fun shouldLoadStoredServer(server: McpServer): Boolean = allowedBySecurity(server.name)
 
     override suspend fun ensureConnected(serverName: String): Boolean {
         val status = statuses[serverName]

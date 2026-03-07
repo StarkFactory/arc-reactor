@@ -29,7 +29,7 @@ internal data class McpConnectionHandle(
  */
 internal class McpConnectionSupport(
     private val connectionTimeoutMs: Long,
-    private val maxToolOutputLength: Int
+    private val maxToolOutputLengthProvider: () -> Int
 ) {
 
     fun open(server: McpServer): McpConnectionHandle? {
@@ -148,7 +148,7 @@ internal class McpConnectionSupport(
                     name = tool.name(),
                     description = tool.description() ?: "",
                     mcpInputSchema = tool.inputSchema(),
-                    maxOutputLength = maxToolOutputLength
+                    maxOutputLength = maxToolOutputLengthProvider()
                 )
             }
         } catch (e: Exception) {
