@@ -90,7 +90,8 @@ class PersonaController(
             responseGuideline = request.responseGuideline,
             welcomeMessage = request.welcomeMessage,
             icon = request.icon,
-            isActive = request.isActive
+            isActive = request.isActive,
+            promptTemplateId = request.promptTemplateId
         )
         val saved = personaStore.save(persona)
         return ResponseEntity.status(HttpStatus.CREATED).body(saved.toResponse())
@@ -123,6 +124,7 @@ class PersonaController(
             responseGuideline = request.responseGuideline,
             welcomeMessage = request.welcomeMessage,
             icon = request.icon,
+            promptTemplateId = request.promptTemplateId,
             isActive = request.isActive
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
@@ -159,6 +161,7 @@ data class CreatePersonaRequest(
     val description: String? = null,
     val responseGuideline: String? = null,
     val welcomeMessage: String? = null,
+    val promptTemplateId: String? = null,
     @field:Size(max = 20, message = "icon must be 20 characters or fewer")
     val icon: String? = null,
     val isActive: Boolean = true
@@ -171,6 +174,7 @@ data class UpdatePersonaRequest(
     val description: String? = null,
     val responseGuideline: String? = null,
     val welcomeMessage: String? = null,
+    val promptTemplateId: String? = null,
     @field:Size(max = 20, message = "icon must be 20 characters or fewer")
     val icon: String? = null,
     val isActive: Boolean? = null
@@ -186,6 +190,7 @@ data class PersonaResponse(
     val description: String?,
     val responseGuideline: String?,
     val welcomeMessage: String?,
+    val promptTemplateId: String?,
     val icon: String?,
     val isActive: Boolean,
     val createdAt: Long,
@@ -202,6 +207,7 @@ private fun Persona.toResponse() = PersonaResponse(
     description = description,
     responseGuideline = responseGuideline,
     welcomeMessage = welcomeMessage,
+    promptTemplateId = promptTemplateId,
     icon = icon,
     isActive = isActive,
     createdAt = createdAt.toEpochMilli(),

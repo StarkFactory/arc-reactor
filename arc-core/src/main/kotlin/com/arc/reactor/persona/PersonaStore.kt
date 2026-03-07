@@ -1,7 +1,11 @@
 package com.arc.reactor.persona
 
+import com.arc.reactor.prompt.PromptTemplateStore
+import mu.KotlinLogging
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * Persona — a named system prompt template.
@@ -18,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
  * @param welcomeMessage Initial greeting message shown when persona is selected
  * @param icon Emoji or short icon identifier for UI display
  * @param isActive Whether this persona is available for selection
+ * @param promptTemplateId Optional linked versioned prompt template that overrides systemPrompt at runtime
  * @param createdAt Creation timestamp
  * @param updatedAt Last modification timestamp
  */
@@ -31,6 +36,7 @@ data class Persona(
     val welcomeMessage: String? = null,
     val icon: String? = null,
     val isActive: Boolean = true,
+    val promptTemplateId: String? = null,
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now()
 )
@@ -86,6 +92,7 @@ interface PersonaStore {
         responseGuideline: String? = null,
         welcomeMessage: String? = null,
         icon: String? = null,
+        promptTemplateId: String? = null,
         isActive: Boolean? = null
     ): Persona?
 
@@ -150,6 +157,7 @@ class InMemoryPersonaStore : PersonaStore {
         responseGuideline: String?,
         welcomeMessage: String?,
         icon: String?,
+        promptTemplateId: String?,
         isActive: Boolean?
     ): Persona? {
         synchronized(this) {
@@ -167,6 +175,7 @@ class InMemoryPersonaStore : PersonaStore {
                 responseGuideline = resolveNullableField(responseGuideline, existing.responseGuideline),
                 welcomeMessage = resolveNullableField(welcomeMessage, existing.welcomeMessage),
                 icon = resolveNullableField(icon, existing.icon),
+                promptTemplateId = resolveNullableField(promptTemplateId, existing.promptTemplateId),
                 isActive = isActive ?: existing.isActive,
                 updatedAt = Instant.now()
             )
@@ -196,5 +205,21 @@ class InMemoryPersonaStore : PersonaStore {
                 personas[id] = persona.copy(isDefault = false, updatedAt = Instant.now())
             }
         }
+    }
+}
+
+fun Persona.resolveEffectivePrompt(promptTemplateStore: PromptTemplateStore?): String {
+    val base = resolveBasePrompt(promptTemplateStore)
+    val guideline = responseGuideline?.trim()
+    return if (!guideline.isNullOrBlank()) "$base\n\n$guideline" else base
+}
+
+private fun Persona.resolveBasePrompt(promptTemplateStore: PromptTemplateStore?): String {
+    if (promptTemplateId.isNullOrBlank() || promptTemplateStore == null) return systemPrompt
+    return try {
+        promptTemplateStore.getActiveVersion(promptTemplateId)?.content?.takeIf { it.isNotBlank() } ?: systemPrompt
+    } catch (e: Exception) {
+        logger.warn(e) { "Prompt template lookup failed for personaId='$id' promptTemplateId='$promptTemplateId'" }
+        systemPrompt
     }
 }

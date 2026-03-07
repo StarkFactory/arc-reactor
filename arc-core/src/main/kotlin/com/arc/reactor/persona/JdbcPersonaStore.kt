@@ -24,7 +24,8 @@ class JdbcPersonaStore(
     override fun list(): List<Persona> {
         return jdbcTemplate.query(
             "SELECT id, name, system_prompt, is_default, description, response_guideline, " +
-                "welcome_message, icon, is_active, created_at, updated_at FROM personas ORDER BY created_at ASC",
+                "welcome_message, icon, is_active, prompt_template_id, created_at, updated_at " +
+                "FROM personas ORDER BY created_at ASC",
             ROW_MAPPER
         )
     }
@@ -32,7 +33,8 @@ class JdbcPersonaStore(
     override fun get(personaId: String): Persona? {
         val results = jdbcTemplate.query(
             "SELECT id, name, system_prompt, is_default, description, response_guideline, " +
-                "welcome_message, icon, is_active, created_at, updated_at FROM personas WHERE id = ?",
+                "welcome_message, icon, is_active, prompt_template_id, created_at, updated_at " +
+                "FROM personas WHERE id = ?",
             ROW_MAPPER,
             personaId
         )
@@ -42,7 +44,7 @@ class JdbcPersonaStore(
     override fun getDefault(): Persona? {
         val results = jdbcTemplate.query(
             "SELECT id, name, system_prompt, is_default, description, response_guideline, " +
-                "welcome_message, icon, is_active, created_at, updated_at " +
+                "welcome_message, icon, is_active, prompt_template_id, created_at, updated_at " +
                 "FROM personas WHERE is_default = TRUE LIMIT 1",
             ROW_MAPPER
         )
@@ -56,8 +58,8 @@ class JdbcPersonaStore(
             }
             jdbcTemplate.update(
                 "INSERT INTO personas (id, name, system_prompt, is_default, description, " +
-                    "response_guideline, welcome_message, icon, is_active, created_at, updated_at) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "response_guideline, welcome_message, icon, is_active, prompt_template_id, created_at, updated_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 persona.id,
                 persona.name,
                 persona.systemPrompt,
@@ -67,6 +69,7 @@ class JdbcPersonaStore(
                 persona.welcomeMessage,
                 persona.icon,
                 persona.isActive,
+                persona.promptTemplateId,
                 java.sql.Timestamp.from(persona.createdAt),
                 java.sql.Timestamp.from(persona.updatedAt)
             )
@@ -83,6 +86,7 @@ class JdbcPersonaStore(
         responseGuideline: String?,
         welcomeMessage: String?,
         icon: String?,
+        promptTemplateId: String?,
         isActive: Boolean?
     ): Persona? {
         val existing = get(personaId) ?: return null
@@ -94,6 +98,7 @@ class JdbcPersonaStore(
         val updatedGuideline = resolveNullableField(responseGuideline, existing.responseGuideline)
         val updatedWelcome = resolveNullableField(welcomeMessage, existing.welcomeMessage)
         val updatedIcon = resolveNullableField(icon, existing.icon)
+        val updatedPromptTemplateId = resolveNullableField(promptTemplateId, existing.promptTemplateId)
         val updatedActive = isActive ?: existing.isActive
         val updatedAt = Instant.now()
 
@@ -103,7 +108,7 @@ class JdbcPersonaStore(
             }
             jdbcTemplate.update(
                 "UPDATE personas SET name = ?, system_prompt = ?, is_default = ?, description = ?, " +
-                    "response_guideline = ?, welcome_message = ?, icon = ?, is_active = ?, " +
+                    "response_guideline = ?, welcome_message = ?, icon = ?, is_active = ?, prompt_template_id = ?, " +
                     "updated_at = ? WHERE id = ?",
                 updatedName,
                 updatedPrompt,
@@ -113,6 +118,7 @@ class JdbcPersonaStore(
                 updatedWelcome,
                 updatedIcon,
                 updatedActive,
+                updatedPromptTemplateId,
                 java.sql.Timestamp.from(updatedAt),
                 personaId
             )
@@ -127,6 +133,7 @@ class JdbcPersonaStore(
             welcomeMessage = updatedWelcome,
             icon = updatedIcon,
             isActive = updatedActive,
+            promptTemplateId = updatedPromptTemplateId,
             updatedAt = updatedAt
         )
     }
@@ -160,6 +167,7 @@ class JdbcPersonaStore(
                 welcomeMessage = rs.getString("welcome_message"),
                 icon = rs.getString("icon"),
                 isActive = rs.getBoolean("is_active"),
+                promptTemplateId = rs.getString("prompt_template_id"),
                 createdAt = rs.getTimestamp("created_at").toInstant(),
                 updatedAt = rs.getTimestamp("updated_at").toInstant()
             )

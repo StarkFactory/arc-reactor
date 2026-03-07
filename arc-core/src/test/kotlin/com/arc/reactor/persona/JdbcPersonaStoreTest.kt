@@ -38,6 +38,7 @@ class JdbcPersonaStoreTest {
                 welcome_message    TEXT,
                 icon               VARCHAR(20),
                 is_active          BOOLEAN       NOT NULL DEFAULT TRUE,
+                prompt_template_id VARCHAR(36),
                 created_at         TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at         TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
@@ -211,7 +212,8 @@ class JdbcPersonaStoreTest {
                 responseGuideline = "Always respond in bullet points.",
                 welcomeMessage = "Hello! How can I help?",
                 icon = "🧑‍💻",
-                isActive = true
+                isActive = true,
+                promptTemplateId = "template-expert"
             )
 
             store.save(persona)
@@ -225,6 +227,7 @@ class JdbcPersonaStoreTest {
             assertEquals("Hello! How can I help?", retrieved.welcomeMessage) { "Welcome message should match" }
             assertEquals("🧑‍💻", retrieved.icon) { "Icon should match" }
             assertTrue(retrieved.isActive) { "isActive should be true" }
+            assertEquals("template-expert", retrieved.promptTemplateId) { "Linked prompt template should match" }
         }
 
         @Test
@@ -253,13 +256,15 @@ class JdbcPersonaStoreTest {
                 "upd-ext",
                 description = "New desc",
                 responseGuideline = "New guideline",
-                icon = "🎯"
+                icon = "🎯",
+                promptTemplateId = "template-b"
             )
 
             assertNotNull(updated) { "Update should return the updated persona" }
             assertEquals("New desc", updated!!.description) { "Description should be updated" }
             assertEquals("New guideline", updated.responseGuideline) { "Guideline should be updated" }
             assertEquals("🎯", updated.icon) { "Icon should be updated" }
+            assertEquals("template-b", updated.promptTemplateId) { "Linked prompt template should be updated" }
             assertEquals("Original", updated.name) { "Name should remain unchanged" }
 
             // Verify via fresh read from DB
@@ -267,6 +272,22 @@ class JdbcPersonaStoreTest {
             assertEquals("New desc", fromDb.description) { "DB should have updated description" }
             assertEquals("New guideline", fromDb.responseGuideline) { "DB should have updated guideline" }
             assertEquals("🎯", fromDb.icon) { "DB should have updated icon" }
+            assertEquals("template-b", fromDb.promptTemplateId) { "DB should have updated linked prompt template" }
+        }
+
+        @Test
+        fun `should clear linked prompt template via JDBC`() {
+            store.save(Persona(
+                id = "clear-link",
+                name = "Linked",
+                systemPrompt = "prompt",
+                promptTemplateId = "template-a"
+            ))
+
+            val updated = store.update("clear-link", promptTemplateId = "")
+
+            assertNotNull(updated) { "Update should return the updated persona" }
+            assertNull(updated!!.promptTemplateId) { "Linked prompt template should be cleared" }
         }
 
         @Test

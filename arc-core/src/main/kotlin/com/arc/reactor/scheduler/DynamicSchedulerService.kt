@@ -11,6 +11,8 @@ import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.persona.PersonaStore
+import com.arc.reactor.persona.resolveEffectivePrompt
+import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
 import kotlinx.coroutines.delay
@@ -55,6 +57,7 @@ class DynamicSchedulerService(
     private val agentExecutor: AgentExecutor? = null,
     private val agentExecutorProvider: (() -> AgentExecutor?)? = null,
     private val personaStore: PersonaStore? = null,
+    private val promptTemplateStore: PromptTemplateStore? = null,
     private val executionStore: ScheduledJobExecutionStore? = null
 ) {
 
@@ -393,9 +396,9 @@ class DynamicSchedulerService(
     private fun resolveSystemPrompt(job: ScheduledJob): String {
         job.agentSystemPrompt?.let { if (it.isNotBlank()) return it }
         job.personaId?.let { id ->
-            personaStore?.get(id)?.systemPrompt?.let { return it }
+            personaStore?.get(id)?.resolveEffectivePrompt(promptTemplateStore)?.let { return it }
         }
-        personaStore?.getDefault()?.systemPrompt?.let { return it }
+        personaStore?.getDefault()?.resolveEffectivePrompt(promptTemplateStore)?.let { return it }
         return DEFAULT_SYSTEM_PROMPT
     }
 
