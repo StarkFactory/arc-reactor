@@ -1,5 +1,6 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.auth.AdminAuthorizationSupport.maskedAdminAccountRef
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.guard.output.policy.OutputGuardRule
 import com.arc.reactor.guard.output.policy.OutputGuardRuleAuditAction
@@ -391,7 +392,7 @@ private fun OutputGuardRuleAuditLog.toResponse() = OutputGuardRuleAuditResponse(
     id = id,
     ruleId = ruleId,
     action = action.name,
-    actor = toAdminAccountRef(actor),
+    actor = maskedAdminAccountRef(actor),
     detail = detail,
     createdAt = createdAt.toEpochMilli()
 )
@@ -405,9 +406,4 @@ private fun validateRegex(pattern: String): String? {
         Regex(pattern)
         null
     }.getOrElse { it.message ?: "invalid regex" }
-}
-
-private fun toAdminAccountRef(actor: String?): String {
-    val accountId = actor?.trim()?.takeIf { it.isNotBlank() } ?: "unknown"
-    return "admin-account:$accountId"
 }

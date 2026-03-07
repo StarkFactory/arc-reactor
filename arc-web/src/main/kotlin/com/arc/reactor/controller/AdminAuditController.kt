@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.audit.AdminAuditStore
+import com.arc.reactor.auth.AdminAuthorizationSupport.maskedAdminAccountRef
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -40,7 +41,7 @@ class AdminAuditController(
                 id = it.id,
                 category = it.category,
                 action = it.action,
-                actor = toAdminAccountRef(it.actor),
+                actor = maskedAdminAccountRef(it.actor),
                 resourceType = it.resourceType,
                 resourceId = it.resourceId,
                 detail = it.detail,
@@ -49,11 +50,6 @@ class AdminAuditController(
         }
         return ResponseEntity.ok(rows)
     }
-}
-
-private fun toAdminAccountRef(actor: String?): String {
-    val accountId = actor?.trim()?.takeIf { it.isNotBlank() } ?: "unknown"
-    return "admin-account:$accountId"
 }
 
 data class AdminAuditResponse(

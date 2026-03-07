@@ -2,6 +2,7 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.audit.AdminAuditLog
 import com.arc.reactor.audit.InMemoryAdminAuditStore
+import com.arc.reactor.auth.AdminAuthorizationSupport.maskedAdminAccountRef
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
 import io.mockk.every
@@ -56,11 +57,12 @@ class AdminAuditControllerTest {
     @Test
     fun `list exposes admin account reference without profile fields`() {
         val store = InMemoryAdminAuditStore()
+        val rawActor = "80b18ee9-d20d-4359-bc5a-a40c4754f958"
         store.save(
             AdminAuditLog(
                 category = "mcp_server",
                 action = "UPDATE",
-                actor = "80b18ee9-d20d-4359-bc5a-a40c4754f958"
+                actor = rawActor
             )
         )
         val controller = AdminAuditController(store)
@@ -72,13 +74,13 @@ class AdminAuditControllerTest {
         val rows = response.body as List<AdminAuditResponse>
         assertEquals(1, rows.size, "Expected exactly one audit row")
         assertEquals(
-            "admin-account:80b18ee9-d20d-4359-bc5a-a40c4754f958",
+            maskedAdminAccountRef(rawActor),
             rows.first().actor,
-            "Actor should expose only admin account identifier"
+            "Actor should expose only masked admin account identifier"
         )
         assertTrue(
-            !rows.first().actor.contains("Tony"),
-            "Actor should not expose profile/name fields"
+            !rows.first().actor.contains(rawActor),
+            "Actor should not expose raw admin account identifier"
         )
     }
 }

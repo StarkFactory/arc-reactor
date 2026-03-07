@@ -1,5 +1,6 @@
 package com.arc.reactor.auth
 
+import java.security.MessageDigest
 import org.springframework.web.server.ServerWebExchange
 
 /**
@@ -32,5 +33,16 @@ object AdminAuthorizationSupport {
         return (exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String)
             ?.takeIf { it.isNotBlank() }
             ?: "anonymous"
+    }
+
+    fun maskedAdminAccountRef(actor: String?): String {
+        val normalized = actor?.trim()?.takeIf { it.isNotBlank() } ?: return "admin-account:unknown"
+        if (normalized == "anonymous") return "admin-account:anonymous"
+        return "admin-account:${sha256Hex(normalized).take(12)}"
+    }
+
+    private fun sha256Hex(value: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
+        return digest.joinToString(separator = "") { byte -> "%02x".format(byte) }
     }
 }
