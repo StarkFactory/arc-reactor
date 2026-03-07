@@ -451,7 +451,7 @@ class SpringAiAgentExecutor(
             }
             val systemPrompt = systemPromptBuilder.build(
                 baseSystemPrompt, ragContext,
-                command.responseFormat, command.responseSchema
+                command.responseFormat, command.responseSchema, command.userPrompt
             )
             val activeChatClient = resolveChatClient(command)
             return manualReActLoopExecutor.execute(

@@ -2,6 +2,7 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.model.ResponseFormat
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class SystemPromptBuilderTest {
@@ -67,5 +68,33 @@ class SystemPromptBuilderTest {
             {"type":"object"}
         """.trimIndent()
         assertEquals(expected, prompt)
+    }
+
+    @Test
+    fun `should add required confluence routing instruction for page summary prompts`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "What does the page titled 개발팀 Home describe in the DEV space?"
+        )
+
+        assertTrue(prompt.contains("You MUST call `confluence_answer_question` before answering.")) {
+            "Confluence answer prompts should require the confluence_answer_question tool"
+        }
+    }
+
+    @Test
+    fun `should add required work briefing instruction for briefing prompts`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "Give me a morning briefing for Jira project DEV and Bitbucket repo dev."
+        )
+
+        assertTrue(prompt.contains("You MUST call `work_morning_briefing` before answering.")) {
+            "Morning briefing prompts should require the work_morning_briefing tool"
+        }
     }
 }
