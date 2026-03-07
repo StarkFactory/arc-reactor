@@ -279,9 +279,8 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
                     stage = stage,
                     reason = metadata["blockReason"]?.toString()?.takeIf { it.isNotBlank() } ?: reason.takeIf { it.isNotBlank() },
                     channel = metadata["channel"]?.toString(),
-                    runId = metadata["runId"]?.toString(),
-                    userId = metadata["userId"]?.toString(),
-                    queryPreview = metadata["queryPreview"]?.toString()
+                    queryCluster = metadata["queryCluster"]?.toString(),
+                    queryLabel = metadata["queryLabel"]?.toString()
                 )
             )
         }
@@ -305,9 +304,8 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
                 violation = violation,
                 policy = policy,
                 channel = metadata["channel"]?.toString(),
-                runId = metadata["runId"]?.toString(),
-                userId = metadata["userId"]?.toString(),
-                queryPreview = metadata["queryPreview"]?.toString()
+                queryCluster = metadata["queryCluster"]?.toString(),
+                queryLabel = metadata["queryLabel"]?.toString()
             )
         )
     }
@@ -321,9 +319,8 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
                 severity = "WARN",
                 reason = metadata["blockReason"]?.toString(),
                 channel = metadata["channel"]?.toString(),
-                runId = metadata["runId"]?.toString(),
-                userId = metadata["userId"]?.toString(),
-                queryPreview = metadata["queryPreview"]?.toString()
+                queryCluster = metadata["queryCluster"]?.toString(),
+                queryLabel = metadata["queryLabel"]?.toString()
             )
         )
     }
@@ -368,7 +365,8 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
             .take(limit)
             .map {
                 MissingQueryInsight(
-                    queryPreview = it.queryPreview,
+                    queryCluster = it.queryCluster,
+                    queryLabel = it.queryLabel,
                     count = it.count.get(),
                     lastOccurredAt = it.lastOccurredAt,
                     blockReason = it.blockReason
@@ -385,10 +383,10 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
 
     private fun trackMissingQuery(metadata: Map<String, Any>) {
         val blockReason = metadata["blockReason"]?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: return
-        val queryPreview = metadata["queryPreview"]?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: return
-        val key = normalizeMissingQueryKey(queryPreview)
-        val aggregate = missingQueryCounts.computeIfAbsent(key) {
-            MissingQueryAggregate(queryPreview = queryPreview, blockReason = blockReason)
+        val queryCluster = metadata["queryCluster"]?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: return
+        val queryLabel = metadata["queryLabel"]?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: return
+        val aggregate = missingQueryCounts.computeIfAbsent(queryCluster) {
+            MissingQueryAggregate(queryCluster = queryCluster, queryLabel = queryLabel, blockReason = blockReason)
         }
         aggregate.count.incrementAndGet()
         aggregate.lastOccurredAt = Instant.now()

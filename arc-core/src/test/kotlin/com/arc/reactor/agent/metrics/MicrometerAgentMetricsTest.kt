@@ -38,17 +38,21 @@ class MicrometerAgentMetricsTest {
             "pipeline",
             "modified",
             "removed unsafe claim",
-            mapOf("runId" to "run-1", "userId" to "eddy", "queryPreview" to "Summarize release blockers")
+            mapOf("queryCluster" to "c1a22afdfaf0", "queryLabel" to "Prompt cluster c1a22afdfaf0")
         )
         metrics.recordBoundaryViolation(
             "output_too_short",
             "fail",
             200,
             12,
-            mapOf("runId" to "run-2", "userId" to "eddy")
+            mapOf("queryCluster" to "bb19e5f8445e", "queryLabel" to "Prompt cluster bb19e5f8445e")
         )
         metrics.recordUnverifiedResponse(
-            mapOf("channel" to "slack", "runId" to "run-3", "userId" to "eddy", "queryPreview" to "What is our policy?")
+            mapOf(
+                "channel" to "slack",
+                "queryCluster" to "09d2549d30cb",
+                "queryLabel" to "Question cluster 09d2549d30cb"
+            )
         )
 
         val events = metrics.recentTrustEvents(5)
@@ -56,10 +60,18 @@ class MicrometerAgentMetricsTest {
         assertEquals(3, events.size, "Recent trust events should retain output guard, boundary, and source issues")
         assertEquals("unverified_response", events[0].type, "Newest event should be returned first")
         assertEquals("WARN", events[0].severity, "Unverified responses should be marked WARN")
-        assertEquals("run-3", events[0].runId, "Recent unverified event should include run id")
-        assertEquals("What is our policy?", events[0].queryPreview, "Query preview should be retained for drill-down")
+        assertEquals("09d2549d30cb", events[0].queryCluster, "Recent unverified event should expose only a cluster id")
+        assertEquals(
+            "Question cluster 09d2549d30cb",
+            events[0].queryLabel,
+            "Query labels should be redacted for dashboard drill-down"
+        )
         assertEquals("boundary_violation", events[1].type, "Boundary violations should be recorded")
-        assertEquals("eddy", events[1].userId, "Boundary event should retain operator context")
+        assertEquals(
+            "Prompt cluster bb19e5f8445e",
+            events[1].queryLabel,
+            "Boundary events should preserve redacted query clusters"
+        )
         assertTrue(events[2].reason?.contains("unsafe", ignoreCase = true) == true,
             "Output guard event should preserve the rejection/modification reason")
     }
@@ -92,7 +104,8 @@ class MicrometerAgentMetricsTest {
                 "answerMode" to "unknown",
                 "deliveryMode" to "interactive",
                 "toolFamily" to "none",
-                "queryPreview" to "Who is the CEO of OpenAI?",
+                "queryCluster" to "f1e6a063a8d0",
+                "queryLabel" to "Question cluster f1e6a063a8d0",
                 "blockReason" to "unverified_sources"
             )
         )
@@ -102,7 +115,8 @@ class MicrometerAgentMetricsTest {
                 "answerMode" to "unknown",
                 "deliveryMode" to "interactive",
                 "toolFamily" to "none",
-                "queryPreview" to "  who is the CEO of OpenAI?  ",
+                "queryCluster" to "f1e6a063a8d0",
+                "queryLabel" to "Question cluster f1e6a063a8d0",
                 "blockReason" to "unverified_sources"
             )
         )
@@ -124,6 +138,11 @@ class MicrometerAgentMetricsTest {
             "Lane summary should track grounded responses for the answer mode")
         assertEquals(1, missing.size, "Repeated blocked queries should be aggregated after normalization")
         assertEquals(2L, missing[0].count, "Top missing query should keep repeated count")
-        assertEquals("Who is the CEO of OpenAI?", missing[0].queryPreview, "Query preview should be preserved")
+        assertEquals("f1e6a063a8d0", missing[0].queryCluster, "Top missing query should expose only a redacted cluster id")
+        assertEquals(
+            "Question cluster f1e6a063a8d0",
+            missing[0].queryLabel,
+            "Top missing query should expose a redacted label"
+        )
     }
 }

@@ -151,9 +151,8 @@ class MicrometerAgentMetrics(
                     stage = stage,
                     reason = reason.takeIf { it.isNotBlank() },
                     channel = metadataValue(metadata, "channel"),
-                    runId = metadataValue(metadata, "runId"),
-                    userId = metadataValue(metadata, "userId"),
-                    queryPreview = metadataValue(metadata, "queryPreview")
+                    queryCluster = metadataValue(metadata, "queryCluster"),
+                    queryLabel = metadataValue(metadata, "queryLabel")
                 )
             )
         }
@@ -187,9 +186,8 @@ class MicrometerAgentMetrics(
                 violation = violation,
                 policy = policy,
                 channel = metadataValue(metadata, "channel"),
-                runId = metadataValue(metadata, "runId"),
-                userId = metadataValue(metadata, "userId"),
-                queryPreview = metadataValue(metadata, "queryPreview")
+                queryCluster = metadataValue(metadata, "queryCluster"),
+                queryLabel = metadataValue(metadata, "queryLabel")
             )
         )
     }
@@ -207,9 +205,8 @@ class MicrometerAgentMetrics(
                 type = "unverified_response",
                 severity = "WARN",
                 channel = metadata["channel"]?.toString()?.ifBlank { "unknown" } ?: "unknown",
-                runId = metadataValue(metadata, "runId"),
-                userId = metadataValue(metadata, "userId"),
-                queryPreview = metadataValue(metadata, "queryPreview"),
+                queryCluster = metadataValue(metadata, "queryCluster"),
+                queryLabel = metadataValue(metadata, "queryLabel"),
                 reason = metadataValue(metadata, "blockReason")
             )
         )
@@ -255,7 +252,8 @@ class MicrometerAgentMetrics(
             .take(limit)
             .map {
                 MissingQueryInsight(
-                    queryPreview = it.queryPreview,
+                    queryCluster = it.queryCluster,
+                    queryLabel = it.queryLabel,
                     count = it.count.get(),
                     lastOccurredAt = it.lastOccurredAt,
                     blockReason = it.blockReason
@@ -272,9 +270,10 @@ class MicrometerAgentMetrics(
 
     private fun trackMissingQuery(metadata: Map<String, Any>) {
         val blockReason = metadataValue(metadata, "blockReason") ?: return
-        val queryPreview = metadataValue(metadata, "queryPreview") ?: return
-        val aggregate = missingQueryCounts.computeIfAbsent(normalizeMissingQueryKey(queryPreview)) {
-            MissingQueryAggregate(queryPreview = queryPreview, blockReason = blockReason)
+        val queryCluster = metadataValue(metadata, "queryCluster") ?: return
+        val queryLabel = metadataValue(metadata, "queryLabel") ?: return
+        val aggregate = missingQueryCounts.computeIfAbsent(queryCluster) {
+            MissingQueryAggregate(queryCluster = queryCluster, queryLabel = queryLabel, blockReason = blockReason)
         }
         aggregate.count.incrementAndGet()
         aggregate.lastOccurredAt = Instant.now()

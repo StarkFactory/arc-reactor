@@ -25,7 +25,6 @@ data class RecentTrustEvent(
     val violation: String? = null,
     val policy: String? = null,
     val channel: String? = null,
-    val runId: String? = null,
-    val userId: String? = null,
-    val queryPreview: String? = null
+    val queryCluster: String? = null,
+    val queryLabel: String? = null
 )

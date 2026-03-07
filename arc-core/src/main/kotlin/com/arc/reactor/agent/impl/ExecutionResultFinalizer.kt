@@ -2,6 +2,7 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.config.BoundaryProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.redactQuerySignal
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
@@ -177,20 +178,15 @@ internal class ExecutionResultFinalizer(
     private fun trustEventMetadata(command: AgentCommand, hookContext: HookContext): Map<String, Any> {
         val metadata = linkedMapOf<String, Any>()
         metadata.putAll(command.metadata)
-        metadata["runId"] = hookContext.runId
-        metadata["userId"] = hookContext.userId
         val channel = hookContext.channel?.takeIf { it.isNotBlank() }
             ?: command.metadata["channel"]?.toString()?.takeIf { it.isNotBlank() }
         if (channel != null) {
             metadata["channel"] = channel
         }
-        val queryPreview = hookContext.userPrompt
-            .replace(Regex("\\s+"), " ")
-            .trim()
-            .takeIf { it.isNotBlank() }
-            ?.let { if (it.length <= 160) it else it.take(159).trimEnd() + "…" }
-        if (queryPreview != null) {
-            metadata["queryPreview"] = queryPreview
+        val querySignal = redactQuerySignal(hookContext.userPrompt)
+        if (querySignal != null) {
+            metadata["queryCluster"] = querySignal.clusterId
+            metadata["queryLabel"] = querySignal.label
         }
         return metadata
     }

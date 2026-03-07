@@ -245,9 +245,8 @@ class OpsDashboardController(
                 violation = event.violation,
                 policy = event.policy,
                 channel = event.channel,
-                runId = event.runId,
-                userId = event.userId,
-                queryPreview = event.queryPreview
+                queryCluster = event.queryCluster,
+                queryLabel = event.queryLabel
             )
         }
     }
@@ -298,7 +297,8 @@ class OpsDashboardController(
 
     private fun toMissingQuerySummary(insight: MissingQueryInsight): MissingQuerySummary {
         return MissingQuerySummary(
-            queryPreview = insight.queryPreview,
+            queryCluster = insight.queryCluster,
+            queryLabel = insight.queryLabel,
             count = insight.count,
             lastOccurredAt = insight.lastOccurredAt.toEpochMilli(),
             blockReason = insight.blockReason
@@ -411,7 +411,8 @@ data class EmployeeValueBucket(
 )
 
 data class MissingQuerySummary(
-    val queryPreview: String,
+    val queryCluster: String,
+    val queryLabel: String,
     val count: Long,
     val lastOccurredAt: Long,
     val blockReason: String?
@@ -427,7 +428,6 @@ data class RecentTrustEventSummary(
     val violation: String?,
     val policy: String?,
     val channel: String?,
-    val runId: String?,
-    val userId: String?,
-    val queryPreview: String?
+    val queryCluster: String?,
+    val queryLabel: String?
 )

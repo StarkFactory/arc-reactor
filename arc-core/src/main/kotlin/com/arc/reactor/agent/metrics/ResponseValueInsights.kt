@@ -1,6 +1,7 @@
 package com.arc.reactor.agent.metrics
 
 import java.time.Instant
+import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicLong
 
 data class ResponseValueSummary(
@@ -23,13 +24,30 @@ data class ResponseLaneSummary(
 )
 
 data class MissingQueryInsight(
-    val queryPreview: String,
+    val queryCluster: String,
+    val queryLabel: String,
     val count: Long,
     val lastOccurredAt: Instant,
     val blockReason: String? = null
 )
 
-internal fun normalizeMissingQueryKey(queryPreview: String): String {
+data class RedactedQuerySignal(
+    val clusterId: String,
+    val label: String
+)
+
+fun redactQuerySignal(queryPreview: String): RedactedQuerySignal? {
+    val normalized = normalizeQueryPreview(queryPreview)
+    if (normalized.isBlank()) return null
+    val clusterId = sha256Hex(normalized).take(12)
+    val kind = if (normalized.endsWith("?")) "Question" else "Prompt"
+    return RedactedQuerySignal(
+        clusterId = clusterId,
+        label = "$kind cluster $clusterId"
+    )
+}
+
+private fun normalizeQueryPreview(queryPreview: String): String {
     return queryPreview
         .trim()
         .lowercase()
@@ -43,8 +61,15 @@ internal data class ResponseLaneAggregate(
 )
 
 internal data class MissingQueryAggregate(
-    val queryPreview: String,
+    val queryCluster: String,
+    val queryLabel: String,
     val blockReason: String?,
     val count: AtomicLong = AtomicLong(),
     @Volatile var lastOccurredAt: Instant = Instant.now()
 )
+
+private fun sha256Hex(input: String): String {
+    return MessageDigest.getInstance("SHA-256")
+        .digest(input.toByteArray())
+        .joinToString("") { "%02x".format(it) }
+}

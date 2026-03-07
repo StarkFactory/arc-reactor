@@ -237,9 +237,8 @@ class ExecutionResultFinalizerTest {
         verify(exactly = 1) {
             metrics.recordUnverifiedResponse(match {
                 it["channel"] == "web" &&
-                    it["runId"] == "run-1" &&
-                    it["userId"] == "u" &&
-                    it["queryPreview"] == "Show the current policy" &&
+                    it["queryCluster"] == "93bd4b524029" &&
+                    it["queryLabel"] == "Prompt cluster 93bd4b524029" &&
                     it["blockReason"] == "unverified_sources"
             })
         }
