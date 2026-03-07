@@ -111,6 +111,15 @@ class SemanticToolSelector(
         selected: List<ToolCallback>,
         availableTools: List<ToolCallback>
     ): List<ToolCallback> {
+        if (looksLikeWorkBriefingPrompt(prompt)) {
+            val availableByName = availableTools.associateBy { it.name }
+            val preferred = PREFERRED_WORK_BRIEFING_TOOLS
+                .mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) {
+                return preferred
+            }
+        }
+
         if (!looksLikeConfluenceKnowledgePrompt(prompt)) return selected
 
         val availableByName = availableTools.associateBy { it.name }
@@ -118,12 +127,11 @@ class SemanticToolSelector(
             .mapNotNull(availableByName::get)
         if (preferred.isEmpty()) return selected
 
-        val filtered = if (looksLikeConfluenceAnswerPrompt(prompt)) {
-            selected.filterNot { it.name in LOW_LEVEL_CONFLUENCE_DISCOVERY_TOOLS }
-        } else {
-            selected
+        if (looksLikeConfluenceAnswerPrompt(prompt)) {
+            return preferred.take(maxResults)
         }
 
+        val filtered = selected.filterNot { it.name in LOW_LEVEL_CONFLUENCE_DISCOVERY_TOOLS }
         val ordered = LinkedHashMap<String, ToolCallback>()
         preferred.forEach { ordered[it.name] = it }
         filtered.forEach { ordered.putIfAbsent(it.name, it) }
@@ -138,6 +146,11 @@ class SemanticToolSelector(
     private fun looksLikeConfluenceAnswerPrompt(prompt: String): Boolean {
         val normalized = prompt.lowercase()
         return CONFLUENCE_ANSWER_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeWorkBriefingPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return WORK_BRIEFING_HINTS.any { normalized.contains(it) }
     }
 
     private fun refreshEmbeddingsIfNeeded(tools: List<ToolCallback>) {
@@ -175,6 +188,9 @@ class SemanticToolSelector(
             "confluence_get_page_content",
             "confluence_get_page"
         )
+        private val PREFERRED_WORK_BRIEFING_TOOLS = listOf(
+            "work_morning_briefing"
+        )
         private val LOW_LEVEL_CONFLUENCE_DISCOVERY_TOOLS = setOf(
             "confluence_search",
             "confluence_search_by_text"
@@ -187,6 +203,10 @@ class SemanticToolSelector(
         private val CONFLUENCE_ANSWER_HINTS = setOf(
             "what", "who", "why", "how", "describe", "explain", "summary", "summarize", "tell me",
             "알려", "설명", "요약", "정리", "무엇", "왜", "어떻게", "누구"
+        )
+        private val WORK_BRIEFING_HINTS = setOf(
+            "morning briefing", "daily briefing", "briefing", "work summary", "daily digest",
+            "브리핑", "요약 브리핑", "아침 브리핑", "데일리 브리핑"
         )
 
         /**

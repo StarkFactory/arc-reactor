@@ -8,6 +8,7 @@ import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.scheduler.DynamicSchedulerService
+import com.arc.reactor.scheduler.InMemoryScheduledJobStore
 import com.arc.reactor.scheduler.InMemoryScheduledJobExecutionStore
 import com.arc.reactor.scheduler.ScheduledJobExecutionStore
 import com.arc.reactor.scheduler.ScheduledJobStore
@@ -39,6 +40,10 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler
     havingValue = "true", matchIfMissing = false
 )
 class SchedulerConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun inMemoryScheduledJobStore(): ScheduledJobStore = InMemoryScheduledJobStore()
 
     @Bean
     @ConditionalOnMissingBean

@@ -11,10 +11,11 @@ class SystemPromptBuilder(
         basePrompt: String,
         ragContext: String?,
         responseFormat: ResponseFormat = ResponseFormat.TEXT,
-        responseSchema: String? = null
+        responseSchema: String? = null,
+        userPrompt: String? = null
     ): String {
         val parts = mutableListOf(basePrompt)
-        parts.add(buildGroundingInstruction(responseFormat))
+        parts.add(buildGroundingInstruction(responseFormat, userPrompt))
 
         if (ragContext != null) {
             parts.add(buildRagInstruction(ragContext))
@@ -30,7 +31,7 @@ class SystemPromptBuilder(
         return postProcessor?.process(result) ?: result
     }
 
-    private fun buildGroundingInstruction(responseFormat: ResponseFormat): String = buildString {
+    private fun buildGroundingInstruction(responseFormat: ResponseFormat, userPrompt: String?): String = buildString {
         append("[Grounding Rules]\n")
         append("Use only facts supported by the retrieved context or tool results.\n")
         append("If you cannot verify a fact, say you cannot verify it instead of guessing.\n")
@@ -39,6 +40,14 @@ class SystemPromptBuilder(
         append("Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.")
         append("\nDo not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; ")
         append("use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.")
+        if (looksLikeConfluenceAnswerPrompt(userPrompt)) {
+            append("\nFor this request, you MUST call `confluence_answer_question` before answering.")
+            append(" Do not reply directly from general knowledge or prior context.")
+        }
+        if (looksLikeWorkBriefingPrompt(userPrompt)) {
+            append("\nFor this request, you MUST call `work_morning_briefing` before answering.")
+            append(" Do not assemble the briefing manually.")
+        }
         if (responseFormat == ResponseFormat.TEXT) {
             append("\nEnd the response with a 'Sources' section that lists the supporting links.")
         }
@@ -73,5 +82,35 @@ class SystemPromptBuilder(
         append("If the context does not contain the answer, say so rather than guessing.\n")
         append("Do not mention the retrieval process to the user.\n\n")
         append(ragContext)
+    }
+
+    private fun looksLikeConfluenceAnswerPrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
+        val knowledgeHint = CONFLUENCE_KNOWLEDGE_HINTS.any { normalized.contains(it) }
+        val answerHint = CONFLUENCE_ANSWER_HINTS.any { normalized.contains(it) }
+        return knowledgeHint && answerHint
+    }
+
+    private fun looksLikeWorkBriefingPrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
+        return WORK_BRIEFING_HINTS.any { normalized.contains(it) }
+    }
+
+    companion object {
+        private val CONFLUENCE_KNOWLEDGE_HINTS = setOf(
+            "confluence", "wiki", "page", "document", "policy", "policies", "guideline", "guidelines",
+            "runbook", "knowledge", "internal", "service", "space", "컨플루언스", "위키", "페이지",
+            "문서", "정책", "규정", "가이드", "런북", "사내", "서비스", "스페이스"
+        )
+        private val CONFLUENCE_ANSWER_HINTS = setOf(
+            "what", "who", "why", "how", "describe", "explain", "summary", "summarize", "tell me",
+            "알려", "설명", "요약", "정리", "무엇", "왜", "어떻게", "누구"
+        )
+        private val WORK_BRIEFING_HINTS = setOf(
+            "morning briefing", "daily briefing", "briefing", "work summary", "daily digest",
+            "브리핑", "요약 브리핑", "아침 브리핑", "데일리 브리핑"
+        )
     }
 }

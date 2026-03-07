@@ -16,6 +16,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
+import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
 import java.time.Instant
 
 /**
@@ -136,10 +138,12 @@ class SchedulerController(
         ApiResponse(responseCode = "404", description = "Scheduled job not found")
     ])
     @PostMapping("/{id}/trigger")
-    fun triggerJob(@PathVariable id: String, exchange: ServerWebExchange): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
-        val result = schedulerService.trigger(id)
-        return ResponseEntity.ok(mapOf("result" to result))
+    fun triggerJob(@PathVariable id: String, exchange: ServerWebExchange): Mono<ResponseEntity<Any>> {
+        if (!isAdmin(exchange)) return Mono.just(forbiddenResponse())
+        return Mono.fromCallable {
+            val result = schedulerService.trigger(id)
+            ResponseEntity.ok<Any>(mapOf("result" to result))
+        }.subscribeOn(Schedulers.boundedElastic())
     }
 
     @Operation(summary = "Dry-run a scheduled job without recording status or sending notifications (ADMIN)")
@@ -149,10 +153,12 @@ class SchedulerController(
         ApiResponse(responseCode = "404", description = "Scheduled job not found")
     ])
     @PostMapping("/{id}/dry-run")
-    fun dryRunJob(@PathVariable id: String, exchange: ServerWebExchange): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
-        val result = schedulerService.dryRun(id)
-        return ResponseEntity.ok(mapOf("result" to result, "dryRun" to true))
+    fun dryRunJob(@PathVariable id: String, exchange: ServerWebExchange): Mono<ResponseEntity<Any>> {
+        if (!isAdmin(exchange)) return Mono.just(forbiddenResponse())
+        return Mono.fromCallable {
+            val result = schedulerService.dryRun(id)
+            ResponseEntity.ok<Any>(mapOf("result" to result, "dryRun" to true))
+        }.subscribeOn(Schedulers.boundedElastic())
     }
 
     @Operation(summary = "Get execution history for a scheduled job (ADMIN)")

@@ -9,6 +9,7 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.TimeUnit
 
@@ -21,6 +22,16 @@ class MicrometerAgentMetrics(
     private val outputGuardRejected = AtomicLong()
     private val outputGuardModified = AtomicLong()
     private val boundaryFailures = AtomicLong()
+    private val observedResponses = AtomicLong()
+    private val groundedResponses = AtomicLong()
+    private val blockedResponses = AtomicLong()
+    private val interactiveResponses = AtomicLong()
+    private val scheduledResponses = AtomicLong()
+    private val answerModeCounts = ConcurrentHashMap<String, AtomicLong>()
+    private val channelCounts = ConcurrentHashMap<String, AtomicLong>()
+    private val toolFamilyCounts = ConcurrentHashMap<String, AtomicLong>()
+    private val laneSummaries = ConcurrentHashMap<String, ResponseLaneAggregate>()
+    private val missingQueryCounts = ConcurrentHashMap<String, MissingQueryAggregate>()
 
     override fun recordExecution(result: AgentResult) {
         Counter.builder(METRIC_EXECUTIONS)
@@ -140,9 +151,8 @@ class MicrometerAgentMetrics(
                     stage = stage,
                     reason = reason.takeIf { it.isNotBlank() },
                     channel = metadataValue(metadata, "channel"),
-                    runId = metadataValue(metadata, "runId"),
-                    userId = metadataValue(metadata, "userId"),
-                    queryPreview = metadataValue(metadata, "queryPreview")
+                    queryCluster = metadataValue(metadata, "queryCluster"),
+                    queryLabel = metadataValue(metadata, "queryLabel")
                 )
             )
         }
@@ -176,9 +186,8 @@ class MicrometerAgentMetrics(
                 violation = violation,
                 policy = policy,
                 channel = metadataValue(metadata, "channel"),
-                runId = metadataValue(metadata, "runId"),
-                userId = metadataValue(metadata, "userId"),
-                queryPreview = metadataValue(metadata, "queryPreview")
+                queryCluster = metadataValue(metadata, "queryCluster"),
+                queryLabel = metadataValue(metadata, "queryLabel")
             )
         )
     }
@@ -196,12 +205,26 @@ class MicrometerAgentMetrics(
                 type = "unverified_response",
                 severity = "WARN",
                 channel = metadata["channel"]?.toString()?.ifBlank { "unknown" } ?: "unknown",
-                runId = metadataValue(metadata, "runId"),
-                userId = metadataValue(metadata, "userId"),
-                queryPreview = metadataValue(metadata, "queryPreview"),
+                queryCluster = metadataValue(metadata, "queryCluster"),
+                queryLabel = metadataValue(metadata, "queryLabel"),
                 reason = metadataValue(metadata, "blockReason")
             )
         )
+    }
+
+    override fun recordResponseObservation(metadata: Map<String, Any>) {
+        val answerMode = metadata["answerMode"]?.toString()?.trim()?.ifBlank { "unknown" } ?: "unknown"
+        val grounded = metadata["grounded"] == true
+        val blocked = metadata["blockReason"]?.toString()?.isNotBlank() == true
+        observedResponses.incrementAndGet()
+        if (grounded) groundedResponses.incrementAndGet()
+        if (metadata["deliveryMode"] == "scheduled") scheduledResponses.incrementAndGet() else interactiveResponses.incrementAndGet()
+        if (blocked) blockedResponses.incrementAndGet()
+        incrementBucket(answerModeCounts, answerMode, "unknown")
+        incrementBucket(channelCounts, metadata["channel"]?.toString(), "unknown")
+        incrementBucket(toolFamilyCounts, metadata["toolFamily"]?.toString(), "none")
+        trackLaneSummary(answerMode, grounded, blocked)
+        trackMissingQuery(metadata)
     }
 
     override fun recentTrustEvents(limit: Int): List<RecentTrustEvent> = trustEvents.take(limit)
@@ -209,12 +232,86 @@ class MicrometerAgentMetrics(
     override fun outputGuardRejectedCount(): Long = outputGuardRejected.get()
     override fun outputGuardModifiedCount(): Long = outputGuardModified.get()
     override fun boundaryFailuresCount(): Long = boundaryFailures.get()
+    override fun responseValueSummary(): ResponseValueSummary {
+        return ResponseValueSummary(
+            observedResponses = observedResponses.get(),
+            groundedResponses = groundedResponses.get(),
+            blockedResponses = blockedResponses.get(),
+            interactiveResponses = interactiveResponses.get(),
+            scheduledResponses = scheduledResponses.get(),
+            answerModeCounts = snapshotCounts(answerModeCounts),
+            channelCounts = snapshotCounts(channelCounts),
+            toolFamilyCounts = snapshotCounts(toolFamilyCounts),
+            laneSummaries = snapshotLaneSummaries()
+        )
+    }
+
+    override fun topMissingQueries(limit: Int): List<MissingQueryInsight> {
+        return missingQueryCounts.values
+            .sortedWith(compareByDescending<MissingQueryAggregate> { it.count.get() }.thenByDescending { it.lastOccurredAt })
+            .take(limit)
+            .map {
+                MissingQueryInsight(
+                    queryCluster = it.queryCluster,
+                    queryLabel = it.queryLabel,
+                    count = it.count.get(),
+                    lastOccurredAt = it.lastOccurredAt,
+                    blockReason = it.blockReason
+                )
+            }
+    }
 
     private fun appendTrustEvent(event: RecentTrustEvent) {
         trustEvents.addFirst(event)
         while (trustEvents.size > MAX_TRUST_EVENTS) {
             trustEvents.pollLast()
         }
+    }
+
+    private fun trackMissingQuery(metadata: Map<String, Any>) {
+        val blockReason = metadataValue(metadata, "blockReason") ?: return
+        val queryCluster = metadataValue(metadata, "queryCluster") ?: return
+        val queryLabel = metadataValue(metadata, "queryLabel") ?: return
+        val aggregate = missingQueryCounts.computeIfAbsent(queryCluster) {
+            MissingQueryAggregate(queryCluster = queryCluster, queryLabel = queryLabel, blockReason = blockReason)
+        }
+        aggregate.count.incrementAndGet()
+        aggregate.lastOccurredAt = Instant.now()
+    }
+
+    private fun incrementBucket(
+        counts: ConcurrentHashMap<String, AtomicLong>,
+        rawKey: String?,
+        fallback: String
+    ) {
+        val key = rawKey?.trim()?.ifBlank { fallback } ?: fallback
+        counts.computeIfAbsent(key) { AtomicLong() }.incrementAndGet()
+    }
+
+    private fun snapshotCounts(counts: ConcurrentHashMap<String, AtomicLong>): Map<String, Long> {
+        return counts.entries
+            .sortedByDescending { it.value.get() }
+            .associate { it.key to it.value.get() }
+    }
+
+    private fun trackLaneSummary(answerMode: String, grounded: Boolean, blocked: Boolean) {
+        val aggregate = laneSummaries.computeIfAbsent(answerMode) { ResponseLaneAggregate() }
+        aggregate.observedResponses.incrementAndGet()
+        if (grounded) aggregate.groundedResponses.incrementAndGet()
+        if (blocked) aggregate.blockedResponses.incrementAndGet()
+    }
+
+    private fun snapshotLaneSummaries(): List<ResponseLaneSummary> {
+        return laneSummaries.entries
+            .sortedByDescending { it.value.observedResponses.get() }
+            .map { (answerMode, aggregate) ->
+                ResponseLaneSummary(
+                    answerMode = answerMode,
+                    observedResponses = aggregate.observedResponses.get(),
+                    groundedResponses = aggregate.groundedResponses.get(),
+                    blockedResponses = aggregate.blockedResponses.get()
+                )
+            }
     }
 
     private fun metadataValue(metadata: Map<String, Any>, key: String): String? {

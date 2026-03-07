@@ -147,7 +147,8 @@ internal class StreamingExecutionCoordinator(
             baseSystemPrompt,
             ragContext,
             command.responseFormat,
-            command.responseSchema
+            command.responseSchema,
+            command.userPrompt
         )
         val selectedTools = if (command.mode == AgentMode.STANDARD) {
             emptyList()
