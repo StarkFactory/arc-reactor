@@ -45,9 +45,9 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
 
     private fun buildUnverifiedResponse(userPrompt: String, sources: List<VerifiedSource>): String {
         val message = if (containsHangul(userPrompt)) {
-            "검증 가능한 출처를 찾지 못해 답변을 확정할 수 없습니다. 허용된 Jira, Confluence, Bitbucket 자료를 다시 조회해 주세요."
+            "검증 가능한 출처를 찾지 못해 답변을 확정할 수 없습니다. 승인된 Jira, Confluence, Bitbucket, Swagger/OpenAPI 자료를 다시 조회해 주세요."
         } else {
-            "I couldn't verify this answer from approved sources. Please re-run the query against allowed Jira, Confluence, or Bitbucket data."
+            "I couldn't verify this answer from approved sources. Please re-run the query against approved Jira, Confluence, Bitbucket, or Swagger/OpenAPI data."
         }
         return "$message\n\n${buildSourcesBlock(userPrompt, sources)}"
     }
@@ -101,11 +101,13 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
     }
 
     companion object {
-        private val WORKSPACE_TOOL_PREFIXES = listOf("jira_", "confluence_", "bitbucket_", "work_", "mcp_")
+        private val WORKSPACE_TOOL_PREFIXES =
+            listOf("jira_", "confluence_", "bitbucket_", "work_", "mcp_", "spec_")
         private val VERIFICATION_KEYWORDS = setOf(
             "jira", "confluence", "bitbucket", "slack", "policy", "policies", "runbook", "incident",
-            "release", "owner", "status", "guideline", "documentation", "지라", "컨플루언스", "비트버킷",
-            "정책", "규정", "문서", "사내", "서비스", "규칙"
+            "release", "owner", "status", "guideline", "documentation", "swagger", "openapi",
+            "endpoint", "schema", "api", "지라", "컨플루언스", "비트버킷", "스웨거", "오픈api",
+            "엔드포인트", "스키마", "정책", "규정", "문서", "사내", "서비스", "규칙"
         )
         private val INFORMATION_REQUEST_PATTERNS = setOf(
             "who", "what", "when", "where", "why", "how", "tell me", "explain", "summarize", "summary",

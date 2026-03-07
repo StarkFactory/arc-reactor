@@ -21,7 +21,11 @@ import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
 import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleAuditStore
 import com.arc.reactor.guard.output.policy.InMemoryOutputGuardRuleStore
 import com.arc.reactor.hook.impl.FeedbackMetadataCaptureHook
+import com.arc.reactor.mcp.InMemoryMcpSecurityPolicyStore
 import com.arc.reactor.mcp.InMemoryMcpServerStore
+import com.arc.reactor.mcp.McpSecurityConfig
+import com.arc.reactor.mcp.McpSecurityPolicyProvider
+import com.arc.reactor.mcp.McpSecurityPolicyStore
 import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
@@ -113,6 +117,23 @@ class ArcReactorCoreBeansConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun mcpServerStore(): McpServerStore = InMemoryMcpServerStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun mcpSecurityPolicyStore(): McpSecurityPolicyStore = InMemoryMcpSecurityPolicyStore()
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun mcpSecurityPolicyProvider(
+        properties: AgentProperties,
+        mcpSecurityPolicyStore: McpSecurityPolicyStore
+    ): McpSecurityPolicyProvider = McpSecurityPolicyProvider(
+        defaultConfig = McpSecurityConfig(
+            allowedServerNames = properties.mcp.security.allowedServerNames,
+            maxToolOutputLength = properties.mcp.security.maxToolOutputLength
+        ),
+        store = mcpSecurityPolicyStore
+    )
 
     @Bean
     @ConditionalOnMissingBean

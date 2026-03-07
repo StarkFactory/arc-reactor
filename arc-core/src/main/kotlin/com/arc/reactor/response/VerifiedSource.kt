@@ -60,8 +60,8 @@ internal object VerifiedSourceExtractor {
         return BLOCKED_URL_PATTERNS.any { pattern -> url.contains(pattern, ignoreCase = true) }
     }
 
-    private val URL_FIELDS = listOf("url", "webUrl", "htmlUrl", "link")
-    private val TITLE_FIELDS = listOf("title", "name", "summary", "key", "id")
+    private val URL_FIELDS = listOf("url", "webUrl", "htmlUrl", "link", "sourceUrl", "specUrl")
+    private val TITLE_FIELDS = listOf("title", "name", "summary", "key", "id", "specName")
     private val BLOCKED_URL_PATTERNS = listOf("/rest/api/", "/api/3/", "/download/attachments/")
     private const val MAX_SOURCES = 12
 }
