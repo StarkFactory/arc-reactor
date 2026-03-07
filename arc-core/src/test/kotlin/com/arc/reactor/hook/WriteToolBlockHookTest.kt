@@ -73,4 +73,33 @@ class WriteToolBlockHookTest {
             "Write tool on non-deny channel should continue"
         }
     }
+
+    @Test
+    fun `allows release readiness preview on slack because it is read only`() = runTest {
+        val props = ToolPolicyProperties(
+            enabled = true,
+            writeToolNames = setOf("work_release_readiness_pack"),
+            denyWriteChannels = setOf("slack"),
+            denyWriteMessage = "blocked"
+        )
+        val provider = ToolPolicyProvider(props, InMemoryToolPolicyStore(ToolPolicy.fromProperties(props)))
+        val hook = WriteToolBlockHook(ToolExecutionPolicyEngine(provider))
+
+        val ctx = ToolCallContext(
+            agentContext = HookContext(
+                runId = "run-1",
+                userId = "u1",
+                userPrompt = "release readiness pack",
+                channel = "slack"
+            ),
+            toolName = "work_release_readiness_pack",
+            toolParams = mapOf("dryRunActionItems" to true, "autoExecuteActionItems" to false),
+            callIndex = 0
+        )
+
+        val result = hook.beforeToolCall(ctx)
+        assertInstanceOf(HookResult.Continue::class.java, result) {
+            "Preview-only release readiness pack should not be treated as a write tool"
+        }
+    }
 }

@@ -18,6 +18,7 @@ import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.ResponseFilterContext
+import com.arc.reactor.response.ToolResponseSignal
 import com.arc.reactor.response.VerifiedSource
 import com.arc.reactor.response.impl.VerifiedSourcesResponseFilter
 import io.mockk.coEvery
@@ -274,5 +275,63 @@ class ExecutionResultFinalizerTest {
         } catch (_: CancellationException) {
             // expected
         }
+    }
+
+    @Test
+    fun `should synthesize visible policy denied response when tool metadata blocks access`() = runBlocking {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            nowMs = { 1_000L }
+        )
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "CAMPAIGN 프로젝트의 blocker 이슈를 정리해줘.").apply {
+            metadata[ToolCallOrchestrator.TOOL_SIGNALS_METADATA_KEY] = mutableListOf(
+                ToolResponseSignal(toolName = "jira_blocker_digest", grounded = false, blockReason = "policy_denied")
+            )
+            metadata["blockReason"] = "policy_denied"
+        }
+
+        val result = finalizer.finalize(
+            result = AgentResult(success = true, content = null),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "CAMPAIGN 프로젝트의 blocker 이슈를 정리해줘."),
+            hookContext = hookContext,
+            toolsUsed = listOf("jira_blocker_digest"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertEquals("policy_denied", result.metadata["blockReason"], "Policy block reason should be preserved")
+        assertTrue(result.content!!.contains("접근 정책"), "Policy-denied responses should explain the policy block")
+    }
+
+    @Test
+    fun `should synthesize read only refusal for empty swagger mutation response`() = runBlocking {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            nowMs = { 1_000L }
+        )
+
+        val result = finalizer.finalize(
+            result = AgentResult(success = true, content = null),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "로드된 Petstore v2 스펙을 catalog에서 제거해줘."),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "로드된 Petstore v2 스펙을 catalog에서 제거해줘."),
+            toolsUsed = emptyList(),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertEquals("read_only_mutation", result.metadata["blockReason"], "Mutation prompts should expose a read-only block reason")
+        assertTrue(result.content!!.contains("읽기 전용"), "Mutation refusals should be visible to the end user")
     }
 }

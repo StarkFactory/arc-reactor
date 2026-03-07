@@ -257,6 +257,7 @@ internal class ToolCallOrchestrator(
             signal.grounded?.let { hookContext.metadata["grounded"] = it }
             signal.freshness?.let { hookContext.metadata["freshness"] = it }
             signal.retrievedAt?.let { hookContext.metadata["retrievedAt"] = it }
+            signal.blockReason?.let { hookContext.metadata["blockReason"] = it }
         }
     }
 

@@ -69,8 +69,11 @@ class VerifiedSourcesResponseFilterTest {
         assertTrue(result.startsWith("죄송합니다. 해당 워크스페이스는 읽기 전용")) {
             "Read-only mutation refusals should not be replaced by verification-failure text"
         }
-        assertTrue(result.endsWith("출처\n- 검증된 출처를 찾지 못했습니다.")) {
-            "Read-only mutation refusals should still include the required footer"
+        assertEquals(
+            "죄송합니다. 해당 워크스페이스는 읽기 전용이므로 요청하신 변경 작업을 수행할 수 없습니다.",
+            result
+        ) {
+            "Read-only mutation refusals should stay concise without an empty sources footer"
         }
     }
 
@@ -154,5 +157,116 @@ class VerifiedSourcesResponseFilterTest {
         )
 
         assertEquals("{\"ok\":true}", result)
+    }
+
+    @Test
+    fun `should strip leaked tool code and generated sources block before appending normalized footer`() = runTest {
+        val result = filter.filter(
+            content = """
+                ```tool_code
+                {"tool_name":"jira_daily_briefing","project_key":"BACKEND"}
+                ```
+
+                BACKEND 프로젝트 브리핑입니다.
+
+                Sources:
+                * Jira project BACKEND: https://example.atlassian.net/issues/?jql=project=BACKEND
+            """.trimIndent(),
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "BACKEND 프로젝트 기준으로 오늘의 Jira 브리핑을 만들어줘."),
+                toolsUsed = listOf("jira_daily_briefing"),
+                verifiedSources = listOf(
+                    VerifiedSource(title = "BACKEND-1", url = "https://example.atlassian.net/browse/BACKEND-1")
+                ),
+                durationMs = 85
+            )
+        )
+
+        assertTrue(!result.contains("```tool_code")) {
+            "Internal tool planning blocks should be removed from final responses"
+        }
+        assertTrue(!result.contains("\nSources:\n")) {
+            "Generated English sources blocks should be removed before the normalized footer is appended"
+        }
+        assertTrue(result.contains("BACKEND 프로젝트 브리핑입니다.")) {
+            "The user-facing summary should be preserved"
+        }
+        assertTrue(result.endsWith("출처\n- [BACKEND-1](https://example.atlassian.net/browse/BACKEND-1)")) {
+            "The normalized footer should still be appended"
+        }
+    }
+
+    @Test
+    fun `should return verified fallback message when sanitized content becomes empty`() = runTest {
+        val result = filter.filter(
+            content = """
+                ```tool_code
+                {"tool_name":"jira_blocker_digest","project_key":"DEV"}
+                ```
+            """.trimIndent(),
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "DEV blocker 보여줘"),
+                toolsUsed = listOf("jira_blocker_digest"),
+                verifiedSources = listOf(
+                    VerifiedSource(title = "DEV-1", url = "https://example.atlassian.net/browse/DEV-1")
+                ),
+                durationMs = 70
+            )
+        )
+
+        assertTrue(result.contains("승인된 도구 결과를 확인했지만")) {
+            "Blank sanitized content should fall back to a short verified message"
+        }
+        assertTrue(result.contains("[DEV-1](https://example.atlassian.net/browse/DEV-1)")) {
+            "Fallback verified responses should still include the source footer"
+        }
+    }
+
+    @Test
+    fun `should strip inline and emphasized sources sections from tool output`() = runTest {
+        val result = filter.filter(
+            content = """
+                문서를 찾지 못했습니다.
+                Sources: https://example.atlassian.net/wiki/search?text=weekly
+
+                **출처:**
+                * Jira project DEV: https://example.atlassian.net/issues/?jql=project=DEV
+            """.trimIndent(),
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "weekly 문서 찾아줘"),
+                toolsUsed = listOf("confluence_search_by_text"),
+                verifiedSources = listOf(
+                    VerifiedSource(title = "Confluence search for 'weekly'", url = "https://example.atlassian.net/wiki/search?text=weekly")
+                ),
+                durationMs = 50
+            )
+        )
+
+        assertTrue(!result.contains("Sources: https://")) {
+            "Inline tool-generated sources lines should be removed"
+        }
+        assertTrue(!result.contains("**출처:**")) {
+            "Emphasized sources headings should be removed"
+        }
+        assertTrue(result.endsWith("출처\n- [Confluence search for 'weekly'](https://example.atlassian.net/wiki/search?text=weekly)")) {
+            "The normalized footer should still be appended after stripping inline sources"
+        }
+    }
+
+    @Test
+    fun `should not append empty sources footer for internal read tools without links`() = runTest {
+        val result = filter.filter(
+            content = "저장된 briefing profile은 default 하나입니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "저장된 briefing profile 목록을 보여줘."),
+                toolsUsed = listOf("work_list_briefing_profiles"),
+                verifiedSources = emptyList(),
+                durationMs = 40
+            )
+        )
+
+        assertEquals("저장된 briefing profile은 default 하나입니다.", result) {
+            "Internal read tools without linkable sources should not get an empty footer"
+        }
     }
 }

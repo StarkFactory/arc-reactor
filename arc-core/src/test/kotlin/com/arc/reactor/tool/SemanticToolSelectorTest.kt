@@ -279,6 +279,62 @@ class SemanticToolSelectorTest {
         }
 
         @Test
+        fun `should force work release risk tool for release risk prompts`() {
+            val workTools = listOf(
+                createTool("work_morning_briefing", "Generate a morning briefing"),
+                createTool("work_release_risk_digest", "Generate release risk digest"),
+                createTool("work_prepare_standup_update", "Prepare a standup draft")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(workTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+            val result = selector.select("DEV 프로젝트와 jarvis-project/dev 기준으로 release risk digest를 정리해줘.", workTools)
+
+            assertEquals(listOf("work_release_risk_digest"), result.map { it.name }) {
+                "Release risk prompts should be narrowed to work_release_risk_digest"
+            }
+        }
+
+        @Test
+        fun `should force work release readiness tool for release readiness prompts`() {
+            val workTools = listOf(
+                createTool("work_release_readiness_pack", "Build a release readiness pack"),
+                createTool("work_release_risk_digest", "Generate release risk digest"),
+                createTool("work_action_items_to_jira", "Convert action items into Jira work")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(workTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+            val result = selector.select(
+                "DEV 프로젝트와 jarvis-project/dev 기준으로 release readiness pack을 출처와 함께 만들어줘.",
+                workTools
+            )
+
+            assertEquals(listOf("work_release_readiness_pack"), result.map { it.name }) {
+                "Release readiness prompts should not be misclassified as write mutations"
+            }
+        }
+
+        @Test
+        fun `should force work briefing profile tool for profile prompts`() {
+            val workTools = listOf(
+                createTool("work_morning_briefing", "Generate a morning briefing"),
+                createTool("work_list_briefing_profiles", "List briefing profiles")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(workTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+            val result = selector.select("저장된 briefing profile 목록을 보여줘.", workTools)
+
+            assertEquals(listOf("work_list_briefing_profiles"), result.map { it.name }) {
+                "Briefing profile prompts should be narrowed to work_list_briefing_profiles"
+            }
+        }
+
+        @Test
         fun `should prefer read only evidence tool for workspace mutation prompts`() {
             val workspaceTools = listOf(
                 createTool("jira_assign_issue", "Assign a Jira issue"),
@@ -317,6 +373,24 @@ class SemanticToolSelectorTest {
         }
 
         @Test
+        fun `should force jira search tool for recent project summary prompts`() {
+            val jiraTools = listOf(
+                createTool("jira_search_issues", "Search Jira issues"),
+                createTool("jira_daily_briefing", "Generate a daily Jira briefing"),
+                createTool("jira_search_by_text", "Search Jira by text")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(jiraTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+            val result = selector.select("BACKEND 프로젝트에서 최근 Jira 이슈를 소스와 함께 요약해줘.", jiraTools)
+
+            assertEquals(listOf("jira_search_issues", "jira_search_by_text"), result.map { it.name }) {
+                "Recent Jira summaries should be narrowed to search tools"
+            }
+        }
+
+        @Test
         fun `should force bitbucket repository tool for repository inventory prompts`() {
             val tools = listOf(
                 createTool("bitbucket_list_prs", "List pull requests"),
@@ -332,6 +406,42 @@ class SemanticToolSelectorTest {
 
             assertEquals(listOf("bitbucket_list_repositories"), result.map { it.name }) {
                 "Repository inventory prompts should be narrowed to bitbucket_list_repositories"
+            }
+        }
+
+        @Test
+        fun `should force bitbucket review queue for my review prompts`() {
+            val tools = listOf(
+                createTool("bitbucket_review_queue", "List pull requests needing review attention"),
+                createTool("bitbucket_list_prs", "List pull requests"),
+                createTool("bitbucket_review_sla_alerts", "List review SLA breaches")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(tools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+            val result = selector.select("Bitbucket에서 내가 검토해야 할 PR이 있는지 출처와 함께 알려줘.", tools)
+
+            assertEquals(listOf("bitbucket_review_queue", "bitbucket_list_prs"), result.map { it.name }) {
+                "Personal review backlog prompts should prioritize bitbucket_review_queue"
+            }
+        }
+
+        @Test
+        fun `should force bitbucket review sla for review risk prompts`() {
+            val tools = listOf(
+                createTool("bitbucket_review_sla_alerts", "List review SLA breaches"),
+                createTool("bitbucket_review_queue", "List review queue"),
+                createTool("bitbucket_list_prs", "List pull requests")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(tools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+            val result = selector.select("Bitbucket에서 최근 코드 리뷰 리스크를 출처와 함께 요약해줘.", tools)
+
+            assertEquals(listOf("bitbucket_review_sla_alerts", "bitbucket_review_queue", "bitbucket_list_prs"), result.map { it.name }) {
+                "Review risk prompts should prioritize review SLA alerts"
             }
         }
 
@@ -355,6 +465,84 @@ class SemanticToolSelectorTest {
 
             assertEquals(listOf("spec_load", "spec_detail"), result.map { it.name }) {
                 "Swagger endpoint detail prompts should prioritize spec_load then spec_detail"
+            }
+        }
+
+        @Test
+        fun `should route loaded swagger summaries to spec list and summary`() {
+            val tools = listOf(
+                createTool("spec_list", "List loaded specs"),
+                createTool("spec_summary", "Summarize a loaded spec"),
+                createTool("spec_load", "Load a spec from URL")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(tools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+            val result = selector.select("현재 로드된 스펙 중 Petstore 관련 스펙을 요약해줘.", tools)
+
+            assertEquals(listOf("spec_list", "spec_summary"), result.map { it.name }) {
+                "Loaded swagger summary prompts should use spec_list and spec_summary"
+            }
+        }
+
+        @Test
+        fun `should route wrong endpoint prompts to swagger search tools`() {
+            val tools = listOf(
+                createTool("spec_search", "Search endpoints in loaded specs"),
+                createTool("spec_list", "List loaded specs"),
+                createTool("spec_summary", "Summarize a loaded spec")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(tools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+            val result = selector.select("로드된 Petstore 스펙에서 잘못된 endpoint를 찾으려 하면 어떻게 보이는지 보여줘.", tools)
+
+            assertEquals(listOf("spec_list", "spec_search"), result.map { it.name }) {
+                "Wrong endpoint prompts should inspect loaded specs before searching"
+            }
+        }
+
+        @Test
+        fun `should treat confluence page body prompts as answer prompts`() {
+            val confluenceTools = listOf(
+                createTool("confluence_search_by_text", "Low-level search"),
+                createTool("confluence_answer_question", "Preferred Confluence knowledge tool"),
+                createTool("confluence_get_page_content", "Get page content")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(confluenceTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+            val result = selector.select("Confluence에서 '개발팀 Home' 페이지 본문을 읽고 핵심만 요약해줘.", confluenceTools)
+
+            assertEquals(
+                listOf("confluence_get_page_content", "confluence_answer_question", "confluence_search_by_text"),
+                result.map { it.name }
+            ) {
+                "Confluence page body prompts should prioritize answer and page-content tools"
+            }
+        }
+
+        @Test
+        fun `should route confluence discovery prompts to search tools`() {
+            val confluenceTools = listOf(
+                createTool("confluence_search_by_text", "Search Confluence by keyword"),
+                createTool("confluence_search", "Search Confluence by CQL"),
+                createTool("confluence_answer_question", "Preferred Confluence knowledge tool")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(confluenceTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+            val result = selector.select(
+                "Confluence에서 'weekly' 키워드로 검색하고 어떤 문서가 있는지 링크와 함께 알려줘.",
+                confluenceTools
+            )
+
+            assertEquals(listOf("confluence_search_by_text", "confluence_search"), result.map { it.name }) {
+                "Confluence discovery prompts should prioritize search tools"
             }
         }
     }

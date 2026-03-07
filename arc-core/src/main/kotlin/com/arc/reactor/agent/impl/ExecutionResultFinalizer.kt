@@ -18,6 +18,7 @@ import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.ResponseFilterContext
 import com.arc.reactor.response.ToolResponseSignal
 import com.arc.reactor.response.VerifiedSource
+import com.arc.reactor.tool.WorkspaceMutationIntentDetector
 import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
@@ -64,14 +65,15 @@ internal class ExecutionResultFinalizer(
             return bounded
         }
 
-        val filtered = enrichResponseMetadata(
-            applyResponseFilters(bounded, command, hookContext, toolsUsed, startTime),
+        val filtered = applyResponseFilters(bounded, command, hookContext, toolsUsed, startTime)
+        val completed = enrichResponseMetadata(
+            ensureVisibleBlockedResponse(filtered, command, hookContext),
             hookContext
         )
-        observeResponse(filtered, command, hookContext, toolsUsed)
-        conversationManager.saveHistory(command, filtered)
-        runAfterCompletionHook(hookContext, filtered, toolsUsed, startTime)
-        return recordFinalExecution(filtered, startTime)
+        observeResponse(completed, command, hookContext, toolsUsed)
+        conversationManager.saveHistory(command, completed)
+        runAfterCompletionHook(hookContext, completed, toolsUsed, startTime)
+        return recordFinalExecution(completed, startTime)
     }
 
     private suspend fun applyOutputGuardPipeline(
@@ -284,11 +286,67 @@ internal class ExecutionResultFinalizer(
         sources: List<VerifiedSource>
     ): Boolean {
         if (sources.isNotEmpty()) return false
+        if (hookContext.metadata["blockReason"]?.toString()?.isNotBlank() == true) return false
         if (UNVERIFIED_PATTERNS.any { filteredContent.contains(it, ignoreCase = true) }) {
             hookContext.metadata["blockReason"] = "unverified_sources"
             return true
         }
         return false
+    }
+
+    private fun ensureVisibleBlockedResponse(
+        result: AgentResult,
+        command: AgentCommand,
+        hookContext: HookContext
+    ): AgentResult {
+        if (!result.success) return result
+        val blockReason = resolveVisibleBlockReason(command, hookContext) ?: return result
+        val existingContent = result.content?.trim()
+        if (!existingContent.isNullOrBlank()) {
+            if (blockReason == "policy_denied" && UNVERIFIED_PATTERNS.any { existingContent.contains(it, ignoreCase = true) }) {
+                return result.copy(content = buildBlockedResponse(command.userPrompt, blockReason))
+            }
+            return result
+        }
+        return result.copy(content = buildBlockedResponse(command.userPrompt, blockReason))
+    }
+
+    private fun resolveVisibleBlockReason(command: AgentCommand, hookContext: HookContext): String? {
+        hookContext.metadata["blockReason"]?.toString()?.takeIf { it.isNotBlank() }?.let { return it }
+        if (WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(command.userPrompt)) {
+            hookContext.metadata["blockReason"] = "read_only_mutation"
+            return "read_only_mutation"
+        }
+        return null
+    }
+
+    private fun buildBlockedResponse(userPrompt: String, blockReason: String): String {
+        val hangul = userPrompt.any { ch -> ch in '\uAC00'..'\uD7A3' }
+        return when (blockReason) {
+            "policy_denied" -> if (hangul) {
+                "현재 접근 정책에 포함되지 않은 Jira, Confluence, Bitbucket, Swagger 범위라 조회할 수 없습니다."
+            } else {
+                "This request targets Jira, Confluence, Bitbucket, or Swagger data outside the current access policy."
+            }
+
+            "read_only_mutation" -> if (hangul) {
+                "현재 workspace는 읽기 전용이라 변경 작업을 수행할 수 없습니다."
+            } else {
+                "The current workspace is read-only, so I can't perform this mutation."
+            }
+
+            "unverified_sources" -> if (hangul) {
+                "검증 가능한 출처를 찾지 못해 답변을 확정할 수 없습니다. 승인된 Jira, Confluence, Bitbucket, Swagger/OpenAPI 자료를 다시 조회해 주세요."
+            } else {
+                "I couldn't verify this answer from approved sources. Please re-run the query against approved Jira, Confluence, Bitbucket, or Swagger/OpenAPI data."
+            }
+
+            else -> if (hangul) {
+                "안전한 검증 경로를 확인하지 못해 이 요청을 완료할 수 없습니다."
+            } else {
+                "I couldn't complete this request through a verified safe path."
+            }
+        }
     }
 
     private fun enrichResponseMetadata(result: AgentResult, hookContext: HookContext): AgentResult {
@@ -391,6 +449,7 @@ internal class ExecutionResultFinalizer(
         signal.grounded?.let { data["grounded"] = it }
         signal.freshness?.let { data["freshness"] = sanitizeMap(it) }
         signal.retrievedAt?.let { data["retrievedAt"] = it }
+        signal.blockReason?.let { data["blockReason"] = it }
         return data
     }
 

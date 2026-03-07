@@ -8,7 +8,8 @@ data class ToolResponseSignal(
     val grounded: Boolean? = null,
     val answerMode: String? = null,
     val freshness: Map<String, Any?>? = null,
-    val retrievedAt: String? = null
+    val retrievedAt: String? = null,
+    val blockReason: String? = null
 )
 
 internal object ToolResponseSignalExtractor {
@@ -32,15 +33,29 @@ internal object ToolResponseSignalExtractor {
             ?.asText()
             ?.trim()
             ?.takeIf(String::isNotBlank)
+        val blockReason = tree.path("blockReason")
+            .takeIf { !it.isMissingNode && !it.isNull }
+            ?.asText()
+            ?.trim()
+            ?.takeIf(String::isNotBlank)
+            ?: inferBlockReason(
+                tree.path("error")
+                    .takeIf { !it.isMissingNode && !it.isNull }
+                    ?.asText()
+                    ?.trim()
+            )
 
-        if (grounded == null && answerMode == null && freshness == null && retrievedAt == null) return null
+        if (grounded == null && answerMode == null && freshness == null && retrievedAt == null && blockReason == null) {
+            return null
+        }
 
         return ToolResponseSignal(
             toolName = toolName,
             grounded = grounded,
             answerMode = answerMode,
             freshness = freshness,
-            retrievedAt = retrievedAt
+            retrievedAt = retrievedAt,
+            blockReason = blockReason
         )
     }
 
@@ -67,6 +82,17 @@ internal object ToolResponseSignalExtractor {
             node.isArray -> node.map(::toValue)
             node.isObject -> toMap(node)
             else -> node.asText()
+        }
+    }
+
+    private fun inferBlockReason(errorMessage: String?): String? {
+        val normalized = errorMessage?.lowercase()?.trim()?.takeIf(String::isNotBlank) ?: return null
+        return when {
+            "access denied" in normalized || "not allowed" in normalized -> "policy_denied"
+            "read-only" in normalized || "readonly" in normalized || "mutating tool is disabled" in normalized ->
+                "read_only_mutation"
+            "approval policy blocked" in normalized -> "policy_denied"
+            else -> null
         }
     }
 }

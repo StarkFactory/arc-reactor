@@ -14,6 +14,6 @@ class DynamicToolApprovalPolicy(
 
     override fun requiresApproval(toolName: String, arguments: Map<String, Any?>): Boolean {
         if (toolName in staticToolNames) return true
-        return toolExecutionPolicyEngine.isWriteTool(toolName)
+        return toolExecutionPolicyEngine.isWriteTool(toolName, arguments)
     }
 }

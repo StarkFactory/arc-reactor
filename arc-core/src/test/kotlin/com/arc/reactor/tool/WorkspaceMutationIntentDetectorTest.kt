@@ -1,0 +1,50 @@
+package com.arc.reactor.tool
+
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+
+class WorkspaceMutationIntentDetectorTest {
+
+    @Test
+    fun `detects explicit workspace mutations`() {
+        assertTrue(
+            WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt("Jira 이슈 DEV-51를 담당자에게 재할당해줘.")
+        ) {
+            "Explicit Jira mutations should be detected"
+        }
+    }
+
+    @Test
+    fun `does not treat release readiness pack as a mutation`() {
+        assertFalse(
+            WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(
+                "DEV 프로젝트와 jarvis-project/dev 기준으로 release readiness pack을 출처와 함께 만들어줘."
+            )
+        ) {
+            "Read-only synthesized packs should not be treated as workspace mutations"
+        }
+    }
+
+    @Test
+    fun `does not treat unassigned lookup as a mutation`() {
+        assertFalse(
+            WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(
+                "DEV 프로젝트에서 unassigned 이슈를 찾아 소스와 함께 보여줘."
+            )
+        ) {
+            "Unassigned issue discovery should remain read-only"
+        }
+    }
+
+    @Test
+    fun `detects swagger catalog removals as mutations`() {
+        assertTrue(
+            WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(
+                "로드된 Petstore v2 스펙을 catalog에서 제거해줘."
+            )
+        ) {
+            "Swagger catalog removals should be treated as write-style mutations"
+        }
+    }
+}

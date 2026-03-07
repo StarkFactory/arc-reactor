@@ -14,7 +14,8 @@ internal object VerifiedSourceExtractor {
 
     fun extract(toolName: String, output: String): List<VerifiedSource> {
         val tree = parseJson(output) ?: return emptyList()
-        return collectSources(tree, toolName)
+        val normalizedTree = if (tree.isTextual) parseJson(tree.asText()) ?: tree else tree
+        return collectSources(normalizedTree, toolName)
             .distinctBy { it.url }
             .take(MAX_SOURCES)
     }
@@ -60,7 +61,7 @@ internal object VerifiedSourceExtractor {
         return BLOCKED_URL_PATTERNS.any { pattern -> url.contains(pattern, ignoreCase = true) }
     }
 
-    private val URL_FIELDS = listOf("url", "webUrl", "htmlUrl", "link", "sourceUrl", "specUrl")
+    private val URL_FIELDS = listOf("url", "webUrl", "htmlUrl", "link", "sourceUrl", "specUrl", "href")
     private val TITLE_FIELDS = listOf("title", "name", "summary", "key", "id", "specName")
     private val BLOCKED_URL_PATTERNS = listOf("/rest/api/", "/api/3/", "/download/attachments/")
     private const val MAX_SOURCES = 12
