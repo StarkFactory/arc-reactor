@@ -24,7 +24,8 @@ class SystemPromptBuilderTest {
             [Grounding Rules]
             Use only facts supported by the retrieved context or tool results.
             If you cannot verify a fact, say you cannot verify it instead of guessing.
-            For Jira, Confluence, Bitbucket, policy, documentation, or internal knowledge requests, call the relevant workspace tool before answering.
+            For Jira, Confluence, Bitbucket, Swagger/OpenAPI, policy, documentation, or internal knowledge requests, call the relevant workspace tool before answering.
+            If a Jira, Confluence, Bitbucket, or work-management request asks to create, update, assign, reassign, comment, approve, transition, convert, or delete something, refuse it as not allowed in read-only mode.
             Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.
             Do not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.
             End the response with a 'Sources' section that lists the supporting links.
@@ -47,7 +48,8 @@ class SystemPromptBuilderTest {
             [Grounding Rules]
             Use only facts supported by the retrieved context or tool results.
             If you cannot verify a fact, say you cannot verify it instead of guessing.
-            For Jira, Confluence, Bitbucket, policy, documentation, or internal knowledge requests, call the relevant workspace tool before answering.
+            For Jira, Confluence, Bitbucket, Swagger/OpenAPI, policy, documentation, or internal knowledge requests, call the relevant workspace tool before answering.
+            If a Jira, Confluence, Bitbucket, or work-management request asks to create, update, assign, reassign, comment, approve, transition, convert, or delete something, refuse it as not allowed in read-only mode.
             Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.
             Do not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.
 
@@ -140,6 +142,71 @@ class SystemPromptBuilderTest {
 
         assertTrue(prompt.contains("MUST call") && prompt.contains("work_service_context")) {
             "Service context prompts should require the work_service_context tool"
+        }
+    }
+
+    @Test
+    fun `should add jira routing instruction for jira prompts`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "DEV 프로젝트에서 최근 Jira 이슈를 소스와 함께 요약해줘."
+        )
+
+        assertTrue(prompt.contains("MUST call one or more Jira tools")) {
+            "Jira prompts should require Jira tool calls"
+        }
+        assertTrue(prompt.contains("jira_search_issues")) {
+            "Jira routing guidance should mention jira_search_issues for project-scoped status questions"
+        }
+    }
+
+    @Test
+    fun `should add bitbucket routing instruction for bitbucket prompts`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "jarvis-project/dev 저장소의 리뷰 대기열을 출처와 함께 보여줘."
+        )
+
+        assertTrue(prompt.contains("MUST call `bitbucket_review_queue`")) {
+            "Bitbucket review-queue prompts should require bitbucket_review_queue"
+        }
+    }
+
+    @Test
+    fun `should add swagger routing instruction for swagger prompts`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "https://petstore3.swagger.io/api/v3/openapi.json 스펙을 로드하고 endpoint를 요약해줘."
+        )
+
+        assertTrue(prompt.contains("MUST call `spec_load` and then `spec_summary`")) {
+            "Swagger summary prompts should require spec_load and spec_summary"
+        }
+    }
+
+    @Test
+    fun `should explicitly refuse workspace mutation prompts in read only mode`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "Jira 이슈 DEV-51를 담당자에게 재할당해줘."
+        )
+
+        assertTrue(prompt.contains("MUST refuse the action")) {
+            "Workspace mutation prompts should require an explicit refusal"
+        }
+        assertTrue(prompt.contains("read-only")) {
+            "Workspace mutation prompts should mention read-only mode"
+        }
+        assertTrue(prompt.contains("Do not ask follow-up questions")) {
+            "Workspace mutation prompts should not ask follow-up questions"
         }
     }
 }

@@ -4,6 +4,7 @@ import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterContext
 import com.arc.reactor.response.VerifiedSource
+import com.arc.reactor.tool.WorkspaceMutationIntentDetector
 
 class VerifiedSourcesResponseFilter : ResponseFilter {
     override val order: Int = 90
@@ -26,7 +27,13 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
     ): Boolean {
         if (sources.isNotEmpty()) return false
         if (!requiresVerifiedSources(context)) return false
+        if (allowsReadOnlyMutationRefusal(context, content)) return false
         return !alreadyDeclinesVerification(content)
+    }
+
+    private fun allowsReadOnlyMutationRefusal(context: ResponseFilterContext, content: String): Boolean {
+        if (!WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(context.command.userPrompt)) return false
+        return READ_ONLY_MUTATION_PATTERNS.any { pattern -> content.contains(pattern, ignoreCase = true) }
     }
 
     private fun requiresVerifiedSources(context: ResponseFilterContext): Boolean {
@@ -126,6 +133,16 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
             "검증 가능한 출처를 찾지 못",
             "확인 가능한 출처를 찾지 못",
             "근거를 찾지 못"
+        )
+        private val READ_ONLY_MUTATION_PATTERNS = listOf(
+            "read-only",
+            "readonly",
+            "읽기 전용",
+            "지원하지 않습니다",
+            "수행할 수 없습니다",
+            "업데이트할 수 없습니다",
+            "재할당은 불가능",
+            "변경 작업을 수행할 수 없습니다"
         )
         private const val MAX_SOURCES = 8
     }

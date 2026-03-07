@@ -277,6 +277,86 @@ class SemanticToolSelectorTest {
                 "Morning briefing prompts should be narrowed to the work_morning_briefing tool"
             }
         }
+
+        @Test
+        fun `should prefer read only evidence tool for workspace mutation prompts`() {
+            val workspaceTools = listOf(
+                createTool("jira_assign_issue", "Assign a Jira issue"),
+                createTool("work_owner_lookup", "Resolve who owns a Jira issue"),
+                createTool("jira_get_issue", "Get Jira issue metadata")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(workspaceTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+
+            val result = selector.select("Jira 이슈 DEV-51를 담당자에게 재할당해줘.", workspaceTools)
+
+            assertEquals(listOf("work_owner_lookup"), result.map { it.name }) {
+                "Workspace mutation prompts should use at most one read-only evidence tool"
+            }
+        }
+
+        @Test
+        fun `should force jira list projects tool for project inventory prompts`() {
+            val jiraTools = listOf(
+                createTool("jira_search_issues", "Search Jira issues"),
+                createTool("jira_list_projects", "List Jira projects"),
+                createTool("jira_search_by_text", "Search Jira by text")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(jiraTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+
+            val result = selector.select("내가 접근 가능한 Jira 프로젝트 목록을 보여줘.", jiraTools)
+
+            assertEquals(listOf("jira_list_projects"), result.map { it.name }) {
+                "Project inventory prompts should be narrowed to jira_list_projects"
+            }
+        }
+
+        @Test
+        fun `should force bitbucket repository tool for repository inventory prompts`() {
+            val tools = listOf(
+                createTool("bitbucket_list_prs", "List pull requests"),
+                createTool("bitbucket_list_repositories", "List repositories"),
+                createTool("bitbucket_list_branches", "List branches")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(tools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+
+            val result = selector.select("접근 가능한 Bitbucket 저장소 목록을 보여줘.", tools)
+
+            assertEquals(listOf("bitbucket_list_repositories"), result.map { it.name }) {
+                "Repository inventory prompts should be narrowed to bitbucket_list_repositories"
+            }
+        }
+
+        @Test
+        fun `should prioritize swagger load and detail tools for endpoint detail prompts`() {
+            val tools = listOf(
+                createTool("spec_search", "Search endpoints"),
+                createTool("spec_load", "Load an OpenAPI spec"),
+                createTool("spec_detail", "Describe an endpoint detail"),
+                createTool("spec_summary", "Summarize a spec")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(tools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+
+            val result = selector.select(
+                "https://petstore3.swagger.io/api/v3/openapi.json 스펙을 로드한 뒤 GET /pet/findByStatus 상세를 설명해줘.",
+                tools
+            )
+
+            assertEquals(listOf("spec_load", "spec_detail"), result.map { it.name }) {
+                "Swagger endpoint detail prompts should prioritize spec_load then spec_detail"
+            }
+        }
     }
 
     @Nested

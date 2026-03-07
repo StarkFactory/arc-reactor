@@ -55,6 +55,26 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
+    fun `should keep read only mutation refusal even without verified sources`() = runTest {
+        val result = filter.filter(
+            content = "죄송합니다. 해당 워크스페이스는 읽기 전용이므로 요청하신 변경 작업을 수행할 수 없습니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "Jira 이슈 DEV-51 상태를 진행 중으로 바꿔줘."),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 70
+            )
+        )
+
+        assertTrue(result.startsWith("죄송합니다. 해당 워크스페이스는 읽기 전용")) {
+            "Read-only mutation refusals should not be replaced by verification-failure text"
+        }
+        assertTrue(result.endsWith("출처\n- 검증된 출처를 찾지 못했습니다.")) {
+            "Read-only mutation refusals should still include the required footer"
+        }
+    }
+
+    @Test
     fun `should treat swagger spec tools as verified workspace tools`() = runTest {
         val result = filter.filter(
             content = "공식 업로드 엔드포인트는 POST /pet/{petId}/uploadImage 입니다.",
