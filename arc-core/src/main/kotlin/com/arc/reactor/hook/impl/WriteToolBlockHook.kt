@@ -29,7 +29,8 @@ class WriteToolBlockHook(
         return when (
             val decision = toolExecutionPolicyEngine.evaluate(
                 channel = context.agentContext.channel,
-                toolName = context.toolName
+                toolName = context.toolName,
+                arguments = context.toolParams
             )
         ) {
             is ToolExecutionDecision.Allow -> HookResult.Continue

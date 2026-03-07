@@ -290,9 +290,16 @@ class ArcReactorCoreBeansConfiguration {
             )
         }
 
-        // Static mode: approval list is fixed at startup.
+        // Static mode: approval list is fixed at startup, but argument-aware safety rules still apply.
         val toolNames = (staticToolNames + properties.toolPolicy.writeToolNames)
-        return if (toolNames.isNotEmpty()) ToolNameApprovalPolicy(toolNames) else AlwaysApprovePolicy()
+        return if (toolNames.isNotEmpty()) {
+            DynamicToolApprovalPolicy(
+                staticToolNames = staticToolNames,
+                toolExecutionPolicyEngine = toolExecutionPolicyEngine
+            )
+        } else {
+            AlwaysApprovePolicy()
+        }
     }
 
     @Bean

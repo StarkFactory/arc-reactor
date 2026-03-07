@@ -4,6 +4,7 @@ import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.approval.ToolApprovalResponse
+import com.arc.reactor.guard.tool.ToolOutputSanitizer
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
@@ -335,6 +336,61 @@ class ToolCallOrchestratorTest {
         assertEquals("knowledge", context.metadata["answerMode"])
         assertEquals(true, context.metadata["grounded"])
         assertEquals("2026-03-07T00:00:00Z", context.metadata["retrievedAt"])
+    }
+
+    @Test
+    fun `should capture verified sources before sanitizing tool output`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() },
+            toolOutputSanitizer = ToolOutputSanitizer()
+        )
+        val toolCall = toolCall(id = "id-1", name = "jira_list_projects")
+        val context = HookContext(runId = "run-3", userId = "user-3", userPrompt = "projects")
+        val callback = object : ToolCallback {
+            override val name: String = "jira_list_projects"
+            override val description: String = "Project tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                return """
+                    {
+                      "ok": true,
+                      "grounded": true,
+                      "answerMode": "operational",
+                      "retrievedAt": "2026-03-07T00:00:00Z",
+                      "freshness": {"mode": "live_atlassian", "sourceType": "jira"},
+                      "sources": [{"title":"DEV - Development","url":"https://example.atlassian.net/issues/?jql=project%20%3D%20%22DEV%22"}]
+                    }
+                """.trimIndent()
+            }
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = context,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size, "Should return one tool response")
+        assertTrue(
+            responses.first().responseData().contains("--- BEGIN TOOL DATA (jira_list_projects) ---"),
+            "Sanitized tool output should still be wrapped for the model"
+        )
+        assertEquals(1, context.verifiedSources.size, "Verified sources should be extracted before sanitizing")
+        assertEquals(
+            "https://example.atlassian.net/issues/?jql=project%20%3D%20%22DEV%22",
+            context.verifiedSources.first().url,
+            "Extracted verified source URL should be preserved"
+        )
+        assertEquals("operational", context.metadata["answerMode"], "Operational answer mode should be preserved")
+        assertEquals(true, context.metadata["grounded"], "Grounding metadata should still be captured")
     }
 
     @Test

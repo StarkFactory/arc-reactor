@@ -112,6 +112,9 @@ class SemanticToolSelector(
         availableTools: List<ToolCallback>
     ): List<ToolCallback> {
         val availableByName = availableTools.associateBy { it.name }
+        if (WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(prompt)) {
+            return preferredReadOnlyMutationEvidenceTools(prompt, availableByName)
+        }
 
         if (looksLikeWorkItemContextPrompt(prompt)) {
             val preferred = PREFERRED_WORK_ITEM_CONTEXT_TOOLS.mapNotNull(availableByName::get)
@@ -120,6 +123,31 @@ class SemanticToolSelector(
 
         if (looksLikeWorkServiceContextPrompt(prompt)) {
             val preferred = PREFERRED_WORK_SERVICE_CONTEXT_TOOLS.mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
+        if (looksLikeWorkReleaseReadinessPrompt(prompt)) {
+            val preferred = PREFERRED_WORK_RELEASE_READINESS_TOOLS.mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
+        if (looksLikeWorkReleaseRiskPrompt(prompt)) {
+            val preferred = PREFERRED_WORK_RELEASE_RISK_TOOLS.mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
+        if (looksLikeHybridPriorityPrompt(prompt)) {
+            val preferred = PREFERRED_WORK_RELEASE_RISK_TOOLS.mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
+        if (looksLikeWorkStandupPrompt(prompt)) {
+            val preferred = PREFERRED_WORK_STANDUP_TOOLS.mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
+        if (looksLikeWorkBriefingProfilePrompt(prompt)) {
+            val preferred = PREFERRED_WORK_BRIEFING_PROFILE_TOOLS.mapNotNull(availableByName::get)
             if (preferred.isNotEmpty()) return preferred
         }
 
@@ -136,7 +164,34 @@ class SemanticToolSelector(
             }
         }
 
+        if (looksLikeJiraPrompt(prompt)) {
+            val preferred = preferredJiraTools(prompt, availableByName)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
+        if (looksLikeBitbucketPrompt(prompt)) {
+            val preferred = preferredBitbucketTools(prompt, availableByName)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
+        if (looksLikeSwaggerPrompt(prompt)) {
+            val preferred = preferredSwaggerTools(prompt, availableByName)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
         if (!looksLikeConfluenceKnowledgePrompt(prompt)) return selected
+
+        if (looksLikeConfluenceDiscoveryPrompt(prompt)) {
+            val preferred = listOf("confluence_search_by_text", "confluence_search")
+                .mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
+        if (looksLikeConfluencePageBodyPrompt(prompt)) {
+            val preferred = listOf("confluence_get_page_content", "confluence_answer_question", "confluence_search_by_text")
+                .mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) return preferred.take(maxResults)
+        }
 
         val preferred = PREFERRED_CONFLUENCE_KNOWLEDGE_TOOLS
             .mapNotNull(availableByName::get)
@@ -160,7 +215,17 @@ class SemanticToolSelector(
 
     private fun looksLikeConfluenceAnswerPrompt(prompt: String): Boolean {
         val normalized = prompt.lowercase()
-        return CONFLUENCE_ANSWER_HINTS.any { normalized.contains(it) }
+        return CONFLUENCE_ANSWER_HINTS.any { normalized.contains(it) } && !looksLikeConfluenceDiscoveryPrompt(prompt)
+    }
+
+    private fun looksLikeConfluenceDiscoveryPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return CONFLUENCE_DISCOVERY_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeConfluencePageBodyPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return CONFLUENCE_PAGE_BODY_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeWorkOwnerPrompt(prompt: String): Boolean {
@@ -183,6 +248,184 @@ class SemanticToolSelector(
     private fun looksLikeWorkBriefingPrompt(prompt: String): Boolean {
         val normalized = prompt.lowercase()
         return WORK_BRIEFING_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeWorkStandupPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return WORK_STANDUP_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeWorkReleaseRiskPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return WORK_RELEASE_RISK_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeHybridPriorityPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        val hasPriorityHint = HYBRID_PRIORITY_HINTS.any { normalized.contains(it) }
+        return hasPriorityHint &&
+            BLOCKER_HINTS.any { normalized.contains(it) } &&
+            (REVIEW_QUEUE_HINTS.any { normalized.contains(it) } || REVIEW_SLA_HINTS.any { normalized.contains(it) })
+    }
+
+    private fun looksLikeWorkReleaseReadinessPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return WORK_RELEASE_READINESS_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeWorkBriefingProfilePrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return WORK_BRIEFING_PROFILE_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeJiraPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return JIRA_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeBitbucketPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return BITBUCKET_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeSwaggerPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return OPENAPI_URL_REGEX.containsMatchIn(prompt) || SWAGGER_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun preferredJiraTools(
+        prompt: String,
+        availableByName: Map<String, ToolCallback>
+    ): List<ToolCallback> {
+        val normalized = prompt.lowercase()
+        val orderedNames = when {
+            ISSUE_KEY_REGEX.containsMatchIn(prompt.uppercase()) && TRANSITION_HINTS.any { normalized.contains(it) } ->
+                listOf("jira_get_transitions", "jira_get_issue")
+
+            ISSUE_KEY_REGEX.containsMatchIn(prompt.uppercase()) ->
+                listOf("jira_get_issue", "jira_search_issues")
+
+            DUE_SOON_HINTS.any { normalized.contains(it) } ->
+                listOf("jira_due_soon_issues")
+
+            BLOCKER_HINTS.any { normalized.contains(it) } ->
+                listOf("jira_blocker_digest", "jira_search_issues")
+
+            DAILY_BRIEFING_HINTS.any { normalized.contains(it) } ->
+                listOf("jira_daily_briefing", "jira_search_issues")
+
+            JIRA_PROJECT_SUMMARY_HINTS.any { normalized.contains(it) } ->
+                listOf("jira_search_issues", "jira_search_by_text")
+
+            PROJECT_LIST_HINTS.any { normalized.contains(it) } ->
+                listOf("jira_list_projects")
+
+            MY_WORK_HINTS.any { normalized.contains(it) } ->
+                listOf("jira_my_open_issues", "jira_search_issues")
+
+            SEARCH_HINTS.any { normalized.contains(it) } ->
+                listOf("jira_search_by_text", "jira_search_issues")
+
+            else -> listOf("jira_search_issues", "jira_search_by_text", "jira_list_projects")
+        }
+        return orderedNames.mapNotNull(availableByName::get).take(maxResults)
+    }
+
+    private fun preferredReadOnlyMutationEvidenceTools(
+        prompt: String,
+        availableByName: Map<String, ToolCallback>
+    ): List<ToolCallback> {
+        val normalized = prompt.lowercase()
+        if (ISSUE_KEY_REGEX.containsMatchIn(prompt.uppercase())) {
+            val ordered = if (normalized.contains("담당자") || normalized.contains("재할당")) {
+                listOf("work_owner_lookup", "jira_get_issue")
+            } else {
+                listOf("jira_get_issue", "work_owner_lookup")
+            }
+            return ordered.mapNotNull(availableByName::get).take(1)
+        }
+
+        if ((normalized.contains("confluence") || normalized.contains("페이지") || normalized.contains("page")) &&
+            availableByName.containsKey("confluence_get_page")
+        ) {
+            return listOfNotNull(availableByName["confluence_get_page"])
+        }
+
+        if ((normalized.contains("pull request") || normalized.contains("pr")) && availableByName.containsKey("bitbucket_get_pr")) {
+            return listOfNotNull(availableByName["bitbucket_get_pr"])
+        }
+
+        return emptyList()
+    }
+
+    private fun preferredBitbucketTools(
+        prompt: String,
+        availableByName: Map<String, ToolCallback>
+    ): List<ToolCallback> {
+        val normalized = prompt.lowercase()
+        val orderedNames = when {
+            REVIEW_RISK_HINTS.any { normalized.contains(it) } ->
+                listOf("bitbucket_review_sla_alerts", "bitbucket_review_queue", "bitbucket_list_prs")
+
+            MY_REVIEW_HINTS.any { normalized.contains(it) } ->
+                listOf("bitbucket_review_queue", "bitbucket_list_prs")
+
+            PR_HINTS.any { normalized.contains(it) } && REVIEW_SLA_HINTS.any { normalized.contains(it) } ->
+                listOf("bitbucket_review_sla_alerts", "bitbucket_list_prs")
+
+            PR_HINTS.any { normalized.contains(it) } && REVIEW_QUEUE_HINTS.any { normalized.contains(it) } ->
+                listOf("bitbucket_review_queue", "bitbucket_list_prs")
+
+            STALE_HINTS.any { normalized.contains(it) } ->
+                listOf("bitbucket_stale_prs", "bitbucket_list_prs")
+
+            BRANCH_HINTS.any { normalized.contains(it) } ->
+                listOf("bitbucket_list_branches")
+
+            PR_HINTS.any { normalized.contains(it) } ->
+                listOf("bitbucket_list_prs", "bitbucket_get_pr")
+
+            REPOSITORY_HINTS.any { normalized.contains(it) } ->
+                listOf("bitbucket_list_repositories")
+
+            else -> listOf("bitbucket_list_repositories", "bitbucket_list_prs")
+        }
+        return orderedNames.mapNotNull(availableByName::get).take(maxResults)
+    }
+
+    private fun preferredSwaggerTools(
+        prompt: String,
+        availableByName: Map<String, ToolCallback>
+    ): List<ToolCallback> {
+        val normalized = prompt.lowercase()
+        val orderedNames = when {
+            LOADED_HINTS.any { normalized.contains(it) } && SUMMARY_HINTS.any { normalized.contains(it) } ->
+                listOf("spec_list", "spec_summary")
+
+            WRONG_ENDPOINT_HINTS.any { normalized.contains(it) } ->
+                listOf("spec_list", "spec_search")
+
+            REMOVE_HINTS.any { normalized.contains(it) } ->
+                listOf("spec_remove", "spec_list")
+
+            VALIDATE_HINTS.any { normalized.contains(it) } ->
+                listOf("spec_validate", "spec_load")
+
+            SCHEMA_HINTS.any { normalized.contains(it) } ->
+                listOf("spec_load", "spec_schema")
+
+            DETAIL_HINTS.any { normalized.contains(it) } ->
+                listOf("spec_load", "spec_detail")
+
+            SEARCH_HINTS.any { normalized.contains(it) } ->
+                listOf("spec_load", "spec_search")
+
+            LIST_HINTS.any { normalized.contains(it) } ->
+                listOf("spec_list")
+
+            else -> listOf("spec_load", "spec_summary", "spec_list")
+        }
+        return orderedNames.mapNotNull(availableByName::get).take(maxResults)
     }
 
     private fun refreshEmbeddingsIfNeeded(tools: List<ToolCallback>) {
@@ -229,6 +472,18 @@ class SemanticToolSelector(
         private val PREFERRED_WORK_SERVICE_CONTEXT_TOOLS = listOf(
             "work_service_context"
         )
+        private val PREFERRED_WORK_RELEASE_RISK_TOOLS = listOf(
+            "work_release_risk_digest"
+        )
+        private val PREFERRED_WORK_RELEASE_READINESS_TOOLS = listOf(
+            "work_release_readiness_pack"
+        )
+        private val PREFERRED_WORK_STANDUP_TOOLS = listOf(
+            "work_prepare_standup_update"
+        )
+        private val PREFERRED_WORK_BRIEFING_PROFILE_TOOLS = listOf(
+            "work_list_briefing_profiles"
+        )
         private val PREFERRED_WORK_BRIEFING_TOOLS = listOf(
             "work_morning_briefing"
         )
@@ -243,7 +498,13 @@ class SemanticToolSelector(
         )
         private val CONFLUENCE_ANSWER_HINTS = setOf(
             "what", "who", "why", "how", "describe", "explain", "summary", "summarize", "tell me",
-            "알려", "설명", "요약", "정리", "무엇", "왜", "어떻게", "누구"
+            "알려", "설명", "요약", "정리", "무엇", "왜", "어떻게", "누구", "본문", "body", "read", "읽"
+        )
+        private val CONFLUENCE_DISCOVERY_HINTS = setOf(
+            "search", "find", "look up", "keyword", "list", "찾아", "검색", "키워드", "목록", "어떤 문서"
+        )
+        private val CONFLUENCE_PAGE_BODY_HINTS = setOf(
+            "본문", "body", "content", "read", "읽고", "읽어", "내용", "핵심만"
         )
         private val WORK_OWNER_HINTS = setOf(
             "owner", "담당자", "담당 팀", "누구 팀", "책임자", "누가 담당", "담당 서비스"
@@ -260,6 +521,59 @@ class SemanticToolSelector(
             "morning briefing", "daily briefing", "briefing", "work summary", "daily digest",
             "브리핑", "요약 브리핑", "아침 브리핑", "데일리 브리핑"
         )
+        private val WORK_STANDUP_HINTS = setOf(
+            "standup", "스탠드업", "daily update", "업데이트 초안", "standup update"
+        )
+        private val WORK_RELEASE_RISK_HINTS = setOf(
+            "release risk", "risk digest", "릴리즈 위험", "출시 위험", "release digest"
+        )
+        private val HYBRID_PRIORITY_HINTS = setOf(
+            "priority", "priorities", "우선순위", "오늘 우선", "today priority"
+        )
+        private val WORK_RELEASE_READINESS_HINTS = setOf(
+            "release readiness", "readiness pack", "릴리즈 준비", "출시 준비", "readiness"
+        )
+        private val WORK_BRIEFING_PROFILE_HINTS = setOf(
+            "briefing profile", "profile list", "profiles", "브리핑 프로필", "프로필 목록"
+        )
+        private val JIRA_HINTS = setOf(
+            "jira", "이슈", "프로젝트", "jql", "ticket", "티켓", "blocker", "마감", "due", "transition", "전이"
+        )
+        private val BITBUCKET_HINTS = setOf(
+            "bitbucket", "repository", "repo", "pull request", "pr", "branch", "브랜치", "저장소", "리뷰", "sla"
+        )
+        private val SWAGGER_HINTS = setOf(
+            "swagger", "openapi", "spec", "schema", "endpoint", "api spec", "스펙", "엔드포인트", "스키마"
+        )
+        private val PROJECT_LIST_HINTS = setOf("project list", "projects", "프로젝트 목록", "프로젝트 리스트")
+        private val DUE_SOON_HINTS = setOf("due soon", "마감", "임박", "due")
+        private val BLOCKER_HINTS = setOf("blocker", "차단", "막힌")
+        private val DAILY_BRIEFING_HINTS = setOf(
+            "daily briefing", "아침 브리핑", "데일리 브리핑", "daily digest", "오늘의 jira 브리핑", "오늘 jira 브리핑"
+        )
+        private val JIRA_PROJECT_SUMMARY_HINTS = setOf(
+            "recent", "latest", "summary", "summarize", "최근", "요약", "정리", "브리핑"
+        )
+        private val MY_WORK_HINTS = setOf("my open", "assigned to me", "내 이슈", "내가 담당", "내 오픈")
+        private val SEARCH_HINTS = setOf("search", "찾아", "검색", "look up", "find")
+        private val TRANSITION_HINTS = setOf("transition", "상태 전이", "전이", "possible states")
+        private val PR_HINTS = setOf("pull request", "pr", "리뷰")
+        private val REVIEW_SLA_HINTS = setOf("sla", "응답 지연", "리뷰 sla")
+        private val REVIEW_QUEUE_HINTS = setOf("queue", "대기열")
+        private val REVIEW_RISK_HINTS = setOf("review risk", "리뷰 리스크", "코드 리뷰 리스크")
+        private val MY_REVIEW_HINTS = setOf("내가 검토", "검토해야", "review for me", "needs review")
+        private val STALE_HINTS = setOf("stale", "오래된", "방치된")
+        private val BRANCH_HINTS = setOf("branch", "브랜치")
+        private val REPOSITORY_HINTS = setOf("repository", "repo", "저장소")
+        private val VALIDATE_HINTS = setOf("validate", "검증", "유효성")
+        private val SCHEMA_HINTS = setOf("schema", "스키마", "model", "dto")
+        private val DETAIL_HINTS = setOf("detail", "상세", "parameter", "response", "security")
+        private val SUMMARY_HINTS = setOf("summary", "summarize", "요약", "정리")
+        private val LIST_HINTS = setOf("loaded specs", "list specs", "목록", "list")
+        private val LOADED_HINTS = setOf("loaded", "로드된", "현재 로드된")
+        private val REMOVE_HINTS = setOf("remove", "삭제")
+        private val WRONG_ENDPOINT_HINTS = setOf("wrong endpoint", "invalid endpoint", "잘못된 endpoint", "없는 endpoint")
+        private val OPENAPI_URL_REGEX = Regex("https?://\\S+(?:openapi|swagger)\\S*", RegexOption.IGNORE_CASE)
 
         /**
          * Compute cosine similarity between two vectors.

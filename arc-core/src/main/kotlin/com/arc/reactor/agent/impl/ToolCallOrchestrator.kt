@@ -84,6 +84,7 @@ internal class ToolCallOrchestrator(
             springCallbacksByName = springCallbacksByName,
             toolsUsed = toolsUsed
         )
+        captureToolSignals(hookContext, toolName, rawOutput, toolSuccess)
         var toolOutput = rawOutput
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
@@ -91,7 +92,6 @@ internal class ToolCallOrchestrator(
             val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
             toolOutput = sanitized.content
         }
-        captureToolSignals(hookContext, toolName, toolOutput, toolSuccess)
 
         val result = ToolCallResult(
             success = toolSuccess,
@@ -211,6 +211,7 @@ internal class ToolCallOrchestrator(
             springCallbacksByName = springCallbacksByName,
             toolsUsed = toolsUsed
         )
+        captureToolSignals(hookContext, toolName, rawOutput, toolSuccess)
         var toolOutput = rawOutput
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
@@ -219,7 +220,6 @@ internal class ToolCallOrchestrator(
             val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
             toolOutput = sanitized.content
         }
-        captureToolSignals(hookContext, toolName, toolOutput, toolSuccess)
 
         hookExecutor?.executeAfterToolCall(
             context = toolCallContext,
@@ -257,6 +257,7 @@ internal class ToolCallOrchestrator(
             signal.grounded?.let { hookContext.metadata["grounded"] = it }
             signal.freshness?.let { hookContext.metadata["freshness"] = it }
             signal.retrievedAt?.let { hookContext.metadata["retrievedAt"] = it }
+            signal.blockReason?.let { hookContext.metadata["blockReason"] = it }
         }
     }
 

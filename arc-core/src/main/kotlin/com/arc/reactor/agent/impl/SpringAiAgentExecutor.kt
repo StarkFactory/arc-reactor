@@ -443,7 +443,7 @@ class SpringAiAgentExecutor(
         try {
             val maxToolCalls = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
             val allowedTools = resolveIntentAllowedTools(command)
-            val forcedToolContext = maybeExecuteForcedWorkContextTool(
+            val forcedToolContext = maybeExecuteForcedWorkspaceTool(
                 command = command,
                 hookContext = hookContext,
                 toolsUsed = toolsUsed,
@@ -465,7 +465,10 @@ class SpringAiAgentExecutor(
             val effectiveRagContext = mergeRagContext(ragContext, forcedToolContext?.output)
             val systemPrompt = systemPromptBuilder.build(
                 baseSystemPrompt, effectiveRagContext,
-                command.responseFormat, command.responseSchema, command.userPrompt
+                command.responseFormat,
+                command.responseSchema,
+                command.userPrompt,
+                workspaceToolAlreadyCalled = forcedToolContext != null
             )
             val activeChatClient = resolveChatClient(command)
             return manualReActLoopExecutor.execute(
@@ -490,7 +493,7 @@ class SpringAiAgentExecutor(
         }
     }
 
-    private suspend fun maybeExecuteForcedWorkContextTool(
+    private suspend fun maybeExecuteForcedWorkspaceTool(
         command: AgentCommand,
         hookContext: HookContext,
         toolsUsed: MutableList<String>,
