@@ -111,8 +111,24 @@ class SemanticToolSelector(
         selected: List<ToolCallback>,
         availableTools: List<ToolCallback>
     ): List<ToolCallback> {
+        val availableByName = availableTools.associateBy { it.name }
+
+        if (looksLikeWorkItemContextPrompt(prompt)) {
+            val preferred = PREFERRED_WORK_ITEM_CONTEXT_TOOLS.mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
+        if (looksLikeWorkServiceContextPrompt(prompt)) {
+            val preferred = PREFERRED_WORK_SERVICE_CONTEXT_TOOLS.mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
+        if (looksLikeWorkOwnerPrompt(prompt)) {
+            val preferred = PREFERRED_WORK_OWNER_TOOLS.mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) return preferred
+        }
+
         if (looksLikeWorkBriefingPrompt(prompt)) {
-            val availableByName = availableTools.associateBy { it.name }
             val preferred = PREFERRED_WORK_BRIEFING_TOOLS
                 .mapNotNull(availableByName::get)
             if (preferred.isNotEmpty()) {
@@ -122,7 +138,6 @@ class SemanticToolSelector(
 
         if (!looksLikeConfluenceKnowledgePrompt(prompt)) return selected
 
-        val availableByName = availableTools.associateBy { it.name }
         val preferred = PREFERRED_CONFLUENCE_KNOWLEDGE_TOOLS
             .mapNotNull(availableByName::get)
         if (preferred.isEmpty()) return selected
@@ -146,6 +161,23 @@ class SemanticToolSelector(
     private fun looksLikeConfluenceAnswerPrompt(prompt: String): Boolean {
         val normalized = prompt.lowercase()
         return CONFLUENCE_ANSWER_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeWorkOwnerPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return WORK_OWNER_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeWorkItemContextPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        val hasIssueKey = ISSUE_KEY_REGEX.containsMatchIn(prompt.uppercase())
+        return hasIssueKey && WORK_ITEM_CONTEXT_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeWorkServiceContextPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        val hasServiceMention = normalized.contains("service") || normalized.contains("서비스")
+        return hasServiceMention && WORK_SERVICE_CONTEXT_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeWorkBriefingPrompt(prompt: String): Boolean {
@@ -188,6 +220,15 @@ class SemanticToolSelector(
             "confluence_get_page_content",
             "confluence_get_page"
         )
+        private val PREFERRED_WORK_OWNER_TOOLS = listOf(
+            "work_owner_lookup"
+        )
+        private val PREFERRED_WORK_ITEM_CONTEXT_TOOLS = listOf(
+            "work_item_context"
+        )
+        private val PREFERRED_WORK_SERVICE_CONTEXT_TOOLS = listOf(
+            "work_service_context"
+        )
         private val PREFERRED_WORK_BRIEFING_TOOLS = listOf(
             "work_morning_briefing"
         )
@@ -204,6 +245,17 @@ class SemanticToolSelector(
             "what", "who", "why", "how", "describe", "explain", "summary", "summarize", "tell me",
             "알려", "설명", "요약", "정리", "무엇", "왜", "어떻게", "누구"
         )
+        private val WORK_OWNER_HINTS = setOf(
+            "owner", "담당자", "담당 팀", "누구 팀", "책임자", "누가 담당", "담당 서비스"
+        )
+        private val WORK_ITEM_CONTEXT_HINTS = setOf(
+            "전체 맥락", "맥락", "context", "관련 문서", "관련 pr", "열린 pr", "오픈 pr", "다음 액션", "next action"
+        )
+        private val WORK_SERVICE_CONTEXT_HINTS = setOf(
+            "서비스 상황", "서비스 현황", "service context", "service summary", "현재 상황", "현재 현황",
+            "최근 jira", "최근 jira 이슈", "열린 pr", "오픈 pr", "관련 문서", "한 번에 요약", "요약해줘", "기준으로"
+        )
+        private val ISSUE_KEY_REGEX = Regex("\\b[A-Z][A-Z0-9_]+-[1-9][0-9]*\\b")
         private val WORK_BRIEFING_HINTS = setOf(
             "morning briefing", "daily briefing", "briefing", "work summary", "daily digest",
             "브리핑", "요약 브리핑", "아침 브리핑", "데일리 브리핑"

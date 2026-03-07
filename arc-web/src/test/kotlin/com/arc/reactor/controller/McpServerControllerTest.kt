@@ -11,8 +11,11 @@ import com.arc.reactor.mcp.McpSecurityConfig
 import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpTransportType
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -491,6 +494,95 @@ class McpServerControllerTest {
             assertEquals("new-description", runtimeServer.description) {
                 "Runtime manager state should be updated with latest store config"
             }
+        }
+
+        @Test
+        fun `should reconnect connected server when connection config changes`() {
+            val runtimeManager = mockk<McpManager>(relaxed = true)
+            val persistentStore = InMemoryMcpServerStore()
+            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
+
+            val original = McpServer(
+                name = "reconnect-me",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://old:8080/sse"),
+                autoConnect = true
+            )
+            persistentStore.save(original)
+
+            every { runtimeManager.getStatus("reconnect-me") } returns com.arc.reactor.mcp.model.McpServerStatus.CONNECTED
+            coEvery { runtimeManager.disconnect("reconnect-me") } returns Unit
+            coEvery { runtimeManager.connect("reconnect-me") } returns true
+
+            val response = localController.updateServer(
+                "reconnect-me",
+                UpdateMcpServerRequest(config = mapOf("url" to "http://new:9090/sse")),
+                adminExchange()
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            verify(exactly = 1) { runtimeManager.syncRuntimeServer(any()) }
+            coVerify(exactly = 1) { runtimeManager.disconnect("reconnect-me") }
+            coVerify(exactly = 1) { runtimeManager.connect("reconnect-me") }
+        }
+
+        @Test
+        fun `should not reconnect connected server when only description changes`() {
+            val runtimeManager = mockk<McpManager>(relaxed = true)
+            val persistentStore = InMemoryMcpServerStore()
+            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
+
+            persistentStore.save(
+                McpServer(
+                    name = "desc-only",
+                    description = "before",
+                    transportType = McpTransportType.SSE,
+                    config = mapOf("url" to "http://stable:8080/sse"),
+                    autoConnect = true
+                )
+            )
+
+            every { runtimeManager.getStatus("desc-only") } returns com.arc.reactor.mcp.model.McpServerStatus.CONNECTED
+
+            val response = localController.updateServer(
+                "desc-only",
+                UpdateMcpServerRequest(description = "after"),
+                adminExchange()
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            verify(exactly = 1) { runtimeManager.syncRuntimeServer(any()) }
+            coVerify(exactly = 0) { runtimeManager.disconnect(any()) }
+            coVerify(exactly = 0) { runtimeManager.connect(any()) }
+        }
+
+        @Test
+        fun `should connect server after update when autoConnect is enabled from disconnected state`() {
+            val runtimeManager = mockk<McpManager>(relaxed = true)
+            val persistentStore = InMemoryMcpServerStore()
+            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
+
+            persistentStore.save(
+                McpServer(
+                    name = "auto-connect-me",
+                    transportType = McpTransportType.SSE,
+                    config = mapOf("url" to "http://localhost:8080/sse"),
+                    autoConnect = false
+                )
+            )
+
+            every { runtimeManager.getStatus("auto-connect-me") } returns com.arc.reactor.mcp.model.McpServerStatus.DISCONNECTED
+            coEvery { runtimeManager.connect("auto-connect-me") } returns true
+
+            val response = localController.updateServer(
+                "auto-connect-me",
+                UpdateMcpServerRequest(autoConnect = true),
+                adminExchange()
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            coVerify(exactly = 1) { runtimeManager.connect("auto-connect-me") }
+            coVerify(exactly = 0) { runtimeManager.disconnect(any()) }
         }
     }
 

@@ -40,6 +40,70 @@ internal class ToolCallOrchestrator(
     private val toolOutputSanitizer: ToolOutputSanitizer? = null
 ) {
 
+    suspend fun executeDirectToolCall(
+        toolName: String,
+        toolParams: Map<String, Any?>,
+        tools: List<Any>,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        allowedTools: Set<String>? = null
+    ): ToolCallResult {
+        if (allowedTools != null && toolName !in allowedTools) {
+            val message = "Error: Tool '$toolName' is not allowed for this request"
+            logger.info { "Direct tool call blocked by allowlist: tool=$toolName allowedTools=${allowedTools.size}" }
+            agentMetrics.recordToolCall(toolName, 0, false)
+            return ToolCallResult(success = false, output = message, errorMessage = message, durationMs = 0)
+        }
+
+        val callIndex = toolsUsed.size
+        val toolCallContext = ToolCallContext(
+            agentContext = hookContext,
+            toolName = toolName,
+            toolParams = toolParams,
+            callIndex = callIndex
+        )
+
+        checkBeforeToolCallHook(toolCallContext)?.let { rejection ->
+            val message = "Tool call rejected: ${rejection.reason}"
+            logger.info { "Direct tool call $toolName rejected by hook: ${rejection.reason}" }
+            return ToolCallResult(success = false, output = message, errorMessage = message, durationMs = 0)
+        }
+
+        checkToolApproval(toolName, toolCallContext, hookContext)?.let { rejection ->
+            publishBlockedToolCallResult(toolCallContext, toolName, rejection)
+            return ToolCallResult(success = false, output = rejection, errorMessage = rejection, durationMs = 0)
+        }
+
+        val toolStartTime = System.currentTimeMillis()
+        val springCallbacksByName = resolveSpringToolCallbacksByName(tools)
+        val toolInput = serializeToolInput(toolParams, null)
+        val (rawOutput, toolSuccess) = invokeToolAdapter(
+            toolName = toolName,
+            toolInput = toolInput,
+            tools = tools,
+            springCallbacksByName = springCallbacksByName,
+            toolsUsed = toolsUsed
+        )
+        var toolOutput = rawOutput
+        val toolDurationMs = System.currentTimeMillis() - toolStartTime
+
+        if (toolOutputSanitizer != null && toolSuccess) {
+            val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
+            toolOutput = sanitized.content
+        }
+        captureToolSignals(hookContext, toolName, toolOutput, toolSuccess)
+
+        val result = ToolCallResult(
+            success = toolSuccess,
+            output = toolOutput,
+            errorMessage = if (!toolSuccess) toolOutput else null,
+            durationMs = toolDurationMs
+        )
+        hookExecutor?.executeAfterToolCall(toolCallContext, result)
+        agentMetrics.recordToolCall(toolName, toolDurationMs, toolSuccess)
+        return result
+    }
+
     suspend fun executeInParallel(
         toolCalls: List<AssistantMessage.ToolCall>,
         tools: List<Any>,

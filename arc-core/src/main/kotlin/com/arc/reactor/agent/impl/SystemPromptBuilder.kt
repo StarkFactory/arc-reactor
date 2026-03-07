@@ -48,6 +48,18 @@ class SystemPromptBuilder(
             append("\nFor this request, you MUST call `work_morning_briefing` before answering.")
             append(" Do not assemble the briefing manually.")
         }
+        if (looksLikeWorkOwnerPrompt(userPrompt)) {
+            append("\nFor this request, you MUST call `work_owner_lookup` before answering.")
+            append(" Do not guess ownership from prior context.")
+        }
+        if (looksLikeWorkItemContextPrompt(userPrompt)) {
+            append("\nFor this request, you MUST call `work_item_context` before answering.")
+            append(" Do not summarize Jira, Confluence, or Bitbucket context manually.")
+        }
+        if (looksLikeWorkServiceContextPrompt(userPrompt)) {
+            append("\nFor this request, you MUST call `work_service_context` before answering.")
+            append(" Do not summarize service state from general knowledge or prior context.")
+        }
         if (responseFormat == ResponseFormat.TEXT) {
             append("\nEnd the response with a 'Sources' section that lists the supporting links.")
         }
@@ -98,6 +110,26 @@ class SystemPromptBuilder(
         return WORK_BRIEFING_HINTS.any { normalized.contains(it) }
     }
 
+    private fun looksLikeWorkOwnerPrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
+        return WORK_OWNER_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeWorkItemContextPrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
+        val hasIssueKey = ISSUE_KEY_REGEX.containsMatchIn(prompt.uppercase())
+        return hasIssueKey && WORK_ITEM_CONTEXT_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeWorkServiceContextPrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
+        val hasServiceMention = normalized.contains("service") || normalized.contains("서비스")
+        return hasServiceMention && WORK_SERVICE_CONTEXT_HINTS.any { normalized.contains(it) }
+    }
+
     companion object {
         private val CONFLUENCE_KNOWLEDGE_HINTS = setOf(
             "confluence", "wiki", "page", "document", "policy", "policies", "guideline", "guidelines",
@@ -112,5 +144,16 @@ class SystemPromptBuilder(
             "morning briefing", "daily briefing", "briefing", "work summary", "daily digest",
             "브리핑", "요약 브리핑", "아침 브리핑", "데일리 브리핑"
         )
+        private val WORK_OWNER_HINTS = setOf(
+            "owner", "담당자", "담당 팀", "누구 팀", "책임자", "누가 담당", "담당 서비스"
+        )
+        private val WORK_ITEM_CONTEXT_HINTS = setOf(
+            "전체 맥락", "맥락", "context", "관련 문서", "관련 pr", "열린 pr", "오픈 pr", "다음 액션", "next action"
+        )
+        private val WORK_SERVICE_CONTEXT_HINTS = setOf(
+            "서비스 상황", "서비스 현황", "service context", "service summary", "현재 상황", "현재 현황",
+            "최근 jira", "최근 jira 이슈", "열린 pr", "오픈 pr", "관련 문서", "한 번에 요약", "요약해줘", "기준으로"
+        )
+        private val ISSUE_KEY_REGEX = Regex("\\b[A-Z][A-Z0-9_]+-[1-9][0-9]*\\b")
     }
 }

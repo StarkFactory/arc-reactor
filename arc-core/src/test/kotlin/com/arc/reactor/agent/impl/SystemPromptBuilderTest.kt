@@ -79,7 +79,7 @@ class SystemPromptBuilderTest {
             userPrompt = "What does the page titled 개발팀 Home describe in the DEV space?"
         )
 
-        assertTrue(prompt.contains("You MUST call `confluence_answer_question` before answering.")) {
+        assertTrue(prompt.contains("MUST call") && prompt.contains("confluence_answer_question")) {
             "Confluence answer prompts should require the confluence_answer_question tool"
         }
     }
@@ -93,8 +93,50 @@ class SystemPromptBuilderTest {
             userPrompt = "Give me a morning briefing for Jira project DEV and Bitbucket repo dev."
         )
 
-        assertTrue(prompt.contains("You MUST call `work_morning_briefing` before answering.")) {
+        assertTrue(prompt.contains("MUST call") && prompt.contains("work_morning_briefing")) {
             "Morning briefing prompts should require the work_morning_briefing tool"
+        }
+    }
+
+    @Test
+    fun `should add required work owner instruction for ownership prompts`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "PAY-123 이슈 기준으로 담당 서비스와 owner, 팀을 찾아줘."
+        )
+
+        assertTrue(prompt.contains("MUST call") && prompt.contains("work_owner_lookup")) {
+            "Ownership prompts should require the work_owner_lookup tool"
+        }
+    }
+
+    @Test
+    fun `should add required work item context instruction for issue context prompts`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "PAY-123 이슈 전체 맥락을 정리해줘. 관련 문서와 다음 액션까지 포함해줘."
+        )
+
+        assertTrue(prompt.contains("MUST call") && prompt.contains("work_item_context")) {
+            "Issue context prompts should require the work_item_context tool"
+        }
+    }
+
+    @Test
+    fun `should add required work service instruction for service context prompts`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "payments 서비스 기준으로 최근 Jira 이슈, 관련 문서, 열린 PR까지 한 번에 요약해줘."
+        )
+
+        assertTrue(prompt.contains("MUST call") && prompt.contains("work_service_context")) {
+            "Service context prompts should require the work_service_context tool"
         }
     }
 }
