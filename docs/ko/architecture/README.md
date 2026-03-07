@@ -21,6 +21,7 @@ Arc Reactor 내부 동작을 설명하는 아키텍처 문서 모음입니다.
 - [Supervisor 패턴](supervisor-pattern.md)
 - [의도 분류](intent-classification.md)
 - [Prompt Lab](prompt-lab.md)
+- [Reactor Instrument](reactor-instrument.md)
 - [Implementation Guide (EN)](../../en/architecture/implementation-guide.md)
 
 ## 하위 패키지
