@@ -25,6 +25,7 @@ import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.impl.UserMemoryInjectionHook
 import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.hook.model.HookContext
+import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.MemoryStore
@@ -442,6 +443,18 @@ class SpringAiAgentExecutor(
         try {
             val maxToolCalls = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
             val allowedTools = resolveIntentAllowedTools(command)
+            val forcedToolContext = maybeExecuteForcedWorkContextTool(
+                command = command,
+                hookContext = hookContext,
+                toolsUsed = toolsUsed,
+                allowedTools = allowedTools
+            )
+            if (forcedToolContext != null && !forcedToolContext.success) {
+                return AgentResult.failure(
+                    errorMessage = forcedToolContext.errorMessage ?: forcedToolContext.output ?: AgentErrorCode.TOOL_ERROR.defaultMessage,
+                    errorCode = AgentErrorCode.TOOL_ERROR
+                )
+            }
             val userMemoryContext =
                 hookContext.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
             val baseSystemPrompt = if (userMemoryContext != null) {
@@ -449,16 +462,17 @@ class SpringAiAgentExecutor(
             } else {
                 command.systemPrompt
             }
+            val effectiveRagContext = mergeRagContext(ragContext, forcedToolContext?.output)
             val systemPrompt = systemPromptBuilder.build(
-                baseSystemPrompt, ragContext,
-                command.responseFormat, command.responseSchema
+                baseSystemPrompt, effectiveRagContext,
+                command.responseFormat, command.responseSchema, command.userPrompt
             )
             val activeChatClient = resolveChatClient(command)
             return manualReActLoopExecutor.execute(
                 command = command,
                 activeChatClient = activeChatClient,
                 systemPrompt = systemPrompt,
-                initialTools = tools,
+                initialTools = if (forcedToolContext != null) emptyList() else tools,
                 conversationHistory = conversationHistory,
                 hookContext = hookContext,
                 toolsUsed = toolsUsed,
@@ -474,5 +488,33 @@ class SpringAiAgentExecutor(
                 errorCode = errorCode
             )
         }
+    }
+
+    private suspend fun maybeExecuteForcedWorkContextTool(
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        allowedTools: Set<String>?
+    ): ToolCallResult? {
+        val plan = WorkContextForcedToolPlanner.plan(command.userPrompt) ?: return null
+        val callback = (toolCallbacks + mcpToolCallbacks()).firstOrNull { it.name == plan.toolName } ?: return null
+        val wrappedTool = ArcToolCallbackAdapter(
+            arcCallback = callback,
+            fallbackToolTimeoutMs = properties.concurrency.toolCallTimeoutMs
+        )
+        return toolCallOrchestrator.executeDirectToolCall(
+            toolName = plan.toolName,
+            toolParams = plan.arguments,
+            tools = listOf(wrappedTool),
+            hookContext = hookContext,
+            toolsUsed = toolsUsed,
+            allowedTools = allowedTools
+        )
+    }
+
+    private fun mergeRagContext(primary: String?, secondary: String?): String? {
+        val parts = listOfNotNull(primary?.trim()?.takeIf { it.isNotEmpty() }, secondary?.trim()?.takeIf { it.isNotEmpty() })
+        if (parts.isEmpty()) return null
+        return parts.joinToString("\n\n")
     }
 }

@@ -127,6 +127,7 @@ class OpsDashboardControllerTest {
         assertEquals(0, body.scheduler.totalJobs)
         assertEquals(0, body.recentSchedulerExecutions.size)
         assertEquals(0, body.approvals.pendingCount)
+        assertEquals(0L, body.employeeValue.observedResponses)
         assertEquals(0, body.recentTrustEvents.size)
     }
 
@@ -197,28 +198,65 @@ class OpsDashboardControllerTest {
             override fun recordExecution(result: AgentResult) {}
             override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {}
             override fun recordGuardRejection(stage: String, reason: String) {}
+            override fun responseValueSummary(): com.arc.reactor.agent.metrics.ResponseValueSummary {
+                return com.arc.reactor.agent.metrics.ResponseValueSummary(
+                    observedResponses = 12,
+                    groundedResponses = 10,
+                    blockedResponses = 2,
+                    interactiveResponses = 9,
+                    scheduledResponses = 3,
+                    answerModeCounts = mapOf("operational" to 7, "knowledge" to 5),
+                    channelCounts = mapOf("slack" to 8, "web" to 4),
+                    toolFamilyCounts = mapOf("jira" to 4, "confluence" to 3, "work" to 2),
+                    laneSummaries = listOf(
+                        com.arc.reactor.agent.metrics.ResponseLaneSummary(
+                            answerMode = "operational",
+                            observedResponses = 7,
+                            groundedResponses = 5,
+                            blockedResponses = 2
+                        ),
+                        com.arc.reactor.agent.metrics.ResponseLaneSummary(
+                            answerMode = "knowledge",
+                            observedResponses = 5,
+                            groundedResponses = 5,
+                            blockedResponses = 0
+                        )
+                    )
+                )
+            }
+
+            override fun topMissingQueries(limit: Int): List<com.arc.reactor.agent.metrics.MissingQueryInsight> = listOf(
+                com.arc.reactor.agent.metrics.MissingQueryInsight(
+                    queryCluster = "1d409f34a41c",
+                    queryLabel = "Question cluster 1d409f34a41c",
+                    count = 2,
+                    lastOccurredAt = Instant.parse("2026-03-07T09:09:00Z"),
+                    blockReason = "unverified_sources"
+                )
+            )
+
             override fun recentTrustEvents(limit: Int): List<RecentTrustEvent> = listOf(
                 RecentTrustEvent(
                     type = "unverified_response",
                     severity = "WARN",
                     channel = "web",
-                    runId = "run-1",
-                    userId = "u1",
-                    queryPreview = "Show the current policy"
+                    queryCluster = "9e1b4d532b8d",
+                    queryLabel = "Question cluster 9e1b4d532b8d"
                 ),
                 RecentTrustEvent(
                     type = "boundary_violation",
                     severity = "FAIL",
                     violation = "output_too_short",
-                    runId = "run-2",
-                    userId = "u2"
+                    queryCluster = "ff22c5a78210",
+                    queryLabel = "Prompt cluster ff22c5a78210"
                 ),
                 RecentTrustEvent(
                     type = "output_guard",
                     severity = "FAIL",
                     action = "rejected",
                     reason = "blocked",
-                    runId = "run-3"
+                    queryCluster = "6d71ce0c7512",
+                    queryLabel = "Prompt cluster 6d71ce0c7512"
                 )
             ).take(limit)
         }
@@ -311,10 +349,20 @@ class OpsDashboardControllerTest {
         assertEquals(1L, body.responseTrust.outputGuardRejected)
         assertEquals(3L, body.responseTrust.outputGuardModified)
         assertEquals(4L, body.responseTrust.boundaryFailures)
+        assertEquals(12L, body.employeeValue.observedResponses)
+        assertEquals(10L, body.employeeValue.groundedResponses)
+        assertEquals(83, body.employeeValue.groundedRatePercent)
+        assertEquals(2L, body.employeeValue.blockedResponses)
+        assertEquals(7L, body.employeeValue.answerModes["operational"])
+        assertEquals("slack", body.employeeValue.channels.first().key)
+        assertEquals(71, body.employeeValue.lanes.first { it.answerMode == "operational" }.groundedRatePercent)
+        assertEquals(0, body.employeeValue.lanes.first { it.answerMode == "knowledge" }.blockedResponses)
+        assertEquals("1d409f34a41c", body.employeeValue.topMissingQueries[0].queryCluster)
+        assertEquals("Question cluster 1d409f34a41c", body.employeeValue.topMissingQueries[0].queryLabel)
         assertEquals(3, body.recentTrustEvents.size)
         assertEquals("unverified_response", body.recentTrustEvents[0].type)
-        assertEquals("run-1", body.recentTrustEvents[0].runId)
-        assertEquals("Show the current policy", body.recentTrustEvents[0].queryPreview)
+        assertEquals("9e1b4d532b8d", body.recentTrustEvents[0].queryCluster)
+        assertEquals("Question cluster 9e1b4d532b8d", body.recentTrustEvents[0].queryLabel)
     }
 
     @Test
@@ -323,9 +371,8 @@ class OpsDashboardControllerTest {
             recordUnverifiedResponse(
                 mapOf(
                     "channel" to "web",
-                    "runId" to "run-ops-1",
-                    "userId" to "admin",
-                    "queryPreview" to "List Jira projects",
+                    "queryCluster" to "a207b424cb25",
+                    "queryLabel" to "Prompt cluster a207b424cb25",
                     "blockReason" to "unverified_sources"
                 )
             )
@@ -333,14 +380,14 @@ class OpsDashboardControllerTest {
                 stage = "pipeline",
                 action = "modified",
                 reason = "masked",
-                metadata = mapOf("runId" to "run-ops-2")
+                metadata = mapOf("queryCluster" to "2b7f4259f520", "queryLabel" to "Prompt cluster 2b7f4259f520")
             )
             recordBoundaryViolation(
                 violation = "output_too_short",
                 policy = "fail",
                 limit = 120,
                 actual = 12,
-                metadata = mapOf("runId" to "run-ops-3")
+                metadata = mapOf("queryCluster" to "3ce6990f6d8d", "queryLabel" to "Prompt cluster 3ce6990f6d8d")
             )
         }
 
@@ -362,8 +409,10 @@ class OpsDashboardControllerTest {
         assertEquals(0L, body.responseTrust.outputGuardRejected)
         assertEquals(1L, body.responseTrust.outputGuardModified)
         assertEquals(1L, body.responseTrust.boundaryFailures)
+        assertEquals(0L, body.employeeValue.observedResponses)
+        assertEquals(0, body.employeeValue.lanes.size)
         assertEquals(3, body.recentTrustEvents.size)
         assertEquals("unverified_response", body.recentTrustEvents[2].type)
-        assertEquals("run-ops-1", body.recentTrustEvents[2].runId)
+        assertEquals("a207b424cb25", body.recentTrustEvents[2].queryCluster)
     }
 }

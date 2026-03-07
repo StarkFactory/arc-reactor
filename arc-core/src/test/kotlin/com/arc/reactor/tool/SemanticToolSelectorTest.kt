@@ -152,6 +152,34 @@ class SemanticToolSelectorTest {
         }
 
         @Test
+        fun `should narrow confluence answer prompts to preferred tools only`() {
+            val confluenceTools = listOf(
+                createTool("confluence_search_by_text", "Low-level search"),
+                createTool("confluence_answer_question", "Preferred Confluence knowledge tool"),
+                createTool("confluence_get_page_content", "Get page content"),
+                createTool("confluence_get_page", "Get Confluence page metadata"),
+                createTool("jira_list_projects", "List Jira projects")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(confluenceTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(
+                embeddingModel = embeddingModel,
+                similarityThreshold = 0.0,
+                maxResults = 5
+            )
+
+            val result = selector.select("What does the page titled 개발팀 Home describe in the DEV space?", confluenceTools)
+
+            assertEquals(
+                listOf("confluence_answer_question", "confluence_get_page_content", "confluence_get_page"),
+                result.map { it.name }
+            ) {
+                "Confluence answer prompts should be narrowed to the preferred knowledge tools"
+            }
+        }
+
+        @Test
         fun `should force work item context tool for issue context prompts`() {
             val workTools = listOf(
                 createTool("jira_get_issue", "Get Jira issue metadata"),
@@ -190,6 +218,25 @@ class SemanticToolSelectorTest {
         }
 
         @Test
+        fun `should force work service context tool for service baseline prompts`() {
+            val workTools = listOf(
+                createTool("jira_search_issues", "Search Jira issues"),
+                createTool("work_service_context", "Build a service-centric digest across Jira, Confluence, and Bitbucket"),
+                createTool("bitbucket_list_prs", "List Bitbucket PRs")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(workTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+
+            val result = selector.select("payments 서비스 기준으로 최근 Jira 이슈, 관련 문서, 열린 PR까지 한 번에 요약해줘.", workTools)
+
+            assertEquals(listOf("work_service_context"), result.map { it.name }) {
+                "Service baseline prompts should be narrowed to work_service_context"
+            }
+        }
+
+        @Test
         fun `should force work owner lookup tool for ownership prompts`() {
             val workTools = listOf(
                 createTool("jira_get_issue", "Get Jira issue metadata"),
@@ -205,6 +252,29 @@ class SemanticToolSelectorTest {
 
             assertEquals(listOf("work_owner_lookup"), result.map { it.name }) {
                 "Ownership prompts should be narrowed to work_owner_lookup"
+            }
+        }
+
+        @Test
+        fun `should force work morning briefing tool for briefing prompts`() {
+            val workTools = listOf(
+                createTool("jira_list_projects", "List Jira projects"),
+                createTool("work_morning_briefing", "Generate a single morning briefing across Jira, Bitbucket, and Confluence"),
+                createTool("bitbucket_list_repositories", "List Bitbucket repositories")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(workTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(
+                embeddingModel = embeddingModel,
+                similarityThreshold = 0.0,
+                maxResults = 5
+            )
+
+            val result = selector.select("Give me a morning briefing for Jira project DEV and Bitbucket repo dev.", workTools)
+
+            assertEquals(listOf("work_morning_briefing"), result.map { it.name }) {
+                "Morning briefing prompts should be narrowed to the work_morning_briefing tool"
             }
         }
     }

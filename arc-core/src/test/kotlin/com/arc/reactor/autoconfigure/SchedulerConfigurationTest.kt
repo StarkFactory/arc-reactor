@@ -2,6 +2,7 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.scheduler.InMemoryScheduledJobStore
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.scheduler.DynamicSchedulerService
 import com.arc.reactor.scheduler.ScheduledJobStore
@@ -12,6 +13,7 @@ import com.arc.reactor.scheduler.tool.UpdateScheduledJobTool
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.mockk.mockk
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
@@ -24,6 +26,11 @@ class SchedulerConfigurationTest {
     private val contextRunner = ApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(SchedulerConfiguration::class.java))
         .withBean(ScheduledJobStore::class.java, { mockk(relaxed = true) })
+        .withBean(McpManager::class.java, { mockk(relaxed = true) })
+        .withBean(AgentProperties::class.java, { AgentProperties() })
+
+    private val dbLessContextRunner = ApplicationContextRunner()
+        .withConfiguration(AutoConfigurations.of(SchedulerConfiguration::class.java))
         .withBean(McpManager::class.java, { mockk(relaxed = true) })
         .withBean(AgentProperties::class.java, { AgentProperties() })
 
@@ -64,6 +71,20 @@ class SchedulerConfigurationTest {
                     context.getBean(ListScheduledJobsTool::class.java).shouldNotBeNull()
                     context.getBean(UpdateScheduledJobTool::class.java).shouldNotBeNull()
                     context.getBean(DeleteScheduledJobTool::class.java).shouldNotBeNull()
+                }
+        }
+
+        @Test
+        fun `scheduler falls back to in-memory store when no persistent store exists`() {
+            dbLessContextRunner
+                .withPropertyValues("arc.reactor.scheduler.enabled=true")
+                .run { context ->
+                    context.getBean(DynamicSchedulerService::class.java).shouldNotBeNull()
+                    assertEquals(
+                        InMemoryScheduledJobStore::class.java,
+                        context.getBean(ScheduledJobStore::class.java)::class.java,
+                        "DB-less scheduler should fall back to InMemoryScheduledJobStore"
+                    )
                 }
         }
 

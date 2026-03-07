@@ -128,18 +128,25 @@ class SemanticToolSelector(
             if (preferred.isNotEmpty()) return preferred
         }
 
+        if (looksLikeWorkBriefingPrompt(prompt)) {
+            val preferred = PREFERRED_WORK_BRIEFING_TOOLS
+                .mapNotNull(availableByName::get)
+            if (preferred.isNotEmpty()) {
+                return preferred
+            }
+        }
+
         if (!looksLikeConfluenceKnowledgePrompt(prompt)) return selected
 
         val preferred = PREFERRED_CONFLUENCE_KNOWLEDGE_TOOLS
             .mapNotNull(availableByName::get)
         if (preferred.isEmpty()) return selected
 
-        val filtered = if (looksLikeConfluenceAnswerPrompt(prompt)) {
-            selected.filterNot { it.name in LOW_LEVEL_CONFLUENCE_DISCOVERY_TOOLS }
-        } else {
-            selected
+        if (looksLikeConfluenceAnswerPrompt(prompt)) {
+            return preferred.take(maxResults)
         }
 
+        val filtered = selected.filterNot { it.name in LOW_LEVEL_CONFLUENCE_DISCOVERY_TOOLS }
         val ordered = LinkedHashMap<String, ToolCallback>()
         preferred.forEach { ordered[it.name] = it }
         filtered.forEach { ordered.putIfAbsent(it.name, it) }
@@ -171,6 +178,11 @@ class SemanticToolSelector(
         val normalized = prompt.lowercase()
         val hasServiceMention = normalized.contains("service") || normalized.contains("서비스")
         return hasServiceMention && WORK_SERVICE_CONTEXT_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeWorkBriefingPrompt(prompt: String): Boolean {
+        val normalized = prompt.lowercase()
+        return WORK_BRIEFING_HINTS.any { normalized.contains(it) }
     }
 
     private fun refreshEmbeddingsIfNeeded(tools: List<ToolCallback>) {
@@ -217,6 +229,9 @@ class SemanticToolSelector(
         private val PREFERRED_WORK_SERVICE_CONTEXT_TOOLS = listOf(
             "work_service_context"
         )
+        private val PREFERRED_WORK_BRIEFING_TOOLS = listOf(
+            "work_morning_briefing"
+        )
         private val LOW_LEVEL_CONFLUENCE_DISCOVERY_TOOLS = setOf(
             "confluence_search",
             "confluence_search_by_text"
@@ -238,9 +253,13 @@ class SemanticToolSelector(
         )
         private val WORK_SERVICE_CONTEXT_HINTS = setOf(
             "서비스 상황", "서비스 현황", "service context", "service summary", "현재 상황", "현재 현황",
-            "최근 jira", "열린 pr", "오픈 pr", "관련 문서", "한 번에 요약", "요약해줘"
+            "최근 jira", "최근 jira 이슈", "열린 pr", "오픈 pr", "관련 문서", "한 번에 요약", "요약해줘", "기준으로"
         )
         private val ISSUE_KEY_REGEX = Regex("\\b[A-Z][A-Z0-9_]+-[1-9][0-9]*\\b")
+        private val WORK_BRIEFING_HINTS = setOf(
+            "morning briefing", "daily briefing", "briefing", "work summary", "daily digest",
+            "브리핑", "요약 브리핑", "아침 브리핑", "데일리 브리핑"
+        )
 
         /**
          * Compute cosine similarity between two vectors.

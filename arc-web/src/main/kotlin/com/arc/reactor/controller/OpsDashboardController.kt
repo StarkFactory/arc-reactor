@@ -2,7 +2,9 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.MissingQueryInsight
 import com.arc.reactor.agent.metrics.RecentTrustEventReader
+import com.arc.reactor.agent.metrics.ResponseValueSummary
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.mcp.model.McpServerStatus
@@ -60,6 +62,7 @@ class OpsDashboardController(
             recentSchedulerExecutions = recentSchedulerExecutions(),
             approvals = approvalSummary(),
             responseTrust = responseTrustSummary(registry),
+            employeeValue = employeeValueSummary(),
             recentTrustEvents = recentTrustEvents(),
             metrics = metricNames.map { name -> metricSnapshot(name, registry) }
         )
@@ -242,11 +245,64 @@ class OpsDashboardController(
                 violation = event.violation,
                 policy = event.policy,
                 channel = event.channel,
-                runId = event.runId,
-                userId = event.userId,
-                queryPreview = event.queryPreview
+                queryCluster = event.queryCluster,
+                queryLabel = event.queryLabel
             )
         }
+    }
+
+    private fun employeeValueSummary(): EmployeeValueSummary {
+        val reader = agentMetricsProvider.ifAvailable as? RecentTrustEventReader
+        val summary = reader?.responseValueSummary() ?: ResponseValueSummary()
+        val groundedRate = if (summary.observedResponses > 0) {
+            ((summary.groundedResponses * 100.0) / summary.observedResponses).toInt()
+        } else {
+            0
+        }
+        return EmployeeValueSummary(
+            observedResponses = summary.observedResponses,
+            groundedResponses = summary.groundedResponses,
+            groundedRatePercent = groundedRate,
+            blockedResponses = summary.blockedResponses,
+            interactiveResponses = summary.interactiveResponses,
+            scheduledResponses = summary.scheduledResponses,
+            answerModes = summary.answerModeCounts,
+            channels = summary.channelCounts.entries.map {
+                EmployeeValueBucket(key = it.key, count = it.value)
+            },
+            lanes = summary.laneSummaries.map(::toEmployeeValueLaneSummary),
+            toolFamilies = summary.toolFamilyCounts.entries.map {
+                EmployeeValueBucket(key = it.key, count = it.value)
+            },
+            topMissingQueries = (reader?.topMissingQueries(5) ?: emptyList()).map(::toMissingQuerySummary)
+        )
+    }
+
+    private fun toEmployeeValueLaneSummary(
+        lane: com.arc.reactor.agent.metrics.ResponseLaneSummary
+    ): EmployeeValueLaneSummary {
+        val groundedRate = if (lane.observedResponses > 0) {
+            ((lane.groundedResponses * 100.0) / lane.observedResponses).toInt()
+        } else {
+            0
+        }
+        return EmployeeValueLaneSummary(
+            answerMode = lane.answerMode,
+            observedResponses = lane.observedResponses,
+            groundedResponses = lane.groundedResponses,
+            blockedResponses = lane.blockedResponses,
+            groundedRatePercent = groundedRate
+        )
+    }
+
+    private fun toMissingQuerySummary(insight: MissingQueryInsight): MissingQuerySummary {
+        return MissingQuerySummary(
+            queryCluster = insight.queryCluster,
+            queryLabel = insight.queryLabel,
+            count = insight.count,
+            lastOccurredAt = insight.lastOccurredAt.toEpochMilli(),
+            blockReason = insight.blockReason
+        )
     }
 
     private fun io.micrometer.core.instrument.Statistic.toMetricKey(): String = name.lowercase()
@@ -277,6 +333,7 @@ data class OpsDashboardResponse(
     val recentSchedulerExecutions: List<RecentSchedulerExecutionSummary>,
     val approvals: ApprovalOpsSummary,
     val responseTrust: ResponseTrustSummary,
+    val employeeValue: EmployeeValueSummary,
     val recentTrustEvents: List<RecentTrustEventSummary>,
     val metrics: List<OpsMetricSnapshot>
 )
@@ -326,6 +383,41 @@ data class ResponseTrustSummary(
     val boundaryFailures: Long
 )
 
+data class EmployeeValueSummary(
+    val observedResponses: Long,
+    val groundedResponses: Long,
+    val groundedRatePercent: Int,
+    val blockedResponses: Long,
+    val interactiveResponses: Long,
+    val scheduledResponses: Long,
+    val answerModes: Map<String, Long>,
+    val channels: List<EmployeeValueBucket>,
+    val lanes: List<EmployeeValueLaneSummary>,
+    val toolFamilies: List<EmployeeValueBucket>,
+    val topMissingQueries: List<MissingQuerySummary>
+)
+
+data class EmployeeValueLaneSummary(
+    val answerMode: String,
+    val observedResponses: Long,
+    val groundedResponses: Long,
+    val blockedResponses: Long,
+    val groundedRatePercent: Int
+)
+
+data class EmployeeValueBucket(
+    val key: String,
+    val count: Long
+)
+
+data class MissingQuerySummary(
+    val queryCluster: String,
+    val queryLabel: String,
+    val count: Long,
+    val lastOccurredAt: Long,
+    val blockReason: String?
+)
+
 data class RecentTrustEventSummary(
     val occurredAt: Long,
     val type: String,
@@ -336,7 +428,6 @@ data class RecentTrustEventSummary(
     val violation: String?,
     val policy: String?,
     val channel: String?,
-    val runId: String?,
-    val userId: String?,
-    val queryPreview: String?
+    val queryCluster: String?,
+    val queryLabel: String?
 )

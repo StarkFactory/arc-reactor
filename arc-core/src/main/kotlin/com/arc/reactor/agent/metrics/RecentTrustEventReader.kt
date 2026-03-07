@@ -11,6 +11,8 @@ interface RecentTrustEventReader {
     fun outputGuardRejectedCount(): Long = 0
     fun outputGuardModifiedCount(): Long = 0
     fun boundaryFailuresCount(): Long = 0
+    fun responseValueSummary(): ResponseValueSummary = ResponseValueSummary()
+    fun topMissingQueries(limit: Int = 5): List<MissingQueryInsight> = emptyList()
 }
 
 data class RecentTrustEvent(
@@ -23,7 +25,6 @@ data class RecentTrustEvent(
     val violation: String? = null,
     val policy: String? = null,
     val channel: String? = null,
-    val runId: String? = null,
-    val userId: String? = null,
-    val queryPreview: String? = null
+    val queryCluster: String? = null,
+    val queryLabel: String? = null
 )

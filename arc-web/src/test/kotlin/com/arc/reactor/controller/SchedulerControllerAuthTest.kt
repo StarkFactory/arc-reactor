@@ -11,6 +11,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
@@ -95,6 +96,39 @@ class SchedulerControllerAuthTest {
         assertEquals("MCP server 'atlassian' is not connected", result[0].lastFailureReason)
         assertEquals("Job 'Release digest' failed: MCP server 'atlassian' is not connected", result[0].lastResultPreview)
         assertNull(result[0].lastRunAt)
+    }
+
+    @Test
+    fun `triggerJob rejects non-admin`() {
+        val response = controller.triggerJob("job-1", exchange(userId = "user-1", role = UserRole.USER)).block()
+
+        assertEquals(HttpStatus.FORBIDDEN, response?.statusCode) { "Non-admin trigger should be forbidden" }
+        verify(exactly = 0) { schedulerService.trigger(any()) }
+    }
+
+    @Test
+    fun `triggerJob allows admin and returns result`() {
+        every { schedulerService.trigger("job-1") } returns "triggered"
+
+        val response = controller.triggerJob("job-1", exchange(userId = "admin-1", role = UserRole.ADMIN)).block()
+        @Suppress("UNCHECKED_CAST")
+        val result = response?.body as Map<String, Any>
+
+        assertEquals(HttpStatus.OK, response.statusCode) { "Admin trigger should succeed" }
+        assertEquals("triggered", result["result"]) { "Trigger response should include execution result" }
+    }
+
+    @Test
+    fun `dryRunJob allows admin and returns dry run marker`() {
+        every { schedulerService.dryRun("job-1") } returns "preview"
+
+        val response = controller.dryRunJob("job-1", exchange(userId = "admin-1", role = UserRole.ADMIN)).block()
+        @Suppress("UNCHECKED_CAST")
+        val result = response?.body as Map<String, Any>
+
+        assertEquals(HttpStatus.OK, response.statusCode) { "Admin dry-run should succeed" }
+        assertEquals("preview", result["result"]) { "Dry-run response should include execution result" }
+        assertTrue(result["dryRun"] as Boolean) { "Dry-run response should expose dryRun=true" }
     }
 
     private fun exchange(userId: String? = null, role: UserRole? = null): ServerWebExchange {

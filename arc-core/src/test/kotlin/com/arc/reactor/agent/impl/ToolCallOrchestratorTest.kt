@@ -263,6 +263,36 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
+    fun `should execute direct tool call and append toolsUsed`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("query" to "PAY-123") }
+        )
+        val toolsUsed = mutableListOf<String>()
+        val callback = object : ToolCallback {
+            override val name: String = "work_owner_lookup"
+            override val description: String = "Resolve owner"
+            override suspend fun call(arguments: Map<String, Any?>): Any = "owner=${arguments["query"]}"
+        }
+
+        val result = orchestrator.executeDirectToolCall(
+            toolName = "work_owner_lookup",
+            toolParams = mapOf("query" to "PAY-123"),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = toolsUsed
+        )
+
+        assertTrue(result.success)
+        assertEquals("owner=PAY-123", result.output)
+        assertEquals(listOf("work_owner_lookup"), toolsUsed)
+    }
+
+    @Test
     fun `should capture verified sources from tool output`() = runBlocking {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
