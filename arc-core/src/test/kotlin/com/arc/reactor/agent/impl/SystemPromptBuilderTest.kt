@@ -96,6 +96,9 @@ class SystemPromptBuilderTest {
         assertTrue(prompt.contains("MUST call") && prompt.contains("work_morning_briefing")) {
             "Morning briefing prompts should require the work_morning_briefing tool"
         }
+        assertTrue(prompt.contains("default profile settings") && prompt.contains("do not ask follow-up questions")) {
+            "Morning briefing prompts should instruct the model to call the tool first and use defaults"
+        }
     }
 
     @Test

@@ -47,6 +47,8 @@ class SystemPromptBuilder(
         if (looksLikeWorkBriefingPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_morning_briefing` before answering.")
             append(" Do not assemble the briefing manually.")
+            append(" The tool accepts optional inputs and will use default profile settings when details are omitted.")
+            append(" Infer obvious project/repository hints from the user message, but do not ask follow-up questions before the first tool call.")
         }
         if (looksLikeWorkOwnerPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_owner_lookup` before answering.")
