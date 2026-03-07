@@ -7,6 +7,7 @@ import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.persona.PersonaStore
+import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.scheduler.DynamicSchedulerService
 import com.arc.reactor.scheduler.InMemoryScheduledJobStore
 import com.arc.reactor.scheduler.InMemoryScheduledJobExecutionStore
@@ -73,6 +74,7 @@ class SchedulerConfiguration {
         pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>,
         agentExecutorProvider: ObjectProvider<AgentExecutor>,
         personaStoreProvider: ObjectProvider<PersonaStore>,
+        promptTemplateStoreProvider: ObjectProvider<PromptTemplateStore>,
         executionStoreProvider: ObjectProvider<ScheduledJobExecutionStore>
     ): DynamicSchedulerService = DynamicSchedulerService(
         store = scheduledJobStore,
@@ -85,6 +87,7 @@ class SchedulerConfiguration {
         pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable,
         agentExecutorProvider = { agentExecutorProvider.ifAvailable },
         personaStore = personaStoreProvider.ifAvailable,
+        promptTemplateStore = promptTemplateStoreProvider.ifAvailable,
         executionStore = executionStoreProvider.ifAvailable
     )
 

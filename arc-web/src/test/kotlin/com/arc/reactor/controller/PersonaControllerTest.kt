@@ -130,6 +130,7 @@ class PersonaControllerTest {
                 description = "A domain expert",
                 responseGuideline = "Use bullet points.",
                 welcomeMessage = "Hello!",
+                promptTemplateId = "template-expert",
                 icon = "🧑‍💻",
                 isActive = false,
                 createdAt = now,
@@ -143,6 +144,7 @@ class PersonaControllerTest {
             assertEquals("A domain expert", body.description) { "Description should match" }
             assertEquals("Use bullet points.", body.responseGuideline) { "Guideline should match" }
             assertEquals("Hello!", body.welcomeMessage) { "Welcome message should match" }
+            assertEquals("template-expert", body.promptTemplateId) { "Linked prompt template should match" }
             assertEquals("🧑‍💻", body.icon) { "Icon should match" }
             assertFalse(body.isActive) { "isActive should be false" }
         }
@@ -219,6 +221,7 @@ class PersonaControllerTest {
                 description = "A domain expert",
                 responseGuideline = "Use bullet points.",
                 welcomeMessage = "Hello!",
+                promptTemplateId = "template-expert",
                 icon = "🧑‍💻",
                 isActive = true
             )
@@ -229,12 +232,14 @@ class PersonaControllerTest {
             assertEquals("A domain expert", body.description) { "Description should match" }
             assertEquals("Use bullet points.", body.responseGuideline) { "Guideline should match" }
             assertEquals("Hello!", body.welcomeMessage) { "Welcome message should match" }
+            assertEquals("template-expert", body.promptTemplateId) { "Linked prompt template should match" }
             assertEquals("🧑‍💻", body.icon) { "Icon should match" }
             assertTrue(body.isActive) { "isActive should be true" }
 
             // Verify captured persona
             assertEquals("A domain expert", slot.captured.description) { "Stored description should match" }
             assertEquals("Use bullet points.", slot.captured.responseGuideline) { "Stored guideline should match" }
+            assertEquals("template-expert", slot.captured.promptTemplateId) { "Stored linked prompt template should match" }
         }
 
         @Test
@@ -252,6 +257,7 @@ class PersonaControllerTest {
             assertNull(slot.captured.description) { "Description should default to null" }
             assertNull(slot.captured.responseGuideline) { "Guideline should default to null" }
             assertNull(slot.captured.welcomeMessage) { "Welcome message should default to null" }
+            assertNull(slot.captured.promptTemplateId) { "Linked prompt template should default to null" }
             assertNull(slot.captured.icon) { "Icon should default to null" }
         }
     }
@@ -262,7 +268,7 @@ class PersonaControllerTest {
         @Test
         fun `should return 404 when updating nonexistent persona`() = runTest {
             every { personaStore.update("nonexistent",
-                any(), any(), any(), any(), any(), any(), any(), any()) } returns null
+                any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns null
 
             val response = controller.updatePersona(
                 "nonexistent",
@@ -277,7 +283,7 @@ class PersonaControllerTest {
         fun `should return updated persona with correct fields`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             every { personaStore.update("p-1", "Updated Name",
-                null, null, null, null, null, null, null) } returns Persona(
+                null, null, null, null, null, null, null, null) } returns Persona(
                 "p-1", "Updated Name", "original prompt", false,
                 createdAt = now, updatedAt = now.plusSeconds(10)
             )
@@ -307,7 +313,7 @@ class PersonaControllerTest {
         fun `should pass isDefault change to store`() = runTest {
             val now = Instant.now()
             every { personaStore.update("p-1", null, null, true,
-                null, null, null, null, null) } returns Persona(
+                null, null, null, null, null, null) } returns Persona(
                 "p-1", "Name", "prompt", true, createdAt = now, updatedAt = now
             )
 
@@ -319,6 +325,31 @@ class PersonaControllerTest {
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
             assertTrue((response.body as PersonaResponse).isDefault) { "Should be marked as default after update" }
+        }
+
+        @Test
+        fun `should pass linked prompt template changes to store`() = runTest {
+            val now = Instant.now()
+            every { personaStore.update("p-1", null, null, null,
+                null, null, null, null, "template-a", null) } returns Persona(
+                id = "p-1",
+                name = "Name",
+                systemPrompt = "prompt",
+                promptTemplateId = "template-a",
+                createdAt = now,
+                updatedAt = now
+            )
+
+            val response = controller.updatePersona(
+                "p-1",
+                UpdatePersonaRequest(promptTemplateId = "template-a"),
+                adminExchange()
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
+            assertEquals("template-a", (response.body as PersonaResponse).promptTemplateId) {
+                "Linked prompt template should be returned"
+            }
         }
     }
 

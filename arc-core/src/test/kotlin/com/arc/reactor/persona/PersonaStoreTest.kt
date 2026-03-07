@@ -212,6 +212,22 @@ class PersonaStoreTest {
         }
 
         @Test
+        fun `should update linked prompt template independently`() {
+            store.save(Persona(
+                id = "templated",
+                name = "Linked",
+                systemPrompt = "fallback",
+                promptTemplateId = "template-a"
+            ))
+
+            val updated = store.update("templated", promptTemplateId = "template-b")
+
+            assertNotNull(updated) { "Update should return the updated persona" }
+            assertEquals("template-b", updated!!.promptTemplateId) { "Linked prompt template should be updated" }
+            assertEquals("fallback", updated.systemPrompt) { "Fallback system prompt should remain unchanged" }
+        }
+
+        @Test
         fun `should preserve existing extended fields when update sends null`() {
             store.save(Persona(
                 id = "preserve",
@@ -246,16 +262,18 @@ class PersonaStoreTest {
                 name = "Persona",
                 systemPrompt = "prompt",
                 description = "Has description",
+                promptTemplateId = "template-a",
                 icon = "🔥",
                 welcomeMessage = "Hello"
             ))
 
-            val updated = store.update("clearable", description = "", icon = "", welcomeMessage = "")
+            val updated = store.update("clearable", description = "", icon = "", welcomeMessage = "", promptTemplateId = "")
 
             assertNotNull(updated) { "Update should return the updated persona" }
             assertNull(updated!!.description) { "Description should be cleared to null" }
             assertNull(updated.icon) { "Icon should be cleared to null" }
             assertNull(updated.welcomeMessage) { "Welcome message should be cleared to null" }
+            assertNull(updated.promptTemplateId) { "Linked prompt template should be cleared to null" }
         }
     }
 

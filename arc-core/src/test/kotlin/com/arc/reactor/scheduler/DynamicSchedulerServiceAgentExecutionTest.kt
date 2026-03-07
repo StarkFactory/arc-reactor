@@ -6,6 +6,9 @@ import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
+import com.arc.reactor.prompt.PromptTemplateStore
+import com.arc.reactor.prompt.PromptVersion
+import com.arc.reactor.prompt.VersionStatus
 import com.arc.reactor.tool.ToolCallback
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -167,6 +170,46 @@ class DynamicSchedulerServiceAgentExecutionTest {
         }
 
         @Test
+        fun `AGENT job resolves linked template content from persona`() {
+            val job = agentJob(personaId = "briefing-assistant")
+            val store = RecordingStore(job)
+            val agentExecutor = mockk<AgentExecutor>()
+            val personaStore = mockk<PersonaStore>()
+            val promptTemplateStore = mockk<PromptTemplateStore>()
+            val commandSlot = slot<AgentCommand>()
+
+            every { personaStore.get("briefing-assistant") } returns Persona(
+                id = "briefing-assistant",
+                name = "Briefing",
+                systemPrompt = "fallback prompt",
+                responseGuideline = "항상 간결하게 답해.",
+                promptTemplateId = "template-1"
+            )
+            every { promptTemplateStore.getActiveVersion("template-1") } returns PromptVersion(
+                id = "version-1",
+                templateId = "template-1",
+                version = 1,
+                content = "너는 회사 비서야.",
+                status = VersionStatus.ACTIVE
+            )
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            val service = buildService(
+                store,
+                agentExecutor = agentExecutor,
+                personaStore = personaStore,
+                promptTemplateStore = promptTemplateStore
+            )
+            service.trigger(job.id)
+
+            assertEquals(
+                "너는 회사 비서야.\n\n항상 간결하게 답해.",
+                commandSlot.captured.systemPrompt,
+                "Linked template content should be combined with persona guideline"
+            )
+        }
+
+        @Test
         fun `AGENT job prefers agentSystemPrompt over personaId`() {
             val job = agentJob(
                 personaId = "briefing-assistant",
@@ -289,6 +332,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
         mcpManager: McpManager = mockk(relaxed = true),
         agentExecutor: AgentExecutor? = null,
         personaStore: PersonaStore? = null,
+        promptTemplateStore: PromptTemplateStore? = null,
         slackSender: SlackMessageSender? = null
     ) = DynamicSchedulerService(
         store = store,
@@ -296,7 +340,8 @@ class DynamicSchedulerServiceAgentExecutionTest {
         mcpManager = mcpManager,
         slackMessageSender = slackSender,
         agentExecutor = agentExecutor,
-        personaStore = personaStore
+        personaStore = personaStore,
+        promptTemplateStore = promptTemplateStore
     )
 
     private class RecordingStore(private val job: ScheduledJob) : ScheduledJobStore {

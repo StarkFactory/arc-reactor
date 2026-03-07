@@ -5,6 +5,7 @@ import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.persona.PersonaStore
+import com.arc.reactor.prompt.PromptTemplateStore
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -36,9 +37,13 @@ import reactor.core.publisher.Flux
 class MultipartChatController(
     private val agentExecutor: AgentExecutor,
     private val personaStore: PersonaStore? = null,
+    private val promptTemplateStore: PromptTemplateStore? = null,
     private val properties: AgentProperties = AgentProperties()
 ) {
-    private val systemPromptResolver = SystemPromptResolver(personaStore = personaStore)
+    private val systemPromptResolver = SystemPromptResolver(
+        personaStore = personaStore,
+        promptTemplateStore = promptTemplateStore
+    )
 
     /**
      * Multipart chat - send a message with file attachments (images, audio, etc.)

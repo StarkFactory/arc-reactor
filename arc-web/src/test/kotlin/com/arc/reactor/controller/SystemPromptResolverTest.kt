@@ -2,6 +2,9 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
+import com.arc.reactor.prompt.PromptTemplateStore
+import com.arc.reactor.prompt.PromptVersion
+import com.arc.reactor.prompt.VersionStatus
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.*
@@ -11,7 +14,8 @@ import org.junit.jupiter.api.Test
 class SystemPromptResolverTest {
 
     private val personaStore: PersonaStore = mockk()
-    private val resolver = SystemPromptResolver(personaStore = personaStore)
+    private val promptTemplateStore: PromptTemplateStore = mockk()
+    private val resolver = SystemPromptResolver(personaStore = personaStore, promptTemplateStore = promptTemplateStore)
 
     @Nested
     inner class BuildEffectivePrompt {
@@ -64,6 +68,50 @@ class SystemPromptResolverTest {
         }
 
         @Test
+        fun `should use linked prompt template content when persona is linked`() {
+            every { personaStore.get("p-1") } returns Persona(
+                id = "p-1",
+                name = "Templated",
+                systemPrompt = "Fallback prompt.",
+                responseGuideline = "Always respond in Korean.",
+                promptTemplateId = "template-1"
+            )
+            every { promptTemplateStore.getActiveVersion("template-1") } returns PromptVersion(
+                id = "version-1",
+                templateId = "template-1",
+                version = 3,
+                content = "Template prompt.",
+                status = VersionStatus.ACTIVE
+            )
+
+            val result = resolver.resolve("p-1", null, null)
+
+            assertEquals(
+                "Template prompt.\n\nAlways respond in Korean.",
+                result
+            ) { "Linked template content should be preferred over fallback persona prompt" }
+        }
+
+        @Test
+        fun `should fall back to persona systemPrompt when linked template has no active version`() {
+            every { personaStore.get("p-1") } returns Persona(
+                id = "p-1",
+                name = "Templated",
+                systemPrompt = "Fallback prompt.",
+                responseGuideline = "Stay concise.",
+                promptTemplateId = "template-1"
+            )
+            every { promptTemplateStore.getActiveVersion("template-1") } returns null
+
+            val result = resolver.resolve("p-1", null, null)
+
+            assertEquals(
+                "Fallback prompt.\n\nStay concise.",
+                result
+            ) { "Fallback persona prompt should be used when no active template exists" }
+        }
+
+        @Test
         fun `should use buildEffectivePrompt for default persona too`() {
             every { personaStore.get(any()) } returns null
             every { personaStore.getDefault() } returns Persona(
@@ -93,6 +141,7 @@ class SystemPromptResolverTest {
                 name = "Custom",
                 systemPrompt = "Custom prompt."
             )
+            every { promptTemplateStore.getActiveVersion(any()) } returns null
 
             val result = resolver.resolve("custom", null, "Direct override")
 
@@ -100,8 +149,39 @@ class SystemPromptResolverTest {
         }
 
         @Test
+        fun `should prefer personaId over direct promptTemplateId`() {
+            every { personaStore.get("custom") } returns Persona(
+                id = "custom",
+                name = "Custom",
+                systemPrompt = "Persona prompt.",
+                promptTemplateId = "persona-template"
+            )
+            every { promptTemplateStore.getActiveVersion("persona-template") } returns PromptVersion(
+                id = "version-1",
+                templateId = "persona-template",
+                version = 1,
+                content = "Linked persona prompt.",
+                status = VersionStatus.ACTIVE
+            )
+            every { promptTemplateStore.getActiveVersion("request-template") } returns PromptVersion(
+                id = "version-2",
+                templateId = "request-template",
+                version = 1,
+                content = "Request template prompt.",
+                status = VersionStatus.ACTIVE
+            )
+
+            val result = resolver.resolve("custom", "request-template", null)
+
+            assertEquals("Linked persona prompt.", result) {
+                "Persona-linked prompt should take priority over direct promptTemplateId"
+            }
+        }
+
+        @Test
         fun `should fallback to systemPrompt when persona not found`() {
             every { personaStore.get("missing") } returns null
+            every { promptTemplateStore.getActiveVersion(any()) } returns null
 
             val result = resolver.resolve("missing", null, "Fallback prompt")
 

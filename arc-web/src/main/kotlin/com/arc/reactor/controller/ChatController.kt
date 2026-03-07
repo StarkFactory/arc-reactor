@@ -263,19 +263,33 @@ class ChatController(
         val tenantId = TenantContextResolver.resolveTenantId(exchange)
         val withTenant = withChannel + ("tenantId" to tenantId)
 
-        if (request.promptTemplateId == null || promptTemplateStore == null) return withTenant
+        val effectivePromptTemplateId = resolveEffectivePromptTemplateId(request) ?: return withTenant
+        if (promptTemplateStore == null) return withTenant
 
         val activeVersion = try {
-            promptTemplateStore.getActiveVersion(request.promptTemplateId)
+            promptTemplateStore.getActiveVersion(effectivePromptTemplateId)
         } catch (e: Exception) {
-            logger.warn(e) { "Prompt template metadata lookup failed for id='${request.promptTemplateId}'" }
+            logger.warn(e) { "Prompt template metadata lookup failed for id='$effectivePromptTemplateId'" }
             null
         } ?: return withTenant
         return withTenant + mapOf(
-            "promptTemplateId" to request.promptTemplateId,
+            "promptTemplateId" to effectivePromptTemplateId,
             "promptVersionId" to activeVersion.id,
             "promptVersion" to activeVersion.version
         )
+    }
+
+    private fun resolveEffectivePromptTemplateId(request: ChatRequest): String? {
+        val linkedTemplateId = request.personaId
+            ?.let { personaId ->
+                try {
+                    personaStore?.get(personaId)?.promptTemplateId
+                } catch (e: Exception) {
+                    logger.warn(e) { "Persona prompt template lookup failed for personaId='$personaId'" }
+                    null
+                }
+            }
+        return linkedTemplateId ?: request.promptTemplateId
     }
 
     /**

@@ -7,7 +7,11 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
+import com.arc.reactor.prompt.PromptTemplateStore
+import com.arc.reactor.prompt.PromptVersion
+import com.arc.reactor.prompt.VersionStatus
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -149,6 +153,45 @@ class ChatControllerTest {
 
             assertEquals(mapOf("channel" to "web", "tenantId" to "default"), commandSlot.captured.metadata) {
                 "Default metadata should contain channel=web and tenantId=default"
+            }
+        }
+
+        @Test
+        fun `should attach linked prompt template metadata when persona resolves a template`() = runTest {
+            val personaStore = mockk<PersonaStore>()
+            val promptTemplateStore = mockk<PromptTemplateStore>()
+            val linkedController = ChatController(
+                agentExecutor = agentExecutor,
+                personaStore = personaStore,
+                promptTemplateStore = promptTemplateStore
+            )
+            val commandSlot = slot<AgentCommand>()
+
+            every { personaStore.get("support") } returns Persona(
+                id = "support",
+                name = "Support",
+                systemPrompt = "fallback",
+                promptTemplateId = "template-support"
+            )
+            every { promptTemplateStore.getActiveVersion("template-support") } returns PromptVersion(
+                id = "version-7",
+                templateId = "template-support",
+                version = 7,
+                content = "Template prompt",
+                status = VersionStatus.ACTIVE
+            )
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            linkedController.chat(ChatRequest(message = "hello", personaId = "support"), exchange)
+
+            assertEquals("template-support", commandSlot.captured.metadata["promptTemplateId"]) {
+                "Linked prompt template id should be captured in metadata"
+            }
+            assertEquals("version-7", commandSlot.captured.metadata["promptVersionId"]) {
+                "Active version id should be captured in metadata"
+            }
+            assertEquals(7, commandSlot.captured.metadata["promptVersion"]) {
+                "Active version number should be captured in metadata"
             }
         }
 
