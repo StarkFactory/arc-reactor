@@ -15,6 +15,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
@@ -346,7 +347,9 @@ class Tier1FeatureTest {
         @Test
         fun `should skip RAG context when no documents found`() = runBlocking {
             val ragPipeline = mockk<RagPipeline>()
+            val systemPromptSlot = slot<String>()
             coEvery { ragPipeline.retrieve(any()) } returns RagContext.EMPTY
+            every { fixture.requestSpec.system(capture(systemPromptSlot)) } returns fixture.requestSpec
 
             val ragProperties = RagProperties(enabled = true)
             val props = properties.copy(rag = ragProperties)
@@ -359,8 +362,16 @@ class Tier1FeatureTest {
 
             executor.execute(AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Hello"))
 
-            // System prompt should be the original, without RAG context appended
-            verify { fixture.requestSpec.system("You are helpful.") }
+            val capturedPrompt = systemPromptSlot.captured
+            assertTrue(capturedPrompt.contains("You are helpful.")) {
+                "Base system prompt should be preserved when RAG returns no documents. Prompt was: $capturedPrompt"
+            }
+            assertTrue(capturedPrompt.contains("[Grounding Rules]")) {
+                "Grounding rules should still be present when RAG is enabled. Prompt was: $capturedPrompt"
+            }
+            assertFalse(capturedPrompt.contains("[Retrieved Context]")) {
+                "RAG context should not be appended when no documents are found. Prompt was: $capturedPrompt"
+            }
         }
     }
 
