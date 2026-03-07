@@ -34,6 +34,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--user-password", default="passw0rd!")
     parser.add_argument("--user-name", default="Skill Routing QA")
     parser.add_argument("--max-tools", type=int, default=0, help="0 means all")
+    parser.add_argument(
+        "--tools",
+        default="",
+        help="Comma-separated subset of tool names to validate instead of the full server tool list.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--case-delay-ms", type=int, default=300)
     parser.add_argument("--report-file", default="")
@@ -184,6 +189,9 @@ def prompt_for_tool(tool: str) -> str:
         "work_release_risk_digest": "releaseName='v1.0.0', jiraProjectKey='DEV', bitbucketWorkspace='jarvis', bitbucketRepoSlug='arc-reactor', confluenceKeyword='release'로 릴리즈 리스크 다이제스트 만들어줘.",
         "work_prepare_standup_update": "jiraProjectKey=DEV, bitbucketWorkspace=jarvis, bitbucketRepoSlug=arc-reactor, confluenceKeyword=weekly 조건으로 스탠드업 업데이트 초안 작성해줘.",
         "work_action_items_to_jira": "confluencePageId=123456, jiraProjectKey=DEV, issueType=Task, dryRun=true, maxCreate=5 조건으로 액션 아이템을 Jira 이슈로 변환해줘.",
+        "work_owner_lookup": "PAY-123 이슈 기준으로 담당 서비스와 owner, 팀을 찾아줘.",
+        "work_item_context": "PAY-123 이슈 전체 맥락을 정리해줘. 관련 문서와 PR, 다음 액션까지 포함해줘.",
+        "work_service_context": "payments 서비스 기준으로 최근 Jira 이슈, 관련 문서, 열린 PR까지 한 번에 요약해줘.",
     }
     natural = prompt_map.get(tool, f"{tool} 관련 작업을 실행해줘.")
     return f"{natural} 반드시 `{tool}` 도구를 1회 호출해서 한국어 한 문장으로 결과만 답해줘."
@@ -301,6 +309,14 @@ def main() -> int:
     admin_token = resolve_admin_token(args)
     user_token = register_or_login(args.base_url, user_email, args.user_password, args.user_name)
     tools = fetch_server_tools(args.base_url, admin_token, args.server_name)
+
+    requested_tools = [tool.strip() for tool in args.tools.split(",") if tool.strip()]
+    if requested_tools:
+        available = set(tools)
+        missing = [tool for tool in requested_tools if tool not in available]
+        if missing:
+            raise RuntimeError(f"requested tools are not exposed by server '{args.server_name}': {missing}")
+        tools = requested_tools
 
     if args.max_tools > 0:
         tools = tools[: args.max_tools]

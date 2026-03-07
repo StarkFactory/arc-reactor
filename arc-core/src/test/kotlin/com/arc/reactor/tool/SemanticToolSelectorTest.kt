@@ -150,6 +150,63 @@ class SemanticToolSelectorTest {
                 "Low-level Confluence search tools should be excluded for answer-style prompts"
             }
         }
+
+        @Test
+        fun `should force work item context tool for issue context prompts`() {
+            val workTools = listOf(
+                createTool("jira_get_issue", "Get Jira issue metadata"),
+                createTool("work_item_context", "Build a Jira issue context package with owner, related docs, PRs, and next actions"),
+                createTool("confluence_search", "Search Confluence pages")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(workTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+
+            val result = selector.select("PAY-123 이슈 전체 맥락 정리해줘. 관련 문서와 다음 액션까지 보여줘.", workTools)
+
+            assertEquals(listOf("work_item_context"), result.map { it.name }) {
+                "Issue context prompts should be narrowed to work_item_context"
+            }
+        }
+
+        @Test
+        fun `should force work service context tool for service summary prompts`() {
+            val workTools = listOf(
+                createTool("jira_search_issues", "Search Jira issues"),
+                createTool("work_service_context", "Build a service-centric digest across Jira, Confluence, and Bitbucket"),
+                createTool("bitbucket_list_prs", "List Bitbucket PRs")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(workTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+
+            val result = selector.select("payments 서비스 현재 상황을 한 번에 요약해줘. 최근 Jira랑 관련 문서, 열린 PR도 포함해줘.", workTools)
+
+            assertEquals(listOf("work_service_context"), result.map { it.name }) {
+                "Service summary prompts should be narrowed to work_service_context"
+            }
+        }
+
+        @Test
+        fun `should force work owner lookup tool for ownership prompts`() {
+            val workTools = listOf(
+                createTool("jira_get_issue", "Get Jira issue metadata"),
+                createTool("work_owner_lookup", "Resolve who owns a service, Jira issue, Jira project, or repository"),
+                createTool("confluence_search", "Search Confluence pages")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(workTools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+
+            val result = selector.select("PAY-123 담당 서비스랑 owner, 담당 팀 찾아줘.", workTools)
+
+            assertEquals(listOf("work_owner_lookup"), result.map { it.name }) {
+                "Ownership prompts should be narrowed to work_owner_lookup"
+            }
+        }
     }
 
     @Nested

@@ -15,6 +15,7 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
@@ -205,9 +206,11 @@ class McpServerController(
             autoConnect = request.autoConnect ?: existing.autoConnect
         )
 
+        val statusBeforeUpdate = mcpManager.getStatus(name)
         val updated = mcpServerStore.update(name, updateData)
             ?: return mcpNotFound(name)
         mcpManager.syncRuntimeServer(updated)
+        applyRuntimeUpdate(existing, updated, statusBeforeUpdate)
 
         recordAdminAudit(
             store = adminAuditStore,
@@ -219,6 +222,43 @@ class McpServerController(
             detail = "transport=${updated.transportType}, autoConnect=${updated.autoConnect}"
         )
         return ResponseEntity.ok(updated.toResponse())
+    }
+
+    private fun applyRuntimeUpdate(
+        existing: McpServer,
+        updated: McpServer,
+        previousStatus: McpServerStatus?
+    ) {
+        val reconnectRequired = previousStatus == McpServerStatus.CONNECTED && requiresReconnect(existing, updated)
+        val connectRequired = !reconnectRequired &&
+            updated.autoConnect &&
+            previousStatus != McpServerStatus.CONNECTED &&
+            previousStatus != McpServerStatus.CONNECTING
+
+        when {
+            reconnectRequired -> runBlocking(Dispatchers.IO) {
+                logger.info { "Reconnecting MCP server '${updated.name}' after configuration update" }
+                mcpManager.disconnect(updated.name)
+                val connected = mcpManager.connect(updated.name)
+                if (!connected) {
+                    logger.warn { "MCP server '${updated.name}' failed to reconnect after update" }
+                }
+            }
+
+            connectRequired -> runBlocking(Dispatchers.IO) {
+                logger.info { "Connecting MCP server '${updated.name}' after enabling autoConnect or updating config" }
+                val connected = mcpManager.connect(updated.name)
+                if (!connected) {
+                    logger.warn { "MCP server '${updated.name}' failed to connect after update" }
+                }
+            }
+        }
+    }
+
+    private fun requiresReconnect(existing: McpServer, updated: McpServer): Boolean {
+        return existing.transportType != updated.transportType ||
+            existing.config != updated.config ||
+            existing.version != updated.version
     }
 
     /**
