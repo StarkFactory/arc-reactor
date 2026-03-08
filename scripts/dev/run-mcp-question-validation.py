@@ -34,6 +34,7 @@ DEFAULT_EMAIL = "admin@arc.local"
 DEFAULT_PASSWORD = "SecurePass123!"
 DEFAULT_REPORT = "docs/ko/operations/mcp-tool-question-validation-report.md"
 DEFAULT_REQUESTER_EMAIL = os.getenv("VALIDATION_REQUESTER_EMAIL", "").strip()
+DEFAULT_REQUESTER_ACCOUNT_ID = os.getenv("VALIDATION_REQUESTER_ACCOUNT_ID", "").strip()
 
 
 @dataclass
@@ -54,6 +55,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--email", default=DEFAULT_EMAIL)
     parser.add_argument("--password", default=DEFAULT_PASSWORD)
     parser.add_argument("--requester-email", default=DEFAULT_REQUESTER_EMAIL)
+    parser.add_argument("--requester-account-id", default=DEFAULT_REQUESTER_ACCOUNT_ID)
     parser.add_argument("--case-delay-ms", type=int, default=3500)
     parser.add_argument("--rate-limit-retry-wait-sec", type=int, default=65)
     parser.add_argument("--report-json", default="/tmp/mcp-question-validation-report.json")
@@ -76,29 +78,36 @@ def resolve_requested_suites(raw_suites: list[str] | None) -> set[str]:
     return set(raw_suites)
 
 
-def requester_alias(email: str) -> str:
-    normalized = (email or "").strip().lower()
+def requester_alias(identity: str) -> str:
+    normalized = (identity or "").strip().lower()
     if not normalized:
         return "employee-test-user"
     return f"employee-test-user-{hashlib.sha256(normalized.encode('utf-8')).hexdigest()[:8]}"
 
 
-def mask_text(value: str, email: str, alias: str) -> str:
+def normalized_identity(email: str, account_id: str) -> str:
+    normalized_account_id = (account_id or "").strip()
+    if normalized_account_id:
+        return normalized_account_id
+    return (email or "").strip().lower()
+
+
+def mask_text(value: str, identity: str, alias: str) -> str:
     if not isinstance(value, str):
         return value
-    normalized = (email or "").strip()
+    normalized = (identity or "").strip()
     if not normalized:
         return value
     return value.replace(normalized, alias)
 
 
-def sanitize_value(value: Any, email: str, alias: str) -> Any:
+def sanitize_value(value: Any, identity: str, alias: str) -> Any:
     if isinstance(value, dict):
-        return {key: sanitize_value(item, email, alias) for key, item in value.items()}
+        return {key: sanitize_value(item, identity, alias) for key, item in value.items()}
     if isinstance(value, list):
-        return [sanitize_value(item, email, alias) for item in value]
+        return [sanitize_value(item, identity, alias) for item in value]
     if isinstance(value, str):
-        return mask_text(value, email, alias)
+        return mask_text(value, identity, alias)
     return value
 
 
@@ -250,91 +259,100 @@ def discover_seed_data(access_policy: dict[str, Any] | None = None) -> dict[str,
 
     if base_url and username and cloud_id and jira_token:
         jira_auth = basic_auth_header(username, jira_token)
-        projects_payload = direct_json(
-            url=f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/project/search?maxResults=20",
-            auth_header=jira_auth,
-        )
-        discovered_projects = [
-            str(item.get("key", "")).strip()
-            for item in projects_payload.get("values", [])
-            if str(item.get("key", "")).strip()
-        ]
-        if discovered_projects:
-            filtered_projects = [key for key in discovered_projects if not allowed_projects or key in allowed_projects]
-            if filtered_projects:
-                projects = filtered_projects[:4]
-            elif allowed_projects:
-                projects = allowed_projects[:4]
-            else:
-                projects = discovered_projects[:4]
+        try:
+            projects_payload = direct_json(
+                url=f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/project/search?maxResults=20",
+                auth_header=jira_auth,
+            )
+            discovered_projects = [
+                str(item.get("key", "")).strip()
+                for item in projects_payload.get("values", [])
+                if str(item.get("key", "")).strip()
+            ]
+            if discovered_projects:
+                filtered_projects = [key for key in discovered_projects if not allowed_projects or key in allowed_projects]
+                if filtered_projects:
+                    projects = filtered_projects[:4]
+                elif allowed_projects:
+                    projects = allowed_projects[:4]
+                else:
+                    projects = discovered_projects[:4]
 
-        jql = urllib.parse.quote("project = DEV ORDER BY created DESC", safe="")
-        issue_payload = direct_json(
-            url=(
-                f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/search/jql"
-                f"?jql={jql}&maxResults=5&fields=summary,status,assignee"
-            ),
-            auth_header=jira_auth,
-        )
-        issues = issue_payload.get("issues", [])
-        if issues:
-            issue_key = str(issues[0].get("key", issue_key))
+            jql = urllib.parse.quote("project = DEV ORDER BY created DESC", safe="")
+            issue_payload = direct_json(
+                url=(
+                    f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/search/jql"
+                    f"?jql={jql}&maxResults=5&fields=summary,status,assignee"
+                ),
+                auth_header=jira_auth,
+            )
+            issues = issue_payload.get("issues", [])
+            if issues:
+                issue_key = str(issues[0].get("key", issue_key))
+        except RuntimeError:
+            pass
 
     if base_url and username and cloud_id and confluence_token:
         confluence_auth = basic_auth_header(username, confluence_token)
         cql = urllib.parse.quote("space=DEV and type=page order by lastmodified desc", safe="")
-        pages_payload = direct_json(
-            url=f"https://api.atlassian.com/ex/confluence/{cloud_id}/wiki/rest/api/search?cql={cql}&limit=5",
-            auth_header=confluence_auth,
-        )
-        results = pages_payload.get("results", [])
-        if results:
-            content = results[0].get("content", {})
-            page_title = str(content.get("title", page_title))
-            page_id = str(content.get("id", page_id))
+        try:
+            pages_payload = direct_json(
+                url=f"https://api.atlassian.com/ex/confluence/{cloud_id}/wiki/rest/api/search?cql={cql}&limit=5",
+                auth_header=confluence_auth,
+            )
+            results = pages_payload.get("results", [])
+            if results:
+                content = results[0].get("content", {})
+                page_title = str(content.get("title", page_title))
+                page_id = str(content.get("id", page_id))
+        except RuntimeError:
+            pass
 
     if username and bitbucket_token:
         bitbucket_auth = basic_auth_header(username, bitbucket_token)
-        repos_payload = direct_json(
-            url="https://api.bitbucket.org/2.0/repositories/jarvis-project?pagelen=10",
-            auth_header=bitbucket_auth,
-        )
-        discovered_repos = [
-            str(item.get("slug", "")).strip()
-            for item in repos_payload.get("values", [])
-            if str(item.get("slug", "")).strip()
-        ]
-        if discovered_repos:
-            filtered_repos = [
-                slug for slug in discovered_repos
-                if (not allowed_repos or slug in allowed_repos) and slug in {"dev", "jarvis"}
-            ]
-            if filtered_repos:
-                repos = filtered_repos
-            elif allowed_repos:
-                repos = [slug for slug in allowed_repos if slug in {"dev", "jarvis"}] or repos
-
-        branches_payload = direct_json(
-            url="https://api.bitbucket.org/2.0/repositories/jarvis-project/dev/refs/branches?pagelen=10",
-            auth_header=bitbucket_auth,
-        )
-        discovered_branches = [
-            str(item.get("name", "")).strip()
-            for item in branches_payload.get("values", [])
-            if str(item.get("name", "")).strip()
-        ]
-        if discovered_branches:
-            branch_names = discovered_branches[:3]
-
-        for repo in repos:
-            prs_payload = direct_json(
-                url=f"https://api.bitbucket.org/2.0/repositories/jarvis-project/{repo}/pullrequests?state=OPEN&pagelen=5",
+        try:
+            repos_payload = direct_json(
+                url="https://api.bitbucket.org/2.0/repositories/jarvis-project?pagelen=10",
                 auth_header=bitbucket_auth,
             )
-            values = prs_payload.get("values", [])
-            if values:
-                pr_id = int(values[0]["id"])
-                break
+            discovered_repos = [
+                str(item.get("slug", "")).strip()
+                for item in repos_payload.get("values", [])
+                if str(item.get("slug", "")).strip()
+            ]
+            if discovered_repos:
+                filtered_repos = [
+                    slug for slug in discovered_repos
+                    if (not allowed_repos or slug in allowed_repos) and slug in {"dev", "jarvis"}
+                ]
+                if filtered_repos:
+                    repos = filtered_repos
+                elif allowed_repos:
+                    repos = [slug for slug in allowed_repos if slug in {"dev", "jarvis"}] or repos
+
+            branches_payload = direct_json(
+                url="https://api.bitbucket.org/2.0/repositories/jarvis-project/dev/refs/branches?pagelen=10",
+                auth_header=bitbucket_auth,
+            )
+            discovered_branches = [
+                str(item.get("name", "")).strip()
+                for item in branches_payload.get("values", [])
+                if str(item.get("name", "")).strip()
+            ]
+            if discovered_branches:
+                branch_names = discovered_branches[:3]
+
+            for repo in repos:
+                prs_payload = direct_json(
+                    url=f"https://api.bitbucket.org/2.0/repositories/jarvis-project/{repo}/pullrequests?state=OPEN&pagelen=5",
+                    auth_header=bitbucket_auth,
+                )
+                values = prs_payload.get("values", [])
+                if values:
+                    pr_id = int(values[0]["id"])
+                    break
+        except RuntimeError:
+            pass
 
     return {
         "projects": projects,
@@ -664,6 +682,156 @@ def build_scenarios(seeds: dict[str, Any], suites: set[str]) -> list[Scenario]:
     for suite, category, prompt, expected in personalized_prompts:
         add(suite, category, prompt, expected=expected, note="Requires real user context for meaningful scoring.")
 
+    for project in primary_projects:
+        project_variants = [
+            f"{project} 팀에서 지금 가장 시급한 3개 작업이 뭔지 Jira 기준으로 정리해줘.",
+            f"{project} 팀의 오늘 장애 리스크가 있는지 확인하고 관련 이슈만 보여줘.",
+            f"{project} 팀 standup에서 어제/오늘/내일을 핵심만 말해줘. 출처는 붙여줘.",
+            f"{project} 프로젝트의 blocker 중 처리 우선순위를 다시 정렬해줘.",
+            f"{project} 팀에서 리뷰가 안 끝난 PR이 아직 뭐가 있는지 출처와 함께 알려줘.",
+            f"{project} 프로젝트의 마감 임박 작업을 담당자별로 묶어줘.",
+        ]
+        for prompt in project_variants:
+            add("employee-value", "team-status", prompt)
+
+        short_project_variants = [
+            f"오늘 {project} 상태",
+            f"{project} 장애 대비",
+            f"{project} 이번 주 blocker",
+            f"{project} 우선순위 이슈",
+        ]
+        for prompt in short_project_variants:
+            add("employee-value", "team-status", prompt)
+
+    for repo in repos:
+        for phrase in [
+            f"jarvis-project/{repo} 저장소에서 지금 열린 PR을 검토 우선순위로 보여줘.",
+            f"jarvis-project/{repo} 저장소 브랜치에서 오래 머문 변경이 있으면 알려줘.",
+            f"jarvis-project/{repo} 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘.",
+            f"jarvis-project/{repo} 저장소 PR 승인 대기 사유를 jira 이슈 맥락까지 묶어서 보여줘.",
+            f"jarvis-project/{repo} 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘.",
+            f"jarvis-project/{repo} 저장소에서 작업 중인 PR이 너무 오래된 게 있나 확인해줘.",
+            f"jarvis-project/{repo} 저장소에서 팀원별 PR 상태를 간단히 보여줘.",
+        ]:
+            add("employee-value", "repository-operational", phrase)
+
+    policy_variants = [
+        "출근 시간 외 근무 승인은 어디에 써있어?",
+        "온콜 스케줄은 누가 관리하고 어디서 확인해?",
+        "보안 사고 대응은 어떤 단계로 문서화돼 있어?",
+        "장애 보고 채널은 어디인지 알려줘.",
+        "배포 승인 기준이 어디에 적혀 있는지 찾아줘.",
+        "코드리뷰 정책은 누가 관리하고 어디서 봐?",
+        "재택근무 승인 규정 문서 위치를 알려줘.",
+        "연차/휴가 남은 일수 확인은 어디 정책을 봐야 하나?",
+        "출장비 정산 기준 문서가 있으면 링크로 알려줘.",
+        "법인카드 사용 한도/승인 규칙이 어디 있나 알려줘.",
+        "개인정보 처리 절차 문서가 있으면 어디서 확인해?",
+        "MFA 적용 대상과 예외 규정이 있나 찾아줘.",
+        "VPN 정책 문서를 찾아줘.",
+        "장비 반납 체크리스트가 있으면 보여줘.",
+        "성능 이슈 발견 시 escalation 규칙을 알려줘.",
+        "회의록 작성 규칙은 어떻게 되나?",
+        "주간 보고 누락 시 조치 규칙이 있으면 알려줘.",
+        "교육비 정산 기준 문서가 있나 확인해줘.",
+        "보안 교육 대상자 범위가 어디에 쓰여 있나 알려줘.",
+        "퇴사 절차 문서의 마지막 확인 체크포인트를 알려줘.",
+        "고객 대응 중 긴급 연동 이슈 우선순위 규칙이 어디 있나 알려줘.",
+    ]
+    for term in policy_variants:
+        add("employee-value", "policy-process", f"{term} 알려줘. 출처를 붙여줘.", expected="no_result")
+
+    knowledge_variants = [
+        "이번 주 발표된 변경 내용 브리핑이 있을까?",
+        "새로 올라온 architecture 문서를 추천해줘.",
+        "CI/CD 파이프라인 관련 문서에서 가장 자주 보는 항목을 정리해줘.",
+        "release note를 누가 담당하는지 찾을 수 있어?",
+        "incident runbook에서 지금 쓸만한 부분만 골라줘.",
+        "service map에서 의존성이 많이 보이는 부분을 요약해줘.",
+        "API owner 정보가 문서에 어디에 적혀 있는지 찾아줘.",
+        "최근 주기적으로 업데이트되는 문서 링크만 보여줘.",
+    ]
+    for term in knowledge_variants:
+        add("employee-value", "knowledge-discovery", f"Confluence에서 '{term}'를 중심으로 관련 문서를 찾아 정리해줘.", expected="no_result")
+        add("employee-value", "knowledge-discovery", f"'{term}' 관련 문서를 없다면 못 했다고 솔직하게 말해줘.", expected="no_result")
+
+    ownership_variants = [
+        "이번 주 dev 팀에서 누가 어떤 API를 담당하는지 알려줘.",
+        "billing API를 실제로 관리하는 사람/팀이 누구인지 알려줘.",
+        "frontend에서 자주 쓰는 auth endpoint owner는 누군지 알려줘.",
+        "release 노트 문서가 누군가 쓰는지 추적해줘.",
+        "온콜 주간 교대표가 있으면 owner와 함께 알려줘.",
+        "incident 대응 체계에서 본인 역할을 어떤 근거로 정하면 되나?",
+        "운영자체크리스트 문서 owner가 바뀌었는지 확인해줘.",
+        "지금 dev repo에서 가장 많이 올라가는 PR 작성자가 누구인지 근거와 함께 보여줘.",
+        "회귀 테스트 리드가 있는지 찾아줘.",
+        "지원 문의를 누구에게 주는 게 맞는지 운영 관점에서 알려줘.",
+    ]
+    for term in ownership_variants:
+        add("employee-value", "ownership-discovery", f"{term}", expected="no_result")
+
+    swagger_expansion = [
+        "Petstore에서 인증 토큰이 필요한 endpoint만 골라줘.",
+        "현재 로드된 Petstore에서 POST/PUT 동작만 추려줘.",
+        "Petstore에서 가장 자주 쓰는 status 전환 흐름을 정리해줘.",
+        "OpenAPI에서 에러 코드 매핑 규칙을 설명해줘.",
+        "order 생성/수정 시 검증이 필요한 필드를 요약해줘.",
+        "현재 로드된 스펙에 user 관련 endpoint가 얼마나 있는지 알려줘.",
+        "Schema에 nullable이 어떻게 쓰였는지 점검해줘.",
+        "응답 examples가 있는지 endpoint별로 찾아줘.",
+        "security scheme 타입을 기준으로 엔드포인트를 묶어줘.",
+        "Petstore에서 rate limit 힌트를 제공하는 항목이 있는지 찾아줘.",
+    ]
+    for prompt in swagger_expansion:
+        add("employee-value", "swagger-consumer", f"{petstore_v3} 기준으로 {prompt}")
+
+    cross_variants = [
+        "Jira 이슈와 Confluence 문서를 같이 보며 이번 주 risk를 줄여줘.",
+        "PR 리뷰 상태, blocker, due soon을 한 번에 묶어서 알려줘.",
+        "팀 상황 보고에 필요한 핵심만 Jira/Confluence/Bitbucket에서 뽑아줘.",
+        "이번 주 회의 전에 볼만한 운영 요약을 브리핑용 한 단락으로 만들어줘.",
+        "긴급성 높은 이슈와 문서 히트맵을 같이 정리해줘.",
+        "릴리즈 전 꼭 확인해야 할 문서+이슈 조합을 보여줘.",
+        "실수로 놓치기 쉬운 결합 포인트만 다시 알려줘.",
+        "팀별로 오늘 반드시 확인할 포인트를 Jira+Confluence 기준으로 정리해줘.",
+    ]
+    for prompt in cross_variants:
+        add("employee-value", "cross-source-hybrid", f"{prompt}")
+
+    for project in primary_projects:
+        for verb in ["요약", "점검", "조회", "진단", "우선순위", "정리", "필터", "체크"]:
+            add("core-runtime", "hybrid", f"{project} 기준으로 {verb} 리포트를 바로 만들어줘.", expected="no_result")
+
+    personalized_variants = [
+        "내가 오늘 확인해야 할 알림만 우선순위로 뽑아줘.",
+        "내가 지금 잡아야 할 일 5개를 근거와 함께 뽑아줘.",
+        "내가 최근에 놓친 리뷰를 중심으로 보여줘.",
+        "내가 마감이 가까운 issue를 오늘만 정리해줘.",
+        "내가 가장 최근에 관여한 PR 상태를 알려줘.",
+        "내 이름으로 열려 있는 PR이 있으면 리뷰 포인트를 짧게 알려줘.",
+        "내 due soon 이슈만 출처와 함께 보여줘.",
+        "내가 우선순위로 바꿔야 할 일 3개를 제안해줘.",
+        "내가 담당 중인 항목에서 리스크가 큰 걸 먼저 알려줘.",
+        "내가 오늘 놓친 항목이 있나 체크해줘.",
+        "내가 회의 전 꼭 읽어야 하는 문서를 3개 추천해줘.",
+        "내가 오늘 집중해야 할 Bitbucket 리뷰를 알려줘.",
+        "내가 이번 주 release risk로 볼 항목을 정리해줘.",
+        "내 기준으로 blocker/overdue를 분리해줘.",
+        "내가 오늘 말해야 할 status를 한 문단으로 정리해줘.",
+        "내가 지금 바로 처리하면 좋은 작업 순서를 알려줘.",
+        "내가 끝내지 못한 리뷰가 있으면 알려줘.",
+        "내가 담당한 service owner 문서를 다시 찾아줘.",
+        "내가 최근 열람한 문서 중 중요도 높은 걸 골라줘.",
+        "내가 지금 집중해야 할 업무와 보류해도 되는 업무를 구분해줘.",
+        "내가 오늘 해야 할 일들을 3단계로 줄여줘.",
+        "내 기준으로 standup yesterday/today blockers를 다시 구성해줘.",
+        "내 이름으로 등록된 회의록이 있으면 알려줘.",
+        "내가 맡은 이슈의 다음 액션을 알려줘.",
+        "내가 승인이나 리뷰 기다리는 PR이 있으면 알려줘.",
+    ]
+    for prompt in personalized_variants:
+        add("personalized", "personalized", prompt, expected="answer", note="Requires real user context for meaningful scoring.")
+
     return scenarios
 
 
@@ -811,6 +979,7 @@ def run_scenario(
     index: int,
     rate_limit_retry_wait_sec: int,
     requester_email: str,
+    requester_account_id: str,
     run_id: str,
 ) -> dict[str, Any]:
     payload = {
@@ -823,8 +992,11 @@ def run_scenario(
             "suite": scenario.suite,
         },
     }
-    if scenario.suite == "personalized" and requester_email.strip():
-        payload["metadata"]["requesterEmail"] = requester_email.strip()
+    if scenario.suite == "personalized":
+        if requester_email.strip():
+            payload["metadata"]["requesterEmail"] = requester_email.strip()
+        if requester_account_id.strip():
+            payload["metadata"]["requesterAccountId"] = requester_account_id.strip()
     attempts = 0
     retried_for_rate_limit = False
     total_duration_ms = 0
@@ -1298,7 +1470,7 @@ def generate_markdown(
             "## Notes",
             "",
             "- `no_result_good` means the runtime searched the approved sources correctly but did not find matching content.",
-            "- `identity_gap` means a personalized question was valid, but the runtime could not resolve requesterEmail to an Atlassian user/account mapping.",
+            "- `identity_gap` means a personalized question was valid, but the runtime could not resolve requesterEmail/requesterAccountId to an Atlassian user/account mapping.",
             "- `safe_blocked` means the platform refused a mutating or unsafe request as designed.",
             "- `policy_blocked` means the request targeted projects, spaces, or repositories outside the current allowlist.",
             "- `environment_gap` means the runtime reached the intended tool, but the connected upstream account or token could not complete the lookup.",
@@ -1313,7 +1485,8 @@ def generate_markdown(
 def main() -> int:
     args = parse_args()
     requested_suites = resolve_requested_suites(args.suite)
-    requester_alias_value = requester_alias(args.requester_email)
+    identity = normalized_identity(args.requester_email, args.requester_account_id)
+    requester_alias_value = requester_alias(identity)
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     token = login(args.base_url, args.email, args.password)
 
@@ -1359,6 +1532,7 @@ def main() -> int:
                 index,
                 args.rate_limit_retry_wait_sec,
                 args.requester_email,
+                args.requester_account_id,
                 run_id,
             )
         )
@@ -1394,7 +1568,7 @@ def main() -> int:
         "summary": summary,
         "results": results,
     }
-    report = sanitize_value(raw_report, args.requester_email, requester_alias_value)
+    report = sanitize_value(raw_report, identity, requester_alias_value)
 
     json_path = Path(args.report_json)
     json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

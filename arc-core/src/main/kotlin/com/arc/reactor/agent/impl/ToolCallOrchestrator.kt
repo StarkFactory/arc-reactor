@@ -482,6 +482,14 @@ internal class ToolCallOrchestrator(
         val hasRequesterEmail = toolParams["requesterEmail"]?.toString()?.isNotBlank() == true
         if (hasRequesterEmail) return toolParams
 
+        val assigneeAccountId = requesterAccountIdMetadataKeys.asSequence()
+            .mapNotNull { key -> metadata[key]?.toString()?.trim()?.takeIf { it.isNotBlank() } }
+            .firstOrNull()
+
+        if (!assigneeAccountId.isNullOrBlank()) {
+            return toolParams + ("assigneeAccountId" to assigneeAccountId)
+        }
+
         val requesterEmail = requesterEmailMetadataKeys.asSequence()
             .mapNotNull { key -> metadata[key]?.toString()?.trim()?.takeIf { it.isNotBlank() } }
             .firstOrNull()
@@ -520,6 +528,7 @@ internal class ToolCallOrchestrator(
             "work_prepare_standup_update",
             "work_personal_document_search"
         )
+        private val requesterAccountIdMetadataKeys = listOf("requesterAccountId", "accountId")
         private val requesterEmailMetadataKeys = listOf("requesterEmail", "userEmail", "slackUserEmail")
     }
 }

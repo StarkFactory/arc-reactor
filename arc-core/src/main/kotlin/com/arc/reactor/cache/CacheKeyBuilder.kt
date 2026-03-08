@@ -11,7 +11,12 @@ import java.security.MessageDigest
 object CacheKeyBuilder {
     private const val SESSION_ID_KEY = "sessionId"
     private const val TENANT_ID_KEY = "tenantId"
-    private val IDENTITY_METADATA_KEYS = listOf("requesterEmail", "userEmail", "slackUserEmail")
+    private val IDENTITY_METADATA_KEYS = listOf(
+        "requesterAccountId",
+        "requesterEmail",
+        "userEmail",
+        "slackUserEmail"
+    )
 
     fun buildKey(command: AgentCommand, toolNames: List<String>): String {
         val scopeFingerprint = buildScopeFingerprint(command, toolNames)
