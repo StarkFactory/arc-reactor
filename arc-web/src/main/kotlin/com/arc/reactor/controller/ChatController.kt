@@ -9,6 +9,7 @@ import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.intent.model.ClassificationContext
 import com.arc.reactor.memory.MemoryStore
+import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.persona.PersonaStore
 import mu.KotlinLogging
 import com.arc.reactor.prompt.PromptTemplateStore
@@ -259,9 +260,16 @@ class ChatController(
     private fun resolveMetadata(request: ChatRequest, exchange: ServerWebExchange): Map<String, Any> {
         val base = request.metadata ?: emptyMap()
         val withChannel = if (base.containsKey("channel")) base else (base + mapOf("channel" to "web"))
+        val withRequesterIdentity = if (containsRequesterIdentity(base)) {
+            base
+        } else {
+            resolveRequesterEmailFromExchange(exchange)?.let { email ->
+                base + mapOf("requesterEmail" to email, "userEmail" to email)
+            } ?: base
+        }
 
         val tenantId = TenantContextResolver.resolveTenantId(exchange)
-        val withTenant = withChannel + ("tenantId" to tenantId)
+        val withTenant = (withChannel + withRequesterIdentity) + ("tenantId" to tenantId)
 
         val effectivePromptTemplateId = resolveEffectivePromptTemplateId(request) ?: return withTenant
         if (promptTemplateStore == null) return withTenant
@@ -277,6 +285,20 @@ class ChatController(
             "promptVersionId" to activeVersion.id,
             "promptVersion" to activeVersion.version
         )
+    }
+
+    private fun containsRequesterIdentity(metadata: Map<String, Any>): Boolean {
+        return metadata.containsKey("requesterEmail") ||
+            metadata.containsKey("userEmail") ||
+            metadata.containsKey("slackUserEmail") ||
+            metadata.containsKey("requesterAccountId") ||
+            metadata.containsKey("accountId")
+    }
+
+    private fun resolveRequesterEmailFromExchange(exchange: ServerWebExchange): String? {
+        return (exchange.attributes[JwtAuthWebFilter.USER_EMAIL_ATTRIBUTE] as? String)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun resolveEffectivePromptTemplateId(request: ChatRequest): String? {

@@ -26,17 +26,30 @@ internal object VerifiedSourceExtractor {
 
     private fun collectSources(node: JsonNode, toolName: String): List<VerifiedSource> {
         val collected = LinkedHashSet<VerifiedSource>()
-        walk(node, toolName, collected)
+        walk(node, null, toolName, collected)
         return collected.toList()
     }
 
-    private fun walk(node: JsonNode, toolName: String, out: MutableSet<VerifiedSource>) {
+    private fun walk(
+        node: JsonNode,
+        parentField: String?,
+        toolName: String,
+        out: MutableSet<VerifiedSource>
+    ) {
         if (node.isObject) {
             toVerifiedSource(node, toolName)?.let(out::add)
-            node.fieldNames().forEachRemaining { field -> walk(node.path(field), toolName, out) }
+            node.fieldNames().forEachRemaining { field -> walk(node.path(field), field, toolName, out) }
+            return
+        }
+        if (node.isTextual) {
+            readUrlTextNode(parentField, node, toolName)?.let(out::add)
             return
         }
         if (node.isArray) node.forEach { child -> walk(child, toolName, out) }
+    }
+
+    private fun walk(node: JsonNode, toolName: String, out: MutableSet<VerifiedSource>) {
+        walk(node, null, toolName, out)
     }
 
     private fun toVerifiedSource(node: JsonNode, toolName: String): VerifiedSource? {
@@ -44,6 +57,22 @@ internal object VerifiedSourceExtractor {
         if (!url.startsWith("http", ignoreCase = true) || isBlockedUrl(url)) return null
         val title = readFirstText(node, TITLE_FIELDS) ?: inferTitle(url)
         return VerifiedSource(title = title, url = url, toolName = toolName)
+    }
+
+    private fun readUrlTextNode(
+        parentField: String?,
+        node: JsonNode,
+        toolName: String
+    ): VerifiedSource? {
+        if (!node.isTextual) return null
+        if (parentField == null || !URL_TEXT_FIELDS.contains(parentField)) return null
+        val value = node.asText().trim()
+        if (!value.startsWith("http", ignoreCase = true) || isBlockedUrl(value)) return null
+        return VerifiedSource(
+            title = inferTitle(value),
+            url = value,
+            toolName = toolName
+        )
     }
 
     private fun readFirstText(node: JsonNode, fields: List<String>): String? {
@@ -61,8 +90,19 @@ internal object VerifiedSourceExtractor {
         return BLOCKED_URL_PATTERNS.any { pattern -> url.contains(pattern, ignoreCase = true) }
     }
 
-    private val URL_FIELDS = listOf("url", "webUrl", "htmlUrl", "link", "sourceUrl", "specUrl", "href")
+    private val URL_FIELDS = listOf(
+        "url",
+        "webUrl",
+        "htmlUrl",
+        "link",
+        "sourceUrl",
+        "specUrl",
+        "href",
+        "self",
+        "webui"
+    )
+    private val URL_TEXT_FIELDS = setOf("self", "webUrl", "htmlUrl", "url", "link", "specUrl", "sourceUrl", "href", "webui")
     private val TITLE_FIELDS = listOf("title", "name", "summary", "key", "id", "specName")
-    private val BLOCKED_URL_PATTERNS = listOf("/rest/api/", "/api/3/", "/download/attachments/")
+    private val BLOCKED_URL_PATTERNS = listOf("/download/attachments/")
     private const val MAX_SOURCES = 12
 }

@@ -57,6 +57,7 @@ class JwtAuthWebFilterTest {
         every { chain.filter(exchange) } returns Mono.empty()
         every { response.setComplete() } returns Mono.empty()
         every { jwtTokenProvider.extractTenantId(any()) } returns null
+        every { jwtTokenProvider.extractEmail(any()) } returns null
         every { jwtTokenProvider.extractTokenId(any()) } returns null
         every { authProvider.getUserById(any()) } returns null
         every { tokenRevocationStore.isRevoked(any()) } returns false
@@ -145,6 +146,7 @@ class JwtAuthWebFilterTest {
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
             every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
             every { jwtTokenProvider.extractRole("valid-token") } returns UserRole.USER
+            every { jwtTokenProvider.extractEmail("valid-token") } returns "token-user@example.com"
             every { authProvider.getUserById("user-42") } returns User(
                 id = "user-42",
                 email = "user@example.com",
@@ -164,6 +166,33 @@ class JwtAuthWebFilterTest {
             }
             assertEquals("default", attributes[JwtAuthWebFilter.RESOLVED_TENANT_ID_ATTRIBUTE]) {
                 "resolvedTenantId should default to auth default tenant when token tenant is absent"
+            }
+            assertEquals("token-user@example.com", attributes[JwtAuthWebFilter.USER_EMAIL_ATTRIBUTE]) {
+                "userEmail should be copied from token claim"
+            }
+            verify(exactly = 1) { chain.filter(exchange) }
+        }
+
+        @Test
+        fun `should fallback to auth user email when token email claim is absent`() {
+            every { request.uri } returns URI.create("http://localhost/api/chat")
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token-no-email")
+            every { jwtTokenProvider.validateToken("valid-token-no-email") } returns "user-42"
+            every { jwtTokenProvider.extractRole("valid-token-no-email") } returns UserRole.USER
+            every { jwtTokenProvider.extractEmail("valid-token-no-email") } returns null
+            every { authProvider.getUserById("user-42") } returns User(
+                id = "user-42",
+                email = "from-db@example.com",
+                name = "User",
+                passwordHash = "hashed",
+                role = UserRole.USER
+            )
+
+            val result = filter.filter(exchange, chain)
+            result.block()
+
+            assertEquals("from-db@example.com", attributes[JwtAuthWebFilter.USER_EMAIL_ATTRIBUTE]) {
+                "userEmail should fallback to auth provider email when token email claim is missing"
             }
             verify(exactly = 1) { chain.filter(exchange) }
         }

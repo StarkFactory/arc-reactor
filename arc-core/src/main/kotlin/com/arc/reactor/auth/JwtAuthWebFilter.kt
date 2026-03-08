@@ -60,7 +60,18 @@ class JwtAuthWebFilter(
         exchange.attributes[USER_ROLE_ATTRIBUTE] = role
         val tenantId = resolveTenantId(token)
         exchange.attributes[RESOLVED_TENANT_ID_ATTRIBUTE] = tenantId
+        exchange.attributes[USER_EMAIL_ATTRIBUTE] = resolveUserEmail(userId, token)
         return chain.filter(exchange)
+    }
+
+    private fun resolveUserEmail(userId: String, token: String): String? {
+        val tokenEmail = jwtTokenProvider.extractEmail(token)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        if (!tokenEmail.isNullOrBlank()) return tokenEmail
+
+        val resolvedUser = authProvider?.getUserById(userId)
+        return resolvedUser?.email?.takeIf { it.isNotBlank() }
     }
 
     private fun resolveUserRole(userId: String, token: String): UserRole? {
@@ -107,5 +118,8 @@ class JwtAuthWebFilter(
 
         /** Key used to store the resolved tenant ID in ServerWebExchange attributes. */
         const val RESOLVED_TENANT_ID_ATTRIBUTE = "resolvedTenantId"
+
+        /** Key used to store the resolved user email in ServerWebExchange attributes. */
+        const val USER_EMAIL_ATTRIBUTE = "userEmail"
     }
 }

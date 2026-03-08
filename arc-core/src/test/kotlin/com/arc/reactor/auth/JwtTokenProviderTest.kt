@@ -134,6 +134,26 @@ class JwtTokenProviderTest {
     }
 
     @Nested
+    inner class EmailClaim {
+
+        @Test
+        fun `token should expose email claim`() {
+            val token = tokenProvider.createToken(testUser)
+
+            val email = tokenProvider.extractEmail(token)
+
+            assertEquals("tony@stark.com", email) { "extractEmail should return the encoded email claim" }
+        }
+
+        @Test
+        fun `extractEmail should return null for invalid token`() {
+            val email = tokenProvider.extractEmail("invalid.token.value")
+
+            assertNull(email) { "extractEmail should return null for invalid token" }
+        }
+    }
+
+    @Nested
     inner class SecretValidation {
 
         @Test

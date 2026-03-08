@@ -157,6 +157,22 @@ class ChatControllerTest {
         }
 
         @Test
+        fun `should inject requester email from exchange userEmail when not explicitly provided`() = runTest {
+            val exchangeWithEmail = mockExchange(attributes = mutableMapOf("resolvedTenantId" to "default", "userEmail" to "web@example.com"))
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            controller.chat(ChatRequest(message = "안녕"), exchangeWithEmail)
+
+            assertEquals("web@example.com", commandSlot.captured.metadata["requesterEmail"]) {
+                "requesterEmail should be injected from authenticated exchange context"
+            }
+            assertEquals("web@example.com", commandSlot.captured.metadata["userEmail"]) {
+                "userEmail should be injected from authenticated exchange context"
+            }
+        }
+
+        @Test
         fun `should attach linked prompt template metadata when persona resolves a template`() = runTest {
             val personaStore = mockk<PersonaStore>()
             val promptTemplateStore = mockk<PromptTemplateStore>()

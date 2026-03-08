@@ -102,6 +102,23 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
         }
     }
 
+    /**
+     * Validate a JWT token and extract the email claim.
+     *
+     * @return email if present/valid, null if invalid or missing
+     */
+    fun extractEmail(token: String): String? {
+        return try {
+            val claims = parseClaims(token) ?: return null
+            claims.get("email", String::class.java)
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            logger.debug { "JWT email extraction failed: ${e.message}" }
+            null
+        }
+    }
+
     fun extractTokenId(token: String): String? {
         return parseClaims(token)?.id?.trim()?.takeIf { it.isNotBlank() }
     }
