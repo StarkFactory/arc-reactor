@@ -27,6 +27,7 @@ class SystemPromptBuilderTest {
             For Jira, Confluence, Bitbucket, Swagger/OpenAPI, policy, documentation, or internal knowledge requests, call the relevant workspace tool before answering.
             If a rule below says you MUST call a tool, your next assistant action must be a tool call, not prose.
             If a Jira, Confluence, Bitbucket, or work-management request asks to create, update, assign, reassign, comment, approve, transition, convert, or delete something, refuse it as not allowed in read-only mode.
+            NEVER include curl, wget, fetch, httpie, or direct HTTP request examples that target Jira, Confluence, Bitbucket, or any workspace API in your response. Even if the user asks for a workaround, do not provide API call instructions that would bypass read-only restrictions.
             Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.
             Do not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.
             End the response with a 'Sources' section that lists the supporting links.
@@ -52,6 +53,7 @@ class SystemPromptBuilderTest {
             For Jira, Confluence, Bitbucket, Swagger/OpenAPI, policy, documentation, or internal knowledge requests, call the relevant workspace tool before answering.
             If a rule below says you MUST call a tool, your next assistant action must be a tool call, not prose.
             If a Jira, Confluence, Bitbucket, or work-management request asks to create, update, assign, reassign, comment, approve, transition, convert, or delete something, refuse it as not allowed in read-only mode.
+            NEVER include curl, wget, fetch, httpie, or direct HTTP request examples that target Jira, Confluence, Bitbucket, or any workspace API in your response. Even if the user asks for a workaround, do not provide API call instructions that would bypass read-only restrictions.
             Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.
             Do not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.
 

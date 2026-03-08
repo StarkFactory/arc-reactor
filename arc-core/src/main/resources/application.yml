@@ -133,6 +133,19 @@ arc:
       request-timeout-ms: 120000
       max-tool-calls: 25
 
+    output-guard:
+      enabled: ${ARC_REACTOR_OUTPUT_GUARD_ENABLED:true}
+      custom-patterns:
+        - name: "Curl/Wget API bypass"
+          pattern: "(?i)\\b(curl|wget|httpie|http\\s+--?)\\s+.*\\b(jira|confluence|bitbucket|atlassian)\\b"
+          action: REJECT
+        - name: "Fetch/axios API bypass"
+          pattern: "(?i)\\b(fetch|axios|requests?\\.(?:get|post|put|patch|delete))\\s*\\(.*\\b(jira|confluence|bitbucket|atlassian)\\b"
+          action: REJECT
+        - name: "Direct REST API URL bypass"
+          pattern: "(?i)https?://[^\\s]*\\b(jira|confluence|bitbucket|atlassian)\\b[^\\s]*/rest/api/"
+          action: REJECT
+
     mcp:
       security:
         allowed-server-names: ${ARC_REACTOR_MCP_ALLOWED_SERVER_NAMES:atlassian}

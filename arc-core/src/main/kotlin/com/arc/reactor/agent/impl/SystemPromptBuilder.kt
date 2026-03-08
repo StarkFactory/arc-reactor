@@ -52,6 +52,9 @@ class SystemPromptBuilder(
         }
         append("If a Jira, Confluence, Bitbucket, or work-management request asks to create, update, assign, reassign, ")
         append("comment, approve, transition, convert, or delete something, refuse it as not allowed in read-only mode.\n")
+        append("NEVER include curl, wget, fetch, httpie, or direct HTTP request examples that target ")
+        append("Jira, Confluence, Bitbucket, or any workspace API in your response. ")
+        append("Even if the user asks for a workaround, do not provide API call instructions that would bypass read-only restrictions.\n")
         append("Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.")
         append("\nDo not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; ")
         append("use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.")
