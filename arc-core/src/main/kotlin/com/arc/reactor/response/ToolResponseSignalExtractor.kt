@@ -89,8 +89,16 @@ internal object ToolResponseSignalExtractor {
         val normalized = errorMessage?.lowercase()?.trim()?.takeIf(String::isNotBlank) ?: return null
         return when {
             "access denied" in normalized || "not allowed" in normalized -> "policy_denied"
+            "authentication failed" in normalized || "invalid api token" in normalized -> "upstream_auth_failed"
+            "permission denied" in normalized || "not permitted to use confluence" in normalized ||
+                "do not have permission to see it" in normalized ||
+                "cannot access confluence" in normalized -> "upstream_permission_denied"
+            "rate limit exceeded" in normalized || "too many requests" in normalized -> "upstream_rate_limited"
             "read-only" in normalized || "readonly" in normalized || "mutating tool is disabled" in normalized ->
                 "read_only_mutation"
+            "requester identity could not be resolved" in normalized ||
+                "requesteremail mapping failed" in normalized ||
+                "jira user found for supplied requesteremail" in normalized -> "identity_unresolved"
             "approval policy blocked" in normalized -> "policy_denied"
             else -> null
         }

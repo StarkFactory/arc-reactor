@@ -2,11 +2,13 @@ package com.arc.reactor.mcp
 
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.modelcontextprotocol.client.McpSyncClient
 import io.modelcontextprotocol.spec.McpSchema
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
+private val objectMapper = jacksonObjectMapper()
 
 /**
  * MCP Tool Callback Wrapper
@@ -35,7 +37,7 @@ class McpToolCallback(
     override val inputSchema: String
         get() = mcpInputSchema?.let {
             try {
-                com.fasterxml.jackson.module.kotlin.jacksonObjectMapper().writeValueAsString(it)
+                objectMapper.writeValueAsString(it)
             } catch (e: Exception) {
                 """{"type":"object","properties":{}}"""
             }
@@ -46,15 +48,7 @@ class McpToolCallback(
             val request = McpSchema.CallToolRequest(name, arguments)
             val result = client.callTool(request)
 
-            // Convert result to string and enforce output length limit
-            val output = result.content().joinToString("\n") { content ->
-                when (content) {
-                    is McpSchema.TextContent -> content.text()
-                    is McpSchema.ImageContent -> "[Image: ${content.mimeType()}]"
-                    is McpSchema.EmbeddedResource -> "[Resource: ${content.resource().uri()}]"
-                    else -> content.toString()
-                }
-            }
+            val output = extractOutput(result)
 
             if (output.length > maxOutputLength) {
                 logger.warn { "MCP tool '$name' output truncated: ${output.length} -> $maxOutputLength chars" }
@@ -67,5 +61,41 @@ class McpToolCallback(
             logger.error(e) { "Failed to call MCP tool: $name" }
             "Error: ${e.message}"
         }
+    }
+
+    private fun extractOutput(result: McpSchema.CallToolResult): String {
+        val textOutput = result.content().joinToString("\n") { content ->
+            when (content) {
+                is McpSchema.TextContent -> content.text()
+                is McpSchema.ImageContent -> "[Image: ${content.mimeType()}]"
+                is McpSchema.EmbeddedResource -> "[Resource: ${content.resource().uri()}]"
+                else -> content.toString()
+            }
+        }.trim()
+
+        val structuredOutput = serializeStructuredContent(result.structuredContent())
+
+        return when {
+            structuredOutput != null && looksLikeJsonPayload(structuredOutput) && !looksLikeJsonPayload(textOutput) ->
+                structuredOutput
+            textOutput.isNotBlank() -> textOutput
+            structuredOutput != null -> structuredOutput
+            else -> ""
+        }
+    }
+
+    private fun serializeStructuredContent(structuredContent: Any?): String? {
+        if (structuredContent == null) return null
+        return runCatching { objectMapper.writeValueAsString(structuredContent) }
+            .getOrNull()
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && it != "null" && it != "{}" && it != "[]" }
+    }
+
+    private fun looksLikeJsonPayload(value: String): Boolean {
+        val trimmed = value.trim()
+        if (trimmed.isBlank()) return false
+        return (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+            (trimmed.startsWith("[") && trimmed.endsWith("]"))
     }
 }

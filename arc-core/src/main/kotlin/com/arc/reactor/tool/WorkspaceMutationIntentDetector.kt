@@ -47,7 +47,8 @@ internal object WorkspaceMutationIntentDetector {
     )
 
     private val KOREAN_MUTATION_HINTS = setOf(
-        "작성", "만들", "수정", "업데이트", "변경", "재할당", "할당", "전이", "바꿔", "승인", "코멘트", "댓글", "삭제", "제거", "변환"
+        "작성해", "만들어", "수정해", "업데이트해", "변경해", "재할당", "할당해", "전이해", "바꿔",
+        "승인해", "코멘트해", "댓글 달", "삭제해", "제거해", "변환해"
     )
 
     private val READ_ONLY_LOOKUP_EXCEPTIONS = setOf("unassigned", "미할당")

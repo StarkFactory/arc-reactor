@@ -11,6 +11,7 @@ import java.security.MessageDigest
 object CacheKeyBuilder {
     private const val SESSION_ID_KEY = "sessionId"
     private const val TENANT_ID_KEY = "tenantId"
+    private val IDENTITY_METADATA_KEYS = listOf("requesterEmail", "userEmail", "slackUserEmail")
 
     fun buildKey(command: AgentCommand, toolNames: List<String>): String {
         val scopeFingerprint = buildScopeFingerprint(command, toolNames)
@@ -36,8 +37,17 @@ object CacheKeyBuilder {
             add(command.userId.orEmpty())
             add(command.metadata[SESSION_ID_KEY]?.toString().orEmpty())
             add(command.metadata[TENANT_ID_KEY]?.toString().orEmpty())
+            add(resolveIdentityScope(command))
         }
         return sha256(parts.joinToString("|"))
+    }
+
+    private fun resolveIdentityScope(command: AgentCommand): String {
+        return IDENTITY_METADATA_KEYS.asSequence()
+            .mapNotNull { key -> command.metadata[key]?.toString()?.trim()?.takeIf { it.isNotBlank() } }
+            .firstOrNull()
+            ?.lowercase()
+            .orEmpty()
     }
 
     private fun sha256(input: String): String {

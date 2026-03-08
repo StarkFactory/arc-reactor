@@ -78,6 +78,26 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
+    fun `should keep identity resolution refusal even without verified sources`() = runTest {
+        val result = filter.filter(
+            content = "요청자 계정을 Jira 사용자로 확인할 수 없어 개인화 조회를 확정할 수 없습니다. requesterEmail과 Atlassian 사용자 매핑을 확인해 주세요.",
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "내가 담당한 Jira 오픈 이슈 목록을 보여줘."),
+                toolsUsed = listOf("jira_my_open_issues"),
+                verifiedSources = emptyList(),
+                durationMs = 70
+            )
+        )
+
+        assertEquals(
+            "요청자 계정을 Jira 사용자로 확인할 수 없어 개인화 조회를 확정할 수 없습니다. requesterEmail과 Atlassian 사용자 매핑을 확인해 주세요.",
+            result
+        ) {
+            "Identity-resolution refusals should stay visible without an empty sources footer"
+        }
+    }
+
+    @Test
     fun `should treat swagger spec tools as verified workspace tools`() = runTest {
         val result = filter.filter(
             content = "공식 업로드 엔드포인트는 POST /pet/{petId}/uploadImage 입니다.",
