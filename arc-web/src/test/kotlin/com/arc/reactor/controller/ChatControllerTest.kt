@@ -173,6 +173,24 @@ class ChatControllerTest {
         }
 
         @Test
+        fun `should inject accountId from exchange when metadata not explicitly provided`() = runTest {
+            val exchangeWithAccount = mockExchange(
+                attributes = mutableMapOf("resolvedTenantId" to "default", "userAccountId" to "acct-001")
+            )
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            controller.chat(ChatRequest(message = "안녕"), exchangeWithAccount)
+
+            assertEquals("acct-001", commandSlot.captured.metadata["requesterAccountId"]) {
+                "requesterAccountId should be injected from authenticated exchange context"
+            }
+            assertEquals("acct-001", commandSlot.captured.metadata["accountId"]) {
+                "accountId should be injected from authenticated exchange context"
+            }
+        }
+
+        @Test
         fun `should attach linked prompt template metadata when persona resolves a template`() = runTest {
             val personaStore = mockk<PersonaStore>()
             val promptTemplateStore = mockk<PromptTemplateStore>()

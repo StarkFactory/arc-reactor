@@ -119,6 +119,23 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
         }
     }
 
+    /**
+     * Validate a JWT and extract the accountId claim.
+     *
+     * @return accountId if present/valid, null if invalid or missing
+     */
+    fun extractAccountId(token: String): String? {
+        return try {
+            val claims = parseClaims(token) ?: return null
+            claims.get("accountId", String::class.java)
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            logger.debug { "JWT accountId extraction failed: ${e.message}" }
+            null
+        }
+    }
+
     fun extractTokenId(token: String): String? {
         return parseClaims(token)?.id?.trim()?.takeIf { it.isNotBlank() }
     }

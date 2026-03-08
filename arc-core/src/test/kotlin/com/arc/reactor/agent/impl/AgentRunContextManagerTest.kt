@@ -48,6 +48,26 @@ class AgentRunContextManagerTest {
     }
 
     @Test
+    fun `should use accountId when email is unavailable`() {
+        val manager = AgentRunContextManager(runIdSupplier = { "run-2" })
+        val toolsUsed = CopyOnWriteArrayList<String>()
+        val command = AgentCommand(
+            systemPrompt = "sys",
+            userPrompt = "hello",
+            userId = null,
+            metadata = mapOf(
+                "channel" to "web",
+                "accountId" to "acct-777"
+            )
+        )
+
+        val context = manager.open(command, toolsUsed)
+
+        assertEquals("run-2", context.runId)
+        assertEquals("acct-777", context.hookContext.userEmail)
+    }
+
+    @Test
     fun `should clear mdc keys on close`() {
         val manager = AgentRunContextManager(runIdSupplier = { "run-1" })
         val toolsUsed = CopyOnWriteArrayList<String>()

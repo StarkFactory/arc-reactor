@@ -58,6 +58,7 @@ class JwtAuthWebFilterTest {
         every { response.setComplete() } returns Mono.empty()
         every { jwtTokenProvider.extractTenantId(any()) } returns null
         every { jwtTokenProvider.extractEmail(any()) } returns null
+        every { jwtTokenProvider.extractAccountId(any()) } returns null
         every { jwtTokenProvider.extractTokenId(any()) } returns null
         every { authProvider.getUserById(any()) } returns null
         every { tokenRevocationStore.isRevoked(any()) } returns false
@@ -147,6 +148,7 @@ class JwtAuthWebFilterTest {
             every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
             every { jwtTokenProvider.extractRole("valid-token") } returns UserRole.USER
             every { jwtTokenProvider.extractEmail("valid-token") } returns "token-user@example.com"
+            every { jwtTokenProvider.extractAccountId("valid-token") } returns "acct-001"
             every { authProvider.getUserById("user-42") } returns User(
                 id = "user-42",
                 email = "user@example.com",
@@ -169,6 +171,9 @@ class JwtAuthWebFilterTest {
             }
             assertEquals("token-user@example.com", attributes[JwtAuthWebFilter.USER_EMAIL_ATTRIBUTE]) {
                 "userEmail should be copied from token claim"
+            }
+            assertEquals("acct-001", attributes[JwtAuthWebFilter.USER_ACCOUNT_ID_ATTRIBUTE]) {
+                "userAccountId should be copied from token claim"
             }
             verify(exactly = 1) { chain.filter(exchange) }
         }

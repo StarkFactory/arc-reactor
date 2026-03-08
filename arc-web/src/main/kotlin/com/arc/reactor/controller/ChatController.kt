@@ -263,9 +263,15 @@ class ChatController(
         val withRequesterIdentity = if (containsRequesterIdentity(base)) {
             base
         } else {
-            resolveRequesterEmailFromExchange(exchange)?.let { email ->
-                base + mapOf("requesterEmail" to email, "userEmail" to email)
-            } ?: base
+            val requesterEmail = resolveRequesterEmailFromExchange(exchange)
+            val requesterAccountId = resolveRequesterAccountIdFromExchange(exchange)
+            val metadataWithAccount = if (requesterAccountId == null) base else base + mapOf(
+                "requesterAccountId" to requesterAccountId,
+                "accountId" to requesterAccountId
+            )
+            requesterEmail?.let { email ->
+                metadataWithAccount + mapOf("requesterEmail" to email, "userEmail" to email)
+            } ?: metadataWithAccount
         }
 
         val tenantId = TenantContextResolver.resolveTenantId(exchange)
@@ -297,6 +303,12 @@ class ChatController(
 
     private fun resolveRequesterEmailFromExchange(exchange: ServerWebExchange): String? {
         return (exchange.attributes[JwtAuthWebFilter.USER_EMAIL_ATTRIBUTE] as? String)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    private fun resolveRequesterAccountIdFromExchange(exchange: ServerWebExchange): String? {
+        return (exchange.attributes[JwtAuthWebFilter.USER_ACCOUNT_ID_ATTRIBUTE] as? String)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
     }

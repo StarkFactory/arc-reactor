@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.util.Date
 
 class JwtTokenProviderTest {
 
@@ -150,6 +151,41 @@ class JwtTokenProviderTest {
             val email = tokenProvider.extractEmail("invalid.token.value")
 
             assertNull(email) { "extractEmail should return null for invalid token" }
+        }
+    }
+
+    @Nested
+    inner class AccountClaim {
+
+        @Test
+        fun `token should expose accountId claim`() {
+            val tokenWithAccount = createJwtWithAccountClaim("user-42", "acct-42")
+
+            val accountId = tokenProvider.extractAccountId(tokenWithAccount)
+
+            assertEquals("acct-42", accountId) { "extractAccountId should return the encoded accountId claim" }
+        }
+
+        @Test
+        fun `extractAccountId should return null for invalid token`() {
+            val accountId = tokenProvider.extractAccountId("invalid.token.value")
+
+            assertNull(accountId) { "extractAccountId should return null for invalid token" }
+        }
+
+        private fun createJwtWithAccountClaim(subject: String, accountId: String): String {
+            val now = Date()
+            return io.jsonwebtoken.Jwts.builder()
+                .id("acct-test")
+                .subject(subject)
+                .claim("email", "tony@stark.com")
+                .claim("role", "USER")
+                .claim("tenantId", "default")
+                .claim("accountId", accountId)
+                .issuedAt(now)
+                .expiration(Date(now.time + 86_400_000))
+                .signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(testSecret.toByteArray()))
+                .compact()
         }
     }
 
