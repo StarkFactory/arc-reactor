@@ -17,6 +17,7 @@ import json
 import os
 import ssl
 import sys
+import random
 import time
 import urllib.error
 import urllib.parse
@@ -35,6 +36,7 @@ DEFAULT_PASSWORD = "SecurePass123!"
 DEFAULT_REPORT = "docs/ko/operations/mcp-tool-question-validation-report.md"
 DEFAULT_REQUESTER_EMAIL = os.getenv("VALIDATION_REQUESTER_EMAIL", "").strip()
 DEFAULT_REQUESTER_ACCOUNT_ID = os.getenv("VALIDATION_REQUESTER_ACCOUNT_ID", "").strip()
+DEFAULT_MODEL = os.getenv("AR_REACTOR_VALIDATION_MODEL", "gemini-2.0-flash").strip()
 
 
 @dataclass
@@ -61,6 +63,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--report-json", default="/tmp/mcp-question-validation-report.json")
     parser.add_argument("--report-markdown", default=DEFAULT_REPORT)
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--model", default=DEFAULT_MODEL, help="Chat model for runtime calls. 기본값은 gemini-2.0-flash.")
+    parser.add_argument("--shuffle", action="store_true", help="Shuffle scenarios before execution.")
+    parser.add_argument("--shuffle-seed", type=int, default=17)
+    parser.add_argument("--admin-token", default=os.getenv("VALIDATION_ADMIN_TOKEN", "").strip())
+    parser.add_argument("--admin-email", default=os.getenv("VALIDATION_ADMIN_EMAIL", "").strip())
+    parser.add_argument("--admin-password", default=os.getenv("VALIDATION_ADMIN_PASSWORD", "").strip())
     parser.add_argument(
         "--suite",
         action="append",
@@ -84,6 +92,23 @@ def requester_alias(identity: str) -> str:
         return "employee-test-user"
     return f"employee-test-user-{hashlib.sha256(normalized.encode('utf-8')).hexdigest()[:8]}"
 
+
+def resolve_admin_token(args: argparse.Namespace) -> str:
+    if args.admin_token:
+        return args.admin_token
+    if args.admin_email and args.admin_password:
+        return login(args.base_url, args.admin_email, args.admin_password)
+    print("Admin credentials not provided; admin-only checks are skipped.")
+    return ""
+
+
+def admin_request(args: argparse.Namespace, token: str, path: str) -> dict[str, Any]:
+    if not token:
+        return {}
+    try:
+        return admin_get(args.base_url, token, args.tenant_id, path)
+    except RuntimeError:
+        return {}
 
 def normalized_identity(email: str, account_id: str) -> str:
     normalized_account_id = (account_id or "").strip()
@@ -161,11 +186,28 @@ def http_text_request(
     try:
         with urllib.request.urlopen(request, timeout=timeout_sec) as response:
             return int(response.getcode()), response.read().decode("utf-8", errors="replace")
+    except urllib.error.URLError as err:
+        return 0, str(err)
     except urllib.error.HTTPError as err:
         return int(err.code), err.read().decode("utf-8", errors="replace")
 
 
 def login(base_url: str, email: str, password: str) -> str:
+    register_status, register_body, register_payload = http_json_request(
+        method="POST",
+        url=f"{base_url}/api/auth/register",
+        headers={},
+        json_body={"email": email, "password": password, "name": "MCP Validation QA"},
+        timeout_sec=20,
+    )
+    if register_status == 201:
+        token = str((register_payload or {}).get("token", "")).strip()
+        if not token:
+            raise RuntimeError(f"register succeeded but token missing: {register_body}")
+        return token
+    if register_status not in (200, 409):
+        raise RuntimeError(f"register failed status={register_status} body={register_body}")
+
     status, body, payload = http_json_request(
         method="POST",
         url=f"{base_url}/api/auth/login",
@@ -981,6 +1023,7 @@ def run_scenario(
     requester_email: str,
     requester_account_id: str,
     run_id: str,
+    model: str,
 ) -> dict[str, Any]:
     payload = {
         "message": scenario.prompt,
@@ -997,6 +1040,8 @@ def run_scenario(
             payload["metadata"]["requesterEmail"] = requester_email.strip()
         if requester_account_id.strip():
             payload["metadata"]["requesterAccountId"] = requester_account_id.strip()
+    if model:
+        payload["model"] = model
     attempts = 0
     retried_for_rate_limit = False
     total_duration_ms = 0
@@ -1489,14 +1534,15 @@ def main() -> int:
     requester_alias_value = requester_alias(identity)
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     token = login(args.base_url, args.email, args.password)
+    admin_token = resolve_admin_token(args)
 
     inventories = {
-        "atlassian": admin_get(args.base_url, token, args.tenant_id, "/api/mcp/servers/atlassian"),
-        "swagger": admin_get(args.base_url, token, args.tenant_id, "/api/mcp/servers/swagger"),
+        "atlassian": admin_request(args, admin_token, "/api/mcp/servers/atlassian"),
+        "swagger": admin_request(args, admin_token, "/api/mcp/servers/swagger"),
     }
-    atlassian_access_policy = try_admin_get(args.base_url, token, args.tenant_id, "/api/mcp/servers/atlassian/access-policy")
-    atlassian_preflight = try_admin_get(args.base_url, token, args.tenant_id, "/api/mcp/servers/atlassian/preflight")
-    swagger_preflight = try_admin_get(args.base_url, token, args.tenant_id, "/api/mcp/servers/swagger/preflight")
+    atlassian_access_policy = admin_request(args, admin_token, "/api/mcp/servers/atlassian/access-policy")
+    atlassian_preflight = admin_request(args, admin_token, "/api/mcp/servers/atlassian/preflight")
+    swagger_preflight = admin_request(args, admin_token, "/api/mcp/servers/swagger/preflight")
 
     arc_health_status, arc_health_body = http_text_request("GET", f"{args.base_url}/actuator/health", {})
     atlassian_health_status, atlassian_health_body = http_text_request("GET", "http://localhost:18085/actuator/health", {})
@@ -1509,6 +1555,9 @@ def main() -> int:
     )
 
     scenarios = build_scenarios(seeds, requested_suites)
+    if args.shuffle:
+        random.Random(args.shuffle_seed).shuffle(scenarios)
+
     if args.limit > 0:
         scenarios = scenarios[: args.limit]
 
@@ -1534,6 +1583,7 @@ def main() -> int:
                 args.requester_email,
                 args.requester_account_id,
                 run_id,
+                args.model,
             )
         )
         if index != len(scenarios) and args.case_delay_ms > 0:
