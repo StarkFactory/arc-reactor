@@ -127,9 +127,12 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
     fun extractAccountId(token: String): String? {
         return try {
             val claims = parseClaims(token) ?: return null
-            claims.get("accountId", String::class.java)
-                ?.trim()
-                ?.takeIf { it.isNotBlank() }
+            val candidateClaims = listOf("accountId", "account_id")
+            candidateClaims
+                .asSequence()
+                .mapNotNull { claims.get(it, String::class.java) }
+                .map { it.trim() }
+                .firstOrNull { it.isNotBlank() }
         } catch (e: Exception) {
             logger.debug { "JWT accountId extraction failed: ${e.message}" }
             null
