@@ -551,6 +551,89 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
+    fun `should inject assigneeAccountId for requester-aware work tool when assignee is missing`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("jiraProject" to "DEV") }
+        )
+        val context = HookContext(
+            runId = "run-1",
+            userId = "user-1",
+            userPrompt = "prompt",
+            metadata = java.util.concurrent.ConcurrentHashMap(mapOf("requesterAccountId" to "acct-998877"))
+        )
+        val toolCall = toolCall(id = "id-1", name = "work_personal_focus_plan", arguments = """{"jiraProject":"DEV"}""")
+        val callback = object : ToolCallback {
+            override val name: String = "work_personal_focus_plan"
+            override val description: String = "Personal work tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                val hasRequester = arguments.containsKey("requesterEmail")
+                val assignee = arguments["assigneeAccountId"]?.toString().orEmpty()
+                return "$assignee|$hasRequester"
+            }
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = context,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size, "One tool call result should be returned")
+        assertEquals("acct-998877|false", responses[0].responseData(), "assigneeAccountId should be injected from requesterAccountId")
+    }
+
+    @Test
+    fun `should prefer requesterAccountId over requesterEmail for assignee injection`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("jiraProject" to "DEV") }
+        )
+        val context = HookContext(
+            runId = "run-1",
+            userId = "user-1",
+            userPrompt = "prompt",
+            metadata = java.util.concurrent.ConcurrentHashMap(
+                mapOf(
+                    "requesterEmail" to "alice@example.com",
+                    "requesterAccountId" to "acct-998877"
+                )
+            )
+        )
+        val toolCall = toolCall(id = "id-1", name = "work_personal_focus_plan", arguments = """{"jiraProject":"DEV"}""")
+        val callback = object : ToolCallback {
+            override val name: String = "work_personal_focus_plan"
+            override val description: String = "Personal work tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = arguments["assigneeAccountId"] ?: ""
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = context,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size, "One tool call result should be returned")
+        assertEquals("acct-998877", responses[0].responseData(), "requesterAccountId should be used in preference to requesterEmail")
+    }
+
+    @Test
     fun `should inject requesterEmail for requester-aware bitbucket tool when reviewer is missing`() = runBlocking {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,

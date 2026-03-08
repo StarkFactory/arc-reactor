@@ -149,6 +149,25 @@ class CacheKeyBuilderTest {
         }
 
         @Test
+        fun `requesterAccountId is included in cache key identity scope`() {
+            val commandWithEmail = AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "내 일 알려줘",
+                metadata = mapOf("requesterEmail" to "alice@example.com")
+            )
+            val commandWithAccount = AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "내 일 알려줘",
+                metadata = mapOf("requesterAccountId" to "acct-111")
+            )
+
+            val keyWithEmail = CacheKeyBuilder.buildKey(commandWithEmail, emptyList())
+            val keyWithAccount = CacheKeyBuilder.buildKey(commandWithAccount, emptyList())
+
+            assertNotEquals(keyWithEmail, keyWithAccount) { "requesterAccountId should produce a distinct cache key" }
+        }
+
+        @Test
         fun `different response schema produces different keys`() {
             val cmd1 = AgentCommand(
                 systemPrompt = "sys",

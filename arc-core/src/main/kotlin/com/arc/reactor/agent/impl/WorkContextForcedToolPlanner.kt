@@ -14,6 +14,11 @@ internal object WorkContextForcedToolPlanner {
         Regex("\\b([A-Z][A-Z0-9_]{1,15})\\s*이슈"),
         Regex("\\bproject\\s+([A-Z][A-Z0-9_]{1,15})\\b", RegexOption.IGNORE_CASE)
     )
+    private val looseProjectRegex = Regex("\\b([A-Z][A-Z0-9_]{1,15})\\b")
+    private val looseProjectStopWords = setOf(
+        "API", "JIRA", "CONFLUENCE", "BITBUCKET", "SWAGGER", "OPENAPI", "GET", "POST", "PUT",
+        "PATCH", "DELETE", "HEAD", "HTTP", "HTTPS", "MCP", "PDF", "URL", "JSON", "XML", "SQL", "UI", "UX"
+    )
     private val repositoryRegex = Regex("\\b([A-Za-z0-9._-]{2,64})/([A-Za-z0-9._-]{2,64})\\b")
     private val repositorySlugRegex = Regex("([A-Za-z0-9._-]{2,64})\\s*저장소", RegexOption.IGNORE_CASE)
     private val urlRegex = Regex("https?://[^\\s)]+", RegexOption.IGNORE_CASE)
@@ -65,7 +70,16 @@ internal object WorkContextForcedToolPlanner {
     private val jiraDelayedHints = setOf("늦어지고", "지연", "밀리고", "delay", "delayed", "overdue")
     private val jiraStatusChangeHints = setOf("상태가 많이 바뀐", "상태 변화", "status changed", "status changes")
     private val jiraBriefingHints = setOf(
-        "daily briefing", "아침 브리핑", "업무 브리핑", "데일리 브리핑", "daily digest", "오늘의 jira 브리핑", "오늘 jira 브리핑"
+        "daily briefing",
+        "아침 브리핑",
+        "업무 브리핑",
+        "데일리 브리핑",
+        "daily digest",
+        "오늘의 jira 브리핑",
+        "오늘 jira 브리핑",
+        "jira 브리핑",
+        "jira briefing",
+        "오늘의 jira briefing"
     )
     private val jiraProjectListHints = setOf(
         "jira 프로젝트 목록", "접근 가능한 jira 프로젝트 목록", "jira project list", "list jira projects"
@@ -165,6 +179,7 @@ internal object WorkContextForcedToolPlanner {
         val issueKey = extractIssueKey(prompt)
         val serviceName = extractServiceName(prompt)
         val projectKey = extractProjectKey(prompt)
+        val inferredProjectKey = projectKey ?: extractLooseProjectKey(prompt)
         val repository = extractRepository(prompt)
         val ownershipKeyword = extractOwnershipKeyword(prompt)
         val isPersonalPrompt = isPersonalPrompt(normalized)
@@ -265,7 +280,7 @@ internal object WorkContextForcedToolPlanner {
             normalized.contains("confluence") &&
             workTeamStatusHints.any { normalized.contains(it) }
         ) {
-            val teamKey = extractProjectKey(prompt)
+            val teamKey = inferredProjectKey
             return ForcedToolCallPlan(
                 toolName = "work_morning_briefing",
                 arguments = buildMap {
@@ -278,6 +293,17 @@ internal object WorkContextForcedToolPlanner {
                     put("dueSoonDays", 7)
                     put("jiraMaxResults", 20)
                 }
+            )
+        }
+
+        if (inferredProjectKey != null && normalized.contains("standup")) {
+            return ForcedToolCallPlan(
+                toolName = "work_prepare_standup_update",
+                arguments = mapOf(
+                    "jiraProject" to inferredProjectKey,
+                    "daysLookback" to 7,
+                    "jiraMaxResults" to 20
+                )
             )
         }
 
@@ -804,14 +830,14 @@ internal object WorkContextForcedToolPlanner {
             )
         }
 
-        if (projectKey != null &&
+        if (inferredProjectKey != null &&
             (normalized.contains("standup") || normalized.contains("스탠드업")) &&
             (normalized.contains("바로 말해야") || normalized.contains("정리해줘"))
         ) {
             return ForcedToolCallPlan(
                 toolName = "work_prepare_standup_update",
                 arguments = mapOf(
-                    "jiraProject" to projectKey,
+                    "jiraProject" to inferredProjectKey,
                     "daysLookback" to 7,
                     "jiraMaxResults" to 20
                 )
@@ -889,22 +915,22 @@ internal object WorkContextForcedToolPlanner {
             )
         }
 
-        if (projectKey != null && jiraBlockerHints.any { normalized.contains(it) }) {
+        if (inferredProjectKey != null && jiraBlockerHints.any { normalized.contains(it) }) {
             return ForcedToolCallPlan(
                 toolName = "jira_blocker_digest",
                 arguments = mapOf(
-                    "project" to projectKey,
+                    "project" to inferredProjectKey,
                     "maxResults" to 25
                 )
             )
         }
 
-        if (projectKey != null && jiraBriefingHints.any { normalized.contains(it) }) {
+        if (inferredProjectKey != null && jiraBriefingHints.any { normalized.contains(it) }) {
             if (normalized.contains("업무 브리핑") || normalized.contains("work briefing")) {
                 return ForcedToolCallPlan(
                     toolName = "work_morning_briefing",
                     arguments = mapOf(
-                        "jiraProject" to projectKey,
+                        "jiraProject" to inferredProjectKey,
                         "confluenceKeyword" to "status",
                         "reviewSlaHours" to 24,
                         "dueSoonDays" to 7,
@@ -915,9 +941,26 @@ internal object WorkContextForcedToolPlanner {
             return ForcedToolCallPlan(
                 toolName = "jira_daily_briefing",
                 arguments = mapOf(
-                    "project" to projectKey,
+                    "project" to inferredProjectKey,
                     "dueSoonDays" to 3,
                     "maxResults" to 30
+                )
+            )
+        }
+
+        if (inferredProjectKey != null &&
+            (normalized.contains("오늘") || normalized.contains("이번 주") || normalized.contains("현재") ||
+                normalized.contains("상태") || normalized.contains("장애") || normalized.contains("위험") ||
+                normalized.contains("우선순위") || workTeamStatusHints.any { normalized.contains(it) })
+        ) {
+            return ForcedToolCallPlan(
+                toolName = "work_morning_briefing",
+                arguments = mapOf(
+                    "jiraProject" to inferredProjectKey,
+                    "confluenceKeyword" to if (normalized.contains("장애") || normalized.contains("위험")) "risk" else "status",
+                    "reviewSlaHours" to 24,
+                    "dueSoonDays" to 7,
+                    "jiraMaxResults" to 20
                 )
             )
         }
@@ -948,6 +991,19 @@ internal object WorkContextForcedToolPlanner {
             .mapNotNull { regex -> regex.find(prompt)?.groupValues?.getOrNull(1) }
             .map { it.trim().uppercase() }
             .firstOrNull { it.isNotBlank() }
+    }
+
+    private fun extractLooseProjectKey(prompt: String): String? {
+        return looseProjectRegex.find(prompt)?.groupValues?.getOrNull(1)
+            ?.trim()
+            ?.uppercase()
+            ?.let { candidate ->
+                if (candidate.isBlank() || candidate.length < 2) return null
+                if (candidate.length > 12) return null
+                if (candidate in looseProjectStopWords) return null
+                if (candidate.all { it.isDigit() }) return null
+                return candidate
+            }
     }
 
     private fun extractRepository(prompt: String): Pair<String, String>? {

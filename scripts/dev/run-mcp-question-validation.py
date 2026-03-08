@@ -34,6 +34,7 @@ DEFAULT_EMAIL = "admin@arc.local"
 DEFAULT_PASSWORD = "SecurePass123!"
 DEFAULT_REPORT = "docs/ko/operations/mcp-tool-question-validation-report.md"
 DEFAULT_REQUESTER_EMAIL = os.getenv("VALIDATION_REQUESTER_EMAIL", "").strip()
+DEFAULT_REQUESTER_ACCOUNT_ID = os.getenv("VALIDATION_REQUESTER_ACCOUNT_ID", "").strip()
 
 
 @dataclass
@@ -54,6 +55,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--email", default=DEFAULT_EMAIL)
     parser.add_argument("--password", default=DEFAULT_PASSWORD)
     parser.add_argument("--requester-email", default=DEFAULT_REQUESTER_EMAIL)
+    parser.add_argument("--requester-account-id", default=DEFAULT_REQUESTER_ACCOUNT_ID)
     parser.add_argument("--case-delay-ms", type=int, default=3500)
     parser.add_argument("--rate-limit-retry-wait-sec", type=int, default=65)
     parser.add_argument("--report-json", default="/tmp/mcp-question-validation-report.json")
@@ -76,29 +78,36 @@ def resolve_requested_suites(raw_suites: list[str] | None) -> set[str]:
     return set(raw_suites)
 
 
-def requester_alias(email: str) -> str:
-    normalized = (email or "").strip().lower()
+def requester_alias(identity: str) -> str:
+    normalized = (identity or "").strip().lower()
     if not normalized:
         return "employee-test-user"
     return f"employee-test-user-{hashlib.sha256(normalized.encode('utf-8')).hexdigest()[:8]}"
 
 
-def mask_text(value: str, email: str, alias: str) -> str:
+def normalized_identity(email: str, account_id: str) -> str:
+    normalized_account_id = (account_id or "").strip()
+    if normalized_account_id:
+        return normalized_account_id
+    return (email or "").strip().lower()
+
+
+def mask_text(value: str, identity: str, alias: str) -> str:
     if not isinstance(value, str):
         return value
-    normalized = (email or "").strip()
+    normalized = (identity or "").strip()
     if not normalized:
         return value
     return value.replace(normalized, alias)
 
 
-def sanitize_value(value: Any, email: str, alias: str) -> Any:
+def sanitize_value(value: Any, identity: str, alias: str) -> Any:
     if isinstance(value, dict):
-        return {key: sanitize_value(item, email, alias) for key, item in value.items()}
+        return {key: sanitize_value(item, identity, alias) for key, item in value.items()}
     if isinstance(value, list):
-        return [sanitize_value(item, email, alias) for item in value]
+        return [sanitize_value(item, identity, alias) for item in value]
     if isinstance(value, str):
-        return mask_text(value, email, alias)
+        return mask_text(value, identity, alias)
     return value
 
 
@@ -250,91 +259,100 @@ def discover_seed_data(access_policy: dict[str, Any] | None = None) -> dict[str,
 
     if base_url and username and cloud_id and jira_token:
         jira_auth = basic_auth_header(username, jira_token)
-        projects_payload = direct_json(
-            url=f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/project/search?maxResults=20",
-            auth_header=jira_auth,
-        )
-        discovered_projects = [
-            str(item.get("key", "")).strip()
-            for item in projects_payload.get("values", [])
-            if str(item.get("key", "")).strip()
-        ]
-        if discovered_projects:
-            filtered_projects = [key for key in discovered_projects if not allowed_projects or key in allowed_projects]
-            if filtered_projects:
-                projects = filtered_projects[:4]
-            elif allowed_projects:
-                projects = allowed_projects[:4]
-            else:
-                projects = discovered_projects[:4]
+        try:
+            projects_payload = direct_json(
+                url=f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/project/search?maxResults=20",
+                auth_header=jira_auth,
+            )
+            discovered_projects = [
+                str(item.get("key", "")).strip()
+                for item in projects_payload.get("values", [])
+                if str(item.get("key", "")).strip()
+            ]
+            if discovered_projects:
+                filtered_projects = [key for key in discovered_projects if not allowed_projects or key in allowed_projects]
+                if filtered_projects:
+                    projects = filtered_projects[:4]
+                elif allowed_projects:
+                    projects = allowed_projects[:4]
+                else:
+                    projects = discovered_projects[:4]
 
-        jql = urllib.parse.quote("project = DEV ORDER BY created DESC", safe="")
-        issue_payload = direct_json(
-            url=(
-                f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/search/jql"
-                f"?jql={jql}&maxResults=5&fields=summary,status,assignee"
-            ),
-            auth_header=jira_auth,
-        )
-        issues = issue_payload.get("issues", [])
-        if issues:
-            issue_key = str(issues[0].get("key", issue_key))
+            jql = urllib.parse.quote("project = DEV ORDER BY created DESC", safe="")
+            issue_payload = direct_json(
+                url=(
+                    f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/search/jql"
+                    f"?jql={jql}&maxResults=5&fields=summary,status,assignee"
+                ),
+                auth_header=jira_auth,
+            )
+            issues = issue_payload.get("issues", [])
+            if issues:
+                issue_key = str(issues[0].get("key", issue_key))
+        except RuntimeError:
+            pass
 
     if base_url and username and cloud_id and confluence_token:
         confluence_auth = basic_auth_header(username, confluence_token)
         cql = urllib.parse.quote("space=DEV and type=page order by lastmodified desc", safe="")
-        pages_payload = direct_json(
-            url=f"https://api.atlassian.com/ex/confluence/{cloud_id}/wiki/rest/api/search?cql={cql}&limit=5",
-            auth_header=confluence_auth,
-        )
-        results = pages_payload.get("results", [])
-        if results:
-            content = results[0].get("content", {})
-            page_title = str(content.get("title", page_title))
-            page_id = str(content.get("id", page_id))
+        try:
+            pages_payload = direct_json(
+                url=f"https://api.atlassian.com/ex/confluence/{cloud_id}/wiki/rest/api/search?cql={cql}&limit=5",
+                auth_header=confluence_auth,
+            )
+            results = pages_payload.get("results", [])
+            if results:
+                content = results[0].get("content", {})
+                page_title = str(content.get("title", page_title))
+                page_id = str(content.get("id", page_id))
+        except RuntimeError:
+            pass
 
     if username and bitbucket_token:
         bitbucket_auth = basic_auth_header(username, bitbucket_token)
-        repos_payload = direct_json(
-            url="https://api.bitbucket.org/2.0/repositories/jarvis-project?pagelen=10",
-            auth_header=bitbucket_auth,
-        )
-        discovered_repos = [
-            str(item.get("slug", "")).strip()
-            for item in repos_payload.get("values", [])
-            if str(item.get("slug", "")).strip()
-        ]
-        if discovered_repos:
-            filtered_repos = [
-                slug for slug in discovered_repos
-                if (not allowed_repos or slug in allowed_repos) and slug in {"dev", "jarvis"}
-            ]
-            if filtered_repos:
-                repos = filtered_repos
-            elif allowed_repos:
-                repos = [slug for slug in allowed_repos if slug in {"dev", "jarvis"}] or repos
-
-        branches_payload = direct_json(
-            url="https://api.bitbucket.org/2.0/repositories/jarvis-project/dev/refs/branches?pagelen=10",
-            auth_header=bitbucket_auth,
-        )
-        discovered_branches = [
-            str(item.get("name", "")).strip()
-            for item in branches_payload.get("values", [])
-            if str(item.get("name", "")).strip()
-        ]
-        if discovered_branches:
-            branch_names = discovered_branches[:3]
-
-        for repo in repos:
-            prs_payload = direct_json(
-                url=f"https://api.bitbucket.org/2.0/repositories/jarvis-project/{repo}/pullrequests?state=OPEN&pagelen=5",
+        try:
+            repos_payload = direct_json(
+                url="https://api.bitbucket.org/2.0/repositories/jarvis-project?pagelen=10",
                 auth_header=bitbucket_auth,
             )
-            values = prs_payload.get("values", [])
-            if values:
-                pr_id = int(values[0]["id"])
-                break
+            discovered_repos = [
+                str(item.get("slug", "")).strip()
+                for item in repos_payload.get("values", [])
+                if str(item.get("slug", "")).strip()
+            ]
+            if discovered_repos:
+                filtered_repos = [
+                    slug for slug in discovered_repos
+                    if (not allowed_repos or slug in allowed_repos) and slug in {"dev", "jarvis"}
+                ]
+                if filtered_repos:
+                    repos = filtered_repos
+                elif allowed_repos:
+                    repos = [slug for slug in allowed_repos if slug in {"dev", "jarvis"}] or repos
+
+            branches_payload = direct_json(
+                url="https://api.bitbucket.org/2.0/repositories/jarvis-project/dev/refs/branches?pagelen=10",
+                auth_header=bitbucket_auth,
+            )
+            discovered_branches = [
+                str(item.get("name", "")).strip()
+                for item in branches_payload.get("values", [])
+                if str(item.get("name", "")).strip()
+            ]
+            if discovered_branches:
+                branch_names = discovered_branches[:3]
+
+            for repo in repos:
+                prs_payload = direct_json(
+                    url=f"https://api.bitbucket.org/2.0/repositories/jarvis-project/{repo}/pullrequests?state=OPEN&pagelen=5",
+                    auth_header=bitbucket_auth,
+                )
+                values = prs_payload.get("values", [])
+                if values:
+                    pr_id = int(values[0]["id"])
+                    break
+        except RuntimeError:
+            pass
 
     return {
         "projects": projects,
@@ -961,6 +979,7 @@ def run_scenario(
     index: int,
     rate_limit_retry_wait_sec: int,
     requester_email: str,
+    requester_account_id: str,
     run_id: str,
 ) -> dict[str, Any]:
     payload = {
@@ -973,8 +992,11 @@ def run_scenario(
             "suite": scenario.suite,
         },
     }
-    if scenario.suite == "personalized" and requester_email.strip():
-        payload["metadata"]["requesterEmail"] = requester_email.strip()
+    if scenario.suite == "personalized":
+        if requester_email.strip():
+            payload["metadata"]["requesterEmail"] = requester_email.strip()
+        if requester_account_id.strip():
+            payload["metadata"]["requesterAccountId"] = requester_account_id.strip()
     attempts = 0
     retried_for_rate_limit = False
     total_duration_ms = 0
@@ -1448,7 +1470,7 @@ def generate_markdown(
             "## Notes",
             "",
             "- `no_result_good` means the runtime searched the approved sources correctly but did not find matching content.",
-            "- `identity_gap` means a personalized question was valid, but the runtime could not resolve requesterEmail to an Atlassian user/account mapping.",
+            "- `identity_gap` means a personalized question was valid, but the runtime could not resolve requesterEmail/requesterAccountId to an Atlassian user/account mapping.",
             "- `safe_blocked` means the platform refused a mutating or unsafe request as designed.",
             "- `policy_blocked` means the request targeted projects, spaces, or repositories outside the current allowlist.",
             "- `environment_gap` means the runtime reached the intended tool, but the connected upstream account or token could not complete the lookup.",
@@ -1463,7 +1485,8 @@ def generate_markdown(
 def main() -> int:
     args = parse_args()
     requested_suites = resolve_requested_suites(args.suite)
-    requester_alias_value = requester_alias(args.requester_email)
+    identity = normalized_identity(args.requester_email, args.requester_account_id)
+    requester_alias_value = requester_alias(identity)
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     token = login(args.base_url, args.email, args.password)
 
@@ -1509,6 +1532,7 @@ def main() -> int:
                 index,
                 args.rate_limit_retry_wait_sec,
                 args.requester_email,
+                args.requester_account_id,
                 run_id,
             )
         )
@@ -1544,7 +1568,7 @@ def main() -> int:
         "summary": summary,
         "results": results,
     }
-    report = sanitize_value(raw_report, args.requester_email, requester_alias_value)
+    report = sanitize_value(raw_report, identity, requester_alias_value)
 
     json_path = Path(args.report_json)
     json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

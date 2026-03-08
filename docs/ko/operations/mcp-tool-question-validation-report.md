@@ -1,11 +1,11 @@
 # MCP User Question Validation Report
 
-- Generated at: `2026-03-08T05:21:09.133550+00:00`
-- Validation run id: `20260308T045121Z`
+- Generated at: `2026-03-08T05:57:54.062104+00:00`
+- Validation run id: `20260308T052450Z`
 - Arc Reactor base URL: `http://localhost:18081`
 - Validation path: `/api/chat` with real runtime MCP connections
 - Channels rotated across: `api, slack, web`
-- Personalized validation identity alias: `employee-test-user-ce8d0488`
+- Personalized validation identity alias: `employee-test-user`
 
 ## Runtime Readiness
 
@@ -32,23 +32,23 @@
 
 - Jira sample issue: `DEV-51`
 - Confluence sample page: `개발팀 Home` (`7504667`)
-- Bitbucket repos: `dev, jarvis`
+- Bitbucket repos: `jarvis, dev`
 - Bitbucket sample PR: `none open in allowed repos`
 - Allowed Jira projects used for this run: `n/a`
 
 ## Overall Verdict
 
-- Total scenarios: `465`
-- Good: `246`
-- No-result good: `157`
+- Total scenarios: `537`
+- Good: `230`
+- No-result good: `148`
 - Identity gap: `0`
 - Environment gap: `0`
 - Partial: `0`
 - Safe blocked: `14`
-- Policy blocked: `1`
+- Policy blocked: `2`
 - Unsupported safe: `8`
-- Blocked: `28`
-- Failed: `11`
+- Blocked: `100`
+- Failed: `35`
 - Unexpectedly allowed writes: `0`
 - Unexpectedly supported unsupported prompts: `0`
 
@@ -58,9 +58,9 @@
 
 | Suite | Total | Good | No-result good | Identity gap | Environment gap | Safe blocked | Policy blocked | Unsupported safe | Blocked | Failed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| core-runtime | 106 | 84 | 0 | 0 | 0 | 14 | 0 | 8 | 0 | 0 |
-| employee-value | 317 | 125 | 152 | 0 | 0 | 0 | 1 | 0 | 28 | 11 |
-| personalized | 42 | 37 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| core-runtime | 138 | 84 | 0 | 0 | 0 | 14 | 0 | 8 | 13 | 19 |
+| employee-value | 332 | 139 | 146 | 0 | 0 | 0 | 2 | 0 | 34 | 11 |
+| personalized | 67 | 7 | 2 | 0 | 0 | 0 | 0 | 0 | 53 | 5 |
 
 ### Category Coverage
 
@@ -68,17 +68,17 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | bitbucket-read | usable | 100% | 12 | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | confluence-knowledge | usable | 100% | 20 | 20 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| cross-source-hybrid | usable | 100% | 11 | 9 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| hybrid | usable | 100% | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| cross-source-hybrid | usable | 68% | 19 | 11 | 2 | 0 | 0 | 0 | 0 | 0 | 6 | 0 |
+| hybrid | limited | 14% | 37 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 13 | 19 |
 | jira-read | usable | 100% | 27 | 27 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| knowledge-discovery | usable | 100% | 68 | 1 | 67 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| ownership-discovery | usable | 70% | 20 | 2 | 12 | 0 | 0 | 0 | 0 | 0 | 6 | 0 |
-| personalized | usable | 100% | 42 | 37 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| policy-process | usable | 85% | 89 | 5 | 71 | 0 | 0 | 0 | 0 | 0 | 13 | 0 |
+| knowledge-discovery | usable | 99% | 68 | 2 | 65 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
+| ownership-discovery | usable | 70% | 20 | 3 | 11 | 0 | 0 | 0 | 0 | 0 | 6 | 0 |
+| personalized | limited | 13% | 67 | 7 | 2 | 0 | 0 | 0 | 0 | 0 | 53 | 5 |
+| policy-process | usable | 85% | 89 | 8 | 68 | 0 | 0 | 0 | 0 | 0 | 13 | 0 |
 | project-operational | usable | 100% | 28 | 28 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| repository-operational | usable | 77% | 26 | 20 | 0 | 0 | 0 | 0 | 1 | 0 | 5 | 0 |
+| repository-operational | usable | 77% | 26 | 20 | 0 | 0 | 0 | 0 | 2 | 0 | 4 | 0 |
 | swagger | usable | 92% | 13 | 12 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
-| swagger-consumer | usable | 100% | 11 | 11 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| swagger-consumer | usable | 100% | 18 | 18 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | team-status | usable | 77% | 64 | 49 | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 11 |
 | unsupported | out of scope | 0% | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 0 | 0 |
 | work-summary | usable | 100% | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -89,10 +89,10 @@
 ### bitbucket-read
 
 - 접근 가능한 Bitbucket 저장소 목록을 출처와 함께 보여줘.
-- jarvis-project/dev 저장소의 브랜치 목록을 출처와 함께 보여줘.
-- jarvis-project/dev 저장소의 열린 PR 목록을 출처와 함께 보여줘.
-- jarvis-project/dev 저장소의 stale PR을 출처와 함께 점검해줘.
-- jarvis-project/dev 저장소의 리뷰 대기열을 출처와 함께 정리해줘.
+- jarvis-project/jarvis 저장소의 브랜치 목록을 출처와 함께 보여줘.
+- jarvis-project/jarvis 저장소의 열린 PR 목록을 출처와 함께 보여줘.
+- jarvis-project/jarvis 저장소의 stale PR을 출처와 함께 점검해줘.
+- jarvis-project/jarvis 저장소의 리뷰 대기열을 출처와 함께 정리해줘.
 
 ### confluence-knowledge
 
@@ -128,28 +128,30 @@
 
 ### knowledge-discovery
 
-- Confluence에서 'deployment' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘.
+- Confluence에서 '새로 올라온 architecture 문서를 추천해줘.'를 중심으로 관련 문서를 찾아 정리해줘.
+- Confluence에서 'incident runbook에서 지금 쓸만한 부분만 골라줘.'를 중심으로 관련 문서를 찾아 정리해줘.
 
 ### ownership-discovery
 
 - frontend API consumer가 알아야 할 swagger 문서를 찾아줘.
 - backend API schema를 어디서 봐야 하는지 출처와 함께 알려줘.
+- 운영자체크리스트 문서 owner가 바뀌었는지 확인해줘.
 
 ### personalized
 
-- 내가 담당한 Jira 오픈 이슈 목록을 출처와 함께 보여줘.
 - Bitbucket에서 내가 검토해야 할 PR이 있는지 출처와 함께 알려줘.
-- 오늘 개인 focus plan을 근거 정보와 함께 만들어줘.
-- 오늘 개인 learning digest를 근거 정보와 함께 만들어줘.
-- 오늘 개인 interrupt guard plan을 근거 정보와 함께 만들어줘.
+- 내가 검토해야 할 PR이 있는지 출처와 함께 알려줘.
+- 내가 늦게 보고 있는 리뷰가 있으면 알려줘.
+- 오늘 내 standup에서 말할 Yesterday, Today, Blockers를 만들어줘.
+- 내가 늦게 보고 있는 리뷰 SLA 경고가 있으면 알려줘.
 
 ### policy-process
 
+- '반차' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘.
 - '병가' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘.
-- '복지' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘.
 - '릴리즈 체크리스트' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘.
-- 'VPN' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘.
-- '권한 신청' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘.
+- '주간 보고' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘.
+- '근무시간' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘.
 
 ### project-operational
 
@@ -161,11 +163,11 @@
 
 ### repository-operational
 
-- jarvis-project/dev 저장소에서 오래된 PR이 있으면 출처와 함께 알려줘.
-- jarvis-project/dev 저장소의 리뷰 대기열만 간단히 정리해줘. 출처를 붙여줘.
-- jarvis-project/dev 저장소에서 지금 위험한 리뷰 SLA 경고가 있는지 알려줘.
-- jarvis-project/dev 저장소의 브랜치 현황을 한 줄씩 요약해줘. 출처를 붙여줘.
-- jarvis-project/dev 저장소에서 머지 안 된 오래된 작업이 있는지 출처와 함께 알려줘.
+- jarvis-project/jarvis 저장소에서 오래된 PR이 있으면 출처와 함께 알려줘.
+- jarvis-project/jarvis 저장소의 리뷰 대기열만 간단히 정리해줘. 출처를 붙여줘.
+- jarvis-project/jarvis 저장소에서 지금 위험한 리뷰 SLA 경고가 있는지 알려줘.
+- jarvis-project/jarvis 저장소의 브랜치 현황을 한 줄씩 요약해줘. 출처를 붙여줘.
+- jarvis-project/jarvis 저장소에서 머지 안 된 오래된 작업이 있는지 출처와 함께 알려줘.
 
 ### swagger
 
@@ -211,8 +213,8 @@
 - Confluence에서 'api' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘.
 - 'api' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘.
 - Confluence에서 'architecture' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘.
-- 'architecture' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘.
 - Confluence에서 'owner' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘.
+- 'owner' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘.
 
 ### ownership-discovery
 
@@ -224,11 +226,8 @@
 
 ### personalized
 
-- 내 휴가 규정이나 남은 휴가 관련 문서가 있으면 찾아줘.
 - 내가 담당 서비스 owner로 등록돼 있는지 문서 기준으로 알려줘.
-- 내 이름 기준으로 Confluence 문서를 검색해서 관련 페이지를 찾아줘.
 - 내가 owner로 적혀 있는 서비스나 API 문서가 있으면 알려줘.
-- 내 이름으로 검색되는 회의록이 있으면 알려줘.
 
 ### policy-process
 
@@ -240,6 +239,26 @@
 
 ## User Question Patterns That Are Weak Or Often Blocked
 
+### cross-source-hybrid
+
+- `blocked`: PR 리뷰 상태, blocker, due soon을 한 번에 묶어서 알려줘.
+- `blocked`: 팀 상황 보고에 필요한 핵심만 Jira/Confluence/Bitbucket에서 뽑아줘.
+- `blocked`: 긴급성 높은 이슈와 문서 히트맵을 같이 정리해줘.
+- `blocked`: 릴리즈 전 꼭 확인해야 할 문서+이슈 조합을 보여줘.
+- `blocked`: 실수로 놓치기 쉬운 결합 포인트만 다시 알려줘.
+
+### hybrid
+
+- `blocked`: DEV 기준으로 요약 리포트를 바로 만들어줘.
+- `failed`: DEV 기준으로 점검 리포트를 바로 만들어줘.
+- `blocked`: DEV 기준으로 조회 리포트를 바로 만들어줘.
+- `failed`: DEV 기준으로 진단 리포트를 바로 만들어줘.
+- `failed`: DEV 기준으로 우선순위 리포트를 바로 만들어줘.
+
+### knowledge-discovery
+
+- `blocked`: 'architecture' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘.
+
 ### ownership-discovery
 
 - `blocked`: 이번 주 dev 팀에서 누가 어떤 API를 담당하는지 알려줘.
@@ -247,6 +266,14 @@
 - `blocked`: incident 대응 체계에서 본인 역할을 어떤 근거로 정하면 되나?
 - `blocked`: 지금 dev repo에서 가장 많이 올라가는 PR 작성자가 누구인지 근거와 함께 보여줘.
 - `blocked`: 회귀 테스트 리드가 있는지 찾아줘.
+
+### personalized
+
+- `blocked`: 내가 담당한 Jira 오픈 이슈 목록을 출처와 함께 보여줘.
+- `blocked`: 오늘 개인 focus plan을 근거 정보와 함께 만들어줘.
+- `blocked`: 오늘 개인 learning digest를 근거 정보와 함께 만들어줘.
+- `blocked`: 오늘 개인 interrupt guard plan을 근거 정보와 함께 만들어줘.
+- `blocked`: 오늘 개인 end of day wrapup 초안을 근거 정보와 함께 만들어줘.
 
 ### policy-process
 
@@ -258,11 +285,11 @@
 
 ### repository-operational
 
+- `blocked`: jarvis-project/jarvis 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘.
+- `policy_blocked`: jarvis-project/jarvis 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘.
+- `blocked`: jarvis-project/jarvis 저장소에서 팀원별 PR 상태를 간단히 보여줘.
 - `blocked`: jarvis-project/dev 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘.
 - `policy_blocked`: jarvis-project/dev 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘.
-- `blocked`: jarvis-project/dev 저장소에서 팀원별 PR 상태를 간단히 보여줘.
-- `blocked`: jarvis-project/jarvis 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘.
-- `blocked`: jarvis-project/jarvis 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘.
 
 ### team-status
 
@@ -299,19 +326,19 @@
 
 ## Top Observed Tools
 
-- `confluence_search_by_text`: `174`
+- `confluence_search_by_text`: `175`
 - `jira_search_issues`: `34`
-- `jira_blocker_digest`: `18`
-- `work_morning_briefing`: `18`
-- `spec_load`: `16`
+- `spec_load`: `22`
+- `work_morning_briefing`: `20`
+- `jira_blocker_digest`: `19`
+- `jira_due_soon_issues`: `16`
 - `jira_search_by_text`: `13`
-- `jira_due_soon_issues`: `12`
+- `work_personal_focus_plan`: `13`
+- `work_prepare_standup_update`: `11`
 - `work_release_risk_digest`: `11`
-- `work_personal_focus_plan`: `11`
-- `work_prepare_standup_update`: `10`
 - `bitbucket_review_queue`: `9`
+- `spec_list`: `9`
 - `bitbucket_stale_prs`: `8`
-- `spec_list`: `8`
 - `work_personal_learning_digest`: `8`
 - `work_owner_lookup`: `6`
 
@@ -367,16 +394,16 @@
 | confluence-knowledge-046 | core-runtime | confluence-knowledge | answer | good | Y | 1 | confluence_search_by_text | DEV 스페이스에서 'ops' 관련 Confluence 페이지를 찾아 출처와 함께 정리해줘. |
 | confluence-knowledge-047 | core-runtime | confluence-knowledge | answer | good | Y | 1 | confluence_search_by_text | Confluence에서 'ops' 키워드로 검색하고 어떤 문서가 있는지 링크와 함께 알려줘. |
 | bitbucket-read-048 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_repositories | 접근 가능한 Bitbucket 저장소 목록을 출처와 함께 보여줘. |
-| bitbucket-read-049 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/dev 저장소의 브랜치 목록을 출처와 함께 보여줘. |
-| bitbucket-read-050 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/dev 저장소의 열린 PR 목록을 출처와 함께 보여줘. |
-| bitbucket-read-051 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/dev 저장소의 stale PR을 출처와 함께 점검해줘. |
-| bitbucket-read-052 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/dev 저장소의 리뷰 대기열을 출처와 함께 정리해줘. |
-| bitbucket-read-053 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/dev 저장소의 리뷰 SLA 경고를 출처와 함께 보여줘. |
-| bitbucket-read-054 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/jarvis 저장소의 브랜치 목록을 출처와 함께 보여줘. |
-| bitbucket-read-055 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/jarvis 저장소의 열린 PR 목록을 출처와 함께 보여줘. |
-| bitbucket-read-056 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소의 stale PR을 출처와 함께 점검해줘. |
-| bitbucket-read-057 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/jarvis 저장소의 리뷰 대기열을 출처와 함께 정리해줘. |
-| bitbucket-read-058 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/jarvis 저장소의 리뷰 SLA 경고를 출처와 함께 보여줘. |
+| bitbucket-read-049 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/jarvis 저장소의 브랜치 목록을 출처와 함께 보여줘. |
+| bitbucket-read-050 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/jarvis 저장소의 열린 PR 목록을 출처와 함께 보여줘. |
+| bitbucket-read-051 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소의 stale PR을 출처와 함께 점검해줘. |
+| bitbucket-read-052 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/jarvis 저장소의 리뷰 대기열을 출처와 함께 정리해줘. |
+| bitbucket-read-053 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/jarvis 저장소의 리뷰 SLA 경고를 출처와 함께 보여줘. |
+| bitbucket-read-054 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/dev 저장소의 브랜치 목록을 출처와 함께 보여줘. |
+| bitbucket-read-055 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/dev 저장소의 열린 PR 목록을 출처와 함께 보여줘. |
+| bitbucket-read-056 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/dev 저장소의 stale PR을 출처와 함께 점검해줘. |
+| bitbucket-read-057 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/dev 저장소의 리뷰 대기열을 출처와 함께 정리해줘. |
+| bitbucket-read-058 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/dev 저장소의 리뷰 SLA 경고를 출처와 함께 보여줘. |
 | bitbucket-read-059 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_sla_alerts | Bitbucket에서 최근 코드 리뷰 리스크를 출처와 함께 요약해줘. |
 | work-summary-060 | core-runtime | work-summary | answer | good | Y | 4 | work_morning_briefing | DEV 프로젝트 기준으로 오늘 아침 업무 브리핑을 출처와 함께 만들어줘. |
 | work-summary-061 | core-runtime | work-summary | answer | good | Y | 3 | work_prepare_standup_update | DEV 프로젝트와 jarvis-project/dev 기준으로 standup 업데이트 초안을 출처와 함께 만들어줘. |
@@ -430,7 +457,7 @@
 | policy-process-109 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '연차' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-110 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '연차' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-111 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '반차' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
-| policy-process-112 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '반차' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
+| policy-process-112 | employee-value | policy-process | no_result | good | Y | 1 | confluence_search_by_text | '반차' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-113 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '병가' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-114 | employee-value | policy-process | no_result | good | Y | 1 | confluence_search_by_text | '병가' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-115 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '재택근무' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
@@ -440,7 +467,7 @@
 | policy-process-119 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '법인카드' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-120 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '법인카드' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-121 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '복지' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
-| policy-process-122 | employee-value | policy-process | no_result | good | Y | 1 | confluence_search_by_text | '복지' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
+| policy-process-122 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '복지' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-123 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '온콜' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-124 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '온콜' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-125 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '보안 교육' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
@@ -458,11 +485,11 @@
 | policy-process-137 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '회의록' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-138 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '회의록' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-139 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '주간 보고' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
-| policy-process-140 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '주간 보고' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
+| policy-process-140 | employee-value | policy-process | no_result | good | Y | 1 | confluence_search_by_text | '주간 보고' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-141 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '코드리뷰' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-142 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '코드리뷰' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-143 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '근무시간' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
-| policy-process-144 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '근무시간' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
+| policy-process-144 | employee-value | policy-process | no_result | good | Y | 1 | confluence_search_by_text | '근무시간' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-145 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '시차출근' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-146 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '시차출근' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-147 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '야근' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
@@ -474,11 +501,11 @@
 | policy-process-153 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '장애 보고' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-154 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '장애 보고' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-155 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '권한 신청' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
-| policy-process-156 | employee-value | policy-process | no_result | good | Y | 1 | confluence_search_by_text | '권한 신청' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
+| policy-process-156 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '권한 신청' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-157 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '장비 반납' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-158 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '장비 반납' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-159 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '성과평가' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
-| policy-process-160 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '성과평가' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
+| policy-process-160 | employee-value | policy-process | no_result | good | Y | 1 | confluence_search_by_text | '성과평가' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-161 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '교육비' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-162 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '교육비' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-163 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '보안 사고' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
@@ -489,14 +516,14 @@
 | policy-process-168 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '비밀번호' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-169 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '법무 검토' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-170 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '법무 검토' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
-| policy-process-171 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '출장 신청' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
+| policy-process-171 | employee-value | policy-process | no_result | good | Y | 1 | confluence_search_by_text | Confluence에서 '출장 신청' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-172 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '출장 신청' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | policy-process-173 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '재택 장비' 키워드로 검색하고 관련 정책 문서가 있으면 링크와 함께 알려줘. |
 | policy-process-174 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | '재택 장비' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘. |
 | knowledge-discovery-175 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 'api' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘. |
 | knowledge-discovery-176 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 'api' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘. |
 | knowledge-discovery-177 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 'architecture' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘. |
-| knowledge-discovery-178 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 'architecture' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘. |
+| knowledge-discovery-178 | employee-value | knowledge-discovery | no_result | blocked | Y | 1 | confluence_search_by_text | 'architecture' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘. |
 | knowledge-discovery-179 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 'owner' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘. |
 | knowledge-discovery-180 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 'owner' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘. |
 | knowledge-discovery-181 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 'service map' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘. |
@@ -531,7 +558,7 @@
 | knowledge-discovery-210 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 'graphql' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘. |
 | knowledge-discovery-211 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 'database' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘. |
 | knowledge-discovery-212 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 'database' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘. |
-| knowledge-discovery-213 | employee-value | knowledge-discovery | no_result | good | Y | 1 | confluence_search_by_text | Confluence에서 'deployment' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘. |
+| knowledge-discovery-213 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 'deployment' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘. |
 | knowledge-discovery-214 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 'deployment' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘. |
 | knowledge-discovery-215 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 'monitoring' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘. |
 | knowledge-discovery-216 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 'monitoring' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘. |
@@ -597,18 +624,18 @@
 | project-operational-276 | employee-value | project-operational | answer | good | Y | 3 | jira_search_issues | OPS 프로젝트에서 지금 안 읽으면 안 되는 high priority 이슈를 출처와 함께 알려줘. |
 | project-operational-277 | employee-value | project-operational | answer | good | Y | 6 | jira_search_issues | OPS 프로젝트에서 담당자가 없는 이슈가 있으면 출처와 함께 알려줘. |
 | project-operational-278 | employee-value | project-operational | answer | good | Y | 11 | jira_search_issues | OPS 프로젝트에서 최근에 상태가 많이 바뀐 이슈를 출처와 함께 정리해줘. |
-| repository-operational-279 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/dev 저장소에서 오래된 PR이 있으면 출처와 함께 알려줘. |
-| repository-operational-280 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/dev 저장소의 리뷰 대기열만 간단히 정리해줘. 출처를 붙여줘. |
-| repository-operational-281 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/dev 저장소에서 지금 위험한 리뷰 SLA 경고가 있는지 알려줘. |
-| repository-operational-282 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/dev 저장소의 브랜치 현황을 한 줄씩 요약해줘. 출처를 붙여줘. |
-| repository-operational-283 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/dev 저장소에서 머지 안 된 오래된 작업이 있는지 출처와 함께 알려줘. |
-| repository-operational-284 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/dev 저장소에서 지금 리뷰가 필요한 변경을 한 줄씩 보여줘. |
-| repository-operational-285 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소에서 오래된 PR이 있으면 출처와 함께 알려줘. |
-| repository-operational-286 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/jarvis 저장소의 리뷰 대기열만 간단히 정리해줘. 출처를 붙여줘. |
-| repository-operational-287 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/jarvis 저장소에서 지금 위험한 리뷰 SLA 경고가 있는지 알려줘. |
-| repository-operational-288 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/jarvis 저장소의 브랜치 현황을 한 줄씩 요약해줘. 출처를 붙여줘. |
-| repository-operational-289 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소에서 머지 안 된 오래된 작업이 있는지 출처와 함께 알려줘. |
-| repository-operational-290 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/jarvis 저장소에서 지금 리뷰가 필요한 변경을 한 줄씩 보여줘. |
+| repository-operational-279 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소에서 오래된 PR이 있으면 출처와 함께 알려줘. |
+| repository-operational-280 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/jarvis 저장소의 리뷰 대기열만 간단히 정리해줘. 출처를 붙여줘. |
+| repository-operational-281 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/jarvis 저장소에서 지금 위험한 리뷰 SLA 경고가 있는지 알려줘. |
+| repository-operational-282 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/jarvis 저장소의 브랜치 현황을 한 줄씩 요약해줘. 출처를 붙여줘. |
+| repository-operational-283 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소에서 머지 안 된 오래된 작업이 있는지 출처와 함께 알려줘. |
+| repository-operational-284 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/jarvis 저장소에서 지금 리뷰가 필요한 변경을 한 줄씩 보여줘. |
+| repository-operational-285 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/dev 저장소에서 오래된 PR이 있으면 출처와 함께 알려줘. |
+| repository-operational-286 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/dev 저장소의 리뷰 대기열만 간단히 정리해줘. 출처를 붙여줘. |
+| repository-operational-287 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/dev 저장소에서 지금 위험한 리뷰 SLA 경고가 있는지 알려줘. |
+| repository-operational-288 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/dev 저장소의 브랜치 현황을 한 줄씩 요약해줘. 출처를 붙여줘. |
+| repository-operational-289 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/dev 저장소에서 머지 안 된 오래된 작업이 있는지 출처와 함께 알려줘. |
+| repository-operational-290 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/dev 저장소에서 지금 리뷰가 필요한 변경을 한 줄씩 보여줘. |
 | cross-source-hybrid-291 | employee-value | cross-source-hybrid | answer | good | Y | 4 | work_morning_briefing | DEV 프로젝트의 지식 문서와 운영 이슈를 같이 보고 오늘 핵심만 정리해줘. |
 | cross-source-hybrid-292 | employee-value | cross-source-hybrid | answer | good | Y | 11 | jira_blocker_digest | DEV 프로젝트의 blocker, 관련 문서, 리뷰 대기열을 한 번에 묶어서 보여줘. |
 | cross-source-hybrid-293 | employee-value | cross-source-hybrid | answer | good | Y | 5 | work_item_context | DEV-51 이슈와 연결된 문서나 PR 맥락을 출처와 함께 알려줘. |
@@ -638,48 +665,48 @@
 | ownership-discovery-317 | employee-value | ownership-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | runbook owner를 확인할 수 있는 문서가 있으면 보여줘. |
 | ownership-discovery-318 | employee-value | ownership-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 이 서비스 누가 개발했는지 알 수 있는 문서나 이슈가 있으면 찾아줘. |
 | ownership-discovery-319 | employee-value | ownership-discovery | no_result | no_result_good | Y | 5 | work_owner_lookup | 어떤 팀이 dev 저장소를 주로 관리하는지 PR과 문서 기준으로 알려줘. |
-| personalized-320 | personalized | personalized | answer | good | Y | 1 | jira_my_open_issues | 내가 담당한 Jira 오픈 이슈 목록을 출처와 함께 보여줘. |
+| personalized-320 | personalized | personalized | answer | blocked | N | 0 | jira_my_open_issues | 내가 담당한 Jira 오픈 이슈 목록을 출처와 함께 보여줘. |
 | personalized-321 | personalized | personalized | answer | good | Y | 2 | bitbucket_review_queue | Bitbucket에서 내가 검토해야 할 PR이 있는지 출처와 함께 알려줘. |
-| personalized-322 | personalized | personalized | answer | good | Y | 3 | work_personal_focus_plan | 오늘 개인 focus plan을 근거 정보와 함께 만들어줘. |
-| personalized-323 | personalized | personalized | answer | good | Y | 3 | work_personal_learning_digest | 오늘 개인 learning digest를 근거 정보와 함께 만들어줘. |
-| personalized-324 | personalized | personalized | answer | good | Y | 2 | work_personal_interrupt_guard | 오늘 개인 interrupt guard plan을 근거 정보와 함께 만들어줘. |
-| personalized-325 | personalized | personalized | answer | good | Y | 2 | work_personal_end_of_day_wrapup | 오늘 개인 end of day wrapup 초안을 근거 정보와 함께 만들어줘. |
-| personalized-326 | personalized | personalized | answer | good | Y | 3 | work_personal_focus_plan | 내가 지금 해야 할 작업을 출처와 함께 알려줘. |
+| personalized-322 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 오늘 개인 focus plan을 근거 정보와 함께 만들어줘. |
+| personalized-323 | personalized | personalized | answer | blocked | N | 0 | work_personal_learning_digest | 오늘 개인 learning digest를 근거 정보와 함께 만들어줘. |
+| personalized-324 | personalized | personalized | answer | blocked | N | 0 | work_personal_interrupt_guard | 오늘 개인 interrupt guard plan을 근거 정보와 함께 만들어줘. |
+| personalized-325 | personalized | personalized | answer | blocked | N | 0 | work_personal_end_of_day_wrapup | 오늘 개인 end of day wrapup 초안을 근거 정보와 함께 만들어줘. |
+| personalized-326 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내가 지금 해야 할 작업을 출처와 함께 알려줘. |
 | personalized-327 | personalized | personalized | answer | good | Y | 2 | bitbucket_review_queue | 내가 검토해야 할 PR이 있는지 출처와 함께 알려줘. |
-| personalized-328 | personalized | personalized | answer | good | Y | 3 | work_personal_focus_plan | 내가 맡은 Jira 이슈를 우선순위 순으로 알려줘. |
-| personalized-329 | personalized | personalized | answer | good | Y | 3 | work_personal_focus_plan | 내가 오늘 집중해야 할 작업 3개만 뽑아줘. |
-| personalized-330 | personalized | personalized | answer | good | Y | 3 | work_personal_learning_digest | 내가 최근에 관여한 이슈와 문서를 같이 정리해줘. |
-| personalized-331 | personalized | personalized | answer | good | Y | 3 | work_personal_learning_digest | 내가 알아야 할 이번 주 팀 변화가 있는지 알려줘. |
-| personalized-332 | personalized | personalized | no_result | no_result_good | N | 2 | work_personal_document_search | 내 휴가 규정이나 남은 휴가 관련 문서가 있으면 찾아줘. |
+| personalized-328 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내가 맡은 Jira 이슈를 우선순위 순으로 알려줘. |
+| personalized-329 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내가 오늘 집중해야 할 작업 3개만 뽑아줘. |
+| personalized-330 | personalized | personalized | answer | blocked | N | 0 | work_personal_learning_digest | 내가 최근에 관여한 이슈와 문서를 같이 정리해줘. |
+| personalized-331 | personalized | personalized | answer | blocked | N | 0 | work_personal_learning_digest | 내가 알아야 할 이번 주 팀 변화가 있는지 알려줘. |
+| personalized-332 | personalized | personalized | no_result | blocked | N | 0 | work_personal_document_search | 내 휴가 규정이나 남은 휴가 관련 문서가 있으면 찾아줘. |
 | personalized-333 | personalized | personalized | no_result | no_result_good | Y | 1 | confluence_search_by_text | 내가 담당 서비스 owner로 등록돼 있는지 문서 기준으로 알려줘. |
 | personalized-334 | personalized | personalized | answer | good | Y | 2 | bitbucket_review_queue | 내가 늦게 보고 있는 리뷰가 있으면 알려줘. |
-| personalized-335 | personalized | personalized | no_result | good | Y | 3 | work_personal_learning_digest | 내가 읽어야 할 runbook이나 incident 문서가 있으면 추천해줘. |
-| personalized-336 | personalized | personalized | no_result | no_result_good | N | 1 | work_personal_document_search | 내 이름 기준으로 Confluence 문서를 검색해서 관련 페이지를 찾아줘. |
-| personalized-337 | personalized | personalized | answer | good | Y | 1 | jira_due_soon_issues | 내가 오늘 마감 전에 끝내야 할 일만 알려줘. |
-| personalized-338 | personalized | personalized | answer | good | Y | 1 | jira_blocker_digest | 내가 이번 주에 제일 먼저 처리해야 할 Jira blocker를 출처와 함께 알려줘. |
-| personalized-339 | personalized | personalized | answer | good | Y | 4 | bitbucket_my_authored_prs | 내가 리뷰를 기다리게 만든 PR이 있으면 출처와 함께 알려줘. |
+| personalized-335 | personalized | personalized | no_result | blocked | N | 0 | work_personal_learning_digest | 내가 읽어야 할 runbook이나 incident 문서가 있으면 추천해줘. |
+| personalized-336 | personalized | personalized | no_result | blocked | N | 0 | work_personal_document_search | 내 이름 기준으로 Confluence 문서를 검색해서 관련 페이지를 찾아줘. |
+| personalized-337 | personalized | personalized | answer | blocked | N | 0 | jira_due_soon_issues | 내가 오늘 마감 전에 끝내야 할 일만 알려줘. |
+| personalized-338 | personalized | personalized | answer | blocked | N | 0 | jira_blocker_digest | 내가 이번 주에 제일 먼저 처리해야 할 Jira blocker를 출처와 함께 알려줘. |
+| personalized-339 | personalized | personalized | answer | blocked | N | 0 | bitbucket_my_authored_prs | 내가 리뷰를 기다리게 만든 PR이 있으면 출처와 함께 알려줘. |
 | personalized-340 | personalized | personalized | answer | good | Y | 1 | work_prepare_standup_update | 오늘 내 standup에서 말할 Yesterday, Today, Blockers를 만들어줘. |
 | personalized-341 | personalized | personalized | answer | good | Y | 2 | bitbucket_review_sla_alerts | 내가 늦게 보고 있는 리뷰 SLA 경고가 있으면 알려줘. |
-| personalized-342 | personalized | personalized | answer | good | Y | 1 | jira_due_soon_issues | 내가 맡은 이슈 중 overdue가 있으면 알려줘. |
-| personalized-343 | personalized | personalized | answer | good | Y | 1 | jira_search_my_issues_by_text | 내 Jira 작업 중 release 관련 것만 추려줘. |
-| personalized-344 | personalized | personalized | answer | good | Y | 1 | jira_search_my_issues_by_text | 내가 오늘 집중해야 할 API 관련 작업만 출처와 함께 정리해줘. |
-| personalized-345 | personalized | personalized | no_result | good | Y | 3 | work_personal_learning_digest | 내가 최근에 본 문서나 관련 문서를 추천해줘. |
-| personalized-346 | personalized | personalized | answer | good | Y | 3 | work_personal_focus_plan | 내 기준으로 오늘 morning briefing을 개인화해서 만들어줘. |
-| personalized-347 | personalized | personalized | answer | good | Y | 1 | jira_blocker_digest | 내 기준으로 오늘 release risk가 있는지 알려줘. |
-| personalized-348 | personalized | personalized | answer | good | Y | 3 | work_personal_focus_plan | 내 기준으로 리뷰 대기열과 Jira due soon을 같이 정리해줘. |
-| personalized-349 | personalized | personalized | answer | good | Y | 3 | work_personal_focus_plan | 내가 오늘 끝내면 좋은 일 3개만 근거와 함께 알려줘. |
-| personalized-350 | personalized | personalized | answer | good | Y | 3 | work_personal_focus_plan | 내가 내일 아침 바로 봐야 할 carry-over 이슈를 정리해줘. |
-| personalized-351 | personalized | personalized | answer | good | Y | 2 | work_personal_interrupt_guard | 내 기준으로 interrupt guard를 다시 만들어줘. |
-| personalized-352 | personalized | personalized | answer | good | Y | 3 | work_personal_learning_digest | 내 기준으로 learning digest를 조금 더 짧게 만들어줘. |
-| personalized-353 | personalized | personalized | answer | good | Y | 2 | work_personal_end_of_day_wrapup | 내 기준으로 end of day wrap-up을 bullet로 정리해줘. |
-| personalized-354 | personalized | personalized | answer | good | Y | 3 | work_personal_learning_digest | 내가 봐야 할 PR과 문서를 같이 추천해줘. |
+| personalized-342 | personalized | personalized | answer | blocked | N | 0 | jira_due_soon_issues | 내가 맡은 이슈 중 overdue가 있으면 알려줘. |
+| personalized-343 | personalized | personalized | answer | blocked | N | 0 | jira_search_my_issues_by_text | 내 Jira 작업 중 release 관련 것만 추려줘. |
+| personalized-344 | personalized | personalized | answer | blocked | N | 0 | jira_search_my_issues_by_text | 내가 오늘 집중해야 할 API 관련 작업만 출처와 함께 정리해줘. |
+| personalized-345 | personalized | personalized | no_result | blocked | N | 0 | work_personal_learning_digest | 내가 최근에 본 문서나 관련 문서를 추천해줘. |
+| personalized-346 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내 기준으로 오늘 morning briefing을 개인화해서 만들어줘. |
+| personalized-347 | personalized | personalized | answer | blocked | N | 0 | jira_blocker_digest | 내 기준으로 오늘 release risk가 있는지 알려줘. |
+| personalized-348 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내 기준으로 리뷰 대기열과 Jira due soon을 같이 정리해줘. |
+| personalized-349 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내가 오늘 끝내면 좋은 일 3개만 근거와 함께 알려줘. |
+| personalized-350 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내가 내일 아침 바로 봐야 할 carry-over 이슈를 정리해줘. |
+| personalized-351 | personalized | personalized | answer | blocked | N | 0 | work_personal_interrupt_guard | 내 기준으로 interrupt guard를 다시 만들어줘. |
+| personalized-352 | personalized | personalized | answer | blocked | N | 0 | work_personal_learning_digest | 내 기준으로 learning digest를 조금 더 짧게 만들어줘. |
+| personalized-353 | personalized | personalized | answer | blocked | N | 0 | work_personal_end_of_day_wrapup | 내 기준으로 end of day wrap-up을 bullet로 정리해줘. |
+| personalized-354 | personalized | personalized | answer | blocked | N | 0 | work_personal_learning_digest | 내가 봐야 할 PR과 문서를 같이 추천해줘. |
 | personalized-355 | personalized | personalized | no_result | no_result_good | Y | 1 | confluence_search_by_text | 내가 owner로 적혀 있는 서비스나 API 문서가 있으면 알려줘. |
-| personalized-356 | personalized | personalized | no_result | no_result_good | N | 2 | work_personal_document_search | 내 이름으로 검색되는 회의록이 있으면 알려줘. |
-| personalized-357 | personalized | personalized | answer | good | Y | 3 | work_personal_learning_digest | 내가 최근 참여한 작업을 Jira와 Bitbucket 기준으로 묶어줘. |
-| personalized-358 | personalized | personalized | answer | good | Y | 3 | work_personal_focus_plan | 내 기준으로 오늘 해야 할 일과 미뤄도 되는 일을 구분해줘. |
-| personalized-359 | personalized | personalized | answer | good | Y | 3 | work_personal_focus_plan | 내가 담당한 작업 중 지금 리스크가 큰 것만 알려줘. |
-| personalized-360 | personalized | personalized | answer | good | Y | 3 | work_personal_focus_plan | 내 review queue를 짧게 요약해줘. |
-| personalized-361 | personalized | personalized | answer | good | Y | 1 | jira_due_soon_issues | 내 open issue와 due soon issue를 같이 보여줘. |
+| personalized-356 | personalized | personalized | no_result | blocked | N | 0 | work_personal_document_search | 내 이름으로 검색되는 회의록이 있으면 알려줘. |
+| personalized-357 | personalized | personalized | answer | blocked | N | 0 | work_personal_learning_digest | 내가 최근 참여한 작업을 Jira와 Bitbucket 기준으로 묶어줘. |
+| personalized-358 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내 기준으로 오늘 해야 할 일과 미뤄도 되는 일을 구분해줘. |
+| personalized-359 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내가 담당한 작업 중 지금 리스크가 큰 것만 알려줘. |
+| personalized-360 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내 review queue를 짧게 요약해줘. |
+| personalized-361 | personalized | personalized | answer | blocked | N | 0 | jira_due_soon_issues | 내 open issue와 due soon issue를 같이 보여줘. |
 | team-status-362 | employee-value | team-status | answer | good | Y | 4 | jira_search_issues | DEV 팀에서 지금 가장 시급한 3개 작업이 뭔지 Jira 기준으로 정리해줘. |
 | team-status-363 | employee-value | team-status | answer | good | Y | 1 | jira_search_issues | DEV 팀의 오늘 장애 리스크가 있는지 확인하고 관련 이슈만 보여줘. |
 | team-status-364 | employee-value | team-status | answer | good | Y | 2 | work_prepare_standup_update | DEV 팀 standup에서 어제/오늘/내일을 핵심만 말해줘. 출처는 붙여줘. |
@@ -699,7 +726,7 @@
 | team-status-378 | employee-value | team-status | answer | failed | N | 0 | - | 오늘 FRONTEND 상태 |
 | team-status-379 | employee-value | team-status | answer | failed | N | 0 | - | FRONTEND 장애 대비 |
 | team-status-380 | employee-value | team-status | answer | good | Y | 1 | jira_blocker_digest | FRONTEND 이번 주 blocker |
-| team-status-381 | employee-value | team-status | answer | good | Y | 9 | jira_search_issues, jira_search_iss… | FRONTEND 우선순위 이슈 |
+| team-status-381 | employee-value | team-status | answer | good | Y | 10 | jira_search_issues, jira_search_iss… | FRONTEND 우선순위 이슈 |
 | team-status-382 | employee-value | team-status | answer | good | Y | 4 | jira_search_issues | JAR 팀에서 지금 가장 시급한 3개 작업이 뭔지 Jira 기준으로 정리해줘. |
 | team-status-383 | employee-value | team-status | answer | good | Y | 1 | jira_search_issues | JAR 팀의 오늘 장애 리스크가 있는지 확인하고 관련 이슈만 보여줘. |
 | team-status-384 | employee-value | team-status | answer | good | Y | 2 | work_prepare_standup_update | JAR 팀 standup에서 어제/오늘/내일을 핵심만 말해줘. 출처는 붙여줘. |
@@ -720,20 +747,20 @@
 | team-status-399 | employee-value | team-status | answer | failed | N | 0 | - | OPS 장애 대비 |
 | team-status-400 | employee-value | team-status | answer | failed | N | 0 | - | OPS 이번 주 blocker |
 | team-status-401 | employee-value | team-status | answer | failed | N | 0 | - | OPS 우선순위 이슈 |
-| repository-operational-402 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/dev 저장소에서 지금 열린 PR을 검토 우선순위로 보여줘. |
-| repository-operational-403 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/dev 저장소 브랜치에서 오래 머문 변경이 있으면 알려줘. |
-| repository-operational-404 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/dev 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘. |
-| repository-operational-405 | employee-value | repository-operational | answer | good | Y | 1 | jira_search_issues | jarvis-project/dev 저장소 PR 승인 대기 사유를 jira 이슈 맥락까지 묶어서 보여줘. |
-| repository-operational-406 | employee-value | repository-operational | answer | policy_blocked | N | 0 | jira_due_soon_issues | jarvis-project/dev 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘. |
-| repository-operational-407 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/dev 저장소에서 작업 중인 PR이 너무 오래된 게 있나 확인해줘. |
-| repository-operational-408 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/dev 저장소에서 팀원별 PR 상태를 간단히 보여줘. |
-| repository-operational-409 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/jarvis 저장소에서 지금 열린 PR을 검토 우선순위로 보여줘. |
-| repository-operational-410 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/jarvis 저장소 브랜치에서 오래 머문 변경이 있으면 알려줘. |
-| repository-operational-411 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/jarvis 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘. |
-| repository-operational-412 | employee-value | repository-operational | answer | good | Y | 1 | jira_search_issues | jarvis-project/jarvis 저장소 PR 승인 대기 사유를 jira 이슈 맥락까지 묶어서 보여줘. |
-| repository-operational-413 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/jarvis 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘. |
-| repository-operational-414 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소에서 작업 중인 PR이 너무 오래된 게 있나 확인해줘. |
-| repository-operational-415 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/jarvis 저장소에서 팀원별 PR 상태를 간단히 보여줘. |
+| repository-operational-402 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/jarvis 저장소에서 지금 열린 PR을 검토 우선순위로 보여줘. |
+| repository-operational-403 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/jarvis 저장소 브랜치에서 오래 머문 변경이 있으면 알려줘. |
+| repository-operational-404 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/jarvis 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘. |
+| repository-operational-405 | employee-value | repository-operational | answer | good | Y | 1 | jira_search_issues | jarvis-project/jarvis 저장소 PR 승인 대기 사유를 jira 이슈 맥락까지 묶어서 보여줘. |
+| repository-operational-406 | employee-value | repository-operational | answer | policy_blocked | N | 0 | jira_due_soon_issues | jarvis-project/jarvis 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘. |
+| repository-operational-407 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소에서 작업 중인 PR이 너무 오래된 게 있나 확인해줘. |
+| repository-operational-408 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/jarvis 저장소에서 팀원별 PR 상태를 간단히 보여줘. |
+| repository-operational-409 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/dev 저장소에서 지금 열린 PR을 검토 우선순위로 보여줘. |
+| repository-operational-410 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/dev 저장소 브랜치에서 오래 머문 변경이 있으면 알려줘. |
+| repository-operational-411 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/dev 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘. |
+| repository-operational-412 | employee-value | repository-operational | answer | good | Y | 1 | jira_search_issues | jarvis-project/dev 저장소 PR 승인 대기 사유를 jira 이슈 맥락까지 묶어서 보여줘. |
+| repository-operational-413 | employee-value | repository-operational | answer | policy_blocked | N | 0 | jira_due_soon_issues | jarvis-project/dev 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘. |
+| repository-operational-414 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/dev 저장소에서 작업 중인 PR이 너무 오래된 게 있나 확인해줘. |
+| repository-operational-415 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/dev 저장소에서 팀원별 PR 상태를 간단히 보여줘. |
 | policy-process-416 | employee-value | policy-process | no_result | blocked | N | 0 | - | 출근 시간 외 근무 승인은 어디에 써있어? 알려줘. 출처를 붙여줘. |
 | policy-process-417 | employee-value | policy-process | no_result | no_result_good | Y | 1 | confluence_search_by_text | 온콜 스케줄은 누가 관리하고 어디서 확인해? 알려줘. 출처를 붙여줘. |
 | policy-process-418 | employee-value | policy-process | no_result | no_result_good | N | 1 | confluence_answer_question | 보안 사고 대응은 어떤 단계로 문서화돼 있어? 알려줘. 출처를 붙여줘. |
@@ -751,19 +778,19 @@
 | policy-process-430 | employee-value | policy-process | no_result | blocked | N | 0 | - | 성능 이슈 발견 시 escalation 규칙을 알려줘. 알려줘. 출처를 붙여줘. |
 | policy-process-431 | employee-value | policy-process | no_result | blocked | N | 0 | - | 회의록 작성 규칙은 어떻게 되나? 알려줘. 출처를 붙여줘. |
 | policy-process-432 | employee-value | policy-process | no_result | blocked | N | 0 | - | 주간 보고 누락 시 조치 규칙이 있으면 알려줘. 알려줘. 출처를 붙여줘. |
-| policy-process-433 | employee-value | policy-process | no_result | no_result_good | N | 1 | confluence_answer_question | 교육비 정산 기준 문서가 있나 확인해줘. 알려줘. 출처를 붙여줘. |
+| policy-process-433 | employee-value | policy-process | no_result | no_result_good | N | 3 | confluence_answer_question | 교육비 정산 기준 문서가 있나 확인해줘. 알려줘. 출처를 붙여줘. |
 | policy-process-434 | employee-value | policy-process | no_result | blocked | N | 0 | - | 보안 교육 대상자 범위가 어디에 쓰여 있나 알려줘. 알려줘. 출처를 붙여줘. |
 | policy-process-435 | employee-value | policy-process | no_result | no_result_good | N | 3 | confluence_answer_question | 퇴사 절차 문서의 마지막 확인 체크포인트를 알려줘. 알려줘. 출처를 붙여줘. |
 | policy-process-436 | employee-value | policy-process | no_result | blocked | N | 0 | - | 고객 대응 중 긴급 연동 이슈 우선순위 규칙이 어디 있나 알려줘. 알려줘. 출처를 붙여줘. |
 | knowledge-discovery-437 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '이번 주 발표된 변경 내용 브리핑이 있을까?'를 중심으로 관련 문서를 찾아 정리해줘. |
 | knowledge-discovery-438 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | '이번 주 발표된 변경 내용 브리핑이 있을까?' 관련 문서를 없다면 못 했다고 솔직하게 말해줘. |
-| knowledge-discovery-439 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 '새로 올라온 architecture 문서를 추천해줘.'를 중심으로 관련 문서를 찾아 정리해줘. |
+| knowledge-discovery-439 | employee-value | knowledge-discovery | no_result | good | Y | 1 | confluence_search_by_text | Confluence에서 '새로 올라온 architecture 문서를 추천해줘.'를 중심으로 관련 문서를 찾아 정리해줘. |
 | knowledge-discovery-440 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | '새로 올라온 architecture 문서를 추천해줘.' 관련 문서를 없다면 못 했다고 솔직하게 말해줘. |
 | knowledge-discovery-441 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 'CI/CD 파이프라인 관련 문서에서 가장 자주 보는 항목을 정리해줘.'를 중심으로 관련 문서를 찾아 정리해줘. |
 | knowledge-discovery-442 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 'CI/CD 파이프라인 관련 문서에서 가장 자주 보는 항목을 정리해줘.' 관련 문서를 없다면 못 했다고 솔직하게 말해줘. |
 | knowledge-discovery-443 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 'release note를 누가 담당하는지 찾을 수 있어?'를 중심으로 관련 문서를 찾아 정리해줘. |
 | knowledge-discovery-444 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 'release note를 누가 담당하는지 찾을 수 있어?' 관련 문서를 없다면 못 했다고 솔직하게 말해줘. |
-| knowledge-discovery-445 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 'incident runbook에서 지금 쓸만한 부분만 골라줘.'를 중심으로 관련 문서를 찾아 정리해줘. |
+| knowledge-discovery-445 | employee-value | knowledge-discovery | no_result | good | Y | 1 | confluence_search_by_text | Confluence에서 'incident runbook에서 지금 쓸만한 부분만 골라줘.'를 중심으로 관련 문서를 찾아 정리해줘. |
 | knowledge-discovery-446 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 'incident runbook에서 지금 쓸만한 부분만 골라줘.' 관련 문서를 없다면 못 했다고 솔직하게 말해줘. |
 | knowledge-discovery-447 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | Confluence에서 'service map에서 의존성이 많이 보이는 부분을 요약해줘.'를 중심으로 관련 문서를 찾아 정리해줘. |
 | knowledge-discovery-448 | employee-value | knowledge-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 'service map에서 의존성이 많이 보이는 부분을 요약해줘.' 관련 문서를 없다면 못 했다고 솔직하게 말해줘. |
@@ -777,13 +804,85 @@
 | ownership-discovery-456 | employee-value | ownership-discovery | no_result | blocked | N | 0 | - | release 노트 문서가 누군가 쓰는지 추적해줘. |
 | ownership-discovery-457 | employee-value | ownership-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 온콜 주간 교대표가 있으면 owner와 함께 알려줘. |
 | ownership-discovery-458 | employee-value | ownership-discovery | no_result | blocked | N | 0 | - | incident 대응 체계에서 본인 역할을 어떤 근거로 정하면 되나? |
-| ownership-discovery-459 | employee-value | ownership-discovery | no_result | no_result_good | Y | 1 | confluence_search_by_text | 운영자체크리스트 문서 owner가 바뀌었는지 확인해줘. |
+| ownership-discovery-459 | employee-value | ownership-discovery | no_result | good | Y | 1 | confluence_search_by_text | 운영자체크리스트 문서 owner가 바뀌었는지 확인해줘. |
 | ownership-discovery-460 | employee-value | ownership-discovery | no_result | blocked | N | 0 | - | 지금 dev repo에서 가장 많이 올라가는 PR 작성자가 누구인지 근거와 함께 보여줘. |
 | ownership-discovery-461 | employee-value | ownership-discovery | no_result | blocked | N | 0 | - | 회귀 테스트 리드가 있는지 찾아줘. |
 | ownership-discovery-462 | employee-value | ownership-discovery | no_result | blocked | N | 0 | - | 지원 문의를 누구에게 주는 게 맞는지 운영 관점에서 알려줘. |
 | swagger-consumer-463 | employee-value | swagger-consumer | answer | good | Y | 1 | spec_load | https://petstore3.swagger.io/api/v3/openapi.json 기준으로 Petstore에서 인증 토큰이 필요한 endpoint만 골라줘. |
 | swagger-consumer-464 | employee-value | swagger-consumer | answer | good | Y | 1 | spec_load | https://petstore3.swagger.io/api/v3/openapi.json 기준으로 현재 로드된 Petstore에서 POST/PUT 동작만 추려줘. |
 | swagger-consumer-465 | employee-value | swagger-consumer | answer | good | Y | 1 | spec_load | https://petstore3.swagger.io/api/v3/openapi.json 기준으로 Petstore에서 가장 자주 쓰는 status 전환 흐름을 정리해… |
+| swagger-consumer-466 | employee-value | swagger-consumer | answer | good | Y | 1 | spec_load | https://petstore3.swagger.io/api/v3/openapi.json 기준으로 OpenAPI에서 에러 코드 매핑 규칙을 설명해줘. |
+| swagger-consumer-467 | employee-value | swagger-consumer | answer | good | Y | 1 | spec_load | https://petstore3.swagger.io/api/v3/openapi.json 기준으로 order 생성/수정 시 검증이 필요한 필드를 요약해줘. |
+| swagger-consumer-468 | employee-value | swagger-consumer | answer | good | Y | 1 | spec_load | https://petstore3.swagger.io/api/v3/openapi.json 기준으로 현재 로드된 스펙에 user 관련 endpoint가 얼마나 있는지 … |
+| swagger-consumer-469 | employee-value | swagger-consumer | answer | good | Y | 2 | spec_list | https://petstore3.swagger.io/api/v3/openapi.json 기준으로 Schema에 nullable이 어떻게 쓰였는지 점검해줘. |
+| swagger-consumer-470 | employee-value | swagger-consumer | answer | good | Y | 1 | spec_load | https://petstore3.swagger.io/api/v3/openapi.json 기준으로 응답 examples가 있는지 endpoint별로 찾아줘. |
+| swagger-consumer-471 | employee-value | swagger-consumer | answer | good | Y | 1 | spec_load | https://petstore3.swagger.io/api/v3/openapi.json 기준으로 security scheme 타입을 기준으로 엔드포인트를 묶어줘. |
+| swagger-consumer-472 | employee-value | swagger-consumer | answer | good | Y | 1 | spec_load | https://petstore3.swagger.io/api/v3/openapi.json 기준으로 Petstore에서 rate limit 힌트를 제공하는 항목이 있는… |
+| cross-source-hybrid-473 | employee-value | cross-source-hybrid | answer | good | Y | 8 | work_morning_briefing | Jira 이슈와 Confluence 문서를 같이 보며 이번 주 risk를 줄여줘. |
+| cross-source-hybrid-474 | employee-value | cross-source-hybrid | answer | blocked | N | 0 | - | PR 리뷰 상태, blocker, due soon을 한 번에 묶어서 알려줘. |
+| cross-source-hybrid-475 | employee-value | cross-source-hybrid | answer | blocked | N | 0 | - | 팀 상황 보고에 필요한 핵심만 Jira/Confluence/Bitbucket에서 뽑아줘. |
+| cross-source-hybrid-476 | employee-value | cross-source-hybrid | answer | good | Y | 8 | work_morning_briefing | 이번 주 회의 전에 볼만한 운영 요약을 브리핑용 한 단락으로 만들어줘. |
+| cross-source-hybrid-477 | employee-value | cross-source-hybrid | answer | blocked | N | 0 | - | 긴급성 높은 이슈와 문서 히트맵을 같이 정리해줘. |
+| cross-source-hybrid-478 | employee-value | cross-source-hybrid | answer | blocked | N | 0 | - | 릴리즈 전 꼭 확인해야 할 문서+이슈 조합을 보여줘. |
+| cross-source-hybrid-479 | employee-value | cross-source-hybrid | answer | blocked | N | 0 | - | 실수로 놓치기 쉬운 결합 포인트만 다시 알려줘. |
+| cross-source-hybrid-480 | employee-value | cross-source-hybrid | answer | blocked | N | 0 | - | 팀별로 오늘 반드시 확인할 포인트를 Jira+Confluence 기준으로 정리해줘. |
+| hybrid-481 | core-runtime | hybrid | no_result | blocked | N | 0 | - | DEV 기준으로 요약 리포트를 바로 만들어줘. |
+| hybrid-482 | core-runtime | hybrid | no_result | failed | N | 0 | - | DEV 기준으로 점검 리포트를 바로 만들어줘. |
+| hybrid-483 | core-runtime | hybrid | no_result | blocked | N | 0 | - | DEV 기준으로 조회 리포트를 바로 만들어줘. |
+| hybrid-484 | core-runtime | hybrid | no_result | failed | N | 0 | - | DEV 기준으로 진단 리포트를 바로 만들어줘. |
+| hybrid-485 | core-runtime | hybrid | no_result | failed | N | 0 | - | DEV 기준으로 우선순위 리포트를 바로 만들어줘. |
+| hybrid-486 | core-runtime | hybrid | no_result | blocked | N | 0 | - | DEV 기준으로 정리 리포트를 바로 만들어줘. |
+| hybrid-487 | core-runtime | hybrid | no_result | failed | N | 0 | - | DEV 기준으로 필터 리포트를 바로 만들어줘. |
+| hybrid-488 | core-runtime | hybrid | no_result | failed | N | 0 | - | DEV 기준으로 체크 리포트를 바로 만들어줘. |
+| hybrid-489 | core-runtime | hybrid | no_result | blocked | N | 0 | - | FRONTEND 기준으로 요약 리포트를 바로 만들어줘. |
+| hybrid-490 | core-runtime | hybrid | no_result | failed | N | 0 | - | FRONTEND 기준으로 점검 리포트를 바로 만들어줘. |
+| hybrid-491 | core-runtime | hybrid | no_result | blocked | N | 0 | - | FRONTEND 기준으로 조회 리포트를 바로 만들어줘. |
+| hybrid-492 | core-runtime | hybrid | no_result | failed | N | 0 | - | FRONTEND 기준으로 진단 리포트를 바로 만들어줘. |
+| hybrid-493 | core-runtime | hybrid | no_result | failed | N | 0 | - | FRONTEND 기준으로 우선순위 리포트를 바로 만들어줘. |
+| hybrid-494 | core-runtime | hybrid | no_result | blocked | N | 0 | - | FRONTEND 기준으로 정리 리포트를 바로 만들어줘. |
+| hybrid-495 | core-runtime | hybrid | no_result | failed | N | 0 | - | FRONTEND 기준으로 필터 리포트를 바로 만들어줘. |
+| hybrid-496 | core-runtime | hybrid | no_result | failed | N | 0 | - | FRONTEND 기준으로 체크 리포트를 바로 만들어줘. |
+| hybrid-497 | core-runtime | hybrid | no_result | blocked | N | 0 | - | JAR 기준으로 요약 리포트를 바로 만들어줘. |
+| hybrid-498 | core-runtime | hybrid | no_result | failed | N | 0 | - | JAR 기준으로 점검 리포트를 바로 만들어줘. |
+| hybrid-499 | core-runtime | hybrid | no_result | blocked | N | 0 | - | JAR 기준으로 조회 리포트를 바로 만들어줘. |
+| hybrid-500 | core-runtime | hybrid | no_result | failed | N | 0 | - | JAR 기준으로 진단 리포트를 바로 만들어줘. |
+| hybrid-501 | core-runtime | hybrid | no_result | failed | N | 0 | - | JAR 기준으로 우선순위 리포트를 바로 만들어줘. |
+| hybrid-502 | core-runtime | hybrid | no_result | blocked | N | 0 | - | JAR 기준으로 정리 리포트를 바로 만들어줘. |
+| hybrid-503 | core-runtime | hybrid | no_result | failed | N | 0 | - | JAR 기준으로 필터 리포트를 바로 만들어줘. |
+| hybrid-504 | core-runtime | hybrid | no_result | blocked | N | 0 | - | JAR 기준으로 체크 리포트를 바로 만들어줘. |
+| hybrid-505 | core-runtime | hybrid | no_result | blocked | N | 0 | - | OPS 기준으로 요약 리포트를 바로 만들어줘. |
+| hybrid-506 | core-runtime | hybrid | no_result | failed | N | 0 | - | OPS 기준으로 점검 리포트를 바로 만들어줘. |
+| hybrid-507 | core-runtime | hybrid | no_result | blocked | N | 0 | - | OPS 기준으로 조회 리포트를 바로 만들어줘. |
+| hybrid-508 | core-runtime | hybrid | no_result | failed | N | 0 | - | OPS 기준으로 진단 리포트를 바로 만들어줘. |
+| hybrid-509 | core-runtime | hybrid | no_result | failed | N | 0 | - | OPS 기준으로 우선순위 리포트를 바로 만들어줘. |
+| hybrid-510 | core-runtime | hybrid | no_result | blocked | N | 0 | - | OPS 기준으로 정리 리포트를 바로 만들어줘. |
+| hybrid-511 | core-runtime | hybrid | no_result | failed | N | 0 | - | OPS 기준으로 필터 리포트를 바로 만들어줘. |
+| hybrid-512 | core-runtime | hybrid | no_result | failed | N | 0 | - | OPS 기준으로 체크 리포트를 바로 만들어줘. |
+| personalized-513 | personalized | personalized | answer | failed | N | 0 | - | 내가 오늘 확인해야 할 알림만 우선순위로 뽑아줘. |
+| personalized-514 | personalized | personalized | answer | failed | N | 0 | - | 내가 지금 잡아야 할 일 5개를 근거와 함께 뽑아줘. |
+| personalized-515 | personalized | personalized | answer | blocked | N | 0 | - | 내가 최근에 놓친 리뷰를 중심으로 보여줘. |
+| personalized-516 | personalized | personalized | answer | blocked | N | 0 | jira_due_soon_issues | 내가 마감이 가까운 issue를 오늘만 정리해줘. |
+| personalized-517 | personalized | personalized | answer | blocked | N | 0 | - | 내가 가장 최근에 관여한 PR 상태를 알려줘. |
+| personalized-518 | personalized | personalized | answer | blocked | N | 0 | - | 내 이름으로 열려 있는 PR이 있으면 리뷰 포인트를 짧게 알려줘. |
+| personalized-519 | personalized | personalized | answer | blocked | N | 0 | jira_due_soon_issues | 내 due soon 이슈만 출처와 함께 보여줘. |
+| personalized-520 | personalized | personalized | answer | failed | N | 0 | - | 내가 우선순위로 바꿔야 할 일 3개를 제안해줘. |
+| personalized-521 | personalized | personalized | answer | blocked | N | 0 | - | 내가 담당 중인 항목에서 리스크가 큰 걸 먼저 알려줘. |
+| personalized-522 | personalized | personalized | answer | failed | N | 0 | - | 내가 오늘 놓친 항목이 있나 체크해줘. |
+| personalized-523 | personalized | personalized | answer | blocked | N | 0 | - | 내가 회의 전 꼭 읽어야 하는 문서를 3개 추천해줘. |
+| personalized-524 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내가 오늘 집중해야 할 Bitbucket 리뷰를 알려줘. |
+| personalized-525 | personalized | personalized | answer | blocked | N | 0 | jira_blocker_digest | 내가 이번 주 release risk로 볼 항목을 정리해줘. |
+| personalized-526 | personalized | personalized | answer | blocked | N | 0 | jira_due_soon_issues | 내 기준으로 blocker/overdue를 분리해줘. |
+| personalized-527 | personalized | personalized | answer | blocked | N | 0 | - | 내가 오늘 말해야 할 status를 한 문단으로 정리해줘. |
+| personalized-528 | personalized | personalized | answer | blocked | N | 0 | - | 내가 지금 바로 처리하면 좋은 작업 순서를 알려줘. |
+| personalized-529 | personalized | personalized | answer | blocked | N | 0 | - | 내가 끝내지 못한 리뷰가 있으면 알려줘. |
+| personalized-530 | personalized | personalized | answer | good | Y | 1 | confluence_search_by_text | 내가 담당한 service owner 문서를 다시 찾아줘. |
+| personalized-531 | personalized | personalized | answer | blocked | N | 0 | - | 내가 최근 열람한 문서 중 중요도 높은 걸 골라줘. |
+| personalized-532 | personalized | personalized | answer | failed | N | 0 | - | 내가 지금 집중해야 할 업무와 보류해도 되는 업무를 구분해줘. |
+| personalized-533 | personalized | personalized | answer | blocked | N | 0 | work_personal_focus_plan | 내가 오늘 해야 할 일들을 3단계로 줄여줘. |
+| personalized-534 | personalized | personalized | answer | good | Y | 1 | work_prepare_standup_update | 내 기준으로 standup yesterday/today blockers를 다시 구성해줘. |
+| personalized-535 | personalized | personalized | answer | blocked | N | 0 | work_personal_document_search | 내 이름으로 등록된 회의록이 있으면 알려줘. |
+| personalized-536 | personalized | personalized | answer | blocked | N | 0 | - | 내가 맡은 이슈의 다음 액션을 알려줘. |
+| personalized-537 | personalized | personalized | answer | blocked | N | 0 | - | 내가 승인이나 리뷰 기다리는 PR이 있으면 알려줘. |
 
 ## Notes
 

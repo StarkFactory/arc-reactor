@@ -45,7 +45,7 @@ internal class AgentRunContextManager(
     }
 
     private fun resolveUserEmail(metadata: Map<String, Any>): String? {
-        val candidates = listOf("requesterEmail", "slackUserEmail", "userEmail")
+        val candidates = listOf("requesterEmail", "slackUserEmail", "userEmail", "requesterAccountId")
         return candidates.asSequence()
             .mapNotNull { key -> metadata[key]?.toString()?.trim()?.takeIf { it.isNotBlank() } }
             .firstOrNull()

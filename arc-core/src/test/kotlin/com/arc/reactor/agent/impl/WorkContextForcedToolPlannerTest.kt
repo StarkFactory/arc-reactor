@@ -107,6 +107,34 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
+    fun `should plan morning briefing from project shorthand status prompt`() {
+        val plan = WorkContextForcedToolPlanner.plan("오늘 DEV 상태")
+
+        requireNotNull(plan)
+        assertEquals("work_morning_briefing", plan.toolName)
+        assertEquals("DEV", plan.arguments["jiraProject"])
+        assertEquals("status", plan.arguments["confluenceKeyword"])
+    }
+
+    @Test
+    fun `should plan standup from project shorthand standup prompt`() {
+        val plan = WorkContextForcedToolPlanner.plan("OPS 팀 standup 핵심만 정리해줘")
+
+        requireNotNull(plan)
+        assertEquals("work_prepare_standup_update", plan.toolName)
+        assertEquals("OPS", plan.arguments["jiraProject"])
+    }
+
+    @Test
+    fun `should plan blocker digest from project shorthand blocker prompt`() {
+        val plan = WorkContextForcedToolPlanner.plan("OPS 이번 주 blocker")
+
+        requireNotNull(plan)
+        assertEquals("jira_blocker_digest", plan.toolName)
+        assertEquals("OPS", plan.arguments["project"])
+    }
+
+    @Test
     fun `should plan jira daily briefing from work briefing phrasing`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "DEV 프로젝트 기준으로 오늘 아침 업무 브리핑을 출처와 함께 만들어줘."
