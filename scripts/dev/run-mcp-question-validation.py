@@ -664,6 +664,156 @@ def build_scenarios(seeds: dict[str, Any], suites: set[str]) -> list[Scenario]:
     for suite, category, prompt, expected in personalized_prompts:
         add(suite, category, prompt, expected=expected, note="Requires real user context for meaningful scoring.")
 
+    for project in primary_projects:
+        project_variants = [
+            f"{project} 팀에서 지금 가장 시급한 3개 작업이 뭔지 Jira 기준으로 정리해줘.",
+            f"{project} 팀의 오늘 장애 리스크가 있는지 확인하고 관련 이슈만 보여줘.",
+            f"{project} 팀 standup에서 어제/오늘/내일을 핵심만 말해줘. 출처는 붙여줘.",
+            f"{project} 프로젝트의 blocker 중 처리 우선순위를 다시 정렬해줘.",
+            f"{project} 팀에서 리뷰가 안 끝난 PR이 아직 뭐가 있는지 출처와 함께 알려줘.",
+            f"{project} 프로젝트의 마감 임박 작업을 담당자별로 묶어줘.",
+        ]
+        for prompt in project_variants:
+            add("employee-value", "team-status", prompt)
+
+        short_project_variants = [
+            f"오늘 {project} 상태",
+            f"{project} 장애 대비",
+            f"{project} 이번 주 blocker",
+            f"{project} 우선순위 이슈",
+        ]
+        for prompt in short_project_variants:
+            add("employee-value", "team-status", prompt)
+
+    for repo in repos:
+        for phrase in [
+            f"jarvis-project/{repo} 저장소에서 지금 열린 PR을 검토 우선순위로 보여줘.",
+            f"jarvis-project/{repo} 저장소 브랜치에서 오래 머문 변경이 있으면 알려줘.",
+            f"jarvis-project/{repo} 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘.",
+            f"jarvis-project/{repo} 저장소 PR 승인 대기 사유를 jira 이슈 맥락까지 묶어서 보여줘.",
+            f"jarvis-project/{repo} 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘.",
+            f"jarvis-project/{repo} 저장소에서 작업 중인 PR이 너무 오래된 게 있나 확인해줘.",
+            f"jarvis-project/{repo} 저장소에서 팀원별 PR 상태를 간단히 보여줘.",
+        ]:
+            add("employee-value", "repository-operational", phrase)
+
+    policy_variants = [
+        "출근 시간 외 근무 승인은 어디에 써있어?",
+        "온콜 스케줄은 누가 관리하고 어디서 확인해?",
+        "보안 사고 대응은 어떤 단계로 문서화돼 있어?",
+        "장애 보고 채널은 어디인지 알려줘.",
+        "배포 승인 기준이 어디에 적혀 있는지 찾아줘.",
+        "코드리뷰 정책은 누가 관리하고 어디서 봐?",
+        "재택근무 승인 규정 문서 위치를 알려줘.",
+        "연차/휴가 남은 일수 확인은 어디 정책을 봐야 하나?",
+        "출장비 정산 기준 문서가 있으면 링크로 알려줘.",
+        "법인카드 사용 한도/승인 규칙이 어디 있나 알려줘.",
+        "개인정보 처리 절차 문서가 있으면 어디서 확인해?",
+        "MFA 적용 대상과 예외 규정이 있나 찾아줘.",
+        "VPN 정책 문서를 찾아줘.",
+        "장비 반납 체크리스트가 있으면 보여줘.",
+        "성능 이슈 발견 시 escalation 규칙을 알려줘.",
+        "회의록 작성 규칙은 어떻게 되나?",
+        "주간 보고 누락 시 조치 규칙이 있으면 알려줘.",
+        "교육비 정산 기준 문서가 있나 확인해줘.",
+        "보안 교육 대상자 범위가 어디에 쓰여 있나 알려줘.",
+        "퇴사 절차 문서의 마지막 확인 체크포인트를 알려줘.",
+        "고객 대응 중 긴급 연동 이슈 우선순위 규칙이 어디 있나 알려줘.",
+    ]
+    for term in policy_variants:
+        add("employee-value", "policy-process", f"{term} 알려줘. 출처를 붙여줘.", expected="no_result")
+
+    knowledge_variants = [
+        "이번 주 발표된 변경 내용 브리핑이 있을까?",
+        "새로 올라온 architecture 문서를 추천해줘.",
+        "CI/CD 파이프라인 관련 문서에서 가장 자주 보는 항목을 정리해줘.",
+        "release note를 누가 담당하는지 찾을 수 있어?",
+        "incident runbook에서 지금 쓸만한 부분만 골라줘.",
+        "service map에서 의존성이 많이 보이는 부분을 요약해줘.",
+        "API owner 정보가 문서에 어디에 적혀 있는지 찾아줘.",
+        "최근 주기적으로 업데이트되는 문서 링크만 보여줘.",
+    ]
+    for term in knowledge_variants:
+        add("employee-value", "knowledge-discovery", f"Confluence에서 '{term}'를 중심으로 관련 문서를 찾아 정리해줘.", expected="no_result")
+        add("employee-value", "knowledge-discovery", f"'{term}' 관련 문서를 없다면 못 했다고 솔직하게 말해줘.", expected="no_result")
+
+    ownership_variants = [
+        "이번 주 dev 팀에서 누가 어떤 API를 담당하는지 알려줘.",
+        "billing API를 실제로 관리하는 사람/팀이 누구인지 알려줘.",
+        "frontend에서 자주 쓰는 auth endpoint owner는 누군지 알려줘.",
+        "release 노트 문서가 누군가 쓰는지 추적해줘.",
+        "온콜 주간 교대표가 있으면 owner와 함께 알려줘.",
+        "incident 대응 체계에서 본인 역할을 어떤 근거로 정하면 되나?",
+        "운영자체크리스트 문서 owner가 바뀌었는지 확인해줘.",
+        "지금 dev repo에서 가장 많이 올라가는 PR 작성자가 누구인지 근거와 함께 보여줘.",
+        "회귀 테스트 리드가 있는지 찾아줘.",
+        "지원 문의를 누구에게 주는 게 맞는지 운영 관점에서 알려줘.",
+    ]
+    for term in ownership_variants:
+        add("employee-value", "ownership-discovery", f"{term}", expected="no_result")
+
+    swagger_expansion = [
+        "Petstore에서 인증 토큰이 필요한 endpoint만 골라줘.",
+        "현재 로드된 Petstore에서 POST/PUT 동작만 추려줘.",
+        "Petstore에서 가장 자주 쓰는 status 전환 흐름을 정리해줘.",
+        "OpenAPI에서 에러 코드 매핑 규칙을 설명해줘.",
+        "order 생성/수정 시 검증이 필요한 필드를 요약해줘.",
+        "현재 로드된 스펙에 user 관련 endpoint가 얼마나 있는지 알려줘.",
+        "Schema에 nullable이 어떻게 쓰였는지 점검해줘.",
+        "응답 examples가 있는지 endpoint별로 찾아줘.",
+        "security scheme 타입을 기준으로 엔드포인트를 묶어줘.",
+        "Petstore에서 rate limit 힌트를 제공하는 항목이 있는지 찾아줘.",
+    ]
+    for prompt in swagger_expansion:
+        add("employee-value", "swagger-consumer", f"{petstore_v3} 기준으로 {prompt}")
+
+    cross_variants = [
+        "Jira 이슈와 Confluence 문서를 같이 보며 이번 주 risk를 줄여줘.",
+        "PR 리뷰 상태, blocker, due soon을 한 번에 묶어서 알려줘.",
+        "팀 상황 보고에 필요한 핵심만 Jira/Confluence/Bitbucket에서 뽑아줘.",
+        "이번 주 회의 전에 볼만한 운영 요약을 브리핑용 한 단락으로 만들어줘.",
+        "긴급성 높은 이슈와 문서 히트맵을 같이 정리해줘.",
+        "릴리즈 전 꼭 확인해야 할 문서+이슈 조합을 보여줘.",
+        "실수로 놓치기 쉬운 결합 포인트만 다시 알려줘.",
+        "팀별로 오늘 반드시 확인할 포인트를 Jira+Confluence 기준으로 정리해줘.",
+    ]
+    for prompt in cross_variants:
+        add("employee-value", "cross-source-hybrid", f"{prompt}")
+
+    for project in primary_projects:
+        for verb in ["요약", "점검", "조회", "진단", "우선순위", "정리", "필터", "체크"]:
+            add("core-runtime", "hybrid", f"{project} 기준으로 {verb} 리포트를 바로 만들어줘.", expected="no_result")
+
+    personalized_variants = [
+        "내가 오늘 확인해야 할 알림만 우선순위로 뽑아줘.",
+        "내가 지금 잡아야 할 일 5개를 근거와 함께 뽑아줘.",
+        "내가 최근에 놓친 리뷰를 중심으로 보여줘.",
+        "내가 마감이 가까운 issue를 오늘만 정리해줘.",
+        "내가 가장 최근에 관여한 PR 상태를 알려줘.",
+        "내 이름으로 열려 있는 PR이 있으면 리뷰 포인트를 짧게 알려줘.",
+        "내 due soon 이슈만 출처와 함께 보여줘.",
+        "내가 우선순위로 바꿔야 할 일 3개를 제안해줘.",
+        "내가 담당 중인 항목에서 리스크가 큰 걸 먼저 알려줘.",
+        "내가 오늘 놓친 항목이 있나 체크해줘.",
+        "내가 회의 전 꼭 읽어야 하는 문서를 3개 추천해줘.",
+        "내가 오늘 집중해야 할 Bitbucket 리뷰를 알려줘.",
+        "내가 이번 주 release risk로 볼 항목을 정리해줘.",
+        "내 기준으로 blocker/overdue를 분리해줘.",
+        "내가 오늘 말해야 할 status를 한 문단으로 정리해줘.",
+        "내가 지금 바로 처리하면 좋은 작업 순서를 알려줘.",
+        "내가 끝내지 못한 리뷰가 있으면 알려줘.",
+        "내가 담당한 service owner 문서를 다시 찾아줘.",
+        "내가 최근 열람한 문서 중 중요도 높은 걸 골라줘.",
+        "내가 지금 집중해야 할 업무와 보류해도 되는 업무를 구분해줘.",
+        "내가 오늘 해야 할 일들을 3단계로 줄여줘.",
+        "내 기준으로 standup yesterday/today blockers를 다시 구성해줘.",
+        "내 이름으로 등록된 회의록이 있으면 알려줘.",
+        "내가 맡은 이슈의 다음 액션을 알려줘.",
+        "내가 승인이나 리뷰 기다리는 PR이 있으면 알려줘.",
+    ]
+    for prompt in personalized_variants:
+        add("personalized", "personalized", prompt, expected="answer", note="Requires real user context for meaningful scoring.")
+
     return scenarios
 
 
