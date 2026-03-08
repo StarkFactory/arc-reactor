@@ -36,7 +36,7 @@ DEFAULT_PASSWORD = "SecurePass123!"
 DEFAULT_REPORT = "docs/ko/operations/mcp-tool-question-validation-report.md"
 DEFAULT_REQUESTER_EMAIL = os.getenv("VALIDATION_REQUESTER_EMAIL", "").strip()
 DEFAULT_REQUESTER_ACCOUNT_ID = os.getenv("VALIDATION_REQUESTER_ACCOUNT_ID", "").strip()
-DEFAULT_MODEL = os.getenv("AR_REACTOR_VALIDATION_MODEL", "gemini-2.0-flash").strip()
+DEFAULT_MODEL = os.getenv("AR_REACTOR_VALIDATION_MODEL", "").strip()
 
 
 @dataclass
@@ -63,7 +63,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--report-json", default="/tmp/mcp-question-validation-report.json")
     parser.add_argument("--report-markdown", default=DEFAULT_REPORT)
     parser.add_argument("--limit", type=int, default=0)
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="Chat model for runtime calls. 기본값은 gemini-2.0-flash.")
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help="Chat model for runtime calls. Empty value uses runtime default model.",
+    )
     parser.add_argument("--shuffle", action="store_true", help="Shuffle scenarios before execution.")
     parser.add_argument("--shuffle-seed", type=int, default=17)
     parser.add_argument("--admin-token", default=os.getenv("VALIDATION_ADMIN_TOKEN", "").strip())
@@ -193,6 +197,21 @@ def http_text_request(
 
 
 def login(base_url: str, email: str, password: str) -> str:
+    status, body, payload = http_json_request(
+        method="POST",
+        url=f"{base_url}/api/auth/login",
+        headers={},
+        json_body={"email": email, "password": password},
+        timeout_sec=20,
+    )
+    if status == 200:
+        token = str((payload or {}).get("token", "")).strip()
+        if not token:
+            raise RuntimeError("login returned no token")
+        return token
+    if status not in (401, 403):
+        raise RuntimeError(f"login failed status={status} body={body}")
+
     register_status, register_body, register_payload = http_json_request(
         method="POST",
         url=f"{base_url}/api/auth/register",
@@ -274,6 +293,28 @@ def direct_json(url: str, auth_header: str, timeout_sec: float = 30) -> Any:
     if status != 200:
         raise RuntimeError(f"direct request failed status={status} url={url} body={body[:400]}")
     return payload
+
+
+def resolve_mcp_server_name(servers: list[Any], candidates: list[str]) -> str:
+    if not isinstance(servers, list):
+        return ""
+    normalized_candidates = [item.lower().strip() for item in candidates]
+    for server in servers:
+        name = str((server or {}).get("name", "")).strip()
+        if not name:
+            continue
+        lower_name = name.lower()
+        if lower_name in normalized_candidates:
+            return name
+
+    for server in servers:
+        name = str((server or {}).get("name", "")).strip()
+        if not name:
+            continue
+        lower_name = name.lower()
+        if any(candidate in lower_name for candidate in normalized_candidates):
+            return name
+    return ""
 
 
 def discover_seed_data(access_policy: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -907,9 +948,9 @@ def indicates_no_result(text: str) -> bool:
         "리뷰 대기열이 없습니다",
         "리뷰 sla 경고가 없습니다",
         "이슈가 없습니다",
-        "critical signals detected" not in normalized and "no critical signals detected" in normalized,
+        "no critical signals detected",
     ]
-    return any(phrase if isinstance(phrase, bool) else phrase in normalized for phrase in phrases)
+    return any(phrase in normalized for phrase in phrases)
 
 
 def classify_result(scenario: Scenario, result: dict[str, Any]) -> str:
@@ -1536,13 +1577,30 @@ def main() -> int:
     token = login(args.base_url, args.email, args.password)
     admin_token = resolve_admin_token(args)
 
+    server_catalog = admin_request(args, admin_token, "/api/mcp/servers")
+    if not isinstance(server_catalog, list):
+        server_catalog = []
+
+    atlassian_server_name = resolve_mcp_server_name(server_catalog, ["atlassian", "atlassian-mcp"])
+    swagger_server_name = resolve_mcp_server_name(server_catalog, ["swagger-mcp", "swagger"])
+
     inventories = {
-        "atlassian": admin_request(args, admin_token, "/api/mcp/servers/atlassian"),
-        "swagger": admin_request(args, admin_token, "/api/mcp/servers/swagger"),
+        "atlassian": admin_request(args, admin_token, f"/api/mcp/servers/{atlassian_server_name}") if atlassian_server_name else {},
+        "swagger": admin_request(args, admin_token, f"/api/mcp/servers/{swagger_server_name}") if swagger_server_name else {},
     }
-    atlassian_access_policy = admin_request(args, admin_token, "/api/mcp/servers/atlassian/access-policy")
-    atlassian_preflight = admin_request(args, admin_token, "/api/mcp/servers/atlassian/preflight")
-    swagger_preflight = admin_request(args, admin_token, "/api/mcp/servers/swagger/preflight")
+
+    atlassian_access_policy = (
+        admin_request(args, admin_token, f"/api/mcp/servers/{atlassian_server_name}/access-policy")
+        if atlassian_server_name else {}
+    )
+    atlassian_preflight = (
+        admin_request(args, admin_token, f"/api/mcp/servers/{atlassian_server_name}/preflight")
+        if atlassian_server_name else {}
+    )
+    swagger_preflight = (
+        admin_request(args, admin_token, f"/api/mcp/servers/{swagger_server_name}/preflight")
+        if swagger_server_name else {}
+    )
 
     arc_health_status, arc_health_body = http_text_request("GET", f"{args.base_url}/actuator/health", {})
     atlassian_health_status, atlassian_health_body = http_text_request("GET", "http://localhost:18085/actuator/health", {})

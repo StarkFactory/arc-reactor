@@ -10,7 +10,7 @@ NAME="${VALIDATION_USER_NAME:-QA Traffic Runner}"
 # 기본 정책: 핵심 런타임 + 직원 가치 영역 + (요청자 제공 시 personalized 1회 반영)
 SUITES="${VALIDATION_SUITES:-core-runtime,employee-value}"
 LIMIT="${VALIDATION_CASE_LIMIT:-320}"
-MODEL="${AR_REACTOR_VALIDATION_MODEL:-gemini-2.0-flash}"
+MODEL="${AR_REACTOR_VALIDATION_MODEL:-}"
 CASE_DELAY_MS="${VALIDATION_CASE_DELAY_MS:-1800}"
 RATE_LIMIT_RETRY_SEC="${VALIDATION_RATE_LIMIT_RETRY_SEC:-90}"
 SHUFFLE_SEED="${VALIDATION_SHUFFLE_SEED:-17}"
@@ -38,7 +38,7 @@ Env vars:
   VALIDATION_USER_NAME          Test user display name
   VALIDATION_SUITES             Comma-separated suites: core-runtime,employee-value,personalized
   VALIDATION_CASE_LIMIT         Case limit (default: 320)
-  AR_REACTOR_VALIDATION_MODEL   Chat model to force (default: gemini-2.0-flash)
+  AR_REACTOR_VALIDATION_MODEL   Chat model to force (default: runtime default)
   VALIDATION_CASE_DELAY_MS      Delay between cases (default: 1800)
   VALIDATION_RATE_LIMIT_RETRY_SEC Rate-limit backoff (default: 90)
   VALIDATION_SHUFFLE_SEED       Random seed when shuffle enabled (default: 17)
@@ -81,13 +81,17 @@ for suite in "$@"; do
   suite_args+=(--suite "$suite")
 done
 
+model_arg=()
+if [[ -n "$MODEL" ]]; then
+  model_arg=(--model "$MODEL")
+fi
+
 python3 scripts/dev/run-mcp-question-validation.py \
   --base-url "$BASE_URL" \
   --tenant-id "$TENANT_ID" \
   --email "$EMAIL" \
   --password "$PASSWORD" \
   --limit "$LIMIT" \
-  --model "$MODEL" \
   --case-delay-ms "$CASE_DELAY_MS" \
   --rate-limit-retry-wait-sec "$RATE_LIMIT_RETRY_SEC" \
   --report-json "$REPORT_JSON" \
@@ -95,6 +99,7 @@ python3 scripts/dev/run-mcp-question-validation.py \
   --requester-email "$REQUESTER_EMAIL" \
   --requester-account-id "$REQUESTER_ACCOUNT_ID" \
   "${suite_args[@]}" \
+  "${model_arg[@]}" \
   ${SHUFFLE_ARG[@]+"${SHUFFLE_ARG[@]}"}
 
 echo "Validation complete"

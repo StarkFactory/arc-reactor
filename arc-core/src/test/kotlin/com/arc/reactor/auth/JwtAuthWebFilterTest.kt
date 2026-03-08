@@ -179,6 +179,35 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
+        fun `should fallback to userId when accountId claim is missing`() {
+            every { request.uri } returns URI.create("http://localhost/api/chat")
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token-no-account-id")
+            every { jwtTokenProvider.validateToken("valid-token-no-account-id") } returns "user-42"
+            every { jwtTokenProvider.extractRole("valid-token-no-account-id") } returns UserRole.USER
+            every { jwtTokenProvider.extractEmail("valid-token-no-account-id") } returns "token-user@example.com"
+            every { jwtTokenProvider.extractAccountId("valid-token-no-account-id") } returns null
+            every { jwtTokenProvider.extractTenantId("valid-token-no-account-id") } returns "tenant-acme"
+            every { authProvider.getUserById("user-42") } returns User(
+                id = "user-42",
+                email = "user@example.com",
+                name = "User",
+                passwordHash = "hashed",
+                role = UserRole.USER
+            )
+
+            val result = filter.filter(exchange, chain)
+            result.block()
+
+            assertEquals("user-42", attributes[JwtAuthWebFilter.USER_ACCOUNT_ID_ATTRIBUTE]) {
+                "userAccountId should fallback to userId when claim is missing"
+            }
+            assertEquals("tenant-acme", attributes[JwtAuthWebFilter.RESOLVED_TENANT_ID_ATTRIBUTE]) {
+                "resolvedTenantId should still be copied from token tenant claim"
+            }
+            verify(exactly = 1) { chain.filter(exchange) }
+        }
+
+        @Test
         fun `should fallback to auth user email when token email claim is absent`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token-no-email")

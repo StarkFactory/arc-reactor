@@ -54,21 +54,22 @@ class JwtAuthWebFilter(
             return unauthorized(exchange)
         }
 
+        val resolvedUserId = userId.takeIf { it.isNotBlank() } ?: "anonymous"
         // Store userId and role in exchange attributes for downstream controllers
-        exchange.attributes[USER_ID_ATTRIBUTE] = userId
-        val role = resolveUserRole(userId, token) ?: return unauthorized(exchange)
+        exchange.attributes[USER_ID_ATTRIBUTE] = resolvedUserId
+        val role = resolveUserRole(resolvedUserId, token) ?: return unauthorized(exchange)
         exchange.attributes[USER_ROLE_ATTRIBUTE] = role
         val tenantId = resolveTenantId(token)
         exchange.attributes[RESOLVED_TENANT_ID_ATTRIBUTE] = tenantId
-        exchange.attributes[USER_EMAIL_ATTRIBUTE] = resolveUserEmail(userId, token)
-        exchange.attributes[USER_ACCOUNT_ID_ATTRIBUTE] = resolveUserAccountId(token)
+        exchange.attributes[USER_EMAIL_ATTRIBUTE] = resolveUserEmail(resolvedUserId, token) ?: "anonymous"
+        exchange.attributes[USER_ACCOUNT_ID_ATTRIBUTE] = resolveUserAccountId(token, resolvedUserId)
         return chain.filter(exchange)
     }
 
-    private fun resolveUserAccountId(token: String): String? {
+    private fun resolveUserAccountId(token: String, userId: String): String {
         return jwtTokenProvider.extractAccountId(token)
             ?.trim()
-            ?.takeIf { it.isNotBlank() }
+            ?.takeIf { it.isNotBlank() } ?: userId
     }
 
     private fun resolveUserEmail(userId: String, token: String): String? {
