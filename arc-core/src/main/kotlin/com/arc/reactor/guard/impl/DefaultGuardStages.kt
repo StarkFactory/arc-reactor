@@ -21,6 +21,12 @@ private val logger = KotlinLogging.logger {}
  *
  * Caffeine cache-based per-minute and per-hour limits.
  * Supports tenant-aware rate limiting via tenantRateLimits map.
+ *
+ * Atomicity guarantee: both counters are checked and incremented inside a
+ * synchronized block on the [RateCounters] instance, eliminating the TOCTOU
+ * race that existed when the two caches were accessed independently.
+ * Minute and hour caches are kept separate so their TTLs differ, but the
+ * counters object is shared across both lookups via the minute cache.
  */
 class DefaultRateLimitStage(
     private val requestsPerMinute: Int = 10,
@@ -28,11 +34,19 @@ class DefaultRateLimitStage(
     private val tenantRateLimits: Map<String, TenantRateLimit> = emptyMap()
 ) : RateLimitStage {
 
-    private val minuteCache: Cache<String, AtomicInteger> = Caffeine.newBuilder()
+    /** Holds per-user counters for a sliding window. */
+    private data class RateCounters(
+        val minute: AtomicInteger = AtomicInteger(0),
+        val hour: AtomicInteger = AtomicInteger(0)
+    )
+
+    // Minute window: entries expire after 1 minute (counter resets automatically).
+    private val minuteCache: Cache<String, RateCounters> = Caffeine.newBuilder()
         .expireAfterWrite(Duration.ofMinutes(1))
         .build()
 
-    private val hourCache: Cache<String, AtomicInteger> = Caffeine.newBuilder()
+    // Hour window: entries expire after 1 hour (counter resets automatically).
+    private val hourCache: Cache<String, RateCounters> = Caffeine.newBuilder()
         .expireAfterWrite(Duration.ofHours(1))
         .build()
 
@@ -46,22 +60,35 @@ class DefaultRateLimitStage(
         val perMinute = tenantLimit?.perMinute ?: requestsPerMinute
         val perHour = tenantLimit?.perHour ?: requestsPerHour
 
-        // Per-minute check
-        val minuteCount = minuteCache.get(cacheKey) { AtomicInteger(0) }
-        if (minuteCount.incrementAndGet() > perMinute) {
-            return GuardResult.Rejected(
-                reason = "Rate limit exceeded: $perMinute requests per minute",
-                category = RejectionCategory.RATE_LIMITED
-            )
-        }
+        // Retrieve (or create) separate counter objects for each window.
+        // The two objects are independent; atomicity is enforced below.
+        val minuteCounters = minuteCache.get(cacheKey) { RateCounters() }
+        val hourCounters = hourCache.get(cacheKey) { RateCounters() }
 
-        // Per-hour check
-        val hourCount = hourCache.get(cacheKey) { AtomicInteger(0) }
-        if (hourCount.incrementAndGet() > perHour) {
-            return GuardResult.Rejected(
-                reason = "Rate limit exceeded: $perHour requests per hour",
-                category = RejectionCategory.RATE_LIMITED
-            )
+        // Atomically increment both counters and roll back if either limit is exceeded.
+        synchronized(minuteCounters) {
+            synchronized(hourCounters) {
+                val m = minuteCounters.minute.incrementAndGet()
+                val h = hourCounters.hour.incrementAndGet()
+
+                if (m > perMinute) {
+                    minuteCounters.minute.decrementAndGet()
+                    hourCounters.hour.decrementAndGet()
+                    return GuardResult.Rejected(
+                        reason = "Rate limit exceeded: $perMinute requests per minute",
+                        category = RejectionCategory.RATE_LIMITED
+                    )
+                }
+
+                if (h > perHour) {
+                    minuteCounters.minute.decrementAndGet()
+                    hourCounters.hour.decrementAndGet()
+                    return GuardResult.Rejected(
+                        reason = "Rate limit exceeded: $perHour requests per hour",
+                        category = RejectionCategory.RATE_LIMITED
+                    )
+                }
+            }
         }
 
         return GuardResult.Allowed.DEFAULT

@@ -12,6 +12,7 @@ import com.arc.reactor.rag.chunking.DocumentChunker
 import com.arc.reactor.rag.chunking.InstrumentedDocumentChunker
 import com.arc.reactor.rag.chunking.NoOpDocumentChunker
 import com.arc.reactor.rag.chunking.TokenBasedDocumentChunker
+import com.arc.reactor.rag.impl.Bm25WarmUpRunner
 import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HybridRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
@@ -24,6 +25,7 @@ import mu.KotlinLogging
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.BeanInitializationException
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
@@ -179,6 +181,17 @@ class RagConfiguration {
         reranker = reranker,
         maxContextTokens = properties.rag.maxContextTokens
     )
+
+    /**
+     * BM25 warm-up runner — re-indexes the BM25 scorer from VectorStore on startup.
+     * Only registered when [HybridRagPipeline] is active (i.e., hybrid search is enabled).
+     */
+    @Bean
+    @ConditionalOnBean(HybridRagPipeline::class)
+    fun bm25WarmUpRunner(
+        hybridRagPipeline: HybridRagPipeline,
+        vectorStore: ObjectProvider<VectorStore>
+    ): Bm25WarmUpRunner = Bm25WarmUpRunner(hybridRagPipeline, vectorStore)
 
     /**
      * Document Chunker — splits long documents into smaller chunks for better embedding quality.
