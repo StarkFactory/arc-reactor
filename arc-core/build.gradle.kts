@@ -46,7 +46,7 @@ dependencies {
     compileOnly("org.springframework.boot:spring-boot-starter-data-redis")
 
     // Optional: OpenTelemetry API (users provide the SDK at runtime)
-    compileOnly(platform("io.opentelemetry:opentelemetry-bom:1.59.0"))
+    compileOnly(platform("io.opentelemetry:opentelemetry-bom:1.60.1"))
     compileOnly("io.opentelemetry:opentelemetry-api")
 
     // LLM Providers
@@ -90,7 +90,7 @@ dependencies {
     implementation("org.springframework.security:spring-security-crypto")
 
     // Test
-    testImplementation(platform("io.opentelemetry:opentelemetry-bom:1.59.0"))
+    testImplementation(platform("io.opentelemetry:opentelemetry-bom:1.60.1"))
     testImplementation("io.opentelemetry:opentelemetry-api")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.projectreactor:reactor-test")
