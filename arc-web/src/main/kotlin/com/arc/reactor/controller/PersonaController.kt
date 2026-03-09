@@ -36,19 +36,22 @@ class PersonaController(
 ) {
 
     /**
-     * List all personas.
+     * List all personas. Requires ADMIN role.
      */
-    @Operation(summary = "List all personas")
+    @Operation(summary = "List all personas (ADMIN)")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "List of personas")
+        ApiResponse(responseCode = "200", description = "List of personas"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping
     fun listPersonas(
-        @RequestParam(required = false, defaultValue = "false") activeOnly: Boolean
-    ): List<PersonaResponse> {
+        @RequestParam(required = false, defaultValue = "false") activeOnly: Boolean,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
         val personas = personaStore.list()
         val filtered = if (activeOnly) personas.filter { it.isActive } else personas
-        return filtered.map { it.toResponse() }
+        return ResponseEntity.ok(filtered.map { it.toResponse() })
     }
 
     /**

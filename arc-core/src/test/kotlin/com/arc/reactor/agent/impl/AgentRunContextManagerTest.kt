@@ -1,6 +1,7 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.model.AgentCommand
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -19,7 +20,7 @@ class AgentRunContextManagerTest {
     }
 
     @Test
-    fun `should create hook context with anonymous user and copied metadata`() {
+    fun `should create hook context with anonymous user and copied metadata`() = runTest {
         val manager = AgentRunContextManager(runIdSupplier = { "run-1" })
         val toolsUsed = CopyOnWriteArrayList<String>()
         val command = AgentCommand(
@@ -36,19 +37,19 @@ class AgentRunContextManagerTest {
 
         val context = manager.open(command, toolsUsed)
 
-        assertEquals("run-1", context.runId)
-        assertEquals("anonymous", context.hookContext.userId)
-        assertEquals("slack", context.hookContext.channel)
-        assertEquals("alice@example.com", context.hookContext.userEmail)
-        assertEquals("abc", context.hookContext.metadata["trace"])
-        assertEquals("12345", MDC.get("sessionId"))
-        assertEquals("alice@example.com", MDC.get("userEmail"))
-        assertEquals("run-1", MDC.get("runId"))
-        assertEquals("anonymous", MDC.get("userId"))
+        assertEquals("run-1", context.runId, "runId should match supplier value")
+        assertEquals("anonymous", context.hookContext.userId, "null userId should resolve to anonymous")
+        assertEquals("slack", context.hookContext.channel, "channel should be set from metadata")
+        assertEquals("alice@example.com", context.hookContext.userEmail, "userEmail should be resolved from requesterEmail")
+        assertEquals("abc", context.hookContext.metadata["trace"], "metadata trace key should be copied")
+        assertEquals("12345", MDC.get("sessionId"), "MDC sessionId should be set")
+        assertEquals("alice@example.com", MDC.get("userEmail"), "MDC userEmail should be set")
+        assertEquals("run-1", MDC.get("runId"), "MDC runId should be set")
+        assertEquals("anonymous", MDC.get("userId"), "MDC userId should be set")
     }
 
     @Test
-    fun `should use accountId when email is unavailable`() {
+    fun `should use accountId when email is unavailable`() = runTest {
         val manager = AgentRunContextManager(runIdSupplier = { "run-2" })
         val toolsUsed = CopyOnWriteArrayList<String>()
         val command = AgentCommand(
@@ -63,12 +64,12 @@ class AgentRunContextManagerTest {
 
         val context = manager.open(command, toolsUsed)
 
-        assertEquals("run-2", context.runId)
-        assertEquals("acct-777", context.hookContext.userEmail)
+        assertEquals("run-2", context.runId, "runId should match supplier value")
+        assertEquals("acct-777", context.hookContext.userEmail, "accountId should be used as email fallback")
     }
 
     @Test
-    fun `should clear mdc keys on close`() {
+    fun `should clear mdc keys on close`() = runTest {
         val manager = AgentRunContextManager(runIdSupplier = { "run-1" })
         val toolsUsed = CopyOnWriteArrayList<String>()
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hello", userId = "u")

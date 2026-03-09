@@ -2,6 +2,8 @@ package com.arc.reactor.rag.impl
 
 import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.support.throwIfCancellation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
 
@@ -58,15 +60,17 @@ class HyDEQueryTransformer(
         }
     }
 
-    private fun generateHypotheticalDocument(query: String): String? {
-        return chatClient.prompt()
-            .system(systemPrompt)
-            .user(query)
-            .call()
-            .chatResponse()
-            ?.result
-            ?.output
-            ?.text
+    private suspend fun generateHypotheticalDocument(query: String): String? {
+        return withContext(Dispatchers.IO) {
+            chatClient.prompt()
+                .system(systemPrompt)
+                .user(query)
+                .call()
+                .chatResponse()
+                ?.result
+                ?.output
+                ?.text
+        }
     }
 
     companion object {

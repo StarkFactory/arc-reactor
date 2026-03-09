@@ -105,7 +105,7 @@ class ArcReactorTokenRevocationStoreConfiguration {
             val hasKeyMethod = redisTemplate.javaClass.methods.firstOrNull { method ->
                 method.name == "hasKey" && method.parameterCount == 1
             } ?: return false
-            hasKeyMethod.invoke(redisTemplate, "__arc:redis:availability__")
+            hasKeyMethod.invoke(redisTemplate, "__arc:redis:probe__")
             true
         } catch (e: Exception) {
             logger.warn(e) { "Redis connectivity probe failed during token revocation store selection" }

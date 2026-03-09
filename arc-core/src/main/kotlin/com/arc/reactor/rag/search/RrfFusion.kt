@@ -33,16 +33,17 @@ object RrfFusion {
         vectorResults: List<Pair<String, Double>>,
         bm25Results: List<Pair<String, Double>>,
         vectorWeight: Double = 0.5,
-        bm25Weight: Double = 0.5
+        bm25Weight: Double = 0.5,
+        k: Double = K
     ): List<Pair<String, Double>> {
         val scores = HashMap<String, Double>()
 
         vectorResults.forEachIndexed { rank, (docId, _) ->
-            scores[docId] = (scores[docId] ?: 0.0) + vectorWeight / (K + rank + 1)
+            scores[docId] = (scores[docId] ?: 0.0) + vectorWeight / (k + rank + 1)
         }
 
         bm25Results.forEachIndexed { rank, (docId, _) ->
-            scores[docId] = (scores[docId] ?: 0.0) + bm25Weight / (K + rank + 1)
+            scores[docId] = (scores[docId] ?: 0.0) + bm25Weight / (k + rank + 1)
         }
 
         return scores.entries

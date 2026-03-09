@@ -14,7 +14,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
@@ -212,9 +211,7 @@ class DefaultConversationManager(
         val splitIndex = calculateSplitIndex(allMessages.size)
         if (splitIndex == 0) return
 
-        activeSummarizations[sessionId]?.let { previousJob ->
-            previousJob.cancelAndJoin()
-        }
+        activeSummarizations[sessionId]?.cancel()
 
         val job = asyncScope.launch {
             try {

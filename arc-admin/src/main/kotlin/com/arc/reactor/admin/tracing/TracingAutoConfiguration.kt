@@ -24,6 +24,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -43,12 +44,14 @@ class TracingAutoConfiguration {
     fun otelSdkTracerProvider(
         properties: AdminProperties,
         spanProcessors: ObjectProvider<SpanProcessor>,
-        spanExporters: ObjectProvider<SpanExporter>
+        spanExporters: ObjectProvider<SpanExporter>,
+        buildProperties: ObjectProvider<BuildProperties>
     ): SdkTracerProvider {
+        val version = buildProperties.ifAvailable?.version ?: "unknown"
         val resource = Resource.create(
             Attributes.builder()
                 .put(AttributeKey.stringKey("service.name"), "arc-reactor")
-                .put(AttributeKey.stringKey("service.version"), "4.1.0")
+                .put(AttributeKey.stringKey("service.version"), version)
                 .put(AttributeKey.stringKey("instance.id"), properties.scaling.instanceId)
                 .build()
         )

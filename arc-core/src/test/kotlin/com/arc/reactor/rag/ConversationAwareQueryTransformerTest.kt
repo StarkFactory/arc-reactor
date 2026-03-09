@@ -39,11 +39,13 @@ class ConversationAwareQueryTransformerTest {
             mockLlmResponse("What is the return policy for electronics?")
 
             val transformer = ConversationAwareQueryTransformer(chatClient)
-            transformer.updateHistory(listOf(
-                "User: Tell me about the return policy",
-                "AI: Items can be returned within 30 days."
-            ))
-            val result = transformer.transform("What about electronics?")
+            val result = transformer.transformWithHistory(
+                "What about electronics?",
+                listOf(
+                    "User: Tell me about the return policy",
+                    "AI: Items can be returned within 30 days."
+                )
+            )
 
             assertEquals(1, result.size) { "Should return rewritten query" }
             assertEquals("What is the return policy for electronics?", result[0]) {
@@ -59,8 +61,7 @@ class ConversationAwareQueryTransformerTest {
             every { requestSpec.user(capture(historySlot)) } returns requestSpec
 
             val transformer = ConversationAwareQueryTransformer(chatClient)
-            transformer.updateHistory(listOf("User: Hello", "AI: Hi there"))
-            transformer.transform("What about it?")
+            transformer.transformWithHistory("What about it?", listOf("User: Hello", "AI: Hi there"))
 
             assertTrue(historySlot.captured.contains("User: Hello")) {
                 "LLM input should contain conversation history"
@@ -77,8 +78,7 @@ class ConversationAwareQueryTransformerTest {
             every { requestSpec.user(capture(historySlot)) } returns requestSpec
 
             val transformer = ConversationAwareQueryTransformer(chatClient, maxHistoryTurns = 2)
-            transformer.updateHistory(listOf("Turn 1", "Turn 2", "Turn 3", "Turn 4"))
-            transformer.transform("query")
+            transformer.transformWithHistory("query", listOf("Turn 1", "Turn 2", "Turn 3", "Turn 4"))
 
             // Only last 2 turns should be included
             assertFalse(historySlot.captured.contains("Turn 1")) {
@@ -97,23 +97,23 @@ class ConversationAwareQueryTransformerTest {
     inner class WithoutConversationHistory {
 
         @Test
-        fun `should return original query when no history`() = runTest {
+        fun `should return original query when no history via transform`() = runTest {
             val transformer = ConversationAwareQueryTransformer(chatClient)
             val result = transformer.transform("What is the return policy?")
 
             assertEquals(1, result.size) { "Should return original query" }
             assertEquals("What is the return policy?", result[0]) { "Should be unchanged" }
-            // Should NOT call LLM when no history
+            // Should NOT call LLM when using transform() directly
             verify(exactly = 0) { chatClient.prompt() }
         }
 
         @Test
         fun `should return original query when history is empty list`() = runTest {
             val transformer = ConversationAwareQueryTransformer(chatClient)
-            transformer.updateHistory(emptyList())
-            val result = transformer.transform("standalone query")
+            val result = transformer.transformWithHistory("standalone query", emptyList())
 
             assertEquals(listOf("standalone query"), result) { "Should return original query unchanged" }
+            verify(exactly = 0) { chatClient.prompt() }
         }
     }
 
@@ -125,8 +125,7 @@ class ConversationAwareQueryTransformerTest {
             every { requestSpec.call() } throws RuntimeException("LLM unavailable")
 
             val transformer = ConversationAwareQueryTransformer(chatClient)
-            transformer.updateHistory(listOf("some history"))
-            val result = transformer.transform("original query")
+            val result = transformer.transformWithHistory("original query", listOf("some history"))
 
             assertEquals(listOf("original query"), result) { "Should fallback to original on error" }
         }
@@ -136,8 +135,7 @@ class ConversationAwareQueryTransformerTest {
             every { callResponseSpec.chatResponse() } returns null
 
             val transformer = ConversationAwareQueryTransformer(chatClient)
-            transformer.updateHistory(listOf("some history"))
-            val result = transformer.transform("original query")
+            val result = transformer.transformWithHistory("original query", listOf("some history"))
 
             assertEquals(listOf("original query"), result) { "Should fallback to original on null" }
         }
@@ -147,8 +145,7 @@ class ConversationAwareQueryTransformerTest {
             mockLlmResponse("already standalone query")
 
             val transformer = ConversationAwareQueryTransformer(chatClient)
-            transformer.updateHistory(listOf("some history"))
-            val result = transformer.transform("already standalone query")
+            val result = transformer.transformWithHistory("already standalone query", listOf("some history"))
 
             assertEquals(1, result.size) { "Should return single query" }
             assertEquals("already standalone query", result[0]) { "Should be the original" }
@@ -159,8 +156,7 @@ class ConversationAwareQueryTransformerTest {
             mockLlmResponse("   ")
 
             val transformer = ConversationAwareQueryTransformer(chatClient)
-            transformer.updateHistory(listOf("some history"))
-            val result = transformer.transform("original query")
+            val result = transformer.transformWithHistory("original query", listOf("some history"))
 
             assertEquals(listOf("original query"), result) { "Should fallback to original on blank response" }
         }
@@ -170,16 +166,15 @@ class ConversationAwareQueryTransformerTest {
             every { requestSpec.call() } throws java.util.concurrent.CancellationException("cancelled")
 
             val transformer = ConversationAwareQueryTransformer(chatClient)
-            transformer.updateHistory(listOf("some history"))
 
             assertThrows<java.util.concurrent.CancellationException> {
-                transformer.transform("query")
+                transformer.transformWithHistory("query", listOf("some history"))
             }
         }
     }
 
     @Nested
-    inner class ThreadSafety {
+    inner class IndependentRequests {
 
         @Test
         fun `sequential requests with different histories should not interfere`() = runTest {
@@ -200,12 +195,16 @@ class ConversationAwareQueryTransformerTest {
             }
 
             // First request with dogs history
-            transformer.updateHistory(listOf("User: Tell me about dogs"))
-            val result1 = transformer.transform("What about the return policy?")
+            val result1 = transformer.transformWithHistory(
+                "What about the return policy?",
+                listOf("User: Tell me about dogs")
+            )
 
-            // Second request with cats history (previous history should be cleared)
-            transformer.updateHistory(listOf("User: Tell me about cats"))
-            val result2 = transformer.transform("What about the return policy?")
+            // Second request with cats history — completely independent
+            val result2 = transformer.transformWithHistory(
+                "What about the return policy?",
+                listOf("User: Tell me about cats")
+            )
 
             assertEquals(listOf("return policy for dogs"), result1) {
                 "First request should use dogs history"
@@ -216,20 +215,19 @@ class ConversationAwareQueryTransformerTest {
         }
 
         @Test
-        fun `ThreadLocal should be cleaned up after transform`() = runTest {
+        fun `calls without history should never invoke LLM`() = runTest {
             mockLlmResponse("rewritten query")
 
             val transformer = ConversationAwareQueryTransformer(chatClient)
-            transformer.updateHistory(listOf("some history"))
-            transformer.transform("query")
+            transformer.transformWithHistory("query", listOf("some history"))
 
-            // After transform, calling again without updateHistory should return original (empty history)
-            val result = transformer.transform("another query")
+            // Subsequent call with no history should skip LLM entirely
+            val result = transformer.transformWithHistory("another query", emptyList())
 
             assertEquals(listOf("another query"), result) {
-                "After transform, ThreadLocal should be cleared — second call without updateHistory should use empty history"
+                "Call with empty history should return original without invoking LLM"
             }
-            // LLM should NOT be called for the second transform (empty history)
+            // LLM should have been called only once (for the first transformWithHistory call)
             verify(atMost = 1) { chatClient.prompt() }
         }
     }

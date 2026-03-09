@@ -77,16 +77,26 @@ class HybridRagPipeline(
 
         // 4. RRF fusion
         val vectorRanked = vectorDocs.map { it.id to it.score }
-        val fusedRanked = fuseWithCustomK(vectorRanked, bm25Results)
+        val fusedRanked = RrfFusion.fuse(vectorRanked, bm25Results, vectorWeight, bm25Weight, rrfK)
 
         if (fusedRanked.isEmpty()) {
             return RagContext.EMPTY
         }
 
-        // 5. Resolve fused IDs back to documents (use vector content)
-        val docById = vectorDocs.associateBy { it.id }
+        // 5. Resolve fused IDs back to documents — include BM25-only documents
+        val vectorDocsById = vectorDocs.associateBy { it.id }
+        val bm25OnlyDocs = bm25Results
+            .map { (docId, _) -> docId }
+            .filter { docId -> docId !in vectorDocsById }
+            .mapNotNull { docId ->
+                bm25Scorer.getContent(docId)?.let { content ->
+                    RetrievedDocument(id = docId, content = content, score = 0.0)
+                }
+            }
+            .associateBy { it.id }
+        val allDocsById = vectorDocsById + bm25OnlyDocs
         val fusedDocuments = fusedRanked.take(query.topK).mapNotNull { (docId, rrfScore) ->
-            docById[docId]?.copy(score = rrfScore)
+            allDocsById[docId]?.copy(score = rrfScore)
         }
 
         if (fusedDocuments.isEmpty()) {
@@ -133,23 +143,4 @@ class HybridRagPipeline(
         }
     }
 
-    /** Apply RRF fusion with the configured K and weights. */
-    private fun fuseWithCustomK(
-        vectorResults: List<Pair<String, Double>>,
-        bm25Results: List<Pair<String, Double>>
-    ): List<Pair<String, Double>> {
-        val scores = HashMap<String, Double>()
-
-        vectorResults.forEachIndexed { rank, (docId, _) ->
-            scores[docId] = (scores[docId] ?: 0.0) + vectorWeight / (rrfK + rank + 1)
-        }
-
-        bm25Results.forEachIndexed { rank, (docId, _) ->
-            scores[docId] = (scores[docId] ?: 0.0) + bm25Weight / (rrfK + rank + 1)
-        }
-
-        return scores.entries
-            .sortedByDescending { it.value }
-            .map { it.key to it.value }
-    }
 }

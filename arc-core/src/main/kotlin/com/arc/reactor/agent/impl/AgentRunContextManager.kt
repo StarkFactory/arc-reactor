@@ -2,6 +2,8 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.hook.model.HookContext
+import kotlinx.coroutines.slf4j.MDCContext
+import kotlinx.coroutines.withContext
 import org.slf4j.MDC
 import java.util.UUID
 
@@ -14,7 +16,7 @@ internal class AgentRunContextManager(
     private val runIdSupplier: () -> String = { UUID.randomUUID().toString() }
 ) {
 
-    fun open(command: AgentCommand, toolsUsed: MutableList<String>): AgentRunContext {
+    suspend fun open(command: AgentCommand, toolsUsed: MutableList<String>): AgentRunContext {
         val runId = runIdSupplier()
         val userId = command.userId ?: "anonymous"
         val userEmail = resolveUserEmail(command.metadata)
@@ -34,7 +36,12 @@ internal class AgentRunContextManager(
         )
         hookContext.metadata.putAll(command.metadata)
         hookContext.metadata["runId"] = runId
-        return AgentRunContext(runId = runId, hookContext = hookContext)
+
+        // Install current MDC snapshot into the coroutine context so MDC values
+        // survive suspend/resume across thread boundaries.
+        return withContext(MDCContext()) {
+            AgentRunContext(runId = runId, hookContext = hookContext)
+        }
     }
 
     fun close() {

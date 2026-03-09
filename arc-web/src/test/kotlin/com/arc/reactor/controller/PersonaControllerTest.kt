@@ -54,8 +54,11 @@ class PersonaControllerTest {
         fun `should return empty list when no personas exist`() = runTest {
             every { personaStore.list() } returns emptyList()
 
-            val result = controller.listPersonas(activeOnly = false)
+            val response = controller.listPersonas(activeOnly = false, exchange = adminExchange())
 
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
+            @Suppress("UNCHECKED_CAST")
+            val result = response.body as List<PersonaResponse>
             assertTrue(result.isEmpty()) { "Expected empty list, got ${result.size} personas" }
         }
 
@@ -66,8 +69,11 @@ class PersonaControllerTest {
                 Persona("default", "Default Assistant", "You are helpful.", true, createdAt = now, updatedAt = now)
             )
 
-            val result = controller.listPersonas(activeOnly = false)
+            val response = controller.listPersonas(activeOnly = false, exchange = adminExchange())
 
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
+            @Suppress("UNCHECKED_CAST")
+            val result = response.body as List<PersonaResponse>
             assertEquals(1, result.size) { "Should have 1 persona" }
             assertEquals("default", result[0].id) { "ID should be 'default'" }
             assertTrue(result[0].isDefault) { "Should be marked as default" }
@@ -81,11 +87,21 @@ class PersonaControllerTest {
                 Persona("custom-1", "Python Expert", "You are a Python expert.", false, createdAt = now, updatedAt = now)
             )
 
-            val result = controller.listPersonas(activeOnly = false)
+            val response = controller.listPersonas(activeOnly = false, exchange = adminExchange())
 
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
+            @Suppress("UNCHECKED_CAST")
+            val result = response.body as List<PersonaResponse>
             assertEquals(2, result.size) { "Should have 2 personas" }
             assertEquals("Python Expert", result[1].name) { "Second persona name should match" }
             assertEquals(now.toEpochMilli(), result[0].createdAt) { "Timestamp should be epoch millis" }
+        }
+
+        @Test
+        fun `should return 403 for non-admin user`() = runTest {
+            val response = controller.listPersonas(activeOnly = false, exchange = userExchange())
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
     }
 

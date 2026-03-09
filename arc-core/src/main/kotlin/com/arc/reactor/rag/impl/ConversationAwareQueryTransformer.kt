@@ -2,6 +2,8 @@ package com.arc.reactor.rag.impl
 
 import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.support.throwIfCancellation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
 
@@ -29,10 +31,6 @@ private val logger = KotlinLogging.logger {}
  * and implicit references. These make poor search queries. By rewriting the query
  * to be self-contained, retrieval accuracy improves significantly.
  *
- * **Thread safety:** Uses ThreadLocal to store per-request conversation history.
- * Safe for singleton bean usage across concurrent requests.
- * Call [updateHistory] before each [transform] invocation.
- *
  * @param chatClient Spring AI ChatClient for query rewriting
  * @param maxHistoryTurns Maximum conversation turns to include (default: 5)
  */
@@ -41,54 +39,37 @@ class ConversationAwareQueryTransformer(
     private val maxHistoryTurns: Int = 5
 ) : QueryTransformer {
 
-    private val historyHolder = ThreadLocal<List<String>>()
-
     /**
-     * Update the conversation history before calling the RAG pipeline.
-     * Call this each time before pipeline.retrieve() with the latest conversation.
-     * Uses ThreadLocal for thread safety — each thread sees its own history.
+     * Transform query using conversation history for context-aware rewriting.
+     * Falls back to the original query if history is empty or rewriting fails.
      */
-    fun updateHistory(history: List<String>) {
-        historyHolder.set(history.takeLast(maxHistoryTurns))
-    }
-
-    override suspend fun transform(query: String): List<String> {
-        val history = historyHolder.get().orEmpty()
-        try {
-            if (history.isEmpty()) {
-                return listOf(query)
-            }
-
-            return try {
-                val rewrittenQuery = rewriteQuery(query, history)
-                if (rewrittenQuery.isNullOrBlank() || rewrittenQuery == query) {
-                    listOf(query)
-                } else {
-                    listOf(rewrittenQuery)
-                }
-            } catch (e: Exception) {
-                e.throwIfCancellation()
-                logger.warn(e) { "Conversation-aware query rewriting failed, falling back to original query" }
-                listOf(query)
-            }
-        } finally {
-            historyHolder.remove()
+    suspend fun transformWithHistory(query: String, history: List<String>): List<String> {
+        if (history.isEmpty()) return listOf(query)
+        return try {
+            val rewrittenQuery = rewriteQuery(query, history.takeLast(maxHistoryTurns))
+            if (rewrittenQuery.isNullOrBlank() || rewrittenQuery == query) listOf(query)
+            else listOf(rewrittenQuery)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "Conversation-aware query rewriting failed, falling back to original" }
+            listOf(query)
         }
     }
 
-    private fun rewriteQuery(query: String, history: List<String>): String? {
+    /** Returns the original query unchanged when called without conversation history. */
+    override suspend fun transform(query: String): List<String> = listOf(query)
+
+    private suspend fun rewriteQuery(query: String, history: List<String>): String? {
         val historyText = history.joinToString("\n")
         val userMessage = "Conversation history:\n$historyText\n\nCurrent query: $query"
-
-        return chatClient.prompt()
-            .system(SYSTEM_PROMPT)
-            .user(userMessage)
-            .call()
-            .chatResponse()
-            ?.result
-            ?.output
-            ?.text
-            ?.trim()
+        return withContext(Dispatchers.IO) {
+            chatClient.prompt()
+                .system(SYSTEM_PROMPT)
+                .user(userMessage)
+                .call()
+                .chatResponse()
+                ?.result?.output?.text?.trim()
+        }
     }
 
     companion object {

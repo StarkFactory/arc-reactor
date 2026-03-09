@@ -99,9 +99,15 @@ class SpringAiVectorStoreRetriever(
             id = this.id,
             content = this.text ?: "",
             metadata = meta,
-            score = meta["distance"]?.toString()?.toDoubleOrNull()
-                ?: meta["score"]?.toString()?.toDoubleOrNull()
-                ?: 0.0,
+            score = run {
+                val distance = meta["distance"]?.toString()?.toDoubleOrNull()
+                if (distance != null) {
+                    // PGVector distance is lower-is-better; convert to higher-is-better score
+                    (1.0 - distance).coerceIn(0.0, 1.0)
+                } else {
+                    meta["score"]?.toString()?.toDoubleOrNull() ?: 0.0
+                }
+            },
             source = meta["source"]?.toString()
         )
     }

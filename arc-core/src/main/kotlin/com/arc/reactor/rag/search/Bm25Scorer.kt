@@ -20,6 +20,9 @@ class Bm25Scorer(
     private val b: Double = 0.75
 ) {
 
+    /** docId -> original content text */
+    private val docContents: MutableMap<String, String> = LinkedHashMap()
+
     /** docId -> token -> frequency */
     private val termFrequencies: MutableMap<String, Map<String, Int>> = LinkedHashMap()
 
@@ -56,6 +59,7 @@ class Bm25Scorer(
             }
         }
 
+        docContents[docId] = content
         termFrequencies[docId] = tf
         totalLength += tokens.size
         for (token in tf.keys) {
@@ -106,8 +110,17 @@ class Bm25Scorer(
             .take(topK)
     }
 
+    /**
+     * Retrieve the raw content of an indexed document by its ID.
+     *
+     * @param docId Document identifier
+     * @return Original content text, or null if not indexed
+     */
+    fun getContent(docId: String): String? = docContents[docId]
+
     /** Remove all indexed documents. */
     fun clear() {
+        docContents.clear()
         termFrequencies.clear()
         documentFrequency.clear()
         idfCache = emptyMap()

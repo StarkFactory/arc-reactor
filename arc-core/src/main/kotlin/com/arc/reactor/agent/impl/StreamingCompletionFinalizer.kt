@@ -41,8 +41,10 @@ internal class StreamingCompletionFinalizer(
         emit: suspend (String) -> Unit
     ) {
         if (streamSuccess) {
-            applyStreamingOutputGuard(command, collectedContent, toolsUsed, startTime, emit)
-            conversationManager.saveStreamingHistory(command, lastIterationContent)
+            val guardPassed = applyStreamingOutputGuard(command, collectedContent, toolsUsed, startTime, emit)
+            if (guardPassed) {
+                conversationManager.saveStreamingHistory(command, lastIterationContent)
+            }
             emitBoundaryMarkers(collectedContent, emit)
         }
 
@@ -64,16 +66,18 @@ internal class StreamingCompletionFinalizer(
         }
     }
 
+    // Returns true if the guard passed (Allowed or Modified), false if Rejected.
+    // History must only be saved when this returns true.
     private suspend fun applyStreamingOutputGuard(
         command: AgentCommand,
         collectedContent: String,
         toolsUsed: List<String>,
         startTime: Long,
         emit: suspend (String) -> Unit
-    ) {
-        if (outputGuardPipeline == null || collectedContent.isEmpty()) return
+    ): Boolean {
+        if (outputGuardPipeline == null || collectedContent.isEmpty()) return true
 
-        try {
+        return try {
             val guardContext = OutputGuardContext(
                 command = command,
                 toolsUsed = toolsUsed,
@@ -82,6 +86,7 @@ internal class StreamingCompletionFinalizer(
             when (val result = outputGuardPipeline.check(collectedContent, guardContext)) {
                 is OutputGuardResult.Allowed -> {
                     agentMetrics.recordOutputGuardAction("pipeline", "allowed", "", command.metadata)
+                    true
                 }
                 is OutputGuardResult.Modified -> {
                     agentMetrics.recordOutputGuardAction(
@@ -91,6 +96,7 @@ internal class StreamingCompletionFinalizer(
                     emit(StreamEventMarker.error(
                         "Output guard modified response: ${result.reason}"
                     ))
+                    true
                 }
                 is OutputGuardResult.Rejected -> {
                     agentMetrics.recordOutputGuardAction(
@@ -100,12 +106,14 @@ internal class StreamingCompletionFinalizer(
                     emit(StreamEventMarker.error(
                         "Output guard rejected response: ${result.reason}"
                     ))
+                    false
                 }
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Streaming output guard failed" }
             emit(StreamEventMarker.error("Output guard check failed"))
+            true // Guard failure is not a rejection; preserve existing behavior
         }
     }
 
