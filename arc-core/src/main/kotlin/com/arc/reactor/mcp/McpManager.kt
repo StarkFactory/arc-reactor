@@ -78,7 +78,7 @@ class DefaultMcpManager(
     private val servers = ConcurrentHashMap<String, McpServer>()
     private val clients = ConcurrentHashMap<String, io.modelcontextprotocol.client.McpSyncClient>()
     private val toolCallbacksCache = ConcurrentHashMap<String, List<ToolCallback>>()
-    private val statuses = ConcurrentHashMap<String, McpServerStatus>()
+    internal val statuses = ConcurrentHashMap<String, McpServerStatus>()
     private val serverMutexes = ConcurrentHashMap<String, Mutex>()
     private val duplicateToolWarningKeys = ConcurrentHashMap.newKeySet<String>()
 
@@ -86,7 +86,8 @@ class DefaultMcpManager(
     private val storeSync = McpStoreSync(store)
     private val connectionSupport = McpConnectionSupport(
         connectionTimeoutMs = connectionTimeoutMs,
-        maxToolOutputLengthProvider = { currentSecurityConfig().maxToolOutputLength }
+        maxToolOutputLengthProvider = { currentSecurityConfig().maxToolOutputLength },
+        onConnectionError = { serverName -> handleConnectionError(serverName) }
     )
     private val reconnectionCoordinator = McpReconnectionCoordinator(
         scope = reconnectScope,
@@ -221,6 +222,19 @@ class DefaultMcpManager(
 
         toolCallbacksCache.remove(serverName)
         statuses[serverName] = McpServerStatus.DISCONNECTED
+    }
+
+    /**
+     * Called by [McpToolCallback] when a tool call fails with a connection error.
+     * Evicts the stale client and schedules reconnection without blocking.
+     */
+    internal fun handleConnectionError(serverName: String) {
+        if (statuses[serverName] != McpServerStatus.CONNECTED) return
+        logger.warn { "MCP connection error detected on tool call for '$serverName' — marking FAILED and scheduling reconnection" }
+        clients.remove(serverName)
+        toolCallbacksCache.remove(serverName)
+        statuses[serverName] = McpServerStatus.FAILED
+        reconnectionCoordinator.schedule(serverName)
     }
 
     override fun reapplySecurityPolicy() {

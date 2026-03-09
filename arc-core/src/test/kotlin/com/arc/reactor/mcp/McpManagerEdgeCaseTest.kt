@@ -418,6 +418,61 @@ class McpManagerEdgeCaseTest {
     }
 
     @Nested
+    inner class ConnectionErrorHandling {
+
+        @Test
+        fun `handleConnectionError should mark server FAILED and clear caches`() {
+            val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
+            manager.register(stdioServer("error-server"))
+
+            // Simulate the server being in CONNECTED state
+            manager.statuses["error-server"] = McpServerStatus.CONNECTED
+
+            manager.handleConnectionError("error-server")
+
+            assertEquals(McpServerStatus.FAILED, manager.getStatus("error-server")) {
+                "Status should be FAILED after connection error"
+            }
+            assertTrue(manager.getToolCallbacks("error-server").isEmpty()) {
+                "Tool callbacks should be cleared after connection error"
+            }
+        }
+
+        @Test
+        fun `handleConnectionError should be idempotent when server is already FAILED`() {
+            val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
+            manager.register(stdioServer("idempotent-server"))
+            manager.statuses["idempotent-server"] = McpServerStatus.FAILED
+
+            // Calling again should not throw and should leave status as FAILED
+            manager.handleConnectionError("idempotent-server")
+
+            assertEquals(McpServerStatus.FAILED, manager.getStatus("idempotent-server")) {
+                "Status should remain FAILED"
+            }
+        }
+
+        @Test
+        fun `handleConnectionError should trigger reconnection when enabled`() = runBlocking {
+            val manager = manager(
+                reconnectionProperties = McpReconnectionProperties(
+                    enabled = true,
+                    initialDelayMs = 50,
+                    maxAttempts = 1
+                )
+            )
+            manager.register(stdioServer("reconnect-on-error"))
+            manager.statuses["reconnect-on-error"] = McpServerStatus.CONNECTED
+
+            manager.handleConnectionError("reconnect-on-error")
+
+            assertEquals(McpServerStatus.FAILED, manager.getStatus("reconnect-on-error")) {
+                "Status should be FAILED immediately after connection error"
+            }
+        }
+    }
+
+    @Nested
     inner class SecurityAllowlistEdgeCases {
 
         @Test

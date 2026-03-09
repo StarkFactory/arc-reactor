@@ -21,17 +21,22 @@ private val objectMapper = jacksonObjectMapper()
  * 3. Invokes tool via MCP client
  * 4. Extracts and returns text content
  *
+ * When [callTool] fails with a connection-level error, [onConnectionError] is invoked so
+ * the caller (e.g. [DefaultMcpManager]) can mark the server as FAILED and trigger reconnection.
+ *
  * @param client The MCP client connection
  * @param name Tool identifier
  * @param description Tool description for LLM
  * @param mcpInputSchema JSON Schema for tool parameters (optional)
+ * @param onConnectionError Called when the underlying MCP call fails (not due to cancellation)
  */
 class McpToolCallback(
     private val client: McpSyncClient,
     override val name: String,
     override val description: String,
     private val mcpInputSchema: McpSchema.JsonSchema?,
-    private val maxOutputLength: Int = 50_000
+    private val maxOutputLength: Int = 50_000,
+    private val onConnectionError: (() -> Unit)? = null
 ) : ToolCallback {
 
     override val inputSchema: String
@@ -59,6 +64,7 @@ class McpToolCallback(
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Failed to call MCP tool: $name" }
+            onConnectionError?.invoke()
             "Error: ${e.message}"
         }
     }
