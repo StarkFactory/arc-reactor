@@ -2,13 +2,58 @@ package com.arc.reactor.mcp
 
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import io.modelcontextprotocol.client.McpSyncClient
 import io.modelcontextprotocol.spec.McpSchema
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class McpToolCallbackTest {
+
+    @Test
+    fun `invokes onConnectionError when callTool throws`() = runBlocking {
+        val client = mockk<McpSyncClient>()
+        var errorCallbackInvoked = false
+        val callback = McpToolCallback(
+            client = client,
+            name = "jira_list_projects",
+            description = "List projects",
+            mcpInputSchema = null,
+            onConnectionError = { errorCallbackInvoked = true }
+        )
+        every { client.callTool(any()) } throws RuntimeException("Connection reset by peer")
+
+        val output = callback.call(emptyMap())
+
+        assertTrue(errorCallbackInvoked, "onConnectionError must be invoked when callTool throws")
+        assertTrue(output.toString().startsWith("Error:"), "Error string must be returned to the caller")
+    }
+
+    @Test
+    fun `does not invoke onConnectionError on successful call`() = runBlocking {
+        val client = mockk<McpSyncClient>()
+        var errorCallbackInvoked = false
+        val callback = McpToolCallback(
+            client = client,
+            name = "jira_list_projects",
+            description = "List projects",
+            mcpInputSchema = null,
+            onConnectionError = { errorCallbackInvoked = true }
+        )
+        val result = McpSchema.CallToolResult(
+            listOf(McpSchema.TextContent("""{"ok":true}""")),
+            false,
+            null,
+            emptyMap()
+        )
+        every { client.callTool(any()) } returns result
+
+        callback.call(emptyMap())
+
+        assertTrue(!errorCallbackInvoked, "onConnectionError must NOT be invoked on successful call")
+    }
 
     @Test
     fun `returns structured content when text output does not carry machine-readable payload`() = runBlocking {
