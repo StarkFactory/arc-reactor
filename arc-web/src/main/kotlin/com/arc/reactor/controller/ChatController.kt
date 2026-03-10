@@ -3,6 +3,7 @@ package com.arc.reactor.controller
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
@@ -106,14 +107,7 @@ class ChatController(
         command = applyIntentProfile(command, request)
 
         val result = agentExecutor.execute(command)
-        return ChatResponse(
-            content = result.content,
-            success = result.success,
-            model = command.model,
-            toolsUsed = result.toolsUsed,
-            errorMessage = result.errorMessage,
-            metadata = result.metadata
-        )
+        return result.toChatResponse(command.model)
     }
 
     /**
@@ -419,5 +413,44 @@ data class ChatResponse(
     val model: String? = null,
     val toolsUsed: List<String> = emptyList(),
     val errorMessage: String? = null,
+    val grounded: Boolean? = null,
+    val verifiedSourceCount: Int? = null,
+    val blockReason: String? = null,
     val metadata: Map<String, Any> = emptyMap()
 )
+
+internal fun AgentResult.toChatResponse(model: String?): ChatResponse {
+    return ChatResponse(
+        content = content,
+        success = success,
+        model = model,
+        toolsUsed = toolsUsed,
+        errorMessage = errorMessage,
+        grounded = metadata.booleanValue("grounded"),
+        verifiedSourceCount = metadata.intValue("verifiedSourceCount"),
+        blockReason = metadata.stringValue("blockReason"),
+        metadata = metadata
+    )
+}
+
+private fun Map<String, Any>.booleanValue(key: String): Boolean? {
+    return when (val value = this[key]) {
+        is Boolean -> value
+        is String -> value.toBooleanStrictOrNull()
+        else -> null
+    }
+}
+
+private fun Map<String, Any>.intValue(key: String): Int? {
+    return when (val value = this[key]) {
+        is Int -> value
+        is Long -> value.toInt()
+        is Number -> value.toInt()
+        is String -> value.toIntOrNull()
+        else -> null
+    }
+}
+
+private fun Map<String, Any>.stringValue(key: String): String? {
+    return this[key]?.toString()?.trim()?.takeIf(String::isNotBlank)
+}

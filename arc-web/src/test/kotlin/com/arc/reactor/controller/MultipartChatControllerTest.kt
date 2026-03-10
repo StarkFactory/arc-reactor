@@ -99,6 +99,12 @@ class MultipartChatControllerTest {
             assertEquals("tenant-multipart", commandSlot.captured.metadata["tenantId"]) {
                 "Multipart command should include resolved tenant metadata"
             }
+            assertEquals(true, response.grounded) {
+                "Multipart response should promote grounded metadata to a top-level field"
+            }
+            assertEquals(2, response.verifiedSourceCount) {
+                "Multipart response should promote verifiedSourceCount metadata to a top-level field"
+            }
             assertEquals(true, response.metadata["grounded"]) {
                 "Multipart response should forward execution metadata"
             }

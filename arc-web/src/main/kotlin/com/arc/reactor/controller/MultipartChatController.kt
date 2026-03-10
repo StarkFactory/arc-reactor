@@ -97,14 +97,7 @@ class MultipartChatController(
                 media = mediaAttachments
             )
         )
-        return ChatResponse(
-            content = result.content,
-            success = result.success,
-            model = model,
-            toolsUsed = result.toolsUsed,
-            errorMessage = result.errorMessage,
-            metadata = result.metadata
-        )
+        return result.toChatResponse(model)
     }
 
     private fun validateMultimodalEnabled() {

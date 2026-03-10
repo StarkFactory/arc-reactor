@@ -80,6 +80,9 @@ class ChatControllerTest {
             assertEquals("Hello!", response.content) { "Content should match agent result" }
             assertEquals(listOf("calculator"), response.toolsUsed) { "Tools used should be forwarded" }
             assertNull(response.errorMessage) { "Error message should be null on success" }
+            assertEquals(true, response.grounded) { "grounded should be promoted to top-level response field" }
+            assertEquals(1, response.verifiedSourceCount) { "verifiedSourceCount should be promoted to top-level response field" }
+            assertNull(response.blockReason) { "blockReason should remain null when absent from metadata" }
             assertEquals(true, response.metadata["grounded"]) { "Metadata should be forwarded in response" }
         }
 
@@ -542,6 +545,9 @@ class ChatControllerTest {
                 model = "gemini",
                 toolsUsed = listOf("calc"),
                 errorMessage = null,
+                grounded = true,
+                verifiedSourceCount = 2,
+                blockReason = "policy_denied",
                 metadata = mapOf("grounded" to true)
             )
 
@@ -550,6 +556,9 @@ class ChatControllerTest {
             assertEquals("gemini", response.model) { "model should match" }
             assertEquals(listOf("calc"), response.toolsUsed) { "toolsUsed should match" }
             assertNull(response.errorMessage) { "errorMessage should be null" }
+            assertEquals(true, response.grounded) { "grounded should match" }
+            assertEquals(2, response.verifiedSourceCount) { "verifiedSourceCount should match" }
+            assertEquals("policy_denied", response.blockReason) { "blockReason should match" }
             assertEquals(true, response.metadata["grounded"]) { "metadata should match" }
         }
     }
