@@ -62,3 +62,74 @@
 - 남은 항목: P0: 0, P1: 0, P2: 0, P3: 0, P4: 0, P5: 0
 - 다음: 탐색 모드 — P0-P4 완료, 3회 연속 0발견 확인 필요
 
+[Build 반복 6] 2026-03-11
+- 선택: 탐색 모드 — 세션 관리 + 동시성 + 크로스유저 접근
+- 기능 테스트: 세션 생성/조회/삭제/내보내기 정상, 동시 요청 3개 정상, 크로스유저 403, 모델 목록 정상
+- 발견: 0건
+- 결과: 탐색 1/3 완료
+- 다음: 탐색 2/3 — 다른 시나리오
+
+[Build 반복 7] 2026-03-11
+- 선택: 탐색 모드 — 멀티에이전트 오케스트레이션 + 응답 필터 + 설정 검증
+- 코드 탐색: WorkerAgentTool, SupervisorOrchestrator, MaxLengthResponseFilter, VerifiedSourcesResponseFilter, ConcurrencyProperties
+- 발견: P2 1건 (WorkerAgentTool.timeoutMs 미설정 → 15초 tool-call timeout으로 워커 에이전트 강제 취소)
+- 기각: 2건 (응답 필터 간섭 — maxLength 기본 비활성, 설계 의도 / requestTimeoutMs vs toolCallTimeoutMs 검증 — 기본값 정상, P5)
+- 결과: 탐색 2/3 — P2 1건 발견 (0-finding 카운터 리셋)
+- 남은 항목: P0: 0, P1: 0, P2: 1, P3: 0, P4: 0, P5: 0
+- 다음: P2 — WorkerAgentTool timeout 수정
+
+[Build 반복 8] 2026-03-11
+- 선택: P2 — WorkerAgentTool timeoutMs 미설정으로 인한 워커 에이전트 조기 취소
+- 구현: WorkerAgentTool에 workerTimeoutMs 파라미터 추가 (기본 30초), timeoutMs 오버라이드
+- 결과: 단위 테스트 통과 / 커밋 f452489
+- 남은 항목: P0: 0, P1: 0, P2: 0, P3: 0, P4: 0, P5: 0
+- 다음: 탐색 모드 — 0-finding 카운터 리셋됨, 새 탐색 1/3 시작
+
+[Build 반복 9] 2026-03-11
+- 선택: 탐색 모드 — 가드 파이프라인 + 훅 시스템 + 대화 메모리
+- 코드 탐색: RuleBasedClassificationStage, UnicodeNormalizationStage, DefaultInputValidationStage, WebhookNotificationHook, JdbcConversationSummaryStore, BlockingToolCallbackInvoker, ConversationManager
+- 후보 10건 검토 → 전부 기각 (설계 의도, 코드 정상, 이론적 우려)
+  - empty blockedCategories: 설계 의도 (빈 세트=차단 안 함)
+  - Unicode char/codepoint: BMP 내 값만 사용, 정확
+  - trim 미전파: 이론적, 실제 bypass 불가
+  - encoding 패턴: P5 수준
+  - createdAt 분실: SQL MATCHED절에 created_at 없음 (에이전트 오독)
+  - nested runBlocking: 드물게 사용되는 fallback 경로, P5
+  - race condition: ConcurrentHashMap.remove(key,value) 정확
+  - CancellationException webhook: Reactor timeout ≠ CancellationException
+  - JdbcUserMemoryStore init: P5 운영 노이즈
+  - NULL mapRow: NOT NULL 스키마 + catch 처리
+- 발견: 0건
+- 결과: 탐색 1/3 완료 (리셋 후)
+- 다음: 탐색 2/3
+
+[Build 반복 10] 2026-03-11
+- 선택: 탐색 모드 — ReAct 루프 + 스트리밍 + 자동 설정 + 컨트롤러
+- 코드 탐색: StreamingReActLoopExecutor, ManualReActLoopExecutor, ToolCallOrchestrator(병렬), ChatController(@Size), AdminAuthHelper
+- 후보 4건 검토 → 전부 기각
+  - SSE tool_start/end 불일치: executeInParallel은 예외 던지지 않음, CancellationException 시 SSE 연결 자체 종료
+  - maxToolCalls 병렬 초과: getAndIncrement() 원자적, 올바르게 제한
+  - @Size 하드코딩: Jakarta 컴파일타임 상수 필수, 가드 파이프라인이 설정 가능 제한 담당 (방어 계층)
+  - 403 응답 타입 불일치: 동일 JSON 구조, P5 수준
+- 발견: 0건
+- 결과: 탐색 2/3 완료 (리셋 후)
+- 다음: 탐색 3/3 — 서버 기동 기능 테스트
+
+[Build 반복 11] 2026-03-11
+- 선택: 탐색 모드 — 서버 기동 기능 테스트 (최종 검증)
+- 기능 테스트:
+  - Health check: UP ✓
+  - Auth register/login: JWT 발급 정상 ✓
+  - 기본 대화 ("안녕하세요"): success=True, blockReason=None ✓
+  - 스트리밍 (1+1=?): SSE 이벤트 정상 수신, "2" 응답 ✓
+  - 잘못된 토큰: 401 ✓
+  - 빈 메시지: 400 ✓
+  - 세션 목록 조회: 정상 ✓
+- 발견: 0건
+- 결과: 탐색 3/3 완료 — 3회 연속 0 findings 달성
+
+## 완료 조건 확인
+1. IMPLEMENTATION_PLAN.md P0~P4 전부 [x]: ✓
+2. 3회 연속 탐색 모드 0 findings: ✓ (반복 9, 10, 11)
+3. 서버 기동 → 기본 대화 → 정상 응답: ✓
+
