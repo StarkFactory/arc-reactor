@@ -1,5 +1,6 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { Counter, Trend } from 'k6/metrics';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const CHAT_PATH = __ENV.CHAT_PATH || '/api/chat';
@@ -19,11 +20,29 @@ const CHANNEL = __ENV.CHANNEL || 'benchmark';
 const SESSION_PREFIX = __ENV.SESSION_PREFIX || '';
 const MODEL = __ENV.MODEL || '';
 const SLEEP_SECONDS = Number(__ENV.SLEEP_SECONDS || 6.5);
+const EXPECT_STAGE_TIMINGS = String(__ENV.EXPECT_STAGE_TIMINGS || 'false').toLowerCase() === 'true';
 
 const DEFAULT_HEADERS = {
   'Content-Type': 'application/json',
   'User-Agent': 'k6-arc-reactor-chat-benchmark',
 };
+
+const STAGE_TRENDS = {
+  queue_wait: new Trend('arc_stage_queue_wait_ms', true),
+  guard: new Trend('arc_stage_guard_ms', true),
+  before_hooks: new Trend('arc_stage_before_hooks_ms', true),
+  intent_resolution: new Trend('arc_stage_intent_resolution_ms', true),
+  cache_lookup: new Trend('arc_stage_cache_lookup_ms', true),
+  history_load: new Trend('arc_stage_history_load_ms', true),
+  rag_retrieval: new Trend('arc_stage_rag_retrieval_ms', true),
+  tool_selection: new Trend('arc_stage_tool_selection_ms', true),
+  agent_loop: new Trend('arc_stage_agent_loop_ms', true),
+  llm_calls: new Trend('arc_stage_llm_calls_ms', true),
+  tool_execution: new Trend('arc_stage_tool_execution_ms', true),
+  fallback: new Trend('arc_stage_fallback_ms', true),
+  finalizer: new Trend('arc_stage_finalizer_ms', true),
+};
+const missingStageTimings = new Counter('arc_stage_timings_missing');
 
 export const options = {
   vus: Number(__ENV.VUS || 1),
@@ -73,6 +92,26 @@ function buildHeaders() {
   return headers;
 }
 
+function recordStageTimings(parsed) {
+  const stageTimings = parsed && parsed.metadata && parsed.metadata.stageTimings;
+  if (!stageTimings || typeof stageTimings !== 'object') {
+    missingStageTimings.add(1);
+    return false;
+  }
+
+  let hasKnownStage = false;
+  Object.entries(stageTimings).forEach(([stage, value]) => {
+    const trend = STAGE_TRENDS[stage];
+    const durationMs = Number(value);
+    if (!trend || !Number.isFinite(durationMs)) {
+      return;
+    }
+    trend.add(durationMs);
+    hasKnownStage = true;
+  });
+  return hasKnownStage;
+}
+
 export default function () {
   const payload = JSON.stringify(buildPayload());
   const res = http.post(`${BASE_URL}${CHAT_PATH}`, payload, {
@@ -81,16 +120,20 @@ export default function () {
   });
 
   let successField = false;
+  let hasStageTimings = false;
   try {
     const parsed = res.json();
     successField = parsed && parsed.success === true;
+    hasStageTimings = recordStageTimings(parsed);
   } catch (_) {
     successField = false;
+    hasStageTimings = false;
   }
 
   check(res, {
     'status is 200': (r) => r.status === 200,
     'response success=true': () => successField,
+    'stage timings present when expected': () => !EXPECT_STAGE_TIMINGS || hasStageTimings,
   });
 
   sleep(SLEEP_SECONDS);

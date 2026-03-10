@@ -373,6 +373,10 @@ JSON
   [[ "$(jq -r '.success // false' "$ask_resp")" == "true" ]] || fail "Ask scenario returned success=false"
   ask_content="$(jq -r '.content // ""' "$ask_resp")"
   [[ -n "$ask_content" ]] || fail "Ask content must not be empty"
+  ask_stage_timings="$(jq -r '(.metadata.stageTimings // {}) | to_entries | map("\(.key)=\(.value)") | join(", ")' "$ask_resp")"
+  if [[ -n "$ask_stage_timings" ]]; then
+    echo "      stageTimings: $ask_stage_timings"
+  fi
 else
   echo "[4/8] Ask scenario skipped"
 fi
