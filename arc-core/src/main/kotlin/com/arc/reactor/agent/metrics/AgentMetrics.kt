@@ -235,6 +235,13 @@ interface AgentMetrics {
      * Default implementation is a no-op to preserve backward compatibility.
      */
     fun recordResponseObservation(metadata: Map<String, Any>) {}
+
+    /**
+     * Record a stage-level latency for request execution analysis.
+     *
+     * Default implementation is a no-op to preserve backward compatibility.
+     */
+    fun recordStageLatency(stage: String, durationMs: Long, metadata: Map<String, Any>) {}
 }
 
 /**

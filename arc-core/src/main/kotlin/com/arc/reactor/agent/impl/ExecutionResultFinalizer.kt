@@ -440,6 +440,10 @@ internal class ExecutionResultFinalizer(
                 "toolName" to it.toolName
             )
         }
+        val stageTimings = readStageTimings(hookContext)
+        if (stageTimings.isNotEmpty()) {
+            metadata["stageTimings"] = LinkedHashMap(stageTimings)
+        }
         outputGuard?.let { metadata["outputGuard"] = it }
         resolveBlockReason(result, hookContext)?.let { metadata["blockReason"] = it }
         if (toolSignals.isNotEmpty()) {

@@ -145,4 +145,21 @@ class MicrometerAgentMetricsTest {
             "Top missing query should expose a redacted label"
         )
     }
+
+    @Test
+    fun `records stage latency timer`() {
+        val registry = SimpleMeterRegistry()
+        val metrics = MicrometerAgentMetrics(registry)
+
+        metrics.recordStageLatency("agent_loop", 42, mapOf("channel" to "web"))
+
+        val timer = registry.get("arc.agent.stage.duration")
+            .tag("stage", "agent_loop")
+            .tag("channel", "web")
+            .timer()
+        assertEquals(1L, timer.count(), "Stage timer should record a single sample")
+        assertTrue(timer.totalTime(java.util.concurrent.TimeUnit.MILLISECONDS) >= 42.0) {
+            "Stage timer should record the supplied latency"
+        }
+    }
 }

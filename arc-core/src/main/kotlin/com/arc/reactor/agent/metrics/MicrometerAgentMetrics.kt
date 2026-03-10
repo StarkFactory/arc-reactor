@@ -227,6 +227,14 @@ class MicrometerAgentMetrics(
         trackMissingQuery(metadata)
     }
 
+    override fun recordStageLatency(stage: String, durationMs: Long, metadata: Map<String, Any>) {
+        Timer.builder(METRIC_STAGE_DURATION)
+            .tag("stage", stage)
+            .tag("channel", metadata["channel"]?.toString()?.trim()?.ifBlank { "unknown" } ?: "unknown")
+            .register(registry)
+            .record(durationMs.coerceAtLeast(0), TimeUnit.MILLISECONDS)
+    }
+
     override fun recentTrustEvents(limit: Int): List<RecentTrustEvent> = trustEvents.take(limit)
     override fun unverifiedResponsesCount(): Long = unverifiedResponses.get()
     override fun outputGuardRejectedCount(): Long = outputGuardRejected.get()
@@ -335,5 +343,6 @@ class MicrometerAgentMetrics(
         private const val METRIC_OUTPUT_GUARD_ACTIONS = "arc.agent.output.guard.actions"
         private const val METRIC_BOUNDARY_VIOLATIONS = "arc.agent.boundary.violations"
         private const val METRIC_UNVERIFIED_RESPONSES = "arc.agent.responses.unverified"
+        private const val METRIC_STAGE_DURATION = "arc.agent.stage.duration"
     }
 }

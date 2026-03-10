@@ -52,7 +52,7 @@ class AgentExecutionCoordinatorTest {
             },
             finalizeExecution = { result, _, _, _, _ -> result },
             checkGuardAndHooks = { _, _, _ -> null },
-            resolveIntent = { it },
+            resolveIntent = { command, _ -> command },
             nowMs = { 1_500L }
         )
 
@@ -99,7 +99,7 @@ class AgentExecutionCoordinatorTest {
                 result
             },
             checkGuardAndHooks = { _, _, _ -> null },
-            resolveIntent = { it }
+            resolveIntent = { command, _ -> command }
         )
 
         val result = coordinator.execute(
@@ -140,7 +140,7 @@ class AgentExecutionCoordinatorTest {
                 AgentResult.success(content = "final", toolsUsed = listOf("tool"))
             },
             checkGuardAndHooks = { _, _, _ -> null },
-            resolveIntent = { it }
+            resolveIntent = { command, _ -> command }
         )
 
         val result = coordinator.execute(
@@ -187,7 +187,7 @@ class AgentExecutionCoordinatorTest {
             executeWithTools = { _, _, _, _, _, _ -> AgentResult.success("live") },
             finalizeExecution = { result, _, _, _, _ -> result },
             checkGuardAndHooks = { _, _, _ -> null },
-            resolveIntent = { it },
+            resolveIntent = { command, _ -> command },
             nowMs = { 2_000L }
         )
 
@@ -203,6 +203,89 @@ class AgentExecutionCoordinatorTest {
         coVerify(exactly = 1) { responseCache.get(expectedKey) }
         coVerify(exactly = 1) { responseCache.getSemantic(command, listOf("tool"), expectedKey) }
         verify(exactly = 1) { metrics.recordSemanticCacheHit(expectedKey) }
+    }
+
+    @Test
+    fun `should capture stage timings in hook context metadata`() = runBlocking {
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi")
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = null,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = metrics,
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, context, _, _ ->
+                recordStageTiming(context, "llm_calls", 11)
+                recordStageTiming(context, "tool_execution", 7)
+                AgentResult.success(content = "raw")
+            },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, context ->
+                recordStageTiming(context, "intent_resolution", 3)
+                command
+            }
+        )
+
+        val result = coordinator.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        assertTrue(result.success, "Coordinator should still return the successful result")
+        val stageTimings = readStageTimings(hookContext)
+        assertTrue(stageTimings.containsKey("cache_lookup"), "cache_lookup timing should be recorded")
+        assertTrue(stageTimings.containsKey("history_load"), "history_load timing should be recorded")
+        assertTrue(stageTimings.containsKey("rag_retrieval"), "rag_retrieval timing should be recorded")
+        assertTrue(stageTimings.containsKey("tool_selection"), "tool_selection timing should be recorded")
+        assertTrue(stageTimings.containsKey("agent_loop"), "agent_loop timing should be recorded")
+        assertTrue(stageTimings.containsKey("finalizer"), "finalizer timing should be recorded")
+        assertEquals(11L, stageTimings["llm_calls"], "llm_calls timing should be preserved")
+        assertEquals(7L, stageTimings["tool_execution"], "tool_execution timing should be preserved")
+        verify(atLeast = 1) { metrics.recordStageLatency(any(), any(), any()) }
+        verify(exactly = 1) { metrics.recordStageLatency("llm_calls", 11, any()) }
+        verify(exactly = 1) { metrics.recordStageLatency("tool_execution", 7, any()) }
+    }
+
+    @Test
+    fun `should include finalizer stage timing in result metadata`() = runBlocking {
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = null,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = mockk(relaxed = true),
+            toolCallbacks = emptyList(),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success(content = "raw") },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command }
+        )
+
+        val result = coordinator.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val stageTimings = result.metadata["stageTimings"] as? Map<String, Any>
+        assertTrue(stageTimings?.containsKey("finalizer") == true) {
+            "Final result metadata should include the finalizer stage timing"
+        }
     }
 
     private fun testTool(name: String): ToolCallback = object : ToolCallback {

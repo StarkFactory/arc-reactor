@@ -112,6 +112,8 @@ internal class ManualReActLoopExecutor(
             if (pendingToolCalls.isEmpty() || activeTools.isEmpty()) {
                 hookContext.metadata["llmDurationMs"] = totalLlmDurationMs
                 hookContext.metadata["toolDurationMs"] = totalToolDurationMs
+                recordStageTiming(hookContext, "llm_calls", totalLlmDurationMs)
+                recordStageTiming(hookContext, "tool_execution", totalToolDurationMs)
                 return validateAndRepairResponse(
                     assistantOutput?.text.orEmpty(),
                     command.responseFormat,

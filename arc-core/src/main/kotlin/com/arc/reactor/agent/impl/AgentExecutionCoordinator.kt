@@ -46,7 +46,7 @@ internal class AgentExecutionCoordinator(
         Long
     ) -> AgentResult,
     private val checkGuardAndHooks: suspend (AgentCommand, HookContext, Long) -> AgentResult?,
-    private val resolveIntent: suspend (AgentCommand) -> AgentCommand,
+    private val resolveIntent: suspend (AgentCommand, HookContext) -> AgentCommand,
     private val nowMs: () -> Long = System::currentTimeMillis
 ) {
 
@@ -57,23 +57,38 @@ internal class AgentExecutionCoordinator(
         startTime: Long
     ): AgentResult {
         checkGuardAndHooks(command, hookContext, startTime)?.let { return it }
-        val effectiveCommand = resolveIntent(command)
+        val effectiveCommand = resolveIntent(command, hookContext)
         effectiveCommand.metadata["intentCategory"]?.let { hookContext.metadata["intentCategory"] = it }
 
+        val cacheLookupStart = nowMs()
         val cacheLookup = resolveCache(effectiveCommand, startTime)
+        recordStageTiming(hookContext, "cache_lookup", nowMs() - cacheLookupStart)
+        agentMetrics.recordStageLatency("cache_lookup", nowMs() - cacheLookupStart, effectiveCommand.metadata)
         cacheLookup.cachedResult?.let { return it }
         val resolvedCacheKey = cacheLookup.cacheKey
         val cacheToolNames = cacheLookup.toolNames
 
+        val historyLoadStart = nowMs()
         val conversationHistory = conversationManager.loadHistory(effectiveCommand)
+        recordStageTiming(hookContext, "history_load", nowMs() - historyLoadStart)
+        agentMetrics.recordStageLatency("history_load", nowMs() - historyLoadStart, effectiveCommand.metadata)
+
+        val ragStart = nowMs()
         val ragContext = retrieveRagContext(effectiveCommand)
+        recordStageTiming(hookContext, "rag_retrieval", nowMs() - ragStart)
+        agentMetrics.recordStageLatency("rag_retrieval", nowMs() - ragStart, effectiveCommand.metadata)
+
+        val toolSelectionStart = nowMs()
         val selectedTools = if (effectiveCommand.mode == AgentMode.STANDARD) {
             emptyList()
         } else {
             selectAndPrepareTools(effectiveCommand.userPrompt)
         }
+        recordStageTiming(hookContext, "tool_selection", nowMs() - toolSelectionStart)
+        agentMetrics.recordStageLatency("tool_selection", nowMs() - toolSelectionStart, effectiveCommand.metadata)
         logger.debug { "Selected ${selectedTools.size} tools for execution (mode=${effectiveCommand.mode})" }
 
+        val agentLoopStart = nowMs()
         var result = executeWithTools(
             effectiveCommand,
             selectedTools,
@@ -82,15 +97,23 @@ internal class AgentExecutionCoordinator(
             toolsUsed,
             ragContext
         )
+        recordStageTiming(hookContext, "agent_loop", nowMs() - agentLoopStart)
+        agentMetrics.recordStageLatency("agent_loop", nowMs() - agentLoopStart, effectiveCommand.metadata)
+        recordLoopStageLatency(hookContext, effectiveCommand.metadata, "llm_calls")
+        recordLoopStageLatency(hookContext, effectiveCommand.metadata, "tool_execution")
 
         if (!result.success && fallbackStrategy != null) {
+            val fallbackStart = nowMs()
             val fallbackResult = attemptFallback(effectiveCommand, result)
+            recordStageTiming(hookContext, "fallback", nowMs() - fallbackStart)
+            agentMetrics.recordStageLatency("fallback", nowMs() - fallbackStart, effectiveCommand.metadata)
             if (fallbackResult !== result) {
                 hookContext.metadata["fallbackUsed"] = true
             }
             result = fallbackResult
         }
 
+        val finalizerStart = nowMs()
         val finalResult = finalizeExecution(
             result,
             effectiveCommand,
@@ -98,12 +121,16 @@ internal class AgentExecutionCoordinator(
             toolsUsed.toList(),
             startTime
         )
+        val finalizerDurationMs = nowMs() - finalizerStart
+        recordStageTiming(hookContext, "finalizer", finalizerDurationMs)
+        agentMetrics.recordStageLatency("finalizer", finalizerDurationMs, effectiveCommand.metadata)
+        val enrichedFinalResult = withStageTimingsMetadata(finalResult, hookContext)
 
-        if (resolvedCacheKey != null && finalResult.success && finalResult.content != null) {
+        if (resolvedCacheKey != null && enrichedFinalResult.success && enrichedFinalResult.content != null) {
             try {
                 val cacheEntry = CachedResponse(
-                    content = finalResult.content,
-                    toolsUsed = finalResult.toolsUsed
+                    content = enrichedFinalResult.content,
+                    toolsUsed = enrichedFinalResult.toolsUsed
                 )
                 when (val cache = responseCache) {
                     is SemanticResponseCache -> cache.putSemantic(
@@ -121,7 +148,7 @@ internal class AgentExecutionCoordinator(
             }
         }
 
-        return finalResult
+        return enrichedFinalResult
     }
 
     private suspend fun resolveCache(command: AgentCommand, startTime: Long): CacheLookupResult {
@@ -196,6 +223,21 @@ internal class AgentExecutionCoordinator(
             logger.warn(e) { "Fallback strategy failed, using original error" }
             originalResult
         }
+    }
+
+    private fun recordLoopStageLatency(hookContext: HookContext, metadata: Map<String, Any>, stage: String) {
+        val durationMs = readStageTimings(hookContext)[stage] ?: return
+        agentMetrics.recordStageLatency(stage, durationMs, metadata)
+    }
+
+    private fun withStageTimingsMetadata(result: AgentResult, hookContext: HookContext): AgentResult {
+        val stageTimings = readStageTimings(hookContext)
+        if (stageTimings.isEmpty()) {
+            return result
+        }
+        val metadata = LinkedHashMap(result.metadata)
+        metadata["stageTimings"] = LinkedHashMap(stageTimings)
+        return result.copy(metadata = metadata)
     }
 
     private fun isCacheable(command: AgentCommand): Boolean {

@@ -1,6 +1,7 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.AgentTestFixture
+import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.agent.model.StreamEventMarker
@@ -10,6 +11,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -32,6 +34,8 @@ class StreamingReActLoopExecutorTest {
 
         val optionsUsed = mutableListOf<Boolean>()
         val emitted = mutableListOf<String>()
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi")
         val loopExecutor = StreamingReActLoopExecutor(
             messageTrimmer = ConversationMessageTrimmer(
                 maxContextWindowTokens = 10_000,
@@ -44,16 +48,17 @@ class StreamingReActLoopExecutorTest {
             buildChatOptions = { _, hasTools ->
                 optionsUsed.add(hasTools)
                 ChatOptions.builder().build()
-            }
+            },
+            agentMetrics = metrics
         )
 
         val result = loopExecutor.execute(
-            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", metadata = mapOf("channel" to "web")),
             activeChatClient = mockk(relaxed = true),
             systemPrompt = "sys",
             initialTools = emptyList(),
             conversationHistory = emptyList(),
-            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            hookContext = hookContext,
             toolsUsed = mutableListOf(),
             allowedTools = null,
             maxToolCalls = 3,
@@ -65,6 +70,11 @@ class StreamingReActLoopExecutorTest {
         assertEquals("hello", result.lastIterationContent)
         assertEquals(listOf("hello"), emitted)
         assertEquals(listOf(false), optionsUsed)
+        val stageTimings = readStageTimings(hookContext)
+        assertTrue(stageTimings.containsKey("llm_calls"), "Streaming loop should record llm_calls timing")
+        assertTrue(stageTimings.containsKey("tool_execution"), "Streaming loop should record tool_execution timing")
+        verify { metrics.recordStageLatency("llm_calls", any(), match { it["channel"] == "web" }) }
+        verify { metrics.recordStageLatency("tool_execution", any(), match { it["channel"] == "web" }) }
     }
 
     @Test

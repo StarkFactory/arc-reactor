@@ -1,5 +1,7 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.agent.model.StreamEventMarker
@@ -38,7 +40,8 @@ internal class StreamingReActLoopExecutor(
         suspend () -> Flux<org.springframework.ai.chat.model.ChatResponse>
     ) -> Flux<org.springframework.ai.chat.model.ChatResponse>,
     private val buildChatOptions: (AgentCommand, Boolean) -> ChatOptions,
-    private val recordTokenUsage: (TokenUsage, Map<String, Any>) -> Unit = { _, _ -> }
+    private val recordTokenUsage: (TokenUsage, Map<String, Any>) -> Unit = { _, _ -> },
+    private val agentMetrics: AgentMetrics = NoOpAgentMetrics()
 ) {
 
     suspend fun execute(
@@ -119,6 +122,10 @@ internal class StreamingReActLoopExecutor(
             if (pendingToolCalls.isEmpty() || activeTools.isEmpty()) {
                 hookContext.metadata["llmDurationMs"] = totalLlmDurationMs
                 hookContext.metadata["toolDurationMs"] = totalToolDurationMs
+                recordStageTiming(hookContext, "llm_calls", totalLlmDurationMs)
+                recordStageTiming(hookContext, "tool_execution", totalToolDurationMs)
+                agentMetrics.recordStageLatency("llm_calls", totalLlmDurationMs, command.metadata)
+                agentMetrics.recordStageLatency("tool_execution", totalToolDurationMs, command.metadata)
                 return StreamingLoopResult(
                     success = true,
                     collectedContent = collectedContent.toString(),

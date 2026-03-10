@@ -205,6 +205,41 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
+    fun `should expose stage timings from hook metadata`() = runBlocking {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val hookExecutor = mockk<HookExecutor>(relaxed = true)
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = conversationManager,
+            hookExecutor = hookExecutor,
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
+            recordStageTiming(this, "guard", 4)
+            recordStageTiming(this, "agent_loop", 17)
+        }
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "ok"),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = hookContext,
+            toolsUsed = emptyList(),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val stageTimings = result.metadata["stageTimings"] as? Map<String, Any>
+        assertEquals(4L, stageTimings?.get("guard"), "Stage timings should preserve guard latency")
+        assertEquals(17L, stageTimings?.get("agent_loop"), "Stage timings should preserve agent loop latency")
+    }
+
+    @Test
     fun `should skip retry once for short response when tool-backed grounding already exists`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)

@@ -131,7 +131,10 @@ class PreExecutionResolverMatrixTest {
                 userPrompt = "intent-$i",
                 metadata = mapOf("channel" to if (i % 2 == 0) "web" else i)
             )
-            val resolved = resolver.resolveIntent(command)
+            val resolved = resolver.resolveIntent(
+                command,
+                HookContext(runId = "run-$i", userId = "u", userPrompt = "intent-$i")
+            )
             assertSame(command, resolved)
         }
 
@@ -174,7 +177,8 @@ class PreExecutionResolverMatrixTest {
                             systemPrompt = "sys",
                             userPrompt = "query-$i",
                             metadata = mapOf("channel" to "web")
-                        )
+                        ),
+                        HookContext(runId = "run-$i", userId = "u", userPrompt = "query-$i")
                     )
                 }
             }

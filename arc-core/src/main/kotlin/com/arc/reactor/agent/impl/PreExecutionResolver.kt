@@ -63,7 +63,10 @@ internal class PreExecutionResolver(
         val guardStartTime = nowMs()
         try {
             checkGuard(command)?.let { rejection ->
-                hookContext.metadata["guardDurationMs"] = nowMs() - guardStartTime
+                val guardDurationMs = nowMs() - guardStartTime
+                hookContext.metadata["guardDurationMs"] = guardDurationMs
+                recordStageTiming(hookContext, "guard", guardDurationMs)
+                agentMetrics.recordStageLatency("guard", guardDurationMs, command.metadata)
                 guardSpan.setAttribute("guard.result", "rejected")
                 agentMetrics.recordGuardRejection(
                     stage = rejection.stage ?: "unknown",
@@ -76,15 +79,25 @@ internal class PreExecutionResolver(
                     durationMs = nowMs() - startTime
                 ).also { agentMetrics.recordExecution(it) }
             }
-            hookContext.metadata["guardDurationMs"] = nowMs() - guardStartTime
+            val guardDurationMs = nowMs() - guardStartTime
+            hookContext.metadata["guardDurationMs"] = guardDurationMs
+            recordStageTiming(hookContext, "guard", guardDurationMs)
+            agentMetrics.recordStageLatency("guard", guardDurationMs, command.metadata)
             guardSpan.setAttribute("guard.result", "passed")
+            val beforeHooksStartTime = nowMs()
             checkBeforeHooks(hookContext)?.let { rejection ->
+                val beforeHooksDurationMs = nowMs() - beforeHooksStartTime
+                recordStageTiming(hookContext, "before_hooks", beforeHooksDurationMs)
+                agentMetrics.recordStageLatency("before_hooks", beforeHooksDurationMs, command.metadata)
                 return AgentResult.failure(
                     errorMessage = rejection.reason,
                     errorCode = AgentErrorCode.HOOK_REJECTED,
                     durationMs = nowMs() - startTime
                 ).also { agentMetrics.recordExecution(it) }
             }
+            val beforeHooksDurationMs = nowMs() - beforeHooksStartTime
+            recordStageTiming(hookContext, "before_hooks", beforeHooksDurationMs)
+            agentMetrics.recordStageLatency("before_hooks", beforeHooksDurationMs, command.metadata)
         } finally {
             guardSpan.close()
         }
@@ -96,25 +109,39 @@ internal class PreExecutionResolver(
      *
      * Fail-safe: on any error (except blocked intents), returns the original command.
      */
-    suspend fun resolveIntent(command: AgentCommand): AgentCommand {
+    suspend fun resolveIntent(command: AgentCommand, hookContext: HookContext): AgentCommand {
         if (intentResolver == null) return command
+        val intentStartTime = nowMs()
         try {
             val context = ClassificationContext(
                 userId = command.userId,
                 channel = command.metadata["channel"]?.toString()
             )
             val resolved = intentResolver.resolve(command.userPrompt, context)
-                ?: return command
+                ?: return command.also {
+                    recordIntentResolutionDuration(command, hookContext, intentStartTime)
+                }
             if (blockedIntents.contains(resolved.intentName)) {
+                recordIntentResolutionDuration(command, hookContext, intentStartTime)
                 throw BlockedIntentException(resolved.intentName)
             }
-            return intentResolver.applyProfile(command, resolved)
+            return intentResolver.applyProfile(command, resolved).also {
+                recordIntentResolutionDuration(command, hookContext, intentStartTime)
+            }
         } catch (e: BlockedIntentException) {
             throw e
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Intent resolution failed, using original command" }
-            return command
+            return command.also {
+                recordIntentResolutionDuration(command, hookContext, intentStartTime)
+            }
         }
+    }
+
+    private fun recordIntentResolutionDuration(command: AgentCommand, hookContext: HookContext, intentStartTime: Long) {
+        val durationMs = nowMs() - intentStartTime
+        recordStageTiming(hookContext, "intent_resolution", durationMs)
+        agentMetrics.recordStageLatency("intent_resolution", durationMs, command.metadata)
     }
 }

@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class PreExecutionResolverTest {
@@ -119,11 +120,15 @@ class PreExecutionResolverTest {
             blockedIntents = setOf("finance"),
             agentMetrics = mockk(relaxed = true)
         )
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi")
 
         assertThrows(BlockedIntentException::class.java) {
             runBlocking {
-                resolver.resolveIntent(AgentCommand(systemPrompt = "sys", userPrompt = "hi"))
+                resolver.resolveIntent(AgentCommand(systemPrompt = "sys", userPrompt = "hi"), hookContext)
             }
+        }
+        assertTrue(readStageTimings(hookContext).containsKey("intent_resolution")) {
+            "Intent resolution timing should be recorded even when the intent is blocked"
         }
     }
 
@@ -139,9 +144,13 @@ class PreExecutionResolverTest {
             agentMetrics = mockk(relaxed = true)
         )
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi")
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi")
 
-        val resolved = resolver.resolveIntent(command)
+        val resolved = resolver.resolveIntent(command, hookContext)
 
         assertSame(command, resolved)
+        assertTrue(readStageTimings(hookContext).containsKey("intent_resolution")) {
+            "Intent resolution timing should be recorded when resolver errors"
+        }
     }
 }

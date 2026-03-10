@@ -173,7 +173,8 @@ class SpringAiAgentExecutor(
         buildRequestSpec = promptRequestSpecBuilder::create,
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::createChatOptions,
-        recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) }
+        recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) },
+        agentMetrics = agentMetrics
     )
     private val streamingCompletionFinalizer = StreamingCompletionFinalizer(
         boundaries = properties.boundaries,
@@ -248,7 +249,7 @@ class SpringAiAgentExecutor(
             )
         },
         checkGuardAndHooks = preExecutionResolver::checkGuardAndHooks,
-        resolveIntent = preExecutionResolver::resolveIntent
+        resolveIntent = { command, hookContext -> preExecutionResolver.resolveIntent(command, hookContext) }
     )
 
     override suspend fun execute(command: AgentCommand): AgentResult {
@@ -269,7 +270,10 @@ class SpringAiAgentExecutor(
         try {
             val queueStart = System.nanoTime()
             val result = concurrencySemaphore.withPermit {
-                hookContext.metadata["queueWaitMs"] = (System.nanoTime() - queueStart) / 1_000_000
+                val queueWaitMs = (System.nanoTime() - queueStart) / 1_000_000
+                hookContext.metadata["queueWaitMs"] = queueWaitMs
+                recordStageTiming(hookContext, "queue_wait", queueWaitMs)
+                agentMetrics.recordStageLatency("queue_wait", queueWaitMs, command.metadata)
                 executeWithRequestTimeout(properties.concurrency.requestTimeoutMs) {
                     agentExecutionCoordinator.execute(command, hookContext, toolsUsed, startTime)
                 }
