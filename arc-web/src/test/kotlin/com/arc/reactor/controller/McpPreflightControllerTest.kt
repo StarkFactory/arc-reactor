@@ -119,7 +119,7 @@ class McpPreflightControllerTest {
             capturedActor = exchange.requestHeaders.getFirst("X-Admin-Actor")
             capturedRequestId = exchange.requestHeaders.getFirst("X-Request-Id")
             val payload = """
-                {"ok":true,"readyForProduction":false,"policySource":"dynamic","summary":{"passCount":7,"warnCount":1,"failCount":0},"checks":[{"name":"admin_hmac","status":"WARN","message":"disabled"}]}
+                {"ok":true,"readyForProduction":false,"policySource":"dynamic","summary":{"passCount":7,"warnCount":1,"failCount":1},"checks":[{"name":"admin_hmac","status":"WARN","message":"disabled"},{"name":"bitbucket_connectivity","status":"FAIL","message":"Resource not found."}]}
             """.trimIndent().toByteArray(StandardCharsets.UTF_8)
             exchange.sendResponseHeaders(200, payload.size.toLong())
             exchange.responseBody.use { it.write(payload) }
@@ -164,6 +164,34 @@ class McpPreflightControllerTest {
             }
             assertEquals("READ", audits.first().action) {
                 "Unexpected audit action for preflight"
+            }
+            val detail = audits.first().detail.orEmpty()
+            assertTrue(detail.contains("status=200")) {
+                "Audit detail should include the proxied HTTP status"
+            }
+            assertTrue(detail.contains("policySource=dynamic")) {
+                "Audit detail should preserve the upstream policy source"
+            }
+            assertTrue(detail.contains("ok=true")) {
+                "Audit detail should preserve upstream preflight success state"
+            }
+            assertTrue(detail.contains("readyForProduction=false")) {
+                "Audit detail should preserve production-readiness state"
+            }
+            assertTrue(detail.contains("passCount=7")) {
+                "Audit detail should include summarized pass count"
+            }
+            assertTrue(detail.contains("warnCount=1")) {
+                "Audit detail should include summarized warn count"
+            }
+            assertTrue(detail.contains("failCount=1")) {
+                "Audit detail should include summarized fail count"
+            }
+            assertTrue(detail.contains("admin_hmac:WARN:disabled")) {
+                "Audit detail should capture warning checks for operator diagnosis"
+            }
+            assertTrue(detail.contains("bitbucket_connectivity:FAIL:Resource not found.")) {
+                "Audit detail should capture failing Bitbucket checks for operator diagnosis"
             }
         } finally {
             server.stop(0)

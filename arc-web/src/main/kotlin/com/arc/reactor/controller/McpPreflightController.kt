@@ -65,7 +65,7 @@ class McpPreflightController(
             actor = actor,
             resourceType = "mcp_server",
             resourceId = name,
-            detail = "status=${response.statusCode.value()}"
+            detail = buildAuditDetail(response)
         )
         return response
     }
@@ -215,6 +215,64 @@ class McpPreflightController(
             .body(ErrorResponse(error = message, timestamp = Instant.now().toString()))
     }
 
+    private fun buildAuditDetail(response: ResponseEntity<Any>): String {
+        val parts = mutableListOf("status=${response.statusCode.value()}")
+        val body = response.body as? Map<*, *> ?: return parts.joinToString(", ")
+        appendStringDetail(parts, "policySource", body["policySource"])
+        appendBooleanDetail(parts, "ok", body["ok"])
+        appendBooleanDetail(parts, "readyForProduction", body["readyForProduction"])
+        appendSummaryDetail(parts, body["summary"])
+        appendIssueDetail(parts, body["checks"])
+        return parts.joinToString(", ")
+    }
+
+    private fun appendStringDetail(parts: MutableList<String>, key: String, value: Any?) {
+        val normalized = value?.toString()?.trim().orEmpty()
+        if (normalized.isNotBlank()) parts.add("$key=$normalized")
+    }
+
+    private fun appendBooleanDetail(parts: MutableList<String>, key: String, value: Any?) {
+        val normalized = value as? Boolean ?: return
+        parts.add("$key=$normalized")
+    }
+
+    private fun appendSummaryDetail(parts: MutableList<String>, summaryRaw: Any?) {
+        val summary = summaryRaw as? Map<*, *> ?: return
+        appendIntDetail(parts, "passCount", summary["passCount"])
+        appendIntDetail(parts, "warnCount", summary["warnCount"])
+        appendIntDetail(parts, "failCount", summary["failCount"])
+    }
+
+    private fun appendIntDetail(parts: MutableList<String>, key: String, value: Any?) {
+        val normalized = when (value) {
+            is Number -> value.toInt()
+            is String -> value.trim().toIntOrNull()
+            else -> null
+        } ?: return
+        parts.add("$key=$normalized")
+    }
+
+    private fun appendIssueDetail(parts: MutableList<String>, checksRaw: Any?) {
+        val issues = (checksRaw as? List<*>)
+            ?.mapNotNull { describeIssue(it as? Map<*, *>) }
+            ?.take(MAX_AUDIT_ISSUES)
+            .orEmpty()
+        if (issues.isNotEmpty()) {
+            parts.add("issues=${issues.joinToString("|")}")
+        }
+    }
+
+    private fun describeIssue(check: Map<*, *>?): String? {
+        val status = check?.get("status")?.toString()?.trim()?.uppercase().orEmpty()
+        if (status.isBlank() || status == "PASS" || status == "UP") return null
+
+        val name = check?.get("name")?.toString()?.trim().orEmpty().ifBlank { "unknown_check" }
+        val message = check?.get("message")?.toString()?.trim()?.takeIf { it.isNotBlank() }
+            ?.replace(',', ';')
+            ?.replace('|', '/')
+        return if (message != null) "$name:$status:$message" else "$name:$status"
+    }
+
     private fun observeProxyCall(
         serverName: String,
         statusCode: Int,
@@ -260,6 +318,7 @@ class McpPreflightController(
         private const val MIN_ADMIN_CONNECT_TIMEOUT_MS = 100
         private const val MAX_ADMIN_CONNECT_TIMEOUT_MS = 30_000
         private const val ADMIN_PREFLIGHT_PATH = "/admin/preflight"
+        private const val MAX_AUDIT_ISSUES = 3
         private val objectMapper = jacksonObjectMapper()
     }
 }

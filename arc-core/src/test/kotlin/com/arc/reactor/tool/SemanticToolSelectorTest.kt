@@ -487,6 +487,27 @@ class SemanticToolSelectorTest {
         }
 
         @Test
+        fun `should route named swagger detail prompts without url to loaded spec tools`() {
+            val tools = listOf(
+                createTool("spec_list", "List loaded specs"),
+                createTool("spec_load", "Load an OpenAPI spec"),
+                createTool("spec_detail", "Describe an endpoint detail")
+            )
+            every { embeddingModel.embed(any<List<String>>()) } returns List(tools.size) { floatArrayOf(0.5f, 0.5f) }
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
+            val result = selector.select(
+                "petstore-public Swagger spec detail for /pet. Tell me the methods and whether security is required.",
+                tools
+            )
+
+            assertEquals(listOf("spec_list", "spec_detail"), result.map { it.name }) {
+                "Named swagger detail prompts without a URL should inspect loaded specs before calling spec_detail"
+            }
+        }
+
+        @Test
         fun `should route wrong endpoint prompts to swagger search tools`() {
             val tools = listOf(
                 createTool("spec_search", "Search endpoints in loaded specs"),

@@ -287,6 +287,87 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
+    fun `should replace unverified blocked copy with slack delivery acknowledgement`() = runBlocking {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = ResponseFilterChain(listOf(VerifiedSourcesResponseFilter())),
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            nowMs = { 1_000L }
+        )
+        val hookContext = HookContext(
+            runId = "run-1",
+            userId = "u",
+            userPrompt = "Slack으로 배포 공지 보내줘."
+        ).apply {
+            metadata[ToolCallOrchestrator.TOOL_SIGNALS_METADATA_KEY] = mutableListOf(
+                ToolResponseSignal(
+                    toolName = "send_message",
+                    deliveryPlatform = "slack",
+                    deliveryMode = "message_send"
+                )
+            )
+        }
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "배포 공지를 전송했습니다.", toolsUsed = listOf("send_message")),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "Slack으로 배포 공지 보내줘."),
+            hookContext = hookContext,
+            toolsUsed = listOf("send_message"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertEquals(
+            "Slack 메시지는 전송했습니다. 다만 이 응답 자체는 승인된 출처로 검증된 답변이 아니라 전달 결과만 안내드립니다.",
+            result.content,
+            "Successful Slack delivery should surface an acknowledgement instead of the generic unverified block"
+        )
+        assertEquals("unverified_sources", result.metadata["blockReason"], "Delivery acknowledgement should keep the unverified block reason")
+        assertEquals(false, result.metadata["grounded"], "Delivery acknowledgement must not mark the response as grounded")
+        assertEquals(0, result.metadata["verifiedSourceCount"], "Delivery acknowledgement must not create verified sources")
+        assertEquals(true, result.metadata["deliveryAcknowledged"], "Delivery acknowledgement metadata should be exposed")
+        assertEquals(
+            "slack",
+            (result.metadata["delivery"] as Map<*, *>)["platform"],
+            "Delivery metadata should identify Slack as the destination platform"
+        )
+    }
+
+    @Test
+    fun `should keep generic unverified response when slack delivery was not acknowledged`() = runBlocking {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = ResponseFilterChain(listOf(VerifiedSourcesResponseFilter())),
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            nowMs = { 1_000L }
+        )
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "Slack으로 보내겠습니다.", toolsUsed = listOf("send_message")),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "Slack으로 배포 공지 보내줘."),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "Slack으로 배포 공지 보내줘."),
+            toolsUsed = listOf("send_message"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertEquals(
+            "검증 가능한 출처를 찾지 못해 답변을 확정할 수 없습니다. 승인된 Jira, Confluence, Bitbucket, Swagger/OpenAPI 자료를 다시 조회해 주세요.",
+            result.content,
+            "Without a successful Slack delivery signal, the generic unverified response should remain"
+        )
+        assertEquals(null, result.metadata["deliveryAcknowledged"], "No delivery acknowledgement metadata should be emitted")
+    }
+
+    @Test
     fun `should rethrow cancellation from after hook`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>()

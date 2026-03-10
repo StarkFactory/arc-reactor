@@ -67,4 +67,38 @@ class ToolResponseSignalExtractorTest {
             "Permission-limited upstream issue reads should map to environment metadata"
         )
     }
+
+    @Test
+    fun `extract should capture slack send_message delivery success`() {
+        val signal = ToolResponseSignalExtractor.extract(
+            "send_message",
+            """{"ok":true,"channel":"C123","ts":"1710000.1234"}"""
+        )
+
+        assertNotNull(signal, "Successful Slack delivery should produce a tool response signal")
+        assertEquals("slack", signal?.deliveryPlatform, "Slack delivery should set the delivery platform")
+        assertEquals("message_send", signal?.deliveryMode, "send_message should map to message_send delivery mode")
+    }
+
+    @Test
+    fun `extract should capture slack thread reply delivery success`() {
+        val signal = ToolResponseSignalExtractor.extract(
+            "reply_to_thread",
+            """{"ok":true,"channel":"C123","ts":"1710000.1235"}"""
+        )
+
+        assertNotNull(signal, "Successful Slack thread replies should produce a tool response signal")
+        assertEquals("slack", signal?.deliveryPlatform, "Slack thread reply should set the delivery platform")
+        assertEquals("thread_reply", signal?.deliveryMode, "reply_to_thread should map to thread_reply delivery mode")
+    }
+
+    @Test
+    fun `extract should not mark failed slack delivery as acknowledged`() {
+        val signal = ToolResponseSignalExtractor.extract(
+            "send_message",
+            """{"ok":false,"error":"channel_not_found"}"""
+        )
+
+        assertEquals(null, signal, "Failed Slack deliveries should not produce a delivery acknowledgement signal")
+    }
 }

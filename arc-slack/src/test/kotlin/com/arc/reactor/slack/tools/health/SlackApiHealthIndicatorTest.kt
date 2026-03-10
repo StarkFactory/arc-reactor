@@ -12,6 +12,8 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.springframework.boot.actuate.health.SimpleStatusAggregator
+import org.springframework.boot.actuate.health.Status
 
 class SlackApiHealthIndicatorTest {
 
@@ -39,7 +41,7 @@ class SlackApiHealthIndicatorTest {
     }
 
     @Test
-    fun `health is down when required scopes are missing`() {
+    fun `health is unknown when required scopes are missing`() {
         val indicator = SlackApiHealthIndicator(
             methodsClient = methodsClient,
             properties = SlackToolsProperties()
@@ -51,12 +53,12 @@ class SlackApiHealthIndicatorTest {
 
         val health = indicator.health()
 
-        assertEquals("DOWN", health.status.code)
-        assertEquals("missing_scopes", health.details["error"])
+        assertEquals("UNKNOWN", health.status.code, "Missing Slack scopes should degrade optional health to UNKNOWN")
+        assertEquals("missing_scopes", health.details["error"], "Health details should expose missing scope failure")
     }
 
     @Test
-    fun `health is down when auth test fails`() {
+    fun `health is unknown when auth test fails`() {
         val indicator = SlackApiHealthIndicator(
             methodsClient = methodsClient,
             properties = SlackToolsProperties()
@@ -70,12 +72,12 @@ class SlackApiHealthIndicatorTest {
 
         val health = indicator.health()
 
-        assertEquals("DOWN", health.status.code)
-        assertEquals("invalid_auth", health.details["error"])
+        assertEquals("UNKNOWN", health.status.code, "Slack auth failure should not force overall app health DOWN")
+        assertEquals("invalid_auth", health.details["error"], "Health details should surface Slack auth failure")
     }
 
     @Test
-    fun `health is down on auth test exception`() {
+    fun `health is unknown on auth test exception`() {
         val indicator = SlackApiHealthIndicator(
             methodsClient = methodsClient,
             properties = SlackToolsProperties()
@@ -84,8 +86,8 @@ class SlackApiHealthIndicatorTest {
 
         val health = indicator.health()
 
-        assertEquals("DOWN", health.status.code)
-        assertEquals("auth_test_exception", health.details["error"])
+        assertEquals("UNKNOWN", health.status.code, "Slack auth exceptions should degrade optional health to UNKNOWN")
+        assertEquals("auth_test_exception", health.details["error"], "Health details should capture auth test exception")
     }
 
     @Test
@@ -114,7 +116,7 @@ class SlackApiHealthIndicatorTest {
     }
 
     @Test
-    fun `health requires canvases scope when canvas tools are enabled`() {
+    fun `health is unknown when canvas scope is missing`() {
         val indicator = SlackApiHealthIndicator(
             methodsClient = methodsClient,
             properties = SlackToolsProperties(
@@ -133,8 +135,23 @@ class SlackApiHealthIndicatorTest {
 
         val health = indicator.health()
 
-        assertEquals("DOWN", health.status.code)
-        assertEquals("missing_scopes", health.details["error"])
+        assertEquals("UNKNOWN", health.status.code, "Missing optional canvas scope should not force health DOWN")
+        assertEquals("missing_scopes", health.details["error"], "Health details should expose missing canvas scope")
+    }
+
+    @Test
+    fun `unknown slack api health keeps aggregate status up when core health is up`() {
+        val indicator = SlackApiHealthIndicator(
+            methodsClient = methodsClient,
+            properties = SlackToolsProperties()
+        )
+        every { methodsClient.authTest(any<AuthTestRequest>()) } throws RuntimeException("network error")
+
+        val health = indicator.health()
+        val aggregateStatus = SimpleStatusAggregator().getAggregateStatus(setOf(Status.UP, health.status))
+
+        assertEquals("UNKNOWN", health.status.code, "Slack API failure should degrade to UNKNOWN before aggregation")
+        assertEquals(Status.UP, aggregateStatus, "Actuator aggregate should stay UP when only optional Slack health is UNKNOWN")
     }
 
     private fun authResponse(

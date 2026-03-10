@@ -694,6 +694,12 @@ Update the access policy on the MCP server's admin API.
 |-------|------|----------|-------------|
 | `allowedJiraProjectKeys` | array of string | No | Max 200 items. Each key: `^[A-Z][A-Z0-9_]*$`, max 50 chars, no leading/trailing whitespace |
 | `allowedConfluenceSpaceKeys` | array of string | No | Max 200 items. Each key: `^[A-Za-z0-9][A-Za-z0-9_-]*$`, max 64 chars, no leading/trailing whitespace |
+| `allowedBitbucketRepositories` | array of string | No | Max 200 items. Each repo: `^[A-Za-z0-9][A-Za-z0-9._-]*$`, max 120 chars, no leading/trailing whitespace |
+| `allowedSourceNames` | array of string | No | Max 100 items. Each source: `^[A-Za-z0-9][A-Za-z0-9._:-]*$`, max 200 chars, no leading/trailing whitespace |
+| `allowPreviewReads` | boolean | No | Forwarded for Swagger MCP servers; ignored by Atlassian MCP servers |
+| `allowPreviewWrites` | boolean | No | Forwarded for Swagger MCP servers; ignored by Atlassian MCP servers |
+| `allowDirectUrlLoads` | boolean | No | Forwarded for Swagger MCP servers; ignored by Atlassian MCP servers |
+| `publishedOnly` | boolean | No | Forwarded for Swagger MCP servers; ignored by Atlassian MCP servers |
 
 **Response `200 OK`**: The updated policy from the upstream MCP server.
 
@@ -710,6 +716,129 @@ Clear the dynamic access policy on the MCP server, resetting it to environment d
 **Response `200 OK`**: Confirmation from the upstream MCP server.
 
 **Response codes**: `200` cleared | `400` invalid server config | `403` admin required | `404` server not found
+
+---
+
+## MCP Swagger Catalog
+
+Base path: `/api/mcp/servers/{name}/swagger/sources`
+
+Proxy controller for Swagger MCP servers that expose `/admin/spec-sources` and related
+admin lifecycle endpoints. Requires the MCP server's `config` to contain `adminToken`
+and either `adminUrl` or `url`.
+
+### GET /api/mcp/servers/{name}/swagger/sources
+
+List all registered Swagger spec sources from the upstream admin API.
+
+**Auth**: Admin required
+
+**Response codes**: `200` success | `400` invalid server config | `403` admin required | `404` server not found | `504` upstream timeout
+
+---
+
+### GET /api/mcp/servers/{name}/swagger/sources/{sourceName}
+
+Get a single Swagger spec source definition.
+
+**Auth**: Admin required
+
+**Response codes**: `200` success | `400` invalid server config | `403` admin required | `404` server or source not found | `504` upstream timeout
+
+---
+
+### POST /api/mcp/servers/{name}/swagger/sources
+
+Create a new Swagger spec source.
+
+**Auth**: Admin required
+
+**Request body**:
+```json
+{
+  "name": "payments",
+  "url": "https://example.com/openapi.json",
+  "enabled": true,
+  "syncCron": "0 0 * * * *",
+  "jiraProjectKey": "PAY",
+  "confluenceSpaceKey": "PAY",
+  "bitbucketRepository": "payments-api",
+  "serviceSlug": "payments-api",
+  "ownerTeam": "platform"
+}
+```
+
+**Response codes**: `200` or `201` success | `400` validation error or invalid server config | `403` admin required | `404` server not found | `504` upstream timeout
+
+---
+
+### PUT /api/mcp/servers/{name}/swagger/sources/{sourceName}
+
+Update an existing Swagger spec source.
+
+**Auth**: Admin required
+
+**Response codes**: `200` updated | `400` validation error or invalid server config | `403` admin required | `404` server or source not found | `504` upstream timeout
+
+---
+
+### POST /api/mcp/servers/{name}/swagger/sources/{sourceName}/sync
+
+Trigger an upstream sync for a Swagger spec source.
+
+**Auth**: Admin required
+
+**Response codes**: `200` sync result | `400` invalid server config | `403` admin required | `404` server or source not found | `504` upstream timeout
+
+---
+
+### GET /api/mcp/servers/{name}/swagger/sources/{sourceName}/revisions
+
+List stored revisions for a Swagger spec source.
+
+**Auth**: Admin required
+
+**Query params**:
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `limit` | integer | No | Maximum number of revisions to return |
+
+**Response codes**: `200` success | `400` invalid server config | `403` admin required | `404` server or source not found | `504` upstream timeout
+
+---
+
+### GET /api/mcp/servers/{name}/swagger/sources/{sourceName}/diff
+
+Get a diff between two source revisions.
+
+**Auth**: Admin required
+
+**Query params**:
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `from` | string | No | Source revision ID to diff from |
+| `to` | string | No | Source revision ID to diff to |
+
+**Response codes**: `200` success | `400` invalid server config | `403` admin required | `404` server or revision not found | `504` upstream timeout
+
+---
+
+### POST /api/mcp/servers/{name}/swagger/sources/{sourceName}/publish
+
+Publish a specific Swagger source revision.
+
+**Auth**: Admin required
+
+**Request body**:
+```json
+{
+  "revisionId": "rev_20260310_001"
+}
+```
+
+**Response codes**: `200` published | `400` validation error or invalid server config | `403` admin required | `404` server, source, or revision not found | `504` upstream timeout
 
 ---
 

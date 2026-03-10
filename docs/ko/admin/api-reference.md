@@ -651,6 +651,12 @@ MCP 서버의 관리자 API에서 접근 정책을 업데이트합니다.
 |------|------|------|---------|
 | `allowedJiraProjectKeys` | array of string | 아니오 | 최대 200개. 각 키: `^[A-Z][A-Z0-9_]*$`, 최대 50자, 앞뒤 공백 없음 |
 | `allowedConfluenceSpaceKeys` | array of string | 아니오 | 최대 200개. 각 키: `^[A-Za-z0-9][A-Za-z0-9_-]*$`, 최대 64자 |
+| `allowedBitbucketRepositories` | array of string | 아니오 | 최대 200개. 각 저장소: `^[A-Za-z0-9][A-Za-z0-9._-]*$`, 최대 120자, 앞뒤 공백 없음 |
+| `allowedSourceNames` | array of string | 아니오 | 최대 100개. 각 소스 이름: `^[A-Za-z0-9][A-Za-z0-9._:-]*$`, 최대 200자, 앞뒤 공백 없음 |
+| `allowPreviewReads` | boolean | 아니오 | Swagger MCP 서버로만 전달되며 Atlassian MCP 서버에서는 무시됨 |
+| `allowPreviewWrites` | boolean | 아니오 | Swagger MCP 서버로만 전달되며 Atlassian MCP 서버에서는 무시됨 |
+| `allowDirectUrlLoads` | boolean | 아니오 | Swagger MCP 서버로만 전달되며 Atlassian MCP 서버에서는 무시됨 |
+| `publishedOnly` | boolean | 아니오 | Swagger MCP 서버로만 전달되며 Atlassian MCP 서버에서는 무시됨 |
 
 **응답 코드**: `200` 업데이트됨 | `400` 유효성 오류 또는 잘못된 서버 설정 | `403` admin 필요 | `404` 서버 없음
 
@@ -663,6 +669,128 @@ MCP 서버의 동적 접근 정책을 초기화하여 환경 기본값으로 되
 **인증**: Admin 필수
 
 **응답 코드**: `200` 초기화됨 | `400` 잘못된 서버 설정 | `403` admin 필요 | `404` 서버 없음
+
+---
+
+## MCP Swagger Catalog
+
+기본 경로: `/api/mcp/servers/{name}/swagger/sources`
+
+`/admin/spec-sources` 및 관련 관리자 라이프사이클 엔드포인트를 노출하는 Swagger MCP 서버를
+대상으로 하는 프록시입니다. MCP 서버 `config`에는 `adminToken`과 `adminUrl` 또는 `url`이 있어야 합니다.
+
+### GET /api/mcp/servers/{name}/swagger/sources
+
+업스트림 관리자 API의 Swagger spec source 목록을 조회합니다.
+
+**인증**: Admin 필수
+
+**응답 코드**: `200` 성공 | `400` 잘못된 서버 설정 | `403` admin 필요 | `404` 서버 없음 | `504` 업스트림 타임아웃
+
+---
+
+### GET /api/mcp/servers/{name}/swagger/sources/{sourceName}
+
+단일 Swagger spec source 정의를 조회합니다.
+
+**인증**: Admin 필수
+
+**응답 코드**: `200` 성공 | `400` 잘못된 서버 설정 | `403` admin 필요 | `404` 서버 또는 source 없음 | `504` 업스트림 타임아웃
+
+---
+
+### POST /api/mcp/servers/{name}/swagger/sources
+
+새 Swagger spec source를 생성합니다.
+
+**인증**: Admin 필수
+
+**요청 본문**:
+```json
+{
+  "name": "payments",
+  "url": "https://example.com/openapi.json",
+  "enabled": true,
+  "syncCron": "0 0 * * * *",
+  "jiraProjectKey": "PAY",
+  "confluenceSpaceKey": "PAY",
+  "bitbucketRepository": "payments-api",
+  "serviceSlug": "payments-api",
+  "ownerTeam": "platform"
+}
+```
+
+**응답 코드**: `200` 또는 `201` 성공 | `400` 유효성 오류 또는 잘못된 서버 설정 | `403` admin 필요 | `404` 서버 없음 | `504` 업스트림 타임아웃
+
+---
+
+### PUT /api/mcp/servers/{name}/swagger/sources/{sourceName}
+
+기존 Swagger spec source를 수정합니다.
+
+**인증**: Admin 필수
+
+**응답 코드**: `200` 업데이트됨 | `400` 유효성 오류 또는 잘못된 서버 설정 | `403` admin 필요 | `404` 서버 또는 source 없음 | `504` 업스트림 타임아웃
+
+---
+
+### POST /api/mcp/servers/{name}/swagger/sources/{sourceName}/sync
+
+Swagger spec source에 대해 업스트림 sync를 실행합니다.
+
+**인증**: Admin 필수
+
+**응답 코드**: `200` sync 결과 | `400` 잘못된 서버 설정 | `403` admin 필요 | `404` 서버 또는 source 없음 | `504` 업스트림 타임아웃
+
+---
+
+### GET /api/mcp/servers/{name}/swagger/sources/{sourceName}/revisions
+
+Swagger spec source의 저장된 revision 목록을 조회합니다.
+
+**인증**: Admin 필수
+
+**쿼리 파라미터**:
+
+| 이름 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `limit` | integer | 아니오 | 반환할 revision 최대 개수 |
+
+**응답 코드**: `200` 성공 | `400` 잘못된 서버 설정 | `403` admin 필요 | `404` 서버 또는 source 없음 | `504` 업스트림 타임아웃
+
+---
+
+### GET /api/mcp/servers/{name}/swagger/sources/{sourceName}/diff
+
+두 revision 사이의 diff를 조회합니다.
+
+**인증**: Admin 필수
+
+**쿼리 파라미터**:
+
+| 이름 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `from` | string | 아니오 | diff 시작 revision ID |
+| `to` | string | 아니오 | diff 대상 revision ID |
+
+**응답 코드**: `200` 성공 | `400` 잘못된 서버 설정 | `403` admin 필요 | `404` 서버 또는 revision 없음 | `504` 업스트림 타임아웃
+
+---
+
+### POST /api/mcp/servers/{name}/swagger/sources/{sourceName}/publish
+
+특정 Swagger source revision을 publish합니다.
+
+**인증**: Admin 필수
+
+**요청 본문**:
+```json
+{
+  "revisionId": "rev_20260310_001"
+}
+```
+
+**응답 코드**: `200` publish됨 | `400` 유효성 오류 또는 잘못된 서버 설정 | `403` admin 필요 | `404` 서버, source 또는 revision 없음 | `504` 업스트림 타임아웃
 
 ---
 

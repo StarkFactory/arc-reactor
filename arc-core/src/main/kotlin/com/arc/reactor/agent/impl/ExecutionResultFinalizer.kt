@@ -301,6 +301,9 @@ internal class ExecutionResultFinalizer(
     ): AgentResult {
         if (!result.success) return result
         val blockReason = resolveVisibleBlockReason(command, hookContext) ?: return result
+        resolveDeliveryAcknowledgement(command.userPrompt, blockReason, hookContext)?.let { acknowledgement ->
+            return result.copy(content = acknowledgement)
+        }
         val existingContent = result.content?.trim()
         if (!existingContent.isNullOrBlank()) {
             if (UNVERIFIED_PATTERNS.any { existingContent.contains(it, ignoreCase = true) }) {
@@ -309,6 +312,16 @@ internal class ExecutionResultFinalizer(
             return result
         }
         return result.copy(content = buildBlockedResponse(command.userPrompt, blockReason))
+    }
+
+    private fun resolveDeliveryAcknowledgement(
+        userPrompt: String,
+        blockReason: String,
+        hookContext: HookContext
+    ): String? {
+        if (blockReason != "unverified_sources") return null
+        val signal = latestDeliverySignal(readToolSignals(hookContext)) ?: return null
+        return buildDeliveryAcknowledgement(userPrompt, signal.deliveryMode.orEmpty())
     }
 
     private fun resolveVisibleBlockReason(command: AgentCommand, hookContext: HookContext): String? {
@@ -373,10 +386,25 @@ internal class ExecutionResultFinalizer(
         }
     }
 
+    private fun buildDeliveryAcknowledgement(userPrompt: String, deliveryMode: String): String {
+        val hangul = userPrompt.any { ch -> ch in '\uAC00'..'\uD7A3' }
+        return when {
+            hangul && deliveryMode == "thread_reply" ->
+                "Slack 스레드 답글은 전송했습니다. 다만 이 응답 자체는 승인된 출처로 검증된 답변이 아니라 전달 결과만 안내드립니다."
+            hangul ->
+                "Slack 메시지는 전송했습니다. 다만 이 응답 자체는 승인된 출처로 검증된 답변이 아니라 전달 결과만 안내드립니다."
+            deliveryMode == "thread_reply" ->
+                "The Slack thread reply was sent. This response is only confirming delivery, not a grounded answer from approved sources."
+            else ->
+                "The Slack message was sent. This response is only confirming delivery, not a grounded answer from approved sources."
+        }
+    }
+
     private fun enrichResponseMetadata(result: AgentResult, hookContext: HookContext): AgentResult {
         val toolSignals = readToolSignals(hookContext)
         val verifiedSources = hookContext.verifiedSources.toList()
         val latestSignal = toolSignals.lastOrNull()
+        val deliverySignal = latestDeliverySignal(toolSignals)
         val freshness = latestSignal?.freshness ?: hookContext.metadata["freshness"] as? Map<*, *>
         val outputGuard = buildOutputGuardMetadata(hookContext)
         val metadata = linkedMapOf<String, Any?>()
@@ -386,6 +414,14 @@ internal class ExecutionResultFinalizer(
         metadata["verifiedSources"] = verifiedSources.map(::toSourceMap)
         freshness?.let { metadata["freshness"] = sanitizeMap(it) }
         latestSignal?.retrievedAt?.let { metadata["retrievedAt"] = it }
+        deliverySignal?.let {
+            metadata["deliveryAcknowledged"] = true
+            metadata["delivery"] = linkedMapOf(
+                "platform" to it.deliveryPlatform,
+                "mode" to it.deliveryMode,
+                "toolName" to it.toolName
+            )
+        }
         outputGuard?.let { metadata["outputGuard"] = it }
         resolveBlockReason(result, hookContext)?.let { metadata["blockReason"] = it }
         if (toolSignals.isNotEmpty()) {
@@ -474,7 +510,13 @@ internal class ExecutionResultFinalizer(
         signal.freshness?.let { data["freshness"] = sanitizeMap(it) }
         signal.retrievedAt?.let { data["retrievedAt"] = it }
         signal.blockReason?.let { data["blockReason"] = it }
+        signal.deliveryPlatform?.let { data["deliveryPlatform"] = it }
+        signal.deliveryMode?.let { data["deliveryMode"] = it }
         return data
+    }
+
+    private fun latestDeliverySignal(toolSignals: List<ToolResponseSignal>): ToolResponseSignal? {
+        return toolSignals.lastOrNull { it.deliveryPlatform == "slack" && !it.deliveryMode.isNullOrBlank() }
     }
 
     private fun sanitizeMap(input: Map<*, *>): Map<String, Any?> {

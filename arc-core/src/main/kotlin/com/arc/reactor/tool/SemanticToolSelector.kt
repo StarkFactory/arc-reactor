@@ -399,9 +399,19 @@ class SemanticToolSelector(
         availableByName: Map<String, ToolCallback>
     ): List<ToolCallback> {
         val normalized = prompt.lowercase()
+        val hasSwaggerUrl = OPENAPI_URL_REGEX.containsMatchIn(prompt)
         val orderedNames = when {
             LOADED_HINTS.any { normalized.contains(it) } && SUMMARY_HINTS.any { normalized.contains(it) } ->
                 listOf("spec_list", "spec_summary")
+
+            LOADED_HINTS.any { normalized.contains(it) } && SCHEMA_HINTS.any { normalized.contains(it) } ->
+                listOf("spec_list", "spec_schema")
+
+            LOADED_HINTS.any { normalized.contains(it) } && DETAIL_HINTS.any { normalized.contains(it) } ->
+                listOf("spec_list", "spec_detail")
+
+            LOADED_HINTS.any { normalized.contains(it) } && SEARCH_HINTS.any { normalized.contains(it) } ->
+                listOf("spec_list", "spec_search")
 
             WRONG_ENDPOINT_HINTS.any { normalized.contains(it) } ->
                 listOf("spec_list", "spec_search")
@@ -413,18 +423,25 @@ class SemanticToolSelector(
                 listOf("spec_validate", "spec_load")
 
             SCHEMA_HINTS.any { normalized.contains(it) } ->
-                listOf("spec_load", "spec_schema")
+                if (hasSwaggerUrl) listOf("spec_load", "spec_schema") else listOf("spec_list", "spec_schema")
 
             DETAIL_HINTS.any { normalized.contains(it) } ->
-                listOf("spec_load", "spec_detail")
+                if (hasSwaggerUrl) listOf("spec_load", "spec_detail") else listOf("spec_list", "spec_detail")
 
             SEARCH_HINTS.any { normalized.contains(it) } ->
-                listOf("spec_load", "spec_search")
+                if (hasSwaggerUrl) listOf("spec_load", "spec_search") else listOf("spec_list", "spec_search")
+
+            SUMMARY_HINTS.any { normalized.contains(it) } ->
+                if (hasSwaggerUrl) listOf("spec_load", "spec_summary") else listOf("spec_list", "spec_summary")
 
             LIST_HINTS.any { normalized.contains(it) } ->
                 listOf("spec_list")
 
-            else -> listOf("spec_load", "spec_summary", "spec_list")
+            else -> if (hasSwaggerUrl) {
+                listOf("spec_load", "spec_summary", "spec_list")
+            } else {
+                listOf("spec_list", "spec_summary", "spec_search")
+            }
         }
         return orderedNames.mapNotNull(availableByName::get).take(maxResults)
     }

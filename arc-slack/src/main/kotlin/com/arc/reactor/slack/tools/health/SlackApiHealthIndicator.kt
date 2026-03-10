@@ -16,7 +16,7 @@ class SlackApiHealthIndicator(
         return try {
             val response = methodsClient.authTest(AuthTestRequest.builder().build())
             if (!response.isOk) {
-                return Health.down()
+                return degradedHealth()
                     .withDetail("error", response.error ?: "auth_test_failed")
                     .withDetail("needed", response.needed ?: "")
                     .withDetail("provided", response.provided ?: "")
@@ -25,7 +25,7 @@ class SlackApiHealthIndicator(
 
             val grantedScopes = parseScopes(response.httpResponseHeaders)
             if (grantedScopes.isEmpty()) {
-                return Health.down()
+                return degradedHealth()
                     .withDetail("error", "scope_header_missing")
                     .withDetail("message", "x-oauth-scopes header is missing from Slack auth.test response.")
                     .build()
@@ -34,7 +34,7 @@ class SlackApiHealthIndicator(
             val requiredScopes = requiredAllScopes(properties)
             val missingScopes = requiredScopes.filterNot { it in grantedScopes }
             if (missingScopes.isNotEmpty()) {
-                return Health.down()
+                return degradedHealth()
                     .withDetail("error", "missing_scopes")
                     .withDetail("missingScopes", missingScopes.sorted())
                     .withDetail("grantedScopes", grantedScopes.sorted())
@@ -46,7 +46,7 @@ class SlackApiHealthIndicator(
                     if (group.any { it in grantedScopes }) null else group.sorted()
                 }
             if (missingAnyGroups.isNotEmpty()) {
-                return Health.down()
+                return degradedHealth()
                     .withDetail("error", "missing_any_scope_group")
                     .withDetail("missingAnyScopeGroups", missingAnyGroups)
                     .withDetail("grantedScopes", grantedScopes.sorted())
@@ -59,7 +59,8 @@ class SlackApiHealthIndicator(
                 .withDetail("scopeCount", grantedScopes.size)
                 .build()
         } catch (e: Exception) {
-            Health.down(e)
+            degradedHealth()
+                .withException(e)
                 .withDetail("error", "auth_test_exception")
                 .build()
         }
@@ -83,6 +84,12 @@ class SlackApiHealthIndicator(
     }
 
     private companion object {
+        private fun degradedHealth(): Health.Builder {
+            // Slack tools are optional for serving the main app. Surface integration drift
+            // without forcing the whole /actuator/health response to DOWN.
+            return Health.unknown().withDetail("optionalIntegration", "slack_tools")
+        }
+
         private val BASE_REQUIRED_SCOPES = setOf(
             "chat:write",
             "users:read",

@@ -28,7 +28,9 @@ private val logger = KotlinLogging.logger {}
 /**
  * Proxy controller for MCP-server-specific admin access-policy APIs.
  *
- * Intended for Atlassian MCP server allowlist control from Arc Reactor admin UI.
+ * Supports the shared admin UI contract used by Atlassian MCP and Swagger MCP:
+ * upstream servers may ignore fields they do not implement, but Arc Reactor keeps
+ * one stable API surface for access policy management.
  */
 @Tag(name = "MCP Access Policy", description = "Proxy access-policy management for MCP servers (ADMIN)")
 @RestController
@@ -97,10 +99,7 @@ class McpAccessPolicyController(
                 actor = actor,
                 resourceType = "mcp_server",
                 resourceId = name,
-                detail = "status=${response.statusCode.value()}, validationError=$validationError, " +
-                    "jiraProjects=${request.allowedJiraProjectKeys.size}, " +
-                    "confluenceSpaces=${request.allowedConfluenceSpaceKeys.size}, " +
-                    "bitbucketRepos=${request.allowedBitbucketRepositories.size}"
+                detail = buildAuditDetail(response.statusCode.value(), request, validationError)
             )
             return response
         }
@@ -118,10 +117,7 @@ class McpAccessPolicyController(
             actor = actor,
             resourceType = "mcp_server",
             resourceId = name,
-            detail = "status=${response.statusCode.value()}, " +
-                "jiraProjects=${request.allowedJiraProjectKeys.size}, " +
-                "confluenceSpaces=${request.allowedConfluenceSpaceKeys.size}, " +
-                "bitbucketRepos=${request.allowedBitbucketRepositories.size}"
+            detail = buildAuditDetail(response.statusCode.value(), request)
         )
         return response
     }
@@ -316,7 +312,36 @@ class McpAccessPolicyController(
             maxLength = MAX_BITBUCKET_REPO_LENGTH,
             pattern = BITBUCKET_REPO_PATTERN
         )?.let { return it }
+        validatePolicyKeys(
+            fieldName = "allowedSourceNames",
+            keys = request.allowedSourceNames,
+            maxItems = MAX_SOURCE_NAMES,
+            maxLength = MAX_SOURCE_NAME_LENGTH,
+            pattern = SOURCE_NAME_PATTERN
+        )?.let { return it }
         return null
+    }
+
+    private fun buildAuditDetail(
+        statusCode: Int,
+        request: UpdateMcpAccessPolicyRequest,
+        validationError: String? = null
+    ): String {
+        val parts = mutableListOf(
+            "status=$statusCode",
+            "jiraProjects=${request.allowedJiraProjectKeys.size}",
+            "confluenceSpaces=${request.allowedConfluenceSpaceKeys.size}",
+            "bitbucketRepos=${request.allowedBitbucketRepositories.size}",
+            "sourceNames=${request.allowedSourceNames.size}",
+            "allowPreviewReads=${request.allowPreviewReads}",
+            "allowPreviewWrites=${request.allowPreviewWrites}",
+            "allowDirectUrlLoads=${request.allowDirectUrlLoads}",
+            "publishedOnly=${request.publishedOnly}"
+        )
+        if (!validationError.isNullOrBlank()) {
+            parts.add("validationError=$validationError")
+        }
+        return parts.joinToString(", ")
     }
 
     private fun applyHmacHeaders(
@@ -475,9 +500,11 @@ class McpAccessPolicyController(
         private const val MAX_PROJECT_KEYS = 200
         private const val MAX_SPACE_KEYS = 200
         private const val MAX_BITBUCKET_REPOS = 200
+        private const val MAX_SOURCE_NAMES = 100
         private const val MAX_JIRA_KEY_LENGTH = 50
         private const val MAX_SPACE_KEY_LENGTH = 64
         private const val MAX_BITBUCKET_REPO_LENGTH = 120
+        private const val MAX_SOURCE_NAME_LENGTH = 200
         private const val DEFAULT_ADMIN_TIMEOUT_MS = 10_000L
         private const val MIN_ADMIN_TIMEOUT_MS = 100L
         private const val MAX_ADMIN_TIMEOUT_MS = 120_000L
@@ -488,6 +515,7 @@ class McpAccessPolicyController(
         private val JIRA_PROJECT_KEY_PATTERN = Regex("^[A-Z][A-Z0-9_]*$")
         private val CONFLUENCE_SPACE_KEY_PATTERN = Regex("^[A-Za-z0-9][A-Za-z0-9_-]*$")
         private val BITBUCKET_REPO_PATTERN = Regex("^[A-Za-z0-9][A-Za-z0-9._-]*$")
+        private val SOURCE_NAME_PATTERN = Regex("^[A-Za-z0-9][A-Za-z0-9._:-]*$")
         private val objectMapper = jacksonObjectMapper()
     }
 }
@@ -495,5 +523,10 @@ class McpAccessPolicyController(
 data class UpdateMcpAccessPolicyRequest(
     val allowedJiraProjectKeys: List<String> = emptyList(),
     val allowedConfluenceSpaceKeys: List<String> = emptyList(),
-    val allowedBitbucketRepositories: List<String> = emptyList()
+    val allowedBitbucketRepositories: List<String> = emptyList(),
+    val allowedSourceNames: List<String> = emptyList(),
+    val allowPreviewReads: Boolean? = null,
+    val allowPreviewWrites: Boolean? = null,
+    val allowDirectUrlLoads: Boolean? = null,
+    val publishedOnly: Boolean? = null
 )

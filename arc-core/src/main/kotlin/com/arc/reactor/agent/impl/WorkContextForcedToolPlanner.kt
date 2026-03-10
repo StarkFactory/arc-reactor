@@ -30,6 +30,12 @@ internal object WorkContextForcedToolPlanner {
         Regex("\\b([A-Za-z][A-Za-z0-9._-]{1,63})\\s*키워드"),
         Regex("\\bkeyword\\s+([A-Za-z][A-Za-z0-9._-]{1,63})\\b", RegexOption.IGNORE_CASE)
     )
+    private val swaggerSpecNameRegex = Regex("\\b([A-Za-z][A-Za-z0-9._-]{2,63})\\b")
+    private val swaggerSpecStopWords = setOf(
+        "swagger", "openapi", "spec", "summary", "summarize", "schema", "endpoint", "security",
+        "methods", "method", "detail", "details", "loaded", "local", "current", "show", "tell",
+        "the", "and", "for", "with", "pet", "store", "user"
+    )
     private val apiRegexes = listOf(
         Regex("\\b([A-Za-z][A-Za-z0-9._-]{1,63})\\s*api\\b", RegexOption.IGNORE_CASE),
         Regex("\\bapi\\s+([A-Za-z][A-Za-z0-9._-]{1,63})\\b", RegexOption.IGNORE_CASE)
@@ -149,6 +155,7 @@ internal object WorkContextForcedToolPlanner {
     private val swaggerWrongEndpointHints = setOf(
         "wrong endpoint", "invalid endpoint", "잘못된 endpoint", "없는 endpoint"
     )
+    private val swaggerSummaryHints = setOf("summary", "summarize", "요약", "정리")
     private val swaggerDiscoveryHints = setOf(
         "endpoint", "엔드포인트", "schema", "스키마", "인증", "auth", "에러 응답", "error response",
         "파라미터", "parameter", "로드된 스펙", "load", "로드한 뒤"
@@ -181,6 +188,8 @@ internal object WorkContextForcedToolPlanner {
         val projectKey = extractProjectKey(prompt)
         val inferredProjectKey = projectKey ?: extractLooseProjectKey(prompt)
         val repository = extractRepository(prompt)
+        val specUrl = extractUrl(prompt)
+        val swaggerSpecName = extractSwaggerSpecName(prompt)
         val ownershipKeyword = extractOwnershipKeyword(prompt)
         val isPersonalPrompt = isPersonalPrompt(normalized)
 
@@ -712,6 +721,22 @@ internal object WorkContextForcedToolPlanner {
             )
         }
 
+        if (specUrl == null &&
+            swaggerSpecName != null &&
+            (normalized.contains("swagger") || normalized.contains("openapi") || normalized.contains("spec") || normalized.contains("스펙")) &&
+            swaggerSummaryHints.any { normalized.contains(it) } &&
+            !normalized.contains("목록") &&
+            !normalized.contains("list")
+        ) {
+            return ForcedToolCallPlan(
+                toolName = "spec_summary",
+                arguments = mapOf(
+                    "specName" to swaggerSpecName,
+                    "scope" to "published"
+                )
+            )
+        }
+
         if ((normalized.contains("swagger") || normalized.contains("api")) &&
             (normalized.contains("consumer") || normalized.contains("schema를 어디서") || normalized.contains("schema"))
         ) {
@@ -894,7 +919,6 @@ internal object WorkContextForcedToolPlanner {
             )
         }
 
-        val specUrl = extractUrl(prompt)
         if (specUrl != null && (normalized.contains("swagger") || normalized.contains("openapi") || normalized.contains("스펙"))) {
             return ForcedToolCallPlan(
                 toolName = "spec_load",
@@ -1079,5 +1103,27 @@ internal object WorkContextForcedToolPlanner {
             .replace(Regex("[^a-z0-9._-]"), "-")
             .trim('-')
             .ifBlank { "openapi-spec" }
+    }
+
+    private fun extractSwaggerSpecName(prompt: String): String? {
+        extractQuotedKeyword(prompt)
+            ?.trim()
+            ?.takeIf(::looksLikeSwaggerSpecName)
+            ?.let { return it }
+
+        return swaggerSpecNameRegex.findAll(prompt)
+            .mapNotNull { match -> match.groupValues.getOrNull(1) }
+            .map { it.trim() }
+            .firstOrNull(::looksLikeSwaggerSpecName)
+    }
+
+    private fun looksLikeSwaggerSpecName(candidate: String): Boolean {
+        val normalized = candidate.lowercase()
+        if (normalized.isBlank()) return false
+        if (normalized in swaggerSpecStopWords) return false
+        if (normalized.startsWith("http")) return false
+        if (candidate.startsWith("/")) return false
+        if (candidate.contains('/')) return false
+        return candidate.contains('-') || candidate.contains('_')
     }
 }

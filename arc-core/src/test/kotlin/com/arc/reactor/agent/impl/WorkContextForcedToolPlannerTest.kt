@@ -584,6 +584,18 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
+    fun `should plan named swagger summary prompt via spec summary`() {
+        val plan = WorkContextForcedToolPlanner.plan(
+            "petstore-public Swagger spec summary. Tell me total endpoints, schema count, security schemes, and top tags."
+        )
+
+        requireNotNull(plan)
+        assertEquals("spec_summary", plan.toolName)
+        assertEquals("petstore-public", plan.arguments["specName"])
+        assertEquals("published", plan.arguments["scope"])
+    }
+
+    @Test
     fun `should plan jira and confluence weekly team status prompt`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "이번 주 DEV 팀 상태를 Jira와 Confluence 기준으로 출처와 함께 요약해줘."

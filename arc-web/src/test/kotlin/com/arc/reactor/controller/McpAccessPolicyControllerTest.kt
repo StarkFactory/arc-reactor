@@ -199,7 +199,12 @@ class McpAccessPolicyControllerTest {
             val request = UpdateMcpAccessPolicyRequest(
                 allowedJiraProjectKeys = listOf("CORE", "OPS"),
                 allowedConfluenceSpaceKeys = listOf("PLATFORM"),
-                allowedBitbucketRepositories = listOf("jarvis", "platform-api")
+                allowedBitbucketRepositories = listOf("jarvis", "platform-api"),
+                allowedSourceNames = listOf("payments-published"),
+                allowPreviewReads = true,
+                allowPreviewWrites = false,
+                allowDirectUrlLoads = false,
+                publishedOnly = true
             )
 
             val response = controller.updatePolicy(
@@ -227,6 +232,15 @@ class McpAccessPolicyControllerTest {
             }
             assertTrue(audits.first().detail.orEmpty().contains("bitbucketRepos=2")) {
                 "Audit detail should include Bitbucket repository count"
+            }
+            assertTrue(audits.first().detail.orEmpty().contains("sourceNames=1")) {
+                "Audit detail should include Swagger source count"
+            }
+            assertTrue(audits.first().detail.orEmpty().contains("allowPreviewReads=true")) {
+                "Audit detail should include preview-read toggle"
+            }
+            assertTrue(audits.first().detail.orEmpty().contains("publishedOnly=true")) {
+                "Audit detail should include published-only toggle"
             }
         }
 
@@ -326,6 +340,48 @@ class McpAccessPolicyControllerTest {
             val body = response.body as ErrorResponse
             assertTrue(body.error.contains("allowedBitbucketRepositories[0] has invalid format")) {
                 "Expected invalid Bitbucket repo format error, got: ${body.error}"
+            }
+        }
+
+        @Test
+        fun `updatePolicy should reject too many swagger source names`() = runTest {
+            val oversizedRequest = UpdateMcpAccessPolicyRequest(
+                allowedSourceNames = (1..101).map { "source-$it" }
+            )
+
+            val response = controller.updatePolicy(
+                name = "swagger-policy-validation-target",
+                request = oversizedRequest,
+                exchange = adminExchange("policy-admin")
+            )
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "Expected 400 BAD_REQUEST when Swagger source name count exceeds limit"
+            }
+            val body = response.body as ErrorResponse
+            assertTrue(body.error.contains("allowedSourceNames must not exceed 100 items")) {
+                "Expected max-size validation message for Swagger sources, got: ${body.error}"
+            }
+        }
+
+        @Test
+        fun `updatePolicy should reject invalid swagger source name format`() = runTest {
+            val invalidRequest = UpdateMcpAccessPolicyRequest(
+                allowedSourceNames = listOf("payments source")
+            )
+
+            val response = controller.updatePolicy(
+                name = "invalid-source-name",
+                request = invalidRequest,
+                exchange = adminExchange()
+            )
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "Expected 400 BAD_REQUEST for invalid Swagger source name format"
+            }
+            val body = response.body as ErrorResponse
+            assertTrue(body.error.contains("allowedSourceNames[0] has invalid format")) {
+                "Expected invalid Swagger source name format error, got: ${body.error}"
             }
         }
     }
@@ -517,6 +573,77 @@ class McpAccessPolicyControllerTest {
                     "Controller should forward request ID for traceability"
                 }
                 assertNotNull(response.body, "Successful response body should not be null")
+            } finally {
+                server.stop(0)
+            }
+        }
+
+        @Test
+        fun `updatePolicy should forward swagger source flags to upstream`() = runTest {
+            var capturedBody: String? = null
+
+            val server = HttpServer.create(InetSocketAddress(0), 0)
+            server.createContext("/admin/access-policy") { exchange ->
+                if (exchange.requestMethod != "PUT") {
+                    exchange.sendResponseHeaders(405, -1)
+                    exchange.close()
+                    return@createContext
+                }
+                if (exchange.requestHeaders.getFirst("X-Admin-Token") != "admin-secret") {
+                    exchange.sendResponseHeaders(401, -1)
+                    exchange.close()
+                    return@createContext
+                }
+
+                capturedBody = exchange.requestBody.readBytes().toString(StandardCharsets.UTF_8)
+                val payload = """{"ok":true,"policySource":"dynamic"}""".toByteArray(StandardCharsets.UTF_8)
+                exchange.sendResponseHeaders(200, payload.size.toLong())
+                exchange.responseBody.use { it.write(payload) }
+            }
+            server.start()
+
+            try {
+                val port = server.address.port
+                saveServer(
+                    name = "swagger-policy-server",
+                    config = mapOf(
+                        "url" to "http://localhost:$port/sse",
+                        "adminToken" to "admin-secret"
+                    )
+                )
+
+                val request = UpdateMcpAccessPolicyRequest(
+                    allowedSourceNames = listOf("payments-published", "core-public"),
+                    allowPreviewReads = true,
+                    allowPreviewWrites = false,
+                    allowDirectUrlLoads = false,
+                    publishedOnly = true
+                )
+
+                val response = controller.updatePolicy(
+                    name = "swagger-policy-server",
+                    request = request,
+                    exchange = adminExchange("swagger-admin")
+                )
+
+                assertEquals(HttpStatus.OK, response.statusCode) {
+                    "Expected successful upstream policy update for Swagger policy fields"
+                }
+                assertTrue(capturedBody.orEmpty().contains("\"allowedSourceNames\":[\"payments-published\",\"core-public\"]")) {
+                    "Expected source names to be forwarded to upstream admin API"
+                }
+                assertTrue(capturedBody.orEmpty().contains("\"allowPreviewReads\":true")) {
+                    "Expected allowPreviewReads flag to be forwarded to upstream admin API"
+                }
+                assertTrue(capturedBody.orEmpty().contains("\"allowPreviewWrites\":false")) {
+                    "Expected allowPreviewWrites flag to be forwarded to upstream admin API"
+                }
+                assertTrue(capturedBody.orEmpty().contains("\"allowDirectUrlLoads\":false")) {
+                    "Expected allowDirectUrlLoads flag to be forwarded to upstream admin API"
+                }
+                assertTrue(capturedBody.orEmpty().contains("\"publishedOnly\":true")) {
+                    "Expected publishedOnly flag to be forwarded to upstream admin API"
+                }
             } finally {
                 server.stop(0)
             }

@@ -9,7 +9,9 @@ data class ToolResponseSignal(
     val answerMode: String? = null,
     val freshness: Map<String, Any?>? = null,
     val retrievedAt: String? = null,
-    val blockReason: String? = null
+    val blockReason: String? = null,
+    val deliveryPlatform: String? = null,
+    val deliveryMode: String? = null
 )
 
 internal object ToolResponseSignalExtractor {
@@ -44,8 +46,16 @@ internal object ToolResponseSignalExtractor {
                     ?.asText()
                     ?.trim()
             )
+        val deliverySignal = extractDeliverySignal(toolName, tree)
 
-        if (grounded == null && answerMode == null && freshness == null && retrievedAt == null && blockReason == null) {
+        if (
+            grounded == null &&
+            answerMode == null &&
+            freshness == null &&
+            retrievedAt == null &&
+            blockReason == null &&
+            deliverySignal == null
+        ) {
             return null
         }
 
@@ -55,7 +65,9 @@ internal object ToolResponseSignalExtractor {
             answerMode = answerMode,
             freshness = freshness,
             retrievedAt = retrievedAt,
-            blockReason = blockReason
+            blockReason = blockReason,
+            deliveryPlatform = deliverySignal?.first,
+            deliveryMode = deliverySignal?.second
         )
     }
 
@@ -100,6 +112,16 @@ internal object ToolResponseSignalExtractor {
                 "requesteremail mapping failed" in normalized ||
                 "jira user found for supplied requesteremail" in normalized -> "identity_unresolved"
             "approval policy blocked" in normalized -> "policy_denied"
+            else -> null
+        }
+    }
+
+    private fun extractDeliverySignal(toolName: String, tree: JsonNode): Pair<String, String>? {
+        val ok = tree.path("ok").takeIf(JsonNode::isBoolean)?.booleanValue() ?: return null
+        if (!ok) return null
+        return when (toolName) {
+            "send_message" -> "slack" to "message_send"
+            "reply_to_thread" -> "slack" to "thread_reply"
             else -> null
         }
     }

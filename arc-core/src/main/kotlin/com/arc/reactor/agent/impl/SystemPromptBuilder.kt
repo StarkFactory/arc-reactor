@@ -213,6 +213,7 @@ class SystemPromptBuilder(
             workspaceToolAlreadyCalled -> Unit
             looksLikeSwaggerLoadedSummaryPrompt(userPrompt) -> {
                 append("\nFor this request, you MUST call `spec_list` and then `spec_summary` before answering.")
+                append(" Do not answer from `spec_list` alone.")
             }
             looksLikeSwaggerWrongEndpointPrompt(userPrompt) -> {
                 append("\nFor this request, you MUST call `spec_search` before answering.")
@@ -223,6 +224,18 @@ class SystemPromptBuilder(
             }
             looksLikeSwaggerValidatePrompt(userPrompt) -> {
                 append("\nFor this request, you MUST call `spec_validate` before answering.")
+            }
+            looksLikeSwaggerLoadedSchemaPrompt(userPrompt) -> {
+                append("\nFor this request, you MUST call `spec_list` and then `spec_schema` before answering.")
+                append(" Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.")
+            }
+            looksLikeSwaggerLoadedDetailPrompt(userPrompt) -> {
+                append("\nFor this request, you MUST call `spec_list` and then `spec_detail` before answering.")
+                append(" Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.")
+            }
+            looksLikeSwaggerLoadedSearchPrompt(userPrompt) -> {
+                append("\nFor this request, you MUST call `spec_list` and then `spec_search` before answering.")
+                append(" Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.")
             }
             looksLikeSwaggerSchemaPrompt(userPrompt) -> {
                 append("\nFor this request, you MUST call `spec_load` and then `spec_schema` before answering.")
@@ -237,7 +250,13 @@ class SystemPromptBuilder(
                 append("\nFor this request, you MUST call `spec_remove` before answering.")
             }
             looksLikeSwaggerPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_load` and then `spec_summary` before answering.")
+                if (hasSwaggerUrl(userPrompt)) {
+                    append("\nFor this request, you MUST call `spec_load` and then `spec_summary` before answering.")
+                } else {
+                    append("\nFor this request, you MUST call `spec_list` and then `spec_summary` before answering.")
+                    append(" Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.")
+                    append(" Do not answer from `spec_list` alone.")
+                }
             }
         }
         if (responseFormat == ResponseFormat.TEXT) {
@@ -504,8 +523,33 @@ class SystemPromptBuilder(
         if (prompt.isNullOrBlank()) return false
         val normalized = prompt.lowercase()
         return looksLikeSwaggerPrompt(prompt) &&
+            !hasSwaggerUrl(prompt) &&
             LOADED_HINTS.any { normalized.contains(it) } &&
             SUMMARY_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeSwaggerLoadedSchemaPrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
+        return looksLikeSwaggerPrompt(prompt) &&
+            !hasSwaggerUrl(prompt) &&
+            SCHEMA_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeSwaggerLoadedDetailPrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
+        return looksLikeSwaggerPrompt(prompt) &&
+            !hasSwaggerUrl(prompt) &&
+            DETAIL_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun looksLikeSwaggerLoadedSearchPrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
+        return looksLikeSwaggerPrompt(prompt) &&
+            !hasSwaggerUrl(prompt) &&
+            SEARCH_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeSwaggerWrongEndpointPrompt(prompt: String?): Boolean {
@@ -542,6 +586,11 @@ class SystemPromptBuilder(
         if (prompt.isNullOrBlank()) return false
         val normalized = prompt.lowercase()
         return looksLikeSwaggerPrompt(prompt) && REMOVE_HINTS.any { normalized.contains(it) }
+    }
+
+    private fun hasSwaggerUrl(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        return OPENAPI_URL_REGEX.containsMatchIn(prompt)
     }
 
     companion object {

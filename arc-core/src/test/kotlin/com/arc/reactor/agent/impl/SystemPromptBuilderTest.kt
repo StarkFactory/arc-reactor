@@ -362,6 +362,23 @@ class SystemPromptBuilderTest {
     }
 
     @Test
+    fun `should route named swagger detail prompts without url through loaded spec tools`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "petstore-public Swagger spec detail for /pet. Tell me the methods and whether security is required."
+        )
+
+        assertTrue(prompt.contains("MUST call `spec_list` and then `spec_detail`")) {
+            "Named swagger detail prompts without a URL should require spec_list and spec_detail"
+        }
+        assertTrue(prompt.contains("Only call `spec_load` when the user explicitly provides a spec URL or raw spec content")) {
+            "Named swagger detail prompts should forbid spec_load unless a URL or raw content is supplied"
+        }
+    }
+
+    @Test
     fun `should add wrong endpoint swagger instruction`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
