@@ -99,7 +99,7 @@ internal class ToolCallOrchestrator(
         var toolOutput = invocation.output
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
-        if (toolOutputSanitizer != null && invocation.success) {
+        if (toolOutputSanitizer != null) {
             val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
             toolOutput = sanitized.content
         }
@@ -237,7 +237,7 @@ internal class ToolCallOrchestrator(
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
         // Sanitize tool output for indirect injection defense
-        if (toolOutputSanitizer != null && invocation.success) {
+        if (toolOutputSanitizer != null) {
             val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
             toolOutput = sanitized.content
         }

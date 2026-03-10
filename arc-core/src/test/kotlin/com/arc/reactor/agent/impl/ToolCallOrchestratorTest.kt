@@ -1043,6 +1043,43 @@ class ToolCallOrchestratorTest {
         assertEquals("ok", payload["status"])
     }
 
+    @Test
+    fun `should sanitize failed tool error output when sanitizer is enabled`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() },
+            toolOutputSanitizer = ToolOutputSanitizer()
+        )
+        val toolCall = toolCall(id = "id-1", name = "jira_search")
+        val callback = object : ToolCallback {
+            override val name: String = "jira_search"
+            override val description: String = "Search"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                throw RuntimeException("Connection failed at /internal/path/secret.conf")
+            }
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertTrue(
+            responses[0].responseData().contains("--- BEGIN TOOL DATA (jira_search) ---"),
+            "Failed tool output should be wrapped with data markers when sanitizer is enabled"
+        )
+    }
+
     private fun toolCall(id: String, name: String, arguments: String = "{}"): AssistantMessage.ToolCall {
         val toolCall = mockk<AssistantMessage.ToolCall>()
         every { toolCall.id() } returns id
