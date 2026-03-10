@@ -1,102 +1,72 @@
 # Implementation Plan
-> 마지막 업데이트: 2026-03-10
+> 마지막 업데이트: 2026-03-11 | 분석 반복: 3회차 (P2-P4 코드 탐색 + 에러 유발 테스트)
 
-## P0 — 즉시 수정 (컴파일 경고, 테스트 실패)
+## P0 — 즉시 수정 (런타임 크래시, 데이터 손실)
 
-- 없음. 컴파일 경고 0개. 테스트 3,222개 전체 통과 (943 클래스). XML report 쓰기 오류는 `./gradlew clean`으로 해결되는 일시적 이슈.
+(없음)
 
-## P1 — Critical Gotchas 위반
+## P1 — Agent 동작 결함 (잘못된 응답, 무한 루프, 도구 실패 미처리)
 
-Production 코드: 없음. 전수 검사 결과 모든 패턴 정상.
+(모두 완료)
 
-테스트 코드 CancellationException 누락 (suspend context에서 `catch (e: Exception)` 사용, `throwIfCancellation()` 미호출):
-- [x] `ConversationMemoryStressTest.kt` — 9개 catch 블록 전부 수정 완료 (9657db0)
-- ~~`InMemoryFeedbackStoreTest.kt:276`~~ — 오탐: Java executor.submit 내부이므로 코루틴 아님
+## P2 — 견고성 (에러 복구 실패, 리소스 누수, 동시성 문제)
 
-Production 코드 검사 상세:
-  - **CancellationException**: 모든 `suspend fun` 내 `catch (e: Exception)` 앞에 `catch (e: CancellationException)` 또는 `e.throwIfCancellation()` 존재
-  - **maxToolCalls + activeTools**: 정상 (ManualReActLoopExecutor.kt:165-167 확인)
-  - **.forEach in suspend context**: 모든 `.forEach {}` 사용이 (1) non-suspend 함수이거나 (2) suspend 함수지만 lambda 내부에 suspend 호출 없음
-  - **AssistantMessage 직접 생성**: main 코드에서 직접 생성자 호출 없음 (테스트 코드만 사용 — 허용됨)
-  - **Guard userId null 체크**: 정상 (PreExecutionResolver.kt:37 확인)
+(모두 완료)
 
-## P2 — 테스트 누락
+## P3 — 보안 (권한 우회, 인젝션, 정보 노출)
 
-### arc-core (주요 클래스)
+- [ ] `SessionController.kt:135,152` — Content-Disposition 헤더에 sessionId를 직접 삽입. sessionId는 클라이언트 metadata에서 오므로 `\r\n` 포함 시 HTTP header injection 가능
+- [ ] `AuthRateLimitFilter.kt:55` — X-Forwarded-For 헤더를 검증 없이 신뢰. 공격자가 헤더를 위조하여 IP 기반 rate limit 우회 가능
 
-- [x] `SpringAiAgentExecutor` — 이미 SpringAiAgentExecutorTest.kt 존재 (오탐)
-- [x] `ToolCallOrchestrator` — 이미 ToolCallOrchestratorTest.kt 존재 (오탐)
-- [x] `ManualReActLoopExecutor` — 이미 ManualReActLoopExecutorTest.kt 존재 (오탐)
-- [x] `BlockingToolCallbackInvoker` — runBlocking 경계 테스트 (3f904ea)
-- [x] `ToolArgumentParser` — 이미 ToolArgumentParserFuzzTest.kt 존재 (오탐)
-- [x] `ToolResponsePayloadNormalizer` — 페이로드 정규화 엣지 케이스 (d471298)
-- [x] `DynamicSchedulerService` — 이미 5개 전용 테스트 파일 존재 (오탐)
-- [x] `TokenEstimator` — 토큰 추정 정확도 검증 (72e4753)
-- [x] `UserMemoryManager` — 이미 UserMemoryControllerTest.kt에서 간접 테스트 (오탐)
-- [x] `CompositeIntentClassifier` — 이미 CompositeIntentClassifierTest.kt 존재 (오탐)
-- [x] `DefaultCircuitBreaker` — 이미 DefaultCircuitBreakerTest.kt 존재 (오탐)
-- [x] `ModelFallbackStrategy` — 이미 FallbackStrategyTest.kt에 포함 (233줄, 오탐)
-- [x] `RedisSemanticResponseCache` — 이미 RedisSemanticResponseCacheTest.kt 존재 (오탐)
-- [x] `CaffeineResponseCache` — 이미 CaffeineResponseCacheTest.kt 존재 (오탐)
-- [x] `DefaultRagPipeline` — 이미 RagPipelineMaxTokensTest.kt에서 테스트됨 (오탐)
-- [x] `HybridRagPipeline` — 이미 HybridRagPipelineTest.kt 존재 (오탐)
-- [x] `Bm25Scorer` — 이미 Bm25ScorerTest.kt 존재 (175줄, 오탐)
-- [x] `RrfFusion` — 이미 RrfFusionTest.kt 존재 (오탐)
-- [x] `ToolExecutionPolicyEngine` — 이미 WriteToolBlockHookTest.kt에서 간접 테스트 (오탐)
-- [x] `MultiAgentOrchestrator` — 인터페이스만. 구현체 3개 모두 테스트 존재 (오탐)
-- [x] `WorkerAgentTool` — 이미 SupervisorOrchestratorTest.kt에서 테스트됨 (오탐)
+## P4 — 성능 (핫패스 비효율, 불필요한 할당, 확장성 병목)
 
-### arc-web (컨트롤러)
+(분석 완료 — 이슈 없음. TokenEstimator, ConversationMessageTrimmer, 스트리밍 버퍼링 모두 정상)
 
-- [x] `ApprovalController` — 이미 ApprovalControllerAuthTest.kt 존재 (오탐)
-- [x] `IntentController` — 이미 IntentControllerJdbcIntegrationTest.kt 존재 (오탐)
-- [x] `SchedulerController` — 이미 SchedulerControllerAuthTest.kt 존재 (오탐)
-- [x] `ToolPolicyController` — 이미 ToolPolicyControllerAuthTest.kt 존재 (오탐)
-- [x] `RagIngestionPolicyController` — 이미 RagIngestionPolicyControllerAuthTest.kt 존재 (오탐)
-- [x] `ProactiveChannelController` — arc-slack compileOnly 의존성으로 arc-web 테스트 불가. 제외.
+## P5 — 테스트 갭 (Agent 동작의 중요 시나리오가 테스트되지 않음)
 
-### arc-slack
+(모두 완료)
 
-- [x] `SlackCommandController` — 이미 SlackUserJourneyScenarioTest.kt에서 테스트됨 (오탐)
-- [x] `SlackEventController` — 이미 SlackUserJourneyScenarioTest.kt에서 테스트됨 (오탐)
-- [x] `SlackEventDeduplicator` — 이미 SlackEventDeduplicatorTest.kt 존재 (오탐)
-- [x] `DefaultSlackCommandHandler` — 이미 SlackUserJourneyScenarioTest.kt에서 테스트됨 (오탐)
-- [x] `DefaultSlackEventHandler` — 이미 SlackUserJourneyScenarioTest.kt에서 테스트됨 (오탐)
-- [x] `SlackSignatureWebFilter` — 이미 SlackSignatureWebFilterTest.kt 존재 (오탐)
+## 기동 검증 메모
 
-### arc-error-report
+### 서버 기동에 필요한 추가 환경변수 (PROMPT에 반영 필요)
+- `ARC_REACTOR_AUTH_JWT_SECRET` — 32자 이상 필수 (openssl rand -base64 32)
+- `--arc.reactor.postgres.required=false` — PostgreSQL 없이 기동
+- `--arc.reactor.auth.self-registration-enabled=true` — 사용자 등록 허용
+- `ARC_REACTOR_AUTH_ADMIN_EMAIL` + `ARC_REACTOR_AUTH_ADMIN_PASSWORD` — 초기 ADMIN 계정
 
-- [x] `ErrorReportController` — 이미 ErrorReportControllerTest.kt 존재 (오탐)
-- [x] `DefaultErrorReportHandler` — 이미 DefaultErrorReportHandlerTest.kt 존재 (오탐)
+### 정상 동작 확인
+- Health check: OK
+- Auth register/login: OK (JWT 발급 정상)
+- Empty message validation: OK (400 + ErrorResponse)
+- Invalid token: OK (401)
+- Casual prompt ("안녕"): OK (응답 정상)
+- MCP 서버 연결: OK (41 tools loaded)
 
-## P3 — 코드 품질
+### 동작 문제 확인 (수정 전)
+- 일반 질문 ("오늘 날씨 어때?"): 차단됨 (unverified_sources) → 수정 완료 (3330c9c)
+- 정보 요청 ("당신은 누구인가요?"): 차단됨 (unverified_sources, "누구" 패턴) → 수정 완료 (3330c9c)
+- MCP 도구 호출: 선택됨 but 정책 차단 (policy_denied — MCP 서버 access policy 미설정)
 
-### TODO 미해결
-- [ ] `DocumentController.kt:173` — TODO: "Store chunk_total in parent metadata at write time to avoid O(maxNumChunks)"
-
-### 메서드 20줄 초과
-- [ ] `SpringAiAgentExecutor.kt:255-303` — `execute()` 49줄
-- [ ] `SpringAiAgentExecutor.kt:364-389` — `executeStream()` 26줄
-- [ ] `SpringAiAgentExecutor.kt:439-498` — `executeWithTools()` 60줄
-- [ ] `SupervisorOrchestrator.kt:45-94` — `execute()` 50줄
-
-### 줄 120자 초과 (main 코드, 31개)
-주요 위반 파일:
-- [ ] `McpSwaggerCatalogController.kt` — 4곳 (에러 메시지, 로깅)
-- [ ] `OutputGuardRuleController.kt` — 2곳 (에러 응답 메시지)
-- [ ] `SlackSystemPromptFactory.kt` — 4곳 (시스템 프롬프트 텍스트, 최대 230자)
-- [ ] `SlackApiClient.kt` — 4곳 (메서드 시그니처, 에러 로깅)
-- [ ] `SlackToolsAutoConfiguration.kt` — 4곳 (Bean 팩토리 시그니처)
-- [ ] `SlackResponseTextFormatter.kt` — 2곳 (한국어 시스템 프롬프트)
-- [ ] 기타 11곳 (에러 메시지, 어노테이션 설명 등)
-
-## P4 — 문서화
-
-- 없음. 모든 컨트롤러 엔드포인트에 `@Tag` + `@Operation(summary)` 확인됨.
+### 에러 유발 테스트 (반복 3)
+- 빈 메시지 (""): 400 Validation failed — 정상
+- 공백만 ("   "): 400 Validation failed — 정상
+- 5001자 입력: 200 통과 — input-max-chars=10000 (application.yml). CLAUDE.md 기본값 참고 표 5000과 불일치 (문서 이슈, 코드 정상)
+- 10001자 입력: 200 + success=false + guard rejected — 정상
+- 50001자 입력: 400 Jakarta @Size validation — 정상
+- Zero-width Unicode: 200 정상 응답 — UnicodeNormalization 가드 통과 (비율 미달)
+- 인증 없음: 401 — 정상
+- 잘못된 토큰: 401 — 정상
+- 스트리밍 (/api/chat/stream): SSE 이벤트 정상 수신 — 정상
+- 한국어 인사 ("안녕하세요"): 정상 응답, blockReason=null — 정상
 
 ## 완료
+- [x] P2: `ToolCallOrchestrator.kt:102,240` — 실패한 도구의 에러 메시지 sanitize 적용 (613d0a0)
+- [x] P5: `VerifiedSourcesResponseFilter` — casual/general 경계값 테스트 4개 추가 (83ade27, 3330c9c)
+- [x] P1: `VerifiedSourcesResponseFilter.kt:127-132` — looksLikeInformationRequest ?/패턴 과잉 차단 수정 (3330c9c)
+- [x] P1: `VerifiedSourcesResponseFilter.kt:162-164` — CASUAL_PROMPTS에 한국어 변형 추가 (83ade27)
+
+## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)
 - [x] P2: `TokenEstimator` — DefaultTokenEstimator 단위 테스트 추가 (72e4753)
 - [x] P2: `ToolResponsePayloadNormalizer` — 단위 테스트 추가 (d471298)
 - [x] P2: `BlockingToolCallbackInvoker` — 단위 테스트 추가 (3f904ea)
-- [x] P2: 나머지 30개 항목 — 기존 테스트 존재 확인 (오탐 정리)

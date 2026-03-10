@@ -1,34 +1,50 @@
 # Arc Reactor — Autonomous Improvement Progress
 
-## 탐색 이력
-- 2026-03-10: Plan phase 완료
-  - 컴파일 경고: 0개
-  - 테스트 실패: 0개 (XML write 일시적 오류만 존재, 테스트 자체 통과)
-  - Critical Gotchas 위반: 0개 (CancellationException, forEach, AssistantMessage 전수 검사)
-  - 테스트 누락: 35개 주요 클래스 식별 (arc-core 21, arc-web 6, arc-slack 6, arc-error-report 2)
-  - TODO 미해결: 1개 (DocumentController.kt:173)
-  - API 문서 갭: 0개
+## 이전 사이클 요약 (2026-03-10 ~ 2026-03-11)
+- Plan: 컴파일 경고 0개, 테스트 전체 통과, CancellationException 위반 1건 발견
+- Build: 4개 항목 수정 (CancellationException, TokenEstimator, ToolResponsePayloadNormalizer, BlockingToolCallbackInvoker)
+- 한계: 표면적 린트 수준 분석. AI Agent 동작 검증 미흡.
 
-## 완료된 개선
+## 현재 사이클 (2026-03-11~)
+목표: AI Agent로서의 비즈니스 동작 정확성, 성능, 견고성 심층 검증
 
-[반복 1] 2026-03-11
-- 선택: P1 — ConversationMemoryStressTest.kt CancellationException 누락
-- 구현: 9개 catch(Exception) 블록에 e.throwIfCancellation() 추가. InMemoryFeedbackStoreTest는 Java executor 내부라 오탐으로 제외.
-- 결과: 테스트 통과 / 커밋 9657db0
-- 다음: P2 첫 항목 (SpringAiAgentExecutor 테스트 또는 다른 P2 항목)
+### 분석 영역 체크리스트
+- [ ] 1. ReAct Loop 정확성
+- [ ] 2. Tool Calling 전체 경로
+- [ ] 3. 컨텍스트 윈도우 관리
+- [ ] 4. Guard & Hook 시스템
+- [ ] 5. 멀티에이전트 오케스트레이션
+- [ ] 6. 외부 연동 (MCP, Slack, API)
+- [ ] 7. 동시성 & 리소스
+- [ ] 8. 성능
+- [ ] 9. 실제 기동 검증 (서버 띄워서 기능 테스트)
 
-[반복 2] 2026-03-11
-- 선택: P2 — TokenEstimator 테스트 누락
-- 구현: DefaultTokenEstimator 단위 테스트 (empty, latin, CJK, emoji, mixed, functional interface)
-- 결과: 테스트 통과 / 커밋 72e4753
-- 다음: P2 다음 항목
+[Build 반복 1] 2026-03-11
+- 선택: 탐색 모드 — 실제 서버 기동 및 기능 테스트
+- 구현: CASUAL_PROMPTS에 "안녕하세요", "반갑습니다", "네", "알겠습니다" 등 한국어 변형 13개 추가
+- 기능 테스트: 서버 기동 → "안녕하세요" 요청 → blockReason=null (수정 전: unverified_sources 차단)
+- 발견: P1 3개 (casual prompt 누락, ? 기반 과잉 차단, 범용 영단어 패턴), P5 1개 (casual 경계값 테스트)
+- 결과: 단위 테스트 통과 + 기능 테스트 통과 / 커밋 83ade27
+- 남은 항목: P0: 0, P1: 2, P2: 0, P3: 0, P4: 0, P5: 1
+- 다음: P1 — looksLikeInformationRequest의 ? 과잉 차단
+- 서버 기동에 필요한 추가 설정: JWT_SECRET, postgres.required=false, self-registration=true, admin env vars
 
-[반복 3-5] 2026-03-11
-- 선택: P2 — 나머지 항목 전수 검증
-- 구현: ToolResponsePayloadNormalizerTest (d471298), BlockingToolCallbackInvokerTest (3f904ea) 추가. 나머지 30개 항목 기존 테스트 존재 확인 후 오탐 정리.
-- 결과: P0~P2 전체 완료. 테스트 통과.
-- 다음: 없음 (P0~P2 완료 조건 충족)
+[Build 반복 2] 2026-03-11
+- 선택: P1 — looksLikeInformationRequest의 ? 과잉 차단 + 범용 영단어 패턴
+- 구현: WORKSPACE_CONTEXT_HINTS 추가. ?/패턴만으로 차단하지 않고 workspace 키워드와 함께 있을 때만 차단
+- 기능 테스트: "오늘 날씨 어때?" → blockReason=null (수정 전: unverified_sources), "배포 정책이 뭐야?" → 정상 차단 유지
+- 발견: 없음
+- 결과: 단위 테스트 통과 + 기능 테스트 통과 / 커밋 3330c9c
+- 남은 항목: P0: 0, P1: 0, P2: 0, P3: 0, P4: 0, P5: 1
+- 다음: P5 — VerifiedSourcesResponseFilter casual 경계값 테스트 (이미 반복1에서 추가됨, 확인 필요)
 
-## 알려진 제외 항목
-- main 브랜치: 절대 건드리지 않음
-- PROMPT.md, claude-progress.txt, loop.sh: 수정하지 않음
+[Build 반복 3] 2026-03-11
+- 선택: 탐색 모드 — P2-P4 코드 탐색 + 에러 유발 시나리오 테스트
+- 구현: ToolCallOrchestrator의 실패한 도구 에러 메시지가 sanitizer를 우회하는 버그 수정 (success=false 경로)
+- 코드 탐색: 2개 Agent 병렬 탐색 (에러 핸들링/메모리/컨트롤러 + 보안/성능). P3 2건, P2 1건 발견
+- 기능 테스트: 서버 기동 → 에러 유발 시나리오 10개 → 전부 정상. 스트리밍 정상. input-max-chars=10000 확인 (CLAUDE.md 문서 오류)
+- 발견: P2 1건 (도구 에러 sanitize — 수정 완료), P3 2건 (Header injection, X-Forwarded-For bypass — 등록)
+- 결과: 단위 테스트 통과 + 기능 테스트 통과 / 커밋 613d0a0
+- 남은 항목: P0: 0, P1: 0, P2: 0, P3: 2, P4: 0, P5: 0
+- 다음: P3 — SessionController Content-Disposition header injection
+
