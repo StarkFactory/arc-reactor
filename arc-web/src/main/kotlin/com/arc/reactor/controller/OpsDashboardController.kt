@@ -126,17 +126,22 @@ class OpsDashboardController(
         }
 
         val aggregated = linkedMapOf<String, Double>()
-        meters.forEach { meter ->
-            meter.measure().forEach { measurement ->
-                val key = measurement.statistic.toMetricKey()
-                aggregated[key] = (aggregated[key] ?: 0.0) + measurement.value
+        val series = meters.map { meter ->
+            val measurements = measurementSnapshot(meter)
+            measurements.forEach { (key, value) ->
+                aggregated[key] = (aggregated[key] ?: 0.0) + value
             }
-        }
+            OpsMetricSeries(
+                tags = meter.id.tags.associate { it.key to it.value },
+                measurements = measurements
+            )
+        }.sortedBy { seriesKey(it.tags) }
 
         return OpsMetricSnapshot(
             name = name,
             meterCount = meters.size,
-            measurements = aggregated
+            measurements = aggregated,
+            series = series
         )
     }
 
@@ -307,6 +312,18 @@ class OpsDashboardController(
 
     private fun io.micrometer.core.instrument.Statistic.toMetricKey(): String = name.lowercase()
 
+    private fun measurementSnapshot(meter: io.micrometer.core.instrument.Meter): Map<String, Double> {
+        val measurements = linkedMapOf<String, Double>()
+        meter.measure().forEach { measurement ->
+            measurements[measurement.statistic.toMetricKey()] = measurement.value
+        }
+        return measurements
+    }
+
+    private fun seriesKey(tags: Map<String, String>): String {
+        return tags.entries.joinToString("&") { "${it.key}=${it.value}" }
+    }
+
     companion object {
         private val DEFAULT_METRIC_NAMES = setOf(
             "arc.agent.executions",
@@ -346,6 +363,12 @@ data class McpStatusSummary(
 data class OpsMetricSnapshot(
     val name: String,
     val meterCount: Int,
+    val measurements: Map<String, Double>,
+    val series: List<OpsMetricSeries> = emptyList()
+)
+
+data class OpsMetricSeries(
+    val tags: Map<String, String>,
     val measurements: Map<String, Double>
 )
 

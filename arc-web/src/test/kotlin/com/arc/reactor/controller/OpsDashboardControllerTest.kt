@@ -20,6 +20,7 @@ import com.arc.reactor.scheduler.ScheduledJobExecution
 import com.arc.reactor.scheduler.ScheduledJobExecutionStore
 import com.arc.reactor.scheduler.ScheduledJobType
 import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Timer
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
@@ -31,6 +32,7 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 
 class OpsDashboardControllerTest {
 
@@ -129,6 +131,59 @@ class OpsDashboardControllerTest {
         assertEquals(0, body.approvals.pendingCount)
         assertEquals(0L, body.employeeValue.observedResponses)
         assertEquals(0, body.recentTrustEvents.size)
+    }
+
+    @Test
+    fun `dashboard exposes tagged series for stage duration metrics`() {
+        val registry = SimpleMeterRegistry()
+        Timer.builder("arc.agent.stage.duration")
+            .tag("stage", "guard")
+            .tag("channel", "web")
+            .register(registry)
+            .record(5, TimeUnit.MILLISECONDS)
+        Timer.builder("arc.agent.stage.duration")
+            .tag("stage", "agent_loop")
+            .tag("channel", "web")
+            .register(registry)
+            .record(17, TimeUnit.MILLISECONDS)
+
+        val controller = OpsDashboardController(
+            mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
+            properties = AgentProperties(rag = RagProperties(enabled = true)),
+            meterRegistryProvider = meterRegistryProvider(registry),
+            schedulerServiceProvider = schedulerProvider(null),
+            pendingApprovalStoreProvider = approvalProvider(null),
+            executionStoreProvider = executionStoreProvider(null),
+            agentMetricsProvider = agentMetricsProvider(null)
+        )
+
+        val response = controller.dashboard(
+            names = listOf("arc.agent.stage.duration"),
+            exchange = exchange(UserRole.ADMIN)
+        )
+        assertEquals(HttpStatus.OK, response.statusCode)
+
+        val body = response.body as OpsDashboardResponse
+        val metric = body.metrics.first()
+        assertEquals("arc.agent.stage.duration", metric.name)
+        assertEquals(2, metric.meterCount)
+        assertEquals(2.0, metric.measurements["count"])
+        assertEquals(2, metric.series.size)
+
+        val guardSeries = metric.series.first { it.tags["stage"] == "guard" }
+        assertEquals("web", guardSeries.tags["channel"])
+        assertEquals(1.0, guardSeries.measurements["count"])
+        val guardTotalTime = guardSeries.measurements["total_time"] ?: 0.0
+        assertTrue(guardTotalTime > 0.0) {
+            "guard stage series should preserve its timer duration"
+        }
+
+        val loopSeries = metric.series.first { it.tags["stage"] == "agent_loop" }
+        assertEquals(1.0, loopSeries.measurements["count"])
+        val loopTotalTime = loopSeries.measurements["total_time"] ?: 0.0
+        assertTrue(loopTotalTime > guardTotalTime) {
+            "agent_loop stage series should retain its larger timer duration"
+        }
     }
 
     @Test
