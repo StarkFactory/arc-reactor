@@ -1,0 +1,13 @@
+# Arc Reactor — Autonomous Improvement Progress
+
+루프 시작 전 초기화됨. 첫 반복에서 채워질 예정.
+
+## 탐색 이력
+(루프가 채워나갑니다)
+
+## 완료된 개선
+(루프가 채워나갑니다)
+
+## 알려진 제외 항목
+- main 브랜치: 절대 건드리지 않음
+- PROMPT.md, claude-progress.txt, loop.sh: 수정하지 않음
