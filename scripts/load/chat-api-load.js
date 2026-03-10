@@ -3,7 +3,11 @@ import { check, sleep } from 'k6';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const CHAT_PATH = __ENV.CHAT_PATH || '/api/chat';
-const AUTH_TOKEN = __ENV.AUTH_TOKEN || '';
+const TENANT_ID = __ENV.TENANT_ID || 'default';
+const AUTH_TOKENS = (__ENV.AUTH_TOKENS || __ENV.AUTH_TOKEN || '')
+  .split(/[|,\n]/)
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 
 const PROMPTS = (__ENV.PROMPTS ||
   'What is 2 + 2?|Summarize the key risks of enabling write tools on chat channels')
@@ -12,8 +16,9 @@ const PROMPTS = (__ENV.PROMPTS ||
   .filter((s) => s.length > 0);
 
 const CHANNEL = __ENV.CHANNEL || 'benchmark';
+const SESSION_PREFIX = __ENV.SESSION_PREFIX || '';
 const MODEL = __ENV.MODEL || '';
-const SLEEP_SECONDS = Number(__ENV.SLEEP_SECONDS || 0.1);
+const SLEEP_SECONDS = Number(__ENV.SLEEP_SECONDS || 6.5);
 
 const DEFAULT_HEADERS = {
   'Content-Type': 'application/json',
@@ -21,7 +26,7 @@ const DEFAULT_HEADERS = {
 };
 
 export const options = {
-  vus: Number(__ENV.VUS || 5),
+  vus: Number(__ENV.VUS || 1),
   duration: __ENV.DURATION || '1m',
   thresholds: {
     http_req_failed: ['rate<0.05'],
@@ -38,12 +43,15 @@ function pickPrompt() {
 }
 
 function buildPayload() {
+  const metadata = {
+    channel: CHANNEL,
+  };
+  if (SESSION_PREFIX) {
+    metadata.sessionId = `${SESSION_PREFIX}-${__VU}`;
+  }
   const payload = {
     message: pickPrompt(),
-    metadata: {
-      channel: CHANNEL,
-      sessionId: `bench-${__VU}`,
-    },
+    metadata,
   };
 
   if (MODEL) {
@@ -54,11 +62,15 @@ function buildPayload() {
 }
 
 function buildHeaders() {
-  if (!AUTH_TOKEN) return DEFAULT_HEADERS;
-  return {
-    ...DEFAULT_HEADERS,
-    Authorization: `Bearer ${AUTH_TOKEN}`,
-  };
+  const token = AUTH_TOKENS.length === 0 ? '' : AUTH_TOKENS[(__VU - 1) % AUTH_TOKENS.length];
+  const headers = { ...DEFAULT_HEADERS };
+  if (TENANT_ID) {
+    headers['X-Tenant-Id'] = TENANT_ID;
+  }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 export default function () {

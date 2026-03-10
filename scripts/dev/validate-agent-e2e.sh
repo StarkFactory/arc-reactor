@@ -6,6 +6,7 @@ TENANT_ID="${TENANT_ID:-default}"
 EMAIL="${EMAIL:-}"
 PASSWORD="${PASSWORD:-passw0rd!}"
 NAME="${NAME:-QA Agent E2E}"
+USER_TOKEN="${USER_TOKEN:-}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
@@ -32,9 +33,10 @@ Validate core agent scenarios end-to-end:
 Options:
   --base-url <url>          Base URL (default: http://localhost:8080)
   --tenant-id <value>       Tenant ID header (default: default)
-  --email <email>           Register fixed test user email (default: auto-generated)
-  --password <value>        Test user password (default: passw0rd!)
+  --email <email>           Existing test user email or registration email (default: auto-generated)
+  --password <value>        Existing test user password or registration password (default: passw0rd!)
   --name <value>            Test user display name
+  --user-token <token>      Existing JWT for user-path scenarios
   --admin-token <token>     Admin JWT token (optional)
   --admin-email <email>     Admin login email (used when --admin-token omitted)
   --admin-password <value>  Admin login password (used when --admin-token omitted)
@@ -50,6 +52,7 @@ Options:
 
 Examples:
   ./scripts/dev/validate-agent-e2e.sh --base-url http://localhost:18080
+  ./scripts/dev/validate-agent-e2e.sh --user-token "$USER_TOKEN" --admin-token "$ADMIN_TOKEN"
   ./scripts/dev/validate-agent-e2e.sh --admin-token "$ADMIN_TOKEN" --require-approval
 EOF
 }
@@ -109,6 +112,11 @@ while (($# > 0)); do
     --name)
       [[ $# -ge 2 ]] || fail "--name requires a value"
       NAME="$2"
+      shift 2
+      ;;
+    --user-token)
+      [[ $# -ge 2 ]] || fail "--user-token requires a value"
+      USER_TOKEN="$2"
       shift 2
       ;;
     --admin-token)
@@ -177,7 +185,7 @@ if ! [[ "$MAX_LLM_CALLS" =~ ^[0-9]+$ ]]; then
   fail "--max-llm-calls must be a non-negative integer"
 fi
 
-if [[ -z "$EMAIL" ]]; then
+if [[ -z "$USER_TOKEN" && -z "$EMAIL" ]]; then
   EMAIL="qa-agent-e2e-$(date +%s)-$RANDOM@example.com"
 fi
 
@@ -216,9 +224,72 @@ fetch_agent_execution_counter() {
   ' "$out" 2>/dev/null || echo ""
 }
 
+login_with_credentials() {
+  local email="$1"
+  local password="$2"
+  local response_file="$3"
+  local request_file="$tmp_dir/login_req_${RANDOM}.json"
+  cat >"$request_file" <<JSON
+{"email":"$email","password":"$password"}
+JSON
+  request POST "$BASE_URL/api/auth/login" "$response_file" \
+    -H "Content-Type: application/json" \
+    --data-binary "@$request_file"
+}
+
+register_or_login_user() {
+  local email="$1"
+  local password="$2"
+  local name="$3"
+  local register_req="$tmp_dir/register_req_${RANDOM}.json"
+  local register_resp="$tmp_dir/register_resp_${RANDOM}.json"
+  local login_resp="$tmp_dir/login_resp_${RANDOM}.json"
+  local register_code
+  local login_code
+  local token
+
+  login_code="$(login_with_credentials "$email" "$password" "$login_resp")"
+  if [[ "$login_code" == "200" ]]; then
+    token="$(jq -r '.token // ""' "$login_resp")"
+    [[ -n "$token" ]] || fail "Login response missing token"
+    printf '%s' "$token"
+    return 0
+  fi
+
+  cat >"$register_req" <<JSON
+{"email":"$email","password":"$password","name":"$name"}
+JSON
+  register_code="$(request POST "$BASE_URL/api/auth/register" "$register_resp" \
+    -H "Content-Type: application/json" \
+    --data-binary "@$register_req")"
+  if [[ "$register_code" == "201" ]]; then
+    token="$(jq -r '.token // ""' "$register_resp")"
+    [[ -n "$token" ]] || fail "Register response missing token"
+    printf '%s' "$token"
+    return 0
+  fi
+  if [[ "$register_code" == "409" ]]; then
+    login_code="$(login_with_credentials "$email" "$password" "$login_resp")"
+    [[ "$login_code" == "200" ]] || fail "Register returned 409 and login failed (status=$login_code)"
+    token="$(jq -r '.token // ""' "$login_resp")"
+    [[ -n "$token" ]] || fail "Login response missing token after 409 register fallback"
+    printf '%s' "$token"
+    return 0
+  fi
+  if [[ "$login_code" == "401" && ( "$register_code" == "401" || "$register_code" == "403" ) ]]; then
+    fail "Login failed and self-registration is unavailable. Provide --user-token or an existing --email/--password."
+  fi
+  fail "/api/auth/register expected 201 or 409, got $register_code"
+}
+
 echo "[1/8] Health check"
 health_file="$tmp_dir/health.json"
 health_code="$(request GET "$BASE_URL/actuator/health" "$health_file")"
+health_auth_token="${ADMIN_TOKEN:-$USER_TOKEN}"
+if [[ "$health_code" == "401" || "$health_code" == "403" ]] && [[ -n "$health_auth_token" ]]; then
+  health_code="$(request GET "$BASE_URL/actuator/health" "$health_file" \
+    -H "Authorization: Bearer $health_auth_token")"
+fi
 [[ "$health_code" == "200" || "$health_code" == "503" ]] \
   || fail "/actuator/health expected 200 or 503, got $health_code"
 health_status="$(jq -r '.status // ""' "$health_file")"
@@ -236,32 +307,11 @@ if [[ "$health_status" != "UP" ]]; then
   fi
 fi
 
-echo "[2/8] Register test user"
-register_req="$tmp_dir/register_req.json"
-register_resp="$tmp_dir/register_resp.json"
-cat >"$register_req" <<JSON
-{"email":"$EMAIL","password":"$PASSWORD","name":"$NAME"}
-JSON
-register_code="$(request POST "$BASE_URL/api/auth/register" "$register_resp" \
-  -H "Content-Type: application/json" \
-  --data-binary "@$register_req")"
-if [[ "$register_code" == "201" ]]; then
-  user_token="$(jq -r '.token // ""' "$register_resp")"
-  [[ -n "$user_token" ]] || fail "Register response missing token"
-elif [[ "$register_code" == "409" ]]; then
-  login_req="$tmp_dir/login_req.json"
-  login_resp="$tmp_dir/login_resp.json"
-  cat >"$login_req" <<JSON
-{"email":"$EMAIL","password":"$PASSWORD"}
-JSON
-  login_code="$(request POST "$BASE_URL/api/auth/login" "$login_resp" \
-    -H "Content-Type: application/json" \
-    --data-binary "@$login_req")"
-  [[ "$login_code" == "200" ]] || fail "Register returned 409 and login failed (status=$login_code)"
-  user_token="$(jq -r '.token // ""' "$login_resp")"
-  [[ -n "$user_token" ]] || fail "Login response missing token after 409 register fallback"
+echo "[2/8] Resolve test user token"
+if [[ -n "$USER_TOKEN" ]]; then
+  user_token="$USER_TOKEN"
 else
-  fail "/api/auth/register expected 201 or 409, got $register_code"
+  user_token="$(register_or_login_user "$EMAIL" "$PASSWORD" "$NAME")"
 fi
 
 echo "[3/8] Resolve admin token (optional)"
@@ -500,7 +550,7 @@ fi
 echo "Agent E2E validation passed."
 echo "Base URL: $BASE_URL"
 echo "Tenant ID: $TENANT_ID"
-echo "User email: $EMAIL"
+echo "User identity: ${EMAIL:-<provided-token>}"
 echo "LLM calls executed: $llm_calls (budget: $MAX_LLM_CALLS)"
 echo "Scenarios skipped: $skip_count"
 if (( skip_count > 0 )); then

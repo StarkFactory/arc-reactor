@@ -10,6 +10,7 @@ import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
+import com.arc.reactor.response.ToolResponseSignal
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -429,6 +430,83 @@ class ToolCallOrchestratorTest {
         )
         assertEquals("operational", context.metadata["answerMode"], "Operational answer mode should be preserved")
         assertEquals(true, context.metadata["grounded"], "Grounding metadata should still be captured")
+    }
+
+    @Test
+    fun `should merge parallel tool captures once in tool call order`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val context = HookContext(runId = "run-4", userId = "user-4", userPrompt = "parallel")
+        val toolsUsed = mutableListOf<String>()
+        val firstToolCall = toolCall(id = "id-1", name = "jira_search")
+        val secondToolCall = toolCall(id = "id-2", name = "confluence_answer_question")
+        val firstCallback = object : ToolCallback {
+            override val name: String = "jira_search"
+            override val description: String = "Search jira"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                return """
+                    {
+                      "grounded": true,
+                      "answerMode": "spec_summary",
+                      "retrievedAt": "2026-03-07T00:00:00Z",
+                      "sources": [
+                        {"title":"Shared","url":"https://example.com/shared"},
+                        {"title":"Jira","url":"https://example.com/jira"}
+                      ]
+                    }
+                """.trimIndent()
+            }
+        }
+        val secondCallback = object : ToolCallback {
+            override val name: String = "confluence_answer_question"
+            override val description: String = "Search confluence"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                return """
+                    {
+                      "grounded": true,
+                      "answerMode": "spec_detail",
+                      "retrievedAt": "2026-03-08T00:00:00Z",
+                      "sources": [
+                        {"title":"Shared duplicate","url":"https://example.com/shared"},
+                        {"title":"Confluence","url":"https://example.com/confluence"}
+                      ]
+                    }
+                """.trimIndent()
+            }
+        }
+
+        orchestrator.executeInParallel(
+            toolCalls = listOf(firstToolCall, secondToolCall),
+            tools = listOf(ArcToolCallbackAdapter(firstCallback), ArcToolCallbackAdapter(secondCallback)),
+            hookContext = context,
+            toolsUsed = toolsUsed,
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(listOf("jira_search", "confluence_answer_question"), toolsUsed, "toolsUsed should follow tool call order")
+        assertEquals(
+            listOf("https://example.com/shared", "https://example.com/jira", "https://example.com/confluence"),
+            context.verifiedSources.map { it.url },
+            "Verified sources should be merged once in tool call order"
+        )
+        @Suppress("UNCHECKED_CAST")
+        val toolSignals = context.metadata[ToolCallOrchestrator.TOOL_SIGNALS_METADATA_KEY] as? List<ToolResponseSignal>
+        assertEquals(2, toolSignals?.size, "Both successful tool signals should be retained")
+        assertEquals(
+            listOf("jira_search", "confluence_answer_question"),
+            toolSignals?.map { it.toolName },
+            "Tool signals should preserve tool call order"
+        )
+        assertEquals("spec_detail", context.metadata["answerMode"], "Last merged signal should win metadata projection")
+        assertEquals("2026-03-08T00:00:00Z", context.metadata["retrievedAt"], "Last merged signal should win retrievedAt")
     }
 
     @Test

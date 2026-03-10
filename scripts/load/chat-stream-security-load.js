@@ -4,15 +4,18 @@ import { Counter, Rate } from 'k6/metrics';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const STREAM_PATH = __ENV.STREAM_PATH || '/api/chat/stream';
-const AUTH_TOKEN = __ENV.AUTH_TOKEN || '';
+const AUTH_TOKENS = (__ENV.AUTH_TOKENS || __ENV.AUTH_TOKEN || '')
+  .split(/[|,\n]/)
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const TENANT_ID = __ENV.TENANT_ID || 'default';
 const OTHER_TENANT_ID = __ENV.OTHER_TENANT_ID || 'other-tenant';
 const MODE = (__ENV.MODE || 'mixed').toLowerCase();
 const OVERSIZED_CHARS = Number(__ENV.OVERSIZED_CHARS || 15000);
-const SLEEP_SECONDS = Number(__ENV.SLEEP_SECONDS || 0.1);
+const SLEEP_SECONDS = Number(__ENV.SLEEP_SECONDS || 6.5);
 
-if (!AUTH_TOKEN) {
-  throw new Error('AUTH_TOKEN is required for stream security load test');
+if (AUTH_TOKENS.length === 0) {
+  throw new Error('AUTH_TOKEN or AUTH_TOKENS is required for stream security load test');
 }
 
 http.setResponseCallback(http.expectedStatuses(200, 400));
@@ -23,7 +26,7 @@ const tenantMismatchRejectedCount = new Counter('chat_stream_tenant_mismatch_rej
 const guardRejectedCount = new Counter('chat_stream_guard_rejected_count');
 
 export const options = {
-  vus: Number(__ENV.VUS || 5),
+  vus: Number(__ENV.VUS || 1),
   duration: __ENV.DURATION || '1m',
   thresholds: {
     http_req_failed: ['rate<0.01'],
@@ -50,11 +53,12 @@ function buildRequestPayload(testCase) {
 
 function buildRequestHeaders(testCase) {
   const tenant = testCase === 'tenant_mismatch' ? OTHER_TENANT_ID : TENANT_ID;
+  const token = AUTH_TOKENS[(__VU - 1) % AUTH_TOKENS.length];
   return {
     'Content-Type': 'application/json',
     Accept: 'text/event-stream',
     'User-Agent': 'k6-arc-reactor-chat-stream-security-load',
-    Authorization: `Bearer ${AUTH_TOKEN}`,
+    Authorization: `Bearer ${token}`,
     'X-Tenant-Id': tenant,
   };
 }

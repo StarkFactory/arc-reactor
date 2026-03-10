@@ -6,6 +6,7 @@ EMAIL=""
 PASSWORD="${PASSWORD:-passw0rd!}"
 NAME="${NAME:-QA Contract}"
 TENANT_ID="${TENANT_ID:-default}"
+USER_TOKEN="${USER_TOKEN:-}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 
 usage() {
@@ -16,16 +17,18 @@ Validates runtime auth and admin-access contracts without triggering LLM calls.
 
 Options:
   --base-url <url>       Base URL (default: http://localhost:8080)
-  --email <email>        Register with a fixed email (default: auto-generated)
-  --password <value>     Register password (default: passw0rd!)
+  --email <email>        Existing user email or registration email (default: auto-generated)
+  --password <value>     Existing user password or registration password (default: passw0rd!)
   --name <value>         Register display name (default: QA Contract)
   --tenant-id <value>    Tenant header for authenticated probe (default: default)
+  --user-token <token>   Existing JWT for authenticated user-path checks
   --admin-token <token>  Optional admin JWT. If provided, checks admin MCP read path returns 200.
   -h, --help             Show help
 
 Examples:
   ./scripts/dev/validate-runtime-contract.sh
   ./scripts/dev/validate-runtime-contract.sh --base-url http://localhost:18080
+  ./scripts/dev/validate-runtime-contract.sh --user-token "$USER_TOKEN" --admin-token "$ADMIN_TOKEN"
   ./scripts/dev/validate-runtime-contract.sh --admin-token "$ADMIN_TOKEN"
 EOF
 }
@@ -97,6 +100,11 @@ while (($# > 0)); do
       TENANT_ID="$2"
       shift 2
       ;;
+    --user-token)
+      [[ $# -ge 2 ]] || fail "--user-token requires a value"
+      USER_TOKEN="$2"
+      shift 2
+      ;;
     --admin-token)
       [[ $# -ge 2 ]] || fail "--admin-token requires a value"
       ADMIN_TOKEN="$2"
@@ -115,16 +123,75 @@ done
 require_cmd curl
 require_cmd python3
 
-if [[ -z "$EMAIL" ]]; then
-  EMAIL="qa-contract-$(date +%s)-$RANDOM@example.com"
-fi
-
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
+
+login_with_credentials() {
+  local email="$1"
+  local password="$2"
+  local response_file="$3"
+  local request_file="$tmp_dir/login_payload_${RANDOM}.json"
+  cat >"$request_file" <<JSON
+{"email":"$email","password":"$password"}
+JSON
+  request POST "$BASE_URL/api/auth/login" "$response_file" \
+    -H "Content-Type: application/json" \
+    --data-binary "@$request_file"
+}
+
+register_or_login() {
+  local email="$1"
+  local password="$2"
+  local name="$3"
+  local register_file="$tmp_dir/register_${RANDOM}.json"
+  local register_payload="$tmp_dir/register_payload_${RANDOM}.json"
+  local login_file="$tmp_dir/login_${RANDOM}.json"
+  local register_code
+  local login_code
+  local token
+
+  login_code="$(login_with_credentials "$email" "$password" "$login_file")"
+  if [[ "$login_code" == "200" ]]; then
+    token="$(extract_json_field "$login_file" "token")"
+    [[ -n "$token" ]] || fail "Login response did not include token"
+    printf '%s' "$token"
+    return 0
+  fi
+
+  cat >"$register_payload" <<JSON
+{"email":"$email","password":"$password","name":"$name"}
+JSON
+  register_code="$(request POST "$BASE_URL/api/auth/register" "$register_file" \
+    -H "Content-Type: application/json" \
+    --data-binary "@$register_payload")"
+  if [[ "$register_code" == "201" ]]; then
+    token="$(extract_json_field "$register_file" "token")"
+    [[ -n "$token" ]] || fail "Register response did not include token"
+    printf '%s' "$token"
+    return 0
+  fi
+  if [[ "$register_code" == "409" ]]; then
+    login_code="$(login_with_credentials "$email" "$password" "$login_file")"
+    [[ "$login_code" == "200" ]] || fail "Register returned 409 and login failed (status=$login_code)"
+    token="$(extract_json_field "$login_file" "token")"
+    [[ -n "$token" ]] || fail "Login response did not include token after 409 register fallback"
+    printf '%s' "$token"
+    return 0
+  fi
+  if [[ "$login_code" == "401" && ( "$register_code" == "401" || "$register_code" == "403" ) ]]; then
+    fail "Login failed and self-registration is unavailable. Provide --user-token or an existing --email/--password."
+  fi
+  fail "/api/auth/register expected 201 or 409, got $register_code"
+}
 
 echo "[1/5] Health check"
 health_file="$tmp_dir/health.json"
 health_code="$(request GET "$BASE_URL/actuator/health" "$health_file")"
+health_auth_token="${ADMIN_TOKEN:-$USER_TOKEN}"
+if [[ "$health_code" == "401" || "$health_code" == "403" ]] && [[ -n "$health_auth_token" ]]; then
+  health_code="$(request GET "$BASE_URL/actuator/health" "$health_file" \
+    -H "Authorization: Bearer $health_auth_token")"
+fi
 [[ "$health_code" == "200" || "$health_code" == "503" ]] \
   || fail "/actuator/health expected 200 or 503, got $health_code"
 health_status="$(extract_json_field "$health_file" "status")"
@@ -147,32 +214,14 @@ models_unauth_file="$tmp_dir/models_unauth.json"
 models_unauth_code="$(request GET "$BASE_URL/api/models" "$models_unauth_file")"
 [[ "$models_unauth_code" == "401" ]] || fail "/api/models without token expected 401, got $models_unauth_code"
 
-echo "[3/5] Register user and extract token"
-register_file="$tmp_dir/register.json"
-register_payload="$tmp_dir/register_payload.json"
-cat >"$register_payload" <<JSON
-{"email":"$EMAIL","password":"$PASSWORD","name":"$NAME"}
-JSON
-register_code="$(request POST "$BASE_URL/api/auth/register" "$register_file" \
-  -H "Content-Type: application/json" \
-  --data-binary "@$register_payload")"
-if [[ "$register_code" == "201" ]]; then
-  user_token="$(extract_json_field "$register_file" "token")"
-  [[ -n "$user_token" ]] || fail "Register response did not include token"
-elif [[ "$register_code" == "409" ]]; then
-  login_file="$tmp_dir/login.json"
-  login_payload="$tmp_dir/login_payload.json"
-  cat >"$login_payload" <<JSON
-{"email":"$EMAIL","password":"$PASSWORD"}
-JSON
-  login_code="$(request POST "$BASE_URL/api/auth/login" "$login_file" \
-    -H "Content-Type: application/json" \
-    --data-binary "@$login_payload")"
-  [[ "$login_code" == "200" ]] || fail "Register returned 409 and login failed (status=$login_code)"
-  user_token="$(extract_json_field "$login_file" "token")"
-  [[ -n "$user_token" ]] || fail "Login response did not include token after 409 register fallback"
+echo "[3/5] Resolve user token"
+if [[ -n "$USER_TOKEN" ]]; then
+  user_token="$USER_TOKEN"
 else
-  fail "/api/auth/register expected 201 or 409, got $register_code"
+  if [[ -z "$EMAIL" ]]; then
+    EMAIL="qa-contract-$(date +%s)-$RANDOM@example.com"
+  fi
+  user_token="$(register_or_login "$EMAIL" "$PASSWORD" "$NAME")"
 fi
 
 echo "[4/5] Authenticated user path check"
@@ -198,4 +247,4 @@ fi
 
 echo "Runtime contract validation passed."
 echo "Base URL: $BASE_URL"
-echo "Registered test user: $EMAIL"
+echo "Resolved user identity: ${EMAIL:-<provided-token>}"

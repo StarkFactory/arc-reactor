@@ -11,6 +11,7 @@ import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.response.ToolResponseSignal
 import com.arc.reactor.response.ToolResponseSignalExtractor
+import com.arc.reactor.response.VerifiedSource
 import com.arc.reactor.response.VerifiedSourceExtractor
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.support.throwIfCancellation
@@ -82,30 +83,32 @@ internal class ToolCallOrchestrator(
         val toolStartTime = System.currentTimeMillis()
         val springCallbacksByName = resolveSpringToolCallbacksByName(tools)
         val toolInput = serializeToolInput(effectiveToolParams, null)
-        val (rawOutput, toolSuccess) = invokeToolAdapter(
+        val invocation = invokeToolAdapter(
             toolName = toolName,
             toolInput = toolInput,
             tools = tools,
-            springCallbacksByName = springCallbacksByName,
-            toolsUsed = toolsUsed
+            springCallbacksByName = springCallbacksByName
         )
-        captureToolSignals(hookContext, toolName, rawOutput, toolSuccess)
-        var toolOutput = rawOutput
+        if (invocation.trackAsUsed) {
+            toolsUsed.add(toolName)
+        }
+        captureToolSignals(hookContext, toolName, invocation.output, invocation.success)
+        var toolOutput = invocation.output
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
-        if (toolOutputSanitizer != null && toolSuccess) {
+        if (toolOutputSanitizer != null && invocation.success) {
             val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
             toolOutput = sanitized.content
         }
 
         val result = ToolCallResult(
-            success = toolSuccess,
+            success = invocation.success,
             output = toolOutput,
-            errorMessage = if (!toolSuccess) toolOutput else null,
+            errorMessage = if (!invocation.success) toolOutput else null,
             durationMs = toolDurationMs
         )
         hookExecutor?.executeAfterToolCall(toolCallContext, result)
-        agentMetrics.recordToolCall(toolName, toolDurationMs, toolSuccess)
+        agentMetrics.recordToolCall(toolName, toolDurationMs, invocation.success)
         return result
     }
 
@@ -120,14 +123,13 @@ internal class ToolCallOrchestrator(
         normalizeToolResponseToJson: Boolean = false
     ): List<ToolResponseMessage.ToolResponse> = coroutineScope {
         val springCallbacksByName = resolveSpringToolCallbacksByName(tools)
-        toolCalls.map { toolCall ->
+        val executions = toolCalls.map { toolCall ->
             async {
                 executeSingleToolCall(
                     toolCall = toolCall,
                     tools = tools,
                     springCallbacksByName = springCallbacksByName,
                     hookContext = hookContext,
-                    toolsUsed = toolsUsed,
                     totalToolCallsCounter = totalToolCallsCounter,
                     maxToolCalls = maxToolCalls,
                     allowedTools = allowedTools,
@@ -135,6 +137,11 @@ internal class ToolCallOrchestrator(
                 )
             }
         }.awaitAll()
+        executions.forEach { execution ->
+            execution.usedToolName?.let(toolsUsed::add)
+            mergeToolCapture(hookContext, execution.capture)
+        }
+        executions.map(ParallelToolExecution::response)
     }
 
     private suspend fun executeSingleToolCall(
@@ -142,20 +149,21 @@ internal class ToolCallOrchestrator(
         tools: List<Any>,
         springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
         hookContext: HookContext,
-        toolsUsed: MutableList<String>,
         totalToolCallsCounter: AtomicInteger,
         maxToolCalls: Int,
         allowedTools: Set<String>?,
         normalizeToolResponseToJson: Boolean
-    ): ToolResponseMessage.ToolResponse {
+    ): ParallelToolExecution {
         val currentCount = totalToolCallsCounter.getAndIncrement()
         if (currentCount >= maxToolCalls) {
             logger.warn { "maxToolCalls ($maxToolCalls) reached, stopping tool execution" }
-            return buildToolResponse(
-                toolCall = toolCall,
-                toolName = toolCall.name(),
-                output = "Error: Maximum tool call limit ($maxToolCalls) reached",
-                normalizeToolResponseToJson = normalizeToolResponseToJson
+            return ParallelToolExecution(
+                response = buildToolResponse(
+                    toolCall = toolCall,
+                    toolName = toolCall.name(),
+                    output = "Error: Maximum tool call limit ($maxToolCalls) reached",
+                    normalizeToolResponseToJson = normalizeToolResponseToJson
+                )
             )
         }
 
@@ -164,11 +172,13 @@ internal class ToolCallOrchestrator(
             val msg = "Error: Tool '$toolName' is not allowed for this request"
             logger.info { "Tool call blocked by allowlist: tool=$toolName allowedTools=${allowedTools.size}" }
             agentMetrics.recordToolCall(toolName, 0, false)
-            return buildToolResponse(
-                toolCall = toolCall,
-                toolName = toolName,
-                output = msg,
-                normalizeToolResponseToJson = normalizeToolResponseToJson
+            return ParallelToolExecution(
+                response = buildToolResponse(
+                    toolCall = toolCall,
+                    toolName = toolName,
+                    output = msg,
+                    normalizeToolResponseToJson = normalizeToolResponseToJson
+                )
             )
         }
 
@@ -189,39 +199,42 @@ internal class ToolCallOrchestrator(
 
         checkBeforeToolCallHook(toolCallContext)?.let { rejection ->
             logger.info { "Tool call $toolName rejected by hook: ${rejection.reason}" }
-            return buildToolResponse(
-                toolCall = toolCall,
-                toolName = toolName,
-                output = "Tool call rejected: ${rejection.reason}",
-                normalizeToolResponseToJson = normalizeToolResponseToJson
+            return ParallelToolExecution(
+                response = buildToolResponse(
+                    toolCall = toolCall,
+                    toolName = toolName,
+                    output = "Tool call rejected: ${rejection.reason}",
+                    normalizeToolResponseToJson = normalizeToolResponseToJson
+                )
             )
         }
 
         // Human-in-the-Loop: check if tool call requires approval
         checkToolApproval(toolName, toolCallContext, hookContext)?.let { rejection ->
             publishBlockedToolCallResult(toolCallContext, toolName, rejection)
-            return buildToolResponse(
-                toolCall = toolCall,
-                toolName = toolName,
-                output = rejection,
-                normalizeToolResponseToJson = normalizeToolResponseToJson
+            return ParallelToolExecution(
+                response = buildToolResponse(
+                    toolCall = toolCall,
+                    toolName = toolName,
+                    output = rejection,
+                    normalizeToolResponseToJson = normalizeToolResponseToJson
+                )
             )
         }
 
         val toolStartTime = System.currentTimeMillis()
-        val (rawOutput, toolSuccess) = invokeToolAdapter(
+        val invocation = invokeToolAdapter(
             toolName = toolName,
             toolInput = toolInput,
             tools = tools,
-            springCallbacksByName = springCallbacksByName,
-            toolsUsed = toolsUsed
+            springCallbacksByName = springCallbacksByName
         )
-        captureToolSignals(hookContext, toolName, rawOutput, toolSuccess)
-        var toolOutput = rawOutput
+        val capture = extractToolCapture(toolName, invocation.output, invocation.success)
+        var toolOutput = invocation.output
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
         // Sanitize tool output for indirect injection defense
-        if (toolOutputSanitizer != null && toolSuccess) {
+        if (toolOutputSanitizer != null && invocation.success) {
             val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
             toolOutput = sanitized.content
         }
@@ -229,33 +242,46 @@ internal class ToolCallOrchestrator(
         hookExecutor?.executeAfterToolCall(
             context = toolCallContext,
             result = ToolCallResult(
-                success = toolSuccess,
+                success = invocation.success,
                 output = toolOutput,
-                errorMessage = if (!toolSuccess) toolOutput else null,
+                errorMessage = if (!invocation.success) toolOutput else null,
                 durationMs = toolDurationMs
             )
         )
 
-        agentMetrics.recordToolCall(toolName, toolDurationMs, toolSuccess)
-        return buildToolResponse(
-            toolCall = toolCall,
-            toolName = toolName,
-            output = toolOutput,
-            normalizeToolResponseToJson = normalizeToolResponseToJson
+        agentMetrics.recordToolCall(toolName, toolDurationMs, invocation.success)
+        return ParallelToolExecution(
+            response = buildToolResponse(
+                toolCall = toolCall,
+                toolName = toolName,
+                output = toolOutput,
+                normalizeToolResponseToJson = normalizeToolResponseToJson
+            ),
+            usedToolName = toolName.takeIf { invocation.trackAsUsed },
+            capture = capture
         )
     }
 
-    private fun captureToolSignals(
-        hookContext: HookContext,
+    private fun extractToolCapture(
         toolName: String,
         toolOutput: String,
         toolSuccess: Boolean
+    ): ToolCapture {
+        if (!toolSuccess) return ToolCapture()
+        return ToolCapture(
+            verifiedSources = VerifiedSourceExtractor.extract(toolName, toolOutput),
+            signal = ToolResponseSignalExtractor.extract(toolName, toolOutput)
+        )
+    }
+
+    private fun mergeToolCapture(
+        hookContext: HookContext,
+        capture: ToolCapture
     ) {
-        if (!toolSuccess) return
-        VerifiedSourceExtractor.extract(toolName, toolOutput)
+        capture.verifiedSources
             .filterNot { source -> hookContext.verifiedSources.any { it.url == source.url } }
             .forEach(hookContext.verifiedSources::add)
-        ToolResponseSignalExtractor.extract(toolName, toolOutput)?.let { signal ->
+        capture.signal?.let { signal ->
             val signals = getOrCreateToolSignals(hookContext)
             signals += signal
             signal.answerMode?.let { hookContext.metadata["answerMode"] = it }
@@ -264,6 +290,15 @@ internal class ToolCallOrchestrator(
             signal.retrievedAt?.let { hookContext.metadata["retrievedAt"] = it }
             signal.blockReason?.let { hookContext.metadata["blockReason"] = it }
         }
+    }
+
+    private fun captureToolSignals(
+        hookContext: HookContext,
+        toolName: String,
+        toolOutput: String,
+        toolSuccess: Boolean
+    ) {
+        mergeToolCapture(hookContext, extractToolCapture(toolName, toolOutput, toolSuccess))
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -354,51 +389,72 @@ internal class ToolCallOrchestrator(
         toolName: String,
         toolInput: String,
         tools: List<Any>,
-        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
-        toolsUsed: MutableList<String>
-    ): Pair<String, Boolean> {
+        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>
+    ): ToolInvocationOutcome {
         val adapter = findToolAdapter(toolName, tools)
         if (adapter != null) {
-            toolsUsed.add(toolName)
             return try {
                 val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
                 val output = withTimeout(timeoutMs) {
                     adapter.call(toolInput)
                 }
-                Pair(output, true)
+                ToolInvocationOutcome(output = output, success = true, trackAsUsed = true)
             } catch (e: TimeoutCancellationException) {
                 val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
                 logger.error { "Tool $toolName timed out after ${timeoutMs}ms" }
-                Pair("Error: Tool '$toolName' timed out after ${timeoutMs}ms", false)
+                ToolInvocationOutcome(
+                    output = "Error: Tool '$toolName' timed out after ${timeoutMs}ms",
+                    success = false,
+                    trackAsUsed = true
+                )
             } catch (e: Exception) {
                 e.throwIfCancellation()
                 logger.error(e) { "Tool $toolName execution failed" }
-                Pair("Error: ${e.message}", false)
+                ToolInvocationOutcome(
+                    output = "Error: ${e.message}",
+                    success = false,
+                    trackAsUsed = true
+                )
             }
         }
 
         val springCallback = springCallbacksByName[toolName]
         if (springCallback != null) {
-            toolsUsed.add(toolName)
             return try {
                 val output = withTimeout(toolCallTimeoutMs) {
                     runInterruptible(Dispatchers.IO) {
                         springCallback.call(toolInput)
                     }
                 }
-                Pair(normalizeSpringToolOutput(output), true)
+                ToolInvocationOutcome(
+                    output = normalizeSpringToolOutput(output),
+                    success = true,
+                    trackAsUsed = true
+                )
             } catch (e: TimeoutCancellationException) {
                 logger.error { "Tool $toolName timed out after ${toolCallTimeoutMs}ms" }
-                Pair("Error: Tool '$toolName' timed out after ${toolCallTimeoutMs}ms", false)
+                ToolInvocationOutcome(
+                    output = "Error: Tool '$toolName' timed out after ${toolCallTimeoutMs}ms",
+                    success = false,
+                    trackAsUsed = true
+                )
             } catch (e: Exception) {
                 e.throwIfCancellation()
                 logger.error(e) { "Tool $toolName execution failed" }
-                Pair("Error: ${e.message}", false)
+                ToolInvocationOutcome(
+                    output = "Error: ${e.message}",
+                    success = false,
+                    trackAsUsed = true
+                )
             }
         }
 
         logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
-        return Pair("Error: Tool '$toolName' not found", false)
+        return ToolInvocationOutcome(
+            output = "Error: Tool '$toolName' not found",
+            success = false,
+            trackAsUsed = false
+        )
     }
 
     /**
@@ -531,4 +587,21 @@ internal class ToolCallOrchestrator(
         private val requesterAccountIdMetadataKeys = listOf("requesterAccountId", "accountId")
         private val requesterEmailMetadataKeys = listOf("requesterEmail", "userEmail", "slackUserEmail")
     }
+
+    private data class ToolCapture(
+        val verifiedSources: List<VerifiedSource> = emptyList(),
+        val signal: ToolResponseSignal? = null
+    )
+
+    private data class ParallelToolExecution(
+        val response: ToolResponseMessage.ToolResponse,
+        val usedToolName: String? = null,
+        val capture: ToolCapture = ToolCapture()
+    )
+
+    private data class ToolInvocationOutcome(
+        val output: String,
+        val success: Boolean,
+        val trackAsUsed: Boolean
+    )
 }
