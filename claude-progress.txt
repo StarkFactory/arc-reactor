@@ -1,12 +1,33 @@
 # Arc Reactor — Autonomous Improvement Progress
 
-루프 시작 전 초기화됨. 첫 반복에서 채워질 예정.
-
 ## 탐색 이력
-(루프가 채워나갑니다)
+- 2026-03-10: Plan phase 완료
+  - 컴파일 경고: 0개
+  - 테스트 실패: 0개 (XML write 일시적 오류만 존재, 테스트 자체 통과)
+  - Critical Gotchas 위반: 0개 (CancellationException, forEach, AssistantMessage 전수 검사)
+  - 테스트 누락: 35개 주요 클래스 식별 (arc-core 21, arc-web 6, arc-slack 6, arc-error-report 2)
+  - TODO 미해결: 1개 (DocumentController.kt:173)
+  - API 문서 갭: 0개
 
 ## 완료된 개선
-(루프가 채워나갑니다)
+
+[반복 1] 2026-03-11
+- 선택: P1 — ConversationMemoryStressTest.kt CancellationException 누락
+- 구현: 9개 catch(Exception) 블록에 e.throwIfCancellation() 추가. InMemoryFeedbackStoreTest는 Java executor 내부라 오탐으로 제외.
+- 결과: 테스트 통과 / 커밋 9657db0
+- 다음: P2 첫 항목 (SpringAiAgentExecutor 테스트 또는 다른 P2 항목)
+
+[반복 2] 2026-03-11
+- 선택: P2 — TokenEstimator 테스트 누락
+- 구현: DefaultTokenEstimator 단위 테스트 (empty, latin, CJK, emoji, mixed, functional interface)
+- 결과: 테스트 통과 / 커밋 72e4753
+- 다음: P2 다음 항목
+
+[반복 3-5] 2026-03-11
+- 선택: P2 — 나머지 항목 전수 검증
+- 구현: ToolResponsePayloadNormalizerTest (d471298), BlockingToolCallbackInvokerTest (3f904ea) 추가. 나머지 30개 항목 기존 테스트 존재 확인 후 오탐 정리.
+- 결과: P0~P2 전체 완료. 테스트 통과.
+- 다음: 없음 (P0~P2 완료 조건 충족)
 
 ## 알려진 제외 항목
 - main 브랜치: 절대 건드리지 않음
