@@ -34,12 +34,16 @@ private val logger = KotlinLogging.logger {}
 class WorkerAgentTool(
     private val node: AgentNode,
     private val agentExecutor: AgentExecutor,
-    private val parentCommand: AgentCommand? = null
+    private val parentCommand: AgentCommand? = null,
+    private val workerTimeoutMs: Long = DEFAULT_WORKER_TIMEOUT_MS
 ) : ToolCallback {
 
     override val name = "delegate_to_${node.name}"
 
     override val description = "Delegate a task to the '${node.name}' agent. ${node.description}"
+
+    override val timeoutMs: Long
+        get() = workerTimeoutMs
 
     override val inputSchema: String
         get() = """
@@ -76,5 +80,10 @@ class WorkerAgentTool(
         } else {
             "Worker '${node.name}' failed: ${result.errorMessage}"
         }
+    }
+
+    companion object {
+        /** Default timeout for worker agent execution (matches request timeout default) */
+        const val DEFAULT_WORKER_TIMEOUT_MS = 30_000L
     }
 }

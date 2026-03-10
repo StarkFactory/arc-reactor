@@ -135,6 +135,32 @@ class SupervisorOrchestratorTest {
                 "Tool description should include node description"
             )
         }
+
+        @Test
+        fun `should use default worker timeout instead of tool call timeout`() {
+            val workerAgent = mockk<AgentExecutor>()
+            val node = AgentNode("worker", systemPrompt = "")
+            val tool = WorkerAgentTool(node, workerAgent)
+
+            assertEquals(
+                WorkerAgentTool.DEFAULT_WORKER_TIMEOUT_MS,
+                tool.timeoutMs,
+                "WorkerAgentTool should override timeoutMs with worker-appropriate default"
+            )
+            assertTrue(
+                tool.timeoutMs >= 30_000L,
+                "Worker timeout should be at least 30 seconds (full agent execution)"
+            )
+        }
+
+        @Test
+        fun `should allow custom worker timeout`() {
+            val workerAgent = mockk<AgentExecutor>()
+            val node = AgentNode("worker", systemPrompt = "")
+            val tool = WorkerAgentTool(node, workerAgent, workerTimeoutMs = 60_000L)
+
+            assertEquals(60_000L, tool.timeoutMs, "Should use custom worker timeout")
+        }
     }
 
     @Nested
