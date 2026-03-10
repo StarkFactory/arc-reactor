@@ -27,6 +27,7 @@ import org.springframework.aop.framework.Advised
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.tool.method.MethodToolCallbackProvider
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 private val logger = KotlinLogging.logger {}
@@ -40,6 +41,8 @@ internal class ToolCallOrchestrator(
     private val parseToolArguments: (String?) -> Map<String, Any?> = ::parseToolArguments,
     private val toolOutputSanitizer: ToolOutputSanitizer? = null
 ) {
+    private val springToolCallbackCache =
+        ConcurrentHashMap<ToolCallbackCacheKey, Map<String, org.springframework.ai.tool.ToolCallback>>()
 
     suspend fun executeDirectToolCall(
         toolName: String,
@@ -470,6 +473,24 @@ internal class ToolCallOrchestrator(
         val localTools = tools.filterIsInstance<LocalTool>()
             .map { unwrapAopProxy(it) }
             .distinctBy { System.identityHashCode(it) }
+        val explicitCallbacks = tools
+            .filterIsInstance<org.springframework.ai.tool.ToolCallback>()
+            .filterNot { it is ArcToolCallbackAdapter }
+        val cacheKey = ToolCallbackCacheKey(
+            localToolIds = localTools.map(System::identityHashCode),
+            explicitCallbackIds = explicitCallbacks.map(System::identityHashCode)
+        )
+        return springToolCallbackCache.computeIfAbsent(cacheKey) {
+            buildSpringToolCallbacksByName(localTools, explicitCallbacks)
+        }
+    }
+
+    internal fun springToolCallbackCacheEntryCount(): Int = springToolCallbackCache.size
+
+    private fun buildSpringToolCallbacksByName(
+        localTools: List<Any>,
+        explicitCallbacks: List<org.springframework.ai.tool.ToolCallback>
+    ): Map<String, org.springframework.ai.tool.ToolCallback> {
         val reflectedCallbacks = if (localTools.isEmpty()) {
             emptyList()
         } else {
@@ -484,10 +505,6 @@ internal class ToolCallOrchestrator(
                 emptyList()
             }
         }
-
-        val explicitCallbacks = tools
-            .filterIsInstance<org.springframework.ai.tool.ToolCallback>()
-            .filterNot { it is ArcToolCallbackAdapter }
 
         val byName = LinkedHashMap<String, org.springframework.ai.tool.ToolCallback>()
         (explicitCallbacks + reflectedCallbacks).forEach { callback ->
@@ -603,5 +620,10 @@ internal class ToolCallOrchestrator(
         val output: String,
         val success: Boolean,
         val trackAsUsed: Boolean
+    )
+
+    private data class ToolCallbackCacheKey(
+        val localToolIds: List<Int>,
+        val explicitCallbackIds: List<Int>
     )
 }

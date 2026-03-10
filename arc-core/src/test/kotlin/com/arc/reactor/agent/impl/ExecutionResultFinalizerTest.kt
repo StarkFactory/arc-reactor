@@ -205,6 +205,44 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
+    fun `should skip retry once for short response when tool-backed grounding already exists`() = runBlocking {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val hookExecutor = mockk<HookExecutor>(relaxed = true)
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(outputMinChars = 10, outputMinViolationMode = OutputMinViolationMode.RETRY_ONCE),
+            conversationManager = conversationManager,
+            hookExecutor = hookExecutor,
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+        var retryInvoked = false
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
+            verifiedSources += VerifiedSource(title = "Doc", url = "https://example.com/doc")
+        }
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "short"),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = hookContext,
+            toolsUsed = listOf("jira_search_issues"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ ->
+                retryInvoked = true
+                "long enough response"
+            }
+        )
+
+        assertTrue(result.success, "Tool-backed short response should fall back without retrying")
+        assertEquals("short", result.content, "Original short content should be preserved when retry is skipped")
+        assertEquals(false, retryInvoked, "Retry should not run for tool-backed grounded responses")
+        verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "retry_once", 10, 5, any()) }
+    }
+
+    @Test
     fun `should record unverified response metric when sources are missing`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)

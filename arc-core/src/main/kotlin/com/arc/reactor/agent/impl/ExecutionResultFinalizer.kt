@@ -56,7 +56,7 @@ internal class ExecutionResultFinalizer(
         }
 
         val bounded = enrichResponseMetadata(
-            applyOutputBoundaryRule(guarded, command, hookContext, startTime, attemptLongerResponse),
+            applyOutputBoundaryRule(guarded, command, hookContext, toolsUsed, startTime, attemptLongerResponse),
             hookContext
         )
         if (!bounded.success && bounded.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT) {
@@ -133,13 +133,31 @@ internal class ExecutionResultFinalizer(
         result: AgentResult,
         command: AgentCommand,
         hookContext: HookContext,
+        toolsUsed: List<String>,
         startTime: Long,
         attemptLongerResponse: suspend (String, Int, AgentCommand) -> String?
     ): AgentResult {
         if (!result.success || result.content == null) return result
 
-        return outputBoundaryEnforcer.apply(result, command, trustEventMetadata(command, hookContext), attemptLongerResponse)
+        val effectiveRetry = if (shouldAttemptLongerResponse(result, hookContext, toolsUsed)) {
+            attemptLongerResponse
+        } else {
+            { _: String, _: Int, _: AgentCommand -> null }
+        }
+        return outputBoundaryEnforcer.apply(result, command, trustEventMetadata(command, hookContext), effectiveRetry)
             ?: outputTooShortFailure(hookContext, startTime)
+    }
+
+    private fun shouldAttemptLongerResponse(
+        result: AgentResult,
+        hookContext: HookContext,
+        toolsUsed: List<String>
+    ): Boolean {
+        if (toolsUsed.isNotEmpty()) return false
+        if (hookContext.verifiedSources.isNotEmpty()) return false
+        if (readToolSignals(hookContext).isNotEmpty()) return false
+        if (resolveGrounded(result, hookContext)) return false
+        return true
     }
 
     private suspend fun applyResponseFilters(

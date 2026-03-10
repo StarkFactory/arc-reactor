@@ -815,6 +815,42 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
+    fun `should reuse cached spring callback resolution for identical local tool set`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("text" to "arc") }
+        )
+        val localTool = EchoLocalTool()
+        val firstCall = toolCall(id = "id-1", name = "echo_text", arguments = """{"text":"arc"}""")
+        val secondCall = toolCall(id = "id-2", name = "echo_text", arguments = """{"text":"arc"}""")
+
+        orchestrator.executeInParallel(
+            toolCalls = listOf(firstCall),
+            tools = listOf(localTool),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+        orchestrator.executeInParallel(
+            toolCalls = listOf(secondCall),
+            tools = listOf(localTool),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, orchestrator.springToolCallbackCacheEntryCount(), "Local tool callback resolution should be cached per tool set")
+    }
+
+    @Test
     fun `should execute explicit spring callback and normalize quoted output`() = runBlocking {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
