@@ -1,7 +1,7 @@
 # Arc Reactor
 
 [![CI](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml/badge.svg)](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-4.7.7-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v4.7.7)
+[![Version](https://img.shields.io/badge/version-4.8.0-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v4.8.0)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.10-purple.svg)](https://kotlinlang.org)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-green.svg)](https://spring.io/projects/spring-boot)
@@ -80,6 +80,7 @@ cd arc-reactor
 **Manual path:**
 
 ```bash
+cp .env.example .env
 docker compose up -d db redis
 export GEMINI_API_KEY=your-gemini-api-key
 export ARC_REACTOR_AUTH_JWT_SECRET=$(openssl rand -base64 32)
@@ -99,6 +100,14 @@ Arc Reactor fails fast at startup when required runtime values are missing:
 
 Gemini is the default provider. To use OpenAI or Anthropic instead, set
 `SPRING_AI_OPENAI_API_KEY` or `SPRING_AI_ANTHROPIC_API_KEY`.
+
+Starter config files:
+
+- [`.env.example`](.env.example) for local environment variables
+- [`application.yml.example`](application.yml.example) for application-side property examples
+
+MCP server URLs, admin tokens, and admin HMAC secrets are not configured in `application.yml`.
+Register and update MCP servers through `POST /api/mcp/servers` and `PUT /api/mcp/servers/{name}`.
 
 ### 3. Smoke test
 
@@ -121,7 +130,36 @@ curl -X POST http://localhost:8080/api/chat \
 ./scripts/dev/validate-runtime-contract.sh --base-url http://localhost:8080
 ```
 
-### 4. Pre-open checklist (single command)
+### 4. Common local operating modes
+
+**Web API only**
+
+- Required: provider key, JWT secret, PostgreSQL datasource
+- Start with `./gradlew :arc-app:bootRun`
+
+**Web API + Slack local tools**
+
+```bash
+export SLACK_BOT_TOKEN=xoxb-...
+export ARC_REACTOR_SLACK_TOOLS_ENABLED=true
+export ARC_REACTOR_SLACK_TOOLS_SCOPE_AWARE_ENABLED=true
+```
+
+Use this mode when the agent should call Slack write/read tools such as `send_message` or
+`reply_to_thread`. This does not register an MCP server; it enables local tools from `arc-slack`.
+
+**Web API + external MCP servers**
+
+```bash
+export ARC_REACTOR_MCP_ALLOWED_SERVER_NAMES=atlassian,swagger
+```
+
+Use this mode when Arc Reactor should route grounded answers through external MCP servers.
+Register each server via the admin API, then apply access policy and run preflight through the
+same control plane. For the validated live flow, see
+[`docs/ko/operations/mcp-live-runtime-runbook.md`](docs/ko/operations/mcp-live-runtime-runbook.md).
+
+### 5. Pre-open checklist (single command)
 
 ```bash
 # Runs docs + compile + tests + gitleaks
@@ -223,7 +261,7 @@ arc:
 
     llm:
       default-provider: gemini
-      temperature: 0.7
+      temperature: 0.1
       max-output-tokens: 4096
 
     concurrency:
@@ -268,8 +306,18 @@ arc:
       enabled: true
     mcp:
       security:
-        allowed-server-names: [atlassian, filesystem]
+        allowed-server-names: [atlassian, swagger]
 ```
+
+### Integration patterns
+
+| Pattern | Minimum toggle/env | Notes |
+|---|---|---|
+| Web-only runtime | none beyond core runtime env | Fastest path for local development |
+| Slack gateway | `arc.reactor.slack.enabled=true` + `SLACK_BOT_TOKEN` | Add `SLACK_APP_TOKEN` for Socket Mode |
+| Slack local tools | `ARC_REACTOR_SLACK_TOOLS_ENABLED=true` + `SLACK_BOT_TOKEN` | Enables local Slack tools without MCP registration |
+| External MCP servers | `ARC_REACTOR_MCP_ALLOWED_SERVER_NAMES=...` | Register actual URLs/tokens/HMAC via `/api/mcp/servers` |
+| MCP admin HMAC | `config.adminHmacRequired=true` + `config.adminHmacSecret` | Required only when upstream MCP admin APIs enforce HMAC |
 
 ### Feature toggles
 
@@ -332,17 +380,17 @@ If Redis is not available, Arc Reactor keeps running with in-memory defaults.
 Images are published automatically on every version tag:
 
 ```bash
-docker pull ghcr.io/starkfactory/arc-reactor:4.7.2
+docker pull ghcr.io/starkfactory/arc-reactor:4.8.0
 docker run -p 8080:8080 \
   -e GEMINI_API_KEY=your-key \
   -e ARC_REACTOR_AUTH_JWT_SECRET=replace-with-32-byte-secret \
   -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/arcreactor \
   -e SPRING_DATASOURCE_USERNAME=arc \
   -e SPRING_DATASOURCE_PASSWORD=arc \
-  ghcr.io/starkfactory/arc-reactor:4.7.2
+  ghcr.io/starkfactory/arc-reactor:4.8.0
 ```
 
-Available tags: exact version (e.g. `4.7.2`), minor stream (e.g. `4.7`), short SHA (`sha-<commit>`).
+Available tags: exact version (e.g. `4.8.0`), minor stream (e.g. `4.8`), short SHA (`sha-<commit>`).
 
 For local non-production experiments without PostgreSQL, add
 `-e ARC_REACTOR_POSTGRES_REQUIRED=false` (not recommended for production).
@@ -372,6 +420,8 @@ for the full reference.
 | Prompt template versioning | `/api/prompt-templates` | Always |
 | MCP server registry | `/api/mcp/servers` | Always (ADMIN for read/write) |
 | MCP access policy | `/api/mcp/servers/{name}/access-policy` | Always |
+| MCP preflight proxy | `/api/mcp/servers/{name}/preflight` | Always |
+| MCP Swagger catalog proxy | `/api/mcp/servers/{name}/swagger/sources` | Always |
 | Output guard rules | `/api/output-guard/rules` | `arc.reactor.output-guard.enabled=true` + `arc.reactor.output-guard.dynamic-rules-enabled=true` |
 | Admin audit logs | `/api/admin/audits` | Always |
 | Ops dashboard | `/api/ops` | Always |
@@ -384,10 +434,17 @@ for the full reference.
 | Scheduler (cron MCP) | `/api/scheduler/jobs` | `arc.reactor.scheduler.enabled=true` |
 | Feedback | `/api/feedback` | `arc.reactor.feedback.enabled=true` |
 
+Notes:
+
+- All `/api/mcp/servers*`, `/api/tool-policy`, and other control-plane write APIs require an admin JWT.
+- Chat APIs require a JWT and tenant context.
+- MCP servers are registered via REST only. Do not add server URLs directly to `application.yml`.
+
 ### Example: Register an MCP server
 
 ```bash
 curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "filesystem",
@@ -407,15 +464,18 @@ For Atlassian MCP access-policy proxying, include admin credentials in `config`:
 
 ```bash
 curl -X POST http://localhost:8080/api/mcp/servers \
+  -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "atlassian",
     "transportType": "SSE",
     "config": {
       "url": "http://localhost:8085/sse",
+      "adminUrl": "http://localhost:8085",
       "adminToken": "change-me",
       "adminHmacRequired": true,
-      "adminHmacSecret": "change-me-hmac"
+      "adminHmacSecret": "change-me-hmac",
+      "adminHmacWindowSeconds": 300
     },
     "autoConnect": true
   }'
@@ -425,6 +485,7 @@ Then proxy policy updates via Arc Reactor:
 
 ```bash
 curl -X PUT http://localhost:8080/api/mcp/servers/atlassian/access-policy \
+  -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
   -d '{
     "allowedJiraProjectKeys": ["JAR","FSD"],
@@ -433,10 +494,21 @@ curl -X PUT http://localhost:8080/api/mcp/servers/atlassian/access-policy \
   }'
 ```
 
+### Example: Run MCP preflight through Arc Reactor
+
+```bash
+curl -X POST http://localhost:8080/api/mcp/servers/atlassian/preflight \
+  -H "Authorization: Bearer $ADMIN_JWT"
+```
+
+Use this after registration or access-policy updates. A production-ready upstream should return
+`ok=true` and `readyForProduction=true`.
+
 ### Example: Apply a tool policy
 
 ```bash
 curl -X PUT http://localhost:8080/api/tool-policy \
+  -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
   -d '{
     "enabled": true,
@@ -450,6 +522,8 @@ curl -X PUT http://localhost:8080/api/tool-policy \
 
 ```bash
 curl -X POST http://localhost:8080/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-Id: default" \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Summarize incident INC-1234",
@@ -485,6 +559,7 @@ Schema migrations are managed by Flyway. Enable with `SPRING_FLYWAY_ENABLED=true
 - [Getting started](docs/en/getting-started/README.md)
 - [Configuration quickstart](docs/en/getting-started/configuration-quickstart.md)
 - [Deployment guide](docs/en/getting-started/deployment.md)
+- [Admin API reference](docs/en/admin/api-reference.md)
 - [Kubernetes reference](docs/en/getting-started/kubernetes-reference.md)
 - [Architecture overview](docs/en/architecture/README.md)
 - [ReAct loop internals](docs/en/architecture/react-loop.md)
@@ -498,6 +573,7 @@ Schema migrations are managed by Flyway. Enable with `SPRING_FLYWAY_ENABLED=true
 - [Tools reference](docs/en/reference/tools.md)
 - [Metrics reference](docs/en/reference/metrics.md)
 - [Slack integration](docs/en/integrations/slack/ops-runbook.md)
+- [MCP live runtime runbook (Korean)](docs/ko/operations/mcp-live-runtime-runbook.md)
 - [Agent benchmarking](docs/en/engineering/agent-benchmarking.md)
 - [Release notes](docs/en/releases/README.md)
 

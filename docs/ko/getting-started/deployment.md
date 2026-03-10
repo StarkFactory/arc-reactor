@@ -119,4 +119,5 @@ docker compose down
 
 - [설정 Quickstart](configuration-quickstart.md)
 - [설정 레퍼런스](configuration.md)
+- [MCP Live 연동 런타임 런북](../operations/mcp-live-runtime-runbook.md)
 - [트러블슈팅](troubleshooting.md)

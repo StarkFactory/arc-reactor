@@ -519,11 +519,17 @@ Register a new MCP server and optionally connect to it.
   "config": {
     "url": "http://localhost:8081/sse",
     "adminUrl": "http://localhost:8081",
-    "adminToken": "secret-admin-token"
+    "adminToken": "secret-admin-token",
+    "adminHmacRequired": true,
+    "adminHmacSecret": "shared-hmac-secret",
+    "adminHmacWindowSeconds": 300
   },
   "autoConnect": true
 }
 ```
+
+If the upstream MCP server does not require admin HMAC, you may omit
+`adminHmacRequired`, `adminHmacSecret`, and `adminHmacWindowSeconds`.
 
 **Request body (STDIO transport)**:
 ```json
@@ -662,7 +668,7 @@ Disconnect from an MCP server without removing it.
 
 Base path: `/api/mcp/servers/{name}/access-policy`
 
-Proxy controller for managing access policies on MCP servers that expose an `/admin/access-policy` endpoint (e.g., Atlassian MCP servers). Requires the MCP server's `config` to contain `adminToken` and either `adminUrl` or `url`.
+Proxy controller for managing access policies on MCP servers that expose an `/admin/access-policy` endpoint (e.g., Atlassian MCP servers). Requires the MCP server's `config` to contain `adminToken` and either `adminUrl` or `url`. If the upstream requires admin HMAC, also include `adminHmacRequired=true` and `adminHmacSecret`.
 
 ### GET /api/mcp/servers/{name}/access-policy
 
@@ -725,7 +731,8 @@ Base path: `/api/mcp/servers/{name}/swagger/sources`
 
 Proxy controller for Swagger MCP servers that expose `/admin/spec-sources` and related
 admin lifecycle endpoints. Requires the MCP server's `config` to contain `adminToken`
-and either `adminUrl` or `url`.
+and either `adminUrl` or `url`. If the upstream requires admin HMAC, also include
+`adminHmacRequired=true` and `adminHmacSecret`.
 
 ### GET /api/mcp/servers/{name}/swagger/sources
 

@@ -488,11 +488,17 @@ ID로 페르소나를 조회합니다.
   "config": {
     "url": "http://localhost:8081/sse",
     "adminUrl": "http://localhost:8081",
-    "adminToken": "secret-admin-token"
+    "adminToken": "secret-admin-token",
+    "adminHmacRequired": true,
+    "adminHmacSecret": "shared-hmac-secret",
+    "adminHmacWindowSeconds": 300
   },
   "autoConnect": true
 }
 ```
+
+업스트림 MCP 서버가 admin HMAC를 요구하지 않으면 `adminHmacRequired`, `adminHmacSecret`,
+`adminHmacWindowSeconds`는 생략할 수 있습니다.
 
 **요청 본문 (STDIO 전송)**:
 ```json
@@ -621,7 +627,7 @@ MCP 서버에서 연결을 해제합니다 (제거하지 않음).
 
 기본 경로: `/api/mcp/servers/{name}/access-policy`
 
-MCP 서버의 `/admin/access-policy` 엔드포인트에 대한 프록시 컨트롤러 (예: Atlassian MCP 서버). MCP 서버의 `config`에 `adminToken`과 `adminUrl` 또는 `url`이 포함되어 있어야 합니다.
+MCP 서버의 `/admin/access-policy` 엔드포인트에 대한 프록시 컨트롤러 (예: Atlassian MCP 서버). MCP 서버의 `config`에 `adminToken`과 `adminUrl` 또는 `url`이 포함되어 있어야 합니다. 업스트림이 admin HMAC를 요구하면 `adminHmacRequired=true`와 `adminHmacSecret`도 함께 포함되어야 합니다.
 
 ### GET /api/mcp/servers/{name}/access-policy
 
@@ -677,7 +683,7 @@ MCP 서버의 동적 접근 정책을 초기화하여 환경 기본값으로 되
 기본 경로: `/api/mcp/servers/{name}/swagger/sources`
 
 `/admin/spec-sources` 및 관련 관리자 라이프사이클 엔드포인트를 노출하는 Swagger MCP 서버를
-대상으로 하는 프록시입니다. MCP 서버 `config`에는 `adminToken`과 `adminUrl` 또는 `url`이 있어야 합니다.
+대상으로 하는 프록시입니다. MCP 서버 `config`에는 `adminToken`과 `adminUrl` 또는 `url`이 있어야 합니다. 업스트림이 admin HMAC를 요구하면 `adminHmacRequired=true`와 `adminHmacSecret`도 함께 포함되어야 합니다.
 
 ### GET /api/mcp/servers/{name}/swagger/sources
 

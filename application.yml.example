@@ -31,6 +31,11 @@ arc:
     auth:
       jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}
       default-tenant-id: ${ARC_REACTOR_AUTH_DEFAULT_TENANT_ID:default}
+    # MCP server URLs/admin tokens/admin HMAC secrets are not configured here.
+    # Register or update them through POST/PUT /api/mcp/servers.
+    # mcp:
+    #   security:
+    #     allowed-server-names: ${ARC_REACTOR_MCP_ALLOWED_SERVER_NAMES:atlassian,swagger}
     llm:
       default-provider: gemini
       temperature: 0.3
@@ -52,6 +57,9 @@ arc:
     #   tools:
     #     enabled: true
     #     bot-token: ${SLACK_BOT_TOKEN}
+    #     tool-exposure:
+    #       scope-aware-enabled: true
+    #       conversation-scope-mode: public_only
     # cors:
     #   enabled: true
     # circuit-breaker:
