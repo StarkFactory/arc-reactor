@@ -23,7 +23,8 @@ private val logger = KotlinLogging.logger {}
  * Authentication is runtime-required, so this filter is always active.
  */
 class AuthRateLimitFilter(
-    private val maxAttemptsPerMinute: Int = 10
+    private val maxAttemptsPerMinute: Int = 10,
+    private val trustForwardedHeaders: Boolean = false
 ) : WebFilter, Ordered {
 
     private val cache = Caffeine.newBuilder()
@@ -52,9 +53,11 @@ class AuthRateLimitFilter(
     }
 
     private fun extractClientIp(exchange: ServerWebExchange): String {
-        val forwarded = exchange.request.headers.getFirst("X-Forwarded-For")
-        if (forwarded != null) {
-            return forwarded.split(",").first().trim()
+        if (trustForwardedHeaders) {
+            val forwarded = exchange.request.headers.getFirst("X-Forwarded-For")
+            if (forwarded != null) {
+                return forwarded.split(",").first().trim()
+            }
         }
         return exchange.request.remoteAddress?.address?.hostAddress ?: "unknown"
     }

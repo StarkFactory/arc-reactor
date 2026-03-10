@@ -88,5 +88,7 @@ data class AuthProperties(
     ),
     /** Maximum auth attempts per minute per IP address (brute-force protection) */
     val loginRateLimitPerMinute: Int = 10,
+    /** Trust X-Forwarded-For header for client IP extraction. Enable only behind a trusted reverse proxy */
+    val trustForwardedHeaders: Boolean = false,
     val tokenRevocationStore: TokenRevocationStoreType = TokenRevocationStoreType.MEMORY
 )

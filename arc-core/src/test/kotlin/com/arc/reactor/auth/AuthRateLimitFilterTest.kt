@@ -154,43 +154,61 @@ class AuthRateLimitFilterTest {
     @Nested
     inner class IpExtraction {
 
+        private val trustedFilter = AuthRateLimitFilter(
+            maxAttemptsPerMinute = 3,
+            trustForwardedHeaders = true
+        )
+
         @Test
-        fun `should use X-Forwarded-For header when present`() {
+        fun `should use X-Forwarded-For when trust is enabled`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
             currentStatus = HttpStatus.UNAUTHORIZED
 
-            // Exhaust limit for IP from X-Forwarded-For
             headers.set("X-Forwarded-For", "10.0.0.1, 192.168.1.1")
             for (i in 1..4) {
-                filter.filter(exchange, chain).block()
+                trustedFilter.filter(exchange, chain).block()
             }
 
-            // Request from different IP (no X-Forwarded-For) should still pass
             headers.remove("X-Forwarded-For")
-            filter.filter(exchange, chain).block()
+            trustedFilter.filter(exchange, chain).block()
 
-            // 3 from forwarded IP + 1 from direct IP = 4 chain.filter calls
             verify(exactly = 4) { chain.filter(exchange) }
         }
 
         @Test
-        fun `should track separate limits per IP`() {
+        fun `should track separate limits per IP when trust is enabled`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
             currentStatus = HttpStatus.UNAUTHORIZED
 
-            // 3 requests from IP-A
+            headers.set("X-Forwarded-For", "10.0.0.1")
+            for (i in 1..3) {
+                trustedFilter.filter(exchange, chain).block()
+            }
+
+            headers.set("X-Forwarded-For", "10.0.0.2")
+            for (i in 1..3) {
+                trustedFilter.filter(exchange, chain).block()
+            }
+
+            verify(exactly = 6) { chain.filter(exchange) }
+        }
+
+        @Test
+        fun `should ignore X-Forwarded-For when trust is disabled`() {
+            every { request.uri } returns URI.create("http://localhost/api/auth/login")
+            currentStatus = HttpStatus.UNAUTHORIZED
+
             headers.set("X-Forwarded-For", "10.0.0.1")
             for (i in 1..3) {
                 filter.filter(exchange, chain).block()
             }
 
-            // 3 requests from IP-B should also pass (separate counter)
             headers.set("X-Forwarded-For", "10.0.0.2")
-            for (i in 1..3) {
-                filter.filter(exchange, chain).block()
-            }
+            filter.filter(exchange, chain).block()
 
-            verify(exactly = 6) { chain.filter(exchange) }
+            // All requests should be tracked under 127.0.0.1 (direct IP)
+            // 3 + 1 blocked = 3 chain.filter calls
+            verify(exactly = 3) { chain.filter(exchange) }
         }
     }
 
