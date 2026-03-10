@@ -28,37 +28,40 @@
 
 ---
 
+## 두 페이즈 구조
+
+arc-reactor는 **Plan → Build** 두 단계로 분리되어 있다.
+
+| 페이즈 | 파일 | 역할 |
+|--------|------|------|
+| Plan | `PROMPT_plan.md` | 코드베이스 탐색 → 문제 발견 → `IMPLEMENTATION_PLAN.md` 작성 |
+| Build | `PROMPT_build.md` | `IMPLEMENTATION_PLAN.md` 항목 하나씩 구현 → 검증 → 커밋 |
+
 ## 사용법
 
-### 1. PROMPT.md 작성 (프로젝트 루트에)
-
-PROMPT.md = 루프 전체를 통해 변하지 않는 지시서.
-Claude가 **매 반복 시작마다 이걸 읽고 무엇을 할지 결정**한다.
-
-**좋은 PROMPT.md의 조건:**
-- 매 반복에 **1개 작업만** 지정 ("전부 고쳐라" ❌ → "가장 중요한 문제 1개를 찾아 고쳐라" ✅)
-- **검증 기준** 명시 (`./gradlew test` 통과 등)
-- **`claude-progress.txt` 읽기/쓰기** 지시 포함 (반복 간 기억)
-- **완료 조건** 명시 (`<promise>IMPROVEMENTS COMPLETE</promise>` 출력 시점)
-
-### 2. 루프 시작
-
-새 터미널에서:
+### 1단계: Plan 루프 (먼저 실행)
 
 ```bash
 cd ~/ai/arc-reactor
-claude   # Claude Code 실행
+claude
 ```
 
 Claude Code 안에서:
+```
+/ralph-loop "$(cat PROMPT_plan.md)" --completion-promise "PLAN COMPLETE" --max-iterations 5
+```
+
+→ `IMPLEMENTATION_PLAN.md`가 채워지면 자동 종료.
+
+### 2단계: Build 루프 (Plan 완료 후)
 
 ```
-/ralph-loop "$(cat PROMPT.md)" --completion-promise "IMPROVEMENTS COMPLETE" --max-iterations 80
+/ralph-loop "$(cat PROMPT_build.md)" --completion-promise "IMPROVEMENTS COMPLETE" --max-iterations 80
 ```
 
-이게 전부다. 다른 설정 없음.
+→ `IMPLEMENTATION_PLAN.md` P0~P2 항목 모두 완료 시 자동 종료.
 
-### 3. 중단하고 싶을 때
+### 중단하고 싶을 때
 
 ```
 /cancel-ralph
@@ -70,8 +73,10 @@ Claude Code 안에서:
 
 | 파일 | 역할 | 변경 주체 |
 |------|------|-----------|
-| `PROMPT.md` | 루프 지시서 (불변) | 사람 |
-| `claude-progress.txt` | 반복 간 기억 (이전에 뭘 했는지) | Claude |
+| `PROMPT_plan.md` | 탐색 지시서 (불변) | 사람 |
+| `PROMPT_build.md` | 구현 지시서 (불변) | 사람 |
+| `IMPLEMENTATION_PLAN.md` | 발견된 문제 목록 + 완료 추적 | Claude |
+| `claude-progress.txt` | 반복 간 기억 | Claude |
 | `.claude/ralph-loop.local.md` | 루프 상태 (자동 생성) | Stop Hook |
 
 ---
@@ -106,9 +111,16 @@ Claude는 이전 대화를 기억하지 못한다.
 # 새 터미널
 cd ~/ai/arc-reactor
 claude
+```
 
-# Claude Code 안에서
-/ralph-loop "$(cat PROMPT.md)" --completion-promise "IMPROVEMENTS COMPLETE" --max-iterations 80
+**Step 1 — Plan (코드 분석, 문제 목록 작성):**
+```
+/ralph-loop "$(cat PROMPT_plan.md)" --completion-promise "PLAN COMPLETE" --max-iterations 5
+```
+
+**Step 2 — Build (문제 하나씩 구현):**
+```
+/ralph-loop "$(cat PROMPT_build.md)" --completion-promise "IMPROVEMENTS COMPLETE" --max-iterations 80
 ```
 
 ---
