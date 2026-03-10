@@ -124,11 +124,14 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should block unverified informational answer without workspace tool`() = runTest {
+    fun `should block unverified workspace question without tool`() = runTest {
         val result = filter.filter(
-            content = "정답은 4입니다.",
+            content = "배포 정책은 매주 수요일입니다.",
             context = ResponseFilterContext(
-                command = AgentCommand(systemPrompt = "sys", userPrompt = "2+2가 뭐야?"),
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "우리팀 배포 정책이 뭐야?"
+                ),
                 toolsUsed = emptyList(),
                 verifiedSources = emptyList(),
                 durationMs = 75
@@ -136,7 +139,47 @@ class VerifiedSourcesResponseFilterTest {
         )
 
         assertTrue(result.contains("검증 가능한 출처를 찾지 못해")) {
-            "Informational answers without verified sources should fail closed"
+            "Workspace questions without verified sources should fail closed"
+        }
+    }
+
+    @Test
+    fun `should allow general question without workspace context`() = runTest {
+        val result = filter.filter(
+            content = "오늘 서울 날씨는 맑겠습니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "오늘 날씨 어때?"
+                ),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 50
+            )
+        )
+
+        assertTrue(!result.contains("검증 가능한 출처를 찾지 못해")) {
+            "General questions without workspace context should not be blocked"
+        }
+    }
+
+    @Test
+    fun `should allow how are you style greetings`() = runTest {
+        val result = filter.filter(
+            content = "I'm doing well, thanks!",
+            context = ResponseFilterContext(
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "how are you?"
+                ),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 40
+            )
+        )
+
+        assertTrue(!result.contains("couldn't verify")) {
+            "General English questions should not be blocked"
         }
     }
 
