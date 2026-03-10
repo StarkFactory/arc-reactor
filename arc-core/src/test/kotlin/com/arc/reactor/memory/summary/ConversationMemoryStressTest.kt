@@ -1,6 +1,7 @@
 package com.arc.reactor.memory.summary
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.agent.config.LlmProperties
 import com.arc.reactor.agent.config.MemoryProperties
 import com.arc.reactor.agent.config.SummaryProperties
@@ -190,6 +191,7 @@ class ConversationMemoryStressTest {
                             val history = manager.loadHistory(command(sessionId))
                             synchronized(results) { results.add(history) }
                         } catch (e: Exception) {
+                            e.throwIfCancellation()
                             errors.incrementAndGet()
                         }
                     }
@@ -325,6 +327,7 @@ class ConversationMemoryStressTest {
                             )
                             manager.saveHistory(cmd, AgentResult.success("save-answer-$i"))
                         } catch (e: Exception) {
+                            e.throwIfCancellation()
                             errors.incrementAndGet()
                         }
                     }
@@ -333,6 +336,7 @@ class ConversationMemoryStressTest {
                             delay(10) // slight offset to overlap with save
                             manager.loadHistory(command(sessionId))
                         } catch (e: Exception) {
+                            e.throwIfCancellation()
                             errors.incrementAndGet()
                         }
                     }
@@ -372,6 +376,7 @@ class ConversationMemoryStressTest {
                                 )
                             )
                         } catch (e: Exception) {
+                            e.throwIfCancellation()
                             errors.incrementAndGet()
                         }
                     }
@@ -427,6 +432,7 @@ class ConversationMemoryStressTest {
                                 )
                             )
                         } catch (e: Exception) {
+                            e.throwIfCancellation()
                             writeErrors.incrementAndGet()
                         }
                     }
@@ -448,6 +454,7 @@ class ConversationMemoryStressTest {
                                 "Read #$i facts should not be null"
                             }
                         } catch (e: Exception) {
+                            e.throwIfCancellation()
                             readErrors.incrementAndGet()
                         }
                     }
@@ -558,6 +565,7 @@ class ConversationMemoryStressTest {
                             )
                             manager.saveHistory(cmd, AgentResult.success("a"))
                         } catch (e: Exception) {
+                            e.throwIfCancellation()
                             errors.incrementAndGet()
                         }
                     }
@@ -568,6 +576,7 @@ class ConversationMemoryStressTest {
                             memoryStore.remove(sid)
                             summaryStore.delete(sid)
                         } catch (e: Exception) {
+                            e.throwIfCancellation()
                             errors.incrementAndGet()
                         }
                     }
@@ -577,6 +586,7 @@ class ConversationMemoryStressTest {
                             delay(100)
                             manager.loadHistory(command(sid))
                         } catch (e: Exception) {
+                            e.throwIfCancellation()
                             errors.incrementAndGet()
                         }
                     }
