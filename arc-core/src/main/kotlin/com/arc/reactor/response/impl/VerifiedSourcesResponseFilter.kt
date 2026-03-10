@@ -160,10 +160,17 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
             "조회", "무엇", "왜", "어떻게", "누구", "언제", "어디", "몇"
         )
         private val CASUAL_PROMPTS = setOf(
-            "hi", "hello", "hey", "thanks", "thank you", "ok", "okay", "안녕", "고마워", "감사해",
-            "감사합니다", "오케이", "ㅇㅋ", "ㅎㅇ"
+            "hi", "hello", "hey", "thanks", "thank you", "ok", "okay",
+            "안녕", "안녕하세요", "안녕하세요!", "안녕!", "반갑습니다",
+            "고마워", "고마워요", "고맙습니다", "감사해", "감사합니다",
+            "네", "아니요", "아니오", "응", "좋아", "알겠어", "알겠습니다",
+            "오케이", "ㅇㅋ", "ㅎㅇ", "ㅎㅎ", "ㄳ", "ㄱㅅ"
         )
-        private val CASUAL_PREFIXES = setOf("thanks ", "thank you ", "고마워 ", "감사해 ", "감사합니다 ")
+        private val CASUAL_PREFIXES = setOf(
+            "thanks ", "thank you ", "hi ", "hello ",
+            "고마워 ", "감사해 ", "감사합니다 ",
+            "안녕 ", "안녕하세요 ", "네 ", "좋아 "
+        )
         private val UNVERIFIED_PATTERNS = listOf(
             "cannot verify",
             "couldn't verify",

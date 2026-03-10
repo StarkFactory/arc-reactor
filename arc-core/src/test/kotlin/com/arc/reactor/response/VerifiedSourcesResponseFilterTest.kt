@@ -161,6 +161,52 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
+    fun `should keep casual Korean greetings unblocked`() = runTest {
+        val greetings = listOf("안녕하세요", "안녕하세요!", "반갑습니다")
+        for (greeting in greetings) {
+            val result = filter.filter(
+                content = "안녕하세요! 무엇을 도와드릴까요?",
+                context = ResponseFilterContext(
+                    command = AgentCommand(
+                        systemPrompt = "sys",
+                        userPrompt = greeting
+                    ),
+                    toolsUsed = emptyList(),
+                    verifiedSources = emptyList(),
+                    durationMs = 40
+                )
+            )
+
+            assertTrue(result.startsWith("안녕하세요!")) {
+                "Casual greeting '$greeting' should not be blocked"
+            }
+        }
+    }
+
+    @Test
+    fun `should keep casual Korean acknowledgements unblocked`() = runTest {
+        val acks = listOf("네", "알겠습니다", "좋아", "고마워요")
+        for (ack in acks) {
+            val result = filter.filter(
+                content = "다른 도움이 필요하시면 말씀해 주세요.",
+                context = ResponseFilterContext(
+                    command = AgentCommand(
+                        systemPrompt = "sys",
+                        userPrompt = ack
+                    ),
+                    toolsUsed = emptyList(),
+                    verifiedSources = emptyList(),
+                    durationMs = 40
+                )
+            )
+
+            assertTrue(!result.contains("검증 가능한 출처를 찾지 못해")) {
+                "Acknowledgement '$ack' should not be blocked"
+            }
+        }
+    }
+
+    @Test
     fun `should skip non text responses`() = runTest {
         val result = filter.filter(
             content = "{\"ok\":true}",
