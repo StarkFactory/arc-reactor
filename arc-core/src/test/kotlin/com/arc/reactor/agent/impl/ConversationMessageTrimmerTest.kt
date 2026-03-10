@@ -199,4 +199,30 @@ class ConversationMessageTrimmerTest {
         assertInstanceOf(UserMessage::class.java, messages[0], "Last user message must be preserved")
         assertEquals("keep", (messages[0] as UserMessage).text, "Preserved user message should remain unchanged")
     }
+
+    @Test
+    fun `should reuse cached token estimates across repeated trims`() {
+        val estimatorCalls = linkedMapOf<String, Int>()
+        val countingEstimator = TokenEstimator { text ->
+            estimatorCalls[text] = (estimatorCalls[text] ?: 0) + 1
+            text.length
+        }
+        val messages = mutableListOf<Message>(
+            UserMessage("user-1"),
+            AssistantMessage("assistant-1"),
+            UserMessage("user-2")
+        )
+        val trimmer = ConversationMessageTrimmer(
+            maxContextWindowTokens = 200,
+            outputReserveTokens = 0,
+            tokenEstimator = countingEstimator
+        )
+
+        trimmer.trim(messages, systemPrompt = "sys")
+        trimmer.trim(messages, systemPrompt = "sys")
+
+        assertEquals(1, estimatorCalls["user-1"], "Existing user message should be tokenized once across repeated trims")
+        assertEquals(1, estimatorCalls["assistant-1"], "Existing assistant message should be tokenized once across repeated trims")
+        assertEquals(1, estimatorCalls["user-2"], "Most recent user message should be tokenized once across repeated trims")
+    }
 }

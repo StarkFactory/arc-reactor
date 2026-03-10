@@ -7,6 +7,8 @@ import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
+import java.util.Collections
+import java.util.WeakHashMap
 
 private val logger = KotlinLogging.logger {}
 
@@ -19,6 +21,7 @@ class ConversationMessageTrimmer(
     private val outputReserveTokens: Int,
     private val tokenEstimator: TokenEstimator
 ) {
+    private val messageTokenCache = Collections.synchronizedMap(WeakHashMap<Message, Int>())
 
     fun trim(messages: MutableList<Message>, systemPrompt: String) {
         val systemTokens = tokenEstimator.estimate(systemPrompt)
@@ -38,16 +41,22 @@ class ConversationMessageTrimmer(
             return
         }
 
-        var totalTokens = messages.sumOf { estimateMessageTokens(it) }
-        totalTokens = trimOldHistory(messages, totalTokens, budget)
-        trimToolHistory(messages, totalTokens, budget)
+        val messageTokens = messages.mapTo(ArrayList(messages.size)) { estimateCachedMessageTokens(it) }
+        var totalTokens = messageTokens.sum()
+        totalTokens = trimOldHistory(messages, messageTokens, totalTokens, budget)
+        trimToolHistory(messages, messageTokens, totalTokens, budget)
     }
 
     /**
      * Phase 1: Remove oldest messages from the front, preserving leading SystemMessages
      * (e.g., hierarchical memory facts/narrative) and the last UserMessage.
      */
-    private fun trimOldHistory(messages: MutableList<Message>, currentTokens: Int, budget: Int): Int {
+    private fun trimOldHistory(
+        messages: MutableList<Message>,
+        messageTokens: MutableList<Int>,
+        currentTokens: Int,
+        budget: Int
+    ): Int {
         var totalTokens = currentTokens
         while (totalTokens > budget && messages.size > 1) {
             val skipCount = messages.indexOfFirst { it !is SystemMessage }
@@ -62,7 +71,8 @@ class ConversationMessageTrimmer(
             var removedTokens = 0
             repeat(removeCount) {
                 if (skipCount < messages.size && messages.size > 1) {
-                    removedTokens += estimateMessageTokens(messages.removeAt(skipCount))
+                    removedTokens += messageTokens.removeAt(skipCount)
+                    messages.removeAt(skipCount)
                 }
             }
             totalTokens -= removedTokens
@@ -72,7 +82,12 @@ class ConversationMessageTrimmer(
     }
 
     /** Phase 2: Remove tool interaction pairs after the last UserMessage when still over budget. */
-    private fun trimToolHistory(messages: MutableList<Message>, currentTokens: Int, budget: Int) {
+    private fun trimToolHistory(
+        messages: MutableList<Message>,
+        messageTokens: MutableList<Int>,
+        currentTokens: Int,
+        budget: Int
+    ) {
         var totalTokens = currentTokens
         while (totalTokens > budget && messages.size > 1) {
             val protectedIdx = messages.indexOfLast { it is UserMessage }.coerceAtLeast(0)
@@ -86,7 +101,8 @@ class ConversationMessageTrimmer(
             var removedTokens = 0
             repeat(removeCount) {
                 if (removeStartIdx < messages.size) {
-                    removedTokens += estimateMessageTokens(messages.removeAt(removeStartIdx))
+                    removedTokens += messageTokens.removeAt(removeStartIdx)
+                    messages.removeAt(removeStartIdx)
                 }
             }
             totalTokens -= removedTokens
@@ -115,6 +131,12 @@ class ConversationMessageTrimmer(
 
         // Regular UserMessage or AssistantMessage -> remove single
         return 1
+    }
+
+    private fun estimateCachedMessageTokens(message: Message): Int {
+        return messageTokenCache[message] ?: estimateMessageTokens(message).also {
+            messageTokenCache[message] = it
+        }
     }
 
     private fun estimateMessageTokens(message: Message): Int {
