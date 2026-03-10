@@ -219,6 +219,24 @@ class SessionControllerTest {
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404" }
         }
+
+        @Test
+        fun `should sanitize session id in Content-Disposition header`() = runTest {
+            val maliciousId = "session\r\nX-Injected: evil"
+            val memory = mockk<ConversationMemory>()
+            every { memoryStore.get(maliciousId) } returns memory
+            every { memory.getHistory() } returns listOf(
+                Message(MessageRole.USER, "Hello!")
+            )
+
+            val response = controller.exportSession(maliciousId, "json", exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
+            val disposition = response.headers["Content-Disposition"]?.firstOrNull().orEmpty()
+            assertFalse(disposition.contains("\r")) { "Content-Disposition must not contain CR" }
+            assertFalse(disposition.contains("\n")) { "Content-Disposition must not contain LF" }
+            assertTrue(disposition.contains("session_")) { "Unsafe chars should be replaced with underscore" }
+        }
     }
 
     @Nested

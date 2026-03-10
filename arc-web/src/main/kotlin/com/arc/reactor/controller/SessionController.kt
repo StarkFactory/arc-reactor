@@ -131,8 +131,9 @@ class SessionController(
                     sb.appendLine(msg.content)
                     sb.appendLine()
                 }
+                val safeId = sanitizeFilename(sessionId)
                 ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$sessionId.md\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$safeId.md\"")
                     .contentType(MediaType.TEXT_MARKDOWN)
                     .body(sb.toString())
             }
@@ -148,8 +149,9 @@ class SessionController(
                         )
                     }
                 )
+                val safeId = sanitizeFilename(sessionId)
                 ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$sessionId.json\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$safeId.json\"")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(export)
             }
@@ -190,6 +192,15 @@ class SessionController(
 
     private fun authenticatedUserId(exchange: ServerWebExchange): String? {
         return exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
+    }
+
+    private fun sanitizeFilename(name: String): String {
+        return name.replace(UNSAFE_FILENAME_CHARS, "_").take(MAX_FILENAME_LENGTH)
+    }
+
+    companion object {
+        private val UNSAFE_FILENAME_CHARS = Regex("[^a-zA-Z0-9._-]")
+        private const val MAX_FILENAME_LENGTH = 100
     }
 
     private fun unauthorizedResponse(): ResponseEntity<Any> {
