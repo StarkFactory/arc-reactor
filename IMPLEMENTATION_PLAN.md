@@ -15,8 +15,8 @@
 
 ## P3 — 보안 (권한 우회, 인젝션, 정보 노출)
 
-- [ ] `SessionController.kt:135,152` — Content-Disposition 헤더에 sessionId를 직접 삽입. sessionId는 클라이언트 metadata에서 오므로 `\r\n` 포함 시 HTTP header injection 가능
-- [ ] `AuthRateLimitFilter.kt:55` — X-Forwarded-For 헤더를 검증 없이 신뢰. 공격자가 헤더를 위조하여 IP 기반 rate limit 우회 가능
+- [x] `SessionController.kt:135,152` — Content-Disposition header injection — 수정 완료 (6c31022)
+- [x] `AuthRateLimitFilter.kt:55` — X-Forwarded-For trust를 opt-in으로 변경 — 수정 완료 (6e8640f)
 
 ## P4 — 성능 (핫패스 비효율, 불필요한 할당, 확장성 병목)
 

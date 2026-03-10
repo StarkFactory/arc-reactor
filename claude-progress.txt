@@ -48,3 +48,17 @@
 - 남은 항목: P0: 0, P1: 0, P2: 0, P3: 2, P4: 0, P5: 0
 - 다음: P3 — SessionController Content-Disposition header injection
 
+[Build 반복 4] 2026-03-11
+- 선택: P3 — SessionController Content-Disposition header injection
+- 구현: sessionId를 안전한 파일명 문자로 치환하는 sanitizeFilename() 추가
+- 결과: 단위 테스트 통과 / 커밋 6c31022
+- 남은 항목: P0: 0, P1: 0, P2: 0, P3: 1, P4: 0, P5: 0
+- 다음: P3 — AuthRateLimitFilter X-Forwarded-For bypass
+
+[Build 반복 5] 2026-03-11
+- 선택: P3 — AuthRateLimitFilter X-Forwarded-For rate limit bypass
+- 구현: trustForwardedHeaders 프로퍼티 추가 (기본 false). X-Forwarded-For 신뢰를 opt-in으로 변경
+- 결과: 단위 테스트 통과 / 커밋 6e8640f
+- 남은 항목: P0: 0, P1: 0, P2: 0, P3: 0, P4: 0, P5: 0
+- 다음: 탐색 모드 — P0-P4 완료, 3회 연속 0발견 확인 필요
+
