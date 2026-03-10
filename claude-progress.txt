@@ -128,8 +128,27 @@
 - 발견: 0건
 - 결과: 탐색 3/3 완료 — 3회 연속 0 findings 달성
 
+[Build 반복 12] 2026-03-11
+- 선택: 탐색 모드 — MCP 관리 + 토큰 폐기 + Slack/Teams + 에러 리포트 + 의미적 도구 선택
+- 코드 탐색: TokenRevocationStore(3구현체), SlackSignatureVerifier, SemanticToolSelector, TeamsWebhookClient, ErrorReportController, TenantResolver, McpManager
+- 후보 11건 검토 → 전부 기각
+  - InMemory 토큰 race: 보안 위협 없음, 만료 cleanup 경로 정상
+  - InMemory 무한 성장: P5, dev 전용 스토어, lazy cleanup
+  - JDBC TOCTOU: P5, 중복 revoke 극히 드물고 최종 상태 정상
+  - Slack 서명 정수 오버플로: 수학적 검증 결과 exploit 불가
+  - SemanticToolSelector ALL fallback: 설계 의도 (graceful degradation)
+  - ErrorReport 스택트레이스: 제출자 책임, 수신자는 truncate만
+  - Admin 크로스테넌트: self-hosted 배포 설계 의도
+  - Teams JSON 이스케이핑: Kotlin 이스케이프 시퀀스 오해, 실제 정상
+  - MCP stale client: handleConnectionError 콜백으로 자가 복구
+  - 임베딩 캐시 fingerprint: P5, 런타임에 설명 변경 불가
+  - ErrorReport 전역 rate limit: P5, 선택적 모듈, 설계 선택
+- 기능 테스트: 서버 기동 → 인증 → 기본 대화 → success=True ✓
+- 발견: 0건
+- 결과: 탐색 4/3 완료 (추가 라운드) — 4회 연속 0 findings
+
 ## 완료 조건 확인
 1. IMPLEMENTATION_PLAN.md P0~P4 전부 [x]: ✓
-2. 3회 연속 탐색 모드 0 findings: ✓ (반복 9, 10, 11)
+2. 3회 연속 탐색 모드 0 findings: ✓ (반복 9, 10, 11, 12)
 3. 서버 기동 → 기본 대화 → 정상 응답: ✓
 
