@@ -120,4 +120,51 @@ class ToolPreparationPlannerTest {
             "Expected duplicate resolution to keep the first callback instance"
         )
     }
+
+    @Test
+    fun `reuses callback adapters for stable callback instances`() {
+        val callback = AgentTestFixture.toolCallback("stable-tool")
+        val planner = ToolPreparationPlanner(
+            localTools = emptyList(),
+            toolCallbacks = listOf(callback),
+            mcpToolCallbacks = { emptyList() },
+            toolSelector = null,
+            maxToolsPerRequest = 10,
+            fallbackToolTimeoutMs = 150
+        )
+
+        val firstPrepared = planner.prepareForPrompt("first")
+        val secondPrepared = planner.prepareForPrompt("second")
+
+        assertEquals(1, firstPrepared.size)
+        assertEquals(1, secondPrepared.size)
+        assertTrue(
+            firstPrepared.first() === secondPrepared.first(),
+            "Planner should reuse the same adapter instance for stable callback objects"
+        )
+    }
+
+    @Test
+    fun `does not reuse adapters for distinct callback instances with the same name`() {
+        val planner = ToolPreparationPlanner(
+            localTools = emptyList(),
+            toolCallbacks = emptyList(),
+            mcpToolCallbacks = {
+                listOf(AgentTestFixture.toolCallback("dynamic-tool"))
+            },
+            toolSelector = null,
+            maxToolsPerRequest = 10,
+            fallbackToolTimeoutMs = 150
+        )
+
+        val firstPrepared = planner.prepareForPrompt("first")
+        val secondPrepared = planner.prepareForPrompt("second")
+
+        assertEquals(1, firstPrepared.size)
+        assertEquals(1, secondPrepared.size)
+        assertTrue(
+            firstPrepared.first() !== secondPrepared.first(),
+            "Planner should not pin a stale adapter when callback instances are recreated"
+        )
+    }
 }

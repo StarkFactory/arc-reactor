@@ -5,6 +5,8 @@ import com.arc.reactor.tool.LocalToolFilter
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
 import mu.KotlinLogging
+import java.util.Collections
+import java.util.WeakHashMap
 
 private val logger = KotlinLogging.logger {}
 
@@ -17,6 +19,8 @@ internal class ToolPreparationPlanner(
     private val fallbackToolTimeoutMs: Long,
     private val localToolFilters: List<LocalToolFilter> = emptyList()
 ) {
+    private val callbackAdapterCache =
+        Collections.synchronizedMap(WeakHashMap<ToolCallback, ArcToolCallbackAdapter>())
 
     fun prepareForPrompt(userPrompt: String): List<Any> {
         val localToolInstances = localToolFilters.fold(localTools.toList()) { acc, filter ->
@@ -32,12 +36,7 @@ internal class ToolPreparationPlanner(
         } else {
             allCallbacks
         }
-        val wrappedCallbacks = selectedCallbacks.map {
-            ArcToolCallbackAdapter(
-                arcCallback = it,
-                fallbackToolTimeoutMs = fallbackToolTimeoutMs
-            )
-        }
+        val wrappedCallbacks = selectedCallbacks.map(::resolveAdapter)
         return (localToolInstances + wrappedCallbacks).take(maxToolsPerRequest)
     }
 
@@ -52,5 +51,12 @@ internal class ToolPreparationPlanner(
             }
         }
         return uniqueByName.values.toList()
+    }
+
+    private fun resolveAdapter(callback: ToolCallback): ArcToolCallbackAdapter {
+        return callbackAdapterCache[callback] ?: ArcToolCallbackAdapter(
+            arcCallback = callback,
+            fallbackToolTimeoutMs = fallbackToolTimeoutMs
+        ).also { callbackAdapterCache[callback] = it }
     }
 }
