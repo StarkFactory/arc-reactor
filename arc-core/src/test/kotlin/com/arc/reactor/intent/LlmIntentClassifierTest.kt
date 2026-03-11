@@ -115,6 +115,15 @@ class LlmIntentClassifierTest {
         }
 
         @Test
+        fun `returns unknown when LLM returns fenced unknown intent`() = runTest {
+            registerIntents()
+            mockLlmResponse("```json\n{\"intents\":[{\"name\":\"unknown\",\"confidence\":0.9}]}\n```")
+
+            val result = classifier.classify("random text")
+            assertTrue(result.isUnknown) { "Should treat fenced unknown JSON as a valid unknown result" }
+        }
+
+        @Test
         fun `returns unknown on LLM exception`() = runTest {
             registerIntents()
             every { requestSpec.call() } throws RuntimeException("LLM unavailable")
@@ -180,7 +189,7 @@ class LlmIntentClassifierTest {
         fun `parseResponse handles valid JSON`() {
             val parsed = classifier.parseResponse("""{"intents":[{"name":"order","confidence":0.88}]}""")
             assertNotNull(parsed) { "Should parse valid JSON" }
-            assertEquals("order", parsed!![0].intentName) { "Should extract intent name" }
+            assertEquals("order", parsed!!.intents[0].intentName) { "Should extract intent name" }
         }
 
         @Test
@@ -189,20 +198,28 @@ class LlmIntentClassifierTest {
                 """{"intents":[{"name":"order","confidence":0.88},{"name":"refund","confidence":0.0}]}"""
             )
             assertNotNull(parsed) { "Should parse valid JSON" }
-            assertEquals(1, parsed!!.size) { "Should filter out zero-confidence intents" }
+            assertEquals(1, parsed!!.intents.size) { "Should filter out zero-confidence intents" }
         }
 
         @Test
         fun `parseResponse clamps confidence to 0-1 range`() {
             val parsed = classifier.parseResponse("""{"intents":[{"name":"order","confidence":1.5}]}""")
             assertNotNull(parsed) { "Should parse even with out-of-range confidence" }
-            assertEquals(1.0, parsed!![0].confidence, 0.01) { "Confidence should be clamped to 1.0" }
+            assertEquals(1.0, parsed!!.intents[0].confidence, 0.01) { "Confidence should be clamped to 1.0" }
         }
 
         @Test
         fun `parseResponse returns null for empty intents list`() {
             val parsed = classifier.parseResponse("""{"intents":[]}""")
-            assertNull(parsed) { "Should return null for empty intents" }
+            assertNotNull(parsed) { "Should parse empty intent payloads without treating them as malformed JSON" }
+            assertTrue(parsed!!.intents.isEmpty()) { "Empty payload should produce no classified intents" }
+        }
+
+        @Test
+        fun `parseResponse preserves unknown-only payload as parsed result`() {
+            val parsed = classifier.parseResponse("""{"intents":[{"name":"unknown","confidence":0.9}]}""")
+            assertNotNull(parsed) { "Unknown-only payload should still count as valid JSON" }
+            assertTrue(parsed!!.intents.isEmpty()) { "Unknown intents should not be promoted into classified intents" }
         }
     }
 
