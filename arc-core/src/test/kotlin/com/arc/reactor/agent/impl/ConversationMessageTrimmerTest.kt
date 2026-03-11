@@ -181,6 +181,37 @@ class ConversationMessageTrimmerTest {
     }
 
     @Test
+    fun `should trim leading system messages before dropping latest tool history`() {
+        val toolCall = mockk<AssistantMessage.ToolCall>()
+        every { toolCall.name() } returns "tool"
+        every { toolCall.arguments() } returns "{}"
+
+        val messages = mutableListOf<Message>(
+            SystemMessage("facts-12345"),
+            SystemMessage("summary-6789"),
+            UserMessage("keep"),
+            AssistantMessage.builder().content("a").toolCalls(listOf(toolCall)).build(),
+            ToolResponseMessage.builder()
+                .responses(listOf(ToolResponseMessage.ToolResponse("1", "tool", "result-data")))
+                .build()
+        )
+
+        val trimmer = ConversationMessageTrimmer(
+            maxContextWindowTokens = 22,
+            outputReserveTokens = 0,
+            tokenEstimator = tokenEstimator
+        )
+
+        trimmer.trim(messages, systemPrompt = "")
+
+        assertEquals(3, messages.size, "Fresh tool interaction should remain after trimming leading system memory")
+        assertInstanceOf(UserMessage::class.java, messages[0], "Last user message must be preserved")
+        assertInstanceOf(AssistantMessage::class.java, messages[1], "Tool-call assistant should remain")
+        assertInstanceOf(ToolResponseMessage::class.java, messages[2], "Tool response should remain paired")
+        assertEquals("keep", (messages[0] as UserMessage).text)
+    }
+
+    @Test
     fun `should trim trailing assistant when it is the only post-user message over budget`() {
         val messages = mutableListOf<Message>(
             UserMessage("keep"),

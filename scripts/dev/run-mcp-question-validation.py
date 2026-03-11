@@ -101,7 +101,7 @@ def resolve_admin_token(args: argparse.Namespace) -> str:
     if args.admin_token:
         return args.admin_token
     if args.admin_email and args.admin_password:
-        return login(args.base_url, args.admin_email, args.admin_password)
+        return login_only(args.base_url, args.admin_email, args.admin_password)
     print("Admin credentials not provided; admin-only checks are skipped.")
     return ""
 
@@ -196,14 +196,18 @@ def http_text_request(
         return int(err.code), err.read().decode("utf-8", errors="replace")
 
 
-def login(base_url: str, email: str, password: str) -> str:
-    status, body, payload = http_json_request(
+def login_with_credentials(base_url: str, email: str, password: str) -> tuple[int, str, dict[str, Any] | None]:
+    return http_json_request(
         method="POST",
         url=f"{base_url}/api/auth/login",
         headers={},
         json_body={"email": email, "password": password},
         timeout_sec=20,
     )
+
+
+def register_or_login(base_url: str, email: str, password: str) -> str:
+    status, body, payload = login_with_credentials(base_url, email, password)
     if status == 200:
         token = str((payload or {}).get("token", "")).strip()
         if not token:
@@ -227,15 +231,19 @@ def login(base_url: str, email: str, password: str) -> str:
     if register_status not in (200, 409):
         raise RuntimeError(f"register failed status={register_status} body={register_body}")
 
-    status, body, payload = http_json_request(
-        method="POST",
-        url=f"{base_url}/api/auth/login",
-        headers={},
-        json_body={"email": email, "password": password},
-        timeout_sec=20,
-    )
+    status, body, payload = login_with_credentials(base_url, email, password)
     if status != 200:
         raise RuntimeError(f"login failed status={status} body={body}")
+    token = str((payload or {}).get("token", "")).strip()
+    if not token:
+        raise RuntimeError("login returned no token")
+    return token
+
+
+def login_only(base_url: str, email: str, password: str) -> str:
+    status, body, payload = login_with_credentials(base_url, email, password)
+    if status != 200:
+        raise RuntimeError(f"admin login failed status={status} body={body}")
     token = str((payload or {}).get("token", "")).strip()
     if not token:
         raise RuntimeError("login returned no token")
@@ -1574,7 +1582,7 @@ def main() -> int:
     identity = normalized_identity(args.requester_email, args.requester_account_id)
     requester_alias_value = requester_alias(identity)
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    token = login(args.base_url, args.email, args.password)
+    token = register_or_login(args.base_url, args.email, args.password)
     admin_token = resolve_admin_token(args)
 
     server_catalog = admin_request(args, admin_token, "/api/mcp/servers")

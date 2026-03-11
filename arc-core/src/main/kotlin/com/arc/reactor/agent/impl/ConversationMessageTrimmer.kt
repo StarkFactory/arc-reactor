@@ -44,6 +44,7 @@ class ConversationMessageTrimmer(
         val messageTokens = messages.mapTo(ArrayList(messages.size)) { estimateCachedMessageTokens(it) }
         var totalTokens = messageTokens.sum()
         totalTokens = trimOldHistory(messages, messageTokens, totalTokens, budget)
+        totalTokens = trimLeadingSystemMessagesForFreshToolHistory(messages, messageTokens, totalTokens, budget)
         trimToolHistory(messages, messageTokens, totalTokens, budget)
     }
 
@@ -108,6 +109,32 @@ class ConversationMessageTrimmer(
             totalTokens -= removedTokens
             logger.debug { "Trimmed $removeCount messages (tool history). Remaining tokens: $totalTokens/$budget" }
         }
+    }
+
+    /**
+     * When the latest tool observations would otherwise be trimmed, prefer dropping
+     * leading memory SystemMessages first so the next LLM call can still see the
+     * freshest tool-call/tool-response context.
+     */
+    private fun trimLeadingSystemMessagesForFreshToolHistory(
+        messages: MutableList<Message>,
+        messageTokens: MutableList<Int>,
+        currentTokens: Int,
+        budget: Int
+    ): Int {
+        var totalTokens = currentTokens
+        while (totalTokens > budget && messages.size > 1) {
+            val lastUserIdx = messages.indexOfLast { it is UserMessage }
+            if (lastUserIdx < 0 || lastUserIdx >= messages.lastIndex) break
+            if (messages.firstOrNull() !is SystemMessage) break
+
+            totalTokens -= messageTokens.removeAt(0)
+            messages.removeAt(0)
+            logger.debug {
+                "Trimmed 1 message (leading system for fresh tool history). Remaining tokens: $totalTokens/$budget"
+            }
+        }
+        return totalTokens
     }
 
     /**
