@@ -1,6 +1,7 @@
 package com.arc.reactor.guard.example
 
 import com.arc.reactor.guard.GuardStage
+import com.arc.reactor.guard.PiiPatterns
 import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
@@ -30,7 +31,7 @@ class PiiDetectionGuard : GuardStage {
     override val order = 25
 
     override suspend fun check(command: GuardCommand): GuardResult {
-        for (pattern in PII_PATTERNS) {
+        for (pattern in PiiPatterns.ALL) {
             if (pattern.regex.containsMatchIn(command.text)) {
                 return GuardResult.Rejected(
                     reason = "개인정보(${pattern.name})가 포함된 요청은 처리할 수 없습니다. " +
@@ -41,32 +42,5 @@ class PiiDetectionGuard : GuardStage {
             }
         }
         return GuardResult.Allowed.DEFAULT
-    }
-
-    private data class PiiPattern(val name: String, val regex: Regex)
-
-    companion object {
-        private val PII_PATTERNS = listOf(
-            // Korean resident registration number (000000-0000000)
-            PiiPattern(
-                "주민등록번호",
-                Regex("""\d{6}\s?-\s?[1-4]\d{6}""")
-            ),
-            // Korean phone number (010-0000-0000)
-            PiiPattern(
-                "전화번호",
-                Regex("""01[016789]-?\d{3,4}-?\d{4}""")
-            ),
-            // Credit card number (0000-0000-0000-0000)
-            PiiPattern(
-                "신용카드번호",
-                Regex("""\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}""")
-            ),
-            // Email address
-            PiiPattern(
-                "이메일",
-                Regex("""[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}""")
-            )
-        )
     }
 }
