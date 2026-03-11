@@ -123,7 +123,11 @@ class ErrorReportController(
 
     private fun validateApiKey(headerKey: String?): Boolean {
         if (properties.apiKey.isBlank()) return true
-        return headerKey == properties.apiKey
+        if (headerKey == null) return false
+        return java.security.MessageDigest.isEqual(
+            headerKey.toByteArray(),
+            properties.apiKey.toByteArray()
+        )
     }
 }
 
