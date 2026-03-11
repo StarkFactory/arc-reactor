@@ -445,14 +445,18 @@ class SpringAiAgentExecutor(
         ragContext: String? = null
     ): AgentResult {
         try {
-            val maxToolCalls = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
+            val maxToolCalls = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(0)
             val allowedTools = resolveIntentAllowedTools(command)
-            val forcedToolContext = maybeExecuteForcedWorkspaceTool(
-                command = command,
-                hookContext = hookContext,
-                toolsUsed = toolsUsed,
-                allowedTools = allowedTools
-            )
+            val forcedToolContext = if (maxToolCalls > 0) {
+                maybeExecuteForcedWorkspaceTool(
+                    command = command,
+                    hookContext = hookContext,
+                    toolsUsed = toolsUsed,
+                    allowedTools = allowedTools
+                )
+            } else {
+                null
+            }
             if (forcedToolContext != null && !forcedToolContext.success) {
                 return AgentResult.failure(
                     errorMessage = forcedToolContext.errorMessage ?: forcedToolContext.output ?: AgentErrorCode.TOOL_ERROR.defaultMessage,

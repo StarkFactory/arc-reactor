@@ -9,6 +9,7 @@ NAME="${NAME:-QA Security E2E}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 STRICT_HEALTH="${STRICT_HEALTH:-false}"
 CHECK_AUTH_RATE_LIMIT="${CHECK_AUTH_RATE_LIMIT:-true}"
+AUTH_RATE_LIMIT_PER_MINUTE="${AUTH_RATE_LIMIT_PER_MINUTE:-10}"
 
 usage() {
   cat <<'EOF'
@@ -63,6 +64,19 @@ request() {
   local body_file="$3"
   shift 3
   curl -sS -X "$method" "$url" "$@" -o "$body_file" -w "%{http_code}"
+}
+
+login_with_credentials() {
+  local email="$1"
+  local password="$2"
+  local response_file="$3"
+  local payload_file="$tmp_dir/login_payload_${RANDOM}.json"
+  cat >"$payload_file" <<JSON
+{"email":"$email","password":"$password"}
+JSON
+  request POST "$BASE_URL/api/auth/login" "$response_file" \
+    -H "Content-Type: application/json" \
+    --data-binary "@$payload_file"
 }
 
 json_field() {
@@ -186,29 +200,30 @@ unauth_policy_code="$(request PUT "$BASE_URL/api/tool-policy" "$unauth_policy_fi
 assert_status "$unauth_policy_code" "401" "/api/tool-policy without token"
 
 step "Register/login security test user"
-register_file="$tmp_dir/register.json"
-register_payload="$tmp_dir/register_payload.json"
-cat >"$register_payload" <<JSON
-{"email":"$EMAIL","password":"$PASSWORD","name":"$NAME"}
-JSON
-register_code="$(request POST "$BASE_URL/api/auth/register" "$register_file" \
-  -H "Content-Type: application/json" \
-  --data-binary "@$register_payload")"
-if [[ "$register_code" == "201" ]]; then
-  user_token="$(json_field "$register_file" ".token")"
-elif [[ "$register_code" == "409" ]]; then
-  login_file="$tmp_dir/login.json"
-  login_payload="$tmp_dir/login_payload.json"
-  cat >"$login_payload" <<JSON
-{"email":"$EMAIL","password":"$PASSWORD"}
-JSON
-  login_code="$(request POST "$BASE_URL/api/auth/login" "$login_file" \
-    -H "Content-Type: application/json" \
-    --data-binary "@$login_payload")"
-  assert_status "$login_code" "200" "/api/auth/login after 409 register"
+login_file="$tmp_dir/login.json"
+login_code="$(login_with_credentials "$EMAIL" "$PASSWORD" "$login_file")"
+if [[ "$login_code" == "200" ]]; then
   user_token="$(json_field "$login_file" ".token")"
 else
-  fail "/api/auth/register expected 201 or 409, got $register_code"
+  register_file="$tmp_dir/register.json"
+  register_payload="$tmp_dir/register_payload.json"
+  cat >"$register_payload" <<JSON
+{"email":"$EMAIL","password":"$PASSWORD","name":"$NAME"}
+JSON
+  register_code="$(request POST "$BASE_URL/api/auth/register" "$register_file" \
+    -H "Content-Type: application/json" \
+    --data-binary "@$register_payload")"
+  if [[ "$register_code" == "201" ]]; then
+    user_token="$(json_field "$register_file" ".token")"
+  elif [[ "$register_code" == "409" ]]; then
+    login_code="$(login_with_credentials "$EMAIL" "$PASSWORD" "$login_file")"
+    assert_status "$login_code" "200" "/api/auth/login after 409 register"
+    user_token="$(json_field "$login_file" ".token")"
+  elif [[ "$login_code" == "401" && ( "$register_code" == "401" || "$register_code" == "403" ) ]]; then
+    fail "Login failed and self-registration is unavailable. Provide an existing account or enable registration."
+  else
+    fail "/api/auth/register expected 201 or 409, got $register_code"
+  fi
 fi
 [[ -n "$user_token" ]] || fail "Failed to resolve test user token"
 
@@ -297,11 +312,12 @@ if is_true "$CHECK_AUTH_RATE_LIMIT"; then
   step "Auth brute-force rate limit check"
   rate_limit_probe_file="$tmp_dir/rate_limit_probe.json"
   rate_limit_probe_payload="$tmp_dir/rate_limit_probe_payload.json"
+  rate_limit_attempts=$((AUTH_RATE_LIMIT_PER_MINUTE + 1))
   cat >"$rate_limit_probe_payload" <<JSON
 {"email":"no-such-user-security-probe@example.com","password":"invalid-pass"}
 JSON
   rate_limit_codes=()
-  for i in $(seq 1 8); do
+  for i in $(seq 1 "$rate_limit_attempts"); do
     code="$(request POST "$BASE_URL/api/auth/login" "$rate_limit_probe_file" \
       -H "Content-Type: application/json" \
       -H "X-Forwarded-For: 203.0.113.77" \
@@ -315,7 +331,7 @@ JSON
     fi
   done
   if [[ "${rate_limit_codes[*]}" != *"429"* ]]; then
-    fail "Auth rate limit did not trigger after 8 attempts (codes: ${rate_limit_codes[*]})"
+    fail "Auth rate limit did not trigger after $rate_limit_attempts attempts (limit=$AUTH_RATE_LIMIT_PER_MINUTE, codes: ${rate_limit_codes[*]})"
   fi
 fi
 

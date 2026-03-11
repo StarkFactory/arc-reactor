@@ -11,12 +11,13 @@ import com.arc.reactor.hook.impl.UserMemoryInjectionHook
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.support.throwIfCancellation
-import mu.KotlinLogging
-import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.chat.messages.Message
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
+import mu.KotlinLogging
+import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.messages.Message
 
 private val logger = KotlinLogging.logger {}
 
@@ -55,6 +56,8 @@ internal class StreamingExecutionCoordinator(
             handleBlockedIntent(e, state, emit)
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             handleTimeout(e, state, emit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             handleUnexpectedFailure(e, state, emit)
         }
@@ -192,7 +195,7 @@ internal class StreamingExecutionCoordinator(
             initialTools = selectedTools,
             conversationHistory = conversationHistory,
             allowedTools = resolveIntentAllowedTools(command),
-            maxToolCallLimit = minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(1)
+            maxToolCallLimit = minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(0)
         )
     }
 

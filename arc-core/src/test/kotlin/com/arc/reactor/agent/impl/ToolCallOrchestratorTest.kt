@@ -960,10 +960,15 @@ class ToolCallOrchestratorTest {
             parseToolArguments = { emptyMap() }
         )
         val toolCall = toolCall(id = "id-1", name = "search")
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = "ok"
+        }
 
         val responses = orchestrator.executeInParallel(
             toolCalls = listOf(toolCall),
-            tools = emptyList(),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
             hookContext = hookContext,
             toolsUsed = mutableListOf(),
             totalToolCallsCounter = AtomicInteger(1),
@@ -975,6 +980,82 @@ class ToolCallOrchestratorTest {
         assertTrue(responses[0].responseData().contains("Maximum tool call limit")) {
             "Response should indicate max tool call limit was reached"
         }
+    }
+
+    @Test
+    fun `should not consume budget for allowlist-blocked tool calls`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = "ok"
+        }
+        val counter = AtomicInteger(0)
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(
+                toolCall(id = "id-1", name = "blocked"),
+                toolCall(id = "id-2", name = "search")
+            ),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = counter,
+            maxToolCalls = 1,
+            allowedTools = setOf("search")
+        )
+
+        assertEquals(2, responses.size)
+        assertTrue(responses[0].responseData().contains("not allowed")) {
+            "First response should explain allowlist rejection"
+        }
+        assertEquals("ok", responses[1].responseData())
+        assertEquals(1, counter.get()) { "Only the executed tool should consume budget" }
+    }
+
+    @Test
+    fun `should not consume budget for hallucinated missing tools`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = "ok"
+        }
+        val counter = AtomicInteger(0)
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(
+                toolCall(id = "id-1", name = "missing"),
+                toolCall(id = "id-2", name = "search")
+            ),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = counter,
+            maxToolCalls = 1,
+            allowedTools = null
+        )
+
+        assertEquals(2, responses.size)
+        assertTrue(responses[0].responseData().contains("not found")) {
+            "Missing tool response should explain that the tool does not exist"
+        }
+        assertEquals("ok", responses[1].responseData())
+        assertEquals(1, counter.get()) { "Only the real tool execution should consume budget" }
     }
 
     @Test

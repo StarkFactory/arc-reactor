@@ -7,6 +7,7 @@ import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.TokenEstimator
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -121,6 +122,55 @@ class ManualReActLoopExecutorTest {
         assertEquals("done", result.content)
         assertTrue(optionsUsed.contains(true), "First iteration should use tools (tools enabled)")
         assertTrue(optionsUsed.contains(false), "Final iteration after maxToolCalls should disable tools")
+    }
+
+    @Test
+    fun `should start with tools disabled when maxToolCalls is zero`() = runBlocking {
+        val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
+        val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
+        io.mockk.every { requestSpec.call() } returns callResponseSpec
+        io.mockk.every {
+            callResponseSpec.chatResponse()
+        } returns AgentTestFixture.simpleChatResponse("tool-free").mutateWithToolCalls(listOf(toolCall))
+
+        val toolOrchestrator = mockk<ToolCallOrchestrator>()
+        val optionsUsed = mutableListOf<Boolean>()
+        val loopExecutor = ManualReActLoopExecutor(
+            messageTrimmer = ConversationMessageTrimmer(
+                maxContextWindowTokens = 10_000,
+                outputReserveTokens = 100,
+                tokenEstimator = TokenEstimator { it.length }
+            ),
+            toolCallOrchestrator = toolOrchestrator,
+            buildRequestSpec = { _, _, _, _, _ -> requestSpec },
+            callWithRetry = { block -> block() },
+            buildChatOptions = { _, hasTools ->
+                optionsUsed.add(hasTools)
+                ChatOptions.builder().build()
+            },
+            validateAndRepairResponse = { rawContent, _, _, _, _ -> AgentResult.success(content = rawContent) },
+            recordTokenUsage = { _, _ -> }
+        )
+
+        val result = loopExecutor.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", maxToolCalls = 0),
+            activeChatClient = mockk(relaxed = true),
+            systemPrompt = "sys",
+            initialTools = listOf(mockk<Any>(relaxed = true)),
+            conversationHistory = emptyList(),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            allowedTools = null,
+            maxToolCalls = 0
+        )
+
+        assertTrue(result.success, "Manual loop should still return the assistant response")
+        assertEquals("tool-free", result.content)
+        assertEquals(listOf(false), optionsUsed)
+        coVerify(exactly = 0) {
+            toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
+        }
     }
 
     private fun org.springframework.ai.chat.model.ChatResponse.mutateWithToolCalls(

@@ -324,7 +324,7 @@ class McpServerControllerTest {
     inner class UpdateServer {
 
         @Test
-        fun `should update server config as admin`() {
+        fun `should update server config as admin`() = runTest {
             manager.register(McpServer(
                 name = "update-me",
                 transportType = McpTransportType.SSE,
@@ -348,7 +348,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should return 404 when updating nonexistent server`() {
+        fun `should return 404 when updating nonexistent server`() = runTest {
             val response = controller.updateServer(
                 "ghost",
                 UpdateMcpServerRequest(description = "test"),
@@ -360,7 +360,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject non-admin update`() {
+        fun `should reject non-admin update`() = runTest {
             manager.register(McpServer(
                 name = "no-update",
                 transportType = McpTransportType.SSE,
@@ -378,7 +378,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should preserve existing transport when transportType is omitted`() {
+        fun `should preserve existing transport when transportType is omitted`() = runTest {
             manager.register(McpServer(
                 name = "preserve-transport",
                 transportType = McpTransportType.STDIO,
@@ -403,7 +403,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject invalid transport type on update`() {
+        fun `should reject invalid transport type on update`() = runTest {
             manager.register(McpServer(
                 name = "invalid-update-transport",
                 transportType = McpTransportType.SSE,
@@ -422,7 +422,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject unsupported http transport on update`() {
+        fun `should reject unsupported http transport on update`() = runTest {
             manager.register(McpServer(
                 name = "http-update-transport",
                 transportType = McpTransportType.SSE,
@@ -441,7 +441,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should accept trimmed transport type on update`() {
+        fun `should accept trimmed transport type on update`() = runTest {
             manager.register(McpServer(
                 name = "trim-update-transport",
                 transportType = McpTransportType.SSE,
@@ -466,7 +466,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should sync runtime manager state when store and manager are decoupled`() {
+        fun `should sync runtime manager state when store and manager are decoupled`() = runTest {
             val runtimeManager = DefaultMcpManager()
             val persistentStore = InMemoryMcpServerStore()
             val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
@@ -497,7 +497,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reconnect connected server when connection config changes`() {
+        fun `should reconnect connected server when connection config changes`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
             val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
@@ -510,7 +510,8 @@ class McpServerControllerTest {
             )
             persistentStore.save(original)
 
-            every { runtimeManager.getStatus("reconnect-me") } returns com.arc.reactor.mcp.model.McpServerStatus.CONNECTED
+            every { runtimeManager.getStatus("reconnect-me") } returns
+                com.arc.reactor.mcp.model.McpServerStatus.CONNECTED
             coEvery { runtimeManager.disconnect("reconnect-me") } returns Unit
             coEvery { runtimeManager.connect("reconnect-me") } returns true
 
@@ -527,7 +528,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should not reconnect connected server when only description changes`() {
+        fun `should not reconnect connected server when only description changes`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
             val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
@@ -557,7 +558,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should connect server after update when autoConnect is enabled from disconnected state`() {
+        fun `should connect server after update when autoConnect is enabled from disconnected state`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
             val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
@@ -571,7 +572,8 @@ class McpServerControllerTest {
                 )
             )
 
-            every { runtimeManager.getStatus("auto-connect-me") } returns com.arc.reactor.mcp.model.McpServerStatus.DISCONNECTED
+            every { runtimeManager.getStatus("auto-connect-me") } returns
+                com.arc.reactor.mcp.model.McpServerStatus.DISCONNECTED
             coEvery { runtimeManager.connect("auto-connect-me") } returns true
 
             val response = localController.updateServer(

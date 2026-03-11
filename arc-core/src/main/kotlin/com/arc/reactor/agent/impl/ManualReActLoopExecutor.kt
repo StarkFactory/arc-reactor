@@ -58,7 +58,7 @@ internal class ManualReActLoopExecutor(
     ): AgentResult {
         var totalToolCalls = 0
         var llmCallIndex = 0
-        var activeTools = initialTools
+        var activeTools = if (maxToolCalls > 0) initialTools else emptyList()
         var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
         var totalTokenUsage: TokenUsage? = null
         var totalLlmDurationMs = 0L

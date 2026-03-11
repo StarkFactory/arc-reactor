@@ -15,7 +15,6 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
@@ -178,7 +177,7 @@ class McpServerController(
         ApiResponse(responseCode = "404", description = "MCP server not found")
     ])
     @PutMapping("/{name}")
-    fun updateServer(
+    suspend fun updateServer(
         @PathVariable name: String,
         @Valid @RequestBody request: UpdateMcpServerRequest,
         exchange: ServerWebExchange
@@ -224,7 +223,7 @@ class McpServerController(
         return ResponseEntity.ok(updated.toResponse())
     }
 
-    private fun applyRuntimeUpdate(
+    private suspend fun applyRuntimeUpdate(
         existing: McpServer,
         updated: McpServer,
         previousStatus: McpServerStatus?
@@ -236,7 +235,7 @@ class McpServerController(
             previousStatus != McpServerStatus.CONNECTING
 
         when {
-            reconnectRequired -> runBlocking(Dispatchers.IO) {
+            reconnectRequired -> withContext(Dispatchers.IO) {
                 logger.info { "Reconnecting MCP server '${updated.name}' after configuration update" }
                 mcpManager.disconnect(updated.name)
                 val connected = mcpManager.connect(updated.name)
@@ -245,7 +244,7 @@ class McpServerController(
                 }
             }
 
-            connectRequired -> runBlocking(Dispatchers.IO) {
+            connectRequired -> withContext(Dispatchers.IO) {
                 logger.info { "Connecting MCP server '${updated.name}' after enabling autoConnect or updating config" }
                 val connected = mcpManager.connect(updated.name)
                 if (!connected) {

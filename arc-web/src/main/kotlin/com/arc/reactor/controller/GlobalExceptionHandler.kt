@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.bind.support.WebExchangeBindException
 import org.springframework.web.reactive.resource.NoResourceFoundException
+import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.server.ServerWebInputException
 import java.time.Instant
 
@@ -62,6 +63,17 @@ class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
             ErrorResponse(
                 error = "Not found",
+                timestamp = Instant.now().toString()
+            )
+        )
+    }
+
+    @ExceptionHandler(ResponseStatusException::class)
+    fun handleResponseStatusException(ex: ResponseStatusException): ResponseEntity<ErrorResponse> {
+        val message = ex.reason?.takeIf { it.isNotBlank() } ?: ex.statusCode.toString()
+        return ResponseEntity.status(ex.statusCode).body(
+            ErrorResponse(
+                error = message,
                 timestamp = Instant.now().toString()
             )
         )

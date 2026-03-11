@@ -56,7 +56,7 @@ internal class StreamingReActLoopExecutor(
         maxToolCalls: Int,
         emit: suspend (String) -> Unit
     ): StreamingLoopResult {
-        var activeTools = initialTools
+        var activeTools = if (maxToolCalls > 0) initialTools else emptyList()
         var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
         var totalToolCalls = 0
         var lastIterationContent = ""

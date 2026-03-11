@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import io.mockk.verify
 
 /**
  * Integration test — verifies IntentResolver integration in SpringAiAgentExecutor.
@@ -87,6 +88,30 @@ class IntentExecutorIntegrationTest {
             assertTrue(result.success) { "Execution should succeed" }
             // The profile overrides are applied internally; we verify by checking
             // that execution completed (model/maxToolCalls overrides don't break)
+        }
+
+        @Test
+        fun `intent profile with zero maxToolCalls should not expose tools to the LLM`() = runTest {
+            fixture.mockCallResponse("Hello without tools")
+            val tool = AgentTestFixture.toolCallback("search", "Search")
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = AgentTestFixture.defaultProperties(),
+                intentResolver = resolver,
+                toolCallbacks = listOf(tool)
+            )
+
+            val result = executor.execute(
+                AgentCommand(
+                    systemPrompt = "original",
+                    userPrompt = "hello",
+                    maxToolCalls = 10
+                )
+            )
+
+            assertTrue(result.success) { "Execution should succeed with zero-tool intent profile" }
+            verify(exactly = 0) { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
+            verify(exactly = 0) { fixture.requestSpec.tools(*anyVararg<Any>()) }
         }
     }
 

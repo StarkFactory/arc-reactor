@@ -157,19 +157,6 @@ internal class ToolCallOrchestrator(
         allowedTools: Set<String>?,
         normalizeToolResponseToJson: Boolean
     ): ParallelToolExecution {
-        val currentCount = totalToolCallsCounter.getAndIncrement()
-        if (currentCount >= maxToolCalls) {
-            logger.warn { "maxToolCalls ($maxToolCalls) reached, stopping tool execution" }
-            return ParallelToolExecution(
-                response = buildToolResponse(
-                    toolCall = toolCall,
-                    toolName = toolCall.name(),
-                    output = "Error: Maximum tool call limit ($maxToolCalls) reached",
-                    normalizeToolResponseToJson = normalizeToolResponseToJson
-                )
-            )
-        }
-
         val toolName = toolCall.name()
         if (allowedTools != null && toolName !in allowedTools) {
             val msg = "Error: Tool '$toolName' is not allowed for this request"
@@ -197,7 +184,7 @@ internal class ToolCallOrchestrator(
             agentContext = hookContext,
             toolName = toolName,
             toolParams = effectiveToolParams,
-            callIndex = currentCount
+            callIndex = totalToolCallsCounter.get()
         )
 
         checkBeforeToolCallHook(toolCallContext)?.let { rejection ->
@@ -220,6 +207,31 @@ internal class ToolCallOrchestrator(
                     toolCall = toolCall,
                     toolName = toolName,
                     output = rejection,
+                    normalizeToolResponseToJson = normalizeToolResponseToJson
+                )
+            )
+        }
+
+        val toolExists = findToolAdapter(toolName, tools) != null || springCallbacksByName.containsKey(toolName)
+        if (!toolExists) {
+            logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
+            return ParallelToolExecution(
+                response = buildToolResponse(
+                    toolCall = toolCall,
+                    toolName = toolName,
+                    output = "Error: Tool '$toolName' not found",
+                    normalizeToolResponseToJson = normalizeToolResponseToJson
+                )
+            )
+        }
+
+        if (reserveToolExecutionSlot(totalToolCallsCounter, maxToolCalls) == null) {
+            logger.warn { "maxToolCalls ($maxToolCalls) reached, stopping tool execution" }
+            return ParallelToolExecution(
+                response = buildToolResponse(
+                    toolCall = toolCall,
+                    toolName = toolCall.name(),
+                    output = "Error: Maximum tool call limit ($maxToolCalls) reached",
                     normalizeToolResponseToJson = normalizeToolResponseToJson
                 )
             )
@@ -263,6 +275,18 @@ internal class ToolCallOrchestrator(
             usedToolName = toolName.takeIf { invocation.trackAsUsed },
             capture = capture
         )
+    }
+
+    private fun reserveToolExecutionSlot(counter: AtomicInteger, maxToolCalls: Int): Int? {
+        while (true) {
+            val current = counter.get()
+            if (current >= maxToolCalls) {
+                return null
+            }
+            if (counter.compareAndSet(current, current + 1)) {
+                return current
+            }
+        }
     }
 
     private fun extractToolCapture(

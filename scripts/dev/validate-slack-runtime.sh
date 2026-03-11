@@ -146,6 +146,33 @@ JSON
   printf '%s' "$token"
 }
 
+login_only() {
+  local email="$1"
+  local password="$2"
+  local login_req="$TMP_DIR/login_req_${RANDOM}.json"
+  local login_resp="$TMP_DIR/login_resp_${RANDOM}.json"
+  local code token
+
+  cat >"$login_req" <<JSON
+{"email":"$email","password":"$password"}
+JSON
+  code="$(curl -sS -o "$login_resp" -w "%{http_code}" \
+    -H "Content-Type: application/json" \
+    --data @"$login_req" \
+    "$BASE_URL/api/auth/login")"
+  if [[ "$code" != "200" ]]; then
+    echo "Admin login failed for $email (status=$code)" >&2
+    cat "$login_resp" >&2
+    exit 1
+  fi
+  token="$(json_field "$login_resp" '.token')"
+  [[ -n "$token" && "$token" != "null" ]] || {
+    echo "Admin login succeeded but token is missing for $email" >&2
+    exit 1
+  }
+  printf '%s' "$token"
+}
+
 resolve_auth_tokens() {
   if [[ -z "$QA_EMAIL" ]]; then
     QA_EMAIL="qa-slack-runtime-$RUN_ID@example.com"
@@ -158,7 +185,7 @@ resolve_auth_tokens() {
   fi
 
   if [[ -n "$ADMIN_EMAIL" && -n "$ADMIN_PASSWORD" ]]; then
-    EFFECTIVE_ADMIN_TOKEN="$(register_or_login "$ADMIN_EMAIL" "$ADMIN_PASSWORD" "Slack Runtime Admin")"
+    EFFECTIVE_ADMIN_TOKEN="$(login_only "$ADMIN_EMAIL" "$ADMIN_PASSWORD")"
     return 0
   fi
 

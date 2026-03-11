@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.auth.AuthProperties
+import com.arc.reactor.auth.AuthProvider
 import com.arc.reactor.auth.DefaultAuthProvider
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.JwtTokenProvider
@@ -132,6 +133,36 @@ class AuthControllerTest {
             assertTrue(response.body?.error?.contains("disabled", ignoreCase = true) == true) {
                 "Error message should explain that self-registration is disabled"
             }
+        }
+
+        @Test
+        fun `should return 400 when custom auth provider does not support registration`() {
+            val customProvider = mockk<AuthProvider>()
+            val customController = AuthController(
+                authProvider = customProvider,
+                userStore = userStore,
+                jwtTokenProvider = jwtTokenProvider,
+                authProperties = AuthProperties(selfRegistrationEnabled = true),
+                tokenRevocationStore = tokenRevocationStore
+            )
+            every { userStore.existsByEmail("custom@test.com") } returns false
+
+            val response = customController.register(
+                RegisterRequest(
+                    email = "custom@test.com",
+                    password = "password123",
+                    name = "Custom User"
+                )
+            )
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "Custom AuthProvider registration should return 400 BAD_REQUEST"
+            }
+            assertTrue(response.body?.error?.contains("not supported", ignoreCase = true) == true) {
+                "Error should explain that self-registration is unsupported for the configured provider"
+            }
+            verify(exactly = 0) { userStore.save(any()) }
+            verify(exactly = 0) { jwtTokenProvider.createToken(any()) }
         }
     }
 
