@@ -12,6 +12,7 @@ import io.modelcontextprotocol.client.transport.StdioClientTransport
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper
 import io.modelcontextprotocol.spec.McpSchema
 import mu.KotlinLogging
+import java.net.InetAddress
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -107,6 +108,11 @@ internal class McpConnectionSupport(
             return null
         }
 
+        if (isPrivateAddress(parsed.host)) {
+            logger.warn { "SSE URL resolves to private/reserved address for server '${server.name}'" }
+            return null
+        }
+
         return try {
             val transport = HttpClientSseClientTransport.builder(parsed.toString())
                 .customizeClient { it.connectTimeout(Duration.ofMillis(connectionTimeoutMs)) }
@@ -135,6 +141,16 @@ internal class McpConnectionSupport(
                 "Use SSE transport instead for server: ${server.name}"
         }
         return null
+    }
+
+    private fun isPrivateAddress(host: String?): Boolean {
+        if (host.isNullOrBlank()) return true
+        return try {
+            val addr = InetAddress.getByName(host)
+            addr.isLoopbackAddress || addr.isSiteLocalAddress || addr.isLinkLocalAddress
+        } catch (_: Exception) {
+            true // unresolvable host treated as blocked
+        }
     }
 
     private fun loadToolCallbacks(client: McpSyncClient, serverName: String): List<ToolCallback> {
