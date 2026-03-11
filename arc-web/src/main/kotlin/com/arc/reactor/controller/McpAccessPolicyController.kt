@@ -283,7 +283,7 @@ class McpAccessPolicyController(
             logger.warn(e) { "Failed to proxy access-policy request to MCP server '$name'" }
             errorResponse(
                 status = HttpStatus.BAD_GATEWAY,
-                message = "Failed to call MCP admin API: ${e.message}"
+                message = "Failed to call MCP admin API"
             )
         }
         observeProxyCall(name, method, response.statusCode.value(), startedAtNanos)
