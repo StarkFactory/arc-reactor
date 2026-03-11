@@ -14,6 +14,7 @@ import mu.KotlinLogging
 import org.springframework.ai.vectorstore.VectorStore
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 import java.util.regex.PatternSyntaxException
 
@@ -31,6 +32,8 @@ class RagIngestionCaptureHook(
     private val vectorStore: VectorStore? = null,
     private val documentChunker: DocumentChunker? = null
 ) : AfterAgentCompleteHook {
+
+    private val regexCache = ConcurrentHashMap<String, Regex?>()
 
     override val order: Int = 260
 
@@ -117,11 +120,13 @@ class RagIngestionCaptureHook(
     }
 
     private fun compileRegex(rawPattern: String): Regex? {
-        return try {
-            Pattern.compile(rawPattern, Pattern.CASE_INSENSITIVE).toRegex()
-        } catch (e: PatternSyntaxException) {
-            logger.warn { "Ignoring invalid blocked regex pattern: $rawPattern" }
-            null
+        return regexCache.getOrPut(rawPattern) {
+            try {
+                Pattern.compile(rawPattern, Pattern.CASE_INSENSITIVE).toRegex()
+            } catch (e: PatternSyntaxException) {
+                logger.warn { "Ignoring invalid blocked regex pattern: $rawPattern" }
+                null
+            }
         }
     }
 }
