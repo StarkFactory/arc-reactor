@@ -44,12 +44,13 @@ dev 브랜치에서 시작:
 - 원인 파악 후 수정 후 재검증
 - 3회 시도 후도 실패하면: git checkout . 으로 되돌리고 다른 항목 선택
 
-### 7. 커밋 & 머지
+### 7. 커밋 & 머지 & 푸시
   git add [수정한 파일들만]
   git commit -m "[타입]: [변경 내용 한 줄]"
   git checkout dev
   git merge improve/[짧은-설명]
   git branch -d improve/[짧은-설명]
+  git push origin dev
 
 절대 main 브랜치를 건드리지 않는다.
 
