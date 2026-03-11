@@ -5,6 +5,7 @@ import com.arc.reactor.agent.model.MessageRole
 import com.arc.reactor.intent.impl.LlmIntentClassifier
 import com.arc.reactor.intent.model.ClassificationContext
 import com.arc.reactor.intent.model.IntentDefinition
+import java.util.concurrent.atomic.AtomicInteger
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -179,6 +180,29 @@ class LlmIntentClassifierTest {
                     it.contains("주문 확인") &&
                     !it.contains("첫 번째 메시지") // first message truncated by takeLast(4)
             }) }
+        }
+
+        @Test
+        fun `prompt lazily loads conversation history only when needed by llm classifier`() = runTest {
+            registerIntents()
+            mockLlmResponse("""{"intents":[{"name":"refund","confidence":0.9}]}""")
+            val loadCount = AtomicInteger(0)
+
+            val context = ClassificationContext(
+                conversationHistoryLoader = {
+                    loadCount.incrementAndGet()
+                    listOf(
+                        Message(role = MessageRole.USER, content = "주문 확인해주세요"),
+                        Message(role = MessageRole.ASSISTANT, content = "주문 #1234입니다"),
+                        Message(role = MessageRole.USER, content = "그거 환불해줘")
+                    )
+                }
+            )
+
+            classifier.classify("그래 해줘", context)
+
+            assertEquals(1, loadCount.get()) { "Lazy history loader should be invoked exactly once" }
+            verify { requestSpec.user(match<String> { it.contains("Recent conversation") && it.contains("그거 환불해줘") }) }
         }
     }
 

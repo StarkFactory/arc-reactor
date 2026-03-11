@@ -225,19 +225,21 @@ class ChatController(
      */
     private fun buildClassificationContext(command: AgentCommand, request: ChatRequest): ClassificationContext {
         val sessionId = request.metadata?.get("sessionId") as? String
-        val history = if (sessionId != null && memoryStore != null) {
-            memoryStore.get(sessionId)
-                ?.getHistory()
-                ?.takeLast(4)
-                ?: emptyList()
+        val historyLoader = if (sessionId != null && memoryStore != null) {
+            {
+                memoryStore.get(sessionId)
+                    ?.getHistory()
+                    ?.takeLast(4)
+                    ?: emptyList()
+            }
         } else {
-            emptyList()
+            null
         }
 
         return ClassificationContext(
             userId = command.userId,
-            conversationHistory = history,
-            metadata = request.metadata ?: emptyMap()
+            metadata = request.metadata ?: emptyMap(),
+            conversationHistoryLoader = historyLoader
         )
     }
 

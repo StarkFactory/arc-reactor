@@ -8,6 +8,7 @@ import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
 import com.arc.reactor.intent.IntentResolver
+import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.prompt.PromptTemplateStore
@@ -17,6 +18,7 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import org.springframework.http.HttpHeaders
 import org.springframework.http.server.reactive.ServerHttpRequest
 import kotlinx.coroutines.flow.flowOf
@@ -176,6 +178,26 @@ class ChatControllerTest {
             assertTrue(commandSlot.captured.metadata.containsKey(IntentResolver.METADATA_INTENT_RESOLUTION_DURATION_MS)) {
                 "Controller should preserve intent resolution duration for downstream stage timing"
             }
+        }
+
+        @Test
+        fun `should defer loading conversation history until intent resolver accesses it`() = runTest {
+            val intentResolver = mockk<IntentResolver>()
+            val memoryStore = mockk<MemoryStore>()
+            val controllerWithIntent = ChatController(
+                agentExecutor = agentExecutor,
+                intentResolver = intentResolver,
+                memoryStore = memoryStore
+            )
+            coEvery { intentResolver.resolve(any(), any()) } returns null
+            coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
+
+            controllerWithIntent.chat(
+                ChatRequest(message = "hello", metadata = mapOf("sessionId" to "session-1")),
+                exchange
+            )
+
+            verify(exactly = 0) { memoryStore.get(any()) }
         }
 
         @Test

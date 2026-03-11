@@ -139,7 +139,7 @@ class LlmIntentClassifier(
     }
 
     private fun buildConversationContext(context: ClassificationContext): String {
-        val history = context.conversationHistory
+        val history = context.resolveConversationHistory()
         if (history.isEmpty()) return ""
 
         val recentMessages = history.takeLast(maxConversationTurns * 2)
