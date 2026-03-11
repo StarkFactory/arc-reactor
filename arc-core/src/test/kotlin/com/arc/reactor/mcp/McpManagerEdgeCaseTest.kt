@@ -4,6 +4,7 @@ import com.arc.reactor.agent.config.McpReconnectionProperties
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
+import com.arc.reactor.tool.ToolCallback
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.async
@@ -13,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * MCP Manager edge case tests.
@@ -424,6 +426,8 @@ class McpManagerEdgeCaseTest {
         fun `handleConnectionError should mark server FAILED and clear caches`() {
             val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
             manager.register(stdioServer("error-server"))
+            manager.seedToolCallbacks("error-server", listOf(testCallback("error-tool")))
+            val beforeError = manager.getAllToolCallbacks()
 
             // Simulate the server being in CONNECTED state
             manager.statuses["error-server"] = McpServerStatus.CONNECTED
@@ -435,6 +439,12 @@ class McpManagerEdgeCaseTest {
             }
             assertTrue(manager.getToolCallbacks("error-server").isEmpty()) {
                 "Tool callbacks should be cleared after connection error"
+            }
+            assertEquals(listOf("error-tool"), beforeError.map { it.name }) {
+                "Expected snapshot warm-up to include seeded callback before connection error"
+            }
+            assertTrue(manager.getAllToolCallbacks().isEmpty()) {
+                "Expected aggregated callback snapshot to be invalidated after connection error"
             }
         }
 
@@ -510,6 +520,22 @@ class McpManagerEdgeCaseTest {
             assertEquals(2, manager.listServers().size) {
                 "Only 2 allowed servers should be registered"
             }
+        }
+    }
+
+    private fun DefaultMcpManager.seedToolCallbacks(serverName: String, callbacks: List<ToolCallback>) {
+        val field = DefaultMcpManager::class.java.getDeclaredField("toolCallbacksCache")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val cache = field.get(this) as ConcurrentHashMap<String, List<ToolCallback>>
+        cache[serverName] = callbacks
+    }
+
+    private fun testCallback(name: String): ToolCallback {
+        return object : ToolCallback {
+            override val name: String = name
+            override val description: String = "test-$name"
+            override suspend fun call(arguments: Map<String, Any?>): Any? = "ok"
         }
     }
 }

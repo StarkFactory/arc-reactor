@@ -81,6 +81,9 @@ class DefaultMcpManager(
     internal val statuses = ConcurrentHashMap<String, McpServerStatus>()
     private val serverMutexes = ConcurrentHashMap<String, Mutex>()
     private val duplicateToolWarningKeys = ConcurrentHashMap.newKeySet<String>()
+    @Volatile
+    private var allToolCallbacksSnapshot: List<ToolCallback>? = null
+    private val toolCallbacksSnapshotLock = Any()
 
     private val reconnectScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val storeSync = McpStoreSync(store)
@@ -192,6 +195,7 @@ class DefaultMcpManager(
 
                 clients[serverName] = handle.client
                 toolCallbacksCache[serverName] = handle.tools
+                invalidateAllToolCallbacksSnapshot()
                 statuses[serverName] = McpServerStatus.CONNECTED
                 reconnectionCoordinator.clear(serverName)
                 logger.info { "MCP server connected: $serverName with ${handle.tools.size} tools" }
@@ -221,6 +225,7 @@ class DefaultMcpManager(
         }
 
         toolCallbacksCache.remove(serverName)
+        invalidateAllToolCallbacksSnapshot()
         statuses[serverName] = McpServerStatus.DISCONNECTED
     }
 
@@ -233,6 +238,7 @@ class DefaultMcpManager(
         logger.warn { "MCP connection error detected on tool call for '$serverName' — marking FAILED and scheduling reconnection" }
         clients.remove(serverName)
         toolCallbacksCache.remove(serverName)
+        invalidateAllToolCallbacksSnapshot()
         statuses[serverName] = McpServerStatus.FAILED
         reconnectionCoordinator.schedule(serverName)
     }
@@ -280,14 +286,20 @@ class DefaultMcpManager(
     }
 
     override fun getAllToolCallbacks(): List<ToolCallback> {
-        return deduplicateCallbacksByName(toolCallbacksCache) { toolName, keptServer, droppedServer ->
-            val warningKey = "$toolName|$keptServer|$droppedServer"
-            if (duplicateToolWarningKeys.add(warningKey)) {
-                logger.warn {
-                    "Duplicate MCP tool name '$toolName' detected across servers. " +
-                        "Keeping '$keptServer', ignoring '$droppedServer'."
+        allToolCallbacksSnapshot?.let { return it }
+        synchronized(toolCallbacksSnapshotLock) {
+            allToolCallbacksSnapshot?.let { return it }
+            val snapshot = deduplicateCallbacksByName(toolCallbacksCache) { toolName, keptServer, droppedServer ->
+                val warningKey = "$toolName|$keptServer|$droppedServer"
+                if (duplicateToolWarningKeys.add(warningKey)) {
+                    logger.warn {
+                        "Duplicate MCP tool name '$toolName' detected across servers. " +
+                            "Keeping '$keptServer', ignoring '$droppedServer'."
+                    }
                 }
             }
+            allToolCallbacksSnapshot = snapshot
+            return snapshot
         }
     }
 
@@ -313,6 +325,10 @@ class DefaultMcpManager(
         servers.clear()
         statuses.clear()
         serverMutexes.clear()
+    }
+
+    private fun invalidateAllToolCallbacksSnapshot() {
+        allToolCallbacksSnapshot = null
     }
 }
 
