@@ -1,8 +1,11 @@
 package com.arc.reactor.tool
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
@@ -43,12 +46,18 @@ private val logger = KotlinLogging.logger {}
 class SemanticToolSelector(
     private val embeddingModel: EmbeddingModel,
     private val similarityThreshold: Double = 0.3,
-    private val maxResults: Int = 10
+    private val maxResults: Int = 10,
+    selectionCacheMaxSize: Long = 512,
+    selectionCacheTtlMinutes: Long = 10
 ) : ToolSelector {
 
     /** Cache: tool name → embedding vector. Invalidated when tool list changes. */
     private val embeddingCache = ConcurrentHashMap<String, FloatArray>()
     private val refreshLock = Any()
+    private val semanticSelectionCache: Cache<SemanticSelectionCacheKey, List<String>> = Caffeine.newBuilder()
+        .maximumSize(selectionCacheMaxSize)
+        .expireAfterWrite(selectionCacheTtlMinutes, TimeUnit.MINUTES)
+        .build()
 
     /** Fingerprint of the last tool list (to detect changes). */
     @Volatile
@@ -79,7 +88,16 @@ class SemanticToolSelector(
 
     private fun selectSemantically(prompt: String, availableTools: List<ToolCallback>): List<ToolCallback> {
         // 1. Refresh cached embeddings if tool list changed
-        refreshEmbeddingsIfNeeded(availableTools)
+        val fingerprint = toolFingerprint(availableTools)
+        refreshEmbeddingsIfNeeded(availableTools, fingerprint)
+
+        val cacheKey = SemanticSelectionCacheKey(
+            prompt = prompt,
+            toolFingerprint = fingerprint,
+            similarityThreshold = similarityThreshold,
+            maxResults = maxResults
+        )
+        resolveCachedSelection(cacheKey, availableTools)?.let { return it }
 
         // 2. Embed the user prompt
         val promptEmbedding = embed(prompt)
@@ -113,7 +131,27 @@ class SemanticToolSelector(
             "Semantic tool selection: top scores = [$names], selected ${baseSelection.size}/${availableTools.size}"
         }
 
-        return applyDeterministicRouting(prompt, baseSelection, availableTools)
+        val resolvedSelection = applyDeterministicRouting(prompt, baseSelection, availableTools)
+        semanticSelectionCache.put(cacheKey, resolvedSelection.map(ToolCallback::name))
+        return resolvedSelection
+    }
+
+    private fun resolveCachedSelection(
+        cacheKey: SemanticSelectionCacheKey,
+        availableTools: List<ToolCallback>
+    ): List<ToolCallback>? {
+        val cachedToolNames = semanticSelectionCache.getIfPresent(cacheKey) ?: return null
+        val availableByName = availableTools.associateBy { it.name }
+        val resolved = cachedToolNames.mapNotNull(availableByName::get)
+        if (resolved.size != cachedToolNames.size) {
+            semanticSelectionCache.invalidate(cacheKey)
+            logger.debug { "Invalidated stale semantic selection cache entry due to tool mismatch" }
+            return null
+        }
+        logger.debug {
+            "Semantic tool selection exact cache hit selected ${resolved.size}/${availableTools.size} tools"
+        }
+        return resolved
     }
 
     private fun selectDeterministicallyIfPossible(
@@ -545,8 +583,10 @@ class SemanticToolSelector(
         return orderedNames.mapNotNull(availableByName::get).take(maxResults)
     }
 
-    private fun refreshEmbeddingsIfNeeded(tools: List<ToolCallback>) {
-        val fingerprint = toolFingerprint(tools)
+    private fun refreshEmbeddingsIfNeeded(
+        tools: List<ToolCallback>,
+        fingerprint: Int = toolFingerprint(tools)
+    ) {
         if (fingerprint == lastToolFingerprint) return
         synchronized(refreshLock) {
             if (fingerprint == lastToolFingerprint) return
@@ -555,6 +595,7 @@ class SemanticToolSelector(
                 .toMap(LinkedHashMap())
             embeddingCache.clear()
             embeddingCache.putAll(refreshedEmbeddings)
+            semanticSelectionCache.invalidateAll()
             lastToolFingerprint = fingerprint
             logger.info { "Refreshed semantic embeddings for ${tools.size} tools" }
         }
@@ -577,6 +618,13 @@ class SemanticToolSelector(
         val response = embeddingModel.embed(texts)
         return response
     }
+
+    private data class SemanticSelectionCacheKey(
+        val prompt: String,
+        val toolFingerprint: Int,
+        val similarityThreshold: Double,
+        val maxResults: Int
+    )
 
     companion object {
         private val PREFERRED_CONFLUENCE_KNOWLEDGE_TOOLS = listOf(

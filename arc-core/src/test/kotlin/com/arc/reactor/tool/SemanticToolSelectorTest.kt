@@ -640,6 +640,36 @@ class SemanticToolSelectorTest {
         }
 
         @Test
+        fun `should cache semantic selection for repeated prompt and tool fingerprint`() {
+            val toolEmbeddings = listOf(
+                floatArrayOf(0.1f, 0.9f, 0.0f),
+                floatArrayOf(0.9f, 0.1f, 0.0f),
+                floatArrayOf(0.0f, 0.1f, 0.9f),
+                floatArrayOf(0.2f, 0.3f, 0.5f),
+                floatArrayOf(0.3f, 0.3f, 0.3f),
+                floatArrayOf(0.1f, 0.5f, 0.4f)
+            )
+            val promptEmbedding = floatArrayOf(0.85f, 0.15f, 0.0f)
+            every { embeddingModel.embed(any<List<String>>()) } returns toolEmbeddings
+            every { embeddingModel.embed(any<String>()) } returns promptEmbedding
+
+            val selector = SemanticToolSelector(
+                embeddingModel = embeddingModel,
+                similarityThreshold = 0.5,
+                maxResults = 3
+            )
+
+            val first = selector.select("I want to refund my order", tools)
+            val second = selector.select("I want to refund my order", tools)
+
+            assertEquals(first.map { it.name }, second.map { it.name }) {
+                "Repeated semantic selection should preserve cached tool order"
+            }
+            verify(exactly = 1) { embeddingModel.embed(any<List<String>>()) }
+            verify(exactly = 1) { embeddingModel.embed(any<String>()) }
+        }
+
+        @Test
         fun `should refresh cache when tool list changes`() {
             val toolsA = tools  // 6 tools
             val toolsB = tools.drop(1)  // 5 tools (different list)
