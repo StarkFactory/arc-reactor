@@ -35,25 +35,23 @@ class JdbcIntentRegistry(
     private val jdbcTemplate: JdbcTemplate
 ) : IntentRegistry {
 
+    @Volatile
+    private var snapshot: RegistrySnapshot? = null
+
     override fun list(): List<IntentDefinition> {
-        return jdbcTemplate.query(SELECT_ALL, ROW_MAPPER)
+        return currentSnapshot().all
     }
 
     override fun listEnabled(): List<IntentDefinition> {
-        return jdbcTemplate.query("$BASE_SELECT WHERE enabled = TRUE ORDER BY name ASC", ROW_MAPPER)
+        return currentSnapshot().enabled
     }
 
     override fun get(intentName: String): IntentDefinition? {
-        val results = jdbcTemplate.query(
-            "$BASE_SELECT WHERE name = ?",
-            ROW_MAPPER,
-            intentName
-        )
-        return results.firstOrNull()
+        return currentSnapshot().byName[intentName]
     }
 
     override fun save(intent: IntentDefinition): IntentDefinition {
-        val existing = get(intent.name)
+        val existing = queryByName(intent.name)
         val now = Instant.now()
 
         if (existing != null) {
@@ -74,6 +72,7 @@ class JdbcIntentRegistry(
                 java.sql.Timestamp.from(now),
                 intent.name
             )
+            invalidateSnapshot()
             return intent.copy(createdAt = existing.createdAt, updatedAt = now)
         }
 
@@ -94,11 +93,42 @@ class JdbcIntentRegistry(
             java.sql.Timestamp.from(intent.createdAt),
             java.sql.Timestamp.from(intent.updatedAt)
         )
+        invalidateSnapshot()
         return intent
     }
 
     override fun delete(intentName: String) {
         jdbcTemplate.update("DELETE FROM intent_definitions WHERE name = ?", intentName)
+        invalidateSnapshot()
+    }
+
+    private fun currentSnapshot(): RegistrySnapshot {
+        snapshot?.let { return it }
+        return synchronized(this) {
+            snapshot ?: loadSnapshot().also { snapshot = it }
+        }
+    }
+
+    private fun loadSnapshot(): RegistrySnapshot {
+        val intents = jdbcTemplate.query(SELECT_ALL, ROW_MAPPER)
+        return RegistrySnapshot(
+            all = intents,
+            enabled = intents.filter { it.enabled },
+            byName = intents.associateBy { it.name }
+        )
+    }
+
+    private fun queryByName(intentName: String): IntentDefinition? {
+        val results = jdbcTemplate.query(
+            "$BASE_SELECT WHERE name = ?",
+            ROW_MAPPER,
+            intentName
+        )
+        return results.firstOrNull()
+    }
+
+    private fun invalidateSnapshot() {
+        snapshot = null
     }
 
     companion object {
@@ -167,4 +197,10 @@ class JdbcIntentRegistry(
             }
         }
     }
+
+    private data class RegistrySnapshot(
+        val all: List<IntentDefinition>,
+        val enabled: List<IntentDefinition>,
+        val byName: Map<String, IntentDefinition>
+    )
 }
