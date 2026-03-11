@@ -1,5 +1,5 @@
 # Implementation Plan
-> 마지막 업데이트: 2026-03-11 | 분석 반복: 4회차 (멀티에이전트 + 응답 필터 + 설정 검증 탐색)
+> 마지막 업데이트: 2026-03-12 | 분석 반복: 5회차 (5개 병렬 서브에이전트 전체 탐색)
 
 ## P0 — 즉시 수정 (런타임 크래시, 데이터 손실)
 
@@ -7,60 +7,43 @@
 
 ## P1 — Agent 동작 결함 (잘못된 응답, 무한 루프, 도구 실패 미처리)
 
-(모두 완료)
+(없음 — Critical Gotchas 위반 0건 확인)
 
 ## P2 — 견고성 (에러 복구 실패, 리소스 누수, 동시성 문제)
 
-- [x] `WorkerAgentTool.kt:58` — timeoutMs 미설정 → 15초 tool-call timeout으로 워커 강제 취소 — 수정 완료 (f452489)
+- [ ] `Bm25Scorer.kt:18` — 싱글톤 빈의 mutable 필드 5개 (docContents, termFrequencies 등)가 동기화 없이 index()/score()에서 읽기·쓰기. RAG 인제스션과 쿼리 동시 실행 시 corrupted scoring state 가능
+- [ ] `PlatformAdminController.kt:282` — getCurrentMonthUsage() 실패 시 `catch (_: Exception)` 로 무조건 삼킴, 로깅 없음. DB 장애 시 모든 테넌트 사용량이 0으로 표시
 
 ## P3 — 보안 (권한 우회, 인젝션, 정보 노출)
 
-- [x] `SessionController.kt:135,152` — Content-Disposition header injection — 수정 완료 (6c31022)
-- [x] `AuthRateLimitFilter.kt:55` — X-Forwarded-For trust를 opt-in으로 변경 — 수정 완료 (6e8640f)
+- [ ] `McpAccessPolicyController.kt:286` — MCP 연결 실패 시 exception message를 응답에 그대로 반환, 내부 호스트명·포트 노출 가능. McpSwaggerCatalogController.kt:336, McpPreflightController.kt:142도 동일
+- [ ] `ErrorReportController.kt:124-126` — API 키 비교에 `==` 사용, timing attack에 취약. MessageDigest.isEqual() 또는 상수 시간 비교 필요
+- [ ] `McpConnectionSupport.kt:92-108` — SSE MCP 서버 URL에 사설 IP(127.0.0.1, 169.254.x, 10.x 등) 차단 없음, admin 계정 탈취 시 SSRF 가능
 
-## P4 — 성능 (핫패스 비효율, 불필요한 할당, 확장성 병목)
+## P4 — 성능 / 코드 품질 / 문서화
 
-(분석 완료 — 이슈 없음. TokenEstimator, ConversationMessageTrimmer, 스트리밍 버퍼링 모두 정상)
+### 핫패스 Regex 컴파일
+- [ ] `ResponseValueInsights.kt:54` — `Regex("\\s+")` 매 호출마다 컴파일. companion object로 추출
+- [ ] `WorkContextForcedToolPlanner.kt:1103` — `Regex("[^a-z0-9._-]")` inline 컴파일. companion object로 추출
+- [ ] `OutputGuardRuleEvaluator.kt:16` — `Regex(rule.pattern)` 매 평가마다 컴파일. 패턴 캐시 필요
+- [ ] `RagIngestionCaptureHook.kt:111-121` — compileRegex() 매 호출마다 실행, 캐시 없음
 
-## P5 — 테스트 갭 (Agent 동작의 중요 시나리오가 테스트되지 않음)
+### 중복 로직
+- [ ] `SemanticToolSelector.kt` + `SystemPromptBuilder.kt` + `WorkContextForcedToolPlanner.kt` — ISSUE_KEY_REGEX 3곳 동일 정의. 공통 상수 추출
+- [ ] `SemanticToolSelector.kt` + `SystemPromptBuilder.kt` — OPENAPI_URL_REGEX, WORK_SERVICE_CONTEXT_HINTS 2곳 동일 정의
+- [ ] `PiiDetectionGuard.kt:49-69` + `PiiMaskingOutputGuard.kt:61-85` — PII 정규식 패턴 (주민등록번호, 전화, 카드, 이메일) 동일 중복
+- [ ] `DefaultGuardStages.kt:172-223` + `ToolOutputSanitizer.kt:56-74` — 프롬프트 인젝션 탐지 패턴 상당 부분 중복
 
-(모두 완료)
-
-## 기동 검증 메모
-
-### 서버 기동에 필요한 추가 환경변수 (PROMPT에 반영 필요)
-- `ARC_REACTOR_AUTH_JWT_SECRET` — 32자 이상 필수 (openssl rand -base64 32)
-- `--arc.reactor.postgres.required=false` — PostgreSQL 없이 기동
-- `--arc.reactor.auth.self-registration-enabled=true` — 사용자 등록 허용
-- `ARC_REACTOR_AUTH_ADMIN_EMAIL` + `ARC_REACTOR_AUTH_ADMIN_PASSWORD` — 초기 ADMIN 계정
-
-### 정상 동작 확인
-- Health check: OK
-- Auth register/login: OK (JWT 발급 정상)
-- Empty message validation: OK (400 + ErrorResponse)
-- Invalid token: OK (401)
-- Casual prompt ("안녕"): OK (응답 정상)
-- MCP 서버 연결: OK (41 tools loaded)
-
-### 동작 문제 확인 (수정 전)
-- 일반 질문 ("오늘 날씨 어때?"): 차단됨 (unverified_sources) → 수정 완료 (3330c9c)
-- 정보 요청 ("당신은 누구인가요?"): 차단됨 (unverified_sources, "누구" 패턴) → 수정 완료 (3330c9c)
-- MCP 도구 호출: 선택됨 but 정책 차단 (policy_denied — MCP 서버 access policy 미설정)
-
-### 에러 유발 테스트 (반복 3)
-- 빈 메시지 (""): 400 Validation failed — 정상
-- 공백만 ("   "): 400 Validation failed — 정상
-- 5001자 입력: 200 통과 — input-max-chars=10000 (application.yml). CLAUDE.md 기본값 참고 표 5000과 불일치 (문서 이슈, 코드 정상)
-- 10001자 입력: 200 + success=false + guard rejected — 정상
-- 50001자 입력: 400 Jakarta @Size validation — 정상
-- Zero-width Unicode: 200 정상 응답 — UnicodeNormalization 가드 통과 (비율 미달)
-- 인증 없음: 401 — 정상
-- 잘못된 토큰: 401 — 정상
-- 스트리밍 (/api/chat/stream): SSE 이벤트 정상 수신 — 정상
-- 한국어 인사 ("안녕하세요"): 정상 응답, blockReason=null — 정상
+### 기타 코드 품질
+- [ ] `SlackApiClient.kt:759` — `Thread.sleep(delayMs)` 가 코루틴 컨텍스트에서 호출됨. `delay()` 또는 `withContext(Dispatchers.IO)` 필요
+- [ ] `DocumentController.kt:173` — TODO: chunk_total 메타데이터 저장으로 O(maxNumChunks) 탐색 제거
+- [ ] `ResponseValueInsights.kt:72` — `MessageDigest.getInstance("SHA-256")` 매 호출마다 룩업
 
 ## 완료
 - [x] P2: `ToolCallOrchestrator.kt:102,240` — 실패한 도구의 에러 메시지 sanitize 적용 (613d0a0)
+- [x] P2: `WorkerAgentTool.kt:58` — timeoutMs 미설정 → 15초 tool-call timeout으로 워커 강제 취소 — 수정 완료 (f452489)
+- [x] P3: `SessionController.kt:135,152` — Content-Disposition header injection — 수정 완료 (6c31022)
+- [x] P3: `AuthRateLimitFilter.kt:55` — X-Forwarded-For trust를 opt-in으로 변경 — 수정 완료 (6e8640f)
 - [x] P5: `VerifiedSourcesResponseFilter` — casual/general 경계값 테스트 4개 추가 (83ade27, 3330c9c)
 - [x] P1: `VerifiedSourcesResponseFilter.kt:127-132` — looksLikeInformationRequest ?/패턴 과잉 차단 수정 (3330c9c)
 - [x] P1: `VerifiedSourcesResponseFilter.kt:162-164` — CASUAL_PROMPTS에 한국어 변형 추가 (83ade27)

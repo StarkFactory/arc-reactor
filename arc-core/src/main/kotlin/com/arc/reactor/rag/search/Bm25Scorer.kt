@@ -45,6 +45,7 @@ class Bm25Scorer(
      * @param docId   Unique document identifier
      * @param content Raw document text
      */
+    @Synchronized
     fun index(docId: String, content: String) {
         val tokens = tokenize(content)
         val tf = tokens.groupingBy { it }.eachCount()
@@ -76,6 +77,7 @@ class Bm25Scorer(
      * @param docId Document to score
      * @return BM25 relevance score (0.0 if document not found)
      */
+    @Synchronized
     fun score(query: String, docId: String): Double {
         val tf = termFrequencies[docId] ?: return 0.0
         val docLength = tf.values.sum().toDouble()
@@ -100,6 +102,7 @@ class Bm25Scorer(
      * @param topK  Maximum number of results
      * @return List of (docId, score) pairs, highest score first
      */
+    @Synchronized
     fun search(query: String, topK: Int): List<Pair<String, Double>> {
         if (termFrequencies.isEmpty()) return emptyList()
 
@@ -116,9 +119,11 @@ class Bm25Scorer(
      * @param docId Document identifier
      * @return Original content text, or null if not indexed
      */
+    @Synchronized
     fun getContent(docId: String): String? = docContents[docId]
 
     /** Remove all indexed documents. */
+    @Synchronized
     fun clear() {
         docContents.clear()
         termFrequencies.clear()
@@ -128,7 +133,7 @@ class Bm25Scorer(
     }
 
     /** Number of indexed documents. */
-    val size: Int get() = termFrequencies.size
+    val size: Int @Synchronized get() = termFrequencies.size
 
     // -------------------------------------------------------------------------
     // Internal helpers
