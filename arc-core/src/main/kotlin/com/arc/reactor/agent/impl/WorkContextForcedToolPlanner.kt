@@ -6,6 +6,7 @@ internal data class ForcedToolCallPlan(
 )
 
 internal object WorkContextForcedToolPlanner {
+    private val specNameSanitizeRegex = Regex("[^a-z0-9._-]")
     private val issueKeyRegex = Regex("\\b[A-Z][A-Z0-9_]+-[1-9][0-9]*\\b")
     private val projectRegexes = listOf(
         Regex("\\b([A-Z][A-Z0-9_]{1,15})\\s*프로젝트"),
@@ -1100,7 +1101,7 @@ internal object WorkContextForcedToolPlanner {
         val sanitized = url.substringAfterLast('/').substringBefore('?').substringBefore('#')
         val base = sanitized.substringBeforeLast('.').ifBlank { "openapi-spec" }
         return base.lowercase()
-            .replace(Regex("[^a-z0-9._-]"), "-")
+            .replace(specNameSanitizeRegex, "-")
             .trim('-')
             .ifBlank { "openapi-spec" }
     }
