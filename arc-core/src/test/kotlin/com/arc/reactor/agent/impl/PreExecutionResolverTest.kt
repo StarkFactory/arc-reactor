@@ -153,4 +153,67 @@ class PreExecutionResolverTest {
             "Intent resolution timing should be recorded when resolver errors"
         }
     }
+
+    @Test
+    fun `resolveIntent should skip resolver when intent resolution was already attempted`() = runBlocking {
+        val intentResolver = mockk<IntentResolver>()
+        val resolver = PreExecutionResolver(
+            guard = null,
+            hookExecutor = null,
+            intentResolver = intentResolver,
+            blockedIntents = emptySet(),
+            agentMetrics = mockk(relaxed = true)
+        )
+        val command = AgentCommand(
+            systemPrompt = "sys",
+            userPrompt = "hi",
+            metadata = mapOf(
+                IntentResolver.METADATA_INTENT_RESOLUTION_ATTEMPTED to true,
+                IntentResolver.METADATA_INTENT_RESOLUTION_DURATION_MS to 17L
+            )
+        )
+        val hookContext = HookContext(runId = "run-2", userId = "u", userPrompt = "hi")
+
+        val resolved = resolver.resolveIntent(command, hookContext)
+
+        assertSame(command, resolved)
+        assertEquals(17L, readStageTimings(hookContext)["intent_resolution"]) {
+            "Prior controller intent duration should be preserved in stage timings"
+        }
+        coVerify(exactly = 0) { intentResolver.resolve(any(), any()) }
+    }
+
+    @Test
+    fun `resolveIntent should enforce blocked intents from prior controller resolution`() = runBlocking {
+        val intentResolver = mockk<IntentResolver>()
+        val resolver = PreExecutionResolver(
+            guard = null,
+            hookExecutor = null,
+            intentResolver = intentResolver,
+            blockedIntents = setOf("finance"),
+            agentMetrics = mockk(relaxed = true)
+        )
+        val command = AgentCommand(
+            systemPrompt = "sys",
+            userPrompt = "hi",
+            metadata = mapOf(
+                IntentResolver.METADATA_INTENT_RESOLUTION_ATTEMPTED to true,
+                IntentResolver.METADATA_INTENT_RESOLUTION_DURATION_MS to 9L,
+                IntentResolver.METADATA_INTENT_NAME to "finance"
+            )
+        )
+        val hookContext = HookContext(runId = "run-3", userId = "u", userPrompt = "hi")
+
+        val exception = assertThrows(BlockedIntentException::class.java) {
+            runBlocking {
+                resolver.resolveIntent(command, hookContext)
+            }
+        }
+
+        assertEquals("finance", exception.intentName)
+        assertEquals(9L, readStageTimings(hookContext)["intent_resolution"]) {
+            "Blocked intents from prior controller resolution should still record duration"
+        }
+        coVerify(exactly = 0) { intentResolver.resolve(any(), any()) }
+    }
 }

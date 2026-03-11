@@ -7,6 +7,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.prompt.PromptTemplateStore
@@ -156,6 +157,24 @@ class ChatControllerTest {
 
             assertEquals(mapOf("channel" to "web", "tenantId" to "default"), commandSlot.captured.metadata) {
                 "Default metadata should contain channel=web and tenantId=default"
+            }
+        }
+
+        @Test
+        fun `should mark controller intent resolution attempt when no intent matches`() = runTest {
+            val intentResolver = mockk<IntentResolver>()
+            val controllerWithIntent = ChatController(agentExecutor = agentExecutor, intentResolver = intentResolver)
+            val commandSlot = slot<AgentCommand>()
+            coEvery { intentResolver.resolve(any(), any()) } returns null
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            controllerWithIntent.chat(ChatRequest(message = "hello"), exchange)
+
+            assertEquals(true, commandSlot.captured.metadata[IntentResolver.METADATA_INTENT_RESOLUTION_ATTEMPTED]) {
+                "Controller should mark that intent resolution already ran"
+            }
+            assertTrue(commandSlot.captured.metadata.containsKey(IntentResolver.METADATA_INTENT_RESOLUTION_DURATION_MS)) {
+                "Controller should preserve intent resolution duration for downstream stage timing"
             }
         }
 

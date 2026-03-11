@@ -205,9 +205,19 @@ class ChatController(
     private suspend fun applyIntentProfile(command: AgentCommand, request: ChatRequest): AgentCommand {
         if (intentResolver == null) return command
 
+        val startTime = System.currentTimeMillis()
         val context = buildClassificationContext(command, request)
-        val resolved = intentResolver.resolve(command.userPrompt, context) ?: return command
-        return intentResolver.applyProfile(command, resolved)
+        val resolved = intentResolver.resolve(command.userPrompt, context)
+        val durationMs = System.currentTimeMillis() - startTime
+        val metadata = mapOf(
+            IntentResolver.METADATA_INTENT_RESOLUTION_ATTEMPTED to true,
+            IntentResolver.METADATA_INTENT_RESOLUTION_DURATION_MS to durationMs
+        )
+        if (resolved == null) {
+            return command.copy(metadata = command.metadata + metadata)
+        }
+        val applied = intentResolver.applyProfile(command, resolved)
+        return applied.copy(metadata = applied.metadata + metadata)
     }
 
     /**

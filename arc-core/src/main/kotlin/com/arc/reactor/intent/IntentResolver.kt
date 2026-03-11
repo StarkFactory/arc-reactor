@@ -100,7 +100,8 @@ class IntentResolver(
             METADATA_INTENT_NAME to resolved.intentName,
             METADATA_INTENT_CONFIDENCE to primaryConfidence,
             METADATA_INTENT_CLASSIFIED_BY to resolved.result.classifiedBy,
-            METADATA_INTENT_TOKEN_COST to resolved.result.tokenCost
+            METADATA_INTENT_TOKEN_COST to resolved.result.tokenCost,
+            METADATA_INTENT_RESOLUTION_ATTEMPTED to true
         )
         profile.allowedTools?.let { tools ->
             // Stored as a stable list for easier logging/serialization.
@@ -143,6 +144,8 @@ class IntentResolver(
         const val METADATA_INTENT_CLASSIFIED_BY = "intentClassifiedBy"
         const val METADATA_INTENT_TOKEN_COST = "intentTokenCost"
         const val METADATA_INTENT_ALLOWED_TOOLS = "intentAllowedTools"
+        const val METADATA_INTENT_RESOLUTION_ATTEMPTED = "intentResolutionAttempted"
+        const val METADATA_INTENT_RESOLUTION_DURATION_MS = "intentResolutionDurationMs"
     }
 }
 
