@@ -48,6 +48,7 @@ class SemanticToolSelector(
 
     /** Cache: tool name → embedding vector. Invalidated when tool list changes. */
     private val embeddingCache = ConcurrentHashMap<String, FloatArray>()
+    private val refreshLock = Any()
 
     /** Fingerprint of the last tool list (to detect changes). */
     @Volatile
@@ -55,6 +56,10 @@ class SemanticToolSelector(
 
     override fun select(prompt: String, availableTools: List<ToolCallback>): List<ToolCallback> {
         if (availableTools.isEmpty()) return emptyList()
+        selectDeterministicallyIfPossible(prompt, availableTools)?.let { fastPath ->
+            logger.debug { "Deterministic tool selection fast-path selected ${fastPath.size}/${availableTools.size} tools" }
+            return fastPath
+        }
         if (availableTools.size <= maxResults) {
             return applyDeterministicRouting(prompt, availableTools, availableTools)
         }
@@ -65,6 +70,11 @@ class SemanticToolSelector(
             logger.warn(e) { "Semantic tool selection failed, falling back to all tools" }
             applyDeterministicRouting(prompt, availableTools, availableTools)
         }
+    }
+
+    fun prewarm(availableTools: List<ToolCallback>) {
+        if (availableTools.isEmpty()) return
+        refreshEmbeddingsIfNeeded(availableTools)
     }
 
     private fun selectSemantically(prompt: String, availableTools: List<ToolCallback>): List<ToolCallback> {
@@ -104,6 +114,94 @@ class SemanticToolSelector(
         }
 
         return applyDeterministicRouting(prompt, baseSelection, availableTools)
+    }
+
+    private fun selectDeterministicallyIfPossible(
+        prompt: String,
+        availableTools: List<ToolCallback>
+    ): List<ToolCallback>? {
+        val availableByName = availableTools.associateBy { it.name }
+
+        if (WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(prompt)) {
+            return preferredReadOnlyMutationEvidenceTools(prompt, availableByName)
+        }
+
+        if (looksLikeWorkItemContextPrompt(prompt)) {
+            return PREFERRED_WORK_ITEM_CONTEXT_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkServiceContextPrompt(prompt)) {
+            return PREFERRED_WORK_SERVICE_CONTEXT_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkReleaseReadinessPrompt(prompt)) {
+            return PREFERRED_WORK_RELEASE_READINESS_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkReleaseRiskPrompt(prompt) || looksLikeHybridPriorityPrompt(prompt)) {
+            return PREFERRED_WORK_RELEASE_RISK_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkStandupPrompt(prompt)) {
+            return PREFERRED_WORK_STANDUP_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkBriefingProfilePrompt(prompt)) {
+            return PREFERRED_WORK_BRIEFING_PROFILE_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkOwnerPrompt(prompt)) {
+            return PREFERRED_WORK_OWNER_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkBriefingPrompt(prompt)) {
+            return PREFERRED_WORK_BRIEFING_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeJiraPrompt(prompt)) {
+            return preferredJiraTools(prompt, availableByName).takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeBitbucketPrompt(prompt)) {
+            return preferredBitbucketTools(prompt, availableByName).takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeSwaggerPrompt(prompt)) {
+            return preferredSwaggerTools(prompt, availableByName).takeIf { it.isNotEmpty() }
+        }
+
+        if (!looksLikeConfluenceKnowledgePrompt(prompt)) return null
+
+        if (looksLikeConfluenceDiscoveryPrompt(prompt)) {
+            return listOf("confluence_search_by_text", "confluence_search")
+                .mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeConfluencePageBodyPrompt(prompt)) {
+            return listOf("confluence_get_page_content", "confluence_answer_question", "confluence_search_by_text")
+                .mapNotNull(availableByName::get)
+                .take(maxResults)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        val preferredKnowledgeTools = PREFERRED_CONFLUENCE_KNOWLEDGE_TOOLS
+            .mapNotNull(availableByName::get)
+        if (preferredKnowledgeTools.isEmpty()) return null
+
+        if (looksLikeConfluenceAnswerPrompt(prompt)) {
+            return preferredKnowledgeTools.take(maxResults)
+        }
+
+        return null
     }
 
     private fun applyDeterministicRouting(
@@ -207,6 +305,7 @@ class SemanticToolSelector(
         filtered.forEach { ordered.putIfAbsent(it.name, it) }
         return ordered.values.take(maxResults)
     }
+
 
     private fun looksLikeConfluenceKnowledgePrompt(prompt: String): Boolean {
         val normalized = prompt.lowercase()
@@ -447,15 +546,15 @@ class SemanticToolSelector(
     }
 
     private fun refreshEmbeddingsIfNeeded(tools: List<ToolCallback>) {
-        val fingerprint = tools.map { it.name }.sorted().hashCode()
-        if (fingerprint != lastToolFingerprint) {
+        val fingerprint = toolFingerprint(tools)
+        if (fingerprint == lastToolFingerprint) return
+        synchronized(refreshLock) {
+            if (fingerprint == lastToolFingerprint) return
+            val refreshedEmbeddings = embedBatch(tools.map(::buildToolText))
+                .mapIndexed { index, embedding -> tools[index].name to embedding }
+                .toMap(LinkedHashMap())
             embeddingCache.clear()
-            // Batch-embed all tool descriptions at once
-            val texts = tools.map { buildToolText(it) }
-            val embeddings = embedBatch(texts)
-            tools.forEachIndexed { index, tool ->
-                embeddingCache[tool.name] = embeddings[index]
-            }
+            embeddingCache.putAll(refreshedEmbeddings)
             lastToolFingerprint = fingerprint
             logger.info { "Refreshed semantic embeddings for ${tools.size} tools" }
         }
@@ -463,6 +562,10 @@ class SemanticToolSelector(
 
     private fun buildToolText(tool: ToolCallback): String {
         return "${tool.name}: ${tool.description}"
+    }
+
+    private fun toolFingerprint(tools: List<ToolCallback>): Int {
+        return tools.map(::buildToolText).sorted().hashCode()
     }
 
     private fun embed(text: String): FloatArray {

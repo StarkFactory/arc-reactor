@@ -19,6 +19,7 @@ import com.arc.reactor.policy.tool.ToolExecutionPolicyEngine
 import com.arc.reactor.rag.chunking.DocumentChunker
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyProvider
+import com.arc.reactor.tool.ToolSelector
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -58,8 +59,10 @@ class ArcReactorHookAndMcpConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean(name = ["mcpStartupInitializer"])
-    fun mcpStartupInitializer(mcpManager: McpManager): McpStartupInitializer =
-        McpStartupInitializer(mcpManager)
+    fun mcpStartupInitializer(
+        mcpManager: McpManager,
+        toolSelector: ToolSelector
+    ): McpStartupInitializer = McpStartupInitializer(mcpManager, toolSelector)
 
     /**
      * Hook Executor
