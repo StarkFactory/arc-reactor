@@ -36,6 +36,11 @@ data class RedactedQuerySignal(
     val label: String
 )
 
+private val WHITESPACE_REGEX = Regex("\\s+")
+
+private val SHA256_DIGEST: ThreadLocal<MessageDigest> =
+    ThreadLocal.withInitial { MessageDigest.getInstance("SHA-256") }
+
 fun redactQuerySignal(queryPreview: String): RedactedQuerySignal? {
     val normalized = normalizeQueryPreview(queryPreview)
     if (normalized.isBlank()) return null
@@ -51,7 +56,7 @@ private fun normalizeQueryPreview(queryPreview: String): String {
     return queryPreview
         .trim()
         .lowercase()
-        .replace(Regex("\\s+"), " ")
+        .replace(WHITESPACE_REGEX, " ")
 }
 
 internal data class ResponseLaneAggregate(
@@ -69,7 +74,8 @@ internal data class MissingQueryAggregate(
 )
 
 private fun sha256Hex(input: String): String {
-    return MessageDigest.getInstance("SHA-256")
-        .digest(input.toByteArray())
+    val digest = SHA256_DIGEST.get()
+    digest.reset()
+    return digest.digest(input.toByteArray())
         .joinToString("") { "%02x".format(it) }
 }
