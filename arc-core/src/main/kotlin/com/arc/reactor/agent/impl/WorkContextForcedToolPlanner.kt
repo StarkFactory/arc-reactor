@@ -1,5 +1,7 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.support.WorkContextPatterns
+
 internal data class ForcedToolCallPlan(
     val toolName: String,
     val arguments: Map<String, Any?>
@@ -7,7 +9,7 @@ internal data class ForcedToolCallPlan(
 
 internal object WorkContextForcedToolPlanner {
     private val specNameSanitizeRegex = Regex("[^a-z0-9._-]")
-    private val issueKeyRegex = Regex("\\b[A-Z][A-Z0-9_]+-[1-9][0-9]*\\b")
+    private val issueKeyRegex = WorkContextPatterns.ISSUE_KEY_REGEX
     private val projectRegexes = listOf(
         Regex("\\b([A-Z][A-Z0-9_]{1,15})\\s*프로젝트"),
         Regex("\\b([A-Z][A-Z0-9_]{1,15})\\s*팀"),

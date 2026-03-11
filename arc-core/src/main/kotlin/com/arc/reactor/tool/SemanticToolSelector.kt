@@ -1,5 +1,6 @@
 package com.arc.reactor.tool
 
+import com.arc.reactor.support.WorkContextPatterns
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
@@ -685,7 +686,7 @@ class SemanticToolSelector(
             "서비스 상황", "서비스 현황", "service context", "service summary", "현재 상황", "현재 현황",
             "최근 jira", "최근 jira 이슈", "열린 pr", "오픈 pr", "관련 문서", "한 번에 요약", "요약해줘", "기준으로"
         )
-        private val ISSUE_KEY_REGEX = Regex("\\b[A-Z][A-Z0-9_]+-[1-9][0-9]*\\b")
+        private val ISSUE_KEY_REGEX = WorkContextPatterns.ISSUE_KEY_REGEX
         private val WORK_BRIEFING_HINTS = setOf(
             "morning briefing", "daily briefing", "briefing", "work summary", "daily digest",
             "브리핑", "요약 브리핑", "아침 브리핑", "데일리 브리핑"
@@ -750,7 +751,7 @@ class SemanticToolSelector(
         private val LOADED_HINTS = setOf("loaded", "로드된", "현재 로드된")
         private val REMOVE_HINTS = setOf("remove", "삭제")
         private val WRONG_ENDPOINT_HINTS = setOf("wrong endpoint", "invalid endpoint", "잘못된 endpoint", "없는 endpoint")
-        private val OPENAPI_URL_REGEX = Regex("https?://\\S+(?:openapi|swagger)\\S*", RegexOption.IGNORE_CASE)
+        private val OPENAPI_URL_REGEX = WorkContextPatterns.OPENAPI_URL_REGEX
 
         /**
          * Compute cosine similarity between two vectors.
