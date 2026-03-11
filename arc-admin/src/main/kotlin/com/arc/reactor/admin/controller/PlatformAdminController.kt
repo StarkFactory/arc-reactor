@@ -279,7 +279,8 @@ class PlatformAdminController(
         val summaries = tenants.map { tenant ->
             val usage = try {
                 queryService.getCurrentMonthUsage(tenant.id)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                logger.warn(e) { "Failed to fetch usage for tenant=${tenant.id}" }
                 null
             }
             TenantAnalyticsSummary(
