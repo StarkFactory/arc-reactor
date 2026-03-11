@@ -150,4 +150,54 @@ class StreamingExecutionCoordinatorTest {
             }
         }
     }
+
+    @Test
+    fun `should skip streaming tool preparation when effective maxToolCalls is zero`() = runTest {
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val conversationManager = mockk<ConversationManager>()
+        coEvery { conversationManager.loadHistory(any()) } returns emptyList<Message>()
+        val toolPreparationPlanner = mockk<ToolPreparationPlanner>()
+        val loopExecutor = mockk<StreamingReActLoopExecutor>()
+        coEvery {
+            loopExecutor.execute(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns StreamingLoopResult(success = true, collectedContent = "done", lastIterationContent = "done")
+
+        val coordinator = StreamingExecutionCoordinator(
+            concurrencySemaphore = Semaphore(1),
+            requestTimeoutMs = 1_000L,
+            maxToolCallsLimit = 0,
+            preExecutionResolver = PreExecutionResolver(
+                guard = null,
+                hookExecutor = null,
+                intentResolver = null,
+                blockedIntents = emptySet(),
+                agentMetrics = metrics
+            ),
+            conversationManager = conversationManager,
+            ragContextRetriever = RagContextRetriever(
+                enabled = false,
+                topK = 4,
+                rerankEnabled = false,
+                ragPipeline = null
+            ),
+            systemPromptBuilder = SystemPromptBuilder(),
+            toolPreparationPlanner = toolPreparationPlanner,
+            resolveChatClient = { mockk<ChatClient>(relaxed = true) },
+            resolveIntentAllowedTools = { null },
+            streamingReActLoopExecutor = loopExecutor,
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentErrorPolicy = AgentErrorPolicy(),
+            agentMetrics = metrics
+        )
+
+        val state = coordinator.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", mode = AgentMode.REACT, maxToolCalls = 3),
+            hookContext = HookContext(runId = "run-3", userId = "u", userPrompt = "hi", channel = "web"),
+            toolsUsed = mutableListOf(),
+            emit = {}
+        )
+
+        assertTrue(state.streamSuccess, "Streaming coordinator should succeed with zero effective tool budget")
+        verify(exactly = 0) { toolPreparationPlanner.prepareForPrompt(any()) }
+    }
 }

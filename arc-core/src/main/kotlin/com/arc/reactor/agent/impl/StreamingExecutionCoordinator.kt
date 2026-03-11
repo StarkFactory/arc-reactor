@@ -179,8 +179,9 @@ internal class StreamingExecutionCoordinator(
             command.responseSchema,
             command.userPrompt
         )
+        val effectiveMaxToolCalls = minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(0)
         val toolSelectionStart = System.nanoTime()
-        val selectedTools = if (command.mode == AgentMode.STANDARD) {
+        val selectedTools = if (command.mode == AgentMode.STANDARD || effectiveMaxToolCalls == 0) {
             emptyList()
         } else {
             toolPreparationPlanner.prepareForPrompt(command.userPrompt)
@@ -195,7 +196,7 @@ internal class StreamingExecutionCoordinator(
             initialTools = selectedTools,
             conversationHistory = conversationHistory,
             allowedTools = resolveIntentAllowedTools(command),
-            maxToolCallLimit = minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(0)
+            maxToolCallLimit = effectiveMaxToolCalls
         )
     }
 

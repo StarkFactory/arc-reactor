@@ -230,6 +230,7 @@ class SpringAiAgentExecutor(
         responseCache = responseCache,
         cacheableTemperature = cacheableTemperature,
         defaultTemperature = properties.llm.temperature,
+        maxToolCallsLimit = properties.maxToolCalls,
         fallbackStrategy = fallbackStrategy,
         agentMetrics = agentMetrics,
         toolCallbacks = toolCallbacks,
