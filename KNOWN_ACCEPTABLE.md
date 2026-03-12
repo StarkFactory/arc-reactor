@@ -66,3 +66,8 @@
 | `ToolOutputSanitizer` error output wrapping | P3 | 에러 메시지도 일관되게 sanitize — 에러 경로 skip 시 injection 벡터 발생. 안전한 설계 선택 | 2026-03-13 |
 | `SupervisorOrchestrator` recursion depth | P2 | agentFactory는 사용자 설정. maxToolCalls+timeout으로 각 레벨 제한. 의도적 재귀만 가능 | 2026-03-13 |
 | `ConversationManager.saveMessages` non-atomic | P2 | non-suspend private fun, 동일 세션 동시 요청은 클라이언트 책임. 스토어 per-op 락 존재 | 2026-03-13 |
+| `DocumentController.searchDocuments` no isAdmin | P3 | 설계 의도 — 읽기 전용 API, 쓰기만 admin 필요. 테스트명 "should allow search without admin check" 확인 | 2026-03-13 |
+| `ToolObservabilityAspect.kt:110` Regex per call | P4 | 에러 경로에서만 실행 (normalizeExceptionCode). hot-path 아님 | 2026-03-13 |
+| `ToolExecutionPolicyEngine.kt:43` test gap | P4 | work_action_items_to_jira dryRun 브랜치 미테스트. 정책 로직 단순 | 2026-03-13 |
+| `InjectionPatterns.kt`+`PiiPatterns.kt` test gap | P4 | 상위 Guard/Sanitizer 테스트에서 간접 커버. 패턴 자체 단위 테스트 없음 | 2026-03-13 |
+| `McpPreflightController`+`McpAccessPolicyController` factory default | P2 | Spring 컨텍스트에서 Bean 주입 정상 작동. default는 비-Spring 컨텍스트 폴백 | 2026-03-13 |
