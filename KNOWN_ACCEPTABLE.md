@@ -29,3 +29,8 @@
 | `GoogleCalendarTool.kt:61` (transport per-call) | P2 | NetHttpTransport는 JDK HttpURLConnection 기반, 리소스 없음 | 2026-03-13 |
 | `DefaultCircuitBreaker.kt:54` (HALF_OPEN counter) | P2 | atomic ops로 실제 누수 없음. 최악 시 trial call 1회 추가 | 2026-03-13 |
 | `InMemoryMemoryStore.kt:288` (sessionOwners) | P2 | 파일 경로 불일치 (scanner hallucination) | 2026-03-13 |
+| `ToolCallOrchestrator.kt:143` (.forEach) | P4 | body가 non-suspend (add+merge만), 안전. 스타일 이슈 수준 | 2026-03-13 |
+| `MemoryStore` default addMessage userId drop | P3 | 하위호환 설계 의도. InMemory/JDBC 모두 4-arg override 구현 | 2026-03-13 |
+| `MemoryStore` default listSessionsByUserId | P3 | 하위호환 설계 의도. InMemory/JDBC 모두 userId 필터링 override 구현 | 2026-03-13 |
+| `SessionController.isSessionOwner` null owner | P3 | 하위호환 설계 의도. owner 미추적 세션 접근 허용은 의도적 | 2026-03-13 |
+| `ConversationManager.kt:259` catch (non-suspend) | P4 | non-suspend fun, CancellationException 도달 불가 | 2026-03-13 |

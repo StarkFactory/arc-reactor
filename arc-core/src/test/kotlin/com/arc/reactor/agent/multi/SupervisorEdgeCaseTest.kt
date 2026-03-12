@@ -36,16 +36,11 @@ class SupervisorEdgeCaseTest {
             val node = AgentNode("crashing", systemPrompt = "You will crash")
             val tool = WorkerAgentTool(node, workerAgent)
 
-            // WorkerAgentTool.call() does NOT catch exceptions — it propagates
-            // This is by design: the executor's tool error handling catches it
-            val exception = assertThrows(RuntimeException::class.java) {
-                kotlinx.coroutines.runBlocking {
-                    tool.call(mapOf("instruction" to "do something"))
-                }
-            }
+            // ToolCallback contract: return "Error: ..." strings, do NOT throw
+            val result = tool.call(mapOf("instruction" to "do something"))
 
-            assertTrue(exception.message?.contains("crashed") == true,
-                "Exception should propagate with original message: ${exception.message}")
+            assertTrue((result as String).startsWith("Error:"),
+                "Should return error string per ToolCallback contract: $result")
         }
 
         @Test

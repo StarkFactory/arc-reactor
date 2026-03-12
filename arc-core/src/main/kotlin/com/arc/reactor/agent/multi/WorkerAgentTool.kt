@@ -2,6 +2,7 @@ package com.arc.reactor.agent.multi
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
 import mu.KotlinLogging
 
@@ -65,15 +66,21 @@ class WorkerAgentTool(
 
         logger.info { "WorkerAgentTool: delegating to '${node.name}' with instruction length=${instruction.length}" }
 
-        val result = agentExecutor.execute(
-            AgentCommand(
-                systemPrompt = node.systemPrompt,
-                userPrompt = instruction,
-                maxToolCalls = node.maxToolCalls,
-                userId = parentCommand?.userId,
-                metadata = parentCommand?.metadata ?: emptyMap()
+        val result = try {
+            agentExecutor.execute(
+                AgentCommand(
+                    systemPrompt = node.systemPrompt,
+                    userPrompt = instruction,
+                    maxToolCalls = node.maxToolCalls,
+                    userId = parentCommand?.userId,
+                    metadata = parentCommand?.metadata ?: emptyMap()
+                )
             )
-        )
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "WorkerAgentTool: worker '${node.name}' threw unexpectedly" }
+            return "Error: Worker '${node.name}' failed unexpectedly"
+        }
 
         return if (result.success) {
             result.content ?: "Worker completed but returned no content"
