@@ -177,3 +177,16 @@
 - 결과: P0~P2 전부 [x], P3 전부 [x], P4 2건만 남음 (인젝션 패턴 중복, DocumentController TODO)
 - IMPLEMENTATION_PLAN.md 업데이트 완료
 - 다음: P0~P2 전부 완료됨 → 완료 조건 충족
+
+[Ralph 반복 1] 2026-03-12 — P4 항목 구현 + 탐색
+- 선택: P4 — 인젝션 탐지 패턴 중복 (DefaultGuardStages + ToolOutputSanitizer)
+- 구현: InjectionPatterns.kt 공통 객체 추출, 8개 공유 패턴 통합
+- 결과: 테스트 통과 / 커밋 d75d351
+- 선택: P4 — DocumentController TODO (chunk_total 최적화)
+- 구현: VectorStore에 getById() 없어 구현 불가. TODO → 설계 근거 코멘트로 교체
+- 결과: 테스트 통과 / 커밋 b8b323a
+- 탐색: 4개 병렬 서브에이전트 (컴파일/테스트, Critical Gotchas, 보안/성능, 테스트 갭)
+- 탐색 결과: 0 warnings, 0 failures, 0 Critical Gotchas 위반, 0 P0-P3 신규 발견
+- 완료 조건 확인:
+  1. IMPLEMENTATION_PLAN.md 미완료 항목: 0개 ✓
+  2. 최근 탐색 신규 발견: 0건 ✓
