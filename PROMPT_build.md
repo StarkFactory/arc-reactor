@@ -25,8 +25,8 @@ IMPLEMENTATION_PLAN.md에 미완료(`- [ ]`) 항목이 **0개**일 때만 실행
 매 탐색마다 **다른 렌즈**로 코드를 본다. `claude-progress.txt`에서 마지막 사용 렌즈를 확인하고 **다음 번호**를 사용한다. 8번까지 가면 1번으로 돌아간다.
 
 **항상 먼저 실행**:
-- `./gradlew compileKotlin compileTestKotlin` — 0 warnings 확인
-- `./gradlew test` — 전체 통과 확인
+- `./gradlew compileKotlin compileTestKotlin` — 0 warnings 확인 (~3초 캐시됨)
+- 탐색 단계에서는 전체 테스트 생략 (코드 수정 없으므로 불필요)
 
 **렌즈 1 — 보안**: 인젝션 (SQL, 헤더, 경로, 로그), SSRF, 권한 우회, 인증 우회, 정보 노출, 타이밍 공격
 **렌즈 2 — 견고성**: 리소스 누수 (스트림, 커넥션, 코루틴 스코프), 동시성 (race condition, 데드락), 에러 복구 실패, 미처리 예외
@@ -53,6 +53,16 @@ IMPLEMENTATION_PLAN.md에 미완료(`- [ ]`) 항목이 **0개**일 때만 실행
 ```
 
 **LOW confidence → 등록하지 않음** → KNOWN_ACCEPTABLE에 기록.
+
+### 탐색 결과 검증 — 서브에이전트 최소화
+
+탐색 에이전트가 보고한 후보는 **직접 Grep/Read로 검증**한다 (2~3회 도구 호출로 충분).
+검증을 위한 별도 서브에이전트는 **생성하지 않는다** — 오버헤드 대비 가치가 낮다.
+
+검증 체크리스트:
+1. 해당 파일:라인을 Read로 확인
+2. 상위 호출자가 이미 방어하는지 Grep으로 확인 (예: 인증 필터, sanitizer)
+3. 기존 테스트가 해당 경로를 커버하는지 Grep으로 확인
 
 ### 탐색 후 즉시 구현
 
@@ -82,10 +92,25 @@ P0 → P1 → P2 → P3 → P4 순. **같은 우선순위에서 2~3개를 배치
    - 부작용은 없는가?
    - diff가 최소한인가?
 
-**배치 전체 완료 후**:
-1. `./gradlew compileKotlin compileTestKotlin` (0 warnings)
-2. `./gradlew test` (전체 통과)
-3. 실패 시: 원인 파악 → 수정 → 재검증. 3회 실패 시 `git checkout .` 후 다른 항목
+**배치 전체 완료 후 — 단계적 검증**:
+1. `./gradlew compileKotlin compileTestKotlin` (0 warnings, ~3초)
+2. **타겟 테스트**: 수정한 모듈 + 의존 모듈만 실행 (아래 의존성 맵 참조)
+3. **커밋 직전에만** `./gradlew test` 전체 실행 (1회)
+4. 실패 시: 원인 파악 → 수정 → 재검증. 3회 실패 시 `git checkout .` 후 다른 항목
+5. **Gradle 프로세스 동시 실행 금지** — 새 테스트 전에 기존 프로세스 완료 확인
+
+### 모듈 의존성 맵 (타겟 테스트용)
+
+```
+arc-core 수정 → ./gradlew test                         # 모든 모듈이 의존 → 전체
+arc-web 수정  → ./gradlew :arc-web:test                 # 리프 모듈
+arc-admin    → ./gradlew :arc-admin:test                # 리프 모듈
+arc-slack    → ./gradlew :arc-slack:test                # 리프 모듈
+arc-teams    → ./gradlew :arc-teams:test                # 리프 모듈
+arc-google   → ./gradlew :arc-google:test               # 리프 모듈
+arc-error-report → ./gradlew :arc-error-report:test     # 리프 모듈
+여러 리프 모듈 → ./gradlew :arc-web:test :arc-teams:test # 병렬 실행
+```
 
 ### 브랜치 전략
 
@@ -137,6 +162,7 @@ git push origin dev
 2. 기존 테스트를 깨지 않는다
 3. main 브랜치 절대 금지
 4. AGENTS.md 수정 금지
+5. **Gradle 동시 실행 절대 금지** — 테스트/빌드 명령은 **한 번에 하나만**. 이전 명령이 완료될 때까지 새 Gradle 명령 실행 금지. 백그라운드 실행 후 결과를 기다리지 못하면 `./gradlew --stop` 후 재실행
 
 ## progress 관리
 

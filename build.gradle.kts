@@ -37,6 +37,12 @@ subprojects {
     }
 
     tasks.withType<Test> {
+        maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+        jvmArgs(
+            "-XX:+UseParallelGC",
+            "-XX:+TieredCompilation",
+            "-XX:TieredStopAtLevel=1"
+        )
         useJUnitPlatform {
             // Keep integration tests opt-in across all modules.
             // Run with: ./gradlew test -PincludeIntegration
