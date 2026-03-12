@@ -19,3 +19,4 @@
 | 임베딩 캐시 fingerprint | P4 | 런타임에 도구 설명 변경 불가, 실제 영향 없음 | 2026-03-12 |
 | `ErrorReportController.kt` (전역 rate limit) | P4 | 선택적 모듈, 설계 선택 | 2026-03-12 |
 | `LlmProviderHealthIndicator.kt` (Gemini key) | P4 | gemini.api.key 바인딩 엣지 케이스, 실제 영향 극히 낮음 | 2026-03-12 |
+| `ConversationMemory.kt:258` (getHistoryWithinTokenLimit) | P1 | False positive — Kotlin expression-body + lock.read 람다의 마지막 표현식이 리턴값. 정상 동작 | 2026-03-12 |

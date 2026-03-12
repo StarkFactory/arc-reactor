@@ -20,14 +20,22 @@ IMPLEMENTATION_PLAN.md에 미완료(`- [ ]`) 항목이 **0개**일 때만 실행
 
 서브에이전트에 **반드시 KNOWN_ACCEPTABLE.md 전체 내용을 프롬프트에 포함**시킨다. "파일 읽어라"가 아니라 내용을 복사해서 넣는다.
 
-### 탐색 영역
+### 탐색 영역 — 회전 렌즈 (Rotating Lens)
 
-1. `./gradlew compileKotlin compileTestKotlin` — 0 warnings 확인
-2. `./gradlew test` — 전체 통과 확인
-3. Critical Gotchas 위반 (CLAUDE.md 참조)
-4. 보안: 인젝션, 권한 우회, 정보 노출
-5. 견고성: 리소스 누수, 동시성, 에러 복구
-6. 성능: 핫패스 비효율
+매 탐색마다 **다른 렌즈**로 코드를 본다. `claude-progress.txt`에서 마지막 사용 렌즈를 확인하고 **다음 번호**를 사용한다. 8번까지 가면 1번으로 돌아간다.
+
+**항상 먼저 실행**:
+- `./gradlew compileKotlin compileTestKotlin` — 0 warnings 확인
+- `./gradlew test` — 전체 통과 확인
+
+**렌즈 1 — 보안**: 인젝션 (SQL, 헤더, 경로, 로그), SSRF, 권한 우회, 인증 우회, 정보 노출, 타이밍 공격
+**렌즈 2 — 견고성**: 리소스 누수 (스트림, 커넥션, 코루틴 스코프), 동시성 (race condition, 데드락), 에러 복구 실패, 미처리 예외
+**렌즈 3 — Agent 동작**: ReAct 루프 정확성, tool call 실패 처리, 무한 루프 가능성, 컨텍스트 트리밍 안전성, 메시지 쌍 무결성
+**렌즈 4 — 성능**: 핫패스 Regex/할당, N+1 쿼리, 불필요한 직렬화, 캐시 미스, 스레드풀 고갈
+**렌즈 5 — 테스트 갭**: 소스 대비 테스트 누락, 핵심 경로 엣지 케이스 미검증, 에러 경로 테스트 부재
+**렌즈 6 — API 계약**: Breaking change 위험, 응답 형식 불일치, @Operation 누락, 에러 응답 표준 미준수
+**렌즈 7 — 운영**: 헬스체크 갭, 메트릭/로깅 품질, 설정 기본값 안전성, graceful shutdown
+**렌즈 8 — Critical Gotchas**: CancellationException, activeTools=emptyList, .forEach in suspend, AssistantMessage builder, Guard null userId
 
 ### 필터링 (보고 전 필수)
 
@@ -101,7 +109,7 @@ git push origin dev
 1. IMPLEMENTATION_PLAN.md: `- [ ]` → `- [x]` + 커밋 해시
 2. claude-progress.txt에 1~3줄 append:
    ```
-   [반복 N] 날짜 — 항목 A, B, C 수정 (커밋 hash). 다음: [다음 항목 또는 탐색]
+   [반복 N] 날짜 — 렌즈 X 탐색, 항목 A, B 수정 (커밋 hash). 다음: 렌즈 Y
    ```
 
 ---
@@ -118,9 +126,8 @@ git push origin dev
 ### 수렴 판정 (자동 완료)
 
 하나라도 만족 시 추가 탐색 없이 완료:
-- **2회 연속** 탐색에서 P0~P3 신규 0건
-- 직전 **3회 반복**이 P4만 발견
-- 총 **15회 초과** 시 P0~P1만 추가 작업
+- **8개 렌즈 전부** 최소 1회씩 실행 완료 + 마지막 **전체 사이클**(렌즈 1~8) 동안 P0~P3 신규 0건
+- 총 **20회 초과** 시 P0~P1만 추가 작업
 
 ---
 
