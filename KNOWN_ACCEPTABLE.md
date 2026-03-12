@@ -34,3 +34,14 @@
 | `MemoryStore` default listSessionsByUserId | P3 | 하위호환 설계 의도. InMemory/JDBC 모두 userId 필터링 override 구현 | 2026-03-13 |
 | `SessionController.isSessionOwner` null owner | P3 | 하위호환 설계 의도. owner 미추적 세션 접근 허용은 의도적 | 2026-03-13 |
 | `ConversationManager.kt:259` catch (non-suspend) | P4 | non-suspend fun, CancellationException 도달 불가 | 2026-03-13 |
+| `ToolCallOrchestrator.kt:215,420` double findToolAdapter | P4 | 도구 목록 최대 20개, linear scan 2회 비용 미미 | 2026-03-13 |
+| `ToolCallOrchestrator.kt:308` verifiedSources O(n²) | P4 | 실 사용 시 sources 수 극소 (~1-3 per tool), 이론적 | 2026-03-13 |
+| `ToolCallOrchestrator.kt:496` multiple filterIsInstance | P4 | 캐시됨, key 생성 비용 미미 | 2026-03-13 |
+| `ManualReActLoopExecutor.kt:95` buildMap per LLM call | P4 | ReAct 루프당 1회, 최대 10회. 미미 | 2026-03-13 |
+| `DefaultGuardStages.kt:57` cache key string concat | P4 | 단일 문자열 연결, hot path 아님 | 2026-03-13 |
+| `RuleBasedClassificationStage.kt:27` text.lowercase() | P4 | 요청당 1회, 10K 상한. 패턴 (?i) 전환 시 breaking change | 2026-03-13 |
+| `UnicodeNormalizationStage.kt:37` IntStream lambda | P4 | 미미한 allocation | 2026-03-13 |
+| `JdbcMemoryStore.kt:72` listSessions N+1 | P4 | 관리 엔드포인트, hot-path 아님 | 2026-03-13 |
+| `JdbcMemoryStore.kt:139` N individual DELETEs | P4 | cleanup 경로, hot-path 아님 | 2026-03-13 |
+| `JdbcMemoryStore.kt:176` COUNT per insert | P4 | eviction 체크, 단일 쿼리 | 2026-03-13 |
+| `SemanticToolSelector.kt` repeated lowercase | P4 | 요청당 1회, 도구 수 소규모 | 2026-03-13 |

@@ -62,6 +62,7 @@
 - [x] P2: `AgentTracingHooks.kt:43` — DisposableBean + 잔여 span 정리 (CancellationException 누수 방지)
 - [x] P2: `SlackSocketModeGateway.kt:44` — startupJob @Volatile 추가
 - [x] P2: `TeamsWebhookClient.kt` — SSRF 보호로 인한 테스트 행 수정 (ssrfProtectionEnabled 파라미터)
+- [x] P3: `WorkerAgentTool.kt:62` — ToolCallback 규약 준수: try-catch + "Error: ..." 반환 (e3f8b82)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)

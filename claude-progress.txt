@@ -20,3 +20,17 @@
 - 기각: 6건 → KNOWN_ACCEPTABLE 추가 (UserMemoryController anonymous bypass 등)
 - 구현: P3 2건 수정 (1bd4abf), Gradle 테스트 최적화 + PROMPT 개선 (fed45a5)
 - 다음: 렌즈 2 (견고성)
+
+[Ralph 반복 8] 2026-03-13 — 렌즈 2 견고성 탐색 + P2 수정
+- 렌즈: 2 (견고성) — 리소스 누수, 동시성, 에러 복구
+- 발견: P2 4건 (ErrorReportController scope, SlackReminderScheduler scope+executor, AgentTracingHooks span 누수, SlackSocketModeGateway volatile)
+- 기각: 4건 → KNOWN_ACCEPTABLE (MetricRingBuffer torn write, GoogleCalendarTool transport, DefaultCircuitBreaker, InMemoryMemoryStore hallucination)
+- 구현: P2 4건 수정 + TeamsWebhookClient SSRF 테스트 행 수정 (29c8216)
+- 다음: 렌즈 3 (Agent 동작)
+
+[Ralph 반복 9] 2026-03-13 — 렌즈 3 Agent 동작 탐색 + P3 수정
+- 렌즈: 3 (Agent 동작) — ReAct 루프, tool call 실패, 무한 루프, 컨텍스트 트리밍
+- 발견: P3 1건 (WorkerAgentTool try-catch 누락)
+- 기각: 5건 → KNOWN_ACCEPTABLE (ToolCallOrchestrator forEach, MemoryStore 하위호환 3건, ConversationManager non-suspend)
+- 구현: P3 1건 수정 (e3f8b82) + TeamsWebhookClient SSRF 테스트 행 수정 (29c8216)
+- 다음: 렌즈 4 (성능)
