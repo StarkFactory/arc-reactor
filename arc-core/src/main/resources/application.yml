@@ -201,6 +201,15 @@ management:
     health:
       probes:
         enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Arc Reactor
+    description: AI Agent Framework
+    version: ${project.version:unknown}
 
 # ----- Spring WebFlux Multipart (optional override) -----
 # Uncomment to cap in-memory buffer before Arc Reactor's per-file limit is evaluated.
@@ -213,3 +222,4 @@ management:
 logging:
   level:
     com.arc.reactor: INFO
+    io.netty.resolver.dns.DnsServerAddressStreamProviders: WARN

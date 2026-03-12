@@ -3,6 +3,7 @@ package com.arc.reactor.controller
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.agent.model.ResponseFormat
@@ -26,7 +27,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.reactor.asFlux
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.util.MimeType
 import org.springframework.web.bind.annotation.PostMapping
@@ -86,13 +89,16 @@ class ChatController(
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Chat response"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
-        ApiResponse(responseCode = "500", description = "Server or LLM error")
+        ApiResponse(responseCode = "429", description = "Rate limit exceeded"),
+        ApiResponse(responseCode = "500", description = "Server or LLM error"),
+        ApiResponse(responseCode = "503", description = "Service unavailable (circuit breaker open)"),
+        ApiResponse(responseCode = "504", description = "Request timed out")
     ])
     @PostMapping
     suspend fun chat(
         @Valid @RequestBody request: ChatRequest,
         exchange: ServerWebExchange
-    ): ChatResponse {
+    ): ResponseEntity<ChatResponse> {
         var command = AgentCommand(
             systemPrompt = resolveSystemPrompt(request),
             userPrompt = request.message,
@@ -107,7 +113,9 @@ class ChatController(
         command = applyIntentProfile(command, request)
 
         val result = agentExecutor.execute(command)
-        return result.toChatResponse(command.model)
+        val response = result.toChatResponse(command.model)
+        val status = if (result.success) HttpStatus.OK else mapErrorCodeToStatus(result.errorCode)
+        return ResponseEntity.status(status).body(response)
     }
 
     /**
@@ -376,6 +384,18 @@ class ChatController(
         return uri
     }
 
+}
+
+internal fun mapErrorCodeToStatus(errorCode: AgentErrorCode?): HttpStatus {
+    return when (errorCode) {
+        AgentErrorCode.RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS
+        AgentErrorCode.GUARD_REJECTED, AgentErrorCode.HOOK_REJECTED -> HttpStatus.FORBIDDEN
+        AgentErrorCode.TIMEOUT -> HttpStatus.GATEWAY_TIMEOUT
+        AgentErrorCode.CIRCUIT_BREAKER_OPEN -> HttpStatus.SERVICE_UNAVAILABLE
+        AgentErrorCode.CONTEXT_TOO_LONG -> HttpStatus.BAD_REQUEST
+        AgentErrorCode.OUTPUT_GUARD_REJECTED, AgentErrorCode.OUTPUT_TOO_SHORT -> HttpStatus.OK
+        else -> HttpStatus.INTERNAL_SERVER_ERROR
+    }
 }
 
 /**
