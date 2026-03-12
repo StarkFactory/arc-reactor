@@ -41,6 +41,23 @@ class SsrfProtectionTest {
         isPrivateOrReservedAddress("this-host-definitely-does-not-exist.invalid") shouldBe true
     }
 
+    @ParameterizedTest(name = "should block cloud metadata address: {0}")
+    @ValueSource(strings = [
+        "169.254.169.254" // AWS/GCP/Azure metadata endpoint
+    ])
+    fun `should block cloud metadata addresses`(host: String) {
+        isPrivateOrReservedAddress(host) shouldBe true
+    }
+
+    @ParameterizedTest(name = "should block multicast address: {0}")
+    @ValueSource(strings = [
+        "224.0.0.1",
+        "239.255.255.255"
+    ])
+    fun `should block multicast addresses`(host: String) {
+        isPrivateOrReservedAddress(host) shouldBe true
+    }
+
     @ParameterizedTest(name = "should allow public address: {0}")
     @ValueSource(strings = [
         "8.8.8.8",

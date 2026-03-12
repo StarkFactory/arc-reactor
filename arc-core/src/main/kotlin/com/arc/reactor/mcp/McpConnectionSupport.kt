@@ -22,16 +22,28 @@ private val logger = KotlinLogging.logger {}
 
 /**
  * Returns true if the given host resolves to a private, reserved, or unresolvable address.
- * Blocks loopback, site-local, and link-local addresses to prevent SSRF attacks.
+ * Blocks loopback, site-local, link-local, multicast, and cloud metadata addresses
+ * to prevent SSRF attacks.
  */
 internal fun isPrivateOrReservedAddress(host: String?): Boolean {
     if (host.isNullOrBlank()) return true
     return try {
         val addr = InetAddress.getByName(host)
-        addr.isLoopbackAddress || addr.isSiteLocalAddress || addr.isLinkLocalAddress
+        addr.isLoopbackAddress || addr.isSiteLocalAddress || addr.isLinkLocalAddress ||
+            addr.isMulticastAddress || isCloudMetadataAddress(addr)
     } catch (_: Exception) {
         true // unresolvable host treated as blocked
     }
+}
+
+/**
+ * Detects cloud provider metadata service addresses (AWS, GCP, Azure).
+ * These endpoints expose instance credentials and must be blocked for SSRF prevention.
+ */
+private fun isCloudMetadataAddress(addr: InetAddress): Boolean {
+    val ip = addr.hostAddress
+    return ip == "169.254.169.254" || // AWS/GCP/Azure metadata (IPv4)
+        ip == "fd00:ec2::254"         // AWS IMDSv2 (IPv6)
 }
 
 internal data class McpConnectionHandle(

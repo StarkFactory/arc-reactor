@@ -1,12 +1,15 @@
 package com.arc.reactor.controller
 
 import io.netty.channel.ChannelOption
+import mu.KotlinLogging
 import org.springframework.http.client.reactive.ReactorClientHttpConnector
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.netty.http.client.HttpClient
 import reactor.netty.resources.ConnectionProvider
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * Caches WebClient instances for MCP admin proxy calls to avoid rebuilding connectors per request.
@@ -50,6 +53,12 @@ class McpAdminWebClientFactory(
         val connectTimeoutMs: Int,
         val responseTimeoutMs: Long
     )
+
+    fun dispose() {
+        clients.clear()
+        sharedConnectionProvider.dispose()
+        logger.info { "McpAdminWebClientFactory: connection provider disposed" }
+    }
 
     companion object {
         private const val DEFAULT_CACHE_ENTRIES = 256

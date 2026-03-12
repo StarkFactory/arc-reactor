@@ -20,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
+import org.springframework.beans.factory.DisposableBean
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.scheduling.TaskScheduler
@@ -61,7 +62,7 @@ class DynamicSchedulerService(
     private val promptTemplateStore: PromptTemplateStore? = null,
     private val executionStore: ScheduledJobExecutionStore? = null,
     private val schedulerProperties: SchedulerProperties = SchedulerProperties()
-) {
+) : DisposableBean {
 
     companion object {
         private const val SCHEDULER_ACTOR = "scheduler"
@@ -79,6 +80,13 @@ class DynamicSchedulerService(
         for (job in jobs) {
             registerJob(job)
         }
+    }
+
+    override fun destroy() {
+        val count = scheduledFutures.size
+        logger.info { "Dynamic Scheduler: cancelling $count scheduled jobs" }
+        scheduledFutures.values.forEach { it.cancel(false) }
+        scheduledFutures.clear()
     }
 
     fun create(job: ScheduledJob): ScheduledJob {

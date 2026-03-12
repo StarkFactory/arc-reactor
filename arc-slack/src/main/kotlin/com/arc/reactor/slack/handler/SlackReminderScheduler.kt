@@ -4,6 +4,7 @@ import com.arc.reactor.slack.service.SlackMessagingService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.util.concurrent.Executors
@@ -69,6 +70,7 @@ class SlackReminderScheduler(
 
     fun shutdown() {
         executor.shutdownNow()
+        scope.cancel()
         logger.info { "SlackReminderScheduler shut down" }
     }
 }

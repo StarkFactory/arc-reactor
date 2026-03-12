@@ -16,8 +16,11 @@ interface TokenRevocationStore {
 
 class InMemoryTokenRevocationStore : TokenRevocationStore {
     private val revoked = ConcurrentHashMap<String, Instant>()
+    private val maxEntries = 10_000
 
     override fun revoke(tokenId: String, expiresAt: Instant) {
+        if (expiresAt <= Instant.now()) return
+        if (revoked.size >= maxEntries) purgeExpired()
         revoked[tokenId] = expiresAt
     }
 
@@ -29,6 +32,13 @@ class InMemoryTokenRevocationStore : TokenRevocationStore {
         }
         return true
     }
+
+    internal fun purgeExpired() {
+        val now = Instant.now()
+        revoked.entries.removeIf { it.value <= now }
+    }
+
+    internal fun size(): Int = revoked.size
 }
 
 /**
