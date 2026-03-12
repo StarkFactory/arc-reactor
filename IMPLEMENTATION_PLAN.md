@@ -51,6 +51,7 @@
 - [x] P1: `VerifiedSourcesResponseFilter.kt:162-164` — CASUAL_PROMPTS에 한국어 변형 추가 (83ade27)
 - [x] P4: 인젝션 탐지 패턴 → InjectionPatterns 공통 추출 (d75d351)
 - [x] P4: `DocumentController.kt` TODO → 설계 근거 코멘트로 교체 (b8b323a)
+- [x] P2: `GoogleCredentialProvider.kt` — FileInputStream .use{} 리소스 누수 수정 (3809cf9)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)
