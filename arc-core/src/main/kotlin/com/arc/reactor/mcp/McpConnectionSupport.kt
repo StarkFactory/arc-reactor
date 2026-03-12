@@ -25,7 +25,7 @@ private val logger = KotlinLogging.logger {}
  * Blocks loopback, site-local, link-local, multicast, and cloud metadata addresses
  * to prevent SSRF attacks.
  */
-internal fun isPrivateOrReservedAddress(host: String?): Boolean {
+fun isPrivateOrReservedAddress(host: String?): Boolean {
     if (host.isNullOrBlank()) return true
     return try {
         val addr = InetAddress.getByName(host)

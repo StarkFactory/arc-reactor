@@ -1,5 +1,5 @@
 # Implementation Plan
-> 마지막 업데이트: 2026-03-12 | Ralph 반복 1
+> 마지막 업데이트: 2026-03-12 | Ralph 반복 7 (렌즈 1 보안)
 
 ## P0 — 즉시 수정 (런타임 크래시, 데이터 손실)
 
@@ -15,7 +15,8 @@
 
 ## P3 — 보안 (권한 우회, 인젝션, 정보 노출)
 
-(없음 — 전부 완료)
+- [ ] [MED] P3: `ToolCallOrchestrator.kt:388` — checkToolApproval 예외 시 raw e.message 노출
+- [ ] [MED] P3: `TeamsWebhookClient.kt:27` — SSRF 보호 없이 webhookUrl 직접 사용 (admin-only)
 
 ## P4 — 성능 / 코드 품질 / 문서화
 

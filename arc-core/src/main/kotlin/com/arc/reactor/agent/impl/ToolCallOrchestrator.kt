@@ -385,9 +385,8 @@ internal class ToolCallOrchestrator(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            val reason = "Approval check failed for tool '$toolName': ${e.message ?: "unknown error"}"
-            logger.error(e) { reason }
-            "Tool call blocked: $reason"
+            logger.error(e) { "Approval check failed for tool '$toolName': ${e.message ?: "unknown error"}" }
+            "Tool call blocked: Approval check failed for tool '$toolName'"
         }
     }
 

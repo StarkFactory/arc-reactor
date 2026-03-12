@@ -20,3 +20,8 @@
 | `ErrorReportController.kt` (전역 rate limit) | P4 | 선택적 모듈, 설계 선택 | 2026-03-12 |
 | `LlmProviderHealthIndicator.kt` (Gemini key) | P4 | gemini.api.key 바인딩 엣지 케이스, 실제 영향 극히 낮음 | 2026-03-12 |
 | `ConversationMemory.kt:258` (getHistoryWithinTokenLimit) | P1 | False positive — Kotlin expression-body + lock.read 람다의 마지막 표현식이 리턴값. 정상 동작 | 2026-03-12 |
+| `UserMemoryController.kt:118` (anonymous bypass) | P1 | False positive — JwtAuthWebFilter가 인증 없는 요청을 401로 차단. currentActor() "anonymous" 폴백은 도달 불가 | 2026-03-12 |
+| `TenantResolver.kt:83` (manager tenant override) | P3 | Self-hosted 배포 설계 의도 (기존 항목과 동일) | 2026-03-12 |
+| `ToolCallOrchestrator.kt:441,472` (error message) | P3 | 커밋 613d0a0에서 sanitize 적용 완료. ToolOutputSanitizer 경유 확인 | 2026-03-12 |
+| `ToolCallOrchestrator.kt:217` (tool name logging) | P3 | 표준 로깅 관행. 실행은 차단됨. P5 수준 | 2026-03-12 |
+| `SlackMessagingService.kt` (response URL SSRF) | P2 | Slack 서명 검증 필수 전제. 시크릿 탈취 없이 exploit 불가. P5 수준 | 2026-03-12 |
