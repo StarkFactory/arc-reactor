@@ -1,6 +1,7 @@
 package com.arc.reactor.scheduler
 
 import com.arc.reactor.agent.AgentExecutor
+import com.arc.reactor.agent.config.SchedulerProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
@@ -58,7 +59,8 @@ class DynamicSchedulerService(
     private val agentExecutorProvider: (() -> AgentExecutor?)? = null,
     private val personaStore: PersonaStore? = null,
     private val promptTemplateStore: PromptTemplateStore? = null,
-    private val executionStore: ScheduledJobExecutionStore? = null
+    private val executionStore: ScheduledJobExecutionStore? = null,
+    private val schedulerProperties: SchedulerProperties = SchedulerProperties()
 ) {
 
     companion object {
@@ -207,14 +209,11 @@ class DynamicSchedulerService(
 
     private fun runJobWithRetryAndTimeout(job: ScheduledJob): String = runBlocking {
         val timeoutMs = job.executionTimeoutMs
-        if (timeoutMs != null) {
-            try {
-                withTimeout(timeoutMs) { runWithRetry(job) }
-            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                throw IllegalStateException("Job '${job.name}' timed out after ${timeoutMs}ms")
-            }
-        } else {
-            runWithRetry(job)
+            ?: schedulerProperties.defaultExecutionTimeoutMs
+        try {
+            withTimeout(timeoutMs) { runWithRetry(job) }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            throw IllegalStateException("Job '${job.name}' timed out after ${timeoutMs}ms")
         }
     }
 

@@ -61,7 +61,8 @@ class RagConfiguration {
         ragLogger.info { "RAG: Using SpringAiVectorStoreRetriever (VectorStore found)" }
         return SpringAiVectorStoreRetriever(
             vectorStore = vectorStore,
-            defaultSimilarityThreshold = properties.rag.similarityThreshold
+            defaultSimilarityThreshold = properties.rag.similarityThreshold,
+            timeoutMs = properties.rag.retrievalTimeoutMs
         )
     }
 

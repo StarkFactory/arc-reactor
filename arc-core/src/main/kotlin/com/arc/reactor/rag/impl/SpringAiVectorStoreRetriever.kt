@@ -3,6 +3,10 @@ package com.arc.reactor.rag.impl
 import com.arc.reactor.rag.DocumentRetriever
 import com.arc.reactor.rag.model.RetrievedDocument
 import com.arc.reactor.support.throwIfCancellation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import org.springframework.ai.document.Document
 import org.springframework.ai.vectorstore.SearchRequest
@@ -19,7 +23,8 @@ private val logger = KotlinLogging.logger {}
  */
 class SpringAiVectorStoreRetriever(
     private val vectorStore: VectorStore,
-    private val defaultSimilarityThreshold: Double = 0.7
+    private val defaultSimilarityThreshold: Double = 0.7,
+    private val timeoutMs: Long = 5000
 ) : DocumentRetriever {
 
     override suspend fun retrieve(
@@ -41,7 +46,7 @@ class SpringAiVectorStoreRetriever(
             .take(topK)
     }
 
-    private fun searchWithQuery(
+    private suspend fun searchWithQuery(
         query: String,
         topK: Int,
         filters: Map<String, Any> = emptyMap()
@@ -62,9 +67,18 @@ class SpringAiVectorStoreRetriever(
 
             val searchRequest = builder.build()
 
-            val documents = vectorStore.similaritySearch(searchRequest)
+            // similaritySearch is a blocking call; withTimeout cancels the coroutine
+            // while withContext(Dispatchers.IO) offloads blocking work from the caller's thread.
+            val documents = withTimeout(timeoutMs) {
+                withContext(Dispatchers.IO) {
+                    vectorStore.similaritySearch(searchRequest)
+                }
+            }
 
             documents.map { doc -> doc.toRetrievedDocument() }
+        } catch (e: TimeoutCancellationException) {
+            logger.warn { "Vector search timed out after ${timeoutMs}ms for query: $query" }
+            emptyList()
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Vector search failed for query: $query" }

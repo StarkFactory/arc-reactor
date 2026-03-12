@@ -159,7 +159,10 @@ data class RagProperties(
     val hybrid: RagHybridProperties = RagHybridProperties(),
 
     /** Document chunking configuration */
-    val chunking: RagChunkingProperties = RagChunkingProperties()
+    val chunking: RagChunkingProperties = RagChunkingProperties(),
+
+    /** Retrieval timeout in milliseconds. Prevents thread-pool exhaustion when vector DB is unresponsive. */
+    val retrievalTimeoutMs: Long = 5000
 )
 
 /**
@@ -450,6 +453,7 @@ data class IntentProperties(
  *     scheduler:
  *       enabled: true
  *       thread-pool-size: 5
+ *       default-execution-timeout-ms: 300000
  * ```
  */
 data class SchedulerProperties(
@@ -460,7 +464,10 @@ data class SchedulerProperties(
     val threadPoolSize: Int = 5,
 
     /** Default timezone for scheduled jobs when not specified by the user. */
-    val defaultTimezone: String = java.time.ZoneId.systemDefault().id
+    val defaultTimezone: String = java.time.ZoneId.systemDefault().id,
+
+    /** Default execution timeout for jobs without an explicit timeout (milliseconds). */
+    val defaultExecutionTimeoutMs: Long = 300_000
 )
 
 /**

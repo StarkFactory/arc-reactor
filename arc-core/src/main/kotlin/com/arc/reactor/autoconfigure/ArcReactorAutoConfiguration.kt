@@ -40,6 +40,7 @@ import org.springframework.context.annotation.Import
     UserMemoryConfiguration::class,
     JdbcUserMemoryStoreConfiguration::class,
     PromptLabConfiguration::class,
-    PromptCachingConfiguration::class
+    PromptCachingConfiguration::class,
+    HealthIndicatorConfiguration::class
 )
 class ArcReactorAutoConfiguration

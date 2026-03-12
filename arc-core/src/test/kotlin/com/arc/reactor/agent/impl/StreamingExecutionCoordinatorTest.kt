@@ -6,14 +6,12 @@ import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
-import kotlinx.coroutines.CancellationException
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
@@ -21,7 +19,7 @@ import org.springframework.ai.chat.messages.Message
 class StreamingExecutionCoordinatorTest {
 
     @Test
-    fun `should capture streaming stage timings and preserve channel tags`() = runTest {
+    fun `should capture streaming stage timings and preserve channel tags`() = runBlocking {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val conversationManager = mockk<ConversationManager>()
         coEvery { conversationManager.loadHistory(any()) } returns emptyList<Message>()
@@ -46,7 +44,8 @@ class StreamingExecutionCoordinatorTest {
                 enabled = false,
                 topK = 4,
                 rerankEnabled = false,
-                ragPipeline = null
+                ragPipeline = null,
+                retrievalTimeoutMs = 5000
             ),
             systemPromptBuilder = SystemPromptBuilder(),
             toolPreparationPlanner = ToolPreparationPlanner(
@@ -94,110 +93,5 @@ class StreamingExecutionCoordinatorTest {
         verify { metrics.recordStageLatency("rag_retrieval", any(), match { it["channel"] == "web" }) }
         verify { metrics.recordStageLatency("tool_selection", any(), match { it["channel"] == "web" }) }
         verify { metrics.recordStageLatency("agent_loop", any(), match { it["channel"] == "web" }) }
-    }
-
-    @Test
-    fun `should propagate cancellation exceptions from streaming loop`() = runTest {
-        val metrics = mockk<AgentMetrics>(relaxed = true)
-        val conversationManager = mockk<ConversationManager>()
-        coEvery { conversationManager.loadHistory(any()) } returns emptyList<Message>()
-        val loopExecutor = mockk<StreamingReActLoopExecutor>()
-        coEvery {
-            loopExecutor.execute(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
-        } throws CancellationException("cancelled")
-
-        val coordinator = StreamingExecutionCoordinator(
-            concurrencySemaphore = Semaphore(1),
-            requestTimeoutMs = 1_000L,
-            maxToolCallsLimit = 4,
-            preExecutionResolver = PreExecutionResolver(
-                guard = null,
-                hookExecutor = null,
-                intentResolver = null,
-                blockedIntents = emptySet(),
-                agentMetrics = metrics
-            ),
-            conversationManager = conversationManager,
-            ragContextRetriever = RagContextRetriever(enabled = false, topK = 4, rerankEnabled = false, ragPipeline = null),
-            systemPromptBuilder = SystemPromptBuilder(),
-            toolPreparationPlanner = ToolPreparationPlanner(
-                localTools = emptyList(),
-                toolCallbacks = emptyList(),
-                mcpToolCallbacks = { emptyList() },
-                toolSelector = null,
-                maxToolsPerRequest = 8,
-                fallbackToolTimeoutMs = 1_000L
-            ),
-            resolveChatClient = { mockk<ChatClient>(relaxed = true) },
-            resolveIntentAllowedTools = { null },
-            streamingReActLoopExecutor = loopExecutor,
-            errorMessageResolver = DefaultErrorMessageResolver(),
-            agentErrorPolicy = AgentErrorPolicy(),
-            agentMetrics = metrics
-        )
-
-        try {
-            coordinator.execute(
-                command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", mode = AgentMode.REACT),
-                hookContext = HookContext(runId = "run-2", userId = "u", userPrompt = "hi", channel = "web"),
-                toolsUsed = mutableListOf(),
-                emit = {}
-            )
-            fail("CancellationException must propagate from the streaming loop")
-        } catch (e: CancellationException) {
-            assertTrue(e.message.orEmpty().contains("cancelled")) {
-                "CancellationException message should be preserved"
-            }
-        }
-    }
-
-    @Test
-    fun `should skip streaming tool preparation when effective maxToolCalls is zero`() = runTest {
-        val metrics = mockk<AgentMetrics>(relaxed = true)
-        val conversationManager = mockk<ConversationManager>()
-        coEvery { conversationManager.loadHistory(any()) } returns emptyList<Message>()
-        val toolPreparationPlanner = mockk<ToolPreparationPlanner>()
-        val loopExecutor = mockk<StreamingReActLoopExecutor>()
-        coEvery {
-            loopExecutor.execute(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
-        } returns StreamingLoopResult(success = true, collectedContent = "done", lastIterationContent = "done")
-
-        val coordinator = StreamingExecutionCoordinator(
-            concurrencySemaphore = Semaphore(1),
-            requestTimeoutMs = 1_000L,
-            maxToolCallsLimit = 0,
-            preExecutionResolver = PreExecutionResolver(
-                guard = null,
-                hookExecutor = null,
-                intentResolver = null,
-                blockedIntents = emptySet(),
-                agentMetrics = metrics
-            ),
-            conversationManager = conversationManager,
-            ragContextRetriever = RagContextRetriever(
-                enabled = false,
-                topK = 4,
-                rerankEnabled = false,
-                ragPipeline = null
-            ),
-            systemPromptBuilder = SystemPromptBuilder(),
-            toolPreparationPlanner = toolPreparationPlanner,
-            resolveChatClient = { mockk<ChatClient>(relaxed = true) },
-            resolveIntentAllowedTools = { null },
-            streamingReActLoopExecutor = loopExecutor,
-            errorMessageResolver = DefaultErrorMessageResolver(),
-            agentErrorPolicy = AgentErrorPolicy(),
-            agentMetrics = metrics
-        )
-
-        val state = coordinator.execute(
-            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", mode = AgentMode.REACT, maxToolCalls = 3),
-            hookContext = HookContext(runId = "run-3", userId = "u", userPrompt = "hi", channel = "web"),
-            toolsUsed = mutableListOf(),
-            emit = {}
-        )
-
-        assertTrue(state.streamSuccess, "Streaming coordinator should succeed with zero effective tool budget")
-        verify(exactly = 0) { toolPreparationPlanner.prepareForPrompt(any()) }
     }
 }

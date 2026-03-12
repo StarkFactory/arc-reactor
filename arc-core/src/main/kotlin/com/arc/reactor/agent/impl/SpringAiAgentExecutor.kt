@@ -117,7 +117,8 @@ class SpringAiAgentExecutor(
         enabled = properties.rag.enabled,
         topK = properties.rag.topK,
         rerankEnabled = properties.rag.rerankEnabled,
-        ragPipeline = ragPipeline
+        ragPipeline = ragPipeline,
+        retrievalTimeoutMs = properties.rag.retrievalTimeoutMs
     )
     private val agentErrorPolicy = AgentErrorPolicy(transientErrorClassifier)
     private val structuredResponseRepairer = StructuredResponseRepairer(
