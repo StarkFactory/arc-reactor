@@ -207,7 +207,8 @@ class PlatformAdminController(
             )
             ResponseEntity.status(201).body(tenant)
         } catch (e: IllegalArgumentException) {
-            ResponseEntity.badRequest().body(AdminErrorResponse(error = e.message ?: "Invalid request"))
+            logger.warn(e) { "Invalid create tenant request" }
+            ResponseEntity.badRequest().body(AdminErrorResponse(error = "Invalid request"))
         }
     }
 
