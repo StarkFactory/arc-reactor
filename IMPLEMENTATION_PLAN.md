@@ -1,5 +1,5 @@
 # Implementation Plan
-> 마지막 업데이트: 2026-03-12 | Ralph 반복 7 (렌즈 1 보안)
+> 마지막 업데이트: 2026-03-13 | Ralph 반복 8 (렌즈 2 견고성)
 
 ## P0 — 즉시 수정 (런타임 크래시, 데이터 손실)
 
@@ -57,6 +57,11 @@
 - [x] P2: `McpAdminWebClientFactory.kt` — DisposableBean 구현 + Bean 등록으로 ConnectionProvider 정리 (a507155)
 - [x] P3: `ToolCallOrchestrator.kt:388` — checkToolApproval 예외 시 raw e.message 제거 (1bd4abf)
 - [x] P3: `TeamsWebhookClient.kt:27` — SSRF 보호 (isPrivateOrReservedAddress) 적용 (1bd4abf)
+- [x] P2: `ErrorReportController.kt:50` — DisposableBean + scope.cancel() 리소스 정리
+- [x] P2: `SlackReminderScheduler.kt:26` — DisposableBean + destroy() → shutdown() 리소스 정리
+- [x] P2: `AgentTracingHooks.kt:43` — DisposableBean + 잔여 span 정리 (CancellationException 누수 방지)
+- [x] P2: `SlackSocketModeGateway.kt:44` — startupJob @Volatile 추가
+- [x] P2: `TeamsWebhookClient.kt` — SSRF 보호로 인한 테스트 행 수정 (ssrfProtectionEnabled 파라미터)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)

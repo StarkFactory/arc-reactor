@@ -25,3 +25,7 @@
 | `ToolCallOrchestrator.kt:441,472` (error message) | P3 | 커밋 613d0a0에서 sanitize 적용 완료. ToolOutputSanitizer 경유 확인 | 2026-03-12 |
 | `ToolCallOrchestrator.kt:217` (tool name logging) | P3 | 표준 로깅 관행. 실행은 차단됨. P5 수준 | 2026-03-12 |
 | `SlackMessagingService.kt` (response URL SSRF) | P2 | Slack 서명 검증 필수 전제. 시크릿 탈취 없이 exploit 불가. P5 수준 | 2026-03-12 |
+| `MetricRingBuffer.kt:35` (torn write) | P2 | 의도적 lock-free 설계. null guard로 crash 방지, 메트릭 손실 허용 | 2026-03-13 |
+| `GoogleCalendarTool.kt:61` (transport per-call) | P2 | NetHttpTransport는 JDK HttpURLConnection 기반, 리소스 없음 | 2026-03-13 |
+| `DefaultCircuitBreaker.kt:54` (HALF_OPEN counter) | P2 | atomic ops로 실제 누수 없음. 최악 시 trial call 1회 추가 | 2026-03-13 |
+| `InMemoryMemoryStore.kt:288` (sessionOwners) | P2 | 파일 경로 불일치 (scanner hallucination) | 2026-03-13 |

@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test
 class TeamsWebhookClientTest {
 
     private val server = MockWebServer()
-    private val client = TeamsWebhookClient(TeamsProperties(enabled = true))
+    private val client = TeamsWebhookClient(TeamsProperties(enabled = true), ssrfProtectionEnabled = false)
 
     @BeforeEach
     fun setUp() {

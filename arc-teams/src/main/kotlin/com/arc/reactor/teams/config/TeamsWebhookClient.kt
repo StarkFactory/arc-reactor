@@ -16,16 +16,19 @@ private const val MAX_MESSAGE_LENGTH = 3000
  * On HTTP errors, logs a warning and does not rethrow — consistent with SlackMessageSender error policy.
  */
 class TeamsWebhookClient(
-    private val properties: TeamsProperties
+    private val properties: TeamsProperties,
+    private val ssrfProtectionEnabled: Boolean = true
 ) : TeamsMessageSender {
 
     private val webClient = WebClient.builder().build()
 
     override fun sendMessage(webhookUrl: String, text: String) {
-        val host = try { URI(webhookUrl).host } catch (_: Exception) { null }
-        if (isPrivateOrReservedAddress(host)) {
-            logger.warn { "Blocked Teams webhook to private/reserved address: $host" }
-            return
+        if (ssrfProtectionEnabled) {
+            val host = try { URI(webhookUrl).host } catch (_: Exception) { null }
+            if (isPrivateOrReservedAddress(host)) {
+                logger.warn { "Blocked Teams webhook to private/reserved address: $host" }
+                return
+            }
         }
         val truncated = if (text.length > MAX_MESSAGE_LENGTH) text.take(MAX_MESSAGE_LENGTH) + "\n..." else text
         val payload = buildMessageCard(truncated)

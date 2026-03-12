@@ -41,6 +41,7 @@ class SlackSocketModeGateway(
     @Volatile
     private var startRequested: Boolean = false
 
+    @Volatile
     private var startupJob: Job? = null
     private var slack: Slack? = null
     private var socketModeClient: SocketModeClient? = null

@@ -22,7 +22,7 @@ class SlackReminderScheduler(
     private val reminderStore: SlackReminderStore,
     private val messagingService: SlackMessagingService,
     pollIntervalSeconds: Long = 60
-) {
+) : org.springframework.beans.factory.DisposableBean {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val executor = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "slack-reminder-scheduler").apply { isDaemon = true }
@@ -66,6 +66,10 @@ class SlackReminderScheduler(
                 }
             }
         }
+    }
+
+    override fun destroy() {
+        shutdown()
     }
 
     fun shutdown() {
