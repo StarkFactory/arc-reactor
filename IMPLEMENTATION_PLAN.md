@@ -23,10 +23,10 @@
 (없음 — 전부 완료)
 
 ### 중복 로직
-- [ ] `DefaultGuardStages.kt:172-223` + `ToolOutputSanitizer.kt:56-74` — 프롬프트 인젝션 탐지 패턴 상당 부분 중복
+(없음 — 전부 완료)
 
 ### 기타 코드 품질
-- [ ] `DocumentController.kt:173` — TODO: chunk_total 메타데이터 저장으로 O(maxNumChunks) 탐색 제거
+(없음 — 전부 완료)
 
 ## 완료
 - [x] P2: `Bm25Scorer.kt` — @Synchronized 추가로 동시성 문제 해결 (f270cf8)
@@ -49,6 +49,8 @@
 - [x] P5: `VerifiedSourcesResponseFilter` — casual/general 경계값 테스트 4개 추가 (83ade27, 3330c9c)
 - [x] P1: `VerifiedSourcesResponseFilter.kt:127-132` — looksLikeInformationRequest ?/패턴 과잉 차단 수정 (3330c9c)
 - [x] P1: `VerifiedSourcesResponseFilter.kt:162-164` — CASUAL_PROMPTS에 한국어 변형 추가 (83ade27)
+- [x] P4: 인젝션 탐지 패턴 → InjectionPatterns 공통 추출 (d75d351)
+- [x] P4: `DocumentController.kt` TODO → 설계 근거 코멘트로 교체 (b8b323a)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)
