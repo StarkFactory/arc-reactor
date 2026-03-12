@@ -6,6 +6,7 @@ import org.springframework.http.client.reactive.ReactorClientHttpConnector
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.netty.http.client.HttpClient
 import reactor.netty.resources.ConnectionProvider
+import org.springframework.beans.factory.DisposableBean
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 
@@ -16,7 +17,7 @@ private val logger = KotlinLogging.logger {}
  */
 class McpAdminWebClientFactory(
     private val maxCacheEntries: Int = DEFAULT_CACHE_ENTRIES
-) {
+) : DisposableBean {
     private val clients = ConcurrentHashMap<CacheKey, WebClient>()
 
     fun getClient(
@@ -54,7 +55,7 @@ class McpAdminWebClientFactory(
         val responseTimeoutMs: Long
     )
 
-    fun dispose() {
+    override fun destroy() {
         clients.clear()
         sharedConnectionProvider.dispose()
         logger.info { "McpAdminWebClientFactory: connection provider disposed" }

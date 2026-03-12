@@ -1,5 +1,6 @@
 package com.arc.reactor.autoconfigure
 
+import com.arc.reactor.controller.McpAdminWebClientFactory
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -16,6 +17,14 @@ import org.springframework.web.server.WebFilter
  */
 @AutoConfiguration
 class ArcReactorWebAutoConfiguration {
+
+    /**
+     * Shared WebClient factory for MCP admin proxy controllers.
+     * Implements DisposableBean to dispose the Netty ConnectionProvider on shutdown.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun mcpAdminWebClientFactory(): McpAdminWebClientFactory = McpAdminWebClientFactory()
 
     /**
      * Security Headers WebFilter (default: enabled)
