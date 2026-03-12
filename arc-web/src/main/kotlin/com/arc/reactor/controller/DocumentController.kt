@@ -170,8 +170,9 @@ class DocumentController(
         // Each ID may be a parent document — derive deterministic chunk IDs to clean up.
         // VectorStore.delete is idempotent: non-existent IDs are silently ignored.
         // Skip derivation for IDs that are already chunk IDs.
-        // TODO: Store chunk_total in parent metadata at write time to avoid O(maxNumChunks)
-        //       derivation per ID. Current brute-force is correct but generates phantom IDs.
+        // Brute-force: derive up to maxNumChunks IDs per parent. VectorStore.delete() is
+        // idempotent so phantom IDs are silently ignored. A lookup-first approach would require
+        // a getById() not present in Spring AI VectorStore, so this trade-off is intentional.
         val maxChunks = properties.rag.chunking.maxNumChunks
         val allIds = request.ids.flatMap { id ->
             if (DocumentChunker.isChunkId(id)) {
