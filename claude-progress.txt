@@ -199,3 +199,11 @@
 - 결과: 테스트 통과 / 커밋 3809cf9
 - 미완료 항목: 0개
 - 다음: 탐색에서 P2 1건 발견 → 수정 완료 → 추가 탐색 필요
+
+[Ralph 반복 3] 2026-03-12 — 1단계 탐색 + P3 수정
+- 탐색: 3개 병렬 (컴파일/테스트, 코드베이스 스캔, 검증 스캔)
+- 탐색 결과: P3 2건 (SchedulerController + PlatformAdminController 예외 메시지 노출)
+- 기각: Scheduler tools e.message (ToolCallback 설계 의도), SlackMessagingService (내부 결과 객체)
+- 구현: SchedulerController 커밋 5d7dc6c, PlatformAdminController 커밋 e4adf80
+- 미완료 항목: 0개
+- 다음: 추가 탐색 필요 (이번 탐색에서 P3 발견했으므로)

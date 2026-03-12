@@ -52,6 +52,8 @@
 - [x] P4: 인젝션 탐지 패턴 → InjectionPatterns 공통 추출 (d75d351)
 - [x] P4: `DocumentController.kt` TODO → 설계 근거 코멘트로 교체 (b8b323a)
 - [x] P2: `GoogleCredentialProvider.kt` — FileInputStream .use{} 리소스 누수 수정 (3809cf9)
+- [x] P3: `SchedulerController.kt:78,115` — 예외 메시지 직접 노출 → 제네릭 메시지로 교체 (5d7dc6c)
+- [x] P3: `PlatformAdminController.kt:210` — 예외 메시지 직접 노출 → 제네릭 메시지로 교체 (e4adf80)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)
