@@ -19,6 +19,7 @@ node_modules/
 .claude/
 !.claude/rules/
 !.claude/skills/
+!.claude/agents/
 
 # Kotlin
 *.class
