@@ -41,3 +41,11 @@
 - 기각: 12건 → KNOWN_ACCEPTABLE (모두 marginal/design-level)
 - 구현: P4 2건 수정 (7198214)
 - 다음: 렌즈 5 (테스트 갭)
+
+[Ralph 반복 11] 2026-03-13 — 렌즈 5 테스트 갭 + 렌즈 6-8 통합 스캔
+- 렌즈 5: ToolInputValidation 21개 테스트 추가 (d4d8cf9)
+- 렌즈 6 (API 계약): P3 4건 기각 (AuthController 401 관행, 등)
+- 렌즈 7 (운영): P2 1건 수정 (PromptLabController DisposableBean) (756bb3c)
+- 렌즈 8 (Critical Gotchas): 위반 0건 확인
+- 기각: 7건 → KNOWN_ACCEPTABLE
+- 8렌즈 1바퀴 완료. 다음: 렌즈 1 (보안) 2바퀴

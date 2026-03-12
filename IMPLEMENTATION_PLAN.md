@@ -1,5 +1,5 @@
 # Implementation Plan
-> 마지막 업데이트: 2026-03-13 | Ralph 반복 8 (렌즈 2 견고성)
+> 마지막 업데이트: 2026-03-13 | Ralph 반복 11 (렌즈 1-8 완료, 2바퀴 시작)
 
 ## P0 — 즉시 수정 (런타임 크래시, 데이터 손실)
 
@@ -63,6 +63,10 @@
 - [x] P2: `SlackSocketModeGateway.kt:44` — startupJob @Volatile 추가
 - [x] P2: `TeamsWebhookClient.kt` — SSRF 보호로 인한 테스트 행 수정 (ssrfProtectionEnabled 파라미터)
 - [x] P3: `WorkerAgentTool.kt:62` — ToolCallback 규약 준수: try-catch + "Error: ..." 반환 (e3f8b82)
+- [x] P4: `TopicDriftDetectionStage.kt:39` — 불필요 .lowercase() 제거 ((?i) 패턴) (7198214)
+- [x] P4: `SchedulerExecutionViewSupport.kt:13` — Regex 추출 top-level (7198214)
+- [x] P3: `ToolInputValidation.kt` — 21개 단위 테스트 추가 (d4d8cf9)
+- [x] P2: `PromptLabController.kt:67` — DisposableBean + scope.cancel() (756bb3c)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)
