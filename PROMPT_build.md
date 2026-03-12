@@ -148,7 +148,10 @@ dev 브랜치에서 시작:
 
 ## 완료 조건
 
-IMPLEMENTATION_PLAN.md의 P0~P2 항목이 모두 `- [x]`이면 아래를 출력한다:
+아래 조건을 **모두** 만족하면 출력한다:
+
+1. IMPLEMENTATION_PLAN.md의 **모든** 미완료(`- [ ]`) 항목이 0개
+2. 가장 최근 탐색(1단계)에서 신규 발견 0건
 
 <promise>IMPROVEMENTS COMPLETE</promise>
 
