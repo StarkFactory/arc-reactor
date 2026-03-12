@@ -15,8 +15,7 @@
 
 ## P3 — 보안 (권한 우회, 인젝션, 정보 노출)
 
-- [ ] [MED] P3: `ToolCallOrchestrator.kt:388` — checkToolApproval 예외 시 raw e.message 노출
-- [ ] [MED] P3: `TeamsWebhookClient.kt:27` — SSRF 보호 없이 webhookUrl 직접 사용 (admin-only)
+(없음 — 전부 완료)
 
 ## P4 — 성능 / 코드 품질 / 문서화
 
@@ -56,6 +55,8 @@
 - [x] P3: `SchedulerController.kt:78,115` — 예외 메시지 직접 노출 → 제네릭 메시지로 교체 (5d7dc6c)
 - [x] P3: `PlatformAdminController.kt:210` — 예외 메시지 직접 노출 → 제네릭 메시지로 교체 (e4adf80)
 - [x] P2: `McpAdminWebClientFactory.kt` — DisposableBean 구현 + Bean 등록으로 ConnectionProvider 정리 (a507155)
+- [x] P3: `ToolCallOrchestrator.kt:388` — checkToolApproval 예외 시 raw e.message 제거 (1bd4abf)
+- [x] P3: `TeamsWebhookClient.kt:27` — SSRF 보호 (isPrivateOrReservedAddress) 적용 (1bd4abf)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)
