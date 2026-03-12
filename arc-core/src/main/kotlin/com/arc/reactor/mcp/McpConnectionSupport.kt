@@ -20,6 +20,20 @@ import java.time.Duration
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * Returns true if the given host resolves to a private, reserved, or unresolvable address.
+ * Blocks loopback, site-local, and link-local addresses to prevent SSRF attacks.
+ */
+internal fun isPrivateOrReservedAddress(host: String?): Boolean {
+    if (host.isNullOrBlank()) return true
+    return try {
+        val addr = InetAddress.getByName(host)
+        addr.isLoopbackAddress || addr.isSiteLocalAddress || addr.isLinkLocalAddress
+    } catch (_: Exception) {
+        true // unresolvable host treated as blocked
+    }
+}
+
 internal data class McpConnectionHandle(
     val client: McpSyncClient,
     val tools: List<ToolCallback>
@@ -143,15 +157,7 @@ internal class McpConnectionSupport(
         return null
     }
 
-    private fun isPrivateAddress(host: String?): Boolean {
-        if (host.isNullOrBlank()) return true
-        return try {
-            val addr = InetAddress.getByName(host)
-            addr.isLoopbackAddress || addr.isSiteLocalAddress || addr.isLinkLocalAddress
-        } catch (_: Exception) {
-            true // unresolvable host treated as blocked
-        }
-    }
+    private fun isPrivateAddress(host: String?): Boolean = isPrivateOrReservedAddress(host)
 
     private fun loadToolCallbacks(client: McpSyncClient, serverName: String): List<ToolCallback> {
         return try {

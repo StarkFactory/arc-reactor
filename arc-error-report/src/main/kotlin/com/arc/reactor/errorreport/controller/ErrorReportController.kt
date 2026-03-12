@@ -125,8 +125,8 @@ class ErrorReportController(
         if (properties.apiKey.isBlank()) return true
         if (headerKey == null) return false
         return java.security.MessageDigest.isEqual(
-            headerKey.toByteArray(),
-            properties.apiKey.toByteArray()
+            headerKey.toByteArray(Charsets.UTF_8),
+            properties.apiKey.toByteArray(Charsets.UTF_8)
         )
     }
 }

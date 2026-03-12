@@ -78,22 +78,7 @@ class Bm25Scorer(
      * @return BM25 relevance score (0.0 if document not found)
      */
     @Synchronized
-    fun score(query: String, docId: String): Double {
-        val tf = termFrequencies[docId] ?: return 0.0
-        val docLength = tf.values.sum().toDouble()
-        val avgLen = averageLength
-        val idf = getIdf()
-
-        return tokenize(query)
-            .toSet()
-            .sumOf { token ->
-                val termFreq = tf[token]?.toDouble() ?: 0.0
-                val idfScore = idf[token] ?: 0.0
-                val numerator = termFreq * (k1 + 1)
-                val denominator = termFreq + k1 * (1 - b + b * docLength / avgLen)
-                idfScore * (numerator / denominator)
-            }
-    }
+    fun score(query: String, docId: String): Double = scoreInternal(query, docId)
 
     /**
      * Search the index and return the top-K documents sorted by BM25 score descending.
@@ -107,7 +92,7 @@ class Bm25Scorer(
         if (termFrequencies.isEmpty()) return emptyList()
 
         return termFrequencies.keys
-            .map { docId -> docId to score(query, docId) }
+            .map { docId -> docId to scoreInternal(query, docId) }
             .filter { (_, s) -> s > 0.0 }
             .sortedByDescending { (_, s) -> s }
             .take(topK)
@@ -138,6 +123,23 @@ class Bm25Scorer(
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------
+
+    private fun scoreInternal(query: String, docId: String): Double {
+        val tf = termFrequencies[docId] ?: return 0.0
+        val docLength = tf.values.sum().toDouble()
+        val avgLen = averageLength
+        val idf = getIdf()
+
+        return tokenize(query)
+            .toSet()
+            .sumOf { token ->
+                val termFreq = tf[token]?.toDouble() ?: 0.0
+                val idfScore = idf[token] ?: 0.0
+                val numerator = termFreq * (k1 + 1)
+                val denominator = termFreq + k1 * (1 - b + b * docLength / avgLen)
+                idfScore * (numerator / denominator)
+            }
+    }
 
     private fun getIdf(): Map<String, Double> {
         if (idfCache.isNotEmpty()) return idfCache
