@@ -1,5 +1,6 @@
 package com.arc.reactor.guard.tool
 
+import com.arc.reactor.guard.InjectionPatterns
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -51,28 +52,15 @@ class ToolOutputSanitizer(
     }
 
     companion object {
-        private val INJECTION_PATTERNS: List<Pair<Regex, String>> = listOf(
-            // Role override attempts
-            Regex("(?i)(ignore|forget|disregard).*(previous|above|prior|all).*instructions?")
-                to "role_override",
-            Regex("(?i)you are now") to "role_override",
-            Regex("(?i)\\bact as (a |an )?(unrestricted|unfiltered|different|new|evil|hacker|jailbroken)")
-                to "role_override",
+        private val INJECTION_PATTERNS: List<Pair<Regex, String>> =
+            InjectionPatterns.SHARED.map { it.regex to it.name } + listOf(
+                // Prompt override (output-only)
+                Regex("(?i)new (role|persona|instructions?)") to "prompt_override",
 
-            // System delimiter injection
-            Regex("\\[SYSTEM\\]") to "system_delimiter",
-            Regex("<\\|im_start\\|>") to "system_delimiter",
-            Regex("<\\|im_end\\|>") to "system_delimiter",
-            Regex("<\\|assistant\\|>") to "system_delimiter",
-
-            // Prompt override
-            Regex("(?i)new (role|persona|instructions?)") to "prompt_override",
-            Regex("(?i)from now on") to "prompt_override",
-
-            // Data exfiltration attempts
-            Regex("(?i)(fetch|send|post|get)\\s+https?://[^\\s]+") to "data_exfil",
-            Regex("(?i)exfiltrate|leak\\s+data|send\\s+to\\s+external") to "data_exfil"
-        )
+                // Data exfiltration attempts (output-only)
+                Regex("(?i)(fetch|send|post|get)\\s+https?://[^\\s]+") to "data_exfil",
+                Regex("(?i)exfiltrate|leak\\s+data|send\\s+to\\s+external") to "data_exfil"
+            )
     }
 }
 
