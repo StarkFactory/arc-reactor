@@ -29,9 +29,10 @@ class SlackEventProcessor(
     properties: SlackProperties,
     private val threadTracker: SlackThreadTracker? = null,
     private val proactiveChannelStore: ProactiveChannelStore? = null,
-    private val botResponseTracker: SlackBotResponseTracker? = null
+    private val botResponseTracker: SlackBotResponseTracker? = null,
+    scope: CoroutineScope? = null
 ) : DisposableBean {
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val scope = scope ?: CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val backpressureLimiter = SlackBackpressureLimiter(
         maxConcurrentRequests = properties.maxConcurrentRequests,
         requestTimeoutMs = properties.requestTimeoutMs,
