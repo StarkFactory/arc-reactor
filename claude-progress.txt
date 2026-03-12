@@ -162,3 +162,18 @@
 - P3: MCP 에러 정보 노출, ErrorReport timing attack, MCP SSRF
 - P4: Regex 핫패스 4건, 중복 로직 4건, Thread.sleep/TODO/MessageDigest 3건
 - 다음: P2 — Bm25Scorer 동시성 문제 수정
+
+[Build 반복 2] 2026-03-12 — Ralph 반복 1 (검증 + 계획 업데이트)
+- 선택: IMPLEMENTATION_PLAN.md 미완료 항목 검증 (이전 세션 커밋으로 이미 수정된 항목 확인)
+- 검증 결과:
+  - P2 Bm25Scorer: @Synchronized 이미 적용 (f270cf8) → 완료
+  - P2 PlatformAdminController: logger.warn(e) 이미 존재 → 완료
+  - P3 MCP 에러 노출: 제네릭 메시지 이미 사용 → 완료
+  - P3 ErrorReport timing: MessageDigest.isEqual() 이미 적용 → 완료
+  - P3 SSRF: 클라우드 메타데이터+멀티캐스트 차단 추가 (312c56e) → 완료
+  - P4 Regex 4건: 전부 이전 커밋에서 수정 → 완료
+  - P4 중복 ISSUE_KEY/PII: WorkContextPatterns, PiiPatterns로 추출 → 완료
+  - P4 Thread.sleep, MessageDigest: 이전 커밋에서 수정 → 완료
+- 결과: P0~P2 전부 [x], P3 전부 [x], P4 2건만 남음 (인젝션 패턴 중복, DocumentController TODO)
+- IMPLEMENTATION_PLAN.md 업데이트 완료
+- 다음: P0~P2 전부 완료됨 → 완료 조건 충족
