@@ -26,7 +26,7 @@ internal class BlockingToolCallbackInvoker(
 
     fun timeoutErrorMessage(toolCallback: ToolCallback): String {
         val timeoutMs = resolveTimeoutMs(toolCallback)
-        return "Error: Tool '${toolCallback.name}' timed out after ${timeoutMs}ms"
+        return "Tool '${toolCallback.name}' timed out after ${timeoutMs}ms"
     }
 
     private fun resolveTimeoutMs(toolCallback: ToolCallback): Long {

@@ -63,3 +63,6 @@
 | `SchedulerController` prompt size | P4 | Admin 전용 API, 관리자 책임 | 2026-03-13 |
 | `ChatController` userId fallback | P4 | JwtAuthWebFilter 정상 동작 시 도달 불가. 공개 경로에서만 활성화 | 2026-03-13 |
 | `EvaluationPipelineFactory.create()` concurrent reset | P2 | 싱글톤 LlmJudgeEvaluator 토큰 카운터 설계. reset은 순차 실행 개선. 동시 실행 시 budget 초과 가능하나 데이터 손실 없음 | 2026-03-13 |
+| `ToolOutputSanitizer` error output wrapping | P3 | 에러 메시지도 일관되게 sanitize — 에러 경로 skip 시 injection 벡터 발생. 안전한 설계 선택 | 2026-03-13 |
+| `SupervisorOrchestrator` recursion depth | P2 | agentFactory는 사용자 설정. maxToolCalls+timeout으로 각 레벨 제한. 의도적 재귀만 가능 | 2026-03-13 |
+| `ConversationManager.saveMessages` non-atomic | P2 | non-suspend private fun, 동일 세션 동시 요청은 클라이언트 책임. 스토어 per-op 락 존재 | 2026-03-13 |

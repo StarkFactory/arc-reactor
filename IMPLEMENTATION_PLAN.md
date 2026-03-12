@@ -70,6 +70,7 @@
 - [x] P2: `PromptLabScheduler.kt:71` — throwIfCancellation() 추가 (9d430df)
 - [x] P2: `EvaluationPipelineFactory.create()` — LlmJudge 토큰 사용량 리셋 (9d430df)
 - [x] P1: `ExperimentOrchestrator.kt:75` — TimeoutCancellationException 별도 catch로 FAILED 상태 저장
+- [x] P3: `BlockingToolCallbackInvoker.kt:29` — timeoutErrorMessage() 중복 "Error:" 프리픽스 제거
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)

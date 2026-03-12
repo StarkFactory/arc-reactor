@@ -65,3 +65,10 @@
 [Ralph 반복 14] 2026-03-13 — 4바퀴 렌즈 2 수렴 확인
 - 렌즈 2 (견고성) 4바퀴: P0-P2 신규 0건. withTimeout 12개소 전수 검증 완료
 - 수렴 판정: 8렌즈 2+ 바퀴 완료, 최종 스캔 P0-P3 신규 0건
+
+[Ralph 반복 15] 2026-03-13 — 렌즈 3 Agent 동작 (fresh scan)
+- 렌즈 3 (Agent 동작) — ReAct 루프, 도구 실패, 다중 에이전트, 컨텍스트
+- 발견: P3 1건 (BlockingToolCallbackInvoker 중복 "Error:" 프리픽스)
+- 기각: 3건 → KNOWN_ACCEPTABLE (ToolOutputSanitizer error wrapping, SupervisorOrchestrator recursion, saveMessages non-atomic)
+- 구현: P3 1건 수정
+- 다음: 렌즈 4-8 통합 스캔
