@@ -10,7 +10,9 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -25,7 +27,8 @@ class RagContextRetrieverTest {
             enabled = false,
             topK = 3,
             rerankEnabled = true,
-            ragPipeline = pipeline
+            ragPipeline = pipeline,
+            retrievalTimeoutMs = 5000
         )
 
         val result = retriever.retrieve(AgentCommand(systemPrompt = "sys", userPrompt = "hello"))
@@ -46,7 +49,8 @@ class RagContextRetrieverTest {
             enabled = true,
             topK = 7,
             rerankEnabled = false,
-            ragPipeline = pipeline
+            ragPipeline = pipeline,
+            retrievalTimeoutMs = 5000
         )
         val command = AgentCommand(
             systemPrompt = "sys",
@@ -77,7 +81,8 @@ class RagContextRetrieverTest {
             enabled = true,
             topK = 5,
             rerankEnabled = true,
-            ragPipeline = pipeline
+            ragPipeline = pipeline,
+            retrievalTimeoutMs = 5000
         )
 
         val result = retriever.retrieve(AgentCommand(systemPrompt = "sys", userPrompt = "hello"))
@@ -93,7 +98,8 @@ class RagContextRetrieverTest {
             enabled = true,
             topK = 5,
             rerankEnabled = true,
-            ragPipeline = pipeline
+            ragPipeline = pipeline,
+            retrievalTimeoutMs = 5000
         )
 
         assertThrows(CancellationException::class.java) {
@@ -101,5 +107,28 @@ class RagContextRetrieverTest {
                 retriever.retrieve(AgentCommand(systemPrompt = "sys", userPrompt = "hello"))
             }
         }
+    }
+
+    @Test
+    fun `returns null when pipeline exceeds retrieval timeout`() = runTest {
+        val pipeline = mockk<RagPipeline>()
+        coEvery { pipeline.retrieve(any()) } coAnswers {
+            delay(3000)
+            RagContext(
+                context = "should not reach here",
+                documents = listOf(RetrievedDocument(id = "doc-1", content = "content"))
+            )
+        }
+        val retriever = RagContextRetriever(
+            enabled = true,
+            topK = 5,
+            rerankEnabled = true,
+            ragPipeline = pipeline,
+            retrievalTimeoutMs = 100
+        )
+
+        val result = retriever.retrieve(AgentCommand(systemPrompt = "sys", userPrompt = "hello"))
+
+        assertNull(result, "Retriever should return null when pipeline exceeds timeout")
     }
 }

@@ -115,6 +115,7 @@ arc:
       enabled: ${ARC_REACTOR_RAG_ENABLED:false}
       similarity-threshold: 0.3
       query-transformer: ${ARC_REACTOR_RAG_QUERY_TRANSFORMER:passthrough}
+      retrieval-timeout-ms: ${ARC_REACTOR_RAG_RETRIEVAL_TIMEOUT_MS:5000}
       chunking:
         enabled: ${ARC_REACTOR_RAG_CHUNKING_ENABLED:false}
         chunk-size: ${ARC_REACTOR_RAG_CHUNKING_CHUNK_SIZE:512}

@@ -159,7 +159,10 @@ data class RagProperties(
     val hybrid: RagHybridProperties = RagHybridProperties(),
 
     /** Document chunking configuration */
-    val chunking: RagChunkingProperties = RagChunkingProperties()
+    val chunking: RagChunkingProperties = RagChunkingProperties(),
+
+    /** Retrieval timeout in milliseconds. Prevents thread-pool exhaustion when vector DB is unresponsive. */
+    val retrievalTimeoutMs: Long = 5000
 )
 
 /**
