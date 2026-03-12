@@ -25,9 +25,11 @@ class GoogleCredentialProvider(private val properties: GoogleWorkspaceProperties
         require(properties.impersonateUser.isNotBlank()) {
             "arc.reactor.google.impersonate-user must be configured"
         }
-        return ServiceAccountCredentials
-            .fromStream(FileInputStream(properties.serviceAccountKeyPath))
-            .createDelegated(properties.impersonateUser)
-            .createScoped(scopes)
+        return FileInputStream(properties.serviceAccountKeyPath).use { stream ->
+            ServiceAccountCredentials
+                .fromStream(stream)
+                .createDelegated(properties.impersonateUser)
+                .createScoped(scopes)
+        }
     }
 }
