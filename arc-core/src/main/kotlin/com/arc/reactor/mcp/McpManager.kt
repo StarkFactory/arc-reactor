@@ -72,7 +72,8 @@ class DefaultMcpManager(
     private val securityConfig: McpSecurityConfig = McpSecurityConfig(),
     private val securityConfigProvider: () -> McpSecurityConfig = { securityConfig },
     private val store: McpServerStore? = null,
-    private val reconnectionProperties: McpReconnectionProperties = McpReconnectionProperties()
+    private val reconnectionProperties: McpReconnectionProperties = McpReconnectionProperties(),
+    private val allowPrivateAddresses: Boolean = false
 ) : McpManager, AutoCloseable {
 
     private val servers = ConcurrentHashMap<String, McpServer>()
@@ -90,6 +91,7 @@ class DefaultMcpManager(
     private val connectionSupport = McpConnectionSupport(
         connectionTimeoutMs = connectionTimeoutMs,
         maxToolOutputLengthProvider = { currentSecurityConfig().maxToolOutputLength },
+        allowPrivateAddresses = allowPrivateAddresses,
         onConnectionError = { serverName -> handleConnectionError(serverName) }
     )
     private val reconnectionCoordinator = McpReconnectionCoordinator(

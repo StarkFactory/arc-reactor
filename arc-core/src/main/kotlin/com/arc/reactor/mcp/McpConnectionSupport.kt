@@ -45,6 +45,7 @@ internal data class McpConnectionHandle(
 internal class McpConnectionSupport(
     private val connectionTimeoutMs: Long,
     private val maxToolOutputLengthProvider: () -> Int,
+    private val allowPrivateAddresses: Boolean = false,
     private val onConnectionError: (serverName: String) -> Unit = {}
 ) {
 
@@ -157,7 +158,10 @@ internal class McpConnectionSupport(
         return null
     }
 
-    private fun isPrivateAddress(host: String?): Boolean = isPrivateOrReservedAddress(host)
+    private fun isPrivateAddress(host: String?): Boolean {
+        if (allowPrivateAddresses) return false
+        return isPrivateOrReservedAddress(host)
+    }
 
     private fun loadToolCallbacks(client: McpSyncClient, serverName: String): List<ToolCallback> {
         return try {

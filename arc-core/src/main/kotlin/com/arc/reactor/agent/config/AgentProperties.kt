@@ -284,7 +284,11 @@ data class McpConfigProperties(
     val connectionTimeoutMs: Long = 30_000,
 
     /** Auto-reconnection settings */
-    val reconnection: McpReconnectionProperties = McpReconnectionProperties()
+    val reconnection: McpReconnectionProperties = McpReconnectionProperties(),
+
+    /** Allow connections to private/reserved IP addresses (loopback, site-local, link-local).
+     *  Enable only for local development where MCP servers run on localhost. */
+    val allowPrivateAddresses: Boolean = false
 )
 
 data class McpSecurityProperties(

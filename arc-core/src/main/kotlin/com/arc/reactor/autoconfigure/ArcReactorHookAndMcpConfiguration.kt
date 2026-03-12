@@ -48,7 +48,8 @@ class ArcReactorHookAndMcpConfiguration {
             ),
             securityConfigProvider = { mcpSecurityPolicyProvider.currentConfig() },
             store = mcpServerStore,
-            reconnectionProperties = properties.mcp.reconnection
+            reconnectionProperties = properties.mcp.reconnection,
+            allowPrivateAddresses = properties.mcp.allowPrivateAddresses
         )
     }
 

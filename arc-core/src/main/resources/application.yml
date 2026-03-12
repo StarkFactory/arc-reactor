@@ -149,6 +149,7 @@ arc:
     mcp:
       security:
         allowed-server-names: ${ARC_REACTOR_MCP_ALLOWED_SERVER_NAMES:atlassian}
+      allow-private-addresses: ${ARC_REACTOR_MCP_ALLOW_PRIVATE_ADDRESSES:false}
 
     slack:
       enabled: ${ARC_REACTOR_SLACK_ENABLED:false}
