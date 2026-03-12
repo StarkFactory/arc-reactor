@@ -45,3 +45,8 @@
 | `JdbcMemoryStore.kt:139` N individual DELETEs | P4 | cleanup 경로, hot-path 아님 | 2026-03-13 |
 | `JdbcMemoryStore.kt:176` COUNT per insert | P4 | eviction 체크, 단일 쿼리 | 2026-03-13 |
 | `SemanticToolSelector.kt` repeated lowercase | P4 | 요청당 1회, 도구 수 소규모 | 2026-03-13 |
+| JDBC stores (JdbcMcpSecurityPolicyStore 등) test gap | P4 | 통합 테스트 레벨, DB 설정 필요. @Tag("integration") 대상 | 2026-03-13 |
+| `UserMemoryManager.getContextPrompt()` test gap | P4 | 포맷팅 로직, 스토어 테스트에서 간접 커버 | 2026-03-13 |
+| `RagIngestionDocumentSupport.kt` test gap | P4 | 단순 변환 로직 | 2026-03-13 |
+| `McpAdminHmacSupport.kt` test gap | P3 | HMAC 서명 로직 미테스트. 향후 추가 필요 | 2026-03-13 |
+| `TenantSpanProcessor.kt` test gap | P4 | OTel 컨텍스트 테스트 복잡도 높음 | 2026-03-13 |

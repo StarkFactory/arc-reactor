@@ -34,3 +34,10 @@
 - 기각: 5건 → KNOWN_ACCEPTABLE (ToolCallOrchestrator forEach, MemoryStore 하위호환 3건, ConversationManager non-suspend)
 - 구현: P3 1건 수정 (e3f8b82) + TeamsWebhookClient SSRF 테스트 행 수정 (29c8216)
 - 다음: 렌즈 4 (성능)
+
+[Ralph 반복 10] 2026-03-13 — 렌즈 4 성능 탐색 + P4 수정
+- 렌즈: 4 (성능) — 핫패스 Regex, 불필요 allocation, N+1
+- 발견: P4 2건 (TopicDriftDetectionStage 불필요 lowercase, SchedulerExecutionViewSupport Regex per-call)
+- 기각: 12건 → KNOWN_ACCEPTABLE (모두 marginal/design-level)
+- 구현: P4 2건 수정 (7198214)
+- 다음: 렌즈 5 (테스트 갭)
