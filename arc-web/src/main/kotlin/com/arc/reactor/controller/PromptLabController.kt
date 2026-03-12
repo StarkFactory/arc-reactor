@@ -25,6 +25,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
@@ -60,7 +61,7 @@ class PromptLabController(
     private val feedbackAnalyzer: FeedbackAnalyzer,
     private val promptTemplateStore: PromptTemplateStore,
     private val properties: PromptLabProperties
-) {
+) : org.springframework.beans.factory.DisposableBean {
     private val exceptionHandler = CoroutineExceptionHandler { _, t ->
         logger.error(t) { "Async experiment execution failed" }
     }
@@ -409,6 +410,10 @@ class PromptLabController(
         return ResponseEntity.badRequest().body(
             ErrorResponse(error = msg, timestamp = Instant.now().toString())
         )
+    }
+
+    override fun destroy() {
+        scope.cancel()
     }
 }
 

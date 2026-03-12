@@ -50,3 +50,9 @@
 | `RagIngestionDocumentSupport.kt` test gap | P4 | 단순 변환 로직 | 2026-03-13 |
 | `McpAdminHmacSupport.kt` test gap | P3 | HMAC 서명 로직 미테스트. 향후 추가 필요 | 2026-03-13 |
 | `TenantSpanProcessor.kt` test gap | P4 | OTel 컨텍스트 테스트 복잡도 높음 | 2026-03-13 |
+| `AuthController.kt` 401 empty body | P4 | 인증 엔드포인트 관행. 클라이언트는 status code 확인 | 2026-03-13 |
+| `McpSwaggerCatalogController.kt:91` @ApiResponses 누락 | P4 | 단일 어노테이션 누락, 기능 영향 없음 | 2026-03-13 |
+| `PlatformAdminController.kt:472` empty ok body | P4 | action 엔드포인트 설계 선택 | 2026-03-13 |
+| `SlackApiClient.kt:785` companion CachedThreadPool | P4 | daemon 스레드, JVM 종료 시 자동 정리 | 2026-03-13 |
+| `McpMetricReporter.kt:61` executor 미정리 | P4 | 사용자 관리 클래스, auto-configure 아님 | 2026-03-13 |
+| `McpAdminWebClientFactory` default param | P4 | Spring 컨텍스트에서 정상 주입. 테스트 전용 위험 | 2026-03-13 |
