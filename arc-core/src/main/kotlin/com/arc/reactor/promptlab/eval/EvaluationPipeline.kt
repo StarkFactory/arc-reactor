@@ -89,6 +89,7 @@ class EvaluationPipelineFactory(
 ) {
 
     fun create(config: EvaluationConfig): EvaluationPipeline {
+        llmJudge?.resetTokenUsage()
         return EvaluationPipeline(structural, rules, llmJudge, config)
     }
 }

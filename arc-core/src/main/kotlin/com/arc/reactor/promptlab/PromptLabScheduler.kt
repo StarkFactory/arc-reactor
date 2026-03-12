@@ -1,6 +1,7 @@
 package com.arc.reactor.promptlab
 
 import com.arc.reactor.prompt.PromptTemplateStore
+import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
@@ -67,6 +68,7 @@ class PromptLabScheduler(
                 }
             }
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) {
                 "Auto-optimization failed for template=$templateId"
             }

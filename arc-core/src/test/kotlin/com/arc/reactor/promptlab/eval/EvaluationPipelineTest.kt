@@ -4,8 +4,11 @@ import com.arc.reactor.promptlab.model.EvaluationConfig
 import com.arc.reactor.promptlab.model.EvaluationResult
 import com.arc.reactor.promptlab.model.EvaluationTier
 import com.arc.reactor.promptlab.model.TestQuery
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
@@ -17,7 +20,9 @@ class EvaluationPipelineTest {
 
     private val structural: StructuralEvaluator = mockk()
     private val rules: RuleBasedEvaluator = mockk()
-    private val llmJudge: LlmJudgeEvaluator = mockk()
+    private val llmJudge: LlmJudgeEvaluator = mockk {
+        every { resetTokenUsage() } just Runs
+    }
 
     private val defaultQuery = TestQuery(query = "What is AI?")
     private val defaultConfig = EvaluationConfig()

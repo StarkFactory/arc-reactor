@@ -56,3 +56,9 @@
 | `SlackApiClient.kt:785` companion CachedThreadPool | P4 | daemon 스레드, JVM 종료 시 자동 정리 | 2026-03-13 |
 | `McpMetricReporter.kt:61` executor 미정리 | P4 | 사용자 관리 클래스, auto-configure 아님 | 2026-03-13 |
 | `McpAdminWebClientFactory` default param | P4 | Spring 컨텍스트에서 정상 주입. 테스트 전용 위험 | 2026-03-13 |
+| `SchedulerController` teamsWebhookUrl SSRF | P4 | Admin 전용 API + TeamsWebhookClient SSRF 보호 존재 | 2026-03-13 |
+| `FeedbackController.kt:53` input size | P4 | Spring WebFlux max-in-memory-size (256KB) 기본 제한 존재 | 2026-03-13 |
+| `FeedbackController.kt:148` IDOR | P4 | 설계 의도 (docstring "any user"), UUID 추측 불가 | 2026-03-13 |
+| `WorkerAgentTool.kt:88` error message | P4 | Supervisor LLM이 worker 실패 사유를 알아야 라우팅 결정 가능. 설계 의도 | 2026-03-13 |
+| `SchedulerController` prompt size | P4 | Admin 전용 API, 관리자 책임 | 2026-03-13 |
+| `ChatController` userId fallback | P4 | JwtAuthWebFilter 정상 동작 시 도달 불가. 공개 경로에서만 활성화 | 2026-03-13 |
