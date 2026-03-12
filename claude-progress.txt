@@ -49,3 +49,15 @@
 - 렌즈 8 (Critical Gotchas): 위반 0건 확인
 - 기각: 7건 → KNOWN_ACCEPTABLE
 - 8렌즈 1바퀴 완료. 다음: 렌즈 1 (보안) 2바퀴
+
+[Ralph 반복 12] 2026-03-13 — 2바퀴 렌즈 1-2 + 통합 스캔
+- 렌즈 1 (보안) 2바퀴: P0-P3 신규 0건. 7건 기각 → KNOWN_ACCEPTABLE
+- 렌즈 2 (견고성) 2바퀴: P2 2건 발견+수정 (PromptLabScheduler CE, LlmJudgeEvaluator budget) (9d430df)
+- 렌즈 3-8 통합 2바퀴: P0-P1 신규 0건 확인
+
+[Ralph 반복 13] 2026-03-13 — 3바퀴 수렴 검증
+- 렌즈 2 (견고성) 3바퀴: P1 1건 발견 (ExperimentOrchestrator TimeoutCancellationException) → 수정
+- 렌즈 1+3 (보안+Agent) 3바퀴: P0-P3 신규 0건
+- 렌즈 4-8 통합 3바퀴: P0-P3 신규 0건
+- 기각 1건 → KNOWN_ACCEPTABLE (EvaluationPipelineFactory concurrent reset)
+- 다음: P1 수정 커밋 후 4바퀴 렌즈 2 재확인

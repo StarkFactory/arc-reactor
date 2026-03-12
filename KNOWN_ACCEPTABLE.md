@@ -62,3 +62,4 @@
 | `WorkerAgentTool.kt:88` error message | P4 | Supervisor LLM이 worker 실패 사유를 알아야 라우팅 결정 가능. 설계 의도 | 2026-03-13 |
 | `SchedulerController` prompt size | P4 | Admin 전용 API, 관리자 책임 | 2026-03-13 |
 | `ChatController` userId fallback | P4 | JwtAuthWebFilter 정상 동작 시 도달 불가. 공개 경로에서만 활성화 | 2026-03-13 |
+| `EvaluationPipelineFactory.create()` concurrent reset | P2 | 싱글톤 LlmJudgeEvaluator 토큰 카운터 설계. reset은 순차 실행 개선. 동시 실행 시 budget 초과 가능하나 데이터 손실 없음 | 2026-03-13 |

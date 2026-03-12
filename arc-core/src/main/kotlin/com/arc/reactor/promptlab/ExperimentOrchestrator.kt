@@ -15,6 +15,7 @@ import com.arc.reactor.promptlab.model.TestQuery
 import com.arc.reactor.promptlab.model.TokenUsageSummary
 import com.arc.reactor.promptlab.model.Trial
 import com.arc.reactor.support.throwIfCancellation
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import java.time.Instant
@@ -72,6 +73,15 @@ class ExperimentOrchestrator(
                 logger.info { "Experiment completed: $experimentId, trials=${trials.size}" }
                 completed
             }
+        } catch (e: TimeoutCancellationException) {
+            val failed = running.copy(
+                status = ExperimentStatus.FAILED,
+                errorMessage = "Experiment timed out after ${properties.experimentTimeoutMs}ms",
+                completedAt = Instant.now()
+            )
+            experimentStore.save(failed)
+            logger.error { "Experiment timed out: $experimentId" }
+            failed
         } catch (e: Exception) {
             e.throwIfCancellation()
             val failed = running.copy(

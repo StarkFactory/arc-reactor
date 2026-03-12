@@ -1,5 +1,5 @@
 # Implementation Plan
-> 마지막 업데이트: 2026-03-13 | Ralph 반복 11 (렌즈 1-8 완료, 2바퀴 시작)
+> 마지막 업데이트: 2026-03-13 | Ralph 반복 13 (3바퀴 수렴 검증)
 
 ## P0 — 즉시 수정 (런타임 크래시, 데이터 손실)
 
@@ -67,6 +67,9 @@
 - [x] P4: `SchedulerExecutionViewSupport.kt:13` — Regex 추출 top-level (7198214)
 - [x] P3: `ToolInputValidation.kt` — 21개 단위 테스트 추가 (d4d8cf9)
 - [x] P2: `PromptLabController.kt:67` — DisposableBean + scope.cancel() (756bb3c)
+- [x] P2: `PromptLabScheduler.kt:71` — throwIfCancellation() 추가 (9d430df)
+- [x] P2: `EvaluationPipelineFactory.create()` — LlmJudge 토큰 사용량 리셋 (9d430df)
+- [x] P1: `ExperimentOrchestrator.kt:75` — TimeoutCancellationException 별도 catch로 FAILED 상태 저장
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)
