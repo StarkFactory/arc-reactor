@@ -207,3 +207,19 @@
 - 구현: SchedulerController 커밋 5d7dc6c, PlatformAdminController 커밋 e4adf80
 - 미완료 항목: 0개
 - 다음: 추가 탐색 필요 (이번 탐색에서 P3 발견했으므로)
+
+[Ralph 반복 4] 2026-03-12 — P2 수정 (McpAdminWebClientFactory)
+- 선택: P2 — McpAdminWebClientFactory.dispose() 데드 코드 (stop hook에서 지적)
+- 구현: DisposableBean 구현, dispose() → destroy() 리네임, ArcReactorWebAutoConfiguration에 @Bean 등록
+- 결과: 테스트 통과 / 커밋 a507155
+- 미완료 항목: 0개
+- 다음: 추가 탐색 필요 (이번 반복에서 P2 수정했으므로)
+
+[Ralph 반복 5] 2026-03-12 — 최종 탐색
+- 선택: 탐색 모드 — 컴파일/테스트 검증 + 코드베이스 보안/견고성 스캔
+- 컴파일: 0 warnings, 테스트: 전체 통과
+- 스캔 결과: 1건 검토 → 기각 (TokenUsage Long→Int: 2.1B 이론적 한계, 실제 1M 이하, 파괴적 API 변경 불필요 → P5)
+- 발견: 0건 (actionable)
+- 완료 조건 확인:
+  1. IMPLEMENTATION_PLAN.md 미완료 항목: 0개 ✓
+  2. 최근 탐색 신규 발견: 0건 ✓

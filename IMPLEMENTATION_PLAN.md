@@ -54,6 +54,7 @@
 - [x] P2: `GoogleCredentialProvider.kt` — FileInputStream .use{} 리소스 누수 수정 (3809cf9)
 - [x] P3: `SchedulerController.kt:78,115` — 예외 메시지 직접 노출 → 제네릭 메시지로 교체 (5d7dc6c)
 - [x] P3: `PlatformAdminController.kt:210` — 예외 메시지 직접 노출 → 제네릭 메시지로 교체 (e4adf80)
+- [x] P2: `McpAdminWebClientFactory.kt` — DisposableBean 구현 + Bean 등록으로 ConnectionProvider 정리 (a507155)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)
