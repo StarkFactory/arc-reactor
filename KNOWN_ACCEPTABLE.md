@@ -133,3 +133,13 @@
 | `ToolObservabilityAspect.kt:88` JSON parse silent catch | P4 | 메트릭 정확도 개선 수준, 기능 영향 없음 | 2026-03-13 |
 | `DefaultMcpManager` AutoCloseable inference | P4 | Spring 6.x 자동 추론 정상 작동, 문서화 개선 수준 | 2026-03-13 |
 | `AssistantMessage()` 생성자 테스트 코드 사용 | P4 | 프로덕션은 builder 사용. 테스트는 protected 접근 가능. Spring AI 변경 시 대응 | 2026-03-13 |
+| `PersonaController.getPersona` no isAdmin | P3 | 설계 의도 — exchange 파라미터 미포함, 런타임 persona 조회용. list는 admin | 2026-03-13 |
+| `PromptTemplateController` read endpoints no isAdmin | P3 | 설계 의도 — read 개방, write admin. DocumentController과 동일 패턴 | 2026-03-13 |
+| `ErrorReportController.kt:130` apiKey blank bypass | P3 | 선택적 모듈 설계 의도 — @ConditionalOnProperty opt-in, 미설정 시 개방 | 2026-03-13 |
+| MCP admin proxy SSRF (adminUrl) | P3 | admin 전용 — 관리자가 MCP 서버 등록 시 URL 결정. 신뢰 경계 내 | 2026-03-13 |
+| MCP STDIO command injection | P3 | admin 전용 — 관리자가 MCP STDIO 명령어 등록. 신뢰 경계 내 | 2026-03-13 |
+| `PlatformAdminController` privilege escalation | P3 | 설계 선택 — admin은 신뢰 역할, 단일 행위자 권한 부여 가능 | 2026-03-13 |
+| `SpringAiVectorStoreRetriever.kt:80,84` log injection | P4 | Logback 프레임워크 보호, CRLF 실행 불가 | 2026-03-13 |
+| `DefaultErrorReportHandler.kt:25` serviceName log injection | P4 | 상동 | 2026-03-13 |
+| MCP proxy `resolveRequestId` header injection | P4 | admin 전용 + Spring WebClient 헤더 검증 | 2026-03-13 |
+| `FeedbackController.kt:177` input value echo in 400 | P4 | API 응답 내 반사, XSS 불가 | 2026-03-13 |
