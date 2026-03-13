@@ -2,42 +2,30 @@
 
 ## 이전 아카이브: claude-progress-archive.txt 참조
 
-[Ralph 반복 29] 2026-03-13 — 렌즈 6~8,1~5 전체 8렌즈 fresh scan
-- P1 1건 발견+수정: ToolCallOrchestrator e.message null → "Unknown error"
-- P2 1건 발견+수정: PromptLabController autoOptimize 동시성 가드
-- 이후 6렌즈 연속 P0-P3 0건, 회귀 테스트 추가
-- 총 8렌즈 완료, P0-P1 신규 0건
+[Refactoring 반복 1] 2026-03-13 — 렌즈 1: 코루틴 안정성 (Explore opus x2 병렬)
+- 영역: agent/impl 전체 + arc-core 나머지 + arc-web + arc-slack + arc-error-report
+- 후보 3건 → 전부 P4 기각 (동일 timeout, semaphore 미존재, request timeout 보호)
+- P0-P3 신규 0건
 
-[Ralph 반복 30] 2026-03-13 — 신규 세션 전체 8렌즈 fresh scan (12개 스캐너)
-- 렌즈 6~5 순회, 전체 P0-P3 0건
-- 주요 기각: SlackCommandController FP, ThreadPoolTaskScheduler FP, AgentExecutionFailureHandler FP
-- 수렴: 8렌즈 전부 fresh scan, P0-P3 신규 0건
+[Refactoring 반복 2] 2026-03-13 — 렌즈 2: 에러 전파 경로 (Explore opus x3 병렬)
+- 영역: agent core + controllers + guards/hooks/MCP
+- P1 1건 발견+수정: StreamingCompletionFinalizer output guard crash fail-open → fail-close (d4b2515)
+- P3 3건 KA 기록: AgentErrorPolicy heuristic, MultipartChatController 200, executeAfterToolCall unprotected
+- FP 3건 기각: SchedulerController trigger (returns string), PromptLabController CancellationException (no catch), .forEach (already KA)
 
-[Ralph 반복 31] 2026-03-13 — 신규 세션 전체 8렌즈 병렬 fresh scan (4개 스캐너×2렌즈)
-- 컴파일 0 warnings 확인
-- 렌즈 6+7 (API+운영): P0-P3 0건
-- 렌즈 8+1 (Gotchas+보안): P0-P3 0건
-- 렌즈 2+3 (견고성+Agent): P0-P3 0건
-- 렌즈 4+5 (성능+테스트): P0-P3 0건 — GuardPipeline fail-close test gap P4 재확인
-- 수렴: 3세션 연속 8렌즈 full scan, P0-P3 신규 0건
+[Refactoring 반복 3] 2026-03-13 — 렌즈 3: 리소스 수명 (Explore opus x2 병렬)
+- 영역: arc-core 전체 (MCP, agent, memory, scheduler) + arc-web + arc-slack + arc-admin + arc-google + arc-teams + arc-error-report
+- P1 1건 발견+수정: McpManager.handleConnectionError MCP 클라이언트 close 누락 → 리소스 누수 (e01d0b0)
+- 기타: 모든 CoroutineScope/Executor/WebClient/DataBuffer 정상 관리 확인
 
-[Ralph 반복 32] 2026-03-13 — 4번째 세션 전체 8렌즈 병렬 fresh scan
-- 컴파일 0 warnings 확인
-- P2 후보 1건: RegexPatternOutputGuard invalid regex startup → P4 기각 (admin config, fail-fast 정상)
-- P0 후보 1건: BlockingToolCallbackInvoker nested runBlocking → KA P4 (line 14)
-- 기타 성능 후보 → 전부 P4 micro-optimization
-- 수렴: 4세션 연속 8렌즈 full scan, P0-P3 신규 0건
+[Refactoring 반복 4] 2026-03-13 — 렌즈 4: 데이터 흐름 무결성 (Explore opus x2 병렬)
+- 영역: DTO 변환 + 직렬화 경로 + 저장소/조회 경로
+- P2 1건 발견+수정: PreExecutionResolver GuardCommand.channel 미전달 → audit 누락 (5186cdf)
+- P3 2건 KA 기록: FeedbackResponse sessionId, ChatResponse durationMs (설계 선택)
+- 저장소 무결성: JDBC 컬럼 매핑, JSON 직렬화, 시간대 처리 모두 정상
 
-[Ralph 반복 33] 2026-03-13 — 5번째 세션 전체 8렌즈 병렬 fresh scan
-- P3 후보 1건: ClassificationContext LazyThreadSafetyMode.NONE → P4 (per-request 객체, 단일 스레드)
-- 수렴: 5세션 연속 8렌즈 full scan, P0-P3 신규 0건
-
-[Ralph 반복 34] 2026-03-13 — 6번째 세션 전체 8렌즈 fresh scan (obscure path 집중)
-- GoogleCalendarTool transport KA(line29), TimescaleSpanExporter FP(Instant normalizes), JdbcTenantStore P4
-- 수렴: 6세션 연속 8렌즈 full scan, P0-P3 신규 0건
-
-[Ralph 반복 35] 2026-03-13 — 7번째 세션 렌즈 1 (보안) fresh scan (3개 병렬 스캐너)
-- 스캐너 영역: Auth+Controller, MCP+RAG+Tool, Slack+Teams+External
-- P2 후보: PromptTemplateController 미인증 읽기 → KA line 137 (설계 의도, JwtAuthWebFilter 보호)
-- P3 후보: RagIngestionCaptureHook ReDoS → P4 기각 (admin 전용, 자가 DoS)
-- 수렴: 7세션 연속 P0-P3 신규 0건
+[Refactoring 반복 5] 2026-03-13 — 렌즈 5: 경계 조건 (Explore opus x2 병렬)
+- 영역: scheduler, agent config, cache, guard stages, web controllers
+- P2 1건 발견+수정: DynamicSchedulerService.runWithRetry maxRetryCount=0 빈 범위 → coerceAtLeast(1)
+- P4 5건 KA 기록: CaffeineResponseCache zero, TopicDriftDetection windowSize, SchedulerProperties 범위, maxConversationTurns, web controller 검증
+- 사용자 요청으로 루프 종료

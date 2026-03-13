@@ -228,7 +228,7 @@ class DynamicSchedulerService(
     private suspend fun runWithRetry(job: ScheduledJob): String {
         if (!job.retryOnFailure) return executeJobContent(job)
         var lastException: Exception? = null
-        for (attempt in 1..job.maxRetryCount) {
+        for (attempt in 1..job.maxRetryCount.coerceAtLeast(1)) {
             try {
                 return executeJobContent(job)
             } catch (e: Exception) {

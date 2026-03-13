@@ -188,6 +188,32 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
+        fun `maxRetryCount=0 with retryOnFailure=true executes at least once`() {
+            val job = mcpJob(retryOnFailure = true, maxRetryCount = 0)
+            val store = RecordingStore(job)
+            val tool = mockk<ToolCallback>()
+            val mcpManager = mockk<McpManager>()
+            var callCount = 0
+
+            every { tool.name } returns "test_tool"
+            coEvery { tool.call(any()) } answers {
+                callCount++
+                "success on attempt $callCount"
+            }
+            coEvery { mcpManager.ensureConnected(any()) } returns true
+            every { mcpManager.getToolCallbacks(any()) } returns listOf(tool)
+
+            val result = buildService(store, mcpManager = mcpManager).trigger(job.id)
+
+            assertEquals(1, callCount,
+                "Tool should be called at least once even when maxRetryCount=0")
+            assertEquals(JobExecutionStatus.SUCCESS, store.lastStatus,
+                "Job should succeed when maxRetryCount=0 and first attempt works")
+            assertTrue(result.contains("success"),
+                "Result should reflect successful execution")
+        }
+
+        @Test
         fun `no retry when retryOnFailure=false`() {
             val job = mcpJob(retryOnFailure = false)
             val store = RecordingStore(job)

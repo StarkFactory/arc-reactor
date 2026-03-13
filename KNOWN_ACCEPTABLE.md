@@ -174,3 +174,13 @@
 | `ParallelOrchestrator.kt:100` all-fail → null errorMessage | P4 | success=false 정상 설정. nodeResults에 개별 실패 상세 존재. 메시지 품질 이슈 | 2026-03-13 |
 | `PromptLabController.kt:176,308` scope.launch/runningJobs race | P4 | Dispatchers.IO — launch returns Job before body executes. 이론적 race만 존재 | 2026-03-13 |
 | `RagIngestionCaptureHook.kt:125` admin regex ReDoS | P4 | Admin 전용 blockedPatterns. OutputGuardRuleEvaluator와 동일 신뢰 경계. 자가 DoS 수준 | 2026-03-13 |
+| `AgentErrorPolicy.kt:38` "tool" substring heuristic | P3 | 광범위한 매칭이나 실제 Spring AI 에러 메시지에서 오분류 가능성 극히 낮음. 리팩토링 대비 위험 높음 | 2026-03-13 |
+| `MultipartChatController.kt:100` always HTTP 200 | P3 | ChatController와 다르게 에러도 200 반환. 멀티파트 엔드포인트 저사용, API 변경 시 하위호환 깨짐 | 2026-03-13 |
+| `CaffeineResponseCache.kt` zero maxSize/ttl | P4 | Caffeine이 0 max → unbounded, 0 ttl → no-expiry 처리. 설정 오류이나 기능 정상. 문서화 수준 | 2026-03-13 |
+| `TopicDriftDetectionStage.kt` windowSize=0 | P4 | 빈 windowed 리스트 → 드리프트 미감지, 기능 비활성화 효과. 검증보다 문서화 | 2026-03-13 |
+| `SchedulerProperties` threadPoolSize/executionTimeoutMs 0/음수 | P4 | Spring ThreadPoolTaskScheduler 0→기본값, 음수→IAE. 설정 검증 수준 | 2026-03-13 |
+| `AgentProperties` maxConversationTurns 0 | P4 | trimmer가 0 turns → 전부 제거, 정상 동작이나 의도 불분명. 설정 문서화 수준 | 2026-03-13 |
+| Web controller 입력 검증 gap (size/range) | P4 | Guard 파이프라인 + Spring WebFlux 기본 제한이 최종 방어선. Jakarta validation은 코드 기본값 패턴 | 2026-03-13 |
+| `ToolCallOrchestrator.kt:113,257` unprotected executeAfterToolCall | P3 | fail-close afterToolCall hook 예외 시 병렬 도구 결과 폐기. fail-close 계약상 정상 동작 | 2026-03-13 |
+| `FeedbackResponse` sessionId/userId 미포함 | P3 | toResponse()+toExportItem() 일관적 누락. 프라이버시 설계 선택 | 2026-03-13 |
+| `ChatResponse` durationMs/tokenUsage 미포함 | P3 | 공개 API 표면 설계 선택. 메트릭은 내부 관찰 경로로 수집 | 2026-03-13 |
