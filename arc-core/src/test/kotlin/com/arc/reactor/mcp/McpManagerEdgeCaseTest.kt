@@ -7,6 +7,7 @@ import com.arc.reactor.mcp.model.McpTransportType
 import com.arc.reactor.tool.ToolCallback
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -446,6 +447,25 @@ class McpManagerEdgeCaseTest {
             assertTrue(manager.getAllToolCallbacks().isEmpty()) {
                 "Expected aggregated callback snapshot to be invalidated after connection error"
             }
+        }
+
+        @Test
+        fun `handleConnectionError should close the stale client to prevent resource leak`() {
+            val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
+            manager.register(stdioServer("leak-server"))
+            manager.statuses["leak-server"] = McpServerStatus.CONNECTED
+
+            // Inject a mock McpSyncClient into the private clients map via reflection
+            val mockClient = mockk<io.modelcontextprotocol.client.McpSyncClient>(relaxed = true)
+            val clientsField = DefaultMcpManager::class.java.getDeclaredField("clients")
+            clientsField.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val clients = clientsField.get(manager) as ConcurrentHashMap<String, io.modelcontextprotocol.client.McpSyncClient>
+            clients["leak-server"] = mockClient
+
+            manager.handleConnectionError("leak-server")
+
+            verify(atLeast = 1) { mockClient.closeGracefully() }
         }
 
         @Test

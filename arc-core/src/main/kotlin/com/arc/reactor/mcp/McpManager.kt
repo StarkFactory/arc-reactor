@@ -248,7 +248,9 @@ class DefaultMcpManager(
     internal fun handleConnectionError(serverName: String) {
         if (statuses[serverName] != McpServerStatus.CONNECTED) return
         logger.warn { "MCP connection error detected on tool call for '$serverName' — marking FAILED and scheduling reconnection" }
-        clients.remove(serverName)
+        clients.remove(serverName)?.let { client ->
+            connectionSupport.close(serverName, client)
+        }
         toolCallbacksCache.remove(serverName)
         invalidateAllToolCallbacksSnapshot()
         statuses[serverName] = McpServerStatus.FAILED
