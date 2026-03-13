@@ -35,3 +35,9 @@
 - 3개 병렬 스캐너: agent+tool, web+admin+slack, guard+memory+mcp+rag
 - P0-P3 신규 0건 (모든 갭은 정상 동작 코드의 커버리지 부족 = P4)
 - 기각: P4 13건 → KNOWN_ACCEPTABLE
+
+[Ralph 반복 18] 2026-03-13 — 렌즈 6 API 계약 (fresh scan)
+- 렌즈 6 (API 계약) — Breaking change, 응답 형식, @Operation 누락, 에러 표준
+- 2개 병렬 스캐너: controller 전체, core interfaces
+- P0-P3 신규 0건 (모든 발견은 P4 일관성/스타일 이슈)
+- 기각: P4 11건 → KNOWN_ACCEPTABLE (empty 404 body, 에러 스키마 차이, 스트리밍 한계 등)

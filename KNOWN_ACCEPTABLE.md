@@ -115,3 +115,13 @@
 | `OutputGuardRuleEvaluator.kt` invalidPatterns cache test gap | P4 | 캐시 로직 단순, 주요 경로 테스트됨 | 2026-03-13 |
 | `SemanticToolSelector.kt` cosineSimilarity edge test gap | P4 | 제로 벡터 → 0.0 반환 정상, 차원 불일치는 IllegalArgumentException | 2026-03-13 |
 | `OutputGuardRuleAuditStore.kt` limit clamp test gap | P4 | coerceIn 단일 호출, 표준 패턴 | 2026-03-13 |
+| `AdminErrorResponse` vs `ErrorResponse` 스키마 차이 | P4 | 모듈 경계 설계 선택, admin 모듈 독립 | 2026-03-13 |
+| `SchedulerController.kt:146,161` triggerJob/dryRunJob 404 문서 불일치 | P4 | GlobalExceptionHandler가 500으로 처리, 기능 영향 없음 | 2026-03-13 |
+| `PlatformAdminController.kt:239,258,437` empty 404 body | P4 | CLAUDE.md 규칙은 403 한정, 404 빈 body는 일반 관행 | 2026-03-13 |
+| `SessionController.kt:89` empty 404 body | P4 | 상동 | 2026-03-13 |
+| `IntentController.kt:69,114` empty 404 body | P4 | 상동 | 2026-03-13 |
+| `PromptLabController.kt` multiple empty 404 | P4 | 상동 | 2026-03-13 |
+| `StreamingCompletionFinalizer.kt:91` Modified 시 원본 저장 | P4 | 스트리밍 한계 — 이미 전송된 내용 변경 불가, 의도적 | 2026-03-13 |
+| `AgentResult.content` nullable on success | P4 | factory method가 non-null 강제, 직접 구성은 내부 사용 | 2026-03-13 |
+| `HookResult.Reject.reason` verbatim propagation | P4 | Hook은 개발자 작성 내부 컴포넌트, 사용자 입력 아님 | 2026-03-13 |
+| `StreamingExecutionCoordinator.kt:146` INVALID_RESPONSE 코드 명칭 | P4 | 에러 코드 네이밍 개선 수준 | 2026-03-13 |
