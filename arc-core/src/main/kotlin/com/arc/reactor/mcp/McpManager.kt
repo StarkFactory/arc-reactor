@@ -55,8 +55,17 @@ interface McpManager {
  */
 data class McpSecurityConfig(
     val allowedServerNames: Set<String> = emptySet(),
-    val maxToolOutputLength: Int = 50_000
-)
+    val maxToolOutputLength: Int = 50_000,
+    val allowedStdioCommands: Set<String> = DEFAULT_ALLOWED_STDIO_COMMANDS
+) {
+    companion object {
+        /** Default set of known-safe STDIO executables for MCP servers. */
+        val DEFAULT_ALLOWED_STDIO_COMMANDS: Set<String> = setOf(
+            "npx", "node", "python", "python3", "uvx", "uv",
+            "docker", "deno", "bun"
+        )
+    }
+}
 
 /**
  * Default MCP manager implementation.
@@ -87,6 +96,7 @@ class DefaultMcpManager(
     private val connectionSupport = McpConnectionSupport(
         connectionTimeoutMs = connectionTimeoutMs,
         maxToolOutputLengthProvider = { currentSecurityConfig().maxToolOutputLength },
+        allowedStdioCommandsProvider = { currentSecurityConfig().allowedStdioCommands },
         onConnectionError = { serverName -> handleConnectionError(serverName) }
     )
     private val reconnectionCoordinator = McpReconnectionCoordinator(

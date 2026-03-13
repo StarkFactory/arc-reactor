@@ -43,7 +43,8 @@ class ArcReactorHookAndMcpConfiguration {
             connectionTimeoutMs = properties.mcp.connectionTimeoutMs,
             securityConfig = McpSecurityConfig(
                 allowedServerNames = properties.mcp.security.allowedServerNames,
-                maxToolOutputLength = properties.mcp.security.maxToolOutputLength
+                maxToolOutputLength = properties.mcp.security.maxToolOutputLength,
+                allowedStdioCommands = properties.mcp.security.allowedStdioCommands
             ),
             securityConfigProvider = { mcpSecurityPolicyProvider.currentConfig() },
             store = mcpServerStore,
