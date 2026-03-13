@@ -71,6 +71,7 @@
 - [x] P2: `EvaluationPipelineFactory.create()` — LlmJudge 토큰 사용량 리셋 (9d430df)
 - [x] P1: `ExperimentOrchestrator.kt:75` — TimeoutCancellationException 별도 catch로 FAILED 상태 저장
 - [x] P3: `BlockingToolCallbackInvoker.kt:29` — timeoutErrorMessage() 중복 "Error:" 프리픽스 제거
+- [x] P4: `McpToolCallback.kt:42` — inputSchema get() → val 캐시로 매 접근 시 JSON 직렬화 제거 (b3d02b3)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)

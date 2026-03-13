@@ -71,3 +71,35 @@
 | `ToolExecutionPolicyEngine.kt:43` test gap | P4 | work_action_items_to_jira dryRun 브랜치 미테스트. 정책 로직 단순 | 2026-03-13 |
 | `InjectionPatterns.kt`+`PiiPatterns.kt` test gap | P4 | 상위 Guard/Sanitizer 테스트에서 간접 커버. 패턴 자체 단위 테스트 없음 | 2026-03-13 |
 | `McpPreflightController`+`McpAccessPolicyController` factory default | P2 | Spring 컨텍스트에서 Bean 주입 정상 작동. default는 비-Spring 컨텍스트 폴백 | 2026-03-13 |
+| `SystemPromptBuilder.kt` 44x prompt.lowercase() | P4 | 요청당 1회, 프롬프트 길이 ~10K. lowercase 비용 미미 | 2026-03-13 |
+| `CacheKeyBuilder.kt:58` MessageDigest.getInstance per call | P4 | JCA provider 캐시 존재. hex 인코딩도 32 바이트 수준 | 2026-03-13 |
+| `WorkspaceMutationIntentDetector.kt` 14 regexes | P4 | 이미 companion object에 컴파일. 요청당 1회, 14회 match 비용 미미 | 2026-03-13 |
+| `StructuredOutputValidator.kt:38` new Yaml() per call | P4 | YAML 포맷 활성 시만. 드물게 사용 | 2026-03-13 |
+| `RuleBasedIntentClassifier.kt:72,83` lowercase in loop | P4 | intent 수 소규모, 요청당 1회 분류 | 2026-03-13 |
+| `AdminAuthorizationSupport.kt:45` MessageDigest.getInstance | P4 | 관리자 경로만, hot-path 아님 | 2026-03-13 |
+| `SimpleReranker.kt:120` repeated lowercase+split in MMR | P4 | document 수 소규모 (topK 기본 5), 영향 미미 | 2026-03-13 |
+| `ManualReActLoopExecutor.kt:131` AtomicInteger per iteration | P4 | 최대 10 할당, 미미 | 2026-03-13 |
+| `ApiVersionContractWebFilter.kt:44` joinToString per request | P4 | 단일 문자열 연결, 미미한 할당 | 2026-03-13 |
+| `SlackSignatureVerifier.kt:62` Mac.getInstance per request | P4 | Slack webhook 전용 경로, hex 인코딩 32 바이트 | 2026-03-13 |
+| `McpAdminHmacSupport.kt:64` hex + MessageDigest per request | P4 | MCP admin proxy 전용, 저빈도 | 2026-03-13 |
+| `MetricGuardAuditPublisher.kt:55` hex encoding per event | P4 | guard audit 경로, hex 32 바이트 | 2026-03-13 |
+| `GoogleCredentialProvider.kt:28` disk read per tool call | P4 | Google tool 호출 시만 (저빈도), 스코프별 다름 | 2026-03-13 |
+| `GoogleGmailTool.kt:76` N+1 messages.get | P4 | maxResults=10 제한, Gmail API 제약 | 2026-03-13 |
+| `SlackApiClient.kt:756` Thread.sleep in retry | P4 | retry backoff 표준 패턴, max 2s × 3회 | 2026-03-13 |
+| `TeamsWebhookClient.kt:42` .block() threading | P4 | scheduler 스레드에서 호출, reactive context 아님 | 2026-03-13 |
+| `WriteOperationIdempotencyService.kt:105` MessageDigest per call | P4 | tool 호출당 1회, 미미 | 2026-03-13 |
+| `SlackApiClient.kt:157,297` O(n) dedup | P4 | limit=50 상한, 실질 영향 없음 | 2026-03-13 |
+| `SlackBotResponseTracker.kt:47` sort on overflow | P4 | maxEntries=50K 초과 시만, 드문 경로 | 2026-03-13 |
+| `SlackReminderStore.kt:81` removeAt(0) on COWAL | P4 | maxPerUser=50, 소규모 | 2026-03-13 |
+| `AlertScheduler.kt:57,59,65` 3x findActiveAlerts | P4 | 스케줄러 경로, 분 단위 실행 | 2026-03-13 |
+| `PlatformAdminController.kt:279` tenantAnalytics N+1 | P4 | 관리자 대시보드, 저빈도 | 2026-03-13 |
+| `TenantAdminController.kt:202` CSV buffered in memory | P4 | 관리자 export, 30일 제한 | 2026-03-13 |
+| `McpServerController.kt:432` getStatus per server in list | P4 | MCP 서버 수 소규모 | 2026-03-13 |
+| `McpSwaggerCatalogController.kt:369` JSON double-pass | P4 | proxy 응답 재직렬화, 저빈도 | 2026-03-13 |
+| `MetricCollectionHook.kt:49` toString+toLongOrNull | P4 | agent 완료당 4회, 미미 | 2026-03-13 |
+| `DashboardService.kt:89` in-memory sort | P4 | 관리자 대시보드, tool 수 소규모 | 2026-03-13 |
+| `McpSecurityPolicyStore.kt:64` normalize() per check | P4 | 보안 정책 체크당 normalize, 등록/동기화 시만 | 2026-03-13 |
+| `FeedbackAnalyzer.kt:66` full list for count | P4 | 스케줄러 경로, 저빈도 | 2026-03-13 |
+| `McpManager.kt:344` keys.sorted() on snapshot | P4 | connect/disconnect 시만, 정상 상태에서 드묾 | 2026-03-13 |
+| promptlab eval/analysis `jacksonObjectMapper()` instances | P4 | Spring 싱글톤 빈, 시작 시 1회 생성 | 2026-03-13 |
+| `McpConnectionSupport.kt:184` per-tool lambda | P4 | connect 시만, tool 수 소규모 | 2026-03-13 |

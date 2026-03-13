@@ -22,3 +22,10 @@
 - 렌즈 4-5 (성능+테스트): P4 3건 기각 (ToolObservabilityAspect Regex 에러경로, ToolExecutionPolicyEngine 테스트갭, InjectionPatterns 테스트갭)
 - 렌즈 6-8 (API+운영+Gotchas): P0-P3 신규 0건
 - 이번 세션 전체 렌즈 스캔 완료: P3 1건 수정, P0-P2 신규 0건
+
+[Ralph 반복 16] 2026-03-13 — 렌즈 4 성능 (fresh scan)
+- 렌즈 4 (성능) — 핫패스 Regex/할당, N+1, 불필요 직렬화, 캐시 미스
+- 4개 병렬 스캐너: arc-core, arc-web+admin, arc-slack+teams+google, autoconfigure+mcp
+- 발견: P4 MED 1건 (McpToolCallback inputSchema 매 접근 시 JSON 직렬화) → 수정 (b3d02b3)
+- 기각: P4 LOW 33건 → KNOWN_ACCEPTABLE (SystemPromptBuilder lowercase, CacheKeyBuilder, hex encoding 등)
+- P0-P3 신규 0건
