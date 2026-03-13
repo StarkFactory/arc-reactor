@@ -25,3 +25,5 @@
 - 렌즈 8 (Critical Gotchas): P0-P1 0건, 5개 gotcha 패턴 전부 정상
 - 렌즈 1 (보안): P2 1건 (PromptLabController autoOptimize 동시성 가드 누락) → 수정
 - 전체 테스트 통과, git push 완료
+- 렌즈 2 (견고성): P0-P1 0건 — 수정 후 재검증 완료
+- 수렴 판정: 5렌즈 fresh scan, P1 1건+P2 1건 수정 후 P0-P1 0건
