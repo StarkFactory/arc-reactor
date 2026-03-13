@@ -103,3 +103,15 @@
 | `McpManager.kt:344` keys.sorted() on snapshot | P4 | connect/disconnect 시만, 정상 상태에서 드묾 | 2026-03-13 |
 | promptlab eval/analysis `jacksonObjectMapper()` instances | P4 | Spring 싱글톤 빈, 시작 시 1회 생성 | 2026-03-13 |
 | `McpConnectionSupport.kt:184` per-tool lambda | P4 | connect 시만, tool 수 소규모 | 2026-03-13 |
+| `ProactiveChannelController.kt` test gap | P4 | 표준 admin CRUD 패턴, 다른 controller 테스트에서 동일 패턴 검증 | 2026-03-13 |
+| `McpSecurityPolicyProvider` test gap | P4 | normalize/cache 로직 단순, MCP 통합테스트에서 간접 커버 | 2026-03-13 |
+| `SystemPromptBuilder.kt` looksLike* test gap | P4 | 프롬프트 분류 함수, 동작은 정상. 회귀 보호 수준 | 2026-03-13 |
+| `ExecutionResultFinalizer.kt` suppression branches test gap | P4 | boolean 조건 단순, 기존 테스트에서 주요 경로 커버 | 2026-03-13 |
+| `ToolCallOrchestrator.kt` accountId enrichment test gap | P4 | requesterEmail 경로 테스트됨, accountId는 동일 패턴 | 2026-03-13 |
+| `SlackThreadTracker.kt` test gap | P4 | TTL/eviction 로직, handler 테스트에서 간접 커버 | 2026-03-13 |
+| `QuotaEnforcerHook.kt` monthly reset test gap | P4 | AtomicLong CAS 패턴 단순, 주요 경로 테스트됨 | 2026-03-13 |
+| `McpPreflightController.kt` missing-token 400 test gap | P4 | 방어 코드 존재, admin auth 테스트됨 | 2026-03-13 |
+| `Bm25WarmUpRunner.kt` test gap | P4 | 시작 시 1회 실행, 예외 swallow은 의도적 | 2026-03-13 |
+| `OutputGuardRuleEvaluator.kt` invalidPatterns cache test gap | P4 | 캐시 로직 단순, 주요 경로 테스트됨 | 2026-03-13 |
+| `SemanticToolSelector.kt` cosineSimilarity edge test gap | P4 | 제로 벡터 → 0.0 반환 정상, 차원 불일치는 IllegalArgumentException | 2026-03-13 |
+| `OutputGuardRuleAuditStore.kt` limit clamp test gap | P4 | coerceIn 단일 호출, 표준 패턴 | 2026-03-13 |

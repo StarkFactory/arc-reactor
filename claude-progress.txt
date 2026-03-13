@@ -29,3 +29,9 @@
 - 발견: P4 MED 1건 (McpToolCallback inputSchema 매 접근 시 JSON 직렬화) → 수정 (b3d02b3)
 - 기각: P4 LOW 33건 → KNOWN_ACCEPTABLE (SystemPromptBuilder lowercase, CacheKeyBuilder, hex encoding 등)
 - P0-P3 신규 0건
+
+[Ralph 반복 17] 2026-03-13 — 렌즈 5 테스트 갭 (fresh scan)
+- 렌즈 5 (테스트 갭) — 소스 대비 테스트 누락, 엣지 케이스, 에러 경로
+- 3개 병렬 스캐너: agent+tool, web+admin+slack, guard+memory+mcp+rag
+- P0-P3 신규 0건 (모든 갭은 정상 동작 코드의 커버리지 부족 = P4)
+- 기각: P4 13건 → KNOWN_ACCEPTABLE
