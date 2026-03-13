@@ -111,9 +111,9 @@ internal class StreamingCompletionFinalizer(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Streaming output guard failed" }
+            logger.error(e) { "Streaming output guard failed, rejecting (fail-close)" }
             emit(StreamEventMarker.error("Output guard check failed"))
-            true // Guard failure is not a rejection; preserve existing behavior
+            false // fail-close: do not save potentially unsafe content to conversation history
         }
     }
 
