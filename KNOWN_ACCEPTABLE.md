@@ -173,3 +173,4 @@
 | `ManualReActLoopExecutor.kt:110` null chatResponse → empty success | P4 | OutputBoundaryEnforcer가 OUTPUT_TOO_SHORT 감지. null ChatResponse 극히 드묾 | 2026-03-13 |
 | `ParallelOrchestrator.kt:100` all-fail → null errorMessage | P4 | success=false 정상 설정. nodeResults에 개별 실패 상세 존재. 메시지 품질 이슈 | 2026-03-13 |
 | `PromptLabController.kt:176,308` scope.launch/runningJobs race | P4 | Dispatchers.IO — launch returns Job before body executes. 이론적 race만 존재 | 2026-03-13 |
+| `RagIngestionCaptureHook.kt:125` admin regex ReDoS | P4 | Admin 전용 blockedPatterns. OutputGuardRuleEvaluator와 동일 신뢰 경계. 자가 DoS 수준 | 2026-03-13 |
