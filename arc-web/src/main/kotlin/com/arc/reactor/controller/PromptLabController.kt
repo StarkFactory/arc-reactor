@@ -304,6 +304,14 @@ class PromptLabController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        if (runningJobs.size >= properties.maxConcurrentExperiments) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                ErrorResponse(
+                    error = "Max concurrent experiments reached: ${properties.maxConcurrentExperiments}",
+                    timestamp = Instant.now().toString()
+                )
+            )
+        }
         val jobId = "auto-${request.templateId}-${System.currentTimeMillis()}"
         val job = scope.launch {
             try {

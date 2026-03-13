@@ -77,6 +77,7 @@
 - [x] P2: `StreamingReActLoopExecutor.kt:85` — chunk.result null-check 추가, usage-only 청크 NPE 방지 (da1d329)
 - [x] P3: `SlackSignatureVerifier.kt:62` — blank signingSecret fail-close 추가 (2783a67)
 - [x] P1: `ToolCallOrchestrator.kt:440,471` — e.message null → "Unknown error" 폴백 추가
+- [x] P2: `PromptLabController.kt:302` — autoOptimize maxConcurrentExperiments 가드 추가
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)
