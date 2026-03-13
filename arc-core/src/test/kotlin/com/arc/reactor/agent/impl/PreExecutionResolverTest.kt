@@ -47,6 +47,31 @@ class PreExecutionResolverTest {
     }
 
     @Test
+    fun `should propagate channel from metadata to GuardCommand`() = runBlocking {
+        val guard = mockk<RequestGuard>()
+        coEvery { guard.guard(any()) } returns GuardResult.Allowed.DEFAULT
+        val resolver = PreExecutionResolver(
+            guard = guard,
+            hookExecutor = null,
+            intentResolver = null,
+            blockedIntents = emptySet(),
+            agentMetrics = mockk(relaxed = true)
+        )
+
+        resolver.checkGuard(
+            AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "hi",
+                metadata = mapOf("channel" to "slack")
+            )
+        )
+
+        coVerify(exactly = 1) {
+            guard.guard(match { it.channel == "slack" })
+        }
+    }
+
+    @Test
     fun `should return GUARD_REJECTED result when guard rejects`() = runBlocking {
         val guard = mockk<RequestGuard>()
         coEvery { guard.guard(any()) } returns GuardResult.Rejected(

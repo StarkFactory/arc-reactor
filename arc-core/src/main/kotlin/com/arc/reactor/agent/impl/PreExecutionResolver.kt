@@ -39,6 +39,7 @@ internal class PreExecutionResolver(
             GuardCommand(
                 userId = userId,
                 text = command.userPrompt,
+                channel = command.metadata["channel"]?.toString(),
                 systemPrompt = command.systemPrompt,
                 metadata = command.metadata
             )
