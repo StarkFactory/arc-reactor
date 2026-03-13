@@ -7,7 +7,7 @@
 
 ## P1 — Agent 동작 결함 (잘못된 응답, 무한 루프, 도구 실패 미처리)
 
-(없음 — Critical Gotchas 위반 0건 확인)
+(없음 — 전부 완료)
 
 ## P2 — 견고성 (에러 복구 실패, 리소스 누수, 동시성 문제)
 
@@ -76,6 +76,7 @@
 - [x] P3: `SlackReminderScheduler.kt:64` — throwIfCancellation() 추가 (d6bede4)
 - [x] P2: `StreamingReActLoopExecutor.kt:85` — chunk.result null-check 추가, usage-only 청크 NPE 방지 (da1d329)
 - [x] P3: `SlackSignatureVerifier.kt:62` — blank signingSecret fail-close 추가 (2783a67)
+- [x] P1: `ToolCallOrchestrator.kt:440,471` — e.message null → "Unknown error" 폴백 추가
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)

@@ -437,7 +437,7 @@ internal class ToolCallOrchestrator(
                 e.throwIfCancellation()
                 logger.error(e) { "Tool $toolName execution failed" }
                 ToolInvocationOutcome(
-                    output = "Error: ${e.message}",
+                    output = "Error: ${e.message ?: "Unknown error"}",
                     success = false,
                     trackAsUsed = true
                 )
@@ -468,7 +468,7 @@ internal class ToolCallOrchestrator(
                 e.throwIfCancellation()
                 logger.error(e) { "Tool $toolName execution failed" }
                 ToolInvocationOutcome(
-                    output = "Error: ${e.message}",
+                    output = "Error: ${e.message ?: "Unknown error"}",
                     success = false,
                     trackAsUsed = true
                 )
