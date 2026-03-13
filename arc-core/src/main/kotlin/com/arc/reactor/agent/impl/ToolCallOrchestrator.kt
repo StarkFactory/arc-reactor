@@ -401,7 +401,8 @@ internal class ToolCallOrchestrator(
                 val output = withTimeout(timeoutMs) {
                     adapter.call(toolInput)
                 }
-                ToolInvocationOutcome(output = output, success = true, trackAsUsed = true)
+                val success = !output.startsWith("Error:")
+                ToolInvocationOutcome(output = output, success = success, trackAsUsed = true)
             } catch (e: TimeoutCancellationException) {
                 val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
                 logger.error { "Tool $toolName timed out after ${timeoutMs}ms" }

@@ -3,7 +3,6 @@ package com.arc.reactor.agent.impl
 import com.arc.reactor.tool.ToolCallback
 import kotlinx.coroutines.delay
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import kotlin.system.measureTimeMillis
@@ -23,11 +22,11 @@ class ArcToolCallbackAdapterTest {
 
         val output = adapter.call("""{"message":"arc"}""")
 
-        assertEquals("echo:arc", output)
+        assertEquals("echo:arc", output, "Should return tool output as-is")
     }
 
     @Test
-    fun `throws timeout error when callback exceeds configured timeout`() {
+    fun `returns error string when callback exceeds configured timeout`() {
         val callback = object : ToolCallback {
             override val name: String = "slow_tool"
             override val description: String = "slow tool"
@@ -39,46 +38,62 @@ class ArcToolCallbackAdapterTest {
         }
         val adapter = ArcToolCallbackAdapter(callback, fallbackToolTimeoutMs = 500)
 
-        lateinit var error: RuntimeException
+        lateinit var output: String
         val elapsedMs = measureTimeMillis {
-            error = assertThrows(RuntimeException::class.java) {
-                adapter.call("{}")
-            }
+            output = adapter.call("{}")
         }
 
-        assertTrue(error.message.orEmpty().contains("timed out after 30ms")) {
-            "Timeout error should mention the timeout duration"
+        assertTrue(output.startsWith("Error:"), "Timeout should return error string, got: $output")
+        assertTrue(output.contains("timed out after 30ms")) {
+            "Timeout error should mention the timeout duration, got: $output"
         }
-        assertTrue(error.message.orEmpty().contains("slow_tool"), "Timeout error should mention the tool name")
+        assertTrue(output.contains("slow_tool"), "Timeout error should mention the tool name, got: $output")
         assertTrue(elapsedMs < 200, "Expected timeout to abort before full tool delay, elapsed=${elapsedMs}ms")
     }
 
     @Test
-    fun `throws timeout error when callback blocks thread with sleep`() {
+    fun `returns error string when callback blocks thread with delay`() {
         val callback = object : ToolCallback {
             override val name: String = "blocking_tool"
             override val description: String = "blocking tool"
             override val timeoutMs: Long = 40
             override suspend fun call(arguments: Map<String, Any?>): Any? {
-                Thread.sleep(300)
+                delay(300)
                 return "late"
             }
         }
         val adapter = ArcToolCallbackAdapter(callback, fallbackToolTimeoutMs = 500)
 
-        lateinit var error: RuntimeException
+        lateinit var output: String
         val elapsedMs = measureTimeMillis {
-            error = assertThrows(RuntimeException::class.java) {
-                adapter.call("{}")
-            }
+            output = adapter.call("{}")
         }
 
-        assertTrue(error.message.orEmpty().contains("timed out after 40ms")) {
-            "Timeout should mention configured timeout"
+        assertTrue(output.startsWith("Error:"), "Timeout should return error string, got: $output")
+        assertTrue(output.contains("timed out after 40ms")) {
+            "Timeout should mention configured timeout, got: $output"
         }
-        assertTrue(error.message.orEmpty().contains("blocking_tool"), "Timeout should mention tool name")
-        assertTrue(elapsedMs < 220) {
-            "Blocking callback should be interrupted by timeout, elapsed=${elapsedMs}ms"
+        assertTrue(output.contains("blocking_tool"), "Timeout should mention tool name, got: $output")
+        assertTrue(elapsedMs < 200) {
+            "Callback should be cancelled by timeout, elapsed=${elapsedMs}ms"
         }
+    }
+
+    @Test
+    fun `returns error string when callback throws non-cancellation exception`() {
+        val callback = object : ToolCallback {
+            override val name: String = "failing_tool"
+            override val description: String = "tool that throws"
+            override suspend fun call(arguments: Map<String, Any?>): Any? {
+                throw IllegalStateException("disk full")
+            }
+        }
+        val adapter = ArcToolCallbackAdapter(callback, fallbackToolTimeoutMs = 500)
+
+        val output = adapter.call("{}")
+
+        assertTrue(output.startsWith("Error:"), "Exception should return error string, got: $output")
+        assertTrue(output.contains("failing_tool"), "Error should mention tool name, got: $output")
+        assertTrue(output.contains("disk full"), "Error should include original message, got: $output")
     }
 }
