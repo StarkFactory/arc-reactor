@@ -170,3 +170,5 @@
 | `SlackApiClient.kt:631` Thread.sleep in executeWithRetry | P4 | non-suspend 함수, IO 디스패처 elastic pool | 2026-03-13 |
 | `DefaultSlackCommandHandler.kt:101` mrkdwn injection (@channel/@here) | P3 | 인증된 Slack 사용자만 접근, 동일 채널 내 반복. 워크스페이스 멘션 제한 우회 가능하나 설계 의도 수준 | 2026-03-13 |
 | `SlackMessagingService.kt:172` rate limiter TOCTOU | P4 | AtomicLong TOCTOU이나 Slack API 자체 rate limit이 최종 방어선 | 2026-03-13 |
+| `ManualReActLoopExecutor.kt:110` null chatResponse → empty success | P4 | OutputBoundaryEnforcer가 OUTPUT_TOO_SHORT 감지. null ChatResponse 극히 드묾 | 2026-03-13 |
+| `ParallelOrchestrator.kt:100` all-fail → null errorMessage | P4 | success=false 정상 설정. nodeResults에 개별 실패 상세 존재. 메시지 품질 이슈 | 2026-03-13 |
