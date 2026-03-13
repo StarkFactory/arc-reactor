@@ -43,7 +43,10 @@ class SlackSocketModeGateway(
 
     @Volatile
     private var startupJob: Job? = null
+    @Volatile
     private var slack: Slack? = null
+
+    @Volatile
     private var socketModeClient: SocketModeClient? = null
 
     override fun start() {

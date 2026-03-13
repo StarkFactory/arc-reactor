@@ -1,6 +1,7 @@
 package com.arc.reactor.slack.handler
 
 import com.arc.reactor.slack.service.SlackMessagingService
+import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -62,6 +63,7 @@ class SlackReminderScheduler(
                         logger.warn { "Failed to deliver reminder #${reminder.id} to user=$userId: ${result.error}" }
                     }
                 } catch (e: Exception) {
+                    e.throwIfCancellation()
                     logger.warn(e) { "Error delivering reminder #${reminder.id} to user=$userId" }
                 }
             }
