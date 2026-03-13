@@ -147,3 +147,6 @@
 | `DynamicSchedulerService.kt:190` catch(Exception) non-suspend | P4 | non-suspend fun, runBlocking 내 CancellationException → FAILED 기록 적절 | 2026-03-13 |
 | `DynamicSchedulerService.kt:218` runBlocking on scheduler thread | P4 | 설계 선택 — 스케줄러가 agent 실행. timeout으로 제한 | 2026-03-13 |
 | `McpReconnectionCoordinator.kt:59` catch around delay | P4 | throwIfCancellation 정상 호출, 스타일 이슈 | 2026-03-13 |
+| `SequentialOrchestrator.kt:59` no try-catch on execute | P4 | AgentExecutor 계약상 예외 미발생, ParallelOrchestrator와 비대칭이나 방어적 코딩 수준 | 2026-03-13 |
+| `ToolCallOrchestrator.kt:215` hallucinated tool bypass maxToolCalls | P4 | 이론적 — 요청 타임아웃+컨텍스트 윈도우로 자연 제한, 실행 없음 | 2026-03-13 |
+| `StreamingReActLoopExecutor.kt:143` toolStart/toolEnd 불일치 | P4 | executeInParallel 내부 catch로 예외 미발생, 이론적 | 2026-03-13 |

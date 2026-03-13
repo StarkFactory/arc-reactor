@@ -74,6 +74,7 @@
 - [x] P4: `McpToolCallback.kt:42` — inputSchema get() → val 캐시로 매 접근 시 JSON 직렬화 제거 (b3d02b3)
 - [x] P2: `SlackSocketModeGateway.kt:46-47` — slack/socketModeClient @Volatile 추가 (d6bede4)
 - [x] P3: `SlackReminderScheduler.kt:64` — throwIfCancellation() 추가 (d6bede4)
+- [x] P2: `StreamingReActLoopExecutor.kt:85` — chunk.result null-check 추가, usage-only 청크 NPE 방지 (da1d329)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)
