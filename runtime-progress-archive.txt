@@ -1,0 +1,34 @@
+[Runtime 반복 1] 2026-03-13 — 렌즈 1: Auth
+- 인프라 기동: PGVector(55432)+Redis(6379)+arc-reactor(18081)+swagger-mcp(8081)+atlassian-mcp(8085)+admin(3001)
+- 기동 이슈: RAG에 -Pdb=true 필요, SSRF 보호로 MCP 연결 실패 → ARC_REACTOR_MCP_ALLOW_PRIVATE_ADDRESSES=true
+- MCP 도구: atlassian 41개, swagger 11개 등록+연결 완료
+- Auth 테스트 8건: login, /me, invalid cred, no auth, bad JWT, change-pw, logout, revoked token → 전부 PASS
+- P4 참고: 401 응답에 JSON body 없음 (WebFilter setComplete() — 설계 의도)
+- P0-P3 이슈: 0건
+
+[Runtime 반복 1 계속] 2026-03-13 — 렌즈 2: Chat (basic)
+- Sync chat 200 OK, Streaming SSE 정상, Empty→400, Oversized→403(Guard), 대화 연속성 OK
+- P0-P3 이슈: 0건
+
+[Runtime 반복 1 계속] 2026-03-13 — 렌즈 3: MCP + Tool Call
+- MCP 서버 목록 조회 OK, atlassian 41 tools, swagger 11 tools
+- jira_list_projects 호출 성공, spec_list 호출 성공
+- P0-P3 이슈: 0건
+
+[Runtime 반복 1 계속] 2026-03-13 — 렌즈 4: RAG + Vector
+- 문서 업로드 201 OK, 유사도 검색 정상, 대화에서 RAG 컨텍스트 반영
+- P2 발견+수정: DocumentChunker.chunkId()가 비-UUID 형식 생성 → PgVectorStore delete 500
+  → UUID v3 (nameUUIDFromBytes) 방식으로 변경, 테스트 4개 추가
+- 수정 후 검증: upload→delete→204 정상 동작
+
+[Runtime 반복 2] 2026-03-13 — 렌즈 5: Admin CRUD
+- Persona CRUD: create 201, get 200, list, update 200, delete 204 → 전부 PASS
+- Prompt Template: create 201, add version 201, delete 204 → PASS
+- Intent/OutputGuardRule/Scheduler: 404 (ConditionalOnBean 미충족, 설계 의도)
+- P0-P3 이슈: 0건
+
+[Runtime 반복 2 계속] 2026-03-13 — 렌즈 6: Scheduler (스킵 — 엔드포인트 미등록)
+[Runtime 반복 2 계속] 2026-03-13 — 렌즈 7: Session & Memory
+- Session list 200, delete 204, 404 after delete → PASS
+- 세션 미저장: ConversationManager in-memory 모드 (설정 의존, 비 버그)
+- P0-P3 이슈: 0건
