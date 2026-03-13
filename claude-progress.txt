@@ -41,3 +41,9 @@
 - 2개 병렬 스캐너: controller 전체, core interfaces
 - P0-P3 신규 0건 (모든 발견은 P4 일관성/스타일 이슈)
 - 기각: P4 11건 → KNOWN_ACCEPTABLE (empty 404 body, 에러 스키마 차이, 스트리밍 한계 등)
+
+[Ralph 반복 19] 2026-03-13 — 렌즈 7 운영 (fresh scan)
+- 렌즈 7 (운영) — 헬스체크, 메트릭/로깅, 설정 기본값, graceful shutdown
+- 2개 병렬 스캐너: 전체 운영, shutdown 전문
+- P0-P3 신규 0건
+- 기각: P4 8건 → KNOWN_ACCEPTABLE (scheduler graceful, inputMaxChars 기본값 차이 등)

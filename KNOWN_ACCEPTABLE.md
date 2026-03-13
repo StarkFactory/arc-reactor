@@ -125,3 +125,10 @@
 | `AgentResult.content` nullable on success | P4 | factory method가 non-null 강제, 직접 구성은 내부 사용 | 2026-03-13 |
 | `HookResult.Reject.reason` verbatim propagation | P4 | Hook은 개발자 작성 내부 컴포넌트, 사용자 입력 아님 | 2026-03-13 |
 | `StreamingExecutionCoordinator.kt:146` INVALID_RESPONSE 코드 명칭 | P4 | 에러 코드 네이밍 개선 수준 | 2026-03-13 |
+| `ArcReactorSchedulerConfiguration.kt:57` waitForTasks 미설정 | P4 | DynamicSchedulerService.destroy()가 futures 취소. 운영 개선 수준 | 2026-03-13 |
+| `PlatformAdminController.kt` writeErrorsTotal 미노출 | P4 | 로그에서 확인 가능, 대시보드 기능 개선 수준 | 2026-03-13 |
+| `AgentPolicyAndFeatureProperties.kt:497` inputMaxChars 5000 vs yml 10000 | P4 | 의도적 보수적 코드 기본값, yml이 운영 기본값 | 2026-03-13 |
+| `PlatformAdminController.kt:238,266` catch without logging | P4 | debug 로그 추가 수준, 기능 영향 없음 | 2026-03-13 |
+| `AlertScheduler.kt:74` failure 4-9 silent | P4 | 연속 실패 시 3+매10번째 로그, 운영 개선 수준 | 2026-03-13 |
+| `ToolObservabilityAspect.kt:88` JSON parse silent catch | P4 | 메트릭 정확도 개선 수준, 기능 영향 없음 | 2026-03-13 |
+| `DefaultMcpManager` AutoCloseable inference | P4 | Spring 6.x 자동 추론 정상 작동, 문서화 개선 수준 | 2026-03-13 |
