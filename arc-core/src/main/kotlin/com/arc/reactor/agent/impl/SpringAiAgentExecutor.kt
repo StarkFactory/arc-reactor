@@ -455,7 +455,9 @@ class SpringAiAgentExecutor(
             )
             if (forcedToolContext != null && !forcedToolContext.success) {
                 return AgentResult.failure(
-                    errorMessage = forcedToolContext.errorMessage ?: forcedToolContext.output ?: AgentErrorCode.TOOL_ERROR.defaultMessage,
+                    errorMessage = forcedToolContext.errorMessage
+                        ?: forcedToolContext.output
+                        ?: AgentErrorCode.TOOL_ERROR.defaultMessage,
                     errorCode = AgentErrorCode.TOOL_ERROR
                 )
             }
@@ -520,7 +522,10 @@ class SpringAiAgentExecutor(
     }
 
     private fun mergeRagContext(primary: String?, secondary: String?): String? {
-        val parts = listOfNotNull(primary?.trim()?.takeIf { it.isNotEmpty() }, secondary?.trim()?.takeIf { it.isNotEmpty() })
+        val parts = listOfNotNull(
+            primary?.trim()?.takeIf { it.isNotEmpty() },
+            secondary?.trim()?.takeIf { it.isNotEmpty() }
+        )
         if (parts.isEmpty()) return null
         return parts.joinToString("\n\n")
     }

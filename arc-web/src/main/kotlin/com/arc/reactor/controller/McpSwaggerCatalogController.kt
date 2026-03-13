@@ -375,7 +375,10 @@ class McpSwaggerCatalogController(
         }
     }
 
-    private fun recordAudit(serverName: String, actor: String, action: String, statusCode: Int, detail: String? = null) {
+    private fun recordAudit(
+        serverName: String, actor: String, action: String,
+        statusCode: Int, detail: String? = null
+    ) {
         recordAdminAudit(
             store = adminAuditStore,
             category = "mcp_swagger_catalog",
