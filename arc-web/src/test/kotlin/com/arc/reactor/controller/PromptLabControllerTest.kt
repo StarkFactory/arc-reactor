@@ -255,6 +255,37 @@ class PromptLabControllerTest {
         }
 
         @Test
+        fun `POST auto-optimize should return 429 when max concurrent experiments reached`() {
+            val limitedController = PromptLabController(
+                experimentStore, orchestrator, feedbackAnalyzer, promptTemplateStore,
+                PromptLabProperties(maxConcurrentExperiments = 1)
+            )
+            // Fill the single slot
+            limitedController.autoOptimize(AutoOptimizeRequest(templateId = "tmpl-1"), adminExchange())
+
+            val response = limitedController.autoOptimize(
+                AutoOptimizeRequest(templateId = "tmpl-2"), adminExchange()
+            )
+
+            assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.statusCode) { "Should return 429" }
+        }
+
+        @Test
+        fun `POST run should return 429 when max concurrent experiments reached`() {
+            val limitedController = PromptLabController(
+                experimentStore, orchestrator, feedbackAnalyzer, promptTemplateStore,
+                PromptLabProperties(maxConcurrentExperiments = 1)
+            )
+            every { experimentStore.get(any()) } returns buildExperiment(status = ExperimentStatus.PENDING)
+            // Fill the single slot
+            limitedController.runExperiment("exp-1", adminExchange())
+
+            val response = limitedController.runExperiment("exp-2", adminExchange())
+
+            assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.statusCode) { "Should return 429" }
+        }
+
+        @Test
         fun `POST analyze should return feedback analysis`() = runTest {
             coEvery { feedbackAnalyzer.analyze("tmpl-1", null, 50) } returns FeedbackAnalysis(
                 totalFeedback = 10,

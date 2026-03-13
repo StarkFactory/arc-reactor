@@ -31,3 +31,6 @@
 - P0-P1 신규 0건
 - 렌즈 4 (성능): P0-P1 0건, 총 7렌즈 스캔 완료
 - 수렴: P1 1건+P2 1건 수정 완료, 이후 5렌즈 연속 0건
+- 렌즈 5 (테스트 갭): P1 후보 1건 (PromptLabController 429 테스트 미존재) → P4 판정, 회귀 테스트 추가
+- scope.launch race → P4 KNOWN_ACCEPTABLE (Dispatchers.IO 이론적만)
+- 총 8렌즈 완료, P0-P1 신규 0건

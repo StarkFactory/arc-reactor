@@ -172,3 +172,4 @@
 | `SlackMessagingService.kt:172` rate limiter TOCTOU | P4 | AtomicLong TOCTOU이나 Slack API 자체 rate limit이 최종 방어선 | 2026-03-13 |
 | `ManualReActLoopExecutor.kt:110` null chatResponse → empty success | P4 | OutputBoundaryEnforcer가 OUTPUT_TOO_SHORT 감지. null ChatResponse 극히 드묾 | 2026-03-13 |
 | `ParallelOrchestrator.kt:100` all-fail → null errorMessage | P4 | success=false 정상 설정. nodeResults에 개별 실패 상세 존재. 메시지 품질 이슈 | 2026-03-13 |
+| `PromptLabController.kt:176,308` scope.launch/runningJobs race | P4 | Dispatchers.IO — launch returns Job before body executes. 이론적 race만 존재 | 2026-03-13 |
