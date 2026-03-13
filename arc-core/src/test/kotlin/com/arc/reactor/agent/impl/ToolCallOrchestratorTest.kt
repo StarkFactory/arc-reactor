@@ -289,7 +289,7 @@ class ToolCallOrchestratorTest {
             toolsUsed = toolsUsed
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "Direct tool call should succeed for registered tool")
         assertEquals("owner=PAY-123", result.output)
         assertEquals(listOf("work_owner_lookup"), toolsUsed)
     }

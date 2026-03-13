@@ -89,7 +89,7 @@ class McpSwaggerCatalogControllerTest {
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
         val body = response.body as ErrorResponse
         assertEquals("Admin access required", body.error)
-        assertTrue(auditStore.list().isEmpty())
+        assertTrue(auditStore.list().isEmpty(), "No audit entry should be recorded for rejected non-admin request")
     }
 
     @Test
@@ -132,7 +132,7 @@ class McpSwaggerCatalogControllerTest {
             val body = response.body as List<*>
             assertEquals(1, body.size)
             assertEquals("catalog-admin", capturedActor)
-            assertNotNull(capturedRequestId)
+            assertNotNull(capturedRequestId, "Proxy request should include X-Request-Id header")
             val audits = auditStore.list()
             assertEquals(1, audits.size)
             assertEquals("mcp_swagger_catalog", audits.first().category)
@@ -253,11 +253,26 @@ class McpSwaggerCatalogControllerTest {
             )
 
             assertEquals(HttpStatus.CREATED, response.statusCode)
-            assertTrue(capturedBody.orEmpty().contains("\"jiraProjectKey\":\"PAY\""))
-            assertTrue(capturedBody.orEmpty().contains("\"confluenceSpaceKey\":\"PAYMENTS\""))
-            assertTrue(capturedBody.orEmpty().contains("\"bitbucketRepository\":\"team/payments\""))
-            assertTrue(capturedBody.orEmpty().contains("\"serviceSlug\":\"payments-api\""))
-            assertTrue(capturedBody.orEmpty().contains("\"ownerTeam\":\"payments-platform\""))
+            assertTrue(
+                capturedBody.orEmpty().contains("\"jiraProjectKey\":\"PAY\""),
+                "Request body should forward jiraProjectKey"
+            )
+            assertTrue(
+                capturedBody.orEmpty().contains("\"confluenceSpaceKey\":\"PAYMENTS\""),
+                "Request body should forward confluenceSpaceKey"
+            )
+            assertTrue(
+                capturedBody.orEmpty().contains("\"bitbucketRepository\":\"team/payments\""),
+                "Request body should forward bitbucketRepository"
+            )
+            assertTrue(
+                capturedBody.orEmpty().contains("\"serviceSlug\":\"payments-api\""),
+                "Request body should forward serviceSlug"
+            )
+            assertTrue(
+                capturedBody.orEmpty().contains("\"ownerTeam\":\"payments-platform\""),
+                "Request body should forward ownerTeam"
+            )
             val audits = auditStore.list()
             assertEquals(1, audits.size)
             assertEquals("CREATE_SOURCE", audits.first().action)
@@ -358,7 +373,10 @@ class McpSwaggerCatalogControllerTest {
 
             assertEquals(HttpStatus.OK, response.statusCode)
             assertEquals("from=rev%201&to=rev/2", capturedQuery)
-            assertTrue(capturedQuery.orEmpty().contains("%2520").not())
+            assertTrue(
+                capturedQuery.orEmpty().contains("%2520").not(),
+                "Query params should not be double-encoded"
+            )
             val audits = auditStore.list()
             assertEquals(1, audits.size)
             assertEquals("GET_DIFF", audits.first().action)
@@ -428,7 +446,10 @@ class McpSwaggerCatalogControllerTest {
             )
 
             assertEquals(HttpStatus.OK, response.statusCode)
-            assertTrue(capturedBody.orEmpty().contains("\"revisionId\":\"rev-2\""))
+            assertTrue(
+                capturedBody.orEmpty().contains("\"revisionId\":\"rev-2\""),
+                "Publish request body should contain the revisionId"
+            )
             val audits = auditStore.list()
             assertEquals(1, audits.size)
             assertEquals("PUBLISH_REVISION", audits.first().action)
