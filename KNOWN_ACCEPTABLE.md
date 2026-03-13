@@ -150,3 +150,21 @@
 | `SequentialOrchestrator.kt:59` no try-catch on execute | P4 | AgentExecutor 계약상 예외 미발생, ParallelOrchestrator와 비대칭이나 방어적 코딩 수준 | 2026-03-13 |
 | `ToolCallOrchestrator.kt:215` hallucinated tool bypass maxToolCalls | P4 | 이론적 — 요청 타임아웃+컨텍스트 윈도우로 자연 제한, 실행 없음 | 2026-03-13 |
 | `StreamingReActLoopExecutor.kt:143` toolStart/toolEnd 불일치 | P4 | executeInParallel 내부 catch로 예외 미발생, 이론적 | 2026-03-13 |
+| `SystemPromptBuilder.kt` 44+ redundant `.lowercase()` | P4 | 요청당 1회, input 10K 상한. 44×10K=440K 할당이나 GC 부담 미미 | 2026-03-13 |
+| `RuleBasedIntentClassifier.kt:72,83` keyword `.lowercase()` per call | P4 | 키워드 수 소규모, 분류당 1회. 미미 | 2026-03-13 |
+| `OutputGuardRuleEvaluator.kt:59,74` `.toList()` defensive copies | P4 | 규칙 수 소규모 (<10), 미미 | 2026-03-13 |
+| `SchedulerController.kt` non-suspend blocking in WebFlux | P4 | Admin 전용 엔드포인트, 저트래픽. 다른 admin 컨트롤러와 일관된 패턴 | 2026-03-13 |
+| `SchedulerController.kt:146` trigger/dryRun 404 API doc mismatch | P4 | trigger()는 "Job not found" 문자열 반환 (예외 아님). 200으로 응답 | 2026-03-13 |
+| `SchedulerController.kt` CRUD endpoint test gap | P4 | Auth 테스트 존재. CRUD 로직은 DynamicSchedulerService 테스트에서 커버 | 2026-03-13 |
+| `TeamsWebhookClient.kt` SSRF integration test gap | P4 | 핵심 SSRF 로직은 SsrfProtectionTest에서 단위 테스트. 통합 경로만 미커버 | 2026-03-13 |
+| `StructuredOutputValidator/Repairer` YAML test gap | FP | False positive — StructuredOutputTest+ValidatorTest에서 YAML 포맷 8개 테스트 | 2026-03-13 |
+| `AuthController.kt:64` 403 uses AuthResponse not ErrorResponse | P4 | register()는 ResponseEntity<AuthResponse> 타입. 일관된 반환 타입 설계 | 2026-03-13 |
+| `ArcReactorSchedulerConfiguration.kt:57` waitForTasksToComplete 미설정 | P4 | executeJob catch(Exception)이 InterruptedException 처리 | 2026-03-13 |
+| `WebhookNotificationHook.kt:40` WebClient.create() 미관리 | P4 | Reactor Netty 글로벌 이벤트 루프 공유. 리소스 누수 아님 | 2026-03-13 |
+| `ErrorReportController.kt:130` blank apiKey bypass | P4 | 설계 의도 — KDoc "Blank = no auth required". 선택적 모듈, 사용자 책임 | 2026-03-13 |
+| `AgentProperties.kt:214` default canary seed | P4 | 오픈소스 프로젝트. 코드 코멘트로 변경 권고. 운영 가이드 수준 | 2026-03-13 |
+| `StreamingReActLoopExecutor.kt:94` pendingToolCalls last-wins | P4 | Spring AI 스트리밍 표준 패턴 | 2026-03-13 |
+| `SequentialOrchestrator.kt:75` null content → "" | P4 | 방어적 코딩. NPE 방지 | 2026-03-13 |
+| `ConversationMessageTrimmer.kt:153` group size 1 for broken pair | P4 | 이미 깨진 쌍 정상 처리 | 2026-03-13 |
+| `SlackSocketModeGateway.kt:54` double-start race | P4 | Spring DefaultLifecycleProcessor가 start() 동기 호출 | 2026-03-13 |
+| `SlackApiClient.kt:631` Thread.sleep in executeWithRetry | P4 | non-suspend 함수, IO 디스패처 elastic pool | 2026-03-13 |

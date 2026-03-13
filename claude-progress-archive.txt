@@ -237,3 +237,53 @@
 - Critical Gotchas: 0 violations
 - P0~P3 신규 발견: 0건
 - 수렴 판정: 2회 연속 (반복 5 + 반복 6) P0~P3 신규 0건 → 완료
+# Arc Reactor — Autonomous Improvement Progress
+
+## 이전 아카이브: claude-progress-archive.txt 참조
+
+[Ralph 반복 13] 2026-03-13 — 3바퀴 수렴 검증
+- 렌즈 2 (견고성) 3바퀴: P1 1건 발견 (ExperimentOrchestrator TimeoutCancellationException) → 수정
+- 렌즈 1+3 (보안+Agent) 3바퀴: P0-P3 신규 0건
+- 렌즈 4-8 통합 3바퀴: P0-P3 신규 0건
+- 기각 1건 → KNOWN_ACCEPTABLE (EvaluationPipelineFactory concurrent reset)
+- 구현: P1 1건 수정 (6165d1a)
+
+[Ralph 반복 14] 2026-03-13 — 4바퀴 렌즈 2 수렴 확인
+- 렌즈 2 (견고성) 4바퀴: P0-P2 신규 0건. withTimeout 12개소 전수 검증 완료
+- 수렴 판정: 8렌즈 2+ 바퀴 완료, 최종 스캔 P0-P3 신규 0건
+
+[Ralph 반복 15] 2026-03-13 — 렌즈 3 Agent 동작 (fresh scan)
+- 렌즈 3 (Agent 동작) — ReAct 루프, 도구 실패, 다중 에이전트, 컨텍스트
+- 발견: P3 1건 (BlockingToolCallbackInvoker 중복 "Error:" 프리픽스)
+- 기각: 3건 → KNOWN_ACCEPTABLE (ToolOutputSanitizer error wrapping, SupervisorOrchestrator recursion, saveMessages non-atomic)
+- 구현: P3 1건 수정 (72c96cb)
+- 렌즈 1-2 (보안+견고성): P2 2건 기각 (DocumentController search 설계 의도, McpPreflightController factory 이미 KNOWN)
+- 렌즈 4-5 (성능+테스트): P4 3건 기각 (ToolObservabilityAspect Regex 에러경로, ToolExecutionPolicyEngine 테스트갭, InjectionPatterns 테스트갭)
+- 렌즈 6-8 (API+운영+Gotchas): P0-P3 신규 0건
+- 이번 세션 전체 렌즈 스캔 완료: P3 1건 수정, P0-P2 신규 0건
+
+[Ralph 반복 16] 2026-03-13 — 렌즈 4 성능 (fresh scan)
+- 렌즈 4 (성능) — 핫패스 Regex/할당, N+1, 불필요 직렬화, 캐시 미스
+- 4개 병렬 스캐너: arc-core, arc-web+admin, arc-slack+teams+google, autoconfigure+mcp
+- 발견: P4 MED 1건 (McpToolCallback inputSchema 매 접근 시 JSON 직렬화) → 수정 (b3d02b3)
+- 기각: P4 LOW 33건 → KNOWN_ACCEPTABLE (SystemPromptBuilder lowercase, CacheKeyBuilder, hex encoding 등)
+- P0-P3 신규 0건
+
+[Ralph 반복 17] 2026-03-13 — 렌즈 5 테스트 갭 (fresh scan)
+- 렌즈 5 (테스트 갭) — 소스 대비 테스트 누락, 엣지 케이스, 에러 경로
+- 3개 병렬 스캐너: agent+tool, web+admin+slack, guard+memory+mcp+rag
+- P0-P3 신규 0건 (모든 갭은 정상 동작 코드의 커버리지 부족 = P4)
+- 기각: P4 13건 → KNOWN_ACCEPTABLE
+
+[Ralph 반복 18] 2026-03-13 — 렌즈 6 API 계약 (fresh scan)
+- 렌즈 6 (API 계약) — Breaking change, 응답 형식, @Operation 누락, 에러 표준
+- 2개 병렬 스캐너: controller 전체, core interfaces
+- P0-P3 신규 0건 (모든 발견은 P4 일관성/스타일 이슈)
+- 기각: P4 11건 → KNOWN_ACCEPTABLE (empty 404 body, 에러 스키마 차이, 스트리밍 한계 등)
+
+[Ralph 반복 19] 2026-03-13 — 렌즈 7 운영 (fresh scan)
+- 렌즈 7 (운영) — 헬스체크, 메트릭/로깅, 설정 기본값, graceful shutdown
+- 2개 병렬 스캐너: 전체 운영, shutdown 전문
+- P0-P3 신규 0건
+- 기각: P4 8건 → KNOWN_ACCEPTABLE (scheduler graceful, inputMaxChars 기본값 차이 등)
+
