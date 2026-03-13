@@ -218,7 +218,11 @@ class MicrometerAgentMetrics(
         val blocked = metadata["blockReason"]?.toString()?.isNotBlank() == true
         observedResponses.incrementAndGet()
         if (grounded) groundedResponses.incrementAndGet()
-        if (metadata["deliveryMode"] == "scheduled") scheduledResponses.incrementAndGet() else interactiveResponses.incrementAndGet()
+        if (metadata["deliveryMode"] == "scheduled") {
+            scheduledResponses.incrementAndGet()
+        } else {
+            interactiveResponses.incrementAndGet()
+        }
         if (blocked) blockedResponses.incrementAndGet()
         incrementBucket(answerModeCounts, answerMode, "unknown")
         incrementBucket(channelCounts, metadata["channel"]?.toString(), "unknown")
@@ -256,7 +260,10 @@ class MicrometerAgentMetrics(
 
     override fun topMissingQueries(limit: Int): List<MissingQueryInsight> {
         return missingQueryCounts.values
-            .sortedWith(compareByDescending<MissingQueryAggregate> { it.count.get() }.thenByDescending { it.lastOccurredAt })
+            .sortedWith(
+                compareByDescending<MissingQueryAggregate> { it.count.get() }
+                    .thenByDescending { it.lastOccurredAt }
+            )
             .take(limit)
             .map {
                 MissingQueryInsight(

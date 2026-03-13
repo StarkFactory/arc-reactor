@@ -284,7 +284,8 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
                     severity = if (action.equals("rejected", ignoreCase = true)) "FAIL" else "WARN",
                     action = action,
                     stage = stage,
-                    reason = metadata["blockReason"]?.toString()?.takeIf { it.isNotBlank() } ?: reason.takeIf { it.isNotBlank() },
+                    reason = metadata["blockReason"]?.toString()?.takeIf { it.isNotBlank() }
+                        ?: reason.takeIf { it.isNotBlank() },
                     channel = metadata["channel"]?.toString(),
                     queryCluster = metadata["queryCluster"]?.toString(),
                     queryLabel = metadata["queryLabel"]?.toString()
@@ -338,7 +339,11 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
         val blocked = metadata["blockReason"]?.toString()?.isNotBlank() == true
         observedResponses.incrementAndGet()
         if (grounded) groundedResponses.incrementAndGet()
-        if (metadata["deliveryMode"] == "scheduled") scheduledResponses.incrementAndGet() else interactiveResponses.incrementAndGet()
+        if (metadata["deliveryMode"] == "scheduled") {
+            scheduledResponses.incrementAndGet()
+        } else {
+            interactiveResponses.incrementAndGet()
+        }
         if (blocked) blockedResponses.incrementAndGet()
         incrementBucket(answerModeCounts, answerMode, "unknown")
         incrementBucket(channelCounts, metadata["channel"]?.toString(), "unknown")
@@ -368,7 +373,10 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
 
     override fun topMissingQueries(limit: Int): List<MissingQueryInsight> {
         return missingQueryCounts.values
-            .sortedWith(compareByDescending<MissingQueryAggregate> { it.count.get() }.thenByDescending { it.lastOccurredAt })
+            .sortedWith(
+                compareByDescending<MissingQueryAggregate> { it.count.get() }
+                    .thenByDescending { it.lastOccurredAt }
+            )
             .take(limit)
             .map {
                 MissingQueryInsight(
