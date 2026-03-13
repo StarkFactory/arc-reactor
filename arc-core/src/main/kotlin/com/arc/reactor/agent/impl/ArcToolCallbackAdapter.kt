@@ -39,14 +39,11 @@ internal class ArcToolCallbackAdapter(
         } catch (e: TimeoutCancellationException) {
             val timeoutMessage = blockingInvoker.timeoutErrorMessage(arcCallback)
             logger.warn { timeoutMessage }
-            throw RuntimeException(timeoutMessage, e)
+            timeoutMessage
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             logger.error(e) { "Tool callback execution failed for '${arcCallback.name}'" }
-            throw RuntimeException(
-                "Tool '${arcCallback.name}' execution failed: ${e.message.orEmpty()}",
-                e
-            )
+            "Error: Tool '${arcCallback.name}' execution failed: ${e.message.orEmpty()}"
         }
     }
 }
