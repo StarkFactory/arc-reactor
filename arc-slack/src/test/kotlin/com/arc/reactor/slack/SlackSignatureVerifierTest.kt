@@ -134,6 +134,34 @@ class SlackSignatureVerifierTest {
     }
 
     @Nested
+    inner class BlankSigningSecret {
+
+        @Test
+        fun `blank signing secret rejects all requests (fail-close)`() {
+            val blankVerifier = SlackSignatureVerifier("", timestampToleranceSeconds = 300)
+            val timestamp = currentTimestamp()
+            val body = "test-body"
+
+            val result = blankVerifier.verify(timestamp, "v0=anything", body)
+
+            result.success shouldBe false
+            result.errorMessage!! shouldContain "Signing secret not configured"
+        }
+
+        @Test
+        fun `whitespace-only signing secret rejects all requests`() {
+            val blankVerifier = SlackSignatureVerifier("   ", timestampToleranceSeconds = 300)
+            val timestamp = currentTimestamp()
+            val body = "test-body"
+
+            val result = blankVerifier.verify(timestamp, "v0=anything", body)
+
+            result.success shouldBe false
+            result.errorMessage!! shouldContain "Signing secret not configured"
+        }
+    }
+
+    @Nested
     inner class TimestampTolerance {
 
         @Test
