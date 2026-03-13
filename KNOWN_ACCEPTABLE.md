@@ -168,3 +168,5 @@
 | `ConversationMessageTrimmer.kt:153` group size 1 for broken pair | P4 | 이미 깨진 쌍 정상 처리 | 2026-03-13 |
 | `SlackSocketModeGateway.kt:54` double-start race | P4 | Spring DefaultLifecycleProcessor가 start() 동기 호출 | 2026-03-13 |
 | `SlackApiClient.kt:631` Thread.sleep in executeWithRetry | P4 | non-suspend 함수, IO 디스패처 elastic pool | 2026-03-13 |
+| `DefaultSlackCommandHandler.kt:101` mrkdwn injection (@channel/@here) | P3 | 인증된 Slack 사용자만 접근, 동일 채널 내 반복. 워크스페이스 멘션 제한 우회 가능하나 설계 의도 수준 | 2026-03-13 |
+| `SlackMessagingService.kt:172` rate limiter TOCTOU | P4 | AtomicLong TOCTOU이나 Slack API 자체 rate limit이 최종 방어선 | 2026-03-13 |

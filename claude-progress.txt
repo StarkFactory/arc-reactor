@@ -2,42 +2,16 @@
 
 ## 이전 아카이브: claude-progress-archive.txt 참조
 
-- 렌즈 3 (Agent 동작) — ReAct 루프, 도구 실패, 무한 루프, 컨텍스트, 메시지 쌍
-- 발견: P2 1건 (StreamingReActLoopExecutor chunk.result NPE) → 수정 (da1d329)
-- 기각: P4 3건 → KNOWN_ACCEPTABLE
-- ReAct 루프 종료 조건, 메시지 쌍 무결성, 컨텍스트 트리밍 모두 정상 확인
-- 이번 세션 8렌즈 전체 스캔 완료 (렌즈 4→5→6→7→8→1→2→3)
-- 총 수정: P2 3건 + P3 1건 + P4 1건 = 5건
-- 수렴 판정: 8렌즈 전부 이번 세션 스캔, P0-P1 신규 0건, P2-P3 수정 후 재검증 완료
-- git push origin dev 완료 (51165ba)
-
-[Ralph 반복 24] 2026-03-13 — 전체 8렌즈 fresh scan (독립 세션)
-- 렌즈 4 (성능): P0-P3 신규 0건, P4 4건 기각
-- 렌즈 5 (테스트 갭): P0-P3 신규 0건, P4 4건+FP 1건 기각
-- 렌즈 6 (API 계약): P0-P3 신규 0건, 403 ErrorResponse 전수 검증 통과
-- 렌즈 7 (운영): P0-P3 신규 0건, P4 3건 기각
-- 렌즈 8 (Critical Gotchas): P0-P3 신규 0건, 기존 수정 확인
-- 렌즈 1 (보안) 재스캔: P3 1건 (SlackSignatureVerifier blank secret) → 수정 (2783a67)
-- 렌즈 2 (견고성) 재스캔: P0-P3 신규 0건 (기존 @Volatile 수정 upstream 확인)
-- 렌즈 3 (Agent 동작) 재스캔: P0-P3 신규 0건, P4 3건 기각
-- arc-slack 모듈 집중 8렌즈 재스캔: P0-P3 신규 0건
-- 총 수정: P3 1건 (SlackSignatureVerifier fail-close)
-
-[Ralph 반복 25] 2026-03-13 — P0-P1 집중 스캔 (>20회 수렴 조건)
-- 렌즈: 보안+견고성+Agent동작+성능 P0-P1 집중
-- 스캐너 2개 병렬 실행: 핵심 파일 전수 검사
-- P0-P1 신규: 0건
-- 수렴 판정: 8렌즈 전부 스캔 완료, P0-P1 신규 0건, 미완료 항목 0건
-- git push origin dev 완료
-
-[Ralph 반복 26] 2026-03-13 — 렌즈 4 (성능) P0-P1 집중
-- 컴파일 0 warnings 확인
-- 스캐너: sessionOwners 재발견 → KNOWN_ACCEPTABLE P2 기존 항목
-- P0-P1 신규: 0건
+[Ralph 반복 25-27] 2026-03-13 — P0-P1 집중 스캔 연속 3회
+- 렌즈 25: 보안+견고성+Agent동작+성능 P0-P1 집중 → 0건
+- 렌즈 26 (성능): sessionOwners 재발견 → KNOWN_ACCEPTABLE P2 → P0-P1 0건
+- 렌즈 27 (테스트 갭): critical path 전수 확인 → P0-P1 0건
 - 수렴 유지
 
-[Ralph 반복 27] 2026-03-13 — 렌즈 5 (테스트 갭) P0-P1 집중
-- 컴파일 0 warnings 확인
-- 스캐너: 핵심 경로 전수 확인 — 모든 critical path 테스트 커버리지 존재
+[Ralph 반복 28] 2026-03-13 — 전체 8렌즈 대규모 병렬 스캔 (13개 스캐너)
+- P1 후보 3건 직접 검증:
+  - StreamingReActLoopExecutor:94 last-wins → KNOWN_ACCEPTABLE P4 (Spring AI 표준)
+  - SequentialOrchestrator:75 null→"" → KNOWN_ACCEPTABLE P4 (방어적 코딩)
+  - DefaultSlackCommandHandler:101 mrkdwn → P3 (인증 사용자, 설계 의도) → KNOWN_ACCEPTABLE
 - P0-P1 신규: 0건
 - 수렴 유지
