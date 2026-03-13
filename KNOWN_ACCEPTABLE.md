@@ -143,3 +143,7 @@
 | `DefaultErrorReportHandler.kt:25` serviceName log injection | P4 | 상동 | 2026-03-13 |
 | MCP proxy `resolveRequestId` header injection | P4 | admin 전용 + Spring WebClient 헤더 검증 | 2026-03-13 |
 | `FeedbackController.kt:177` input value echo in 400 | P4 | API 응답 내 반사, XSS 불가 | 2026-03-13 |
+| `ToolCallOrchestrator.kt:44` springToolCallbackCache unbounded | P4 | Spring 싱글톤 기반, 실제 무한 증가 이론적 | 2026-03-13 |
+| `DynamicSchedulerService.kt:190` catch(Exception) non-suspend | P4 | non-suspend fun, runBlocking 내 CancellationException → FAILED 기록 적절 | 2026-03-13 |
+| `DynamicSchedulerService.kt:218` runBlocking on scheduler thread | P4 | 설계 선택 — 스케줄러가 agent 실행. timeout으로 제한 | 2026-03-13 |
+| `McpReconnectionCoordinator.kt:59` catch around delay | P4 | throwIfCancellation 정상 호출, 스타일 이슈 | 2026-03-13 |

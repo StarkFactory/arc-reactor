@@ -67,3 +67,10 @@
 - ErrorReportController apiKey blank: 선택적 모듈 설계 의도
 - MCP admin SSRF/command: admin 전용 신뢰 경계
 - P0-P3 신규 0건, 기각 P3 6건 + P4 4건 → KNOWN_ACCEPTABLE
+
+[Ralph 반복 22] 2026-03-13 — 렌즈 2 견고성 (fresh scan)
+- 렌즈 2 (견고성) — 리소스 누수, 동시성, 에러 복구, 미처리 예외
+- 2개 병렬 스캐너: 전체 견고성, withTimeout+suspend 전문
+- 발견: P2 1건 (SlackSocketModeGateway @Volatile 누락) + P3 1건 (SlackReminderScheduler throwIfCancellation)
+- 수정: 2건 (d6bede4)
+- 기각: P4 4건 → KNOWN_ACCEPTABLE
