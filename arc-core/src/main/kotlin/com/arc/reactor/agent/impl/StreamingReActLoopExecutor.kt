@@ -82,14 +82,15 @@ internal class StreamingReActLoopExecutor(
             var lastChunkMeta: org.springframework.ai.chat.metadata.ChatResponseMetadata? = null
 
             flux.asFlow().collect { chunk ->
-                val text = chunk.result.output.text
+                val generation = chunk.result ?: return@collect
+                val text = generation.output.text
                 if (!text.isNullOrEmpty()) {
                     emit(text)
                     currentChunkText.append(text)
                     collectedContent.append(text)
                     currentIterationContent.append(text)
                 }
-                val chunkToolCalls = chunk.result.output.toolCalls
+                val chunkToolCalls = generation.output.toolCalls
                 if (!chunkToolCalls.isNullOrEmpty()) {
                     pendingToolCalls = chunkToolCalls
                 }
