@@ -132,3 +132,4 @@
 | `AlertScheduler.kt:74` failure 4-9 silent | P4 | 연속 실패 시 3+매10번째 로그, 운영 개선 수준 | 2026-03-13 |
 | `ToolObservabilityAspect.kt:88` JSON parse silent catch | P4 | 메트릭 정확도 개선 수준, 기능 영향 없음 | 2026-03-13 |
 | `DefaultMcpManager` AutoCloseable inference | P4 | Spring 6.x 자동 추론 정상 작동, 문서화 개선 수준 | 2026-03-13 |
+| `AssistantMessage()` 생성자 테스트 코드 사용 | P4 | 프로덕션은 builder 사용. 테스트는 protected 접근 가능. Spring AI 변경 시 대응 | 2026-03-13 |

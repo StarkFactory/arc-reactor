@@ -47,3 +47,14 @@
 - 2개 병렬 스캐너: 전체 운영, shutdown 전문
 - P0-P3 신규 0건
 - 기각: P4 8건 → KNOWN_ACCEPTABLE (scheduler graceful, inputMaxChars 기본값 차이 등)
+
+[Ralph 반복 20] 2026-03-13 — 렌즈 8 Critical Gotchas (fresh scan)
+- 렌즈 8 (Critical Gotchas) — CancellationException, activeTools, .forEach, AssistantMessage, Guard null userId
+- 2개 병렬 스캐너: CancellationException 전문, 기타 패턴 전문
+- CancellationException: 전 모듈 suspend fun catch 블록 검증 완료 — 위반 0건
+- activeTools=emptyList: 양 루프 검증 완료 — 위반 0건
+- .forEach suspend: 프로덕션 코드 위반 0건
+- AssistantMessage builder: 프로덕션 코드 위반 0건 (테스트만 P4)
+- Guard null userId: 전 진입점 "anonymous" 폴백 확인 — 위반 0건
+- toolsUsed adapter check: 양 경로 검증 완료 — 위반 0건
+- P0-P3 신규 0건, 기각 P4 1건
