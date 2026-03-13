@@ -296,8 +296,18 @@ data class McpSecurityProperties(
     val allowedServerNames: Set<String> = emptySet(),
 
     /** Maximum tool output length in characters */
-    val maxToolOutputLength: Int = 50_000
-)
+    val maxToolOutputLength: Int = 50_000,
+
+    /** Allowed STDIO command executables. Only these base commands are permitted. */
+    val allowedStdioCommands: Set<String> = DEFAULT_ALLOWED_STDIO_COMMANDS
+) {
+    companion object {
+        /** Default set of known-safe STDIO executables for MCP servers. */
+        val DEFAULT_ALLOWED_STDIO_COMMANDS: Set<String> = setOf(
+            "npx", "node", "python", "python3", "uvx", "uv", "docker", "deno", "bun"
+        )
+    }
+}
 
 /**
  * MCP auto-reconnection configuration.

@@ -12,18 +12,21 @@ import java.util.concurrent.atomic.AtomicReference
 data class McpSecurityPolicy(
     val allowedServerNames: Set<String> = emptySet(),
     val maxToolOutputLength: Int = 50_000,
+    val allowedStdioCommands: Set<String> = McpSecurityConfig.DEFAULT_ALLOWED_STDIO_COMMANDS,
     val createdAt: Instant = Instant.EPOCH,
     val updatedAt: Instant = Instant.EPOCH
 ) {
     fun toConfig(): McpSecurityConfig = McpSecurityConfig(
         allowedServerNames = allowedServerNames,
-        maxToolOutputLength = maxToolOutputLength
+        maxToolOutputLength = maxToolOutputLength,
+        allowedStdioCommands = allowedStdioCommands
     )
 
     companion object {
         fun fromConfig(config: McpSecurityConfig): McpSecurityPolicy = McpSecurityPolicy(
             allowedServerNames = config.allowedServerNames,
-            maxToolOutputLength = config.maxToolOutputLength
+            maxToolOutputLength = config.maxToolOutputLength,
+            allowedStdioCommands = config.allowedStdioCommands
         )
     }
 }

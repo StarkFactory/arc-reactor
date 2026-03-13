@@ -58,8 +58,16 @@ internal class McpConnectionSupport(
     private val connectionTimeoutMs: Long,
     private val maxToolOutputLengthProvider: () -> Int,
     private val allowPrivateAddresses: Boolean = false,
+    private val allowedStdioCommandsProvider: () -> Set<String> = {
+        McpSecurityConfig.DEFAULT_ALLOWED_STDIO_COMMANDS
+    },
     private val onConnectionError: (serverName: String) -> Unit = {}
 ) {
+
+    companion object {
+        /** Matches control characters below 0x20 except tab (0x09) and newline (0x0A). */
+        private val UNSAFE_CONTROL_CHAR_REGEX = Regex("[\\x00-\\x08\\x0B-\\x1F]")
+    }
 
     fun open(server: McpServer): McpConnectionHandle? {
         val client = when (server.transportType) {
@@ -90,11 +98,11 @@ internal class McpConnectionSupport(
             logger.warn { "STDIO transport requires 'command' in config for server: ${server.name}" }
             return null
         }
-        val args = (server.config["args"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
-        if (command.contains("/") && !Files.exists(Paths.get(command))) {
-            logger.warn { "STDIO command does not exist for server '${server.name}': $command" }
-            return null
-        }
+        val args = (server.config["args"] as? List<*>)
+            ?.filterIsInstance<String>() ?: emptyList()
+
+        if (!validateStdioCommand(command, server.name)) return null
+        if (!validateStdioArgs(args, server.name)) return null
 
         return try {
             val params = ServerParameters.builder(command)
@@ -115,6 +123,62 @@ internal class McpConnectionSupport(
             logger.error(e) { "Failed to create STDIO transport for ${server.name}" }
             null
         }
+    }
+
+    /**
+     * Validates the STDIO command against the allowlist and rejects
+     * path traversal patterns.
+     */
+    internal fun validateStdioCommand(
+        command: String,
+        serverName: String
+    ): Boolean {
+        if (command.contains("..")) {
+            logger.warn {
+                "STDIO command contains path traversal for server " +
+                    "'$serverName': $command"
+            }
+            return false
+        }
+
+        val baseName = command.substringAfterLast("/")
+        val allowed = allowedStdioCommandsProvider()
+        if (baseName !in allowed) {
+            logger.warn {
+                "STDIO command '$baseName' is not in the allowed commands " +
+                    "list for server '$serverName'. " +
+                    "Allowed: $allowed"
+            }
+            return false
+        }
+
+        if (command.contains("/") && !Files.exists(Paths.get(command))) {
+            logger.warn {
+                "STDIO command does not exist for server " +
+                    "'$serverName': $command"
+            }
+            return false
+        }
+        return true
+    }
+
+    /**
+     * Validates STDIO args, rejecting null bytes and control characters.
+     */
+    internal fun validateStdioArgs(
+        args: List<String>,
+        serverName: String
+    ): Boolean {
+        for (arg in args) {
+            if (UNSAFE_CONTROL_CHAR_REGEX.containsMatchIn(arg)) {
+                logger.warn {
+                    "STDIO args contain unsafe control characters " +
+                        "for server '$serverName'"
+                }
+                return false
+            }
+        }
+        return true
     }
 
     private fun connectSse(server: McpServer): McpSyncClient? {
