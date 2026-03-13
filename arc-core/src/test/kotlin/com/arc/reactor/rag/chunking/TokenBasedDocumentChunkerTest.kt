@@ -318,9 +318,29 @@ class TokenBasedDocumentChunkerTest {
     inner class ChunkIdHelpers {
 
         @Test
-        fun `isChunkId returns true for chunk IDs`() {
+        fun `chunkId produces valid UUID strings`() {
             val chunkId = DocumentChunker.chunkId("parent-123", 0)
-            assertTrue(DocumentChunker.isChunkId(chunkId), "chunkId output should be recognized as chunk ID")
+            val parsed = java.util.UUID.fromString(chunkId)
+            assertEquals(chunkId, parsed.toString(), "chunkId should produce a valid UUID")
+        }
+
+        @Test
+        fun `chunkId is deterministic`() {
+            val id1 = DocumentChunker.chunkId("parent-123", 0)
+            val id2 = DocumentChunker.chunkId("parent-123", 0)
+            assertEquals(id1, id2, "Same parent + index should produce the same chunk ID")
+        }
+
+        @Test
+        fun `chunkId varies by index`() {
+            val id0 = DocumentChunker.chunkId("parent-123", 0)
+            val id1 = DocumentChunker.chunkId("parent-123", 1)
+            assertNotEquals(id0, id1, "Different indices should produce different chunk IDs")
+        }
+
+        @Test
+        fun `isChunkId returns true for legacy chunk IDs`() {
+            assertTrue(DocumentChunker.isChunkId("parent-123:chunk:0"), "Legacy chunk ID should be recognized")
         }
 
         @Test
