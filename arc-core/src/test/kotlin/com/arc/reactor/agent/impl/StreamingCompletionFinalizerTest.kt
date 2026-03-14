@@ -165,6 +165,34 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
+    fun `should not save history when streaming LLM returns empty content`() = runBlocking {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val hookExecutor = mockk<HookExecutor>(relaxed = true)
+        val finalizer = StreamingCompletionFinalizer(
+            boundaries = BoundaryProperties(),
+            conversationManager = conversationManager,
+            hookExecutor = hookExecutor,
+            agentMetrics = mockk(relaxed = true)
+        )
+
+        finalizer.finalize(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            streamStarted = true,
+            streamSuccess = true,
+            collectedContent = "",
+            lastIterationContent = "",
+            streamErrorMessage = null,
+            streamErrorCode = null,
+            toolsUsed = emptyList(),
+            startTime = 1_000L,
+            emit = {}
+        )
+
+        coVerify(exactly = 0) { conversationManager.saveStreamingHistory(any(), any()) }
+    }
+
+    @Test
     fun `should rethrow cancellation from streaming after hook`() = runBlocking {
         val hookExecutor = mockk<HookExecutor>()
         coEvery { hookExecutor.executeAfterAgentComplete(any(), any()) } throws CancellationException("cancelled")

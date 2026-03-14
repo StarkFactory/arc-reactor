@@ -441,6 +441,50 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
+    fun `should reject boundary-retried content when output guard blocks the longer response`() = runBlocking {
+        val rejectingStage = object : OutputGuardStage {
+            override val stageName = "RejectLong"
+            override val order = 1
+            override suspend fun check(content: String, context: OutputGuardContext): OutputGuardResult {
+                if (content.length > 10) {
+                    return OutputGuardResult.Rejected(
+                        reason = "harmful content in retry",
+                        category = OutputRejectionCategory.POLICY_VIOLATION
+                    )
+                }
+                return OutputGuardResult.Allowed.DEFAULT
+            }
+        }
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val hookExecutor = mockk<HookExecutor>(relaxed = true)
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = OutputGuardPipeline(listOf(rejectingStage)),
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(outputMinChars = 15, outputMinViolationMode = OutputMinViolationMode.RETRY_ONCE),
+            conversationManager = conversationManager,
+            hookExecutor = hookExecutor,
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "short"),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            toolsUsed = emptyList(),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> "this is a much longer harmful response" }
+        )
+
+        assertFalse(result.success, "Guard should reject the boundary-retried content")
+        assertEquals(AgentErrorCode.OUTPUT_GUARD_REJECTED, result.errorCode,
+            "Error code should be OUTPUT_GUARD_REJECTED when re-run guard blocks retried content")
+        coVerify(exactly = 0) { conversationManager.saveHistory(any(), any()) }
+    }
+
+    @Test
     fun `should rethrow cancellation from after hook`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>()
