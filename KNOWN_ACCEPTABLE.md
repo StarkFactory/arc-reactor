@@ -222,3 +222,4 @@
 | `GoogleSheetsTool/DriveTool/GmailTool` NetHttpTransport per call | P4 | GoogleCalendarTool:61 KA와 동일. JDK HttpURLConnection 글로벌 풀 관리, close()는 no-op | 2026-03-14 |
 | `AgentRunContextManager.kt:48-51` close() MDC removal | P4 | MDCContext(map) 도입으로 coroutine snapshot 정확. close()는 best-effort thread cleanup | 2026-03-14 |
 | `ToolPreparationPlanner.kt:57-60` WeakHashMap non-atomic cache | P4 | 동일 ToolCallback에 중복 ArcToolCallbackAdapter 생성 가능하나 기능 동일. 추가 할당 1회 | 2026-03-14 |
+| `AgentRunContextManager.kt` MDCContext scope 제한 | P4 | open()에서 MDCContext(map)은 snapshot 정확성 보장. 코루틴 전체 전파는 별도 개선. MDC.put best-effort | 2026-03-14 |

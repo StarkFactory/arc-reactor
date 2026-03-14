@@ -57,3 +57,8 @@
 - 영역: agent core (impl, config, guard, hook, tool, multi) + MCP/memory/scheduler/web/admin/modules
 - P2 1건 발견+수정: AgentRunContextManager MDC race → MDCContext(map) 생성자 사용 (26e7213)
 - P4 6건 KA 기록: StreamingCompletionFinalizer boundary markers, InMemoryAlertRuleStore 무한 누적, PromptLabController 비원자적 cap, Google tools NetHttpTransport, close() MDC removal, ToolPreparationPlanner WeakHashMap
+
+[Refactoring 반복 11] 2026-03-14 — 렌즈 3: Agent 동작 (codebase-scanner sonnet x1)
+- 영역: agent/impl/ 전체 (ReAct loop, tool orchestration, streaming, context trimming)
+- P3 1건 발견+수정: StreamingCompletionFinalizer empty content orphaned user turn (6ea86a8)
+- P4 1건 KA 기록: AgentRunContextManager MDCContext scope 제한
