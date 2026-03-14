@@ -23,9 +23,9 @@ class ConversationMessageTrimmer(
 ) {
     private val messageTokenCache = Collections.synchronizedMap(WeakHashMap<Message, Int>())
 
-    fun trim(messages: MutableList<Message>, systemPrompt: String) {
+    fun trim(messages: MutableList<Message>, systemPrompt: String, toolTokenReserve: Int = 0) {
         val systemTokens = tokenEstimator.estimate(systemPrompt)
-        val budget = maxContextWindowTokens - systemTokens - outputReserveTokens
+        val budget = maxContextWindowTokens - systemTokens - outputReserveTokens - toolTokenReserve
 
         if (budget <= 0) {
             logger.warn {

@@ -72,7 +72,7 @@ internal class StreamingReActLoopExecutor(
 
         while (true) {
             val currentIterationContent = StringBuilder()
-            messageTrimmer.trim(messages, systemPrompt)
+            messageTrimmer.trim(messages, systemPrompt, activeTools.size * TOKENS_PER_TOOL_DEFINITION)
 
             val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
             val llmStart = System.nanoTime()
@@ -173,11 +173,22 @@ internal class StreamingReActLoopExecutor(
                 logger.info { "maxToolCalls reached in streaming ($totalToolCalls/$maxToolCalls), final answer" }
                 activeTools = emptyList()
                 chatOptions = buildChatOptions(command, false)
+                messages.add(
+                    org.springframework.ai.chat.messages.SystemMessage(
+                        "Tool call limit reached ($totalToolCalls/$maxToolCalls). " +
+                            "Summarize the results you have so far and provide your best answer. " +
+                            "Do not request additional tool calls."
+                    )
+                )
             }
         }
     }
 
     private fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean {
         return chatOptions is GoogleGenAiChatOptions
+    }
+
+    companion object {
+        private const val TOKENS_PER_TOOL_DEFINITION = 200
     }
 }
