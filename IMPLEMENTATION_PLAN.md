@@ -1,5 +1,5 @@
 # Implementation Plan
-> 마지막 업데이트: 2026-03-14 | Ralph 반복 15 — 렌즈 1 (보안) P3 1건 수정
+> 마지막 업데이트: 2026-03-14 | Ralph 반복 16 — 렌즈 2 (견고성) P2 1건 수정
 
 ## P0 — 즉시 수정 (런타임 크래시, 데이터 손실)
 
@@ -79,6 +79,7 @@
 - [x] P1: `ToolCallOrchestrator.kt:440,471` — e.message null → "Unknown error" 폴백 추가
 - [x] P2: `PromptLabController.kt:302` — autoOptimize maxConcurrentExperiments 가드 추가
 - [x] P3: `ExecutionResultFinalizer.kt:58-66` — attemptLongerResponse output guard 우회 수정: boundary retry 후 content 변경 시 output guard 재실행
+- [x] P2: `AgentRunContextManager.kt:24-27` — MDC race: MDCContext(map) 생성자로 thread-local 경합 방지 (26e7213)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)

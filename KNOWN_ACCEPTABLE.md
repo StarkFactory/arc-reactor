@@ -216,3 +216,9 @@
 | `JwtAuthWebFilter.kt:57` blank sub → "anonymous" | P4 | JWT 서명키 탈취 전제. 키 보유 시 어떤 userId도 위장 가능. 방어적 폴백 수준 | 2026-03-14 |
 | `WebhookNotificationHook.kt:40` SSRF (webhookProperties.url) | P4 | arc.reactor.webhook.url 운영자 설정 속성. MCP admin proxy와 동일 신뢰 경계 | 2026-03-14 |
 | `MediaAttachment.uri` 사설IP 미검증 | P4 | http/https+host 검증 존재(ChatController:378). URI는 LLM 프로바이더 API로 전달, 서버 직접 fetch 아님 | 2026-03-14 |
+| `StreamingCompletionFinalizer.kt:48` emitBoundaryMarkers after guard rejection | P4 | 스트리밍 모드에서 content 이미 클라이언트에 전송됨. markers는 크기 메타데이터만 | 2026-03-14 |
+| `InMemoryAlertRuleStore.kt:46` alert 무한 누적 | P4 | dev/test 전용 스토어. 프로덕션은 JdbcAlertRuleStore 사용. 다른 InMemory 스토어와 동일 패턴 | 2026-03-14 |
+| `PromptLabController.kt:167,307` 비원자적 concurrent cap | P4 | 기존 KA (176,308 scope.launch/runningJobs race) 동일 이슈. Dispatchers.IO 이론적 race | 2026-03-14 |
+| `GoogleSheetsTool/DriveTool/GmailTool` NetHttpTransport per call | P4 | GoogleCalendarTool:61 KA와 동일. JDK HttpURLConnection 글로벌 풀 관리, close()는 no-op | 2026-03-14 |
+| `AgentRunContextManager.kt:48-51` close() MDC removal | P4 | MDCContext(map) 도입으로 coroutine snapshot 정확. close()는 best-effort thread cleanup | 2026-03-14 |
+| `ToolPreparationPlanner.kt:57-60` WeakHashMap non-atomic cache | P4 | 동일 ToolCallback에 중복 ArcToolCallbackAdapter 생성 가능하나 기능 동일. 추가 할당 1회 | 2026-03-14 |
