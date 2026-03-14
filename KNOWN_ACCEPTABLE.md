@@ -228,3 +228,4 @@
 | `StreamingExecutionCoordinator.kt:55` error dispatch 미테스트 | P4 | BlockedIntent/Timeout/Unexpected 3경로. coordinator 단위 테스트, 핵심 로직은 하위 모듈에서 커버 | 2026-03-14 |
 | `ToolPreparationPlanner.kt:27` LocalToolFilter exception fallback 미테스트 | P4 | 방어적 fallback (warn+이전 목록 유지). fail-open 설계, 필터 자체 테스트에서 간접 커버 | 2026-03-14 |
 | `GoogleCredentialProvider.kt:28` path traversal | P4 | config property (arc.reactor.google.service-account-key-path). 운영자 설정, admin 신뢰 경계 | 2026-03-14 |
+| `ExecutionResultFinalizerTest:444` re-guard hook 검증 누락 | P4 | hookExecutor relaxed mock 사용. 첫 guard rejection 테스트(line 136)에서 hook 호출 검증됨. 동일 코드 경로 | 2026-03-14 |
