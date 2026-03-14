@@ -482,6 +482,12 @@ class ExecutionResultFinalizerTest {
         assertEquals(AgentErrorCode.OUTPUT_GUARD_REJECTED, result.errorCode,
             "Error code should be OUTPUT_GUARD_REJECTED when re-run guard blocks retried content")
         coVerify(exactly = 0) { conversationManager.saveHistory(any(), any()) }
+        coVerify(exactly = 1) {
+            hookExecutor.executeAfterAgentComplete(
+                any(),
+                match { !it.success && it.errorCode == "OUTPUT_GUARD_REJECTED" }
+            )
+        }
     }
 
     @Test
