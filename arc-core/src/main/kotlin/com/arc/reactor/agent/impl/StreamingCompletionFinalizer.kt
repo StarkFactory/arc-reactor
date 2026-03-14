@@ -42,7 +42,7 @@ internal class StreamingCompletionFinalizer(
     ) {
         if (streamSuccess) {
             val guardPassed = applyStreamingOutputGuard(command, collectedContent, toolsUsed, startTime, emit)
-            if (guardPassed) {
+            if (guardPassed && lastIterationContent.isNotEmpty()) {
                 conversationManager.saveStreamingHistory(command, lastIterationContent)
             }
             emitBoundaryMarkers(collectedContent, emit)
