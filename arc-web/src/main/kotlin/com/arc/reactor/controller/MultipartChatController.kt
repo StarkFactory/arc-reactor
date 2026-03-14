@@ -69,6 +69,7 @@ class MultipartChatController(
         @RequestPart("systemPrompt", required = false) systemPrompt: String?,
         @RequestPart("personaId", required = false) personaId: String?,
         @RequestPart("userId", required = false) userId: String?,
+        @RequestPart("sessionId", required = false) sessionId: String?,
         exchange: ServerWebExchange
     ): ChatResponse {
         validateMultimodalEnabled()
@@ -84,16 +85,19 @@ class MultipartChatController(
         val resolvedUserId = resolveUserId(exchange, userId)
         val resolvedTenantId = TenantContextResolver.resolveTenantId(exchange)
 
+        val metadata = buildMap<String, Any> {
+            put("channel", "web")
+            put("tenantId", resolvedTenantId)
+            sessionId?.takeIf { it.isNotBlank() }?.let { put("sessionId", it) }
+        }
+
         val result = agentExecutor.execute(
             AgentCommand(
                 systemPrompt = resolvedSystemPrompt,
                 userPrompt = message,
                 model = model,
                 userId = resolvedUserId,
-                metadata = mapOf(
-                    "channel" to "web",
-                    "tenantId" to resolvedTenantId
-                ),
+                metadata = metadata,
                 media = mediaAttachments
             )
         )

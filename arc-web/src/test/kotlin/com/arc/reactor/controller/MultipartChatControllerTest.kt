@@ -89,6 +89,7 @@ class MultipartChatControllerTest {
                 systemPrompt = null,
                 personaId = null,
                 userId = null,
+                sessionId = null,
                 exchange = exchange
             )
 
@@ -120,6 +121,7 @@ class MultipartChatControllerTest {
                     systemPrompt = null,
                     personaId = null,
                     userId = null,
+                    sessionId = null,
                     exchange = mockExchange(attributes = mutableMapOf())
                 )
                 throw AssertionError("Multipart should reject missing tenant context")
@@ -150,6 +152,7 @@ class MultipartChatControllerTest {
                     systemPrompt = null,
                     personaId = null,
                     userId = null,
+                    sessionId = null,
                     exchange = mockExchange()
                 )
             }
@@ -176,6 +179,7 @@ class MultipartChatControllerTest {
                 systemPrompt = null,
                 personaId = null,
                 userId = null,
+                sessionId = null,
                 exchange = mockExchange()
             )
 
@@ -200,6 +204,7 @@ class MultipartChatControllerTest {
                     systemPrompt = null,
                     personaId = null,
                     userId = null,
+                    sessionId = null,
                     exchange = mockExchange()
                 )
             }
@@ -226,6 +231,7 @@ class MultipartChatControllerTest {
                 systemPrompt = null,
                 personaId = null,
                 userId = null,
+                sessionId = null,
                 exchange = mockExchange()
             )
 
@@ -250,6 +256,7 @@ class MultipartChatControllerTest {
                     systemPrompt = null,
                     personaId = null,
                     userId = null,
+                    sessionId = null,
                     exchange = mockExchange()
                 )
             }
