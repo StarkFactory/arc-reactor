@@ -3,7 +3,7 @@ package com.arc.reactor.agent.impl
 import com.arc.reactor.agent.model.ResponseFormat
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
-private val structuredOutputValidatorObjectMapper = jacksonObjectMapper()
+private val objectMapper = jacksonObjectMapper()
 
 class StructuredOutputValidator {
 
@@ -26,7 +26,7 @@ class StructuredOutputValidator {
 
     private fun validateJson(content: String): Boolean {
         return try {
-            structuredOutputValidatorObjectMapper.readTree(content)
+            objectMapper.readTree(content)
             true
         } catch (e: Exception) {
             false

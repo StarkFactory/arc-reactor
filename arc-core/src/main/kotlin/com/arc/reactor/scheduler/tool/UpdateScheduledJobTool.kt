@@ -51,7 +51,7 @@ NOTE: Changing agentPrompt alters what the job executes on every future run. Con
             val existing = when {
                 trimmedId != null -> schedulerService.findById(trimmedId)
                     ?: return errorJson("Job not found with id: $trimmedId")
-                else -> schedulerService.findByName(trimmedName!!)
+                else -> schedulerService.findByName(trimmedName ?: return errorJson("jobName is required"))
                     ?: return errorJson("Job not found with name: $trimmedName")
             }
 

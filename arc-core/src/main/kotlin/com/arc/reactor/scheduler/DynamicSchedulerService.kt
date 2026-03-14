@@ -250,10 +250,6 @@ class DynamicSchedulerService(
 
     // -- MCP_TOOL mode ----------------------------------------------------------
 
-    private fun executeMcpToolJob(job: ScheduledJob): String = runBlocking {
-        executeMcpToolJobSuspend(job)
-    }
-
     private suspend fun executeMcpToolJobSuspend(job: ScheduledJob): String {
         val serverName = job.mcpServerName
             ?: throw IllegalStateException("mcpServerName is required for MCP_TOOL job: ${job.name}")
@@ -365,10 +361,6 @@ class DynamicSchedulerService(
     }
 
     // -- AGENT mode -------------------------------------------------------------
-
-    private fun executeAgentJob(job: ScheduledJob): String = runBlocking {
-        executeAgentJobSuspend(job)
-    }
 
     private suspend fun executeAgentJobSuspend(job: ScheduledJob): String {
         val executor = agentExecutor

@@ -45,7 +45,7 @@ class JdbcTenantStore(
     }
 
     override fun save(tenant: Tenant): Tenant {
-        val metadataJson = OBJECT_MAPPER.writeValueAsString(tenant.metadata)
+        val metadataJson = objectMapper.writeValueAsString(tenant.metadata)
         jdbcTemplate.update(
             """INSERT INTO tenants (id, name, slug, plan, status,
                    max_requests_per_month, max_tokens_per_month, max_users, max_agents, max_mcp_servers,
@@ -82,14 +82,14 @@ class JdbcTenantStore(
     }
 
     companion object {
-        private val OBJECT_MAPPER = jacksonObjectMapper()
+        private val objectMapper = jacksonObjectMapper()
 
         private val ROW_MAPPER = { rs: ResultSet, _: Int ->
             val metadataJson = rs.getString("metadata")
             val metadata: Map<String, Any> = if (metadataJson.isNullOrBlank()) {
                 emptyMap()
             } else {
-                OBJECT_MAPPER.readValue(metadataJson)
+                objectMapper.readValue(metadataJson)
             }
             Tenant(
                 id = rs.getString("id"),
