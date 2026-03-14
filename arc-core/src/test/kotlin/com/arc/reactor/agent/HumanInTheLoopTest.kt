@@ -19,6 +19,19 @@ class HumanInTheLoopTest {
     private lateinit var fixture: AgentTestFixture
     private val properties = AgentTestFixture.defaultProperties()
 
+    private suspend fun awaitPending(
+        store: InMemoryPendingApprovalStore,
+        timeoutMs: Long = 2_000
+    ): com.arc.reactor.approval.ApprovalSummary {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val pending = store.listPending()
+            if (pending.isNotEmpty()) return pending[0]
+            delay(20)
+        }
+        throw AssertionError("No pending approval within ${timeoutMs}ms")
+    }
+
     @BeforeEach
     fun setup() {
         fixture = AgentTestFixture()
@@ -60,16 +73,12 @@ class HumanInTheLoopTest {
                 )
             }
 
-            // Wait for approval request
-            delay(200)
-
-            // Verify pending approval exists
-            val pending = approvalStore.listPending()
-            assertEquals(1, pending.size) { "Expected 1 pending approval" }
-            assertEquals("delete_order", pending[0].toolName) { "Tool name mismatch" }
+            // Wait for approval request (polling instead of fixed delay)
+            val approval = awaitPending(approvalStore)
+            assertEquals("delete_order", approval.toolName) { "Tool name mismatch" }
 
             // Approve the tool call
-            approvalStore.approve(pending[0].id)
+            approvalStore.approve(approval.id)
 
             // Assert: execution completes successfully
             val agentResult = result.await()
@@ -107,11 +116,11 @@ class HumanInTheLoopTest {
                 )
             }
 
-            delay(200)
+            // Wait for approval request (polling instead of fixed delay)
+            val approval = awaitPending(approvalStore)
 
             // Reject the tool call
-            val pending = approvalStore.listPending()
-            approvalStore.reject(pending[0].id, "Not authorized")
+            approvalStore.reject(approval.id, "Not authorized")
 
             val agentResult = result.await()
             // The agent should still succeed (LLM gets rejection message and generates final answer)
