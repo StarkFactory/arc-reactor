@@ -32,6 +32,7 @@ import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyStore
 import com.arc.reactor.scheduler.JdbcScheduledJobStore
 import com.arc.reactor.scheduler.ScheduledJobStore
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -182,6 +183,7 @@ class JdbcToolPolicyStoreConfiguration {
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
 @ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
+@ConditionalOnBean(JdbcTemplate::class)
 class JdbcMcpSecurityPolicyStoreConfiguration {
 
     @Bean
