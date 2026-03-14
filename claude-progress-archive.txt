@@ -299,3 +299,80 @@
 
 [Ralph 반복 29-35] 2026-03-13 — 이전 PROMPT.md 7세션 연속 8렌즈 full scan, P0-P3 0건
 [Refactoring 반복 1] 2026-03-13 — 렌즈 1: 코루틴 안정성 (Explore opus x2), P0-P3 0건
+# Arc Reactor — Autonomous Improvement Progress
+
+## 이전 아카이브: claude-progress-archive.txt 참조
+
+[Refactoring 반복 1] 2026-03-13 — 렌즈 1: 코루틴 안정성 (Explore opus x2 병렬)
+- 영역: agent/impl 전체 + arc-core 나머지 + arc-web + arc-slack + arc-error-report
+- 후보 3건 → 전부 P4 기각 (동일 timeout, semaphore 미존재, request timeout 보호)
+- P0-P3 신규 0건
+
+[Refactoring 반복 2] 2026-03-13 — 렌즈 2: 에러 전파 경로 (Explore opus x3 병렬)
+- 영역: agent core + controllers + guards/hooks/MCP
+- P1 1건 발견+수정: StreamingCompletionFinalizer output guard crash fail-open → fail-close (d4b2515)
+- P3 3건 KA 기록: AgentErrorPolicy heuristic, MultipartChatController 200, executeAfterToolCall unprotected
+- FP 3건 기각: SchedulerController trigger (returns string), PromptLabController CancellationException (no catch), .forEach (already KA)
+
+[Refactoring 반복 3] 2026-03-13 — 렌즈 3: 리소스 수명 (Explore opus x2 병렬)
+- 영역: arc-core 전체 (MCP, agent, memory, scheduler) + arc-web + arc-slack + arc-admin + arc-google + arc-teams + arc-error-report
+- P1 1건 발견+수정: McpManager.handleConnectionError MCP 클라이언트 close 누락 → 리소스 누수 (e01d0b0)
+- 기타: 모든 CoroutineScope/Executor/WebClient/DataBuffer 정상 관리 확인
+
+[Refactoring 반복 4] 2026-03-13 — 렌즈 4: 데이터 흐름 무결성 (Explore opus x2 병렬)
+- 영역: DTO 변환 + 직렬화 경로 + 저장소/조회 경로
+- P2 1건 발견+수정: PreExecutionResolver GuardCommand.channel 미전달 → audit 누락 (5186cdf)
+- P3 2건 KA 기록: FeedbackResponse sessionId, ChatResponse durationMs (설계 선택)
+- 저장소 무결성: JDBC 컬럼 매핑, JSON 직렬화, 시간대 처리 모두 정상
+
+[Refactoring 반복 5] 2026-03-13 — 렌즈 5: 경계 조건 (Explore opus x2 병렬)
+- 영역: scheduler, agent config, cache, guard stages, web controllers
+- P2 1건 발견+수정: DynamicSchedulerService.runWithRetry maxRetryCount=0 빈 범위 → coerceAtLeast(1)
+- P4 5건 KA 기록: CaffeineResponseCache zero, TopicDriftDetection windowSize, SchedulerProperties 범위, maxConversationTurns, web controller 검증
+- 사용자 요청으로 루프 종료
+
+[Refactoring 반복 6] 2026-03-14 — 렌즈 6: 계약 준수 (Explore opus x2 병렬)
+- 영역: arc-core 인터페이스+구현체 (Guard, Hook, Tool, Bean) + arc-web/admin/slack/error-report 컨트롤러
+- 검증 완료: Guard fail-close, Hook try-catch+CancellationException, Tool "Error:" 반환, @ConditionalOnMissingBean, @Primary, @Tag/@Operation, 403 ErrorResponse body, AdminAuthSupport 사용
+- P0-P2 신규 0건
+- P3 4건 + P4 1건 + FP 1건 KA 기록: LlmClassificationStage fail-open (설계), SpringAiToolCallbackAdapter throws (래핑), JDBC @ConditionalOnMissingBean (FP), IntentRegistry InMemory 미등록 (opt-in), McpSwaggerCatalogController @ApiResponses
+
+[Refactoring 반복 7] 2026-03-14 — 렌즈 7: 스레드 안전성 (Explore opus x2 병렬)
+- 영역: arc-core (agent, tool, guard, memory, mcp, scheduler) + arc-web/admin/slack/teams/google/error-report
+- P2 1건 발견+수정: InMemoryUserMemoryStore updateFact/updatePreference/addRecentTopic get-then-put → compute() 원자적 갱신
+- P3 11건 + P4 1건 KA 기록: DefaultRateLimitStage Caffeine, McpManager handleConnectionError, TenantService TOCTOU/RMW, InMemoryScheduledJobStore, SemanticToolSelector, InMemoryPersonaStore, QuotaEnforcerHook, SlackReminderStore, TenantResolver ThreadLocal
+
+[Refactoring 반복 8] 2026-03-14 — 렌즈 8: 의존성 건전성 (Explore opus x2 병렬)
+- 영역: arc-core autoconfigure 전체 + arc-web/admin/slack/teams/google/error-report AutoConfiguration
+- P1 1건 발견+수정: systemPromptPostProcessor+toolOutputSanitizer agentExecutor 미주입 → ObjectProvider 주입 (f475a5f)
+- P2 1건 발견+수정: JdbcMcpSecurityPolicyStoreConfiguration @Import 누락 → 추가 (f475a5f)
+- P3 5건 + P4 2건 KA 기록: authProperties/jwtSecretValidator/runtimePreflightMarker @ConditionalOnMissingBean, OtlpExporter/MetricWriter/metricEventStore 미사용, ErrorReportController/SlackControllers @ConditionalOnBean
+
+[Refactoring 반복 9] 2026-03-14 — 렌즈 1: 보안 (codebase-scanner sonnet x3 병렬)
+- 영역: agent core + web/admin controllers + auth + MCP/memory/scheduler/modules
+- P3 1건 발견+수정: ExecutionResultFinalizer attemptLongerResponse output guard 우회 → boundary retry 후 content 변경 시 output guard 재실행 (dc845e5)
+- FP 1건: /api/auth/register publicPaths (auto-config에서 selfRegistrationEnabled 시 자동 추가)
+- P4 3건 KA 기록: JwtAuthWebFilter blank sub (키 탈취 전제), WebhookNotificationHook SSRF (운영자 설정), MediaAttachment.uri 사설IP (프로바이더 전달)
+
+[Refactoring 반복 10] 2026-03-14 — 렌즈 2: 견고성 (codebase-scanner sonnet x2 병렬)
+- 영역: agent core (impl, config, guard, hook, tool, multi) + MCP/memory/scheduler/web/admin/modules
+- P2 1건 발견+수정: AgentRunContextManager MDC race → MDCContext(map) 생성자 사용 (26e7213)
+- P4 6건 KA 기록: StreamingCompletionFinalizer boundary markers, InMemoryAlertRuleStore 무한 누적, PromptLabController 비원자적 cap, Google tools NetHttpTransport, close() MDC removal, ToolPreparationPlanner WeakHashMap
+
+[Refactoring 반복 11] 2026-03-14 — 렌즈 3: Agent 동작 (codebase-scanner sonnet x1)
+- 영역: agent/impl/ 전체 (ReAct loop, tool orchestration, streaming, context trimming)
+- P3 1건 발견+수정: StreamingCompletionFinalizer empty content orphaned user turn (6ea86a8)
+- P4 1건 KA 기록: AgentRunContextManager MDCContext scope 제한
+
+[Refactoring 반복 12] 2026-03-14 — 렌즈 4: 성능 (codebase-scanner sonnet x1)
+- 영역: arc-core 전체 + modules 핫패스
+- P0-P3 신규 0건
+- P4 2건 KA 기록: TokenEstimator int boxing, AgentExecutionCoordinator mcpToolCallbacks 이중 호출
+- 기존 KA 2건 재확인: SystemPromptBuilder lowercase, ToolCallOrchestrator O(n²) dedup
+
+[Refactoring 반복 13-16] 2026-03-14 — 렌즈 5-8 (테스트 갭, API 계약, 운영, Critical Gotchas)
+- 렌즈 5: P3 2건 수정 — 이번 세션 수정 회귀 테스트 추가 (ExecutionResultFinalizer output guard re-run, StreamingCompletionFinalizer empty skip) (e831fcb)
+- 렌즈 5: P4 2건 KA: StreamingExecutionCoordinator error dispatch, ToolPreparationPlanner filter fallback
+- 렌즈 6: P0-P3 신규 0건. SchedulerController 404 기존 KA 재확인
+- 렌즈 7: GoogleCredentialProvider per-request 기존 KA(P4) 재확인. path traversal P4 KA
+- 렌즈 8: CancellationException/forEach/AssistantMessage/Guard userId 위반 0건
