@@ -62,3 +62,9 @@
 - 영역: agent/impl/ 전체 (ReAct loop, tool orchestration, streaming, context trimming)
 - P3 1건 발견+수정: StreamingCompletionFinalizer empty content orphaned user turn (6ea86a8)
 - P4 1건 KA 기록: AgentRunContextManager MDCContext scope 제한
+
+[Refactoring 반복 12] 2026-03-14 — 렌즈 4: 성능 (codebase-scanner sonnet x1)
+- 영역: arc-core 전체 + modules 핫패스
+- P0-P3 신규 0건
+- P4 2건 KA 기록: TokenEstimator int boxing, AgentExecutionCoordinator mcpToolCallbacks 이중 호출
+- 기존 KA 2건 재확인: SystemPromptBuilder lowercase, ToolCallOrchestrator O(n²) dedup

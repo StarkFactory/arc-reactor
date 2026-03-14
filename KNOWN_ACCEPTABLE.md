@@ -223,3 +223,5 @@
 | `AgentRunContextManager.kt:48-51` close() MDC removal | P4 | MDCContext(map) 도입으로 coroutine snapshot 정확. close()는 best-effort thread cleanup | 2026-03-14 |
 | `ToolPreparationPlanner.kt:57-60` WeakHashMap non-atomic cache | P4 | 동일 ToolCallback에 중복 ArcToolCallbackAdapter 생성 가능하나 기능 동일. 추가 할당 1회 | 2026-03-14 |
 | `AgentRunContextManager.kt` MDCContext scope 제한 | P4 | open()에서 MDCContext(map)은 snapshot 정확성 보장. 코루틴 전체 전파는 별도 개선. MDC.put best-effort | 2026-03-14 |
+| `TokenEstimator.kt:44` codePoints().forEach int boxing | P4 | 미캐시 메시지만. WeakHashMap 캐시 존재. micro-optimization 수준 | 2026-03-14 |
+| `AgentExecutionCoordinator.kt:160` mcpToolCallbacks() 이중 호출 | P4 | 캐시 키 생성 + ToolPreparationPlanner에서 재호출. MCP 도구 수 소규모, map 순회 비용 미미 | 2026-03-14 |
