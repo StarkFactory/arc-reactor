@@ -39,7 +39,8 @@ internal class ToolCallOrchestrator(
     private val pendingApprovalStore: PendingApprovalStore?,
     private val agentMetrics: AgentMetrics,
     private val parseToolArguments: (String?) -> Map<String, Any?> = ::parseToolArguments,
-    private val toolOutputSanitizer: ToolOutputSanitizer? = null
+    private val toolOutputSanitizer: ToolOutputSanitizer? = null,
+    private val maxToolOutputLength: Int = DEFAULT_MAX_TOOL_OUTPUT_LENGTH
 ) {
     private val springToolCallbackCache =
         ConcurrentHashMap<ToolCallbackCacheKey, Map<String, org.springframework.ai.tool.ToolCallback>>()
@@ -417,6 +418,22 @@ internal class ToolCallOrchestrator(
         tools: List<Any>,
         springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>
     ): ToolInvocationOutcome {
+        val raw = invokeToolAdapterRaw(toolName, toolInput, tools, springCallbacksByName)
+        if (maxToolOutputLength > 0 && raw.output.length > maxToolOutputLength) {
+            logger.warn { "Tool '$toolName' output truncated: ${raw.output.length} -> $maxToolOutputLength chars" }
+            return raw.copy(
+                output = raw.output.take(maxToolOutputLength) + "\n[TRUNCATED: output exceeded $maxToolOutputLength characters]"
+            )
+        }
+        return raw
+    }
+
+    private suspend fun invokeToolAdapterRaw(
+        toolName: String,
+        toolInput: String,
+        tools: List<Any>,
+        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>
+    ): ToolInvocationOutcome {
         val adapter = findToolAdapter(toolName, tools)
         if (adapter != null) {
             return try {
@@ -608,6 +625,7 @@ internal class ToolCallOrchestrator(
 
     companion object {
         const val TOOL_SIGNALS_METADATA_KEY = "toolSignals"
+        const val DEFAULT_MAX_TOOL_OUTPUT_LENGTH = 50_000
         private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
         private val requesterAwareToolNames = setOf(
             "jira_my_open_issues",
