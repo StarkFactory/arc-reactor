@@ -212,3 +212,7 @@
 | `RagIngestionCandidateStore` InMemory default 미등록 | P3 | rag.ingestion.enabled=true는 JDBC 필수. 동일 패턴 | 2026-03-14 |
 | `SlackToolsAutoConfiguration.slackApiClient` nullable MeterRegistry | P4 | Kotlin nullable 정상 동작. ObjectProvider 미사용은 컨벤션 비일관 수준 | 2026-03-14 |
 | `AdminAutoConfiguration.agentTracingHooks` bean 순서 | P4 | 외부 Tracer 제공 시 정상. arc-admin TracingAutoConfiguration만 사용 시 이론적 순서 문제 | 2026-03-14 |
+| `AuthModels.kt:84` /api/auth/register missing from publicPaths | FP | ArcReactorAuthConfiguration:63-64에서 selfRegistrationEnabled=true 시 자동 추가. 테스트 검증됨 | 2026-03-14 |
+| `JwtAuthWebFilter.kt:57` blank sub → "anonymous" | P4 | JWT 서명키 탈취 전제. 키 보유 시 어떤 userId도 위장 가능. 방어적 폴백 수준 | 2026-03-14 |
+| `WebhookNotificationHook.kt:40` SSRF (webhookProperties.url) | P4 | arc.reactor.webhook.url 운영자 설정 속성. MCP admin proxy와 동일 신뢰 경계 | 2026-03-14 |
+| `MediaAttachment.uri` 사설IP 미검증 | P4 | http/https+host 검증 존재(ChatController:378). URI는 LLM 프로바이더 API로 전달, 서버 직접 fetch 아님 | 2026-03-14 |

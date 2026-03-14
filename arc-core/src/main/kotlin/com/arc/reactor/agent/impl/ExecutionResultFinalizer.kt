@@ -65,7 +65,24 @@ internal class ExecutionResultFinalizer(
             return bounded
         }
 
-        val filtered = applyResponseFilters(bounded, command, hookContext, toolsUsed, startTime)
+        // Re-run output guard when boundary enforcement changed the content
+        // (e.g. attemptLongerResponse produced new unguarded LLM output)
+        val reguarded = if (bounded.content != guarded.content) {
+            val rg = enrichResponseMetadata(
+                applyOutputGuardPipeline(bounded, command, hookContext, toolsUsed, startTime),
+                hookContext
+            )
+            if (!rg.success && rg.errorCode == AgentErrorCode.OUTPUT_GUARD_REJECTED) {
+                observeResponse(rg, command, hookContext, toolsUsed)
+                runAfterCompletionHook(hookContext, rg, toolsUsed, startTime)
+                return rg
+            }
+            rg
+        } else {
+            bounded
+        }
+
+        val filtered = applyResponseFilters(reguarded, command, hookContext, toolsUsed, startTime)
         val completed = enrichResponseMetadata(
             ensureVisibleBlockedResponse(filtered, command, hookContext),
             hookContext
