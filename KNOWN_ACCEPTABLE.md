@@ -225,3 +225,6 @@
 | `AgentRunContextManager.kt` MDCContext scope 제한 | P4 | open()에서 MDCContext(map)은 snapshot 정확성 보장. 코루틴 전체 전파는 별도 개선. MDC.put best-effort | 2026-03-14 |
 | `TokenEstimator.kt:44` codePoints().forEach int boxing | P4 | 미캐시 메시지만. WeakHashMap 캐시 존재. micro-optimization 수준 | 2026-03-14 |
 | `AgentExecutionCoordinator.kt:160` mcpToolCallbacks() 이중 호출 | P4 | 캐시 키 생성 + ToolPreparationPlanner에서 재호출. MCP 도구 수 소규모, map 순회 비용 미미 | 2026-03-14 |
+| `StreamingExecutionCoordinator.kt:55` error dispatch 미테스트 | P4 | BlockedIntent/Timeout/Unexpected 3경로. coordinator 단위 테스트, 핵심 로직은 하위 모듈에서 커버 | 2026-03-14 |
+| `ToolPreparationPlanner.kt:27` LocalToolFilter exception fallback 미테스트 | P4 | 방어적 fallback (warn+이전 목록 유지). fail-open 설계, 필터 자체 테스트에서 간접 커버 | 2026-03-14 |
+| `GoogleCredentialProvider.kt:28` path traversal | P4 | config property (arc.reactor.google.service-account-key-path). 운영자 설정, admin 신뢰 경계 | 2026-03-14 |

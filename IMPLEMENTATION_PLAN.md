@@ -1,5 +1,5 @@
 # Implementation Plan
-> 마지막 업데이트: 2026-03-14 | Ralph 반복 18 — 렌즈 4 (성능) P0-P3 0건
+> 마지막 업데이트: 2026-03-14 | Ralph 반복 22 — 렌즈 5-8 완료, 테스트 2건 추가
 
 ## P0 — 즉시 수정 (런타임 크래시, 데이터 손실)
 
@@ -81,6 +81,8 @@
 - [x] P3: `ExecutionResultFinalizer.kt:58-66` — attemptLongerResponse output guard 우회 수정: boundary retry 후 content 변경 시 output guard 재실행
 - [x] P2: `AgentRunContextManager.kt:24-27` — MDC race: MDCContext(map) 생성자로 thread-local 경합 방지 (26e7213)
 - [x] P3: `StreamingCompletionFinalizer.kt:46` — empty streaming content orphaned user turn 방지 (6ea86a8)
+- [x] P3: `ExecutionResultFinalizerTest` — output guard re-run 회귀 테스트 추가 (e831fcb)
+- [x] P3: `StreamingCompletionFinalizerTest` — empty streaming skip 회귀 테스트 추가 (e831fcb)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)

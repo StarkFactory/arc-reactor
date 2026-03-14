@@ -68,3 +68,10 @@
 - P0-P3 신규 0건
 - P4 2건 KA 기록: TokenEstimator int boxing, AgentExecutionCoordinator mcpToolCallbacks 이중 호출
 - 기존 KA 2건 재확인: SystemPromptBuilder lowercase, ToolCallOrchestrator O(n²) dedup
+
+[Refactoring 반복 13-16] 2026-03-14 — 렌즈 5-8 (테스트 갭, API 계약, 운영, Critical Gotchas)
+- 렌즈 5: P3 2건 수정 — 이번 세션 수정 회귀 테스트 추가 (ExecutionResultFinalizer output guard re-run, StreamingCompletionFinalizer empty skip) (e831fcb)
+- 렌즈 5: P4 2건 KA: StreamingExecutionCoordinator error dispatch, ToolPreparationPlanner filter fallback
+- 렌즈 6: P0-P3 신규 0건. SchedulerController 404 기존 KA 재확인
+- 렌즈 7: GoogleCredentialProvider per-request 기존 KA(P4) 재확인. path traversal P4 KA
+- 렌즈 8: CancellationException/forEach/AssistantMessage/Guard userId 위반 0건
