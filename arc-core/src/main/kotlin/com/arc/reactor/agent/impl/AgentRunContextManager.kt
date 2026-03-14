@@ -21,10 +21,18 @@ internal class AgentRunContextManager(
         val userId = command.userId ?: "anonymous"
         val userEmail = resolveUserEmail(command.metadata)
 
-        MDC.put("runId", runId)
-        MDC.put("userId", userId)
-        userEmail?.let { MDC.put("userEmail", it) }
-        command.metadata["sessionId"]?.toString()?.let { MDC.put("sessionId", it) }
+        // Build MDC map explicitly and pass to MDCContext(map) instead of relying
+        // on MDCContext() capturing thread-local state. This avoids a race where
+        // concurrent coroutines on the same thread overwrite each other's
+        // thread-local MDC between MDC.put() and MDCContext snapshot.
+        val mdcMap = buildMap {
+            put("runId", runId)
+            put("userId", userId)
+            userEmail?.let { put("userEmail", it) }
+            command.metadata["sessionId"]?.toString()?.let { put("sessionId", it) }
+        }
+        // Also set thread-local MDC for logging before the next suspend point.
+        mdcMap.forEach { (k, v) -> MDC.put(k, v) }
 
         val hookContext = HookContext(
             runId = runId,
@@ -37,9 +45,7 @@ internal class AgentRunContextManager(
         hookContext.metadata.putAll(command.metadata)
         hookContext.metadata["runId"] = runId
 
-        // Install current MDC snapshot into the coroutine context so MDC values
-        // survive suspend/resume across thread boundaries.
-        return withContext(MDCContext()) {
+        return withContext(MDCContext(mdcMap)) {
             AgentRunContext(runId = runId, hookContext = hookContext)
         }
     }
