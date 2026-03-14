@@ -104,6 +104,7 @@ internal class McpConnectionSupport(
         if (!validateStdioCommand(command, server.name)) return null
         if (!validateStdioArgs(args, server.name)) return null
 
+        var client: McpSyncClient? = null
         return try {
             val params = ServerParameters.builder(command)
                 .args(*args.toTypedArray())
@@ -111,7 +112,7 @@ internal class McpConnectionSupport(
 
             val transport = StdioClientTransport(params, JacksonMcpJsonMapper(ObjectMapper()))
 
-            val client = McpClient.sync(transport)
+            client = McpClient.sync(transport)
                 .requestTimeout(Duration.ofMillis(connectionTimeoutMs))
                 .initializationTimeout(Duration.ofMillis(connectionTimeoutMs))
                 .clientInfo(McpSchema.Implementation(server.name, server.version ?: "1.0.0"))
@@ -121,6 +122,7 @@ internal class McpConnectionSupport(
             client
         } catch (e: Exception) {
             logger.error(e) { "Failed to create STDIO transport for ${server.name}" }
+            try { client?.close() } catch (_: Exception) { /* best-effort cleanup */ }
             null
         }
     }
@@ -204,12 +206,13 @@ internal class McpConnectionSupport(
             return null
         }
 
+        var client: McpSyncClient? = null
         return try {
             val transport = HttpClientSseClientTransport.builder(parsed.toString())
                 .customizeClient { it.connectTimeout(Duration.ofMillis(connectionTimeoutMs)) }
                 .build()
 
-            val client = McpClient.sync(transport)
+            client = McpClient.sync(transport)
                 .requestTimeout(Duration.ofMillis(connectionTimeoutMs))
                 .initializationTimeout(Duration.ofMillis(connectionTimeoutMs))
                 .clientInfo(McpSchema.Implementation(server.name, server.version ?: "1.0.0"))
@@ -219,6 +222,7 @@ internal class McpConnectionSupport(
             client
         } catch (e: Exception) {
             logger.error(e) { "Failed to create SSE transport for ${server.name}" }
+            try { client?.close() } catch (_: Exception) { /* best-effort cleanup */ }
             null
         }
     }
