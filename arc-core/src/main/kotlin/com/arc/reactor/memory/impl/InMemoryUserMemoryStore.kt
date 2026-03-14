@@ -28,24 +28,24 @@ class InMemoryUserMemoryStore : UserMemoryStore {
     }
 
     override suspend fun updateFact(userId: String, key: String, value: String) {
-        val existing = store[userId] ?: UserMemory(userId = userId)
-        store[userId] = existing.copy(
-            facts = existing.facts + (key to value),
-            updatedAt = Instant.now()
-        )
+        store.compute(userId) { _, existing ->
+            val base = existing ?: UserMemory(userId = userId)
+            base.copy(facts = base.facts + (key to value), updatedAt = Instant.now())
+        }
     }
 
     override suspend fun updatePreference(userId: String, key: String, value: String) {
-        val existing = store[userId] ?: UserMemory(userId = userId)
-        store[userId] = existing.copy(
-            preferences = existing.preferences + (key to value),
-            updatedAt = Instant.now()
-        )
+        store.compute(userId) { _, existing ->
+            val base = existing ?: UserMemory(userId = userId)
+            base.copy(preferences = base.preferences + (key to value), updatedAt = Instant.now())
+        }
     }
 
     override suspend fun addRecentTopic(userId: String, topic: String, maxTopics: Int) {
-        val existing = store[userId] ?: UserMemory(userId = userId)
-        val updated = (existing.recentTopics + topic).takeLast(maxTopics)
-        store[userId] = existing.copy(recentTopics = updated, updatedAt = Instant.now())
+        store.compute(userId) { _, existing ->
+            val base = existing ?: UserMemory(userId = userId)
+            val updated = (base.recentTopics + topic).takeLast(maxTopics)
+            base.copy(recentTopics = updated, updatedAt = Instant.now())
+        }
     }
 }

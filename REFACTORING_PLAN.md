@@ -15,3 +15,7 @@
 ## Iteration 5 — Lens 5: 경계 조건
 
 - [x] [MED] P2: `DynamicSchedulerService.kt:231` — maxRetryCount=0 + retryOnFailure=true 시 job 미실행 (1..0 빈 범위). coerceAtLeast(1) 적용
+
+## Iteration 7 — Lens 7: 스레드 안전성
+
+- [x] [MED] P2: `InMemoryUserMemoryStore.kt:30-50` — updateFact/updatePreference/addRecentTopic에서 get-then-put → compute() 원자적 갱신

@@ -189,3 +189,14 @@
 | JDBC stores @ConditionalOnMissingBean 미사용 | FP | @Primary 패턴 정상 — @ConditionalOnMissingBean 추가 시 InMemory가 먼저 등록되어 JDBC 비활성화됨 | 2026-03-14 |
 | `IntentRegistry` InMemory default bean 미등록 | P3 | intent.enabled=true는 JDBC 필수 (persistence 없이 무의미). opt-in 기능, InMemoryIntentRegistry 클래스는 테스트용으로 존재 | 2026-03-14 |
 | `McpSwaggerCatalogController.kt` 5 endpoints @ApiResponses 누락 | P4 | updateSource, syncSource, listRevisions, getDiff, publishRevision — Swagger 문서화 누락. 런타임 영향 없음 | 2026-03-14 |
+| `DefaultRateLimitStage.kt:54-96` Caffeine 만료 시 다른 lock 객체 | P3 | TTL 만료 시점에만 발생 — 윈도우 전환 시 카운터 리셋은 의도된 동작. 최악 시 경계에서 1-2 추가 요청 | 2026-03-14 |
+| `McpManager.kt:248` handleConnectionError mutex 미사용 | P3 | non-suspend 빠른 함수, clients.remove()?.let이 double-call 방어. reconnection은 지연 스케줄. 실제 race window 극소 | 2026-03-14 |
+| `TenantService.create()` slug TOCTOU | P3 | InMemoryTenantStore 전용 — JdbcTenantStore는 DB UNIQUE 제약. Admin-only 저빈도 | 2026-03-14 |
+| `TenantService.updatePlan/suspend/activate` read-modify-write | P3 | Admin-only 저빈도. JdbcTenantStore는 DB 레벨 처리. InMemory는 dev/test 전용 | 2026-03-14 |
+| `InMemoryScheduledJobStore.kt:42` updateExecutionResult read-modify-write | P3 | dev/test 전용 스토어. JdbcScheduledJobStore는 DB 레벨 처리. Admin 경로 저빈도 | 2026-03-14 |
+| `SemanticToolSelector.kt:597` clear+putAll 비원자적 | P3 | 빈 캐시 시 inline embedding fallback 동작 정상. 추가 API 호출 비용만 발생 | 2026-03-14 |
+| `StageTimingSupport.kt:7` timing metadata read-modify-write | P4 | 단일 요청 내 순차 실행, 동시 접근 불가. 코스메틱 메타데이터 | 2026-03-14 |
+| `InMemoryPersonaStore.kt:139` getDefault() 미동기화 | P3 | dev/test 전용. save()/update() 동시 실행 윈도우 극소. 최악 시 DEFAULT_SYSTEM_PROMPT 폴백 | 2026-03-14 |
+| `QuotaEnforcerHook.kt:153` resetLocalCountersIfNewMonth 비원자적 clear | P3 | 월 1회 발생, fail-open 설계, DB 레이어가 권위적 답변 제공 | 2026-03-14 |
+| `SlackReminderStore.collectDueReminders` filter-then-remove | P3 | COWAL remove() 반환값으로 중복 전송 방지. 정상 동작 | 2026-03-14 |
+| `TenantResolver.currentTenantId()` ThreadLocal in WebFlux | P3 | 코드에 문서화됨 ("Unreliable in WebFlux"). OTel Context 이중 전파로 완화 | 2026-03-14 |
