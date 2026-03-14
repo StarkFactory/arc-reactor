@@ -229,3 +229,9 @@
 | `ToolPreparationPlanner.kt:27` LocalToolFilter exception fallback 미테스트 | P4 | 방어적 fallback (warn+이전 목록 유지). fail-open 설계, 필터 자체 테스트에서 간접 커버 | 2026-03-14 |
 | `GoogleCredentialProvider.kt:28` path traversal | P4 | config property (arc.reactor.google.service-account-key-path). 운영자 설정, admin 신뢰 경계 | 2026-03-14 |
 | `ExecutionResultFinalizerTest:444` re-guard hook 검증 누락 | P4 | hookExecutor relaxed mock 사용. 첫 guard rejection 테스트(line 136)에서 hook 호출 검증됨. 동일 코드 경로 | 2026-03-14 |
+| `WorkerAgentTool.kt:76` sessionId 상속 | P3 | 설계 선택 — KDoc+테스트에서 의도 명시. worker traceability + metrics attribution. 세션 오염은 트레이드오프 | 2026-03-14 |
+| `JdbcUserMemoryStore.kt:43` tableInitialized non-volatile | P4 | 생성자 init{}에서 설정. Spring bean lifecycle이 happens-before 보장 | 2026-03-14 |
+| `JdbcUserMemoryStore.kt:90-103` RMW 비원자적 | P3 | get+save 분리. 동일 사용자 동시 요청 저빈도. fact 1건 유실 수준. JDBC 트랜잭션 수정 복잡 | 2026-03-14 |
+| `ConversationManager.kt:203` summarizedUpToIndex stale | P3 | 비동기 요약 debounce 패턴. 장기 세션 컨텍스트 품질 이슈. background optimization | 2026-03-14 |
+| `JdbcPromptTemplateStore.kt:154` activateVersion 비트랜잭션 | P4 | admin 전용 저빈도. 크래시 시 재활성화 복구. 데이터 유실 없음 | 2026-03-14 |
+| `McpConnectionSupport.kt:125,225` initialize() cleanup 미테스트 | P4 | best-effort close() 1줄. MCP SDK mocking 복잡. trivial 로직 | 2026-03-14 |

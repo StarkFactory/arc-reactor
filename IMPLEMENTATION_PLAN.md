@@ -83,6 +83,7 @@
 - [x] P3: `StreamingCompletionFinalizer.kt:46` — empty streaming content orphaned user turn 방지 (6ea86a8)
 - [x] P3: `ExecutionResultFinalizerTest` — output guard re-run 회귀 테스트 추가 (e831fcb)
 - [x] P3: `StreamingCompletionFinalizerTest` — empty streaming skip 회귀 테스트 추가 (e831fcb)
+- [x] P2: `McpConnectionSupport.kt:107,207` — initialize() 실패 시 STDIO/SSE client 미정리 → client.close() 추가 (27a2216)
 
 ## 완료 (이전 사이클)
 - [x] P1: `ConversationMemoryStressTest.kt` — 9개 catch 블록에 throwIfCancellation 추가 (9657db0)

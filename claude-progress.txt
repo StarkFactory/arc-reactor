@@ -32,3 +32,12 @@
 [세션 3 수렴] 2026-03-14 — 렌즈 1-8 전체 (codebase-scanner sonnet x1)
 - P0-P3 신규 0건. MDCContext scope 기존 KA(P4) 4회째 재확인
 - 수렴 확정
+
+[세션 4] 2026-03-14 — 렌즈 1 (보안 guard/hook/autoconfigure) P0-P3 0건
+[세션 4] 2026-03-14 — 렌즈 2 (견고성 scheduler/MCP/tool)
+- P2 2건 발견+수정: McpConnectionSupport STDIO/SSE initialize() 실패 시 client 미정리 (27a2216)
+
+[세션 4] 2026-03-14 — 렌즈 3 (Agent 동작 orchestrators/memory)
+- P0-P3 신규 0건 (4건 모두 KA: WorkerAgentTool sessionId 설계 선택, JdbcUserMemoryStore RMW/tableInitialized, ConversationManager summarizedUpToIndex)
+
+[세션 4] 2026-03-14 — 렌즈 4-8: P0-P3 신규 0건. McpConnectionSupport cleanup 테스트 갭 P4 KA
