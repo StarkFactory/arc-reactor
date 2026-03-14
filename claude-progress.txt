@@ -40,3 +40,9 @@
 - 영역: arc-core (agent, tool, guard, memory, mcp, scheduler) + arc-web/admin/slack/teams/google/error-report
 - P2 1건 발견+수정: InMemoryUserMemoryStore updateFact/updatePreference/addRecentTopic get-then-put → compute() 원자적 갱신
 - P3 11건 + P4 1건 KA 기록: DefaultRateLimitStage Caffeine, McpManager handleConnectionError, TenantService TOCTOU/RMW, InMemoryScheduledJobStore, SemanticToolSelector, InMemoryPersonaStore, QuotaEnforcerHook, SlackReminderStore, TenantResolver ThreadLocal
+
+[Refactoring 반복 8] 2026-03-14 — 렌즈 8: 의존성 건전성 (Explore opus x2 병렬)
+- 영역: arc-core autoconfigure 전체 + arc-web/admin/slack/teams/google/error-report AutoConfiguration
+- P1 1건 발견+수정: systemPromptPostProcessor+toolOutputSanitizer agentExecutor 미주입 → ObjectProvider 주입 (f475a5f)
+- P2 1건 발견+수정: JdbcMcpSecurityPolicyStoreConfiguration @Import 누락 → 추가 (f475a5f)
+- P3 5건 + P4 2건 KA 기록: authProperties/jwtSecretValidator/runtimePreflightMarker @ConditionalOnMissingBean, OtlpExporter/MetricWriter/metricEventStore 미사용, ErrorReportController/SlackControllers @ConditionalOnBean

@@ -287,3 +287,15 @@
 - P0-P3 신규 0건
 - 기각: P4 8건 → KNOWN_ACCEPTABLE (scheduler graceful, inputMaxChars 기본값 차이 등)
 
+[Ralph 반복 25-27] 2026-03-13 — P0-P1 집중 스캔 연속 3회
+- 렌즈 25: 보안+견고성+Agent동작+성능 P0-P1 집중 → 0건
+- 렌즈 26 (성능): sessionOwners 재발견 → KNOWN_ACCEPTABLE P2 → P0-P1 0건
+- 렌즈 27 (테스트 갭): critical path 전수 확인 → P0-P1 0건
+- 수렴 유지
+
+[Ralph 반복 28] 2026-03-13 — 전체 8렌즈 대규모 병렬 스캔 (13개 스캐너)
+- P1 후보 3건 직접 검증 → 전부 P4 기각 (KNOWN_ACCEPTABLE)
+- P0-P1 신규: 0건, 수렴 유지
+
+[Ralph 반복 29-35] 2026-03-13 — 이전 PROMPT.md 7세션 연속 8렌즈 full scan, P0-P3 0건
+[Refactoring 반복 1] 2026-03-13 — 렌즈 1: 코루틴 안정성 (Explore opus x2), P0-P3 0건

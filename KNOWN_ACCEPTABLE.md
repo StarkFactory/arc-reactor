@@ -200,3 +200,15 @@
 | `QuotaEnforcerHook.kt:153` resetLocalCountersIfNewMonth 비원자적 clear | P3 | 월 1회 발생, fail-open 설계, DB 레이어가 권위적 답변 제공 | 2026-03-14 |
 | `SlackReminderStore.collectDueReminders` filter-then-remove | P3 | COWAL remove() 반환값으로 중복 전송 방지. 정상 동작 | 2026-03-14 |
 | `TenantResolver.currentTenantId()` ThreadLocal in WebFlux | P3 | 코드에 문서화됨 ("Unreliable in WebFlux"). OTel Context 이중 전파로 완화 | 2026-03-14 |
+| `AuthConfiguration.authProperties` @ConditionalOnMissingBean 누락 | P3 | 복잡한 검증 로직 포함. override 시 직접 제외 필요. 컨벤션 위반이나 의도적 | 2026-03-14 |
+| `AuthConfiguration.jwtSecretValidator` @ConditionalOnMissingBean 누락 | P3 | authProperties와 동일 패턴. auto-config exclude로 override | 2026-03-14 |
+| `ArcReactorCoreBeansConfiguration.runtimePreflightMarker` @ConditionalOnMissingBean 누락 | P3 | 시작 검증용 마커 빈. override 불필요한 설계 | 2026-03-14 |
+| `OtlpExporterConfiguration` beans @ConditionalOnMissingBean 누락 | P3 | tracing 모듈 (arc-admin). @ConditionalOnProperty 이중 게이트. 사용자 override 시 exclude | 2026-03-14 |
+| `AdminJdbcConfiguration.metricWriter` @ConditionalOnMissingBean 누락 | P3 | JDBC admin 모듈 내부 빈. start() 호출 포함 — 중복 시 이중 writer. exclude로 해결 | 2026-03-14 |
+| `AdminJdbcConfiguration.metricEventStore` @Primary/@ConditionalOnMissingBean 누락 | P3 | JDBC admin 모듈 내부 빈. JDBC 스토어지만 @Primary 패턴 미적용 | 2026-03-14 |
+| `ErrorReportController` @ConditionalOnBean 누락 | P3 | error-report.enabled=true + LLM 미설정 시 시작 실패. property 조합 에지 케이스 | 2026-03-14 |
+| `SlackEventController`+`SlackCommandController` @ConditionalOnBean 누락 | P3 | slack.enabled=true + LLM 미설정 시 시작 실패. 동일 에지 케이스 패턴 | 2026-03-14 |
+| `FeedbackStore` InMemory default 미등록 | P3 | prompt-lab.enabled=true는 JDBC 필수. IntentRegistry와 동일 패턴 | 2026-03-14 |
+| `RagIngestionCandidateStore` InMemory default 미등록 | P3 | rag.ingestion.enabled=true는 JDBC 필수. 동일 패턴 | 2026-03-14 |
+| `SlackToolsAutoConfiguration.slackApiClient` nullable MeterRegistry | P4 | Kotlin nullable 정상 동작. ObjectProvider 미사용은 컨벤션 비일관 수준 | 2026-03-14 |
+| `AdminAutoConfiguration.agentTracingHooks` bean 순서 | P4 | 외부 Tracer 제공 시 정상. arc-admin TracingAutoConfiguration만 사용 시 이론적 순서 문제 | 2026-03-14 |
