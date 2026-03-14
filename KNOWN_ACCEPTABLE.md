@@ -184,3 +184,8 @@
 | `ToolCallOrchestrator.kt:113,257` unprotected executeAfterToolCall | P3 | fail-close afterToolCall hook 예외 시 병렬 도구 결과 폐기. fail-close 계약상 정상 동작 | 2026-03-13 |
 | `FeedbackResponse` sessionId/userId 미포함 | P3 | toResponse()+toExportItem() 일관적 누락. 프라이버시 설계 선택 | 2026-03-13 |
 | `ChatResponse` durationMs/tokenUsage 미포함 | P3 | 공개 API 표면 설계 선택. 메트릭은 내부 관찰 경로로 수집 | 2026-03-13 |
+| `LlmClassificationStage.kt:41` fail-open in fail-close pipeline | P3 | KDoc 명시: "Fail-open: LLM errors → Allowed. Defense-in-depth, not primary." 설계 선택 | 2026-03-14 |
+| `ToolCallback.kt:124` SpringAiToolCallbackAdapter throws | P3 | ArcToolCallbackAdapter가 항상 래핑하여 catch+Error: 반환. 직접 사용 시에도 ToolCallOrchestrator catch 존재 | 2026-03-14 |
+| JDBC stores @ConditionalOnMissingBean 미사용 | FP | @Primary 패턴 정상 — @ConditionalOnMissingBean 추가 시 InMemory가 먼저 등록되어 JDBC 비활성화됨 | 2026-03-14 |
+| `IntentRegistry` InMemory default bean 미등록 | P3 | intent.enabled=true는 JDBC 필수 (persistence 없이 무의미). opt-in 기능, InMemoryIntentRegistry 클래스는 테스트용으로 존재 | 2026-03-14 |
+| `McpSwaggerCatalogController.kt` 5 endpoints @ApiResponses 누락 | P4 | updateSource, syncSource, listRevisions, getDiff, publishRevision — Swagger 문서화 누락. 런타임 영향 없음 | 2026-03-14 |

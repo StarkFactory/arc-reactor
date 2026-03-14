@@ -29,3 +29,9 @@
 - P2 1건 발견+수정: DynamicSchedulerService.runWithRetry maxRetryCount=0 빈 범위 → coerceAtLeast(1)
 - P4 5건 KA 기록: CaffeineResponseCache zero, TopicDriftDetection windowSize, SchedulerProperties 범위, maxConversationTurns, web controller 검증
 - 사용자 요청으로 루프 종료
+
+[Refactoring 반복 6] 2026-03-14 — 렌즈 6: 계약 준수 (Explore opus x2 병렬)
+- 영역: arc-core 인터페이스+구현체 (Guard, Hook, Tool, Bean) + arc-web/admin/slack/error-report 컨트롤러
+- 검증 완료: Guard fail-close, Hook try-catch+CancellationException, Tool "Error:" 반환, @ConditionalOnMissingBean, @Primary, @Tag/@Operation, 403 ErrorResponse body, AdminAuthSupport 사용
+- P0-P2 신규 0건
+- P3 4건 + P4 1건 + FP 1건 KA 기록: LlmClassificationStage fail-open (설계), SpringAiToolCallbackAdapter throws (래핑), JDBC @ConditionalOnMissingBean (FP), IntentRegistry InMemory 미등록 (opt-in), McpSwaggerCatalogController @ApiResponses
