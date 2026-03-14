@@ -13,9 +13,9 @@ class SecurityHeadersWebFilterTest {
 
     private val filter = SecurityHeadersWebFilter()
 
-    private fun executeFilter(): MockServerWebExchange {
+    private fun executeFilter(path: String = "/api/test"): MockServerWebExchange {
         val exchange = MockServerWebExchange.from(
-            MockServerHttpRequest.get("/api/test").build()
+            MockServerHttpRequest.get(path).build()
         )
         val chain = WebFilterChain { Mono.empty() }
         filter.filter(exchange, chain).block()
@@ -77,6 +77,24 @@ class SecurityHeadersWebFilterTest {
                 "max-age=31536000; includeSubDomains",
                 exchange.response.headers.getFirst("Strict-Transport-Security")
             ) { "HSTS header should enforce HTTPS for one year including subdomains" }
+        }
+
+        @Test
+        fun `should use relaxed CSP for swagger-ui paths`() {
+            val exchange = executeFilter("/swagger-ui/index.html")
+            val csp = exchange.response.headers.getFirst("Content-Security-Policy")
+            assertTrue(csp!!.contains("'unsafe-inline'")) {
+                "Swagger UI paths need unsafe-inline for inline styles/scripts, got: $csp"
+            }
+        }
+
+        @Test
+        fun `should use strict CSP for API paths`() {
+            val exchange = executeFilter("/api/chat")
+            assertEquals(
+                "default-src 'self'",
+                exchange.response.headers.getFirst("Content-Security-Policy")
+            ) { "API paths should use strict CSP" }
         }
     }
 
