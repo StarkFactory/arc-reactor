@@ -16,7 +16,7 @@ private val logger = KotlinLogging.logger {}
  */
 class StructuralEvaluator : PromptEvaluator {
 
-    private val mapper = jacksonObjectMapper()
+    private val objectMapper = jacksonObjectMapper()
 
     override suspend fun evaluate(
         response: String,
@@ -51,7 +51,7 @@ class StructuralEvaluator : PromptEvaluator {
 
     private fun parseJson(response: String): Map<*, *>? {
         return try {
-            mapper.readValue(response.trim(), Map::class.java)
+            objectMapper.readValue(response.trim(), Map::class.java)
         } catch (_: Exception) {
             null
         }

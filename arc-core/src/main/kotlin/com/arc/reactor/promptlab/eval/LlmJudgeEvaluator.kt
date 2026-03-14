@@ -24,7 +24,7 @@ class LlmJudgeEvaluator(
     private val model: String? = null
 ) : PromptEvaluator {
 
-    private val mapper = jacksonObjectMapper()
+    private val objectMapper = jacksonObjectMapper()
     private val tokenCounter = AtomicInteger(0)
 
     override suspend fun evaluate(
@@ -98,7 +98,7 @@ class LlmJudgeEvaluator(
 
     private fun parseJudgment(content: String): EvaluationResult {
         return try {
-            val json = mapper.readValue(content.trim(), Map::class.java)
+            val json = objectMapper.readValue(content.trim(), Map::class.java)
             val pass = json["pass"] as? Boolean ?: false
             val score = (json["score"] as? Number)?.toDouble() ?: 0.0
             val reason = json["reason"]?.toString() ?: "No reason provided"

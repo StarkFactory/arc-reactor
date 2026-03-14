@@ -562,7 +562,7 @@ internal class ToolCallOrchestrator(
     }
 
     private fun normalizeSpringToolOutput(output: String): String {
-        return runCatching { springToolOutputMapper.readValue(output, String::class.java) }
+        return runCatching { objectMapper.readValue(output, String::class.java) }
             .getOrElse { output }
     }
 
@@ -600,7 +600,7 @@ internal class ToolCallOrchestrator(
             return rawInput.orEmpty().ifBlank { "{}" }
         }
         return runCatching {
-            springToolOutputMapper.writeValueAsString(toolParams)
+            objectMapper.writeValueAsString(toolParams)
         }.getOrElse {
             rawInput.orEmpty().ifBlank { "{}" }
         }
@@ -608,7 +608,7 @@ internal class ToolCallOrchestrator(
 
     companion object {
         const val TOOL_SIGNALS_METADATA_KEY = "toolSignals"
-        private val springToolOutputMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
+        private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
         private val requesterAwareToolNames = setOf(
             "jira_my_open_issues",
             "jira_due_soon_issues",
