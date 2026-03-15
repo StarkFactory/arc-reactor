@@ -196,6 +196,13 @@ class DefaultMcpManager(
         return mutexFor(serverName).withLock {
             try {
                 logger.info { "Connecting to MCP server: $serverName" }
+
+                // Close existing client before opening a new one to prevent resource leak
+                clients.remove(serverName)?.let { oldClient ->
+                    connectionSupport.close(serverName, oldClient)
+                }
+                toolCallbacksCache.remove(serverName)
+
                 statuses[serverName] = McpServerStatus.CONNECTING
 
                 val handle = connectionSupport.open(server)
