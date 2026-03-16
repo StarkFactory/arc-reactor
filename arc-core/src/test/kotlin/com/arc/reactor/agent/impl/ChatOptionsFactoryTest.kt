@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.prompt.ChatOptions
@@ -17,6 +18,15 @@ class ChatOptionsFactoryTest {
         defaultTemperature = 0.3,
         maxOutputTokens = 2048,
         googleSearchRetrievalEnabled = true
+    )
+
+    private val factoryWithSampling = ChatOptionsFactory(
+        defaultTemperature = 0.3,
+        maxOutputTokens = 2048,
+        googleSearchRetrievalEnabled = true,
+        topP = 0.9,
+        frequencyPenalty = 0.5,
+        presencePenalty = 0.3
     )
 
     @Test
@@ -75,6 +85,60 @@ class ChatOptionsFactoryTest {
         assertFalse(options is ToolCallingChatOptions, "Non-Gemini provider without tools should not produce ToolCallingChatOptions")
         assertFalse(options is GoogleGenAiChatOptions, "Non-Gemini provider should not produce GoogleGenAiChatOptions")
         assertEquals(2048, options.maxTokens)
+    }
+
+    @Test
+    fun `applies sampling parameters for gemini provider`() {
+        val options = factoryWithSampling.create(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hello"),
+            hasTools = false,
+            fallbackProvider = "gemini"
+        )
+
+        assertInstanceOf(GoogleGenAiChatOptions::class.java, options)
+        assertEquals(0.9, options.topP) { "topP should be set for Gemini" }
+        assertEquals(0.5, options.frequencyPenalty) { "frequencyPenalty should be set for Gemini" }
+        assertEquals(0.3, options.presencePenalty) { "presencePenalty should be set for Gemini" }
+    }
+
+    @Test
+    fun `applies sampling parameters for non-gemini provider with tools`() {
+        val options = factoryWithSampling.create(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hello", model = "openai"),
+            hasTools = true,
+            fallbackProvider = "gemini"
+        )
+
+        assertInstanceOf(ToolCallingChatOptions::class.java, options)
+        assertEquals(0.9, options.topP) { "topP should be set for ToolCallingChatOptions" }
+        assertEquals(0.5, options.frequencyPenalty) { "frequencyPenalty should be set for ToolCallingChatOptions" }
+        assertEquals(0.3, options.presencePenalty) { "presencePenalty should be set for ToolCallingChatOptions" }
+    }
+
+    @Test
+    fun `applies sampling parameters for non-gemini provider without tools`() {
+        val options = factoryWithSampling.create(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hello", model = "anthropic"),
+            hasTools = false,
+            fallbackProvider = "gemini"
+        )
+
+        assertEquals(0.9, options.topP) { "topP should be set for plain ChatOptions" }
+        assertEquals(0.5, options.frequencyPenalty) { "frequencyPenalty should be set for plain ChatOptions" }
+        assertEquals(0.3, options.presencePenalty) { "presencePenalty should be set for plain ChatOptions" }
+    }
+
+    @Test
+    fun `leaves sampling parameters null when not configured`() {
+        val options = factory.create(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hello", model = "openai"),
+            hasTools = false,
+            fallbackProvider = "openai"
+        )
+
+        assertNull(options.topP) { "topP should be null when not configured" }
+        assertNull(options.frequencyPenalty) { "frequencyPenalty should be null when not configured" }
+        assertNull(options.presencePenalty) { "presencePenalty should be null when not configured" }
     }
 
     private fun readBooleanOption(options: ChatOptions, optionName: String): Boolean {

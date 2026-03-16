@@ -106,6 +106,15 @@ data class LlmProperties(
     /** Maximum output tokens */
     val maxOutputTokens: Int = 4096,
 
+    /** Top-P (nucleus sampling). Null = use provider default. */
+    val topP: Double? = null,
+
+    /** Frequency penalty. Null = use provider default. */
+    val frequencyPenalty: Double? = null,
+
+    /** Presence penalty. Null = use provider default. */
+    val presencePenalty: Double? = null,
+
     /**
      * Enable Gemini Google Search retrieval grounding.
      * Default OFF to avoid unintended external retrieval in enterprise environments.

@@ -126,6 +126,63 @@ class GlobalExceptionHandlerTest {
     }
 
     @Nested
+    inner class IllegalArgumentErrors {
+
+        @Test
+        fun `should return 400 for illegal argument`() {
+            val ex = IllegalArgumentException("Invalid jobType 'UNKNOWN'")
+
+            val response = handler.handleIllegalArgument(ex)
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) { "Should return 400" }
+            assertTrue(response.body!!.error.contains("Invalid jobType")) {
+                "Should include the exception message"
+            }
+            assertNotNull(response.body!!.timestamp) { "Should include timestamp" }
+        }
+
+        @Test
+        fun `should return 400 with fallback message when message is null`() {
+            val ex = IllegalArgumentException()
+
+            val response = handler.handleIllegalArgument(ex)
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) { "Should return 400" }
+            assertTrue(response.body!!.error.contains("Invalid argument")) {
+                "Should use fallback message when exception message is null"
+            }
+        }
+    }
+
+    @Nested
+    inner class IllegalStateErrors {
+
+        @Test
+        fun `should return 500 for illegal state`() {
+            val ex = IllegalStateException("Service not initialized")
+
+            val response = handler.handleIllegalState(ex)
+
+            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode) { "Should return 500" }
+            assertEquals("Internal server error", response.body!!.error) {
+                "Should mask internal details for IllegalStateException"
+            }
+            assertNotNull(response.body!!.timestamp) { "Should include timestamp" }
+        }
+
+        @Test
+        fun `should not expose internal state details`() {
+            val ex = IllegalStateException("DB pool exhausted at com.arc.reactor.internal")
+
+            val response = handler.handleIllegalState(ex)
+
+            assertFalse(response.body!!.error.contains("DB pool")) {
+                "Should NOT expose internal state details"
+            }
+        }
+    }
+
+    @Nested
     inner class GenericErrors {
 
         @Test
