@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.config.ToolResultCacheProperties
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
@@ -1167,6 +1168,313 @@ class ToolCallOrchestratorTest {
             responses[0].responseData().contains("--- BEGIN TOOL DATA (jira_search) ---"),
             "Failed tool output should be wrapped with data markers when sanitizer is enabled"
         )
+    }
+
+    @Test
+    fun `should return cached result when same tool and args are called twice with cache enabled`() = runBlocking {
+        var callCount = 0
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                callCount++
+                return "result-$callCount"
+            }
+        }
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("q" to "arc") },
+            toolResultCacheProperties = ToolResultCacheProperties(
+                enabled = true,
+                ttlSeconds = 60,
+                maxSize = 200
+            )
+        )
+
+        val firstCall = toolCall(id = "id-1", name = "search", arguments = """{"q":"arc"}""")
+        val secondCall = toolCall(id = "id-2", name = "search", arguments = """{"q":"arc"}""")
+
+        val firstResponses = orchestrator.executeInParallel(
+            toolCalls = listOf(firstCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+        val secondResponses = orchestrator.executeInParallel(
+            toolCalls = listOf(secondCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals("result-1", firstResponses[0].responseData(), "First call should return fresh result")
+        assertEquals("result-1", secondResponses[0].responseData(), "Second call should return cached result")
+        assertEquals(1, callCount, "Tool should be invoked only once due to caching")
+    }
+
+    @Test
+    fun `should not cache when cache is disabled`() = runBlocking {
+        var callCount = 0
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                callCount++
+                return "result-$callCount"
+            }
+        }
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("q" to "arc") },
+            toolResultCacheProperties = ToolResultCacheProperties(enabled = false)
+        )
+
+        val firstCall = toolCall(id = "id-1", name = "search", arguments = """{"q":"arc"}""")
+        val secondCall = toolCall(id = "id-2", name = "search", arguments = """{"q":"arc"}""")
+
+        orchestrator.executeInParallel(
+            toolCalls = listOf(firstCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+        orchestrator.executeInParallel(
+            toolCalls = listOf(secondCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(2, callCount, "Tool should be invoked twice when cache is disabled")
+    }
+
+    @Test
+    fun `should not cache failed tool results`() = runBlocking {
+        var callCount = 0
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                callCount++
+                return if (callCount == 1) "Error: service unavailable" else "success"
+            }
+        }
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("q" to "arc") },
+            toolResultCacheProperties = ToolResultCacheProperties(
+                enabled = true,
+                ttlSeconds = 60,
+                maxSize = 200
+            )
+        )
+
+        val firstCall = toolCall(id = "id-1", name = "search", arguments = """{"q":"arc"}""")
+        val secondCall = toolCall(id = "id-2", name = "search", arguments = """{"q":"arc"}""")
+
+        val firstResponses = orchestrator.executeInParallel(
+            toolCalls = listOf(firstCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+        val secondResponses = orchestrator.executeInParallel(
+            toolCalls = listOf(secondCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertTrue(
+            firstResponses[0].responseData().contains("Error:"),
+            "First call should return error result"
+        )
+        assertEquals("success", secondResponses[0].responseData(), "Second call should execute again after error")
+        assertEquals(2, callCount, "Tool should be called twice because first result was an error")
+    }
+
+    @Test
+    fun `should cache separately for different arguments`() = runBlocking {
+        var callCount = 0
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                callCount++
+                return "result-$callCount"
+            }
+        }
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { args ->
+                @Suppress("UNCHECKED_CAST")
+                if (args != null) objectMapper.readValue(args, Map::class.java) as Map<String, Any?>
+                else emptyMap()
+            },
+            toolResultCacheProperties = ToolResultCacheProperties(
+                enabled = true,
+                ttlSeconds = 60,
+                maxSize = 200
+            )
+        )
+
+        val call1 = toolCall(id = "id-1", name = "search", arguments = """{"q":"kotlin"}""")
+        val call2 = toolCall(id = "id-2", name = "search", arguments = """{"q":"java"}""")
+
+        val resp1 = orchestrator.executeInParallel(
+            toolCalls = listOf(call1),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+        val resp2 = orchestrator.executeInParallel(
+            toolCalls = listOf(call2),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals("result-1", resp1[0].responseData(), "First distinct args should return fresh result")
+        assertEquals("result-2", resp2[0].responseData(), "Different args should return separate result")
+        assertEquals(2, callCount, "Tool should be invoked once per unique argument set")
+    }
+
+    @Test
+    fun `should record cache hit and miss metrics`() = runBlocking {
+        val metrics = mockk<com.arc.reactor.agent.metrics.AgentMetrics>(relaxed = true)
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = "ok"
+        }
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = metrics,
+            parseToolArguments = { mapOf("q" to "arc") },
+            toolResultCacheProperties = ToolResultCacheProperties(
+                enabled = true,
+                ttlSeconds = 60,
+                maxSize = 200
+            )
+        )
+
+        val firstCall = toolCall(id = "id-1", name = "search", arguments = """{"q":"arc"}""")
+        val secondCall = toolCall(id = "id-2", name = "search", arguments = """{"q":"arc"}""")
+
+        orchestrator.executeInParallel(
+            toolCalls = listOf(firstCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+        orchestrator.executeInParallel(
+            toolCalls = listOf(secondCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        io.mockk.verify(exactly = 1) {
+            metrics.recordToolResultCacheMiss("search", any())
+        }
+        io.mockk.verify(exactly = 1) {
+            metrics.recordToolResultCacheHit("search", any())
+        }
+    }
+
+    @Test
+    fun `should return cached result for direct tool call with cache enabled`() = runBlocking {
+        var callCount = 0
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                callCount++
+                return "direct-result-$callCount"
+            }
+        }
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            toolResultCacheProperties = ToolResultCacheProperties(
+                enabled = true,
+                ttlSeconds = 60,
+                maxSize = 200
+            )
+        )
+        val tools = listOf(ArcToolCallbackAdapter(callback))
+        val params = mapOf<String, Any?>("q" to "arc")
+
+        val first = orchestrator.executeDirectToolCall(
+            toolName = "search",
+            toolParams = params,
+            tools = tools,
+            hookContext = hookContext,
+            toolsUsed = mutableListOf()
+        )
+        val second = orchestrator.executeDirectToolCall(
+            toolName = "search",
+            toolParams = params,
+            tools = tools,
+            hookContext = hookContext,
+            toolsUsed = mutableListOf()
+        )
+
+        assertEquals("direct-result-1", first.output, "First direct call should return fresh result")
+        assertEquals("direct-result-1", second.output, "Second direct call should return cached result")
+        assertEquals(1, callCount, "Tool should be invoked only once due to caching")
     }
 
     private fun toolCall(id: String, name: String, arguments: String = "{}"): AssistantMessage.ToolCall {

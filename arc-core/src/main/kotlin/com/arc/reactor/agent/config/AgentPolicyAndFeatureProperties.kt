@@ -146,7 +146,7 @@ data class RagProperties(
     /** Enable re-ranking */
     val rerankEnabled: Boolean = true,
 
-    /** Query transformer mode: passthrough|hyde */
+    /** Query transformer mode: passthrough|hyde|decomposition */
     val queryTransformer: String = "passthrough",
 
     /** RAG ingestion policy (Q&A -> candidate queue -> reviewed vector ingestion) */
@@ -161,8 +161,46 @@ data class RagProperties(
     /** Document chunking configuration */
     val chunking: RagChunkingProperties = RagChunkingProperties(),
 
+    /** Parent document retrieval configuration */
+    val parentRetrieval: RagParentRetrievalProperties = RagParentRetrievalProperties(),
+
     /** Retrieval timeout in milliseconds. Prevents thread-pool exhaustion when vector DB is unresponsive. */
-    val retrievalTimeoutMs: Long = 5000
+    val retrievalTimeoutMs: Long = 5000,
+
+    /** Contextual compression configuration */
+    val compression: RagCompressionProperties = RagCompressionProperties(),
+
+    /** Adaptive query routing configuration (Adaptive-RAG) */
+    val adaptiveRouting: AdaptiveRoutingProperties = AdaptiveRoutingProperties()
+)
+
+/**
+ * Contextual compression configuration.
+ *
+ * Based on RECOMP (Xu et al., 2024, arXiv:2310.04408).
+ */
+data class RagCompressionProperties(
+    /** Enable contextual compression. Disabled by default. */
+    val enabled: Boolean = false,
+
+    /** Documents shorter than this (in chars) skip compression. */
+    val minContentLength: Int = 200
+)
+
+/**
+ * Adaptive query routing configuration.
+ *
+ * @see <a href="https://arxiv.org/abs/2403.14403">Adaptive-RAG (Jeong et al., 2024)</a>
+ */
+data class AdaptiveRoutingProperties(
+    /** Enable adaptive query routing. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Classification timeout in milliseconds. */
+    val timeoutMs: Long = 3000,
+
+    /** topK override for COMPLEX queries. */
+    val complexTopK: Int = 15
 )
 
 /**
@@ -201,6 +239,30 @@ data class RagHybridProperties(
 
     /** BM25 length normalization parameter */
     val bm25B: Double = 0.75
+)
+
+/**
+ * Parent document retrieval configuration.
+ *
+ * When enabled, chunked search results are expanded with adjacent chunks
+ * from the same parent document to provide richer context.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     rag:
+ *       parent-retrieval:
+ *         enabled: true
+ *         window-size: 1
+ * ```
+ */
+data class RagParentRetrievalProperties(
+    /** Enable parent document retrieval. Requires arc.reactor.rag.enabled=true. */
+    val enabled: Boolean = false,
+
+    /** Number of adjacent chunks to include before and after each hit (1 = +/- 1 chunk). */
+    val windowSize: Int = 1
 )
 
 data class RagIngestionProperties(
@@ -467,7 +529,10 @@ data class SchedulerProperties(
     val defaultTimezone: String = java.time.ZoneId.systemDefault().id,
 
     /** Default execution timeout for jobs without an explicit timeout (milliseconds). */
-    val defaultExecutionTimeoutMs: Long = 300_000
+    val defaultExecutionTimeoutMs: Long = 300_000,
+
+    /** Maximum execution history entries to retain per job. 0 = unlimited. */
+    val maxExecutionsPerJob: Int = 100
 )
 
 /**
@@ -528,6 +593,29 @@ data class BoundaryProperties(
 data class ToolEnrichmentProperties(
     /** Tool names that should be enriched with the requester's identity. */
     val requesterAwareToolNames: Set<String> = emptySet()
+)
+
+/**
+ * Citation auto-formatting configuration.
+ *
+ * When enabled and verified sources exist in the response, a citation section
+ * is automatically appended to the response content. Duplicate sources are removed.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     citation:
+ *       enabled: true
+ *       format: markdown
+ * ```
+ */
+data class CitationProperties(
+    /** Enable citation auto-formatting. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Citation format. Currently only "markdown" is supported. */
+    val format: String = "markdown"
 )
 
 /**

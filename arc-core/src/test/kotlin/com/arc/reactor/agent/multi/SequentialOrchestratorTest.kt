@@ -5,6 +5,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import io.mockk.coEvery
 import io.mockk.mockk
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -139,6 +140,56 @@ class SequentialOrchestratorTest {
 
             assertTrue(result.totalDurationMs >= 0, "Duration should be non-negative")
             assertTrue(result.nodeResults[0].durationMs >= 0, "Node duration should be non-negative")
+        }
+    }
+
+    @Nested
+    inner class PerNodeTimeout {
+
+        @Test
+        fun `should return failure when node exceeds its timeout`() = runTest {
+            val node = AgentNode("slow", systemPrompt = "", timeoutMs = 100)
+
+            val result = orchestrator.execute(baseCommand, listOf(node)) {
+                val agent = mockk<AgentExecutor>()
+                coEvery { agent.execute(any()) } coAnswers {
+                    delay(500)
+                    AgentResult.success("should not reach")
+                }
+                agent
+            }
+
+            assertFalse(result.success, "Should fail when node exceeds its timeout")
+            assertTrue(
+                result.finalResult.errorMessage.orEmpty().contains("timed out"),
+                "Error message should indicate timeout: ${result.finalResult.errorMessage}"
+            )
+        }
+
+        @Test
+        fun `should use global default timeout when node timeout is null`() = runTest {
+            val node = AgentNode("fast", systemPrompt = "", timeoutMs = null)
+
+            val result = orchestrator.execute(baseCommand, listOf(node)) {
+                mockAgent("quick result")
+            }
+
+            assertTrue(result.success, "Should succeed with default timeout when node completes quickly")
+        }
+
+        @Test
+        fun `should allow different timeouts per node`() = runTest {
+            val fastNode = AgentNode("fast", systemPrompt = "", timeoutMs = 5000)
+            val slowNode = AgentNode("slow", systemPrompt = "", timeoutMs = 5000)
+
+            val result = orchestrator.execute(baseCommand, listOf(fastNode, slowNode)) { node ->
+                val agent = mockk<AgentExecutor>()
+                coEvery { agent.execute(any()) } returns AgentResult.success("${node.name} done")
+                agent
+            }
+
+            assertTrue(result.success, "Both nodes should complete within their timeouts")
+            assertEquals(2, result.nodeResults.size, "Should have 2 node results")
         }
     }
 }

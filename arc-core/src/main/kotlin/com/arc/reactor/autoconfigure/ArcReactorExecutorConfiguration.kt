@@ -20,6 +20,7 @@ import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.TokenEstimator
+import com.arc.reactor.rag.QueryRouter
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.resilience.CircuitBreakerRegistry
 import com.arc.reactor.resilience.FallbackStrategy
@@ -78,7 +79,8 @@ class ArcReactorExecutorConfiguration {
         intentResolverProvider: ObjectProvider<IntentResolver>,
         arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>,
         systemPromptPostProcessorProvider: ObjectProvider<SystemPromptPostProcessor>,
-        toolOutputSanitizerProvider: ObjectProvider<ToolOutputSanitizer>
+        toolOutputSanitizerProvider: ObjectProvider<ToolOutputSanitizer>,
+        queryRouterProvider: ObjectProvider<QueryRouter>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -109,6 +111,7 @@ class ArcReactorExecutorConfiguration {
         transientErrorClassifier = ::defaultTransientErrorClassifier,
         tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() },
         systemPromptPostProcessor = systemPromptPostProcessorProvider.ifAvailable,
-        toolOutputSanitizer = toolOutputSanitizerProvider.ifAvailable
+        toolOutputSanitizer = toolOutputSanitizerProvider.ifAvailable,
+        queryRouter = queryRouterProvider.ifAvailable
     )
 }

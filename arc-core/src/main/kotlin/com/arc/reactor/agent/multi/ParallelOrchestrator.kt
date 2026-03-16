@@ -4,9 +4,11 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.support.throwIfCancellation
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -56,13 +58,15 @@ class ParallelOrchestrator(
 
         val startTime = System.currentTimeMillis()
 
+        val defaultTimeout = WorkerAgentTool.DEFAULT_WORKER_TIMEOUT_MS
+
         logger.info { "Parallel: executing ${nodes.size} nodes concurrently" }
 
         val nodeResults = coroutineScope {
-            nodes.map { node ->
+            nodes.mapIndexed { index, node ->
                 async {
                     val nodeStart = System.currentTimeMillis()
-                    logger.info { "Parallel: starting node '${node.name}'" }
+                    logger.info { "Parallel: starting node '${node.name}' (index=$index)" }
 
                     val agent = agentFactory(node)
                     val nodeCommand = command.copy(
@@ -70,8 +74,14 @@ class ParallelOrchestrator(
                         userPrompt = command.userPrompt
                     )
 
+                    val timeout = node.timeoutMs ?: defaultTimeout
                     val result = try {
-                        agent.execute(nodeCommand)
+                        withTimeout(timeout) {
+                            agent.execute(nodeCommand)
+                        }
+                    } catch (e: TimeoutCancellationException) {
+                        logger.warn { "Parallel: node '${node.name}' timed out after ${timeout}ms" }
+                        AgentResult.failure("Node '${node.name}' timed out after ${timeout}ms")
                     } catch (e: Exception) {
                         e.throwIfCancellation()
                         logger.error(e) { "Parallel: node '${node.name}' threw exception" }
@@ -83,13 +93,33 @@ class ParallelOrchestrator(
                         "Parallel: node '${node.name}' completed in ${nodeDuration}ms, " +
                             "success=${result.success}"
                     }
-                    NodeResult(node.name, result, nodeDuration)
+                    val tokensUsed = result.tokenUsage?.totalTokens ?: 0
+                    NodeResult(node.name, result, nodeDuration, tokensUsed)
                 }
             }.awaitAll()
         }
 
         val allSuccess = nodeResults.all { it.result.success }
         val hasAnySuccess = nodeResults.any { it.result.success }
+
+        val failedNodes = nodeResults
+            .mapIndexedNotNull { index, nodeResult ->
+                if (!nodeResult.result.success) {
+                    logger.error {
+                        "Parallel: node '${nodeResult.nodeName}' (index=$index) failed — " +
+                            "errorCode=${nodeResult.result.errorCode}, " +
+                            "errorMessage=${nodeResult.result.errorMessage}"
+                    }
+                    FailedNodeInfo(
+                        nodeName = nodeResult.nodeName,
+                        index = index,
+                        errorCode = nodeResult.result.errorCode,
+                        errorMessage = nodeResult.result.errorMessage
+                    )
+                } else {
+                    null
+                }
+            }
 
         val success = if (failFast) allSuccess else hasAnySuccess
         val mergedContent = merger.merge(nodeResults.filter { it.result.success })
@@ -104,7 +134,8 @@ class ParallelOrchestrator(
                 durationMs = System.currentTimeMillis() - startTime
             ),
             nodeResults = nodeResults,
-            totalDurationMs = System.currentTimeMillis() - startTime
+            totalDurationMs = System.currentTimeMillis() - startTime,
+            failedNodes = failedNodes
         )
     }
 }

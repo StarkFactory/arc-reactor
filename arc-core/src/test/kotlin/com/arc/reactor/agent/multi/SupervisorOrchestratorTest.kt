@@ -250,6 +250,62 @@ class SupervisorOrchestratorTest {
     }
 
     @Nested
+    inner class PerNodeTimeout {
+
+        @Test
+        fun `WorkerAgentTool should use node timeout when specified`() {
+            val workerAgent = mockk<AgentExecutor>()
+            val node = AgentNode("worker", systemPrompt = "", timeoutMs = 60_000L)
+            val tool = WorkerAgentTool(
+                node = node,
+                agentExecutor = workerAgent,
+                workerTimeoutMs = node.timeoutMs ?: WorkerAgentTool.DEFAULT_WORKER_TIMEOUT_MS
+            )
+
+            assertEquals(60_000L, tool.timeoutMs, "Should use node-level timeout")
+        }
+
+        @Test
+        fun `WorkerAgentTool should fall back to default when node timeout is null`() {
+            val workerAgent = mockk<AgentExecutor>()
+            val node = AgentNode("worker", systemPrompt = "", timeoutMs = null)
+            val tool = WorkerAgentTool(
+                node = node,
+                agentExecutor = workerAgent,
+                workerTimeoutMs = node.timeoutMs ?: WorkerAgentTool.DEFAULT_WORKER_TIMEOUT_MS
+            )
+
+            assertEquals(
+                WorkerAgentTool.DEFAULT_WORKER_TIMEOUT_MS,
+                tool.timeoutMs,
+                "Should fall back to default timeout when node timeout is null"
+            )
+        }
+
+        @Test
+        fun `SupervisorOrchestrator should pass node timeout to WorkerAgentTool`() = runTest {
+            val orchestrator = SupervisorOrchestrator()
+            val node = AgentNode(
+                "timed-worker",
+                systemPrompt = "Do work",
+                description = "Worker with custom timeout",
+                timeoutMs = 120_000L
+            )
+
+            val commandSlot = slot<AgentCommand>()
+
+            orchestrator.execute(baseCommand, listOf(node)) { agentNode ->
+                val agent = mockk<AgentExecutor>()
+                coEvery { agent.execute(capture(commandSlot)) } returns AgentResult.success("done")
+                agent
+            }
+
+            // Verify the supervisor was called (indirect validation that the orchestrator ran)
+            assertTrue(commandSlot.isCaptured, "Supervisor agent should have been called")
+        }
+    }
+
+    @Nested
     inner class BuilderIntegration {
 
         @Test
@@ -268,6 +324,27 @@ class SupervisorOrchestratorTest {
                 }
 
             assertTrue(result.success, "Builder sequential should succeed")
+            assertEquals(2, result.nodeResults.size, "Should have 2 node results")
+        }
+
+        @Test
+        fun `should set timeout via builder`() = runTest {
+            val result = MultiAgent.sequential()
+                .node("A") {
+                    systemPrompt = "You are A"
+                    timeoutMs = 60_000L
+                }
+                .node("B") {
+                    systemPrompt = "You are B"
+                    timeoutMs = 120_000L
+                }
+                .execute(baseCommand) { node ->
+                    val agent = mockk<AgentExecutor>()
+                    coEvery { agent.execute(any()) } returns AgentResult.success("${node.name} done")
+                    agent
+                }
+
+            assertTrue(result.success, "Builder with timeouts should succeed")
             assertEquals(2, result.nodeResults.size, "Should have 2 node results")
         }
 

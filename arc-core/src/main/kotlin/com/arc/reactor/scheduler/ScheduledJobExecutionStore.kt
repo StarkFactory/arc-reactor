@@ -10,4 +10,10 @@ interface ScheduledJobExecutionStore {
     fun save(execution: ScheduledJobExecution): ScheduledJobExecution
     fun findByJobId(jobId: String, limit: Int = 20): List<ScheduledJobExecution>
     fun findRecent(limit: Int = 50): List<ScheduledJobExecution>
+
+    /**
+     * Deletes the oldest execution records for [jobId], retaining only [keepCount] entries.
+     * No-op if the current count does not exceed [keepCount].
+     */
+    fun deleteOldestExecutions(jobId: String, keepCount: Int)
 }

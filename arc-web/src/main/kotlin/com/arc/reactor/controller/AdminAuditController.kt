@@ -24,7 +24,7 @@ class AdminAuditController(
 
     @Operation(summary = "List admin audit logs (ADMIN)")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "List of admin audit logs"),
+        ApiResponse(responseCode = "200", description = "Paginated list of admin audit logs"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping
@@ -32,10 +32,13 @@ class AdminAuditController(
         @RequestParam(required = false) @Min(1) @Max(1000) limit: Int?,
         @RequestParam(required = false) category: String?,
         @RequestParam(required = false) action: String?,
+        @RequestParam(defaultValue = "0") offset: Int,
+        @RequestParam(defaultValue = "50") pageLimit: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val size = (limit ?: 100).coerceIn(1, 1000)
+        val size = (limit ?: 1000).coerceIn(1, 1000)
+        val clampedPageLimit = clampLimit(pageLimit)
         val rows = store.list(limit = size, category = category, action = action).map {
             AdminAuditResponse(
                 id = it.id,
@@ -48,7 +51,7 @@ class AdminAuditController(
                 createdAt = it.createdAt.toEpochMilli()
             )
         }
-        return ResponseEntity.ok(rows)
+        return ResponseEntity.ok(rows.paginate(offset, clampedPageLimit))
     }
 }
 

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 
@@ -46,18 +47,23 @@ class ApprovalController(
 
     @Operation(summary = "List pending approval requests")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "List of pending approvals"),
+        ApiResponse(responseCode = "200", description = "Paginated list of pending approvals"),
         ApiResponse(responseCode = "403", description = "Access denied")
     ])
     @GetMapping
-    fun listPending(exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun listPending(
+        @RequestParam(defaultValue = "0") offset: Int,
+        @RequestParam(defaultValue = "50") limit: Int,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
         val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
         val pending = when {
             isAdmin(exchange) -> pendingApprovalStore.listPending()
             userId != null -> pendingApprovalStore.listPendingByUser(userId)
             else -> return forbiddenResponse()
         }
-        return ResponseEntity.ok(pending.map { it.toAdminResponse() })
+        val clamped = clampLimit(limit)
+        return ResponseEntity.ok(pending.map { it.toAdminResponse() }.paginate(offset, clamped))
     }
 
     @Operation(summary = "Approve a pending tool call")

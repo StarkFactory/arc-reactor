@@ -62,9 +62,10 @@ class SessionControllerTest {
         fun `should return empty list when no sessions exist`() = runTest {
             every { memoryStore.listSessionsByUserId("user-1") } returns emptyList()
 
-            val result = controller.listSessions(exchange)
+            val result = controller.listSessions(offset = 0, limit = 50, exchange = exchange)
 
-            assertTrue(result.isEmpty()) { "Expected empty list, got ${result.size} sessions" }
+            assertTrue(result.items.isEmpty()) { "Expected empty items list" }
+            assertEquals(0, result.total) { "Total should be 0" }
         }
 
         @Test
@@ -74,10 +75,10 @@ class SessionControllerTest {
                 SessionSummary("session-1", 5, now, "Hello, how are you?")
             )
 
-            val result = controller.listSessions(exchange)
+            val result = controller.listSessions(offset = 0, limit = 50, exchange = exchange)
 
-            assertEquals(1, result.size) { "Expected 1 session" }
-            val session = result[0]
+            assertEquals(1, result.items.size) { "Expected 1 session" }
+            val session = result.items[0]
             assertEquals("session-1", session.sessionId) { "Session ID should match" }
             assertEquals(5, session.messageCount) { "Message count should match" }
             assertEquals(now.toEpochMilli(), session.lastActivity) { "Last activity should be epoch millis" }
@@ -92,11 +93,11 @@ class SessionControllerTest {
                 SessionSummary("s-2", 1, now.minusSeconds(60), "Second")
             )
 
-            val result = controller.listSessions(exchange)
+            val result = controller.listSessions(offset = 0, limit = 50, exchange = exchange)
 
-            assertEquals(2, result.size) { "Expected 2 sessions" }
-            assertEquals("s-1", result[0].sessionId) { "First session should be s-1" }
-            assertEquals("s-2", result[1].sessionId) { "Second session should be s-2" }
+            assertEquals(2, result.items.size) { "Expected 2 sessions" }
+            assertEquals("s-1", result.items[0].sessionId) { "First session should be s-1" }
+            assertEquals("s-2", result.items[1].sessionId) { "Second session should be s-2" }
         }
 
         @Test
@@ -104,12 +105,28 @@ class SessionControllerTest {
             every { exchange.attributes } returns mutableMapOf()
 
             val exception = assertThrows(org.springframework.web.server.ResponseStatusException::class.java) {
-                controller.listSessions(exchange)
+                controller.listSessions(offset = 0, limit = 50, exchange = exchange)
             }
 
             assertEquals(HttpStatus.UNAUTHORIZED, exception.statusCode) {
                 "Missing user context should fail-close with 401"
             }
+        }
+
+        @Test
+        fun `should paginate sessions correctly`() = runTest {
+            val now = Instant.now()
+            every { memoryStore.listSessionsByUserId("user-1") } returns (1..5).map {
+                SessionSummary("s-$it", it, now.minusSeconds(it.toLong()), "Session $it")
+            }
+
+            val result = controller.listSessions(offset = 1, limit = 2, exchange = exchange)
+
+            assertEquals(5, result.total) { "Total should be 5" }
+            assertEquals(2, result.items.size) { "Should return 2 items" }
+            assertEquals("s-2", result.items[0].sessionId) { "First item should be s-2 (offset=1)" }
+            assertEquals(1, result.offset) { "Offset should be 1" }
+            assertEquals(2, result.limit) { "Limit should be 2" }
         }
     }
 

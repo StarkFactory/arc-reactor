@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.config.ToolResultCacheProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
@@ -22,6 +23,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withTimeout
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
 import org.springframework.aop.framework.Advised
 import org.springframework.ai.chat.messages.AssistantMessage
@@ -41,10 +44,22 @@ internal class ToolCallOrchestrator(
     private val parseToolArguments: (String?) -> Map<String, Any?> = ::parseToolArguments,
     private val toolOutputSanitizer: ToolOutputSanitizer? = null,
     private val maxToolOutputLength: Int = DEFAULT_MAX_TOOL_OUTPUT_LENGTH,
-    private val requesterAwareToolNames: Set<String> = emptySet()
+    private val requesterAwareToolNames: Set<String> = emptySet(),
+    private val toolResultCacheProperties: ToolResultCacheProperties = ToolResultCacheProperties()
 ) {
     private val springToolCallbackCache =
         ConcurrentHashMap<ToolCallbackCacheKey, Map<String, org.springframework.ai.tool.ToolCallback>>()
+
+    private val toolResultCache: Cache<String, String>? = if (toolResultCacheProperties.enabled) {
+        Caffeine.newBuilder()
+            .maximumSize(toolResultCacheProperties.maxSize)
+            .expireAfterWrite(
+                java.time.Duration.ofSeconds(toolResultCacheProperties.ttlSeconds)
+            )
+            .build()
+    } else {
+        null
+    }
 
     suspend fun executeDirectToolCall(
         toolName: String,
@@ -419,11 +434,18 @@ internal class ToolCallOrchestrator(
         tools: List<Any>,
         springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>
     ): ToolInvocationOutcome {
+        val cached = checkToolResultCache(toolName, toolInput)
+        if (cached != null) return cached
+
         val raw = invokeToolAdapterRaw(toolName, toolInput, tools, springCallbacksByName)
+        if (raw.success) {
+            storeToolResultCache(toolName, toolInput, raw.output)
+        }
         if (maxToolOutputLength > 0 && raw.output.length > maxToolOutputLength) {
             logger.warn { "Tool '$toolName' output truncated: ${raw.output.length} -> $maxToolOutputLength chars" }
             return raw.copy(
-                output = raw.output.take(maxToolOutputLength) + "\n[TRUNCATED: output exceeded $maxToolOutputLength characters]"
+                output = raw.output.take(maxToolOutputLength) +
+                    "\n[TRUNCATED: output exceeded $maxToolOutputLength characters]"
             )
         }
         return raw
@@ -622,6 +644,39 @@ internal class ToolCallOrchestrator(
         }.getOrElse {
             rawInput.orEmpty().ifBlank { "{}" }
         }
+    }
+
+    private fun buildToolResultCacheKey(toolName: String, toolInput: String): String {
+        return "$toolName:${toolInput.hashCode()}"
+    }
+
+    private fun checkToolResultCache(
+        toolName: String,
+        toolInput: String
+    ): ToolInvocationOutcome? {
+        val cache = toolResultCache ?: return null
+        val cacheKey = buildToolResultCacheKey(toolName, toolInput)
+        val cachedOutput = cache.getIfPresent(cacheKey) ?: run {
+            agentMetrics.recordToolResultCacheMiss(toolName, cacheKey)
+            return null
+        }
+        logger.debug { "Tool result cache hit: tool=$toolName key=$cacheKey" }
+        agentMetrics.recordToolResultCacheHit(toolName, cacheKey)
+        return ToolInvocationOutcome(
+            output = cachedOutput,
+            success = true,
+            trackAsUsed = true
+        )
+    }
+
+    private fun storeToolResultCache(
+        toolName: String,
+        toolInput: String,
+        output: String
+    ) {
+        val cache = toolResultCache ?: return
+        val cacheKey = buildToolResultCacheKey(toolName, toolInput)
+        cache.put(cacheKey, output)
     }
 
     companion object {

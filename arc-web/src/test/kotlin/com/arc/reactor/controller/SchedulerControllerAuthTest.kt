@@ -25,7 +25,14 @@ class SchedulerControllerAuthTest {
 
     @Test
     fun `listJobs rejects non-admin`() {
-        val response = controller.listJobs(exchange(userId = "user-1", role = UserRole.USER))
+<<<<<<< HEAD
+        val response = controller.listJobs(
+            offset = 0, limit = 50,
+            exchange = exchange(userId = "user-1", role = UserRole.USER)
+        )
+=======
+        val response = controller.listJobs(exchange = exchange(userId = "user-1", role = UserRole.USER))
+>>>>>>> acf3976 (feat(scheduler): Add tags support for scheduled job filtering)
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Non-admin list should be forbidden" }
         verify(exactly = 0) { schedulerService.list() }
@@ -41,7 +48,14 @@ class SchedulerControllerAuthTest {
 
     @Test
     fun `listJobs rejects ADMIN_MANAGER`() {
-        val response = controller.listJobs(exchange(userId = "manager-1", role = UserRole.ADMIN_MANAGER))
+<<<<<<< HEAD
+        val response = controller.listJobs(
+            offset = 0, limit = 50,
+            exchange = exchange(userId = "manager-1", role = UserRole.ADMIN_MANAGER)
+        )
+=======
+        val response = controller.listJobs(exchange = exchange(userId = "manager-1", role = UserRole.ADMIN_MANAGER))
+>>>>>>> acf3976 (feat(scheduler): Add tags support for scheduled job filtering)
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
             "Manager-scope admin should be forbidden from developer scheduler controls"
@@ -53,12 +67,19 @@ class SchedulerControllerAuthTest {
     fun `listJobs allows admin`() {
         every { schedulerService.list() } returns emptyList()
 
-        val response = controller.listJobs(exchange(userId = "admin-1", role = UserRole.ADMIN))
+<<<<<<< HEAD
+        val response = controller.listJobs(
+            offset = 0, limit = 50,
+            exchange = exchange(userId = "admin-1", role = UserRole.ADMIN)
+        )
+=======
+        val response = controller.listJobs(exchange = exchange(userId = "admin-1", role = UserRole.ADMIN))
+>>>>>>> acf3976 (feat(scheduler): Add tags support for scheduled job filtering)
         @Suppress("UNCHECKED_CAST")
-        val result = response.body as List<ScheduledJobResponse>
+        val result = response.body as PaginatedResponse<ScheduledJobResponse>
 
         assertEquals(HttpStatus.OK, response.statusCode) { "Admin list should succeed" }
-        assertEquals(0, result.size) { "Empty scheduler list should be returned as empty body list" }
+        assertEquals(0, result.items.size) { "Empty scheduler list should be returned as empty items" }
         verify(exactly = 1) { schedulerService.list() }
     }
 
@@ -66,12 +87,19 @@ class SchedulerControllerAuthTest {
     fun `listJobs allows ADMIN_DEVELOPER`() {
         every { schedulerService.list() } returns emptyList()
 
-        val response = controller.listJobs(exchange(userId = "dev-admin-1", role = UserRole.ADMIN_DEVELOPER))
+<<<<<<< HEAD
+        val response = controller.listJobs(
+            offset = 0, limit = 50,
+            exchange = exchange(userId = "dev-admin-1", role = UserRole.ADMIN_DEVELOPER)
+        )
+=======
+        val response = controller.listJobs(exchange = exchange(userId = "dev-admin-1", role = UserRole.ADMIN_DEVELOPER))
+>>>>>>> acf3976 (feat(scheduler): Add tags support for scheduled job filtering)
         @Suppress("UNCHECKED_CAST")
-        val result = response.body as List<ScheduledJobResponse>
+        val result = response.body as PaginatedResponse<ScheduledJobResponse>
 
         assertEquals(HttpStatus.OK, response.statusCode) { "Developer-scope admin list should succeed" }
-        assertEquals(0, result.size) { "Scheduler list should be empty when service returns empty list" }
+        assertEquals(0, result.items.size) { "Scheduler list should be empty when service returns empty list" }
         verify(exactly = 1) { schedulerService.list() }
     }
 
@@ -89,15 +117,25 @@ class SchedulerControllerAuthTest {
             )
         )
 
-        val response = controller.listJobs(exchange(userId = "admin-1", role = UserRole.ADMIN))
+<<<<<<< HEAD
+        val response = controller.listJobs(
+            offset = 0, limit = 50,
+            exchange = exchange(userId = "admin-1", role = UserRole.ADMIN)
+        )
+=======
+        val response = controller.listJobs(exchange = exchange(userId = "admin-1", role = UserRole.ADMIN))
+>>>>>>> acf3976 (feat(scheduler): Add tags support for scheduled job filtering)
         @Suppress("UNCHECKED_CAST")
-        val result = response.body as List<ScheduledJobResponse>
+        val result = response.body as PaginatedResponse<ScheduledJobResponse>
 
         assertEquals(HttpStatus.OK, response.statusCode)
-        assertEquals(1, result.size)
-        assertEquals("MCP server 'atlassian' is not connected", result[0].lastFailureReason)
-        assertEquals("Job 'Release digest' failed: MCP server 'atlassian' is not connected", result[0].lastResultPreview)
-        assertNull(result[0].lastRunAt)
+        assertEquals(1, result.items.size)
+        assertEquals("MCP server 'atlassian' is not connected", result.items[0].lastFailureReason)
+        assertEquals(
+            "Job 'Release digest' failed: MCP server 'atlassian' is not connected",
+            result.items[0].lastResultPreview
+        )
+        assertNull(result.items[0].lastRunAt)
     }
 
     @Test

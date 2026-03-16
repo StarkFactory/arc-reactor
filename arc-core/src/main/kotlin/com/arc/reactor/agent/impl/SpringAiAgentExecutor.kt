@@ -29,6 +29,7 @@ import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.MemoryStore
+import com.arc.reactor.rag.QueryRouter
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.TokenEstimator
@@ -99,7 +100,8 @@ class SpringAiAgentExecutor(
     private val blockedIntents: Set<String> = emptySet(),
     private val systemPromptPostProcessor: SystemPromptPostProcessor? = null,
     private val toolOutputSanitizer: ToolOutputSanitizer? = null,
-    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer(),
+    private val queryRouter: QueryRouter? = null
 ) : AgentExecutor {
 
     init {
@@ -118,7 +120,10 @@ class SpringAiAgentExecutor(
         topK = properties.rag.topK,
         rerankEnabled = properties.rag.rerankEnabled,
         ragPipeline = ragPipeline,
-        retrievalTimeoutMs = properties.rag.retrievalTimeoutMs
+        retrievalTimeoutMs = properties.rag.retrievalTimeoutMs,
+        metrics = agentMetrics,
+        queryRouter = queryRouter,
+        complexTopK = properties.rag.adaptiveRouting.complexTopK
     )
     private val agentErrorPolicy = AgentErrorPolicy(transientErrorClassifier)
     private val structuredResponseRepairer = StructuredResponseRepairer(
@@ -152,7 +157,8 @@ class SpringAiAgentExecutor(
         pendingApprovalStore = pendingApprovalStore,
         agentMetrics = agentMetrics,
         toolOutputSanitizer = toolOutputSanitizer,
-        requesterAwareToolNames = properties.toolEnrichment.requesterAwareToolNames
+        requesterAwareToolNames = properties.toolEnrichment.requesterAwareToolNames,
+        toolResultCacheProperties = properties.toolResultCache
     )
     private val retryExecutor = RetryExecutor(
         retry = properties.retry,
@@ -203,7 +209,8 @@ class SpringAiAgentExecutor(
         conversationManager = conversationManager,
         hookExecutor = hookExecutor,
         errorMessageResolver = errorMessageResolver,
-        agentMetrics = agentMetrics
+        agentMetrics = agentMetrics,
+        citationProperties = properties.citation
     )
     private val preExecutionResolver = PreExecutionResolver(
         guard = guard,

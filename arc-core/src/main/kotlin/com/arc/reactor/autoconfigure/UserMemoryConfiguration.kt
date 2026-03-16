@@ -37,12 +37,22 @@ class UserMemoryConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun userMemoryManager(store: UserMemoryStore, properties: AgentProperties): UserMemoryManager =
-        UserMemoryManager(store = store, maxRecentTopics = properties.memory.user.maxRecentTopics)
+        UserMemoryManager(
+            store = store,
+            maxRecentTopics = properties.memory.user.maxRecentTopics,
+            maxPromptInjectionChars = properties.memory.user.maxPromptInjectionChars
+        )
 
     @Bean
     @ConditionalOnMissingBean
-    fun userMemoryInjectionHook(userMemoryManager: UserMemoryManager): UserMemoryInjectionHook =
-        UserMemoryInjectionHook(memoryManager = userMemoryManager)
+    fun userMemoryInjectionHook(
+        userMemoryManager: UserMemoryManager,
+        properties: AgentProperties
+    ): UserMemoryInjectionHook =
+        UserMemoryInjectionHook(
+            memoryManager = userMemoryManager,
+            injectIntoPrompt = properties.memory.user.injectIntoPrompt
+        )
 }
 
 /**

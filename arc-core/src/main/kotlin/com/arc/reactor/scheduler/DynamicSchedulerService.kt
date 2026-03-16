@@ -27,7 +27,11 @@ import org.springframework.scheduling.TaskScheduler
 import org.springframework.scheduling.support.CronExpression
 import org.springframework.scheduling.support.CronTrigger
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledFuture
 
@@ -69,6 +73,7 @@ class DynamicSchedulerService(
         private const val SCHEDULER_CHANNEL = "scheduler"
         private const val DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant."
         private const val RETRY_DELAY_MS = 2000L
+        private val DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
     }
 
     private val scheduledFutures = ConcurrentHashMap<String, ScheduledFuture<*>>()
@@ -156,15 +161,63 @@ class DynamicSchedulerService(
     }
 
     private fun validateSchedule(job: ScheduledJob) {
+        validateTimezone(job.timezone)
+        validateCronExpression(job.cronExpression)
+        validateJobName(job.name)
+        validateExecutionTimeout(job.executionTimeoutMs)
+        validateRetryConfig(job)
+        validateJobTypeFields(job)
+    }
+
+    private fun validateTimezone(timezone: String) {
         try {
-            ZoneId.of(job.timezone)
+            ZoneId.of(timezone)
         } catch (e: Exception) {
-            throw IllegalArgumentException("Invalid timezone: ${job.timezone}", e)
+            throw IllegalArgumentException("Invalid timezone: $timezone", e)
         }
+    }
+
+    private fun validateCronExpression(cron: String) {
         try {
-            CronExpression.parse(job.cronExpression)
+            CronExpression.parse(cron)
         } catch (e: Exception) {
-            throw IllegalArgumentException("Invalid cron expression: ${job.cronExpression}", e)
+            throw IllegalArgumentException("Invalid cron expression: $cron", e)
+        }
+    }
+
+    private fun validateJobName(name: String) {
+        require(name.isNotBlank()) { "Job name must not be blank" }
+    }
+
+    private fun validateExecutionTimeout(timeoutMs: Long?) {
+        if (timeoutMs == null || timeoutMs == 0L) return
+        require(timeoutMs in 1000..3600000) {
+            "executionTimeoutMs must be 0 (unlimited) or between 1000 and 3600000, got: $timeoutMs"
+        }
+    }
+
+    private fun validateRetryConfig(job: ScheduledJob) {
+        if (!job.retryOnFailure) return
+        require(job.maxRetryCount >= 1) {
+            "maxRetryCount must be >= 1 when retryOnFailure is enabled, got: ${job.maxRetryCount}"
+        }
+    }
+
+    private fun validateJobTypeFields(job: ScheduledJob) {
+        when (job.jobType) {
+            ScheduledJobType.MCP_TOOL -> {
+                require(!job.mcpServerName.isNullOrBlank()) {
+                    "mcpServerName is required for MCP_TOOL job"
+                }
+                require(!job.toolName.isNullOrBlank()) {
+                    "toolName is required for MCP_TOOL job"
+                }
+            }
+            ScheduledJobType.AGENT -> {
+                require(!job.agentPrompt.isNullOrBlank()) {
+                    "agentPrompt is required for AGENT job"
+                }
+            }
         }
     }
 
@@ -269,7 +322,9 @@ class DynamicSchedulerService(
     }
 
     private suspend fun executeToolWithPolicies(job: ScheduledJob, tool: ToolCallback): String {
-        val baseArguments: Map<String, Any?> = job.toolArguments.mapValues { it.value }
+        val baseArguments: Map<String, Any?> = job.toolArguments.mapValues { (_, v) ->
+            if (v is String) resolveTemplateVariables(v, job) else v
+        }
         val hookContext = buildHookContext(job)
 
         checkBeforeToolCall(
@@ -371,9 +426,11 @@ class DynamicSchedulerService(
         val prompt = job.agentPrompt
             ?: throw IllegalStateException("agentPrompt is required for AGENT job '${job.name}'")
 
+        val resolvedPrompt = resolveTemplateVariables(prompt, job)
+
         val command = AgentCommand(
             systemPrompt = resolveSystemPrompt(job),
-            userPrompt = prompt,
+            userPrompt = resolvedPrompt,
             model = job.agentModel,
             maxToolCalls = job.agentMaxToolCalls ?: 10,
             userId = SCHEDULER_ACTOR,
@@ -403,6 +460,17 @@ class DynamicSchedulerService(
 
     // -- Shared helpers ---------------------------------------------------------
 
+    private fun resolveTemplateVariables(template: String, job: ScheduledJob): String {
+        val now = LocalDateTime.now(ZoneId.of(job.timezone))
+        return template
+            .replace("{{date}}", now.format(DateTimeFormatter.ISO_LOCAL_DATE))
+            .replace("{{time}}", now.format(DateTimeFormatter.ISO_LOCAL_TIME).substringBefore("."))
+            .replace("{{datetime}}", now.format(DATE_TIME_FORMATTER))
+            .replace("{{day_of_week}}", now.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
+            .replace("{{job_name}}", job.name)
+            .replace("{{job_id}}", job.id)
+    }
+
     private fun recordExecution(
         job: ScheduledJob,
         status: JobExecutionStatus,
@@ -425,8 +493,19 @@ class DynamicSchedulerService(
         )
         try {
             execStore.save(execution)
+            cleanupOldExecutions(execStore, job.id)
         } catch (e: Exception) {
             logger.warn(e) { "Failed to record execution history for job: ${job.name}" }
+        }
+    }
+
+    private fun cleanupOldExecutions(execStore: ScheduledJobExecutionStore, jobId: String) {
+        val maxPerJob = schedulerProperties.maxExecutionsPerJob
+        if (maxPerJob <= 0) return
+        try {
+            execStore.deleteOldestExecutions(jobId, maxPerJob)
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to cleanup old executions for job: $jobId" }
         }
     }
 

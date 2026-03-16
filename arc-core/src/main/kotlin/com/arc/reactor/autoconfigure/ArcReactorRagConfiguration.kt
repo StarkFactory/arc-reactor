@@ -2,10 +2,14 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.config.ChatModelProvider
+import com.arc.reactor.rag.ContextCompressor
 import com.arc.reactor.rag.DocumentReranker
 import com.arc.reactor.rag.DocumentRetriever
+import com.arc.reactor.rag.QueryRouter
 import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.rag.RagPipeline
+import com.arc.reactor.rag.QueryComplexity
+import com.arc.reactor.rag.impl.AdaptiveQueryRouter
 import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.rag.chunking.DocumentChunker
@@ -13,15 +17,19 @@ import com.arc.reactor.rag.chunking.InstrumentedDocumentChunker
 import com.arc.reactor.rag.chunking.NoOpDocumentChunker
 import com.arc.reactor.rag.chunking.TokenBasedDocumentChunker
 import com.arc.reactor.rag.impl.Bm25WarmUpRunner
+import com.arc.reactor.rag.impl.DecompositionQueryTransformer
 import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HybridRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
+import com.arc.reactor.rag.impl.LlmContextualCompressor
+import com.arc.reactor.rag.impl.ParentDocumentRetriever
 import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import com.arc.reactor.rag.search.Bm25Scorer
 import io.micrometer.core.instrument.MeterRegistry
 import mu.KotlinLogging
+import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.BeanInitializationException
@@ -31,6 +39,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
+
+/** Fallback router that always returns SIMPLE — used when no LLM provider is available. */
+private val SIMPLE_FALLBACK_ROUTER = object : QueryRouter {
+    override suspend fun route(query: String) = QueryComplexity.SIMPLE
+}
 
 /**
  * RAG Configuration
@@ -59,11 +72,19 @@ class RagConfiguration {
             )
         }
         ragLogger.info { "RAG: Using SpringAiVectorStoreRetriever (VectorStore found)" }
-        return SpringAiVectorStoreRetriever(
+        val base: DocumentRetriever = SpringAiVectorStoreRetriever(
             vectorStore = vectorStore,
             defaultSimilarityThreshold = properties.rag.similarityThreshold,
             timeoutMs = properties.rag.retrievalTimeoutMs
         )
+        val parentConfig = properties.rag.parentRetrieval
+        if (parentConfig.enabled) {
+            ragLogger.info {
+                "RAG: Wrapping retriever with ParentDocumentRetriever (windowSize=${parentConfig.windowSize})"
+            }
+            return ParentDocumentRetriever(delegate = base, windowSize = parentConfig.windowSize)
+        }
+        return base
     }
 
     /**
@@ -77,6 +98,7 @@ class RagConfiguration {
      * Query transformer strategy.
      * - passthrough (default): no rewrite
      * - hyde: hypothetical document generation for better retrieval
+     * - decomposition: break complex queries into simpler sub-queries
      */
     @Bean
     @ConditionalOnMissingBean
@@ -84,32 +106,77 @@ class RagConfiguration {
         chatModelProvider: ObjectProvider<ChatModelProvider>,
         properties: AgentProperties
     ): QueryTransformer {
-        return when (properties.rag.queryTransformer.trim().lowercase()) {
-            "hyde" -> {
-                val provider = chatModelProvider.ifAvailable
-                if (provider != null) {
-                    val selectedProvider = provider.availableProviders()
-                        .firstOrNull { it == provider.defaultProvider() }
-                        ?: provider.availableProviders().firstOrNull()
-                    if (selectedProvider == null) {
-                        ragLogger.warn { "RAG: HyDE requested but no chat providers are available, using passthrough" }
-                        return PassthroughQueryTransformer()
-                    }
-                    ragLogger.info { "RAG: Using HyDEQueryTransformer" }
-                    HyDEQueryTransformer(provider.getChatClient(selectedProvider))
-                } else {
-                    ragLogger.warn { "RAG: HyDE requested but ChatModelProvider is unavailable, using passthrough" }
-                    PassthroughQueryTransformer()
-                }
-            }
+        val mode = properties.rag.queryTransformer.trim().lowercase()
+        return when (mode) {
+            "hyde" -> llmTransformerOrPassthrough(chatModelProvider, ::HyDEQueryTransformer)
+            "decomposition" -> llmTransformerOrPassthrough(chatModelProvider, ::DecompositionQueryTransformer)
             "passthrough", "" -> PassthroughQueryTransformer()
             else -> {
-                ragLogger.warn {
-                    "RAG: Unknown query transformer '${properties.rag.queryTransformer}', falling back to passthrough"
-                }
+                ragLogger.warn { "RAG: Unknown query transformer '$mode', falling back to passthrough" }
                 PassthroughQueryTransformer()
             }
         }
+    }
+
+    private fun llmTransformerOrPassthrough(
+        chatModelProvider: ObjectProvider<ChatModelProvider>,
+        factory: (ChatClient) -> QueryTransformer
+    ): QueryTransformer {
+        val chatClient = resolveChatClient(chatModelProvider) ?: return PassthroughQueryTransformer()
+        val transformer = factory(chatClient)
+        ragLogger.info { "RAG: Using ${transformer::class.simpleName}" }
+        return transformer
+    }
+
+    private fun resolveChatClient(chatModelProvider: ObjectProvider<ChatModelProvider>): ChatClient? {
+        val provider = chatModelProvider.ifAvailable
+        if (provider == null) {
+            ragLogger.warn { "RAG: ChatModelProvider is unavailable, using passthrough" }
+            return null
+        }
+        val selectedProvider = provider.availableProviders()
+            .firstOrNull { it == provider.defaultProvider() }
+            ?: provider.availableProviders().firstOrNull()
+        if (selectedProvider == null) {
+            ragLogger.warn { "RAG: No chat providers are available, using passthrough" }
+            return null
+        }
+        return provider.getChatClient(selectedProvider)
+    }
+
+    /**
+     * Contextual Compressor — LLM-based document compression.
+     * Only created when compression is explicitly enabled.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.rag.compression", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun contextCompressor(
+        chatModelProvider: ObjectProvider<ChatModelProvider>,
+        properties: AgentProperties
+    ): ContextCompressor {
+        val provider = chatModelProvider.ifAvailable
+        if (provider == null) {
+            throw BeanInitializationException(
+                "RAG compression is enabled but no ChatModelProvider is available."
+            )
+        }
+        val selectedProvider = provider.availableProviders()
+            .firstOrNull { it == provider.defaultProvider() }
+            ?: provider.availableProviders().firstOrNull()
+        if (selectedProvider == null) {
+            throw BeanInitializationException(
+                "RAG compression is enabled but no chat providers are available."
+            )
+        }
+        ragLogger.info { "RAG: Using LlmContextualCompressor" }
+        return LlmContextualCompressor(
+            chatClient = provider.getChatClient(selectedProvider),
+            minContentLength = properties.rag.compression.minContentLength
+        )
     }
 
     /**
@@ -175,11 +242,13 @@ class RagConfiguration {
         queryTransformer: QueryTransformer,
         retriever: DocumentRetriever,
         reranker: DocumentReranker,
+        contextCompressorProvider: ObjectProvider<ContextCompressor>,
         properties: AgentProperties
     ): RagPipeline = DefaultRagPipeline(
         queryTransformer = queryTransformer,
         retriever = retriever,
         reranker = reranker,
+        contextCompressor = contextCompressorProvider.ifAvailable,
         maxContextTokens = properties.rag.maxContextTokens
     )
 
@@ -193,6 +262,45 @@ class RagConfiguration {
         hybridRagPipeline: HybridRagPipeline,
         vectorStore: ObjectProvider<VectorStore>
     ): Bm25WarmUpRunner = Bm25WarmUpRunner(hybridRagPipeline, vectorStore)
+
+    /**
+     * Adaptive Query Router — classifies query complexity before retrieval.
+     * Only created when both rag and adaptive-routing are enabled.
+     */
+    @Bean
+    @ConditionalOnMissingBean(QueryRouter::class)
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.rag.adaptive-routing", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun queryRouter(
+        chatModelProvider: ObjectProvider<ChatModelProvider>,
+        properties: AgentProperties
+    ): QueryRouter {
+        val provider = chatModelProvider.ifAvailable
+        if (provider == null) {
+            ragLogger.warn {
+                "Adaptive routing enabled but ChatModelProvider unavailable, " +
+                    "routing will default to SIMPLE"
+            }
+            return SIMPLE_FALLBACK_ROUTER
+        }
+        val selectedProvider = provider.availableProviders()
+            .firstOrNull { it == provider.defaultProvider() }
+            ?: provider.availableProviders().firstOrNull()
+        if (selectedProvider == null) {
+            ragLogger.warn {
+                "Adaptive routing enabled but no chat providers available, " +
+                    "routing will default to SIMPLE"
+            }
+            return SIMPLE_FALLBACK_ROUTER
+        }
+        ragLogger.info { "RAG: Using AdaptiveQueryRouter (provider=$selectedProvider)" }
+        return AdaptiveQueryRouter(
+            chatClient = provider.getChatClient(selectedProvider),
+            timeoutMs = properties.rag.adaptiveRouting.timeoutMs
+        )
+    }
 
     /**
      * Document Chunker — splits long documents into smaller chunks for better embedding quality.

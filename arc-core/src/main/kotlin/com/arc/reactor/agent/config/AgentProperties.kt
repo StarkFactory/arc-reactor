@@ -87,7 +87,12 @@ data class AgentProperties(
     val tracing: TracingProperties = TracingProperties(),
 
     /** Tool parameter enrichment configuration */
-    val toolEnrichment: ToolEnrichmentProperties = ToolEnrichmentProperties()
+    val toolEnrichment: ToolEnrichmentProperties = ToolEnrichmentProperties(),
+
+/** Tool result caching configuration */
+    val toolResultCache: ToolResultCacheProperties = ToolResultCacheProperties()
+/** Citation auto-formatting configuration */
+    val citation: CitationProperties = CitationProperties()
 )
 
 data class LlmProperties(
@@ -399,4 +404,34 @@ data class ToolSelectionProperties(
 
     /** Maximum number of tools to return from semantic selection */
     val maxResults: Int = 10
+)
+
+/**
+ * Tool result caching configuration.
+ *
+ * When enabled, identical tool invocations (same tool name + same arguments) within the
+ * same ReAct loop return cached results instead of re-executing the tool. This prevents
+ * redundant calls when the LLM repeatedly invokes the same tool with the same arguments.
+ *
+ * Cache is scoped per ToolCallOrchestrator instance and uses Caffeine for TTL eviction.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     tool-result-cache:
+ *       enabled: true
+ *       ttl-seconds: 60
+ *       max-size: 200
+ * ```
+ */
+data class ToolResultCacheProperties(
+    /** Enable tool result caching. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Time-to-live for cached entries in seconds. */
+    val ttlSeconds: Long = 60,
+
+    /** Maximum number of cached entries. */
+    val maxSize: Long = 200
 )

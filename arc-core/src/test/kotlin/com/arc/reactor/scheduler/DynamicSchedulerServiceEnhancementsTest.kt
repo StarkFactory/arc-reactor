@@ -289,6 +289,100 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
     }
 
+    // ── Execution retention ─────────────────────────────────────────────────
+
+    @Nested
+    inner class ExecutionRetention {
+
+        @Test
+        fun `cleanup is called after recording execution`() {
+            val job = mcpJob()
+            val store = RecordingStore(job)
+            val execStore = RecordingExecutionStore()
+            val mcpManager = mockMcpManager(job, "result")
+            val props = SchedulerProperties(maxExecutionsPerJob = 50)
+
+            buildService(store, mcpManager = mcpManager, executionStore = execStore,
+                schedulerProperties = props).trigger(job.id)
+
+            assertEquals(1, execStore.deleteCalls.size,
+                "deleteOldestExecutions should be called once after execution")
+            assertEquals(job.id, execStore.deleteCalls[0].first,
+                "deleteOldestExecutions should target the correct job id")
+            assertEquals(50, execStore.deleteCalls[0].second,
+                "keepCount should match maxExecutionsPerJob property")
+        }
+
+        @Test
+        fun `cleanup is skipped when maxExecutionsPerJob is 0`() {
+            val job = mcpJob()
+            val store = RecordingStore(job)
+            val execStore = RecordingExecutionStore()
+            val mcpManager = mockMcpManager(job, "result")
+            val props = SchedulerProperties(maxExecutionsPerJob = 0)
+
+            buildService(store, mcpManager = mcpManager, executionStore = execStore,
+                schedulerProperties = props).trigger(job.id)
+
+            assertEquals(0, execStore.deleteCalls.size,
+                "deleteOldestExecutions should NOT be called when maxExecutionsPerJob=0")
+        }
+
+        @Test
+        fun `cleanup is called for dry-run executions too`() {
+            val job = mcpJob()
+            val store = RecordingStore(job)
+            val execStore = RecordingExecutionStore()
+            val mcpManager = mockMcpManager(job, "dry-result")
+            val props = SchedulerProperties(maxExecutionsPerJob = 25)
+
+            buildService(store, mcpManager = mcpManager, executionStore = execStore,
+                schedulerProperties = props).dryRun(job.id)
+
+            assertEquals(1, execStore.deleteCalls.size,
+                "deleteOldestExecutions should be called after dry-run execution")
+            assertEquals(25, execStore.deleteCalls[0].second,
+                "keepCount should match maxExecutionsPerJob for dry-run")
+        }
+
+        @Test
+        fun `InMemoryScheduledJobExecutionStore deleteOldestExecutions retains keepCount`() {
+            val memStore = InMemoryScheduledJobExecutionStore()
+            for (i in 1..5) {
+                memStore.save(ScheduledJobExecution(
+                    jobId = "job-A", jobName = "A", status = JobExecutionStatus.SUCCESS
+                ))
+            }
+            for (i in 1..3) {
+                memStore.save(ScheduledJobExecution(
+                    jobId = "job-B", jobName = "B", status = JobExecutionStatus.SUCCESS
+                ))
+            }
+
+            memStore.deleteOldestExecutions("job-A", 2)
+
+            assertEquals(2, memStore.findByJobId("job-A", 100).size,
+                "Only keepCount entries should remain for job-A")
+            assertEquals(3, memStore.findByJobId("job-B", 100).size,
+                "Entries for other jobs should not be affected")
+        }
+
+        @Test
+        fun `InMemoryScheduledJobExecutionStore deleteOldestExecutions no-op when under limit`() {
+            val memStore = InMemoryScheduledJobExecutionStore()
+            for (i in 1..3) {
+                memStore.save(ScheduledJobExecution(
+                    jobId = "job-A", jobName = "A", status = JobExecutionStatus.SUCCESS
+                ))
+            }
+
+            memStore.deleteOldestExecutions("job-A", 10)
+
+            assertEquals(3, memStore.findByJobId("job-A", 100).size,
+                "No entries should be removed when count is below keepCount")
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun mcpJob(
@@ -370,6 +464,7 @@ class DynamicSchedulerServiceEnhancementsTest {
 
     private class RecordingExecutionStore : ScheduledJobExecutionStore {
         val saved = CopyOnWriteArrayList<ScheduledJobExecution>()
+        val deleteCalls = CopyOnWriteArrayList<Pair<String, Int>>()
 
         override fun save(execution: ScheduledJobExecution): ScheduledJobExecution {
             val withId = if (execution.id.isBlank()) execution.copy(id = "exec-${saved.size + 1}") else execution
@@ -381,5 +476,9 @@ class DynamicSchedulerServiceEnhancementsTest {
             saved.filter { it.jobId == jobId }.take(limit)
 
         override fun findRecent(limit: Int): List<ScheduledJobExecution> = saved.take(limit)
+
+        override fun deleteOldestExecutions(jobId: String, keepCount: Int) {
+            deleteCalls.add(jobId to keepCount)
+        }
     }
 }
