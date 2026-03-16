@@ -91,7 +91,9 @@ class SupervisorOrchestrator(
         return MultiAgentResult(
             success = result.success,
             finalResult = result,
-            nodeResults = listOf(NodeResult("supervisor", result, totalDuration)),
+            nodeResults = listOf(
+                NodeResult("supervisor", result, totalDuration, result.tokenUsage?.totalTokens ?: 0)
+            ),
             totalDurationMs = totalDuration
         )
     }
