@@ -3,6 +3,8 @@ package com.arc.reactor.agent.multi
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -46,7 +48,10 @@ class SequentialOrchestrator : MultiAgentOrchestrator {
         val nodeResults = mutableListOf<NodeResult>()
         var currentInput = command.userPrompt
 
-        for ((index, node) in nodes.withIndex()) {
+for ((index, node) in nodes.withIndex()) {
+val defaultTimeout = WorkerAgentTool.DEFAULT_WORKER_TIMEOUT_MS
+
+        for (node in nodes) {
             logger.info { "Sequential: executing node '${node.name}' with input length=${currentInput.length}" }
             val nodeStart = System.currentTimeMillis()
 
@@ -56,7 +61,15 @@ class SequentialOrchestrator : MultiAgentOrchestrator {
                 userPrompt = currentInput
             )
 
-            val result = agent.execute(nodeCommand)
+            val timeout = node.timeoutMs ?: defaultTimeout
+            val result = try {
+                withTimeout(timeout) {
+                    agent.execute(nodeCommand)
+                }
+            } catch (e: TimeoutCancellationException) {
+                logger.warn { "Sequential: node '${node.name}' timed out after ${timeout}ms" }
+                AgentResult.failure("Node '${node.name}' timed out after ${timeout}ms")
+            }
             val nodeDuration = System.currentTimeMillis() - nodeStart
 
             val tokensUsed = result.tokenUsage?.totalTokens ?: 0

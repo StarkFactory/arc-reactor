@@ -149,6 +149,45 @@ class ParallelOrchestratorTest {
     }
 
     @Nested
+    inner class PerNodeTimeout {
+
+        @Test
+        fun `should timeout slow node while fast node succeeds`() = runTest {
+            val orchestrator = ParallelOrchestrator(failFast = false)
+            val nodes = listOf(
+                AgentNode("fast", systemPrompt = "", timeoutMs = 5000),
+                AgentNode("slow", systemPrompt = "", timeoutMs = 100)
+            )
+
+            val result = orchestrator.execute(baseCommand, nodes) { node ->
+                if (node.name == "fast") {
+                    mockAgent("fast result")
+                } else {
+                    mockAgent("should not reach", delayMs = 500)
+                }
+            }
+
+            assertTrue(result.success, "Should succeed when at least one node completes (failFast=false)")
+            assertTrue(
+                result.finalResult.content.orEmpty().contains("fast result"),
+                "Should contain fast node's result"
+            )
+        }
+
+        @Test
+        fun `should use default timeout when node timeout is null`() = runTest {
+            val orchestrator = ParallelOrchestrator()
+            val nodes = listOf(
+                AgentNode("A", systemPrompt = "", timeoutMs = null)
+            )
+
+            val result = orchestrator.execute(baseCommand, nodes) { mockAgent("quick") }
+
+            assertTrue(result.success, "Should succeed with default timeout when node completes quickly")
+        }
+    }
+
+    @Nested
     inner class ResultMerging {
 
         @Test

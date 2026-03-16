@@ -16,6 +16,7 @@ import com.arc.reactor.tool.ToolCallback
  * @param tools List of ToolCallback-based tools
  * @param localTools List of LocalTool-based tools
  * @param maxToolCalls Maximum number of tool calls for this agent
+ * @param timeoutMs Per-node timeout in milliseconds. If null, the global default is used.
  */
 data class AgentNode(
     val name: String,
@@ -23,7 +24,8 @@ data class AgentNode(
     val description: String = "",
     val tools: List<ToolCallback> = emptyList(),
     val localTools: List<LocalTool> = emptyList(),
-    val maxToolCalls: Int = 10
+    val maxToolCalls: Int = 10,
+    val timeoutMs: Long? = null
 )
 
 /**
