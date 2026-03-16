@@ -162,4 +162,77 @@ class MicrometerAgentMetricsTest {
             "Stage timer should record the supplied latency"
         }
     }
+
+    @Test
+    fun `records LLM latency timer with percentiles`() {
+        val registry = SimpleMeterRegistry()
+        val metrics = MicrometerAgentMetrics(registry)
+
+        metrics.recordLlmLatency("gemini-2.0-flash", 150)
+        metrics.recordLlmLatency("gemini-2.0-flash", 250)
+
+        val timer = registry.get("arc.agent.llm.latency")
+            .tag("model", "gemini-2.0-flash")
+            .timer()
+        assertEquals(2L, timer.count(), "LLM latency timer should record two samples")
+        assertTrue(timer.totalTime(java.util.concurrent.TimeUnit.MILLISECONDS) >= 400.0) {
+            "LLM latency timer should accumulate total duration"
+        }
+    }
+
+    @Test
+    fun `records tool output size and truncation counter`() {
+        val registry = SimpleMeterRegistry()
+        val metrics = MicrometerAgentMetrics(registry)
+
+        metrics.recordToolOutputSize("web_search", 12000, false)
+        metrics.recordToolOutputSize("web_search", 50000, true)
+
+        val summary = registry.get("arc.agent.tool.output.size")
+            .tag("tool", "web_search")
+            .summary()
+        assertEquals(2L, summary.count(), "Tool output size should record two samples")
+        assertEquals(62000.0, summary.totalAmount(), "Tool output size should sum byte counts")
+
+        val truncated = registry.get("arc.agent.tool.output.truncated")
+            .tag("tool", "web_search")
+            .counter()
+        assertEquals(1.0, truncated.count(), 0.0, "Truncation counter should increment only when truncated=true")
+    }
+
+    @Test
+    fun `does not increment truncation counter when output is not truncated`() {
+        val registry = SimpleMeterRegistry()
+        val metrics = MicrometerAgentMetrics(registry)
+
+        metrics.recordToolOutputSize("calculator", 500, false)
+
+        val summary = registry.get("arc.agent.tool.output.size")
+            .tag("tool", "calculator")
+            .summary()
+        assertEquals(1L, summary.count(), "Tool output size should record the sample")
+
+        val truncatedMeters = registry.find("arc.agent.tool.output.truncated")
+            .tag("tool", "calculator")
+            .counter()
+        assertTrue(truncatedMeters == null || truncatedMeters.count() == 0.0) {
+            "Truncation counter should not be created when output is never truncated"
+        }
+    }
+
+    @Test
+    fun `tracks active requests gauge`() {
+        val registry = SimpleMeterRegistry()
+        val metrics = MicrometerAgentMetrics(registry)
+
+        metrics.recordActiveRequests(5)
+        val gauge = registry.get("arc.agent.active_requests").gauge()
+        assertEquals(5.0, gauge.value(), 0.0, "Active requests gauge should reflect the set count")
+
+        metrics.recordActiveRequests(3)
+        assertEquals(3.0, gauge.value(), 0.0, "Active requests gauge should update to the new count")
+
+        metrics.recordActiveRequests(0)
+        assertEquals(0.0, gauge.value(), 0.0, "Active requests gauge should go back to zero")
+    }
 }
