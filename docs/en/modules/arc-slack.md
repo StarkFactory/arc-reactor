@@ -67,6 +67,10 @@ When enabled, 11 tools are registered:
 - `search_messages`
 - `upload_file`
 
+When `arc.reactor.slack.tools.canvas.enabled=true`, two additional canvas tools are registered:
+- `create_canvas` — create a new Slack canvas owned by the bot token
+- `append_canvas` — append markdown content to an existing Slack canvas
+
 If `tool-exposure.scope-aware-enabled=true`, tool visibility is filtered by granted Slack OAuth scopes.
 
 ## Key Components
@@ -87,6 +91,14 @@ If `tool-exposure.scope-aware-enabled=true`, tool visibility is filtered by gran
 | `SlackSignatureVerifier` | HMAC-SHA256 verification with timing-safe comparison |
 | `SlackSignatureWebFilter` | WebFlux filter that validates all requests before they reach controllers (Events API only) |
 | `SlackSystemPromptFactory` | Builds the system prompt injected into every Slack-originated agent call |
+| `SlackResponseTextFormatter` | Formats agent results for Slack, with generic refusal detection and fallback |
+| `SlackSlashIntentParser` | Parses slash command text into typed intents (agent, brief, my-work, remind, help) |
+| `SlackReminderStore` | In-memory per-user reminder store with time parsing (English and Korean) |
+| `SlackReminderScheduler` | Polls for due reminders and delivers DM notifications via Slack API |
+| `SlackUserEmailResolver` | Resolves Slack user email via `users.info` with in-memory cache |
+| `SlackBotResponseTracker` | Tracks bot response messages for emoji reaction feedback correlation |
+| `SlackThreadTracker` | Tracks threads initiated by Arc Reactor to scope follow-up event handling |
+| `ProactiveChannelStore` | Interface for managing proactive monitoring channel configuration |
 | `SlackMetricsRecorder` | Interface for recording Slack-specific metrics (NoOp or Micrometer implementation) |
 
 ## Configuration
@@ -111,6 +123,18 @@ All properties are under the prefix `arc.reactor.slack`.
 | `event-dedup-enabled` | `true` | Enable in-memory event deduplication |
 | `event-dedup-ttl-seconds` | `600` | Dedup cache TTL (seconds) |
 | `event-dedup-max-entries` | `10000` | Max entries in the dedup cache |
+| `user-email-resolution-enabled` | `true` | Resolve requester email from Slack `users.info` |
+| `user-email-cache-ttl-seconds` | `3600` | In-memory cache TTL for resolved Slack user emails |
+| `user-email-cache-max-entries` | `20000` | Max in-memory cache entries for user emails |
+| `thread-tracking-enabled` | `true` | Track threads initiated by Arc Reactor |
+| `thread-tracking-ttl-seconds` | `86400` | Retention time for tracked threads |
+| `thread-tracking-max-entries` | `20000` | Max tracked thread entries |
+| `process-direct-messages-without-thread` | `false` | Process top-level DMs even without `thread_ts` |
+| `proactive-enabled` | `false` | Enable proactive channel monitoring |
+| `proactive-channel-ids` | `[]` | Channel IDs for proactive monitoring |
+| `proactive-max-concurrent` | `2` | Max concurrent proactive evaluations |
+| `reaction-feedback-enabled` | `true` | Collect feedback from emoji reactions on bot responses |
+| `user-memory-enabled` | `true` | Inject per-user long-term memory into agent system prompt |
 | `socket-backend` | `JAVA_WEBSOCKET` | WebSocket backend: `JAVA_WEBSOCKET` or `TYRUS` |
 | `socket-connect-retry-initial-delay-ms` | `1000` | Initial delay for Socket Mode reconnect |
 | `socket-connect-retry-max-delay-ms` | `30000` | Maximum delay for Socket Mode reconnect |
