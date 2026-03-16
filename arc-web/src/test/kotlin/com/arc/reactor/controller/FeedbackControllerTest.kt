@@ -387,9 +387,10 @@ class FeedbackControllerTest {
             val response = controller.getFeedback("fb-1")
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
-            assertEquals("fb-1", response.body!!.feedbackId) { "feedbackId should match" }
-            assertEquals("thumbs_up", response.body!!.rating) { "Rating should be lowercase" }
-            assertEquals(now.toString(), response.body!!.timestamp) { "Timestamp should be ISO 8601" }
+            val body = response.body!! as FeedbackResponse
+            assertEquals("fb-1", body.feedbackId) { "feedbackId should match" }
+            assertEquals("thumbs_up", body.rating) { "Rating should be lowercase" }
+            assertEquals(now.toString(), body.timestamp) { "Timestamp should be ISO 8601" }
         }
 
         @Test

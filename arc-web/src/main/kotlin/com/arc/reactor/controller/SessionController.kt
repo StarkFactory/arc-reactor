@@ -96,7 +96,7 @@ class SessionController(
         }
 
         val memory = memoryStore.get(sessionId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Session not found: $sessionId")
         val messages = memory.getHistory().map { msg ->
             MessageResponse(
                 role = msg.role.name.lowercase(),
@@ -129,7 +129,7 @@ class SessionController(
         }
 
         val memory = memoryStore.get(sessionId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Session not found: $sessionId")
         val messages = memory.getHistory()
 
         return when (format.lowercase()) {

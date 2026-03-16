@@ -238,10 +238,11 @@ class AuthControllerTest {
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200 OK" }
             assertNotNull(response.body) { "Response body should not be null" }
-            assertEquals("user-1", response.body!!.id) { "User ID should match" }
-            assertEquals("tony@stark.com", response.body!!.email) { "Email should match" }
-            assertEquals("Tony Stark", response.body!!.name) { "Name should match" }
-            assertNull(response.body!!.adminScope) { "USER role should not have adminScope in response" }
+            val body = response.body!! as UserResponse
+            assertEquals("user-1", body.id) { "User ID should match" }
+            assertEquals("tony@stark.com", body.email) { "Email should match" }
+            assertEquals("Tony Stark", body.name) { "Name should match" }
+            assertNull(body.adminScope) { "USER role should not have adminScope in response" }
         }
 
         @Test
@@ -264,8 +265,9 @@ class AuthControllerTest {
             val response = controller.me(exchange)
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200 OK" }
-            assertEquals("ADMIN_MANAGER", response.body!!.role) { "Role should match ADMIN_MANAGER" }
-            assertEquals("MANAGER", response.body!!.adminScope) {
+            val body = response.body!! as UserResponse
+            assertEquals("ADMIN_MANAGER", body.role) { "Role should match ADMIN_MANAGER" }
+            assertEquals("MANAGER", body.adminScope) {
                 "Manager admin role should return MANAGER adminScope"
             }
         }

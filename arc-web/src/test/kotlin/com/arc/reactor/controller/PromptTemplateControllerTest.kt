@@ -75,7 +75,7 @@ class PromptTemplateControllerTest {
             val response = controller.getTemplate("t-1")
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
-            val body = response.body!!
+            val body = response.body!! as TemplateDetailResponse
             assertEquals("customer-support", body.name) { "Name should match" }
             assertEquals(2, body.versions.size) { "Should have 2 versions" }
             assertNotNull(body.activeVersion) { "Should have an active version" }
