@@ -149,15 +149,17 @@ class DefaultCircuitBreaker(
         } else if (current == CircuitBreakerState.CLOSED) {
             val failures = failureCount.incrementAndGet()
             if (failures >= failureThreshold) {
-                state.set(CircuitBreakerState.OPEN)
-                openedAt.set(clock())
-                logger.warn {
-                    "Circuit breaker '$name' transitioned CLOSED → OPEN " +
-                        "(failures=$failures, threshold=$failureThreshold)"
+                // CAS: only one thread performs the CLOSED → OPEN transition
+                if (state.compareAndSet(CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN)) {
+                    openedAt.set(clock())
+                    logger.warn {
+                        "Circuit breaker '$name' transitioned CLOSED → OPEN " +
+                            "(failures=$failures, threshold=$failureThreshold)"
+                    }
+                    agentMetrics.recordCircuitBreakerStateChange(
+                        name, CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN
+                    )
                 }
-                agentMetrics.recordCircuitBreakerStateChange(
-                    name, CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN
-                )
             }
         }
     }

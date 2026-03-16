@@ -21,9 +21,7 @@ class InMemoryRagIngestionPolicyStore(
     }
 
     override fun delete(): Boolean {
-        val existed = ref.get() != null
-        ref.set(null)
-        return existed
+        return ref.getAndSet(null) != null
     }
 }
 
