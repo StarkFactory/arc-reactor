@@ -228,6 +228,73 @@ class ConversationManagerTest {
     }
 
     @Nested
+    inner class MessagePairIntegrity {
+
+        @Test
+        fun `concurrent saves to same session should maintain user-assistant pair ordering`() {
+            val memoryStore = InMemoryMemoryStore()
+            val manager = DefaultConversationManager(memoryStore, properties)
+            val sessionId = "concurrent-session"
+            val threadCount = 20
+            val executor = java.util.concurrent.Executors.newFixedThreadPool(threadCount)
+            val readyLatch = CountDownLatch(threadCount)
+            val startLatch = CountDownLatch(1)
+
+            try {
+                val futures = (1..threadCount).map { i ->
+                    executor.submit {
+                        readyLatch.countDown()
+                        startLatch.await()
+                        val command = AgentCommand(
+                            systemPrompt = "",
+                            userPrompt = "user-$i",
+                            metadata = mapOf("sessionId" to sessionId)
+                        )
+                        val result = AgentResult.success("assistant-$i")
+                        kotlinx.coroutines.runBlocking {
+                            manager.saveHistory(command, result)
+                        }
+                    }
+                }
+
+                readyLatch.await(5, TimeUnit.SECONDS)
+                startLatch.countDown()
+                futures.forEach { it.get(10, TimeUnit.SECONDS) }
+
+                val history = memoryStore.get(sessionId)!!.getHistory()
+                assertEquals(
+                    threadCount * 2, history.size,
+                    "Should have $threadCount user + $threadCount assistant messages"
+                )
+
+                // Verify user-assistant pairs are adjacent (never interleaved)
+                var i = 0
+                while (i < history.size) {
+                    val userMsg = history[i]
+                    assertEquals(MessageRole.USER, userMsg.role,
+                        "Message at index $i should be USER, got ${userMsg.role}")
+                    assertTrue(i + 1 < history.size,
+                        "USER message at index $i must have a following ASSISTANT message")
+                    val assistantMsg = history[i + 1]
+                    assertEquals(MessageRole.ASSISTANT, assistantMsg.role,
+                        "Message at index ${i + 1} should be ASSISTANT, got ${assistantMsg.role}")
+
+                    // Extract the number from content to verify pair matches
+                    val userNum = userMsg.content.removePrefix("user-")
+                    val assistantNum = assistantMsg.content.removePrefix("assistant-")
+                    assertEquals(userNum, assistantNum,
+                        "User-$userNum and Assistant-$assistantNum should be paired together")
+                    i += 2
+                }
+            } finally {
+                executor.shutdown()
+                executor.awaitTermination(5, TimeUnit.SECONDS)
+                manager.destroy()
+            }
+        }
+    }
+
+    @Nested
     inner class HierarchicalMemory {
 
         private val summaryProps = SummaryProperties(

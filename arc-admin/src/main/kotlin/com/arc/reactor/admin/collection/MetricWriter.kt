@@ -41,6 +41,13 @@ class MetricWriter(
     fun start() {
         if (!running.compareAndSet(false, true)) return
 
+        if (writerThreads > 1) {
+            logger.warn {
+                "MetricWriter writerThreads=$writerThreads but drain() is single-consumer only. " +
+                    "Extra threads will be idle most of the time — consider using writerThreads=1."
+            }
+        }
+
         val exec = Executors.newScheduledThreadPool(writerThreads) { r ->
             Thread(r, "metric-writer").apply { isDaemon = true }
         }
