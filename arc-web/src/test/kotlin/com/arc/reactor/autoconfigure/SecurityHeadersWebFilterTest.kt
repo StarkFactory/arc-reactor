@@ -26,7 +26,7 @@ class SecurityHeadersWebFilterTest {
     inner class Headers {
 
         @Test
-        fun `should set X-Content-Type-Options to nosniff`() {
+        fun `set X-Content-Type-Options to nosniff해야 한다`() {
             val exchange = executeFilter()
             assertEquals(
                 "nosniff",
@@ -35,7 +35,7 @@ class SecurityHeadersWebFilterTest {
         }
 
         @Test
-        fun `should set X-Frame-Options to DENY`() {
+        fun `set X-Frame-Options to DENY해야 한다`() {
             val exchange = executeFilter()
             assertEquals(
                 "DENY",
@@ -44,7 +44,7 @@ class SecurityHeadersWebFilterTest {
         }
 
         @Test
-        fun `should set Content-Security-Policy`() {
+        fun `set Content-Security-Policy해야 한다`() {
             val exchange = executeFilter()
             assertEquals(
                 "default-src 'self'",
@@ -53,7 +53,7 @@ class SecurityHeadersWebFilterTest {
         }
 
         @Test
-        fun `should set X-XSS-Protection to 0`() {
+        fun `set X-XSS-Protection to 0해야 한다`() {
             val exchange = executeFilter()
             assertEquals(
                 "0",
@@ -62,7 +62,7 @@ class SecurityHeadersWebFilterTest {
         }
 
         @Test
-        fun `should set Referrer-Policy`() {
+        fun `set Referrer-Policy해야 한다`() {
             val exchange = executeFilter()
             assertEquals(
                 "strict-origin-when-cross-origin",
@@ -71,7 +71,7 @@ class SecurityHeadersWebFilterTest {
         }
 
         @Test
-        fun `should set Strict-Transport-Security`() {
+        fun `set Strict-Transport-Security해야 한다`() {
             val exchange = executeFilter()
             assertEquals(
                 "max-age=31536000; includeSubDomains",
@@ -80,7 +80,7 @@ class SecurityHeadersWebFilterTest {
         }
 
         @Test
-        fun `should use relaxed CSP for swagger-ui paths`() {
+        fun `swagger-ui paths에 대해 use relaxed CSP해야 한다`() {
             val exchange = executeFilter("/swagger-ui/index.html")
             val csp = exchange.response.headers.getFirst("Content-Security-Policy")
             assertTrue(csp!!.contains("'unsafe-inline'")) {
@@ -89,7 +89,7 @@ class SecurityHeadersWebFilterTest {
         }
 
         @Test
-        fun `should use strict CSP for API paths`() {
+        fun `API paths에 대해 use strict CSP해야 한다`() {
             val exchange = executeFilter("/api/chat")
             assertEquals(
                 "default-src 'self'",
@@ -102,7 +102,7 @@ class SecurityHeadersWebFilterTest {
     inner class Ordering {
 
         @Test
-        fun `should have highest precedence order`() {
+        fun `have highest precedence order해야 한다`() {
             assertEquals(
                 Ordered.HIGHEST_PRECEDENCE,
                 filter.order

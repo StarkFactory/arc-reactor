@@ -37,7 +37,7 @@ class DecompositionQueryTransformerTest {
     inner class HappyPath {
 
         @Test
-        fun `should decompose complex query into sub-queries plus original`() = runTest {
+        fun `decompose complex query into sub-queries plus original해야 한다`() = runTest {
             val subQueries = "What is our return policy?\nWhat are competitor return policies?"
             mockLlmResponse(subQueries)
 
@@ -54,7 +54,7 @@ class DecompositionQueryTransformerTest {
         }
 
         @Test
-        fun `should deduplicate when LLM returns original query as sub-query`() = runTest {
+        fun `LLM returns original query as sub-query일 때 deduplicate해야 한다`() = runTest {
             mockLlmResponse("What is the return policy?")
 
             val transformer = DecompositionQueryTransformer(chatClient)
@@ -65,7 +65,7 @@ class DecompositionQueryTransformerTest {
         }
 
         @Test
-        fun `should filter blank lines in LLM response`() = runTest {
+        fun `filter blank lines in LLM response해야 한다`() = runTest {
             mockLlmResponse("Sub query 1\n\n\nSub query 2\n\n")
 
             val transformer = DecompositionQueryTransformer(chatClient)
@@ -78,7 +78,7 @@ class DecompositionQueryTransformerTest {
         }
 
         @Test
-        fun `should use system prompt for decomposition`() = runTest {
+        fun `decomposition에 대해 use system prompt해야 한다`() = runTest {
             mockLlmResponse("simple query")
 
             val transformer = DecompositionQueryTransformer(chatClient)
@@ -92,7 +92,7 @@ class DecompositionQueryTransformerTest {
     inner class ErrorHandling {
 
         @Test
-        fun `should fallback to original query when LLM returns null`() = runTest {
+        fun `LLM returns null일 때 fallback to original query해야 한다`() = runTest {
             every { callResponseSpec.chatResponse() } returns null
 
             val transformer = DecompositionQueryTransformer(chatClient)
@@ -103,7 +103,7 @@ class DecompositionQueryTransformerTest {
         }
 
         @Test
-        fun `should fallback to original query when LLM returns blank`() = runTest {
+        fun `LLM returns blank일 때 fallback to original query해야 한다`() = runTest {
             mockLlmResponse("   ")
 
             val transformer = DecompositionQueryTransformer(chatClient)
@@ -114,7 +114,7 @@ class DecompositionQueryTransformerTest {
         }
 
         @Test
-        fun `should fallback to original query when LLM throws exception`() = runTest {
+        fun `LLM throws exception일 때 fallback to original query해야 한다`() = runTest {
             every { requestSpec.call() } throws RuntimeException("LLM unavailable")
 
             val transformer = DecompositionQueryTransformer(chatClient)
@@ -125,7 +125,7 @@ class DecompositionQueryTransformerTest {
         }
 
         @Test
-        fun `should propagate CancellationException for structured concurrency`() = runTest {
+        fun `structured concurrency에 대해 propagate CancellationException해야 한다`() = runTest {
             every { requestSpec.call() } throws java.util.concurrent.CancellationException("cancelled")
 
             val transformer = DecompositionQueryTransformer(chatClient)
@@ -140,25 +140,25 @@ class DecompositionQueryTransformerTest {
     inner class ParseSubQueries {
 
         @Test
-        fun `should parse multi-line response`() {
+        fun `parse multi-line response해야 한다`() {
             val result = DecompositionQueryTransformer.parseSubQueries("line1\nline2\nline3")
             assertEquals(3, result.size) { "Should parse 3 lines" }
         }
 
         @Test
-        fun `should return empty for null input`() {
+        fun `null input에 대해 return empty해야 한다`() {
             val result = DecompositionQueryTransformer.parseSubQueries(null)
             assertTrue(result.isEmpty()) { "Should return empty list for null" }
         }
 
         @Test
-        fun `should return empty for blank input`() {
+        fun `blank input에 대해 return empty해야 한다`() {
             val result = DecompositionQueryTransformer.parseSubQueries("  \n  \n  ")
             assertTrue(result.isEmpty()) { "Should return empty list for blank" }
         }
 
         @Test
-        fun `should trim whitespace from each line`() {
+        fun `trim whitespace from each line해야 한다`() {
             val result = DecompositionQueryTransformer.parseSubQueries("  query 1  \n  query 2  ")
             assertEquals("query 1", result[0]) { "Should trim first line" }
             assertEquals("query 2", result[1]) { "Should trim second line" }

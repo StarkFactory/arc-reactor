@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class ManualReActLoopExecutorTest {
 
     @Test
-    fun `should return validated result when llm returns final text without tool calls`() = runBlocking {
+    fun `llm returns final text without tool calls일 때 return validated result해야 한다`() = runBlocking {
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
         io.mockk.every { requestSpec.call() } returns callResponseSpec
@@ -70,7 +70,7 @@ class ManualReActLoopExecutorTest {
     }
 
     @Test
-    fun `should disable tools when maxToolCalls reached`() = runBlocking {
+    fun `maxToolCalls reached일 때 disable tools해야 한다`() = runBlocking {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
         val firstResponse = AgentTestFixture.simpleChatResponse("").mutateWithToolCalls(listOf(toolCall))
         val secondResponse = AgentTestFixture.simpleChatResponse("done")
@@ -127,7 +127,7 @@ class ManualReActLoopExecutorTest {
     }
 
     @Test
-    fun `should start with tools disabled when maxToolCalls is zero`() = runBlocking {
+    fun `maxToolCalls is zero일 때 start with tools disabled해야 한다`() = runBlocking {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
@@ -176,7 +176,7 @@ class ManualReActLoopExecutorTest {
     }
 
     @Test
-    fun `should not leave orphan AssistantMessage when tool execution fails`() = runBlocking {
+    fun `tool execution fails일 때 not leave orphan AssistantMessage해야 한다`() = runBlocking {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
         val responseWithTools = AgentTestFixture.simpleChatResponse("")
             .mutateWithToolCalls(listOf(toolCall))
@@ -234,7 +234,7 @@ class ManualReActLoopExecutorTest {
         }
         exception.message shouldBe "Tool execution failed"
 
-        // Verify that the messages list passed to buildRequestSpec never
+        // that the messages list passed to buildRequestSpec never 확인
         // contained an orphan AssistantMessage without a ToolResponseMessage
         for (msgTypes in capturedMessages) {
             val assistantCount = msgTypes.count { it == "AssistantMessage" }
@@ -251,7 +251,7 @@ class ManualReActLoopExecutorTest {
     }
 
     @Test
-    fun `should return empty content when chatResponse has no results`() =
+    fun `chatResponse has no results일 때 return empty content해야 한다`() =
         runBlocking {
             // ChatResponse with empty generations list -- assistantOutput
             // will be null, pendingToolCalls empty, returns via validation

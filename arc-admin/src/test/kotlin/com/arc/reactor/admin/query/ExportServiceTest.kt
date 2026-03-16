@@ -10,67 +10,67 @@ class ExportServiceTest {
     inner class EscapeCsv {
 
         @Test
-        fun `returns empty string for null`() {
+        fun `null에 대해 empty string를 반환한다`() {
             ExportService.escapeCsv(null) shouldBe ""
         }
 
         @Test
-        fun `returns value unchanged when no special chars`() {
+        fun `no special chars일 때 value unchanged를 반환한다`() {
             ExportService.escapeCsv("hello world") shouldBe "hello world"
         }
 
         @Test
-        fun `wraps in quotes when value contains comma`() {
+        fun `in quotes when value contains comma를 래핑한다`() {
             ExportService.escapeCsv("hello,world") shouldBe "\"hello,world\""
         }
 
         @Test
-        fun `wraps in quotes when value contains newline`() {
+        fun `in quotes when value contains newline를 래핑한다`() {
             ExportService.escapeCsv("line1\nline2") shouldBe "\"line1\nline2\""
         }
 
         @Test
-        fun `wraps in quotes when value contains carriage return`() {
+        fun `in quotes when value contains carriage return를 래핑한다`() {
             ExportService.escapeCsv("line1\rline2") shouldBe "\"line1\rline2\""
         }
 
         @Test
-        fun `escapes double quotes by doubling them`() {
+        fun `double quotes by doubling them를 이스케이프한다`() {
             ExportService.escapeCsv("say \"hello\"") shouldBe "\"say \"\"hello\"\"\""
         }
 
         @Test
-        fun `handles value with both commas and quotes`() {
+        fun `value with both commas and quotes를 처리한다`() {
             ExportService.escapeCsv("he said \"hi\", then left") shouldBe "\"he said \"\"hi\"\", then left\""
         }
 
         @Test
-        fun `returns empty string unchanged`() {
+        fun `empty string unchanged를 반환한다`() {
             ExportService.escapeCsv("") shouldBe ""
         }
 
         @Test
-        fun `handles single comma`() {
+        fun `single comma를 처리한다`() {
             ExportService.escapeCsv(",") shouldBe "\",\""
         }
 
         @Test
-        fun `handles single quote`() {
+        fun `single quote를 처리한다`() {
             ExportService.escapeCsv("\"") shouldBe "\"\"\"\""
         }
 
         @Test
-        fun `handles CRLF newline`() {
+        fun `CRLF newline를 처리한다`() {
             ExportService.escapeCsv("a\r\nb") shouldBe "\"a\r\nb\""
         }
 
         @Test
-        fun `no escaping for simple timestamps`() {
+        fun `없는 escaping for simple timestamps`() {
             ExportService.escapeCsv("2024-01-15T10:30:00Z") shouldBe "2024-01-15T10:30:00Z"
         }
 
         @Test
-        fun `no escaping for UUIDs`() {
+        fun `없는 escaping for UUIDs`() {
             ExportService.escapeCsv("550e8400-e29b-41d4-a716-446655440000") shouldBe "550e8400-e29b-41d4-a716-446655440000"
         }
     }

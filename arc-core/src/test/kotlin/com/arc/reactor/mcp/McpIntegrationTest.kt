@@ -45,7 +45,7 @@ class McpIntegrationTest {
 
     @BeforeAll
     fun setup() {
-        // Verify npx is available
+        // npx is available 확인
         val npxCheck = ProcessBuilder("npx", "--version")
             .redirectErrorStream(true)
             .start()
@@ -76,7 +76,7 @@ class McpIntegrationTest {
 
     @Test
     @Order(1)
-    fun `should connect to server-everything via STDIO`() = runBlocking {
+    fun `connect to server-everything via STDIO해야 한다`() = runBlocking {
         val connected = manager.connect(SERVER_NAME)
 
         assertTrue(connected) { "Should successfully connect to $NPX_PACKAGE" }
@@ -87,7 +87,7 @@ class McpIntegrationTest {
 
     @Test
     @Order(2)
-    fun `should load tools from server-everything`() {
+    fun `load tools from server-everything해야 한다`() {
         val tools = manager.getToolCallbacks(SERVER_NAME)
 
         assertTrue(tools.isNotEmpty()) {
@@ -103,7 +103,7 @@ class McpIntegrationTest {
 
     @Test
     @Order(3)
-    fun `should list tools via getAllToolCallbacks`() {
+    fun `list tools via getAllToolCallbacks해야 한다`() {
         val allTools = manager.getAllToolCallbacks()
 
         assertTrue(allTools.isNotEmpty()) {
@@ -113,7 +113,7 @@ class McpIntegrationTest {
 
     @Test
     @Order(4)
-    fun `should call echo tool and receive response`() = runBlocking {
+    fun `call echo tool and receive response해야 한다`() = runBlocking {
         val tools = manager.getToolCallbacks(SERVER_NAME)
         val echoTool = tools.find { it.name == "echo" }
 
@@ -130,7 +130,7 @@ class McpIntegrationTest {
 
     @Test
     @Order(5)
-    fun `should have valid inputSchema for echo tool`() {
+    fun `echo tool에 대해 have valid inputSchema해야 한다`() {
         val tools = manager.getToolCallbacks(SERVER_NAME)
         val echoTool = tools.find { it.name == "echo" }
 
@@ -144,7 +144,7 @@ class McpIntegrationTest {
 
     @Test
     @Order(6)
-    fun `should disconnect gracefully`() = runBlocking {
+    fun `disconnect gracefully해야 한다`() = runBlocking {
         manager.disconnect(SERVER_NAME)
 
         assertEquals(McpServerStatus.DISCONNECTED, manager.getStatus(SERVER_NAME)) {

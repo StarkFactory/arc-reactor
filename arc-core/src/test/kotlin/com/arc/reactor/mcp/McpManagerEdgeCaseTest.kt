@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * MCP Manager edge case tests.
  *
- * Covers: reconnection, disconnect cleanup, concurrent operations,
+ * 대상: reconnection, disconnect cleanup, concurrent operations,
  * store failure handling, close lifecycle, and re-registration behavior.
  */
 class McpManagerEdgeCaseTest {
@@ -52,7 +52,7 @@ class McpManagerEdgeCaseTest {
     inner class ReconnectionBehavior {
 
         @Test
-        fun `disconnect then reconnect should transition through correct states`() = runBlocking {
+        fun `disconnect then reconnect은(는) transition through correct states해야 한다`() = runBlocking {
             val manager = manager()
             manager.register(stdioServer("reconnect-server"))
 
@@ -73,7 +73,7 @@ class McpManagerEdgeCaseTest {
                 "Status should be DISCONNECTED after disconnect"
             }
 
-            // Reconnect attempt
+            // attempt 재연결
             manager.connect("reconnect-server")
             assertEquals(McpServerStatus.FAILED, manager.getStatus("reconnect-server")) {
                 "Status should be FAILED after second failed connection attempt"
@@ -81,7 +81,7 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `disconnect should clear tool callbacks`() = runBlocking {
+        fun `disconnect은(는) clear tool callbacks해야 한다`() = runBlocking {
             val manager = manager()
             manager.register(stdioServer("tool-server"))
 
@@ -98,11 +98,11 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `multiple disconnects should not throw`() = runBlocking {
+        fun `multiple disconnects은(는) not throw해야 한다`() = runBlocking {
             val manager = manager()
             manager.register(stdioServer("multi-dc-server"))
 
-            // Disconnect multiple times — should not throw
+            // Disconnect multiple times —은(는) not throw해야 합니다
             manager.disconnect("multi-dc-server")
             manager.disconnect("multi-dc-server")
             manager.disconnect("multi-dc-server")
@@ -117,7 +117,7 @@ class McpManagerEdgeCaseTest {
     inner class ConcurrentOperations {
 
         @Test
-        fun `concurrent registers of different servers should all succeed`() = runBlocking {
+        fun `concurrent registers of different servers은(는) all succeed해야 한다`() = runBlocking {
             val manager = manager()
 
             coroutineScope {
@@ -135,11 +135,11 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `concurrent connect and disconnect on same server should not crash`() = runBlocking {
+        fun `concurrent connect and disconnect on same server은(는) not crash해야 한다`() = runBlocking {
             val manager = manager()
             manager.register(stdioServer("race-server"))
 
-            // Launch connect and disconnect concurrently — should not throw
+            // Launch connect and disconnect concurrently —은(는) not throw해야 합니다
             coroutineScope {
                 val jobs = (1..5).map { i ->
                     async {
@@ -153,7 +153,7 @@ class McpManagerEdgeCaseTest {
                 jobs.awaitAll()
             }
 
-            // Final state should be one of the valid states
+            // Final state은(는) be one of the valid states해야 합니다
             val status = manager.getStatus("race-server")
             assertNotNull(status) { "Server should still have a status" }
             assertTrue(
@@ -166,7 +166,7 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `re-register same server name should overwrite`() {
+        fun `re-register same server name은(는) overwrite해야 한다`() {
             val manager = manager()
 
             manager.register(stdioServer("dup-server", command = "cmd1"))
@@ -184,7 +184,7 @@ class McpManagerEdgeCaseTest {
     inner class StoreFailureHandling {
 
         @Test
-        fun `register should succeed when store save throws`() {
+        fun `register은(는) succeed when store save throws해야 한다`() {
             val failingStore = mockk<McpServerStore>(relaxed = true)
             every { failingStore.findByName(any()) } returns null
             every { failingStore.save(any()) } throws RuntimeException("DB write failed")
@@ -193,7 +193,7 @@ class McpManagerEdgeCaseTest {
             val manager = manager(store = failingStore)
             manager.register(stdioServer("resilient-server"))
 
-            // Server should still be in runtime despite store failure
+            // Server은(는) still be in runtime despite store failure해야 합니다
             assertNotNull(manager.getStatus("resilient-server")) {
                 "Server should be registered in runtime despite store failure"
             }
@@ -203,13 +203,13 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `register should skip store save when already in store`() {
+        fun `register은(는) skip store save when already in store해야 한다`() {
             val store = InMemoryMcpServerStore()
             val server = stdioServer("existing-server")
             store.save(server)
 
             val manager = manager(store = store)
-            // Should not throw IllegalArgumentException from store.save duplicate check
+            // not throw IllegalArgumentException from store.save duplicate check해야 합니다
             manager.register(server)
 
             assertEquals(1, store.list().size) {
@@ -218,11 +218,11 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `initializeFromStore should handle store returning empty list`() = runBlocking {
+        fun `initializeFromStore은(는) handle store returning empty list해야 한다`() = runBlocking {
             val store = InMemoryMcpServerStore()
             val manager = manager(store = store)
 
-            // Should not throw
+            // 예외를 던지면 안 됩니다
             manager.initializeFromStore()
 
             assertTrue(manager.listServers().isEmpty()) {
@@ -235,7 +235,7 @@ class McpManagerEdgeCaseTest {
     inner class CloseLifecycle {
 
         @Test
-        fun `close should clear all servers and statuses`() {
+        fun `close은(는) clear all servers and statuses해야 한다`() {
             val manager = manager()
             manager.register(stdioServer("server-1"))
             manager.register(stdioServer("server-2"))
@@ -243,7 +243,7 @@ class McpManagerEdgeCaseTest {
 
             manager.close()
 
-            // After close, internal state should be cleared
+            // After close, internal state은(는) be cleared해야 합니다
             assertNull(manager.getStatus("server-1")) {
                 "Status should be null after close"
             }
@@ -256,14 +256,14 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `close on fresh manager should not throw`() {
+        fun `close on fresh manager은(는) not throw해야 한다`() {
             val manager = manager()
-            // Should not throw on empty manager
+            // not throw on empty manager해야 합니다
             manager.close()
         }
 
         @Test
-        fun `close should handle servers that were never connected`() {
+        fun `close은(는) handle servers that were never connected해야 한다`() {
             val manager = manager()
             manager.register(stdioServer("never-connected-1"))
             manager.register(stdioServer("never-connected-2"))
@@ -278,7 +278,7 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `close after failed connections should not throw`() = runBlocking {
+        fun `close after failed connections은(는) not throw해야 한다`() = runBlocking {
             val manager = manager()
             manager.register(stdioServer("fail-server-1"))
             manager.register(McpServer(
@@ -291,7 +291,7 @@ class McpManagerEdgeCaseTest {
             manager.connect("fail-server-1")
             manager.connect("fail-server-2")
 
-            // Should not throw
+            // 예외를 던지면 안 됩니다
             manager.close()
         }
     }
@@ -300,7 +300,7 @@ class McpManagerEdgeCaseTest {
     inner class TransportEdgeCases {
 
         @Test
-        fun `SSE connect should honor configured timeout`() = runBlocking {
+        fun `SSE connect은(는) honor configured timeout해야 한다`() = runBlocking {
             val manager = manager()
             manager.register(McpServer(
                 name = "timeout-sse",
@@ -318,7 +318,7 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `SSE with invalid URL should fail gracefully`() = runBlocking {
+        fun `SSE with invalid URL은(는) fail gracefully해야 한다`() = runBlocking {
             val manager = manager()
             manager.register(McpServer(
                 name = "bad-sse",
@@ -335,7 +335,7 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `HTTP transport should fail with informative status`() = runBlocking {
+        fun `HTTP transport은(는) fail with informative status해야 한다`() = runBlocking {
             val manager = manager()
             manager.register(McpServer(
                 name = "http-server",
@@ -352,7 +352,7 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `STDIO with non-existent command should fail gracefully`() = runBlocking {
+        fun `STDIO with non-existent command은(는) fail gracefully해야 한다`() = runBlocking {
             val manager = manager()
             manager.register(McpServer(
                 name = "bad-stdio",
@@ -373,7 +373,7 @@ class McpManagerEdgeCaseTest {
     inner class UnregisterBehavior {
 
         @Test
-        fun `unregister should remove from both runtime and store`() = runBlocking {
+        fun `unregister은(는) remove from both runtime and store해야 한다`() = runBlocking {
             val store = InMemoryMcpServerStore()
             val manager = manager(store = store)
 
@@ -394,15 +394,15 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `unregister nonexistent server should not throw`() = runBlocking {
+        fun `unregister nonexistent server은(는) not throw해야 한다`() = runBlocking {
             val manager = manager()
 
-            // Should not throw
+            // 예외를 던지면 안 됩니다
             manager.unregister("nonexistent-server")
         }
 
         @Test
-        fun `unregister should disconnect if connected`() = runBlocking {
+        fun `unregister은(는) disconnect if connected해야 한다`() = runBlocking {
             val manager = manager()
             manager.register(stdioServer("connected-removal"))
 
@@ -424,13 +424,13 @@ class McpManagerEdgeCaseTest {
     inner class ConnectionErrorHandling {
 
         @Test
-        fun `handleConnectionError should mark server FAILED and clear caches`() {
+        fun `handleConnectionError은(는) mark server FAILED and clear caches해야 한다`() {
             val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
             manager.register(stdioServer("error-server"))
             manager.seedToolCallbacks("error-server", listOf(testCallback("error-tool")))
             val beforeError = manager.getAllToolCallbacks()
 
-            // Simulate the server being in CONNECTED state
+            // the server being in CONNECTED state를 시뮬레이션합니다
             manager.statuses["error-server"] = McpServerStatus.CONNECTED
 
             manager.handleConnectionError("error-server")
@@ -450,12 +450,12 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `handleConnectionError should close the stale client to prevent resource leak`() {
+        fun `handleConnectionError은(는) close the stale client to prevent resource leak해야 한다`() {
             val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
             manager.register(stdioServer("leak-server"))
             manager.statuses["leak-server"] = McpServerStatus.CONNECTED
 
-            // Inject a mock McpSyncClient into the private clients map via reflection
+            // a mock McpSyncClient into the private clients map via reflection 주입
             val mockClient = mockk<io.modelcontextprotocol.client.McpSyncClient>(relaxed = true)
             val clientsField = DefaultMcpManager::class.java.getDeclaredField("clients")
             clientsField.isAccessible = true
@@ -469,12 +469,12 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `handleConnectionError should be idempotent when server is already FAILED`() {
+        fun `handleConnectionError은(는) be idempotent when server is already FAILED해야 한다`() {
             val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
             manager.register(stdioServer("idempotent-server"))
             manager.statuses["idempotent-server"] = McpServerStatus.FAILED
 
-            // Calling again should not throw and should leave status as FAILED
+            // Calling again은(는) not throw and should leave status as FAILED해야 합니다
             manager.handleConnectionError("idempotent-server")
 
             assertEquals(McpServerStatus.FAILED, manager.getStatus("idempotent-server")) {
@@ -483,7 +483,7 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `handleConnectionError should trigger reconnection when enabled`() = runBlocking {
+        fun `handleConnectionError은(는) trigger reconnection when enabled해야 한다`() = runBlocking {
             val manager = manager(
                 reconnectionProperties = McpReconnectionProperties(
                     enabled = true,
@@ -506,7 +506,7 @@ class McpManagerEdgeCaseTest {
     inner class SecurityAllowlistEdgeCases {
 
         @Test
-        fun `allowlist should be case-sensitive`() {
+        fun `allowlist은(는) be case-sensitive해야 한다`() {
             val manager = manager(
                 securityConfig = McpSecurityConfig(
                     allowedServerNames = setOf("Trusted-Server")
@@ -525,7 +525,7 @@ class McpManagerEdgeCaseTest {
         }
 
         @Test
-        fun `multiple servers should be filtered by allowlist`() {
+        fun `multiple servers은(는) be filtered by allowlist해야 한다`() {
             val manager = manager(
                 securityConfig = McpSecurityConfig(
                     allowedServerNames = setOf("allowed-1", "allowed-2")

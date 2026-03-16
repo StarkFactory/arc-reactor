@@ -15,9 +15,9 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Integration tests for OutputGuard with SpringAiAgentExecutor.
+ * 에 대한 통합 테스트. OutputGuard with SpringAiAgentExecutor.
  *
- * Verifies that output guard pipeline is applied to execute() results.
+ * 다음을 검증합니다: output guard pipeline is applied to execute() results.
  */
 class OutputGuardIntegrationTest {
 
@@ -33,7 +33,7 @@ class OutputGuardIntegrationTest {
     inner class PiiMasking {
 
         @Test
-        fun `PII in LLM response is masked`() = runTest {
+        fun `PII in LLM response은(는) masked이다`() = runTest {
             fixture.mockCallResponse("고객 전화번호는 010-1234-5678 입니다.")
 
             val pipeline = OutputGuardPipeline(listOf(PiiMaskingOutputGuard()))
@@ -58,7 +58,7 @@ class OutputGuardIntegrationTest {
         }
 
         @Test
-        fun `clean LLM response passes through unchanged`() = runTest {
+        fun `LLM response passes through unchanged를 정리한다`() = runTest {
             fixture.mockCallResponse("오늘 날씨가 좋습니다.")
 
             val pipeline = OutputGuardPipeline(listOf(PiiMaskingOutputGuard()))
@@ -83,7 +83,7 @@ class OutputGuardIntegrationTest {
     inner class PatternBlocking {
 
         @Test
-        fun `REJECT pattern blocks response with OUTPUT_GUARD_REJECTED`() = runTest {
+        fun `pattern blocks response with OUTPUT_GUARD_REJECTED를 거부한다`() = runTest {
             fixture.mockCallResponse("This is for INTERNAL USE ONLY.")
 
             val pipeline = OutputGuardPipeline(
@@ -117,7 +117,7 @@ class OutputGuardIntegrationTest {
         }
 
         @Test
-        fun `MASK pattern redacts content and succeeds`() = runTest {
+        fun `pattern redacts content and succeeds를 마스킹한다`() = runTest {
             fixture.mockCallResponse("API key: sk-abc123secret")
 
             val pipeline = OutputGuardPipeline(
@@ -158,7 +158,7 @@ class OutputGuardIntegrationTest {
     inner class WithoutOutputGuard {
 
         @Test
-        fun `null pipeline means no output guard`() = runTest {
+        fun `null인 pipeline means no output guard`() = runTest {
             fixture.mockCallResponse("Response with PII: 010-1234-5678")
 
             val executor = SpringAiAgentExecutor(
@@ -178,7 +178,7 @@ class OutputGuardIntegrationTest {
         }
 
         @Test
-        fun `output guard not applied on failure result`() = runTest {
+        fun `output은(는) guard not applied on failure result`() = runTest {
             val guardCalled = java.util.concurrent.atomic.AtomicBoolean(false)
             val spyStage = object : OutputGuardStage {
                 override val stageName = "Spy"
@@ -211,7 +211,7 @@ class OutputGuardIntegrationTest {
     inner class FailCloseBehavior {
 
         @Test
-        fun `stage exception causes OUTPUT_GUARD_REJECTED (fail-close)`() = runTest {
+        fun `stage은(는) exception causes OUTPUT_GUARD_REJECTED (fail-close)`() = runTest {
             fixture.mockCallResponse("Normal response")
 
             val crashingStage = object : OutputGuardStage {

@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test
 class AdminPropertiesTest {
 
     @Test
-    fun `should have sensible defaults`() {
+    fun `have sensible defaults해야 한다`() {
         val props = AdminProperties()
 
         props.enabled shouldBe false
@@ -29,7 +29,7 @@ class AdminPropertiesTest {
     }
 
     @Test
-    fun `should allow customization`() {
+    fun `allow customization해야 한다`() {
         val props = AdminProperties(
             enabled = true,
             collection = CollectionProperties(ringBufferSize = 16384, writerThreads = 5),

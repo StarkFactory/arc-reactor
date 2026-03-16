@@ -33,7 +33,7 @@ class CompositeIntentClassifierTest {
     inner class RuleFirstStrategy {
 
         @Test
-        fun `uses rule result when confidence above threshold`() = runTest {
+        fun `confidence above threshold일 때 rule result를 사용한다`() = runTest {
             val ruleResult = IntentResult(
                 primary = ClassifiedIntent("greeting", 0.9),
                 classifiedBy = "rule"
@@ -48,7 +48,7 @@ class CompositeIntentClassifierTest {
         }
 
         @Test
-        fun `falls back to LLM when rule confidence below threshold`() = runTest {
+        fun `LLM when rule confidence below threshold로 폴백한다`() = runTest {
             val ruleResult = IntentResult(
                 primary = ClassifiedIntent("greeting", 0.5),
                 classifiedBy = "rule"
@@ -69,7 +69,7 @@ class CompositeIntentClassifierTest {
         }
 
         @Test
-        fun `falls back to LLM when rule returns unknown`() = runTest {
+        fun `LLM when rule returns unknown로 폴백한다`() = runTest {
             val ruleResult = IntentResult.unknown(classifiedBy = "rule")
             val llmResult = IntentResult(
                 primary = ClassifiedIntent("refund", 0.88),
@@ -88,7 +88,7 @@ class CompositeIntentClassifierTest {
     inner class ErrorResilience {
 
         @Test
-        fun `returns rule result when LLM fails`() = runTest {
+        fun `LLM fails일 때 rule result를 반환한다`() = runTest {
             val ruleResult = IntentResult(
                 primary = ClassifiedIntent("greeting", 0.5),
                 classifiedBy = "rule"
@@ -105,7 +105,7 @@ class CompositeIntentClassifierTest {
         }
 
         @Test
-        fun `returns unknown rule result when LLM fails and rule found nothing`() = runTest {
+        fun `LLM fails and rule found nothing일 때 unknown rule result를 반환한다`() = runTest {
             val ruleResult = IntentResult.unknown(classifiedBy = "rule")
             coEvery { ruleClassifier.classify(any(), any()) } returns ruleResult
             coEvery { llmClassifier.classify(any(), any()) } throws RuntimeException("LLM down")
@@ -120,7 +120,7 @@ class CompositeIntentClassifierTest {
     inner class ThresholdConfiguration {
 
         @Test
-        fun `exact threshold value triggers LLM fallback`() = runTest {
+        fun `exact은(는) threshold value triggers LLM fallback`() = runTest {
             val exactThreshold = CompositeIntentClassifier(
                 ruleClassifier = ruleClassifier,
                 llmClassifier = llmClassifier,

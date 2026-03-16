@@ -39,19 +39,19 @@ class IntentControllerAuthTest {
     }
 
     @Test
-    fun `list returns 403 for non-admin`() {
+    fun `목록 returns 403 for non-admin`() {
         val response = controller.listIntents(userExchange())
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
     }
 
     @Test
-    fun `get returns 403 for non-admin`() {
+    fun `returns 403 for non-admin를 가져온다`() {
         val response = controller.getIntent("anything", userExchange())
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
     }
 
     @Test
-    fun `list allows admin`() {
+    fun `목록 allows admin`() {
         val response = controller.listIntents(adminExchange())
         assertEquals(HttpStatus.OK, response.statusCode)
     }

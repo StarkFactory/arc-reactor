@@ -19,7 +19,7 @@ class DynamicRuleOutputGuardTest {
     )
 
     @Test
-    fun `masks content when mask rule matches`() = runTest {
+    fun `content when mask rule matches를 마스킹한다`() = runTest {
         val store = InMemoryOutputGuardRuleStore()
         store.save(
             OutputGuardRule(
@@ -36,7 +36,7 @@ class DynamicRuleOutputGuardTest {
     }
 
     @Test
-    fun `rejects content when reject rule matches`() = runTest {
+    fun `content when reject rule matches를 거부한다`() = runTest {
         val store = InMemoryOutputGuardRuleStore()
         store.save(
             OutputGuardRule(
@@ -54,7 +54,7 @@ class DynamicRuleOutputGuardTest {
     }
 
     @Test
-    fun `higher-priority reject rule runs before mask rule`() = runTest {
+    fun `mask rule전에 higher-priority reject rule runs`() = runTest {
         val store = InMemoryOutputGuardRuleStore()
         store.save(
             OutputGuardRule(
@@ -79,7 +79,7 @@ class DynamicRuleOutputGuardTest {
     }
 
     @Test
-    fun `reloads immediately when invalidation bus is touched`() = runTest {
+    fun `reloads immediately when invalidation bus은(는) touched이다`() = runTest {
         val store = InMemoryOutputGuardRuleStore()
         val invalidationBus = OutputGuardRuleInvalidationBus()
         val guard = DynamicRuleOutputGuard(
@@ -105,7 +105,7 @@ class DynamicRuleOutputGuardTest {
     }
 
     @Test
-    fun `empty store returns Allowed`() = runTest {
+    fun `비어있는 store returns Allowed`() = runTest {
         val store = InMemoryOutputGuardRuleStore()
         val guard = DynamicRuleOutputGuard(store, refreshIntervalMs = 0)
 
@@ -114,7 +114,7 @@ class DynamicRuleOutputGuardTest {
     }
 
     @Test
-    fun `disabled rule is skipped`() = runTest {
+    fun `disabled rule은(는) skipped이다`() = runTest {
         val store = InMemoryOutputGuardRuleStore()
         store.save(
             OutputGuardRule(
@@ -131,7 +131,7 @@ class DynamicRuleOutputGuardTest {
     }
 
     @Test
-    fun `cache serves stale rules within refresh interval`() = runTest {
+    fun `serves stale rules within refresh interval를 캐시한다`() = runTest {
         val store = InMemoryOutputGuardRuleStore()
         val saved = store.save(
             OutputGuardRule(
@@ -150,13 +150,13 @@ class DynamicRuleOutputGuardTest {
         // Delete rule from store — but cache won't reload due to long interval
         store.delete(saved.id)
 
-        // Should still match because cache is stale (within refresh interval)
+        // still match because cache is stale (within refresh interval)해야 합니다
         val second = guard.check("SECRET data", context)
         (second is OutputGuardResult.Modified) shouldBe true
     }
 
     @Test
-    fun `multiple mask rules apply cumulatively`() = runTest {
+    fun `다중 mask rules apply cumulatively`() = runTest {
         val store = InMemoryOutputGuardRuleStore()
         store.save(
             OutputGuardRule(

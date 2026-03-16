@@ -83,7 +83,7 @@ class RagIngestionCandidateControllerTest {
     }
 
     @Test
-    fun `list returns 403 for non-admin`() {
+    fun `목록 returns 403 for non-admin`() {
         val response = controller().list(
             status = null,
             channel = null,
@@ -94,7 +94,7 @@ class RagIngestionCandidateControllerTest {
     }
 
     @Test
-    fun `approve ingests document and updates status`() {
+    fun `ingests document and updates status를 승인한다`() {
         val candidate = store.save(pendingCandidate())
         val response = controller().approve(
             id = candidate.id,
@@ -112,7 +112,7 @@ class RagIngestionCandidateControllerTest {
     }
 
     @Test
-    fun `approve returns 503 when vector store is missing`() {
+    fun `approve returns 503 when vector store은(는) missing이다`() {
         val candidate = store.save(pendingCandidate("c2"))
         val response = controller(noVectorStoreProvider).approve(
             id = candidate.id,
@@ -126,7 +126,7 @@ class RagIngestionCandidateControllerTest {
     }
 
     @Test
-    fun `reject updates status to rejected`() {
+    fun `updates status to rejected를 거부한다`() {
         val candidate = store.save(pendingCandidate("c3"))
         val response = controller().reject(
             id = candidate.id,

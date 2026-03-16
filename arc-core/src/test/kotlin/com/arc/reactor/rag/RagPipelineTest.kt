@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Assertions.*
 class RagPipelineTest {
 
     @Test
-    fun `should retrieve documents from in-memory retriever`() = runBlocking {
+    fun `retrieve documents from in-memory retriever해야 한다`() = runBlocking {
         val retriever = InMemoryDocumentRetriever()
         retriever.addDocument(RetrievedDocument(
             id = "doc-1",
@@ -42,7 +42,7 @@ class RagPipelineTest {
     }
 
     @Test
-    fun `should return empty context when no documents found`() = runBlocking {
+    fun `no documents found일 때 return empty context해야 한다`() = runBlocking {
         val retriever = InMemoryDocumentRetriever()
         val pipeline = DefaultRagPipeline(retriever = retriever)
 
@@ -56,7 +56,7 @@ class RagPipelineTest {
     }
 
     @Test
-    fun `should rerank documents with SimpleScoreReranker`() = runBlocking {
+    fun `SimpleScoreReranker로 rerank documents해야 한다`() = runBlocking {
         val retriever = InMemoryDocumentRetriever()
         retriever.addDocuments(listOf(
             RetrievedDocument(id = "1", content = "kotlin spring boot programming", score = 0.7),
@@ -76,14 +76,14 @@ class RagPipelineTest {
         ))
 
         assertTrue(result.documents.isNotEmpty(), "Reranker should return documents")
-        // After reranking, should be sorted by score (highest first)
+        // After reranking,은(는) be sorted by score (highest first)해야 합니다
         assertTrue(result.documents.size > 1, "Should return multiple documents for score ordering check")
         assertTrue(result.documents[0].score >= result.documents[1].score,
             "Documents should be sorted by score: first=${result.documents[0].score}, second=${result.documents[1].score}")
     }
 
     @Test
-    fun `should apply keyword weighted reranker`() = runBlocking {
+    fun `apply keyword weighted reranker해야 한다`() = runBlocking {
         val retriever = InMemoryDocumentRetriever()
         retriever.addDocuments(listOf(
             RetrievedDocument(id = "1", content = "Java is a programming language", score = 0.9),
@@ -102,12 +102,12 @@ class RagPipelineTest {
         ))
 
         assertTrue(result.documents.isNotEmpty()) { "Expected documents after keyword-weighted reranking, got: ${result.documents.size}" }
-        // Kotlin document should rank higher due to keyword match
+        // Kotlin document은(는) rank higher due to keyword match해야 합니다
         assertEquals("2", result.documents[0].id) { "Kotlin document should rank first due to keyword match" }
     }
 
     @Test
-    fun `should apply diversity reranker`() = runBlocking {
+    fun `apply diversity reranker해야 한다`() = runBlocking {
         val retriever = InMemoryDocumentRetriever()
         retriever.addDocuments(listOf(
             RetrievedDocument(id = "1", content = "kotlin programming language features", score = 0.9),
@@ -127,13 +127,13 @@ class RagPipelineTest {
         ))
 
         assertTrue(result.documents.isNotEmpty(), "Diversity reranker should return documents")
-        // MMR should prefer diverse documents: doc-1 (highest score) + doc-3 (most diverse from doc-1)
+        // MMR은(는) prefer diverse documents: doc-1 (highest score) + doc-3 (most diverse from doc-1)해야 합니다
         assertEquals("1", result.documents[0].id, "Highest-scored document should be first")
         assertTrue(result.documents.size >= 2, "Should return at least 2 diverse documents")
     }
 
     @Test
-    fun `should build context from documents`() = runBlocking {
+    fun `build context from documents해야 한다`() = runBlocking {
         val retriever = InMemoryDocumentRetriever()
         retriever.addDocument(RetrievedDocument(
             id = "1",
@@ -154,7 +154,7 @@ class RagPipelineTest {
     }
 
     @Test
-    fun `should estimate token count`() = runBlocking {
+    fun `estimate token count해야 한다`() = runBlocking {
         val retriever = InMemoryDocumentRetriever()
         retriever.addDocument(RetrievedDocument(
             id = "1",
@@ -175,7 +175,7 @@ class RagPipelineTest {
     }
 
     @Test
-    fun `InMemoryDocumentRetriever should clear documents`() = runBlocking {
+    fun `InMemoryDocumentRetriever은(는) clear documents해야 한다`() = runBlocking {
         val retriever = InMemoryDocumentRetriever()
         retriever.addDocument(RetrievedDocument(id = "1", content = "test"))
 

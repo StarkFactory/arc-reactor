@@ -27,7 +27,7 @@ class McpManagerTest {
     )
 
     @Test
-    fun `should register MCP server`() {
+    fun `register MCP server해야 한다`() {
         val manager = manager()
 
         val server = McpServer(
@@ -48,7 +48,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `should report PENDING status after registration`() {
+    fun `registration 후 report PENDING status해야 한다`() {
         val manager = manager()
 
         val server = McpServer(
@@ -64,7 +64,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `syncRuntimeServer should update runtime config`() {
+    fun `syncRuntimeServer은(는) update runtime config해야 한다`() {
         val manager = manager()
         manager.register(
             McpServer(
@@ -93,7 +93,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `should return null status for unknown server`() {
+    fun `unknown server에 대해 return null status해야 한다`() {
         val manager = manager()
 
         val status = manager.getStatus("unknown-server")
@@ -101,7 +101,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `should return empty callbacks when no servers connected`() {
+    fun `no servers connected일 때 return empty callbacks해야 한다`() {
         val manager = manager()
 
         val callbacks = manager.getAllToolCallbacks()
@@ -109,7 +109,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `should reuse aggregated callback snapshot until cache changes`() {
+    fun `reuse aggregated callback snapshot until cache changes해야 한다`() {
         val manager = manager()
         manager.seedToolCallbacks(
             "cached-server",
@@ -126,7 +126,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `disconnect should invalidate aggregated callback snapshot`() = runBlocking {
+    fun `disconnect은(는) invalidate aggregated callback snapshot해야 한다`() = runBlocking {
         val manager = manager()
         manager.register(
             McpServer(
@@ -150,7 +150,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `should fail connection for missing command config`() = runBlocking {
+    fun `missing command config에 대해 fail connection해야 한다`() = runBlocking {
         val manager = manager()
 
         val server = McpServer(
@@ -167,7 +167,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `should return false for connecting to unregistered server`() = runBlocking {
+    fun `connecting to unregistered server에 대해 return false해야 한다`() = runBlocking {
         val manager = manager()
 
         val connected = manager.connect("nonexistent-server")
@@ -176,7 +176,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `should support multiple server registrations`() {
+    fun `support multiple server registrations해야 한다`() {
         val manager = manager()
 
         manager.register(McpServer(
@@ -202,7 +202,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `should return empty callbacks for specific unconnected server`() {
+    fun `specific unconnected server에 대해 return empty callbacks해야 한다`() {
         val manager = manager()
 
         manager.register(McpServer(
@@ -216,7 +216,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `should fail SSE connection when url not provided`() = runBlocking {
+    fun `url not provided일 때 fail SSE connection해야 한다`() = runBlocking {
         val manager = manager()
         val server = McpServer(
             name = "sse-server",
@@ -231,7 +231,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `should fail HTTP connection with unsupported transport`() = runBlocking {
+    fun `unsupported transport로 fail HTTP connection해야 한다`() = runBlocking {
         val manager = manager()
         val server = McpServer(
             name = "http-server",
@@ -246,7 +246,7 @@ class McpManagerTest {
     }
 
     @Test
-    fun `should handle disconnect for unconnected server gracefully`() = runBlocking {
+    fun `unconnected server gracefully에 대해 handle disconnect해야 한다`() = runBlocking {
         val manager = manager()
 
         manager.register(McpServer(
@@ -255,7 +255,7 @@ class McpManagerTest {
             config = mapOf("command" to "echo")
         ))
 
-        // Should not throw
+        // 예외를 던지면 안 됩니다
         manager.disconnect("test-server")
 
         assertEquals(McpServerStatus.DISCONNECTED, manager.getStatus("test-server"))
@@ -265,7 +265,7 @@ class McpManagerTest {
     inner class Allowlist {
 
         @Test
-        fun `should reject server not in allowlist`() {
+        fun `reject server not in allowlist해야 한다`() {
             val manager = manager(
                 securityConfig = McpSecurityConfig(
                     allowedServerNames = setOf("trusted-server")
@@ -284,7 +284,7 @@ class McpManagerTest {
         }
 
         @Test
-        fun `should accept server in allowlist`() {
+        fun `accept server in allowlist해야 한다`() {
             val manager = manager(
                 securityConfig = McpSecurityConfig(
                     allowedServerNames = setOf("trusted-server")
@@ -303,7 +303,7 @@ class McpManagerTest {
         }
 
         @Test
-        fun `should allow all servers when allowlist is empty`() {
+        fun `allowlist is empty일 때 allow all servers해야 한다`() {
             val manager = manager(
                 securityConfig = McpSecurityConfig(allowedServerNames = emptySet())
             )
@@ -324,7 +324,7 @@ class McpManagerTest {
     inner class StoreIntegration {
 
         @Test
-        fun `register should persist server to store`() {
+        fun `register은(는) persist server to store해야 한다`() {
             val store = InMemoryMcpServerStore()
             val manager = manager(store = store)
 
@@ -340,7 +340,7 @@ class McpManagerTest {
         }
 
         @Test
-        fun `register should not duplicate in store`() {
+        fun `register은(는) not duplicate in store해야 한다`() {
             val store = InMemoryMcpServerStore()
             val manager = manager(store = store)
 
@@ -353,7 +353,7 @@ class McpManagerTest {
             // Pre-save to store
             store.save(server)
 
-            // register should not throw even though it already exists in store
+            // register은(는) not throw even though it already exists in store해야 합니다
             manager.register(server)
 
             assertEquals(1, store.list().size) {
@@ -362,7 +362,7 @@ class McpManagerTest {
         }
 
         @Test
-        fun `unregister should remove from store and runtime`() = runBlocking {
+        fun `unregister은(는) remove from store and runtime해야 한다`() = runBlocking {
             val store = InMemoryMcpServerStore()
             val manager = manager(store = store)
 
@@ -380,7 +380,7 @@ class McpManagerTest {
         }
 
         @Test
-        fun `listServers should return from store when available`() {
+        fun `listServers은(는) return from store when available해야 한다`() {
             val store = InMemoryMcpServerStore()
             store.save(McpServer(name = "store-server", transportType = McpTransportType.SSE))
 
@@ -393,7 +393,7 @@ class McpManagerTest {
         }
 
         @Test
-        fun `initializeFromStore should load and auto-connect`() = runBlocking {
+        fun `initializeFromStore은(는) load and auto-connect해야 한다`() = runBlocking {
             val store = InMemoryMcpServerStore()
             store.save(McpServer(
                 name = "auto-server",
@@ -411,32 +411,32 @@ class McpManagerTest {
             val manager = manager(store = store)
             manager.initializeFromStore()
 
-            // auto-connect server should have attempted connection (will fail since no real server)
+            // auto-connect server은(는) have attempted connection (will fail since no real server)해야 합니다
             val autoStatus = manager.getStatus("auto-server")
             assertNotNull(autoStatus) { "Auto-connect server should have a status" }
             assertTrue(autoStatus == McpServerStatus.FAILED || autoStatus == McpServerStatus.CONNECTED) {
                 "Auto-connect server should be FAILED (no real server) or CONNECTED"
             }
 
-            // manual server should be PENDING (no connect attempted)
+            // manual server은(는) be PENDING (no connect attempted)해야 합니다
             assertEquals(McpServerStatus.PENDING, manager.getStatus("manual-server")) {
                 "Manual server should remain PENDING"
             }
         }
 
         @Test
-        fun `initializeFromStore should handle empty store`() = runBlocking {
+        fun `initializeFromStore은(는) handle empty store해야 한다`() = runBlocking {
             val store = InMemoryMcpServerStore()
             val manager = manager(store = store)
 
-            // Should not throw
+            // 예외를 던지면 안 됩니다
             manager.initializeFromStore()
 
             assertTrue(manager.listServers().isEmpty()) { "No servers should be loaded from empty store" }
         }
 
         @Test
-        fun `initializeFromStore should skip servers blocked by dynamic allowlist`() = runBlocking {
+        fun `initializeFromStore은(는) skip servers blocked by dynamic allowlist해야 한다`() = runBlocking {
             val store = InMemoryMcpServerStore()
             store.save(McpServer(name = "swagger", transportType = McpTransportType.SSE))
             store.save(McpServer(name = "trusted", transportType = McpTransportType.SSE))
@@ -472,7 +472,7 @@ class McpManagerTest {
     inner class OutputTruncation {
 
         @Test
-        fun `McpSecurityConfig should have sensible defaults`() {
+        fun `McpSecurityConfig은(는) have sensible defaults해야 한다`() {
             val config = McpSecurityConfig()
 
             assertTrue(config.allowedServerNames.isEmpty()) {
@@ -484,7 +484,7 @@ class McpManagerTest {
         }
 
         @Test
-        fun `McpSecurityConfig should accept custom values`() {
+        fun `McpSecurityConfig은(는) accept custom values해야 한다`() {
             val config = McpSecurityConfig(
                 allowedServerNames = setOf("a", "b"),
                 maxToolOutputLength = 10_000

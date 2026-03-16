@@ -15,7 +15,7 @@ class GoogleCalendarToolTest {
     private val tool = GoogleCalendarTool(credentialProvider)
 
     @Test
-    fun `tool name is google_calendar_list_events`() {
+    fun `tool name은(는) google_calendar_list_events이다`() {
         assertEquals(
             "google_calendar_list_events",
             tool.name,
@@ -24,7 +24,7 @@ class GoogleCalendarToolTest {
     }
 
     @Test
-    fun `tool description is non-blank`() {
+    fun `tool description은(는) non-blank이다`() {
         assertTrue(
             tool.description.isNotBlank(),
             "Tool description must not be blank"
@@ -32,7 +32,7 @@ class GoogleCalendarToolTest {
     }
 
     @Test
-    fun `tool inputSchema is non-blank`() {
+    fun `tool inputSchema은(는) non-blank이다`() {
         assertTrue(
             tool.inputSchema.isNotBlank(),
             "Tool inputSchema must not be blank"
@@ -40,7 +40,7 @@ class GoogleCalendarToolTest {
     }
 
     @Test
-    fun `call returns error string when credential provider throws`() = runTest {
+    fun `returns error string when credential provider throws를 호출한다`() = runTest {
         every {
             credentialProvider.getCredentials(any())
         } throws RuntimeException("Service account key not found")
@@ -58,7 +58,7 @@ class GoogleCalendarToolTest {
     }
 
     @Test
-    fun `call returns error string when credential provider throws with no arguments`() = runTest {
+    fun `returns error string when credential provider throws with no arguments를 호출한다`() = runTest {
         every {
             credentialProvider.getCredentials(any())
         } throws RuntimeException("Authentication failed")
@@ -76,7 +76,7 @@ class GoogleCalendarToolTest {
     }
 
     @Test
-    fun `call returns error string when credential provider throws IllegalArgumentException`() = runTest {
+    fun `returns error string when credential provider throws IllegalArgumentException를 호출한다`() = runTest {
         every {
             credentialProvider.getCredentials(any())
         } throws IllegalArgumentException("arc.reactor.google.service-account-key-path must be configured")
@@ -94,7 +94,7 @@ class GoogleCalendarToolTest {
     }
 
     @Test
-    fun `call rethrows CancellationException for structured concurrency`() = runTest {
+    fun `rethrows CancellationException for structured concurrency를 호출한다`() = runTest {
         every {
             credentialProvider.getCredentials(any())
         } throws java.util.concurrent.CancellationException("cancelled")
@@ -103,7 +103,7 @@ class GoogleCalendarToolTest {
             tool.call(mapOf("date" to "2025-01-15"))
             fail("CancellationException must be rethrown from GoogleCalendarTool.call")
         } catch (_: java.util.concurrent.CancellationException) {
-            // expected
+            // 예상 결과
         }
     }
 }

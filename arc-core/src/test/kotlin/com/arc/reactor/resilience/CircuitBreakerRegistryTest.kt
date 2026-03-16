@@ -6,9 +6,9 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Tests for [CircuitBreakerRegistry].
+ * 에 대한 테스트. [CircuitBreakerRegistry].
  *
- * Covers: lazy creation, name isolation, resetAll, and getIfExists.
+ * 대상: lazy creation, name isolation, resetAll, and getIfExists.
  */
 class CircuitBreakerRegistryTest {
 
@@ -16,7 +16,7 @@ class CircuitBreakerRegistryTest {
     inner class LazyCreation {
 
         @Test
-        fun `should create breaker on first access`() {
+        fun `create breaker on first access해야 한다`() {
             val registry = CircuitBreakerRegistry()
             val breaker = registry.get("llm")
 
@@ -30,7 +30,7 @@ class CircuitBreakerRegistryTest {
         }
 
         @Test
-        fun `should return same instance for same name`() {
+        fun `same name에 대해 return same instance해야 한다`() {
             val registry = CircuitBreakerRegistry()
             val first = registry.get("llm")
             val second = registry.get("llm")
@@ -43,7 +43,7 @@ class CircuitBreakerRegistryTest {
     inner class NameIsolation {
 
         @Test
-        fun `should create separate breakers for different names`() {
+        fun `different names에 대해 create separate breakers해야 한다`() {
             val registry = CircuitBreakerRegistry()
             val llm = registry.get("llm")
             val mcp = registry.get("mcp:weather")
@@ -55,12 +55,12 @@ class CircuitBreakerRegistryTest {
         }
 
         @Test
-        fun `should isolate state between breakers`() = runTest {
+        fun `isolate state between breakers해야 한다`() = runTest {
             val registry = CircuitBreakerRegistry(failureThreshold = 2)
             val llm = registry.get("llm")
             val mcp = registry.get("mcp:server1")
 
-            // Trip the LLM breaker
+            // the LLM breaker를 트립시킵니다
             repeat(2) {
                 runCatching { llm.execute { throw RuntimeException("llm fail") } }
             }
@@ -78,12 +78,12 @@ class CircuitBreakerRegistryTest {
     inner class ResetAll {
 
         @Test
-        fun `should reset all breakers`() = runTest {
+        fun `reset all breakers해야 한다`() = runTest {
             val registry = CircuitBreakerRegistry(failureThreshold = 1)
             val b1 = registry.get("a")
             val b2 = registry.get("b")
 
-            // Trip both
+            // both를 트립시킵니다
             runCatching { b1.execute { throw RuntimeException("fail") } }
             runCatching { b2.execute { throw RuntimeException("fail") } }
 
@@ -101,7 +101,7 @@ class CircuitBreakerRegistryTest {
     inner class GetIfExists {
 
         @Test
-        fun `should return null for non-existent breaker`() {
+        fun `non-existent breaker에 대해 return null해야 한다`() {
             val registry = CircuitBreakerRegistry()
             assertNull(registry.getIfExists("nonexistent")) {
                 "Should return null for breaker that hasn't been created"
@@ -109,7 +109,7 @@ class CircuitBreakerRegistryTest {
         }
 
         @Test
-        fun `should return existing breaker`() {
+        fun `return existing breaker해야 한다`() {
             val registry = CircuitBreakerRegistry()
             val created = registry.get("llm")
             val found = registry.getIfExists("llm")

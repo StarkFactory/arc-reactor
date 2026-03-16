@@ -23,7 +23,7 @@ class StructuralEvaluatorTest {
     inner class ValidJson {
 
         @Test
-        fun `should pass with valid answer type`() = runTest {
+        fun `valid answer type로 pass해야 한다`() = runTest {
             val response = """{"type": "answer", "message": "AI is..."}"""
 
             val result = evaluator.evaluate(response, defaultQuery)
@@ -36,7 +36,7 @@ class StructuralEvaluatorTest {
         }
 
         @Test
-        fun `should pass with valid error type`() = runTest {
+        fun `valid error type로 pass해야 한다`() = runTest {
             val response = """{"type": "error", "message": "Something went wrong"}"""
 
             val result = evaluator.evaluate(response, defaultQuery)
@@ -46,7 +46,7 @@ class StructuralEvaluatorTest {
         }
 
         @Test
-        fun `should pass with valid action type`() = runTest {
+        fun `valid action type로 pass해야 한다`() = runTest {
             val response = """{"type": "action", "message": "Created item"}"""
 
             val result = evaluator.evaluate(response, defaultQuery)
@@ -56,7 +56,7 @@ class StructuralEvaluatorTest {
         }
 
         @Test
-        fun `should pass with briefing type and summary field`() = runTest {
+        fun `briefing type and summary field로 pass해야 한다`() = runTest {
             val response = """{"type": "briefing", "summary": "Here is the summary"}"""
 
             val result = evaluator.evaluate(response, defaultQuery)
@@ -66,7 +66,7 @@ class StructuralEvaluatorTest {
         }
 
         @Test
-        fun `should pass with valid clarification type`() = runTest {
+        fun `valid clarification type로 pass해야 한다`() = runTest {
             val response = """{"type": "clarification", "message": "Could you specify?"}"""
 
             val result = evaluator.evaluate(response, defaultQuery)
@@ -75,7 +75,7 @@ class StructuralEvaluatorTest {
         }
 
         @Test
-        fun `should pass with valid search type`() = runTest {
+        fun `valid search type로 pass해야 한다`() = runTest {
             val response = """{"type": "search", "message": "Found 3 results"}"""
 
             val result = evaluator.evaluate(response, defaultQuery)
@@ -88,7 +88,7 @@ class StructuralEvaluatorTest {
     inner class InvalidJson {
 
         @Test
-        fun `should fail when type is missing`() = runTest {
+        fun `type is missing일 때 fail해야 한다`() = runTest {
             val response = """{"message": "Hello"}"""
 
             val result = evaluator.evaluate(response, defaultQuery)
@@ -98,7 +98,7 @@ class StructuralEvaluatorTest {
         }
 
         @Test
-        fun `should fail when type is invalid`() = runTest {
+        fun `type is invalid일 때 fail해야 한다`() = runTest {
             val response = """{"type": "unknown", "message": "Hello"}"""
 
             val result = evaluator.evaluate(response, defaultQuery)
@@ -108,7 +108,7 @@ class StructuralEvaluatorTest {
         }
 
         @Test
-        fun `should fail when message is missing for answer type`() = runTest {
+        fun `message is missing for answer type일 때 fail해야 한다`() = runTest {
             val response = """{"type": "answer"}"""
 
             val result = evaluator.evaluate(response, defaultQuery)
@@ -118,7 +118,7 @@ class StructuralEvaluatorTest {
         }
 
         @Test
-        fun `should fail when summary is missing for briefing type`() = runTest {
+        fun `summary is missing for briefing type일 때 fail해야 한다`() = runTest {
             val response = """{"type": "briefing", "message": "Not summary"}"""
 
             val result = evaluator.evaluate(response, defaultQuery)
@@ -132,7 +132,7 @@ class StructuralEvaluatorTest {
     inner class PlainText {
 
         @Test
-        fun `should return compatibility score for plain text`() = runTest {
+        fun `plain text에 대해 return compatibility score해야 한다`() = runTest {
             val response = "This is a plain text response"
 
             val result = evaluator.evaluate(response, defaultQuery)
@@ -144,7 +144,7 @@ class StructuralEvaluatorTest {
         }
 
         @Test
-        fun `should return compatibility score for malformed JSON`() = runTest {
+        fun `malformed JSON에 대해 return compatibility score해야 한다`() = runTest {
             val response = "{invalid json"
 
             val result = evaluator.evaluate(response, defaultQuery)

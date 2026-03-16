@@ -47,7 +47,7 @@ class CostCalculatorTest {
     inner class BasicCalculation {
 
         @Test
-        fun `should calculate cost for standard prompt and completion`() {
+        fun `standard prompt and completion에 대해 calculate cost해야 한다`() {
             val cost = calculator.calculate(
                 provider = "openai",
                 model = "gpt-4o",
@@ -61,7 +61,7 @@ class CostCalculatorTest {
         }
 
         @Test
-        fun `should apply cached token discount`() {
+        fun `apply cached token discount해야 한다`() {
             val fullCost = calculator.calculate(
                 provider = "openai",
                 model = "gpt-4o",
@@ -84,7 +84,7 @@ class CostCalculatorTest {
         }
 
         @Test
-        fun `should include reasoning tokens`() {
+        fun `include reasoning tokens해야 한다`() {
             val withoutReasoning = calculator.calculate(
                 provider = "openai",
                 model = "gpt-4o",
@@ -110,7 +110,7 @@ class CostCalculatorTest {
     inner class EdgeCases {
 
         @Test
-        fun `should return zero for unknown model`() {
+        fun `unknown model에 대해 return zero해야 한다`() {
             val cost = calculator.calculate(
                 provider = "unknown",
                 model = "unknown-model",
@@ -123,7 +123,7 @@ class CostCalculatorTest {
         }
 
         @Test
-        fun `should handle zero tokens`() {
+        fun `handle zero tokens해야 한다`() {
             val cost = calculator.calculate(
                 provider = "openai",
                 model = "gpt-4o",
@@ -136,7 +136,7 @@ class CostCalculatorTest {
         }
 
         @Test
-        fun `should not go negative when cached exceeds prompt`() {
+        fun `cached exceeds prompt일 때 not go negative해야 한다`() {
             val cost = calculator.calculate(
                 provider = "openai",
                 model = "gpt-4o",

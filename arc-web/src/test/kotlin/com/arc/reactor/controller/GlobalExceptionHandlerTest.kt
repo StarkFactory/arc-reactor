@@ -29,7 +29,7 @@ class GlobalExceptionHandlerTest {
     inner class ValidationErrors {
 
         @Test
-        fun `should return 400 with field errors`() {
+        fun `field errors로 return 400해야 한다`() {
             val bindingResult = mockk<BindingResult>()
             every { bindingResult.fieldErrors } returns listOf(
                 FieldError("request", "name", "must not be blank"),
@@ -49,7 +49,7 @@ class GlobalExceptionHandlerTest {
         }
 
         @Test
-        fun `should handle empty field errors`() {
+        fun `handle empty field errors해야 한다`() {
             val bindingResult = mockk<BindingResult>()
             every { bindingResult.fieldErrors } returns emptyList()
             val ex = WebExchangeBindException(mockk(relaxed = true), bindingResult)
@@ -65,7 +65,7 @@ class GlobalExceptionHandlerTest {
     inner class InputErrors {
 
         @Test
-        fun `should return 400 for malformed input`() {
+        fun `malformed input에 대해 return 400해야 한다`() {
             val ex = ServerWebInputException("Invalid JSON body")
 
             val response = handler.handleInputException(ex)
@@ -80,7 +80,7 @@ class GlobalExceptionHandlerTest {
     inner class NotFoundErrors {
 
         @Test
-        fun `should return 404 for missing resources`() {
+        fun `missing resources에 대해 return 404해야 한다`() {
             val ex = NoResourceFoundException("/api/approvals")
 
             val response = handler.handleNotFound(ex)
@@ -95,7 +95,7 @@ class GlobalExceptionHandlerTest {
     inner class ResponseStatusErrors {
 
         @Test
-        fun `should preserve explicit response status and reason`() {
+        fun `preserve explicit response status and reason해야 한다`() {
             val ex = ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing authenticated user context")
 
             val response = handler.handleResponseStatusException(ex)
@@ -108,7 +108,7 @@ class GlobalExceptionHandlerTest {
         }
 
         @Test
-        fun `should preserve framework method not allowed responses`() {
+        fun `preserve framework method not allowed responses해야 한다`() {
             val ex = MethodNotAllowedException(HttpMethod.POST, setOf(HttpMethod.GET))
 
             val response = handler.handleResponseStatusException(ex)
@@ -129,7 +129,7 @@ class GlobalExceptionHandlerTest {
     inner class IllegalArgumentErrors {
 
         @Test
-        fun `should return 400 for illegal argument`() {
+        fun `illegal argument에 대해 return 400해야 한다`() {
             val ex = IllegalArgumentException("Invalid jobType 'UNKNOWN'")
 
             val response = handler.handleIllegalArgument(ex)
@@ -142,7 +142,7 @@ class GlobalExceptionHandlerTest {
         }
 
         @Test
-        fun `should return 400 with fallback message when message is null`() {
+        fun `message is null일 때 return 400 with fallback message해야 한다`() {
             val ex = IllegalArgumentException()
 
             val response = handler.handleIllegalArgument(ex)
@@ -158,7 +158,7 @@ class GlobalExceptionHandlerTest {
     inner class IllegalStateErrors {
 
         @Test
-        fun `should return 500 for illegal state`() {
+        fun `illegal state에 대해 return 500해야 한다`() {
             val ex = IllegalStateException("Service not initialized")
 
             val response = handler.handleIllegalState(ex)
@@ -171,7 +171,7 @@ class GlobalExceptionHandlerTest {
         }
 
         @Test
-        fun `should not expose internal state details`() {
+        fun `not expose internal state details해야 한다`() {
             val ex = IllegalStateException("DB pool exhausted at com.arc.reactor.internal")
 
             val response = handler.handleIllegalState(ex)
@@ -186,7 +186,7 @@ class GlobalExceptionHandlerTest {
     inner class GenericErrors {
 
         @Test
-        fun `should return 500 with masked message`() {
+        fun `masked message로 return 500해야 한다`() {
             val ex = RuntimeException("DB password: secret123 connection failed")
 
             val response = handler.handleGenericException(ex)
@@ -201,7 +201,7 @@ class GlobalExceptionHandlerTest {
         }
 
         @Test
-        fun `should not expose stack trace in response`() {
+        fun `not expose stack trace in response해야 한다`() {
             val ex = NullPointerException("at com.arc.reactor.internal.SomeClass.method(SomeClass.kt:42)")
 
             val response = handler.handleGenericException(ex)

@@ -15,7 +15,7 @@ class CreateCanvasToolTest {
     private val tool = CreateCanvasTool(createCanvasUseCase, policyService)
 
     @Test
-    fun `creates canvas and registers ownership`() {
+    fun `canvas and registers ownership를 생성한다`() {
         every { createCanvasUseCase.execute("Release Notes", "hello") } returns
             CanvasCreateResult(ok = true, canvasId = "F123")
 
@@ -27,7 +27,7 @@ class CreateCanvasToolTest {
     }
 
     @Test
-    fun `returns validation error for blank title`() {
+    fun `blank title에 대해 validation error를 반환한다`() {
         val result = tool.create_canvas(" ", "hello")
 
         result shouldContain "title is required"
@@ -35,7 +35,7 @@ class CreateCanvasToolTest {
     }
 
     @Test
-    fun `returns validation error for blank markdown`() {
+    fun `blank markdown에 대해 validation error를 반환한다`() {
         val result = tool.create_canvas("Release Notes", " ")
 
         result shouldContain "markdown is required"

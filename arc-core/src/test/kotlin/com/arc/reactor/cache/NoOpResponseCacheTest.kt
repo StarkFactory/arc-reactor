@@ -6,12 +6,12 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 /**
- * Tests for NoOpResponseCache.
+ * NoOpResponseCache에 대한 테스트.
  */
 class NoOpResponseCacheTest {
 
     @Test
-    fun `get always returns null`() = runTest {
+    fun `always returns null를 가져온다`() = runTest {
         val cache = NoOpResponseCache()
 
         cache.put("key1", CachedResponse(content = "stored"))

@@ -15,7 +15,7 @@ class ListChannelsToolTest {
     private val tool = ListChannelsTool(listChannelsUseCase)
 
     @Test
-    fun `lists channels successfully`() {
+    fun `lists은(는) channels successfully`() {
         every { listChannelsUseCase.execute(100, null) } returns
             ConversationsListResult(
                 ok = true,
@@ -32,7 +32,7 @@ class ListChannelsToolTest {
     }
 
     @Test
-    fun `uses custom limit`() {
+    fun `custom limit를 사용한다`() {
         every { listChannelsUseCase.execute(5, null) } returns
             ConversationsListResult(ok = true, channels = emptyList())
 
@@ -41,7 +41,7 @@ class ListChannelsToolTest {
     }
 
     @Test
-    fun `handles pagination cursor`() {
+    fun `pagination cursor를 처리한다`() {
         every { listChannelsUseCase.execute(100, "next_cursor") } returns
             ConversationsListResult(ok = true, channels = emptyList(), nextCursor = null)
 
@@ -51,7 +51,7 @@ class ListChannelsToolTest {
     }
 
     @Test
-    fun `returns error for non-positive limit`() {
+    fun `non-positive limit에 대해 error를 반환한다`() {
         val result = tool.list_channels(0, null)
         result shouldContain "error"
         result shouldContain "limit must be between 1 and 200"
@@ -59,7 +59,7 @@ class ListChannelsToolTest {
     }
 
     @Test
-    fun `returns error for limit above max`() {
+    fun `limit above max에 대해 error를 반환한다`() {
         val result = tool.list_channels(201, null)
         result shouldContain "error"
         result shouldContain "limit must be between 1 and 200"

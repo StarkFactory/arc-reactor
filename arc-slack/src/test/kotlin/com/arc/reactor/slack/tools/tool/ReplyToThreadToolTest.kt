@@ -14,7 +14,7 @@ class ReplyToThreadToolTest {
     private val tool = ReplyToThreadTool(replyToThreadUseCase)
 
     @Test
-    fun `replies to thread successfully`() {
+    fun `replies은(는) to thread successfully`() {
         every { replyToThreadUseCase.execute("C123", "1234.5678", "Reply text") } returns
             PostMessageResult(ok = true, ts = "1234.9999", channel = "C123")
 
@@ -24,28 +24,28 @@ class ReplyToThreadToolTest {
     }
 
     @Test
-    fun `returns error for blank channelId`() {
+    fun `blank channelId에 대해 error를 반환한다`() {
         val result = tool.reply_to_thread("", "1234.5678", "Reply")
         result shouldContain "error"
         result shouldContain "channelId must be a valid Slack channel ID"
     }
 
     @Test
-    fun `returns error for blank threadTs`() {
+    fun `blank threadTs에 대해 error를 반환한다`() {
         val result = tool.reply_to_thread("C123", "", "Reply")
         result shouldContain "error"
         result shouldContain "threadTs must be a valid Slack timestamp"
     }
 
     @Test
-    fun `returns error for blank text`() {
+    fun `blank text에 대해 error를 반환한다`() {
         val result = tool.reply_to_thread("C123", "1234.5678", "")
         result shouldContain "error"
         result shouldContain "text is required"
     }
 
     @Test
-    fun `handles API error`() {
+    fun `API error를 처리한다`() {
         every { replyToThreadUseCase.execute("C123", "1234.5678", "Reply") } returns
             PostMessageResult(ok = false, error = "thread_not_found")
 
@@ -55,21 +55,21 @@ class ReplyToThreadToolTest {
     }
 
     @Test
-    fun `returns error for invalid channelId format`() {
+    fun `invalid channelId format에 대해 error를 반환한다`() {
         val result = tool.reply_to_thread("123", "1234.5678", "Reply")
         result shouldContain "channelId must be a valid Slack channel ID"
         verify(exactly = 0) { replyToThreadUseCase.execute(any(), any(), any()) }
     }
 
     @Test
-    fun `returns error for invalid thread timestamp format`() {
+    fun `invalid thread timestamp format에 대해 error를 반환한다`() {
         val result = tool.reply_to_thread("C123", "not-ts", "Reply")
         result shouldContain "threadTs must be a valid Slack timestamp"
         verify(exactly = 0) { replyToThreadUseCase.execute(any(), any(), any()) }
     }
 
     @Test
-    fun `normalizes inputs before delegating`() {
+    fun `inputs before delegating를 정규화한다`() {
         every { replyToThreadUseCase.execute("C123", "1234.5678", "Reply") } returns
             PostMessageResult(ok = true, ts = "1234.9999", channel = "C123")
 

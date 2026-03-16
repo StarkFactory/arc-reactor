@@ -13,7 +13,7 @@ import java.time.Instant
 class RedisTokenRevocationStoreTest {
 
     @Test
-    fun `revoke should write key with ttl`() {
+    fun `revoke은(는) write key with ttl해야 한다`() {
         val redisTemplate = mockk<StringRedisTemplate>()
         val valueOps = mockk<ValueOperations<String, String>>(relaxed = true)
         every { redisTemplate.opsForValue() } returns valueOps
@@ -27,7 +27,7 @@ class RedisTokenRevocationStoreTest {
     }
 
     @Test
-    fun `revoke should skip already expired token`() {
+    fun `revoke은(는) skip already expired token해야 한다`() {
         val redisTemplate = mockk<StringRedisTemplate>()
         val valueOps = mockk<ValueOperations<String, String>>(relaxed = true)
         every { redisTemplate.opsForValue() } returns valueOps
@@ -39,7 +39,7 @@ class RedisTokenRevocationStoreTest {
     }
 
     @Test
-    fun `isRevoked should check redis key existence`() {
+    fun `isRevoked은(는) check redis key existence해야 한다`() {
         val redisTemplate = mockk<StringRedisTemplate>()
         every { redisTemplate.hasKey("arc:auth:revoked:jti-hit") } returns true
         every { redisTemplate.hasKey("arc:auth:revoked:jti-miss") } returns false

@@ -59,7 +59,7 @@ class SessionControllerTest {
     inner class ListSessions {
 
         @Test
-        fun `should return empty list when no sessions exist`() = runTest {
+        fun `no sessions exist일 때 return empty list해야 한다`() = runTest {
             every { memoryStore.listSessionsByUserId("user-1") } returns emptyList()
 
             val result = controller.listSessions(offset = 0, limit = 50, exchange = exchange)
@@ -69,7 +69,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should return session summaries with correct fields`() = runTest {
+        fun `correct fields로 return session summaries해야 한다`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             every { memoryStore.listSessionsByUserId("user-1") } returns listOf(
                 SessionSummary("session-1", 5, now, "Hello, how are you?")
@@ -86,7 +86,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should return multiple sessions`() = runTest {
+        fun `return multiple sessions해야 한다`() = runTest {
             val now = Instant.now()
             every { memoryStore.listSessionsByUserId("user-1") } returns listOf(
                 SessionSummary("s-1", 3, now, "First"),
@@ -101,7 +101,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should reject list request when authenticated user context is missing`() = runTest {
+        fun `authenticated user context is missing일 때 reject list request해야 한다`() = runTest {
             every { exchange.attributes } returns mutableMapOf()
 
             val exception = assertThrows(org.springframework.web.server.ResponseStatusException::class.java) {
@@ -114,7 +114,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should paginate sessions correctly`() = runTest {
+        fun `paginate sessions correctly해야 한다`() = runTest {
             val now = Instant.now()
             every { memoryStore.listSessionsByUserId("user-1") } returns (1..5).map {
                 SessionSummary("s-$it", it, now.minusSeconds(it.toLong()), "Session $it")
@@ -134,7 +134,7 @@ class SessionControllerTest {
     inner class GetSession {
 
         @Test
-        fun `should return 404 when session does not exist`() = runTest {
+        fun `session does not exist일 때 return 404해야 한다`() = runTest {
             every { memoryStore.get("nonexistent") } returns null
 
             val response = controller.getSession("nonexistent", exchange)
@@ -143,7 +143,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should return session messages with correct fields`() = runTest {
+        fun `correct fields로 return session messages해야 한다`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("session-1") } returns memory
@@ -161,7 +161,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should map message roles to lowercase`() = runTest {
+        fun `map message roles to lowercase해야 한다`() = runTest {
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("session-1") } returns memory
             every { memory.getHistory() } returns listOf(
@@ -178,7 +178,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should return timestamps as epoch millis`() = runTest {
+        fun `return timestamps as epoch millis해야 한다`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("session-1") } returns memory
@@ -196,7 +196,7 @@ class SessionControllerTest {
     inner class ExportSession {
 
         @Test
-        fun `should export session as JSON by default`() = runTest {
+        fun `export session as JSON by default해야 한다`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("session-1") } returns memory
@@ -215,7 +215,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should export session as markdown`() = runTest {
+        fun `export session as markdown해야 한다`() = runTest {
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("session-1") } returns memory
             every { memory.getHistory() } returns listOf(
@@ -233,7 +233,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should return 404 for nonexistent session`() = runTest {
+        fun `nonexistent session에 대해 return 404해야 한다`() = runTest {
             every { memoryStore.get("nonexistent") } returns null
 
             val response = controller.exportSession("nonexistent", "json", exchange)
@@ -242,7 +242,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should sanitize session id in Content-Disposition header`() = runTest {
+        fun `sanitize session id in Content-Disposition header해야 한다`() = runTest {
             val maliciousId = "session\r\nX-Injected: evil"
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get(maliciousId) } returns memory
@@ -264,7 +264,7 @@ class SessionControllerTest {
     inner class DeleteSession {
 
         @Test
-        fun `should return 204 on successful deletion`() = runTest {
+        fun `return 204 on successful deletion해야 한다`() = runTest {
             every { memoryStore.remove("session-1") } returns Unit
 
             val response = controller.deleteSession("session-1", exchange)
@@ -273,7 +273,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should call memoryStore remove with correct sessionId`() = runTest {
+        fun `correct sessionId로 call memoryStore remove해야 한다`() = runTest {
             every { memoryStore.remove(any()) } returns Unit
 
             controller.deleteSession("target-session", exchange)
@@ -282,7 +282,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should return 204 even for nonexistent session`() = runTest {
+        fun `nonexistent session에 대해 return 204 even해야 한다`() = runTest {
             every { memoryStore.remove("nonexistent") } returns Unit
 
             val response = controller.deleteSession("nonexistent", exchange)
@@ -291,7 +291,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should cascade delete summary store on session deletion`() = runTest {
+        fun `cascade delete summary store on session deletion해야 한다`() = runTest {
             every { memoryStore.remove("session-1") } returns Unit
 
             controller.deleteSession("session-1", exchange)
@@ -300,7 +300,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should not fail when summary store is not available`() = runTest {
+        fun `summary store is not available일 때 not fail해야 한다`() = runTest {
             every { summaryStoreProvider.ifAvailable } returns null
             every { conversationManagerProvider.ifAvailable } returns null
             val noSummaryController = SessionController(
@@ -316,7 +316,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should cancel active summarization before deleting session`() = runTest {
+        fun `deleting session 전에 cancel active summarization해야 한다`() = runTest {
             every { memoryStore.remove("session-1") } returns Unit
 
             controller.deleteSession("session-1", exchange)
@@ -331,7 +331,7 @@ class SessionControllerTest {
     inner class SessionOwnership {
 
         @Test
-        fun `should return 403 when authenticated user does not own session`() = runTest {
+        fun `authenticated user does not own session일 때 return 403해야 한다`() = runTest {
             val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
             every { exchange.attributes } returns attrs
             every { memoryStore.getSessionOwner("session-1") } returns "user-2"
@@ -342,7 +342,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should allow access when user owns session`() = runTest {
+        fun `user owns session일 때 allow access해야 한다`() = runTest {
             val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
             every { exchange.attributes } returns attrs
             every { memoryStore.getSessionOwner("session-1") } returns "user-1"
@@ -356,7 +356,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should deny access when session has no owner`() = runTest {
+        fun `session has no owner일 때 deny access해야 한다`() = runTest {
             val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
             every { exchange.attributes } returns attrs
             every { memoryStore.getSessionOwner("session-1") } returns null
@@ -369,7 +369,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should deny access when session owner is anonymous`() = runTest {
+        fun `session owner is anonymous일 때 deny access해야 한다`() = runTest {
             val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
             every { exchange.attributes } returns attrs
             every { memoryStore.getSessionOwner("session-1") } returns "anonymous"
@@ -382,7 +382,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should return 403 on delete when user does not own session`() = runTest {
+        fun `user does not own session일 때 return 403 on delete해야 한다`() = runTest {
             val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
             every { exchange.attributes } returns attrs
             every { memoryStore.getSessionOwner("session-1") } returns "user-2"
@@ -394,7 +394,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should return 401 when authenticated user context is missing`() = runTest {
+        fun `authenticated user context is missing일 때 return 401해야 한다`() = runTest {
             every { exchange.attributes } returns mutableMapOf()
 
             val response = controller.getSession("session-1", exchange)
@@ -405,7 +405,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `admin should access any session regardless of ownership`() = runTest {
+        fun `admin은(는) access any session regardless of ownership해야 한다`() = runTest {
             val attrs = mutableMapOf<String, Any>(
                 JwtAuthWebFilter.USER_ID_ATTRIBUTE to "admin-1",
                 JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.ADMIN
@@ -424,7 +424,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `admin should access unowned session`() = runTest {
+        fun `admin은(는) access unowned session해야 한다`() = runTest {
             val attrs = mutableMapOf<String, Any>(
                 JwtAuthWebFilter.USER_ID_ATTRIBUTE to "admin-1",
                 JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.ADMIN
@@ -447,7 +447,7 @@ class SessionControllerTest {
     inner class ListModels {
 
         @Test
-        fun `should return available providers`() = runTest {
+        fun `return available providers해야 한다`() = runTest {
             every { chatModelProvider.availableProviders() } returns setOf("gemini", "openai")
             every { chatModelProvider.defaultProvider() } returns "gemini"
 
@@ -460,7 +460,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should mark default provider correctly`() = runTest {
+        fun `mark default provider correctly해야 한다`() = runTest {
             every { chatModelProvider.availableProviders() } returns setOf("gemini", "openai")
             every { chatModelProvider.defaultProvider() } returns "gemini"
 
@@ -473,7 +473,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should return defaultModel field`() = runTest {
+        fun `return defaultModel field해야 한다`() = runTest {
             every { chatModelProvider.availableProviders() } returns setOf("gemini")
             every { chatModelProvider.defaultProvider() } returns "gemini"
 
@@ -483,7 +483,7 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should handle single provider`() = runTest {
+        fun `handle single provider해야 한다`() = runTest {
             every { chatModelProvider.availableProviders() } returns setOf("anthropic")
             every { chatModelProvider.defaultProvider() } returns "anthropic"
 

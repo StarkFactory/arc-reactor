@@ -22,7 +22,7 @@ class CreateScheduledJobToolTest {
     private val tool = CreateScheduledJobTool(schedulerService, "Asia/Seoul")
 
     @Test
-    fun `has null category so it is always loaded`() {
+    fun `has null category so it은(는) always loaded이다`() {
         assertNull(tool.category,
             "Scheduler tools must have null category to be always available")
     }
@@ -31,7 +31,7 @@ class CreateScheduledJobToolTest {
     inner class SuccessfulCreation {
 
         @Test
-        fun `creates AGENT job with valid 6-field cron`() {
+        fun `AGENT job with valid 6-field cron를 생성한다`() {
             every { schedulerService.findByName(any()) } returns null
             val jobSlot = slot<ScheduledJob>()
             every { schedulerService.create(capture(jobSlot)) } answers {
@@ -60,7 +60,7 @@ class CreateScheduledJobToolTest {
         }
 
         @Test
-        fun `uses default timezone when not specified`() {
+        fun `not specified일 때 default timezone를 사용한다`() {
             every { schedulerService.findByName(any()) } returns null
             val jobSlot = slot<ScheduledJob>()
             every { schedulerService.create(capture(jobSlot)) } answers {
@@ -78,7 +78,7 @@ class CreateScheduledJobToolTest {
         }
 
         @Test
-        fun `slackChannelId is null when not provided`() {
+        fun `not provided일 때 slackChannelId은(는) null이다`() {
             every { schedulerService.findByName(any()) } returns null
             val jobSlot = slot<ScheduledJob>()
             every { schedulerService.create(capture(jobSlot)) } answers {
@@ -96,7 +96,7 @@ class CreateScheduledJobToolTest {
         }
 
         @Test
-        fun `blank slackChannelId is normalized to null`() {
+        fun `blank slackChannelId은(는) normalized to null이다`() {
             every { schedulerService.findByName(any()) } returns null
             val jobSlot = slot<ScheduledJob>()
             every { schedulerService.create(capture(jobSlot)) } answers {
@@ -119,7 +119,7 @@ class CreateScheduledJobToolTest {
     inner class ValidationErrors {
 
         @Test
-        fun `returns error when name is blank`() {
+        fun `name is blank일 때 error를 반환한다`() {
             val result = tool.create_scheduled_job(
                 name = "  ",
                 cronExpression = "0 0 9 * * *",
@@ -132,7 +132,7 @@ class CreateScheduledJobToolTest {
         }
 
         @Test
-        fun `returns error when cronExpression is blank`() {
+        fun `cronExpression is blank일 때 error를 반환한다`() {
             val result = tool.create_scheduled_job(
                 name = "Test",
                 cronExpression = "",
@@ -146,7 +146,7 @@ class CreateScheduledJobToolTest {
         }
 
         @Test
-        fun `returns error when agentPrompt is blank`() {
+        fun `agentPrompt is blank일 때 error를 반환한다`() {
             val result = tool.create_scheduled_job(
                 name = "Test",
                 cronExpression = "0 0 9 * * *",
@@ -160,7 +160,7 @@ class CreateScheduledJobToolTest {
         }
 
         @Test
-        fun `returns error on invalid cron expression`() {
+        fun `error on invalid cron expression를 반환한다`() {
             every { schedulerService.findByName(any()) } returns null
             every { schedulerService.create(any()) } throws
                 IllegalArgumentException("Invalid cron expression: bad-cron")
@@ -182,7 +182,7 @@ class CreateScheduledJobToolTest {
     inner class DuplicatePrevention {
 
         @Test
-        fun `returns error when job with same name already exists`() {
+        fun `job with same name already exists일 때 error를 반환한다`() {
             every { schedulerService.findByName("Daily Summary") } returns
                 ScheduledJob(
                     id = "existing-1",
@@ -210,7 +210,7 @@ class CreateScheduledJobToolTest {
     inner class UnexpectedExceptions {
 
         @Test
-        fun `returns error JSON on unexpected RuntimeException`() {
+        fun `error JSON on unexpected RuntimeException를 반환한다`() {
             every { schedulerService.findByName(any()) } returns null
             every { schedulerService.create(any()) } throws
                 RuntimeException("Database connection failed")

@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test
 class RagContextRetrieverTest {
 
     @Test
-    fun `returns null and does not call pipeline when rag is disabled`() = runBlocking {
+    fun `rag is disabled일 때 null and does not call pipeline를 반환한다`() = runBlocking {
         val pipeline = mockk<RagPipeline>()
         val retriever = RagContextRetriever(
             enabled = false,
@@ -38,7 +38,7 @@ class RagContextRetrieverTest {
     }
 
     @Test
-    fun `returns context and merges explicit filters with prefixed filters`() = runBlocking {
+    fun `context and merges explicit filters with prefixed filters를 반환한다`() = runBlocking {
         val pipeline = mockk<RagPipeline>()
         val querySlot = slot<RagQuery>()
         coEvery { pipeline.retrieve(capture(querySlot)) } returns RagContext(
@@ -75,7 +75,7 @@ class RagContextRetrieverTest {
     }
 
     @Test
-    fun `returns null when pipeline fails with non-cancellation exception`() = runBlocking {
+    fun `pipeline fails with non-cancellation exception일 때 null를 반환한다`() = runBlocking {
         val pipeline = mockk<RagPipeline>()
         coEvery { pipeline.retrieve(any()) } throws IllegalStateException("rag failed")
         val retriever = RagContextRetriever(
@@ -92,7 +92,7 @@ class RagContextRetrieverTest {
     }
 
     @Test
-    fun `rethrows cancellation exception from pipeline`() {
+    fun `rethrows은(는) cancellation exception from pipeline`() {
         val pipeline = mockk<RagPipeline>()
         coEvery { pipeline.retrieve(any()) } throws CancellationException("cancelled")
         val retriever = RagContextRetriever(
@@ -111,7 +111,7 @@ class RagContextRetrieverTest {
     }
 
     @Test
-    fun `returns null when pipeline exceeds retrieval timeout`() = runTest {
+    fun `pipeline exceeds retrieval timeout일 때 null를 반환한다`() = runTest {
         val pipeline = mockk<RagPipeline>()
         coEvery { pipeline.retrieve(any()) } coAnswers {
             delay(3000)

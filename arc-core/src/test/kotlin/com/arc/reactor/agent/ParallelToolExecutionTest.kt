@@ -32,8 +32,8 @@ class ParallelToolExecutionTest {
     inner class Parallelism {
 
         @Test
-        fun `should execute tools in parallel - concurrency verification`() = runBlocking {
-        // Track the max number of concurrently executing tools
+        fun `도구를 병렬로 실행해야 한다 - 동시성 검증`() = runBlocking {
+        // 동시 실행 중인 도구의 최대 수를 추적합니다
         val concurrent = AtomicInteger(0)
         val maxConcurrent = AtomicInteger(0)
 
@@ -44,7 +44,7 @@ class ParallelToolExecutionTest {
                 override suspend fun call(arguments: Map<String, Any?>): Any {
                     val current = concurrent.incrementAndGet()
                     maxConcurrent.updateAndGet { max -> maxOf(max, current) }
-                    kotlinx.coroutines.delay(100) // hold slot to allow overlap
+                    kotlinx.coroutines.delay(100)  // 겹침을 허용하기 위해 슬롯을 유지합니다
                     concurrent.decrementAndGet()
                     return "result"
                 }
@@ -77,14 +77,14 @@ class ParallelToolExecutionTest {
         )
 
         result.assertSuccess()
-        // If parallel, max concurrent should be > 1 (ideally 3)
+        // 병렬이면 최대 동시 실행 수가 1보다 커야 합니다 (이상적으로 3)
         assertTrue(maxConcurrent.get() > 1,
             "Expected concurrent execution > 1, but was ${maxConcurrent.get()} (tools ran sequentially)")
     }
 
     @Test
-    fun `should preserve result order regardless of execution time`() = runBlocking {
-        // tool-slow takes longer but should still be first in results
+    fun `실행 시간과 관계없이 결과 순서를 보존해야 한다`() = runBlocking {
+        // tool-slow가 더 오래 걸리지만 결과에서 첫 번째여야 합니다
         val tools = listOf(
             AgentTestFixture.delayingToolCallback("tool-slow", delayMs = 150, result = "SLOW"),
             AgentTestFixture.delayingToolCallback("tool-fast", delayMs = 10, result = "FAST")
@@ -115,7 +115,7 @@ class ParallelToolExecutionTest {
         )
 
         result.assertSuccess()
-        // Both tools should be recorded
+        // 두 도구 모두 기록되어야 합니다
         assertTrue(result.toolsUsed.contains("tool-slow"), "tool-slow should be in toolsUsed")
         assertTrue(result.toolsUsed.contains("tool-fast"), "tool-fast should be in toolsUsed")
     }
@@ -125,7 +125,7 @@ class ParallelToolExecutionTest {
     inner class Integration {
 
         @Test
-        fun `should execute hooks for parallel tool calls`() = runBlocking {
+        fun `병렬 도구 호출에 대해 훅을 실행해야 한다`() = runBlocking {
         val hookedTools = CopyOnWriteArrayList<String>()
 
         val beforeHook = object : BeforeToolCallHook {
@@ -168,13 +168,13 @@ class ParallelToolExecutionTest {
             AgentCommand(systemPrompt = "Test", userPrompt = "Use tools")
         )
 
-        // Both tools should have had hooks called
+        // 두 도구 모두 훅이 호출되어야 합니다
         assertTrue(hookedTools.contains("tool-x"), "Hook should have been called for tool-x")
         assertTrue(hookedTools.contains("tool-y"), "Hook should have been called for tool-y")
     }
 
     @Test
-    fun `should handle individual tool failure without affecting others`() = runBlocking {
+    fun `개별 도구 실패를 다른 도구에 영향 주지 않고 처리해야 한다`() = runBlocking {
         val failingTool = object : ToolCallback {
             override val name = "failing-tool"
             override val description = "Fails"
@@ -208,7 +208,7 @@ class ParallelToolExecutionTest {
             AgentCommand(systemPrompt = "Test", userPrompt = "Use tools")
         )
 
-        // Should still succeed overall (LLM gets error from one tool, success from another)
+        // 전체적으로 여전히 성공해야 합니다 (LLM이 한 도구의 오류와 다른 도구의 성공을 받습니다)
         result.assertSuccess()
         assertEquals("Final answer", result.content)
     }
@@ -218,7 +218,7 @@ class ParallelToolExecutionTest {
     inner class Limits {
 
         @Test
-        fun `should respect maxToolCalls across parallel execution`() = runBlocking {
+        fun `병렬 실행 전반에 걸쳐 maxToolCalls를 준수해야 한다`() = runBlocking {
         val tools = listOf(
             AgentTestFixture.toolCallback("t1"),
             AgentTestFixture.toolCallback("t2"),
@@ -240,7 +240,7 @@ class ParallelToolExecutionTest {
             }
         }
 
-        // maxToolCalls = 2, but 3 tools requested
+        // maxToolCalls = 2이지만 3개의 도구가 요청됨
         val executor = SpringAiAgentExecutor(
             chatClient = fixture.chatClient,
             properties = properties.copy(maxToolCalls = 2),
@@ -252,7 +252,7 @@ class ParallelToolExecutionTest {
         )
 
         result.assertSuccess()
-        // At most 2 tools should have been executed successfully
+        // 최대 2개의 도구만 성공적으로 실행되어야 합니다
         assertTrue(result.toolsUsed.size <= 2, "Should respect maxToolCalls limit: ${result.toolsUsed}")
     }
     }

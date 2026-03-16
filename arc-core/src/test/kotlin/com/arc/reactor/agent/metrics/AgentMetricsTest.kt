@@ -13,7 +13,7 @@ class AgentMetricsTest {
     inner class DefaultMethodsTest {
 
         @Test
-        fun `implementation with only 3 required methods should compile and work`() {
+        fun `implementation with only 3 required methods은(는) compile and work해야 한다`() {
             // Simulates an existing user implementation that only overrides the 3 original methods
             val minimalImpl = object : AgentMetrics {
                 override fun recordExecution(result: AgentResult) {}
@@ -21,7 +21,7 @@ class AgentMetricsTest {
                 override fun recordGuardRejection(stage: String, reason: String) {}
             }
 
-            // New default methods should be callable without override
+            // New default methods은(는) be callable without override해야 합니다
             assertDoesNotThrow {
                 minimalImpl.recordCacheHit("key")
                 minimalImpl.recordExactCacheHit("key")
@@ -41,7 +41,7 @@ class AgentMetricsTest {
     inner class AgentMetricsInterfaceTest {
 
         @Test
-        fun `custom implementation should receive correct parameters`() {
+        fun `custom implementation은(는) receive correct parameters해야 한다`() {
             var lastExecution: AgentResult? = null
             var lastToolName: String? = null
             var lastToolDuration: Long? = null
@@ -66,7 +66,7 @@ class AgentMetricsTest {
                 }
             }
 
-            // Verify recordExecution
+            // recordExecution 확인
             val result = AgentResult.success(content = "test", durationMs = 150)
             trackingMetrics.recordExecution(result)
             assertNotNull(lastExecution) { "recordExecution should capture the result" }
@@ -74,20 +74,20 @@ class AgentMetricsTest {
             assertTrue(captured.success) { "Captured result should be successful" }
             assertEquals(150L, captured.durationMs) { "Duration should match" }
 
-            // Verify recordToolCall
+            // recordToolCall 확인
             trackingMetrics.recordToolCall("calculator", durationMs = 42, success = true)
             assertEquals("calculator", lastToolName) { "Tool name should be captured" }
             assertEquals(42L, lastToolDuration) { "Tool duration should be captured" }
             assertEquals(true, lastToolSuccess) { "Tool success should be captured" }
 
-            // Verify recordGuardRejection
+            // recordGuardRejection 확인
             trackingMetrics.recordGuardRejection("InputValidation", "Input too long")
             assertEquals("InputValidation", lastGuardStage) { "Guard stage should be captured" }
             assertEquals("Input too long", lastGuardReason) { "Guard reason should be captured" }
         }
 
         @Test
-        fun `custom implementation should receive new metrics parameters`() {
+        fun `custom implementation은(는) receive new metrics parameters해야 한다`() {
             var lastCacheKey: String? = null
             var cacheHit = false
             var exactCacheHits = 0
@@ -199,13 +199,13 @@ class AgentMetricsTest {
     inner class TokenUsageTest {
 
         @Test
-        fun `should auto-calculate totalTokens`() {
+        fun `auto-calculate totalTokens해야 한다`() {
             val usage = TokenUsage(promptTokens = 100, completionTokens = 50)
             assertEquals(150, usage.totalTokens) { "totalTokens should be sum of prompt and completion" }
         }
 
         @Test
-        fun `should allow explicit totalTokens`() {
+        fun `allow explicit totalTokens해야 한다`() {
             val usage = TokenUsage(promptTokens = 100, completionTokens = 50, totalTokens = 200)
             assertEquals(200, usage.totalTokens) { "Explicit totalTokens should override default" }
         }

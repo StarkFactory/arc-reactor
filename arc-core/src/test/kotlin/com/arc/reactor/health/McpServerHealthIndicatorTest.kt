@@ -16,7 +16,7 @@ class McpServerHealthIndicatorTest {
     private val indicator = McpServerHealthIndicator(mcpManager)
 
     @Test
-    fun `health is UP when no servers registered`() {
+    fun `no servers registered일 때 health은(는) UP이다`() {
         every { mcpManager.listServers() } returns emptyList()
 
         val health = indicator.health()
@@ -26,7 +26,7 @@ class McpServerHealthIndicatorTest {
     }
 
     @Test
-    fun `health is UP when all servers connected`() {
+    fun `all servers connected일 때 health은(는) UP이다`() {
         val servers = listOf(testServer("server-a"), testServer("server-b"))
         every { mcpManager.listServers() } returns servers
         every { mcpManager.getStatus("server-a") } returns McpServerStatus.CONNECTED
@@ -40,7 +40,7 @@ class McpServerHealthIndicatorTest {
     }
 
     @Test
-    fun `health is DEGRADED when some servers failed`() {
+    fun `some servers failed일 때 health은(는) DEGRADED이다`() {
         val servers = listOf(testServer("server-a"), testServer("server-b"))
         every { mcpManager.listServers() } returns servers
         every { mcpManager.getStatus("server-a") } returns McpServerStatus.CONNECTED
@@ -54,7 +54,7 @@ class McpServerHealthIndicatorTest {
     }
 
     @Test
-    fun `health is DOWN when all servers failed`() {
+    fun `all servers failed일 때 health은(는) DOWN이다`() {
         val servers = listOf(testServer("server-a"))
         every { mcpManager.listServers() } returns servers
         every { mcpManager.getStatus("server-a") } returns McpServerStatus.FAILED
@@ -65,7 +65,7 @@ class McpServerHealthIndicatorTest {
     }
 
     @Test
-    fun `health includes per-server status map`() {
+    fun `헬스 includes per-server status map`() {
         val servers = listOf(testServer("server-a"))
         every { mcpManager.listServers() } returns servers
         every { mcpManager.getStatus("server-a") } returns McpServerStatus.PENDING
@@ -78,7 +78,7 @@ class McpServerHealthIndicatorTest {
     }
 
     @Test
-    fun `null status defaults to PENDING`() {
+    fun `null인 status defaults to PENDING`() {
         val servers = listOf(testServer("server-a"))
         every { mcpManager.listServers() } returns servers
         every { mcpManager.getStatus("server-a") } returns null

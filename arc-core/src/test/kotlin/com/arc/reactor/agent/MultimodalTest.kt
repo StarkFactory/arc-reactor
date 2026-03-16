@@ -30,7 +30,7 @@ class MultimodalTest {
     inner class MediaAttachmentModel {
 
         @Test
-        fun `should create MediaAttachment from URI`() {
+        fun `URI로 MediaAttachment를 생성해야 한다`() {
             val attachment = MediaAttachment(
                 mimeType = MimeTypeUtils.IMAGE_PNG,
                 uri = URI("https://example.com/photo.png")
@@ -42,7 +42,7 @@ class MultimodalTest {
         }
 
         @Test
-        fun `should create MediaAttachment from byte array`() {
+        fun `바이트 배열로 MediaAttachment를 생성해야 한다`() {
             val bytes = byteArrayOf(1, 2, 3, 4)
             val attachment = MediaAttachment(
                 mimeType = MimeTypeUtils.IMAGE_JPEG,
@@ -56,7 +56,7 @@ class MultimodalTest {
         }
 
         @Test
-        fun `should reject MediaAttachment with neither data nor URI`() {
+        fun `데이터도 URI도 없는 MediaAttachment를 거부해야 한다`() {
             val exception = assertThrows(IllegalArgumentException::class.java) {
                 MediaAttachment(mimeType = MimeTypeUtils.IMAGE_PNG)
             }
@@ -70,7 +70,7 @@ class MultimodalTest {
     inner class MediaConverterTest {
 
         @Test
-        fun `buildUserMessage without media returns simple UserMessage`() {
+        fun `미디어 없이 buildUserMessage가 단순 UserMessage를 반환해야 한다`() {
             val msg = MediaConverter.buildUserMessage("Hello")
 
             assertInstanceOf(UserMessage::class.java, msg) { "Should return UserMessage" }
@@ -79,7 +79,7 @@ class MultimodalTest {
         }
 
         @Test
-        fun `buildUserMessage with URI media returns UserMessage with media`() {
+        fun `URI 미디어로 buildUserMessage가 미디어 포함 UserMessage를 반환해야 한다`() {
             val media = listOf(
                 MediaAttachment(
                     mimeType = MimeTypeUtils.IMAGE_PNG,
@@ -96,7 +96,7 @@ class MultimodalTest {
         }
 
         @Test
-        fun `buildUserMessage with byte data media returns UserMessage with media`() {
+        fun `바이트 데이터 미디어로 buildUserMessage가 미디어 포함 UserMessage를 반환해야 한다`() {
             val imageBytes = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47) // PNG magic bytes
             val media = listOf(
                 MediaAttachment(
@@ -113,7 +113,7 @@ class MultimodalTest {
         }
 
         @Test
-        fun `buildUserMessage with multiple media returns all attachments`() {
+        fun `다중 미디어로 buildUserMessage가 모든 첨부파일을 반환해야 한다`() {
             val media = listOf(
                 MediaAttachment(mimeType = MimeTypeUtils.IMAGE_PNG, uri = URI("https://example.com/1.png")),
                 MediaAttachment(mimeType = MimeTypeUtils.IMAGE_JPEG, uri = URI("https://example.com/2.jpg"))
@@ -125,7 +125,7 @@ class MultimodalTest {
         }
 
         @Test
-        fun `toSpringAiMedia converts URI attachment correctly`() {
+        fun `toSpringAiMedia가 URI 첨부파일을 올바르게 변환해야 한다`() {
             val attachment = MediaAttachment(
                 mimeType = MimeTypeUtils.IMAGE_PNG,
                 uri = URI("https://example.com/image.png")
@@ -137,7 +137,7 @@ class MultimodalTest {
         }
 
         @Test
-        fun `toSpringAiMedia converts byte data attachment correctly`() {
+        fun `toSpringAiMedia가 바이트 데이터 첨부파일을 올바르게 변환해야 한다`() {
             val bytes = byteArrayOf(1, 2, 3)
             val attachment = MediaAttachment(
                 mimeType = MimeTypeUtils.IMAGE_JPEG,
@@ -156,8 +156,8 @@ class MultimodalTest {
     inner class ExecutorMultimodalIntegration {
 
         @Test
-        fun `execute with media should pass UserMessage with media to ChatClient`() = runBlocking {
-            // Arrange
+        fun `미디어 포함 실행 시 미디어 포함 UserMessage를 ChatClient에 전달해야 한다`() = runBlocking {
+            // 준비
             val messagesSlot = slot<List<Message>>()
             every { fixture.requestSpec.messages(capture(messagesSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("I see an image of a cat.")
@@ -174,7 +174,7 @@ class MultimodalTest {
                 )
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are a vision assistant.",
@@ -183,11 +183,11 @@ class MultimodalTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertSuccess()
             assertEquals("I see an image of a cat.", result.content) { "Response content mismatch" }
 
-            // Verify UserMessage was constructed with media
+            // UserMessage was constructed with media 확인
             assertTrue(messagesSlot.isCaptured) { "Messages should be captured" }
             val capturedMessages = messagesSlot.captured
             val userMsg = capturedMessages.filterIsInstance<UserMessage>().lastOrNull()
@@ -197,8 +197,8 @@ class MultimodalTest {
         }
 
         @Test
-        fun `execute without media should pass text-only UserMessage`() = runBlocking {
-            // Arrange
+        fun `미디어 없이 실행 시 텍스트 전용 UserMessage를 전달해야 한다`() = runBlocking {
+            // 준비
             val messagesSlot = slot<List<Message>>()
             every { fixture.requestSpec.messages(capture(messagesSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("Hello!")
@@ -208,7 +208,7 @@ class MultimodalTest {
                 properties = properties
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -216,7 +216,7 @@ class MultimodalTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertSuccess()
 
             val capturedMessages = messagesSlot.captured
@@ -226,8 +226,8 @@ class MultimodalTest {
         }
 
         @Test
-        fun `execute with multiple media attachments should include all`() = runBlocking {
-            // Arrange
+        fun `다중 미디어 첨부파일 실행 시 모두 포함해야 한다`() = runBlocking {
+            // 준비
             val messagesSlot = slot<List<Message>>()
             every { fixture.requestSpec.messages(capture(messagesSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("I see two images.")
@@ -242,7 +242,7 @@ class MultimodalTest {
                 MediaAttachment(mimeType = MimeTypeUtils.IMAGE_JPEG, uri = URI("https://example.com/2.jpg"))
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "Compare images.",
@@ -251,7 +251,7 @@ class MultimodalTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertSuccess()
             val userMsg = messagesSlot.captured.filterIsInstance<UserMessage>().lastOrNull()
             assertNotNull(userMsg) { "UserMessage should be present" }

@@ -27,27 +27,27 @@ class AdminAuthHelperTest {
     inner class IsAdmin {
 
         @Test
-        fun `returns true when role is ADMIN`() {
+        fun `role is ADMIN일 때 true를 반환한다`() {
             isAdmin(exchangeWithRole(UserRole.ADMIN)) shouldBe true
         }
 
         @Test
-        fun `returns true when role is ADMIN_DEVELOPER`() {
+        fun `role is ADMIN_DEVELOPER일 때 true를 반환한다`() {
             isAdmin(exchangeWithRole(UserRole.ADMIN_DEVELOPER)) shouldBe true
         }
 
         @Test
-        fun `returns false when role is ADMIN_MANAGER`() {
+        fun `role is ADMIN_MANAGER일 때 false를 반환한다`() {
             isAdmin(exchangeWithRole(UserRole.ADMIN_MANAGER)) shouldBe false
         }
 
         @Test
-        fun `returns false when role is USER`() {
+        fun `role is USER일 때 false를 반환한다`() {
             isAdmin(exchangeWithRole(UserRole.USER)) shouldBe false
         }
 
         @Test
-        fun `returns false when role is null`() {
+        fun `role is null일 때 false를 반환한다`() {
             isAdmin(exchangeWithRole(null)) shouldBe false
         }
     }
@@ -56,17 +56,17 @@ class AdminAuthHelperTest {
     inner class IsAnyAdmin {
 
         @Test
-        fun `returns true when role is ADMIN_MANAGER`() {
+        fun `role is ADMIN_MANAGER일 때 true를 반환한다`() {
             isAnyAdmin(exchangeWithRole(UserRole.ADMIN_MANAGER)) shouldBe true
         }
 
         @Test
-        fun `returns true when role is ADMIN_DEVELOPER`() {
+        fun `role is ADMIN_DEVELOPER일 때 true를 반환한다`() {
             isAnyAdmin(exchangeWithRole(UserRole.ADMIN_DEVELOPER)) shouldBe true
         }
 
         @Test
-        fun `returns false when role is USER`() {
+        fun `role is USER일 때 false를 반환한다`() {
             isAnyAdmin(exchangeWithRole(UserRole.USER)) shouldBe false
         }
     }
@@ -75,7 +75,7 @@ class AdminAuthHelperTest {
     inner class CurrentActor {
 
         @Test
-        fun `returns user id when present`() {
+        fun `present일 때 user id를 반환한다`() {
             val exchange = mockk<ServerWebExchange>()
             every { exchange.attributes } returns mutableMapOf(
                 JwtAuthWebFilter.USER_ID_ATTRIBUTE to "admin-1"
@@ -85,7 +85,7 @@ class AdminAuthHelperTest {
         }
 
         @Test
-        fun `returns anonymous when user id missing`() {
+        fun `user id missing일 때 anonymous를 반환한다`() {
             val exchange = mockk<ServerWebExchange>()
             every { exchange.attributes } returns mutableMapOf()
 
@@ -97,7 +97,7 @@ class AdminAuthHelperTest {
     inner class ForbiddenResponse {
 
         @Test
-        fun `returns 403 with error body`() {
+        fun `403 with error body를 반환한다`() {
             val response = forbiddenResponse()
             response.statusCode shouldBe HttpStatus.FORBIDDEN
             val body = response.body as AdminErrorResponse
@@ -109,7 +109,7 @@ class AdminAuthHelperTest {
     inner class NotFoundResponse {
 
         @Test
-        fun `returns 404 with descriptive message`() {
+        fun `404 with descriptive message를 반환한다`() {
             val response = notFoundResponse("Tenant not found: t1")
             response.statusCode shouldBe HttpStatus.NOT_FOUND
             val body = response.body as AdminErrorResponse
@@ -121,7 +121,7 @@ class AdminAuthHelperTest {
     inner class ConflictResponse {
 
         @Test
-        fun `returns 409 with descriptive message`() {
+        fun `409 with descriptive message를 반환한다`() {
             val response = conflictResponse("Already exists")
             response.statusCode shouldBe HttpStatus.CONFLICT
             val body = response.body as AdminErrorResponse
@@ -133,7 +133,7 @@ class AdminAuthHelperTest {
     inner class BadRequestResponse {
 
         @Test
-        fun `returns 400 with descriptive message`() {
+        fun `400 with descriptive message를 반환한다`() {
             val response = badRequestResponse("Invalid input")
             response.statusCode shouldBe HttpStatus.BAD_REQUEST
             val body = response.body as AdminErrorResponse

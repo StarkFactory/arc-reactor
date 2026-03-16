@@ -31,7 +31,7 @@ class SlackAutoConfigurationTest {
     inner class ConditionalActivation {
 
         @Test
-        fun `beans are NOT created when slack is disabled`() {
+        fun `beans are NOT created when slack은(는) disabled이다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.slack.enabled=false")
                 .run { context ->
@@ -41,7 +41,7 @@ class SlackAutoConfigurationTest {
         }
 
         @Test
-        fun `beans are NOT created without enabled property`() {
+        fun `beans은(는) NOT created without enabled property이다`() {
             contextRunner.run { context ->
                 context.getBeansOfType(SlackSignatureVerifier::class.java).isEmpty()
                     .shouldBeTrue()
@@ -53,7 +53,7 @@ class SlackAutoConfigurationTest {
     inner class BeanCreation {
 
         @Test
-        fun `SlackSignatureVerifier is created when enabled`() {
+        fun `enabled일 때 SlackSignatureVerifier은(는) created이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.slack.enabled=true",
@@ -66,7 +66,7 @@ class SlackAutoConfigurationTest {
         }
 
         @Test
-        fun `SlackMessagingService is created when enabled`() {
+        fun `enabled일 때 SlackMessagingService은(는) created이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.slack.enabled=true",
@@ -79,7 +79,7 @@ class SlackAutoConfigurationTest {
         }
 
         @Test
-        fun `SlackCommandHandler is created when AgentExecutor bean exists`() {
+        fun `AgentExecutor bean exists일 때 SlackCommandHandler은(는) created이다`() {
             contextRunner
                 .withBean(
                     AgentExecutor::class.java,
@@ -96,7 +96,7 @@ class SlackAutoConfigurationTest {
         }
 
         @Test
-        fun `slack metrics recorder uses Micrometer implementation when MeterRegistry exists`() {
+        fun `MeterRegistry exists일 때 slack metrics recorder uses Micrometer implementation`() {
             contextRunner
                 .withBean(
                     MeterRegistry::class.java,
@@ -114,7 +114,7 @@ class SlackAutoConfigurationTest {
         }
 
         @Test
-        fun `slack metrics recorder falls back to NoOp when MeterRegistry is absent`() {
+        fun `slack metrics recorder falls back to NoOp when MeterRegistry은(는) absent이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.slack.enabled=true",
@@ -132,7 +132,7 @@ class SlackAutoConfigurationTest {
     inner class SlackMessageSenderAdapterWiring {
 
         @Test
-        fun `SlackMessageSender adapter bean is created when Slack is enabled`() {
+        fun `Slack is enabled일 때 SlackMessageSender adapter bean은(는) created이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.slack.enabled=true",
@@ -146,7 +146,7 @@ class SlackAutoConfigurationTest {
         }
 
         @Test
-        fun `SlackMessageSender adapter is NOT created when Slack is disabled`() {
+        fun `Slack is disabled일 때 SlackMessageSender adapter은(는) NOT created이다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.slack.enabled=false")
                 .run { context ->
@@ -156,7 +156,7 @@ class SlackAutoConfigurationTest {
         }
 
         @Test
-        fun `custom SlackMessageSender overrides adapter via ConditionalOnMissingBean`() {
+        fun `커스텀 SlackMessageSender overrides adapter via ConditionalOnMissingBean`() {
             val customSender = SlackMessageSender { _, _ -> }
             contextRunner
                 .withPropertyValues(
@@ -176,7 +176,7 @@ class SlackAutoConfigurationTest {
     inner class SignatureVerificationToggle {
 
         @Test
-        fun `WebFilter is created by default when enabled`() {
+        fun `enabled일 때 WebFilter은(는) created by default이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.slack.enabled=true",
@@ -189,7 +189,7 @@ class SlackAutoConfigurationTest {
         }
 
         @Test
-        fun `WebFilter is NOT created when signature verification disabled`() {
+        fun `signature verification disabled일 때 WebFilter은(는) NOT created이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.slack.enabled=true",
@@ -203,7 +203,7 @@ class SlackAutoConfigurationTest {
         }
 
         @Test
-        fun `WebFilter is NOT created in socket mode even if signature verification is enabled`() {
+        fun `WebFilter은(는) NOT created in socket mode even if signature verification is enabled이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.slack.enabled=true",

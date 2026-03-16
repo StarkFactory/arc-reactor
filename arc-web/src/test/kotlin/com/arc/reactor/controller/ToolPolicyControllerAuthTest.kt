@@ -63,25 +63,25 @@ class ToolPolicyControllerAuthTest {
     }
 
     @Test
-    fun `get returns 403 for non-admin`() {
+    fun `returns 403 for non-admin를 가져온다`() {
         val response = controller.get(userExchange())
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
     }
 
     @Test
-    fun `update returns 403 for non-admin`() {
+    fun `returns 403 for non-admin를 업데이트한다`() {
         val response = controller.update(UpdateToolPolicyRequest(enabled = true), userExchange())
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
     }
 
     @Test
-    fun `delete returns 403 for non-admin`() {
+    fun `returns 403 for non-admin를 삭제한다`() {
         val response = controller.delete(userExchange())
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
     }
 
     @Test
-    fun `admin can update`() {
+    fun `admin은(는) can update`() {
         val response = controller.update(
             UpdateToolPolicyRequest(
                 enabled = true,

@@ -83,7 +83,7 @@ class McpSwaggerCatalogControllerTest {
     }
 
     @Test
-    fun `listSources should reject non-admin`() = runTest {
+    fun `listSources은(는) reject non-admin해야 한다`() = runTest {
         val response = controller.listSources(name = "swagger", exchange = userExchange())
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
@@ -93,7 +93,7 @@ class McpSwaggerCatalogControllerTest {
     }
 
     @Test
-    fun `listSources should proxy upstream response and record audit`() = runTest {
+    fun `listSources은(는) proxy upstream response and record audit해야 한다`() = runTest {
         var capturedActor: String? = null
         var capturedRequestId: String? = null
 
@@ -143,7 +143,7 @@ class McpSwaggerCatalogControllerTest {
     }
 
     @Test
-    fun `getSource should proxy source details and record audit`() = runTest {
+    fun `getSource은(는) proxy source details and record audit해야 한다`() = runTest {
         val server = HttpServer.create(InetSocketAddress(0), 0)
         server.createContext("/admin/spec-sources/payments") { exchange ->
             if (exchange.requestMethod != "GET") {
@@ -204,7 +204,7 @@ class McpSwaggerCatalogControllerTest {
     }
 
     @Test
-    fun `createSource should forward metadata fields in request body`() = runTest {
+    fun `createSource은(는) forward metadata fields in request body해야 한다`() = runTest {
         var capturedBody: String? = null
 
         val server = HttpServer.create(InetSocketAddress(0), 0)
@@ -282,7 +282,7 @@ class McpSwaggerCatalogControllerTest {
     }
 
     @Test
-    fun `listRevisions should forward limit query param`() = runTest {
+    fun `listRevisions은(는) forward limit query param해야 한다`() = runTest {
         var capturedQuery: String? = null
 
         val server = HttpServer.create(InetSocketAddress(0), 0)
@@ -332,7 +332,7 @@ class McpSwaggerCatalogControllerTest {
     }
 
     @Test
-    fun `getDiff should forward encoded query params`() = runTest {
+    fun `getDiff은(는) forward encoded query params해야 한다`() = runTest {
         var capturedQuery: String? = null
 
         val server = HttpServer.create(InetSocketAddress(0), 0)
@@ -386,7 +386,7 @@ class McpSwaggerCatalogControllerTest {
     }
 
     @Test
-    fun `publishRevision should forward hmac headers and request body`() = runTest {
+    fun `publishRevision은(는) forward hmac headers and request body해야 한다`() = runTest {
         val secret = "swagger-hmac-secret"
         var capturedBody: String? = null
 

@@ -18,7 +18,7 @@ class SlackToolsAutoConfigurationTest {
         .withConfiguration(AutoConfigurations.of(SlackToolsAutoConfiguration::class.java))
 
     @Test
-    fun `slack tools beans are not created when disabled`() {
+    fun `disabled일 때 slack tools beans are not created`() {
         contextRunner
             .withPropertyValues("arc.reactor.slack.tools.enabled=false")
             .run { context ->
@@ -28,7 +28,7 @@ class SlackToolsAutoConfigurationTest {
     }
 
     @Test
-    fun `slack tools beans are created when enabled`() {
+    fun `enabled일 때 slack tools beans are created`() {
         contextRunner
             .withPropertyValues(
                 "arc.reactor.slack.tools.enabled=true",
@@ -42,7 +42,7 @@ class SlackToolsAutoConfigurationTest {
     }
 
     @Test
-    fun `observability aspect is created when meter registry exists`() {
+    fun `meter registry exists일 때 observability aspect은(는) created이다`() {
         contextRunner
             .withBean(MeterRegistry::class.java, java.util.function.Supplier { SimpleMeterRegistry() })
             .withPropertyValues(
@@ -55,7 +55,7 @@ class SlackToolsAutoConfigurationTest {
     }
 
     @Test
-    fun `canvas tools are created when canvas feature is enabled`() {
+    fun `canvas tools are created when canvas feature은(는) enabled이다`() {
         contextRunner
             .withPropertyValues(
                 "arc.reactor.slack.tools.enabled=true",

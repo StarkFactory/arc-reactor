@@ -6,9 +6,9 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Tests for [StreamEventMarker] parsing and generation.
+ * [StreamEventMarker] 파싱 및 생성에 대한 테스트.
  *
- * Covers: tool_start, tool_end, error markers, and non-marker text.
+ * 대상: tool_start, tool_end, 에러 마커, 비마커 텍스트.
  */
 class StreamEventMarkerTest {
 
@@ -16,7 +16,7 @@ class StreamEventMarkerTest {
     inner class ToolStartMarker {
 
         @Test
-        fun `should generate and parse tool_start marker`() {
+        fun `tool_start 마커를 생성하고 파싱해야 한다`() {
             val marker = StreamEventMarker.toolStart("calculator")
             val parsed = StreamEventMarker.parse(marker)
 
@@ -26,7 +26,7 @@ class StreamEventMarkerTest {
         }
 
         @Test
-        fun `should detect tool_start as marker`() {
+        fun `tool_start를 마커로 감지해야 한다`() {
             val marker = StreamEventMarker.toolStart("my-tool")
             assertTrue(StreamEventMarker.isMarker(marker)) { "tool_start should be detected as marker" }
         }
@@ -36,7 +36,7 @@ class StreamEventMarkerTest {
     inner class ToolEndMarker {
 
         @Test
-        fun `should generate and parse tool_end marker`() {
+        fun `tool_end 마커를 생성하고 파싱해야 한다`() {
             val marker = StreamEventMarker.toolEnd("calculator")
             val parsed = StreamEventMarker.parse(marker)
 
@@ -46,7 +46,7 @@ class StreamEventMarkerTest {
         }
 
         @Test
-        fun `should detect tool_end as marker`() {
+        fun `tool_end를 마커로 감지해야 한다`() {
             val marker = StreamEventMarker.toolEnd("my-tool")
             assertTrue(StreamEventMarker.isMarker(marker)) { "tool_end should be detected as marker" }
         }
@@ -56,7 +56,7 @@ class StreamEventMarkerTest {
     inner class ErrorMarker {
 
         @Test
-        fun `should generate and parse error marker`() {
+        fun `error 마커를 생성하고 파싱해야 한다`() {
             val marker = StreamEventMarker.error("Request timed out.")
             val parsed = StreamEventMarker.parse(marker)
 
@@ -66,13 +66,13 @@ class StreamEventMarkerTest {
         }
 
         @Test
-        fun `should detect error as marker`() {
+        fun `error를 마커로 감지해야 한다`() {
             val marker = StreamEventMarker.error("Something went wrong")
             assertTrue(StreamEventMarker.isMarker(marker)) { "error should be detected as marker" }
         }
 
         @Test
-        fun `should handle empty error message`() {
+        fun `빈 오류 메시지를 처리해야 한다`() {
             val marker = StreamEventMarker.error("")
             val parsed = StreamEventMarker.parse(marker)
 
@@ -82,7 +82,7 @@ class StreamEventMarkerTest {
         }
 
         @Test
-        fun `should preserve special characters in error message`() {
+        fun `오류 메시지에서 특수 문자를 보존해야 한다`() {
             val message = "Error: context length exceeded (128000 tokens > max)"
             val marker = StreamEventMarker.error(message)
             val parsed = StreamEventMarker.parse(marker)
@@ -96,21 +96,21 @@ class StreamEventMarkerTest {
     inner class NonMarkerText {
 
         @Test
-        fun `should return null for plain text`() {
+        fun `일반 텍스트에 대해 null을 반환해야 한다`() {
             assertNull(StreamEventMarker.parse("Hello World")) {
                 "Plain text should not be parsed as marker"
             }
         }
 
         @Test
-        fun `should return false for plain text isMarker check`() {
+        fun `일반 텍스트에 대해 isMarker가 false를 반환해야 한다`() {
             assertFalse(StreamEventMarker.isMarker("Just text")) {
                 "Plain text should not be detected as marker"
             }
         }
 
         @Test
-        fun `should return null for text containing error keyword`() {
+        fun `error 키워드를 포함한 텍스트에 대해 null을 반환해야 한다`() {
             assertNull(StreamEventMarker.parse("[error] old format")) {
                 "Old [error] format should not be parsed as marker"
             }

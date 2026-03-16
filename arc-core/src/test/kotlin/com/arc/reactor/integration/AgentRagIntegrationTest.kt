@@ -27,10 +27,10 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import reactor.core.publisher.Flux
 
 /**
- * Integration tests for Agent + RAG Pipeline.
+ * 에이전트 + RAG 파이프라인에 대한 통합 테스트.
  *
- * Verifies that RAG context is correctly injected into the agent's system prompt,
- * and that the agent handles RAG pipeline failures gracefully.
+ * RAG 컨텍스트가 에이전트의 시스템 프롬프트에 올바르게 주입되고,
+ * 에이전트가 RAG 파이프라인 실패를 우아하게 처리하는지 검증합니다.
  */
 @Tag("integration")
 class AgentRagIntegrationTest {
@@ -66,7 +66,7 @@ class AgentRagIntegrationTest {
     inner class NonStreamingWithRag {
 
         @Test
-        fun `agent should include RAG context in system prompt`() = runBlocking {
+        fun `agent은(는) include RAG context in system prompt해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("Based on the policy, returns are accepted within 30 days.")
@@ -93,7 +93,7 @@ class AgentRagIntegrationTest {
         }
 
         @Test
-        fun `agent should work normally when RAG returns empty context`() = runBlocking {
+        fun `agent은(는) work normally when RAG returns empty context해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("I don't have specific policy info.")
@@ -117,7 +117,7 @@ class AgentRagIntegrationTest {
         }
 
         @Test
-        fun `agent should continue without RAG when pipeline throws`() = runBlocking {
+        fun `agent은(는) continue without RAG when pipeline throws해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("I'll help without context.")
@@ -141,7 +141,7 @@ class AgentRagIntegrationTest {
         }
 
         @Test
-        fun `agent should use RAG context AND tool calls together`() = runBlocking {
+        fun `agent은(는) use RAG context AND tool calls together해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
 
@@ -177,7 +177,7 @@ class AgentRagIntegrationTest {
         }
 
         @Test
-        fun `RAG query should use topK from properties`() = runBlocking {
+        fun `RAG query은(는) use topK from properties해야 한다`() = runBlocking {
             val ragQuerySlot = slot<RagQuery>()
             coEvery { ragPipeline.retrieve(capture(ragQuerySlot)) } returns RagContext.EMPTY
             fixture.mockCallResponse("Response")
@@ -200,7 +200,7 @@ class AgentRagIntegrationTest {
     inner class StreamingWithRag {
 
         @Test
-        fun `streaming agent should include RAG context in system prompt`() = runBlocking {
+        fun `streaming agent은(는) include RAG context in system prompt해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
 

@@ -10,7 +10,7 @@ class ToolApprovalPolicyTest {
     inner class AlwaysApprovePolicyTest {
 
         @Test
-        fun `should never require approval`() {
+        fun `never require approval해야 한다`() {
             val policy = AlwaysApprovePolicy()
 
             assertFalse(policy.requiresApproval("any_tool", emptyMap())) {
@@ -26,7 +26,7 @@ class ToolApprovalPolicyTest {
     inner class ToolNameApprovalPolicyTest {
 
         @Test
-        fun `should require approval for configured tool names`() {
+        fun `configured tool names에 대해 require approval해야 한다`() {
             val policy = ToolNameApprovalPolicy(setOf("delete_order", "process_refund"))
 
             assertTrue(policy.requiresApproval("delete_order", emptyMap())) {
@@ -38,7 +38,7 @@ class ToolApprovalPolicyTest {
         }
 
         @Test
-        fun `should not require approval for unconfigured tool names`() {
+        fun `unconfigured tool names에 대해 not require approval해야 한다`() {
             val policy = ToolNameApprovalPolicy(setOf("delete_order"))
 
             assertFalse(policy.requiresApproval("search_orders", emptyMap())) {
@@ -50,7 +50,7 @@ class ToolApprovalPolicyTest {
         }
 
         @Test
-        fun `should handle empty tool names set`() {
+        fun `handle empty tool names set해야 한다`() {
             val policy = ToolNameApprovalPolicy(emptySet())
 
             assertFalse(policy.requiresApproval("any_tool", emptyMap())) {
@@ -63,8 +63,8 @@ class ToolApprovalPolicyTest {
     inner class CustomPolicyTest {
 
         @Test
-        fun `should support custom approval policy`() {
-            // Amount-based policy
+        fun `support custom approval policy해야 한다`() {
+            // 금액 기반 정책
             val policy = object : ToolApprovalPolicy {
                 override fun requiresApproval(toolName: String, arguments: Map<String, Any?>): Boolean {
                     val amount = (arguments["amount"] as? Number)?.toDouble() ?: return false

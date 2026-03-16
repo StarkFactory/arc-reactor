@@ -59,7 +59,7 @@ class ErrorReportControllerTest {
     inner class SuccessfulRequest {
 
         @Test
-        fun `returns 200 with accepted response`() {
+        fun `200 with accepted response를 반환한다`() {
             val client = createClient()
             val result = client.post().uri("/api/error-report")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -75,7 +75,7 @@ class ErrorReportControllerTest {
         }
 
         @Test
-        fun `accepts request with optional fields omitted`() {
+        fun `request with optional fields omitted를 수락한다`() {
             val client = createClient()
             val body = mapOf(
                 "stackTrace" to "Error",
@@ -95,7 +95,7 @@ class ErrorReportControllerTest {
     inner class Validation {
 
         @Test
-        fun `returns 400 when stackTrace is blank`() {
+        fun `stackTrace is blank일 때 400를 반환한다`() {
             val client = createClient()
             val body = validBody + ("stackTrace" to "")
             client.post().uri("/api/error-report")
@@ -106,7 +106,7 @@ class ErrorReportControllerTest {
         }
 
         @Test
-        fun `returns 400 when serviceName is missing`() {
+        fun `serviceName is missing일 때 400를 반환한다`() {
             val client = createClient()
             val body = validBody.filterKeys { it != "serviceName" }
             client.post().uri("/api/error-report")
@@ -117,7 +117,7 @@ class ErrorReportControllerTest {
         }
 
         @Test
-        fun `returns 400 when repoSlug is missing`() {
+        fun `repoSlug is missing일 때 400를 반환한다`() {
             val client = createClient()
             val body = validBody.filterKeys { it != "repoSlug" }
             client.post().uri("/api/error-report")
@@ -128,7 +128,7 @@ class ErrorReportControllerTest {
         }
 
         @Test
-        fun `returns 400 when slackChannel is missing`() {
+        fun `slackChannel is missing일 때 400를 반환한다`() {
             val client = createClient()
             val body = validBody.filterKeys { it != "slackChannel" }
             client.post().uri("/api/error-report")
@@ -143,7 +143,7 @@ class ErrorReportControllerTest {
     inner class ApiKeyAuthentication {
 
         @Test
-        fun `returns 401 when api key is required but missing`() {
+        fun `api key is required but missing일 때 401를 반환한다`() {
             val client = createClient(apiKey = "secret-key")
             client.post().uri("/api/error-report")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -156,7 +156,7 @@ class ErrorReportControllerTest {
         }
 
         @Test
-        fun `returns 401 when api key is incorrect`() {
+        fun `api key is incorrect일 때 401를 반환한다`() {
             val client = createClient(apiKey = "secret-key")
             client.post().uri("/api/error-report")
                 .header("X-API-Key", "wrong-key")
@@ -167,7 +167,7 @@ class ErrorReportControllerTest {
         }
 
         @Test
-        fun `returns 200 when api key matches`() {
+        fun `api key matches일 때 200를 반환한다`() {
             val client = createClient(apiKey = "secret-key")
             client.post().uri("/api/error-report")
                 .header("X-API-Key", "secret-key")
@@ -178,7 +178,7 @@ class ErrorReportControllerTest {
         }
 
         @Test
-        fun `skips auth when api key is not configured`() {
+        fun `skips auth when api key은(는) not configured이다`() {
             val client = createClient(apiKey = "")
             client.post().uri("/api/error-report")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -192,7 +192,7 @@ class ErrorReportControllerTest {
     inner class TimeoutBehavior {
 
         @Test
-        fun `cancels handler when processing exceeds timeout`() {
+        fun `processing exceeds timeout일 때 cancels handler`() {
             val started = AtomicBoolean(false)
             val cancelled = AtomicBoolean(false)
             val slowHandler = object : ErrorReportHandler {
@@ -227,7 +227,7 @@ class ErrorReportControllerTest {
     inner class ConfigurationHardening {
 
         @Test
-        fun `accepts request when max concurrent requests is zero`() {
+        fun `accepts request when max concurrent requests은(는) zero이다`() {
             val client = createClient(maxConcurrentRequests = 0)
             client.post().uri("/api/error-report")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -237,7 +237,7 @@ class ErrorReportControllerTest {
         }
 
         @Test
-        fun `accepts request when max stack trace length is negative`() {
+        fun `accepts request when max stack trace length은(는) negative이다`() {
             val client = createClient(maxStackTraceLength = -1)
             client.post().uri("/api/error-report")
                 .contentType(MediaType.APPLICATION_JSON)

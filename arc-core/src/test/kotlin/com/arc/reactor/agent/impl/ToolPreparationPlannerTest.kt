@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test
 class ToolPreparationPlannerTest {
 
     @Test
-    fun `combines local and callback tools with max limit`() {
+    fun `combines은(는) local and callback tools with max limit`() {
         val localA = object : LocalTool {}
         val localB = object : LocalTool {}
         val callbackA = AgentTestFixture.toolCallback("callback-a")
@@ -41,7 +41,7 @@ class ToolPreparationPlannerTest {
     }
 
     @Test
-    fun `applies selector to merged callbacks`() {
+    fun `selector to merged callbacks를 적용한다`() {
         val selector = mockk<ToolSelector>()
         val callbackA = AgentTestFixture.toolCallback("callback-a")
         val callbackB = AgentTestFixture.toolCallback("callback-b")
@@ -69,7 +69,7 @@ class ToolPreparationPlannerTest {
     }
 
     @Test
-    fun `does not call selector when callbacks are empty`() {
+    fun `call selector when callbacks are empty하지 않는다`() {
         val selector = mockk<ToolSelector>()
         val local = object : LocalTool {}
         val planner = ToolPreparationPlanner(
@@ -89,7 +89,7 @@ class ToolPreparationPlannerTest {
     }
 
     @Test
-    fun `deduplicates callback names across local callback lists and mcp callbacks`() {
+    fun `callback names across local callback lists and mcp callbacks를 중복 제거한다`() {
         val callbackFromLocalList = AgentTestFixture.toolCallback("duplicate-tool")
         val callbackFromMcp = AgentTestFixture.toolCallback("duplicate-tool")
         val uniqueCallback = AgentTestFixture.toolCallback("unique-tool")
@@ -122,7 +122,7 @@ class ToolPreparationPlannerTest {
     }
 
     @Test
-    fun `reuses callback adapters for stable callback instances`() {
+    fun `reuses은(는) callback adapters for stable callback instances`() {
         val callback = AgentTestFixture.toolCallback("stable-tool")
         val planner = ToolPreparationPlanner(
             localTools = emptyList(),
@@ -145,7 +145,7 @@ class ToolPreparationPlannerTest {
     }
 
     @Test
-    fun `does not reuse adapters for distinct callback instances with the same name`() {
+    fun `reuse adapters for distinct callback instances with the same name하지 않는다`() {
         val planner = ToolPreparationPlanner(
             localTools = emptyList(),
             toolCallbacks = emptyList(),

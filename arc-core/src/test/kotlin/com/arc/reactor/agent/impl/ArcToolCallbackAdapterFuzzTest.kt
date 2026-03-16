@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test
 class ArcToolCallbackAdapterFuzzTest {
 
     @Test
-    fun `adapter should pass empty args for malformed inputs across 400 cases`() {
+    fun `adapter은(는) pass empty args for malformed inputs across 400 cases해야 한다`() {
         val calls = AtomicInteger(0)
         val callback = object : ToolCallback {
             override val name = "malformed-check"
@@ -45,7 +45,7 @@ class ArcToolCallbackAdapterFuzzTest {
     }
 
     @Test
-    fun `adapter should forward parsed values for 200 valid payloads`() {
+    fun `adapter은(는) forward parsed values for 200 valid payloads해야 한다`() {
         val callback = object : ToolCallback {
             override val name = "valid-check"
             override val description = "checks valid parsing"
@@ -63,7 +63,7 @@ class ArcToolCallbackAdapterFuzzTest {
     }
 
     @Test
-    fun `adapter should convert null callback result to empty string`() {
+    fun `adapter은(는) convert null callback result to empty string해야 한다`() {
         val callback = object : ToolCallback {
             override val name = "null-result"
             override val description = "returns null"
@@ -75,7 +75,7 @@ class ArcToolCallbackAdapterFuzzTest {
     }
 
     @Test
-    fun `adapter should propagate cancellation exception`() {
+    fun `adapter은(는) propagate cancellation exception해야 한다`() {
         val callback = object : ToolCallback {
             override val name = "cancel-tool"
             override val description = "throws cancellation"

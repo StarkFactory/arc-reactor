@@ -16,7 +16,7 @@ class SendMessageToolTest {
     private val tool = SendMessageTool(sendMessageUseCase)
 
     @Test
-    fun `sends message successfully`() {
+    fun `message successfully를 전송한다`() {
         every { sendMessageUseCase.execute("C123", "Hello", null) } returns
             PostMessageResult(ok = true, ts = "1234.5678", channel = "C123")
 
@@ -26,21 +26,21 @@ class SendMessageToolTest {
     }
 
     @Test
-    fun `returns error for blank channelId`() {
+    fun `blank channelId에 대해 error를 반환한다`() {
         val result = tool.send_message("", "Hello", null)
         result shouldContain "error"
         result shouldContain "channelId must be a valid Slack channel ID"
     }
 
     @Test
-    fun `returns error for blank text`() {
+    fun `blank text에 대해 error를 반환한다`() {
         val result = tool.send_message("C123", "", null)
         result shouldContain "error"
         result shouldContain "text is required"
     }
 
     @Test
-    fun `sends message with threadTs`() {
+    fun `message with threadTs를 전송한다`() {
         every { sendMessageUseCase.execute("C123", "Reply", "1234.5678") } returns
             PostMessageResult(ok = true, ts = "1234.9999", channel = "C123")
 
@@ -49,21 +49,21 @@ class SendMessageToolTest {
     }
 
     @Test
-    fun `returns error for invalid channelId format`() {
+    fun `invalid channelId format에 대해 error를 반환한다`() {
         val result = tool.send_message("123", "Hello", null)
         result shouldContain "channelId must be a valid Slack channel ID"
         verify(exactly = 0) { sendMessageUseCase.execute(any(), any(), any()) }
     }
 
     @Test
-    fun `returns error for invalid thread timestamp format`() {
+    fun `invalid thread timestamp format에 대해 error를 반환한다`() {
         val result = tool.send_message("C123", "Hello", "not-ts")
         result shouldContain "threadTs must be a valid Slack timestamp"
         verify(exactly = 0) { sendMessageUseCase.execute(any(), any(), any()) }
     }
 
     @Test
-    fun `normalizes channel id and thread timestamp`() {
+    fun `channel id and thread timestamp를 정규화한다`() {
         every { sendMessageUseCase.execute("C123", "Hello", "1234.5678") } returns
             PostMessageResult(ok = true, ts = "1234.5678", channel = "C123")
 
@@ -74,7 +74,7 @@ class SendMessageToolTest {
     }
 
     @Test
-    fun `deduplicates repeated send with same idempotency key`() {
+    fun `repeated send with same idempotency key를 중복 제거한다`() {
         val idempotencyService = InMemoryWriteOperationIdempotencyService(
             SlackToolsProperties(
                 botToken = "xoxb-test-token",
@@ -94,7 +94,7 @@ class SendMessageToolTest {
     }
 
     @Test
-    fun `handles API error`() {
+    fun `API error를 처리한다`() {
         every { sendMessageUseCase.execute("C123", "Hello", null) } returns
             PostMessageResult(ok = false, error = "channel_not_found")
 

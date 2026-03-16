@@ -16,7 +16,7 @@ class SlackScopeAwareLocalToolFilterTest {
     private class NonSlackTool : LocalTool
 
     @Test
-    fun `keeps all tools when scope-aware exposure is disabled`() {
+    fun `keeps all tools when scope-aware exposure은(는) disabled이다`() {
         val resolver = ToolExposureResolver(
             properties = SlackToolsProperties(
                 enabled = true,
@@ -45,7 +45,7 @@ class SlackScopeAwareLocalToolFilterTest {
     }
 
     @Test
-    fun `filters slack tools by granted scopes`() {
+    fun `slack tools by granted scopes를 필터링한다`() {
         val resolver = ToolExposureResolver(
             properties = SlackToolsProperties(
                 enabled = true,
@@ -78,7 +78,7 @@ class SlackScopeAwareLocalToolFilterTest {
     }
 
     @Test
-    fun `keeps only non-slack tools on empty scopes when fail-open is disabled`() {
+    fun `keeps only non-slack tools on empty scopes when fail-open은(는) disabled이다`() {
         val resolver = ToolExposureResolver(
             properties = SlackToolsProperties(
                 enabled = true,
@@ -114,7 +114,7 @@ class SlackScopeAwareLocalToolFilterTest {
     }
 
     @Test
-    fun `read tool is exposed by groups history in include private mode`() {
+    fun `read tool은(는) exposed by groups history in include private mode이다`() {
         val properties = SlackToolsProperties(
             enabled = true,
             botToken = "xoxb-test",
@@ -142,7 +142,7 @@ class SlackScopeAwareLocalToolFilterTest {
     }
 
     @Test
-    fun `canvas tool is filtered out when canvases scope is missing`() {
+    fun `canvases scope is missing일 때 canvas tool은(는) filtered out이다`() {
         val properties = SlackToolsProperties(
             enabled = true,
             botToken = "xoxb-test",

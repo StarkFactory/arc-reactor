@@ -31,7 +31,7 @@ class DeleteScheduledJobToolTest {
     )
 
     @Test
-    fun `has null category so it is always loaded`() {
+    fun `has null category so it은(는) always loaded이다`() {
         assertNull(tool.category,
             "Scheduler tools must have null category to be always available")
     }
@@ -40,7 +40,7 @@ class DeleteScheduledJobToolTest {
     inner class DeleteById {
 
         @Test
-        fun `deletes existing job by ID`() {
+        fun `existing job by ID를 삭제한다`() {
             every { schedulerService.findById("job-1") } returns sampleJob
             every { schedulerService.delete("job-1") } just runs
 
@@ -54,7 +54,7 @@ class DeleteScheduledJobToolTest {
         }
 
         @Test
-        fun `returns error when job ID not found`() {
+        fun `job ID not found일 때 error를 반환한다`() {
             every { schedulerService.findById("nonexistent") } returns null
 
             val result = tool.delete_scheduled_job(jobId = "nonexistent")
@@ -70,7 +70,7 @@ class DeleteScheduledJobToolTest {
     inner class DeleteByName {
 
         @Test
-        fun `deletes existing job by name`() {
+        fun `existing job by name를 삭제한다`() {
             every { schedulerService.findByName("Daily Summary") } returns sampleJob
             every { schedulerService.delete("job-1") } just runs
 
@@ -84,7 +84,7 @@ class DeleteScheduledJobToolTest {
         }
 
         @Test
-        fun `returns error when job name not found`() {
+        fun `job name not found일 때 error를 반환한다`() {
             every { schedulerService.findByName("No Such Job") } returns null
 
             val result = tool.delete_scheduled_job(jobName = "No Such Job")
@@ -100,7 +100,7 @@ class DeleteScheduledJobToolTest {
     inner class IdTakesPrecedenceOverName {
 
         @Test
-        fun `uses jobId when both jobId and jobName are provided`() {
+        fun `both jobId and jobName are provided일 때 jobId를 사용한다`() {
             every { schedulerService.findById("job-1") } returns sampleJob
             every { schedulerService.delete("job-1") } just runs
 
@@ -117,7 +117,7 @@ class DeleteScheduledJobToolTest {
     inner class ErrorCases {
 
         @Test
-        fun `returns error when both jobId and jobName are blank`() {
+        fun `both jobId and jobName are blank일 때 error를 반환한다`() {
             val result = tool.delete_scheduled_job(jobId = "  ", jobName = "  ")
             val response = objectMapper.readValue<Map<String, String>>(result)
 
@@ -127,7 +127,7 @@ class DeleteScheduledJobToolTest {
         }
 
         @Test
-        fun `returns error when both are null`() {
+        fun `both are null일 때 error를 반환한다`() {
             val result = tool.delete_scheduled_job()
             val response = objectMapper.readValue<Map<String, String>>(result)
 
@@ -135,7 +135,7 @@ class DeleteScheduledJobToolTest {
         }
 
         @Test
-        fun `returns error JSON on unexpected exception during delete`() {
+        fun `error JSON on unexpected exception during delete를 반환한다`() {
             every { schedulerService.findById("job-err") } returns sampleJob.copy(id = "job-err")
             every { schedulerService.delete("job-err") } throws
                 RuntimeException("Store unavailable")

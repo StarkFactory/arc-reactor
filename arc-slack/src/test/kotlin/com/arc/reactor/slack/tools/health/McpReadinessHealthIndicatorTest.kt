@@ -11,7 +11,7 @@ class SlackToolsReadinessHealthIndicatorTest {
     private class ListChannelsToolStub : LocalTool
 
     @Test
-    fun `health is up when local tools are registered`() {
+    fun `local tools are registered일 때 health은(는) up이다`() {
         val indicator = SlackToolsReadinessHealthIndicator(
             listOf(SendMessageToolStub(), ListChannelsToolStub())
         )
@@ -26,7 +26,7 @@ class SlackToolsReadinessHealthIndicatorTest {
     }
 
     @Test
-    fun `health is down when no local tools are registered`() {
+    fun `no local tools are registered일 때 health은(는) down이다`() {
         val indicator = SlackToolsReadinessHealthIndicator(emptyList())
 
         val health = indicator.health()

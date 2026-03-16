@@ -21,7 +21,7 @@ class SystemPromptResolverTest {
     inner class BuildEffectivePrompt {
 
         @Test
-        fun `should return systemPrompt only when responseGuideline is null`() {
+        fun `responseGuideline is null일 때 return systemPrompt only해야 한다`() {
             every { personaStore.get("p-1") } returns Persona(
                 id = "p-1",
                 name = "Test",
@@ -35,7 +35,7 @@ class SystemPromptResolverTest {
         }
 
         @Test
-        fun `should return systemPrompt only when responseGuideline is blank`() {
+        fun `responseGuideline is blank일 때 return systemPrompt only해야 한다`() {
             every { personaStore.get("p-1") } returns Persona(
                 id = "p-1",
                 name = "Test",
@@ -51,7 +51,7 @@ class SystemPromptResolverTest {
         }
 
         @Test
-        fun `should append responseGuideline to systemPrompt`() {
+        fun `append responseGuideline to systemPrompt해야 한다`() {
             every { personaStore.get("p-1") } returns Persona(
                 id = "p-1",
                 name = "Test",
@@ -68,7 +68,7 @@ class SystemPromptResolverTest {
         }
 
         @Test
-        fun `should use linked prompt template content when persona is linked`() {
+        fun `persona is linked일 때 use linked prompt template content해야 한다`() {
             every { personaStore.get("p-1") } returns Persona(
                 id = "p-1",
                 name = "Templated",
@@ -93,7 +93,7 @@ class SystemPromptResolverTest {
         }
 
         @Test
-        fun `should fall back to persona systemPrompt when linked template has no active version`() {
+        fun `linked template has no active version일 때 fall back to persona systemPrompt해야 한다`() {
             every { personaStore.get("p-1") } returns Persona(
                 id = "p-1",
                 name = "Templated",
@@ -112,7 +112,7 @@ class SystemPromptResolverTest {
         }
 
         @Test
-        fun `should use buildEffectivePrompt for default persona too`() {
+        fun `default persona too에 대해 use buildEffectivePrompt해야 한다`() {
             every { personaStore.get(any()) } returns null
             every { personaStore.getDefault() } returns Persona(
                 id = "default",
@@ -135,7 +135,7 @@ class SystemPromptResolverTest {
     inner class ResolutionPriority {
 
         @Test
-        fun `should prefer personaId over default persona`() {
+        fun `prefer personaId over default persona해야 한다`() {
             every { personaStore.get("custom") } returns Persona(
                 id = "custom",
                 name = "Custom",
@@ -149,7 +149,7 @@ class SystemPromptResolverTest {
         }
 
         @Test
-        fun `should prefer personaId over direct promptTemplateId`() {
+        fun `prefer personaId over direct promptTemplateId해야 한다`() {
             every { personaStore.get("custom") } returns Persona(
                 id = "custom",
                 name = "Custom",
@@ -179,7 +179,7 @@ class SystemPromptResolverTest {
         }
 
         @Test
-        fun `should fallback to systemPrompt when persona not found`() {
+        fun `persona not found일 때 fallback to systemPrompt해야 한다`() {
             every { personaStore.get("missing") } returns null
             every { promptTemplateStore.getActiveVersion(any()) } returns null
 
@@ -189,7 +189,7 @@ class SystemPromptResolverTest {
         }
 
         @Test
-        fun `should fallback to hardcoded default when nothing else available`() {
+        fun `nothing else available일 때 fallback to hardcoded default해야 한다`() {
             every { personaStore.get(any()) } returns null
             every { personaStore.getDefault() } returns null
 
@@ -201,7 +201,7 @@ class SystemPromptResolverTest {
         }
 
         @Test
-        fun `should skip inactive default persona`() {
+        fun `skip inactive default persona해야 한다`() {
             every { personaStore.get(any()) } returns null
             every { personaStore.getDefault() } returns Persona(
                 id = "inactive-default",

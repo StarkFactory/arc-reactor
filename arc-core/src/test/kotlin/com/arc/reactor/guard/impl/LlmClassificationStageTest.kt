@@ -41,7 +41,7 @@ class LlmClassificationStageTest {
     inner class ClassificationResults {
 
         @Test
-        fun `safe classification returns Allowed`() = runBlocking {
+        fun `안전한 classification returns Allowed`() = runBlocking {
             val chatClient = mockChatClient("""{"label":"safe","confidence":0.95}""")
             val stage = LlmClassificationStage(chatClient)
 
@@ -51,7 +51,7 @@ class LlmClassificationStageTest {
         }
 
         @Test
-        fun `malicious classification above threshold rejects`() = runBlocking {
+        fun `malicious은(는) classification above threshold rejects`() = runBlocking {
             val chatClient = mockChatClient("""{"label":"malicious","confidence":0.95}""")
             val stage = LlmClassificationStage(chatClient)
 
@@ -64,7 +64,7 @@ class LlmClassificationStageTest {
         }
 
         @Test
-        fun `malicious classification below threshold allows`() = runBlocking {
+        fun `malicious은(는) classification below threshold allows`() = runBlocking {
             val chatClient = mockChatClient("""{"label":"malicious","confidence":0.5}""")
             val stage = LlmClassificationStage(chatClient, confidenceThreshold = 0.7)
 
@@ -74,7 +74,7 @@ class LlmClassificationStageTest {
         }
 
         @Test
-        fun `harmful classification above threshold rejects`() = runBlocking {
+        fun `harmful은(는) classification above threshold rejects`() = runBlocking {
             val chatClient = mockChatClient("""{"label":"harmful","confidence":0.85}""")
             val stage = LlmClassificationStage(chatClient)
 
@@ -84,7 +84,7 @@ class LlmClassificationStageTest {
         }
 
         @Test
-        fun `unparseable LLM response defaults to safe`() = runBlocking {
+        fun `unparseable은(는) LLM response defaults to safe`() = runBlocking {
             val chatClient = mockChatClient("I cannot classify this content properly")
             val stage = LlmClassificationStage(chatClient)
 
@@ -98,7 +98,7 @@ class LlmClassificationStageTest {
     inner class FailOpen {
 
         @Test
-        fun `LLM exception returns Allowed (fail-open)`() = runBlocking {
+        fun `LLM 예외 시 Allowed를 반환한다 (fail-open)`() = runBlocking {
             val chatClient = mockChatClientThrows(RuntimeException("LLM API down"))
             val stage = LlmClassificationStage(chatClient)
 
@@ -108,7 +108,7 @@ class LlmClassificationStageTest {
         }
 
         @Test
-        fun `null content returns Allowed`() = runBlocking {
+        fun `null인 content returns Allowed`() = runBlocking {
             val chatClient = mockk<ChatClient>()
             val requestSpec = mockk<ChatClientRequestSpec>(relaxed = true)
             val responseSpec = mockk<CallResponseSpec>()
@@ -129,7 +129,7 @@ class LlmClassificationStageTest {
     inner class InputTruncation {
 
         @Test
-        fun `input is truncated to 500 chars`() = runBlocking {
+        fun `input은(는) truncated to 500 chars이다`() = runBlocking {
             val longInput = "a".repeat(1000)
             var capturedUser = ""
             val chatClient = mockk<ChatClient>()
@@ -156,7 +156,7 @@ class LlmClassificationStageTest {
     inner class StageProperties {
 
         @Test
-        fun `inherits order 4 from ClassificationStage`() {
+        fun `order 4 from ClassificationStage를 상속한다`() {
             val chatClient = mockChatClient("""{"label":"safe","confidence":1.0}""")
             val stage = LlmClassificationStage(chatClient)
             assertEquals(4, stage.order,
@@ -164,7 +164,7 @@ class LlmClassificationStageTest {
         }
 
         @Test
-        fun `stage name is LlmClassification`() {
+        fun `stage name은(는) LlmClassification이다`() {
             val chatClient = mockChatClient("""{"label":"safe","confidence":1.0}""")
             val stage = LlmClassificationStage(chatClient)
             assertEquals("LlmClassification", stage.stageName)

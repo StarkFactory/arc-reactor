@@ -25,7 +25,7 @@ class LlmConversationSummaryServiceTest {
         )
 
         @Test
-        fun `should parse valid JSON response`() {
+        fun `parse valid JSON response해야 한다`() {
             val json = """
                 {
                   "narrative": "User asked about refund for order #1234.",
@@ -48,7 +48,7 @@ class LlmConversationSummaryServiceTest {
         }
 
         @Test
-        fun `should strip code fences before parsing`() {
+        fun `parsing 전에 strip code fences해야 한다`() {
             val json = """
                 ```json
                 {"narrative": "test", "facts": []}
@@ -62,7 +62,7 @@ class LlmConversationSummaryServiceTest {
         }
 
         @Test
-        fun `should fallback to raw text when JSON is invalid`() {
+        fun `JSON is invalid일 때 fallback to raw text해야 한다`() {
             val invalidJson = "This is not JSON but a useful summary"
 
             val result = service.parseResponse(invalidJson)
@@ -73,7 +73,7 @@ class LlmConversationSummaryServiceTest {
         }
 
         @Test
-        fun `should handle unknown category gracefully`() {
+        fun `handle unknown category gracefully해야 한다`() {
             val json = """
                 {
                   "narrative": "test",
@@ -88,7 +88,7 @@ class LlmConversationSummaryServiceTest {
         }
 
         @Test
-        fun `should handle missing fields with defaults`() {
+        fun `defaults로 handle missing fields해야 한다`() {
             val json = """{"narrative": "test"}"""
 
             val result = service.parseResponse(json)
@@ -102,21 +102,21 @@ class LlmConversationSummaryServiceTest {
     inner class StripCodeFences {
 
         @Test
-        fun `should strip json code fences`() {
+        fun `strip json code fences해야 한다`() {
             val input = "```json\n{\"key\": \"value\"}\n```"
             assertEquals("{\"key\": \"value\"}", LlmConversationSummaryService.stripCodeFences(input),
                 "Should strip json code fences")
         }
 
         @Test
-        fun `should strip plain code fences`() {
+        fun `strip plain code fences해야 한다`() {
             val input = "```\n{\"key\": \"value\"}\n```"
             assertEquals("{\"key\": \"value\"}", LlmConversationSummaryService.stripCodeFences(input),
                 "Should strip plain code fences")
         }
 
         @Test
-        fun `should return unchanged text without code fences`() {
+        fun `return unchanged text without code fences해야 한다`() {
             val input = "{\"key\": \"value\"}"
             assertEquals("{\"key\": \"value\"}", LlmConversationSummaryService.stripCodeFences(input),
                 "Should return text unchanged without code fences")
@@ -127,7 +127,7 @@ class LlmConversationSummaryServiceTest {
     inner class Summarize {
 
         @Test
-        fun `should return empty result for empty messages`() = runTest {
+        fun `empty messages에 대해 return empty result해야 한다`() = runTest {
             val service = LlmConversationSummaryService(chatClient = mockk(), maxNarrativeTokens = 500)
 
             val result = service.summarize(emptyList())
@@ -137,7 +137,7 @@ class LlmConversationSummaryServiceTest {
         }
 
         @Test
-        fun `should call LLM and parse response`() = runTest {
+        fun `call LLM and parse response해야 한다`() = runTest {
             val chatClient = mockk<ChatClient>()
             val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
             val callResponseSpec = mockk<ChatClient.CallResponseSpec>()

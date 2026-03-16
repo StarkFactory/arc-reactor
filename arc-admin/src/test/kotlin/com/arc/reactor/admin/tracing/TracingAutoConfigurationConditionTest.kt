@@ -40,7 +40,7 @@ class TracingAutoConfigurationConditionTest {
 
         @Test
         @Tag("regression")
-        fun `should not activate TracingAutoConfiguration when arc-reactor-admin-enabled is false (default)`() {
+        fun `arc-reactor-admin-enabled is false (default)일 때 not activate TracingAutoConfiguration해야 한다`() {
             runner
                 .withPropertyValues("arc.reactor.admin.enabled=false")
                 .run { context ->
@@ -59,7 +59,7 @@ class TracingAutoConfigurationConditionTest {
 
         @Test
         @Tag("regression")
-        fun `should not activate TracingAutoConfiguration when arc-reactor-admin-enabled property is absent`() {
+        fun `arc-reactor-admin-enabled property is absent일 때 not activate TracingAutoConfiguration해야 한다`() {
             runner
                 .run { context ->
                     assertThat(context)
@@ -76,7 +76,7 @@ class TracingAutoConfigurationConditionTest {
 
         @Test
         @Tag("regression")
-        fun `should activate TracingAutoConfiguration when arc-reactor-admin-enabled is true`() {
+        fun `arc-reactor-admin-enabled is true일 때 activate TracingAutoConfiguration해야 한다`() {
             runner
                 .withPropertyValues("arc.reactor.admin.enabled=true")
                 .run { context ->
@@ -94,7 +94,7 @@ class TracingAutoConfigurationConditionTest {
         }
 
         @Test
-        fun `should use AlwaysOnSampler by default`() {
+        fun `use AlwaysOnSampler by default해야 한다`() {
             runner
                 .withPropertyValues("arc.reactor.admin.enabled=true")
                 .run { context ->
@@ -106,7 +106,7 @@ class TracingAutoConfigurationConditionTest {
         }
 
         @Test
-        fun `should use TraceIdRatioBased sampler when sampling-rate is below 1`() {
+        fun `sampling-rate is below 1일 때 use TraceIdRatioBased sampler해야 한다`() {
             runner
                 .withPropertyValues(
                     "arc.reactor.admin.enabled=true",

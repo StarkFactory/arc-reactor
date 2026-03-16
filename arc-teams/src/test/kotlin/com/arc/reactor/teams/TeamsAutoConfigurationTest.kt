@@ -20,7 +20,7 @@ class TeamsAutoConfigurationTest {
     inner class ConditionalActivation {
 
         @Test
-        fun `no bean created when teams is disabled`() {
+        fun `no bean created when teams은(는) disabled이다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.teams.enabled=false")
                 .run { context ->
@@ -32,7 +32,7 @@ class TeamsAutoConfigurationTest {
         }
 
         @Test
-        fun `no bean created when property is absent`() {
+        fun `no bean created when property은(는) absent이다`() {
             contextRunner.run { context ->
                 assertTrue(
                     context.getBeansOfType(TeamsMessageSender::class.java).isEmpty(),
@@ -42,7 +42,7 @@ class TeamsAutoConfigurationTest {
         }
 
         @Test
-        fun `TeamsWebhookClient bean created when enabled is true`() {
+        fun `TeamsWebhookClient bean created when enabled은(는) true이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.teams.enabled=true",
@@ -57,7 +57,7 @@ class TeamsAutoConfigurationTest {
         }
 
         @Test
-        fun `created bean is a TeamsWebhookClient instance`() {
+        fun `created bean은(는) a TeamsWebhookClient instance이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.teams.enabled=true",
@@ -77,7 +77,7 @@ class TeamsAutoConfigurationTest {
     inner class ConditionalOnMissingBean {
 
         @Test
-        fun `custom TeamsMessageSender is not overridden by auto-configuration`() {
+        fun `custom TeamsMessageSender은(는) not overridden by auto-configuration이다`() {
             val customSender = TeamsMessageSender { _, _ -> }
             contextRunner
                 .withBean(TeamsMessageSender::class.java, java.util.function.Supplier { customSender })

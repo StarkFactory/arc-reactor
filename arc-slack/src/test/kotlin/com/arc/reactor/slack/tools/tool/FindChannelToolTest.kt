@@ -15,7 +15,7 @@ class FindChannelToolTest {
     private val tool = FindChannelTool(findChannelUseCase)
 
     @Test
-    fun `finds channels by partial name`() {
+    fun `channels by partial name를 찾는다`() {
         every { findChannelUseCase.execute("gen", false, 10) } returns
             FindChannelsResult(
                 ok = true,
@@ -34,7 +34,7 @@ class FindChannelToolTest {
     }
 
     @Test
-    fun `uses exact match when requested`() {
+    fun `requested일 때 exact match를 사용한다`() {
         every { findChannelUseCase.execute("general", true, 5) } returns
             FindChannelsResult(ok = true, query = "general", exactMatch = true, channels = emptyList())
 
@@ -44,7 +44,7 @@ class FindChannelToolTest {
     }
 
     @Test
-    fun `trims query before delegating`() {
+    fun `query before delegating를 트리밍한다`() {
         every { findChannelUseCase.execute("general", false, 10) } returns
             FindChannelsResult(ok = true, query = "general", exactMatch = false, channels = emptyList())
 
@@ -54,7 +54,7 @@ class FindChannelToolTest {
     }
 
     @Test
-    fun `returns error for blank query`() {
+    fun `blank query에 대해 error를 반환한다`() {
         val result = tool.find_channel("", null, null)
         result shouldContain "error"
         result shouldContain "query is required"
@@ -62,7 +62,7 @@ class FindChannelToolTest {
     }
 
     @Test
-    fun `returns error for non-positive limit`() {
+    fun `non-positive limit에 대해 error를 반환한다`() {
         val result = tool.find_channel("gen", null, 0)
         result shouldContain "error"
         result shouldContain "limit must be between 1 and 50"
@@ -70,7 +70,7 @@ class FindChannelToolTest {
     }
 
     @Test
-    fun `returns error for limit above max`() {
+    fun `limit above max에 대해 error를 반환한다`() {
         val result = tool.find_channel("gen", null, 51)
         result shouldContain "error"
         result shouldContain "limit must be between 1 and 50"

@@ -44,8 +44,8 @@ class SpringAiAgentExecutorTest {
     inner class BasicExecution {
 
         @Test
-        fun `should execute simple command successfully`() = runBlocking {
-            // Arrange
+        fun `간단한 명령을 성공적으로 실행해야 한다`() = runBlocking {
+            // 준비
             every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Hello! How can I help you?")
 
             val executor = SpringAiAgentExecutor(
@@ -53,7 +53,7 @@ class SpringAiAgentExecutorTest {
                 properties = properties
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -61,15 +61,15 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertSuccess()
             assertEquals("Hello! How can I help you?", result.content)
             assertTrue(result.durationMs >= 0) { "Expected non-negative durationMs, got: ${result.durationMs}" }
         }
 
         @Test
-        fun `should extract token usage from response`() = runBlocking {
-            // Arrange
+        fun `응답에서 토큰 사용량을 추출해야 한다`() = runBlocking {
+            // 준비
             val usage = mockk<Usage>()
             every { usage.promptTokens } returns 100
             every { usage.completionTokens } returns 50
@@ -91,7 +91,7 @@ class SpringAiAgentExecutorTest {
                 properties = properties
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -99,7 +99,7 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertSuccess()
             val tokenUsage = requireNotNull(result.tokenUsage)
             assertEquals(100, tokenUsage.promptTokens)
@@ -112,8 +112,8 @@ class SpringAiAgentExecutorTest {
     inner class GuardIntegration {
 
         @Test
-        fun `should reject when guard fails`() = runBlocking {
-            // Arrange
+        fun `가드가 실패하면 거부해야 한다`() = runBlocking {
+            // 준비
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Rejected(
                 reason = "Rate limit exceeded",
@@ -127,7 +127,7 @@ class SpringAiAgentExecutorTest {
                 guard = guard
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -136,15 +136,15 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertFailure()
             assertEquals("Rate limit exceeded", result.errorMessage)
             result.assertErrorCode(AgentErrorCode.RATE_LIMITED)
         }
 
         @Test
-        fun `should run guard with anonymous userId when userId is null`() = runBlocking {
-            // Arrange
+        fun `userId가 null이면 anonymous userId로 가드를 실행해야 한다`() = runBlocking {
+            // 준비
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Allowed.DEFAULT
             every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Response")
@@ -155,16 +155,16 @@ class SpringAiAgentExecutorTest {
                 guard = guard
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
                     userPrompt = "Hello!",
-                    userId = null  // No userId — should still pass through guard as "anonymous"
+                    userId = null  // userId 없음 — 여전히 "anonymous"로 가드를 통과해야 합니다
                 )
             )
 
-            // Assert
+            // 검증
             result.assertSuccess()
             coVerify(exactly = 1) { guard.guard(match { it.userId == "anonymous" }) }
         }
@@ -174,8 +174,8 @@ class SpringAiAgentExecutorTest {
     inner class HookIntegration {
 
         @Test
-        fun `should execute hooks in correct order`() = runBlocking {
-            // Arrange
+        fun `훅을 올바른 순서로 실행해야 한다`() = runBlocking {
+            // 준비
             val executionOrder = mutableListOf<String>()
 
             val beforeHook = object : BeforeAgentStartHook {
@@ -206,7 +206,7 @@ class SpringAiAgentExecutorTest {
                 hookExecutor = hookExecutor
             )
 
-            // Act
+            // 실행
             executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -214,13 +214,13 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert
+            // 검증
             assertEquals(listOf("before", "after"), executionOrder)
         }
 
         @Test
-        fun `should reject when beforeAgentStart hook rejects`() = runBlocking {
-            // Arrange
+        fun `beforeAgentStart 훅이 거부하면 거부해야 한다`() = runBlocking {
+            // 준비
             val rejectHook = object : BeforeAgentStartHook {
                 override val order = 1
                 override suspend fun beforeAgentStart(context: HookContext): HookResult {
@@ -236,7 +236,7 @@ class SpringAiAgentExecutorTest {
                 hookExecutor = hookExecutor
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -244,15 +244,15 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertFailure()
             assertEquals("Not allowed", result.errorMessage)
             result.assertErrorCode(AgentErrorCode.HOOK_REJECTED)
         }
 
         @Test
-        fun `should preserve success result when afterAgentComplete hook throws`() = runBlocking {
-            // Arrange
+        fun `afterAgentComplete 훅이 예외를 던져도 성공 결과를 보존해야 한다`() = runBlocking {
+            // 준비
             val throwingAfterHook = object : AfterAgentCompleteHook {
                 override val order = 1
                 override suspend fun afterAgentComplete(context: HookContext, response: AgentResponse) {
@@ -270,7 +270,7 @@ class SpringAiAgentExecutorTest {
                 hookExecutor = hookExecutor
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -278,7 +278,7 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert - result should be success despite hook throwing
+            // 검증 - 훅이 예외를 던져도 결과는 성공이어야 합니다
             assertTrue(result.success, "Hook exception should not mask successful result")
             assertEquals("Successful response", result.content)
         }
@@ -288,8 +288,8 @@ class SpringAiAgentExecutorTest {
     inner class MemoryIntegration {
 
         @Test
-        fun `should save conversation to memory`() = runBlocking {
-            // Arrange
+        fun `대화를 메모리에 저장해야 한다`() = runBlocking {
+            // 준비
             val memoryStore = InMemoryMemoryStore()
             every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Hello there!")
 
@@ -299,7 +299,7 @@ class SpringAiAgentExecutorTest {
                 memoryStore = memoryStore
             )
 
-            // Act
+            // 실행
             executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -308,7 +308,7 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert
+            // 검증
             val memory = memoryStore.get("session-123")
             assertNotNull(memory) { "Memory for session-123 should exist after execute, got null" }
             assertEquals(2, memory!!.getHistory().size)
@@ -317,8 +317,8 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `should load conversation history from memory`() = runBlocking {
-            // Arrange
+        fun `메모리에서 대화 기록을 로드해야 한다`() = runBlocking {
+            // 준비
             val memoryStore = InMemoryMemoryStore()
             memoryStore.addMessage("session-123", "user", "Previous question")
             memoryStore.addMessage("session-123", "assistant", "Previous answer")
@@ -331,7 +331,7 @@ class SpringAiAgentExecutorTest {
                 memoryStore = memoryStore
             )
 
-            // Act
+            // 실행
             executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -340,13 +340,13 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert
+            // 검증
             coVerify { fixture.requestSpec.messages(any<List<org.springframework.ai.chat.messages.Message>>()) }
         }
 
         @Test
-        fun `should save memory with non-String sessionId type`() = runBlocking {
-            // Arrange
+        fun `String이 아닌 sessionId 타입으로도 메모리를 저장해야 한다`() = runBlocking {
+            // 준비
             val memoryStore = InMemoryMemoryStore()
             every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Response")
 
@@ -356,7 +356,7 @@ class SpringAiAgentExecutorTest {
                 memoryStore = memoryStore
             )
 
-            // Act - sessionId is an Integer, not String
+            // 실행 - sessionId가 String이 아닌 Integer입니다
             executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -365,7 +365,7 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert - should be saved via ?.toString()
+            // 검증 - ?.toString()을 통해 저장되어야 합니다
             val memory = memoryStore.get("12345")
             assertNotNull(memory, "Memory should be saved even with non-String sessionId")
             assertEquals(2, memory!!.getHistory().size)
@@ -374,7 +374,7 @@ class SpringAiAgentExecutorTest {
 
     @Nested
     inner class ErrorHandling {
-        // Error translation behavior does not require retry/backoff; disable retries to keep tests fast.
+        // 오류 변환 동작은 재시도/백오프가 필요하지 않으므로; 테스트를 빠르게 유지하기 위해 재시도를 비활성화합니다.
         private val noRetryProperties = properties.copy(
             retry = properties.retry.copy(
                 maxAttempts = 1,
@@ -384,8 +384,8 @@ class SpringAiAgentExecutorTest {
         )
 
         @Test
-        fun `should handle LLM exception gracefully`() = runBlocking {
-            // Arrange
+        fun `LLM 예외를 우아하게 처리해야 한다`() = runBlocking {
+            // 준비
             every { fixture.requestSpec.call() } throws RuntimeException("LLM service unavailable")
 
             val executor = SpringAiAgentExecutor(
@@ -393,7 +393,7 @@ class SpringAiAgentExecutorTest {
                 properties = noRetryProperties
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -401,14 +401,14 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertFailure()
             assertNotNull(result.errorMessage) { "LLM exception should produce an error message" }
         }
 
         @Test
-        fun `should translate rate limit error`() = runBlocking {
-            // Arrange
+        fun `속도 제한 오류를 변환해야 한다`() = runBlocking {
+            // 준비
             every { fixture.requestSpec.call() } throws RuntimeException("Rate limit exceeded")
 
             val executor = SpringAiAgentExecutor(
@@ -416,7 +416,7 @@ class SpringAiAgentExecutorTest {
                 properties = noRetryProperties
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -424,7 +424,7 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertFailure()
             result.assertErrorCode(AgentErrorCode.RATE_LIMITED)
             assertTrue(result.errorMessage!!.contains("Rate limit exceeded")) {
@@ -433,8 +433,8 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `should translate timeout error`() = runBlocking {
-            // Arrange
+        fun `타임아웃 오류를 변환해야 한다`() = runBlocking {
+            // 준비
             every { fixture.requestSpec.call() } throws RuntimeException("Connection timeout")
 
             val executor = SpringAiAgentExecutor(
@@ -442,7 +442,7 @@ class SpringAiAgentExecutorTest {
                 properties = noRetryProperties
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -450,7 +450,7 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertFailure()
             result.assertErrorCode(AgentErrorCode.TIMEOUT)
             assertTrue(result.errorMessage!!.contains("Request timed out")) {
@@ -459,8 +459,8 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `should use custom error message resolver`() = runBlocking {
-            // Arrange
+        fun `커스텀 오류 메시지 리졸버를 사용해야 한다`() = runBlocking {
+            // 준비
             every { fixture.requestSpec.call() } throws RuntimeException("Rate limit exceeded")
 
             val koreanResolver = ErrorMessageResolver { code, _ ->
@@ -477,7 +477,7 @@ class SpringAiAgentExecutorTest {
                 errorMessageResolver = koreanResolver
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -485,7 +485,7 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertFailure()
             result.assertErrorCode(AgentErrorCode.RATE_LIMITED)
             assertTrue(result.errorMessage!!.contains("요청 한도")) {
@@ -498,8 +498,8 @@ class SpringAiAgentExecutorTest {
     inner class CancellationHandling {
 
         @Test
-        fun `should rethrow cancellation from rag retrieval`() {
-            // Arrange
+        fun `RAG 조회에서 취소 예외를 다시 던져야 한다`() {
+            // 준비
             val ragPipeline = mockk<RagPipeline>()
             coEvery { ragPipeline.retrieve(any()) } throws CancellationException("cancelled")
             every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("unused")
@@ -510,7 +510,7 @@ class SpringAiAgentExecutorTest {
                 ragPipeline = ragPipeline
             )
 
-            // Act + Assert
+            // 실행 + 검증
             assertThrows(CancellationException::class.java) {
                 runBlocking {
                     executor.execute(
@@ -528,8 +528,8 @@ class SpringAiAgentExecutorTest {
     inner class ToolConfiguration {
 
         @Test
-        fun `should include MCP tools when available`() = runBlocking {
-            // Arrange
+        fun `가용 시 MCP 도구를 포함해야 한다`() = runBlocking {
+            // 준비
             val mcpTool = object : com.arc.reactor.tool.ToolCallback {
                 override val name = "mcp-tool"
                 override val description = "MCP Tool"
@@ -543,7 +543,7 @@ class SpringAiAgentExecutorTest {
                 mcpToolCallbacks = { listOf(mcpTool) }
             )
 
-            // Act
+            // 실행
             executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -551,14 +551,14 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert - MCP ToolCallback should be wrapped as ArcToolCallbackAdapter
-            // and passed via .toolCallbacks() (not .tools() which expects @Tool annotations)
+            // 검증 - MCP ToolCallback은 ArcToolCallbackAdapter로 래핑되어야 합니다
+            // .toolCallbacks()를 통해 전달되어야 합니다 (.tools()는 @Tool 어노테이션을 기대하므로 사용하지 않음)
             coVerify { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
 
         @Test
-        fun `should respect maxToolsPerRequest limit`() = runBlocking {
-            // Arrange
+        fun `maxToolsPerRequest 제한을 준수해야 한다`() = runBlocking {
+            // 준비
             val manyTools = (1..30).map { i ->
                 object : com.arc.reactor.tool.ToolCallback {
                     override val name = "tool-$i"
@@ -576,7 +576,7 @@ class SpringAiAgentExecutorTest {
                 mcpToolCallbacks = { manyTools }
             )
 
-            // Act
+            // 실행
             executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -584,13 +584,13 @@ class SpringAiAgentExecutorTest {
                 )
             )
 
-            // Assert - toolCallbacks should be called with limited tools (ToolCallback-based)
+            // 검증 - toolCallbacks는 제한된 도구로 호출되어야 합니다 (ToolCallback 기반)
             coVerify { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
 
         @Test
-        fun `should reject invalid context window config`() {
-            // maxContextWindowTokens < maxOutputTokens should throw
+        fun `잘못된 컨텍스트 윈도우 설정을 거부해야 한다`() {
+            // maxContextWindowTokens < maxOutputTokens이면 예외가 발생해야 합니다
             assertThrows(IllegalArgumentException::class.java) {
                 SpringAiAgentExecutor(
                     chatClient = fixture.chatClient,

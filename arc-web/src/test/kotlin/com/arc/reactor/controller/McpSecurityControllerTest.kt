@@ -68,7 +68,7 @@ class McpSecurityControllerTest {
     }
 
     @Test
-    fun `get should expose effective and config default policy`() {
+    fun `get은(는) expose effective and config default policy해야 한다`() {
         val response = controller.get(adminExchange())
 
         assertEquals(HttpStatus.OK, response.statusCode) { "Admin get should return 200 OK" }
@@ -80,7 +80,7 @@ class McpSecurityControllerTest {
     }
 
     @Test
-    fun `update should persist policy and reapply runtime security`() {
+    fun `update은(는) persist policy and reapply runtime security해야 한다`() {
         val response = controller.update(
             request = UpdateMcpSecurityPolicyRequest(
                 allowedServerNames = setOf("atlassian", "swagger-petstore"),
@@ -105,7 +105,7 @@ class McpSecurityControllerTest {
     }
 
     @Test
-    fun `delete should reset to config defaults and reapply runtime security`() {
+    fun `delete은(는) reset to config defaults and reapply runtime security해야 한다`() {
         controller.update(
             request = UpdateMcpSecurityPolicyRequest(
                 allowedServerNames = setOf("swagger-petstore"),
@@ -126,7 +126,7 @@ class McpSecurityControllerTest {
     }
 
     @Test
-    fun `non admin requests should be rejected`() {
+    fun `non admin requests은(는) be rejected해야 한다`() {
         val response = controller.get(userExchange())
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {

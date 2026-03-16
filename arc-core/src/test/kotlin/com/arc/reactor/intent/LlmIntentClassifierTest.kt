@@ -53,7 +53,7 @@ class LlmIntentClassifierTest {
     inner class SuccessfulClassification {
 
         @Test
-        fun `classifies intent from valid LLM response`() = runTest {
+        fun `intent from valid LLM response를 분류한다`() = runTest {
             registerIntents()
             mockLlmResponse("""{"intents":[{"name":"refund","confidence":0.92}]}""")
 
@@ -66,7 +66,7 @@ class LlmIntentClassifierTest {
         }
 
         @Test
-        fun `handles multi-intent response`() = runTest {
+        fun `multi-intent response를 처리한다`() = runTest {
             registerIntents()
             mockLlmResponse("""{"intents":[{"name":"refund","confidence":0.85},{"name":"shipping","confidence":0.72}]}""")
 
@@ -77,7 +77,7 @@ class LlmIntentClassifierTest {
         }
 
         @Test
-        fun `strips code fences from LLM response`() = runTest {
+        fun `code fences from LLM response를 제거한다`() = runTest {
             registerIntents()
             mockLlmResponse("```json\n{\"intents\":[{\"name\":\"order\",\"confidence\":0.9}]}\n```")
 
@@ -91,14 +91,14 @@ class LlmIntentClassifierTest {
     inner class ErrorHandling {
 
         @Test
-        fun `returns unknown when no intents are registered`() = runTest {
+        fun `no intents are registered일 때 unknown를 반환한다`() = runTest {
             val result = classifier.classify("test")
             assertTrue(result.isUnknown) { "Should return unknown when no intents registered" }
             assertEquals("llm", result.classifiedBy) { "ClassifiedBy should still be 'llm'" }
         }
 
         @Test
-        fun `returns unknown on malformed LLM response`() = runTest {
+        fun `unknown on malformed LLM response를 반환한다`() = runTest {
             registerIntents()
             mockLlmResponse("This is not JSON at all")
 
@@ -107,7 +107,7 @@ class LlmIntentClassifierTest {
         }
 
         @Test
-        fun `returns unknown when LLM returns unknown intent`() = runTest {
+        fun `LLM returns unknown intent일 때 unknown를 반환한다`() = runTest {
             registerIntents()
             mockLlmResponse("""{"intents":[{"name":"unknown","confidence":0.5}]}""")
 
@@ -116,7 +116,7 @@ class LlmIntentClassifierTest {
         }
 
         @Test
-        fun `returns unknown when LLM returns fenced unknown intent`() = runTest {
+        fun `LLM returns fenced unknown intent일 때 unknown를 반환한다`() = runTest {
             registerIntents()
             mockLlmResponse("```json\n{\"intents\":[{\"name\":\"unknown\",\"confidence\":0.9}]}\n```")
 
@@ -125,7 +125,7 @@ class LlmIntentClassifierTest {
         }
 
         @Test
-        fun `returns unknown on LLM exception`() = runTest {
+        fun `unknown on LLM exception를 반환한다`() = runTest {
             registerIntents()
             every { requestSpec.call() } throws RuntimeException("LLM unavailable")
 
@@ -138,7 +138,7 @@ class LlmIntentClassifierTest {
     inner class PromptConstruction {
 
         @Test
-        fun `prompt includes intent descriptions and examples`() = runTest {
+        fun `prompt은(는) includes intent descriptions and examples`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund",
                 description = "Handle refund requests",
@@ -158,7 +158,7 @@ class LlmIntentClassifierTest {
         }
 
         @Test
-        fun `prompt includes conversation history when provided`() = runTest {
+        fun `provided일 때 prompt includes conversation history`() = runTest {
             registerIntents()
             mockLlmResponse("""{"intents":[{"name":"refund","confidence":0.9}]}""")
 
@@ -183,7 +183,7 @@ class LlmIntentClassifierTest {
         }
 
         @Test
-        fun `prompt lazily loads conversation history only when needed by llm classifier`() = runTest {
+        fun `needed by llm classifier일 때 prompt lazily loads conversation history only`() = runTest {
             registerIntents()
             mockLlmResponse("""{"intents":[{"name":"refund","confidence":0.9}]}""")
             val loadCount = AtomicInteger(0)
@@ -210,14 +210,14 @@ class LlmIntentClassifierTest {
     inner class ResponseParsing {
 
         @Test
-        fun `parseResponse handles valid JSON`() {
+        fun `parseResponse은(는) handles valid JSON`() {
             val parsed = classifier.parseResponse("""{"intents":[{"name":"order","confidence":0.88}]}""")
             assertNotNull(parsed) { "Should parse valid JSON" }
             assertEquals("order", parsed!!.intents[0].intentName) { "Should extract intent name" }
         }
 
         @Test
-        fun `parseResponse filters out zero-confidence intents`() {
+        fun `parseResponse은(는) filters out zero-confidence intents`() {
             val parsed = classifier.parseResponse(
                 """{"intents":[{"name":"order","confidence":0.88},{"name":"refund","confidence":0.0}]}"""
             )
@@ -226,21 +226,21 @@ class LlmIntentClassifierTest {
         }
 
         @Test
-        fun `parseResponse clamps confidence to 0-1 range`() {
+        fun `parseResponse은(는) clamps confidence to 0-1 range`() {
             val parsed = classifier.parseResponse("""{"intents":[{"name":"order","confidence":1.5}]}""")
             assertNotNull(parsed) { "Should parse even with out-of-range confidence" }
             assertEquals(1.0, parsed!!.intents[0].confidence, 0.01) { "Confidence should be clamped to 1.0" }
         }
 
         @Test
-        fun `parseResponse returns null for empty intents list`() {
+        fun `parseResponse은(는) returns null for empty intents list`() {
             val parsed = classifier.parseResponse("""{"intents":[]}""")
             assertNotNull(parsed) { "Should parse empty intent payloads without treating them as malformed JSON" }
             assertTrue(parsed!!.intents.isEmpty()) { "Empty payload should produce no classified intents" }
         }
 
         @Test
-        fun `parseResponse preserves unknown-only payload as parsed result`() {
+        fun `parseResponse은(는) preserves unknown-only payload as parsed result`() {
             val parsed = classifier.parseResponse("""{"intents":[{"name":"unknown","confidence":0.9}]}""")
             assertNotNull(parsed) { "Unknown-only payload should still count as valid JSON" }
             assertTrue(parsed!!.intents.isEmpty()) { "Unknown intents should not be promoted into classified intents" }

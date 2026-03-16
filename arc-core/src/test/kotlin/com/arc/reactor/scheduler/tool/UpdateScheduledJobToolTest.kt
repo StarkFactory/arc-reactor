@@ -32,7 +32,7 @@ class UpdateScheduledJobToolTest {
     )
 
     @Test
-    fun `has null category so it is always loaded`() {
+    fun `has null category so it은(는) always loaded이다`() {
         assertNull(tool.category,
             "Scheduler tools must have null category to be always available")
     }
@@ -41,7 +41,7 @@ class UpdateScheduledJobToolTest {
     inner class PartialUpdate {
 
         @Test
-        fun `updates only cron expression, keeps other fields`() {
+        fun `only cron expression, keeps other fields를 업데이트한다`() {
             every { schedulerService.findById("job-1") } returns existingJob
             val jobSlot = slot<ScheduledJob>()
             every { schedulerService.update("job-1", capture(jobSlot)) } answers {
@@ -65,7 +65,7 @@ class UpdateScheduledJobToolTest {
         }
 
         @Test
-        fun `updates only enabled flag to disable a job`() {
+        fun `only enabled flag to disable a job를 업데이트한다`() {
             every { schedulerService.findById("job-1") } returns existingJob
             val jobSlot = slot<ScheduledJob>()
             every { schedulerService.update("job-1", capture(jobSlot)) } answers {
@@ -86,7 +86,7 @@ class UpdateScheduledJobToolTest {
         }
 
         @Test
-        fun `clears slackChannelId when empty string is passed`() {
+        fun `clears slackChannelId when empty string은(는) passed이다`() {
             every { schedulerService.findById("job-1") } returns existingJob
             val jobSlot = slot<ScheduledJob>()
             every { schedulerService.update("job-1", capture(jobSlot)) } answers {
@@ -107,7 +107,7 @@ class UpdateScheduledJobToolTest {
         }
 
         @Test
-        fun `updates prompt and slack channel together`() {
+        fun `prompt and slack channel together를 업데이트한다`() {
             every { schedulerService.findById("job-1") } returns existingJob
             val jobSlot = slot<ScheduledJob>()
             every { schedulerService.update("job-1", capture(jobSlot)) } answers {
@@ -131,7 +131,7 @@ class UpdateScheduledJobToolTest {
     inner class LookupByName {
 
         @Test
-        fun `finds job by name and updates`() {
+        fun `job by name and updates를 찾는다`() {
             every { schedulerService.findByName("Daily Summary") } returns existingJob
             val jobSlot = slot<ScheduledJob>()
             every { schedulerService.update("job-1", capture(jobSlot)) } answers {
@@ -153,7 +153,7 @@ class UpdateScheduledJobToolTest {
     inner class ErrorCases {
 
         @Test
-        fun `returns error when neither jobId nor jobName provided`() {
+        fun `neither jobId nor jobName provided일 때 error를 반환한다`() {
             val result = tool.update_scheduled_job(cronExpression = "0 0 10 * * *")
             val response = objectMapper.readValue<Map<String, String>>(result)
 
@@ -163,7 +163,7 @@ class UpdateScheduledJobToolTest {
         }
 
         @Test
-        fun `returns error when job not found by ID`() {
+        fun `job not found by ID일 때 error를 반환한다`() {
             every { schedulerService.findById("nonexistent") } returns null
 
             val result = tool.update_scheduled_job(
@@ -178,7 +178,7 @@ class UpdateScheduledJobToolTest {
         }
 
         @Test
-        fun `returns error when job not found by name`() {
+        fun `job not found by name일 때 error를 반환한다`() {
             every { schedulerService.findByName("No Such Job") } returns null
 
             val result = tool.update_scheduled_job(
@@ -191,7 +191,7 @@ class UpdateScheduledJobToolTest {
         }
 
         @Test
-        fun `returns error on invalid cron expression`() {
+        fun `error on invalid cron expression를 반환한다`() {
             every { schedulerService.findById("job-1") } returns existingJob
             every { schedulerService.update(any(), any()) } throws
                 IllegalArgumentException("Invalid cron expression: bad")
@@ -208,7 +208,7 @@ class UpdateScheduledJobToolTest {
         }
 
         @Test
-        fun `returns error JSON on unexpected exception`() {
+        fun `error JSON on unexpected exception를 반환한다`() {
             every { schedulerService.findById("job-1") } returns existingJob
             every { schedulerService.update(any(), any()) } throws
                 RuntimeException("DB error")

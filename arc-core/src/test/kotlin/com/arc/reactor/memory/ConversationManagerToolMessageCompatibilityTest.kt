@@ -12,7 +12,7 @@ class ConversationManagerToolMessageCompatibilityTest {
     private val objectMapper = jacksonObjectMapper()
 
     @Test
-    fun `toSpringAiMessage should wrap plain tool text as json object`() {
+    fun `toSpringAiMessage은(는) wrap plain tool text as json object해야 한다`() {
         val springMessage = DefaultConversationManager.toSpringAiMessage(
             Message(role = MessageRole.TOOL, content = "Error: backend down")
         ) as ToolResponseMessage
@@ -26,7 +26,7 @@ class ConversationManagerToolMessageCompatibilityTest {
     }
 
     @Test
-    fun `toSpringAiMessage should preserve valid json tool payload`() {
+    fun `toSpringAiMessage은(는) preserve valid json tool payload해야 한다`() {
         val springMessage = DefaultConversationManager.toSpringAiMessage(
             Message(role = MessageRole.TOOL, content = """{"status":"ok"}""")
         ) as ToolResponseMessage

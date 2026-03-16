@@ -100,7 +100,7 @@ class ApiRegressionFlowIntegrationTest {
     }
 
     @Test
-    fun `covers auth chat stream mcp guard and rag API regression flow`() {
+    fun `covers은(는) auth chat stream mcp guard and rag API regression flow`() {
         val email = "qa-${UUID.randomUUID()}@example.com"
         val password = "passw0rd!"
 

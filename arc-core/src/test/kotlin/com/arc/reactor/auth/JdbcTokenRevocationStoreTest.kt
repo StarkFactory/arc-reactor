@@ -34,7 +34,7 @@ class JdbcTokenRevocationStoreTest {
     }
 
     @Test
-    fun `should persist revoked token across store instances`() {
+    fun `persist revoked token across store instances해야 한다`() {
         val storeA = JdbcTokenRevocationStore(jdbcTemplate)
         val storeB = JdbcTokenRevocationStore(jdbcTemplate)
         val tokenId = "jti-jdbc-1"
@@ -47,7 +47,7 @@ class JdbcTokenRevocationStoreTest {
     }
 
     @Test
-    fun `should expire revoked token after expiration time`() {
+    fun `expiration time 후 expire revoked token해야 한다`() {
         val store = JdbcTokenRevocationStore(jdbcTemplate)
         val tokenId = "jti-jdbc-2"
 
@@ -59,7 +59,7 @@ class JdbcTokenRevocationStoreTest {
     }
 
     @Test
-    fun `should update expiration when token is revoked again`() {
+    fun `token is revoked again일 때 update expiration해야 한다`() {
         val store = JdbcTokenRevocationStore(jdbcTemplate)
         val tokenId = "jti-jdbc-3"
 

@@ -56,7 +56,7 @@ class MetricCollectionHookTest {
     inner class Properties {
 
         @Test
-        fun `hook properties are correct`() {
+        fun `hook properties은(는) correct이다`() {
             hook.order shouldBe 200
             hook.enabled shouldBe true
             hook.failOnError shouldBe false
@@ -67,7 +67,7 @@ class MetricCollectionHookTest {
     inner class AfterAgentComplete {
 
         @Test
-        fun `publishes execution event on success`() = runTest {
+        fun `execution event on success를 발행한다`() = runTest {
             val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "sessionId" to "sess-1"))
             hook.afterAgentComplete(context, agentResponse(success = true, toolsUsed = listOf("tool1", "tool2")))
 
@@ -83,7 +83,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `publishes execution event on failure with errorCode`() = runTest {
+        fun `execution event on failure with errorCode를 발행한다`() = runTest {
             val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1"))
             hook.afterAgentComplete(context, agentResponse(success = false, errorCode = "TOOL_ERROR"))
 
@@ -94,7 +94,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `errorCode is null when success is true even if response has errorCode`() = runTest {
+        fun `success is true even if response has errorCode일 때 errorCode은(는) null이다`() = runTest {
             val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1"))
             hook.afterAgentComplete(context, agentResponse(success = true, errorCode = "TOOL_ERROR"))
 
@@ -104,7 +104,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `extracts latency breakdown from metadata`() = runTest {
+        fun `latency breakdown from metadata를 추출한다`() = runTest {
             val context = hookContext(metadata = mutableMapOf(
                 "tenantId" to "tenant-1",
                 "llmDurationMs" to "300",
@@ -122,7 +122,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `missing metadata values default to zero`() = runTest {
+        fun `누락된 metadata values default to zero`() = runTest {
             hook.afterAgentComplete(hookContext(), agentResponse())
 
             val event = ringBuffer.drain(10).filterIsInstance<AgentExecutionEvent>().single()
@@ -136,12 +136,12 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `records drop when buffer is full`() = runTest {
-            // Min capacity is 64 (MetricRingBuffer coerces to at least 64)
+        fun `records drop when buffer은(는) full이다`() = runTest {
+            // 최소 용량은 64입니다 (MetricRingBuffer가 최소 64로 강제함)
             val tinyBuffer = MetricRingBuffer(64)
             val tinyHook = MetricCollectionHook(tinyBuffer, healthMonitor)
 
-            // Fill buffer to capacity
+            // buffer to capacity를 채웁니다
             repeat(64) { tinyBuffer.publish(AgentExecutionEvent(tenantId = "t", runId = "r-$it", success = true)) }
 
             val dropsBefore = healthMonitor.droppedTotal.get()
@@ -150,7 +150,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `uses default tenantId when metadata has no tenantId`() = runTest {
+        fun `metadata has no tenantId일 때 default tenantId를 사용한다`() = runTest {
             hook.afterAgentComplete(hookContext(metadata = mutableMapOf()), agentResponse())
 
             val event = ringBuffer.drain(10).filterIsInstance<AgentExecutionEvent>().single()
@@ -184,7 +184,7 @@ class MetricCollectionHookTest {
         )
 
         @Test
-        fun `publishes tool call event on success`() = runTest {
+        fun `tool call event on success를 발행한다`() = runTest {
             hook.afterToolCall(toolCallContext(), toolCallResult())
 
             val events = ringBuffer.drain(10)
@@ -201,7 +201,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `classifies timeout error`() = runTest {
+        fun `timeout error를 분류한다`() = runTest {
             hook.afterToolCall(
                 toolCallContext(),
                 toolCallResult(success = false, errorMessage = "Connection timeout after 15000ms")
@@ -213,7 +213,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `classifies connection error`() = runTest {
+        fun `connection error를 분류한다`() = runTest {
             hook.afterToolCall(
                 toolCallContext(),
                 toolCallResult(success = false, errorMessage = "Connection refused to host")
@@ -224,7 +224,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `classifies permission denied error`() = runTest {
+        fun `permission denied error를 분류한다`() = runTest {
             hook.afterToolCall(
                 toolCallContext(),
                 toolCallResult(success = false, errorMessage = "Permission denied for resource X")
@@ -235,7 +235,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `classifies not found error`() = runTest {
+        fun `not found error를 분류한다`() = runTest {
             hook.afterToolCall(
                 toolCallContext(),
                 toolCallResult(success = false, errorMessage = "Resource not found")
@@ -246,7 +246,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `classifies unknown error`() = runTest {
+        fun `unknown error를 분류한다`() = runTest {
             hook.afterToolCall(
                 toolCallContext(),
                 toolCallResult(success = false, errorMessage = "Something totally unexpected")
@@ -257,7 +257,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `truncates error message to 500 chars`() = runTest {
+        fun `error message to 500 chars를 잘라낸다`() = runTest {
             val longMessage = "x".repeat(1000)
             hook.afterToolCall(
                 toolCallContext(),
@@ -269,7 +269,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `resolves tool source from metadata`() = runTest {
+        fun `tool source from metadata를 해결한다`() = runTest {
             val meta = mutableMapOf<String, Any>(
                 "tenantId" to "tenant-1",
                 "toolSource_check_order" to "mcp",
@@ -283,7 +283,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `defaults tool source to local`() = runTest {
+        fun `tool source to local를 기본값으로 한다`() = runTest {
             hook.afterToolCall(toolCallContext(), toolCallResult())
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<ToolCallEvent>()
@@ -292,7 +292,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `records drop when buffer is full`() = runTest {
+        fun `records drop when buffer은(는) full이다`() = runTest {
             val tinyBuffer = MetricRingBuffer(64)
             val tinyHook = MetricCollectionHook(tinyBuffer, healthMonitor)
 
@@ -304,7 +304,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `uses default tenantId when metadata has no tenantId`() = runTest {
+        fun `metadata has no tenantId일 때 default tenantId를 사용한다`() = runTest {
             hook.afterToolCall(toolCallContext(metadata = mutableMapOf()), toolCallResult())
 
             val event = ringBuffer.drain(10).filterIsInstance<ToolCallEvent>().single()
@@ -316,7 +316,7 @@ class MetricCollectionHookTest {
     inner class GuardEventEmission {
 
         @Test
-        fun `emits guard allowed event when guardDurationMs present`() = runTest {
+        fun `guard allowed event when guardDurationMs present를 방출한다`() = runTest {
             val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "guardDurationMs" to "15"))
             hook.afterAgentComplete(context, agentResponse())
 
@@ -328,7 +328,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `does not emit guard event when guardDurationMs absent`() = runTest {
+        fun `emit guard event when guardDurationMs absent하지 않는다`() = runTest {
             hook.afterAgentComplete(hookContext(), agentResponse())
 
             val guardEvents = ringBuffer.drain(10).filterIsInstance<GuardEvent>()
@@ -340,7 +340,7 @@ class MetricCollectionHookTest {
     inner class SessionEventEmission {
 
         @Test
-        fun `does not emit session event when identifier storage is disabled`() = runTest {
+        fun `does not emit session event when identifier storage은(는) disabled이다`() = runTest {
             val context = hookContext(metadata = mutableMapOf("tenantId" to "tenant-1", "sessionId" to "sess-42"))
             hook.afterAgentComplete(context, agentResponse(totalDurationMs = 750))
 
@@ -349,7 +349,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `emits session event when sessionId present`() = runTest {
+        fun `session event when sessionId present를 방출한다`() = runTest {
             val sessionEnabledHook = MetricCollectionHook(
                 ringBuffer = ringBuffer,
                 healthMonitor = healthMonitor,
@@ -368,7 +368,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `does not emit session event when sessionId absent`() = runTest {
+        fun `emit session event when sessionId absent하지 않는다`() = runTest {
             hook.afterAgentComplete(hookContext(), agentResponse())
 
             val sessionEvents = ringBuffer.drain(10).filterIsInstance<SessionEvent>()
@@ -402,7 +402,7 @@ class MetricCollectionHookTest {
         )
 
         @Test
-        fun `emits MCP health event for MCP tool calls`() = runTest {
+        fun `MCP health event for MCP tool calls를 방출한다`() = runTest {
             val meta = mutableMapOf<String, Any>(
                 "tenantId" to "tenant-1",
                 "toolSource_check_order" to "mcp",
@@ -419,7 +419,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `emits FAILED status for failed MCP tool calls`() = runTest {
+        fun `FAILED status for failed MCP tool calls를 방출한다`() = runTest {
             val meta = mutableMapOf<String, Any>(
                 "tenantId" to "tenant-1",
                 "toolSource_check_order" to "mcp",
@@ -437,7 +437,7 @@ class MetricCollectionHookTest {
         }
 
         @Test
-        fun `does not emit MCP health event for local tool calls`() = runTest {
+        fun `emit MCP health event for local tool calls하지 않는다`() = runTest {
             hook.afterToolCall(toolCallContext(), toolCallResult())
 
             val mcpEvents = ringBuffer.drain(10).filterIsInstance<McpHealthEvent>()

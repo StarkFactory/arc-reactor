@@ -21,7 +21,7 @@ class TracingConfigurationBeanNameTest {
         .withConfiguration(AutoConfigurations.of(ArcReactorAutoConfiguration::class.java))
 
     @Test
-    fun `should register arcReactorOtelTracer without colliding with existing otelTracer bean name`() {
+    fun `existing otelTracer bean name로 register arcReactorOtelTracer without colliding해야 한다`() {
         contextRunner
             .withUserConfiguration(
                 ExistingOtelTracerBeanConfig::class.java,

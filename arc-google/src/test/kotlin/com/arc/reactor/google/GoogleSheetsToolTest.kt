@@ -15,7 +15,7 @@ class GoogleSheetsToolTest {
     private val tool = GoogleSheetsTool(credentialProvider)
 
     @Test
-    fun `tool name is google_sheets_read`() {
+    fun `tool name은(는) google_sheets_read이다`() {
         assertEquals(
             "google_sheets_read",
             tool.name,
@@ -24,7 +24,7 @@ class GoogleSheetsToolTest {
     }
 
     @Test
-    fun `tool description is non-blank`() {
+    fun `tool description은(는) non-blank이다`() {
         assertTrue(
             tool.description.isNotBlank(),
             "Tool description must not be blank"
@@ -32,7 +32,7 @@ class GoogleSheetsToolTest {
     }
 
     @Test
-    fun `call returns error when spreadsheet_id is missing`() = runTest {
+    fun `call returns error when spreadsheet_id은(는) missing이다`() = runTest {
         val result = tool.call(mapOf("range" to "Sheet1!A1:D10"))
 
         assertTrue(
@@ -47,7 +47,7 @@ class GoogleSheetsToolTest {
     }
 
     @Test
-    fun `call returns error when range is missing`() = runTest {
+    fun `call returns error when range은(는) missing이다`() = runTest {
         val result = tool.call(mapOf("spreadsheet_id" to "sheet123"))
 
         assertTrue(
@@ -62,7 +62,7 @@ class GoogleSheetsToolTest {
     }
 
     @Test
-    fun `call returns error string when credential provider throws`() = runTest {
+    fun `returns error string when credential provider throws를 호출한다`() = runTest {
         every {
             credentialProvider.getCredentials(any())
         } throws RuntimeException("Service account key not found")
@@ -82,7 +82,7 @@ class GoogleSheetsToolTest {
     }
 
     @Test
-    fun `call returns error string when authentication fails`() = runTest {
+    fun `returns error string when authentication fails를 호출한다`() = runTest {
         every {
             credentialProvider.getCredentials(any())
         } throws IllegalArgumentException("arc.reactor.google.impersonate-user must be configured")
@@ -98,7 +98,7 @@ class GoogleSheetsToolTest {
     }
 
     @Test
-    fun `call rethrows CancellationException for structured concurrency`() = runTest {
+    fun `rethrows CancellationException for structured concurrency를 호출한다`() = runTest {
         every {
             credentialProvider.getCredentials(any())
         } throws java.util.concurrent.CancellationException("cancelled")
@@ -107,7 +107,7 @@ class GoogleSheetsToolTest {
             tool.call(mapOf("spreadsheet_id" to "sheet123", "range" to "Sheet1!A1:B2"))
             fail("CancellationException must be rethrown from GoogleSheetsTool.call")
         } catch (_: java.util.concurrent.CancellationException) {
-            // expected
+            // 예상 결과
         }
     }
 }

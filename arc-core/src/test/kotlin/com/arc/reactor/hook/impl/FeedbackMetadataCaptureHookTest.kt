@@ -57,12 +57,12 @@ class FeedbackMetadataCaptureHookTest {
     inner class HookProperties {
 
         @Test
-        fun `should have order 250 for late hook execution`() {
+        fun `late hook execution에 대해 have order 250해야 한다`() {
             assertEquals(250, hook.order) { "Hook should have order 250 (after webhooks at 200)" }
         }
 
         @Test
-        fun `should be fail-open`() {
+        fun `be fail-open해야 한다`() {
             assertFalse(hook.failOnError) { "Hook should never block the agent on failure" }
         }
     }
@@ -71,7 +71,7 @@ class FeedbackMetadataCaptureHookTest {
     inner class MetadataCapture {
 
         @Test
-        fun `should capture and retrieve metadata by runId`() = runTest {
+        fun `capture and retrieve metadata by runId해야 한다`() = runTest {
             val context = createContext(runId = "run-42", userId = "user-7", userPrompt = "What is AI?")
             val response = createResponse(
                 content = "AI is artificial intelligence.",
@@ -92,7 +92,7 @@ class FeedbackMetadataCaptureHookTest {
         }
 
         @Test
-        fun `should capture sessionId from context metadata`() = runTest {
+        fun `capture sessionId from context metadata해야 한다`() = runTest {
             hook.afterAgentComplete(
                 createContext(runId = "run-1", sessionId = "sess-abc"),
                 createResponse()
@@ -103,7 +103,7 @@ class FeedbackMetadataCaptureHookTest {
         }
 
         @Test
-        fun `should have null sessionId when not in metadata`() = runTest {
+        fun `not in metadata일 때 have null sessionId해야 한다`() = runTest {
             hook.afterAgentComplete(createContext(runId = "run-1"), createResponse())
 
             val metadata = hook.get("run-1")
@@ -111,12 +111,12 @@ class FeedbackMetadataCaptureHookTest {
         }
 
         @Test
-        fun `should return null for uncached runId`() {
+        fun `uncached runId에 대해 return null해야 한다`() {
             assertNull(hook.get("nonexistent")) { "Should return null for unknown runId" }
         }
 
         @Test
-        fun `should overwrite metadata for same runId`() = runTest {
+        fun `same runId에 대해 overwrite metadata해야 한다`() = runTest {
             hook.afterAgentComplete(
                 createContext(runId = "run-1", userPrompt = "First"),
                 createResponse(content = "First response")
@@ -132,7 +132,7 @@ class FeedbackMetadataCaptureHookTest {
         }
 
         @Test
-        fun `should cache multiple run IDs independently`() = runTest {
+        fun `cache multiple run IDs independently해야 한다`() = runTest {
             hook.afterAgentComplete(
                 createContext(runId = "run-A", userPrompt = "Question A"),
                 createResponse(content = "Answer A")
@@ -155,7 +155,7 @@ class FeedbackMetadataCaptureHookTest {
     inner class TtlEviction {
 
         @Test
-        fun `should return null for expired entry on get`() = runTest {
+        fun `expired entry on get에 대해 return null해야 한다`() = runTest {
             hook.afterAgentComplete(createContext(runId = "run-1"), createResponse())
 
             // Advance clock past TTL (1 hour)
@@ -165,23 +165,23 @@ class FeedbackMetadataCaptureHookTest {
         }
 
         @Test
-        fun `should return entry just before TTL expiry`() = runTest {
+        fun `TTL expiry 전에 return entry just해야 한다`() = runTest {
             hook.afterAgentComplete(createContext(runId = "run-1"), createResponse())
 
-            // Advance clock to just before TTL
+            // TTL 직전까지 시간 진행
             clock.advance(Duration.ofSeconds(FeedbackMetadataCaptureHook.TTL_SECONDS - 1))
 
             assertNotNull(hook.get("run-1")) { "Entry should still be available just before TTL" }
         }
 
         @Test
-        fun `should evict stale entries during periodic eviction`() = runTest {
+        fun `evict stale entries during periodic eviction해야 한다`() = runTest {
             hook.afterAgentComplete(createContext(runId = "run-old"), createResponse())
 
-            // Advance past TTL + eviction interval
+            // TTL + 제거 간격을 지나서 시간 진행
             clock.advance(Duration.ofSeconds(FeedbackMetadataCaptureHook.TTL_SECONDS + 31))
 
-            // Trigger eviction by adding a new entry
+            // eviction by adding a new entry를 트리거합니다
             hook.afterAgentComplete(createContext(runId = "run-new"), createResponse())
 
             assertEquals(1, hook.cacheSize()) { "Should have evicted old entry, keeping only new" }
@@ -193,8 +193,8 @@ class FeedbackMetadataCaptureHookTest {
     inner class MaxEntriesEviction {
 
         @Test
-        fun `should not exceed max entries after eviction`() = runTest {
-            // Add 10,001 entries (advance clock 31s to trigger eviction)
+        fun `eviction 후 not exceed max entries해야 한다`() = runTest {
+            // 10,001 entries (advance clock 31s to trigger eviction)를 추가합니다
             for (i in 1..10_000) {
                 hook.afterAgentComplete(
                     createContext(runId = "run-$i"),

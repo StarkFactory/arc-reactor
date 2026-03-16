@@ -10,7 +10,7 @@ import kotlin.system.measureTimeMillis
 class ArcToolCallbackAdapterTest {
 
     @Test
-    fun `returns callback output when tool execution succeeds`() {
+    fun `tool execution succeeds일 때 callback output를 반환한다`() {
         val callback = object : ToolCallback {
             override val name: String = "echo"
             override val description: String = "echo tool"
@@ -26,7 +26,7 @@ class ArcToolCallbackAdapterTest {
     }
 
     @Test
-    fun `returns error string when callback exceeds configured timeout`() {
+    fun `callback exceeds configured timeout일 때 error string를 반환한다`() {
         val callback = object : ToolCallback {
             override val name: String = "slow_tool"
             override val description: String = "slow tool"
@@ -52,7 +52,7 @@ class ArcToolCallbackAdapterTest {
     }
 
     @Test
-    fun `returns error string when callback blocks thread with delay`() {
+    fun `callback blocks thread with delay일 때 error string를 반환한다`() {
         val callback = object : ToolCallback {
             override val name: String = "blocking_tool"
             override val description: String = "blocking tool"
@@ -80,7 +80,7 @@ class ArcToolCallbackAdapterTest {
     }
 
     @Test
-    fun `returns error string when callback throws non-cancellation exception`() {
+    fun `callback throws non-cancellation exception일 때 error string를 반환한다`() {
         val callback = object : ToolCallback {
             override val name: String = "failing_tool"
             override val description: String = "tool that throws"

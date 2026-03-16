@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test
 class AdminAuditStoreTest {
 
     @Test
-    fun `in-memory store filters by category and action`() {
+    fun `인메모리 store filters by category and action`() {
         val store = InMemoryAdminAuditStore()
         store.save(AdminAuditLog(category = "tool_policy", action = "UPDATE", actor = "admin-1"))
         store.save(AdminAuditLog(category = "mcp_server", action = "CREATE", actor = "admin-2"))

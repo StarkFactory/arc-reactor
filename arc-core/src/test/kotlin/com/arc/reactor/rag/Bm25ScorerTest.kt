@@ -19,20 +19,20 @@ class Bm25ScorerTest {
     inner class Indexing {
 
         @Test
-        fun `size should increase after indexing`() {
+        fun `size은(는) increase after indexing해야 한다`() {
             scorer.index("doc-1", "kotlin spring boot")
             assertEquals(1, scorer.size) { "Scorer should contain exactly 1 document after indexing one doc" }
         }
 
         @Test
-        fun `re-indexing same docId should not grow size`() {
+        fun `re-indexing same docId은(는) not grow size해야 한다`() {
             scorer.index("doc-1", "kotlin spring boot")
             scorer.index("doc-1", "kotlin updated content")
             assertEquals(1, scorer.size) { "Re-indexing the same docId should not duplicate the entry" }
         }
 
         @Test
-        fun `clear should remove all documents`() {
+        fun `clear은(는) remove all documents해야 한다`() {
             scorer.index("doc-1", "some content")
             scorer.index("doc-2", "more content")
             scorer.clear()
@@ -44,20 +44,20 @@ class Bm25ScorerTest {
     inner class Scoring {
 
         @Test
-        fun `score should return 0 for unknown document`() {
+        fun `score은(는) return 0 for unknown document해야 한다`() {
             val result = scorer.score("kotlin", "nonexistent-doc")
             assertEquals(0.0, result, 0.0001) { "Score for non-indexed docId should be 0.0" }
         }
 
         @Test
-        fun `score should be positive when query term matches document`() {
+        fun `score은(는) be positive when query term matches document해야 한다`() {
             scorer.index("doc-1", "kotlin is a modern programming language")
             val result = scorer.score("kotlin", "doc-1")
             assertTrue(result > 0.0) { "BM25 score should be positive when query term matches document" }
         }
 
         @Test
-        fun `document containing query term should score higher than one without`() {
+        fun `document containing query term은(는) score higher than one without해야 한다`() {
             scorer.index("doc-match", "ProjectApollo is the internal deployment system")
             scorer.index("doc-nomatch", "unrelated content about unrelated things")
             val matchScore = scorer.score("ProjectApollo", "doc-match")
@@ -68,7 +68,7 @@ class Bm25ScorerTest {
         }
 
         @Test
-        fun `document with higher term frequency should score higher`() {
+        fun `document with higher term frequency은(는) score higher해야 한다`() {
             scorer.index("doc-high", "TeamAlpha TeamAlpha TeamAlpha leads the backend guild")
             scorer.index("doc-low", "TeamAlpha is one of the teams")
             val highScore = scorer.score("TeamAlpha", "doc-high")
@@ -83,13 +83,13 @@ class Bm25ScorerTest {
     inner class Search {
 
         @Test
-        fun `search should return empty list when index is empty`() {
+        fun `search은(는) return empty list when index is empty해야 한다`() {
             val results = scorer.search("anything", 10)
             assertTrue(results.isEmpty()) { "Search on empty index should return empty list" }
         }
 
         @Test
-        fun `search results should be ordered by score descending`() {
+        fun `search results은(는) be ordered by score descending해야 한다`() {
             scorer.index("doc-1", "PlatformX PlatformX PlatformX service architecture")
             scorer.index("doc-2", "PlatformX handles requests")
             scorer.index("doc-3", "unrelated document about weather")
@@ -106,7 +106,7 @@ class Bm25ScorerTest {
         }
 
         @Test
-        fun `search should respect topK limit`() {
+        fun `search은(는) respect topK limit해야 한다`() {
             for (i in 1..20) {
                 scorer.index("doc-$i", "common keyword content repeated")
             }
@@ -115,7 +115,7 @@ class Bm25ScorerTest {
         }
 
         @Test
-        fun `proper noun team name should rank at top`() {
+        fun `proper noun team name은(는) rank at top해야 한다`() {
             scorer.index("doc-guardian", "Team Guardian owns the authentication service")
             scorer.index("doc-platform", "the platform team handles infrastructure deployments")
             scorer.index("doc-infra", "infrastructure includes databases and network config")
@@ -129,7 +129,7 @@ class Bm25ScorerTest {
         }
 
         @Test
-        fun `proper noun person name should be found precisely`() {
+        fun `proper noun person name은(는) be found precisely해야 한다`() {
             scorer.index("doc-john", "John Kim is the lead engineer on the Hermes project")
             scorer.index("doc-team", "the hermes project handles event streaming at scale")
             scorer.index("doc-other", "the platform engineering team works on tooling")
@@ -143,7 +143,7 @@ class Bm25ScorerTest {
         }
 
         @Test
-        fun `Korean proper noun should be found`() {
+        fun `Korean proper noun은(는) be found해야 한다`() {
             scorer.index("doc-kr-1", "플랫폼팀은 인프라를 담당합니다")
             scorer.index("doc-kr-2", "백엔드 서비스는 Spring Boot를 사용합니다")
 
@@ -160,7 +160,7 @@ class Bm25ScorerTest {
     inner class Normalization {
 
         @Test
-        fun `search should be case-insensitive`() {
+        fun `search은(는) be case-insensitive해야 한다`() {
             scorer.index("doc-1", "Alpha Bravo Charlie project")
 
             val upper = scorer.score("ALPHA", "doc-1")

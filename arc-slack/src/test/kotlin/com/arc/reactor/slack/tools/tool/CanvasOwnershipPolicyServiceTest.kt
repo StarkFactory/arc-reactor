@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 class CanvasOwnershipPolicyServiceTest {
 
     @Test
-    fun `allows only registered canvas when allowlist is enforced`() {
+    fun `allows only registered canvas when allowlist은(는) enforced이다`() {
         val service = InMemoryCanvasOwnershipPolicyService(
             CanvasToolsProperties(enabled = true, allowlistEnforced = true, maxOwnedCanvasIds = 10)
         )
@@ -21,7 +21,7 @@ class CanvasOwnershipPolicyServiceTest {
     }
 
     @Test
-    fun `allows any canvas when allowlist enforcement is disabled`() {
+    fun `allows any canvas when allowlist enforcement은(는) disabled이다`() {
         val service = InMemoryCanvasOwnershipPolicyService(
             CanvasToolsProperties(enabled = true, allowlistEnforced = false, maxOwnedCanvasIds = 10)
         )

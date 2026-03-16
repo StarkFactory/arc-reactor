@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test
 class WorkContextForcedToolPlannerTest {
 
     @Test
-    fun `should plan owner lookup from issue ownership prompt`() {
+    fun `plan owner lookup from issue ownership prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("PAY-123 이슈 기준으로 담당 서비스와 owner, 팀을 찾아줘.")
 
         requireNotNull(plan)
@@ -16,7 +16,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan item context from issue context prompt`() {
+    fun `plan item context from issue context prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("PAY-123 이슈 전체 맥락을 정리해줘. 관련 문서와 다음 액션까지 포함해줘.")
 
         requireNotNull(plan)
@@ -25,7 +25,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan service context from service digest prompt`() {
+    fun `plan service context from service digest prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("payments 서비스 기준으로 최근 Jira 이슈, 관련 문서, 열린 PR까지 한 번에 요약해줘.")
 
         requireNotNull(plan)
@@ -34,14 +34,14 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should ignore unrelated prompts`() {
+    fun `ignore unrelated prompts해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("이번 주 운영 리포트를 보여줘.")
 
         assertNull(plan)
     }
 
     @Test
-    fun `should plan release readiness pack from project and repo prompt`() {
+    fun `plan release readiness pack from project and repo prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "DEV 프로젝트와 jarvis-project/dev 기준으로 release readiness pack을 출처와 함께 만들어줘."
         )
@@ -60,7 +60,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan confluence discovery from quoted keyword prompt`() {
+    fun `plan confluence discovery from quoted keyword prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "Confluence에서 'weekly' 키워드로 검색하고 어떤 문서가 있는지 링크와 함께 알려줘."
         )
@@ -72,7 +72,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan quoted document discovery without explicit confluence word`() {
+    fun `plan quoted document discovery without explicit confluence word해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "'api' 관련 문서가 있으면 핵심만 요약하고, 없으면 없다고 알려줘."
         )
@@ -84,7 +84,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan jira blocker digest from project prompt`() {
+    fun `plan jira blocker digest from project prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("BACKEND 프로젝트의 blocker 이슈를 소스와 함께 정리해줘.")
 
         requireNotNull(plan)
@@ -94,7 +94,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan jira daily briefing from project prompt`() {
+    fun `plan jira daily briefing from project prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "BACKEND 프로젝트 기준으로 오늘의 Jira 브리핑을 만들어줘. 반드시 출처를 붙여줘."
         )
@@ -107,7 +107,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan morning briefing from project shorthand status prompt`() {
+    fun `plan morning briefing from project shorthand status prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("오늘 DEV 상태")
 
         requireNotNull(plan)
@@ -117,7 +117,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan standup from project shorthand standup prompt`() {
+    fun `plan standup from project shorthand standup prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("OPS 팀 standup 핵심만 정리해줘")
 
         requireNotNull(plan)
@@ -126,7 +126,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan blocker digest from project shorthand blocker prompt`() {
+    fun `plan blocker digest from project shorthand blocker prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("OPS 이번 주 blocker")
 
         requireNotNull(plan)
@@ -135,7 +135,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan jira daily briefing from work briefing phrasing`() {
+    fun `plan jira daily briefing from work briefing phrasing해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "DEV 프로젝트 기준으로 오늘 아침 업무 브리핑을 출처와 함께 만들어줘."
         )
@@ -146,7 +146,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan jira project list prompt`() {
+    fun `plan jira project list prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내가 접근 가능한 Jira 프로젝트 목록을 보여줘. 출처를 붙여줘.")
 
         requireNotNull(plan)
@@ -155,7 +155,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan jira recent issue summary prompt`() {
+    fun `plan jira recent issue summary prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("BACKEND 프로젝트에서 최근 Jira 이슈를 소스와 함께 요약해줘.")
 
         requireNotNull(plan)
@@ -165,7 +165,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan jira unassigned issue prompt`() {
+    fun `plan jira unassigned issue prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("DEV 프로젝트에서 unassigned 이슈를 찾아 소스와 함께 보여줘.")
 
         requireNotNull(plan)
@@ -175,7 +175,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan jira release search prompt`() {
+    fun `plan jira release search prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "BACKEND 프로젝트에서 release 관련 Jira 이슈를 검색해서 소스와 함께 보여줘."
         )
@@ -188,7 +188,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan jira generic keyword search prompt`() {
+    fun `plan jira generic keyword search prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("Jira에서 API 키워드로 검색하고 소스와 함께 요약해줘.")
 
         requireNotNull(plan)
@@ -198,7 +198,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should prefer jira unassigned search over owner lookup when assignee is missing`() {
+    fun `assignee is missing일 때 prefer jira unassigned search over owner lookup해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "DEV 프로젝트에서 담당자가 없는 이슈를 출처와 함께 알려줘."
         )
@@ -209,7 +209,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan jira my open issues prompt`() {
+    fun `plan jira my open issues prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내가 담당한 Jira 오픈 이슈 목록을 출처와 함께 보여줘.")
 
         requireNotNull(plan)
@@ -218,7 +218,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan hybrid blocker and review prompt via release risk digest`() {
+    fun `plan hybrid blocker and review prompt via release risk digest해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "DEV 프로젝트의 blocker와 리뷰 대기열을 함께 보고 오늘 우선순위를 출처와 함께 정리해줘."
         )
@@ -233,7 +233,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan cross source doc and issue prompt via morning briefing`() {
+    fun `plan cross source doc and issue prompt via morning briefing해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "DEV 프로젝트의 지식 문서와 운영 이슈를 같이 보고 오늘 핵심만 정리해줘."
         )
@@ -245,7 +245,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan standup prompt from jira and confluence signals`() {
+    fun `plan standup prompt from jira and confluence signals해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "오늘 standup용으로 Jira 진행 상황과 Confluence 문서 변경을 같이 요약해줘."
         )
@@ -257,7 +257,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should not let owner phrasing bypass confluence discovery`() {
+    fun `not let owner phrasing bypass confluence discovery해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "Confluence에서 'owner' 키워드로 검색하고 관련 문서를 링크와 함께 정리해줘."
         )
@@ -268,7 +268,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan confluence space list prompt`() {
+    fun `plan confluence space list prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("접근 가능한 Confluence 스페이스 목록을 출처와 함께 보여줘.")
 
         requireNotNull(plan)
@@ -277,7 +277,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan delayed team status prompt via morning briefing`() {
+    fun `plan delayed team status prompt via morning briefing해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("DEV 팀에서 오늘 늦어지고 있는 작업이 있는지 출처와 함께 알려줘.")
 
         requireNotNull(plan)
@@ -286,7 +286,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personalized focus phrasing without explicit tool words`() {
+    fun `plan personalized focus phrasing without explicit tool words해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내가 오늘 집중해야 할 작업 3개만 뽑아줘.")
 
         requireNotNull(plan)
@@ -295,7 +295,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personalized document phrasing`() {
+    fun `plan personalized document phrasing해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내 이름으로 검색되는 회의록이 있으면 알려줘.")
 
         requireNotNull(plan)
@@ -304,7 +304,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should not treat sa-nae policy prompt as personalized`() {
+    fun `not treat sa-nae policy prompt as personalized해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "'회의록' 관련 사내 규정이 있으면 Confluence 기준으로 요약해줘. 없으면 없다고 알려줘."
         )
@@ -315,7 +315,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personalized blocker prompt`() {
+    fun `plan personalized blocker prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내가 이번 주에 제일 먼저 처리해야 할 Jira blocker를 출처와 함께 알려줘.")
 
         requireNotNull(plan)
@@ -324,7 +324,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personalized overdue prompt`() {
+    fun `plan personalized overdue prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내가 맡은 이슈 중 overdue가 있으면 알려줘.")
 
         requireNotNull(plan)
@@ -334,7 +334,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personal authored pull request prompt`() {
+    fun `plan personal authored pull request prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내가 리뷰를 기다리게 만든 PR이 있으면 출처와 함께 알려줘.")
 
         requireNotNull(plan)
@@ -343,7 +343,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personalized release related jira prompt`() {
+    fun `plan personalized release related jira prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내 Jira 작업 중 release 관련 것만 추려줘.")
 
         requireNotNull(plan)
@@ -352,7 +352,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personalized api related jira prompt`() {
+    fun `plan personalized api related jira prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내가 오늘 집중해야 할 API 관련 작업만 출처와 함께 정리해줘.")
 
         requireNotNull(plan)
@@ -361,7 +361,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personalized morning briefing prompt to focus plan`() {
+    fun `plan personalized morning briefing prompt to focus plan해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내 기준으로 오늘 morning briefing을 개인화해서 만들어줘.")
 
         requireNotNull(plan)
@@ -370,7 +370,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan ownership discovery prompt via confluence keyword search`() {
+    fun `plan ownership discovery prompt via confluence keyword search해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("auth API를 누가 관리하는지 Confluence나 Jira 기준으로 알려줘.")
 
         requireNotNull(plan)
@@ -379,7 +379,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan ambiguous service ownership prompt via owner discovery search`() {
+    fun `plan ambiguous service ownership prompt via owner discovery search해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("이 서비스 누가 개발했는지 알 수 있는 문서나 이슈가 있으면 찾아줘.")
 
         requireNotNull(plan)
@@ -388,7 +388,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan repository ownership prompt using repository slug`() {
+    fun `plan repository ownership prompt using repository slug해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("어떤 팀이 dev 저장소를 주로 관리하는지 PR과 문서 기준으로 알려줘.")
 
         requireNotNull(plan)
@@ -398,7 +398,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personal review queue and due soon prompt to focus plan`() {
+    fun `plan personal review queue and due soon prompt to focus plan해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내 기준으로 리뷰 대기열과 Jira due soon을 같이 정리해줘.")
 
         requireNotNull(plan)
@@ -407,7 +407,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan project and repo release risk digest without explicit jira bitbucket words`() {
+    fun `plan project and repo release risk digest without explicit jira bitbucket words해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "DEV 프로젝트와 jarvis-project/dev 기준으로 release risk digest를 출처와 함께 정리해줘."
         )
@@ -420,7 +420,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should extract project key from issue phrasing for hybrid prompts`() {
+    fun `hybrid prompts에 대해 extract project key from issue phrasing해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "개발팀 Home 문서와 최근 DEV 이슈를 같이 보고 신규 입사자가 알아야 할 핵심을 정리해줘."
         )
@@ -431,7 +431,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personal focus prompt with defaults`() {
+    fun `defaults로 plan personal focus prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("오늘 개인 focus plan을 근거 정보와 함께 만들어줘.")
 
         requireNotNull(plan)
@@ -440,7 +440,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personal learning prompt with defaults`() {
+    fun `defaults로 plan personal learning prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("오늘 개인 learning digest를 근거 정보와 함께 만들어줘.")
 
         requireNotNull(plan)
@@ -451,7 +451,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personal interrupt prompt with defaults`() {
+    fun `defaults로 plan personal interrupt prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("오늘 개인 interrupt guard plan을 근거 정보와 함께 만들어줘.")
 
         requireNotNull(plan)
@@ -461,7 +461,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personal wrapup prompt with defaults`() {
+    fun `defaults로 plan personal wrapup prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("오늘 개인 end of day wrapup 초안을 근거 정보와 함께 만들어줘.")
 
         requireNotNull(plan)
@@ -471,7 +471,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan bitbucket review risk prompt`() {
+    fun `plan bitbucket review risk prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("Bitbucket에서 최근 코드 리뷰 리스크를 출처와 함께 요약해줘.")
 
         requireNotNull(plan)
@@ -480,7 +480,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan bitbucket my review prompt`() {
+    fun `plan bitbucket my review prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("Bitbucket에서 내가 검토해야 할 PR이 있는지 출처와 함께 알려줘.")
 
         requireNotNull(plan)
@@ -489,7 +489,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan personal review prompt without explicit bitbucket word`() {
+    fun `plan personal review prompt without explicit bitbucket word해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan("내가 검토해야 할 PR이 있는지 출처와 함께 알려줘.")
 
         requireNotNull(plan)
@@ -498,7 +498,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan repository qualified bitbucket open prs without explicit bitbucket word`() {
+    fun `plan repository qualified bitbucket open prs without explicit bitbucket word해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "jarvis-project/dev 저장소의 열린 PR 목록을 출처와 함께 보여줘."
         )
@@ -511,7 +511,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan repository qualified bitbucket stale prs without explicit bitbucket word`() {
+    fun `plan repository qualified bitbucket stale prs without explicit bitbucket word해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "jarvis-project/dev 저장소의 stale PR을 출처와 함께 점검해줘."
         )
@@ -524,7 +524,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan repository qualified bitbucket review queue without explicit bitbucket word`() {
+    fun `plan repository qualified bitbucket review queue without explicit bitbucket word해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "jarvis-project/dev 저장소의 리뷰 대기열을 출처와 함께 정리해줘."
         )
@@ -536,7 +536,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan repository qualified bitbucket review-needed prompt`() {
+    fun `plan repository qualified bitbucket review-needed prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "jarvis-project/dev 저장소에서 지금 리뷰가 필요한 변경을 출처와 함께 알려줘."
         )
@@ -548,7 +548,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan repository qualified bitbucket review sla alerts without explicit bitbucket word`() {
+    fun `plan repository qualified bitbucket review sla alerts without explicit bitbucket word해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "jarvis-project/jarvis 저장소의 리뷰 SLA 경고를 출처와 함께 보여줘."
         )
@@ -561,7 +561,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan swagger url prompt by loading the spec first`() {
+    fun `plan swagger url prompt by loading the spec first해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "https://petstore3.swagger.io/api/v3/openapi.json 스펙을 로드한 뒤 프론트엔드가 자주 쓸 만한 endpoint를 추려줘."
         )
@@ -573,7 +573,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan loaded swagger exploration prompt via spec list`() {
+    fun `plan loaded swagger exploration prompt via spec list해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "로컬에 로드된 OpenAPI 스펙에서 order endpoint를 찾아 출처와 함께 설명해줘."
         )
@@ -584,7 +584,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan named swagger summary prompt via spec summary`() {
+    fun `plan named swagger summary prompt via spec summary해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "petstore-public Swagger spec summary. Tell me total endpoints, schema count, security schemes, and top tags."
         )
@@ -596,7 +596,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan jira and confluence weekly team status prompt`() {
+    fun `plan jira and confluence weekly team status prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "이번 주 DEV 팀 상태를 Jira와 Confluence 기준으로 출처와 함께 요약해줘."
         )
@@ -611,7 +611,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan jira and bitbucket release risk prompt`() {
+    fun `plan jira and bitbucket release risk prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "지금 DEV 릴리즈에 위험 신호가 있는지 Jira와 Bitbucket 기준으로 출처와 함께 알려줘."
         )
@@ -626,7 +626,7 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `should plan swagger wrong endpoint prompt`() {
+    fun `plan swagger wrong endpoint prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
             "로드된 Petstore 스펙에서 잘못된 endpoint를 찾으려 하면 어떻게 보이는지 보여줘."
         )

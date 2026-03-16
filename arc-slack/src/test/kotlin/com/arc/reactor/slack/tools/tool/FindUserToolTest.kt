@@ -15,7 +15,7 @@ class FindUserToolTest {
     private val tool = FindUserTool(findUserUseCase)
 
     @Test
-    fun `finds users by partial name`() {
+    fun `users by partial name를 찾는다`() {
         every { findUserUseCase.execute("john", false, 10) } returns
             FindUsersResult(
                 ok = true,
@@ -32,21 +32,21 @@ class FindUserToolTest {
     }
 
     @Test
-    fun `returns error for blank query`() {
+    fun `blank query에 대해 error를 반환한다`() {
         val result = tool.find_user(" ", null, null)
         result shouldContain "query is required"
         verify(exactly = 0) { findUserUseCase.execute(any(), any(), any()) }
     }
 
     @Test
-    fun `returns error for invalid limit`() {
+    fun `invalid limit에 대해 error를 반환한다`() {
         val result = tool.find_user("john", null, 0)
         result shouldContain "limit must be between 1 and 50"
         verify(exactly = 0) { findUserUseCase.execute(any(), any(), any()) }
     }
 
     @Test
-    fun `trims query before delegating`() {
+    fun `query before delegating를 트리밍한다`() {
         every { findUserUseCase.execute("john", true, 5) } returns
             FindUsersResult(ok = true, query = "john", exactMatch = true)
 

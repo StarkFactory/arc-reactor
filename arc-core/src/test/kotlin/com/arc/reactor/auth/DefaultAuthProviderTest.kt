@@ -33,7 +33,7 @@ class DefaultAuthProviderTest {
     inner class Authenticate {
 
         @Test
-        fun `should return user for correct credentials`() {
+        fun `correct credentials에 대해 return user해야 한다`() {
             val result = authProvider.authenticate("tony@stark.com", rawPassword)
 
             assertNotNull(result) { "authenticate should return user for correct credentials" }
@@ -43,14 +43,14 @@ class DefaultAuthProviderTest {
         }
 
         @Test
-        fun `should return null for wrong password`() {
+        fun `wrong password에 대해 return null해야 한다`() {
             val result = authProvider.authenticate("tony@stark.com", "wrong-password")
 
             assertNull(result) { "authenticate should return null for wrong password" }
         }
 
         @Test
-        fun `should return null for unknown email`() {
+        fun `unknown email에 대해 return null해야 한다`() {
             val result = authProvider.authenticate("unknown@test.com", rawPassword)
 
             assertNull(result) { "authenticate should return null for unknown email" }
@@ -61,7 +61,7 @@ class DefaultAuthProviderTest {
     inner class GetUserById {
 
         @Test
-        fun `should return user by ID`() {
+        fun `return user by ID해야 한다`() {
             val result = authProvider.getUserById("user-1")
 
             assertNotNull(result) { "getUserById should return user for existing ID" }

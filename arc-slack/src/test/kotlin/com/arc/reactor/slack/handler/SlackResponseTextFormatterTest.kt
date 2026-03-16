@@ -10,14 +10,14 @@ import org.junit.jupiter.api.Test
 class SlackResponseTextFormatterTest {
 
     @Test
-    fun `successful result returns content as-is`() {
+    fun `successful은(는) result returns content as-is`() {
         val result = AgentResult(success = true, content = "Actionable answer")
 
         SlackResponseTextFormatter.fromResult(result, "anything") shouldBe "Actionable answer"
     }
 
     @Test
-    fun `blank successful content returns fallback placeholder`() {
+    fun `빈 successful content returns fallback placeholder`() {
         val result = AgentResult(success = true, content = "  ")
 
         SlackResponseTextFormatter.fromResult(result, "anything")
@@ -25,7 +25,7 @@ class SlackResponseTextFormatterTest {
     }
 
     @Test
-    fun `failure result returns warning with reason`() {
+    fun `failure은(는) result returns warning with reason`() {
         val result = AgentResult(
             success = false,
             content = null,
@@ -38,7 +38,7 @@ class SlackResponseTextFormatterTest {
     }
 
     @Test
-    fun `generic refusal for task planning prompt is rewritten to best effort answer`() {
+    fun `generic refusal for task planning prompt은(는) rewritten to best effort answer이다`() {
         val result = AgentResult(success = true, content = "요청하신 작업을 수행할 수 없습니다")
 
         val text = SlackResponseTextFormatter.fromResult(result, "오늘 할 일 우선순위 정리해줘")
@@ -49,7 +49,7 @@ class SlackResponseTextFormatterTest {
     }
 
     @Test
-    fun `generic refusal for non planning prompt is rewritten to generic action checklist`() {
+    fun `generic refusal for non planning prompt은(는) rewritten to generic action checklist이다`() {
         val result = AgentResult(success = true, content = "I cannot fulfill this request.")
 
         val text = SlackResponseTextFormatter.fromResult(result, "brainstorm facilitation tips")

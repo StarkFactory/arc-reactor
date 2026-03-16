@@ -18,7 +18,7 @@ import kotlin.io.path.writeText
 class FlywayUpgradePathIntegrationTest {
 
     @Test
-    fun `should fail upgrade when an applied migration file is modified`() {
+    fun `an applied migration file is modified일 때 fail upgrade해야 한다`() {
         val migrationsDir = Files.createTempDirectory("flyway-upgrade-immutability")
         try {
             val v1 = migrationsDir.resolve("V1__create_sample.sql")
@@ -27,7 +27,7 @@ class FlywayUpgradePathIntegrationTest {
             val dataSource = newH2DataSource()
             newFlyway(dataSource, migrationsDir).migrate()
 
-            // Simulate illegal history rewrite: edited V1 after it was already applied.
+            // illegal history rewrite: edited V1 after it was already applied.를 시뮬레이션합니다
             v1.writeText("CREATE TABLE sample (id BIGINT PRIMARY KEY);")
 
             val error = assertThrows(
@@ -45,7 +45,7 @@ class FlywayUpgradePathIntegrationTest {
     }
 
     @Test
-    fun `should allow additive upgrade with a new migration version`() {
+    fun `a new migration version로 allow additive upgrade해야 한다`() {
         val migrationsDir = Files.createTempDirectory("flyway-upgrade-additive")
         try {
             val v1 = migrationsDir.resolve("V1__create_sample.sql")

@@ -83,9 +83,9 @@ class IntentIntegrationTest {
     inner class PureRulePath {
 
         @Test
-        fun `single-keyword intent resolves via rule only — LLM never called`() = runTest {
+        fun `single-keyword intent은(는) via rule only — LLM never called를 해결한다`() = runTest {
             // "start_command" has 1 keyword "/start" -> input "/start" -> 1/1 = 1.0 confidence
-            // 1.0 >= 0.8 threshold -> rule accepted, LLM skipped
+            // 1.0 >= 0.8 threshold → rule accepted, LLM skipped
             val resolved = resolver.resolve("/start")
 
             assertNotNull(resolved) { "Should resolve via rule" }
@@ -95,7 +95,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `rule-resolved profile is applied to AgentCommand`() = runTest {
+        fun `rule-resolved profile은(는) applied to AgentCommand이다`() = runTest {
             val command = AgentCommand(
                 systemPrompt = "original",
                 userPrompt = "/start",
@@ -115,7 +115,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `all-keywords match gives highest rule confidence`() = runTest {
+        fun `all-keywords match은(는) highest rule confidence를 제공한다`() = runTest {
             // "환불 반품" matches both refund keywords -> 2/2 = 1.0 confidence -> rule accepted
             val resolved = resolver.resolve("환불 반품 처리")
 
@@ -130,7 +130,7 @@ class IntentIntegrationTest {
     inner class RuleToLlmFallback {
 
         @Test
-        fun `partial keyword match falls through to LLM`() = runTest {
+        fun `partial은(는) keyword match falls through to LLM`() = runTest {
             // "안녕하세요" matches "안녕" (1/3 greeting keywords) -> 0.33 < 0.8 -> falls to LLM
             mockLlmResponse("""{"intents":[{"name":"greeting","confidence":0.95}]}""")
 
@@ -142,7 +142,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `LLM fallback applies correct profile`() = runTest {
+        fun `LLM fallback은(는) correct profile를 적용한다`() = runTest {
             mockLlmResponse("""{"intents":[{"name":"greeting","confidence":0.92}]}""")
 
             val command = AgentCommand(
@@ -165,7 +165,7 @@ class IntentIntegrationTest {
     inner class PureLlmPath {
 
         @Test
-        fun `no keyword match at all falls through to LLM`() = runTest {
+        fun `없는 keyword match at all falls through to LLM`() = runTest {
             mockLlmResponse("""{"intents":[{"name":"refund","confidence":0.88}]}""")
 
             val resolved = resolver.resolve("지난번에 산 거 돈 돌려받을 수 있나요?")
@@ -176,7 +176,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `LLM refund intent applies system prompt override`() = runTest {
+        fun `LLM refund intent은(는) system prompt override를 적용한다`() = runTest {
             mockLlmResponse("""{"intents":[{"name":"refund","confidence":0.92}]}""")
 
             val command = AgentCommand(systemPrompt = "default", userPrompt = "돈 돌려줘")
@@ -194,7 +194,7 @@ class IntentIntegrationTest {
     inner class MultiIntentPath {
 
         @Test
-        fun `multi-intent LLM response merges tools from both intents`() = runTest {
+        fun `multi-intent LLM response은(는) tools from both intents를 병합한다`() = runTest {
             mockLlmResponse(
                 """{"intents":[{"name":"refund","confidence":0.85},{"name":"order_inquiry","confidence":0.72}]}"""
             )
@@ -211,7 +211,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `secondary intent below threshold is not merged`() = runTest {
+        fun `secondary intent below threshold은(는) not merged이다`() = runTest {
             mockLlmResponse(
                 """{"intents":[{"name":"refund","confidence":0.85},{"name":"order_inquiry","confidence":0.4}]}"""
             )
@@ -229,17 +229,17 @@ class IntentIntegrationTest {
     inner class ErrorResilience {
 
         @Test
-        fun `LLM failure with low rule confidence returns null`() = runTest {
+        fun `low rule confidence를 가진 LLM failure은(는) null를 반환한다`() = runTest {
             every { requestSpec.call() } throws RuntimeException("LLM unavailable")
 
             // "주문" matches 1/3 order keywords -> 0.33 -> falls to LLM -> LLM fails -> falls back to rule (0.33)
-            // 0.33 < 0.6 resolver threshold -> null
+            // 0.33 < 0.6 resolver threshold → null
             val resolved = resolver.resolve("주문 관련 문의입니다")
             assertNull(resolved) { "Low-confidence rule fallback should not meet resolver threshold" }
         }
 
         @Test
-        fun `LLM failure with high rule confidence still resolves`() = runTest {
+        fun `높은 규칙 신뢰도로 LLM 실패 시에도 해결한다`() = runTest {
             every { requestSpec.call() } throws RuntimeException("LLM unavailable")
 
             // "/start" matches 1/1 -> 1.0 -> rule accepted directly (never reaches LLM)
@@ -249,7 +249,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `unknown LLM response returns null`() = runTest {
+        fun `알 수 없는 LLM response returns null`() = runTest {
             mockLlmResponse("""{"intents":[{"name":"unknown","confidence":0.5}]}""")
 
             val resolved = resolver.resolve("asdfghjkl")
@@ -257,7 +257,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `low confidence LLM result returns null`() = runTest {
+        fun `low은(는) confidence LLM result returns null`() = runTest {
             mockLlmResponse("""{"intents":[{"name":"refund","confidence":0.4}]}""")
 
             val resolved = resolver.resolve("maybe refund?")
@@ -265,7 +265,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `disabled intent is invisible to entire pipeline`() = runTest {
+        fun `disabled intent은(는) invisible to entire pipeline이다`() = runTest {
             registry.save(
                 IntentDefinition(
                     name = "disabled_intent",
@@ -281,7 +281,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `empty registry returns null without error`() = runTest {
+        fun `비어있는 registry returns null without error`() = runTest {
             val emptyRegistry = InMemoryIntentRegistry()
             val emptyResolver = IntentResolver(
                 classifier = CompositeIntentClassifier(
@@ -302,7 +302,7 @@ class IntentIntegrationTest {
     inner class ConversationContext {
 
         @Test
-        fun `classification context flows through the pipeline`() = runTest {
+        fun `classification은(는) context flows through the pipeline`() = runTest {
             mockLlmResponse("""{"intents":[{"name":"refund","confidence":0.9}]}""")
 
             val context = ClassificationContext(
@@ -323,7 +323,7 @@ class IntentIntegrationTest {
     inner class FullPipelineEndToEnd {
 
         @Test
-        fun `complete flow — rule path — input to final AgentCommand`() = runTest {
+        fun `complete은(는) flow — rule path — input to final AgentCommand`() = runTest {
             val original = AgentCommand(
                 systemPrompt = "You are a helpful assistant",
                 userPrompt = "/start",
@@ -343,7 +343,7 @@ class IntentIntegrationTest {
             assertEquals("gemini", final.model) { "Model overridden to gemini" }
             assertEquals(0, final.maxToolCalls) { "MaxToolCalls overridden to 0" }
 
-            // Preserved values
+            // 보존된 values
             assertEquals(0.7, final.temperature) { "Temperature preserved" }
             assertEquals("/start", final.userPrompt) { "UserPrompt never changes" }
             assertEquals("user-456", final.userId) { "UserId preserved" }
@@ -357,7 +357,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `complete flow — LLM path — input to final AgentCommand`() = runTest {
+        fun `complete은(는) flow — LLM path — input to final AgentCommand`() = runTest {
             mockLlmResponse("""{"intents":[{"name":"refund","confidence":0.91}]}""")
 
             val original = AgentCommand(
@@ -378,7 +378,7 @@ class IntentIntegrationTest {
             }
             assertEquals(5, final.maxToolCalls) { "MaxToolCalls overridden to 5" }
 
-            // Preserved values
+            // 보존된 values
             assertEquals("openai", final.model) { "Model preserved (refund profile has null model)" }
             assertEquals(0.5, final.temperature) { "Temperature preserved" }
 
@@ -394,7 +394,7 @@ class IntentIntegrationTest {
     inner class EnhancedRuleFeatures {
 
         @Test
-        fun `synonym match resolves via rule path`() = runTest {
+        fun `synonym은(는) match resolves via rule path`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund_enhanced",
                 description = "Refund with synonyms",
@@ -410,7 +410,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `negative keyword causes rule failure and LLM fallback`() = runTest {
+        fun `음수 keyword causes rule failure and LLM fallback`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund_neg",
                 description = "Refund with negative keywords",
@@ -430,7 +430,7 @@ class IntentIntegrationTest {
         }
 
         @Test
-        fun `weighted keyword changes winner intent`() = runTest {
+        fun `weighted은(는) keyword changes winner intent`() = runTest {
             registry.save(IntentDefinition(
                 name = "weighted_refund",
                 description = "Refund with weighted keywords",
@@ -449,7 +449,7 @@ class IntentIntegrationTest {
     }
 
     private fun registerIntents() {
-        // Single keyword -> 1/1 = 1.0 confidence -> always rule-accepted
+        // Single keyword → 1/1 = 1.0 confidence -> always rule-accepted
         registry.save(
             IntentDefinition(
                 name = "start_command",

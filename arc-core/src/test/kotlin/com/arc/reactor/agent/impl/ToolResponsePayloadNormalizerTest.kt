@@ -11,19 +11,19 @@ class ToolResponsePayloadNormalizerTest {
     inner class ValidJson {
 
         @Test
-        fun `json object passes through unchanged`() {
+        fun `JSON object은(는) unchanged를 통과시킨다`() {
             val json = """{"key":"value"}"""
             ToolResponsePayloadNormalizer.normalizeForStrictJsonProvider(json) shouldBe json
         }
 
         @Test
-        fun `json array passes through unchanged`() {
+        fun `JSON array은(는) unchanged를 통과시킨다`() {
             val json = """[1,2,3]"""
             ToolResponsePayloadNormalizer.normalizeForStrictJsonProvider(json) shouldBe json
         }
 
         @Test
-        fun `json with whitespace padding passes through trimmed`() {
+        fun `JSON with whitespace padding은(는) trimmed를 통과시킨다`() {
             val json = """  {"key":"value"}  """
             ToolResponsePayloadNormalizer.normalizeForStrictJsonProvider(json) shouldBe """{"key":"value"}"""
         }
@@ -33,33 +33,33 @@ class ToolResponsePayloadNormalizerTest {
     inner class NonJsonWrapping {
 
         @Test
-        fun `plain text gets wrapped in result object`() {
+        fun `plain은(는) text gets wrapped in result object`() {
             val result = ToolResponsePayloadNormalizer.normalizeForStrictJsonProvider("hello world")
             result shouldContain "\"result\""
             result shouldContain "hello world"
         }
 
         @Test
-        fun `empty string gets wrapped in result object`() {
+        fun `비어있는 string gets wrapped in result object`() {
             val result = ToolResponsePayloadNormalizer.normalizeForStrictJsonProvider("")
             result shouldContain "\"result\""
         }
 
         @Test
-        fun `whitespace-only string gets wrapped`() {
+        fun `공백만 있는 string gets wrapped`() {
             val result = ToolResponsePayloadNormalizer.normalizeForStrictJsonProvider("   ")
             result shouldContain "\"result\""
         }
 
         @Test
-        fun `malformed json gets wrapped`() {
+        fun `malformed은(는) json gets wrapped`() {
             val result = ToolResponsePayloadNormalizer.normalizeForStrictJsonProvider("{broken")
             result shouldContain "\"result\""
             result shouldContain "{broken"
         }
 
         @Test
-        fun `trailing content after json gets wrapped`() {
+        fun `json gets wrapped후 trailing content`() {
             val result = ToolResponsePayloadNormalizer.normalizeForStrictJsonProvider("""{"a":1} extra""")
             result shouldContain "\"result\""
         }

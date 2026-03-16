@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test
 class StreamingFlowLifecycleCoordinatorTest {
 
     @Test
-    fun `should finalize streaming and record success metrics`() = runBlocking {
+    fun `finalize streaming and record success metrics해야 한다`() = runBlocking {
         val completionFinalizer = mockk<StreamingCompletionFinalizer>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery {
@@ -74,7 +74,7 @@ class StreamingFlowLifecycleCoordinatorTest {
     }
 
     @Test
-    fun `should record failure metrics with fallback UNKNOWN code`() = runBlocking {
+    fun `fallback UNKNOWN code로 record failure metrics해야 한다`() = runBlocking {
         val completionFinalizer = mockk<StreamingCompletionFinalizer>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery {
@@ -114,7 +114,7 @@ class StreamingFlowLifecycleCoordinatorTest {
     }
 
     @Test
-    fun `should close run context even when completion finalizer throws`() = runBlocking {
+    fun `completion finalizer throws일 때 close run context even해야 한다`() = runBlocking {
         val completionFinalizer = mockk<StreamingCompletionFinalizer>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery {

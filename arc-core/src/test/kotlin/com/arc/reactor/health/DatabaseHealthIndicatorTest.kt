@@ -15,7 +15,7 @@ class DatabaseHealthIndicatorTest {
     private val indicator = DatabaseHealthIndicator(jdbcTemplate)
 
     @Test
-    fun `health is UP when database query succeeds`() {
+    fun `database query succeeds일 때 health은(는) UP이다`() {
         every { jdbcTemplate.queryForObject("SELECT 1", Int::class.java) } returns 1
 
         val health = indicator.health()
@@ -25,7 +25,7 @@ class DatabaseHealthIndicatorTest {
     }
 
     @Test
-    fun `health is DOWN when database query fails`() {
+    fun `database query fails일 때 health은(는) DOWN이다`() {
         every {
             jdbcTemplate.queryForObject("SELECT 1", Int::class.java)
         } throws RuntimeException("Connection refused")
@@ -36,7 +36,7 @@ class DatabaseHealthIndicatorTest {
     }
 
     @Test
-    fun `health includes non-negative latency on success`() {
+    fun `헬스 includes non-negative latency on success`() {
         every { jdbcTemplate.queryForObject("SELECT 1", Int::class.java) } returns 1
 
         val health = indicator.health()

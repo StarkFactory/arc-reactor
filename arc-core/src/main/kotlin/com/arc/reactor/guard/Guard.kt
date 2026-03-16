@@ -57,7 +57,7 @@ interface RequestGuard {
  * @Component
  * class CustomBusinessRuleStage : GuardStage {
  *     override val stageName = "BusinessRule"
- *     override val order = 35  // After InjectionDetection (30)
+ *     override val order = 35  // InjectionDetection (30) 이후
  *
  *     override suspend fun check(command: GuardCommand): GuardResult {
  *         if (!isAllowedByBusinessRules(command.text)) {

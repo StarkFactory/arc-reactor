@@ -20,11 +20,11 @@ import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 
 /**
- * P0 Critical Fix Tests:
- * 1. ToolCallback.inputSchema passed to LLM
- * 2. LlmProperties (temperature, maxTokens) applied
- * 3. Manual tool calling loop with maxToolCalls enforcement
- * 4. BeforeToolCallHook invocation
+ * P0 핵심 수정 테스트:
+ * 1. ToolCallback.inputSchema가 LLM에 전달됨
+ * 2. LlmProperties (temperature, maxTokens) 적용됨
+ * 3. maxToolCalls 적용이 포함된 수동 도구 호출 루프
+ * 4. BeforeToolCallHook 호출
  */
 class P0CriticalTest {
 
@@ -38,13 +38,13 @@ class P0CriticalTest {
     }
 
     // =========================================================================
-    // P0-1: Tool input schema
+    // P0-1: 도구 입력 스키마
     // =========================================================================
     @Nested
     inner class ToolInputSchema {
 
         @Test
-        fun `ToolCallback with custom inputSchema should register schema with ChatClient`() = runBlocking {
+        fun `커스텀 inputSchema를 가진 ToolCallback이 ChatClient에 스키마를 등록해야 한다`() = runBlocking {
             val customSchema = """{"type":"object","properties":{"location":{"type":"string"}},"required":["location"]}"""
             val callback = object : ToolCallback {
                 override val name = "get_weather"
@@ -68,20 +68,20 @@ class P0CriticalTest {
         }
 
         @Test
-        fun `ToolCallback without overridden inputSchema defaults to empty object schema`() {
+        fun `오버라이드되지 않은 inputSchema를 가진 ToolCallback이 빈 객체 스키마를 기본값으로 가져야 한다`() {
             val callback = AgentTestFixture.toolCallback("simple_tool", "Simple")
             assertEquals("""{"type":"object","properties":{}}""", callback.inputSchema)
         }
     }
 
     // =========================================================================
-    // P0-2: LlmProperties wiring
+    // P0-2: LlmProperties 연결
     // =========================================================================
     @Nested
     inner class LlmPropertiesWiring {
 
         @Test
-        fun `should pass temperature from properties to ChatOptions`() = runBlocking {
+        fun `properties의 temperature를 ChatOptions에 전달해야 한다`() = runBlocking {
             val optionsSlot = slot<ChatOptions>()
             every { fixture.requestSpec.options(capture(optionsSlot)) } returns fixture.requestSpec
 
@@ -95,7 +95,7 @@ class P0CriticalTest {
         }
 
         @Test
-        fun `should pass maxOutputTokens from properties to ChatOptions`() = runBlocking {
+        fun `properties의 maxOutputTokens를 ChatOptions에 전달해야 한다`() = runBlocking {
             val optionsSlot = slot<ChatOptions>()
             every { fixture.requestSpec.options(capture(optionsSlot)) } returns fixture.requestSpec
 
@@ -109,7 +109,7 @@ class P0CriticalTest {
         }
 
         @Test
-        fun `should override properties temperature with command temperature`() = runBlocking {
+        fun `커맨드 temperature로 properties temperature를 오버라이드해야 한다`() = runBlocking {
             val optionsSlot = slot<ChatOptions>()
             every { fixture.requestSpec.options(capture(optionsSlot)) } returns fixture.requestSpec
 
@@ -125,7 +125,7 @@ class P0CriticalTest {
         }
 
         @Test
-        fun `should use ToolCallingChatOptions when tools are present`() = runBlocking {
+        fun `도구가 있을 때 ToolCallingChatOptions를 사용해야 한다`() = runBlocking {
             val optionsSlot = slot<ChatOptions>()
             every { fixture.requestSpec.options(capture(optionsSlot)) } returns fixture.requestSpec
 
@@ -144,13 +144,13 @@ class P0CriticalTest {
     }
 
     // =========================================================================
-    // P0-3: Manual tool calling loop + maxToolCalls
+    // P0-3: 수동 도구 호출 루프 + maxToolCalls
     // =========================================================================
     @Nested
     inner class ManualToolCallingLoop {
 
         @Test
-        fun `should execute tool and return final answer`() = runBlocking {
+        fun `도구를 실행하고 최종 응답을 반환해야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", """{"q":"test"}""")
 
             every { fixture.requestSpec.call() } returnsMany listOf(
@@ -174,7 +174,7 @@ class P0CriticalTest {
         }
 
         @Test
-        fun `should enforce maxToolCalls limit`() = runBlocking {
+        fun `maxToolCalls 제한을 적용해야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
             every { fixture.requestSpec.call() } returnsMany listOf(
@@ -201,13 +201,13 @@ class P0CriticalTest {
     }
 
     // =========================================================================
-    // P0-4: BeforeToolCallHook invocation
+    // P0-4: BeforeToolCallHook 호출
     // =========================================================================
     @Nested
     inner class BeforeToolCallHookInvocation {
 
         @Test
-        fun `should call BeforeToolCallHook before each tool execution`() = runBlocking {
+        fun `각 도구 실행 전에 BeforeToolCallHook을 호출해야 한다`() = runBlocking {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
             coEvery { hookExecutor.executeBeforeToolCall(any()) } returns HookResult.Continue
@@ -232,7 +232,7 @@ class P0CriticalTest {
         }
 
         @Test
-        fun `should reject tool call when BeforeToolCallHook rejects`() = runBlocking {
+        fun `BeforeToolCallHook이 거부하면 도구 호출을 거부해야 한다`() = runBlocking {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
             coEvery { hookExecutor.executeBeforeToolCall(any()) } returns HookResult.Reject("Dangerous tool")

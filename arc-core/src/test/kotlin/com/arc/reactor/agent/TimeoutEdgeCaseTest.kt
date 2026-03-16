@@ -19,7 +19,7 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import reactor.core.publisher.Flux
 
 /**
- * P0 Tests for timeout edge cases.
+ * P0 에 대한 테스트. timeout edge cases.
  *
  * ## Scope
  * Tool execution in manual ReAct flow is handled by [com.arc.reactor.agent.impl.ToolCallOrchestrator],
@@ -44,7 +44,7 @@ class TimeoutEdgeCaseTest {
     inner class TimeoutDuringReActLoop {
 
         @Test
-        fun `should timeout when second LLM call in ReAct loop is slow`() = runBlocking {
+        fun `second LLM call in ReAct loop is slow일 때 timeout해야 한다`() = runBlocking {
             val properties = AgentProperties(
                 concurrency = ConcurrencyProperties(
                     maxConcurrentRequests = 20,
@@ -87,7 +87,7 @@ class TimeoutEdgeCaseTest {
         }
 
         @Test
-        fun `should record timeout in metrics during ReAct loop`() = runBlocking {
+        fun `record timeout in metrics during ReAct loop해야 한다`() = runBlocking {
             val metrics = mockk<AgentMetrics>(relaxed = true)
             val properties = AgentProperties(
                 concurrency = ConcurrencyProperties(
@@ -131,7 +131,7 @@ class TimeoutEdgeCaseTest {
     inner class TimeoutDuringStreaming {
 
         @Test
-        fun `should emit timeout error when streaming LLM hangs after tool call`() = runBlocking {
+        fun `streaming LLM hangs after tool call일 때 emit timeout error해야 한다`() = runBlocking {
             val properties = AgentProperties(
                 concurrency = ConcurrencyProperties(
                     maxConcurrentRequests = 20,
@@ -169,7 +169,7 @@ class TimeoutEdgeCaseTest {
         }
 
         @Test
-        fun `should emit timeout error when initial stream hangs`() = runBlocking {
+        fun `initial stream hangs일 때 emit timeout error해야 한다`() = runBlocking {
             val properties = AgentProperties(
                 concurrency = ConcurrencyProperties(
                     maxConcurrentRequests = 20,
@@ -206,7 +206,7 @@ class TimeoutEdgeCaseTest {
     inner class TimeoutErrorPropagation {
 
         @Test
-        fun `timeout error should have correct error code and message`() = runBlocking {
+        fun `timeout error은(는) have correct error code and message해야 한다`() = runBlocking {
             val properties = AgentProperties(
                 concurrency = ConcurrencyProperties(
                     maxConcurrentRequests = 20,
@@ -241,7 +241,7 @@ class TimeoutEdgeCaseTest {
         }
 
         @Test
-        fun `timeout should run afterAgentComplete hook with failure`() = runBlocking {
+        fun `timeout은(는) run afterAgentComplete hook with failure해야 한다`() = runBlocking {
             val hookExecutor = mockk<com.arc.reactor.hook.HookExecutor>(relaxed = true)
             io.mockk.coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns
                 com.arc.reactor.hook.model.HookResult.Continue

@@ -26,7 +26,7 @@ class MetricQueryServiceTest {
     inner class GetCurrentMonthUsage {
 
         @Test
-        fun `returns usage from aggregated query`() {
+        fun `usage from aggregated query를 반환한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "requests" to 150L,
                 "tokens" to 50000L,
@@ -42,7 +42,7 @@ class MetricQueryServiceTest {
         }
 
         @Test
-        fun `handles zero values`() {
+        fun `zero values를 처리한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "requests" to 0L,
                 "tokens" to 0L,
@@ -61,7 +61,7 @@ class MetricQueryServiceTest {
     inner class GetSuccessRate {
 
         @Test
-        fun `calculates success rate correctly`() {
+        fun `success rate correctly를 계산한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "total" to 100L,
                 "successful" to 85L
@@ -73,7 +73,7 @@ class MetricQueryServiceTest {
         }
 
         @Test
-        fun `returns 1_0 for zero requests`() {
+        fun `zero requests에 대해 1_0를 반환한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "total" to 0L,
                 "successful" to 0L
@@ -87,7 +87,7 @@ class MetricQueryServiceTest {
     inner class GetLatencyPercentiles {
 
         @Test
-        fun `returns all percentiles`() {
+        fun `all percentiles를 반환한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "p50" to 200L,
                 "p95" to 1500L,
@@ -102,7 +102,7 @@ class MetricQueryServiceTest {
         }
 
         @Test
-        fun `handles null percentiles as zero`() {
+        fun `null percentiles as zero를 처리한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "p50" to null,
                 "p95" to null,
@@ -121,7 +121,7 @@ class MetricQueryServiceTest {
     inner class GetToolRanking {
 
         @Test
-        fun `returns tool usage summaries`() {
+        fun `tool usage summaries를 반환한다`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns listOf(
                 ToolUsageSummary("analyze_error", 100, 0.95, 250, 800, "error-log-mcp"),
                 ToolUsageSummary("get_design", 50, 0.90, 400, 1200, "figma-mcp")
@@ -140,7 +140,7 @@ class MetricQueryServiceTest {
     inner class GetErrorDistribution {
 
         @Test
-        fun `returns error class counts`() {
+        fun `error class counts를 반환한다`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns listOf(
                 "TIMEOUT" to 25L,
                 "TOOL_ERROR" to 10L,
@@ -159,7 +159,7 @@ class MetricQueryServiceTest {
     inner class GetRequestTimeSeries {
 
         @Test
-        fun `uses hourly source for short ranges`() {
+        fun `hourly source for short ranges를 사용한다`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns emptyList<Any>()
 
             val from = now.minus(24, ChronoUnit.HOURS)
@@ -175,7 +175,7 @@ class MetricQueryServiceTest {
         }
 
         @Test
-        fun `uses daily source for long ranges`() {
+        fun `daily source for long ranges를 사용한다`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns emptyList<Any>()
 
             val from = now.minus(60, ChronoUnit.DAYS)
@@ -191,7 +191,7 @@ class MetricQueryServiceTest {
         }
 
         @Test
-        fun `uses explicit granularity when specified`() {
+        fun `specified일 때 explicit granularity를 사용한다`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns emptyList<Any>()
 
             val from = now.minus(2, ChronoUnit.HOURS)
@@ -211,7 +211,7 @@ class MetricQueryServiceTest {
     inner class GetTopUsers {
 
         @Test
-        fun `returns anonymized user usage summaries`() {
+        fun `anonymized user usage summaries를 반환한다`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns listOf(
                 50L to now,
                 30L to now
@@ -225,7 +225,7 @@ class MetricQueryServiceTest {
         }
 
         @Test
-        fun `falls back to channel summaries when user identifiers are unavailable`() {
+        fun `channel summaries when user identifiers are unavailable로 폴백한다`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returnsMany listOf(
                 emptyList<Pair<Long, Instant?>>(),
                 listOf(Triple("slack", 42L, now))

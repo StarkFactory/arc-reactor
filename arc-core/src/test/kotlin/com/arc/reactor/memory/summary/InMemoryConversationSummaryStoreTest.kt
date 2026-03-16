@@ -11,12 +11,12 @@ class InMemoryConversationSummaryStoreTest {
     private val store = InMemoryConversationSummaryStore()
 
     @Test
-    fun `should return null for unknown session`() {
+    fun `unknown session에 대해 return null해야 한다`() {
         assertNull(store.get("unknown"), "Unknown session should return null")
     }
 
     @Test
-    fun `should save and retrieve summary`() {
+    fun `save and retrieve summary해야 한다`() {
         val summary = ConversationSummary(
             sessionId = "s1",
             narrative = "User asked about refund policy",
@@ -38,7 +38,7 @@ class InMemoryConversationSummaryStoreTest {
     }
 
     @Test
-    fun `should upsert on save`() {
+    fun `upsert on save해야 한다`() {
         val original = ConversationSummary(
             sessionId = "s1",
             narrative = "original",
@@ -63,7 +63,7 @@ class InMemoryConversationSummaryStoreTest {
     }
 
     @Test
-    fun `should delete summary`() {
+    fun `delete summary해야 한다`() {
         store.save(
             ConversationSummary(
                 sessionId = "s1",
@@ -79,7 +79,7 @@ class InMemoryConversationSummaryStoreTest {
     }
 
     @Test
-    fun `should handle delete of non-existent session`() {
-        store.delete("non-existent") // should not throw
+    fun `handle delete of non-existent session해야 한다`() {
+        store.delete("non-existent")  // not throw해야 합니다
     }
 }

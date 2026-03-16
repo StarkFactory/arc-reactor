@@ -35,7 +35,7 @@ class TenantContextResolverTest {
     }
 
     @Test
-    fun `rejects request when tenant context is missing`() {
+    fun `rejects request when tenant context은(는) missing이다`() {
         val exception = try {
             TenantContextResolver.resolveTenantId(mockExchange())
             throw AssertionError("Missing tenant context should be rejected")
@@ -49,7 +49,7 @@ class TenantContextResolverTest {
     }
 
     @Test
-    fun `uses resolved tenant attribute when present`() {
+    fun `present일 때 resolved tenant attribute를 사용한다`() {
         val headers = HttpHeaders()
         headers.add("X-Tenant-Id", "tenant-a")
         val exchange = mockExchange(
@@ -65,7 +65,7 @@ class TenantContextResolverTest {
     }
 
     @Test
-    fun `rejects request when tenant header mismatches resolved tenant attribute`() {
+    fun `request when tenant header mismatches resolved tenant attribute를 거부한다`() {
         val headers = HttpHeaders()
         headers.add("X-Tenant-Id", "tenant-b")
         val exchange = mockExchange(
@@ -90,7 +90,7 @@ class TenantContextResolverTest {
 
         @ParameterizedTest(name = "valid tenant id: \"{0}\"")
         @ValueSource(strings = ["abc", "ABC", "tenant-1", "tenant_1", "A1b2C3", "a", "a-b_c-1"])
-        fun `accepts valid tenant id formats`(tenantId: String) {
+        fun `valid tenant id formats를 수락한다`(tenantId: String) {
             val result = TenantContextResolver.resolveTenantId(exchangeWithTenantHeader(tenantId))
 
             assertEquals(tenantId, result) {
@@ -99,7 +99,7 @@ class TenantContextResolverTest {
         }
 
         @Test
-        fun `accepts tenant id of exactly 64 characters`() {
+        fun `tenant id of exactly 64 characters를 수락한다`() {
             val tenantId = "a".repeat(64)
             val result = TenantContextResolver.resolveTenantId(exchangeWithTenantHeader(tenantId))
 
@@ -110,7 +110,7 @@ class TenantContextResolverTest {
 
         @Test
         @Tag("regression")
-        fun `should reject X-Tenant-Id header exceeding 64 characters`() {
+        fun `reject X-Tenant-Id header exceeding 64 characters해야 한다`() {
             val tenantId = "a".repeat(65)
 
             val exception = try {
@@ -126,7 +126,7 @@ class TenantContextResolverTest {
         }
 
         @Test
-        fun `treats blank tenant header as missing tenant and rejects request`() {
+        fun `treats은(는) blank tenant header as missing tenant and rejects request`() {
             val exception = try {
                 TenantContextResolver.resolveTenantId(exchangeWithTenantHeader("   "))
                 throw AssertionError("Blank tenant header should be treated as missing and rejected")
@@ -156,7 +156,7 @@ class TenantContextResolverTest {
             "tenant#",
             "tenant%20"
         ])
-        fun `should reject X-Tenant-Id header containing injection attempt or invalid characters`(tenantId: String) {
+        fun `reject X-Tenant-Id header containing injection attempt or invalid characters해야 한다`(tenantId: String) {
             val exception = try {
                 TenantContextResolver.resolveTenantId(exchangeWithTenantHeader(tenantId))
                 throw AssertionError("Invalid tenant ID '$tenantId' should have been rejected")

@@ -21,7 +21,7 @@ class RuleBasedEvaluatorTest {
     inner class ShortAnswerDetection {
 
         @Test
-        fun `should pass when search answer is long enough`() = runTest {
+        fun `search answer is long enough일 때 pass해야 한다`() = runTest {
             val query = TestQuery(query = "Search for AI", intent = "search")
             val longMessage = "A".repeat(51)
             val response = """{"type": "answer", "message": "$longMessage"}"""
@@ -33,7 +33,7 @@ class RuleBasedEvaluatorTest {
         }
 
         @Test
-        fun `should fail when search answer is too short`() = runTest {
+        fun `search answer is too short일 때 fail해야 한다`() = runTest {
             val query = TestQuery(query = "Find me info", intent = "find")
             val response = """{"type": "answer", "message": "Short"}"""
 
@@ -43,13 +43,13 @@ class RuleBasedEvaluatorTest {
         }
 
         @Test
-        fun `should not apply short answer rule for non-search intent`() = runTest {
+        fun `non-search intent에 대해 not apply short answer rule해야 한다`() = runTest {
             val query = TestQuery(query = "Create a file", intent = "create")
             val response = """{"type": "answer", "message": "OK"}"""
 
             val result = evaluator.evaluate(response, query)
 
-            // create intent triggers action confirmation rule, not short answer
+            // intent triggers action confirmation rule, not short answer 생성
             assertEquals(EvaluationTier.RULES, result.tier) { "Tier should be RULES" }
         }
     }
@@ -58,7 +58,7 @@ class RuleBasedEvaluatorTest {
     inner class ActionConfirmation {
 
         @Test
-        fun `should pass when mutation has confirmation wording`() = runTest {
+        fun `mutation has confirmation wording일 때 pass해야 한다`() = runTest {
             val query = TestQuery(query = "Create user", intent = "create")
             val response = """
                 {"type": "action", "message": "User created successfully", "success": true}
@@ -70,7 +70,7 @@ class RuleBasedEvaluatorTest {
         }
 
         @Test
-        fun `should fail when mutation lacks confirmation wording`() = runTest {
+        fun `mutation lacks confirmation wording일 때 fail해야 한다`() = runTest {
             val query = TestQuery(query = "Delete item", intent = "delete")
             val response = """
                 {"type": "action", "message": "OK", "success": true}
@@ -82,7 +82,7 @@ class RuleBasedEvaluatorTest {
         }
 
         @Test
-        fun `should not apply when success is false`() = runTest {
+        fun `success is false일 때 not apply해야 한다`() = runTest {
             val query = TestQuery(query = "Update record", intent = "update")
             val response = """
                 {"type": "action", "message": "Failed", "success": false}
@@ -99,7 +99,7 @@ class RuleBasedEvaluatorTest {
     inner class ErrorQuality {
 
         @Test
-        fun `should pass when error has suggestions`() = runTest {
+        fun `error has suggestions일 때 pass해야 한다`() = runTest {
             val query = TestQuery(query = "Do something")
             val response = """
                 {"type": "error", "message": "Failed", "suggestions": ["Try again"]}
@@ -111,7 +111,7 @@ class RuleBasedEvaluatorTest {
         }
 
         @Test
-        fun `should pass when error message is long enough`() = runTest {
+        fun `error message is long enough일 때 pass해야 한다`() = runTest {
             val query = TestQuery(query = "Do something")
             val response = """
                 {"type": "error", "message": "Something went wrong, please try again later"}
@@ -123,7 +123,7 @@ class RuleBasedEvaluatorTest {
         }
 
         @Test
-        fun `should fail when error is short and has no suggestions`() = runTest {
+        fun `error is short and has no suggestions일 때 fail해야 한다`() = runTest {
             val query = TestQuery(query = "Do something")
             val response = """{"type": "error", "message": "Fail"}"""
 
@@ -137,7 +137,7 @@ class RuleBasedEvaluatorTest {
     inner class ClarificationOnly {
 
         @Test
-        fun `should pass when clarification includes guidance`() = runTest {
+        fun `clarification includes guidance일 때 pass해야 한다`() = runTest {
             val query = TestQuery(query = "Help me")
             val response = """
                 {"type": "clarification", "message": "Could you specify what you need? I can help with orders."}
@@ -149,7 +149,7 @@ class RuleBasedEvaluatorTest {
         }
 
         @Test
-        fun `should fail when clarification is only a question`() = runTest {
+        fun `clarification is only a question일 때 fail해야 한다`() = runTest {
             val query = TestQuery(query = "Help me")
             val response = """
                 {"type": "clarification", "message": "What do you mean?"}
@@ -165,7 +165,7 @@ class RuleBasedEvaluatorTest {
     inner class NoApplicableRules {
 
         @Test
-        fun `should pass with score 1 when no rules apply`() = runTest {
+        fun `no rules apply일 때 pass with score 1해야 한다`() = runTest {
             val query = TestQuery(query = "Hello", intent = "greeting")
             val response = """{"type": "answer", "message": "Hi there!"}"""
 
@@ -176,7 +176,7 @@ class RuleBasedEvaluatorTest {
         }
 
         @Test
-        fun `should handle plain text response gracefully`() = runTest {
+        fun `handle plain text response gracefully해야 한다`() = runTest {
             val query = TestQuery(query = "Hello")
             val response = "Just a plain text response"
 

@@ -50,7 +50,7 @@ class PromptLabSchedulerTest {
     inner class BasicExecution {
 
         @Test
-        fun `should run pipeline for each configured template`() {
+        fun `each configured template에 대해 run pipeline해야 한다`() {
             coEvery { orchestrator.runAutoPipeline("tmpl-1", null) } returns completedExperiment("tmpl-1")
             coEvery { orchestrator.runAutoPipeline("tmpl-2", null) } returns completedExperiment("tmpl-2")
 
@@ -61,7 +61,7 @@ class PromptLabSchedulerTest {
         }
 
         @Test
-        fun `should handle null result from pipeline gracefully`() {
+        fun `handle null result from pipeline gracefully해야 한다`() {
             coEvery { orchestrator.runAutoPipeline("tmpl-1", null) } returns null
             coEvery { orchestrator.runAutoPipeline("tmpl-2", null) } returns null
 
@@ -71,7 +71,7 @@ class PromptLabSchedulerTest {
         }
 
         @Test
-        fun `should update lastRunTime after completion`() {
+        fun `completion 후 update lastRunTime해야 한다`() {
             coEvery { orchestrator.runAutoPipeline(any(), any()) } returns null
             scheduler.lastRunTime() shouldBe null // "Should be null before first run"
 
@@ -81,7 +81,7 @@ class PromptLabSchedulerTest {
         }
 
         @Test
-        fun `should pass since parameter on subsequent runs`() {
+        fun `pass since parameter on subsequent runs해야 한다`() {
             coEvery { orchestrator.runAutoPipeline(any(), any()) } returns null
 
             scheduler.runScheduled()
@@ -98,7 +98,7 @@ class PromptLabSchedulerTest {
     inner class TemplateResolution {
 
         @Test
-        fun `should use configured templateIds when present`() {
+        fun `present일 때 use configured templateIds해야 한다`() {
             coEvery { orchestrator.runAutoPipeline(any(), any()) } returns null
 
             scheduler.runScheduled()
@@ -108,7 +108,7 @@ class PromptLabSchedulerTest {
         }
 
         @Test
-        fun `should fall back to all templates when none configured`() {
+        fun `none configured일 때 fall back to all templates해야 한다`() {
             val propsNoIds = PromptLabProperties(
                 schedule = ScheduleProperties(enabled = true, templateIds = emptyList())
             )
@@ -131,7 +131,7 @@ class PromptLabSchedulerTest {
     inner class ErrorIsolation {
 
         @Test
-        fun `should continue with next template when one fails`() {
+        fun `one fails일 때 continue with next template해야 한다`() {
             coEvery { orchestrator.runAutoPipeline("tmpl-1", null) } throws RuntimeException("API error")
             coEvery { orchestrator.runAutoPipeline("tmpl-2", null) } returns completedExperiment("tmpl-2")
 
@@ -142,7 +142,7 @@ class PromptLabSchedulerTest {
         }
 
         @Test
-        fun `should release running lock even on unexpected error`() {
+        fun `release running lock even on unexpected error해야 한다`() {
             coEvery { orchestrator.runAutoPipeline(any(), any()) } throws RuntimeException("fatal")
 
             scheduler.runScheduled()
@@ -155,7 +155,7 @@ class PromptLabSchedulerTest {
     inner class ConcurrencyGuard {
 
         @Test
-        fun `should prevent concurrent runs`() {
+        fun `prevent concurrent runs해야 한다`() {
             val latch = CountDownLatch(1)
             val started = CountDownLatch(1)
 
@@ -172,11 +172,11 @@ class PromptLabSchedulerTest {
                 executor.submit { scheduler.runScheduled() }
                 started.await(5, TimeUnit.SECONDS)
 
-                // Second run should skip (already running)
-                scheduler.isRunning() shouldBe true // "First run should be in progress"
-                scheduler.runScheduled() // This should return immediately
+                // Second run은(는) skip (already running)해야 합니다
+                scheduler.isRunning() shouldBe true  // "First run은(는) be in progress"해야 합니다
+                scheduler.runScheduled()  // This은(는) return immediately해야 합니다
 
-                // Release first run
+                // first run를 해제합니다
                 latch.countDown()
                 executor.shutdown()
                 executor.awaitTermination(5, TimeUnit.SECONDS)

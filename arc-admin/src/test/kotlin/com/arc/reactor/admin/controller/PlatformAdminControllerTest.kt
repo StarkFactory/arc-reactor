@@ -86,112 +86,112 @@ class PlatformAdminControllerTest {
     inner class Authentication {
 
         @Test
-        fun `health returns 403 for USER role`() {
+        fun `헬스 returns 403 for USER role`() {
             val response = controller.health(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `listTenants returns 403 for USER role`() {
+        fun `listTenants은(는) returns 403 for USER role`() {
             val response = controller.listTenants(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `getTenant returns 403 for USER role`() {
+        fun `getTenant은(는) returns 403 for USER role`() {
             val response = controller.getTenant("t1", exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `createTenant returns 403 for USER role`() {
+        fun `createTenant은(는) returns 403 for USER role`() {
             val request = CreateTenantRequest("New", "new-tenant")
             val response = controller.createTenant(request, exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `suspendTenant returns 403 for USER role`() {
+        fun `suspendTenant은(는) returns 403 for USER role`() {
             val response = controller.suspendTenant("t1", exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `activateTenant returns 403 for USER role`() {
+        fun `activateTenant은(는) returns 403 for USER role`() {
             val response = controller.activateTenant("t1", exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `listPricing returns 403 for USER role`() {
+        fun `listPricing은(는) returns 403 for USER role`() {
             val response = controller.listPricing(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `upsertPricing returns 403 for USER role`() {
+        fun `upsertPricing은(는) returns 403 for USER role`() {
             val pricing = ModelPricing(provider = "openai", model = "gpt-4")
             val response = controller.upsertPricing(pricing, exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `listAlertRules returns 403 for USER role`() {
+        fun `listAlertRules은(는) returns 403 for USER role`() {
             val response = controller.listAlertRules(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `saveAlertRule returns 403 for USER role`() {
+        fun `saveAlertRule은(는) returns 403 for USER role`() {
             val rule = AlertRule(name = "test", type = AlertType.STATIC_THRESHOLD, metric = "error_rate", threshold = 0.1)
             val response = controller.saveAlertRule(rule, exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `deleteAlertRule returns 403 for USER role`() {
+        fun `deleteAlertRule은(는) returns 403 for USER role`() {
             val response = controller.deleteAlertRule("rule-1", exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `activeAlerts returns 403 for USER role`() {
+        fun `activeAlerts은(는) returns 403 for USER role`() {
             val response = controller.activeAlerts(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `resolveAlert returns 403 for USER role`() {
+        fun `resolveAlert은(는) returns 403 for USER role`() {
             val response = controller.resolveAlert("alert-1", exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `evaluateAlerts returns 403 for USER role`() {
+        fun `evaluateAlerts은(는) returns 403 for USER role`() {
             val response = controller.evaluateAlerts(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `invalidateResponseCache returns 403 for USER role`() {
+        fun `invalidateResponseCache은(는) returns 403 for USER role`() {
             val response = controller.invalidateResponseCache(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `tenantAnalytics returns 403 for USER role`() {
+        fun `tenantAnalytics은(는) returns 403 for USER role`() {
             val response = controller.tenantAnalytics(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `listTenants returns 403 for ADMIN_MANAGER role`() {
+        fun `listTenants은(는) returns 403 for ADMIN_MANAGER role`() {
             val response = controller.listTenants(exchangeWithRole(UserRole.ADMIN_MANAGER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `user role update returns 403 for ADMIN_MANAGER role`() {
+        fun `user은(는) role update returns 403 for ADMIN_MANAGER role`() {
             val response = controller.updateUserRole(
                 "u-1",
                 UpdateUserRoleRequest(role = "ADMIN_DEVELOPER"),
@@ -205,7 +205,7 @@ class PlatformAdminControllerTest {
     inner class PlatformHealth {
 
         @Test
-        fun `returns health dashboard for admin`() {
+        fun `admin에 대해 health dashboard를 반환한다`() {
             healthMonitor.updateBufferUsage(25.0)
             healthMonitor.recordWrite(100, 50)
             healthMonitor.recordExactCacheHit()
@@ -224,7 +224,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `returns health dashboard for ADMIN_MANAGER`() {
+        fun `ADMIN_MANAGER에 대해 health dashboard를 반환한다`() {
             val response = controller.health(exchangeWithRole(UserRole.ADMIN_MANAGER))
             response.statusCode shouldBe HttpStatus.OK
         }
@@ -234,7 +234,7 @@ class PlatformAdminControllerTest {
     inner class TenantManagement {
 
         @Test
-        fun `listTenants returns all tenants`() {
+        fun `listTenants은(는) returns all tenants`() {
             val response = controller.listTenants(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
@@ -243,7 +243,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `getTenant returns existing tenant`() {
+        fun `getTenant은(는) returns existing tenant`() {
             val response = controller.getTenant("t1", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
@@ -251,14 +251,14 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `getTenant returns 404 for unknown`() {
+        fun `getTenant은(는) returns 404 for unknown`() {
             val response = controller.getTenant("unknown", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.NOT_FOUND
         }
 
         @Test
-        fun `createTenant delegates to tenantService`() {
+        fun `createTenant은(는) tenantService에 위임한다`() {
             every { tenantService.create(any(), any(), any()) } returns
                 Tenant(name = "New", slug = "new-tenant", plan = TenantPlan.STARTER)
 
@@ -269,7 +269,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `createTenant returns 400 for invalid plan`() {
+        fun `createTenant은(는) returns 400 for invalid plan`() {
             val request = CreateTenantRequest("New", "new-tenant", "INVALID_PLAN")
             val response = controller.createTenant(request, exchangeWithRole(UserRole.ADMIN))
 
@@ -277,7 +277,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `suspendTenant returns 404 when tenant not found`() {
+        fun `tenant not found일 때 suspendTenant returns 404`() {
             every { tenantService.suspend("unknown") } throws IllegalArgumentException("Tenant not found")
 
             val response = controller.suspendTenant("unknown", exchangeWithRole(UserRole.ADMIN))
@@ -286,7 +286,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `activateTenant returns 200`() {
+        fun `activateTenant은(는) returns 200`() {
             every { tenantService.activate("t1") } returns testTenant.copy(status = TenantStatus.ACTIVE)
 
             val response = controller.activateTenant("t1", exchangeWithRole(UserRole.ADMIN))
@@ -299,13 +299,13 @@ class PlatformAdminControllerTest {
     inner class UserRoleManagement {
 
         @Test
-        fun `getUserByEmail returns 400 when email is blank`() {
+        fun `getUserByEmail returns 400 when email은(는) blank이다`() {
             val response = controller.getUserByEmail("   ", exchangeWithRole(UserRole.ADMIN))
             response.statusCode shouldBe HttpStatus.BAD_REQUEST
         }
 
         @Test
-        fun `getUserByEmail returns 404 when user not found`() {
+        fun `user not found일 때 getUserByEmail returns 404`() {
             every { userStore.findByEmail("missing@test.com") } returns null
 
             val response = controller.getUserByEmail("missing@test.com", exchangeWithRole(UserRole.ADMIN))
@@ -313,7 +313,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `getUserByEmail returns user details when found`() {
+        fun `found일 때 getUserByEmail returns user details`() {
             val user = User(
                 id = "u-1",
                 email = "dev@test.com",
@@ -332,7 +332,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `updateUserRole returns 400 for invalid role`() {
+        fun `updateUserRole은(는) returns 400 for invalid role`() {
             val response = controller.updateUserRole(
                 "u-1",
                 UpdateUserRoleRequest(role = "INVALID_ROLE"),
@@ -342,7 +342,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `updateUserRole returns 400 when current actor removes own developer scope`() {
+        fun `current actor removes own developer scope일 때 updateUserRole returns 400`() {
             val exchange = mockk<ServerWebExchange>()
             every { exchange.attributes } returns mutableMapOf(
                 "userRole" to UserRole.ADMIN,
@@ -358,7 +358,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `updateUserRole returns 404 when user missing`() {
+        fun `user missing일 때 updateUserRole returns 404`() {
             every { userStore.findById("missing-id") } returns null
 
             val response = controller.updateUserRole(
@@ -370,7 +370,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `updateUserRole persists updated role`() {
+        fun `updateUserRole은(는) persists updated role`() {
             val user = User(
                 id = "u-2",
                 email = "manager@test.com",
@@ -404,7 +404,7 @@ class PlatformAdminControllerTest {
     inner class PricingManagement {
 
         @Test
-        fun `listPricing returns all pricing entries`() {
+        fun `listPricing은(는) returns all pricing entries`() {
             pricingStore.save(ModelPricing(provider = "openai", model = "gpt-4"))
 
             val response = controller.listPricing(exchangeWithRole(UserRole.ADMIN))
@@ -415,7 +415,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `upsertPricing saves pricing`() {
+        fun `upsertPricing은(는) saves pricing`() {
             val pricing = ModelPricing(provider = "anthropic", model = "claude-3")
 
             val response = controller.upsertPricing(pricing, exchangeWithRole(UserRole.ADMIN))
@@ -435,7 +435,7 @@ class PlatformAdminControllerTest {
     inner class AlertManagement {
 
         @Test
-        fun `listAlertRules returns all rules`() {
+        fun `listAlertRules은(는) returns all rules`() {
             alertStore.saveRule(
                 AlertRule(name = "Test Rule", type = AlertType.STATIC_THRESHOLD, metric = "error_rate", threshold = 0.1)
             )
@@ -448,7 +448,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `saveAlertRule creates rule`() {
+        fun `saveAlertRule은(는) creates rule`() {
             val rule = AlertRule(name = "New Rule", type = AlertType.STATIC_THRESHOLD, metric = "latency_p99", threshold = 5000.0)
 
             val response = controller.saveAlertRule(rule, exchangeWithRole(UserRole.ADMIN))
@@ -458,7 +458,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `deleteAlertRule returns 204 when deleted`() {
+        fun `deleted일 때 deleteAlertRule returns 204`() {
             val rule = AlertRule(id = "del-1", name = "Delete Me", type = AlertType.STATIC_THRESHOLD, metric = "error_rate", threshold = 0.1)
             alertStore.saveRule(rule)
 
@@ -468,14 +468,14 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `deleteAlertRule returns 404 when not found`() {
+        fun `not found일 때 deleteAlertRule returns 404`() {
             val response = controller.deleteAlertRule("nonexistent", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.NOT_FOUND
         }
 
         @Test
-        fun `activeAlerts returns empty list initially`() {
+        fun `activeAlerts은(는) returns empty list initially`() {
             val response = controller.activeAlerts(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
@@ -484,14 +484,14 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `resolveAlert returns 200`() {
+        fun `resolveAlert은(는) returns 200`() {
             val response = controller.resolveAlert("alert-1", exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
         }
 
         @Test
-        fun `evaluateAlerts triggers evaluation`() {
+        fun `evaluateAlerts은(는) triggers evaluation`() {
             val response = controller.evaluateAlerts(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
@@ -507,7 +507,7 @@ class PlatformAdminControllerTest {
     inner class CacheManagement {
 
         @Test
-        fun `invalidateResponseCache clears cache and records audit`() {
+        fun `invalidateResponseCache은(는) clears cache and records audit`() {
             val response = controller.invalidateResponseCache(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
@@ -523,7 +523,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `invalidateResponseCache returns cache disabled response when cache bean is absent`() {
+        fun `invalidateResponseCache returns cache disabled response when cache bean은(는) absent이다`() {
             val controllerWithoutCache = PlatformAdminController(
                 tenantStore = tenantStore,
                 tenantService = tenantService,
@@ -546,7 +546,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `invalidateResponseCache returns 500 when cache fails`() {
+        fun `cache fails일 때 invalidateResponseCache returns 500`() {
             val brokenCache = mockk<ResponseCache>()
             every { brokenCache.invalidateAll() } throws IllegalStateException("boom")
             val controllerWithBrokenCache = PlatformAdminController(
@@ -573,7 +573,7 @@ class PlatformAdminControllerTest {
     inner class TenantAnalytics {
 
         @Test
-        fun `returns analytics summary for all tenants`() {
+        fun `all tenants에 대해 analytics summary를 반환한다`() {
             every { queryService.getCurrentMonthUsage(any()) } returns
                 TenantUsage("t1", 500, 25000, BigDecimal("5.00"))
 
@@ -585,7 +585,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `handles queryService exception gracefully`() {
+        fun `queryService exception gracefully를 처리한다`() {
             every { queryService.getCurrentMonthUsage(any()) } throws RuntimeException("DB error")
 
             val response = controller.tenantAnalytics(exchangeWithRole(UserRole.ADMIN))
@@ -594,7 +594,7 @@ class PlatformAdminControllerTest {
         }
 
         @Test
-        fun `returns analytics summary for ADMIN_MANAGER`() {
+        fun `ADMIN_MANAGER에 대해 analytics summary를 반환한다`() {
             every { queryService.getCurrentMonthUsage(any()) } returns
                 TenantUsage("t1", 100, 1000, BigDecimal("1.00"))
 

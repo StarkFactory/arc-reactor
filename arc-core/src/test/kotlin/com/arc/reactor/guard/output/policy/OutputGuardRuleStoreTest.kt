@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test
 class OutputGuardRuleStoreTest {
 
     @Test
-    fun `in-memory store supports CRUD`() {
+    fun `인메모리 store supports CRUD`() {
         val store = InMemoryOutputGuardRuleStore()
         val created = store.save(
             OutputGuardRule(
@@ -35,7 +35,7 @@ class OutputGuardRuleStoreTest {
     }
 
     @Test
-    fun `in-memory store lists rules by priority then createdAt`() {
+    fun `인메모리 store lists rules by priority then createdAt`() {
         val store = InMemoryOutputGuardRuleStore()
         store.save(OutputGuardRule(name = "low", pattern = "a", priority = 100))
         store.save(OutputGuardRule(name = "high", pattern = "a", priority = 1))

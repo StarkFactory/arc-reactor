@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test
 class StreamingCompletionFinalizerTest {
 
     @Test
-    fun `should save history and call after hook on streaming success`() = runBlocking {
+    fun `hook on streaming success 후 save history and call해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -66,7 +66,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `should emit max boundary marker and record violation when output exceeds max`() = runBlocking {
+    fun `output exceeds max일 때 emit max boundary marker and record violation해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -100,7 +100,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `should treat RETRY_ONCE min boundary policy as warn in streaming`() = runBlocking {
+    fun `treat RETRY_ONCE min boundary policy as warn in streaming해야 한다`() = runBlocking {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val finalizer = StreamingCompletionFinalizer(
             boundaries = BoundaryProperties(outputMinChars = 5, outputMinViolationMode = OutputMinViolationMode.RETRY_ONCE),
@@ -132,7 +132,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `should not save history when output guard pipeline throws (fail-close)`() = runBlocking {
+    fun `output guard pipeline throws (fail-close)일 때 not save history해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val outputGuardPipeline = mockk<OutputGuardPipeline>()
         coEvery { outputGuardPipeline.check(any(), any()) } throws RuntimeException("moderation API down")
@@ -165,7 +165,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `should not save history when streaming LLM returns empty content`() = runBlocking {
+    fun `streaming LLM returns empty content일 때 not save history해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val finalizer = StreamingCompletionFinalizer(
@@ -193,7 +193,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `should rethrow cancellation from streaming after hook`() = runBlocking {
+    fun `hook 후 rethrow cancellation from streaming해야 한다`() = runBlocking {
         val hookExecutor = mockk<HookExecutor>()
         coEvery { hookExecutor.executeAfterAgentComplete(any(), any()) } throws CancellationException("cancelled")
         val finalizer = StreamingCompletionFinalizer(
@@ -219,12 +219,12 @@ class StreamingCompletionFinalizerTest {
             )
             fail("Expected CancellationException")
         } catch (_: CancellationException) {
-            // expected
+            // 예상 결과
         }
     }
 
     @Test
-    fun `should rethrow cancellation when emitting boundary marker fails`() = runBlocking {
+    fun `emitting boundary marker fails일 때 rethrow cancellation해야 한다`() = runBlocking {
         val finalizer = StreamingCompletionFinalizer(
             boundaries = BoundaryProperties(outputMaxChars = 1),
             conversationManager = mockk(relaxed = true),
@@ -248,7 +248,7 @@ class StreamingCompletionFinalizerTest {
             )
             fail("Expected CancellationException")
         } catch (_: CancellationException) {
-            // expected
+            // 예상 결과
         }
     }
 }

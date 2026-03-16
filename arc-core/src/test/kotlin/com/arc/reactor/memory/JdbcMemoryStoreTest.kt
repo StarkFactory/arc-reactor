@@ -22,7 +22,7 @@ class JdbcMemoryStoreTest {
 
         jdbcTemplate = JdbcTemplate(dataSource)
 
-        // Create table (H2-compatible version of the migration)
+        // table (H2-compatible version of the migration) 생성
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS conversation_messages (
                 id          BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -41,7 +41,7 @@ class JdbcMemoryStoreTest {
     inner class BasicOperations {
 
         @Test
-        fun `should store and retrieve messages`() {
+        fun `store and retrieve messages해야 한다`() {
             store.addMessage("session-1", "user", "Hello!")
             store.addMessage("session-1", "assistant", "Hi there!")
 
@@ -54,20 +54,20 @@ class JdbcMemoryStoreTest {
         }
 
         @Test
-        fun `should return null for non-existent session`() {
+        fun `non-existent session에 대해 return null해야 한다`() {
             val memory = store.get("non-existent")
             assertNull(memory, "Non-existent session should return null")
         }
 
         @Test
-        fun `should create session via getOrCreate`() {
+        fun `create session via getOrCreate해야 한다`() {
             val memory = store.getOrCreate("new-session")
             assertNotNull(memory) { "getOrCreate should never return null" }
             assertEquals(0, memory.getHistory().size)
         }
 
         @Test
-        fun `should add message via ConversationMemory add`() {
+        fun `add message via ConversationMemory add해야 한다`() {
             val memory = store.getOrCreate("session-2")
             memory.add(com.arc.reactor.agent.model.Message(
                 com.arc.reactor.agent.model.MessageRole.USER, "Test message"
@@ -81,7 +81,7 @@ class JdbcMemoryStoreTest {
         }
 
         @Test
-        fun `should remove session`() {
+        fun `remove session해야 한다`() {
             store.addMessage("session-3", "user", "Hello!")
             assertNotNull(store.get("session-3"), "Session should exist before removal")
 
@@ -90,7 +90,7 @@ class JdbcMemoryStoreTest {
         }
 
         @Test
-        fun `should clear all sessions`() {
+        fun `clear all sessions해야 한다`() {
             store.addMessage("session-a", "user", "A")
             store.addMessage("session-b", "user", "B")
 
@@ -101,7 +101,7 @@ class JdbcMemoryStoreTest {
         }
 
         @Test
-        fun `should preserve message roles correctly`() {
+        fun `preserve message roles correctly해야 한다`() {
             store.addMessage("session-roles", "user", "User msg")
             store.addMessage("session-roles", "assistant", "Assistant msg")
             store.addMessage("session-roles", "system", "System msg")
@@ -119,7 +119,7 @@ class JdbcMemoryStoreTest {
     inner class AdvancedFeatures {
 
         @Test
-        fun `should evict oldest messages when exceeding max per session`() {
+        fun `exceeding max per session일 때 evict oldest messages해야 한다`() {
             val smallStore = JdbcMemoryStore(jdbcTemplate = jdbcTemplate, maxMessagesPerSession = 3)
 
             smallStore.addMessage("session-evict", "user", "Message 1")
@@ -127,7 +127,7 @@ class JdbcMemoryStoreTest {
             smallStore.addMessage("session-evict", "user", "Message 2")
             // Now at limit (3)
             smallStore.addMessage("session-evict", "assistant", "Response 2")
-            // Should evict "Message 1"
+            // evict "Message 1"해야 합니다
 
             val memory = smallStore.get("session-evict")
             assertNotNull(memory) { "Session should exist after eviction" }
@@ -139,7 +139,7 @@ class JdbcMemoryStoreTest {
         }
 
         @Test
-        fun `should isolate sessions`() {
+        fun `isolate sessions해야 한다`() {
             store.addMessage("session-x", "user", "X message")
             store.addMessage("session-y", "user", "Y message")
 
@@ -153,23 +153,23 @@ class JdbcMemoryStoreTest {
         }
 
         @Test
-        fun `should return history within token limit`() {
+        fun `return history within token limit해야 한다`() {
             store.addMessage("session-tok", "user", "Short")
             store.addMessage("session-tok", "assistant", "Also short")
             store.addMessage("session-tok", "user", "A very long message that takes many tokens to represent")
 
             val memory = store.get("session-tok")!!
 
-            // Very tight limit - should only return the latest message(s)
+            // Very tight limit -은(는) only return the latest message(s)해야 합니다
             val limited = memory.getHistoryWithinTokenLimit(maxTokens = 20)
             assertTrue(limited.isNotEmpty(), "Token-limited history should not be empty")
-            // Last message should be included
+            // Last message은(는) be included해야 합니다
             assertEquals("A very long message that takes many tokens to represent", limited.last().content)
         }
 
         @Test
-        fun `should cleanup expired sessions`() {
-            // Add messages with old timestamps (manually)
+        fun `cleanup expired sessions해야 한다`() {
+            // messages with old timestamps (manually)를 추가합니다
             val oldTimestamp = System.currentTimeMillis() - 100_000 // 100 seconds ago
             jdbcTemplate.update(
                 "INSERT INTO conversation_messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
@@ -190,14 +190,14 @@ class JdbcMemoryStoreTest {
     inner class ListSessions {
 
         @Test
-        fun `should return empty list when no sessions`() {
+        fun `no sessions일 때 return empty list해야 한다`() {
             val sessions = store.listSessions()
 
             assertTrue(sessions.isEmpty()) { "Expected empty list, got ${sessions.size}" }
         }
 
         @Test
-        fun `should list sessions with correct counts`() {
+        fun `correct counts로 list sessions해야 한다`() {
             store.addMessage("session-1", "user", "Hello")
             store.addMessage("session-1", "assistant", "Hi!")
             store.addMessage("session-2", "user", "Test")
@@ -212,7 +212,7 @@ class JdbcMemoryStoreTest {
         }
 
         @Test
-        fun `should include first user message as preview`() {
+        fun `include first user message as preview해야 한다`() {
             store.addMessage("session-1", "system", "System prompt")
             store.addMessage("session-1", "user", "First user question")
             store.addMessage("session-1", "assistant", "Answer")
@@ -223,7 +223,7 @@ class JdbcMemoryStoreTest {
         }
 
         @Test
-        fun `should order by last activity descending`() {
+        fun `order by last activity descending해야 한다`() {
             store.addMessage("old-session", "user", "Old")
             Thread.sleep(10)
             store.addMessage("new-session", "user", "New")
@@ -235,7 +235,7 @@ class JdbcMemoryStoreTest {
         }
 
         @Test
-        fun `should show Empty conversation for sessions with only system messages`() {
+        fun `only system messages로 show Empty conversation for sessions해야 한다`() {
             store.addMessage("session-1", "system", "You are a helpful assistant")
 
             val sessions = store.listSessions()

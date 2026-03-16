@@ -20,10 +20,10 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
 
 /**
- * Integration tests verifying [ArcReactorTracer] is invoked correctly
- * during [SpringAiAgentExecutor] execution.
+ * [ArcReactorTracer]가 올바르게 호출되는지 확인하는 통합 테스트.
+ * [SpringAiAgentExecutor] 실행 중.
  *
- * Uses a mock tracer — no OTel SDK on the classpath is required.
+ * mock tracer를 사용합니다 — 클래스패스에 OTel SDK가 필요하지 않습니다.
  */
 class TracingIntegrationTest {
 
@@ -44,36 +44,36 @@ class TracingIntegrationTest {
     inner class RequestSpan {
 
         @Test
-        fun `should start arc-agent-request span on execute`() = runTest {
-            // Arrange
+        fun `start arc-agent-request span on execute해야 한다`() = runTest {
+            // 준비
             fixture.mockCallResponse("Hello!")
             val executor = buildExecutor()
 
-            // Act
+            // 실행
             executor.execute(AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Hi"))
 
-            // Assert
+            // 검증
             verify(exactly = 1) {
                 tracer.startSpan("arc.agent.request", any())
             }
         }
 
         @Test
-        fun `should close request span after successful execution`() = runTest {
-            // Arrange
+        fun `successful execution 후 close request span해야 한다`() = runTest {
+            // 준비
             fixture.mockCallResponse("OK")
             val executor = buildExecutor()
 
-            // Act
+            // 실행
             executor.execute(AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Test"))
 
-            // Assert — span must be closed at least once (guard + request spans both close)
+            // — span must be closed at least once (guard + request spans both close) 확인
             verify(atLeast = 1) { spanHandle.close() }
         }
 
         @Test
-        fun `should set error attribute on request span when guard rejects`() = runTest {
-            // Arrange
+        fun `guard rejects일 때 set error attribute on request span해야 한다`() = runTest {
+            // 준비
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any<GuardCommand>()) } returns GuardResult.Rejected(
                 reason = "rate limited",
@@ -82,20 +82,20 @@ class TracingIntegrationTest {
             )
             val executor = buildExecutor(guard = guard)
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(systemPrompt = "You are helpful.", userPrompt = "spam")
             )
 
-            // Assert
+            // 검증
             assertTrue(!result.success, "Expected failed result when guard rejects")
-            // All spans should be closed even on guard rejection
+            // All spans은(는) be closed even on guard rejection해야 합니다
             verify(atLeast = 1) { spanHandle.close() }
         }
 
         @Test
-        fun `should include session-id metadata in request span attributes`() = runTest {
-            // Arrange
+        fun `include session-id metadata in request span attributes해야 한다`() = runTest {
+            // 준비
             fixture.mockCallResponse("OK")
             val capturedAttributes = mutableListOf<Map<String, String>>()
             every { tracer.startSpan("arc.agent.request", any()) } answers {
@@ -104,7 +104,7 @@ class TracingIntegrationTest {
             }
             val executor = buildExecutor()
 
-            // Act
+            // 실행
             executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -113,7 +113,7 @@ class TracingIntegrationTest {
                 )
             )
 
-            // Assert
+            // 검증
             assertTrue(
                 capturedAttributes.isNotEmpty(),
                 "Expected startSpan to be called with attributes for the request span"
@@ -130,25 +130,25 @@ class TracingIntegrationTest {
     inner class GuardSpan {
 
         @Test
-        fun `should start arc-agent-guard span when guard is configured`() = runTest {
-            // Arrange
+        fun `guard is configured일 때 start arc-agent-guard span해야 한다`() = runTest {
+            // 준비
             fixture.mockCallResponse("OK")
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any<GuardCommand>()) } returns GuardResult.Allowed()
             val executor = buildExecutor(guard = guard)
 
-            // Act
+            // 실행
             executor.execute(AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Test"))
 
-            // Assert
+            // 검증
             verify(atLeast = 1) {
                 tracer.startSpan("arc.agent.guard", any())
             }
         }
 
         @Test
-        fun `should close guard span even when guard rejects`() = runTest {
-            // Arrange
+        fun `guard rejects일 때 close guard span even해야 한다`() = runTest {
+            // 준비
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any<GuardCommand>()) } returns GuardResult.Rejected(
                 reason = "blocked",
@@ -157,12 +157,12 @@ class TracingIntegrationTest {
             )
             val executor = buildExecutor(guard = guard)
 
-            // Act
+            // 실행
             executor.execute(
                 AgentCommand(systemPrompt = "You are helpful.", userPrompt = "bad input")
             )
 
-            // Assert — guard span + request span both close
+            // — guard span + request span both close 확인
             verify(atLeast = 2) { spanHandle.close() }
         }
     }
@@ -171,15 +171,15 @@ class TracingIntegrationTest {
     inner class LlmCallSpan {
 
         @Test
-        fun `should start arc-agent-llm-call span for each LLM invocation`() = runTest {
-            // Arrange
+        fun `each LLM invocation에 대해 start arc-agent-llm-call span해야 한다`() = runTest {
+            // 준비
             fixture.mockCallResponse("Final answer")
             val executor = buildExecutor()
 
-            // Act
+            // 실행
             executor.execute(AgentCommand(systemPrompt = "You are helpful.", userPrompt = "What is 2+2?"))
 
-            // Assert
+            // 검증
             verify(atLeast = 1) {
                 tracer.startSpan("arc.agent.llm.call", any())
             }
@@ -190,8 +190,8 @@ class TracingIntegrationTest {
     inner class ToolCallSpan {
 
         @Test
-        fun `should start arc-agent-tool-call span for each tool invocation`() = runTest {
-            // Arrange
+        fun `each tool invocation에 대해 start arc-agent-tool-call span해야 한다`() = runTest {
+            // 준비
             val toolCall = AssistantMessage.ToolCall("id-1", "function", "calc", "{}")
             val firstResponse = fixture.mockToolCallResponse(listOf(toolCall))
             val finalResponse = fixture.mockFinalResponse("42")
@@ -200,20 +200,20 @@ class TracingIntegrationTest {
             val tool = AgentTestFixture.toolCallback("calc", result = "42")
             val executor = buildExecutor(tools = listOf(tool))
 
-            // Act
+            // 실행
             executor.execute(
                 AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Calculate something")
             )
 
-            // Assert
+            // 검증
             verify(atLeast = 1) {
                 tracer.startSpan("arc.agent.tool.call", any())
             }
         }
 
         @Test
-        fun `should include tool-name attribute in tool call span`() = runTest {
-            // Arrange
+        fun `include tool-name attribute in tool call span해야 한다`() = runTest {
+            // 준비
             val toolCall = AssistantMessage.ToolCall("id-1", "function", "myTool", "{}")
             val firstResponse = fixture.mockToolCallResponse(listOf(toolCall))
             val finalResponse = fixture.mockFinalResponse("result")
@@ -228,12 +228,12 @@ class TracingIntegrationTest {
             val tool = AgentTestFixture.toolCallback("myTool", result = "done")
             val executor = buildExecutor(tools = listOf(tool))
 
-            // Act
+            // 실행
             executor.execute(
                 AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Use my tool")
             )
 
-            // Assert
+            // 검증
             val toolSpanAttrs = attributesCaptures.firstOrNull { it["tool.name"] != null }
             assertTrue(
                 toolSpanAttrs != null,
@@ -251,7 +251,7 @@ class TracingIntegrationTest {
     inner class NoOpFallback {
 
         @Test
-        fun `executor without explicit tracer should use no-op and not throw`() = runTest {
+        fun `executor without explicit tracer은(는) use no-op and not throw해야 한다`() = runTest {
             // Arrange — no tracer injected, defaults to NoOpArcReactorTracer
             fixture.mockCallResponse("All good")
             val executor = SpringAiAgentExecutor(
@@ -268,7 +268,7 @@ class TracingIntegrationTest {
     }
 
     // -----------------------------------------------------------------------
-    // Helpers
+    // 헬퍼
     // -----------------------------------------------------------------------
 
     private fun buildExecutor(

@@ -12,7 +12,7 @@ class LlmProviderHealthIndicatorTest {
     private val environment = mockk<Environment>(relaxed = true)
 
     @Test
-    fun `UP when at least one provider is configured`() {
+    fun `UP when at least one provider은(는) configured이다`() {
         every { environment.getProperty("gemini.api.key") } returns "test-gemini-key"
         every { environment.getProperty("spring.ai.openai.api-key") } returns null
         every { environment.getProperty("spring.ai.anthropic.api-key") } returns null
@@ -29,7 +29,7 @@ class LlmProviderHealthIndicatorTest {
     }
 
     @Test
-    fun `DOWN when no provider is configured`() {
+    fun `DOWN when no provider은(는) configured이다`() {
         every { environment.getProperty("gemini.api.key") } returns null
         every { environment.getProperty("spring.ai.openai.api-key") } returns null
         every { environment.getProperty("spring.ai.anthropic.api-key") } returns null
@@ -44,7 +44,7 @@ class LlmProviderHealthIndicatorTest {
     }
 
     @Test
-    fun `UP with multiple providers configured`() {
+    fun `여러 프로바이더가 설정된 경우 UP`() {
         every { environment.getProperty("gemini.api.key") } returns "test-gemini-key"
         every { environment.getProperty("spring.ai.openai.api-key") } returns "test-openai-key"
         every { environment.getProperty("spring.ai.anthropic.api-key") } returns "test-anthropic-key"
@@ -61,7 +61,7 @@ class LlmProviderHealthIndicatorTest {
     }
 
     @Test
-    fun `UP when only openai is configured`() {
+    fun `UP when only openai은(는) configured이다`() {
         every { environment.getProperty("gemini.api.key") } returns null
         every { environment.getProperty("spring.ai.openai.api-key") } returns "sk-test"
         every { environment.getProperty("spring.ai.anthropic.api-key") } returns null
@@ -77,7 +77,7 @@ class LlmProviderHealthIndicatorTest {
     }
 
     @Test
-    fun `blank API key treated as not configured`() {
+    fun `빈 API key treated as not configured`() {
         every { environment.getProperty("gemini.api.key") } returns "   "
         every { environment.getProperty("spring.ai.openai.api-key") } returns ""
         every { environment.getProperty("spring.ai.anthropic.api-key") } returns null
@@ -94,7 +94,7 @@ class LlmProviderHealthIndicatorTest {
     }
 
     @Test
-    fun `details include default provider name`() {
+    fun `details은(는) include default provider name`() {
         every { environment.getProperty("gemini.api.key") } returns "key"
         every { environment.getProperty("spring.ai.openai.api-key") } returns null
         every { environment.getProperty("spring.ai.anthropic.api-key") } returns null

@@ -95,15 +95,15 @@ class ToolPolicyIntegrationTest {
     }
 
     @Test
-    fun `wires JdbcToolPolicyStore when dynamic is enabled`() {
+    fun `wires JdbcToolPolicyStore when dynamic은(는) enabled이다`() {
         assertInstanceOf(JdbcToolPolicyStore::class.java, toolPolicyStore) {
             "Expected JdbcToolPolicyStore when dynamic policy is enabled"
         }
     }
 
     @Test
-    fun `PUT then GET persists and affects effective policy`() {
-        // Update stored policy
+    fun `PUT 후 GET이 유효 정책을 저장하고 영향을 준다`() {
+        // stored policy 업데이트
         adminClient.put()
             .uri("/api/tool-policy")
             .bodyValue(
@@ -136,7 +136,7 @@ class ToolPolicyIntegrationTest {
     }
 
     @Test
-    fun `policy affects approval and slack write-tool blocking`() {
+    fun `policy은(는) affects approval and slack write-tool blocking`() {
         // Store policy
         adminClient.put()
             .uri("/api/tool-policy")
@@ -176,7 +176,7 @@ class ToolPolicyIntegrationTest {
     }
 
     @Test
-    fun `allowlist permits a write tool even in deny channel`() {
+    fun `allowlist은(는) permits a write tool even in deny channel`() {
         adminClient.put()
             .uri("/api/tool-policy")
             .bodyValue(
@@ -211,7 +211,7 @@ class ToolPolicyIntegrationTest {
     }
 
     @Test
-    fun `channel-scoped allowlist permits only specific channels`() {
+    fun `channel-scoped allowlist은(는) only specific channels를 허용한다`() {
         adminClient.put()
             .uri("/api/tool-policy")
             .bodyValue(
@@ -251,7 +251,7 @@ class ToolPolicyIntegrationTest {
     }
 
     @Test
-    fun `DELETE resets stored policy and hook no longer blocks`() {
+    fun `resets stored policy and hook no longer blocks를 삭제한다`() {
         adminClient.put()
             .uri("/api/tool-policy")
             .bodyValue(
@@ -284,7 +284,7 @@ class ToolPolicyIntegrationTest {
             callIndex = 0
         )
 
-        // With no stored policy, it falls back to config defaults (empty write-tool list) so it should continue.
+        // With no stored policy, it falls back to config defaults (empty write-tool list) so it은(는) continue.해야 합니다
         val result = runBlocking { writeToolBlockHook.beforeToolCall(toolCtx) }
         assertInstanceOf(HookResult.Continue::class.java, result) {
             "Without stored policy, hook should continue with defaults"

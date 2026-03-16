@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test
 class RagIngestionPolicyProviderTest {
 
     @Test
-    fun `master disabled forces policy disabled`() {
+    fun `master은(는) disabled forces policy disabled`() {
         val props = RagIngestionProperties(
             enabled = false,
             dynamic = RagIngestionDynamicProperties(enabled = true)
@@ -34,7 +34,7 @@ class RagIngestionPolicyProviderTest {
     }
 
     @Test
-    fun `dynamic mode loads stored policy and normalizes fields`() {
+    fun `dynamic은(는) mode loads stored policy and normalizes fields`() {
         val props = RagIngestionProperties(
             enabled = true,
             dynamic = RagIngestionDynamicProperties(enabled = true, refreshMs = 600_000)

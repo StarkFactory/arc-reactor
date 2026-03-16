@@ -15,7 +15,7 @@ class SearchMessagesToolTest {
     private val tool = SearchMessagesTool(searchMessagesUseCase)
 
     @Test
-    fun `searches messages successfully`() {
+    fun `searches은(는) messages successfully`() {
         every { searchMessagesUseCase.execute("deploy", 20, 1) } returns
             SearchMessagesResult(
                 ok = true,
@@ -29,28 +29,28 @@ class SearchMessagesToolTest {
     }
 
     @Test
-    fun `returns error for blank query`() {
+    fun `blank query에 대해 error를 반환한다`() {
         val result = tool.search_messages(" ", null, null)
         result shouldContain "query is required"
         verify(exactly = 0) { searchMessagesUseCase.execute(any(), any(), any()) }
     }
 
     @Test
-    fun `returns error for invalid count`() {
+    fun `invalid count에 대해 error를 반환한다`() {
         val result = tool.search_messages("deploy", 0, null)
         result shouldContain "count must be between 1 and 100"
         verify(exactly = 0) { searchMessagesUseCase.execute(any(), any(), any()) }
     }
 
     @Test
-    fun `returns error for invalid page`() {
+    fun `invalid page에 대해 error를 반환한다`() {
         val result = tool.search_messages("deploy", null, 0)
         result shouldContain "page must be at least 1"
         verify(exactly = 0) { searchMessagesUseCase.execute(any(), any(), any()) }
     }
 
     @Test
-    fun `trims query before delegating`() {
+    fun `query before delegating를 트리밍한다`() {
         every { searchMessagesUseCase.execute("deploy", 5, 2) } returns
             SearchMessagesResult(ok = true, query = "deploy")
 
