@@ -42,6 +42,9 @@ data class ScheduledJob(
     val agentModel: String? = null,
     val agentMaxToolCalls: Int? = null,
 
+    // Tagging
+    val tags: Set<String> = emptySet(),
+
     // Common
     val slackChannelId: String? = null,
     val teamsWebhookUrl: String? = null,

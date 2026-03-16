@@ -50,13 +50,14 @@ class SchedulerController(
     private val schedulerService: DynamicSchedulerService
 ) {
 
-    @Operation(summary = "List all scheduled jobs")
+    @Operation(summary = "List all scheduled jobs, optionally filtered by tag")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Paginated list of scheduled jobs"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping
     fun listJobs(
+<<<<<<< HEAD
         @RequestParam(defaultValue = "0") offset: Int,
         @RequestParam(defaultValue = "50") limit: Int,
         exchange: ServerWebExchange
@@ -64,6 +65,15 @@ class SchedulerController(
         if (!isAdmin(exchange)) return forbiddenResponse()
         val clamped = clampLimit(limit)
         return ResponseEntity.ok(schedulerService.list().map { it.toResponse() }.paginate(offset, clamped))
+=======
+        @RequestParam(required = false) tag: String? = null,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+        val jobs = schedulerService.list()
+        val filtered = if (tag.isNullOrBlank()) jobs else jobs.filter { tag in it.tags }
+        return ResponseEntity.ok(filtered.map { it.toResponse() })
+>>>>>>> acf3976 (feat(scheduler): Add tags support for scheduled job filtering)
     }
 
     @Operation(summary = "Create a new scheduled job (ADMIN)")
@@ -211,6 +221,7 @@ class SchedulerController(
         agentSystemPrompt = agentSystemPrompt,
         agentModel = agentModel,
         agentMaxToolCalls = agentMaxToolCalls,
+        tags = tags,
         slackChannelId = slackChannelId,
         teamsWebhookUrl = teamsWebhookUrl,
         retryOnFailure = retryOnFailure,
@@ -265,6 +276,7 @@ data class CreateScheduledJobRequest(
     val agentModel: String? = null,
     val agentMaxToolCalls: Int? = null,
 
+    val tags: Set<String> = emptySet(),
     val slackChannelId: String? = null,
     val teamsWebhookUrl: String? = null,
     val retryOnFailure: Boolean = false,
@@ -289,6 +301,7 @@ data class CreateScheduledJobRequest(
             agentSystemPrompt = agentSystemPrompt,
             agentModel = agentModel,
             agentMaxToolCalls = agentMaxToolCalls,
+            tags = tags,
             slackChannelId = slackChannelId,
             teamsWebhookUrl = teamsWebhookUrl,
             retryOnFailure = retryOnFailure,
@@ -333,6 +346,7 @@ data class UpdateScheduledJobRequest(
     val agentModel: String? = null,
     val agentMaxToolCalls: Int? = null,
 
+    val tags: Set<String> = emptySet(),
     val slackChannelId: String? = null,
     val teamsWebhookUrl: String? = null,
     val retryOnFailure: Boolean = false,
@@ -365,6 +379,7 @@ data class UpdateScheduledJobRequest(
             agentSystemPrompt = agentSystemPrompt,
             agentModel = agentModel,
             agentMaxToolCalls = agentMaxToolCalls,
+            tags = tags,
             slackChannelId = slackChannelId,
             teamsWebhookUrl = teamsWebhookUrl,
             retryOnFailure = retryOnFailure,
@@ -390,6 +405,7 @@ data class ScheduledJobResponse(
     val agentSystemPrompt: String?,
     val agentModel: String?,
     val agentMaxToolCalls: Int?,
+    val tags: Set<String>,
     val slackChannelId: String?,
     val teamsWebhookUrl: String?,
     val retryOnFailure: Boolean,
