@@ -14,13 +14,15 @@ data class AgentCommand(
     val systemPrompt: String,              // System prompt (defines agent role)
     val userPrompt: String,                // User prompt (actual question/request)
     val mode: AgentMode = AgentMode.REACT, // Execution mode
+    val model: String? = null,             // LLM model name override (uses config if null)
     val conversationHistory: List<Message> = emptyList(),  // Initial conversation history
     val temperature: Double? = null,       // LLM temperature (uses config value if null)
     val maxToolCalls: Int = 10,            // Maximum tool calls for this request
     val userId: String? = null,            // User ID (used by Guard, Memory)
     val metadata: Map<String, Any> = emptyMap(),  // User-defined metadata
     val responseFormat: ResponseFormat = ResponseFormat.TEXT,  // Response format
-    val responseSchema: String? = null     // JSON schema (for JSON mode)
+    val responseSchema: String? = null,    // JSON/YAML schema (for structured output)
+    val media: List<MediaAttachment> = emptyList()  // Multimodal attachments (images, audio, etc.)
 )
 ```
 
@@ -28,13 +30,16 @@ data class AgentCommand(
 
 | Field | Used by | Notes |
 |-------|---------|-------|
-| `systemPrompt` | LLM system message | RAG/JSON directives are appended automatically |
+| `systemPrompt` | LLM system message | RAG/JSON/YAML directives are appended automatically |
 | `userPrompt` | LLM user message + RAG query | Subject to Guard input validation |
 | `mode` | Only `REACT` is currently implemented | `STANDARD`, `STREAMING` are reserved |
+| `model` | LLM model selection | Overrides `AgentProperties.llm.model` for this request. `null` = use configured default |
 | `temperature` | Uses `AgentProperties.llm.temperature` if `null` | Per-request override |
 | `userId` | Guard (Rate Limit), Memory (session), Hook (context) | Falls back to "anonymous" if `null` |
 | `metadata` | Passed to Hook context | Used for audit logs, billing, etc. |
-| `responseFormat` | If `JSON`, appends JSON directives to system prompt | JSON not supported in streaming mode |
+| `responseFormat` | If `JSON`/`YAML`, appends structured output directives to system prompt | JSON/YAML not supported in streaming mode |
+| `responseSchema` | Structured output schema | If provided with `JSON` or `YAML` format, appends expected schema to system prompt |
+| `media` | Multimodal LLM input | Supports images, audio, video via URI or raw bytes. See [Multimodal Reference](multimodal.md) |
 
 ### AgentResult — Agent Execution Result
 
@@ -87,14 +92,16 @@ Tokens from all LLM calls within the ReAct loop are **accumulated**. If there ar
 ```kotlin
 enum class ResponseFormat {
     TEXT,   // Plain text (default)
-    JSON    // JSON response (adds directives to system prompt)
+    JSON,   // JSON response (adds directives to system prompt)
+    YAML    // YAML response (adds directives to system prompt)
 }
 ```
 
-**JSON mode behavior:**
-- Appends `"You MUST respond with valid JSON only."` to the system prompt
-- If `responseSchema` is provided, also appends `"Expected JSON schema: {schema}"`
-- Not available in streaming mode (JSON fragments are meaningless)
+**Structured output mode behavior:**
+- `JSON`: Appends `"You MUST respond with valid JSON only."` to the system prompt
+- `YAML`: Appends `"You MUST respond with valid YAML only."` to the system prompt
+- If `responseSchema` is provided, also appends `"Expected schema: {schema}"`
+- Not available in streaming mode (partial fragments are meaningless)
 
 ### AgentMode — Execution Mode
 
@@ -114,7 +121,8 @@ Currently only `REACT` is implemented. `executeStream()` operates in streaming m
 data class Message(
     val role: MessageRole,
     val content: String,
-    val timestamp: Instant = Instant.now()
+    val timestamp: Instant = Instant.now(),
+    val media: List<MediaAttachment> = emptyList()
 )
 
 enum class MessageRole {
@@ -122,7 +130,7 @@ enum class MessageRole {
 }
 ```
 
-Used when passing initial conversation history via `AgentCommand.conversationHistory`. This is merged with history loaded from Memory and sent to the LLM.
+Used when passing initial conversation history via `AgentCommand.conversationHistory`. This is merged with history loaded from Memory and sent to the LLM. The `media` field supports attaching multimodal content (images, audio, etc.) to individual conversation messages.
 
 ---
 
@@ -138,6 +146,10 @@ enum class AgentErrorCode(val defaultMessage: String) {
     TOOL_ERROR("An error occurred during tool execution."),
     GUARD_REJECTED("Request rejected by guard."),
     HOOK_REJECTED("Request rejected by hook."),
+    INVALID_RESPONSE("LLM returned an invalid structured response."),
+    OUTPUT_GUARD_REJECTED("Response blocked by output guard."),
+    OUTPUT_TOO_SHORT("Response is too short to meet quality requirements."),
+    CIRCUIT_BREAKER_OPEN("Service temporarily unavailable due to repeated failures. Please try again later."),
     UNKNOWN("An unknown error occurred.")
 }
 ```
@@ -152,6 +164,10 @@ enum class AgentErrorCode(val defaultMessage: String) {
 | `TOOL_ERROR` | Exception during tool execution | Not retried |
 | `GUARD_REJECTED` | Guard pipeline Reject | Not retried |
 | `HOOK_REJECTED` | BeforeAgentStart/BeforeToolCall Hook Reject | Not retried |
+| `INVALID_RESPONSE` | LLM returns invalid JSON/YAML when structured output is requested | Not retried |
+| `OUTPUT_GUARD_REJECTED` | Output guard pipeline blocks the response | Not retried |
+| `OUTPUT_TOO_SHORT` | Response fails minimum length boundary policy | Not retried |
+| `CIRCUIT_BREAKER_OPEN` | Circuit breaker is open due to repeated LLM failures | Not retried |
 | `UNKNOWN` | Unclassifiable exception | Not retried |
 
 ### classifyError — Keyword-Based Error Classification
@@ -242,10 +258,13 @@ interface AgentMetrics {
     fun recordExecution(result: AgentResult)
     fun recordToolCall(toolName: String, durationMs: Long, success: Boolean)
     fun recordGuardRejection(stage: String, reason: String)
+    // ... plus many more methods with default implementations
 }
 ```
 
-**Default implementation:** `NoOpAgentMetrics` (does nothing)
+The 3 methods above are abstract. All other methods have default no-op implementations for backward compatibility. See the full interface in the [Metrics Reference](metrics.md).
+
+**Default implementation:** `NoOpAgentMetrics` is auto-registered when no `MeterRegistry` is on the classpath. When Micrometer is available, `MicrometerAgentMetrics` is auto-registered instead via `@ConditionalOnBean(MeterRegistry::class)`. Users can always override with a custom `AgentMetrics` bean.
 
 **When each method is called:**
 
@@ -255,35 +274,7 @@ interface AgentMetrics {
 | `recordToolCall` | After individual tool execution completes | toolName, durationMs, success |
 | `recordGuardRejection` | When Guard rejects | stageName, reason |
 
-### Micrometer Implementation Example
-
-```kotlin
-class MicrometerAgentMetrics(private val registry: MeterRegistry) : AgentMetrics {
-    private val executionCounter = registry.counter("arc.agent.executions")
-    private val executionTimer = registry.timer("arc.agent.execution.duration")
-    private val errorCounter = registry.counter("arc.agent.errors")
-    private val toolCounter = registry.counter("arc.agent.tool.calls")
-
-    override fun recordExecution(result: AgentResult) {
-        executionCounter.increment()
-        executionTimer.record(result.durationMs, TimeUnit.MILLISECONDS)
-        if (!result.success) errorCounter.increment()
-    }
-
-    override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {
-        toolCounter.increment()
-        registry.timer("arc.agent.tool.duration", "tool", toolName)
-            .record(durationMs, TimeUnit.MILLISECONDS)
-        if (!success) {
-            registry.counter("arc.agent.tool.errors", "tool", toolName).increment()
-        }
-    }
-
-    override fun recordGuardRejection(stage: String, reason: String) {
-        registry.counter("arc.agent.guard.rejections", "stage", stage).increment()
-    }
-}
-```
+For the complete list of metric methods, see the [Metrics Reference](metrics.md).
 
 ---
 
