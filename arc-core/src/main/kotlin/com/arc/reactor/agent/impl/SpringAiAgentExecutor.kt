@@ -176,7 +176,13 @@ class SpringAiAgentExecutor(
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::createChatOptions,
         recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) },
-        agentMetrics = agentMetrics
+        agentMetrics = agentMetrics,
+        retryProperties = properties.retry,
+        isTransientError = { throwable ->
+            val effective = if (throwable is Exception) throwable
+                else Exception(throwable.message, throwable)
+            agentErrorPolicy.isTransient(effective)
+        }
     )
     private val streamingCompletionFinalizer = StreamingCompletionFinalizer(
         boundaries = properties.boundaries,

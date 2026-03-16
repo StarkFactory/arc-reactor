@@ -256,10 +256,14 @@ internal class StreamingExecutionCoordinator(
         emit: suspend (String) -> Unit
     ) {
         exception.throwIfCancellation()
-        logger.error(exception) { "Streaming execution failed" }
-        val errorCode = agentErrorPolicy.classify(exception)
+        val unwrapped = unwrapReactorException(exception)
+        val effectiveException = if (unwrapped is Exception) unwrapped else exception
+        logger.error(effectiveException) { "Streaming execution failed" }
+        val errorCode = agentErrorPolicy.classify(effectiveException)
         state.streamErrorCode = errorCode
-        state.streamErrorMessage = errorMessageResolver.resolve(errorCode, exception.message)
+        state.streamErrorMessage = errorMessageResolver.resolve(
+            errorCode, effectiveException.message
+        )
         emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
     }
 

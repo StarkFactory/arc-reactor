@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.config.RetryProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
@@ -15,10 +16,27 @@ import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import reactor.core.publisher.Flux
+import reactor.util.retry.Retry
+import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.reactive.asFlow
 
 private val logger = KotlinLogging.logger {}
+
+/**
+ * Unwraps Reactor-wrapped exceptions to expose the original cause
+ * for accurate error classification by [AgentErrorPolicy].
+ *
+ * Reactor's `Exceptions.propagate()` wraps checked exceptions in
+ * a RuntimeException. This function returns the original cause.
+ */
+internal fun unwrapReactorException(throwable: Throwable): Throwable {
+    val cause = throwable.cause
+    if (throwable is RuntimeException && cause != null && cause !== throwable) {
+        return cause
+    }
+    return throwable
+}
 
 internal data class StreamingLoopResult(
     val success: Boolean,
@@ -41,8 +59,12 @@ internal class StreamingReActLoopExecutor(
     ) -> Flux<org.springframework.ai.chat.model.ChatResponse>,
     private val buildChatOptions: (AgentCommand, Boolean) -> ChatOptions,
     private val recordTokenUsage: (TokenUsage, Map<String, Any>) -> Unit = { _, _ -> },
-    private val agentMetrics: AgentMetrics = NoOpAgentMetrics()
+    private val agentMetrics: AgentMetrics = NoOpAgentMetrics(),
+    private val retryProperties: RetryProperties = RetryProperties(),
+    private val isTransientError: (Throwable) -> Boolean = { false }
 ) {
+
+    private val streamingRetry: Retry by lazy { buildStreamingRetry() }
 
     suspend fun execute(
         command: AgentCommand,
@@ -81,7 +103,7 @@ internal class StreamingReActLoopExecutor(
             val currentChunkText = StringBuilder()
             var lastChunkMeta: org.springframework.ai.chat.metadata.ChatResponseMetadata? = null
 
-            flux.asFlow().collect { chunk ->
+            flux.retryWhen(streamingRetry).asFlow().collect { chunk ->
                 val generation = chunk.result ?: return@collect
                 val text = generation.output.text
                 if (!text.isNullOrEmpty()) {
@@ -182,6 +204,22 @@ internal class StreamingReActLoopExecutor(
                 )
             }
         }
+    }
+
+    private fun buildStreamingRetry(): Retry {
+        val maxAttempts = retryProperties.maxAttempts.coerceAtLeast(1).toLong() - 1
+        if (maxAttempts <= 0) return Retry.max(0)
+        return Retry
+            .backoff(maxAttempts, Duration.ofMillis(retryProperties.initialDelayMs))
+            .maxBackoff(Duration.ofMillis(retryProperties.maxDelayMs))
+            .jitter(0.25)
+            .filter { throwable -> isTransientError(unwrapReactorException(throwable)) }
+            .doBeforeRetry { signal ->
+                logger.warn {
+                    "Transient streaming error (attempt ${signal.totalRetries() + 1}), " +
+                        "retrying: ${signal.failure().message}"
+                }
+            }
     }
 
     private fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean {
