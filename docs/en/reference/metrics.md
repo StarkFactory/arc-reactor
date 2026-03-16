@@ -5,11 +5,16 @@
 
 ## Overview
 
-Arc Reactor provides a framework-agnostic `AgentMetrics` interface for recording agent execution metrics. By default, a `NoOpAgentMetrics` implementation is used (metrics disabled). Users can provide a custom implementation backed by Micrometer, Prometheus, Datadog, or any other metrics backend.
+Arc Reactor provides a framework-agnostic `AgentMetrics` interface for recording agent execution metrics. The auto-configuration selects the implementation based on the classpath:
+
+- **`MicrometerAgentMetrics`** is auto-registered (with `@Primary`) when a `MeterRegistry` bean is available on the classpath (i.e., when Micrometer is included as a dependency). This is the production-recommended path.
+- **`NoOpAgentMetrics`** is auto-registered via `@ConditionalOnMissingBean` as the fallback when no `MeterRegistry` is present. All methods are no-ops, so metrics are effectively disabled.
+
+Users can always override both by defining a custom `AgentMetrics` bean.
 
 ## AgentMetrics Interface
 
-The interface provides 14 metric recording methods across 7 categories:
+The interface provides metric recording methods across the following categories:
 
 ### Execution Metrics
 
@@ -35,10 +40,14 @@ The interface provides 14 metric recording methods across 7 categories:
 
 | Method | When Called | Parameters |
 |--------|-----------|------------|
-| `recordCacheHit(cacheKey)` | When a cached response is returned | SHA-256 cache key |
+| `recordCacheHit(cacheKey)` | When a cached response is returned (base method) | SHA-256 cache key |
+| `recordExactCacheHit(cacheKey)` | When a byte-identical request key matches a cached response | SHA-256 cache key |
+| `recordSemanticCacheHit(cacheKey)` | When a semantically similar prompt matches a cached response | SHA-256 cache key |
 | `recordCacheMiss(cacheKey)` | When no cached response is found | SHA-256 cache key |
 | `recordCircuitBreakerStateChange(name, from, to)` | When the circuit breaker transitions state | CB name, previous state, new state |
 | `recordFallbackAttempt(model, success)` | When a fallback model is attempted | Model name, success boolean |
+
+`recordExactCacheHit` and `recordSemanticCacheHit` delegate to `recordCacheHit` by default, so existing implementations that only override `recordCacheHit` continue to work.
 
 ### Token Usage Metrics
 
@@ -59,6 +68,46 @@ The interface provides 14 metric recording methods across 7 categories:
 | Method | When Called | Parameters |
 |--------|-----------|------------|
 | `recordBoundaryViolation(violation, policy, limit, actual)` | When output boundary policy triggers | Violation type (e.g., "output_too_long"), policy action (e.g., "truncate"), limit, actual |
+| `recordBoundaryViolation(violation, policy, limit, actual, metadata)` | Same, with request metadata | Violation, policy, limit, actual, metadata map |
+
+### Response Observation Metrics
+
+| Method | When Called | Parameters |
+|--------|-----------|------------|
+| `recordUnverifiedResponse(metadata)` | When a response could not be verified from approved sources | Metadata map (channel, query info) |
+| `recordResponseObservation(metadata)` | After each final response for product-value insights | Metadata map (answerMode, grounded, deliveryMode, channel, toolFamily) |
+
+### Latency Metrics
+
+| Method | When Called | Parameters |
+|--------|-----------|------------|
+| `recordStageLatency(stage, durationMs, metadata)` | After each pipeline stage completes | Stage name, duration in ms, metadata map |
+| `recordLlmLatency(model, durationMs)` | After each LLM call for SLA tracking (P50/P95/P99) | Model name, duration in ms |
+
+### Tool Result Cache Metrics
+
+| Method | When Called | Parameters |
+|--------|-----------|------------|
+| `recordToolResultCacheHit(toolName, cacheKey)` | When a cached tool result is reused (same tool + same args) | Tool name, cache key |
+| `recordToolResultCacheMiss(toolName, cacheKey)` | When a tool is executed and the result stored in cache | Tool name, cache key |
+
+### Tool Output Metrics
+
+| Method | When Called | Parameters |
+|--------|-----------|------------|
+| `recordToolOutputSize(toolName, sizeBytes, truncated)` | After tool execution for output size monitoring | Tool name, output size in bytes, whether truncated |
+
+### Active Request Metrics
+
+| Method | When Called | Parameters |
+|--------|-----------|------------|
+| `recordActiveRequests(count)` | When the number of in-flight agent requests changes | Current active count |
+
+### RAG Metrics
+
+| Method | When Called | Parameters |
+|--------|-----------|------------|
+| `recordRagRetrieval(status, durationMs)` | After a RAG retrieval attempt | Status ("success", "empty", "timeout", "error"), duration in ms |
 
 ## Implementation
 
@@ -175,14 +224,19 @@ class LoggingAgentMetrics : AgentMetrics {
 
 ## Bean Registration
 
-The `NoOpAgentMetrics` is registered with `@ConditionalOnMissingBean`. Simply define your own `AgentMetrics` bean to override:
+The auto-configuration registers metrics beans in the following order:
+
+1. **`MicrometerAgentMetrics`** -- registered with `@Primary` and `@ConditionalOnBean(MeterRegistry::class)`. If Micrometer is on the classpath and a `MeterRegistry` bean exists, this implementation is used automatically.
+2. **`NoOpAgentMetrics`** -- registered with `@ConditionalOnMissingBean`. Used as the fallback when no `MeterRegistry` is available.
+
+To provide a fully custom implementation, define your own `AgentMetrics` bean:
 
 ```kotlin
 @Configuration
 class MetricsConfig {
     @Bean
     fun agentMetrics(registry: MeterRegistry): AgentMetrics =
-        MicrometerAgentMetrics(registry)
+        MyCustomAgentMetrics(registry)
 }
 ```
 
@@ -191,6 +245,37 @@ class MetricsConfig {
 All methods added in 2.6.0+ have **default empty implementations** in the interface. Existing custom `AgentMetrics` implementations will continue to work without changes. Only the original 3 methods (`recordExecution`, `recordToolCall`, `recordGuardRejection`) are abstract.
 
 The metadata overloads (added in 2.7.0) delegate to the non-metadata variants by default, so existing implementations do not need to override them.
+
+## Built-in Micrometer Metric Names
+
+When `MicrometerAgentMetrics` is active, the following metric names are registered:
+
+| Metric Name | Type | Tags | Description |
+|-------------|------|------|-------------|
+| `arc.agent.executions` | Counter | `success`, `error_code` | Agent execution count |
+| `arc.agent.execution.duration` | Timer | `success` | Agent execution duration (P50/P95/P99) |
+| `arc.agent.errors` | Counter | `error_code` | Agent error count |
+| `arc.agent.tool.calls` | Counter | `tool`, `success` | Tool call count |
+| `arc.agent.tool.duration` | Timer | `tool`, `success` | Tool call duration |
+| `arc.agent.guard.rejections` | Counter | `stage` | Guard rejection count |
+| `arc.agent.cache.hits` | Counter | `mode` (exact/semantic) | Response cache hits |
+| `arc.agent.cache.misses` | Counter | -- | Response cache misses |
+| `arc.agent.circuitbreaker.transitions` | Counter | `name`, `from`, `to` | Circuit breaker state transitions |
+| `arc.agent.fallback.attempts` | Counter | `model`, `success` | Model fallback attempts |
+| `arc.agent.tokens.total` | DistributionSummary | -- | Token usage per LLM call |
+| `arc.agent.streaming.executions` | Counter | `success` | Streaming execution count |
+| `arc.agent.output.guard.actions` | Counter | `stage`, `action` | Output guard actions |
+| `arc.agent.boundary.violations` | Counter | `violation`, `policy` | Boundary policy violations |
+| `arc.agent.responses.unverified` | Counter | `channel` | Unverified response count |
+| `arc.agent.stage.duration` | Timer | `stage`, `channel` | Per-stage latency |
+| `arc.agent.llm.latency` | Timer | `model` | LLM call latency (P50/P95/P99) |
+| `arc.agent.tool.output.size` | DistributionSummary | `tool` | Tool output size in bytes |
+| `arc.agent.tool.output.truncated` | Counter | `tool` | Truncated tool output count |
+| `arc.agent.tool.result.cache.hits` | Counter | `tool` | Tool result cache hits |
+| `arc.agent.tool.result.cache.misses` | Counter | `tool` | Tool result cache misses |
+| `arc.agent.rag.retrievals` | Counter | `status` | RAG retrieval count |
+| `arc.agent.rag.retrieval.duration` | Timer | `status` | RAG retrieval duration |
+| `arc.agent.active_requests` | Gauge | -- | Current in-flight agent requests |
 
 ## arc-admin Metric Pipeline
 
@@ -313,19 +398,27 @@ Tables are defined in Flyway migration `V8__create_quota_and_hitl_tables.sql`:
 ```
 Request
   |
+  +--> recordActiveRequests(+1)
   v
 QuotaEnforcerHook ----[rejected]----> QuotaEvent
   |                 --[90% usage]---> QuotaEvent (warning, deduped)
   v
 Guard Pipeline ----[rejection]----> recordGuardRejection()
   |
+  +--> recordStageLatency("guard", ...)
   v
-Cache Check ----[hit]----> recordCacheHit() --> return cached response
+Cache Check ----[hit]----> recordExactCacheHit() or recordSemanticCacheHit() --> return cached
   |  [miss] --> recordCacheMiss()
   v
-LLM Call -----> recordTokenUsage() --> TokenUsageEvent (with estimatedCostUsd)
+RAG Retrieval -----> recordRagRetrieval(status, durationMs)
+  |
+  v
+LLM Call -----> recordTokenUsage()
+  |         --> recordLlmLatency(model, durationMs)
   |
   +--> [tool calls] --> recordToolCall() (per tool)
+  |                 --> recordToolOutputSize() (per tool)
+  |                 --> recordToolResultCacheHit() or recordToolResultCacheMiss()
   |                 --> HitlEventHook --> HitlEvent (if HITL metadata present)
   |
   +--> [circuit breaker state change] --> recordCircuitBreakerStateChange()
@@ -342,4 +435,7 @@ Response
   |
   +--> recordExecution() (non-streaming)
   +--> recordStreamingExecution() (streaming)
+  +--> recordResponseObservation() (product-value insights)
+  +--> recordUnverifiedResponse() (if not verified)
+  +--> recordActiveRequests(-1)
 ```

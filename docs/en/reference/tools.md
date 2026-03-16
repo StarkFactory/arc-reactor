@@ -90,6 +90,11 @@ class CalculatorTool : ToolCallback {
         }
     """.trimIndent()
 
+    // Per-tool timeout override (optional).
+    // Overrides the global arc.reactor.concurrency.tool-call-timeout-ms for this tool only.
+    // Null (default) means use the global timeout.
+    override val timeoutMs: Long? = 60_000L  // 60 seconds for slow calculations
+
     override suspend fun call(arguments: Map<String, Any?>): Any {
         val expression = arguments["expression"] as? String
             ?: return "Error: expression is required"
@@ -102,6 +107,7 @@ class CalculatorTool : ToolCallback {
 **Features:**
 - Direct control over the schema (fine-grained configuration)
 - `suspend fun` -- async execution supported
+- Per-tool timeout override via `timeoutMs` (overrides the global `tool-call-timeout-ms`)
 - Usable without Spring DI (easier unit testing)
 - Auto-registered with `@Component`, or manually registered without it
 
@@ -109,6 +115,7 @@ class CalculatorTool : ToolCallback {
 - When you need fine-grained control over the schema
 - When you need suspend functions (async external API calls)
 - When building framework-independent tools
+- When a specific tool needs a different timeout than the global default
 
 > Example code: [`CalculatorTool.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/example/CalculatorTool.kt), [`DateTimeTool.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/example/DateTimeTool.kt)
 
@@ -158,6 +165,7 @@ so from the agent's perspective, they are used identically to local tools.
 | **Schema generation** | Automatic (`@Tool` annotation) | Manual (write JSON) | Automatic (provided by server) |
 | **Spring DI** | Supported | Supported | N/A |
 | **Async** | Not supported (Spring AI constraint) | Supported (`suspend fun`) | Supported |
+| **Per-tool timeout** | Not supported | Supported (`timeoutMs`) | Not supported |
 | **Registration method** | `@Component` | `@Component` or manual | `mcpManager.connect()` |
 | **When to use** | Most cases | When fine-grained control is needed | When connecting to external services |
 
@@ -216,9 +224,9 @@ Built-in categories:
 |----------|-------------------|
 | `SEARCH` | 검색, search, 찾아, find, 조회, query |
 | `CREATE` | 생성, create, 만들어, 작성, write |
-| `ANALYZE` | 분석, analyze, 요약, summary, 리포트 |
+| `ANALYZE` | 분석, analyze, 요약, summary, 리포트, report |
 | `COMMUNICATE` | 전송, send, 메일, email, 알림, notify |
-| `DATA` | 데이터, data, 저장, save, 업데이트 |
+| `DATA` | 데이터, data, 저장, save, 업데이트, update |
 
 If `category = null`, the tool is always selected (not subject to filtering).
 
