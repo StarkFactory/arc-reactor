@@ -97,6 +97,11 @@ class McpServerController(
             return badRequest("HTTP transport is not supported. Use SSE or STDIO.")
         }
 
+        if (transportType == McpTransportType.SSE) {
+            val urlError = validateSseUrl(request.config)
+            if (urlError != null) return badRequest(urlError)
+        }
+
         val server = request.toMcpServer(transportType)
         mcpManager.register(server)
         val registeredInRuntime = mcpManager.getStatus(server.name) != null ||
@@ -196,11 +201,17 @@ class McpServerController(
             return badRequest("HTTP transport is not supported. Use SSE or STDIO.")
         }
 
+        val effectiveConfig = request.config ?: existing.config
+        if (transportType == McpTransportType.SSE) {
+            val urlError = validateSseUrl(effectiveConfig)
+            if (urlError != null) return badRequest(urlError)
+        }
+
         val updateData = McpServer(
             name = name,
             description = request.description ?: existing.description,
             transportType = transportType,
-            config = request.config ?: existing.config,
+            config = effectiveConfig,
             version = request.version ?: existing.version,
             autoConnect = request.autoConnect ?: existing.autoConnect
         )
@@ -384,6 +395,12 @@ class McpServerController(
         ResponseEntity.badRequest().body(
             ErrorResponse(error = message, timestamp = Instant.now().toString())
         )
+
+    private fun validateSseUrl(config: Map<String, Any>): String? {
+        val url = config["url"]?.toString()
+            ?: return "SSE transport requires a 'url' in config"
+        return SsrfUrlValidator.validate(url)
+    }
 
     private fun persistServerIfMissing(server: McpServer) {
         if (mcpServerStore.findByName(server.name) != null) return
