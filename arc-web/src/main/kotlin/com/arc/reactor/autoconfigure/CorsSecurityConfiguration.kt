@@ -2,6 +2,7 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.cors.CorsConfiguration
@@ -28,6 +29,7 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource
 class CorsSecurityConfiguration {
 
     @Bean
+    @ConditionalOnMissingBean
     fun corsWebFilter(properties: AgentProperties): CorsWebFilter {
         val corsProps = properties.cors
         val config = CorsConfiguration().apply {

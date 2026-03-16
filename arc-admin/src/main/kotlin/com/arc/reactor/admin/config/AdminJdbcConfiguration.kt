@@ -44,6 +44,7 @@ class AdminJdbcConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcTenantStore"])
     fun jdbcTenantStore(jdbcTemplate: JdbcTemplate): TenantStore {
         logger.info { "Using JdbcTenantStore" }
         return JdbcTenantStore(jdbcTemplate)
@@ -51,17 +52,20 @@ class AdminJdbcConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcModelPricingStore"])
     fun jdbcModelPricingStore(jdbcTemplate: JdbcTemplate): ModelPricingStore {
         logger.info { "Using JdbcModelPricingStore" }
         return JdbcModelPricingStore(jdbcTemplate)
     }
 
     @Bean
+    @ConditionalOnMissingBean
     fun metricEventStore(jdbcTemplate: JdbcTemplate): MetricEventStore {
         return JdbcMetricEventStore(jdbcTemplate)
     }
 
     @Bean
+    @ConditionalOnMissingBean
     fun metricWriter(
         ringBuffer: MetricRingBuffer,
         metricEventStore: MetricEventStore,
@@ -117,6 +121,7 @@ class AdminJdbcConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcAlertRuleStore"])
     fun jdbcAlertRuleStore(jdbcTemplate: JdbcTemplate): AlertRuleStore {
         logger.info { "Using JdbcAlertRuleStore" }
         return JdbcAlertRuleStore(jdbcTemplate)
