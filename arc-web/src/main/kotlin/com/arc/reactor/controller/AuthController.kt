@@ -129,12 +129,12 @@ class AuthController(
         ApiResponse(responseCode = "404", description = "User not found")
     ])
     @GetMapping("/me")
-    fun me(exchange: ServerWebExchange): ResponseEntity<UserResponse> {
+    fun me(exchange: ServerWebExchange): ResponseEntity<Any> {
         val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
             ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
 
         val user = authProvider.getUserById(userId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("User not found")
 
         return ResponseEntity.ok(user.toResponse())
     }
@@ -158,7 +158,7 @@ class AuthController(
             ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
 
         val user = authProvider.getUserById(userId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("User not found")
 
         // Verify current password
         if (authProvider.authenticate(user.email, request.currentPassword) == null) {

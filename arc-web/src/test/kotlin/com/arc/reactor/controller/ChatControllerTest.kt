@@ -593,11 +593,11 @@ class ChatControllerTest {
             assertEquals(HttpStatus.BAD_REQUEST, mapErrorCodeToStatus(AgentErrorCode.CONTEXT_TOO_LONG)) {
                 "CONTEXT_TOO_LONG should map to 400"
             }
-            assertEquals(HttpStatus.OK, mapErrorCodeToStatus(AgentErrorCode.OUTPUT_GUARD_REJECTED)) {
-                "OUTPUT_GUARD_REJECTED should remain 200 (request succeeded, output filtered)"
+            assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, mapErrorCodeToStatus(AgentErrorCode.OUTPUT_GUARD_REJECTED)) {
+                "OUTPUT_GUARD_REJECTED should map to 422 (output rejected by post-processing guard)"
             }
-            assertEquals(HttpStatus.OK, mapErrorCodeToStatus(AgentErrorCode.OUTPUT_TOO_SHORT)) {
-                "OUTPUT_TOO_SHORT should remain 200 (request succeeded, output filtered)"
+            assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, mapErrorCodeToStatus(AgentErrorCode.OUTPUT_TOO_SHORT)) {
+                "OUTPUT_TOO_SHORT should map to 422 (output rejected by post-processing guard)"
             }
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, mapErrorCodeToStatus(AgentErrorCode.UNKNOWN)) {
                 "UNKNOWN should map to 500"

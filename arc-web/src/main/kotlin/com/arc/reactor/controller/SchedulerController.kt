@@ -19,8 +19,6 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
-import java.time.Instant
-
 /**
  * Dynamic Scheduler API Controller
  *
@@ -86,8 +84,7 @@ class SchedulerController(
             schedulerService.create(request.toScheduledJob())
         } catch (e: IllegalArgumentException) {
             logger.warn(e) { "Invalid create job request" }
-            return ResponseEntity.badRequest()
-                .body(ErrorResponse(error = "Invalid request", timestamp = Instant.now().toString()))
+            return badRequestResponse("Invalid request")
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(job.toResponse())
     }
@@ -101,7 +98,7 @@ class SchedulerController(
     @GetMapping("/{id}")
     fun getJob(@PathVariable id: String, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val job = schedulerService.findById(id) ?: return jobNotFound(id)
+        val job = schedulerService.findById(id) ?: return notFoundResponse("Scheduled job not found: $id")
         return ResponseEntity.ok(job.toResponse())
     }
 
@@ -121,11 +118,10 @@ class SchedulerController(
         if (!isAdmin(exchange)) return forbiddenResponse()
 
         val updated = try {
-            schedulerService.update(id, request.toScheduledJob()) ?: return jobNotFound(id)
+            schedulerService.update(id, request.toScheduledJob()) ?: return notFoundResponse("Scheduled job not found: $id")
         } catch (e: IllegalArgumentException) {
             logger.warn(e) { "Invalid update job request: $id" }
-            return ResponseEntity.badRequest()
-                .body(ErrorResponse(error = "Invalid request", timestamp = Instant.now().toString()))
+            return badRequestResponse("Invalid request")
         }
         return ResponseEntity.ok(updated.toResponse())
     }
@@ -139,7 +135,7 @@ class SchedulerController(
     @DeleteMapping("/{id}")
     fun deleteJob(@PathVariable id: String, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        schedulerService.findById(id) ?: return jobNotFound(id)
+        schedulerService.findById(id) ?: return notFoundResponse("Scheduled job not found: $id")
         schedulerService.delete(id)
         return ResponseEntity.noContent().build()
     }
@@ -189,15 +185,11 @@ class SchedulerController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        schedulerService.findById(id) ?: return jobNotFound(id)
+        schedulerService.findById(id) ?: return notFoundResponse("Scheduled job not found: $id")
         val executions = schedulerService.getExecutions(id, limit.coerceIn(1, 100))
         val clamped = clampLimit(pageLimit)
         return ResponseEntity.ok(executions.map { it.toResponse() }.paginate(offset, clamped))
     }
-
-    private fun jobNotFound(id: String): ResponseEntity<Any> =
-        ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body(ErrorResponse(error = "Scheduled job not found: $id", timestamp = Instant.now().toString()))
 
     private fun ScheduledJob.toResponse() = ScheduledJobResponse(
         id = id,

@@ -49,7 +49,7 @@ class UserMemoryController(
     ): ResponseEntity<Any> {
         if (!canAccess(userId, exchange)) return forbiddenResponse()
         val memory = userMemoryManager.get(userId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("User memory not found: $userId")
         return ResponseEntity.ok(memory.toResponse())
     }
 

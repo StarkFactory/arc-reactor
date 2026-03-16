@@ -136,7 +136,7 @@ class PromptLabController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val experiment = experimentStore.get(id)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Experiment not found: $id")
         return ResponseEntity.ok(experiment.toResponse())
     }
 
@@ -155,14 +155,9 @@ class PromptLabController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val experiment = experimentStore.get(id)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Experiment not found: $id")
         if (experiment.status != ExperimentStatus.PENDING) {
-            return ResponseEntity.badRequest().body(
-                ErrorResponse(
-                    error = "Experiment must be PENDING to run, current: ${experiment.status}",
-                    timestamp = Instant.now().toString()
-                )
-            )
+            return badRequestResponse("Experiment must be PENDING to run, current: ${experiment.status}")
         }
         if (runningJobs.size >= properties.maxConcurrentExperiments) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
@@ -200,14 +195,9 @@ class PromptLabController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val experiment = experimentStore.get(id)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Experiment not found: $id")
         if (experiment.status != ExperimentStatus.RUNNING) {
-            return ResponseEntity.badRequest().body(
-                ErrorResponse(
-                    error = "Only RUNNING experiments can be cancelled",
-                    timestamp = Instant.now().toString()
-                )
-            )
+            return badRequestResponse("Only RUNNING experiments can be cancelled")
         }
         runningJobs.remove(id)?.cancel()
         val cancelled = experiment.copy(
@@ -231,7 +221,7 @@ class PromptLabController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val experiment = experimentStore.get(id)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Experiment not found: $id")
         return ResponseEntity.ok(
             ExperimentStatusResponse(
                 experimentId = experiment.id,
@@ -271,7 +261,7 @@ class PromptLabController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val report = experimentStore.getReport(id)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Experiment report not found: $id")
         return ResponseEntity.ok(report.toResponse())
     }
 
@@ -363,24 +353,14 @@ class PromptLabController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val experiment = experimentStore.get(id)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Experiment not found: $id")
         val report = experimentStore.getReport(id)
-            ?: return ResponseEntity.badRequest().body(
-                ErrorResponse(
-                    error = "No report available for this experiment",
-                    timestamp = Instant.now().toString()
-                )
-            )
+            ?: return badRequestResponse("No report available for this experiment")
 
         val activated = promptTemplateStore.activateVersion(
             experiment.templateId,
             report.recommendation.bestVersionId
-        ) ?: return ResponseEntity.badRequest().body(
-            ErrorResponse(
-                error = "Failed to activate version: ${report.recommendation.bestVersionId}",
-                timestamp = Instant.now().toString()
-            )
-        )
+        ) ?: return badRequestResponse("Failed to activate version: ${report.recommendation.bestVersionId}")
 
         return ResponseEntity.ok(
             mapOf(
@@ -399,25 +379,19 @@ class PromptLabController(
     ): ResponseEntity<Any>? {
         val maxQ = properties.maxQueriesPerExperiment
         if (request.testQueries.size > maxQ) {
-            return badRequest("testQueries exceeds limit: ${request.testQueries.size} > $maxQ")
+            return badRequestResponse("testQueries exceeds limit: ${request.testQueries.size} > $maxQ")
         }
         val maxV = properties.maxVersionsPerExperiment
         val totalVersions = 1 + request.candidateVersionIds.size
         if (totalVersions > maxV) {
-            return badRequest("Total versions exceeds limit: $totalVersions > $maxV")
+            return badRequestResponse("Total versions exceeds limit: $totalVersions > $maxV")
         }
         val maxR = properties.maxRepetitions
         val reps = request.repetitions ?: 1
         if (reps > maxR) {
-            return badRequest("repetitions exceeds limit: $reps > $maxR")
+            return badRequestResponse("repetitions exceeds limit: $reps > $maxR")
         }
         return null
-    }
-
-    private fun badRequest(msg: String): ResponseEntity<Any> {
-        return ResponseEntity.badRequest().body(
-            ErrorResponse(error = msg, timestamp = Instant.now().toString())
-        )
     }
 
     override fun destroy() {

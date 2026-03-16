@@ -157,9 +157,9 @@ class FeedbackController(
         ApiResponse(responseCode = "404", description = "Feedback not found")
     ])
     @GetMapping("/{feedbackId}")
-    fun getFeedback(@PathVariable feedbackId: String): ResponseEntity<FeedbackResponse> {
+    fun getFeedback(@PathVariable feedbackId: String): ResponseEntity<Any> {
         val feedback = feedbackStore.get(feedbackId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Feedback not found: $feedbackId")
         return ResponseEntity.ok(feedback.toResponse())
     }
 

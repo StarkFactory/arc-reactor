@@ -127,7 +127,7 @@ class PersonaControllerTest {
             val response = controller.getPersona("p-1")
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
-            val body = response.body!!
+            val body = response.body!! as PersonaResponse
             assertEquals("p-1", body.id) { "ID should match" }
             assertEquals("Customer Agent", body.name) { "Name should match" }
             assertEquals("You handle customer inquiries.", body.systemPrompt) { "System prompt should match" }
@@ -156,7 +156,7 @@ class PersonaControllerTest {
             val response = controller.getPersona("ext-1")
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
-            val body = response.body!!
+            val body = response.body!! as PersonaResponse
             assertEquals("A domain expert", body.description) { "Description should match" }
             assertEquals("Use bullet points.", body.responseGuideline) { "Guideline should match" }
             assertEquals("Hello!", body.welcomeMessage) { "Welcome message should match" }

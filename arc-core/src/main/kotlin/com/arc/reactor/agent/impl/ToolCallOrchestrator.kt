@@ -528,7 +528,7 @@ internal class ToolCallOrchestrator(
      * Find a tool adapter by name from the registered tools.
      */
     private fun findToolAdapter(toolName: String, tools: List<Any>): ArcToolCallbackAdapter? {
-        return tools.filterIsInstance<ArcToolCallbackAdapter>().firstOrNull { it.arcCallback.name == toolName }
+        return tools.firstNotNullOfOrNull { (it as? ArcToolCallbackAdapter)?.takeIf { a -> a.arcCallback.name == toolName } }
     }
 
     private fun resolveSpringToolCallbacksByName(

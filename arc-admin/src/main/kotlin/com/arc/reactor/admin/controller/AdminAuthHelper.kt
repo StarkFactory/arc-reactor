@@ -30,3 +30,15 @@ fun currentActor(exchange: ServerWebExchange): String {
 fun forbiddenResponse(): ResponseEntity<Any> =
     ResponseEntity.status(HttpStatus.FORBIDDEN)
         .body(AdminErrorResponse(error = "Admin access required"))
+
+fun notFoundResponse(message: String): ResponseEntity<Any> =
+    ResponseEntity.status(HttpStatus.NOT_FOUND)
+        .body(AdminErrorResponse(error = message))
+
+fun conflictResponse(message: String): ResponseEntity<Any> =
+    ResponseEntity.status(HttpStatus.CONFLICT)
+        .body(AdminErrorResponse(error = message))
+
+fun badRequestResponse(message: String): ResponseEntity<Any> =
+    ResponseEntity.badRequest()
+        .body(AdminErrorResponse(error = message))
