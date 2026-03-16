@@ -14,6 +14,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -517,7 +518,7 @@ class AgentTracingHooksTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             // Simulate HITL wait: tool reports durationMs = 0 but real wall time > 100ms
-            Thread.sleep(150)
+            withContext(Dispatchers.IO) { delay(150) }
             hooks.afterToolCall(ctx, successToolResult(durationMs = 0))
 
             taggedValues["gen_ai.tool.hitl.required"] shouldBe "true"
@@ -528,7 +529,7 @@ class AgentTracingHooksTest {
         fun `HITL rejection is tagged when output starts with Rejected`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
-            Thread.sleep(150)
+            withContext(Dispatchers.IO) { delay(150) }
             val result = ToolCallResult(success = true, output = "Rejected: Not allowed", durationMs = 0)
             hooks.afterToolCall(ctx, result)
 
@@ -541,7 +542,7 @@ class AgentTracingHooksTest {
         fun `HITL rejection is tagged when output starts with Error Tool call rejected`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
-            Thread.sleep(150)
+            withContext(Dispatchers.IO) { delay(150) }
             val result = ToolCallResult(success = true, output = "Error: Tool call rejected by user", durationMs = 0)
             hooks.afterToolCall(ctx, result)
 
@@ -552,7 +553,7 @@ class AgentTracingHooksTest {
         fun `HITL approval is tagged when output does not indicate rejection`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
-            Thread.sleep(150)
+            withContext(Dispatchers.IO) { delay(150) }
             val result = ToolCallResult(success = true, output = "Order shipped successfully", durationMs = 0)
             hooks.afterToolCall(ctx, result)
 
@@ -564,7 +565,7 @@ class AgentTracingHooksTest {
             val longOutput = "Rejected: " + "r".repeat(1000)
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
-            Thread.sleep(150)
+            withContext(Dispatchers.IO) { delay(150) }
             val result = ToolCallResult(success = true, output = longOutput, durationMs = 0)
             hooks.afterToolCall(ctx, result)
 
