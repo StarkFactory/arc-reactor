@@ -40,7 +40,8 @@ internal class ToolCallOrchestrator(
     private val agentMetrics: AgentMetrics,
     private val parseToolArguments: (String?) -> Map<String, Any?> = ::parseToolArguments,
     private val toolOutputSanitizer: ToolOutputSanitizer? = null,
-    private val maxToolOutputLength: Int = DEFAULT_MAX_TOOL_OUTPUT_LENGTH
+    private val maxToolOutputLength: Int = DEFAULT_MAX_TOOL_OUTPUT_LENGTH,
+    private val requesterAwareToolNames: Set<String> = emptySet()
 ) {
     private val springToolCallbackCache =
         ConcurrentHashMap<ToolCallbackCacheKey, Map<String, org.springframework.ai.tool.ToolCallback>>()
@@ -627,22 +628,6 @@ internal class ToolCallOrchestrator(
         const val TOOL_SIGNALS_METADATA_KEY = "toolSignals"
         const val DEFAULT_MAX_TOOL_OUTPUT_LENGTH = 50_000
         private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
-        private val requesterAwareToolNames = setOf(
-            "jira_my_open_issues",
-            "jira_due_soon_issues",
-            "jira_blocker_digest",
-            "jira_daily_briefing",
-            "jira_search_my_issues_by_text",
-            "bitbucket_review_queue",
-            "bitbucket_review_sla_alerts",
-            "bitbucket_my_authored_prs",
-            "work_personal_focus_plan",
-            "work_personal_learning_digest",
-            "work_personal_interrupt_guard",
-            "work_personal_end_of_day_wrapup",
-            "work_prepare_standup_update",
-            "work_personal_document_search"
-        )
         private val requesterAccountIdMetadataKeys = listOf("requesterAccountId", "accountId")
         private val requesterEmailMetadataKeys = listOf("requesterEmail", "userEmail", "slackUserEmail")
     }

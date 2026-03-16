@@ -510,6 +510,27 @@ data class BoundaryProperties(
 )
 
 /**
+ * Tool parameter enrichment configuration.
+ *
+ * Tools listed in [requesterAwareToolNames] automatically receive the caller's
+ * identity (account ID or email) from request metadata when the LLM omits it.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     tool-enrichment:
+ *       requester-aware-tool-names:
+ *         - jira_my_open_issues
+ *         - bitbucket_review_queue
+ * ```
+ */
+data class ToolEnrichmentProperties(
+    /** Tool names that should be enriched with the requester's identity. */
+    val requesterAwareToolNames: Set<String> = emptySet()
+)
+
+/**
  * Policy for handling output minimum length violations.
  */
 enum class OutputMinViolationMode {

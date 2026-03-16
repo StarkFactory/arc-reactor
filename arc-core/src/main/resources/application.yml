@@ -106,6 +106,23 @@ arc:
       token-revocation-redis-key-prefix: ${ARC_REACTOR_AUTH_TOKEN_REVOCATION_REDIS_KEY_PREFIX:arc:auth:revoked}
       public-actuator-health: ${ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH:true}
 
+    tool-enrichment:
+      requester-aware-tool-names:
+        - jira_my_open_issues
+        - jira_due_soon_issues
+        - jira_blocker_digest
+        - jira_daily_briefing
+        - jira_search_my_issues_by_text
+        - bitbucket_review_queue
+        - bitbucket_review_sla_alerts
+        - bitbucket_my_authored_prs
+        - work_personal_focus_plan
+        - work_personal_learning_digest
+        - work_personal_interrupt_guard
+        - work_personal_end_of_day_wrapup
+        - work_prepare_standup_update
+        - work_personal_document_search
+
     boundaries:
       input-min-chars: 1
       input-max-chars: 10000
