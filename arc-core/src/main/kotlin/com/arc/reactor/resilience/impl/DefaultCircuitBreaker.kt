@@ -115,15 +115,17 @@ class DefaultCircuitBreaker(
     private fun onSuccess() {
         val current = state.get()
         if (current == CircuitBreakerState.HALF_OPEN) {
-            // Success in HALF_OPEN → close the circuit
-            state.set(CircuitBreakerState.CLOSED)
-            failureCount.set(0)
-            successCount.incrementAndGet()
-            halfOpenCallCount.set(0)
-            logger.info { "Circuit breaker '$name' transitioned HALF_OPEN → CLOSED (recovery confirmed)" }
-            agentMetrics.recordCircuitBreakerStateChange(
-                name, CircuitBreakerState.HALF_OPEN, CircuitBreakerState.CLOSED
-            )
+            // CAS: only one thread performs the HALF_OPEN → CLOSED transition
+            if (state.compareAndSet(CircuitBreakerState.HALF_OPEN, CircuitBreakerState.CLOSED)) {
+                failureCount.set(0)
+                successCount.incrementAndGet()
+                halfOpenCallCount.set(0)
+                logger.info { "Circuit breaker '$name' transitioned HALF_OPEN → CLOSED (recovery confirmed)" }
+                agentMetrics.recordCircuitBreakerStateChange(
+                    name, CircuitBreakerState.HALF_OPEN, CircuitBreakerState.CLOSED
+                )
+            }
+            // CAS failed: another thread already transitioned — no-op
         } else {
             successCount.incrementAndGet()
             failureCount.set(0) // Reset consecutive failure count on success
@@ -135,14 +137,15 @@ class DefaultCircuitBreaker(
         val current = state.get()
 
         if (current == CircuitBreakerState.HALF_OPEN) {
-            // Failure in HALF_OPEN → reopen
-            state.set(CircuitBreakerState.OPEN)
-            openedAt.set(clock())
-            halfOpenCallCount.set(0)
-            logger.warn { "Circuit breaker '$name' transitioned HALF_OPEN → OPEN (trial call failed)" }
-            agentMetrics.recordCircuitBreakerStateChange(
-                name, CircuitBreakerState.HALF_OPEN, CircuitBreakerState.OPEN
-            )
+            // CAS: only one thread performs the HALF_OPEN → OPEN transition
+            if (state.compareAndSet(CircuitBreakerState.HALF_OPEN, CircuitBreakerState.OPEN)) {
+                openedAt.set(clock())
+                halfOpenCallCount.set(0)
+                logger.warn { "Circuit breaker '$name' transitioned HALF_OPEN → OPEN (trial call failed)" }
+                agentMetrics.recordCircuitBreakerStateChange(
+                    name, CircuitBreakerState.HALF_OPEN, CircuitBreakerState.OPEN
+                )
+            }
         } else if (current == CircuitBreakerState.CLOSED) {
             val failures = failureCount.incrementAndGet()
             if (failures >= failureThreshold) {
