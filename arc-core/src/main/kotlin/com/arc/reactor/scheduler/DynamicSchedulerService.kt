@@ -156,15 +156,63 @@ class DynamicSchedulerService(
     }
 
     private fun validateSchedule(job: ScheduledJob) {
+        validateTimezone(job.timezone)
+        validateCronExpression(job.cronExpression)
+        validateJobName(job.name)
+        validateExecutionTimeout(job.executionTimeoutMs)
+        validateRetryConfig(job)
+        validateJobTypeFields(job)
+    }
+
+    private fun validateTimezone(timezone: String) {
         try {
-            ZoneId.of(job.timezone)
+            ZoneId.of(timezone)
         } catch (e: Exception) {
-            throw IllegalArgumentException("Invalid timezone: ${job.timezone}", e)
+            throw IllegalArgumentException("Invalid timezone: $timezone", e)
         }
+    }
+
+    private fun validateCronExpression(cron: String) {
         try {
-            CronExpression.parse(job.cronExpression)
+            CronExpression.parse(cron)
         } catch (e: Exception) {
-            throw IllegalArgumentException("Invalid cron expression: ${job.cronExpression}", e)
+            throw IllegalArgumentException("Invalid cron expression: $cron", e)
+        }
+    }
+
+    private fun validateJobName(name: String) {
+        require(name.isNotBlank()) { "Job name must not be blank" }
+    }
+
+    private fun validateExecutionTimeout(timeoutMs: Long?) {
+        if (timeoutMs == null || timeoutMs == 0L) return
+        require(timeoutMs in 1000..3600000) {
+            "executionTimeoutMs must be 0 (unlimited) or between 1000 and 3600000, got: $timeoutMs"
+        }
+    }
+
+    private fun validateRetryConfig(job: ScheduledJob) {
+        if (!job.retryOnFailure) return
+        require(job.maxRetryCount >= 1) {
+            "maxRetryCount must be >= 1 when retryOnFailure is enabled, got: ${job.maxRetryCount}"
+        }
+    }
+
+    private fun validateJobTypeFields(job: ScheduledJob) {
+        when (job.jobType) {
+            ScheduledJobType.MCP_TOOL -> {
+                require(!job.mcpServerName.isNullOrBlank()) {
+                    "mcpServerName is required for MCP_TOOL job"
+                }
+                require(!job.toolName.isNullOrBlank()) {
+                    "toolName is required for MCP_TOOL job"
+                }
+            }
+            ScheduledJobType.AGENT -> {
+                require(!job.agentPrompt.isNullOrBlank()) {
+                    "agentPrompt is required for AGENT job"
+                }
+            }
         }
     }
 
