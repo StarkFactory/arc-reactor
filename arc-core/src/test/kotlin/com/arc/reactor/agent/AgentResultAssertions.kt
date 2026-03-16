@@ -7,9 +7,9 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 
 /**
- * Extension functions for descriptive AgentResult assertions.
+ * 설명적인 AgentResult 단언을 위한 확장 함수.
  *
- * Replaces bare `assertTrue(result.success)` with messages that surface actual errors on failure.
+ * 단순한 `assertTrue(result.success)`를 실패 시 실제 오류를 표시하는 메시지로 대체합니다.
  */
 
 fun AgentResult.assertSuccess(message: String = "") {

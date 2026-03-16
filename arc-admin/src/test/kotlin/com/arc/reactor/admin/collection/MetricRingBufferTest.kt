@@ -28,7 +28,7 @@ class MetricRingBufferTest {
     inner class BasicOperations {
 
         @Test
-        fun `should publish and drain single event`() {
+        fun `publish and drain single event해야 한다`() {
             val published = buffer.publish(testEvent())
             published shouldBe true
 
@@ -40,7 +40,7 @@ class MetricRingBufferTest {
         }
 
         @Test
-        fun `should drain up to maxBatch`() {
+        fun `drain up to maxBatch해야 한다`() {
             repeat(10) { buffer.publish(testEvent("run-$it")) }
 
             val batch = buffer.drain(5)
@@ -49,7 +49,7 @@ class MetricRingBufferTest {
         }
 
         @Test
-        fun `should return empty list when buffer is empty`() {
+        fun `buffer is empty일 때 return empty list해야 한다`() {
             val events = buffer.drain(10)
             events.size shouldBe 0
         }
@@ -59,24 +59,24 @@ class MetricRingBufferTest {
     inner class Capacity {
 
         @Test
-        fun `should drop events when full`() {
-            // Fill to capacity (64 = next power of 2)
+        fun `full일 때 drop events해야 한다`() {
+            // to capacity (64 = next power of 2)를 채웁니다
             repeat(64) { buffer.publish(testEvent("run-$it")) }
 
-            // This should be dropped
+            // This은(는) be dropped해야 합니다
             val published = buffer.publish(testEvent("overflow"))
             published shouldBe false
             buffer.droppedCount.get() shouldBe 1
         }
 
         @Test
-        fun `should use highest power of 2`() {
+        fun `use highest power of 2해야 한다`() {
             val buf = MetricRingBuffer(100) // highestOneBit(100) = 64
             buf.capacity() shouldBe 64
         }
 
         @Test
-        fun `should report usage percent`() {
+        fun `report usage percent해야 한다`() {
             repeat(32) { buffer.publish(testEvent("run-$it")) }
             buffer.usagePercent() shouldBe 50.0
         }
@@ -86,7 +86,7 @@ class MetricRingBufferTest {
     inner class Concurrency {
 
         @Test
-        fun `single-consumer drain should not lose events`() {
+        fun `single-consumer drain은(는) not lose events해야 한다`() {
             // Validates that drain() called from a single thread preserves all events.
             // This documents the single-consumer contract: concurrent drain() is unsafe.
             val largeBuffer = MetricRingBuffer(8192)
@@ -105,7 +105,7 @@ class MetricRingBufferTest {
         }
 
         @Test
-        fun `should handle concurrent producers`() {
+        fun `handle concurrent producers해야 한다`() {
             val largeBuffer = MetricRingBuffer(8192)
             val threadCount = 8
             val eventsPerThread = 500

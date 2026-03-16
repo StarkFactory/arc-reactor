@@ -59,7 +59,7 @@ class JdbcPromptTemplateStoreTest {
     inner class TemplateCrud {
 
         @Test
-        fun `should save and get template`() {
+        fun `save and get template해야 한다`() {
             val template = createTemplate()
             store.saveTemplate(template)
 
@@ -72,7 +72,7 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should list templates ordered by createdAt`() {
+        fun `list templates ordered by createdAt해야 한다`() {
             store.saveTemplate(createTemplate(id = "t1", name = "First"))
             Thread.sleep(10)
             store.saveTemplate(createTemplate(id = "t2", name = "Second"))
@@ -85,7 +85,7 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should get template by name`() {
+        fun `get template by name해야 한다`() {
             store.saveTemplate(createTemplate(name = "unique-name"))
 
             val found = store.getTemplateByName("unique-name")
@@ -95,7 +95,7 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should update template metadata`() {
+        fun `update template metadata해야 한다`() {
             store.saveTemplate(createTemplate())
 
             val updated = store.updateTemplate("tmpl-1", "Updated", "New desc")
@@ -104,13 +104,13 @@ class JdbcPromptTemplateStoreTest {
             assertEquals("Updated", updated!!.name) { "Name should be updated" }
             assertEquals("New desc", updated.description) { "Description should be updated" }
 
-            // Verify persistence
+            // persistence 확인
             val reloaded = store.getTemplate("tmpl-1")!!
             assertEquals("Updated", reloaded.name) { "Updated name should persist" }
         }
 
         @Test
-        fun `should delete template`() {
+        fun `delete template해야 한다`() {
             store.saveTemplate(createTemplate())
 
             store.deleteTemplate("tmpl-1")
@@ -119,12 +119,12 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should return null for unknown template`() {
+        fun `unknown template에 대해 return null해야 한다`() {
             assertNull(store.getTemplate("nonexistent"), "Unknown template should return null")
         }
 
         @Test
-        fun `should return null when updating nonexistent template`() {
+        fun `updating nonexistent template일 때 return null해야 한다`() {
             assertNull(
                 store.updateTemplate("nonexistent", "X", null),
                 "Updating nonexistent template should return null"
@@ -136,7 +136,7 @@ class JdbcPromptTemplateStoreTest {
     inner class VersionLifecycle {
 
         @Test
-        fun `should create version with auto-incremented number`() {
+        fun `auto-incremented number로 create version해야 한다`() {
             store.saveTemplate(createTemplate())
 
             val v1 = store.createVersion("tmpl-1", "Content v1", "Initial")
@@ -152,7 +152,7 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should create version in DRAFT status`() {
+        fun `create version in DRAFT status해야 한다`() {
             store.saveTemplate(createTemplate())
 
             val version = store.createVersion("tmpl-1", "Content", "Log")
@@ -161,7 +161,7 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should activate version`() {
+        fun `activate version해야 한다`() {
             store.saveTemplate(createTemplate())
             val v1 = store.createVersion("tmpl-1", "Content v1", "")!!
 
@@ -172,7 +172,7 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should get active version`() {
+        fun `get active version해야 한다`() {
             store.saveTemplate(createTemplate())
             val v1 = store.createVersion("tmpl-1", "Content v1", "")!!
             store.activateVersion("tmpl-1", v1.id)
@@ -185,7 +185,7 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should archive version`() {
+        fun `archive version해야 한다`() {
             store.saveTemplate(createTemplate())
             val v1 = store.createVersion("tmpl-1", "Content", "")!!
 
@@ -196,7 +196,7 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should list versions ordered by version number`() {
+        fun `list versions ordered by version number해야 한다`() {
             store.saveTemplate(createTemplate())
             store.createVersion("tmpl-1", "v1 content", "")
             store.createVersion("tmpl-1", "v2 content", "")
@@ -215,7 +215,7 @@ class JdbcPromptTemplateStoreTest {
     inner class SingleActiveEnforcement {
 
         @Test
-        fun `should archive previous active when activating new version`() {
+        fun `activating new version일 때 archive previous active해야 한다`() {
             store.saveTemplate(createTemplate())
             val v1 = store.createVersion("tmpl-1", "v1", "")!!
             val v2 = store.createVersion("tmpl-1", "v2", "")!!
@@ -235,7 +235,7 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should have at most one active version`() {
+        fun `have at most one active version해야 한다`() {
             store.saveTemplate(createTemplate())
             val v1 = store.createVersion("tmpl-1", "v1", "")!!
             val v2 = store.createVersion("tmpl-1", "v2", "")!!
@@ -259,7 +259,7 @@ class JdbcPromptTemplateStoreTest {
     inner class CascadeDelete {
 
         @Test
-        fun `should delete all versions when template is deleted`() {
+        fun `template is deleted일 때 delete all versions해야 한다`() {
             store.saveTemplate(createTemplate())
             val v1 = store.createVersion("tmpl-1", "v1", "")!!
             val v2 = store.createVersion("tmpl-1", "v2", "")!!
@@ -275,14 +275,14 @@ class JdbcPromptTemplateStoreTest {
     inner class EdgeCases {
 
         @Test
-        fun `should return null when creating version for nonexistent template`() {
+        fun `creating version for nonexistent template일 때 return null해야 한다`() {
             val result = store.createVersion("nonexistent", "content", "log")
 
             assertNull(result, "Creating version for nonexistent template should return null")
         }
 
         @Test
-        fun `should return null when activating version with wrong templateId`() {
+        fun `activating version with wrong templateId일 때 return null해야 한다`() {
             store.saveTemplate(createTemplate(id = "tmpl-1", name = "Template 1"))
             store.saveTemplate(createTemplate(id = "tmpl-2", name = "Template 2"))
             val v1 = store.createVersion("tmpl-1", "content", "")!!
@@ -293,12 +293,12 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should return null when archiving nonexistent version`() {
+        fun `archiving nonexistent version일 때 return null해야 한다`() {
             assertNull(store.archiveVersion("nonexistent"), "Archiving nonexistent version should return null")
         }
 
         @Test
-        fun `should return null for getActiveVersion when no active version`() {
+        fun `no active version일 때 return null for getActiveVersion해야 한다`() {
             store.saveTemplate(createTemplate())
             store.createVersion("tmpl-1", "draft content", "")
 
@@ -309,7 +309,7 @@ class JdbcPromptTemplateStoreTest {
         }
 
         @Test
-        fun `should preserve version content and changeLog`() {
+        fun `preserve version content and changeLog해야 한다`() {
             store.saveTemplate(createTemplate())
             val created = store.createVersion("tmpl-1", "Long content here", "Fixed typo in prompt")!!
 

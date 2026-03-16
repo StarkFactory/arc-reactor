@@ -58,7 +58,7 @@ class SlackEventProcessorReactionTest {
     inner class ReactionRouting {
 
         @Test
-        fun `routes thumbsup reaction to handleReaction for tracked bot message`() = runTest {
+        fun `thumbsup reaction to handleReaction for tracked bot message를 라우팅한다`() = runTest {
             val latch = CountDownLatch(1)
             coEvery {
                 eventHandler.handleReaction(any(), any(), any(), any(), any(), any())
@@ -81,7 +81,7 @@ class SlackEventProcessorReactionTest {
         }
 
         @Test
-        fun `routes thumbsdown reaction to handleReaction`() = runTest {
+        fun `thumbsdown reaction to handleReaction를 라우팅한다`() = runTest {
             val latch = CountDownLatch(1)
             coEvery {
                 eventHandler.handleReaction(any(), any(), any(), any(), any(), any())
@@ -106,7 +106,7 @@ class SlackEventProcessorReactionTest {
         }
 
         @Test
-        fun `ignores reaction on untracked message`() = runTest {
+        fun `reaction on untracked message를 무시한다`() = runTest {
             val processor = buildProcessor()
             processor.submitEventCallback(
                 reactionPayload(ts = "9999.999"), "events_api"
@@ -119,7 +119,7 @@ class SlackEventProcessorReactionTest {
         }
 
         @Test
-        fun `ignores reaction when bot response tracker is null`() = runTest {
+        fun `ignores reaction when bot response tracker은(는) null이다`() = runTest {
             val processor = buildProcessor(tracker = null)
             processor.submitEventCallback(reactionPayload(), "events_api")
             Thread.sleep(500)
@@ -130,7 +130,7 @@ class SlackEventProcessorReactionTest {
         }
 
         @Test
-        fun `ignores reaction on non-message item type`() = runTest {
+        fun `reaction on non-message item type를 무시한다`() = runTest {
             val payload = objectMapper.readTree(
                 """{"type":"event_callback","event":{"type":"reaction_added","user":"U1",""" +
                     """"reaction":"thumbsup","item":{"type":"file","channel":"C100","ts":"2000.002"}}}"""
@@ -149,7 +149,7 @@ class SlackEventProcessorReactionTest {
     inner class ReactionMetrics {
 
         @Test
-        fun `records reaction_feedback success metric`() = runTest {
+        fun `reaction_feedback success metric를 기록한다`() = runTest {
             val latch = CountDownLatch(1)
             coEvery {
                 eventHandler.handleReaction(any(), any(), any(), any(), any(), any())

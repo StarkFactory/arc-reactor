@@ -21,7 +21,7 @@ class DynamicSchedulerServiceTeamsNotificationTest {
     inner class TeamsNotification {
 
         @Test
-        fun `sends Teams message when teamsWebhookUrl is set on AGENT job`() {
+        fun `sends Teams message when teamsWebhookUrl은(는) set on AGENT job이다`() {
             val job = agentJob(teamsWebhookUrl = "https://example.webhook.office.com/webhookb2/test")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -45,7 +45,7 @@ class DynamicSchedulerServiceTeamsNotificationTest {
         }
 
         @Test
-        fun `does not send Teams message when teamsWebhookUrl is null`() {
+        fun `does not send Teams message when teamsWebhookUrl은(는) null이다`() {
             val job = agentJob(teamsWebhookUrl = null)
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -64,7 +64,7 @@ class DynamicSchedulerServiceTeamsNotificationTest {
         }
 
         @Test
-        fun `does not send Teams message when teamsWebhookUrl is blank`() {
+        fun `does not send Teams message when teamsWebhookUrl은(는) blank이다`() {
             val job = agentJob(teamsWebhookUrl = "   ")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -83,14 +83,14 @@ class DynamicSchedulerServiceTeamsNotificationTest {
         }
 
         @Test
-        fun `does not send Teams message when teamsMessageSender is not configured`() {
+        fun `does not send Teams message when teamsMessageSender은(는) not configured이다`() {
             val job = agentJob(teamsWebhookUrl = "https://example.webhook.office.com/webhookb2/test")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult.success("결과")
 
-            // no teamsSender wired
+            // teamsSender wired 없음
             val service = buildService(store, agentExecutor = agentExecutor, teamsSender = null)
             val result = service.trigger(job.id)
 
@@ -98,7 +98,7 @@ class DynamicSchedulerServiceTeamsNotificationTest {
         }
 
         @Test
-        fun `Teams failure does not affect job execution result`() {
+        fun `Teams failure does not은(는) job execution result에 영향을 준다`() {
             val job = agentJob(teamsWebhookUrl = "https://example.webhook.office.com/webhookb2/test")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -124,7 +124,7 @@ class DynamicSchedulerServiceTeamsNotificationTest {
     inner class SlackAndTeamsCoexistence {
 
         @Test
-        fun `both Slack and Teams messages are sent for the same job`() {
+        fun `both Slack and Teams messages은(는) sent for the same job이다`() {
             val job = agentJob(
                 slackChannelId = "C-CHANNEL",
                 teamsWebhookUrl = "https://example.webhook.office.com/webhookb2/test"
@@ -165,7 +165,7 @@ class DynamicSchedulerServiceTeamsNotificationTest {
         }
 
         @Test
-        fun `only Slack sent when teamsWebhookUrl is not set`() {
+        fun `only Slack sent when teamsWebhookUrl은(는) not set이다`() {
             val job = agentJob(slackChannelId = "C-ONLY-SLACK", teamsWebhookUrl = null)
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -193,7 +193,7 @@ class DynamicSchedulerServiceTeamsNotificationTest {
     inner class TeamsMessageFormat {
 
         @Test
-        fun `MCP_TOOL job Teams message uses bold brackets and code block`() {
+        fun `MCP_TOOL 작업이 Teams message uses bold brackets and code block`() {
             val job = mcpToolJob(teamsWebhookUrl = "https://example.webhook.office.com/webhookb2/test")
             val store = RecordingStore(job)
 
@@ -219,7 +219,7 @@ class DynamicSchedulerServiceTeamsNotificationTest {
         }
 
         @Test
-        fun `AGENT job Teams message uses bold brackets without code block`() {
+        fun `AGENT 작업이 Teams message uses bold brackets without code block`() {
             val job = agentJob(teamsWebhookUrl = "https://example.webhook.office.com/webhookb2/test")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()

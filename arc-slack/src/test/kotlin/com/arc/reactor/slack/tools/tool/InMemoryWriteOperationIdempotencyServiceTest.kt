@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class InMemoryWriteOperationIdempotencyServiceTest {
 
     @Test
-    fun `replays cached result for duplicate write payload`() {
+    fun `replays은(는) cached result for duplicate write payload`() {
         val service = newService(enabled = true, ttlSeconds = 5)
         val counter = AtomicInteger(0)
 
@@ -31,7 +31,7 @@ class InMemoryWriteOperationIdempotencyServiceTest {
     }
 
     @Test
-    fun `explicit idempotency key deduplicates even when payload differs`() {
+    fun `payload differs일 때 explicit idempotency key deduplicates even`() {
         val service = newService(enabled = true, ttlSeconds = 5)
         val counter = AtomicInteger(0)
 
@@ -53,7 +53,7 @@ class InMemoryWriteOperationIdempotencyServiceTest {
     }
 
     @Test
-    fun `expired cache entry allows a fresh write`() {
+    fun `expired은(는) cache entry allows a fresh write`() {
         val service = newService(enabled = true, ttlSeconds = 1)
         val counter = AtomicInteger(0)
 
@@ -77,7 +77,7 @@ class InMemoryWriteOperationIdempotencyServiceTest {
     }
 
     @Test
-    fun `disabled mode always executes operation`() {
+    fun `disabled은(는) mode always executes operation`() {
         val service = newService(enabled = false, ttlSeconds = 5)
         val counter = AtomicInteger(0)
 

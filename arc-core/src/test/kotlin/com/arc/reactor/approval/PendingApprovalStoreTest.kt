@@ -21,7 +21,7 @@ class PendingApprovalStoreTest {
     inner class ApprovalFlow {
 
         @Test
-        fun `should approve pending request`() = runBlocking {
+        fun `approve pending request해야 한다`() = runBlocking {
             val result = async {
                 store.requestApproval(
                     runId = "run-1", userId = "user-1",
@@ -29,7 +29,7 @@ class PendingApprovalStoreTest {
                 )
             }
 
-            // Wait for the request to register
+            // for the request to register를 기다립니다
             delay(100)
 
             // List and approve
@@ -46,7 +46,7 @@ class PendingApprovalStoreTest {
         }
 
         @Test
-        fun `should reject pending request with reason`() = runBlocking {
+        fun `reason로 reject pending request해야 한다`() = runBlocking {
             val result = async {
                 store.requestApproval(
                     runId = "run-1", userId = "user-1",
@@ -66,7 +66,7 @@ class PendingApprovalStoreTest {
         }
 
         @Test
-        fun `should approve with modified arguments`() = runBlocking {
+        fun `modified arguments로 approve해야 한다`() = runBlocking {
             val result = async {
                 store.requestApproval(
                     runId = "run-1", userId = "user-1",
@@ -92,7 +92,7 @@ class PendingApprovalStoreTest {
     inner class Timeout {
 
         @Test
-        fun `should time out when no approval given`() = runBlocking {
+        fun `no approval given일 때 time out해야 한다`() = runBlocking {
             val shortTimeoutStore = InMemoryPendingApprovalStore(defaultTimeoutMs = 200)
 
             val response = shortTimeoutStore.requestApproval(
@@ -107,7 +107,7 @@ class PendingApprovalStoreTest {
         }
 
         @Test
-        fun `should clean up pending entry after timeout`() = runBlocking {
+        fun `timeout 후 clean up pending entry해야 한다`() = runBlocking {
             val shortTimeoutStore = InMemoryPendingApprovalStore(defaultTimeoutMs = 200)
 
             shortTimeoutStore.requestApproval(
@@ -115,7 +115,7 @@ class PendingApprovalStoreTest {
                 toolName = "slow_tool", arguments = emptyMap()
             )
 
-            // After timeout, pending list should be empty
+            // After timeout, pending list은(는) be empty해야 합니다
             val pending = shortTimeoutStore.listPending()
             assertTrue(pending.isEmpty()) { "Pending list should be empty after timeout" }
         }
@@ -125,7 +125,7 @@ class PendingApprovalStoreTest {
     inner class ListingAndFiltering {
 
         @Test
-        fun `should list pending by user`() = runBlocking {
+        fun `list pending by user해야 한다`() = runBlocking {
             val result1 = async {
                 store.requestApproval(
                     runId = "run-1", userId = "user-A",
@@ -152,14 +152,14 @@ class PendingApprovalStoreTest {
             val allPending = store.listPending()
             assertEquals(2, allPending.size) { "Total should be 2 pending" }
 
-            // Clean up
+            // 정리
             allPending.forEach { store.approve(it.id) }
             result1.await()
             result2.await()
         }
 
         @Test
-        fun `should return false for non-existent approval ID`() {
+        fun `non-existent approval ID에 대해 return false해야 한다`() {
             assertFalse(store.approve("non-existent")) { "Should return false for non-existent ID" }
             assertFalse(store.reject("non-existent")) { "Should return false for non-existent ID" }
         }

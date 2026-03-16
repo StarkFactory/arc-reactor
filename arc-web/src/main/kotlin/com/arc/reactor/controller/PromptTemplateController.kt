@@ -17,22 +17,24 @@ import org.springframework.web.server.ServerWebExchange
 import java.util.UUID
 
 /**
- * Prompt Template Management API Controller
+ * 프롬프트 템플릿 관리 컨트롤러.
  *
- * Provides REST APIs for managing versioned system prompt templates.
- * Templates contain multiple versions with lifecycle status (DRAFT → ACTIVE → ARCHIVED).
+ * 버전 관리되는 시스템 프롬프트 템플릿의 CRUD와 버전 생명주기
+ * (DRAFT -> ACTIVE -> ARCHIVED)를 제공합니다.
  *
- * ## Template Endpoints
- * - GET    /api/prompt-templates          : List all templates
- * - POST   /api/prompt-templates          : Create a new template
- * - GET    /api/prompt-templates/{id}     : Get template with all versions
- * - PUT    /api/prompt-templates/{id}     : Update template metadata
- * - DELETE /api/prompt-templates/{id}     : Delete template and all versions
+ * ## 템플릿 엔드포인트
+ * - GET    /api/prompt-templates          : 전체 템플릿 목록 조회
+ * - POST   /api/prompt-templates          : 새 템플릿 생성
+ * - GET    /api/prompt-templates/{id}     : 템플릿 + 전체 버전 조회
+ * - PUT    /api/prompt-templates/{id}     : 템플릿 메타데이터 수정
+ * - DELETE /api/prompt-templates/{id}     : 템플릿 및 모든 버전 삭제
  *
- * ## Version Endpoints
- * - POST   /api/prompt-templates/{id}/versions                  : Create a new version
- * - PUT    /api/prompt-templates/{id}/versions/{vid}/activate   : Activate a version
- * - PUT    /api/prompt-templates/{id}/versions/{vid}/archive    : Archive a version
+ * ## 버전 엔드포인트
+ * - POST   /api/prompt-templates/{id}/versions                  : 새 버전 생성
+ * - PUT    /api/prompt-templates/{id}/versions/{vid}/activate   : 버전 활성화
+ * - PUT    /api/prompt-templates/{id}/versions/{vid}/archive    : 버전 아카이브
+ *
+ * @see PromptTemplateStore
  */
 @Tag(name = "Prompt Templates", description = "Versioned system prompt management (ADMIN only for write operations)")
 @RestController
@@ -43,10 +45,8 @@ class PromptTemplateController(
 
     // ---- Template Endpoints ----
 
-    /**
-     * List all templates.
-     */
-    @Operation(summary = "List all prompt templates")
+    /** 전체 프롬프트 템플릿 목록을 조회한다. */
+    @Operation(summary = "전체 프롬프트 템플릿 목록 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of prompt templates")
     ])
@@ -55,10 +55,8 @@ class PromptTemplateController(
         return promptTemplateStore.listTemplates().map { it.toResponse() }
     }
 
-    /**
-     * Get a template by ID, including all its versions.
-     */
-    @Operation(summary = "Get a template with all versions")
+    /** ID로 템플릿을 조회한다. 모든 버전을 함께 반환한다. */
+    @Operation(summary = "템플릿 + 전체 버전 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Template details with versions"),
         ApiResponse(responseCode = "404", description = "Prompt template not found")
@@ -72,10 +70,8 @@ class PromptTemplateController(
         return ResponseEntity.ok(template.toDetailResponse(versions, activeVersion))
     }
 
-    /**
-     * Create a new template. Requires ADMIN role.
-     */
-    @Operation(summary = "Create a new prompt template (ADMIN)")
+    /** 새 프롬프트 템플릿을 생성한다. ADMIN 권한이 필요하다. */
+    @Operation(summary = "새 프롬프트 템플릿 생성 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Prompt template created"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -96,10 +92,8 @@ class PromptTemplateController(
         return ResponseEntity.status(HttpStatus.CREATED).body(saved.toResponse())
     }
 
-    /**
-     * Update template metadata. Only provided fields are changed. Requires ADMIN role.
-     */
-    @Operation(summary = "Update template metadata (ADMIN)")
+    /** 템플릿 메타데이터를 수정한다. 제공된 필드만 변경된다. ADMIN 권한이 필요하다. */
+    @Operation(summary = "템플릿 메타데이터 수정 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Template updated"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -121,10 +115,8 @@ class PromptTemplateController(
         return ResponseEntity.ok(updated.toResponse())
     }
 
-    /**
-     * Delete a template and all its versions. Idempotent — returns 204 even if not found. Requires ADMIN role.
-     */
-    @Operation(summary = "Delete a template and all versions (ADMIN)")
+    /** 템플릿과 모든 버전을 삭제한다. 멱등성을 보장한다. ADMIN 권한이 필요하다. */
+    @Operation(summary = "템플릿 및 모든 버전 삭제 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Template deleted"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -141,10 +133,8 @@ class PromptTemplateController(
 
     // ---- Version Endpoints ----
 
-    /**
-     * Create a new version for a template. Starts in DRAFT status. Requires ADMIN role.
-     */
-    @Operation(summary = "Create a new version for a template (ADMIN)")
+    /** 템플릿에 새 버전을 생성한다. DRAFT 상태로 시작된다. ADMIN 권한이 필요하다. */
+    @Operation(summary = "템플릿 새 버전 생성 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Version created"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -166,10 +156,8 @@ class PromptTemplateController(
         return ResponseEntity.status(HttpStatus.CREATED).body(version.toResponse())
     }
 
-    /**
-     * Activate a version. The previously active version (if any) is archived. Requires ADMIN role.
-     */
-    @Operation(summary = "Activate a template version (ADMIN)")
+    /** 버전을 활성화한다. 기존 활성 버전이 있으면 자동으로 아카이브된다. ADMIN 권한이 필요하다. */
+    @Operation(summary = "템플릿 버전 활성화 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Version activated"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -187,10 +175,8 @@ class PromptTemplateController(
         return ResponseEntity.ok(activated.toResponse())
     }
 
-    /**
-     * Archive a version. Requires ADMIN role.
-     */
-    @Operation(summary = "Archive a template version (ADMIN)")
+    /** 버전을 아카이브한다. ADMIN 권한이 필요하다. */
+    @Operation(summary = "템플릿 버전 아카이브 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Version archived"),
         ApiResponse(responseCode = "403", description = "Admin access required"),

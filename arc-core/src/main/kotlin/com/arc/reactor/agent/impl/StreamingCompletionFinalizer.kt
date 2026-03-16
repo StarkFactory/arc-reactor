@@ -18,6 +18,19 @@ import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * 스트리밍 실행이 완료된 후의 후처리를 담당하는 finalizer.
+ *
+ * 스트리밍 성공 시: 출력 가드 검사 → 대화 히스토리 저장 → 경계값 위반 마커 발행
+ * 스트리밍 완료 후(성공/실패 모두): AfterAgentComplete 훅 실행
+ *
+ * 출력 가드(fail-close): 가드 실패 시 잠재적으로 안전하지 않은 콘텐츠를 히스토리에 저장하지 않는다.
+ *
+ * @see StreamingFlowLifecycleCoordinator 이 finalizer를 호출하는 수명 주기 코디네이터
+ * @see OutputGuardPipeline 출력 가드 파이프라인 (차단/수정/허용)
+ * @see OutputBoundaryEnforcer 비-스트리밍 모드의 출력 경계값 적용 (대응 역할)
+ * @see ConversationManager 대화 히스토리 저장
+ */
 internal class StreamingCompletionFinalizer(
     private val boundaries: BoundaryProperties,
     private val conversationManager: ConversationManager,
@@ -27,6 +40,21 @@ internal class StreamingCompletionFinalizer(
     private val nowMs: () -> Long = System::currentTimeMillis
 ) {
 
+    /**
+     * 스트리밍 완료 후 최종 처리를 수행한다.
+     *
+     * @param command 원본 에이전트 명령
+     * @param hookContext 훅 컨텍스트
+     * @param streamStarted 스트리밍이 시작되었는지 여부
+     * @param streamSuccess 스트리밍이 성공적으로 완료되었는지 여부
+     * @param collectedContent 전체 스트리밍에서 수집된 콘텐츠
+     * @param lastIterationContent 마지막 ReAct 반복에서의 콘텐츠 (히스토리 저장용)
+     * @param streamErrorMessage 실패 시 에러 메시지
+     * @param streamErrorCode 실패 시 에러 코드명
+     * @param toolsUsed 사용된 도구 목록
+     * @param startTime 실행 시작 시각
+     * @param emit SSE 이벤트 전송 함수
+     */
     suspend fun finalize(
         command: AgentCommand,
         hookContext: HookContext,
@@ -41,13 +69,16 @@ internal class StreamingCompletionFinalizer(
         emit: suspend (String) -> Unit
     ) {
         if (streamSuccess) {
+            // ── 단계 1: 출력 가드 검사 — 가드 통과 시에만 히스토리 저장 (fail-close) ──
             val guardPassed = applyStreamingOutputGuard(command, collectedContent, toolsUsed, startTime, emit)
             if (guardPassed && lastIterationContent.isNotEmpty()) {
                 conversationManager.saveStreamingHistory(command, lastIterationContent)
             }
+            // ── 단계 2: 출력 길이 경계값 위반 시 SSE 마커 발행 ──
             emitBoundaryMarkers(collectedContent, emit)
         }
 
+        // ── 단계 3: AfterAgentComplete 훅 실행 (fail-open) ──
         try {
             hookExecutor?.executeAfterAgentComplete(
                 context = hookContext,
@@ -66,8 +97,12 @@ internal class StreamingCompletionFinalizer(
         }
     }
 
-    // Returns true if the guard passed (Allowed or Modified), false if Rejected.
-    // History must only be saved when this returns true.
+    /**
+     * 스트리밍 출력에 대해 출력 가드 파이프라인을 실행한다.
+     *
+     * @return 가드 통과(Allowed 또는 Modified) 시 true, 거부(Rejected) 또는 에러 시 false.
+     *         true인 경우에만 히스토리를 저장해야 한다 (fail-close 정책).
+     */
     private suspend fun applyStreamingOutputGuard(
         command: AgentCommand,
         collectedContent: String,
@@ -117,12 +152,19 @@ internal class StreamingCompletionFinalizer(
         }
     }
 
+    /**
+     * 출력 길이가 경계값(최대/최소)을 위반하는 경우 SSE 에러 마커를 발행한다.
+     *
+     * 스트리밍에서는 이미 전송된 콘텐츠를 회수할 수 없으므로,
+     * 위반 사실을 클라이언트에 알리는 마커만 발행한다 (truncation 불가).
+     */
     private suspend fun emitBoundaryMarkers(
         collectedContent: String,
         emit: suspend (String) -> Unit
     ) {
         val contentLength = collectedContent.length
 
+        // ── 출력 최대 길이 초과 검사 ──
         if (boundaries.outputMaxChars > 0 && contentLength > boundaries.outputMaxChars) {
             val policy = "warn"
             agentMetrics.recordBoundaryViolation(
@@ -139,6 +181,7 @@ internal class StreamingCompletionFinalizer(
             }
         }
 
+        // ── 출력 최소 길이 미달 검사 ──
         if (boundaries.outputMinChars > 0 && contentLength < boundaries.outputMinChars) {
             val policy = when (boundaries.outputMinViolationMode) {
                 OutputMinViolationMode.RETRY_ONCE -> "warn" // falls back to warn in streaming

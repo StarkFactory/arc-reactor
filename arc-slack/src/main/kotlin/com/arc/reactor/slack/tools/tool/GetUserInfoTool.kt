@@ -5,6 +5,7 @@ import com.arc.reactor.slack.tools.usecase.GetUserInfoUseCase
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** Slack 사용자 정보를 조회하는 도구 (이름, 표시 이름, 이메일, 봇 여부). */
 open class GetUserInfoTool(private val getUserInfoUseCase: GetUserInfoUseCase) : LocalTool {
 
     @Tool(description = "Get information about a Slack user. Returns name, display name, email, and bot status.")

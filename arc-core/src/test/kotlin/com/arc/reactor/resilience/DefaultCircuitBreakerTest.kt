@@ -11,9 +11,9 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Tests for [DefaultCircuitBreaker].
+ * 에 대한 테스트. [DefaultCircuitBreaker].
  *
- * Covers: state transitions, failure counting, half-open recovery,
+ * 대상: state transitions, failure counting, half-open recovery,
  * CancellationException handling, reset, and metrics.
  */
 class DefaultCircuitBreakerTest {
@@ -36,20 +36,20 @@ class DefaultCircuitBreakerTest {
     inner class ClosedState {
 
         @Test
-        fun `should start in CLOSED state`() {
+        fun `start in CLOSED state해야 한다`() {
             assertEquals(CircuitBreakerState.CLOSED, cb.state()) {
                 "New circuit breaker should be CLOSED"
             }
         }
 
         @Test
-        fun `should execute successfully in CLOSED state`() = runTest {
+        fun `execute successfully in CLOSED state해야 한다`() = runTest {
             val result = cb.execute { "hello" }
             assertEquals("hello", result) { "Should return block result" }
         }
 
         @Test
-        fun `should stay CLOSED below failure threshold`() = runTest {
+        fun `stay CLOSED below failure threshold해야 한다`() = runTest {
             repeat(2) {
                 runCatching { cb.execute { throw RuntimeException("fail") } }
             }
@@ -59,14 +59,14 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should reset failure count on success`() = runTest {
-            // 2 failures
+        fun `reset failure count on success해야 한다`() = runTest {
+            // 2번의 실패
             repeat(2) {
                 runCatching { cb.execute { throw RuntimeException("fail") } }
             }
-            // 1 success resets counter
+            // 1번의 성공으로 카운터가 리셋됩니다
             cb.execute { "ok" }
-            // 2 more failures — should still be CLOSED (counter was reset)
+            // 2 more failures —은(는) still be CLOSED (counter was reset)해야 합니다
             repeat(2) {
                 runCatching { cb.execute { throw RuntimeException("fail") } }
             }
@@ -80,7 +80,7 @@ class DefaultCircuitBreakerTest {
     inner class OpenState {
 
         @Test
-        fun `should transition to OPEN after reaching failure threshold`() = runTest {
+        fun `reaching failure threshold 후 transition to OPEN해야 한다`() = runTest {
             repeat(3) {
                 runCatching { cb.execute { throw RuntimeException("fail") } }
             }
@@ -90,8 +90,8 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should reject calls when OPEN`() = runTest {
-            // Trip the breaker
+        fun `OPEN일 때 reject calls해야 한다`() = runTest {
+            // the breaker를 트립시킵니다
             repeat(3) {
                 runCatching { cb.execute { throw RuntimeException("fail") } }
             }
@@ -103,11 +103,11 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should remain OPEN before reset timeout`() = runTest {
+        fun `reset timeout 전에 remain OPEN해야 한다`() = runTest {
             repeat(3) {
                 runCatching { cb.execute { throw RuntimeException("fail") } }
             }
-            // Advance time but not enough
+            // 시간을 진행하지만 충분하지 않음
             clock.addAndGet(4999)
             assertEquals(CircuitBreakerState.OPEN, cb.state()) {
                 "Should still be OPEN before resetTimeout (5000ms)"
@@ -127,7 +127,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should transition to HALF_OPEN after reset timeout`() {
+        fun `reset timeout 후 transition to HALF_OPEN해야 한다`() {
             tripBreaker()
             clock.addAndGet(5000)
             assertEquals(CircuitBreakerState.HALF_OPEN, cb.state()) {
@@ -136,7 +136,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should close circuit on success in HALF_OPEN`() = runTest {
+        fun `close circuit on success in HALF_OPEN해야 한다`() = runTest {
             tripBreaker()
             clock.addAndGet(5000) // → HALF_OPEN
 
@@ -148,7 +148,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should reopen circuit on failure in HALF_OPEN`() = runTest {
+        fun `reopen circuit on failure in HALF_OPEN해야 한다`() = runTest {
             tripBreaker()
             clock.addAndGet(5000) // → HALF_OPEN
 
@@ -159,7 +159,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should reject excess calls in HALF_OPEN`() = runTest {
+        fun `reject excess calls in HALF_OPEN해야 한다`() = runTest {
             tripBreaker()
             clock.addAndGet(5000) // → HALF_OPEN
 
@@ -167,12 +167,12 @@ class DefaultCircuitBreakerTest {
             // But it fails, so circuit reopens
             runCatching { cb.execute { throw RuntimeException("fail") } }
 
-            // Advance again
+            // 다시 시간 진행
             clock.addAndGet(5000)
             // New HALF_OPEN: first call uses the slot
             var firstCallStarted = false
             // We need to test concurrent scenario but we test sequential:
-            // After one call starts, the next should be rejected
+            // After one call starts, the next은(는) be rejected해야 합니다
             val cb2 = DefaultCircuitBreaker(
                 failureThreshold = 1,
                 resetTimeoutMs = 100,
@@ -183,8 +183,8 @@ class DefaultCircuitBreakerTest {
             runCatching { cb2.execute { throw RuntimeException("trip") } }
             clock.addAndGet(100) // → HALF_OPEN
 
-            // Block the first call to hold the slot
-            // Since halfOpenMaxCalls=1, after incrementing to 1, the next call should be rejected
+            // the first call to hold the slot 차단
+            // Since halfOpenMaxCalls=1, after incrementing to 1, the next call은(는) be rejected해야 합니다
             // However in sequential test, the first call will complete before the second starts
             // So we test by verifying the counter logic directly via the state
             assertEquals(CircuitBreakerState.HALF_OPEN, cb2.state()) {
@@ -197,12 +197,12 @@ class DefaultCircuitBreakerTest {
     inner class CancellationHandling {
 
         @Test
-        fun `should not count CancellationException as failure`() = runTest {
-            // 2 failures
+        fun `not count CancellationException as failure해야 한다`() = runTest {
+            // 2번의 실패
             repeat(2) {
                 runCatching { cb.execute { throw RuntimeException("fail") } }
             }
-            // CancellationException should NOT increment failure count
+            // CancellationException은(는) NOT increment failure count해야 합니다
             runCatching {
                 cb.execute { throw kotlin.coroutines.cancellation.CancellationException("cancelled") }
             }
@@ -215,7 +215,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should propagate CancellationException`() = runTest {
+        fun `propagate CancellationException해야 한다`() = runTest {
             assertThrows(kotlin.coroutines.cancellation.CancellationException::class.java) {
                 kotlinx.coroutines.runBlocking {
                     cb.execute { throw kotlin.coroutines.cancellation.CancellationException("cancel") }
@@ -228,7 +228,7 @@ class DefaultCircuitBreakerTest {
     inner class ResetAndMetrics {
 
         @Test
-        fun `should reset to CLOSED state`() = runTest {
+        fun `reset to CLOSED state해야 한다`() = runTest {
             repeat(3) {
                 runCatching { cb.execute { throw RuntimeException("fail") } }
             }
@@ -240,7 +240,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should track metrics accurately`() = runTest {
+        fun `track metrics accurately해야 한다`() = runTest {
             cb.execute { "success1" }
             cb.execute { "success2" }
             runCatching { cb.execute { throw RuntimeException("fail") } }
@@ -252,7 +252,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should report null lastFailureTime when no failures`() {
+        fun `no failures일 때 report null lastFailureTime해야 한다`() {
             val metrics = cb.metrics()
             assertNull(metrics.lastFailureTime) { "Should be null with no failures" }
         }
@@ -295,7 +295,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should record CLOSED to OPEN transition`() = runTest {
+        fun `record CLOSED to OPEN transition해야 한다`() = runTest {
             repeat(3) {
                 runCatching { metricsCb.execute { throw RuntimeException("fail") } }
             }
@@ -307,7 +307,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should record OPEN to HALF_OPEN transition`() = runTest {
+        fun `record OPEN to HALF_OPEN transition해야 한다`() = runTest {
             repeat(3) {
                 runCatching { metricsCb.execute { throw RuntimeException("fail") } }
             }
@@ -316,7 +316,7 @@ class DefaultCircuitBreakerTest {
             transitionToStates.clear()
 
             clock.addAndGet(5000)
-            metricsCb.state() // Trigger evaluation
+            metricsCb.state()  // evaluation를 트리거합니다
 
             assertEquals(1, transitionNames.size) { "Should have 1 state transition" }
             assertEquals(CircuitBreakerState.OPEN, transitionFromStates[0]) { "Should transition FROM OPEN" }
@@ -324,7 +324,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should record HALF_OPEN to CLOSED on recovery`() = runTest {
+        fun `record HALF_OPEN to CLOSED on recovery해야 한다`() = runTest {
             repeat(3) {
                 runCatching { metricsCb.execute { throw RuntimeException("fail") } }
             }
@@ -335,7 +335,7 @@ class DefaultCircuitBreakerTest {
 
             metricsCb.execute { "recovered" }
 
-            // OPEN → HALF_OPEN (from evaluateState) + HALF_OPEN → CLOSED (from onSuccess)
+            // → HALF_OPEN (from evaluateState) + HALF_OPEN → CLOSED (from onSuccess) 열기
             assertTrue(transitionToStates.size >= 1) { "Should have at least 1 transition" }
             val closedIdx = transitionToStates.indexOf(CircuitBreakerState.CLOSED)
             assertTrue(closedIdx >= 0) { "Should have a transition to CLOSED" }
@@ -345,7 +345,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should record HALF_OPEN to CLOSED only once with concurrent successes`() = runTest {
+        fun `concurrent successes로 record HALF_OPEN to CLOSED only once해야 한다`() = runTest {
             val concurrentCb = DefaultCircuitBreaker(
                 failureThreshold = 3,
                 resetTimeoutMs = 5000,
@@ -355,7 +355,7 @@ class DefaultCircuitBreakerTest {
                 agentMetrics = trackingMetrics
             )
 
-            // Trip the breaker
+            // the breaker를 트립시킵니다
             repeat(3) {
                 runCatching { concurrentCb.execute { throw RuntimeException("fail") } }
             }
@@ -375,7 +375,7 @@ class DefaultCircuitBreakerTest {
                 async { runCatching { concurrentCb.execute { "success-$i" } } }
             }.awaitAll()
 
-            // At least one should succeed
+            // At least one은(는) succeed해야 합니다
             assertTrue(results.any { it.isSuccess }) {
                 "At least one concurrent call should succeed"
             }
@@ -395,7 +395,7 @@ class DefaultCircuitBreakerTest {
         }
 
         @Test
-        fun `should record HALF_OPEN to OPEN on failure`() = runTest {
+        fun `record HALF_OPEN to OPEN on failure해야 한다`() = runTest {
             repeat(3) {
                 runCatching { metricsCb.execute { throw RuntimeException("fail") } }
             }

@@ -48,7 +48,7 @@ class LlmJudgeEvaluatorTest {
     inner class SuccessfulJudgment {
 
         @Test
-        fun `should parse valid judgment response`() = runTest {
+        fun `parse valid judgment response해야 한다`() = runTest {
             every { callResponseSpec.content() } returns
                 """{"pass": true, "score": 0.85, "reason": "Good response"}"""
 
@@ -67,7 +67,7 @@ class LlmJudgeEvaluatorTest {
         }
 
         @Test
-        fun `should clamp score to valid range`() = runTest {
+        fun `clamp score to valid range해야 한다`() = runTest {
             every { callResponseSpec.content() } returns
                 """{"pass": true, "score": 1.5, "reason": "Over max"}"""
 
@@ -79,7 +79,7 @@ class LlmJudgeEvaluatorTest {
         }
 
         @Test
-        fun `should use custom rubric when provided`() = runTest {
+        fun `provided일 때 use custom rubric해야 한다`() = runTest {
             every { callResponseSpec.content() } returns
                 """{"pass": true, "score": 0.9, "reason": "Custom rubric pass"}"""
 
@@ -94,7 +94,7 @@ class LlmJudgeEvaluatorTest {
     inner class BudgetTracking {
 
         @Test
-        fun `should track token usage across calls`() = runTest {
+        fun `track token usage across calls해야 한다`() = runTest {
             every { callResponseSpec.content() } returns
                 """{"pass": true, "score": 0.8, "reason": "OK"}"""
 
@@ -112,7 +112,7 @@ class LlmJudgeEvaluatorTest {
         }
 
         @Test
-        fun `should return budget exhausted when limit reached`() = runTest {
+        fun `limit reached일 때 return budget exhausted해야 한다`() = runTest {
             val config = EvaluationConfig(llmJudgeBudgetTokens = 0)
 
             val result = evaluator.evaluate("Response", defaultQuery, config)
@@ -125,7 +125,7 @@ class LlmJudgeEvaluatorTest {
         }
 
         @Test
-        fun `should not call LLM when budget already exceeded`() = runTest {
+        fun `budget already exceeded일 때 not call LLM해야 한다`() = runTest {
             // Exhaust budget by making many calls first
             every { callResponseSpec.content() } returns
                 """{"pass": true, "score": 0.8, "reason": "OK"}"""
@@ -143,7 +143,7 @@ class LlmJudgeEvaluatorTest {
     inner class ErrorHandling {
 
         @Test
-        fun `should return fallback on LLM call failure`() = runTest {
+        fun `return fallback on LLM call failure해야 한다`() = runTest {
             every { requestSpec.call() } throws RuntimeException("API error")
 
             val result = evaluator.evaluate(
@@ -158,7 +158,7 @@ class LlmJudgeEvaluatorTest {
         }
 
         @Test
-        fun `should return fallback on unparseable response`() = runTest {
+        fun `return fallback on unparseable response해야 한다`() = runTest {
             every { callResponseSpec.content() } returns "not valid json"
 
             val result = evaluator.evaluate(
@@ -169,7 +169,7 @@ class LlmJudgeEvaluatorTest {
         }
 
         @Test
-        fun `should handle null content gracefully`() = runTest {
+        fun `handle null content gracefully해야 한다`() = runTest {
             every { callResponseSpec.content() } returns null
 
             val result = evaluator.evaluate(
@@ -184,7 +184,7 @@ class LlmJudgeEvaluatorTest {
     inner class SameModelWarning {
 
         @Test
-        fun `should not block when judge model equals target model`() = runTest {
+        fun `judge model equals target model일 때 not block해야 한다`() = runTest {
             val sameModelEvaluator = LlmJudgeEvaluator(
                 chatModelProvider = chatModelProvider,
                 judgeModel = "openai",

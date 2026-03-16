@@ -65,7 +65,7 @@ class JdbcMcpServerStoreTest {
     inner class BasicCrud {
 
         @Test
-        fun `should save and find by name`() {
+        fun `save and find by name해야 한다`() {
             val server = createServer()
             store.save(server)
 
@@ -80,7 +80,7 @@ class JdbcMcpServerStoreTest {
         }
 
         @Test
-        fun `should list servers ordered by createdAt`() {
+        fun `list servers ordered by createdAt해야 한다`() {
             store.save(createServer(name = "server-a"))
             Thread.sleep(10)
             store.save(createServer(name = "server-b"))
@@ -93,7 +93,7 @@ class JdbcMcpServerStoreTest {
         }
 
         @Test
-        fun `should delete server`() {
+        fun `delete server해야 한다`() {
             store.save(createServer())
             assertNotNull(store.findByName("test-server")) { "Should exist before delete" }
 
@@ -103,12 +103,12 @@ class JdbcMcpServerStoreTest {
         }
 
         @Test
-        fun `should return null for unknown server`() {
+        fun `unknown server에 대해 return null해야 한다`() {
             assertNull(store.findByName("nonexistent"), "Unknown server should return null")
         }
 
         @Test
-        fun `should return empty list when no servers`() {
+        fun `no servers일 때 return empty list해야 한다`() {
             val list = store.list()
 
             assertTrue(list.isEmpty()) { "Should return empty list, got ${list.size}" }
@@ -119,7 +119,7 @@ class JdbcMcpServerStoreTest {
     inner class JsonConfig {
 
         @Test
-        fun `should roundtrip config map`() {
+        fun `roundtrip config map해야 한다`() {
             val config = mapOf("url" to "http://localhost:3000", "apiKey" to "secret-123")
             store.save(createServer(config = config))
 
@@ -130,7 +130,7 @@ class JdbcMcpServerStoreTest {
         }
 
         @Test
-        fun `should handle empty config`() {
+        fun `handle empty config해야 한다`() {
             store.save(createServer(config = emptyMap()))
 
             val found = store.findByName("test-server")!!
@@ -139,7 +139,7 @@ class JdbcMcpServerStoreTest {
         }
 
         @Test
-        fun `should handle nested config values`() {
+        fun `handle nested config values해야 한다`() {
             val config = mapOf(
                 "url" to "http://localhost:3000",
                 "options" to mapOf("timeout" to 5000, "retries" to 3)
@@ -159,7 +159,7 @@ class JdbcMcpServerStoreTest {
     inner class UpdateBehavior {
 
         @Test
-        fun `should update server and preserve id and createdAt`() {
+        fun `update server and preserve id and createdAt해야 한다`() {
             val original = createServer()
             store.save(original)
             val saved = store.findByName("test-server")!!
@@ -179,14 +179,14 @@ class JdbcMcpServerStoreTest {
         }
 
         @Test
-        fun `should return null when updating nonexistent server`() {
+        fun `updating nonexistent server일 때 return null해야 한다`() {
             val result = store.update("nonexistent", createServer())
 
             assertNull(result, "Updating nonexistent server should return null")
         }
 
         @Test
-        fun `should update transport type`() {
+        fun `update transport type해야 한다`() {
             store.save(createServer(transportType = McpTransportType.SSE))
 
             store.update("test-server", createServer(transportType = McpTransportType.STDIO))

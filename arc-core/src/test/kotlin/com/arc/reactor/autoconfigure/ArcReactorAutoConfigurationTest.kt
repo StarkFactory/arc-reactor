@@ -104,7 +104,7 @@ class ArcReactorAutoConfigurationTest {
     inner class DefaultBeans {
 
         @Test
-        fun `should register AllToolSelector by default`() {
+        fun `register AllToolSelector by default해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(AllToolSelector::class.java, context.getBean(ToolSelector::class.java),
                     "Default ToolSelector should be AllToolSelector")
@@ -112,7 +112,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register InMemoryMemoryStore by default`() {
+        fun `register InMemoryMemoryStore by default해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(InMemoryMemoryStore::class.java, context.getBean(MemoryStore::class.java),
                     "Default MemoryStore should be InMemoryMemoryStore")
@@ -120,7 +120,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register InMemoryPersonaStore by default`() {
+        fun `register InMemoryPersonaStore by default해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(InMemoryPersonaStore::class.java, context.getBean(PersonaStore::class.java),
                     "Default PersonaStore should be InMemoryPersonaStore")
@@ -128,7 +128,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register InMemoryPromptTemplateStore by default`() {
+        fun `register InMemoryPromptTemplateStore by default해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(InMemoryPromptTemplateStore::class.java, context.getBean(PromptTemplateStore::class.java),
                     "Default PromptTemplateStore should be InMemoryPromptTemplateStore")
@@ -136,7 +136,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register InMemoryMcpServerStore by default`() {
+        fun `register InMemoryMcpServerStore by default해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(InMemoryMcpServerStore::class.java, context.getBean(McpServerStore::class.java),
                     "Default McpServerStore should be InMemoryMcpServerStore")
@@ -144,7 +144,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register DefaultErrorMessageResolver by default`() {
+        fun `register DefaultErrorMessageResolver by default해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(DefaultErrorMessageResolver::class.java, context.getBean(ErrorMessageResolver::class.java),
                     "Default ErrorMessageResolver should be DefaultErrorMessageResolver")
@@ -152,7 +152,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register NoOpAgentMetrics by default`() {
+        fun `register NoOpAgentMetrics by default해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(NoOpAgentMetrics::class.java, context.getBean(AgentMetrics::class.java),
                     "Default AgentMetrics should be NoOpAgentMetrics")
@@ -160,7 +160,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register DefaultTokenEstimator by default`() {
+        fun `register DefaultTokenEstimator by default해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(DefaultTokenEstimator::class.java, context.getBean(TokenEstimator::class.java),
                     "Default TokenEstimator should be DefaultTokenEstimator")
@@ -168,7 +168,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register DefaultConversationManager by default`() {
+        fun `register DefaultConversationManager by default해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(DefaultConversationManager::class.java, context.getBean(ConversationManager::class.java),
                     "Default ConversationManager should be DefaultConversationManager")
@@ -176,7 +176,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register DefaultMcpManager by default`() {
+        fun `register DefaultMcpManager by default해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(DefaultMcpManager::class.java, context.getBean(McpManager::class.java),
                     "Default McpManager should be DefaultMcpManager")
@@ -184,7 +184,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register HookExecutor by default`() {
+        fun `register HookExecutor by default해야 한다`() {
             contextRunner.run { context ->
                 assertNotNull(context.getBean(HookExecutor::class.java)) {
                     "HookExecutor should be registered by default"
@@ -193,7 +193,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register in-memory output guard stores by default`() {
+        fun `register in-memory output guard stores by default해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(
                     InMemoryOutputGuardRuleStore::class.java,
@@ -209,7 +209,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register in-memory pending approval store when approval is enabled without datasource`() {
+        fun `approval is enabled without datasource일 때 register in-memory pending approval store해야 한다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.approval.enabled=true")
                 .run { context ->
@@ -222,7 +222,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should prefer jdbc pending approval store when approval is enabled with datasource`() {
+        fun `approval is enabled with datasource일 때 prefer jdbc pending approval store해야 한다`() {
             jdbcContextRunner
                 .withPropertyValues("arc.reactor.approval.enabled=true")
                 .run { context ->
@@ -241,7 +241,7 @@ class ArcReactorAutoConfigurationTest {
     inner class ConditionalOnMissingBeanOverride {
 
         @Test
-        fun `should use custom ToolSelector when user provides one`() {
+        fun `user provides one일 때 use custom ToolSelector해야 한다`() {
             contextRunner
                 .withUserConfiguration(CustomToolSelectorConfig::class.java)
                 .run { context ->
@@ -253,7 +253,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should use custom MemoryStore when user provides one`() {
+        fun `user provides one일 때 use custom MemoryStore해야 한다`() {
             contextRunner
                 .withUserConfiguration(CustomMemoryStoreConfig::class.java)
                 .run { context ->
@@ -265,7 +265,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should use custom AgentMetrics when user provides one`() {
+        fun `user provides one일 때 use custom AgentMetrics해야 한다`() {
             contextRunner
                 .withUserConfiguration(CustomAgentMetricsConfig::class.java)
                 .run { context ->
@@ -289,7 +289,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register guard beans by default`() {
+        fun `register guard beans by default해야 한다`() {
             contextRunner.run { context ->
                 assertTrue(context.containsBean("requestGuard")) {
                     "RequestGuard should be registered (guard.enabled defaults to true)"
@@ -309,7 +309,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should not register guard beans when disabled`() {
+        fun `disabled일 때 not register guard beans해야 한다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.guard.enabled=false")
                 .run { context ->
@@ -329,7 +329,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should not register InjectionDetectionStage when disabled separately`() {
+        fun `disabled separately일 때 not register InjectionDetectionStage해야 한다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.guard.injection-detection-enabled=false")
                 .run { context ->
@@ -349,7 +349,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should apply boundaries input max chars to input validation stage`() {
+        fun `apply boundaries input max chars to input validation stage해야 한다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.boundaries.input-max-chars=8765"
@@ -368,7 +368,7 @@ class ArcReactorAutoConfigurationTest {
     inner class WebhookTests {
 
         @Test
-        fun `should not register webhook hook by default`() {
+        fun `not register webhook hook by default해야 한다`() {
             contextRunner.run { context ->
                 assertFalse(context.containsBean("webhookNotificationHook")) {
                     "WebhookNotificationHook should not exist by default (opt-in)"
@@ -377,7 +377,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register webhook hook when enabled`() {
+        fun `enabled일 때 register webhook hook해야 한다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.webhook.enabled=true",
@@ -402,7 +402,7 @@ class ArcReactorAutoConfigurationTest {
     inner class RagConfigurationTests {
 
         @Test
-        fun `should not register RAG beans by default`() {
+        fun `not register RAG beans by default해야 한다`() {
             contextRunner.run { context ->
                 assertFalse(context.containsBean("ragPipeline")) {
                     "RagPipeline should not exist by default (opt-in)"
@@ -417,7 +417,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register RAG beans when VectorStore is present`() {
+        fun `VectorStore is present일 때 register RAG beans해야 한다`() {
             contextRunner
                 .withUserConfiguration(MockVectorStoreConfig::class.java)
                 .withPropertyValues("arc.reactor.rag.enabled=true")
@@ -442,7 +442,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register HyDE query transformer when configured`() {
+        fun `configured일 때 register HyDE query transformer해야 한다`() {
             contextRunner
                 .withUserConfiguration(MockChatClientConfig::class.java, MockVectorStoreConfig::class.java)
                 .withPropertyValues(
@@ -464,7 +464,7 @@ class ArcReactorAutoConfigurationTest {
     inner class AgentExecutorTests {
 
         @Test
-        fun `should not register AgentExecutor without ChatClient`() {
+        fun `not register AgentExecutor without ChatClient해야 한다`() {
             contextRunner.run { context ->
                 assertFalse(context.containsBean("agentExecutor")) {
                     "AgentExecutor should not exist without ChatClient bean"
@@ -473,7 +473,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register AgentExecutor when ChatClient is available`() {
+        fun `ChatClient is available일 때 register AgentExecutor해야 한다`() {
             contextRunner
                 .withUserConfiguration(MockChatClientConfig::class.java)
                 .run { context ->
@@ -487,7 +487,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register AgentExecutor when only ChatModel is available`() {
+        fun `only ChatModel is available일 때 register AgentExecutor해야 한다`() {
             contextRunner
                 .withUserConfiguration(MockChatModelOnlyConfig::class.java)
                 .run { context ->
@@ -510,7 +510,7 @@ class ArcReactorAutoConfigurationTest {
     inner class JdbcStoreOverrideTests {
 
         @Test
-        fun `should use JDBC stores when datasource is configured`() {
+        fun `datasource is configured일 때 use JDBC stores해야 한다`() {
             jdbcContextRunner.run { context ->
                 assertInstanceOf(
                     JdbcMemoryStore::class.java, context.getBean(MemoryStore::class.java),
@@ -541,7 +541,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should use in-memory stores without datasource`() {
+        fun `use in-memory stores without datasource해야 한다`() {
             contextRunner.run { context ->
                 assertInstanceOf(
                     InMemoryMemoryStore::class.java, context.getBean(MemoryStore::class.java),
@@ -572,7 +572,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should keep in-memory stores when datasource url is blank`() {
+        fun `datasource url is blank일 때 keep in-memory stores해야 한다`() {
             contextRunner
                 .withPropertyValues("spring.datasource.url=")
                 .run { context ->
@@ -615,7 +615,7 @@ class ArcReactorAutoConfigurationTest {
     inner class RuntimePreflightConfigurationTests {
 
         @Test
-        fun `should fail startup when legacy auth toggle is explicitly false`() {
+        fun `legacy auth toggle is explicitly false일 때 fail startup해야 한다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.auth.enabled=false")
                 .run { context ->
@@ -629,7 +629,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should keep startup healthy when legacy auth toggle is true`() {
+        fun `legacy auth toggle is true일 때 keep startup healthy해야 한다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.auth.enabled=true")
                 .run { context ->
@@ -640,7 +640,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should fail startup when default tenant id is invalid`() {
+        fun `default tenant id is invalid일 때 fail startup해야 한다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.auth.default-tenant-id=tenant invalid")
                 .run { context ->
@@ -654,7 +654,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should fail startup when postgres required and datasource username is blank`() {
+        fun `postgres required and datasource username is blank일 때 fail startup해야 한다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.postgres.required=true",
@@ -673,7 +673,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should fail startup when postgres required and datasource password is blank`() {
+        fun `postgres required and datasource password is blank일 때 fail startup해야 한다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.postgres.required=true",
@@ -707,7 +707,7 @@ class ArcReactorAutoConfigurationTest {
     inner class AuthConfigurationTests {
 
         @Test
-        fun `should register auth beans by default`() {
+        fun `register auth beans by default해야 한다`() {
             contextRunner.run { context ->
                 assertTrue(context.containsBean("userStore")) {
                     "UserStore should exist by default because auth is mandatory"
@@ -722,7 +722,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register auth beans with jdbc datasource`() {
+        fun `jdbc datasource로 register auth beans해야 한다`() {
             jdbcContextRunner
                 .withPropertyValues(
                     "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
@@ -744,7 +744,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should use in-memory user store when datasource url is blank`() {
+        fun `datasource url is blank일 때 use in-memory user store해야 한다`() {
             contextRunner
                 .withPropertyValues(
                     "spring.datasource.url=",
@@ -763,7 +763,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should expose actuator health by default`() {
+        fun `expose actuator health by default해야 한다`() {
             jdbcContextRunner
                 .withPropertyValues(
                     "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
@@ -777,7 +777,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should append actuator health to public paths when enabled`() {
+        fun `enabled일 때 append actuator health to public paths해야 한다`() {
             jdbcContextRunner
                 .withPropertyValues(
                     "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough",
@@ -792,7 +792,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should disable self-registration by default`() {
+        fun `disable self-registration by default해야 한다`() {
             jdbcContextRunner
                 .withPropertyValues(
                     "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"
@@ -809,7 +809,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should expose register path when self-registration is enabled`() {
+        fun `self-registration is enabled일 때 expose register path해야 한다`() {
             jdbcContextRunner
                 .withPropertyValues(
                     "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough",
@@ -827,7 +827,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should fail context startup when auth enabled with empty jwt secret`() {
+        fun `auth enabled with empty jwt secret일 때 fail context startup해야 한다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.auth.jwt-secret="
@@ -844,7 +844,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should fail context startup when auth enabled with short jwt secret`() {
+        fun `auth enabled with short jwt secret일 때 fail context startup해야 한다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.auth.jwt-secret=tooshort"
@@ -872,7 +872,7 @@ class ArcReactorAutoConfigurationTest {
     inner class MemorySummaryConfigurationTests {
 
         @Test
-        fun `should not register summary beans by default`() {
+        fun `not register summary beans by default해야 한다`() {
             contextRunner.run { context ->
                 assertFalse(context.containsBean("conversationSummaryStore")) {
                     "ConversationSummaryStore should not exist by default (summary is opt-in)"
@@ -884,7 +884,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should register InMemory summary store when enabled with ChatClient`() {
+        fun `enabled with ChatClient일 때 register InMemory summary store해야 한다`() {
             contextRunner
                 .withUserConfiguration(MockChatClientConfig::class.java)
                 .withPropertyValues(
@@ -906,7 +906,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should use JDBC summary store when datasource is configured and summary enabled`() {
+        fun `datasource is configured and summary enabled일 때 use JDBC summary store해야 한다`() {
             contextRunner
                 .withConfiguration(
                     AutoConfigurations.of(
@@ -933,7 +933,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should inject summary dependencies into ConversationManager when enabled`() {
+        fun `enabled일 때 inject summary dependencies into ConversationManager해야 한다`() {
             contextRunner
                 .withUserConfiguration(MockChatClientConfig::class.java)
                 .withPropertyValues(
@@ -945,7 +945,7 @@ class ArcReactorAutoConfigurationTest {
                     assertInstanceOf(DefaultConversationManager::class.java, manager,
                         "ConversationManager should be DefaultConversationManager")
 
-                    // Verify summary store and service exist as separate beans
+                    // summary store and service exist as separate beans 확인
                     assertTrue(context.containsBean("conversationSummaryStore")) {
                         "ConversationSummaryStore bean must exist when summary is enabled"
                     }
@@ -956,7 +956,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should use in-memory summary store when datasource url is blank`() {
+        fun `datasource url is blank일 때 use in-memory summary store해야 한다`() {
             contextRunner
                 .withUserConfiguration(MockChatClientConfig::class.java)
                 .withPropertyValues(
@@ -983,7 +983,7 @@ class ArcReactorAutoConfigurationTest {
     inner class UserMemoryConfigurationTests {
 
         @Test
-        fun `should use in-memory user memory store when datasource url is blank`() {
+        fun `datasource url is blank일 때 use in-memory user memory store해야 한다`() {
             contextRunner
                 .withPropertyValues(
                     "spring.datasource.url=",
@@ -1002,7 +1002,7 @@ class ArcReactorAutoConfigurationTest {
         }
 
         @Test
-        fun `should use jdbc user memory store when datasource is configured`() {
+        fun `datasource is configured일 때 use jdbc user memory store해야 한다`() {
             jdbcContextRunner
                 .withPropertyValues("arc.reactor.memory.user.enabled=true")
                 .run { context ->

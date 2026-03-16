@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test
 class PreExecutionResolverMatrixTest {
 
     @Test
-    fun `guard rejection should short-circuit hook across 100 cases`() = runBlocking {
+    fun `guard rejection은(는) short-circuit hook across 100 cases해야 한다`() = runBlocking {
         val guard = mockk<RequestGuard>()
         val hookExecutor = mockk<HookExecutor>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -72,7 +72,7 @@ class PreExecutionResolverMatrixTest {
     }
 
     @Test
-    fun `hook rejection should apply when guard allows across 120 cases`() = runBlocking {
+    fun `hook rejection은(는) apply when guard allows across 120 cases해야 한다`() = runBlocking {
         val guard = mockk<RequestGuard>()
         val hookExecutor = mockk<HookExecutor>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -109,7 +109,7 @@ class PreExecutionResolverMatrixTest {
     }
 
     @Test
-    fun `resolveIntent should fail-open to original command across 150 resolver errors`() = runBlocking {
+    fun `resolveIntent은(는) fail-open to original command across 150 resolver errors해야 한다`() = runBlocking {
         val resolverMock = mockk<IntentResolver>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         var index = 0
@@ -142,7 +142,7 @@ class PreExecutionResolverMatrixTest {
     }
 
     @Test
-    fun `resolveIntent should throw blocked exception across blocked intent matrix`() = runBlocking {
+    fun `resolveIntent은(는) throw blocked exception across blocked intent matrix해야 한다`() = runBlocking {
         val resolverMock = mockk<IntentResolver>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val blockedNames = (0 until 40).map { "blocked-$it" }.toSet()

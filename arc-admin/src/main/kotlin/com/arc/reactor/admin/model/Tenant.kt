@@ -3,6 +3,7 @@ package com.arc.reactor.admin.model
 import java.time.Instant
 import java.util.UUID
 
+/** 테넌트 요금 플랜. 플랜별 기본 쿼터가 [Tenant.DEFAULT_QUOTAS]에 정의되어 있다. */
 enum class TenantPlan {
     FREE,
     STARTER,
@@ -10,12 +11,14 @@ enum class TenantPlan {
     ENTERPRISE
 }
 
+/** 테넌트 상태. 활성, 정지, 비활성화. */
 enum class TenantStatus {
     ACTIVE,
     SUSPENDED,
     DEACTIVATED
 }
 
+/** 테넌트 쿼터 (월간 요청 수, 토큰 수, 사용자/에이전트/MCP 서버 수 제한). */
 data class TenantQuota(
     val maxRequestsPerMonth: Long = 1000,
     val maxTokensPerMonth: Long = 1_000_000,
@@ -24,6 +27,7 @@ data class TenantQuota(
     val maxMcpServers: Int = 5
 )
 
+/** 테넌트 도메인 모델. 플랜, 쿼터, SLO 목표, 과금 정보를 포함한다. */
 data class Tenant(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
@@ -76,6 +80,7 @@ data class Tenant(
     }
 }
 
+/** 테넌트 당월 사용량 (요청 수, 토큰 수, 비용). */
 data class TenantUsage(
     val tenantId: String,
     val requests: Long = 0,

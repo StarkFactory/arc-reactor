@@ -25,7 +25,7 @@ class ExperimentCaptureHookTest {
     }
 
     @Test
-    fun `should have correct order and fail-open policy`() {
+    fun `have correct order and fail-open policy해야 한다`() {
         assertEquals(270, hook.order) { "Hook order should be 270" }
         assertEquals(false, hook.failOnError) { "Hook should be fail-open" }
     }
@@ -34,7 +34,7 @@ class ExperimentCaptureHookTest {
     inner class CaptureExperimentData {
 
         @Test
-        fun `should capture data when experiment metadata is present`() = runTest {
+        fun `experiment metadata is present일 때 capture data해야 한다`() = runTest {
             val context = buildContext(
                 metadata = mutableMapOf(
                     ExperimentCaptureHook.EXPERIMENT_ID_KEY to "exp-1",
@@ -55,7 +55,7 @@ class ExperimentCaptureHookTest {
         }
 
         @Test
-        fun `should skip capture when experiment metadata is missing`() = runTest {
+        fun `experiment metadata is missing일 때 skip capture해야 한다`() = runTest {
             val context = buildContext(metadata = ConcurrentHashMap())
             val response = buildResponse()
 
@@ -65,7 +65,7 @@ class ExperimentCaptureHookTest {
         }
 
         @Test
-        fun `should skip when experimentId is present but versionId is missing`() = runTest {
+        fun `experimentId is present but versionId is missing일 때 skip해야 한다`() = runTest {
             val context = buildContext(
                 metadata = mutableMapOf(
                     ExperimentCaptureHook.EXPERIMENT_ID_KEY to "exp-1"
@@ -80,7 +80,7 @@ class ExperimentCaptureHookTest {
     inner class TTLExpiration {
 
         @Test
-        fun `should return null for expired entries`() = runTest {
+        fun `expired entries에 대해 return null해야 한다`() = runTest {
             val context = buildContext(
                 metadata = mutableMapOf(
                     ExperimentCaptureHook.EXPERIMENT_ID_KEY to "exp-1",
@@ -104,7 +104,7 @@ class ExperimentCaptureHookTest {
     inner class MultipleEntries {
 
         @Test
-        fun `should store multiple experiment entries`() = runTest {
+        fun `store multiple experiment entries해야 한다`() = runTest {
             repeat(5) { i ->
                 val context = buildContext(
                     runId = "run-$i",

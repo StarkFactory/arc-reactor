@@ -68,14 +68,14 @@ class IntentControllerJdbcIntegrationTest {
     }
 
     @Test
-    fun `wires JdbcIntentRegistry when datasource is configured`() {
+    fun `wires JdbcIntentRegistry when datasource은(는) configured이다`() {
         assertInstanceOf(JdbcIntentRegistry::class.java, intentRegistry) {
             "Expected JdbcIntentRegistry when datasource is configured"
         }
     }
 
     @Test
-    fun `intent CRUD persists to DB and is reflected in APIs`() {
+    fun `intent CRUD persists to DB and은(는) reflected in APIs이다`() {
         // Create
         adminClient.post()
             .uri("/api/intents")

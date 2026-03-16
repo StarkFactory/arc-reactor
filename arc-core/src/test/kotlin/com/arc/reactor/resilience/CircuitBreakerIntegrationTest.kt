@@ -13,9 +13,9 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Integration tests for CircuitBreaker with SpringAiAgentExecutor.
+ * 에 대한 통합 테스트. CircuitBreaker with SpringAiAgentExecutor.
  *
- * Verifies that the circuit breaker wraps LLM calls and produces
+ * 다음을 검증합니다: the circuit breaker wraps LLM calls and produces
  * correct error codes when the circuit is open.
  */
 class CircuitBreakerIntegrationTest {
@@ -32,7 +32,7 @@ class CircuitBreakerIntegrationTest {
     inner class ExecutorWithCircuitBreaker {
 
         @Test
-        fun `should execute normally when circuit is CLOSED`() = runTest {
+        fun `circuit is CLOSED일 때 execute normally해야 한다`() = runTest {
             fixture.mockCallResponse("Hello!")
 
             val cb = DefaultCircuitBreaker(failureThreshold = 3, name = "test-llm")
@@ -52,7 +52,7 @@ class CircuitBreakerIntegrationTest {
         }
 
         @Test
-        fun `should return CIRCUIT_BREAKER_OPEN error when circuit is open`() = runTest {
+        fun `circuit is open일 때 return CIRCUIT_BREAKER_OPEN error해야 한다`() = runTest {
             every { fixture.callResponseSpec.chatResponse() } throws RuntimeException("LLM down")
 
             val cb = DefaultCircuitBreaker(failureThreshold = 2, name = "test-llm")
@@ -64,7 +64,7 @@ class CircuitBreakerIntegrationTest {
 
             val command = AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
 
-            // Trip the breaker (2 failures)
+            // the breaker (2 failures)를 트립시킵니다
             repeat(2) {
                 val result = executor.execute(command)
                 assertFalse(result.success) { "Should fail on LLM error" }
@@ -74,7 +74,7 @@ class CircuitBreakerIntegrationTest {
                 "Circuit should be OPEN after 2 failures"
             }
 
-            // Next call should be rejected by CB
+            // Next call은(는) be rejected by CB해야 합니다
             val result = executor.execute(command)
             assertFalse(result.success) { "Should fail when circuit is OPEN" }
             assertEquals(AgentErrorCode.CIRCUIT_BREAKER_OPEN, result.errorCode) {
@@ -83,7 +83,7 @@ class CircuitBreakerIntegrationTest {
         }
 
         @Test
-        fun `should work without circuit breaker (null)`() = runTest {
+        fun `work without circuit breaker (null)해야 한다`() = runTest {
             fixture.mockCallResponse("No CB")
 
             val executor = SpringAiAgentExecutor(
@@ -101,7 +101,7 @@ class CircuitBreakerIntegrationTest {
         }
 
         @Test
-        fun `should recover after circuit closes`() = runTest {
+        fun `circuit closes 후 recover해야 한다`() = runTest {
             val callCount = java.util.concurrent.atomic.AtomicInteger(0)
             val clock = java.util.concurrent.atomic.AtomicLong(1000L)
 
@@ -122,7 +122,7 @@ class CircuitBreakerIntegrationTest {
             )
             val command = AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
 
-            // Trip the breaker
+            // the breaker를 트립시킵니다
             repeat(2) { executor.execute(command) }
             assertEquals(CircuitBreakerState.OPEN, cb.state()) { "Should be OPEN" }
 

@@ -31,7 +31,7 @@ class ParallelOrchestratorTest {
     inner class NormalFlow {
 
         @Test
-        fun `should execute all nodes and merge results`() = runTest {
+        fun `execute all nodes and merge results해야 한다`() = runTest {
             val orchestrator = ParallelOrchestrator()
             val nodes = listOf(
                 AgentNode("security", systemPrompt = ""),
@@ -56,7 +56,7 @@ class ParallelOrchestratorTest {
         }
 
         @Test
-        fun `should execute nodes concurrently`() = runTest {
+        fun `execute nodes concurrently해야 한다`() = runTest {
             val orchestrator = ParallelOrchestrator()
             val concurrentCount = AtomicInteger(0)
             val maxConcurrent = AtomicInteger(0)
@@ -90,7 +90,7 @@ class ParallelOrchestratorTest {
     inner class FailureHandling {
 
         @Test
-        fun `should succeed with partial failures when failFast is false`() = runTest {
+        fun `failFast is false일 때 succeed with partial failures해야 한다`() = runTest {
             val orchestrator = ParallelOrchestrator(failFast = false)
             val nodes = listOf(
                 AgentNode("A", systemPrompt = ""),
@@ -109,7 +109,7 @@ class ParallelOrchestratorTest {
         }
 
         @Test
-        fun `should fail with partial failures when failFast is true`() = runTest {
+        fun `failFast is true일 때 fail with partial failures해야 한다`() = runTest {
             val orchestrator = ParallelOrchestrator(failFast = true)
             val nodes = listOf(
                 AgentNode("A", systemPrompt = ""),
@@ -124,7 +124,7 @@ class ParallelOrchestratorTest {
         }
 
         @Test
-        fun `should return failure for empty nodes`() = runTest {
+        fun `empty nodes에 대해 return failure해야 한다`() = runTest {
             val orchestrator = ParallelOrchestrator()
             val result = orchestrator.execute(baseCommand, emptyList()) { mockAgent("") }
 
@@ -132,7 +132,7 @@ class ParallelOrchestratorTest {
         }
 
         @Test
-        fun `should rethrow cancellation exception from node`() {
+        fun `rethrow cancellation exception from node해야 한다`() {
             val orchestrator = ParallelOrchestrator()
             val cancellingAgent = mockk<AgentExecutor>()
             coEvery { cancellingAgent.execute(any()) } throws CancellationException("cancelled")
@@ -152,7 +152,7 @@ class ParallelOrchestratorTest {
     inner class PerNodeTimeout {
 
         @Test
-        fun `should timeout slow node while fast node succeeds`() = runTest {
+        fun `timeout slow node while fast node succeeds해야 한다`() = runTest {
             val orchestrator = ParallelOrchestrator(failFast = false)
             val nodes = listOf(
                 AgentNode("fast", systemPrompt = "", timeoutMs = 5000),
@@ -175,7 +175,7 @@ class ParallelOrchestratorTest {
         }
 
         @Test
-        fun `should use default timeout when node timeout is null`() = runTest {
+        fun `node timeout is null일 때 use default timeout해야 한다`() = runTest {
             val orchestrator = ParallelOrchestrator()
             val nodes = listOf(
                 AgentNode("A", systemPrompt = "", timeoutMs = null)
@@ -191,7 +191,7 @@ class ParallelOrchestratorTest {
     inner class ResultMerging {
 
         @Test
-        fun `should use custom merger`() = runTest {
+        fun `use custom merger해야 한다`() = runTest {
             val customMerger = ResultMerger { results ->
                 results.joinToString(" | ") { it.result.content ?: "" }
             }

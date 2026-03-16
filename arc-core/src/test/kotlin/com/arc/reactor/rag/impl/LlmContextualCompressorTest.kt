@@ -37,7 +37,7 @@ class LlmContextualCompressorTest {
     inner class HappyPath {
 
         @Test
-        fun `should compress document and replace content`() = runTest {
+        fun `compress document and replace content해야 한다`() = runTest {
             val longContent = "A".repeat(300)
             val extracted = "Only relevant part"
             mockLlmResponse(extracted)
@@ -65,7 +65,7 @@ class LlmContextualCompressorTest {
         }
 
         @Test
-        fun `should remove irrelevant documents`() = runTest {
+        fun `remove irrelevant documents해야 한다`() = runTest {
             mockLlmResponse("IRRELEVANT")
 
             val compressor = LlmContextualCompressor(chatClient)
@@ -79,7 +79,7 @@ class LlmContextualCompressorTest {
         }
 
         @Test
-        fun `should handle case-insensitive IRRELEVANT response`() = runTest {
+        fun `handle case-insensitive IRRELEVANT response해야 한다`() = runTest {
             mockLlmResponse("irrelevant")
 
             val compressor = LlmContextualCompressor(chatClient)
@@ -93,7 +93,7 @@ class LlmContextualCompressorTest {
         }
 
         @Test
-        fun `should compress multiple documents in parallel`() = runTest {
+        fun `compress multiple documents in parallel해야 한다`() = runTest {
             val assistantMessage = AssistantMessage("compressed content")
             val chatResponse = ChatResponse(listOf(Generation(assistantMessage)))
             every { callResponseSpec.chatResponse() } returns chatResponse
@@ -111,7 +111,7 @@ class LlmContextualCompressorTest {
         }
 
         @Test
-        fun `should return empty list for empty input`() = runTest {
+        fun `empty input에 대해 return empty list해야 한다`() = runTest {
             val compressor = LlmContextualCompressor(chatClient)
 
             val result = compressor.compress("query", emptyList())
@@ -124,7 +124,7 @@ class LlmContextualCompressorTest {
     inner class ShortDocumentSkip {
 
         @Test
-        fun `should skip compression for short documents`() = runTest {
+        fun `short documents에 대해 skip compression해야 한다`() = runTest {
             val shortContent = "Short text"
             val compressor = LlmContextualCompressor(chatClient)
             val docs = listOf(
@@ -139,7 +139,7 @@ class LlmContextualCompressorTest {
         }
 
         @Test
-        fun `should respect custom minContentLength`() = runTest {
+        fun `respect custom minContentLength해야 한다`() = runTest {
             val content = "A".repeat(100)
             mockLlmResponse("compressed")
 
@@ -161,7 +161,7 @@ class LlmContextualCompressorTest {
     inner class ErrorHandling {
 
         @Test
-        fun `should keep original document when LLM returns null`() = runTest {
+        fun `LLM returns null일 때 keep original document해야 한다`() = runTest {
             every { callResponseSpec.chatResponse() } returns null
 
             val originalContent = "A".repeat(300)
@@ -179,7 +179,7 @@ class LlmContextualCompressorTest {
         }
 
         @Test
-        fun `should keep original document when LLM returns blank`() = runTest {
+        fun `LLM returns blank일 때 keep original document해야 한다`() = runTest {
             mockLlmResponse("   ")
 
             val originalContent = "A".repeat(300)
@@ -197,7 +197,7 @@ class LlmContextualCompressorTest {
         }
 
         @Test
-        fun `should keep original document when LLM throws exception`() = runTest {
+        fun `LLM throws exception일 때 keep original document해야 한다`() = runTest {
             every { requestSpec.call() } throws RuntimeException("LLM unavailable")
 
             val originalContent = "A".repeat(300)
@@ -215,7 +215,7 @@ class LlmContextualCompressorTest {
         }
 
         @Test
-        fun `should propagate CancellationException`() = runTest {
+        fun `propagate CancellationException해야 한다`() = runTest {
             every { requestSpec.call() } throws java.util.concurrent.CancellationException("cancelled")
 
             val compressor = LlmContextualCompressor(chatClient)
@@ -233,7 +233,7 @@ class LlmContextualCompressorTest {
     inner class AllIrrelevantBatch {
 
         @Test
-        fun `should return empty list when all documents in parallel batch are graded IRRELEVANT`() = runTest {
+        fun `all documents in parallel batch are graded IRRELEVANT일 때 return empty list해야 한다`() = runTest {
             mockLlmResponse("IRRELEVANT")
 
             val compressor = LlmContextualCompressor(chatClient)
@@ -256,7 +256,7 @@ class LlmContextualCompressorTest {
     inner class MixedDocuments {
 
         @Test
-        fun `should pass through short document without LLM call`() = runTest {
+        fun `pass through short document without LLM call해야 한다`() = runTest {
             mockLlmResponse("IRRELEVANT")
 
             val compressor = LlmContextualCompressor(chatClient)

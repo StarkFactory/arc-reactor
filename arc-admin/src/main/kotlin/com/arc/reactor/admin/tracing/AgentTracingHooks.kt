@@ -16,18 +16,19 @@ import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Compound data class to keep span + startTime together,
- * ensuring atomic insert/remove across both values.
- */
+/** span과 startTime을 함께 보관하여 원자적 insert/remove를 보장하는 복합 데이터 클래스. */
 private data class ToolSpanEntry(
     val span: io.micrometer.tracing.Span,
     val startTimeMs: Long
 )
 
 /**
- * 4-type Hook that creates agent/tool level spans.
- * Spring AI's gen_ai.client.operation span is auto-created and becomes a child.
+ * 에이전트/도구 레벨 span을 생성하는 4종 Hook.
+ *
+ * Spring AI의 gen_ai.client.operation span은 자동 생성되어 이 span의 자식이 된다.
+ * HITL 감지: 도구 총 경과 시간이 실행 시간보다 현저히 큰 경우 HITL 대기로 판단한다.
+ *
+ * @see TracingAutoConfiguration 트레이싱 자동 설정
  */
 class AgentTracingHooks(
     private val tracer: Tracer,
@@ -63,9 +64,8 @@ class AgentTracingHooks(
 
             agentSpans[context.runId] = span
 
-            // Store trace identifiers in hook metadata (coroutine-safe).
-            // Direct MDC.put is unreliable in suspend functions because the
-            // coroutine may resume on a different thread.
+            // trace 식별자를 hook 메타데이터에 저장 (코루틴 안전).
+            // suspend 함수에서 MDC.put은 코루틴이 다른 스레드에서 재개될 수 있어 불안정하다.
             context.metadata["traceId"] = span.context().traceId()
             context.metadata["spanId"] = span.context().spanId()
         } catch (e: CancellationException) {
@@ -109,7 +109,7 @@ class AgentTracingHooks(
                 .start()
 
             val key = toolSpanKey(context)
-            // Single atomic put — span and startTime are always together
+            // 단일 원자적 put — span과 startTime은 항상 함께
             toolSpanEntries[key] = ToolSpanEntry(toolSpan, System.currentTimeMillis())
         } catch (e: CancellationException) {
             throw e
@@ -123,7 +123,7 @@ class AgentTracingHooks(
     override suspend fun afterToolCall(context: ToolCallContext, result: ToolCallResult) {
         try {
             val key = toolSpanKey(context)
-            // Single atomic remove — both span and startTime removed together
+            // 단일 원자적 remove — span과 startTime을 함께 제거
             val entry = toolSpanEntries.remove(key) ?: return
             val toolSpan = entry.span
             val totalElapsed = System.currentTimeMillis() - entry.startTimeMs
@@ -131,7 +131,7 @@ class AgentTracingHooks(
             toolSpan.tag("success", result.success.toString())
             toolSpan.tag("duration_ms", result.durationMs.toString())
 
-            // HITL detection: if total elapsed is significantly more than tool execution time
+            // HITL 감지: 총 경과 시간이 도구 실행 시간보다 현저히 큰 경우
             val hitlWaitMs = (totalElapsed - result.durationMs).coerceAtLeast(0)
             if (hitlWaitMs > 100) {
                 toolSpan.tag("gen_ai.tool.hitl.required", "true")

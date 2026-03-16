@@ -15,7 +15,7 @@ class GoogleDriveToolTest {
     private val tool = GoogleDriveTool(credentialProvider)
 
     @Test
-    fun `tool name is google_drive_search`() {
+    fun `tool name은(는) google_drive_search이다`() {
         assertEquals(
             "google_drive_search",
             tool.name,
@@ -24,7 +24,7 @@ class GoogleDriveToolTest {
     }
 
     @Test
-    fun `tool description is non-blank`() {
+    fun `tool description은(는) non-blank이다`() {
         assertTrue(
             tool.description.isNotBlank(),
             "Tool description must not be blank"
@@ -32,7 +32,7 @@ class GoogleDriveToolTest {
     }
 
     @Test
-    fun `call returns error when query is missing`() = runTest {
+    fun `call returns error when query은(는) missing이다`() = runTest {
         val result = tool.call(mapOf("max_results" to 5))
 
         assertTrue(
@@ -47,7 +47,7 @@ class GoogleDriveToolTest {
     }
 
     @Test
-    fun `call returns error string when credential provider throws`() = runTest {
+    fun `returns error string when credential provider throws를 호출한다`() = runTest {
         every {
             credentialProvider.getCredentials(any())
         } throws RuntimeException("Service account not authorized")
@@ -67,7 +67,7 @@ class GoogleDriveToolTest {
     }
 
     @Test
-    fun `call uses default max_results when not provided`() = runTest {
+    fun `uses default max_results when not provided를 호출한다`() = runTest {
         every {
             credentialProvider.getCredentials(any())
         } throws RuntimeException("simulated API error")
@@ -81,7 +81,7 @@ class GoogleDriveToolTest {
     }
 
     @Test
-    fun `call returns error string when authentication fails with IllegalArgumentException`() = runTest {
+    fun `returns error string when authentication fails with IllegalArgumentException를 호출한다`() = runTest {
         every {
             credentialProvider.getCredentials(any())
         } throws IllegalArgumentException("arc.reactor.google.service-account-key-path must be configured")
@@ -95,7 +95,7 @@ class GoogleDriveToolTest {
     }
 
     @Test
-    fun `call rethrows CancellationException for structured concurrency`() = runTest {
+    fun `rethrows CancellationException for structured concurrency를 호출한다`() = runTest {
         every {
             credentialProvider.getCredentials(any())
         } throws java.util.concurrent.CancellationException("cancelled")
@@ -104,7 +104,7 @@ class GoogleDriveToolTest {
             tool.call(mapOf("query" to "name contains 'report'"))
             fail("CancellationException must be rethrown from GoogleDriveTool.call")
         } catch (_: java.util.concurrent.CancellationException) {
-            // expected
+            // 예상 결과
         }
     }
 }

@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Unit tests for [SlackCommandProcessor].
+ * 에 대한 단위 테스트. [SlackCommandProcessor].
  *
  * Covers successful submission, fail-fast backpressure, queue-mode backpressure,
  * notification-on-drop semantics, error isolation, and semaphore lifecycle correctness.
@@ -71,14 +71,14 @@ class SlackCommandProcessorTest {
     inner class Submission {
 
         @Test
-        fun `submit returns true when semaphore is available`() {
+        fun `submit returns true when semaphore은(는) available이다`() {
             val processor = buildProcessor(defaultProperties())
             val result = processor.submit(buildCommand(), "events_api")
             result shouldBe true
         }
 
         @Test
-        fun `submit returns false when saturated in fail-fast mode`() = runTest {
+        fun `saturated in fail-fast mode일 때 submit returns false`() = runTest {
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
@@ -91,7 +91,7 @@ class SlackCommandProcessorTest {
             )
 
             processor.submit(buildCommand(userId = "U1"), "events_api") shouldBe true
-            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // deterministic: wait for permit acquisition
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // 결정적: 퍼밋 획득을 기다립니다
 
             val rejected = processor.submit(buildCommand(userId = "U2"), "events_api")
             rejected shouldBe false
@@ -100,7 +100,7 @@ class SlackCommandProcessorTest {
         }
 
         @Test
-        fun `submit calls recordInbound on every invocation`() {
+        fun `submit은(는) calls recordInbound on every invocation`() {
             val processor = buildProcessor(defaultProperties())
 
             processor.submit(buildCommand(), "events_api")
@@ -109,7 +109,7 @@ class SlackCommandProcessorTest {
         }
 
         @Test
-        fun `submit returns true again after semaphore is released`() = runTest {
+        fun `submit returns true again after semaphore은(는) released이다`() = runTest {
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1)
             val releasedLatch = CountDownLatch(1)
@@ -124,7 +124,7 @@ class SlackCommandProcessorTest {
             )
 
             processor.submit(buildCommand(userId = "U1"), "events_api")
-            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // deterministic: wait for permit acquisition
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // 결정적: 퍼밋 획득을 기다립니다
 
             holdLatch.countDown() // release
             releasedLatch.await(5, TimeUnit.SECONDS)
@@ -143,7 +143,7 @@ class SlackCommandProcessorTest {
     inner class HandlerDispatch {
 
         @Test
-        fun `handleSlashCommand is invoked with the submitted command`() = runTest {
+        fun `handleSlashCommand은(는) invoked with the submitted command이다`() = runTest {
             val latch = CountDownLatch(1)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers { latch.countDown() }
 
@@ -159,7 +159,7 @@ class SlackCommandProcessorTest {
         }
 
         @Test
-        fun `recordHandler success metric is emitted after successful handling`() = runTest {
+        fun `recordHandler success metric은(는) emitted after successful handling이다`() = runTest {
             val latch = CountDownLatch(1)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers { latch.countDown() }
 
@@ -167,7 +167,7 @@ class SlackCommandProcessorTest {
             processor.submit(buildCommand(), "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200) // allow recordHandler dispatch on Dispatchers.Default
+            Thread.sleep(200)  // recordHandler dispatch on Dispatchers.Default 허용
             coVerify {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
@@ -179,7 +179,7 @@ class SlackCommandProcessorTest {
         }
 
         @Test
-        fun `recordHandler failure metric is emitted when handler throws`() = runTest {
+        fun `handler throws일 때 recordHandler failure metric은(는) emitted이다`() = runTest {
             val latch = CountDownLatch(1)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
                 latch.countDown()
@@ -190,7 +190,7 @@ class SlackCommandProcessorTest {
             processor.submit(buildCommand(), "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200) // allow recordHandler dispatch on Dispatchers.Default
+            Thread.sleep(200)  // recordHandler dispatch on Dispatchers.Default 허용
             coVerify {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
@@ -203,14 +203,14 @@ class SlackCommandProcessorTest {
     }
 
     // =========================================================================
-    // Backpressure — fail-fast mode
+    // 백프레셔 — fail-fast 모드
     // =========================================================================
 
     @Nested
     inner class BackpressureFailFastMode {
 
         @Test
-        fun `recordDropped with queue_overflow is emitted when saturated`() = runTest {
+        fun `saturated일 때 recordDropped with queue_overflow은(는) emitted이다`() = runTest {
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
@@ -222,7 +222,7 @@ class SlackCommandProcessorTest {
                 defaultProperties(maxConcurrentRequests = 1, failFastOnSaturation = true)
             )
             processor.submit(buildCommand(userId = "U1"), "events_api")
-            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // deterministic: wait for permit acquisition
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // 결정적: 퍼밋 획득을 기다립니다
 
             processor.submit(buildCommand(userId = "U2"), "events_api")
             holdLatch.countDown()
@@ -237,7 +237,7 @@ class SlackCommandProcessorTest {
         }
 
         @Test
-        fun `notifyOnDrop sends busy message via response_url when enabled`() {
+        fun `enabled일 때 notifyOnDrop sends busy message via response_url`() {
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1) // signals when first handler holds semaphore
             runBlocking {
@@ -259,7 +259,7 @@ class SlackCommandProcessorTest {
                     buildCommand(userId = "U1", responseUrl = "https://hooks.slack.com/commands/u1"),
                     "events_api"
                 )
-                acquiredLatch.await(5, TimeUnit.SECONDS) // wait for first handler to hold semaphore
+                acquiredLatch.await(5, TimeUnit.SECONDS)  // for first handler to hold semaphore를 기다립니다
 
                 processor.submit(
                     buildCommand(userId = "U2", responseUrl = "https://hooks.slack.com/commands/u2"),
@@ -280,7 +280,7 @@ class SlackCommandProcessorTest {
         }
 
         @Test
-        fun `notifyOnDrop is suppressed when disabled`() = runTest {
+        fun `disabled일 때 notifyOnDrop은(는) suppressed이다`() = runTest {
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
@@ -296,7 +296,7 @@ class SlackCommandProcessorTest {
                 )
             )
             processor.submit(buildCommand(userId = "U1"), "events_api")
-            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // deterministic: wait for permit acquisition
+            acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true // 결정적: 퍼밋 획득을 기다립니다
             processor.submit(buildCommand(userId = "U2"), "events_api")
 
             holdLatch.countDown()
@@ -307,14 +307,14 @@ class SlackCommandProcessorTest {
     }
 
     // =========================================================================
-    // Backpressure — queue mode with timeout
+    // 백프레셔 — 타임아웃이 있는 큐 모드
     // =========================================================================
 
     @Nested
     inner class BackpressureQueueModeTimeout {
 
         @Test
-        fun `commands wait in queue and all complete when capacity allows`() = runTest {
+        fun `capacity allows일 때 commands wait in queue and all complete`() = runTest {
             val processedCount = AtomicInteger(0)
             val latch = CountDownLatch(3)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
@@ -337,7 +337,7 @@ class SlackCommandProcessorTest {
         }
 
         @Test
-        fun `recordDropped with queue_timeout is emitted when timeout elapses`() {
+        fun `timeout elapses일 때 recordDropped with queue_timeout은(는) emitted이다`() {
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1)
             runBlocking {
@@ -358,7 +358,7 @@ class SlackCommandProcessorTest {
 
                 processor.submit(buildCommand(userId = "U2"), "events_api")
             }
-            Thread.sleep(800) // wait for 200ms timeout + processing margin
+            Thread.sleep(800)  // for 200ms timeout + processing margin를 기다립니다
             holdLatch.countDown()
 
             verify {
@@ -372,14 +372,14 @@ class SlackCommandProcessorTest {
     }
 
     // =========================================================================
-    // Error isolation
+    // 오류 격리
     // =========================================================================
 
     @Nested
     inner class ErrorIsolation {
 
         @Test
-        fun `handler exception does not prevent subsequent commands from being processed`() = runTest {
+        fun `handler은(는) exception does not prevent subsequent commands from being processed`() = runTest {
             val successCount = AtomicInteger(0)
             val latch = CountDownLatch(3)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
@@ -399,7 +399,7 @@ class SlackCommandProcessorTest {
         }
 
         @Test
-        fun `semaphore is released after handler throws allowing next command to proceed`() = runTest {
+        fun `semaphore은(는) released after handler throws allowing next command to proceed이다`() = runTest {
             val firstHandled = CountDownLatch(1)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
                 firstHandled.countDown()
@@ -412,9 +412,9 @@ class SlackCommandProcessorTest {
 
             processor.submit(buildCommand(userId = "U1"), "events_api")
             firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200) // allow semaphore release in finally block on Dispatchers.Default
+            Thread.sleep(200)  // semaphore release in finally block on Dispatchers.Default 허용
 
-            // Reset mock to succeed for next command
+            // mock to succeed for next command 리셋
             val secondLatch = CountDownLatch(1)
             val secondSuccess = AtomicInteger(0)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
@@ -430,7 +430,7 @@ class SlackCommandProcessorTest {
         }
 
         @Test
-        fun `multiple concurrent commands are independent and all metrics are recorded`() = runTest {
+        fun `multiple concurrent commands은(는) independent and all metrics are recorded이다`() = runTest {
             val totalCommands = 4
             val latch = CountDownLatch(totalCommands)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers { latch.countDown() }
@@ -439,7 +439,7 @@ class SlackCommandProcessorTest {
             repeat(totalCommands) { i -> processor.submit(buildCommand(userId = "U$i"), "events_api") }
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200) // allow recordHandler dispatch on Dispatchers.Default
+            Thread.sleep(200)  // recordHandler dispatch on Dispatchers.Default 허용
             coVerify(exactly = totalCommands) {
                 metricsRecorder.recordHandler(any(), any(), success = true, durationMs = any())
             }
@@ -454,7 +454,7 @@ class SlackCommandProcessorTest {
     inner class ConcurrencyInvariants {
 
         @Test
-        fun `peak concurrent command processing never exceeds maxConcurrentRequests`() = runTest {
+        fun `peak은(는) concurrent command processing never exceeds maxConcurrentRequests`() = runTest {
             val maxAllowed = 2
             val totalCommands = 8
             val currentConcurrent = AtomicInteger(0)

@@ -7,6 +7,16 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutionException
 
+/**
+ * 쓰기 작업 멱등성 보장 서비스.
+ *
+ * LLM이 동일한 도구 호출을 중복 실행하는 것을 방지한다.
+ * 명시적 멱등성 키 또는 파라미터 기반 해시로 중복을 감지하며,
+ * 캐시된 결과를 반환하여 Slack API 중복 호출을 차단한다.
+ *
+ * @see InMemoryWriteOperationIdempotencyService
+ * @see NoopWriteOperationIdempotencyService
+ */
 interface WriteOperationIdempotencyService {
     fun execute(
         toolName: String,
@@ -16,6 +26,7 @@ interface WriteOperationIdempotencyService {
     ): String
 }
 
+/** 멱등성 검사를 수행하지 않는 No-op 구현. 항상 원본 작업을 실행한다. */
 object NoopWriteOperationIdempotencyService : WriteOperationIdempotencyService {
     override fun execute(
         toolName: String,
@@ -25,6 +36,15 @@ object NoopWriteOperationIdempotencyService : WriteOperationIdempotencyService {
     ): String = operation()
 }
 
+/**
+ * 인메모리 멱등성 보장 구현.
+ *
+ * SHA-256 해시를 키로 사용하여 최근 결과를 캐싱하며,
+ * 동시 실행 중인 동일 요청은 [CompletableFuture]로 합류(coalesce)시킨다.
+ * TTL 만료 후 자동 정리되며, 최대 엔트리 수 초과 시 오래된 항목부터 제거한다.
+ *
+ * @param properties Slack 도구 설정 (TTL, 최대 엔트리 수 등)
+ */
 class InMemoryWriteOperationIdempotencyService(
     private val properties: SlackToolsProperties
 ) : WriteOperationIdempotencyService {

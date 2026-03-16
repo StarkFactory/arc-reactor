@@ -25,14 +25,14 @@ class ToolArgumentParserFuzzTest {
     }
 
     @Test
-    fun `parser should return empty map for null and blank`() {
+    fun `parser은(는) return empty map for null and blank해야 한다`() {
         assertTrue(parseToolArguments(null).isEmpty(), "null argument should parse to empty map")
         assertTrue(parseToolArguments("").isEmpty(), "empty string should parse to empty map")
         assertTrue(parseToolArguments("   ").isEmpty(), "blank string should parse to empty map")
     }
 
     @Test
-    fun `parser should fail closed for 1000 malformed payloads`() {
+    fun `parser은(는) fail closed for 1000 malformed payloads해야 한다`() {
         var checked = 0
         repeat(1_000) { i ->
             val malformed = when (i % 5) {
@@ -50,7 +50,7 @@ class ToolArgumentParserFuzzTest {
     }
 
     @Test
-    fun `parser should keep key value structure for representative valid payloads`() {
+    fun `parser은(는) keep key value structure for representative valid payloads해야 한다`() {
         val parsed1 = parseToolArguments("""{"city":"seoul","days":3,"metric":true}""")
         assertEquals("seoul", parsed1["city"])
         assertEquals(3, parsed1["days"])
@@ -67,7 +67,7 @@ class ToolArgumentParserFuzzTest {
     }
 
     @Test
-    fun `parser should handle large valid map payload`() {
+    fun `parser은(는) handle large valid map payload해야 한다`() {
         val json = buildString {
             append("{")
             for (i in 0 until 250) {

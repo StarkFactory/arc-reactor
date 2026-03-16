@@ -39,7 +39,7 @@ class OutputBoundaryTest {
     inner class OutputMinWarn {
 
         @Test
-        fun `short response passes through in WARN mode`() = runTest {
+        fun `WARN 모드에서 짧은 응답이 통과해야 한다`() = runTest {
             fixture.mockCallResponse("Hi")
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -63,8 +63,8 @@ class OutputBoundaryTest {
     inner class OutputMinRetryOnce {
 
         @Test
-        fun `retry succeeds with longer response`() = runTest {
-            // First call returns short response, retry returns longer
+        fun `재시도 시 더 긴 응답으로 성공해야 한다`() = runTest {
+            // 첫 번째 호출은 짧은 응답을 반환하고, 재시도는 더 긴 응답을 반환합니다
             every { fixture.requestSpec.call() } returnsMany listOf(
                 fixture.mockFinalResponse("Hi"),
                 fixture.mockFinalResponse("Hello! I'm happy to help you with anything you need today.")
@@ -89,8 +89,8 @@ class OutputBoundaryTest {
         }
 
         @Test
-        fun `retry still short falls back to WARN`() = runTest {
-            // Both calls return short responses
+        fun `재시도해도 짧으면 WARN으로 폴백해야 한다`() = runTest {
+            // 두 호출 모두 짧은 응답을 반환합니다
             every { fixture.requestSpec.call() } returnsMany listOf(
                 fixture.mockFinalResponse("Hi"),
                 fixture.mockFinalResponse("Hey")
@@ -111,7 +111,7 @@ class OutputBoundaryTest {
         }
 
         @Test
-        fun `retry prompt includes original request and previous short response context`() = runTest {
+        fun `재시도 프롬프트에 원래 요청과 이전 짧은 응답 컨텍스트가 포함되어야 한다`() = runTest {
             every { fixture.requestSpec.call() } returnsMany listOf(
                 fixture.mockFinalResponse("Hi"),
                 fixture.mockFinalResponse("This is a longer, contextualized retry response.")
@@ -143,7 +143,7 @@ class OutputBoundaryTest {
     inner class OutputMinFail {
 
         @Test
-        fun `short response fails with OUTPUT_TOO_SHORT`() = runTest {
+        fun `짧은 응답이 OUTPUT_TOO_SHORT로 실패해야 한다`() = runTest {
             fixture.mockCallResponse("Hi")
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -164,7 +164,7 @@ class OutputBoundaryTest {
     inner class OutputMaxTruncate {
 
         @Test
-        fun `long response is truncated`() = runTest {
+        fun `긴 응답이 잘려야 한다`() = runTest {
             fixture.mockCallResponse("a".repeat(200))
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -187,7 +187,7 @@ class OutputBoundaryTest {
     inner class DefaultConfig {
 
         @Test
-        fun `default config does not affect existing behavior`() = runTest {
+        fun `기본 설정이 기존 동작에 영향을 주지 않아야 한다`() = runTest {
             fixture.mockCallResponse("Short")
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,

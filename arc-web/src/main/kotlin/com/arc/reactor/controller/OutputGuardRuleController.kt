@@ -38,6 +38,16 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * Output Guard Rule 동적 관리 컨트롤러.
+ *
+ * 런타임에 정규식 기반 출력 가드 규칙을 CRUD하고, 시뮬레이션(dry-run)으로
+ * 규칙 적용 결과를 미리 확인할 수 있습니다. 쓰기 작업은 ADMIN 권한이 필요합니다.
+ *
+ * @see OutputGuardRuleStore
+ * @see OutputGuardRuleEvaluator
+ * @see OutputGuardRuleInvalidationBus
+ */
 @Tag(name = "Output Guard Rules", description = "Dynamic output guard regex rules (ADMIN only for write operations)")
 @RestController
 @RequestMapping("/api/output-guard/rules")
@@ -60,7 +70,8 @@ class OutputGuardRuleController(
     private val evaluator: OutputGuardRuleEvaluator
 ) {
 
-    @Operation(summary = "List output guard rules")
+    /** 등록된 출력 가드 규칙 전체 목록을 조회한다. */
+    @Operation(summary = "출력 가드 규칙 목록 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of output guard rules"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -71,7 +82,8 @@ class OutputGuardRuleController(
         return ResponseEntity.ok(store.list().map { it.toResponse() })
     }
 
-    @Operation(summary = "List output guard rule audit logs (ADMIN)")
+    /** 출력 가드 규칙 감사 로그 목록을 조회한다. */
+    @Operation(summary = "출력 가드 규칙 감사 로그 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of audit logs"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -87,7 +99,8 @@ class OutputGuardRuleController(
         return ResponseEntity.ok(logs)
     }
 
-    @Operation(summary = "Create output guard rule (ADMIN)")
+    /** 새 출력 가드 규칙을 생성한다. 정규식 패턴과 액션을 검증한 뒤 저장한다. */
+    @Operation(summary = "출력 가드 규칙 생성 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Output guard rule created"),
         ApiResponse(responseCode = "400", description = "Invalid action or regex pattern"),
@@ -142,7 +155,8 @@ class OutputGuardRuleController(
         return ResponseEntity.status(HttpStatus.CREATED).body(saved.toResponse())
     }
 
-    @Operation(summary = "Update output guard rule (ADMIN)")
+    /** 기존 출력 가드 규칙을 수정한다. 제공된 필드만 변경된다. */
+    @Operation(summary = "출력 가드 규칙 수정 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Output guard rule updated"),
         ApiResponse(responseCode = "400", description = "Invalid action or regex pattern"),
@@ -207,7 +221,8 @@ class OutputGuardRuleController(
         return ResponseEntity.ok(updated.toResponse())
     }
 
-    @Operation(summary = "Delete output guard rule (ADMIN)")
+    /** 출력 가드 규칙을 삭제한다. */
+    @Operation(summary = "출력 가드 규칙 삭제 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Output guard rule deleted"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -233,7 +248,8 @@ class OutputGuardRuleController(
         return ResponseEntity.noContent().build()
     }
 
-    @Operation(summary = "Dry-run output guard policy simulation (ADMIN)")
+    /** 출력 가드 정책 시뮬레이션(dry-run)을 수행한다. 실제 차단 없이 결과를 미리 확인할 수 있다. */
+    @Operation(summary = "출력 가드 정책 시뮬레이션 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Simulation result"),
         ApiResponse(responseCode = "400", description = "Invalid request"),

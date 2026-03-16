@@ -1,5 +1,10 @@
 package com.arc.reactor.slack.handler
 
+/**
+ * 슬래시 명령의 파싱된 인텐트를 표현하는 봉인(sealed) 인터페이스.
+ *
+ * @see SlackSlashIntentParser
+ */
 internal sealed interface SlackSlashIntent {
     data class Agent(
         val prompt: String,
@@ -23,6 +28,12 @@ internal sealed interface SlackSlashIntent {
     data object Help : SlackSlashIntent
 }
 
+/**
+ * 슬래시 명령 텍스트를 [SlackSlashIntent]로 파싱하는 파서.
+ *
+ * 지원 인텐트: help, brief, my-work, remind (add/list/done/clear), 일반 에이전트 질의.
+ * 한국어·영어 키워드를 모두 지원한다.
+ */
 internal object SlackSlashIntentParser {
     private val helpRegex = Regex("^(help|도움말|도움|commands)$", RegexOption.IGNORE_CASE)
     private val briefRegex = Regex("^(brief|브리프)(?:\\s+(.*))?$", RegexOption.IGNORE_CASE)

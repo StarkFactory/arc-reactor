@@ -19,7 +19,7 @@ import org.springframework.ai.anthropic.api.AnthropicCacheStrategy
 import org.springframework.ai.chat.prompt.ChatOptions
 
 /**
- * Tests for Anthropic prompt caching support.
+ * Anthropic 프롬프트 캐싱 지원에 대한 테스트.
  */
 class PromptCachingTest {
 
@@ -37,7 +37,7 @@ class PromptCachingTest {
         private val service = NoOpPromptCachingService()
 
         @Test
-        fun `applyCaching returns original options unchanged`() {
+        fun `applyCaching은(는) returns original options unchanged`() {
             val options: ChatOptions = mockk()
 
             val result = service.applyCaching(options, "anthropic", 5000)
@@ -48,7 +48,7 @@ class PromptCachingTest {
         }
 
         @Test
-        fun `extractCacheMetrics always returns null`() {
+        fun `extractCacheMetrics은(는) always returns null`() {
             val result = service.extractCacheMetrics(Any())
 
             assertNull(result) {
@@ -64,7 +64,7 @@ class PromptCachingTest {
         inner class ProviderFiltering {
 
             @Test
-            fun `returns original options for non-anthropic provider`() {
+            fun `non-anthropic provider에 대해 original options를 반환한다`() {
                 val service = AnthropicPromptCachingService(defaultProperties)
                 val options: ChatOptions = mockk()
 
@@ -76,7 +76,7 @@ class PromptCachingTest {
             }
 
             @Test
-            fun `returns original options for openai provider`() {
+            fun `openai provider에 대해 original options를 반환한다`() {
                 val service = AnthropicPromptCachingService(defaultProperties)
                 val options: ChatOptions = mockk()
 
@@ -88,7 +88,7 @@ class PromptCachingTest {
             }
 
             @Test
-            fun `provider matching is case-insensitive`() {
+            fun `provider matching은(는) case-insensitive이다`() {
                 val service = AnthropicPromptCachingService(defaultProperties)
                 val base = ChatOptions.builder().temperature(0.3).maxTokens(100).build()
 
@@ -104,7 +104,7 @@ class PromptCachingTest {
         inner class MinCacheableTokensGuard {
 
             @Test
-            fun `returns original options when tokens below threshold`() {
+            fun `tokens below threshold일 때 original options를 반환한다`() {
                 val service = AnthropicPromptCachingService(defaultProperties.copy(minCacheableTokens = 1024))
                 val options: ChatOptions = mockk()
 
@@ -117,7 +117,7 @@ class PromptCachingTest {
             }
 
             @Test
-            fun `applies caching when tokens meet threshold exactly`() {
+            fun `caching when tokens meet threshold exactly를 적용한다`() {
                 val service = AnthropicPromptCachingService(defaultProperties.copy(minCacheableTokens = 1024))
                 val base = ChatOptions.builder().temperature(0.3).maxTokens(100).build()
 
@@ -129,7 +129,7 @@ class PromptCachingTest {
             }
 
             @Test
-            fun `applies caching when tokens exceed threshold`() {
+            fun `caching when tokens exceed threshold를 적용한다`() {
                 val service = AnthropicPromptCachingService(defaultProperties.copy(minCacheableTokens = 1024))
                 val base = ChatOptions.builder().temperature(0.3).maxTokens(100).build()
 
@@ -145,7 +145,7 @@ class PromptCachingTest {
         inner class CacheStrategySelection {
 
             @Test
-            fun `SYSTEM_AND_TOOLS strategy when both flags enabled`() {
+            fun `both flags enabled일 때 SYSTEM_AND_TOOLS strategy`() {
                 val props = defaultProperties.copy(cacheSystemPrompt = true, cacheTools = true)
                 val service = AnthropicPromptCachingService(props)
                 val base = ChatOptions.builder().temperature(0.3).maxTokens(100).build()
@@ -163,7 +163,7 @@ class PromptCachingTest {
             }
 
             @Test
-            fun `SYSTEM_ONLY strategy when only system prompt caching enabled`() {
+            fun `only system prompt caching enabled일 때 SYSTEM_ONLY strategy`() {
                 val props = defaultProperties.copy(cacheSystemPrompt = true, cacheTools = false)
                 val service = AnthropicPromptCachingService(props)
                 val base = ChatOptions.builder().temperature(0.3).maxTokens(100).build()
@@ -179,7 +179,7 @@ class PromptCachingTest {
             }
 
             @Test
-            fun `TOOLS_ONLY strategy when only tool caching enabled`() {
+            fun `only tool caching enabled일 때 TOOLS_ONLY strategy`() {
                 val props = defaultProperties.copy(cacheSystemPrompt = false, cacheTools = true)
                 val service = AnthropicPromptCachingService(props)
                 val base = ChatOptions.builder().temperature(0.3).maxTokens(100).build()
@@ -199,7 +199,7 @@ class PromptCachingTest {
         inner class TemperaturePreservation {
 
             @Test
-            fun `preserves temperature from original options`() {
+            fun `temperature from original options를 보존한다`() {
                 val service = AnthropicPromptCachingService(defaultProperties)
                 val base = ChatOptions.builder().temperature(0.7).maxTokens(512).build()
 
@@ -218,7 +218,7 @@ class PromptCachingTest {
         inner class CacheMetricsExtraction {
 
             @Test
-            fun `returns null for non-Anthropic usage type`() {
+            fun `non-Anthropic usage type에 대해 null를 반환한다`() {
                 val service = AnthropicPromptCachingService(defaultProperties)
 
                 val result = service.extractCacheMetrics("not-an-anthropic-usage")
@@ -229,7 +229,7 @@ class PromptCachingTest {
             }
 
             @Test
-            fun `returns null for null usage`() {
+            fun `null usage에 대해 null를 반환한다`() {
                 val service = AnthropicPromptCachingService(defaultProperties)
 
                 val result = service.extractCacheMetrics(null)
@@ -240,7 +240,7 @@ class PromptCachingTest {
             }
 
             @Test
-            fun `parses cache creation tokens from Anthropic usage`() {
+            fun `cache creation tokens from Anthropic usage를 파싱한다`() {
                 val service = AnthropicPromptCachingService(defaultProperties)
                 val usage = mockk<AnthropicApi.Usage>()
                 every { usage.cacheCreationInputTokens() } returns 2048
@@ -259,7 +259,7 @@ class PromptCachingTest {
             }
 
             @Test
-            fun `parses cache read tokens from Anthropic usage on cache hit`() {
+            fun `cache read tokens from Anthropic usage on cache hit를 파싱한다`() {
                 val service = AnthropicPromptCachingService(defaultProperties)
                 val usage = mockk<AnthropicApi.Usage>()
                 every { usage.cacheCreationInputTokens() } returns 0
@@ -281,7 +281,7 @@ class PromptCachingTest {
             }
 
             @Test
-            fun `parses null cache token values as zero`() {
+            fun `null cache token values as zero를 파싱한다`() {
                 val service = AnthropicPromptCachingService(defaultProperties)
                 val usage = mockk<AnthropicApi.Usage>()
                 every { usage.cacheCreationInputTokens() } returns null
@@ -308,7 +308,7 @@ class PromptCachingTest {
     inner class PromptCacheMetricsDataClass {
 
         @Test
-        fun `default values are all zero`() {
+        fun `values are all zero를 기본값으로 한다`() {
             val metrics = PromptCacheMetrics()
 
             assertEquals(0, metrics.cacheCreationInputTokens) {
@@ -323,7 +323,7 @@ class PromptCachingTest {
         }
 
         @Test
-        fun `all fields populated correctly`() {
+        fun `모든 fields populated correctly`() {
             val metrics = PromptCacheMetrics(
                 cacheCreationInputTokens = 1024,
                 cacheReadInputTokens = 512,

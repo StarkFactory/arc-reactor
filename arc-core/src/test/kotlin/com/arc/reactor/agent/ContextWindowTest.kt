@@ -29,8 +29,8 @@ class ContextWindowTest {
     inner class BudgetCalculation {
 
         @Test
-        fun `should not trim messages when within context budget`() = runBlocking {
-            // Budget: 1000 - systemTokens - 100 = plenty of room
+        fun `컨텍스트 예산 내에서는 메시지를 제거하지 않아야 한다`() = runBlocking {
+            // 예산: 1000 - 시스템토큰 - 100 = 충분한 여유
             val properties = AgentProperties(
                 llm = LlmProperties(
                     maxContextWindowTokens = 1000,
@@ -44,7 +44,7 @@ class ContextWindowTest {
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
                 properties = properties,
-                tokenEstimator = TokenEstimator { it.length / 4 }  // simple estimator
+                tokenEstimator = TokenEstimator { it.length / 4 }  // 간단한 추정기
             )
 
             executor.execute(
@@ -54,15 +54,15 @@ class ContextWindowTest {
                 )
             )
 
-            // Only the user message should be present (no history to load)
+            // 사용자 메시지만 존재해야 합니다 (로드할 기록 없음)
             assertEquals(1, messagesSlot.captured.size)
         }
 
         @Test
-        fun `should reserve maxOutputTokens in context budget`() = runBlocking {
+        fun `컨텍스트 예산에서 maxOutputTokens를 예약해야 한다`() = runBlocking {
             // maxContextWindowTokens=100, maxOutputTokens=80
-            // System "Hi" ~= 1 token
-            // Budget = 100 - 1 - 80 = 19 tokens
+            // 시스템 "Hi" ~= 1 토큰
+            // 예산 = 100 - 1 - 80 = 19 토큰
             val properties = AgentProperties(
                 llm = LlmProperties(
                     maxContextWindowTokens = 100,
@@ -77,8 +77,8 @@ class ContextWindowTest {
             every { fixture.requestSpec.messages(capture(messagesSlot)) } returns fixture.requestSpec
 
             val memoryStore = com.arc.reactor.memory.InMemoryMemoryStore()
-            memoryStore.addMessage("session-2", "user", "AAAAAAAAAA") // 10 tokens
-            memoryStore.addMessage("session-2", "assistant", "BBBBBBBBBB") // 10 tokens
+            memoryStore.addMessage("session-2", "user", "AAAAAAAAAA")  // 10 토큰
+            memoryStore.addMessage("session-2", "assistant", "BBBBBBBBBB")  // 10 토큰
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
@@ -90,17 +90,17 @@ class ContextWindowTest {
             executor.execute(
                 AgentCommand(
                     systemPrompt = "Hi",
-                    userPrompt = "CCCCC", // 5 tokens
+                    userPrompt = "CCCCC",  // 5 토큰
                     metadata = mapOf("sessionId" to "session-2")
                 )
             )
 
-            // Budget is 19. History has 10+10=20 tokens + user prompt 5 = 25, exceeds 19
-            // Should trim oldest to fit
+            // 예산은 19입니다. 기록은 10+10=20 토큰 + 사용자 프롬프트 5 = 25, 19를 초과합니다
+            // 맞추기 위해 가장 오래된 것을 제거해야 합니다
             val capturedMessages = messagesSlot.captured
             val totalTokens = capturedMessages.sumOf { simpleEstimator.estimate(it.text ?: "") }
             assertTrue(totalTokens <= 19, "Total tokens ($totalTokens) should fit within budget (19)")
-            // Current user prompt must be preserved
+            // 현재 사용자 프롬프트는 보존되어야 합니다
             assertTrue(capturedMessages.any { it.text == "CCCCC" }) { "Current user prompt 'CCCCC' should be preserved in: ${capturedMessages.map { it.text }}" }
         }
     }
@@ -109,10 +109,10 @@ class ContextWindowTest {
     inner class MessageTrimming {
 
         @Test
-        fun `should trim oldest messages when exceeding context budget`() = runBlocking {
-            // Very tight budget: 50 tokens total, 10 for output reserve
-            // System prompt "System" = 6/4 = 1 token
-            // Budget = 50 - 1 - 10 = 39 tokens
+        fun `컨텍스트 예산을 초과하면 가장 오래된 메시지를 제거해야 한다`() = runBlocking {
+            // 매우 타이트한 예산: 총 50 토큰, 출력 예약 10
+            // 시스템 프롬프트 "System" = 6/4 = 1 토큰
+            // 예산 = 50 - 1 - 10 = 39 토큰
             val properties = AgentProperties(
                 llm = LlmProperties(
                     maxContextWindowTokens = 50,
@@ -121,14 +121,14 @@ class ContextWindowTest {
                 )
             )
 
-            // Use a simple 1-char-per-token estimator for predictability
+            // 예측 가능성을 위해 간단한 1글자=1토큰 추정기를 사용합니다
             val simpleEstimator = TokenEstimator { text -> text.length.coerceAtLeast(1) }
 
             val messagesSlot = slot<List<Message>>()
             every { fixture.requestSpec.messages(capture(messagesSlot)) } returns fixture.requestSpec
 
             val memoryStore = com.arc.reactor.memory.InMemoryMemoryStore()
-            // Add many old messages that exceed the budget
+            // 예산을 초과하는 오래된 메시지를 많이 추가합니다
             repeat(10) { i ->
                 memoryStore.addMessage("session-1", "user", "Old message number $i which is quite long")
                 memoryStore.addMessage("session-1", "assistant", "Old response number $i which is also long")
@@ -149,17 +149,17 @@ class ContextWindowTest {
                 )
             )
 
-            // Messages should be trimmed to fit within 39 tokens
+            // 메시지는 39 토큰 이내로 잘려야 합니다
             val capturedMessages = messagesSlot.captured
             val totalTokens = capturedMessages.sumOf { simpleEstimator.estimate(it.text ?: "") }
             assertTrue(totalTokens <= 39, "Total tokens ($totalTokens) should fit within budget (39)")
-            // The last message (current user prompt) must always be present
+            // 마지막 메시지 (현재 사용자 프롬프트)는 항상 존재해야 합니다
             assertEquals("New question", capturedMessages.last().text, "Current user prompt must always be preserved")
         }
 
         @Test
-        fun `should always preserve the most recent user message even if it exceeds budget`() = runBlocking {
-            // Extremely tight budget
+        fun `예산을 초과하더라도 가장 최근 사용자 메시지를 항상 보존해야 한다`() = runBlocking {
+            // 매우 타이트한 예산
             val properties = AgentProperties(
                 llm = LlmProperties(
                     maxContextWindowTokens = 10,
@@ -178,7 +178,7 @@ class ContextWindowTest {
                 tokenEstimator = simpleEstimator
             )
 
-            // Even though the user prompt exceeds the budget, it should still be kept
+            // 사용자 프롬프트가 예산을 초과하더라도 유지되어야 합니다
             executor.execute(
                 AgentCommand(
                     systemPrompt = "System prompt that takes tokens",
@@ -196,8 +196,8 @@ class ContextWindowTest {
     inner class MessageIntegrity {
 
         @Test
-        fun `should preserve tool call and tool response pairs when trimming`() = runBlocking {
-            // Tight budget that forces trimming
+        fun `트리밍 시 도구 호출과 도구 응답 쌍을 보존해야 한다`() = runBlocking {
+            // 트리밍을 강제하는 타이트한 예산
             val properties = AgentProperties(
                 llm = LlmProperties(
                     maxContextWindowTokens = 200,
@@ -208,12 +208,12 @@ class ContextWindowTest {
 
             val simpleEstimator = TokenEstimator { text -> text.length.coerceAtLeast(1) }
 
-            // Build conversation history with tool call pairs manually
+            // 도구 호출 쌍이 있는 대화 기록을 수동으로 구성합니다
             val memoryStore = com.arc.reactor.memory.InMemoryMemoryStore()
-            // Turn 1: user + assistant (simple)
+            // 턴 1: 사용자 + 어시스턴트 (단순)
             memoryStore.addMessage("session-pair", "user", "A".repeat(50))
             memoryStore.addMessage("session-pair", "assistant", "B".repeat(50))
-            // Turn 2: user + assistant (simple)
+            // 턴 2: 사용자 + 어시스턴트 (단순)
             memoryStore.addMessage("session-pair", "user", "C".repeat(50))
             memoryStore.addMessage("session-pair", "assistant", "D".repeat(50))
 
@@ -227,8 +227,8 @@ class ContextWindowTest {
                 tokenEstimator = simpleEstimator
             )
 
-            // System prompt "S" = 1 token, budget = 200 - 1 - 20 = 179
-            // History: 50 + 50 + 50 + 50 = 200 tokens + new user = 210, exceeds 179
+            // 시스템 프롬프트 "S" = 1 토큰, 예산 = 200 - 1 - 20 = 179
+            // 기록: 50 + 50 + 50 + 50 = 200 토큰 + 새 사용자 = 210, 179를 초과합니다
             executor.execute(
                 AgentCommand(
                     systemPrompt = "S",
@@ -241,7 +241,7 @@ class ContextWindowTest {
             val totalTokens = captured.sumOf { simpleEstimator.estimate(it.text ?: "") }
             assertTrue(totalTokens <= 179, "Should fit in budget: $totalTokens")
 
-            // Verify no orphaned ToolResponseMessage exists without a preceding AssistantMessage with tool calls
+            // 도구 호출이 있는 선행 AssistantMessage 없이 고아 ToolResponseMessage가 존재하지 않는지 확인합니다
             for (i in captured.indices) {
                 if (captured[i] is ToolResponseMessage) {
                     assertTrue(i > 0, "ToolResponseMessage should not be first message")

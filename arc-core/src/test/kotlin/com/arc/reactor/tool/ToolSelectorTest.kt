@@ -18,7 +18,7 @@ class ToolSelectorTest {
     inner class AllToolSelectorTest {
 
         @Test
-        fun `should return all tools`() {
+        fun `return all tools해야 한다`() {
             val selector = AllToolSelector()
             val tools = listOf(
                 createMockTool("tool1", "Description 1"),
@@ -37,7 +37,7 @@ class ToolSelectorTest {
     inner class KeywordBasedToolSelectorTest {
 
         @Test
-        fun `should return all tools when no category map`() {
+        fun `no category map일 때 return all tools해야 한다`() {
             val selector = KeywordBasedToolSelector()
             val tools = listOf(
                 createMockTool("tool1", "Description 1"),
@@ -50,7 +50,7 @@ class ToolSelectorTest {
         }
 
         @Test
-        fun `should filter by matched category`() {
+        fun `filter by matched category해야 한다`() {
             val searchCategory = object : ToolCategory {
                 override val name = "search"
                 override val keywords = setOf("search", "find", "query")
@@ -73,7 +73,7 @@ class ToolSelectorTest {
                 createMockTool("general_tool", "General purpose tool")
             )
 
-            // Should match search category
+            // match search category해야 합니다
             val searchResult = selector.select("Please search for documents", tools)
             assertTrue(searchResult.any { it.name == "search_tool" }) {
                 "Search result should include search_tool, got: ${searchResult.map { it.name }}"
@@ -85,7 +85,7 @@ class ToolSelectorTest {
                 "Search result should not include calc_tool, got: ${searchResult.map { it.name }}"
             }
 
-            // Should match calculation category
+            // match calculation category해야 합니다
             val calcResult = selector.select("Calculate the sum of these numbers", tools)
             assertTrue(calcResult.any { it.name == "calc_tool" }) {
                 "Calc result should include calc_tool, got: ${calcResult.map { it.name }}"
@@ -99,7 +99,7 @@ class ToolSelectorTest {
         }
 
         @Test
-        fun `should return all when no category matches`() {
+        fun `no category matches일 때 return all해야 한다`() {
             val searchCategory = object : ToolCategory {
                 override val name = "search"
                 override val keywords = setOf("search", "find", "query")
@@ -123,7 +123,7 @@ class ToolSelectorTest {
         }
 
         @Test
-        fun `should handle multiple matching categories`() {
+        fun `handle multiple matching categories해야 한다`() {
             val searchCategory = object : ToolCategory {
                 override val name = "search"
                 override val keywords = setOf("search", "find")
@@ -149,7 +149,7 @@ class ToolSelectorTest {
             // Prompt matches both categories
             val result = selector.select("Search the database for data", tools)
 
-            assertEquals(3, result.size) // Both categorized tools + general
+            assertEquals(3, result.size)  // 두 categorized tools + general
         }
     }
 
@@ -157,7 +157,7 @@ class ToolSelectorTest {
     inner class ToolCategoryTest {
 
         @Test
-        fun `should match keywords case-insensitively`() {
+        fun `match keywords case-insensitively해야 한다`() {
             val category = object : ToolCategory {
                 override val name = "search"
                 override val keywords = setOf("search", "find", "query")
@@ -182,7 +182,7 @@ class ToolSelectorTest {
     inner class DefaultToolCategoryTest {
 
         @Test
-        fun `should match prompts correctly`() {
+        fun `match prompts correctly해야 한다`() {
             assertTrue(DefaultToolCategory.SEARCH.matches("검색해줘")) {
                 "SEARCH category should match Korean keyword '검색해줘'"
             }
@@ -208,7 +208,7 @@ class ToolSelectorTest {
         }
 
         @Test
-        fun `matchCategories should find all matching`() {
+        fun `matchCategories은(는) find all matching해야 한다`() {
             val matched = DefaultToolCategory.matchCategories("검색해서 분석해줘")
 
             assertTrue(matched.contains(DefaultToolCategory.SEARCH)) {

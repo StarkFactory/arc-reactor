@@ -14,13 +14,18 @@ import java.time.temporal.ChronoUnit
 private val logger = KotlinLogging.logger {}
 
 /**
- * Selects query source based on granularity:
- * - < 24h: raw tables
- * - 24h - 30d: hourly aggregates
- * - > 30d: daily aggregates
+ * 입도(granularity)에 따라 쿼리 소스를 선택하는 메트릭 쿼리 서비스.
+ *
+ * - 24시간 미만: raw 테이블
+ * - 24시간 ~ 30일: 시간별 집계
+ * - 30일 초과: 일별 집계
+ *
+ * @see DashboardService 이 서비스를 사용하여 대시보드를 조합
+ * @see AlertEvaluator 알림 평가 시 메트릭 조회에 사용
  */
 class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
 
+    /** 테넌트의 당월 사용량(요청 수, 토큰 수, 비용)을 조회한다. */
     fun getCurrentMonthUsage(tenantId: String): TenantUsage {
         val monthStart = Instant.now().truncatedTo(ChronoUnit.DAYS)
             .atZone(java.time.ZoneOffset.UTC)
@@ -28,7 +33,7 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
             .toInstant()
         val ts = Timestamp.from(monthStart)
 
-        // Separate queries to avoid JOIN inflation (1 execution × N token rows → N counts)
+        // JOIN 인플레이션 방지를 위해 별도 쿼리 (1 execution × N token rows → N counts)
         val results = jdbcTemplate.queryForMap(
             """SELECT
                 (SELECT COALESCE(COUNT(*), 0)
@@ -242,7 +247,7 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
     }
 
     companion object {
-        // Whitelisted table names to prevent SQL injection via string interpolation
+        // 문자열 보간을 통한 SQL injection 방지를 위한 화이트리스트 테이블명
         private val HOURLY_SOURCE = "metric_executions_hourly" to "1 hour"
         private val DAILY_SOURCE = "metric_executions_daily" to "1 day"
     }

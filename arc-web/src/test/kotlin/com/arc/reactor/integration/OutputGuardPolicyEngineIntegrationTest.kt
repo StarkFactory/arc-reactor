@@ -103,7 +103,7 @@ class OutputGuardPolicyEngineIntegrationTest {
     }
 
     @Test
-    fun `admin policy engine persists rules and applies changes immediately`() {
+    fun `admin은(는) policy engine persists rules and applies changes immediately`() {
         val rejectRule = createRule(
             name = "Block secret",
             pattern = "(?i)secret",

@@ -3,6 +3,14 @@ package com.arc.reactor.slack.tools.config
 import jakarta.annotation.PostConstruct
 import org.springframework.boot.context.properties.ConfigurationProperties
 
+/**
+ * Slack 도구 모듈 설정 프로퍼티.
+ *
+ * 프리픽스: `arc.reactor.slack.tools`
+ *
+ * 봇 토큰, 도구 노출(scope-aware), Canvas, 쓰기 멱등성,
+ * 복원력(타임아웃/Circuit Breaker) 설정을 관리한다.
+ */
 @ConfigurationProperties(prefix = "arc.reactor.slack.tools")
 data class SlackToolsProperties(
     val enabled: Boolean = false,
@@ -39,34 +47,40 @@ data class SlackToolsProperties(
     }
 }
 
+/** 도구 노출 정책 설정. 스코프 기반 자동 필터링을 제어한다. */
 data class ToolExposureProperties(
     val scopeAwareEnabled: Boolean = false,
     val failOpenOnScopeResolutionError: Boolean = true,
     val conversationScopeMode: ConversationScopeMode = ConversationScopeMode.PUBLIC_ONLY
 )
 
+/** 대화 스코프 모드. 공개 채널만 또는 비공개/DM 포함 여부를 결정한다. */
 enum class ConversationScopeMode {
     PUBLIC_ONLY,
     INCLUDE_PRIVATE_AND_DM
 }
 
+/** Canvas 도구 설정. */
 data class CanvasToolsProperties(
     val enabled: Boolean = false,
     val allowlistEnforced: Boolean = true,
     val maxOwnedCanvasIds: Int = 5000
 )
 
+/** 쓰기 작업 멱등성 설정. */
 data class WriteIdempotencyProperties(
     val enabled: Boolean = true,
     val ttlSeconds: Long = 30,
     val maxEntries: Int = 5000
 )
 
+/** 복원력(Resilience) 설정. 타임아웃 및 Circuit Breaker를 제어한다. */
 data class ResilienceProperties(
     val timeoutMs: Long = 5_000,
     val circuitBreaker: CircuitBreakerProperties = CircuitBreakerProperties()
 )
 
+/** Circuit Breaker 설정. */
 data class CircuitBreakerProperties(
     val enabled: Boolean = true,
     val failureThreshold: Int = 3,

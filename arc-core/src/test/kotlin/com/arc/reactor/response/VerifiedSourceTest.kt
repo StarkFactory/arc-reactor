@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test
 class VerifiedSourceTest {
 
     @Test
-    fun `should extract nested self href urls`() {
+    fun `extract nested self href urls해야 한다`() {
         val output = """
             {
               "issues": [
@@ -36,7 +36,7 @@ class VerifiedSourceTest {
     }
 
     @Test
-    fun `should not extract attachment download urls`() {
+    fun `not extract attachment download urls해야 한다`() {
         val output = """
             {
               "content": {
@@ -53,7 +53,7 @@ class VerifiedSourceTest {
     }
 
     @Test
-    fun `should extract openapi and api urls even with api paths`() {
+    fun `api paths로 extract openapi and api urls even해야 한다`() {
         val output = """
             {
               "webUrl": "https://petstore3.swagger.io/api/v3/openapi.json",

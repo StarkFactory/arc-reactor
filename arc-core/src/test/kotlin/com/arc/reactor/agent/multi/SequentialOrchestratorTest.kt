@@ -30,7 +30,7 @@ class SequentialOrchestratorTest {
     inner class NormalFlow {
 
         @Test
-        fun `should chain outputs through sequential nodes`() = runTest {
+        fun `chain outputs through sequential nodes해야 한다`() = runTest {
             val agents = mutableListOf<AgentExecutor>()
 
             val nodeA = AgentNode("A", systemPrompt = "You are A")
@@ -59,7 +59,7 @@ class SequentialOrchestratorTest {
         }
 
         @Test
-        fun `should pass previous output as next input`() = runTest {
+        fun `pass previous output as next input해야 한다`() = runTest {
             var capturedInput = ""
             val nodeA = AgentNode("A", systemPrompt = "")
             val nodeB = AgentNode("B", systemPrompt = "")
@@ -82,7 +82,7 @@ class SequentialOrchestratorTest {
         }
 
         @Test
-        fun `should execute single node successfully`() = runTest {
+        fun `execute single node successfully해야 한다`() = runTest {
             val node = AgentNode("only", systemPrompt = "")
             val result = orchestrator.execute(baseCommand, listOf(node)) {
                 mockAgent("single result")
@@ -98,7 +98,7 @@ class SequentialOrchestratorTest {
     inner class FailureHandling {
 
         @Test
-        fun `should stop on intermediate failure`() = runTest {
+        fun `stop on intermediate failure해야 한다`() = runTest {
             val nodeA = AgentNode("A", systemPrompt = "")
             val nodeB = AgentNode("B", systemPrompt = "")
             val nodeC = AgentNode("C", systemPrompt = "")
@@ -121,7 +121,7 @@ class SequentialOrchestratorTest {
         }
 
         @Test
-        fun `should return failure for empty nodes`() = runTest {
+        fun `empty nodes에 대해 return failure해야 한다`() = runTest {
             val result = orchestrator.execute(baseCommand, emptyList()) { mockAgent("") }
 
             assertFalse(result.success, "Should fail for empty nodes")
@@ -132,7 +132,7 @@ class SequentialOrchestratorTest {
     inner class Metadata {
 
         @Test
-        fun `should track duration`() = runTest {
+        fun `track duration해야 한다`() = runTest {
             val node = AgentNode("A", systemPrompt = "")
             val result = orchestrator.execute(baseCommand, listOf(node)) {
                 mockAgent("done")
@@ -147,7 +147,7 @@ class SequentialOrchestratorTest {
     inner class PerNodeTimeout {
 
         @Test
-        fun `should return failure when node exceeds its timeout`() = runTest {
+        fun `node exceeds its timeout일 때 return failure해야 한다`() = runTest {
             val node = AgentNode("slow", systemPrompt = "", timeoutMs = 100)
 
             val result = orchestrator.execute(baseCommand, listOf(node)) {
@@ -167,7 +167,7 @@ class SequentialOrchestratorTest {
         }
 
         @Test
-        fun `should use global default timeout when node timeout is null`() = runTest {
+        fun `node timeout is null일 때 use global default timeout해야 한다`() = runTest {
             val node = AgentNode("fast", systemPrompt = "", timeoutMs = null)
 
             val result = orchestrator.execute(baseCommand, listOf(node)) {
@@ -178,7 +178,7 @@ class SequentialOrchestratorTest {
         }
 
         @Test
-        fun `should allow different timeouts per node`() = runTest {
+        fun `allow different timeouts per node해야 한다`() = runTest {
             val fastNode = AgentNode("fast", systemPrompt = "", timeoutMs = 5000)
             val slowNode = AgentNode("slow", systemPrompt = "", timeoutMs = 5000)
 

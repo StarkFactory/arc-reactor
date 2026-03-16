@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class StreamingReActLoopExecutorTest {
 
     @Test
-    fun `should stream final text when llm returns no tool calls`() = runBlocking {
+    fun `llm returns no tool calls일 때 stream final text해야 한다`() = runBlocking {
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
         every { requestSpec.stream() } returns streamResponseSpec
@@ -78,7 +78,7 @@ class StreamingReActLoopExecutorTest {
     }
 
     @Test
-    fun `should disable tools when maxToolCalls reached`() = runBlocking {
+    fun `maxToolCalls reached일 때 disable tools해야 한다`() = runBlocking {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
@@ -139,7 +139,7 @@ class StreamingReActLoopExecutorTest {
     }
 
     @Test
-    fun `should start with tools disabled when maxToolCalls is zero`() = runBlocking {
+    fun `maxToolCalls is zero일 때 start with tools disabled해야 한다`() = runBlocking {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()

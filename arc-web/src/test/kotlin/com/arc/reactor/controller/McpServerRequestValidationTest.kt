@@ -9,7 +9,7 @@ class McpServerRequestValidationTest {
     private val validator = Validation.buildDefaultValidatorFactory().validator
 
     @Test
-    fun `update request should reject description longer than 500 characters`() {
+    fun `update request은(는) reject description longer than 500 characters해야 한다`() {
         val request = UpdateMcpServerRequest(description = "a".repeat(501))
 
         val violations = validator.validate(request)
@@ -20,7 +20,7 @@ class McpServerRequestValidationTest {
     }
 
     @Test
-    fun `update request should reject config larger than 20 entries`() {
+    fun `update request은(는) reject config larger than 20 entries해야 한다`() {
         val oversizedConfig = (1..21).associate { index -> "key$index" to "value$index" }
         val request = UpdateMcpServerRequest(config = oversizedConfig)
 

@@ -32,7 +32,7 @@ class SlackUserJourneyScenarioTest {
     private val metricsRecorder = mockk<SlackMetricsRecorder>(relaxed = true)
 
     @Test
-    fun `events api app mention should surface guard rejection to user thread`() = runTest {
+    fun `events api app mention은(는) surface guard rejection to user thread해야 한다`() = runTest {
         val eventHandler = DefaultSlackEventHandler(agentExecutor, messagingService)
         val eventProcessor = SlackEventProcessor(
             eventHandler = eventHandler,
@@ -86,7 +86,7 @@ class SlackUserJourneyScenarioTest {
     }
 
     @Test
-    fun `events api threaded message should return rag and mcp enriched answer`() = runTest {
+    fun `events api threaded message은(는) return rag and mcp enriched answer해야 한다`() = runTest {
         val eventHandler = DefaultSlackEventHandler(agentExecutor, messagingService)
         val eventProcessor = SlackEventProcessor(
             eventHandler = eventHandler,
@@ -137,7 +137,7 @@ class SlackUserJourneyScenarioTest {
     }
 
     @Test
-    fun `slash command flow should acknowledge immediately and post guard warning in thread`() = runTest {
+    fun `slash command flow은(는) acknowledge immediately and post guard warning in thread해야 한다`() = runTest {
         val commandHandler = DefaultSlackCommandHandler(agentExecutor, messagingService)
         val commandProcessor = SlackCommandProcessor(
             commandHandler = commandHandler,

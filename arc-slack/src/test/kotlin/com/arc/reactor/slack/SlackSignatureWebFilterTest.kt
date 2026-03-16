@@ -62,7 +62,7 @@ class SlackSignatureWebFilterTest {
     inner class NonSlackPaths {
 
         @Test
-        fun `passes through for non-slack paths`() {
+        fun `through for non-slack paths를 전달한다`() {
             val exchange = createExchange("/api/chat", """{"message":"hello"}""")
             var chainCalled = false
             val chain = WebFilterChain {
@@ -77,7 +77,7 @@ class SlackSignatureWebFilterTest {
         }
 
         @Test
-        fun `passes through for actuator paths`() {
+        fun `through for actuator paths를 전달한다`() {
             val exchange = createExchange("/actuator/health", "")
             var chainCalled = false
             val chain = WebFilterChain {
@@ -96,7 +96,7 @@ class SlackSignatureWebFilterTest {
     inner class SignatureVerification {
 
         @Test
-        fun `allows request with valid signature`() {
+        fun `request with valid signature를 허용한다`() {
             val body = """{"type":"event_callback","event":{"type":"app_mention"}}"""
             val timestamp = currentTimestamp()
             val signature = computeSignature(timestamp, body)
@@ -116,7 +116,7 @@ class SlackSignatureWebFilterTest {
         }
 
         @Test
-        fun `allows slash command payload with valid signature`() {
+        fun `slash command payload with valid signature를 허용한다`() {
             val body =
                 "command=%2Fjarvis&text=hello+there&user_id=U123" +
                     "&user_name=alice&channel_id=C456&channel_name=general" +
@@ -144,7 +144,7 @@ class SlackSignatureWebFilterTest {
         }
 
         @Test
-        fun `returns 403 for invalid signature`() {
+        fun `invalid signature에 대해 403를 반환한다`() {
             val body = """{"type":"event_callback"}"""
             val timestamp = currentTimestamp()
 
@@ -159,7 +159,7 @@ class SlackSignatureWebFilterTest {
         }
 
         @Test
-        fun `returns 403 for missing signature`() {
+        fun `missing signature에 대해 403를 반환한다`() {
             val body = """{"type":"event_callback"}"""
             val timestamp = currentTimestamp()
 
@@ -172,7 +172,7 @@ class SlackSignatureWebFilterTest {
         }
 
         @Test
-        fun `returns 403 for missing timestamp`() {
+        fun `missing timestamp에 대해 403를 반환한다`() {
             val body = """{"type":"event_callback"}"""
 
             val exchange = createExchange("/api/slack/events", body, null, "v0=something")
@@ -184,7 +184,7 @@ class SlackSignatureWebFilterTest {
         }
 
         @Test
-        fun `returns 403 for expired timestamp`() {
+        fun `expired timestamp에 대해 403를 반환한다`() {
             val body = """{"type":"event_callback"}"""
             val expiredTimestamp = ((System.currentTimeMillis() / 1000) - 600).toString()
             val signature = computeSignature(expiredTimestamp, body)
@@ -198,7 +198,7 @@ class SlackSignatureWebFilterTest {
         }
 
         @Test
-        fun `returns 403 for slack path with no body and missing signature`() {
+        fun `slack path with no body and missing signature에 대해 403를 반환한다`() {
             val request = MockServerHttpRequest.post("/api/slack/events").build()
             val exchange = MockServerWebExchange.from(request)
 
@@ -212,7 +212,7 @@ class SlackSignatureWebFilterTest {
         }
 
         @Test
-        fun `allows slack path with no body when signature is valid for empty payload`() {
+        fun `allows slack path with no body when signature은(는) valid for empty payload이다`() {
             val timestamp = currentTimestamp()
             val signature = computeSignature(timestamp, "")
             val request = MockServerHttpRequest.post("/api/slack/events")
@@ -238,7 +238,7 @@ class SlackSignatureWebFilterTest {
     inner class BodyReplay {
 
         @Test
-        fun `replays body for downstream handlers after verification`() {
+        fun `verification후 replays body for downstream handlers`() {
             val body = """{"type":"event_callback","event":{"text":"hello"}}"""
             val timestamp = currentTimestamp()
             val signature = computeSignature(timestamp, body)
@@ -265,7 +265,7 @@ class SlackSignatureWebFilterTest {
         }
 
         @Test
-        fun `replays form body and exposes parameters for downstream binding`() {
+        fun `replays은(는) form body and exposes parameters for downstream binding`() {
             val body =
                 "command=%2Fjarvis&text=hello+there&user_id=U123" +
                     "&user_name=alice&channel_id=C456&channel_name=general" +
@@ -300,7 +300,7 @@ class SlackSignatureWebFilterTest {
         }
 
         @Test
-        fun `provides required form fields for downstream slash command validation`() {
+        fun `provides은(는) required form fields for downstream slash command validation`() {
             val body =
                 "command=%2Fjarvis&text=hello+there&user_id=U123" +
                     "&user_name=alice&channel_id=C456&channel_name=general" +
@@ -343,7 +343,7 @@ class SlackSignatureWebFilterTest {
         }
 
         @Test
-        fun `returns structured json body for forbidden response`() {
+        fun `forbidden response에 대해 structured json body를 반환한다`() {
             val body = """{"type":"event_callback"}"""
             val exchange = createExchange("/api/slack/events", body)
 

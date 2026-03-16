@@ -13,6 +13,17 @@ import java.time.temporal.ChronoUnit
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * 알림 규칙을 평가하여 조건 충족 시 [AlertInstance]를 생성하는 평가기.
+ *
+ * 지원 알림 유형:
+ * - **STATIC_THRESHOLD**: 메트릭 값이 정적 임계값을 초과하면 발동
+ * - **BASELINE_ANOMALY**: 7일 baseline 대비 N-sigma 이상 편차 시 발동
+ * - **ERROR_BUDGET_BURN_RATE**: SLO error budget 소진 속도 초과 시 발동
+ *
+ * @see AlertScheduler 주기적으로 evaluateAll()을 호출하는 스케줄러
+ * @see AlertRuleStore 규칙 및 알림 인스턴스 저장소
+ */
 class AlertEvaluator(
     private val alertStore: AlertRuleStore,
     private val queryService: MetricQueryService,
@@ -22,6 +33,7 @@ class AlertEvaluator(
     private val healthMonitor: PipelineHealthMonitor? = null
 ) {
 
+    /** 전체 테넌트 + 플랫폼 규칙을 순회하며 평가한다. 개별 규칙 실패는 경고 로깅 후 건너뛴다. */
     fun evaluateAll() {
         val tenants = tenantStore.findAll()
         for (tenant in tenants) {
@@ -35,7 +47,7 @@ class AlertEvaluator(
             }
         }
 
-        // Platform rules
+        // ── 단계: 플랫폼 전역 규칙 평가 ──
         val platformRules = alertStore.findPlatformRules()
         for (rule in platformRules) {
             try {
@@ -46,6 +58,7 @@ class AlertEvaluator(
         }
     }
 
+    /** 단일 규칙을 평가하여 조건 충족 시 알림을 저장하고 로깅한다. */
     fun evaluate(rule: AlertRule) {
         val result = when (rule.type) {
             AlertType.STATIC_THRESHOLD -> evaluateStatic(rule)
@@ -59,6 +72,7 @@ class AlertEvaluator(
         }
     }
 
+    /** 정적 임계값 알림을 평가한다. 테넌트 범위 또는 플랫폼 범위 분기. */
     private fun evaluateStatic(rule: AlertRule): AlertInstance? {
         if (rule.platformOnly) return evaluatePlatformStatic(rule)
 
@@ -94,6 +108,7 @@ class AlertEvaluator(
         return null
     }
 
+    /** 플랫폼 전역 정적 임계값 알림 (buffer 사용률, aggregate refresh lag). */
     private fun evaluatePlatformStatic(rule: AlertRule): AlertInstance? {
         val metricValue = when (rule.metric) {
             "pipeline_buffer_usage" -> healthMonitor?.bufferUsagePercent ?: 0.0
@@ -114,6 +129,7 @@ class AlertEvaluator(
         return null
     }
 
+    /** baseline 대비 이상치 알림을 평가한다 (N-sigma 방식). */
     private fun evaluateAnomaly(rule: AlertRule): AlertInstance? {
         val tenantId = rule.tenantId ?: return null
         val baseline = baselineCalculator.getBaseline(tenantId, rule.metric)
@@ -141,6 +157,7 @@ class AlertEvaluator(
         return null
     }
 
+    /** SLO error budget burn rate 알림을 평가한다. */
     private fun evaluateBurnRate(rule: AlertRule): AlertInstance? {
         val tenantId = rule.tenantId ?: return null
         val tenant = tenantStore.findById(tenantId) ?: return null

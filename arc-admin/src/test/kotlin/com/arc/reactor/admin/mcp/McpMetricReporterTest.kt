@@ -67,7 +67,7 @@ class McpMetricReporterTest {
     inner class ToolCallReporting {
 
         @Test
-        fun `should send tool call to correct endpoint`() {
+        fun `send tool call to correct endpoint해야 한다`() {
             val reporter = createReporter()
             reporter.start()
 
@@ -94,7 +94,7 @@ class McpMetricReporterTest {
         }
 
         @Test
-        fun `should include error fields on failure`() {
+        fun `include error fields on failure해야 한다`() {
             val reporter = createReporter()
             reporter.start()
 
@@ -118,7 +118,7 @@ class McpMetricReporterTest {
         }
 
         @Test
-        fun `should omit null error fields`() {
+        fun `omit null error fields해야 한다`() {
             val reporter = createReporter()
             reporter.start()
 
@@ -135,7 +135,7 @@ class McpMetricReporterTest {
 
             val req = receivedRequests.first { it.path.endsWith("/tool-call") }
             req.body shouldContain "\"success\":true"
-            // null fields should be filtered out
+            // null fields은(는) be filtered out해야 합니다
             (req.body.contains("errorClass") ) shouldBe false
             (req.body.contains("errorMessage")) shouldBe false
         }
@@ -145,7 +145,7 @@ class McpMetricReporterTest {
     inner class HealthReporting {
 
         @Test
-        fun `should send health event to correct endpoint`() {
+        fun `send health event to correct endpoint해야 한다`() {
             val reporter = createReporter()
             reporter.start()
 
@@ -168,7 +168,7 @@ class McpMetricReporterTest {
         }
 
         @Test
-        fun `should report disconnected status with error`() {
+        fun `error로 report disconnected status해야 한다`() {
             val reporter = createReporter()
             reporter.start()
 
@@ -193,33 +193,33 @@ class McpMetricReporterTest {
     inner class Lifecycle {
 
         @Test
-        fun `start should be idempotent`() {
+        fun `start은(는) be idempotent해야 한다`() {
             val reporter = createReporter()
             reporter.start()
-            reporter.start() // second call should be no-op
+            reporter.start()  // 두 번째 호출은 아무 동작도 하지 않아야 합니다
             reporter.stop()
         }
 
         @Test
-        fun `stop should be idempotent`() {
+        fun `stop은(는) be idempotent해야 한다`() {
             val reporter = createReporter()
             reporter.start()
             reporter.stop()
-            reporter.stop() // second call should be no-op
+            reporter.stop()  // 두 번째 호출은 아무 동작도 하지 않아야 합니다
         }
 
         @Test
-        fun `stop should flush remaining events`() {
+        fun `stop은(는) flush remaining events해야 한다`() {
             val reporter = createReporter(flushIntervalMs = 60000) // long interval, won't auto-flush
             reporter.start()
 
             reporter.reportToolCall("tool1", durationMs = 10, success = true)
             reporter.reportHealth(status = "CONNECTED")
 
-            // stop() should flush the remaining events
+            // stop()은(는) flush the remaining events해야 합니다
             reporter.stop()
 
-            // Both events should have been sent
+            // Both events은(는) have been sent해야 합니다
             receivedRequests.any { it.path.endsWith("/tool-call") } shouldBe true
             receivedRequests.any { it.path.endsWith("/mcp-health") } shouldBe true
         }
@@ -229,7 +229,7 @@ class McpMetricReporterTest {
     inner class QueueOverflow {
 
         @Test
-        fun `should drop events when queue is full`() {
+        fun `queue is full일 때 drop events해야 한다`() {
             val reporter = McpMetricReporter(
                 endpoint = "http://localhost:$serverPort/api/admin/metrics/ingest",
                 tenantId = "test-tenant",
@@ -240,13 +240,13 @@ class McpMetricReporterTest {
             // Don't start — events won't flush, queue fills up
             reporter.start()
 
-            // Fill queue beyond capacity
+            // queue beyond capacity를 채웁니다
             repeat(10) { i ->
                 reporter.reportToolCall("tool-$i", durationMs = 1, success = true)
             }
 
-            // Queue should be capped — some events dropped silently
-            // Verify the reporter doesn't throw
+            // Queue은(는) be capped — some events dropped silently해야 합니다
+            // the reporter doesn't throw 확인
             reporter.stop()
         }
     }
@@ -255,7 +255,7 @@ class McpMetricReporterTest {
     inner class JsonEscaping {
 
         @Test
-        fun `should escape special characters in JSON`() {
+        fun `escape special characters in JSON해야 한다`() {
             val reporter = createReporter()
             reporter.start()
 
@@ -281,7 +281,7 @@ class McpMetricReporterTest {
     inner class ErrorMessageTruncation {
 
         @Test
-        fun `should truncate long error messages to 500 chars`() {
+        fun `truncate long error messages to 500 chars해야 한다`() {
             val reporter = createReporter()
             reporter.start()
 
@@ -299,7 +299,7 @@ class McpMetricReporterTest {
             reporter.stop()
 
             val req = receivedRequests.first { it.path.endsWith("/tool-call") }
-            // The body should contain a truncated message (500 chars max)
+            // The body은(는) contain a truncated message (500 chars max)해야 합니다
             val errorFieldLength = req.body.substringAfter("\"errorMessage\":\"")
                 .substringBefore("\"")
                 .length

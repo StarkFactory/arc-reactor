@@ -30,7 +30,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
     inner class AgentMode {
 
         @Test
-        fun `AGENT job executes via AgentExecutor and records success`() {
+        fun `AGENT 작업이 executes via AgentExecutor and records success`() {
             val job = agentJob()
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -48,7 +48,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
         }
 
         @Test
-        fun `AGENT job passes correct AgentCommand to executor`() {
+        fun `AGENT 작업이 passes correct AgentCommand to executor`() {
             val job = agentJob(
                 agentPrompt = "브리핑해줘",
                 agentModel = "gemini-2.5-pro",
@@ -75,7 +75,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
         }
 
         @Test
-        fun `AGENT job sends natural language result to Slack without code block`() {
+        fun `AGENT 작업이 sends natural language result to Slack without code block`() {
             val job = agentJob(slackChannelId = "C-BRIEFING")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -98,7 +98,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
         }
 
         @Test
-        fun `AGENT job fails when AgentExecutor is not available`() {
+        fun `AGENT job fails when AgentExecutor은(는) not available이다`() {
             val job = agentJob()
             val store = RecordingStore(job)
 
@@ -112,7 +112,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
         }
 
         @Test
-        fun `AGENT job fails when agentPrompt is blank`() {
+        fun `AGENT job fails when agentPrompt은(는) blank이다`() {
             val job = agentJob(agentPrompt = null)
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -128,7 +128,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
         }
 
         @Test
-        fun `AGENT job fails when AgentExecutor returns failure`() {
+        fun `AgentExecutor returns failure일 때 AGENT job fails`() {
             val job = agentJob()
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -151,7 +151,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
     inner class SystemPromptResolution {
 
         @Test
-        fun `AGENT job resolves system prompt from personaId via PersonaStore`() {
+        fun `AGENT 작업이 resolves system prompt from personaId via PersonaStore`() {
             val job = agentJob(personaId = "briefing-assistant")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -170,7 +170,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
         }
 
         @Test
-        fun `AGENT job resolves linked template content from persona`() {
+        fun `AGENT 작업이 resolves linked template content from persona`() {
             val job = agentJob(personaId = "briefing-assistant")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -210,7 +210,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
         }
 
         @Test
-        fun `AGENT job prefers agentSystemPrompt over personaId`() {
+        fun `AGENT 작업이 prefers agentSystemPrompt over personaId`() {
             val job = agentJob(
                 personaId = "briefing-assistant",
                 agentSystemPrompt = "직접 지정한 시스템 프롬프트"
@@ -232,7 +232,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
         }
 
         @Test
-        fun `AGENT job falls back to default persona when no systemPrompt configured`() {
+        fun `no systemPrompt configured일 때 AGENT job falls back to default persona`() {
             val job = agentJob(personaId = null, agentSystemPrompt = null)
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -251,7 +251,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
         }
 
         @Test
-        fun `AGENT job falls back to hardcoded prompt when PersonaStore is unavailable`() {
+        fun `AGENT job falls back to hardcoded prompt when PersonaStore은(는) unavailable이다`() {
             val job = agentJob(personaId = null, agentSystemPrompt = null)
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -273,7 +273,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
     inner class McpToolRegression {
 
         @Test
-        fun `MCP_TOOL job still executes correctly after AGENT mode addition`() {
+        fun `AGENT mode addition후 MCP_TOOL job still executes correctly`() {
             val job = ScheduledJob(
                 id = "mcp-job-1",
                 name = "legacy-mcp-job",

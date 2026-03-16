@@ -5,6 +5,7 @@ import com.arc.reactor.slack.tools.usecase.FindUserUseCase
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** 이름으로 Slack 사용자를 검색하는 도구. 정확 일치 및 부분 일치를 지원한다. */
 open class FindUserTool(private val findUserUseCase: FindUserUseCase) : LocalTool {
 
     @Tool(description = "Find Slack users by name, display name, or real name. Supports exact or partial matching.")

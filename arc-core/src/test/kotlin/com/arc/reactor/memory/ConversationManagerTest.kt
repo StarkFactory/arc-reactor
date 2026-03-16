@@ -46,7 +46,7 @@ class ConversationManagerTest {
     inner class LoadHistory {
 
         @Test
-        fun `should use conversationHistory from command when provided`() = runTest {
+        fun `provided일 때 use conversationHistory from command해야 한다`() = runTest {
             val manager = DefaultConversationManager(memoryStore = null, properties = properties)
             val command = AgentCommand(
                 systemPrompt = "",
@@ -63,7 +63,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should load from memoryStore when no conversationHistory`() = runTest {
+        fun `no conversationHistory일 때 load from memoryStore해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("session-1") } returns memory
@@ -87,7 +87,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should limit history by maxConversationTurns`() = runTest {
+        fun `limit history by maxConversationTurns해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("session-1") } returns memory
@@ -113,7 +113,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should return empty list when no sessionId and no conversationHistory`() = runTest {
+        fun `no sessionId and no conversationHistory일 때 return empty list해야 한다`() = runTest {
             val manager = DefaultConversationManager(memoryStore = null, properties = properties)
             val command = AgentCommand(systemPrompt = "", userPrompt = "hello")
 
@@ -123,7 +123,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should return empty list when memoryStore is null`() = runTest {
+        fun `memoryStore is null일 때 return empty list해야 한다`() = runTest {
             val manager = DefaultConversationManager(memoryStore = null, properties = properties)
             val command = AgentCommand(
                 systemPrompt = "",
@@ -141,7 +141,7 @@ class ConversationManagerTest {
     inner class SaveHistory {
 
         @Test
-        fun `should save user and assistant messages on success`() = runTest {
+        fun `save user and assistant messages on success해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
             val manager = DefaultConversationManager(memoryStore, properties)
             val command = AgentCommand(
@@ -158,7 +158,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should not save on failure`() = runTest {
+        fun `not save on failure해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
             val manager = DefaultConversationManager(memoryStore, properties)
             val command = AgentCommand(
@@ -174,7 +174,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should not throw when memoryStore save fails`() = runTest {
+        fun `memoryStore save fails일 때 not throw해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
             every { memoryStore.addMessage(any(), any(), any(), any()) } throws RuntimeException("DB error")
             val manager = DefaultConversationManager(memoryStore, properties)
@@ -195,7 +195,7 @@ class ConversationManagerTest {
     inner class SaveStreamingHistory {
 
         @Test
-        fun `should save streaming content`() = runTest {
+        fun `save streaming content해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
             val manager = DefaultConversationManager(memoryStore, properties)
             val command = AgentCommand(
@@ -211,7 +211,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should not save empty streaming content as assistant message`() = runTest {
+        fun `not save empty streaming content as assistant message해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
             val manager = DefaultConversationManager(memoryStore, properties)
             val command = AgentCommand(
@@ -231,7 +231,7 @@ class ConversationManagerTest {
     inner class MessagePairIntegrity {
 
         @Test
-        fun `concurrent saves to same session should maintain user-assistant pair ordering`() {
+        fun `concurrent saves to same session은(는) maintain user-assistant pair ordering해야 한다`() {
             val memoryStore = InMemoryMemoryStore()
             val manager = DefaultConversationManager(memoryStore, properties)
             val sessionId = "concurrent-session"
@@ -267,7 +267,7 @@ class ConversationManagerTest {
                     "Should have $threadCount user + $threadCount assistant messages"
                 )
 
-                // Verify user-assistant pairs are adjacent (never interleaved)
+                // user-assistant pairs are adjacent (never interleaved) 확인
                 var i = 0
                 while (i < history.size) {
                     val userMsg = history[i]
@@ -279,7 +279,7 @@ class ConversationManagerTest {
                     assertEquals(MessageRole.ASSISTANT, assistantMsg.role,
                         "Message at index ${i + 1} should be ASSISTANT, got ${assistantMsg.role}")
 
-                    // Extract the number from content to verify pair matches
+                    // the number from content to verify pair matches 추출
                     val userNum = userMsg.content.removePrefix("user-")
                     val assistantNum = assistantMsg.content.removePrefix("assistant-")
                     assertEquals(userNum, assistantNum,
@@ -309,7 +309,7 @@ class ConversationManagerTest {
         )
 
         @Test
-        fun `should use takeLast when summary is disabled`() = runTest {
+        fun `summary is disabled일 때 use takeLast해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("s1") } returns memory
@@ -328,7 +328,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should use takeLast when message count below trigger`() = runTest {
+        fun `message count below trigger일 때 use takeLast해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("s1") } returns memory
@@ -349,7 +349,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should build hierarchical history with facts and narrative`() = runTest {
+        fun `facts and narrative로 build hierarchical history해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
             val memory = mockk<ConversationMemory>()
             val summaryStore = InMemoryConversationSummaryStore()
@@ -377,7 +377,7 @@ class ConversationManagerTest {
 
             val history = manager.loadHistory(command)
 
-            // Expected: [Facts SystemMessage] + [Narrative SystemMessage] + [4 recent messages]
+            // 기대값: [Facts SystemMessage] + [Narrative SystemMessage] + [4 recent messages]
             assertEquals(6, history.size, "Should have 2 system messages + 4 recent messages")
             assertTrue(history[0] is SystemMessage, "First message should be Facts SystemMessage")
             assertTrue((history[0] as SystemMessage).text.contains("order_id"),
@@ -388,7 +388,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should reuse cached summary when up to date`() = runTest {
+        fun `up to date일 때 reuse cached summary해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
             val memory = mockk<ConversationMemory>()
             val summaryStore = InMemoryConversationSummaryStore()
@@ -417,14 +417,14 @@ class ConversationManagerTest {
 
             val history = manager.loadHistory(command)
 
-            // Should use cached summary without calling summaryService
+            // use cached summary without calling summaryService해야 합니다
             assertEquals(6, history.size, "Should use cached summary")
             assertTrue((history[0] as SystemMessage).text.contains("cached"),
                 "Should use cached facts")
         }
 
         @Test
-        fun `should fallback to takeLast on summarization failure`() = runTest {
+        fun `fallback to takeLast on summarization failure해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
             val memory = mockk<ConversationMemory>()
             val summaryStore = InMemoryConversationSummaryStore()
@@ -452,7 +452,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should handle empty facts in hierarchical history`() = runTest {
+        fun `handle empty facts in hierarchical history해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
             val memory = mockk<ConversationMemory>()
             val summaryStore = InMemoryConversationSummaryStore()
@@ -477,19 +477,19 @@ class ConversationManagerTest {
 
             val history = manager.loadHistory(command)
 
-            // No facts SystemMessage, just [Narrative SystemMessage] + [4 recent messages]
+            // facts SystemMessage, just [Narrative SystemMessage] + [4 recent messages] 없음
             assertEquals(5, history.size, "Should have 1 narrative message + 4 recent messages")
             assertTrue(history[0] is SystemMessage, "First should be Narrative SystemMessage")
         }
 
         @Test
-        fun `should trigger async summarization from saveStreamingHistory`() = runTest {
+        fun `trigger async summarization from saveStreamingHistory해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
             val memory = mockk<ConversationMemory>()
             val summaryStore = mockk<ConversationSummaryStore>(relaxed = true)
             val summaryService = mockk<ConversationSummaryService>()
 
-            // Pre-populate 20 messages (above trigger of 6)
+            // 20 messages (above trigger of 6)를 미리 채웁니다
             val messages = generateMessages(20)
             every { memoryStore.get("s1") } returns memory
             every { memory.getHistory() } returns messages
@@ -519,7 +519,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should cancel previous summarization job for same session on rapid saves`() = runTest {
+        fun `same session on rapid saves에 대해 cancel previous summarization job해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
             val memory = mockk<ConversationMemory>()
             val summaryStore = mockk<ConversationSummaryStore>(relaxed = true)
@@ -554,7 +554,7 @@ class ConversationManagerTest {
                 metadata = mapOf("sessionId" to "s1")
             )
 
-            // Trigger two rapid saves — second should cancel first
+            // Trigger two rapid saves — second은(는) cancel first해야 합니다
             manager.saveHistory(command, AgentResult.success("r1"))
             assertTrue(firstCallStarted.await(3, TimeUnit.SECONDS)) {
                 "First summarization should start before triggering second save"
@@ -568,7 +568,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should not trigger async summarization when sessionId is missing`() = runTest {
+        fun `sessionId is missing일 때 not trigger async summarization해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
             val summaryService = mockk<ConversationSummaryService>()
 
@@ -577,7 +577,7 @@ class ConversationManagerTest {
                 summaryStore = InMemoryConversationSummaryStore(),
                 summaryService = summaryService
             )
-            // No sessionId in metadata
+            // 메타데이터에 sessionId 없음
             val command = AgentCommand(
                 systemPrompt = "",
                 userPrompt = "msg",
@@ -586,17 +586,17 @@ class ConversationManagerTest {
 
             manager.saveHistory(command, AgentResult.success("response"))
 
-            // Should never attempt summarization
+            // never attempt summarization해야 합니다
             coVerify(exactly = 0) { summaryService.summarize(any(), any()) }
             manager.destroy()
         }
 
         @Test
-        fun `should not trigger async summarization when session memory is null`() = runTest {
+        fun `session memory is null일 때 not trigger async summarization해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
             val summaryService = mockk<ConversationSummaryService>()
 
-            // memoryStore.get() returns null (e.g. session was deleted)
+            // memoryStore.get()이 null을 반환합니다 (예: 세션이 삭제됨)
             every { memoryStore.get("s1") } returns null
 
             val manager = DefaultConversationManager(
@@ -618,7 +618,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should cancel asyncScope on destroy`() = runTest {
+        fun `cancel asyncScope on destroy해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
             val memory = mockk<ConversationMemory>()
             val summaryStore = mockk<ConversationSummaryStore>(relaxed = true)
@@ -646,16 +646,16 @@ class ConversationManagerTest {
             manager.saveHistory(command, AgentResult.success("r1"))
             Thread.sleep(100) // Let async job start
 
-            // destroy should cancel all pending jobs
+            // destroy은(는) cancel all pending jobs해야 합니다
             manager.destroy()
             Thread.sleep(200) // Let cancellation propagate
 
-            // Verify the summary was NOT saved (job was cancelled before completion)
+            // the summary was NOT saved (job was cancelled before completion) 확인
             coVerify(exactly = 0) { summaryStore.save(any()) }
         }
 
         @Test
-        fun `should fallback to takeLast when summary produces empty facts and narrative`() = runTest {
+        fun `summary produces empty facts and narrative일 때 fallback to takeLast해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
             val memory = mockk<ConversationMemory>()
             val summaryStore = InMemoryConversationSummaryStore()
@@ -665,7 +665,7 @@ class ConversationManagerTest {
             every { memoryStore.get("s1") } returns memory
             every { memory.getHistory() } returns messages
 
-            // LLM returns empty summary (no facts, blank narrative)
+            // LLM이 빈 요약을 반환합니다 (사실 없음, 빈 서술)
             coEvery { summaryService.summarize(any(), any()) } returns SummarizationResult(
                 narrative = "",
                 facts = emptyList()
@@ -682,7 +682,7 @@ class ConversationManagerTest {
 
             val history = manager.loadHistory(command)
 
-            // Must fallback to takeLast, NOT return only recentMessageCount (4)
+            // fallback to takeLast, NOT return only recentMessageCount (4)해야 합니다
             assertEquals(10, history.size) {
                 "Empty summary should fallback to takeLast (maxConversationTurns=5 * 2=10), not recentMessageCount=4"
             }
@@ -692,7 +692,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `should return all messages when recentMessageCount exceeds total messages`() = runTest {
+        fun `recentMessageCount exceeds total messages일 때 return all messages해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
             val memory = mockk<ConversationMemory>()
             val summaryService = mockk<ConversationSummaryService>()
@@ -702,7 +702,7 @@ class ConversationManagerTest {
             val misconfigProps = properties.copy(
                 memory = MemoryProperties(summary = SummaryProperties(
                     enabled = true,
-                    triggerMessageCount = 2,  // trigger at 2
+                    triggerMessageCount = 2,  // at 2를 트리거합니다
                     recentMessageCount = 10,  // but recent window is 10
                     maxNarrativeTokens = 500
                 ))
@@ -729,7 +729,7 @@ class ConversationManagerTest {
             assertEquals(4, history.size) {
                 "When recentMessageCount >= totalMessages, should return all messages without summarizing"
             }
-            // summarize should NOT be called
+            // summarize은(는) NOT be called해야 합니다
             coVerify(exactly = 0) { summaryService.summarize(any(), any()) }
         }
 

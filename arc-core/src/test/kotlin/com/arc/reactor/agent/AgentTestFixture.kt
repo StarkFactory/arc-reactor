@@ -20,9 +20,9 @@ import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.prompt.ChatOptions
 
 /**
- * Shared test fixture for agent tests.
+ * 에이전트 테스트를 위한 공유 테스트 픽스처.
  *
- * Eliminates duplicated mock setup across 11+ test files.
+ * 11개 이상의 테스트 파일에서 중복되는 mock 설정을 제거합니다.
  */
 class AgentTestFixture {
 
@@ -43,12 +43,12 @@ class AgentTestFixture {
         every { requestSpec.stream() } returns streamResponseSpec
     }
 
-    /** Set up a simple successful call response. */
+    /** 간단한 성공 호출 응답을 설정합니다. */
     fun mockCallResponse(content: String = "Response") {
         every { callResponseSpec.chatResponse() } returns simpleChatResponse(content)
     }
 
-    /** Create a CallResponseSpec containing tool calls (triggers ReAct loop). */
+    /** 도구 호출을 포함하는 CallResponseSpec을 생성합니다 (ReAct 루프를 트리거). */
     fun mockToolCallResponse(toolCalls: List<AssistantMessage.ToolCall>): CallResponseSpec {
         val assistantMsg = AssistantMessage.builder().content("").toolCalls(toolCalls).build()
         val generation = mockk<Generation>()
@@ -62,7 +62,7 @@ class AgentTestFixture {
         return spec
     }
 
-    /** Create a CallResponseSpec for a final (no tool call) response. */
+    /** 최종 응답(도구 호출 없음)을 위한 CallResponseSpec을 생성합니다. */
     fun mockFinalResponse(content: String): CallResponseSpec {
         val spec = mockk<CallResponseSpec>()
         every { spec.chatResponse() } returns simpleChatResponse(content)
@@ -71,7 +71,7 @@ class AgentTestFixture {
 
     companion object {
 
-        /** Build a ChatResponse with text content (no tool calls). */
+        /** 텍스트 콘텐츠로 ChatResponse를 빌드합니다 (도구 호출 없음). */
         fun simpleChatResponse(content: String): ChatResponse {
             val assistantMsg = AssistantMessage(content)
             return ChatResponse(listOf(Generation(assistantMsg)))
@@ -81,13 +81,13 @@ class AgentTestFixture {
             llm = LlmProperties(),
             guard = GuardProperties(),
             rag = RagProperties(),
-            // Disable request timeout by default in unit tests using runTest.
-            // Virtual time can otherwise fast-forward withTimeout(30s) and
-            // produce false-positive TIMEOUT failures.
+            // runTest를 사용하는 단위 테스트에서 기본적으로 요청 타임아웃을 비활성화합니다.
+            // 가상 시간이 withTimeout(30s)을 빨리 감기하여
+            // 거짓 양성 TIMEOUT 실패를 발생시킬 수 있습니다.
             concurrency = ConcurrencyProperties(requestTimeoutMs = 0)
         )
 
-        /** Create a simple tool callback that returns a fixed result. */
+        /** 고정된 결과를 반환하는 간단한 도구 콜백을 생성합니다. */
         fun toolCallback(
             name: String,
             description: String = "Tool $name",
@@ -98,7 +98,7 @@ class AgentTestFixture {
             override suspend fun call(arguments: Map<String, Any?>) = result
         }
 
-        /** Create a tool callback with a coroutine delay (NOT Thread.sleep). */
+        /** 코루틴 지연이 있는 도구 콜백을 생성합니다 (Thread.sleep이 아님). */
         fun delayingToolCallback(
             name: String,
             delayMs: Long,
@@ -112,12 +112,12 @@ class AgentTestFixture {
             }
         }
 
-        /** Create a ChatResponse chunk with text content (for streaming tests). */
+        /** 텍스트 콘텐츠로 ChatResponse 청크를 생성합니다 (스트리밍 테스트용). */
         fun textChunk(text: String): ChatResponse {
             return ChatResponse(listOf(Generation(AssistantMessage(text))))
         }
 
-        /** Create a ChatResponse chunk with tool calls (for streaming tests). */
+        /** 도구 호출이 포함된 ChatResponse 청크를 생성합니다 (스트리밍 테스트용). */
         fun toolCallChunk(
             toolCalls: List<AssistantMessage.ToolCall>,
             text: String = ""
@@ -132,8 +132,8 @@ class AgentTestFixture {
 }
 
 /**
- * Tracking tool callback that records call count and captured arguments.
- * Useful for verifying tool invocation behavior.
+ * 호출 횟수와 캡처된 인수를 기록하는 추적 도구 콜백.
+ * 도구 호출 동작을 검증하는 데 유용합니다.
  */
 class TrackingTool(
     override val name: String,

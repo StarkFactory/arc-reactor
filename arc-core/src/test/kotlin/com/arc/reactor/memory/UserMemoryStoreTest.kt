@@ -16,13 +16,13 @@ class UserMemoryStoreTest {
         private val store: UserMemoryStore = InMemoryUserMemoryStore()
 
         @Test
-        fun `get returns null for unknown user`() = runTest {
+        fun `returns null for unknown user를 가져온다`() = runTest {
             val result = store.get("unknown-user")
             assertNull(result, "Unknown userId should return null from store")
         }
 
         @Test
-        fun `save and get roundtrip preserves all fields`() = runTest {
+        fun `and get roundtrip preserves all fields를 저장한다`() = runTest {
             val memory = UserMemory(
                 userId = "user-1",
                 facts = mapOf("team" to "backend", "role" to "senior engineer"),
@@ -41,7 +41,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `delete removes stored memory`() = runTest {
+        fun `removes stored memory를 삭제한다`() = runTest {
             store.save("user-2", UserMemory(userId = "user-2"))
 
             store.delete("user-2")
@@ -50,14 +50,14 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `delete is idempotent for unknown user`() = runTest {
-            // Should not throw
+        fun `delete은(는) idempotent for unknown user이다`() = runTest {
+            // 예외를 던지면 안 됩니다
             store.delete("nonexistent-user")
             assertNull(store.get("nonexistent-user"), "Deleting non-existent user should result in null")
         }
 
         @Test
-        fun `updateFact merges new fact into existing memory`() = runTest {
+        fun `updateFact은(는) merges new fact into existing memory`() = runTest {
             store.save("user-3", UserMemory(userId = "user-3", facts = mapOf("team" to "backend")))
 
             store.updateFact("user-3", "role", "senior engineer")
@@ -70,7 +70,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `updateFact creates new memory record when none exists`() = runTest {
+        fun `none exists일 때 updateFact creates new memory record`() = runTest {
             store.updateFact("new-user", "team", "platform")
 
             val loaded = store.get("new-user")
@@ -79,7 +79,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `updateFact overwrites existing fact with same key`() = runTest {
+        fun `updateFact은(는) overwrites existing fact with same key`() = runTest {
             store.save("user-4", UserMemory(userId = "user-4", facts = mapOf("team" to "backend")))
 
             store.updateFact("user-4", "team", "platform")
@@ -90,7 +90,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `updatePreference merges into existing preferences`() = runTest {
+        fun `updatePreference은(는) merges into existing preferences`() = runTest {
             store.save(
                 "user-5",
                 UserMemory(userId = "user-5", preferences = mapOf("language" to "Korean"))
@@ -105,7 +105,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `addRecentTopic appends to topic list`() = runTest {
+        fun `addRecentTopic은(는) appends to topic list`() = runTest {
             store.save(
                 "user-6",
                 UserMemory(userId = "user-6", recentTopics = listOf("Spring AI"))
@@ -123,7 +123,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `addRecentTopic respects maxTopics limit`() = runTest {
+        fun `addRecentTopic은(는) respects maxTopics limit`() = runTest {
             val topics = (1..5).map { "topic-$it" }
             store.save("user-7", UserMemory(userId = "user-7", recentTopics = topics))
 
@@ -137,7 +137,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `save overwrites previous memory completely`() = runTest {
+        fun `overwrites previous memory completely를 저장한다`() = runTest {
             store.save("user-8", UserMemory(userId = "user-8", facts = mapOf("old" to "value")))
             store.save("user-8", UserMemory(userId = "user-8", facts = mapOf("new" to "value")))
 
@@ -155,13 +155,13 @@ class UserMemoryStoreTest {
         private val manager = UserMemoryManager(store = store, maxRecentTopics = 3)
 
         @Test
-        fun `getContextPrompt returns empty string when no memory exists`() = runTest {
+        fun `no memory exists일 때 getContextPrompt returns empty string`() = runTest {
             val prompt = manager.getContextPrompt("no-user")
             assertEquals("", prompt, "getContextPrompt should return empty string for unknown user")
         }
 
         @Test
-        fun `getContextPrompt includes facts with Facts prefix`() = runTest {
+        fun `getContextPrompt은(는) includes facts with Facts prefix`() = runTest {
             store.save("ctx-user-1", UserMemory(userId = "ctx-user-1", facts = mapOf("team" to "backend")))
 
             val prompt = manager.getContextPrompt("ctx-user-1")
@@ -170,7 +170,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `getContextPrompt includes preferences with Preferences prefix`() = runTest {
+        fun `getContextPrompt은(는) includes preferences with Preferences prefix`() = runTest {
             store.save(
                 "ctx-user-2",
                 UserMemory(userId = "ctx-user-2", preferences = mapOf("language" to "Korean"))
@@ -184,7 +184,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `getContextPrompt uses separate lines for facts and preferences`() = runTest {
+        fun `getContextPrompt은(는) uses separate lines for facts and preferences`() = runTest {
             store.save(
                 "ctx-user-3",
                 UserMemory(
@@ -202,7 +202,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `getContextPrompt returns empty for memory with only recent topics`() = runTest {
+        fun `getContextPrompt은(는) returns empty for memory with only recent topics`() = runTest {
             store.save(
                 "topic-only-user",
                 UserMemory(userId = "topic-only-user", recentTopics = listOf("Spring AI", "MCP"))
@@ -213,7 +213,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `getContextPrompt returns empty for memory with no data`() = runTest {
+        fun `getContextPrompt은(는) returns empty for memory with no data`() = runTest {
             store.save("empty-user", UserMemory(userId = "empty-user"))
 
             val prompt = manager.getContextPrompt("empty-user")
@@ -221,7 +221,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `getContextPrompt truncates output to maxPromptInjectionChars`() = runTest {
+        fun `getContextPrompt은(는) truncates output to maxPromptInjectionChars`() = runTest {
             val smallLimitManager = UserMemoryManager(store = store, maxRecentTopics = 3, maxPromptInjectionChars = 30)
             val longFacts = (1..20).associate { "key$it" to "value$it" }
             store.save("trunc-user", UserMemory(userId = "trunc-user", facts = longFacts))
@@ -234,7 +234,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `recordTopic respects maxRecentTopics set at construction`() = runTest {
+        fun `recordTopic은(는) respects maxRecentTopics set at construction`() = runTest {
             store.save(
                 "topic-user",
                 UserMemory(userId = "topic-user", recentTopics = listOf("a", "b", "c"))
@@ -250,7 +250,7 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `recordTopic rethrows CancellationException for structured concurrency`() = runTest {
+        fun `recordTopic은(는) rethrows CancellationException for structured concurrency`() = runTest {
             val cancellingStore = object : UserMemoryStore {
                 override suspend fun get(userId: String): UserMemory? = null
                 override suspend fun save(userId: String, memory: UserMemory) = Unit
@@ -268,7 +268,7 @@ class UserMemoryStoreTest {
                 cancellingManager.recordTopic("topic-user", "new-topic")
                 fail("CancellationException must be rethrown from UserMemoryManager.recordTopic")
             } catch (_: CancellationException) {
-                // expected
+                // 예상 결과
             }
         }
     }

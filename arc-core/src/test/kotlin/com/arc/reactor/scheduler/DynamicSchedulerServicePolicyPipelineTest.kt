@@ -23,7 +23,7 @@ import org.springframework.scheduling.TaskScheduler
 class DynamicSchedulerServicePolicyPipelineTest {
 
     @Test
-    fun `trigger blocks when before tool hook rejects`() {
+    fun `blocks when before tool hook rejects를 트리거한다`() {
         val job = sampleJob()
         val store = RecordingStore(job)
         val taskScheduler = mockk<TaskScheduler>(relaxed = true)
@@ -58,7 +58,7 @@ class DynamicSchedulerServicePolicyPipelineTest {
     }
 
     @Test
-    fun `trigger waits approval and blocks when rejected`() {
+    fun `waits approval and blocks when rejected를 트리거한다`() {
         val job = sampleJob()
         val store = RecordingStore(job)
         val taskScheduler = mockk<TaskScheduler>(relaxed = true)
@@ -107,7 +107,7 @@ class DynamicSchedulerServicePolicyPipelineTest {
     }
 
     @Test
-    fun `trigger fails closed when approval is required but approval store is missing`() {
+    fun `trigger fails closed when approval은(는) required but approval store is missing이다`() {
         val job = sampleJob()
         val store = RecordingStore(job)
         val taskScheduler = mockk<TaskScheduler>(relaxed = true)
@@ -137,7 +137,7 @@ class DynamicSchedulerServicePolicyPipelineTest {
     }
 
     @Test
-    fun `trigger fails closed when approval check throws exception`() {
+    fun `fails closed when approval check throws exception를 트리거한다`() {
         val job = sampleJob()
         val store = RecordingStore(job)
         val taskScheduler = mockk<TaskScheduler>(relaxed = true)
@@ -186,7 +186,7 @@ class DynamicSchedulerServicePolicyPipelineTest {
     }
 
     @Test
-    fun `trigger uses modified arguments after approval`() {
+    fun `uses modified arguments after approval를 트리거한다`() {
         val job = sampleJob(toolArguments = mapOf("q" to "original"))
         val store = RecordingStore(job)
         val taskScheduler = mockk<TaskScheduler>(relaxed = true)

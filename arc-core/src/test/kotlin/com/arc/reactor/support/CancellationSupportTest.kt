@@ -12,21 +12,21 @@ import org.junit.jupiter.api.Test
 class CancellationSupportTest {
 
     @Test
-    fun `throwIfCancellation should rethrow cancellation exception`() {
+    fun `throwIfCancellation은(는) rethrow cancellation exception해야 한다`() {
         assertThrows(CancellationException::class.java) {
             CancellationException("cancelled").throwIfCancellation()
         }
     }
 
     @Test
-    fun `throwIfCancellation should ignore non-cancellation exceptions`() {
+    fun `throwIfCancellation은(는) ignore non-cancellation exceptions해야 한다`() {
         assertDoesNotThrow {
             IllegalStateException("boom").throwIfCancellation()
         }
     }
 
     @Test
-    fun `runSuspendCatchingNonCancellation should return success`() = runTest {
+    fun `runSuspendCatchingNonCancellation은(는) return success해야 한다`() = runTest {
         val result = runSuspendCatchingNonCancellation { "ok" }
 
         assertTrue(result.isSuccess, "Non-throwing suspend block should return Success result")
@@ -34,7 +34,7 @@ class CancellationSupportTest {
     }
 
     @Test
-    fun `runSuspendCatchingNonCancellation should capture non-cancellation exception`() = runTest {
+    fun `runSuspendCatchingNonCancellation은(는) capture non-cancellation exception해야 한다`() = runTest {
         val result = runSuspendCatchingNonCancellation {
             error("boom")
         }
@@ -44,7 +44,7 @@ class CancellationSupportTest {
     }
 
     @Test
-    fun `runSuspendCatchingNonCancellation should rethrow cancellation`() {
+    fun `runSuspendCatchingNonCancellation은(는) rethrow cancellation해야 한다`() {
         assertThrows(CancellationException::class.java) {
             runBlocking {
                 runSuspendCatchingNonCancellation {

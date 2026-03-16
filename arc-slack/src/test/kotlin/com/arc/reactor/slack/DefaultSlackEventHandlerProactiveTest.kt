@@ -69,7 +69,7 @@ class DefaultSlackEventHandlerProactiveTest {
     inner class ProactiveChannelMessage {
 
         @Test
-        fun `returns false and does not respond when agent returns NO_RESPONSE`() = runTest {
+        fun `agent returns NO_RESPONSE일 때 false and does not respond를 반환한다`() = runTest {
             setupMcpManager()
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(success = true, content = "[NO_RESPONSE]")
@@ -81,7 +81,7 @@ class DefaultSlackEventHandlerProactiveTest {
         }
 
         @Test
-        fun `returns false for blank agent response`() = runTest {
+        fun `blank agent response에 대해 false를 반환한다`() = runTest {
             setupMcpManager()
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(success = true, content = "   ")
@@ -92,7 +92,7 @@ class DefaultSlackEventHandlerProactiveTest {
         }
 
         @Test
-        fun `returns false for failed agent result`() = runTest {
+        fun `failed agent result에 대해 false를 반환한다`() = runTest {
             setupMcpManager()
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(success = false, content = null, errorMessage = "LLM error")
@@ -103,7 +103,7 @@ class DefaultSlackEventHandlerProactiveTest {
         }
 
         @Test
-        fun `returns true and sends response when agent provides useful content`() = runTest {
+        fun `agent provides useful content일 때 true and sends response를 반환한다`() = runTest {
             setupMcpManager()
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(success = true, content = "You can reset your password at settings page.")
@@ -123,7 +123,7 @@ class DefaultSlackEventHandlerProactiveTest {
         }
 
         @Test
-        fun `tracks thread after successful proactive response`() = runTest {
+        fun `thread after successful proactive response를 추적한다`() = runTest {
             setupMcpManager()
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(success = true, content = "Here's the info.")
@@ -136,7 +136,7 @@ class DefaultSlackEventHandlerProactiveTest {
         }
 
         @Test
-        fun `does not track thread when send fails`() = runTest {
+        fun `track thread when send fails하지 않는다`() = runTest {
             setupMcpManager()
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(success = true, content = "Here's the info.")
@@ -149,7 +149,7 @@ class DefaultSlackEventHandlerProactiveTest {
         }
 
         @Test
-        fun `returns false for blank input text`() = runTest {
+        fun `blank input text에 대해 false를 반환한다`() = runTest {
             val result = handler().handleChannelMessage(channelMessage(text = "   "))
 
             result shouldBe false
@@ -157,7 +157,7 @@ class DefaultSlackEventHandlerProactiveTest {
         }
 
         @Test
-        fun `returns false and does not crash on agent exception`() = runTest {
+        fun `false and does not crash on agent exception를 반환한다`() = runTest {
             setupMcpManager()
             coEvery { agentExecutor.execute(any<AgentCommand>()) } throws RuntimeException("LLM down")
 
@@ -171,7 +171,7 @@ class DefaultSlackEventHandlerProactiveTest {
     inner class ProactiveSystemPrompt {
 
         @Test
-        fun `uses proactive system prompt with NO_RESPONSE instruction`() = runTest {
+        fun `proactive system prompt with NO_RESPONSE instruction를 사용한다`() = runTest {
             setupMcpManager()
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
@@ -184,7 +184,7 @@ class DefaultSlackEventHandlerProactiveTest {
         }
 
         @Test
-        fun `includes proactive entrypoint in metadata`() = runTest {
+        fun `proactive entrypoint in metadata를 포함한다`() = runTest {
             setupMcpManager()
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
@@ -196,7 +196,7 @@ class DefaultSlackEventHandlerProactiveTest {
         }
 
         @Test
-        fun `uses proactive session ID format`() = runTest {
+        fun `proactive session ID format를 사용한다`() = runTest {
             setupMcpManager()
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
@@ -213,7 +213,7 @@ class DefaultSlackEventHandlerProactiveTest {
     inner class CrossToolPromptInjection {
 
         @Test
-        fun `includes MCP tool summary in system prompt for mentions`() = runTest {
+        fun `MCP tool summary in system prompt for mentions를 포함한다`() = runTest {
             setupMcpManager(
                 mapOf("atlassian" to listOf("jira_search", "confluence_search"))
             )
@@ -230,7 +230,7 @@ class DefaultSlackEventHandlerProactiveTest {
         }
 
         @Test
-        fun `omits cross-tool section when no MCP manager`() = runTest {
+        fun `no MCP manager일 때 omits cross-tool section`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult(success = true, content = "Done")
@@ -243,7 +243,7 @@ class DefaultSlackEventHandlerProactiveTest {
         }
 
         @Test
-        fun `omits cross-tool section when no servers connected`() = runTest {
+        fun `no servers connected일 때 omits cross-tool section`() = runTest {
             every { mcpManager.listServers() } returns emptyList()
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns

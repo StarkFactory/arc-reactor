@@ -34,7 +34,7 @@ class IntentResolverTest {
     inner class ResolveIntent {
 
         @Test
-        fun `returns resolved intent when confident match found`() = runTest {
+        fun `confident match found일 때 resolved intent를 반환한다`() = runTest {
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",
@@ -52,7 +52,7 @@ class IntentResolverTest {
         }
 
         @Test
-        fun `returns null when classification is unknown`() = runTest {
+        fun `classification is unknown일 때 null를 반환한다`() = runTest {
             coEvery { classifier.classify(any(), any()) } returns IntentResult.unknown("rule")
 
             val resolved = resolver.resolve("random input")
@@ -60,7 +60,7 @@ class IntentResolverTest {
         }
 
         @Test
-        fun `returns null when confidence is below threshold`() = runTest {
+        fun `confidence is below threshold일 때 null를 반환한다`() = runTest {
             registry.save(IntentDefinition(name = "order", description = "Orders"))
             coEvery { classifier.classify(any(), any()) } returns IntentResult(
                 primary = ClassifiedIntent("order", 0.4),
@@ -72,7 +72,7 @@ class IntentResolverTest {
         }
 
         @Test
-        fun `returns null when classified intent not found in registry`() = runTest {
+        fun `classified intent not found in registry일 때 null를 반환한다`() = runTest {
             coEvery { classifier.classify(any(), any()) } returns IntentResult(
                 primary = ClassifiedIntent("non_existent", 0.9),
                 classifiedBy = "llm"
@@ -83,7 +83,7 @@ class IntentResolverTest {
         }
 
         @Test
-        fun `returns null when classifier throws exception`() = runTest {
+        fun `classifier throws exception일 때 null를 반환한다`() = runTest {
             coEvery { classifier.classify(any(), any()) } throws RuntimeException("Classifier error")
 
             val resolved = resolver.resolve("test")
@@ -95,7 +95,7 @@ class IntentResolverTest {
     inner class ApplyProfile {
 
         @Test
-        fun `applies profile overrides to command`() = runTest {
+        fun `profile overrides to command를 적용한다`() = runTest {
             val profile = IntentProfile(
                 model = "anthropic",
                 temperature = 0.1,
@@ -124,7 +124,7 @@ class IntentResolverTest {
         }
 
         @Test
-        fun `preserves original command values for null profile fields`() = runTest {
+        fun `original command values for null profile fields를 보존한다`() = runTest {
             val profile = IntentProfile(model = "anthropic") // only model set
             val resolved = createResolvedIntent("test_intent", profile)
 
@@ -147,7 +147,7 @@ class IntentResolverTest {
         }
 
         @Test
-        fun `adds intent metadata to command`() = runTest {
+        fun `intent metadata to command를 추가한다`() = runTest {
             val profile = IntentProfile(model = "gemini")
             val resolved = createResolvedIntent("greeting", profile, confidence = 0.92)
 
@@ -175,7 +175,7 @@ class IntentResolverTest {
     inner class MultiIntentProfileMerging {
 
         @Test
-        fun `merges allowed tools from secondary intents`() = runTest {
+        fun `allowed tools from secondary intents를 병합한다`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund",
                 description = "Refunds",
@@ -201,7 +201,7 @@ class IntentResolverTest {
         }
 
         @Test
-        fun `ignores secondary intents below confidence threshold`() = runTest {
+        fun `secondary intents below confidence threshold를 무시한다`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund",
                 description = "Refunds",

@@ -21,7 +21,7 @@ class RegexPatternOutputGuardTest {
     inner class MaskAction {
 
         @Test
-        fun `masks matching pattern`() = runTest {
+        fun `matching pattern를 마스킹한다`() = runTest {
             val guard = RegexPatternOutputGuard(
                 listOf(
                     OutputBlockPattern(
@@ -45,7 +45,7 @@ class RegexPatternOutputGuardTest {
         }
 
         @Test
-        fun `no match returns Allowed`() = runTest {
+        fun `없는 match returns Allowed`() = runTest {
             val guard = RegexPatternOutputGuard(
                 listOf(
                     OutputBlockPattern(
@@ -63,7 +63,7 @@ class RegexPatternOutputGuardTest {
         }
 
         @Test
-        fun `masks multiple occurrences`() = runTest {
+        fun `multiple occurrences를 마스킹한다`() = runTest {
             val guard = RegexPatternOutputGuard(
                 listOf(
                     OutputBlockPattern(
@@ -88,7 +88,7 @@ class RegexPatternOutputGuardTest {
     inner class RejectAction {
 
         @Test
-        fun `rejects matching pattern`() = runTest {
+        fun `matching pattern를 거부한다`() = runTest {
             val guard = RegexPatternOutputGuard(
                 listOf(
                     OutputBlockPattern(
@@ -116,7 +116,7 @@ class RegexPatternOutputGuardTest {
     inner class MixedActions {
 
         @Test
-        fun `reject takes priority over mask when reject pattern matches`() = runTest {
+        fun `takes priority over mask when reject pattern matches를 거부한다`() = runTest {
             val guard = RegexPatternOutputGuard(
                 listOf(
                     OutputBlockPattern(name = "MaskThis", pattern = "maskme", action = PatternAction.MASK),
@@ -131,7 +131,7 @@ class RegexPatternOutputGuardTest {
         }
 
         @Test
-        fun `mask applies when only mask pattern matches`() = runTest {
+        fun `applies when only mask pattern matches를 마스킹한다`() = runTest {
             val guard = RegexPatternOutputGuard(
                 listOf(
                     OutputBlockPattern(name = "MaskThis", pattern = "maskme", action = PatternAction.MASK),
@@ -153,7 +153,7 @@ class RegexPatternOutputGuardTest {
     inner class EmptyPatterns {
 
         @Test
-        fun `no patterns always returns Allowed`() = runTest {
+        fun `없는 patterns always returns Allowed`() = runTest {
             val guard = RegexPatternOutputGuard(emptyList())
             val result = guard.check("any content", defaultContext)
             assertInstanceOf(OutputGuardResult.Allowed::class.java, result) {
@@ -166,13 +166,13 @@ class RegexPatternOutputGuardTest {
     inner class StageMetadata {
 
         @Test
-        fun `stage name is RegexPattern`() {
+        fun `stage name은(는) RegexPattern이다`() {
             val guard = RegexPatternOutputGuard(emptyList())
             assertEquals("RegexPattern", guard.stageName) { "Stage name should be RegexPattern" }
         }
 
         @Test
-        fun `order is 20`() {
+        fun `order은(는) 20이다`() {
             val guard = RegexPatternOutputGuard(emptyList())
             assertEquals(20, guard.order) { "Order should be 20" }
         }

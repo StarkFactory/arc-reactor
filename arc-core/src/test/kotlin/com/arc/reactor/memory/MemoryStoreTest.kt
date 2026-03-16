@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Assertions.*
 class MemoryStoreTest {
 
     @Test
-    fun `should create memory for new session`() {
+    fun `new session에 대해 create memory해야 한다`() {
         val store = InMemoryMemoryStore()
 
         val memory = store.getOrCreate("session-1")
@@ -19,7 +19,7 @@ class MemoryStoreTest {
     }
 
     @Test
-    fun `should return same memory for existing session`() {
+    fun `existing session에 대해 return same memory해야 한다`() {
         val store = InMemoryMemoryStore()
 
         val memory1 = store.getOrCreate("session-1")
@@ -32,7 +32,7 @@ class MemoryStoreTest {
     }
 
     @Test
-    fun `should return null for nonexistent session`() {
+    fun `nonexistent session에 대해 return null해야 한다`() {
         val store = InMemoryMemoryStore()
 
         val memory = store.get("nonexistent")
@@ -41,7 +41,7 @@ class MemoryStoreTest {
     }
 
     @Test
-    fun `should remove session`() {
+    fun `remove session해야 한다`() {
         val store = InMemoryMemoryStore()
         store.getOrCreate("session-1")
 
@@ -51,7 +51,7 @@ class MemoryStoreTest {
     }
 
     @Test
-    fun `should clear all sessions`() {
+    fun `clear all sessions해야 한다`() {
         val store = InMemoryMemoryStore()
         store.getOrCreate("session-1")
         store.getOrCreate("session-2")
@@ -63,39 +63,39 @@ class MemoryStoreTest {
     }
 
     @Test
-    fun `should evict sessions when max reached`() {
+    fun `max reached일 때 evict sessions해야 한다`() {
         val store = InMemoryMemoryStore(maxSessions = 2)
 
         store.getOrCreate("session-1")
         store.getOrCreate("session-2")
-        store.getOrCreate("session-3") // Should trigger eviction
+        store.getOrCreate("session-3")  // trigger eviction해야 합니다
 
-        // Caffeine LRU: exactly maxSessions should survive
+        // Caffeine LRU: exactly maxSessions은(는) survive해야 합니다
         val surviving = listOf("session-1", "session-2", "session-3")
             .count { store.get(it) != null }
         assertEquals(2, surviving, "Exactly maxSessions entries should survive after eviction")
-        // Most recently added should survive
+        // Most recently added은(는) survive해야 합니다
         assertNotNull(store.get("session-3"), "Most recently added session should survive eviction")
     }
 
     @Test
-    fun `should clean up sessionOwners when session is evicted`() {
+    fun `session is evicted일 때 clean up sessionOwners해야 한다`() {
         val store = InMemoryMemoryStore(maxSessions = 2)
 
         store.addMessage("session-1", "user", "Hello", "owner-1")
         store.addMessage("session-2", "user", "Hello", "owner-2")
         store.addMessage("session-3", "user", "Hello", "owner-3")
 
-        // Force Caffeine cleanup so RemovalListener fires
+        // Caffeine cleanup so RemovalListener fires를 강제합니다
         Thread.sleep(50)
         store.getOrCreate("session-3") // triggers cleanUp()
 
-        // session-3 should survive; evicted session owner should be cleaned up
+        // session-3은(는) survive; evicted session owner should be cleaned up해야 합니다
         assertNotNull(store.get("session-3"), "Most recently added session should survive")
         assertEquals("owner-3", store.getSessionOwner("session-3"),
             "Surviving session owner should remain")
 
-        // At least one of session-1/session-2 was evicted — its owner should be gone
+        // At least one of session-1/session-2 was evicted — its owner은(는) be gone해야 합니다
         val evictedOwners = listOf("session-1", "session-2")
             .count { store.get(it) == null && store.getSessionOwner(it) == null }
         assertTrue(evictedOwners >= 1,
@@ -103,7 +103,7 @@ class MemoryStoreTest {
     }
 
     @Test
-    fun `should clean up sessionOwners on remove`() {
+    fun `clean up sessionOwners on remove해야 한다`() {
         val store = InMemoryMemoryStore()
 
         store.addMessage("session-1", "user", "Hello", "owner-1")
@@ -117,7 +117,7 @@ class MemoryStoreTest {
     }
 
     @Test
-    fun `should clean up sessionOwners on clear`() {
+    fun `clean up sessionOwners on clear해야 한다`() {
         val store = InMemoryMemoryStore()
 
         store.addMessage("session-1", "user", "Hello", "owner-1")
@@ -132,7 +132,7 @@ class MemoryStoreTest {
     }
 
     @Test
-    fun `should add message via helper method`() {
+    fun `add message via helper method해야 한다`() {
         val store = InMemoryMemoryStore()
 
         store.addMessage("session-1", "user", "Hello")
@@ -149,7 +149,7 @@ class MemoryStoreTest {
     inner class ListSessions {
 
         @Test
-        fun `should return empty list when no sessions`() {
+        fun `no sessions일 때 return empty list해야 한다`() {
             val store = InMemoryMemoryStore()
 
             val sessions = store.listSessions()
@@ -158,7 +158,7 @@ class MemoryStoreTest {
         }
 
         @Test
-        fun `should list sessions with correct metadata`() {
+        fun `correct metadata로 list sessions해야 한다`() {
             val store = InMemoryMemoryStore()
             store.addMessage("session-1", "user", "Hello world")
             store.addMessage("session-1", "assistant", "Hi!")
@@ -173,7 +173,7 @@ class MemoryStoreTest {
         }
 
         @Test
-        fun `should truncate preview to 50 chars`() {
+        fun `truncate preview to 50 chars해야 한다`() {
             val store = InMemoryMemoryStore()
             val longMessage = "A".repeat(60)
             store.addMessage("session-1", "user", longMessage)
@@ -185,7 +185,7 @@ class MemoryStoreTest {
         }
 
         @Test
-        fun `should use first user message as preview`() {
+        fun `use first user message as preview해야 한다`() {
             val store = InMemoryMemoryStore()
             store.addMessage("session-1", "system", "System prompt")
             store.addMessage("session-1", "user", "First user message")
@@ -197,7 +197,7 @@ class MemoryStoreTest {
         }
 
         @Test
-        fun `should order by last activity descending`() {
+        fun `order by last activity descending해야 한다`() {
             val store = InMemoryMemoryStore()
             store.addMessage("old-session", "user", "Old")
             Thread.sleep(10) // Ensure different timestamps
@@ -211,7 +211,7 @@ class MemoryStoreTest {
         }
 
         @Test
-        fun `should show Empty conversation for sessions with no user messages`() {
+        fun `no user messages로 show Empty conversation for sessions해야 한다`() {
             val store = InMemoryMemoryStore()
             store.addMessage("session-1", "system", "You are a helpful assistant")
 
@@ -225,7 +225,7 @@ class MemoryStoreTest {
 class ConversationMemoryTest {
 
     @Test
-    fun `should add and retrieve messages`() {
+    fun `add and retrieve messages해야 한다`() {
         val memory = InMemoryConversationMemory()
 
         memory.add(Message(MessageRole.USER, "Hello"))
@@ -238,7 +238,7 @@ class ConversationMemoryTest {
     }
 
     @Test
-    fun `should limit message count`() {
+    fun `limit message count해야 한다`() {
         val memory = InMemoryConversationMemory(maxMessages = 3)
 
         memory.add(Message(MessageRole.USER, "Message 1"))
@@ -253,7 +253,7 @@ class ConversationMemoryTest {
     }
 
     @Test
-    fun `should clear history`() {
+    fun `clear history해야 한다`() {
         val memory = InMemoryConversationMemory()
         memory.add(Message(MessageRole.USER, "Hello"))
 
@@ -263,24 +263,24 @@ class ConversationMemoryTest {
     }
 
     @Test
-    fun `should get history within token limit`() {
+    fun `get history within token limit해야 한다`() {
         val memory = InMemoryConversationMemory()
 
-        // Add messages with varying lengths
+        // messages with varying lengths를 추가합니다
         memory.add(Message(MessageRole.USER, "A".repeat(100))) // ~25 tokens
         memory.add(Message(MessageRole.USER, "B".repeat(100))) // ~25 tokens
         memory.add(Message(MessageRole.USER, "C".repeat(100))) // ~25 tokens
 
         // Get history with small token limit
-        val limitedHistory = memory.getHistoryWithinTokenLimit(40) // Should fit ~1-2 messages
+        val limitedHistory = memory.getHistoryWithinTokenLimit(40)  // fit ~1-2 messages해야 합니다
 
         assertTrue(limitedHistory.size < 3) { "Expected fewer than 3 messages within token limit, got: ${limitedHistory.size}" }
-        // Should return most recent messages that fit
+        // return most recent messages that fit해야 합니다
         assertTrue(limitedHistory.last().content.startsWith("C")) { "Last message should start with 'C', got: '${limitedHistory.last().content.take(10)}'" }
     }
 
     @Test
-    fun `should use custom token estimator`() {
+    fun `use custom token estimator해야 한다`() {
         val fixedEstimator = TokenEstimator { 10 }  // Always 10 tokens
         val memory = InMemoryConversationMemory(tokenEstimator = fixedEstimator)
 
@@ -293,7 +293,7 @@ class ConversationMemoryTest {
     }
 
     @Test
-    fun `default estimator should handle CJK characters`() {
+    fun `default estimator은(는) handle CJK characters해야 한다`() {
         val estimator = DefaultTokenEstimator()
         val koreanText = "안녕하세요"  // 5 Hangul characters
         val latinText = "Hello"        // 5 ASCII characters
@@ -306,7 +306,7 @@ class ConversationMemoryTest {
     }
 
     @Test
-    fun `default estimator should return at least 1 for non-empty text`() {
+    fun `default estimator은(는) return at least 1 for non-empty text해야 한다`() {
         val estimator = DefaultTokenEstimator()
 
         assertTrue(estimator.estimate("a") >= 1) { "Expected at least 1 token for 'a', got: ${estimator.estimate("a")}" }
@@ -315,7 +315,7 @@ class ConversationMemoryTest {
     }
 
     @Test
-    fun `should use extension functions`() {
+    fun `use extension functions해야 한다`() {
         val memory = InMemoryConversationMemory()
 
         memory.addUserMessage("User message")

@@ -24,7 +24,7 @@ class McpStartupInitializerTest {
     }
 
     @Test
-    fun `should initialize runtime from store on startup`() {
+    fun `initialize runtime from store on startup해야 한다`() {
         val initializer = McpStartupInitializer(mcpManager)
 
         assertDoesNotThrow({ initializer.initialize() }) {
@@ -34,7 +34,7 @@ class McpStartupInitializerTest {
     }
 
     @Test
-    fun `should prewarm semantic tool selector after startup initialization`() {
+    fun `startup initialization 후 prewarm semantic tool selector해야 한다`() {
         val tools = listOf(mockk<ToolCallback> {
             every { name } returns "jira_search_issues"
             every { description } returns "Search Jira issues"

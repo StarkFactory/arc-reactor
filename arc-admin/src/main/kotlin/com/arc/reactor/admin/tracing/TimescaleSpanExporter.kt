@@ -15,9 +15,11 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * OTel SpanExporter that writes spans to the metric_spans hypertable.
+ * span을 metric_spans hypertable에 기록하는 OTel SpanExporter.
  *
- * Called by OTel SDK's BatchSpanProcessor, so already batched.
+ * OTel SDK의 BatchSpanProcessor에 의해 호출되므로 이미 배치 처리된다.
+ *
+ * @see OtlpExporterConfiguration 이 exporter를 등록하는 설정
  */
 class TimescaleSpanExporter(
     private val jdbcTemplate: JdbcTemplate
@@ -82,7 +84,7 @@ class TimescaleSpanExporter(
                 map[key.key] = value.toString()
             }
         }
-        // Simple JSON serialization to avoid Jackson dependency in this layer
+        // 이 레이어에서 Jackson 의존성을 피하기 위한 간단한 JSON 직렬화
         if (map.isEmpty()) return "{}"
         return map.entries.joinToString(",", "{", "}") { (k, v) ->
             "\"${escapeJson(k)}\":\"${escapeJson(v)}\""

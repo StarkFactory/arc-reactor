@@ -46,7 +46,7 @@ class HitlEventHookTest {
     inner class ApprovedToolCall {
 
         @Test
-        fun `publishes HitlEvent with approved=true when tool approved`() = runTest {
+        fun `HitlEvent with approved=true when tool approved를 발행한다`() = runTest {
             val ctx = toolCallContext(
                 "send_email",
                 mutableMapOf(
@@ -74,7 +74,7 @@ class HitlEventHookTest {
     inner class RejectedToolCall {
 
         @Test
-        fun `publishes HitlEvent with approved=false and reason when tool rejected`() = runTest {
+        fun `HitlEvent with approved=false and reason when tool rejected를 발행한다`() = runTest {
             val ctx = toolCallContext(
                 "delete_record",
                 mutableMapOf(
@@ -100,7 +100,7 @@ class HitlEventHookTest {
     inner class NoHitlMetadata {
 
         @Test
-        fun `skips event when no HITL metadata present`() = runTest {
+        fun `event when no HITL metadata present를 건너뛴다`() = runTest {
             val ctx = toolCallContext(
                 "check_order",
                 mutableMapOf("tenantId" to "tenant-1")
@@ -112,7 +112,7 @@ class HitlEventHookTest {
         }
 
         @Test
-        fun `skips event when hitlWaitMs is not a valid number`() = runTest {
+        fun `skips event when hitlWaitMs은(는) not a valid number이다`() = runTest {
             val ctx = toolCallContext(
                 "check_order",
                 mutableMapOf(
@@ -131,7 +131,7 @@ class HitlEventHookTest {
     inner class DefaultValues {
 
         @Test
-        fun `uses default tenantId when metadata has no tenantId`() = runTest {
+        fun `metadata has no tenantId일 때 default tenantId를 사용한다`() = runTest {
             val ctx = toolCallContext(
                 "send_email",
                 mutableMapOf(
@@ -147,7 +147,7 @@ class HitlEventHookTest {
         }
 
         @Test
-        fun `defaults approved to false when hitlApproved not set (fail-close)`() = runTest {
+        fun `approved to false when hitlApproved not set (fail-close)를 기본값으로 한다`() = runTest {
             val ctx = toolCallContext(
                 "send_email",
                 mutableMapOf(
@@ -163,7 +163,7 @@ class HitlEventHookTest {
         }
 
         @Test
-        fun `prefers callIndex specific keys when same tool is called multiple times`() = runTest {
+        fun `prefers callIndex specific keys when same tool은(는) called multiple times이다`() = runTest {
             val sharedMetadata = mutableMapOf<String, Any>(
                 "tenantId" to "tenant-1",
                 "hitlWaitMs_send_email" to "9999",
@@ -195,7 +195,7 @@ class HitlEventHookTest {
     inner class BufferFull {
 
         @Test
-        fun `records drop when buffer is full`() = runTest {
+        fun `records drop when buffer은(는) full이다`() = runTest {
             val tinyBuffer = MetricRingBuffer(64)
             val tinyHook = HitlEventHook(tinyBuffer, healthMonitor)
 
@@ -224,7 +224,7 @@ class HitlEventHookTest {
     inner class Properties {
 
         @Test
-        fun `hook properties are correct`() {
+        fun `hook properties은(는) correct이다`() {
             hook.order shouldBe 201
             hook.enabled shouldBe true
             hook.failOnError shouldBe false

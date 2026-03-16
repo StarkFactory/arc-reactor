@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Tests for STDIO command and args validation in [McpConnectionSupport].
+ * 에 대한 테스트. STDIO command and args validation in [McpConnectionSupport].
  */
 class McpStdioCommandValidationTest {
 
@@ -22,7 +22,7 @@ class McpStdioCommandValidationTest {
     inner class CommandAllowlist {
 
         @Test
-        fun `allowed command passes validation`() {
+        fun `allowed은(는) command passes validation`() {
             val support = support()
 
             assertTrue(support.validateStdioCommand("npx", "test-server")) {
@@ -31,7 +31,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `all default commands are accepted`() {
+        fun `all default commands은(는) accepted이다`() {
             val support = support()
             val defaults = listOf(
                 "npx", "node", "python", "python3",
@@ -46,7 +46,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `command not in allowlist is rejected`() {
+        fun `command not in allowlist은(는) rejected이다`() {
             val support = support()
 
             assertFalse(support.validateStdioCommand("bash", "test-server")) {
@@ -55,7 +55,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `empty allowlist rejects all commands`() {
+        fun `비어있는 allowlist rejects all commands`() {
             val support = support(allowedCommands = emptySet())
 
             assertFalse(support.validateStdioCommand("npx", "test-server")) {
@@ -64,7 +64,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `custom allowlist accepts custom command`() {
+        fun `커스텀 allowlist accepts custom command`() {
             val support = support(allowedCommands = setOf("my-tool"))
 
             assertTrue(support.validateStdioCommand("my-tool", "test-server")) {
@@ -73,7 +73,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `custom allowlist rejects default commands not in it`() {
+        fun `커스텀 allowlist rejects default commands not in it`() {
             val support = support(allowedCommands = setOf("my-tool"))
 
             assertFalse(support.validateStdioCommand("npx", "test-server")) {
@@ -82,7 +82,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `absolute path command uses basename for allowlist check`() {
+        fun `absolute은(는) path command uses basename for allowlist check`() {
             // The path check will also verify the file exists,
             // but the allowlist check on basename comes first
             val support = support(allowedCommands = setOf("sh"))
@@ -104,7 +104,7 @@ class McpStdioCommandValidationTest {
     inner class PathTraversal {
 
         @Test
-        fun `command with double-dot path traversal is rejected`() {
+        fun `command with double-dot path traversal은(는) rejected이다`() {
             val support = support()
 
             assertFalse(
@@ -115,7 +115,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `command with embedded double-dot is rejected`() {
+        fun `command with embedded double-dot은(는) rejected이다`() {
             val support = support()
 
             assertFalse(
@@ -128,7 +128,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `command with double-dot as standalone name is rejected`() {
+        fun `command with double-dot as standalone name은(는) rejected이다`() {
             val support = support()
 
             assertFalse(support.validateStdioCommand("..", "test-server")) {
@@ -141,7 +141,7 @@ class McpStdioCommandValidationTest {
     inner class ArgsValidation {
 
         @Test
-        fun `valid args pass validation`() {
+        fun `유효한 args pass validation`() {
             val support = support()
 
             assertTrue(
@@ -155,7 +155,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `empty args list passes validation`() {
+        fun `비어있는 args list passes validation`() {
             val support = support()
 
             assertTrue(support.validateStdioArgs(emptyList(), "test-server")) {
@@ -164,7 +164,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `args with null byte are rejected`() {
+        fun `args with null byte은(는) rejected이다`() {
             val support = support()
 
             assertFalse(
@@ -177,7 +177,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `args with control characters are rejected`() {
+        fun `args with control characters은(는) rejected이다`() {
             val support = support()
 
             // Test various control characters (bell, backspace, escape)
@@ -196,7 +196,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `args with tab are accepted`() {
+        fun `args with tab은(는) accepted이다`() {
             val support = support()
 
             assertTrue(
@@ -209,7 +209,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `args with newline are accepted`() {
+        fun `args with newline은(는) accepted이다`() {
             val support = support()
 
             assertTrue(
@@ -222,7 +222,7 @@ class McpStdioCommandValidationTest {
         }
 
         @Test
-        fun `second arg with control char causes rejection`() {
+        fun `두 번째 arg with control char causes rejection`() {
             val support = support()
 
             assertFalse(

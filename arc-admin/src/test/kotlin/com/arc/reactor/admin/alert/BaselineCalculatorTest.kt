@@ -19,7 +19,7 @@ class BaselineCalculatorTest {
     inner class ComputeCostBaseline {
 
         @Test
-        fun `returns baseline when sufficient samples`() {
+        fun `sufficient samples일 때 baseline를 반환한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "mean" to 10.5,
                 "stddev" to 2.3,
@@ -35,7 +35,7 @@ class BaselineCalculatorTest {
         }
 
         @Test
-        fun `returns null when insufficient samples`() {
+        fun `insufficient samples일 때 null를 반환한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "mean" to 10.0,
                 "stddev" to 2.0,
@@ -50,7 +50,7 @@ class BaselineCalculatorTest {
     inner class ComputeRequestBaseline {
 
         @Test
-        fun `computes request baseline`() {
+        fun `request baseline를 계산한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "mean" to 50.0,
                 "stddev" to 10.0,
@@ -68,7 +68,7 @@ class BaselineCalculatorTest {
     inner class ComputeErrorRateBaseline {
 
         @Test
-        fun `computes error rate baseline`() {
+        fun `error rate baseline를 계산한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "mean" to 0.03,
                 "stddev" to 0.01,
@@ -87,7 +87,7 @@ class BaselineCalculatorTest {
     inner class UnknownMetric {
 
         @Test
-        fun `returns null for unknown metric`() {
+        fun `unknown metric에 대해 null를 반환한다`() {
             calculator.getBaseline("t1", "unknown_metric").shouldBeNull()
         }
     }
@@ -96,7 +96,7 @@ class BaselineCalculatorTest {
     inner class CacheHit {
 
         @Test
-        fun `second call uses cache instead of querying`() {
+        fun `두 번째 call uses cache instead of querying`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "mean" to 10.0,
                 "stddev" to 2.0,
@@ -107,12 +107,12 @@ class BaselineCalculatorTest {
             val first = calculator.getBaseline("t1", "hourly_cost")
             first.shouldNotBeNull()
 
-            // Second call should use cache
+            // Second call은(는) use cache해야 합니다
             val second = calculator.getBaseline("t1", "hourly_cost")
             second.shouldNotBeNull()
             second.mean shouldBe first.mean
 
-            // Should only have queried once
+            // only have queried once해야 합니다
             verify(exactly = 1) { jdbcTemplate.queryForMap(any(), *anyVararg()) }
         }
     }
@@ -121,7 +121,7 @@ class BaselineCalculatorTest {
     inner class NullHandling {
 
         @Test
-        fun `handles null mean and stddev gracefully`() {
+        fun `null mean and stddev gracefully를 처리한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "mean" to null,
                 "stddev" to null,
@@ -136,7 +136,7 @@ class BaselineCalculatorTest {
         }
 
         @Test
-        fun `handles null samples as zero`() {
+        fun `null samples as zero를 처리한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "mean" to 10.0,
                 "stddev" to 2.0,

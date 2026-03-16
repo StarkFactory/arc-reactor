@@ -23,12 +23,16 @@ import kotlin.coroutines.cancellation.CancellationException
 private val logger = KotlinLogging.logger {}
 
 /**
- * Quota enforcement with 3-layer defense:
- * 1. Local AtomicLong counter (~0ns, always succeeds)
- * 2. Caffeine cache of DB results (~0.01ms)
- * 3. DB query protected by circuit breaker (~1-5ms)
+ * 3단계 방어를 통한 쿼터 적용 Hook.
  *
- * Fail-open: if all layers fail, request is allowed with warning.
+ * 1. 로컬 AtomicLong 카운터 (~0ns, 항상 성공)
+ * 2. Caffeine 캐시의 DB 결과 (~0.01ms)
+ * 3. Circuit breaker로 보호되는 DB 쿼리 (~1-5ms)
+ *
+ * Fail-open: 모든 계층이 실패하면 경고와 함께 요청을 허용한다.
+ *
+ * @see TenantStore 테넌트 쿼터 조회
+ * @see MetricQueryService 당월 사용량 조회
  */
 class QuotaEnforcerHook(
     private val tenantStore: TenantStore,
@@ -44,17 +48,17 @@ class QuotaEnforcerHook(
 
     private val circuitBreaker = circuitBreakerRegistry.get("quota-enforcer")
 
-    // Layer 1: Instance-local counters
+    // ── 1계층: 인스턴스 로컬 카운터 ──
     private val localCounters = ConcurrentHashMap<String, AtomicLong>()
     private val localCounterResetMonth = AtomicLong(currentMonth())
 
-    // Layer 2: Caffeine cache
+    // ── 2계층: Caffeine 캐시 ──
     private val usageCache = Caffeine.newBuilder()
         .maximumSize(1000)
         .expireAfterWrite(Duration.ofSeconds(60))
         .build<String, com.arc.reactor.admin.model.TenantUsage>()
 
-    // Dedup: emit 90% warning once per tenant per month
+    // 중복 방지: 테넌트당 월 1회만 90% 경고 발행
     private val warnedTenants = ConcurrentHashMap.newKeySet<String>()
 
     override suspend fun beforeAgentStart(context: HookContext): HookResult {
@@ -63,7 +67,7 @@ class QuotaEnforcerHook(
 
         resetLocalCountersIfNewMonth()
 
-        // Layer 1: Local counter (always succeeds, ~0ns)
+        // ── 1계층: 로컬 카운터 (항상 성공, ~0ns) ──
         val localCount = localCounters
             .computeIfAbsent(tenantId) { AtomicLong(0) }
             .incrementAndGet()
@@ -76,12 +80,12 @@ class QuotaEnforcerHook(
 
         val quota = tenant.quota
 
-        // Fast path: if local count < 90% of quota, pass immediately
+        // 빠른 경로: 로컬 카운트 < 쿼터의 90%이면 즉시 통과
         if (localCount < quota.maxRequestsPerMonth * 0.9) {
             return HookResult.Continue
         }
 
-        // Layer 2+3: Cache or DB (circuit breaker protected)
+        // ── 2+3계층: 캐시 또는 DB (circuit breaker 보호) ──
         val usage = try {
             circuitBreaker.execute {
                 usageCache.getIfPresent(tenantId)
@@ -98,7 +102,7 @@ class QuotaEnforcerHook(
             return HookResult.Continue
         }
 
-        // Correct local counter with DB truth
+        // DB 실제값으로 로컬 카운터를 보정
         localCounters[tenantId]?.set(usage.requests)
 
         if (usage.requests >= quota.maxRequestsPerMonth) {
@@ -118,7 +122,7 @@ class QuotaEnforcerHook(
             return HookResult.Reject("Monthly token quota exceeded")
         }
 
-        // 90% usage warning — once per tenant per month (deduped)
+        // 90% 사용량 경고 — 테넌트당 월 1회 (중복 방지)
         if (usage.requests >= quota.maxRequestsPerMonth * 0.9 && warnedTenants.add(tenantId)) {
             publishQuotaEvent(
                 tenantId, "warning", usage.requests, quota.maxRequestsPerMonth,

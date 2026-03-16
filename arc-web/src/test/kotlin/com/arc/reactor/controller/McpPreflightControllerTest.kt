@@ -83,7 +83,7 @@ class McpPreflightControllerTest {
     }
 
     @Test
-    fun `getPreflight should reject non-admin`() = runTest {
+    fun `getPreflight은(는) reject non-admin해야 한다`() = runTest {
         val response = controller.getPreflight(name = "atlassian", exchange = userExchange())
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
@@ -99,7 +99,7 @@ class McpPreflightControllerTest {
     }
 
     @Test
-    fun `getPreflight should proxy upstream response and record audit`() = runTest {
+    fun `getPreflight은(는) proxy upstream response and record audit해야 한다`() = runTest {
         var capturedActor: String? = null
         var capturedRequestId: String? = null
 
@@ -199,7 +199,7 @@ class McpPreflightControllerTest {
     }
 
     @Test
-    fun `getPreflight should forward hmac headers when configured`() = runTest {
+    fun `getPreflight은(는) forward hmac headers when configured해야 한다`() = runTest {
         val secret = "preflight-hmac-secret"
         val server = HttpServer.create(InetSocketAddress(0), 0)
         server.createContext("/admin/preflight") { exchange ->

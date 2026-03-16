@@ -6,6 +6,7 @@ import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
+/** 관리자 감사 로그를 저장한다. 저장 실패 시 경고 로깅 후 무시한다 (fail-open). */
 fun recordAdminAudit(
     store: AdminAuditStore,
     category: String,

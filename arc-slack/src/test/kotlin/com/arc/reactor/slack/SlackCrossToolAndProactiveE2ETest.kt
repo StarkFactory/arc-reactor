@@ -92,7 +92,7 @@ class SlackCrossToolAndProactiveE2ETest {
     // =========================================================================
 
     @Test
-    fun `app_mention with connected MCP servers includes cross-tool prompt and returns combined answer`() = runTest {
+    fun `connected MCP servers includes cross-tool prompt and를 가진 app_mention은(는) combined answer를 반환한다`() = runTest {
         setupMcpManager(
             mapOf(
                 "atlassian" to listOf("jira_search", "jira_get_issue", "confluence_search"),
@@ -127,7 +127,7 @@ class SlackCrossToolAndProactiveE2ETest {
         val response = buildPipeline().handleEvent(payload)
         response.statusCode shouldBe HttpStatus.OK
 
-        // Verify cross-tool prompt was injected
+        // cross-tool prompt was injected 확인
         coVerify(timeout = 3_000) {
             agentExecutor.execute(match { cmd ->
                 cmd.systemPrompt.contains("[Cross-tool Correlation]") &&
@@ -136,7 +136,7 @@ class SlackCrossToolAndProactiveE2ETest {
             })
         }
 
-        // Verify combined answer was sent back
+        // combined answer was sent back 확인
         coVerify(timeout = 3_000) {
             messagingService.sendMessage(
                 "C100",
@@ -150,7 +150,7 @@ class SlackCrossToolAndProactiveE2ETest {
     }
 
     @Test
-    fun `app_mention without MCP servers omits cross-tool prompt`() = runTest {
+    fun `app_mention without MCP servers은(는) cross-tool prompt를 생략한다`() = runTest {
         every { mcpManager.listServers() } returns emptyList()
 
         val commandSlot = slot<AgentCommand>()
@@ -184,7 +184,7 @@ class SlackCrossToolAndProactiveE2ETest {
     // =========================================================================
 
     @Test
-    fun `proactive agent responds in thread when LLM provides useful content`() = runTest {
+    fun `LLM provides useful content일 때 proactive agent responds in thread`() = runTest {
         setupMcpManager(mapOf("atlassian" to listOf("jira_search")))
 
         val commandSlot = slot<AgentCommand>()
@@ -229,18 +229,18 @@ class SlackCrossToolAndProactiveE2ETest {
             )
         }
 
-        // Verify proactive prompt was used
+        // proactive prompt was used 확인
         commandSlot.captured.systemPrompt shouldContain "[Proactive Assistance Mode]"
         commandSlot.captured.systemPrompt shouldContain "[NO_RESPONSE]"
         commandSlot.captured.metadata["entrypoint"] shouldBe "proactive"
         commandSlot.captured.metadata["sessionId"] shouldBe "slack-proactive-C_WATCH-4000.0001"
 
-        // Verify thread is tracked for follow-ups
+        // thread is tracked for follow-ups 확인
         threadTracker.isTracked("C_WATCH", "4000.0001") shouldBe true
     }
 
     @Test
-    fun `proactive agent stays silent when LLM returns NO_RESPONSE`() = runTest {
+    fun `LLM returns NO_RESPONSE일 때 proactive agent stays silent`() = runTest {
         setupMcpManager(mapOf("atlassian" to listOf("jira_search")))
 
         coEvery { agentExecutor.execute(any<AgentCommand>()) } returns AgentResult(
@@ -278,7 +278,7 @@ class SlackCrossToolAndProactiveE2ETest {
     }
 
     @Test
-    fun `proactive agent ignores non-allowlisted channel`() = runTest {
+    fun `proactive은(는) agent ignores non-allowlisted channel`() = runTest {
         val properties = SlackProperties(
             enabled = true,
             maxConcurrentRequests = 5,
@@ -307,7 +307,7 @@ class SlackCrossToolAndProactiveE2ETest {
     }
 
     @Test
-    fun `proactive and mention coexist - mention still works in proactive channel`() = runTest {
+    fun `proactive은(는) and mention coexist - mention still works in proactive channel`() = runTest {
         setupMcpManager(mapOf("atlassian" to listOf("jira_search")))
 
         val commandSlot = slot<AgentCommand>()

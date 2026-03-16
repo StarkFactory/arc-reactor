@@ -38,10 +38,23 @@ private val logger = KotlinLogging.logger {}
 )
 @ConditionalOnClass(name = ["io.micrometer.tracing.Tracer"])
 @EnableConfigurationProperties(AdminProperties::class)
+/**
+ * OpenTelemetry + Micrometer Tracing 자동 설정.
+ *
+ * SdkTracerProvider, OpenTelemetry SDK, Micrometer Tracer, ObservationRegistry를 구성한다.
+ * Micrometer Tracing이 classpath에 있을 때만 활성화된다.
+ *
+ * Spring AI의 ChatModelObservationAutoConfiguration이 ObservationRegistry를 감지하여
+ * 모든 ChatModel.call()에 gen_ai.client.operation span을 자동 부착한다.
+ *
+ * @see OtlpExporterConfiguration OTLP/TimescaleDB span exporter 설정
+ * @see AgentTracingHooks 에이전트/도구 레벨 span 생성 hook
+ */
 class TracingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    /** OTel SDK TracerProvider를 구성한다. 샘플링률, SpanProcessor, SpanExporter를 등록한다. */
     fun otelSdkTracerProvider(
         properties: AdminProperties,
         spanProcessors: ObjectProvider<SpanProcessor>,
@@ -69,13 +82,13 @@ class TracingAutoConfiguration {
             .setSampler(sampler)
         logger.info { "Tracing sampler: ${sampler.description} (sampling-rate=$samplingRate)" }
 
-        // Register all SpanProcessors (e.g., TenantSpanProcessor)
+        // ── 단계: SpanProcessor 등록 (예: TenantSpanProcessor) ──
         spanProcessors.orderedStream().forEach { processor ->
             builder.addSpanProcessor(processor)
             logger.debug { "Registered SpanProcessor: ${processor.javaClass.simpleName}" }
         }
 
-        // Wrap each SpanExporter in a BatchSpanProcessor
+        // ── 단계: SpanExporter를 BatchSpanProcessor로 감싸서 등록 ──
         spanExporters.orderedStream().forEach { exporter ->
             builder.addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
             logger.info { "Registered SpanExporter: ${exporter.javaClass.simpleName}" }
@@ -86,6 +99,7 @@ class TracingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    /** W3C Trace Context propagation이 적용된 OpenTelemetry SDK를 생성한다. */
     fun openTelemetry(tracerProvider: SdkTracerProvider): OpenTelemetry =
         OpenTelemetrySdk.builder()
             .setTracerProvider(tracerProvider)
@@ -94,6 +108,7 @@ class TracingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    /** OTel → Micrometer Tracing 브릿지 Tracer를 생성한다. */
     fun micrometerTracer(otel: OpenTelemetry): Tracer {
         val otelTracer = otel.getTracer("arc-reactor")
         val currentTraceContext = OtelCurrentTraceContext()
@@ -103,12 +118,14 @@ class TracingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    /**
+     * Micrometer Observation → OTel span 브릿지가 적용된 ObservationRegistry를 생성한다.
+     *
+     * Spring AI의 ChatModelObservationAutoConfiguration이 이 registry를 감지하여
+     * 모든 ChatModel.call()에 gen_ai.client.operation span을 자동 부착한다.
+     */
     fun observationRegistry(tracer: Tracer): ObservationRegistry {
         val registry = ObservationRegistry.create()
-        // Wire tracer into ObservationRegistry via DefaultTracingObservationHandler.
-        // This bridges Micrometer Observation → OTel spans, enabling Spring AI auto-observation:
-        // ChatModelObservationAutoConfiguration detects ObservationRegistry and wraps
-        // all ChatModel.call() with gen_ai.client.operation spans automatically.
         registry.observationConfig()
             .observationHandler(DefaultTracingObservationHandler(tracer))
         logger.info { "ObservationRegistry created with tracing bridge — Spring AI auto-observation enabled" }

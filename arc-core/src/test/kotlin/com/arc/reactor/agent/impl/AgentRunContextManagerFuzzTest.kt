@@ -23,7 +23,7 @@ class AgentRunContextManagerFuzzTest {
     }
 
     @Test
-    fun `open and close should maintain MDC and metadata invariants across 300 cases`() = runTest {
+    fun `open and close은(는) maintain MDC and metadata invariants across 300 cases해야 한다`() = runTest {
         var runCounter = 0
         val manager = AgentRunContextManager(runIdSupplier = { "run-${runCounter++}" })
         val sessionValues = listOf<Any>("s-1", 42, 99L, true, object {
@@ -77,7 +77,7 @@ class AgentRunContextManagerFuzzTest {
     }
 
     @Test
-    fun `toolsUsed reference should be preserved in hook context`() = runTest {
+    fun `toolsUsed reference은(는) be preserved in hook context해야 한다`() = runTest {
         val manager = AgentRunContextManager(runIdSupplier = { "run-tools" })
         val toolsUsed = CopyOnWriteArrayList<String>()
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "line", userId = "u")

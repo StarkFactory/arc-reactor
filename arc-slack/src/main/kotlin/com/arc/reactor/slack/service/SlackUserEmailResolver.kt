@@ -12,11 +12,17 @@ import java.util.concurrent.ConcurrentHashMap
 private val logger = KotlinLogging.logger {}
 
 /**
- * Resolves Slack user email via users.info and caches it in-memory.
+ * users.info API를 통해 Slack 사용자 이메일을 조회하고 인메모리 캐싱한다.
  *
- * Best-effort by design:
- * - returns null when lookup fails or email is absent
- * - never throws to callers except cancellation
+ * 최선 노력(best-effort) 설계:
+ * - 조회 실패 또는 이메일 부재 시 null을 반환
+ * - CancellationException 외에는 호출자에게 예외를 전파하지 않음
+ * - Mutex를 사용한 캐시 미스 시 단일 조회 보장 (thundering herd 방지)
+ *
+ * @param botToken Slack Bot User OAuth 토큰
+ * @param enabled 활성화 여부 (false이면 항상 null 반환)
+ * @param cacheTtlSeconds 캐시 TTL (초)
+ * @param cacheMaxEntries 최대 캐시 엔트리 수
  */
 class SlackUserEmailResolver(
     botToken: String,

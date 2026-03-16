@@ -34,25 +34,25 @@ class TenantResolverTest {
     inner class ThreadLocal {
 
         @Test
-        fun `returns default when no tenant set`() {
+        fun `no tenant set일 때 default를 반환한다`() {
             resolver.currentTenantId() shouldBe "default"
         }
 
         @Test
-        fun `returns set tenant ID`() {
+        fun `set tenant ID를 반환한다`() {
             resolver.setTenantId("tenant-123")
             resolver.currentTenantId() shouldBe "tenant-123"
         }
 
         @Test
-        fun `clear resets to default`() {
+        fun `resets to default를 비운다`() {
             resolver.setTenantId("tenant-123")
             resolver.clear()
             resolver.currentTenantId() shouldBe "default"
         }
 
         @Test
-        fun `overwrites previous tenant ID`() {
+        fun `overwrites은(는) previous tenant ID`() {
             resolver.setTenantId("first")
             resolver.setTenantId("second")
             resolver.currentTenantId() shouldBe "second"
@@ -70,7 +70,7 @@ class TenantResolverTest {
         }
 
         @Test
-        fun `extracts tenant from X-Tenant-Id header`() {
+        fun `tenant from X-Tenant-Id header를 추출한다`() {
             val exchange = mockExchange(headerTenantId = "from-header")
             val chain = mockk<WebFilterChain>()
             every { chain.filter(any()) } returns Mono.empty()
@@ -82,7 +82,7 @@ class TenantResolverTest {
         }
 
         @Test
-        fun `extracts tenant from exchange attribute`() {
+        fun `tenant from exchange attribute를 추출한다`() {
             val exchange = mockExchange(attrTenantId = "from-attr")
             val chain = mockk<WebFilterChain>()
 
@@ -98,7 +98,7 @@ class TenantResolverTest {
         }
 
         @Test
-        fun `rejects request when header mismatches resolved tenant context`() {
+        fun `request when header mismatches resolved tenant context를 거부한다`() {
             val exchange = mockExchange(
                 headerTenantId = "from-header",
                 attrTenantId = "from-attr",
@@ -114,7 +114,7 @@ class TenantResolverTest {
         }
 
         @Test
-        fun `allows admin tenant override when header mismatches resolved context`() {
+        fun `admin tenant override when header mismatches resolved context를 허용한다`() {
             val exchange = mockExchange(
                 headerTenantId = "from-header",
                 resolvedTenantId = "from-attr",
@@ -134,7 +134,7 @@ class TenantResolverTest {
         }
 
         @Test
-        fun `accepts header when it matches resolved tenant context`() {
+        fun `header when it matches resolved tenant context를 수락한다`() {
             val exchange = mockExchange(
                 headerTenantId = "from-attr",
                 resolvedTenantId = "from-attr",
@@ -154,7 +154,7 @@ class TenantResolverTest {
         }
 
         @Test
-        fun `rejects malformed tenant header`() {
+        fun `malformed tenant header를 거부한다`() {
             val exchange = mockExchange(headerTenantId = "tenant-1;DROP TABLE users")
             val chain = mockk<WebFilterChain>()
             every { chain.filter(any()) } returns Mono.empty()
@@ -165,7 +165,7 @@ class TenantResolverTest {
         }
 
         @Test
-        fun `falls back to default when no tenant info present`() {
+        fun `default when no tenant info present로 폴백한다`() {
             val exchange = mockExchange()
             val chain = mockk<WebFilterChain>()
 
@@ -181,7 +181,7 @@ class TenantResolverTest {
         }
 
         @Test
-        fun `clears tenant after request completes`() {
+        fun `tenant after request completes를 비운다`() {
             val exchange = mockExchange(headerTenantId = "temp-tenant")
             val chain = mockk<WebFilterChain>()
             every { chain.filter(any()) } returns Mono.empty()
@@ -192,7 +192,7 @@ class TenantResolverTest {
         }
 
         @Test
-        fun `has highest precedence ordering`() {
+        fun `has은(는) highest precedence ordering`() {
             filter.order shouldBe (org.springframework.core.Ordered.HIGHEST_PRECEDENCE + 10)
         }
 

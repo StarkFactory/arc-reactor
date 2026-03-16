@@ -33,6 +33,7 @@ import kotlin.concurrent.write
  *
  * @see MemoryStore for session-based memory management
  * @see InMemoryConversationMemory for default implementation
+ * @see JdbcMemoryStore for persistent JDBC-based implementation
  */
 interface ConversationMemory {
     /**
@@ -88,6 +89,7 @@ interface ConversationMemory {
  * ```
  *
  * @see InMemoryMemoryStore for default implementation
+ * @see JdbcMemoryStore for persistent JDBC-based implementation
  */
 interface MemoryStore {
     /**

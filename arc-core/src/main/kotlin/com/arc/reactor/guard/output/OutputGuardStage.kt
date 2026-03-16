@@ -16,6 +16,8 @@ package com.arc.reactor.guard.output
  * - Return [OutputGuardResult.Rejected] to block the response entirely
  * - Extract Regex patterns to companion object (avoid hot-path compilation)
  *
+ * @see OutputGuardPipeline for the pipeline that executes stages
+ *
  * ## Example
  * ```kotlin
  * class ToxicContentGuard : OutputGuardStage {

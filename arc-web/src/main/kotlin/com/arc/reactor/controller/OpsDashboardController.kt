@@ -26,6 +26,16 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
+/**
+ * 운영 대시보드 컨트롤러.
+ *
+ * MCP 서버 상태, 스케줄러, 승인 대기, 응답 신뢰도, 직원 가치 지표 등
+ * 운영에 필요한 핵심 메트릭을 하나의 스냅샷으로 제공합니다.
+ *
+ * @see AgentMetrics
+ * @see McpManager
+ * @see DynamicSchedulerService
+ */
 @Tag(name = "Ops Dashboard", description = "Operational dashboard APIs (ADMIN/ADMIN_MANAGER/ADMIN_DEVELOPER)")
 @RestController
 @RequestMapping("/api/ops")
@@ -39,7 +49,13 @@ class OpsDashboardController(
     private val agentMetricsProvider: ObjectProvider<AgentMetrics>
 ) {
 
-    @Operation(summary = "Get operations dashboard snapshot (admin)")
+    /**
+     * 운영 대시보드 스냅샷을 조회한다.
+     *
+     * MCP, 스케줄러, 승인, 응답 신뢰도, 직원 가치 등 핵심 지표를 한 번에 반환한다.
+     * 선택적으로 `names` 파라미터로 조회할 메트릭 이름을 지정할 수 있다.
+     */
+    @Operation(summary = "운영 대시보드 스냅샷 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Operations dashboard snapshot"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -69,7 +85,12 @@ class OpsDashboardController(
         return ResponseEntity.ok(response)
     }
 
-    @Operation(summary = "List available ops metric names (admin)")
+    /**
+     * 사용 가능한 운영 메트릭 이름 목록을 조회한다.
+     *
+     * `arc.*`, `jvm.*`, `process.*`, `system.*` 접두사를 가진 메트릭만 반환한다.
+     */
+    @Operation(summary = "사용 가능한 운영 메트릭 이름 목록 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of available metric names"),
         ApiResponse(responseCode = "403", description = "Admin access required")

@@ -27,7 +27,7 @@ class PiiMaskingOutputGuardTest {
     inner class NoPii {
 
         @Test
-        fun `clean content returns Allowed`() = runTest {
+        fun `content returns Allowed를 정리한다`() = runTest {
             val result = guard.check("This is a normal response.", defaultContext)
             assertInstanceOf(OutputGuardResult.Allowed::class.java, result) {
                 "Content without PII should be Allowed"
@@ -35,7 +35,7 @@ class PiiMaskingOutputGuardTest {
         }
 
         @Test
-        fun `empty content returns Allowed`() = runTest {
+        fun `비어있는 content returns Allowed`() = runTest {
             val result = guard.check("", defaultContext)
             assertInstanceOf(OutputGuardResult.Allowed::class.java, result) {
                 "Empty content should be Allowed"
@@ -47,7 +47,7 @@ class PiiMaskingOutputGuardTest {
     inner class KoreanResidentRegistrationNumber {
 
         @Test
-        fun `masks resident registration number with dash`() = runTest {
+        fun `resident registration number with dash를 마스킹한다`() = runTest {
             val content = "주민번호는 950101-1234567 입니다."
             val result = guard.check(content, defaultContext)
             val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
@@ -65,7 +65,7 @@ class PiiMaskingOutputGuardTest {
         }
 
         @Test
-        fun `masks resident registration number with space around dash`() = runTest {
+        fun `resident registration number with space around dash를 마스킹한다`() = runTest {
             val content = "번호: 880515 - 2987654"
             val result = guard.check(content, defaultContext)
             val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
@@ -81,7 +81,7 @@ class PiiMaskingOutputGuardTest {
     inner class PhoneNumber {
 
         @Test
-        fun `masks phone number with dashes`() = runTest {
+        fun `phone number with dashes를 마스킹한다`() = runTest {
             val content = "연락처: 010-1234-5678"
             val result = guard.check(content, defaultContext)
             val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
@@ -96,7 +96,7 @@ class PiiMaskingOutputGuardTest {
         }
 
         @Test
-        fun `masks phone number without dashes`() = runTest {
+        fun `phone number without dashes를 마스킹한다`() = runTest {
             val content = "전화: 01012345678"
             val result = guard.check(content, defaultContext)
             val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
@@ -108,7 +108,7 @@ class PiiMaskingOutputGuardTest {
         }
 
         @Test
-        fun `masks various Korean mobile prefixes`() = runTest {
+        fun `various Korean mobile prefixes를 마스킹한다`() = runTest {
             for (prefix in listOf("010", "011", "016", "017", "018", "019")) {
                 val content = "번호: ${prefix}-9999-8888"
                 val result = guard.check(content, defaultContext)
@@ -123,7 +123,7 @@ class PiiMaskingOutputGuardTest {
     inner class CreditCard {
 
         @Test
-        fun `masks credit card with dashes`() = runTest {
+        fun `credit card with dashes를 마스킹한다`() = runTest {
             val content = "카드: 1234-5678-9012-3456"
             val result = guard.check(content, defaultContext)
             val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
@@ -138,7 +138,7 @@ class PiiMaskingOutputGuardTest {
         }
 
         @Test
-        fun `masks credit card with spaces`() = runTest {
+        fun `credit card with spaces를 마스킹한다`() = runTest {
             val content = "카드번호 1234 5678 9012 3456 확인"
             val result = guard.check(content, defaultContext)
             assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
@@ -147,7 +147,7 @@ class PiiMaskingOutputGuardTest {
         }
 
         @Test
-        fun `masks credit card without separators`() = runTest {
+        fun `credit card without separators를 마스킹한다`() = runTest {
             val content = "카드 1234567890123456"
             val result = guard.check(content, defaultContext)
             assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
@@ -160,7 +160,7 @@ class PiiMaskingOutputGuardTest {
     inner class Email {
 
         @Test
-        fun `masks email address`() = runTest {
+        fun `email address를 마스킹한다`() = runTest {
             val content = "이메일: user@example.com"
             val result = guard.check(content, defaultContext)
             val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
@@ -175,7 +175,7 @@ class PiiMaskingOutputGuardTest {
         }
 
         @Test
-        fun `masks email with dots and hyphens`() = runTest {
+        fun `email with dots and hyphens를 마스킹한다`() = runTest {
             val content = "메일: john.doe-work@my-company.co.kr"
             val result = guard.check(content, defaultContext)
             assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
@@ -188,7 +188,7 @@ class PiiMaskingOutputGuardTest {
     inner class MultiplePii {
 
         @Test
-        fun `masks multiple PII types in one response`() = runTest {
+        fun `multiple PII types in one response를 마스킹한다`() = runTest {
             val content = """
                 고객 정보:
                 - 주민번호: 950101-1234567
@@ -213,12 +213,12 @@ class PiiMaskingOutputGuardTest {
     inner class StageMetadata {
 
         @Test
-        fun `stage name is PiiMasking`() {
+        fun `stage name은(는) PiiMasking이다`() {
             assertEquals("PiiMasking", guard.stageName) { "Stage name should be PiiMasking" }
         }
 
         @Test
-        fun `order is 10`() {
+        fun `order은(는) 10이다`() {
             assertEquals(10, guard.order) { "Order should be 10" }
         }
     }

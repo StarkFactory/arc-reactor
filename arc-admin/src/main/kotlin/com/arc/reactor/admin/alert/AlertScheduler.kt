@@ -10,10 +10,13 @@ import java.util.concurrent.atomic.AtomicLong
 private val logger = KotlinLogging.logger {}
 
 /**
- * Periodically evaluates alert rules and dispatches notifications for fired alerts.
- * Uses a single-threaded scheduler to avoid concurrency issues in evaluation.
+ * 알림 규칙을 주기적으로 평가하고 발동된 알림의 알림을 전송하는 스케줄러.
  *
- * Implements DisposableBean to ensure executor shutdown on Spring context close.
+ * 단일 스레드 스케줄러를 사용하여 평가 시 동시성 문제를 방지한다.
+ * [DisposableBean]을 구현하여 Spring 컨텍스트 종료 시 executor를 정리한다.
+ *
+ * @see AlertEvaluator 규칙 평가 로직
+ * @see AlertNotificationService 알림 전송 서비스
  */
 class AlertScheduler(
     private val evaluator: AlertEvaluator,
@@ -28,6 +31,7 @@ class AlertScheduler(
 
     private val consecutiveFailures = AtomicLong(0)
 
+    /** 스케줄러를 시작한다. 지정 간격으로 평가 사이클을 반복한다. */
     fun start() {
         logger.info { "Alert scheduler started (interval=${intervalSeconds}s)" }
         scheduler.scheduleAtFixedRate(
@@ -38,6 +42,7 @@ class AlertScheduler(
         )
     }
 
+    /** 스케줄러를 중지하고 executor 종료를 대기한다 (최대 10초). */
     fun stop() {
         scheduler.shutdown()
         try {

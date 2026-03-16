@@ -13,7 +13,10 @@ import java.util.concurrent.ConcurrentHashMap
 private val logger = KotlinLogging.logger {}
 
 /**
- * Caches WebClient instances for MCP admin proxy calls to avoid rebuilding connectors per request.
+ * MCP admin 프록시 호출용 WebClient 인스턴스 캐시.
+ *
+ * 요청마다 커넥터를 재생성하지 않도록 baseUrl + timeout 조합을 키로
+ * WebClient를 캐싱합니다.
  */
 class McpAdminWebClientFactory(
     private val maxCacheEntries: Int = DEFAULT_CACHE_ENTRIES

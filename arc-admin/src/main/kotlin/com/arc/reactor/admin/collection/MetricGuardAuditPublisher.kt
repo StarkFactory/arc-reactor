@@ -9,10 +9,12 @@ import java.security.MessageDigest
 private val logger = KotlinLogging.logger {}
 
 /**
- * Metric Guard Audit Publisher
+ * 가드 감사 이벤트를 [MetricRingBuffer]에 발행하는 publisher.
  *
- * Publishes guard audit events to MetricRingBuffer for SOC 2 compliance.
- * Input text is hashed (SHA-256) — raw text is never stored.
+ * SOC 2 컴플라이언스를 위해 가드 결과를 기록한다.
+ * 입력 텍스트는 SHA-256 해싱되어 원문은 절대 저장되지 않는다.
+ *
+ * @see MetricRingBuffer 이벤트 버퍼
  */
 class MetricGuardAuditPublisher(
     private val ringBuffer: MetricRingBuffer,

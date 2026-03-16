@@ -20,7 +20,7 @@ class AgentRunContextManagerTest {
     }
 
     @Test
-    fun `should create hook context with anonymous user and copied metadata`() = runTest {
+    fun `anonymous user and copied metadata로 create hook context해야 한다`() = runTest {
         val manager = AgentRunContextManager(runIdSupplier = { "run-1" })
         val toolsUsed = CopyOnWriteArrayList<String>()
         val command = AgentCommand(
@@ -49,7 +49,7 @@ class AgentRunContextManagerTest {
     }
 
     @Test
-    fun `should use accountId when email is unavailable`() = runTest {
+    fun `email is unavailable일 때 use accountId해야 한다`() = runTest {
         val manager = AgentRunContextManager(runIdSupplier = { "run-2" })
         val toolsUsed = CopyOnWriteArrayList<String>()
         val command = AgentCommand(
@@ -69,7 +69,7 @@ class AgentRunContextManagerTest {
     }
 
     @Test
-    fun `should clear mdc keys on close`() = runTest {
+    fun `clear mdc keys on close해야 한다`() = runTest {
         val manager = AgentRunContextManager(runIdSupplier = { "run-1" })
         val toolsUsed = CopyOnWriteArrayList<String>()
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hello", userId = "u")

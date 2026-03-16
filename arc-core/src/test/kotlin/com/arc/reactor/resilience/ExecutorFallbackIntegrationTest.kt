@@ -19,7 +19,7 @@ class ExecutorFallbackIntegrationTest {
     inner class FallbackOnFailure {
 
         @Test
-        fun `fallback triggers when LLM call fails`() = runTest {
+        fun `LLM call fails일 때 fallback triggers`() = runTest {
             val fixture = AgentTestFixture()
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
             // Primary call fails
@@ -49,7 +49,7 @@ class ExecutorFallbackIntegrationTest {
         }
 
         @Test
-        fun `fallback not triggered on success`() = runTest {
+        fun `폴백 not triggered on success`() = runTest {
             val fixture = AgentTestFixture()
             fixture.mockCallResponse("Primary response")
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
@@ -79,7 +79,7 @@ class ExecutorFallbackIntegrationTest {
         }
 
         @Test
-        fun `fallback returns null falls through to original error`() = runTest {
+        fun `폴백 returns null falls through to original error`() = runTest {
             val fixture = AgentTestFixture()
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
             every { fixture.callResponseSpec.chatResponse() } throws RuntimeException("LLM unavailable")
@@ -106,7 +106,7 @@ class ExecutorFallbackIntegrationTest {
         }
 
         @Test
-        fun `fallback exception does not mask original error`() = runTest {
+        fun `폴백 exception does not mask original error`() = runTest {
             val fixture = AgentTestFixture()
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
             every { fixture.callResponseSpec.chatResponse() } throws RuntimeException("LLM down")
@@ -137,7 +137,7 @@ class ExecutorFallbackIntegrationTest {
     inner class NullFallback {
 
         @Test
-        fun `null fallback strategy skips fallback entirely`() = runTest {
+        fun `null인 fallback strategy skips fallback entirely`() = runTest {
             val fixture = AgentTestFixture()
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
             every { fixture.callResponseSpec.chatResponse() } throws RuntimeException("LLM down")

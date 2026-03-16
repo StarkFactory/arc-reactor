@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 class SlackMetricsRecorderTest {
 
     @Test
-    fun `records inbound and duplicate counters`() {
+    fun `inbound and duplicate counters를 기록한다`() {
         val registry = SimpleMeterRegistry()
         val recorder = MicrometerSlackMetricsRecorder(registry)
 

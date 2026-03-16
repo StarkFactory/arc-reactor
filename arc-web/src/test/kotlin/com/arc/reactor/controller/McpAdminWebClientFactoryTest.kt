@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 class McpAdminWebClientFactoryTest {
 
     @Test
-    fun `should reuse client for same baseUrl and timeout settings`() {
+    fun `same baseUrl and timeout settings에 대해 reuse client해야 한다`() {
         val factory = McpAdminWebClientFactory(maxCacheEntries = 8)
 
         val client1 = factory.getClient(
@@ -27,7 +27,7 @@ class McpAdminWebClientFactoryTest {
     }
 
     @Test
-    fun `should create distinct clients when timeout settings differ`() {
+    fun `timeout settings differ일 때 create distinct clients해야 한다`() {
         val factory = McpAdminWebClientFactory(maxCacheEntries = 8)
 
         val client1 = factory.getClient(
@@ -46,7 +46,7 @@ class McpAdminWebClientFactoryTest {
     }
 
     @Test
-    fun `should keep cache bounded by max entries`() {
+    fun `keep cache bounded by max entries해야 한다`() {
         val factory = McpAdminWebClientFactory(maxCacheEntries = 2)
 
         factory.getClient("http://localhost:8080", connectTimeoutMs = 1_000, responseTimeoutMs = 5_000)

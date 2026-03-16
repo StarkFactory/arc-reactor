@@ -19,7 +19,7 @@ import org.springframework.ai.chat.messages.Message
 class StreamingExecutionCoordinatorTest {
 
     @Test
-    fun `should capture streaming stage timings and preserve channel tags`() = runBlocking {
+    fun `capture streaming stage timings and preserve channel tags해야 한다`() = runBlocking {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val conversationManager = mockk<ConversationManager>()
         coEvery { conversationManager.loadHistory(any()) } returns emptyList<Message>()

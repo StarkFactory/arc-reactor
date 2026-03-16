@@ -25,7 +25,7 @@ class DynamicSchedulerServiceTemplateVariableTest {
     inner class AgentPromptTemplateResolution {
 
         @Test
-        fun `AGENT job resolves date template variable in agentPrompt`() {
+        fun `AGENT 작업이 resolves date template variable in agentPrompt`() {
             val job = agentJob(agentPrompt = "{{date}} 브리핑해줘")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -42,7 +42,7 @@ class DynamicSchedulerServiceTemplateVariableTest {
         }
 
         @Test
-        fun `AGENT job resolves datetime template variable in agentPrompt`() {
+        fun `AGENT 작업이 resolves datetime template variable in agentPrompt`() {
             val job = agentJob(agentPrompt = "현재 시각은 {{datetime}}입니다")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -59,7 +59,7 @@ class DynamicSchedulerServiceTemplateVariableTest {
         }
 
         @Test
-        fun `AGENT job resolves day_of_week template variable in agentPrompt`() {
+        fun `AGENT 작업이 resolves day_of_week template variable in agentPrompt`() {
             val job = agentJob(agentPrompt = "오늘은 {{day_of_week}}")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -76,7 +76,7 @@ class DynamicSchedulerServiceTemplateVariableTest {
         }
 
         @Test
-        fun `AGENT job resolves job_name and job_id template variables`() {
+        fun `AGENT 작업이 resolves job_name and job_id template variables`() {
             val job = agentJob(agentPrompt = "잡 {{job_name}} ({{job_id}}) 실행 결과")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -92,7 +92,7 @@ class DynamicSchedulerServiceTemplateVariableTest {
         }
 
         @Test
-        fun `AGENT job resolves multiple template variables in a single prompt`() {
+        fun `AGENT 작업이 resolves multiple template variables in a single prompt`() {
             val job = agentJob(agentPrompt = "{{date}} {{day_of_week}} {{job_name}} 브리핑")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -110,7 +110,7 @@ class DynamicSchedulerServiceTemplateVariableTest {
         }
 
         @Test
-        fun `AGENT job passes through prompt without template variables unchanged`() {
+        fun `AGENT 작업이 passes through prompt without template variables unchanged`() {
             val job = agentJob(agentPrompt = "일반 프롬프트입니다")
             val store = RecordingStore(job)
             val agentExecutor = mockk<AgentExecutor>()
@@ -125,7 +125,7 @@ class DynamicSchedulerServiceTemplateVariableTest {
         }
 
         @Test
-        fun `AGENT job resolves date using job timezone instead of default Seoul`() {
+        fun `AGENT 작업이 resolves date using job timezone instead of default Seoul`() {
             val nyTimezone = "America/New_York"
             val job = ScheduledJob(
                 id = "tz-job-1",
@@ -158,7 +158,7 @@ class DynamicSchedulerServiceTemplateVariableTest {
     inner class McpToolArgumentsTemplateResolution {
 
         @Test
-        fun `MCP_TOOL job resolves template variables in string tool arguments`() {
+        fun `MCP_TOOL 작업이 resolves template variables in string tool arguments`() {
             val job = mcpToolJob(toolArguments = mapOf(
                 "query" to "status:open created:{{date}}",
                 "limit" to 10
@@ -186,7 +186,7 @@ class DynamicSchedulerServiceTemplateVariableTest {
         }
 
         @Test
-        fun `MCP_TOOL job resolves job_name in tool arguments`() {
+        fun `MCP_TOOL 작업이 resolves job_name in tool arguments`() {
             val job = mcpToolJob(toolArguments = mapOf(
                 "title" to "Report from {{job_name}}"
             ))
@@ -208,7 +208,7 @@ class DynamicSchedulerServiceTemplateVariableTest {
         }
 
         @Test
-        fun `MCP_TOOL job resolves time template variable in tool arguments`() {
+        fun `MCP_TOOL 작업이 resolves time template variable in tool arguments`() {
             val job = mcpToolJob(toolArguments = mapOf(
                 "message" to "Executed at {{time}}"
             ))
@@ -231,7 +231,7 @@ class DynamicSchedulerServiceTemplateVariableTest {
         }
     }
 
-    // -- Helpers ---------------------------------------------------------------
+    // -- 헬퍼 ---------------------------------------------------------------
 
     private fun agentJob(
         agentPrompt: String? = "오늘 아침 브리핑해줘"

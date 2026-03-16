@@ -18,7 +18,7 @@ class ConversationMessageTrimmerTest {
     private val tokenEstimator = TokenEstimator { text -> text.length }
 
     @Test
-    fun `should remove assistant tool-call and tool-response as a pair when trimming from front`() {
+    fun `trimming from front일 때 remove assistant tool-call and tool-response as a pair해야 한다`() {
         val toolCall = mockk<AssistantMessage.ToolCall>()
         every { toolCall.name() } returns "tool"
         every { toolCall.arguments() } returns "{}"
@@ -45,7 +45,7 @@ class ConversationMessageTrimmerTest {
     }
 
     @Test
-    fun `should keep only the last user message when budget is non-positive`() {
+    fun `budget is non-positive일 때 keep only the last user message해야 한다`() {
         val messages = mutableListOf<Message>(
             UserMessage("old"),
             AssistantMessage("answer"),
@@ -66,7 +66,7 @@ class ConversationMessageTrimmerTest {
     }
 
     @Test
-    fun `should protect leading SystemMessages from trimming`() {
+    fun `protect leading SystemMessages from trimming해야 한다`() {
         // Simulates hierarchical memory: [Facts, Narrative, old User, old Assistant, recent User]
         val messages = mutableListOf<Message>(
             SystemMessage("Conversation Facts:\n- order: #1234"),
@@ -85,7 +85,7 @@ class ConversationMessageTrimmerTest {
 
         trimmer.trim(messages, systemPrompt = "sys")
 
-        // SystemMessages must survive; old user/assistant should be trimmed
+        // SystemMessages must survive; old user/assistant은(는) be trimmed해야 합니다
         val systemMessages = messages.filterIsInstance<SystemMessage>()
         assertEquals(2, systemMessages.size) {
             "Both leading SystemMessages (facts + narrative) must be preserved"
@@ -96,8 +96,8 @@ class ConversationMessageTrimmerTest {
     }
 
     @Test
-    fun `should keep SystemMessages and last UserMessage when budget is extremely tight`() {
-        // Even with tiny budget, SystemMessages + last UserMessage should survive
+    fun `budget is extremely tight일 때 keep SystemMessages and last UserMessage해야 한다`() {
+        // Even with tiny budget, SystemMessages + last UserMessage은(는) survive해야 합니다
         val messages = mutableListOf<Message>(
             SystemMessage("Facts: order=#1234"),
             SystemMessage("Summary: customer wants refund"),
@@ -129,7 +129,7 @@ class ConversationMessageTrimmerTest {
     }
 
     @Test
-    fun `should trim normally when no leading SystemMessages`() {
+    fun `no leading SystemMessages일 때 trim normally해야 한다`() {
         val messages = mutableListOf<Message>(
             UserMessage("old1"),
             AssistantMessage("reply1"),
@@ -151,7 +151,7 @@ class ConversationMessageTrimmerTest {
     }
 
     @Test
-    fun `should trim tool history after last user when over budget`() {
+    fun `over budget일 때 trim tool history after last user해야 한다`() {
         val toolCall = mockk<AssistantMessage.ToolCall>()
         every { toolCall.name() } returns "tool"
         every { toolCall.arguments() } returns "{}"
@@ -182,7 +182,7 @@ class ConversationMessageTrimmerTest {
     }
 
     @Test
-    fun `should trim leading system messages before dropping latest tool history`() {
+    fun `dropping latest tool history 전에 trim leading system messages해야 한다`() {
         val toolCall = mockk<AssistantMessage.ToolCall>()
         every { toolCall.name() } returns "tool"
         every { toolCall.arguments() } returns "{}"
@@ -214,7 +214,7 @@ class ConversationMessageTrimmerTest {
     }
 
     @Test
-    fun `should trim trailing assistant when it is the only post-user message over budget`() {
+    fun `it is the only post-user message over budget일 때 trim trailing assistant해야 한다`() {
         val messages = mutableListOf<Message>(
             UserMessage("keep"),
             AssistantMessage("very-long-assistant-message")
@@ -234,7 +234,7 @@ class ConversationMessageTrimmerTest {
     }
 
     @Test
-    fun `should delegate token estimation to TokenEstimator on each trim call`() {
+    fun `delegate token estimation to TokenEstimator on each trim call해야 한다`() {
         val estimatorCalls = linkedMapOf<String, Int>()
         val countingEstimator = TokenEstimator { text ->
             estimatorCalls[text] = (estimatorCalls[text] ?: 0) + 1

@@ -30,7 +30,7 @@ class TeamsWebhookClientTest {
     inner class MessageCardFormat {
 
         @Test
-        fun `sends POST request with MessageCard JSON body`() {
+        fun `POST request with MessageCard JSON body를 전송한다`() {
             server.enqueue(MockResponse().setResponseCode(200))
 
             val url = server.url("/webhook").toString()
@@ -51,7 +51,7 @@ class TeamsWebhookClientTest {
         }
 
         @Test
-        fun `sends Content-Type application json header`() {
+        fun `Content-Type application json header를 전송한다`() {
             server.enqueue(MockResponse().setResponseCode(200))
 
             val url = server.url("/webhook").toString()
@@ -67,16 +67,16 @@ class TeamsWebhookClientTest {
     inner class ErrorHandling {
 
         @Test
-        fun `does not throw when server returns HTTP 400`() {
+        fun `throw when server returns HTTP 400하지 않는다`() {
             server.enqueue(MockResponse().setResponseCode(400))
 
             val url = server.url("/webhook").toString()
-            // Must not throw — error is logged as warn
+            // not throw — error is logged as warn해야 합니다
             client.sendMessage(url, "Test message")
         }
 
         @Test
-        fun `does not throw when server returns HTTP 500`() {
+        fun `throw when server returns HTTP 500하지 않는다`() {
             server.enqueue(MockResponse().setResponseCode(500))
 
             val url = server.url("/webhook").toString()
@@ -84,8 +84,8 @@ class TeamsWebhookClientTest {
         }
 
         @Test
-        fun `does not throw when webhook URL is unreachable`() {
-            // Port 1 is not in use — connection should be refused
+        fun `does not throw when webhook URL은(는) unreachable이다`() {
+            // Port 1 is not in use — connection은(는) be refused해야 합니다
             client.sendMessage("http://localhost:1/webhook", "Test message")
         }
     }
@@ -94,7 +94,7 @@ class TeamsWebhookClientTest {
     inner class Truncation {
 
         @Test
-        fun `truncates message at 3000 characters and appends ellipsis`() {
+        fun `message at 3000 characters and appends ellipsis를 잘라낸다`() {
             server.enqueue(MockResponse().setResponseCode(200))
 
             val longMessage = "A".repeat(4000)
@@ -110,7 +110,7 @@ class TeamsWebhookClientTest {
         }
 
         @Test
-        fun `does not truncate messages shorter than 3000 characters`() {
+        fun `truncate messages shorter than 3000 characters하지 않는다`() {
             server.enqueue(MockResponse().setResponseCode(200))
 
             val shortMessage = "Short message"
@@ -126,7 +126,7 @@ class TeamsWebhookClientTest {
         }
 
         @Test
-        fun `handles message of exactly 3000 characters without truncation`() {
+        fun `message of exactly 3000 characters without truncation를 처리한다`() {
             server.enqueue(MockResponse().setResponseCode(200))
 
             val exactMessage = "B".repeat(3000)

@@ -30,6 +30,15 @@ import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 import java.util.UUID
 
+/**
+ * RAG Ingestion 후보 검토 컨트롤러.
+ *
+ * 에이전트 응답 중 RAG 수집 대상으로 캡처된 후보를 관리자가 검토(승인/거부)합니다.
+ * 승인 시 VectorStore에 문서를 인제스트하고, 거부 시 상태만 변경합니다.
+ *
+ * @see RagIngestionCandidateStore
+ * @see DocumentChunker
+ */
 @Tag(name = "RAG Ingestion Candidates", description = "RAG ingestion candidate review APIs (ADMIN only)")
 @RestController
 @RequestMapping("/api/rag-ingestion/candidates")
@@ -44,7 +53,8 @@ class RagIngestionCandidateController(
     private val documentChunkerProvider: ObjectProvider<DocumentChunker>
 ) {
 
-    @Operation(summary = "List RAG ingestion candidates (ADMIN)")
+    /** RAG Ingestion 후보 목록을 조회한다. 상태 및 채널로 필터링할 수 있다. */
+    @Operation(summary = "RAG Ingestion 후보 목록 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of RAG ingestion candidates"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -61,7 +71,8 @@ class RagIngestionCandidateController(
         return ResponseEntity.ok(items)
     }
 
-    @Operation(summary = "Approve candidate and ingest to VectorStore (ADMIN)")
+    /** 후보를 승인하고 VectorStore에 인제스트한다. */
+    @Operation(summary = "후보 승인 및 VectorStore 인제스트 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Candidate approved and ingested"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -115,7 +126,8 @@ class RagIngestionCandidateController(
         return ResponseEntity.ok(reviewed.toResponse())
     }
 
-    @Operation(summary = "Reject candidate (ADMIN)")
+    /** 후보를 거부한다. */
+    @Operation(summary = "후보 거부 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Candidate rejected"),
         ApiResponse(responseCode = "403", description = "Admin access required"),

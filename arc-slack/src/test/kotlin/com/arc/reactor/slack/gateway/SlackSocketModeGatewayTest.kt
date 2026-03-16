@@ -35,7 +35,7 @@ import java.lang.reflect.Method
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * Unit tests for [SlackSocketModeGateway] covering lifecycle, envelope dispatch, and error handling.
+ * 에 대한 단위 테스트. [SlackSocketModeGateway] covering lifecycle, envelope dispatch, and error handling.
  *
  * Because [SlackSocketModeGateway] is a final Kotlin class and [connectOnce] is private, tests use
  * two strategies:
@@ -200,7 +200,7 @@ class SlackSocketModeGatewayTest {
     inner class LifecycleManagement {
 
         @Test
-        fun `isAutoStartup returns true`() {
+        fun `isAutoStartup은(는) returns true`() {
             val gateway = buildGateway()
             assertTrue(gateway.isAutoStartup()) {
                 "isAutoStartup should return true so Spring starts the gateway automatically"
@@ -208,7 +208,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `phase is Integer MAX_VALUE`() {
+        fun `phase은(는) Integer MAX_VALUE이다`() {
             val gateway = buildGateway()
             assertTrue(gateway.phase == Integer.MAX_VALUE) {
                 "Expected phase=${Integer.MAX_VALUE} but was ${gateway.phase}"
@@ -216,7 +216,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `isRunning returns false before start`() {
+        fun `start전에 isRunning returns false`() {
             val gateway = buildGateway()
             assertTrue(!gateway.isRunning) {
                 "Gateway should not be running before start() is called"
@@ -224,7 +224,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `start throws IllegalStateException when appToken is blank`() {
+        fun `start throws IllegalStateException when appToken은(는) blank이다`() {
             val gateway = buildGateway(defaultProperties.copy(appToken = ""))
             assertThrows<IllegalStateException>("Expected IllegalStateException when appToken is blank") {
                 gateway.start()
@@ -232,11 +232,11 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `start is a no-op when gateway is already marked running`() = runTest {
+        fun `gateway is already marked running일 때 start은(는) a no-op이다`() = runTest {
             val gateway = buildGateway()
             setBoolean(gateway, "running", true)
 
-            gateway.start() // guard: running=true, so should return immediately
+            gateway.start()  // guard: running=true, so은(는) return immediately해야 합니다
 
             // Still running (the flag was set by us; stop was never called)
             assertTrue(gateway.isRunning) {
@@ -245,11 +245,11 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `start is a no-op when startRequested is already true`() = runTest {
+        fun `startRequested is already true일 때 start은(는) a no-op이다`() = runTest {
             val gateway = buildGateway()
             setBoolean(gateway, "startRequested", true)
 
-            gateway.start() // guard: startRequested=true → returns immediately, no second job
+            gateway.start()  // guard: startRequested=true → returns immediately, no second job
 
             // startRequested stays true, isRunning unchanged
             assertTrue(!gateway.isRunning) {
@@ -258,7 +258,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `stop resets running and startRequested flags`() {
+        fun `resets running and startRequested flags를 중지한다`() {
             val gateway = buildGateway()
             setBoolean(gateway, "running", true)
             setBoolean(gateway, "startRequested", true)
@@ -269,7 +269,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `stop with Runnable callback invokes callback`() {
+        fun `with Runnable callback invokes callback를 중지한다`() {
             val gateway = buildGateway()
             setBoolean(gateway, "running", true)
 
@@ -281,10 +281,10 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `stop is safe on a never-started gateway`() {
+        fun `stop은(는) safe on a never-started gateway이다`() {
             val gateway = buildGateway()
 
-            gateway.stop() // should not throw when no client exists
+            gateway.stop()  // not throw when no client exists해야 합니다
 
             assertTrue(!gateway.isRunning) {
                 "Gateway should not be running after stop() on a never-started instance"
@@ -292,7 +292,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `stop handles disconnect and close exceptions without propagating`() {
+        fun `handles disconnect and close exceptions without propagating를 중지한다`() {
             val gateway = buildGateway()
             val capturing = buildCapturingMockClient()
 
@@ -301,7 +301,7 @@ class SlackSocketModeGatewayTest {
             setField(gateway, "socketModeClient", capturing.mock)
             setBoolean(gateway, "running", true)
 
-            gateway.stop() // must not throw
+            gateway.stop()  // 예외를 던지면 안 됩니다
 
             assertTrue(!gateway.isRunning) {
                 "Gateway should not be running after stop() even when disconnect/close throw"
@@ -309,7 +309,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `stop is idempotent when called multiple times`() {
+        fun `called multiple times일 때 stop은(는) idempotent이다`() {
             val gateway = buildGateway()
             setBoolean(gateway, "running", true)
 
@@ -330,7 +330,7 @@ class SlackSocketModeGatewayTest {
     inner class ListenerRegistration {
 
         @Test
-        fun `registerListeners registers exactly one listener of each type`() {
+        fun `registerListeners은(는) registers exactly one listener of each type`() {
             val gateway = buildGateway()
             val capturing = buildCapturingMockClient()
 
@@ -377,7 +377,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `events_api envelope triggers ACK and submits event callback`() {
+        fun `events_api envelope은(는) ACK and submits event callback를 트리거한다`() {
             val payloadJson = """{"type":"event_callback","event_id":"Ev001","event":{"type":"app_mention","user":"U1","channel":"C1","text":"hi","ts":"1.2"}}"""
             val envelope = eventsEnvelope(envelopeId = "env-e1", payloadJson = payloadJson)
 
@@ -395,7 +395,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `events_api retry metadata is forwarded to submitEventCallback`() {
+        fun `events_api retry metadata은(는) forwarded to submitEventCallback이다`() {
             val payloadJson = """{"type":"event_callback","event":{"type":"app_mention","user":"U","channel":"C","text":"x","ts":"1"}}"""
             val envelope = eventsEnvelope(
                 envelopeId = "env-retry",
@@ -417,7 +417,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `events_api envelope with null payload skips submitEventCallback`() {
+        fun `events_api envelope with null payload은(는) submitEventCallback를 건너뛴다`() {
             val envelope = eventsEnvelope(envelopeId = "env-null-payload", payloadJson = null)
 
             capturing.eventsListeners.first().handle(envelope)
@@ -426,13 +426,13 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `events_api ACK failure records dropped metric and does not propagate`() {
+        fun `events_api ACK failure은(는) dropped metric and does not propagate를 기록한다`() {
             val payloadJson = """{"type":"event_callback","event":{"type":"app_mention","user":"U","channel":"C","text":"","ts":"1"}}"""
             val envelope = eventsEnvelope(envelopeId = "env-ack-fail", payloadJson = payloadJson)
 
             every { capturing.mock.sendSocketModeResponse(any<SocketModeResponse>()) } throws RuntimeException("write failed")
 
-            capturing.eventsListeners.first().handle(envelope) // must not throw
+            capturing.eventsListeners.first().handle(envelope)  // 예외를 던지면 안 됩니다
 
             verify {
                 metricsRecorder.recordDropped(
@@ -443,7 +443,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `events_api envelope with blank envelopeId skips ACK entirely`() {
+        fun `events_api envelope with blank envelopeId은(는) ACK entirely를 건너뛴다`() {
             val payloadJson = """{"type":"event_callback","event":{"type":"app_mention","user":"U","channel":"C","text":"","ts":"1"}}"""
             val envelope = eventsEnvelope(envelopeId = "", payloadJson = payloadJson)
 
@@ -453,13 +453,13 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `events_api submitEventCallback exception records handler_exception drop and does not propagate`() {
+        fun `events_api submitEventCallback exception은(는) handler_exception drop and does not propagate를 기록한다`() {
             val payloadJson = """{"type":"event_callback","event":{"type":"app_mention","user":"U","channel":"C","text":"","ts":"1"}}"""
             val envelope = eventsEnvelope(envelopeId = "env-handler-fail", payloadJson = payloadJson)
 
             every { eventProcessor.submitEventCallback(any(), any(), any(), any()) } throws RuntimeException("handler error")
 
-            capturing.eventsListeners.first().handle(envelope) // must not throw
+            capturing.eventsListeners.first().handle(envelope)  // 예외를 던지면 안 됩니다
 
             verify {
                 metricsRecorder.recordDropped(
@@ -493,7 +493,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `valid slash command envelope triggers ACK and processor submit`() {
+        fun `유효한 slash command envelope triggers ACK and processor submit`() {
             every { commandProcessor.submit(any(), any()) } returns true
 
             val envelope = slashEnvelope(envelopeId = "env-slash-ok", payloadJson = validSlashPayloadJson)
@@ -509,7 +509,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `slash command envelope with null payload skips processor submit`() {
+        fun `slash은(는) command envelope with null payload skips processor submit`() {
             val envelope = slashEnvelope(envelopeId = "env-slash-null", payloadJson = null)
 
             capturing.slashListeners.first().handle(envelope)
@@ -518,7 +518,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `slash command payload missing required fields records invalid_payload drop`() {
+        fun `slash은(는) command payload missing required fields records invalid_payload drop`() {
             val incompletePayload = """{"command": "/test"}""" // missing user_id, channel_id, response_url
             val envelope = slashEnvelope(envelopeId = "env-slash-invalid", payloadJson = incompletePayload)
 
@@ -533,7 +533,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `slash command not accepted by processor sends busy response_url`() = runTest {
+        fun `slash은(는) command not accepted by processor sends busy response_url`() = runTest {
             every { commandProcessor.submit(any(), any()) } returns false
             coEvery { messagingService.sendResponseUrl(any(), any(), any()) } returns true
 
@@ -550,12 +550,12 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `slash command submit exception records handler_exception drop and does not propagate`() {
+        fun `slash은(는) command submit exception records handler_exception drop and does not propagate`() {
             every { commandProcessor.submit(any(), any()) } throws RuntimeException("submit failed")
 
             val envelope = slashEnvelope(envelopeId = "env-slash-err", payloadJson = validSlashPayloadJson)
 
-            capturing.slashListeners.first().handle(envelope) // must not throw
+            capturing.slashListeners.first().handle(envelope)  // 예외를 던지면 안 됩니다
 
             verify {
                 metricsRecorder.recordDropped(
@@ -566,7 +566,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `slash command invalid payload with response_url notifies the url`() = runTest {
+        fun `slash은(는) command invalid payload with response_url notifies the url`() = runTest {
             // Missing user_id and channel_id → parseSlashCommand returns null → invalid_payload
             // But response_url is present → notifyResponseUrlIfPresent sends a message
             val payloadWithResponseUrl =
@@ -609,7 +609,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `interactive envelope is acknowledged and recorded as unsupported drop`() {
+        fun `interactive envelope은(는) acknowledged and recorded as unsupported drop이다`() {
             val envelope = interactiveEnvelope(
                 envelopeId = "env-interactive-1",
                 payloadJson = """{"type":"block_actions","actions":[]}"""
@@ -628,7 +628,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `interactive envelope with null payload uses fallback event type interactive`() {
+        fun `interactive은(는) envelope with null payload uses fallback event type interactive`() {
             val envelope = interactiveEnvelope(envelopeId = "env-interactive-null", payloadJson = null)
 
             capturing.interactiveListeners.first().handle(envelope)
@@ -666,7 +666,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `WebSocket error listener records websocket_error dropped metric`() {
+        fun `WebSocket error listener은(는) websocket_error dropped metric를 기록한다`() {
             capturing.errorListeners.first().handle(RuntimeException("connection reset"))
 
             verify {
@@ -678,7 +678,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `WebSocket close listener records websocket_closed dropped metric`() {
+        fun `WebSocket close listener은(는) websocket_closed dropped metric를 기록한다`() {
             capturing.closeListeners.first().handle(1001, "going away")
 
             verify {
@@ -691,7 +691,7 @@ class SlackSocketModeGatewayTest {
     }
 
     // =========================================================================
-    // Retry / reconnect logic
+    // / reconnect logic 재시도
     // =========================================================================
 
     @Nested
@@ -704,8 +704,8 @@ class SlackSocketModeGatewayTest {
          */
 
         @Test
-        fun `start initiates connection and gateway is not immediately running before connection succeeds`() {
-            // Verify that start() does not set running=true synchronously.
+        fun `start initiates connection and gateway은(는) not immediately running before connection succeeds이다`() {
+            // that start() does not set running=true synchronously. 확인
             // The gateway only becomes running after connectOnce() succeeds, which requires a real Slack
             // connection (unavailable in test env). Therefore, isRunning remains false immediately after start().
             val gateway = buildGateway()
@@ -723,7 +723,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `stop cancels the retry loop and leaves gateway not running`() {
+        fun `cancels the retry loop and leaves gateway not running를 중지한다`() {
             val gateway = buildGateway(
                 defaultProperties.copy(socketConnectRetryInitialDelayMs = 50, socketConnectRetryMaxDelayMs = 100)
             )
@@ -739,7 +739,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `stop immediately after start leaves gateway not running`() {
+        fun `immediately after start leaves gateway not running를 중지한다`() {
             val gateway = buildGateway()
 
             gateway.start() // launches retry coroutine internally
@@ -751,14 +751,14 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `retry delay clamping with zero inputs does not cause unexpected behavior`() {
+        fun `retry은(는) delay clamping with zero inputs does not cause unexpected behavior`() {
             val properties = defaultProperties.copy(
                 socketConnectRetryInitialDelayMs = 0, // coerced to 200 by coerceAtLeast(200)
                 socketConnectRetryMaxDelayMs = 0       // coerced to 200 by coerceAtLeast(delayMs)
             )
             val gateway = buildGateway(properties)
 
-            gateway.start() // should not hang or throw even with zero delays
+            gateway.start()  // not hang or throw even with zero delays해야 합니다
             Thread.sleep(300)
             gateway.stop()
 
@@ -768,7 +768,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `multiple start calls while startRequested is true do not launch duplicate retry loops`() {
+        fun `multiple start calls while startRequested은(는) true do not launch duplicate retry loops이다`() {
             val gateway = buildGateway(
                 defaultProperties.copy(socketConnectRetryInitialDelayMs = 50, socketConnectRetryMaxDelayMs = 100)
             )
@@ -777,7 +777,7 @@ class SlackSocketModeGatewayTest {
             gateway.start() // second call: startRequested=true guard prevents re-entry
             Thread.sleep(200)
 
-            // No exception; gateway eventually settles in retry loop
+            // exception; gateway eventually settles in retry loop 없음
             gateway.stop()
             assertTrue(!gateway.isRunning) {
                 "Gateway should not be running after stop() even with duplicate start() calls"
@@ -786,7 +786,7 @@ class SlackSocketModeGatewayTest {
     }
 
     // =========================================================================
-    // Acknowledgement semantics
+    // 확인 응답 의미론
     // =========================================================================
 
     @Nested
@@ -808,7 +808,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `ACK response contains the correct envelopeId`() {
+        fun `ACK response은(는) the correct envelopeId를 포함한다`() {
             val payloadJson =
                 """{"type":"event_callback","event":{"type":"app_mention","user":"U","channel":"C","text":"","ts":"1"}}"""
             val envelope = eventsEnvelope(envelopeId = "specific-env-id-xyz", payloadJson = payloadJson)
@@ -825,7 +825,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `null envelopeId on slash command envelope skips ACK`() {
+        fun `null인 envelopeId on slash command envelope skips ACK`() {
             val envelope = SlashCommandsEnvelope().also { e ->
                 e.envelopeId = null
                 e.payload = JsonParser.parseString(validSlashPayloadJson)
@@ -861,7 +861,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `slash command envelope with unparseable JSON string records invalid_payload drop`() {
+        fun `slash은(는) command envelope with unparseable JSON string records invalid_payload drop`() {
             // JsonPrimitive("not-json") → toString() = "\"not-json\"" which Jackson parses as
             // a string, not an object. path("command") returns MissingNode → parseSlashCommand returns null
             val envelope = SlashCommandsEnvelope().also { e ->
@@ -880,7 +880,7 @@ class SlackSocketModeGatewayTest {
         }
 
         @Test
-        fun `events_api envelope whose handler throws records handler_exception drop`() {
+        fun `events_api envelope whose handler throws은(는) handler_exception drop를 기록한다`() {
             val payloadJson =
                 """{"type":"event_callback","event":{"type":"app_mention","user":"U","channel":"C","text":"","ts":"1"}}"""
             val envelope = eventsEnvelope(envelopeId = "env-throw", payloadJson = payloadJson)
@@ -889,7 +889,7 @@ class SlackSocketModeGatewayTest {
                 eventProcessor.submitEventCallback(any(), any(), any(), any())
             } throws com.fasterxml.jackson.core.JsonParseException(null as com.fasterxml.jackson.core.JsonParser?, "parse error")
 
-            capturing.eventsListeners.first().handle(envelope) // must not throw
+            capturing.eventsListeners.first().handle(envelope)  // 예외를 던지면 안 됩니다
 
             verify {
                 metricsRecorder.recordDropped(

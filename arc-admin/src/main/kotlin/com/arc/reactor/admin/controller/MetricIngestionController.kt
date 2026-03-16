@@ -18,6 +18,15 @@ import org.springframework.web.server.ServerWebExchange
 import java.math.BigDecimal
 import java.time.Instant
 
+/**
+ * MCP 서버 및 외부 소스로부터 메트릭 이벤트를 수집하는 REST API 컨트롤러.
+ *
+ * 수집된 이벤트는 [MetricRingBuffer]에 publish되어 비동기로 DB에 적재된다.
+ * 버퍼가 꽉 찬 경우 503을 반환하며 이벤트는 삭제(drop)된다.
+ *
+ * @see MetricRingBuffer 이벤트 버퍼
+ * @see MetricWriter 버퍼 → DB 기록 writer
+ */
 @Tag(name = "Metric Ingestion", description = "Metric ingestion endpoint for MCP servers and external sources")
 @RestController
 @ConditionalOnProperty(
@@ -30,9 +39,11 @@ class MetricIngestionController(
 ) {
 
     companion object {
+        /** 단일 batch 요청당 최대 이벤트 수. */
         const val MAX_BATCH_SIZE = 1000
     }
 
+    /** 단건 MCP 서버 상태 이벤트를 수집한다. */
     @Operation(summary = "Ingest MCP health event")
     @ApiResponses(value = [
         ApiResponse(responseCode = "202", description = "Event accepted"),
@@ -62,6 +73,7 @@ class MetricIngestionController(
         }
     }
 
+    /** 단건 MCP 도구 호출 이벤트를 수집한다. */
     @Operation(summary = "Ingest MCP tool call event")
     @ApiResponses(value = [
         ApiResponse(responseCode = "202", description = "Event accepted"),
@@ -94,6 +106,7 @@ class MetricIngestionController(
         }
     }
 
+    /** 단건 평가 결과 이벤트를 수집한다. */
     @Operation(summary = "Ingest eval result event")
     @ApiResponses(value = [
         ApiResponse(responseCode = "202", description = "Event accepted"),
@@ -128,6 +141,7 @@ class MetricIngestionController(
         }
     }
 
+    /** 단일 eval run의 평가 결과를 일괄 수집한다. 최대 [MAX_BATCH_SIZE]건. */
     @Operation(summary = "Batch ingest eval results from a single eval run")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Batch ingestion summary"),
@@ -172,6 +186,7 @@ class MetricIngestionController(
         )
     }
 
+    /** 다수의 MCP 상태 이벤트를 일괄 수집한다. 최대 [MAX_BATCH_SIZE]건. */
     @Operation(summary = "Batch ingest multiple MCP health events")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Batch ingestion summary"),
@@ -205,6 +220,7 @@ class MetricIngestionController(
     }
 }
 
+/** MCP 서버 상태 수집 요청 DTO. */
 data class McpHealthRequest(
     val tenantId: String,
     val serverName: String,
@@ -215,6 +231,7 @@ data class McpHealthRequest(
     val toolCount: Int = 0
 )
 
+/** 도구 호출 수집 요청 DTO. */
 data class ToolCallRequest(
     val tenantId: String,
     val runId: String,
@@ -228,6 +245,7 @@ data class ToolCallRequest(
     val errorMessage: String? = null
 )
 
+/** 단건 평가 결과 수집 요청 DTO. */
 data class EvalResultRequest(
     val tenantId: String,
     val evalRunId: String,
@@ -243,12 +261,14 @@ data class EvalResultRequest(
     val tags: List<String>? = null
 )
 
+/** Eval run 단위 일괄 평가 결과 수집 요청 DTO. */
 data class EvalRunResultsRequest(
     val tenantId: String,
     val evalRunId: String,
     val results: List<EvalTestCaseResult>
 )
 
+/** 개별 테스트 케이스 평가 결과. */
 data class EvalTestCaseResult(
     val testCaseId: String,
     val pass: Boolean,

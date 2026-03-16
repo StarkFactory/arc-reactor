@@ -40,10 +40,21 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.web.server.WebFilter
 
 /**
- * Auto-configuration for the Slack integration module.
+ * Slack 통합 모듈 자동 설정.
  *
- * Activated when `arc.reactor.slack.enabled=true`.
- * All beans use @ConditionalOnMissingBean -- override with custom implementations.
+ * `arc.reactor.slack.enabled=true`일 때 활성화된다.
+ * 모든 빈은 `@ConditionalOnMissingBean`으로 선언되어 사용자 정의 구현으로 교체 가능하다.
+ *
+ * 등록되는 주요 빈:
+ * - [SlackMessagingService]: Slack Web API 메시지 전송
+ * - [SlackEventProcessor] / [SlackCommandProcessor]: 이벤트·명령 비동기 처리
+ * - [SlackSocketModeGateway]: Socket Mode WebSocket 게이트웨이 (전송 모드가 socket_mode일 때)
+ * - [SlackSignatureVerifier] / [SlackSignatureWebFilter]: 요청 서명 검증 (Events API 모드)
+ * - [SlackThreadTracker] / [SlackBotResponseTracker]: 스레드·응답 추적
+ * - [SlackMetricsRecorder]: Micrometer 메트릭 기록
+ *
+ * @see SlackProperties
+ * @see SlackToolsAutoConfiguration
  */
 @Configuration
 @ConditionalOnProperty(

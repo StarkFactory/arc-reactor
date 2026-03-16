@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test
 /**
  * MCP auto-reconnection tests.
  *
- * Covers: reconnection scheduling, ensureConnected on-demand reconnection,
+ * 대상: reconnection scheduling, ensureConnected on-demand reconnection,
  * disabled reconnection, close lifecycle with reconnection scope.
  *
  * Uses STDIO servers with missing command config for instant failure
@@ -25,14 +25,14 @@ class McpReconnectionTest {
     private fun fastFailServer(name: String) = McpServer(
         name = name,
         transportType = McpTransportType.STDIO,
-        config = emptyMap() // Missing 'command' → immediate failure
+        config = emptyMap()  // Missing 'command' → immediate failure
     )
 
     @Nested
     inner class ReconnectionEnabled {
 
         @Test
-        fun `failed connect should schedule background reconnection`() = runBlocking {
+        fun `failed connect은(는) schedule background reconnection해야 한다`() = runBlocking {
             val props = McpReconnectionProperties(
                 enabled = true,
                 maxAttempts = 2,
@@ -51,10 +51,10 @@ class McpReconnectionTest {
             }
 
             // Background reconnection is scheduled but will also fail.
-            // Wait long enough for 2 attempts with small backoff.
+            // long enough for 2 attempts with small backoff.를 기다립니다
             delay(500)
 
-            // After exhausted attempts, status should still be FAILED
+            // After exhausted attempts, status은(는) still be FAILED해야 합니다
             assertEquals(McpServerStatus.FAILED, manager.getStatus("recon-server")) {
                 "Status should remain FAILED after exhausted reconnection attempts"
             }
@@ -63,7 +63,7 @@ class McpReconnectionTest {
         }
 
         @Test
-        fun `close should cancel background reconnection tasks`() = runBlocking {
+        fun `close은(는) cancel background reconnection tasks해야 한다`() = runBlocking {
             val props = McpReconnectionProperties(
                 enabled = true,
                 maxAttempts = 100,
@@ -74,17 +74,17 @@ class McpReconnectionTest {
             val manager = DefaultMcpManager(reconnectionProperties = props)
             manager.register(fastFailServer("long-recon"))
 
-            // Trigger background reconnection
+            // background reconnection를 트리거합니다
             manager.connect("long-recon")
 
-            // Close should cancel the reconnection scope without blocking
+            // Close은(는) cancel the reconnection scope without blocking해야 합니다
             manager.close()
 
-            // No assertion needed - test passes if close() doesn't hang
+            // assertion needed - test passes if close() doesn't hang 없음
         }
 
         @Test
-        fun `disconnect should cause background reconnection to exit`() = runBlocking {
+        fun `disconnect은(는) cause background reconnection to exit해야 한다`() = runBlocking {
             val props = McpReconnectionProperties(
                 enabled = true,
                 maxAttempts = 10,
@@ -98,10 +98,10 @@ class McpReconnectionTest {
             // Initial connect fails, schedules background reconnection
             manager.connect("manual-recon")
 
-            // Disconnect manually — background task should detect DISCONNECTED and exit
+            // Disconnect manually — background task은(는) detect DISCONNECTED and exit해야 합니다
             manager.disconnect("manual-recon")
 
-            // Wait a bit for the reconnection loop to detect disconnected state
+            // a bit for the reconnection loop to detect disconnected state를 기다립니다
             delay(120)
 
             assertEquals(McpServerStatus.DISCONNECTED, manager.getStatus("manual-recon")) {
@@ -116,7 +116,7 @@ class McpReconnectionTest {
     inner class ReconnectionDisabled {
 
         @Test
-        fun `failed connect should not schedule reconnection when disabled`() = runBlocking {
+        fun `failed connect은(는) not schedule reconnection when disabled해야 한다`() = runBlocking {
             val props = McpReconnectionProperties(enabled = false)
             val manager = DefaultMcpManager(reconnectionProperties = props)
             manager.register(fastFailServer("no-recon"))
@@ -127,7 +127,7 @@ class McpReconnectionTest {
                 "Status should be FAILED"
             }
 
-            // No background task scheduled — state should remain stable
+            // No background task scheduled — state은(는) remain stable해야 합니다
             delay(50)
             assertEquals(McpServerStatus.FAILED, manager.getStatus("no-recon")) {
                 "Status should remain FAILED with reconnection disabled"
@@ -141,7 +141,7 @@ class McpReconnectionTest {
     inner class EnsureConnected {
 
         @Test
-        fun `ensureConnected returns false for PENDING status`() = runBlocking {
+        fun `ensureConnected은(는) returns false for PENDING status`() = runBlocking {
             val manager = DefaultMcpManager(
                 reconnectionProperties = McpReconnectionProperties(enabled = true)
             )
@@ -157,7 +157,7 @@ class McpReconnectionTest {
         }
 
         @Test
-        fun `ensureConnected attempts reconnect for FAILED status`() = runBlocking {
+        fun `ensureConnected은(는) attempts reconnect for FAILED status`() = runBlocking {
             val manager = DefaultMcpManager(
                 reconnectionProperties = McpReconnectionProperties(
                     enabled = true,
@@ -167,7 +167,7 @@ class McpReconnectionTest {
             )
             manager.register(fastFailServer("ensure-failed"))
 
-            // Force FAILED status
+            // FAILED status를 강제합니다
             manager.connect("ensure-failed")
             assertEquals(McpServerStatus.FAILED, manager.getStatus("ensure-failed")) {
                 "Status should be FAILED after connection failure"
@@ -183,7 +183,7 @@ class McpReconnectionTest {
         }
 
         @Test
-        fun `ensureConnected attempts reconnect for DISCONNECTED status`() = runBlocking {
+        fun `ensureConnected은(는) attempts reconnect for DISCONNECTED status`() = runBlocking {
             val manager = DefaultMcpManager(
                 reconnectionProperties = McpReconnectionProperties(
                     enabled = true,
@@ -193,13 +193,13 @@ class McpReconnectionTest {
             )
             manager.register(fastFailServer("ensure-disconnected"))
 
-            // Force DISCONNECTED status
+            // DISCONNECTED status를 강제합니다
             manager.disconnect("ensure-disconnected")
             assertEquals(McpServerStatus.DISCONNECTED, manager.getStatus("ensure-disconnected")) {
                 "Status should be DISCONNECTED"
             }
 
-            // ensureConnected should attempt reconnect
+            // ensureConnected은(는) attempt reconnect해야 합니다
             val result = manager.ensureConnected("ensure-disconnected")
             assertFalse(result) {
                 "ensureConnected should return false when reconnect fails"
@@ -209,13 +209,13 @@ class McpReconnectionTest {
         }
 
         @Test
-        fun `ensureConnected returns false when reconnection is disabled`() = runBlocking {
+        fun `ensureConnected returns false when reconnection은(는) disabled이다`() = runBlocking {
             val manager = DefaultMcpManager(
                 reconnectionProperties = McpReconnectionProperties(enabled = false)
             )
             manager.register(fastFailServer("no-recon-ensure"))
 
-            // Force FAILED status
+            // FAILED status를 강제합니다
             manager.connect("no-recon-ensure")
 
             val result = manager.ensureConnected("no-recon-ensure")
@@ -231,7 +231,7 @@ class McpReconnectionTest {
     inner class ReconnectionProperties {
 
         @Test
-        fun `default properties should have sensible values`() {
+        fun `default properties은(는) have sensible values해야 한다`() {
             val props = McpReconnectionProperties()
 
             assertTrue(props.enabled) { "Reconnection should be enabled by default" }
@@ -242,7 +242,7 @@ class McpReconnectionTest {
         }
 
         @Test
-        fun `custom properties should be applied`() {
+        fun `custom properties은(는) be applied해야 한다`() {
             val props = McpReconnectionProperties(
                 enabled = false,
                 maxAttempts = 3,
@@ -259,7 +259,7 @@ class McpReconnectionTest {
         }
 
         @Test
-        fun `DefaultMcpManager should accept reconnection properties`() {
+        fun `DefaultMcpManager은(는) accept reconnection properties해야 한다`() {
             val props = McpReconnectionProperties(enabled = false, maxAttempts = 10)
             val manager = DefaultMcpManager(reconnectionProperties = props)
 
@@ -272,7 +272,7 @@ class McpReconnectionTest {
     inner class UnregisterDuringReconnection {
 
         @Test
-        fun `unregister should stop reconnection for that server`() = runBlocking {
+        fun `unregister은(는) stop reconnection for that server해야 한다`() = runBlocking {
             val props = McpReconnectionProperties(
                 enabled = true,
                 maxAttempts = 10,
@@ -283,13 +283,13 @@ class McpReconnectionTest {
             val manager = DefaultMcpManager(reconnectionProperties = props)
             manager.register(fastFailServer("unregister-recon"))
 
-            // Trigger background reconnection
+            // background reconnection를 트리거합니다
             manager.connect("unregister-recon")
 
-            // Unregister the server — reconnection task should detect and exit
+            // Unregister the server — reconnection task은(는) detect and exit해야 합니다
             manager.unregister("unregister-recon")
 
-            // Wait for reconnection task to notice
+            // for reconnection task to notice를 기다립니다
             delay(200)
 
             assertNull(manager.getStatus("unregister-recon")) {

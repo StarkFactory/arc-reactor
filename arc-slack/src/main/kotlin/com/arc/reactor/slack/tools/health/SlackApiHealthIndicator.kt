@@ -7,6 +7,19 @@ import com.slack.api.methods.request.auth.AuthTestRequest
 import org.springframework.boot.actuate.health.Health
 import org.springframework.boot.actuate.health.HealthIndicator
 
+/**
+ * Slack API 연결 상태 헬스 인디케이터.
+ *
+ * `auth.test` API를 호출하여 봇 토큰 유효성과 OAuth 스코프를 검증한다.
+ * 필수 스코프가 부족하면 UNKNOWN(degraded) 상태로 보고한다.
+ *
+ * Slack 도구는 선택적 통합이므로, 문제 시 전체 `/actuator/health`를 DOWN으로
+ * 만들지 않고 UNKNOWN으로 표시한다.
+ *
+ * @param methodsClient Slack SDK 메서드 클라이언트
+ * @param properties Slack 도구 설정 (Canvas 활성화, 스코프 모드 등)
+ * @see SlackToolsReadinessHealthIndicator
+ */
 class SlackApiHealthIndicator(
     private val methodsClient: MethodsClient,
     private val properties: SlackToolsProperties
@@ -85,8 +98,8 @@ class SlackApiHealthIndicator(
 
     private companion object {
         private fun degradedHealth(): Health.Builder {
-            // Slack tools are optional for serving the main app. Surface integration drift
-            // without forcing the whole /actuator/health response to DOWN.
+            // Slack 도구는 메인 앱 서빙에 선택적이다. 전체 /actuator/health를 DOWN으로
+            // 만들지 않으면서 통합 드리프트를 표면화한다.
             return Health.unknown().withDetail("optionalIntegration", "slack_tools")
         }
 

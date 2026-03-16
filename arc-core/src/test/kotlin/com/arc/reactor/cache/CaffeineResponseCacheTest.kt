@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Tests for CaffeineResponseCache.
+ * CaffeineResponseCache에 대한 테스트.
  */
 class CaffeineResponseCacheTest {
 
@@ -15,7 +15,7 @@ class CaffeineResponseCacheTest {
     inner class BasicOperations {
 
         @Test
-        fun `get returns null for missing key`() = runTest {
+        fun `returns null for missing key를 가져온다`() = runTest {
             val cache = CaffeineResponseCache()
 
             val result = cache.get("nonexistent")
@@ -24,7 +24,7 @@ class CaffeineResponseCacheTest {
         }
 
         @Test
-        fun `put and get returns cached response`() = runTest {
+        fun `put은(는) and get returns cached response`() = runTest {
             val cache = CaffeineResponseCache()
             val response = CachedResponse(content = "Hello, world!", toolsUsed = listOf("tool1"))
 
@@ -37,7 +37,7 @@ class CaffeineResponseCacheTest {
         }
 
         @Test
-        fun `put overwrites existing entry`() = runTest {
+        fun `put은(는) overwrites existing entry`() = runTest {
             val cache = CaffeineResponseCache()
 
             cache.put("key1", CachedResponse(content = "first"))
@@ -49,7 +49,7 @@ class CaffeineResponseCacheTest {
         }
 
         @Test
-        fun `invalidateAll clears all entries`() = runTest {
+        fun `invalidateAll은(는) clears all entries`() = runTest {
             val cache = CaffeineResponseCache()
 
             cache.put("key1", CachedResponse(content = "a"))
@@ -68,7 +68,7 @@ class CaffeineResponseCacheTest {
     inner class SizeLimits {
 
         @Test
-        fun `cache with maxSize should not grow unbounded`() = runTest {
+        fun `cache with maxSize은(는) not grow unbounded해야 한다`() = runTest {
             val cache = CaffeineResponseCache(maxSize = 3, ttlMinutes = 60)
 
             for (i in 1..10) {
@@ -93,7 +93,7 @@ class CaffeineResponseCacheTest {
     inner class CachedResponseData {
 
         @Test
-        fun `CachedResponse default values`() {
+        fun `CachedResponse 기본값`() {
             val response = CachedResponse(content = "test")
 
             assertEquals("test", response.content) { "Content should match" }
@@ -102,7 +102,7 @@ class CaffeineResponseCacheTest {
         }
 
         @Test
-        fun `CachedResponse with all fields`() {
+        fun `모든 필드가 있는 CachedResponse`() {
             val response = CachedResponse(
                 content = "result",
                 toolsUsed = listOf("calc", "search"),

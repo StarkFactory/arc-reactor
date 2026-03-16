@@ -49,7 +49,7 @@ class EvaluationPipelineTest {
     inner class AllTiersPass {
 
         @Test
-        fun `should return results from all 3 tiers when all pass`() = runTest {
+        fun `all pass일 때 return results from all 3 tiers해야 한다`() = runTest {
             val pipeline = EvaluationPipeline(
                 structural, rules, llmJudge, defaultConfig
             )
@@ -76,7 +76,7 @@ class EvaluationPipelineTest {
     inner class FailFast {
 
         @Test
-        fun `should skip rules and LLM when structural fails`() = runTest {
+        fun `structural fails일 때 skip rules and LLM해야 한다`() = runTest {
             coEvery { structural.evaluate(any(), any()) } returns
                 failResult(EvaluationTier.STRUCTURAL)
 
@@ -92,7 +92,7 @@ class EvaluationPipelineTest {
         }
 
         @Test
-        fun `should skip LLM when rules fail`() = runTest {
+        fun `rules fail일 때 skip LLM해야 한다`() = runTest {
             coEvery { rules.evaluate(any(), any()) } returns
                 failResult(EvaluationTier.RULES)
 
@@ -112,7 +112,7 @@ class EvaluationPipelineTest {
     inner class TierDisabling {
 
         @Test
-        fun `should skip structural when disabled`() = runTest {
+        fun `disabled일 때 skip structural해야 한다`() = runTest {
             val config = EvaluationConfig(structuralEnabled = false)
             val pipeline = EvaluationPipeline(
                 structural, rules, llmJudge, config
@@ -128,7 +128,7 @@ class EvaluationPipelineTest {
         }
 
         @Test
-        fun `should skip rules when disabled`() = runTest {
+        fun `disabled일 때 skip rules해야 한다`() = runTest {
             val config = EvaluationConfig(rulesEnabled = false)
             val pipeline = EvaluationPipeline(
                 structural, rules, llmJudge, config
@@ -141,7 +141,7 @@ class EvaluationPipelineTest {
         }
 
         @Test
-        fun `should skip LLM judge when disabled`() = runTest {
+        fun `disabled일 때 skip LLM judge해야 한다`() = runTest {
             val config = EvaluationConfig(llmJudgeEnabled = false)
             val pipeline = EvaluationPipeline(
                 structural, rules, llmJudge, config
@@ -154,7 +154,7 @@ class EvaluationPipelineTest {
         }
 
         @Test
-        fun `should handle null LLM judge`() = runTest {
+        fun `handle null LLM judge해야 한다`() = runTest {
             val pipeline = EvaluationPipeline(
                 structural, rules, null, defaultConfig
             )
@@ -165,7 +165,7 @@ class EvaluationPipelineTest {
         }
 
         @Test
-        fun `should return empty when all tiers disabled`() = runTest {
+        fun `all tiers disabled일 때 return empty해야 한다`() = runTest {
             val config = EvaluationConfig(
                 structuralEnabled = false,
                 rulesEnabled = false,
@@ -185,7 +185,7 @@ class EvaluationPipelineTest {
     inner class Factory {
 
         @Test
-        fun `should create pipeline with config`() = runTest {
+        fun `config로 create pipeline해야 한다`() = runTest {
             val factory = EvaluationPipelineFactory(
                 structural, rules, llmJudge
             )

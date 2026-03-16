@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test
 class RagPipelineMaxTokensTest {
 
     @Test
-    fun `should pass maxContextTokens to contextBuilder`() = runBlocking {
+    fun `pass maxContextTokens to contextBuilder해야 한다`() = runBlocking {
         val contextBuilder = mockk<ContextBuilder>()
         val retriever = mockk<DocumentRetriever>()
 
@@ -33,12 +33,12 @@ class RagPipelineMaxTokensTest {
 
         pipeline.retrieve(RagQuery(query = "test", topK = 10))
 
-        // Verify contextBuilder was called with maxContextTokens = 2000
+        // contextBuilder was called with maxContextTokens = 2000 확인
         verify { contextBuilder.build(any(), 2000) }
     }
 
     @Test
-    fun `should use default maxContextTokens of 4000`() = runBlocking {
+    fun `use default maxContextTokens of 4000해야 한다`() = runBlocking {
         val contextBuilder = mockk<ContextBuilder>()
         val retriever = mockk<DocumentRetriever>()
 
@@ -61,7 +61,7 @@ class RagPipelineMaxTokensTest {
     }
 
     @Test
-    fun `SimpleContextBuilder should respect maxTokens limit`() {
+    fun `SimpleContextBuilder은(는) respect maxTokens limit해야 한다`() {
         val builder = SimpleContextBuilder()
 
         // Each document has estimatedTokens = content.length / 4
@@ -77,7 +77,7 @@ class RagPipelineMaxTokensTest {
         // maxTokens = 250 → should fit ~2 docs (200 tokens) but not 3 (300 tokens)
         val context = builder.build(docs, 250)
 
-        // Should contain at most 2 documents worth of content
+        // contain at most 2 documents worth of content해야 합니다
         val docCount = context.split("A".repeat(400)).size - 1
         assertTrue(docCount <= 2, "Expected at most 2 docs, got $docCount")
         assertTrue(docCount >= 1, "Expected at least 1 doc")

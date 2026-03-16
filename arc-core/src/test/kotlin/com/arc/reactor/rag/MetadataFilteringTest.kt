@@ -45,7 +45,7 @@ class MetadataFilteringTest {
     inner class SingleFilter {
 
         @Test
-        fun `should filter by single metadata field`() = runTest {
+        fun `filter by single metadata field해야 한다`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,
@@ -59,7 +59,7 @@ class MetadataFilteringTest {
         }
 
         @Test
-        fun `should filter by category`() = runTest {
+        fun `filter by category해야 한다`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,
@@ -75,7 +75,7 @@ class MetadataFilteringTest {
     inner class MultipleFilters {
 
         @Test
-        fun `should apply multiple filters with AND logic`() = runTest {
+        fun `AND logic로 apply multiple filters해야 한다`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,
@@ -89,7 +89,7 @@ class MetadataFilteringTest {
         }
 
         @Test
-        fun `should return empty when filters exclude all matching docs`() = runTest {
+        fun `filters exclude all matching docs일 때 return empty해야 한다`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,
@@ -106,7 +106,7 @@ class MetadataFilteringTest {
     inner class EmptyFilters {
 
         @Test
-        fun `should return all matching docs when filters are empty`() = runTest {
+        fun `filters are empty일 때 return all matching docs해야 한다`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,
@@ -117,7 +117,7 @@ class MetadataFilteringTest {
         }
 
         @Test
-        fun `should return all matching docs when no filters parameter`() = runTest {
+        fun `no filters parameter일 때 return all matching docs해야 한다`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10
@@ -131,7 +131,7 @@ class MetadataFilteringTest {
     inner class FilterWithNonexistentKey {
 
         @Test
-        fun `should return empty when filtering by nonexistent metadata key`() = runTest {
+        fun `filtering by nonexistent metadata key일 때 return empty해야 한다`() = runTest {
             val results = retriever.retrieve(
                 queries = listOf("kotlin"),
                 topK = 10,

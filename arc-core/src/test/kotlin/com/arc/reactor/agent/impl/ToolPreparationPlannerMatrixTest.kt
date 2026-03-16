@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test
 class ToolPreparationPlannerMatrixTest {
 
     @Test
-    fun `planner should satisfy size and ordering invariants across 750 combinations`() {
+    fun `planner은(는) satisfy size and ordering invariants across 750 combinations해야 한다`() {
         var checked = 0
         for (localCount in 0..4) {
             for (callbackCount in 0..4) {
@@ -59,7 +59,7 @@ class ToolPreparationPlannerMatrixTest {
     }
 
     @Test
-    fun `selector output should be wrapped and truncated predictably`() {
+    fun `selector output은(는) be wrapped and truncated predictably해야 한다`() {
         val selected = (0 until 6).map { AgentTestFixture.toolCallback("selected-$it") }
         val planner = ToolPreparationPlanner(
             localTools = listOf(object : LocalTool {}, object : LocalTool {}),

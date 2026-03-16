@@ -5,6 +5,7 @@ import com.arc.reactor.slack.tools.usecase.ReplyToThreadUseCase
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** Slack 스레드에 답장하는 도구. 부모 메시지의 타임스탬프가 필요하다. */
 open class ReplyToThreadTool(
     private val replyToThreadUseCase: ReplyToThreadUseCase,
     private val idempotencyService: WriteOperationIdempotencyService = NoopWriteOperationIdempotencyService

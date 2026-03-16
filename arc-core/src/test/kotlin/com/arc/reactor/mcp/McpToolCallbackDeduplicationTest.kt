@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 class McpToolCallbackDeduplicationTest {
 
     @Test
-    fun `keeps first duplicate by sorted server name and preserves deterministic callback order`() {
+    fun `keeps은(는) first duplicate by sorted server name and preserves deterministic callback order`() {
         val duplicateFromZ = testCallback("duplicate-tool")
         val duplicateFromA = testCallback("duplicate-tool")
         val callbacksByServer = mapOf(
@@ -38,7 +38,7 @@ class McpToolCallbackDeduplicationTest {
     }
 
     @Test
-    fun `returns empty list for empty server map`() {
+    fun `empty server map에 대해 empty list를 반환한다`() {
         val deduplicated = deduplicateCallbacksByName(emptyMap())
         assertTrue(deduplicated.isEmpty(), "Expected empty deduplicated callbacks when no servers are provided")
     }

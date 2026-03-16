@@ -21,7 +21,7 @@ class GoogleWorkspaceAutoConfigurationTest {
     inner class ConditionalActivation {
 
         @Test
-        fun `beans are NOT created when google integration is disabled by default`() {
+        fun `beans are NOT created when google integration은(는) disabled by default이다`() {
             contextRunner.run { context ->
                 assertFalse(
                     context.containsBean("googleCalendarTool"),
@@ -43,7 +43,7 @@ class GoogleWorkspaceAutoConfigurationTest {
         }
 
         @Test
-        fun `beans are NOT created when arc reactor google enabled is explicitly false`() {
+        fun `beans are NOT created when arc reactor google enabled은(는) explicitly false이다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.google.enabled=false")
                 .run { context ->
@@ -63,7 +63,7 @@ class GoogleWorkspaceAutoConfigurationTest {
     inner class BeanCreation {
 
         @Test
-        fun `all four tool beans are created when enabled`() {
+        fun `enabled일 때 all four tool beans are created`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.google.enabled=true",
@@ -91,7 +91,7 @@ class GoogleWorkspaceAutoConfigurationTest {
         }
 
         @Test
-        fun `GoogleCredentialProvider bean is created when enabled`() {
+        fun `enabled일 때 GoogleCredentialProvider bean은(는) created이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.google.enabled=true",
@@ -107,7 +107,7 @@ class GoogleWorkspaceAutoConfigurationTest {
         }
 
         @Test
-        fun `tool beans are ToolCallback instances`() {
+        fun `tool beans은(는) ToolCallback instances이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.google.enabled=true",
@@ -139,7 +139,7 @@ class GoogleWorkspaceAutoConfigurationTest {
         }
 
         @Test
-        fun `tool beans have correct names`() {
+        fun `도구 beans have correct names`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.google.enabled=true",
@@ -171,7 +171,7 @@ class GoogleWorkspaceAutoConfigurationTest {
         }
 
         @Test
-        fun `custom GoogleCredentialProvider bean is respected via ConditionalOnMissingBean`() {
+        fun `custom GoogleCredentialProvider bean은(는) respected via ConditionalOnMissingBean이다`() {
             val customProvider = GoogleCredentialProvider(
                 GoogleWorkspaceProperties(
                     enabled = true,
@@ -203,7 +203,7 @@ class GoogleWorkspaceAutoConfigurationTest {
     inner class ToolTypes {
 
         @Test
-        fun `googleCalendarTool bean is of type GoogleCalendarTool`() {
+        fun `googleCalendarTool bean은(는) of type GoogleCalendarTool이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.google.enabled=true",
@@ -219,7 +219,7 @@ class GoogleWorkspaceAutoConfigurationTest {
         }
 
         @Test
-        fun `googleSheetsTool bean is of type GoogleSheetsTool`() {
+        fun `googleSheetsTool bean은(는) of type GoogleSheetsTool이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.google.enabled=true",
@@ -235,7 +235,7 @@ class GoogleWorkspaceAutoConfigurationTest {
         }
 
         @Test
-        fun `googleDriveTool bean is of type GoogleDriveTool`() {
+        fun `googleDriveTool bean은(는) of type GoogleDriveTool이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.google.enabled=true",
@@ -251,7 +251,7 @@ class GoogleWorkspaceAutoConfigurationTest {
         }
 
         @Test
-        fun `googleGmailTool bean is of type GoogleGmailTool`() {
+        fun `googleGmailTool bean은(는) of type GoogleGmailTool이다`() {
             contextRunner
                 .withPropertyValues(
                     "arc.reactor.google.enabled=true",

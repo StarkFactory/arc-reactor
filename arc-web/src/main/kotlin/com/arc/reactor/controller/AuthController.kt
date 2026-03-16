@@ -28,14 +28,19 @@ import org.springframework.web.server.ServerWebExchange
 import java.util.UUID
 
 /**
- * Authentication API Controller
+ * 인증 컨트롤러.
  *
- * Provides user registration, login, and profile endpoints.
+ * 사용자 등록, 로그인, 프로필 조회, 비밀번호 변경, 로그아웃을 제공합니다.
  *
- * ## Endpoints
- * - POST /api/auth/register : Create a new account and receive JWT
- * - POST /api/auth/login    : Authenticate and receive JWT
- * - GET  /api/auth/me       : Get current user profile (requires token)
+ * ## 엔드포인트
+ * - POST /api/auth/register        : 새 계정 생성 및 JWT 발급
+ * - POST /api/auth/login           : 인증 후 JWT 발급
+ * - GET  /api/auth/me              : 현재 사용자 프로필 조회 (JWT 필요)
+ * - POST /api/auth/change-password : 비밀번호 변경 (JWT 필요)
+ * - POST /api/auth/logout          : 현재 JWT 폐기
+ *
+ * @see AuthProvider
+ * @see JwtTokenProvider
  */
 @Tag(name = "Authentication", description = "JWT authentication")
 @RestController
@@ -48,10 +53,8 @@ class AuthController(
     private val tokenRevocationStore: TokenRevocationStore
 ) {
 
-    /**
-     * Register a new user account.
-     */
-    @Operation(summary = "Register a new user account and receive JWT")
+    /** 새 사용자 계정을 등록하고 JWT를 발급한다. */
+    @Operation(summary = "새 사용자 등록 및 JWT 발급")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "User registered, JWT returned"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -100,10 +103,8 @@ class AuthController(
             .body(AuthResponse(token = token, user = user.toResponse()))
     }
 
-    /**
-     * Login with email and password.
-     */
-    @Operation(summary = "Authenticate with email and password, receive JWT")
+    /** 이메일과 비밀번호로 로그인하고 JWT를 발급한다. */
+    @Operation(summary = "이메일/비밀번호 인증 후 JWT 발급")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "JWT token returned"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -119,10 +120,8 @@ class AuthController(
         return ResponseEntity.ok(AuthResponse(token = token, user = user.toResponse()))
     }
 
-    /**
-     * Get the current authenticated user's profile.
-     */
-    @Operation(summary = "Get current user profile (requires JWT)")
+    /** 현재 인증된 사용자의 프로필을 조회한다. */
+    @Operation(summary = "현재 사용자 프로필 조회 (JWT 필요)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Current user profile"),
         ApiResponse(responseCode = "401", description = "Missing or invalid JWT"),
@@ -139,10 +138,8 @@ class AuthController(
         return ResponseEntity.ok(user.toResponse())
     }
 
-    /**
-     * Change the current user's password.
-     */
-    @Operation(summary = "Change password for the current user (requires JWT)")
+    /** 현재 사용자의 비밀번호를 변경한다. */
+    @Operation(summary = "현재 사용자 비밀번호 변경 (JWT 필요)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Password changed successfully"),
         ApiResponse(responseCode = "400", description = "Current password incorrect or unsupported auth provider"),
@@ -188,7 +185,8 @@ class AuthController(
         return ResponseEntity.ok(mapOf("message" to "Password changed successfully"))
     }
 
-    @Operation(summary = "Logout current session by revoking current JWT")
+    /** 현재 JWT를 폐기하여 로그아웃한다. */
+    @Operation(summary = "현재 JWT 폐기로 로그아웃")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Logout succeeded"),
         ApiResponse(responseCode = "401", description = "Missing or invalid JWT")

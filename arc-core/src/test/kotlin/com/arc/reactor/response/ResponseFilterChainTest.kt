@@ -8,9 +8,9 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Tests for [ResponseFilterChain].
+ * [ResponseFilterChain]에 대한 테스트.
  *
- * Covers: filter ordering, error handling (fail-open), empty chain, CancellationException propagation.
+ * 대상: 필터 순서, 오류 처리 (fail-open), 빈 체인, CancellationException 전파.
  */
 class ResponseFilterChainTest {
 
@@ -24,14 +24,14 @@ class ResponseFilterChainTest {
     inner class BasicFunctionality {
 
         @Test
-        fun `should return content unchanged when no filters`() = runTest {
+        fun `no filters일 때 return content unchanged해야 한다`() = runTest {
             val chain = ResponseFilterChain(emptyList())
             val result = chain.apply("Hello World", defaultContext)
             assertEquals("Hello World", result) { "Empty chain should return content as-is" }
         }
 
         @Test
-        fun `should apply single filter`() = runTest {
+        fun `apply single filter해야 한다`() = runTest {
             val filter = object : ResponseFilter {
                 override suspend fun filter(content: String, context: ResponseFilterContext) =
                     content.uppercase()
@@ -42,7 +42,7 @@ class ResponseFilterChainTest {
         }
 
         @Test
-        fun `should apply multiple filters in order`() = runTest {
+        fun `apply multiple filters in order해야 한다`() = runTest {
             val appendA = object : ResponseFilter {
                 override val order = 10
                 override suspend fun filter(content: String, context: ResponseFilterContext) =
@@ -59,7 +59,7 @@ class ResponseFilterChainTest {
         }
 
         @Test
-        fun `should report correct size`() {
+        fun `report correct size해야 한다`() {
             val filter1 = object : ResponseFilter {
                 override suspend fun filter(content: String, context: ResponseFilterContext) = content
             }
@@ -75,7 +75,7 @@ class ResponseFilterChainTest {
     inner class ErrorHandling {
 
         @Test
-        fun `should skip failing filter and continue with previous content`() = runTest {
+        fun `previous content로 skip failing filter and continue해야 한다`() = runTest {
             val callOrder = AtomicInteger(0)
             val failingFilter = object : ResponseFilter {
                 override val order = 10
@@ -101,7 +101,7 @@ class ResponseFilterChainTest {
         }
 
         @Test
-        fun `should propagate CancellationException`() = runTest {
+        fun `propagate CancellationException해야 한다`() = runTest {
             val cancelFilter = object : ResponseFilter {
                 override suspend fun filter(content: String, context: ResponseFilterContext): String {
                     throw kotlin.coroutines.cancellation.CancellationException("cancelled")
@@ -119,7 +119,7 @@ class ResponseFilterChainTest {
     inner class ContextPassing {
 
         @Test
-        fun `should pass context to filters`() = runTest {
+        fun `pass context to filters해야 한다`() = runTest {
             var receivedContext: ResponseFilterContext? = null
             val capturingFilter = object : ResponseFilter {
                 override suspend fun filter(content: String, context: ResponseFilterContext): String {

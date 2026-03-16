@@ -31,7 +31,7 @@ class SlackCommandControllerWebBindingTest {
     private val webTestClient = WebTestClient.bindToController(controller).build()
 
     @Test
-    fun `accepts slash command form-urlencoded body`() {
+    fun `slash command form-urlencoded body를 수락한다`() {
         webTestClient.post()
             .uri("/api/slack/commands")
             .contentType(MediaType.APPLICATION_FORM_URLENCODED)

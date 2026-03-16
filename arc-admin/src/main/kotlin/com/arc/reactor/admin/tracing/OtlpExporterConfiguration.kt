@@ -26,6 +26,13 @@ private val logger = KotlinLogging.logger {}
     prefix = "arc.reactor.admin.tracing", name = ["enabled"],
     havingValue = "true", matchIfMissing = true
 )
+/**
+ * OTLP 및 TimescaleDB span exporter 설정 클래스.
+ *
+ * TenantSpanProcessor, TimescaleSpanExporter, OTLP exporter를 조건부로 등록한다.
+ *
+ * @see TracingAutoConfiguration 트레이싱 자동 설정 (TracerProvider, ObservationRegistry)
+ */
 class OtlpExporterConfiguration {
 
     @Bean

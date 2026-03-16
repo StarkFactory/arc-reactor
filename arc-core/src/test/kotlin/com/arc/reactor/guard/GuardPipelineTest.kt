@@ -19,7 +19,7 @@ class GuardPipelineTest {
     inner class BasicPipeline {
 
         @Test
-        fun `valid text passes through all guard stages as Allowed`() = runBlocking {
+        fun `유효한 text passes through all guard stages as Allowed`() = runBlocking {
             val pipeline = GuardPipeline(
                 listOf(
                     DefaultRateLimitStage(requestsPerMinute = 100, requestsPerHour = 1000),
@@ -36,7 +36,7 @@ class GuardPipelineTest {
         }
 
         @Test
-        fun `prompt injection attempt is rejected with PROMPT_INJECTION category`() = runBlocking {
+        fun `prompt injection attempt은(는) rejected with PROMPT_INJECTION category이다`() = runBlocking {
             val pipeline = GuardPipeline(listOf(DefaultInjectionDetectionStage()))
 
             val result = pipeline.guard(
@@ -51,7 +51,7 @@ class GuardPipelineTest {
         }
 
         @Test
-        fun `input exceeding max length is rejected with INVALID_INPUT category`() = runBlocking {
+        fun `input exceeding max length은(는) rejected with INVALID_INPUT category이다`() = runBlocking {
             val pipeline = GuardPipeline(listOf(DefaultInputValidationStage(maxLength = 10)))
 
             val result = pipeline.guard(
@@ -67,7 +67,7 @@ class GuardPipelineTest {
     inner class StageOrdering {
 
         @Test
-        fun `stages execute in ascending order`() = runBlocking {
+        fun `stages은(는) execute in ascending order`() = runBlocking {
             val executionOrder = mutableListOf<Int>()
 
             val stage1 = object : GuardStage {
@@ -95,7 +95,7 @@ class GuardPipelineTest {
                 }
             }
 
-            // Add in random order
+            // in random order를 추가합니다
             val pipeline = GuardPipeline(listOf(stage3, stage1, stage2))
             pipeline.guard(GuardCommand(userId = "user-1", text = "test"))
 
@@ -103,7 +103,7 @@ class GuardPipelineTest {
         }
 
         @Test
-        fun `pipeline stops at first rejection without executing later stages`() = runBlocking {
+        fun `파이프라인 stops at first rejection without executing later stages`() = runBlocking {
             val executionOrder = mutableListOf<Int>()
 
             val stage1 = object : GuardStage {
@@ -139,7 +139,7 @@ class GuardPipelineTest {
         }
 
         @Test
-        fun `should rethrow cancellation exception from guard stage`() {
+        fun `rethrow cancellation exception from guard stage해야 한다`() {
             val cancellingStage = object : GuardStage {
                 override val stageName = "cancel-stage"
                 override val order = 1
@@ -161,7 +161,7 @@ class GuardPipelineTest {
     inner class InjectionDetection {
 
         @Test
-        fun `various injection patterns are all rejected`() = runBlocking {
+        fun `various injection patterns은(는) all rejected이다`() = runBlocking {
             val stage = DefaultInjectionDetectionStage()
 
             val injectionAttempts = listOf(
@@ -183,7 +183,7 @@ class GuardPipelineTest {
         }
 
         @Test
-        fun `legitimate questions pass injection detection`() = runBlocking {
+        fun `legitimate은(는) questions pass injection detection`() = runBlocking {
             val stage = DefaultInjectionDetectionStage()
 
             val legitimateQuestions = listOf(

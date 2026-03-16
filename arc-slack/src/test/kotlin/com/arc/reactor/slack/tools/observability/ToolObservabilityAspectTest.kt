@@ -15,7 +15,7 @@ class ToolObservabilityAspectTest {
     private val aspect = ToolObservabilityAspect(meterRegistry)
 
     @Test
-    fun `records success metric for successful tool response`() {
+    fun `success metric for successful tool response를 기록한다`() {
         val joinPoint = mockJoinPoint(
             method = DummyTool::class.java.getDeclaredMethod("send_message", String::class.java, String::class.java),
             args = arrayOf("C12345678", "hello"),
@@ -37,7 +37,7 @@ class ToolObservabilityAspectTest {
     }
 
     @Test
-    fun `records failure metric for tool error response`() {
+    fun `failure metric for tool error response를 기록한다`() {
         val joinPoint = mockJoinPoint(
             method = DummyTool::class.java.getDeclaredMethod("send_message", String::class.java, String::class.java),
             args = arrayOf("C12345678", "hello"),
@@ -58,7 +58,7 @@ class ToolObservabilityAspectTest {
     }
 
     @Test
-    fun `records exception metric when tool throws`() {
+    fun `exception metric when tool throws를 기록한다`() {
         val signature = mockk<MethodSignature>()
         every { signature.method } returns DummyTool::class.java.getDeclaredMethod(
             "send_message",

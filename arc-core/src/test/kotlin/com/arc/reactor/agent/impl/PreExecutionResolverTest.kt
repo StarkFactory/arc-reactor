@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test
 class PreExecutionResolverTest {
 
     @Test
-    fun `should use anonymous userId when command userId is missing`() = runBlocking {
+    fun `command userId is missing일 때 use anonymous userId해야 한다`() = runBlocking {
         val guard = mockk<RequestGuard>()
         coEvery { guard.guard(any()) } returns GuardResult.Allowed.DEFAULT
         val resolver = PreExecutionResolver(
@@ -47,7 +47,7 @@ class PreExecutionResolverTest {
     }
 
     @Test
-    fun `should propagate channel from metadata to GuardCommand`() = runBlocking {
+    fun `propagate channel from metadata to GuardCommand해야 한다`() = runBlocking {
         val guard = mockk<RequestGuard>()
         coEvery { guard.guard(any()) } returns GuardResult.Allowed.DEFAULT
         val resolver = PreExecutionResolver(
@@ -72,7 +72,7 @@ class PreExecutionResolverTest {
     }
 
     @Test
-    fun `should return GUARD_REJECTED result when guard rejects`() = runBlocking {
+    fun `guard rejects일 때 return GUARD_REJECTED result해야 한다`() = runBlocking {
         val guard = mockk<RequestGuard>()
         coEvery { guard.guard(any()) } returns GuardResult.Rejected(
             reason = "blocked",
@@ -103,7 +103,7 @@ class PreExecutionResolverTest {
     }
 
     @Test
-    fun `should return RATE_LIMITED result when guard rejects with RATE_LIMITED category`() = runBlocking {
+    fun `guard rejects with RATE_LIMITED category일 때 return RATE_LIMITED result해야 한다`() = runBlocking {
         val guard = mockk<RequestGuard>()
         coEvery { guard.guard(any()) } returns GuardResult.Rejected(
             reason = "Rate limit exceeded: 20 requests per minute",
@@ -135,7 +135,7 @@ class PreExecutionResolverTest {
     }
 
     @Test
-    fun `should return HOOK_REJECTED result when before hook rejects`() = runBlocking {
+    fun `before hook rejects일 때 return HOOK_REJECTED result해야 한다`() = runBlocking {
         val hookExecutor = mockk<HookExecutor>()
         coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("hook blocked")
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -160,7 +160,7 @@ class PreExecutionResolverTest {
     }
 
     @Test
-    fun `resolveIntent should throw when intent is blocked`() = runBlocking {
+    fun `resolveIntent은(는) throw when intent is blocked해야 한다`() = runBlocking {
         val intentResolver = mockk<IntentResolver>()
         coEvery { intentResolver.resolve(any(), any()) } returns ResolvedIntent(
             intentName = "finance",
@@ -190,7 +190,7 @@ class PreExecutionResolverTest {
     }
 
     @Test
-    fun `resolveIntent should return original command when resolver throws`() = runBlocking {
+    fun `resolveIntent은(는) return original command when resolver throws해야 한다`() = runBlocking {
         val intentResolver = mockk<IntentResolver>()
         coEvery { intentResolver.resolve(any(), any()) } throws RuntimeException("down")
         val resolver = PreExecutionResolver(
@@ -212,7 +212,7 @@ class PreExecutionResolverTest {
     }
 
     @Test
-    fun `resolveIntent should skip resolver when intent resolution was already attempted`() = runBlocking {
+    fun `resolveIntent은(는) skip resolver when intent resolution was already attempted해야 한다`() = runBlocking {
         val intentResolver = mockk<IntentResolver>()
         val resolver = PreExecutionResolver(
             guard = null,
@@ -241,7 +241,7 @@ class PreExecutionResolverTest {
     }
 
     @Test
-    fun `resolveIntent should enforce blocked intents from prior controller resolution`() = runBlocking {
+    fun `resolveIntent은(는) enforce blocked intents from prior controller resolution해야 한다`() = runBlocking {
         val intentResolver = mockk<IntentResolver>()
         val resolver = PreExecutionResolver(
             guard = null,

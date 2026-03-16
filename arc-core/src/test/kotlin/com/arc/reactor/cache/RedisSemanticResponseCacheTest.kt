@@ -22,7 +22,7 @@ class RedisSemanticResponseCacheTest {
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
 
     @Test
-    fun `getSemantic should return exact match before semantic fallback`() = runTest {
+    fun `getSemantic은(는) return exact match before semantic fallback해야 한다`() = runTest {
         val redis = mockk<StringRedisTemplate>()
         val valueOps = mockk<ValueOperations<String, String>>()
         val zsetOps = mockk<ZSetOperations<String, String>>()
@@ -58,7 +58,7 @@ class RedisSemanticResponseCacheTest {
     }
 
     @Test
-    fun `getSemantic should return best semantic candidate within threshold`() = runTest {
+    fun `getSemantic은(는) return best semantic candidate within threshold해야 한다`() = runTest {
         val redis = mockk<StringRedisTemplate>()
         val valueOps = mockk<ValueOperations<String, String>>()
         val zsetOps = mockk<ZSetOperations<String, String>>()
@@ -107,7 +107,7 @@ class RedisSemanticResponseCacheTest {
     }
 
     @Test
-    fun `putSemantic should write entry and update scope index`() = runTest {
+    fun `putSemantic은(는) write entry and update scope index해야 한다`() = runTest {
         val redis = mockk<StringRedisTemplate>()
         val valueOps = mockk<ValueOperations<String, String>>()
         val zsetOps = mockk<ZSetOperations<String, String>>()

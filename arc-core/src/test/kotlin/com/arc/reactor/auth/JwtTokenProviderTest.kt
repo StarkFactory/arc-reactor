@@ -33,7 +33,7 @@ class JwtTokenProviderTest {
     inner class CreateToken {
 
         @Test
-        fun `should create a valid non-empty token`() {
+        fun `create a valid non-empty token해야 한다`() {
             val token = tokenProvider.createToken(testUser)
 
             assertNotNull(token) { "Token should not be null" }
@@ -43,7 +43,7 @@ class JwtTokenProviderTest {
         }
 
         @Test
-        fun `token should contain userId as subject`() {
+        fun `token은(는) contain userId as subject해야 한다`() {
             val token = tokenProvider.createToken(testUser)
             val extractedUserId = tokenProvider.validateToken(token)
 
@@ -51,10 +51,10 @@ class JwtTokenProviderTest {
         }
 
         @Test
-        fun `token should contain email claim`() {
+        fun `token은(는) contain email claim해야 한다`() {
             val token = tokenProvider.createToken(testUser)
 
-            // Validate token returns userId, proving the token is parseable
+            // token returns userId, proving the token is parseable 검증
             val userId = tokenProvider.validateToken(token)
             assertNotNull(userId) { "Token should be valid and parseable" }
 
@@ -74,7 +74,7 @@ class JwtTokenProviderTest {
     inner class RoleClaim {
 
         @Test
-        fun `token should contain role claim`() {
+        fun `token은(는) contain role claim해야 한다`() {
             val adminUser = testUser.copy(role = UserRole.ADMIN)
             val token = tokenProvider.createToken(adminUser)
 
@@ -84,7 +84,7 @@ class JwtTokenProviderTest {
         }
 
         @Test
-        fun `token should preserve ADMIN_MANAGER role claim`() {
+        fun `token은(는) preserve ADMIN_MANAGER role claim해야 한다`() {
             val managerAdmin = testUser.copy(role = UserRole.ADMIN_MANAGER)
             val token = tokenProvider.createToken(managerAdmin)
 
@@ -96,7 +96,7 @@ class JwtTokenProviderTest {
         }
 
         @Test
-        fun `default user should have USER role in token`() {
+        fun `default user은(는) have USER role in token해야 한다`() {
             val token = tokenProvider.createToken(testUser)
 
             val role = tokenProvider.extractRole(token)
@@ -105,7 +105,7 @@ class JwtTokenProviderTest {
         }
 
         @Test
-        fun `extractRole should return null for invalid token`() {
+        fun `extractRole은(는) return null for invalid token해야 한다`() {
             val role = tokenProvider.extractRole("invalid.token.value")
 
             assertNull(role) { "extractRole should return null for invalid token" }
@@ -116,7 +116,7 @@ class JwtTokenProviderTest {
     inner class TenantClaim {
 
         @Test
-        fun `token should contain default tenant claim`() {
+        fun `token은(는) contain default tenant claim해야 한다`() {
             val token = tokenProvider.createToken(testUser)
 
             val tenantId = tokenProvider.extractTenantId(token)
@@ -127,7 +127,7 @@ class JwtTokenProviderTest {
         }
 
         @Test
-        fun `extractTenantId should return null for invalid token`() {
+        fun `extractTenantId은(는) return null for invalid token해야 한다`() {
             val tenantId = tokenProvider.extractTenantId("invalid.token.value")
 
             assertNull(tenantId) { "extractTenantId should return null for invalid token" }
@@ -138,7 +138,7 @@ class JwtTokenProviderTest {
     inner class EmailClaim {
 
         @Test
-        fun `token should expose email claim`() {
+        fun `token은(는) expose email claim해야 한다`() {
             val token = tokenProvider.createToken(testUser)
 
             val email = tokenProvider.extractEmail(token)
@@ -147,7 +147,7 @@ class JwtTokenProviderTest {
         }
 
         @Test
-        fun `extractEmail should return null for invalid token`() {
+        fun `extractEmail은(는) return null for invalid token해야 한다`() {
             val email = tokenProvider.extractEmail("invalid.token.value")
 
             assertNull(email) { "extractEmail should return null for invalid token" }
@@ -158,7 +158,7 @@ class JwtTokenProviderTest {
     inner class AccountClaim {
 
         @Test
-        fun `token should expose accountId claim`() {
+        fun `token은(는) expose accountId claim해야 한다`() {
             val tokenWithAccount = createJwtWithAccountClaim("user-42", "acct-42")
 
             val accountId = tokenProvider.extractAccountId(tokenWithAccount)
@@ -167,7 +167,7 @@ class JwtTokenProviderTest {
         }
 
         @Test
-        fun `extractAccountId should return null for invalid token`() {
+        fun `extractAccountId은(는) return null for invalid token해야 한다`() {
             val accountId = tokenProvider.extractAccountId("invalid.token.value")
 
             assertNull(accountId) { "extractAccountId should return null for invalid token" }
@@ -193,7 +193,7 @@ class JwtTokenProviderTest {
     inner class SecretValidation {
 
         @Test
-        fun `should reject secret shorter than 32 bytes`() {
+        fun `reject secret shorter than 32 bytes해야 한다`() {
             val exception = assertThrows(IllegalArgumentException::class.java) {
                 JwtTokenProvider(
                     AuthProperties(jwtSecret = "too-short")
@@ -205,7 +205,7 @@ class JwtTokenProviderTest {
         }
 
         @Test
-        fun `should reject empty secret`() {
+        fun `reject empty secret해야 한다`() {
             assertThrows(IllegalArgumentException::class.java) {
                 JwtTokenProvider(
                     AuthProperties(jwtSecret = "")
@@ -214,7 +214,7 @@ class JwtTokenProviderTest {
         }
 
         @Test
-        fun `should accept secret of exactly 32 bytes`() {
+        fun `accept secret of exactly 32 bytes해야 한다`() {
             val provider = JwtTokenProvider(
                 AuthProperties(jwtSecret = "a".repeat(32))
             )
@@ -227,7 +227,7 @@ class JwtTokenProviderTest {
     inner class ValidateToken {
 
         @Test
-        fun `should validate and return userId for valid token`() {
+        fun `valid token에 대해 validate and return userId해야 한다`() {
             val token = tokenProvider.createToken(testUser)
 
             val result = tokenProvider.validateToken(token)
@@ -236,15 +236,15 @@ class JwtTokenProviderTest {
         }
 
         @Test
-        fun `should return null for invalid token`() {
+        fun `invalid token에 대해 return null해야 한다`() {
             val result = tokenProvider.validateToken("invalid.token.value")
 
             assertNull(result) { "validateToken should return null for invalid token" }
         }
 
         @Test
-        fun `should return null for expired token`() {
-            // Create a provider with 1ms expiration
+        fun `expired token에 대해 return null해야 한다`() {
+            // a provider with 1ms expiration 생성
             val shortLivedProvider = JwtTokenProvider(
                 AuthProperties(
                     jwtSecret = testSecret,
@@ -254,7 +254,7 @@ class JwtTokenProviderTest {
 
             val token = shortLivedProvider.createToken(testUser)
 
-            // Wait for expiration
+            // for expiration를 기다립니다
             Thread.sleep(50)
 
             val result = shortLivedProvider.validateToken(token)

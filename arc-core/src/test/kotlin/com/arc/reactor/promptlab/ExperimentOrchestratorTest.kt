@@ -68,7 +68,7 @@ class ExperimentOrchestratorTest {
     inner class ExecuteExperiment {
 
         @Test
-        fun `should execute experiment and generate report`() = runTest {
+        fun `execute experiment and generate report해야 한다`() = runTest {
             val experiment = buildPendingExperiment()
             every { experimentStore.get("exp-1") } returns experiment
             mockVersionLookup("baseline-v", 1, "Baseline prompt")
@@ -83,7 +83,7 @@ class ExperimentOrchestratorTest {
         }
 
         @Test
-        fun `should reject non-PENDING experiments`() = runTest {
+        fun `reject non-PENDING experiments해야 한다`() = runTest {
             val experiment = buildPendingExperiment().copy(
                 status = ExperimentStatus.RUNNING
             )
@@ -100,7 +100,7 @@ class ExperimentOrchestratorTest {
         }
 
         @Test
-        fun `should mark experiment as FAILED on error`() = runTest {
+        fun `mark experiment as FAILED on error해야 한다`() = runTest {
             val experiment = buildPendingExperiment()
             every { experimentStore.get("exp-1") } returns experiment
             every { promptTemplateStore.getVersion(any()) } returns null
@@ -113,7 +113,7 @@ class ExperimentOrchestratorTest {
         }
 
         @Test
-        fun `should throw for unknown experiment ID`() = runTest {
+        fun `unknown experiment ID에 대해 throw해야 한다`() = runTest {
             every { experimentStore.get("unknown") } returns null
 
             try {
@@ -127,7 +127,7 @@ class ExperimentOrchestratorTest {
         }
 
         @Test
-        fun `should include experiment metadata in agent command`() = runTest {
+        fun `include experiment metadata in agent command해야 한다`() = runTest {
             val experiment = buildPendingExperiment()
             every { experimentStore.get("exp-1") } returns experiment
             mockVersionLookup("baseline-v", 1, "Baseline prompt")
@@ -146,7 +146,7 @@ class ExperimentOrchestratorTest {
         }
 
         @Test
-        fun `should mark experiment as FAILED on timeout`() = runTest {
+        fun `mark experiment as FAILED on timeout해야 한다`() = runTest {
             val shortTimeoutProps = PromptLabProperties(enabled = true, experimentTimeoutMs = 50)
             val timeoutOrchestrator = ExperimentOrchestrator(
                 agentExecutor = agentExecutor,
@@ -183,7 +183,7 @@ class ExperimentOrchestratorTest {
         }
 
         @Test
-        fun `should handle agent execution failure gracefully`() = runTest {
+        fun `handle agent execution failure gracefully해야 한다`() = runTest {
             val experiment = buildPendingExperiment()
             every { experimentStore.get("exp-1") } returns experiment
             mockVersionLookup("baseline-v", 1, "Baseline prompt")
@@ -203,7 +203,7 @@ class ExperimentOrchestratorTest {
     inner class AutoPipeline {
 
         @Test
-        fun `should skip when insufficient negative feedback`() = runTest {
+        fun `insufficient negative feedback일 때 skip해야 한다`() = runTest {
             val analysis = FeedbackAnalysis(
                 totalFeedback = 10,
                 negativeCount = 2,
@@ -218,7 +218,7 @@ class ExperimentOrchestratorTest {
         }
 
         @Test
-        fun `should run full pipeline when enough negative feedback`() = runTest {
+        fun `enough negative feedback일 때 run full pipeline해야 한다`() = runTest {
             val analysis = buildAnalysis(negativeCount = 5)
             coEvery { feedbackAnalyzer.analyze("tmpl-1", null) } returns analysis
             coEvery { candidateGenerator.generate("tmpl-1", analysis, 3) } returns listOf("cand-1", "cand-2")
@@ -258,7 +258,7 @@ class ExperimentOrchestratorTest {
         }
 
         @Test
-        fun `should return null when no candidates are generated`() = runTest {
+        fun `no candidates are generated일 때 return null해야 한다`() = runTest {
             val analysis = buildAnalysis(negativeCount = 10)
             coEvery { feedbackAnalyzer.analyze("tmpl-1", null) } returns analysis
             coEvery { candidateGenerator.generate("tmpl-1", analysis, 3) } returns emptyList()
