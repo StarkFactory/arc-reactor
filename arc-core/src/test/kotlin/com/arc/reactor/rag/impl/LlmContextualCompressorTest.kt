@@ -230,6 +230,29 @@ class LlmContextualCompressorTest {
     }
 
     @Nested
+    inner class AllIrrelevantBatch {
+
+        @Test
+        fun `should return empty list when all documents in parallel batch are graded IRRELEVANT`() = runTest {
+            mockLlmResponse("IRRELEVANT")
+
+            val compressor = LlmContextualCompressor(chatClient)
+            val docs = listOf(
+                RetrievedDocument(id = "doc-1", content = "A".repeat(300)),
+                RetrievedDocument(id = "doc-2", content = "B".repeat(300)),
+                RetrievedDocument(id = "doc-3", content = "C".repeat(300))
+            )
+
+            val result = compressor.compress("query", docs)
+
+            assertTrue(result.isEmpty()) {
+                "All documents graded IRRELEVANT should produce an empty result list"
+            }
+            verify(exactly = 3) { chatClient.prompt() }
+        }
+    }
+
+    @Nested
     inner class MixedDocuments {
 
         @Test

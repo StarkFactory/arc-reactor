@@ -1477,6 +1477,60 @@ class ToolCallOrchestratorTest {
         assertEquals(1, callCount, "Tool should be invoked only once due to caching")
     }
 
+    @Test
+    fun `should expire cached result after TTL and re-execute tool`() = runBlocking {
+        var callCount = 0
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                callCount++
+                return "result-$callCount"
+            }
+        }
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("q" to "arc") },
+            toolResultCacheProperties = ToolResultCacheProperties(
+                enabled = true,
+                ttlSeconds = 1,
+                maxSize = 200
+            )
+        )
+
+        val firstCall = toolCall(id = "id-1", name = "search", arguments = """{"q":"arc"}""")
+        val firstResponses = orchestrator.executeInParallel(
+            toolCalls = listOf(firstCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+        assertEquals("result-1", firstResponses[0].responseData(), "First call should return fresh result")
+
+        Thread.sleep(1100)
+
+        val secondCall = toolCall(id = "id-2", name = "search", arguments = """{"q":"arc"}""")
+        val secondResponses = orchestrator.executeInParallel(
+            toolCalls = listOf(secondCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals("result-2", secondResponses[0].responseData(), "Second call after TTL expiry should return fresh result")
+        assertEquals(2, callCount, "Tool should be invoked twice because cache entry expired after TTL")
+    }
+
     private fun toolCall(id: String, name: String, arguments: String = "{}"): AssistantMessage.ToolCall {
         val toolCall = mockk<AssistantMessage.ToolCall>()
         every { toolCall.id() } returns id

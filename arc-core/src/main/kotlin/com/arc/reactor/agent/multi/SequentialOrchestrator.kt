@@ -47,9 +47,13 @@ class SequentialOrchestrator : MultiAgentOrchestrator {
         val startTime = System.currentTimeMillis()
         val nodeResults = mutableListOf<NodeResult>()
         var currentInput = command.userPrompt
-
         val defaultTimeout = WorkerAgentTool.DEFAULT_WORKER_TIMEOUT_MS
 
+<<<<<<< HEAD
+        val defaultTimeout = WorkerAgentTool.DEFAULT_WORKER_TIMEOUT_MS
+
+=======
+>>>>>>> d860cb0 (test: Add edge case tests for RAG compressor, tool cache TTL, and citation special chars)
         for ((index, node) in nodes.withIndex()) {
             logger.info { "Sequential: executing node '${node.name}' with input length=${currentInput.length}" }
             val nodeStart = System.currentTimeMillis()
