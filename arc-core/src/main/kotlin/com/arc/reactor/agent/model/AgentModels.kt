@@ -67,7 +67,7 @@ data class MediaAttachment(
         if (this === other) return true
         if (other !is MediaAttachment) return false
         return mimeType == other.mimeType &&
-            data?.contentEquals(other.data ?: byteArrayOf()) ?: (other.data == null) &&
+            (data?.contentEquals(other.data ?: byteArrayOf()) ?: (other.data == null)) &&
             uri == other.uri && name == other.name
     }
 
