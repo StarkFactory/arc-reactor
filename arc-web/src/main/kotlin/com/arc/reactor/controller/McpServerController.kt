@@ -46,7 +46,8 @@ private val logger = KotlinLogging.logger {}
 class McpServerController(
     private val mcpManager: McpManager,
     private val mcpServerStore: McpServerStore,
-    private val adminAuditStore: AdminAuditStore
+    private val adminAuditStore: AdminAuditStore,
+    private val agentProperties: com.arc.reactor.agent.config.AgentProperties
 ) {
 
     /**
@@ -383,7 +384,7 @@ class McpServerController(
     private fun validateSseUrl(config: Map<String, Any>): String? {
         val url = config["url"]?.toString()
             ?: return "SSE transport requires a 'url' in config"
-        return SsrfUrlValidator.validate(url)
+        return SsrfUrlValidator.validate(url, agentProperties.mcp.allowPrivateAddresses)
     }
 
     private fun persistServerIfMissing(server: McpServer) {
