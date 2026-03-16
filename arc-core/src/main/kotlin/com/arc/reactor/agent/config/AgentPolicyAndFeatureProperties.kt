@@ -144,7 +144,7 @@ data class RagProperties(
     val topK: Int = 5,
 
     /** Enable re-ranking */
-    val rerankEnabled: Boolean = true,
+    val rerankEnabled: Boolean = false,
 
     /** Query transformer mode: passthrough|hyde|decomposition */
     val queryTransformer: String = "passthrough",
@@ -165,7 +165,7 @@ data class RagProperties(
     val parentRetrieval: RagParentRetrievalProperties = RagParentRetrievalProperties(),
 
     /** Retrieval timeout in milliseconds. Prevents thread-pool exhaustion when vector DB is unresponsive. */
-    val retrievalTimeoutMs: Long = 5000,
+    val retrievalTimeoutMs: Long = 3000,
 
     /** Contextual compression configuration */
     val compression: RagCompressionProperties = RagCompressionProperties(),

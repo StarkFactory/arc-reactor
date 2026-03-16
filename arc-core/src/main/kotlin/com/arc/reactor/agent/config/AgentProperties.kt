@@ -173,7 +173,7 @@ data class RetryProperties(
     val maxAttempts: Int = 3,
 
     /** Initial delay between retries (milliseconds) */
-    val initialDelayMs: Long = 1000,
+    val initialDelayMs: Long = 200,
 
     /** Backoff multiplier */
     val multiplier: Double = 2.0,
