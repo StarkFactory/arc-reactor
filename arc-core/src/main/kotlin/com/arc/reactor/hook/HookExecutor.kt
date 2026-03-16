@@ -22,6 +22,12 @@ private val logger = KotlinLogging.logger {}
  * **After-hooks** (afterToolCall, afterAgentComplete) use **observational semantics**:
  * each hook runs independently, logging failures without affecting subsequent hooks
  * (unless `failOnError=true` is explicitly set, which re-throws the exception).
+ *
+ * @see BeforeAgentStartHook for pre-execution hooks
+ * @see BeforeToolCallHook for pre-tool-call hooks
+ * @see AfterToolCallHook for post-tool-call hooks
+ * @see AfterAgentCompleteHook for post-execution hooks
+ * @see AgentHook for common hook properties (order, enabled, failOnError)
  */
 class HookExecutor(
     beforeStartHooks: List<BeforeAgentStartHook> = emptyList(),

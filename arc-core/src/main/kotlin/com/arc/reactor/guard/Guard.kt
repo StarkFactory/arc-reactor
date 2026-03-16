@@ -75,6 +75,8 @@ interface RequestGuard {
  * @property stageName Unique identifier for this stage
  * @property order Execution order (lower values execute first)
  * @property enabled Whether this stage is active (default: true)
+ *
+ * @see com.arc.reactor.guard.impl.GuardPipeline for the pipeline that executes stages
  */
 interface GuardStage {
     /** Stage identifier used in rejection messages */

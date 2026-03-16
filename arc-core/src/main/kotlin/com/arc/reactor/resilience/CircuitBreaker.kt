@@ -17,6 +17,9 @@ package com.arc.reactor.resilience
  * val cb = DefaultCircuitBreaker(properties)
  * val result = cb.execute { riskyCall() }
  * ```
+ *
+ * @see com.arc.reactor.resilience.impl.DefaultCircuitBreaker for default implementation
+ * @see CircuitBreakerRegistry for managing named circuit breaker instances
  */
 interface CircuitBreaker {
 

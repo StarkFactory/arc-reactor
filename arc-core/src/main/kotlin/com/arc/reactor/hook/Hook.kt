@@ -49,6 +49,8 @@ import com.arc.reactor.hook.model.ToolCallResult
  *     }
  * }
  * ```
+ *
+ * @see HookExecutor for the orchestrator that runs hooks in order
  */
 interface AgentHook {
     /**
@@ -90,6 +92,7 @@ interface AgentHook {
  * - [HookResult.Reject]: Block execution with error message
  *
  * @see HookContext for available request information
+ * @see HookExecutor for orchestrated execution
  */
 interface BeforeAgentStartHook : AgentHook {
     /**
@@ -115,6 +118,7 @@ interface BeforeAgentStartHook : AgentHook {
  * - [HookResult.Reject]: Block this specific tool call
  *
  * @see ToolCallContext for tool call information
+ * @see HookExecutor for orchestrated execution
  */
 interface BeforeToolCallHook : AgentHook {
     /**
@@ -138,6 +142,7 @@ interface BeforeToolCallHook : AgentHook {
  * Note: This hook cannot modify the result or stop execution.
  *
  * @see ToolCallResult for tool execution results
+ * @see HookExecutor for orchestrated execution
  */
 interface AfterToolCallHook : AgentHook {
     /**
@@ -162,6 +167,7 @@ interface AfterToolCallHook : AgentHook {
  * Note: This hook is called even when the agent fails.
  *
  * @see AgentResponse for complete response information
+ * @see HookExecutor for orchestrated execution
  */
 interface AfterAgentCompleteHook : AgentHook {
     /**

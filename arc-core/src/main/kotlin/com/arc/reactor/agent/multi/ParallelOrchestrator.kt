@@ -37,6 +37,8 @@ private val logger = KotlinLogging.logger {}
  *
  * @param merger Result merge strategy (default: join with newlines)
  * @param failFast If true, any failure causes overall failure; if false, only successful results are merged
+ *
+ * @see MultiAgentOrchestrator for the interface contract
  */
 class ParallelOrchestrator(
     private val merger: ResultMerger = ResultMerger.JOIN_WITH_NEWLINE,

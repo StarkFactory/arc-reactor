@@ -19,6 +19,8 @@ private val logger = KotlinLogging.logger {}
  * Default RAG Pipeline Implementation
  *
  * Query → Transform → Retrieve → Rerank → [Compress] → Build Context
+ *
+ * @see RagPipeline for the interface contract
  */
 class DefaultRagPipeline(
     private val queryTransformer: QueryTransformer? = null,
