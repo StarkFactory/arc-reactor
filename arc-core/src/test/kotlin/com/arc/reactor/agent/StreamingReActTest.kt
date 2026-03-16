@@ -201,8 +201,9 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            // Verify 1: Text is passed through as-is
-            assertEquals(listOf("Hello", " World"), chunks)
+            // Verify 1: Text is passed through as-is (filter out internal markers)
+            val textChunks = chunks.filter { !StreamEventMarker.isMarker(it) }
+            assertEquals(listOf("Hello", " World"), textChunks, "Content chunks should match")
 
             // Verify 2: Streaming happens only once (no ReAct loop)
             verify(exactly = 1) { fixture.requestSpec.stream() }

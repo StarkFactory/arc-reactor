@@ -110,6 +110,52 @@ class RagContextRetrieverTest {
     }
 
     @Test
+    fun `retrieveWithMetadata returns document count and sources`() = runBlocking {
+        val pipeline = mockk<RagPipeline>()
+        coEvery { pipeline.retrieve(any()) } returns RagContext(
+            context = "retrieved context",
+            documents = listOf(
+                RetrievedDocument(id = "doc-1", content = "content1", source = "faq.md"),
+                RetrievedDocument(id = "doc-2", content = "content2", source = "guide.md"),
+                RetrievedDocument(id = "doc-3", content = "content3", source = "faq.md")
+            )
+        )
+        val retriever = RagContextRetriever(
+            enabled = true,
+            topK = 5,
+            rerankEnabled = true,
+            ragPipeline = pipeline,
+            retrievalTimeoutMs = 5000
+        )
+
+        val result = retriever.retrieveWithMetadata(
+            AgentCommand(systemPrompt = "sys", userPrompt = "hello")
+        )
+
+        assertEquals("retrieved context", result.context, "Context should match pipeline output")
+        assertEquals(3, result.documentCount, "Document count should be 3")
+        assertEquals(listOf("faq.md", "guide.md"), result.sources, "Sources should be deduplicated")
+    }
+
+    @Test
+    fun `retrieveWithMetadata returns EMPTY when disabled`() = runBlocking {
+        val retriever = RagContextRetriever(
+            enabled = false,
+            topK = 5,
+            rerankEnabled = true,
+            ragPipeline = mockk(),
+            retrievalTimeoutMs = 5000
+        )
+
+        val result = retriever.retrieveWithMetadata(
+            AgentCommand(systemPrompt = "sys", userPrompt = "hello")
+        )
+
+        assertNull(result.context, "Context should be null when disabled")
+        assertEquals(0, result.documentCount, "Document count should be 0 when disabled")
+    }
+
+    @Test
     fun `returns null when pipeline exceeds retrieval timeout`() = runTest {
         val pipeline = mockk<RagPipeline>()
         coEvery { pipeline.retrieve(any()) } coAnswers {

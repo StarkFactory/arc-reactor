@@ -183,10 +183,11 @@ class ScenarioAssumptionValidationTest {
             lineCommand("json으로 응답해줘", responseFormat = ResponseFormat.JSON)
         ).toList()
 
-        assertEquals(1, chunks.size)
-        val parsed = StreamEventMarker.parse(chunks.first())
+        val errorChunks = chunks.filter { StreamEventMarker.parse(it)?.first == "error" }
+        assertEquals(1, errorChunks.size, "Should emit exactly one error marker")
+        val parsed = StreamEventMarker.parse(errorChunks.first())
         assertNotNull(parsed, "Streaming error chunk should be a parseable StreamEventMarker")
-        assertEquals("error", parsed?.first)
+        assertEquals("error", parsed?.first, "Event type should be error")
         assertTrue(parsed?.second?.contains("Structured JSON output is not supported in streaming mode") == true) {
             "Streaming with JSON response format should emit INVALID_RESPONSE marker"
         }
@@ -215,10 +216,11 @@ class ScenarioAssumptionValidationTest {
 
         val chunks = executor.executeStream(lineCommand("같은 요청 반복")).toList()
 
-        assertEquals(1, chunks.size)
-        val parsed = StreamEventMarker.parse(chunks.first())
-        assertEquals("error", parsed?.first)
-        assertEquals("rate limit exceeded", parsed?.second)
+        val errorChunks = chunks.filter { StreamEventMarker.parse(it)?.first == "error" }
+        assertEquals(1, errorChunks.size, "Should emit exactly one error marker")
+        val parsed = StreamEventMarker.parse(errorChunks.first())
+        assertEquals("error", parsed?.first, "Event type should be error")
+        assertEquals("rate limit exceeded", parsed?.second, "Error payload should be rejection reason")
         verify(exactly = 1) {
             metrics.recordStreamingExecution(
                 match {

@@ -45,7 +45,7 @@ class AgentExecutionCoordinatorTest {
             mcpToolCallbacks = { listOf(testTool("mcp")) },
             conversationManager = mockk(relaxed = true),
             selectAndPrepareTools = { emptyList() },
-            retrieveRagContext = { null },
+            retrieveRagContext = { RagRetrievalResult.EMPTY },
             executeWithTools = { _, _, _, _, _, _ ->
                 executeCalled = true
                 AgentResult.success("live")
@@ -90,7 +90,7 @@ class AgentExecutionCoordinatorTest {
             mcpToolCallbacks = { emptyList() },
             conversationManager = mockk(relaxed = true),
             selectAndPrepareTools = { emptyList() },
-            retrieveRagContext = { null },
+            retrieveRagContext = { RagRetrievalResult.EMPTY },
             executeWithTools = { _, _, _, _, _, _ ->
                 AgentResult.failure(errorMessage = "boom", errorCode = AgentErrorCode.UNKNOWN)
             },
@@ -134,7 +134,7 @@ class AgentExecutionCoordinatorTest {
             mcpToolCallbacks = { emptyList() },
             conversationManager = mockk(relaxed = true),
             selectAndPrepareTools = { emptyList() },
-            retrieveRagContext = { null },
+            retrieveRagContext = { RagRetrievalResult.EMPTY },
             executeWithTools = { _, _, _, _, _, _ -> AgentResult.success(content = "raw") },
             finalizeExecution = { _, _, _, _, _ ->
                 AgentResult.success(content = "final", toolsUsed = listOf("tool"))
@@ -183,7 +183,7 @@ class AgentExecutionCoordinatorTest {
             mcpToolCallbacks = { emptyList() },
             conversationManager = mockk(relaxed = true),
             selectAndPrepareTools = { emptyList() },
-            retrieveRagContext = { null },
+            retrieveRagContext = { RagRetrievalResult.EMPTY },
             executeWithTools = { _, _, _, _, _, _ -> AgentResult.success("live") },
             finalizeExecution = { result, _, _, _, _ -> result },
             checkGuardAndHooks = { _, _, _ -> null },
@@ -219,7 +219,7 @@ class AgentExecutionCoordinatorTest {
             mcpToolCallbacks = { emptyList() },
             conversationManager = mockk(relaxed = true),
             selectAndPrepareTools = { emptyList() },
-            retrieveRagContext = { null },
+            retrieveRagContext = { RagRetrievalResult.EMPTY },
             executeWithTools = { _, _, _, context, _, _ ->
                 recordStageTiming(context, "llm_calls", 11)
                 recordStageTiming(context, "tool_execution", 7)
@@ -274,7 +274,7 @@ class AgentExecutionCoordinatorTest {
                 selectCalled = true
                 listOf("selected-tool")
             },
-            retrieveRagContext = { null },
+            retrieveRagContext = { RagRetrievalResult.EMPTY },
             executeWithTools = { _, tools, _, _, _, _ ->
                 capturedTools = tools
                 AgentResult.success(content = "raw")
@@ -312,7 +312,7 @@ class AgentExecutionCoordinatorTest {
             mcpToolCallbacks = { emptyList() },
             conversationManager = mockk(relaxed = true),
             selectAndPrepareTools = { emptyList() },
-            retrieveRagContext = { null },
+            retrieveRagContext = { RagRetrievalResult.EMPTY },
             executeWithTools = { _, _, _, _, _, _ -> AgentResult.success(content = "raw") },
             finalizeExecution = { result, _, _, _, _ -> result },
             checkGuardAndHooks = { _, _, _ -> null },

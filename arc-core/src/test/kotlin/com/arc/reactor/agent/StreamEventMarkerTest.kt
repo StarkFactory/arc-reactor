@@ -93,6 +93,37 @@ class StreamEventMarkerTest {
     }
 
     @Nested
+    inner class DoneMarker {
+
+        @Test
+        fun `should generate and parse done marker with empty metadata`() {
+            val marker = StreamEventMarker.done()
+            val parsed = StreamEventMarker.parse(marker)
+
+            assertNotNull(parsed) { "done marker should be parseable" }
+            assertEquals("done", parsed!!.first) { "Event type should be done" }
+            assertEquals("", parsed.second) { "Payload should be empty string for no metadata" }
+        }
+
+        @Test
+        fun `should generate and parse done marker with JSON metadata`() {
+            val json = """{"ragDocumentCount":3,"totalDurationMs":1234}"""
+            val marker = StreamEventMarker.done(json)
+            val parsed = StreamEventMarker.parse(marker)
+
+            assertNotNull(parsed) { "done marker with JSON should be parseable" }
+            assertEquals("done", parsed!!.first) { "Event type should be done" }
+            assertEquals(json, parsed.second) { "Payload should be the JSON metadata" }
+        }
+
+        @Test
+        fun `should detect done as marker`() {
+            val marker = StreamEventMarker.done("{}")
+            assertTrue(StreamEventMarker.isMarker(marker)) { "done should be detected as marker" }
+        }
+    }
+
+    @Nested
     inner class NonMarkerText {
 
         @Test

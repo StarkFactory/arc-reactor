@@ -252,7 +252,7 @@ class SpringAiAgentExecutor(
         mcpToolCallbacks = mcpToolCallbacks,
         conversationManager = conversationManager,
         selectAndPrepareTools = toolPreparationPlanner::prepareForPrompt,
-        retrieveRagContext = ragContextRetriever::retrieve,
+        retrieveRagContext = ragContextRetriever::retrieveWithMetadata,
         executeWithTools = ::executeWithTools,
         finalizeExecution = { result, command, hookContext, tools, startTime ->
             executionResultFinalizer.finalize(

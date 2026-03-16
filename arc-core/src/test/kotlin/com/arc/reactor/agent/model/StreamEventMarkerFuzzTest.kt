@@ -43,6 +43,10 @@ class StreamEventMarkerFuzzTest {
             val errorMarker = StreamEventMarker.error(payload)
             assertTrue(StreamEventMarker.isMarker(errorMarker), "error marker should be recognized as a marker: $errorMarker")
             assertEquals("error" to payload, StreamEventMarker.parse(errorMarker))
+
+            val doneMarker = StreamEventMarker.done(payload)
+            assertTrue(StreamEventMarker.isMarker(doneMarker), "done marker should be recognized as a marker: $doneMarker")
+            assertEquals("done" to payload, StreamEventMarker.parse(doneMarker))
         }
     }
 

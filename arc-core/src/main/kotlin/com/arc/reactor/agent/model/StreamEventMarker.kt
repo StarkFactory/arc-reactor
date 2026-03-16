@@ -15,12 +15,19 @@ object StreamEventMarker {
     private const val TOOL_START = "${PREFIX}tool_start:"
     private const val TOOL_END = "${PREFIX}tool_end:"
     private const val ERROR = "${PREFIX}error:"
+    private const val DONE = "${PREFIX}done:"
 
     fun toolStart(toolName: String): String = "$TOOL_START$toolName"
 
     fun toolEnd(toolName: String): String = "$TOOL_END$toolName"
 
     fun error(message: String): String = "$ERROR$message"
+
+    /**
+     * Emits a done marker with optional JSON metadata payload.
+     * The controller layer converts this into a typed SSE `done` event.
+     */
+    fun done(metadata: String = ""): String = "$DONE$metadata"
 
     fun isMarker(text: String): Boolean = text.startsWith(PREFIX)
 
@@ -31,6 +38,7 @@ object StreamEventMarker {
     fun parse(text: String): Pair<String, String>? = when {
         text.startsWith(TOOL_START) -> "tool_start" to text.removePrefix(TOOL_START)
         text.startsWith(TOOL_END) -> "tool_end" to text.removePrefix(TOOL_END)
+        text.startsWith(DONE) -> "done" to text.removePrefix(DONE)
         text.startsWith(ERROR) -> "error" to text.removePrefix(ERROR)
         else -> null
     }

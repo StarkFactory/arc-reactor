@@ -9,6 +9,7 @@ import com.arc.reactor.guard.output.OutputGuardPipeline
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -93,9 +94,10 @@ class StreamingCompletionFinalizerTest {
         )
 
         verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_long", "warn", 3, 4) }
-        assertEquals(1, emitted.size)
-        val parsed = StreamEventMarker.parse(emitted.first())
-        assertEquals("error", parsed?.first)
+        val errorMarkers = emitted.filter { StreamEventMarker.parse(it)?.first == "error" }
+        assertEquals(1, errorMarkers.size, "Exactly one error marker should be emitted")
+        val parsed = StreamEventMarker.parse(errorMarkers.first())
+        assertEquals("error", parsed?.first, "Event type should be error")
         assertTrue(parsed?.second?.contains("Boundary violation [output_too_long]") == true, "Error marker should describe output_too_long boundary violation")
     }
 
@@ -125,9 +127,10 @@ class StreamingCompletionFinalizerTest {
         )
 
         verify(exactly = 1) { metrics.recordBoundaryViolation("output_too_short", "warn", 5, 3) }
-        assertEquals(1, emitted.size)
-        val parsed = StreamEventMarker.parse(emitted.first())
-        assertEquals("error", parsed?.first)
+        val errorMarkers = emitted.filter { StreamEventMarker.parse(it)?.first == "error" }
+        assertEquals(1, errorMarkers.size, "Exactly one error marker should be emitted")
+        val parsed = StreamEventMarker.parse(errorMarkers.first())
+        assertEquals("error", parsed?.first, "Event type should be error")
         assertTrue(parsed?.second?.contains("Boundary violation [output_too_short]") == true, "Error marker should describe output_too_short boundary violation")
     }
 
@@ -249,6 +252,100 @@ class StreamingCompletionFinalizerTest {
             fail("Expected CancellationException")
         } catch (_: CancellationException) {
             // expected
+        }
+    }
+
+    @Test
+    fun `should emit done marker with RAG metadata when documents were retrieved`() = runBlocking {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = StreamingCompletionFinalizer(
+            boundaries = BoundaryProperties(),
+            conversationManager = conversationManager,
+            hookExecutor = null,
+            agentMetrics = metrics,
+            nowMs = { 2_000L }
+        )
+
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi")
+        hookContext.metadata[RagContextRetriever.METADATA_RAG_DOCUMENT_COUNT] = 3
+        hookContext.metadata[RagContextRetriever.METADATA_RAG_SOURCES] = listOf("faq.md", "guide.md")
+        recordStageTiming(hookContext, "rag_retrieval", 42L)
+
+        val emitted = mutableListOf<String>()
+        finalizer.finalize(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = hookContext,
+            streamStarted = true,
+            streamSuccess = true,
+            collectedContent = "answer",
+            lastIterationContent = "answer",
+            streamErrorMessage = null,
+            streamErrorCode = null,
+            toolsUsed = listOf("search"),
+            startTime = 1_000L,
+            emit = { emitted.add(it) }
+        )
+
+        val doneMarkers = emitted.filter { StreamEventMarker.parse(it)?.first == "done" }
+        assertEquals(1, doneMarkers.size) { "Exactly one done marker should be emitted" }
+
+        val donePayload = StreamEventMarker.parse(doneMarkers.first())!!.second
+        val mapper = jacksonObjectMapper()
+        val metadata = mapper.readValue(donePayload, Map::class.java)
+
+        assertEquals(3, metadata["ragDocumentCount"]) { "Done metadata should contain ragDocumentCount" }
+        @Suppress("UNCHECKED_CAST")
+        val sources = metadata["ragSources"] as List<String>
+        assertTrue(sources.contains("faq.md")) { "Done metadata should contain ragSources" }
+        assertEquals(listOf("search"), metadata["toolsUsed"]) { "Done metadata should contain toolsUsed" }
+        assertEquals(1000, metadata["totalDurationMs"]) { "Done metadata should contain totalDurationMs" }
+
+        @Suppress("UNCHECKED_CAST")
+        val stageTimings = metadata["stageTimings"] as Map<String, Any>
+        assertEquals(42, stageTimings["rag_retrieval"]) { "Done metadata stageTimings should include rag_retrieval" }
+    }
+
+    @Test
+    fun `should emit done marker without RAG metadata when no documents retrieved`() = runBlocking {
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = StreamingCompletionFinalizer(
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = null,
+            agentMetrics = metrics,
+            nowMs = { 2_000L }
+        )
+
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi")
+
+        val emitted = mutableListOf<String>()
+        finalizer.finalize(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = hookContext,
+            streamStarted = true,
+            streamSuccess = true,
+            collectedContent = "answer",
+            lastIterationContent = "answer",
+            streamErrorMessage = null,
+            streamErrorCode = null,
+            toolsUsed = emptyList(),
+            startTime = 1_000L,
+            emit = { emitted.add(it) }
+        )
+
+        val doneMarkers = emitted.filter { StreamEventMarker.parse(it)?.first == "done" }
+        assertEquals(1, doneMarkers.size) { "Exactly one done marker should be emitted" }
+
+        val donePayload = StreamEventMarker.parse(doneMarkers.first())!!.second
+        val mapper = jacksonObjectMapper()
+        val metadata = mapper.readValue(donePayload, Map::class.java)
+
+        assertTrue(!metadata.containsKey("ragDocumentCount")) {
+            "Done metadata should not contain ragDocumentCount when no RAG documents"
+        }
+        assertTrue(!metadata.containsKey("ragSources")) {
+            "Done metadata should not contain ragSources when no RAG documents"
         }
     }
 }

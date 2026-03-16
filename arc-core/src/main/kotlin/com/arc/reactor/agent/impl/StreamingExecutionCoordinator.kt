@@ -160,10 +160,12 @@ internal class StreamingExecutionCoordinator(
         agentMetrics.recordStageLatency("history_load", historyLoadDurationMs, command.metadata)
 
         val ragStart = System.nanoTime()
-        val ragContext = ragContextRetriever.retrieve(command)
+        val ragResult = ragContextRetriever.retrieveWithMetadata(command)
         val ragDurationMs = (System.nanoTime() - ragStart) / 1_000_000
         recordStageTiming(hookContext, "rag_retrieval", ragDurationMs)
         agentMetrics.recordStageLatency("rag_retrieval", ragDurationMs, command.metadata)
+        ragResult.enrichMetadata(hookContext.metadata)
+        val ragContext = ragResult.context
 
         val userMemoryContext =
             hookContext.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()

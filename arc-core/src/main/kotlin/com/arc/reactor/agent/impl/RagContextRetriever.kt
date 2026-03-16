@@ -25,14 +25,26 @@ internal class RagContextRetriever(
     private val complexTopK: Int = 15
 ) {
 
+    /**
+     * Retrieves RAG context for the given command.
+     * Returns the context string for backward compatibility.
+     */
     suspend fun retrieve(command: AgentCommand): String? {
-        if (!enabled || ragPipeline == null) return null
+        return retrieveWithMetadata(command).context
+    }
+
+    /**
+     * Retrieves RAG context with metadata (document count, source list).
+     * Use this when the caller needs retrieval details beyond the context string.
+     */
+    suspend fun retrieveWithMetadata(command: AgentCommand): RagRetrievalResult {
+        if (!enabled || ragPipeline == null) return RagRetrievalResult.EMPTY
 
         val startTime = System.currentTimeMillis()
         return try {
             withTimeout(retrievalTimeoutMs) {
                 val effectiveTopK = resolveTopK(command.userPrompt)
-                    ?: return@withTimeout null
+                    ?: return@withTimeout RagRetrievalResult.EMPTY
                 val ragFilters = extractRagFilters(command.metadata)
                 val ragResult = ragPipeline.retrieve(
                     RagQuery(
@@ -46,24 +58,31 @@ internal class RagContextRetriever(
                 if (ragResult.hasDocuments) {
                     logger.debug { "RAG retrieval succeeded with ${ragResult.documents.size} documents in ${durationMs}ms" }
                     metrics.recordRagRetrieval("success", durationMs)
-                    ragResult.context
+                    val sources = ragResult.documents
+                        .mapNotNull { it.source }
+                        .distinct()
+                    RagRetrievalResult(
+                        context = ragResult.context,
+                        documentCount = ragResult.documents.size,
+                        sources = sources
+                    )
                 } else {
                     logger.info { "RAG retrieval returned empty results in ${durationMs}ms" }
                     metrics.recordRagRetrieval("empty", durationMs)
-                    null
+                    RagRetrievalResult.EMPTY
                 }
             }
         } catch (e: TimeoutCancellationException) {
             val durationMs = System.currentTimeMillis() - startTime
             logger.warn { "RAG retrieval timed out after ${retrievalTimeoutMs}ms, continuing without context" }
             metrics.recordRagRetrieval("timeout", durationMs)
-            null
+            RagRetrievalResult.EMPTY
         } catch (e: Exception) {
             e.throwIfCancellation()
             val durationMs = System.currentTimeMillis() - startTime
             logger.error(e) { "RAG retrieval failed after ${durationMs}ms, continuing without context" }
             metrics.recordRagRetrieval("error", durationMs)
-            null
+            RagRetrievalResult.EMPTY
         }
     }
 
@@ -90,6 +109,11 @@ internal class RagContextRetriever(
         }
     }
 
+    companion object {
+        const val METADATA_RAG_DOCUMENT_COUNT = "ragDocumentCount"
+        const val METADATA_RAG_SOURCES = "ragSources"
+    }
+
     private fun extractRagFilters(metadata: Map<String, Any>): Map<String, Any> {
         if (metadata.isEmpty()) return emptyMap()
 
@@ -112,5 +136,31 @@ internal class RagContextRetriever(
         }
 
         return merged
+    }
+}
+
+/**
+ * Result of RAG retrieval including context and metadata.
+ */
+internal data class RagRetrievalResult(
+    val context: String?,
+    val documentCount: Int = 0,
+    val sources: List<String> = emptyList()
+) {
+
+    /**
+     * Enriches the hook context metadata with RAG document count and sources
+     * when documents were retrieved. No-op when [documentCount] is zero.
+     */
+    fun enrichMetadata(metadata: MutableMap<String, Any>) {
+        if (documentCount <= 0) return
+        metadata[RagContextRetriever.METADATA_RAG_DOCUMENT_COUNT] = documentCount
+        if (sources.isNotEmpty()) {
+            metadata[RagContextRetriever.METADATA_RAG_SOURCES] = sources
+        }
+    }
+
+    companion object {
+        val EMPTY = RagRetrievalResult(context = null)
     }
 }

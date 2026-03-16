@@ -30,7 +30,7 @@ internal class AgentExecutionCoordinator(
     private val mcpToolCallbacks: () -> List<ToolCallback>,
     private val conversationManager: ConversationManager,
     private val selectAndPrepareTools: (String) -> List<Any>,
-    private val retrieveRagContext: suspend (AgentCommand) -> String?,
+    private val retrieveRagContext: suspend (AgentCommand) -> RagRetrievalResult,
     private val executeWithTools: suspend (
         AgentCommand,
         List<Any>,
@@ -75,9 +75,11 @@ internal class AgentExecutionCoordinator(
         agentMetrics.recordStageLatency("history_load", nowMs() - historyLoadStart, effectiveCommand.metadata)
 
         val ragStart = nowMs()
-        val ragContext = retrieveRagContext(effectiveCommand)
+        val ragResult = retrieveRagContext(effectiveCommand)
         recordStageTiming(hookContext, "rag_retrieval", nowMs() - ragStart)
         agentMetrics.recordStageLatency("rag_retrieval", nowMs() - ragStart, effectiveCommand.metadata)
+        ragResult.enrichMetadata(hookContext.metadata)
+        val ragContext = ragResult.context
 
         val toolSelectionStart = nowMs()
         val selectedTools = if (shouldSkipToolSelection(effectiveCommand)) {

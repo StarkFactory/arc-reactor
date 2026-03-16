@@ -174,16 +174,23 @@ class ChatController(
         command = applyIntentProfile(command, request)
 
         val flow: Flow<String> = agentExecutor.executeStream(command)
+        var doneEmitted = false
 
         val eventFlow: Flow<ServerSentEvent<String>> = flow
-            .map { chunk -> toServerSentEvent(chunk) }
+            .map { chunk ->
+                val sse = toServerSentEvent(chunk)
+                if (sse.event() == "done") doneEmitted = true
+                sse
+            }
             .onCompletion {
-                emit(
-                    ServerSentEvent.builder<String>()
-                        .event("done")
-                        .data("")
-                        .build()
-                )
+                if (!doneEmitted) {
+                    emit(
+                        ServerSentEvent.builder<String>()
+                            .event("done")
+                            .data("")
+                            .build()
+                    )
+                }
             }
 
         val userId = resolveUserId(exchange, request.userId)

@@ -14,6 +14,7 @@ import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.support.formatBoundaryViolation
 import com.arc.reactor.support.throwIfCancellation
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -64,6 +65,56 @@ internal class StreamingCompletionFinalizer(
             hookEx.throwIfCancellation()
             logger.error(hookEx) { "AfterAgentComplete hook failed in streaming finally" }
         }
+
+        emitDoneMarker(hookContext, toolsUsed, startTime, emit)
+    }
+
+    private suspend fun emitDoneMarker(
+        hookContext: HookContext,
+        toolsUsed: List<String>,
+        startTime: Long,
+        emit: suspend (String) -> Unit
+    ) {
+        try {
+            val metadata = buildDoneMetadata(hookContext, toolsUsed, startTime)
+            val json = if (metadata.isNotEmpty()) objectMapper.writeValueAsString(metadata) else ""
+            emit(StreamEventMarker.done(json))
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.debug { "Could not emit done marker (collector cancelled)" }
+        }
+    }
+
+    private fun buildDoneMetadata(
+        hookContext: HookContext,
+        toolsUsed: List<String>,
+        startTime: Long
+    ): Map<String, Any> {
+        val metadata = LinkedHashMap<String, Any>()
+        val stageTimings = readStageTimings(hookContext)
+        if (stageTimings.isNotEmpty()) {
+            metadata["stageTimings"] = stageTimings
+        }
+        val ragDocCount = hookContext.metadata[RagContextRetriever.METADATA_RAG_DOCUMENT_COUNT]
+        if (ragDocCount is Number && ragDocCount.toInt() > 0) {
+            metadata["ragDocumentCount"] = ragDocCount.toInt()
+        }
+        val ragSources = hookContext.metadata[RagContextRetriever.METADATA_RAG_SOURCES]
+        if (ragSources is List<*> && ragSources.isNotEmpty()) {
+            metadata["ragSources"] = ragSources
+        }
+        if (toolsUsed.isNotEmpty()) {
+            metadata["toolsUsed"] = toolsUsed
+        }
+        val totalDurationMs = nowMs() - startTime
+        if (totalDurationMs > 0) {
+            metadata["totalDurationMs"] = totalDurationMs
+        }
+        return metadata
+    }
+
+    companion object {
+        private val objectMapper = jacksonObjectMapper()
     }
 
     // Returns true if the guard passed (Allowed or Modified), false if Rejected.

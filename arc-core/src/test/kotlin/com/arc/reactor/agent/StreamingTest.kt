@@ -24,6 +24,12 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import reactor.core.publisher.Flux
 
+/** Filters out internal stream markers (done, tool_start, etc.) to get only text content chunks. */
+private fun List<String>.contentOnly(): List<String> = filterNot { StreamEventMarker.isMarker(it) }
+
+/** Filters to only error markers. */
+private fun List<String>.errorMarkersOnly(): List<String> = filter { StreamEventMarker.parse(it)?.first == "error" }
+
 /**
  * TDD tests for Streaming support (Tier 1-5).
  *
@@ -60,7 +66,7 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            assertEquals(listOf("Hello", " ", "World"), chunks)
+            assertEquals(listOf("Hello", " ", "World"), chunks.contentOnly(), "Content chunks should match")
         }
 
         @Test
@@ -109,7 +115,7 @@ class StreamingTest {
                 )
             ).toList()
 
-            assertEquals(listOf("chunk"), chunks)
+            assertEquals(listOf("chunk"), chunks.contentOnly(), "Content chunks should match")
         }
 
         @Test
@@ -125,7 +131,7 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            assertTrue(chunks.isEmpty()) { "Empty stream should produce no chunks but got: $chunks" }
+            assertTrue(chunks.contentOnly().isEmpty()) { "Empty stream should produce no content chunks but got: ${chunks.contentOnly()}" }
         }
     }
 
@@ -151,7 +157,7 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello", userId = "user-1")
             ).toList()
 
-            assertEquals(listOf("OK"), chunks)
+            assertEquals(listOf("OK"), chunks.contentOnly(), "Content chunks should match")
             coVerify { guard.guard(any()) }
         }
 
@@ -174,9 +180,10 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello", userId = "user-1")
             ).toList()
 
-            // Should emit single error chunk
-            assertEquals(1, chunks.size)
-            assertTrue(chunks[0].contains("Blocked")) { "Error chunk should contain rejection reason, got: ${chunks[0]}" }
+            // Should emit single error chunk (plus done marker)
+            val errors = chunks.errorMarkersOnly()
+            assertEquals(1, errors.size, "Should emit exactly one error marker")
+            assertTrue(errors[0].contains("Blocked")) { "Error chunk should contain rejection reason, got: ${errors[0]}" }
         }
 
         @Test
@@ -250,8 +257,9 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            assertEquals(1, chunks.size)
-            assertTrue(chunks[0].contains("Not allowed")) { "Error chunk should contain rejection reason, got: ${chunks[0]}" }
+            val errors = chunks.errorMarkersOnly()
+            assertEquals(1, errors.size, "Should emit exactly one error marker")
+            assertTrue(errors[0].contains("Not allowed")) { "Error chunk should contain rejection reason, got: ${errors[0]}" }
         }
 
         @Test
@@ -297,11 +305,13 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            // Should emit error as last chunk
-            assertTrue(chunks.isNotEmpty()) { "Stream error should produce at least one error chunk" }
+            // Should emit at least one error marker
+            val errors = chunks.errorMarkersOnly()
+            assertTrue(errors.isNotEmpty()) { "Stream error should produce at least one error marker" }
+            val errorPayload = StreamEventMarker.parse(errors.first())!!.second
             assertTrue(
-                chunks.last().contains("error", ignoreCase = true) || chunks.last().contains("failed", ignoreCase = true),
-                "Error chunk should contain 'error' or 'failed', got: ${chunks.last()}"
+                errorPayload.contains("error", ignoreCase = true) || errorPayload.contains("failed", ignoreCase = true),
+                "Error payload should contain 'error' or 'failed', got: $errorPayload"
             )
         }
 
@@ -344,9 +354,10 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello", userId = "user-1")
             ).toList()
 
-            assertEquals(1, chunks.size) { "Should emit exactly one error chunk" }
-            val parsed = StreamEventMarker.parse(chunks[0])
-            assertNotNull(parsed) { "Guard rejection should be a typed error marker, got: ${chunks[0]}" }
+            val errors = chunks.errorMarkersOnly()
+            assertEquals(1, errors.size) { "Should emit exactly one error marker" }
+            val parsed = StreamEventMarker.parse(errors[0])
+            assertNotNull(parsed) { "Guard rejection should be a typed error marker, got: ${errors[0]}" }
             assertEquals("error", parsed!!.first) { "Event type should be error" }
             assertEquals("Rate limited", parsed.second) { "Error payload should be rejection reason" }
         }
@@ -366,9 +377,10 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            assertEquals(1, chunks.size) { "Should emit exactly one error chunk" }
-            val parsed = StreamEventMarker.parse(chunks[0])
-            assertNotNull(parsed) { "Hook rejection should be a typed error marker, got: ${chunks[0]}" }
+            val errors = chunks.errorMarkersOnly()
+            assertEquals(1, errors.size) { "Should emit exactly one error marker" }
+            val parsed = StreamEventMarker.parse(errors[0])
+            assertNotNull(parsed) { "Hook rejection should be a typed error marker, got: ${errors[0]}" }
             assertEquals("error", parsed!!.first) { "Event type should be error" }
             assertEquals("Budget exceeded", parsed.second) { "Error payload should be rejection reason" }
         }
