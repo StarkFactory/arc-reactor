@@ -232,7 +232,7 @@ class ConversationMessageTrimmerTest {
     }
 
     @Test
-    fun `should reuse cached token estimates across repeated trims`() {
+    fun `should delegate token estimation to TokenEstimator on each trim call`() {
         val estimatorCalls = linkedMapOf<String, Int>()
         val countingEstimator = TokenEstimator { text ->
             estimatorCalls[text] = (estimatorCalls[text] ?: 0) + 1
@@ -252,8 +252,11 @@ class ConversationMessageTrimmerTest {
         trimmer.trim(messages, systemPrompt = "sys")
         trimmer.trim(messages, systemPrompt = "sys")
 
-        assertEquals(1, estimatorCalls["user-1"], "Existing user message should be tokenized once across repeated trims")
-        assertEquals(1, estimatorCalls["assistant-1"], "Existing assistant message should be tokenized once across repeated trims")
-        assertEquals(1, estimatorCalls["user-2"], "Most recent user message should be tokenized once across repeated trims")
+        // Caching is now the TokenEstimator's responsibility (e.g. DefaultTokenEstimator uses Caffeine).
+        // The trimmer delegates every call, so a plain lambda estimator is invoked each time.
+        assertEquals(2, estimatorCalls["user-1"], "User message should be estimated once per trim call")
+        assertEquals(2, estimatorCalls["assistant-1"], "Assistant message should be estimated once per trim call")
+        assertEquals(2, estimatorCalls["user-2"], "Most recent user message should be estimated once per trim call")
+        assertEquals(2, estimatorCalls["sys"], "System prompt should be estimated once per trim call")
     }
 }
