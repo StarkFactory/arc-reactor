@@ -1,6 +1,7 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.config.BoundaryProperties
+import com.arc.reactor.agent.config.CitationProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.redactQuerySignal
 import com.arc.reactor.agent.model.AgentCommand
@@ -32,6 +33,7 @@ internal class ExecutionResultFinalizer(
     private val hookExecutor: HookExecutor?,
     private val errorMessageResolver: ErrorMessageResolver,
     private val agentMetrics: AgentMetrics,
+    private val citationProperties: CitationProperties = CitationProperties(),
     private val outputBoundaryEnforcer: OutputBoundaryEnforcer =
         OutputBoundaryEnforcer(boundaries = boundaries, agentMetrics = agentMetrics),
     private val nowMs: () -> Long = System::currentTimeMillis
@@ -83,8 +85,9 @@ internal class ExecutionResultFinalizer(
         }
 
         val filtered = applyResponseFilters(reguarded, command, hookContext, toolsUsed, startTime)
+        val cited = appendCitations(filtered, hookContext)
         val completed = enrichResponseMetadata(
-            ensureVisibleBlockedResponse(filtered, command, hookContext),
+            ensureVisibleBlockedResponse(cited, command, hookContext),
             hookContext
         )
         observeResponse(completed, command, hookContext, toolsUsed)
@@ -210,6 +213,22 @@ internal class ExecutionResultFinalizer(
             logger.warn(e) { "Response filter chain failed, using original content" }
             result
         }
+    }
+
+    private fun appendCitations(result: AgentResult, hookContext: HookContext): AgentResult {
+        if (!citationProperties.enabled) return result
+        if (!result.success || result.content == null) return result
+        val sources = hookContext.verifiedSources.distinctBy { it.url }
+        if (sources.isEmpty()) return result
+        return result.copy(content = result.content + formatCitationSection(sources))
+    }
+
+    private fun formatCitationSection(sources: List<VerifiedSource>): String {
+        val sb = StringBuilder("\n\n---\nSources:")
+        for ((index, source) in sources.withIndex()) {
+            sb.append("\n- [${index + 1}] ${source.title} (${source.url})")
+        }
+        return sb.toString()
     }
 
     private fun trustEventMetadata(command: AgentCommand, hookContext: HookContext): Map<String, Any> {

@@ -89,8 +89,10 @@ data class AgentProperties(
     /** Tool parameter enrichment configuration */
     val toolEnrichment: ToolEnrichmentProperties = ToolEnrichmentProperties(),
 
-    /** Tool result caching configuration */
+/** Tool result caching configuration */
     val toolResultCache: ToolResultCacheProperties = ToolResultCacheProperties()
+/** Citation auto-formatting configuration */
+    val citation: CitationProperties = CitationProperties()
 )
 
 data class LlmProperties(

@@ -596,6 +596,29 @@ data class ToolEnrichmentProperties(
 )
 
 /**
+ * Citation auto-formatting configuration.
+ *
+ * When enabled and verified sources exist in the response, a citation section
+ * is automatically appended to the response content. Duplicate sources are removed.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     citation:
+ *       enabled: true
+ *       format: markdown
+ * ```
+ */
+data class CitationProperties(
+    /** Enable citation auto-formatting. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Citation format. Currently only "markdown" is supported. */
+    val format: String = "markdown"
+)
+
+/**
  * Policy for handling output minimum length violations.
  */
 enum class OutputMinViolationMode {
