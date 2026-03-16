@@ -55,7 +55,7 @@ class TenantAdminController(
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val overview = dashboardService.getOverview(tenantId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Tenant not found")
         return ResponseEntity.ok(overview)
     }
 
@@ -138,7 +138,7 @@ class TenantAdminController(
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val tenant = tenantStore.findById(tenantId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Tenant not found")
         return ResponseEntity.ok(
             sloService.getSloStatus(
                 tenantId,
@@ -171,7 +171,7 @@ class TenantAdminController(
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val tenant = tenantStore.findById(tenantId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Tenant not found")
         val usage = queryService.getCurrentMonthUsage(tenantId)
         return ResponseEntity.ok(
             mapOf(

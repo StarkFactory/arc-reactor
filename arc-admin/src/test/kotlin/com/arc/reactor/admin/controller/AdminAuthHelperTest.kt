@@ -104,4 +104,40 @@ class AdminAuthHelperTest {
             body.error shouldContain "Admin access required"
         }
     }
+
+    @Nested
+    inner class NotFoundResponse {
+
+        @Test
+        fun `returns 404 with descriptive message`() {
+            val response = notFoundResponse("Tenant not found: t1")
+            response.statusCode shouldBe HttpStatus.NOT_FOUND
+            val body = response.body as AdminErrorResponse
+            body.error shouldBe "Tenant not found: t1"
+        }
+    }
+
+    @Nested
+    inner class ConflictResponse {
+
+        @Test
+        fun `returns 409 with descriptive message`() {
+            val response = conflictResponse("Already exists")
+            response.statusCode shouldBe HttpStatus.CONFLICT
+            val body = response.body as AdminErrorResponse
+            body.error shouldBe "Already exists"
+        }
+    }
+
+    @Nested
+    inner class BadRequestResponse {
+
+        @Test
+        fun `returns 400 with descriptive message`() {
+            val response = badRequestResponse("Invalid input")
+            response.statusCode shouldBe HttpStatus.BAD_REQUEST
+            val body = response.body as AdminErrorResponse
+            body.error shouldBe "Invalid input"
+        }
+    }
 }

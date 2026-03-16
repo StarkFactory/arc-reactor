@@ -104,4 +104,55 @@ class AdminAuthSupportTest {
             }
         }
     }
+
+    @Nested
+    inner class NotFoundResponse {
+
+        @Test
+        fun `returns 404 with descriptive message`() {
+            val response = notFoundResponse("Resource not found: abc")
+
+            assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
+                "notFoundResponse should return 404 status"
+            }
+            val body = response.body as ErrorResponse
+            assertEquals("Resource not found: abc", body.error) {
+                "Error body should include the provided message"
+            }
+        }
+    }
+
+    @Nested
+    inner class ConflictResponse {
+
+        @Test
+        fun `returns 409 with descriptive message`() {
+            val response = conflictResponse("Already exists")
+
+            assertEquals(HttpStatus.CONFLICT, response.statusCode) {
+                "conflictResponse should return 409 status"
+            }
+            val body = response.body as ErrorResponse
+            assertEquals("Already exists", body.error) {
+                "Error body should include the provided message"
+            }
+        }
+    }
+
+    @Nested
+    inner class BadRequestResponse {
+
+        @Test
+        fun `returns 400 with descriptive message`() {
+            val response = badRequestResponse("Invalid input")
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "badRequestResponse should return 400 status"
+            }
+            val body = response.body as ErrorResponse
+            assertEquals("Invalid input", body.error) {
+                "Error body should include the provided message"
+            }
+        }
+    }
 }

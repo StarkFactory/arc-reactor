@@ -100,10 +100,10 @@ class PlatformAdminController(
 
         val normalizedEmail = email.trim()
         if (normalizedEmail.isBlank()) {
-            return ResponseEntity.badRequest().body(AdminErrorResponse(error = "email is required"))
+            return badRequestResponse("email is required")
         }
 
-        val user = userStore.findByEmail(normalizedEmail) ?: return ResponseEntity.notFound().build()
+        val user = userStore.findByEmail(normalizedEmail) ?: return notFoundResponse("User not found: $normalizedEmail")
         return ResponseEntity.ok(user.toAdminUserResponse())
     }
 
@@ -122,18 +122,15 @@ class PlatformAdminController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
 
-        val nextRole = parseUserRole(request.role) ?: return ResponseEntity.badRequest()
-            .body(AdminErrorResponse(error = "invalid role: ${request.role}"))
+        val nextRole = parseUserRole(request.role) ?: return badRequestResponse("invalid role: ${request.role}")
 
         val actorId = currentActor(exchange)
         val retainsDeveloperScope = nextRole == UserRole.ADMIN || nextRole == UserRole.ADMIN_DEVELOPER
         if (actorId == id && !retainsDeveloperScope) {
-            return ResponseEntity.badRequest().body(
-                AdminErrorResponse(error = "cannot remove developer scope from current actor")
-            )
+            return badRequestResponse("cannot remove developer scope from current actor")
         }
 
-        val user = userStore.findById(id) ?: return ResponseEntity.notFound().build()
+        val user = userStore.findById(id) ?: return notFoundResponse("User not found: $id")
         val updated = userStore.update(user.copy(role = nextRole))
         recordAdminAudit(
             store = adminAuditStore,
@@ -171,7 +168,7 @@ class PlatformAdminController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenant = tenantStore.findById(id)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Tenant not found: $id")
         return ResponseEntity.ok(tenant)
     }
 
@@ -191,9 +188,7 @@ class PlatformAdminController(
             val plan = try {
                 com.arc.reactor.admin.model.TenantPlan.valueOf(request.plan.uppercase())
             } catch (_: IllegalArgumentException) {
-                return ResponseEntity.badRequest().body(
-                    AdminErrorResponse(error = "Invalid plan: ${request.plan}")
-                )
+                return badRequestResponse("Invalid plan: ${request.plan}")
             }
             val tenant = tenantService.create(request.name, request.slug, plan)
             recordAdminAudit(
@@ -208,7 +203,7 @@ class PlatformAdminController(
             ResponseEntity.status(201).body(tenant)
         } catch (e: IllegalArgumentException) {
             logger.warn(e) { "Invalid create tenant request" }
-            ResponseEntity.badRequest().body(AdminErrorResponse(error = "Invalid request"))
+            badRequestResponse("Invalid request")
         }
     }
 
@@ -236,7 +231,7 @@ class PlatformAdminController(
             )
             ResponseEntity.ok(tenant)
         } catch (e: IllegalArgumentException) {
-            ResponseEntity.notFound().build()
+            notFoundResponse("Tenant not found: $id")
         }
     }
 
@@ -264,7 +259,7 @@ class PlatformAdminController(
             )
             ResponseEntity.ok(tenant)
         } catch (e: IllegalArgumentException) {
-            ResponseEntity.notFound().build()
+            notFoundResponse("Tenant not found: $id")
         }
     }
 
@@ -434,7 +429,7 @@ class PlatformAdminController(
             )
             ResponseEntity.noContent().build()
         } else {
-            ResponseEntity.notFound().build()
+            notFoundResponse("Alert rule not found: $id")
         }
     }
 

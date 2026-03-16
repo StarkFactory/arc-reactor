@@ -30,6 +30,27 @@ fun forbiddenResponse(): ResponseEntity<Any> {
 }
 
 /**
+ * Standard 404 Not Found response with descriptive message.
+ */
+fun notFoundResponse(message: String): ResponseEntity<Any> =
+    ResponseEntity.status(HttpStatus.NOT_FOUND)
+        .body(ErrorResponse(error = message, timestamp = java.time.Instant.now().toString()))
+
+/**
+ * Standard 409 Conflict response with descriptive message.
+ */
+fun conflictResponse(message: String): ResponseEntity<Any> =
+    ResponseEntity.status(HttpStatus.CONFLICT)
+        .body(ErrorResponse(error = message, timestamp = java.time.Instant.now().toString()))
+
+/**
+ * Standard 400 Bad Request response with descriptive message.
+ */
+fun badRequestResponse(message: String): ResponseEntity<Any> =
+    ResponseEntity.badRequest()
+        .body(ErrorResponse(error = message, timestamp = java.time.Instant.now().toString()))
+
+/**
  * Resolve current actor id for admin-audit logs.
  */
 fun currentActor(exchange: ServerWebExchange): String {

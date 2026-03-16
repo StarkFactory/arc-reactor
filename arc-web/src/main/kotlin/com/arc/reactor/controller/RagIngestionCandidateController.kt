@@ -77,13 +77,9 @@ class RagIngestionCandidateController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val candidate = store.findById(id)
-            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                ErrorResponse(error = "Candidate not found", timestamp = Instant.now().toString())
-            )
+            ?: return notFoundResponse("Candidate not found: $id")
         if (candidate.status != RagIngestionCandidateStatus.PENDING) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(
-                ErrorResponse(error = "Candidate is already reviewed", timestamp = Instant.now().toString())
-            )
+            return conflictResponse("Candidate is already reviewed")
         }
 
         val vectorStore = vectorStoreProvider.ifAvailable
@@ -104,9 +100,7 @@ class RagIngestionCandidateController(
             reviewedBy = currentActor(exchange),
             reviewComment = request.comment?.trim(),
             ingestedDocumentId = documentId
-        ) ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-            ErrorResponse(error = "Candidate not found", timestamp = Instant.now().toString())
-        )
+        ) ?: return notFoundResponse("Candidate not found: $id")
 
         recordAdminAudit(
             store = adminAuditStore,
@@ -136,13 +130,9 @@ class RagIngestionCandidateController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val candidate = store.findById(id)
-            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                ErrorResponse(error = "Candidate not found", timestamp = Instant.now().toString())
-            )
+            ?: return notFoundResponse("Candidate not found: $id")
         if (candidate.status != RagIngestionCandidateStatus.PENDING) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(
-                ErrorResponse(error = "Candidate is already reviewed", timestamp = Instant.now().toString())
-            )
+            return conflictResponse("Candidate is already reviewed")
         }
 
         val reviewed = store.updateReview(
@@ -150,9 +140,7 @@ class RagIngestionCandidateController(
             status = RagIngestionCandidateStatus.REJECTED,
             reviewedBy = currentActor(exchange),
             reviewComment = request.comment?.trim()
-        ) ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-            ErrorResponse(error = "Candidate not found", timestamp = Instant.now().toString())
-        )
+        ) ?: return notFoundResponse("Candidate not found: $id")
 
         recordAdminAudit(
             store = adminAuditStore,

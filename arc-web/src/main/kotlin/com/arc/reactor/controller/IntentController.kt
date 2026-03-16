@@ -66,7 +66,7 @@ class IntentController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val intent = intentRegistry.get(intentName) ?: return ResponseEntity.notFound().build()
+        val intent = intentRegistry.get(intentName) ?: return notFoundResponse("Intent not found: $intentName")
         return ResponseEntity.ok(intent.toResponse())
     }
 
@@ -85,11 +85,7 @@ class IntentController(
         if (!isAdmin(exchange)) return forbiddenResponse()
 
         if (intentRegistry.get(request.name) != null) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ErrorResponse(
-                    error = "Intent '${request.name}' already exists",
-                    timestamp = java.time.Instant.now().toString()
-                ))
+            return conflictResponse("Intent '${request.name}' already exists")
         }
 
         val intent = request.toDefinition()
@@ -111,7 +107,7 @@ class IntentController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
 
-        val existing = intentRegistry.get(intentName) ?: return ResponseEntity.notFound().build()
+        val existing = intentRegistry.get(intentName) ?: return notFoundResponse("Intent not found: $intentName")
 
         val updated = existing.copy(
             description = request.description ?: existing.description,

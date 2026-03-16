@@ -82,24 +82,18 @@ class McpServerController(
 
         val existing = mcpServerStore.findByName(request.name)
         if (existing != null) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(
-                    ErrorResponse(
-                        error = "MCP server '${request.name}' already exists",
-                        timestamp = Instant.now().toString()
-                    )
-                )
+            return conflictResponse("MCP server '${request.name}' already exists")
         }
 
         val transportType = parseTransportType(request.transportType)
-            ?: return badRequest("Invalid transportType: ${request.transportType}")
+            ?: return badRequestResponse("Invalid transportType: ${request.transportType}")
         if (transportType == McpTransportType.HTTP) {
-            return badRequest("HTTP transport is not supported. Use SSE or STDIO.")
+            return badRequestResponse("HTTP transport is not supported. Use SSE or STDIO.")
         }
 
         if (transportType == McpTransportType.SSE) {
             val urlError = validateSseUrl(request.config)
-            if (urlError != null) return badRequest(urlError)
+            if (urlError != null) return badRequestResponse(urlError)
         }
 
         val server = request.toMcpServer(transportType)
@@ -107,7 +101,7 @@ class McpServerController(
         val registeredInRuntime = mcpManager.getStatus(server.name) != null ||
             mcpManager.listServers().any { it.name == server.name }
         if (!registeredInRuntime) {
-            return badRequest("MCP server '${server.name}' is not allowed by the security allowlist.")
+            return badRequestResponse("MCP server '${server.name}' is not allowed by the security allowlist.")
         }
         persistServerIfMissing(server)
 
@@ -150,7 +144,7 @@ class McpServerController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val server = mcpServerStore.findByName(name)
-            ?: return mcpNotFound(name)
+            ?: return notFoundResponse("MCP server '$name' not found")
 
         val status = mcpManager.getStatus(name) ?: McpServerStatus.PENDING
         val tools = mcpManager.getToolCallbacks(name).map { it.name }
@@ -190,21 +184,21 @@ class McpServerController(
         if (!isAdmin(exchange)) return forbiddenResponse()
 
         val existing = mcpServerStore.findByName(name)
-            ?: return mcpNotFound(name)
+            ?: return notFoundResponse("MCP server '$name' not found")
 
         val transportType = when (val requested = request.transportType) {
             null -> existing.transportType
             else -> parseTransportType(requested)
-                ?: return badRequest("Invalid transportType: $requested")
+                ?: return badRequestResponse("Invalid transportType: $requested")
         }
         if (transportType == McpTransportType.HTTP) {
-            return badRequest("HTTP transport is not supported. Use SSE or STDIO.")
+            return badRequestResponse("HTTP transport is not supported. Use SSE or STDIO.")
         }
 
         val effectiveConfig = request.config ?: existing.config
         if (transportType == McpTransportType.SSE) {
             val urlError = validateSseUrl(effectiveConfig)
-            if (urlError != null) return badRequest(urlError)
+            if (urlError != null) return badRequestResponse(urlError)
         }
 
         val updateData = McpServer(
@@ -218,7 +212,7 @@ class McpServerController(
 
         val statusBeforeUpdate = mcpManager.getStatus(name)
         val updated = mcpServerStore.update(name, updateData)
-            ?: return mcpNotFound(name)
+            ?: return notFoundResponse("MCP server '$name' not found")
         mcpManager.syncRuntimeServer(updated)
         applyRuntimeUpdate(existing, updated, statusBeforeUpdate)
 
@@ -288,7 +282,7 @@ class McpServerController(
         if (!isAdmin(exchange)) return forbiddenResponse()
 
         mcpServerStore.findByName(name)
-            ?: return mcpNotFound(name)
+            ?: return notFoundResponse("MCP server '$name' not found")
 
         mcpManager.unregister(name)
 
@@ -321,7 +315,7 @@ class McpServerController(
         if (!isAdmin(exchange)) return forbiddenResponse()
 
         mcpServerStore.findByName(name)
-            ?: return mcpNotFound(name)
+            ?: return notFoundResponse("MCP server '$name' not found")
 
         val success = withContext(Dispatchers.IO) {
             mcpManager.connect(name)
@@ -363,7 +357,7 @@ class McpServerController(
         if (!isAdmin(exchange)) return forbiddenResponse()
 
         mcpServerStore.findByName(name)
-            ?: return mcpNotFound(name)
+            ?: return notFoundResponse("MCP server '$name' not found")
 
         mcpManager.disconnect(name)
         val status = mcpManager.getStatus(name) ?: McpServerStatus.DISCONNECTED
@@ -380,21 +374,11 @@ class McpServerController(
         return ResponseEntity.ok(McpStatusResponse(status = status.name))
     }
 
-    private fun mcpNotFound(name: String): ResponseEntity<Any> {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body(ErrorResponse(error = "MCP server '$name' not found", timestamp = Instant.now().toString()))
-    }
-
     private fun parseTransportType(raw: String): McpTransportType? {
         val normalized = raw.trim()
         if (normalized.isEmpty()) return null
         return McpTransportType.entries.firstOrNull { it.name.equals(normalized, ignoreCase = true) }
     }
-
-    private fun badRequest(message: String): ResponseEntity<Any> =
-        ResponseEntity.badRequest().body(
-            ErrorResponse(error = message, timestamp = Instant.now().toString())
-        )
 
     private fun validateSseUrl(config: Map<String, Any>): String? {
         val url = config["url"]?.toString()

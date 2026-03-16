@@ -64,9 +64,9 @@ class PromptTemplateController(
         ApiResponse(responseCode = "404", description = "Prompt template not found")
     ])
     @GetMapping("/{templateId}")
-    fun getTemplate(@PathVariable templateId: String): ResponseEntity<TemplateDetailResponse> {
+    fun getTemplate(@PathVariable templateId: String): ResponseEntity<Any> {
         val template = promptTemplateStore.getTemplate(templateId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Prompt template not found: $templateId")
         val versions = promptTemplateStore.listVersions(templateId)
         val activeVersion = versions.firstOrNull { it.status == com.arc.reactor.prompt.VersionStatus.ACTIVE }
         return ResponseEntity.ok(template.toDetailResponse(versions, activeVersion))
@@ -117,7 +117,7 @@ class PromptTemplateController(
             id = templateId,
             name = request.name,
             description = request.description
-        ) ?: return ResponseEntity.notFound().build<Any>()
+        ) ?: return notFoundResponse("Prompt template not found: $templateId")
         return ResponseEntity.ok(updated.toResponse())
     }
 
@@ -136,7 +136,7 @@ class PromptTemplateController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         promptTemplateStore.deleteTemplate(templateId)
-        return ResponseEntity.noContent().build<Any>()
+        return ResponseEntity.noContent().build()
     }
 
     // ---- Version Endpoints ----
@@ -162,7 +162,7 @@ class PromptTemplateController(
             templateId = templateId,
             content = request.content,
             changeLog = request.changeLog
-        ) ?: return ResponseEntity.notFound().build<Any>()
+        ) ?: return notFoundResponse("Prompt template not found: $templateId")
         return ResponseEntity.status(HttpStatus.CREATED).body(version.toResponse())
     }
 
@@ -183,7 +183,7 @@ class PromptTemplateController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val activated = promptTemplateStore.activateVersion(templateId, versionId)
-            ?: return ResponseEntity.notFound().build<Any>()
+            ?: return notFoundResponse("Template or version not found: $templateId/$versionId")
         return ResponseEntity.ok(activated.toResponse())
     }
 
@@ -204,7 +204,7 @@ class PromptTemplateController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val archived = promptTemplateStore.archiveVersion(versionId)
-            ?: return ResponseEntity.notFound().build<Any>()
+            ?: return notFoundResponse("Template or version not found: $templateId/$versionId")
         return ResponseEntity.ok(archived.toResponse())
     }
 }

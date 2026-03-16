@@ -62,11 +62,7 @@ class ProactiveChannelController(
         if (!isAdmin(exchange)) return forbiddenResponse()
 
         if (store.isEnabled(request.channelId)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ErrorResponse(
-                    error = "Channel already in proactive list",
-                    timestamp = java.time.Instant.now().toString()
-                ))
+            return conflictResponse("Channel already in proactive list")
         }
 
         val channel = store.add(request.channelId, request.channelName)

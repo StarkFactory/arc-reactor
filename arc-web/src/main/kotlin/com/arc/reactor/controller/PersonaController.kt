@@ -63,9 +63,9 @@ class PersonaController(
         ApiResponse(responseCode = "404", description = "Persona not found")
     ])
     @GetMapping("/{personaId}")
-    fun getPersona(@PathVariable personaId: String): ResponseEntity<PersonaResponse> {
+    fun getPersona(@PathVariable personaId: String): ResponseEntity<Any> {
         val persona = personaStore.get(personaId)
-            ?: return ResponseEntity.notFound().build()
+            ?: return notFoundResponse("Persona not found: $personaId")
         return ResponseEntity.ok(persona.toResponse())
     }
 
@@ -129,7 +129,7 @@ class PersonaController(
             icon = request.icon,
             promptTemplateId = request.promptTemplateId,
             isActive = request.isActive
-        ) ?: return ResponseEntity.notFound().build()
+        ) ?: return notFoundResponse("Persona not found: $personaId")
         return ResponseEntity.ok(updated.toResponse())
     }
 
