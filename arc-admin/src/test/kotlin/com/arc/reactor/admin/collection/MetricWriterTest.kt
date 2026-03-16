@@ -9,9 +9,13 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.awaitility.kotlin.atMost
+import org.awaitility.kotlin.await
+import org.awaitility.kotlin.untilAsserted
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
+import java.time.Duration
 import java.util.concurrent.CopyOnWriteArrayList
 
 class MetricWriterTest {
@@ -74,14 +78,11 @@ class MetricWriterTest {
                 store = store,
                 costCalculator = costCalculator,
                 batchSize = 10,
-                flushIntervalMs = 60000, // long interval, we'll flush manually
+                flushIntervalMs = 60000, // long interval — stop() triggers final flush
                 writerThreads = 1,
                 healthMonitor = healthMonitor
             )
             writer.start()
-
-            // Wait for scheduled flush
-            Thread.sleep(200)
             writer.stop()
 
             storedEvents.size shouldBe 1
@@ -104,7 +105,6 @@ class MetricWriterTest {
                 healthMonitor = healthMonitor
             )
             writer.start()
-            Thread.sleep(200)
             writer.stop()
 
             storedEvents.size shouldBe 1
@@ -133,7 +133,6 @@ class MetricWriterTest {
                 healthMonitor = healthMonitor
             )
             writer.start()
-            Thread.sleep(200)
             writer.stop()
 
             storedEvents.size shouldBe 1
@@ -159,7 +158,6 @@ class MetricWriterTest {
                 healthMonitor = healthMonitor
             )
             writer.start()
-            Thread.sleep(200)
             writer.stop()
 
             storedEvents.size shouldBe 1
@@ -181,7 +179,6 @@ class MetricWriterTest {
                 healthMonitor = healthMonitor
             )
             writer.start()
-            Thread.sleep(200)
             writer.stop()
 
             storedEvents.size shouldBe 1
@@ -208,7 +205,6 @@ class MetricWriterTest {
                 healthMonitor = healthMonitor
             )
             writer.start()
-            Thread.sleep(200)
             writer.stop()
 
             healthMonitor.writtenTotal.get() shouldBe 1
@@ -234,7 +230,6 @@ class MetricWriterTest {
                 healthMonitor = healthMonitor
             )
             writer.start()
-            Thread.sleep(200)
             writer.stop()
 
             healthMonitor.writeErrorsTotal.get() shouldBe 1
@@ -265,11 +260,12 @@ class MetricWriterTest {
                 healthMonitor = healthMonitor
             )
             writer.start()
-            Thread.sleep(500)
-            writer.stop()
 
-            // All events should be stored exactly once (no duplicates)
-            storedEvents.size shouldBe 100
+            await atMost Duration.ofSeconds(5) untilAsserted {
+                // All events should be stored exactly once (no duplicates)
+                storedEvents.size shouldBe 100
+            }
+            writer.stop()
         }
     }
 
