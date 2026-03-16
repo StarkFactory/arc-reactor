@@ -205,7 +205,7 @@ class DocumentController(
     ])
     @DeleteMapping
     fun deleteDocuments(
-        @RequestBody request: DeleteDocumentRequest,
+        @Valid @RequestBody request: DeleteDocumentRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
