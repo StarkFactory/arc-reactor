@@ -138,7 +138,7 @@ config:
 
   llm:
     defaultProvider: "gemini"
-    temperature: "0.7"
+    temperature: "0.1"
     maxOutputTokens: "4096"
     maxConversationTurns: "10"
     maxContextWindowTokens: "128000"
@@ -160,7 +160,7 @@ config:
 
   agent:
     maxToolCalls: "10"
-    maxToolsPerRequest: "20"
+    maxToolsPerRequest: "30"
 
   rag:
     enabled: "false"

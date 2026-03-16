@@ -9,11 +9,11 @@
 ```yaml
 arc:
   reactor:
-    max-tools-per-request: 20    # 요청당 최대 도구 수
+    max-tools-per-request: 30    # 요청당 최대 도구 수
     max-tool-calls: 10           # ReAct 루프 최대 도구 호출 횟수
 
     llm:                         # LLM 호출 설정
-      temperature: 0.3
+      temperature: 0.1
       max-output-tokens: 4096
       max-conversation-turns: 10
       max-context-window-tokens: 128000
@@ -26,13 +26,13 @@ arc:
 
     guard:                       # Guard 파이프라인 설정
       enabled: true
-      rate-limit-per-minute: 10
-      rate-limit-per-hour: 100
+      rate-limit-per-minute: 20
+      rate-limit-per-hour: 200
       injection-detection-enabled: true
 
     boundaries:                  # 입력/출력 경계 검사
       input-min-chars: 1
-      input-max-chars: 5000
+      input-max-chars: 10000
 
     rag:                         # RAG 파이프라인 설정
       enabled: false
@@ -73,14 +73,14 @@ arc:
 
 | 속성 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `max-tools-per-request` | Int | 20 | 한 번의 요청에서 사용 가능한 최대 도구 수. Local + MCP 도구 합산 후 `take(n)` 적용 |
+| `max-tools-per-request` | Int | 30 | 한 번의 요청에서 사용 가능한 최대 도구 수. Local + MCP 도구 합산 후 `take(n)` 적용 |
 | `max-tool-calls` | Int | 10 | ReAct 루프에서 허용하는 최대 도구 호출 횟수. 도달 시 도구 목록을 빈 리스트로 교체하여 강제 종료 |
 
 ### LlmProperties
 
 | 속성 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `temperature` | Double | 0.3 | LLM 생성 온도. 0.0(결정적) ~ 2.0(창의적) |
+| `temperature` | Double | 0.1 | LLM 생성 온도. 0.0(결정적) ~ 2.0(창의적) |
 | `max-output-tokens` | Int | 4096 | LLM 응답 최대 토큰 수 |
 | `max-conversation-turns` | Int | 10 | Memory에서 로드할 최대 대화 턴 수 |
 | `max-context-window-tokens` | Int | 128000 | 컨텍스트 윈도우 토큰 예산. `budget = maxContextWindowTokens - systemPromptTokens - maxOutputTokens` |
@@ -126,7 +126,7 @@ arc:
 | 속성 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
 | `input-min-chars` | Int | 1 | 사용자 입력 최소 길이 (문자 수) |
-| `input-max-chars` | Int | 5000 | 사용자 입력 최대 길이 (문자 수) |
+| `input-max-chars` | Int | 10000 | 사용자 입력 최대 길이 (문자 수) |
 | `system-prompt-max-chars` | Int | 0 | 시스템 프롬프트 최대 길이. `0`이면 무제한 |
 
 ### ConcurrencyProperties

@@ -107,7 +107,7 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 | Property | Default | Description |
 |---|---|---|
 | `max-tool-calls` | `10` | Max ReAct loop iterations per request |
-| `max-tools-per-request` | `20` | Max tools visible to LLM per request |
+| `max-tools-per-request` | `30` | Max tools visible to LLM per request |
 
 ### Boundaries (`arc.reactor.boundaries`)
 
