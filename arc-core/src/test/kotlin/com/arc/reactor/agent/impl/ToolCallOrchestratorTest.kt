@@ -302,7 +302,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { emptyMap() }
+            parseToolArguments = { emptyMap() },
+            requesterAwareToolNames = setOf("work_personal_focus_plan")
         )
         val toolsUsed = mutableListOf<String>()
         val context = HookContext(
@@ -517,7 +518,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("project" to "DEV") }
+            parseToolArguments = { mapOf("project" to "DEV") },
+            requesterAwareToolNames = setOf("jira_my_open_issues")
         )
         val context = HookContext(
             runId = "run-1",
@@ -554,7 +556,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("assigneeAccountId" to "acct-1") }
+            parseToolArguments = { mapOf("assigneeAccountId" to "acct-1") },
+            requesterAwareToolNames = setOf("jira_daily_briefing")
         )
         val context = HookContext(
             runId = "run-1",
@@ -599,7 +602,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("jiraProject" to "DEV") }
+            parseToolArguments = { mapOf("jiraProject" to "DEV") },
+            requesterAwareToolNames = setOf("work_personal_focus_plan")
         )
         val context = HookContext(
             runId = "run-1",
@@ -636,7 +640,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("jiraProject" to "DEV") }
+            parseToolArguments = { mapOf("jiraProject" to "DEV") },
+            requesterAwareToolNames = setOf("work_personal_focus_plan")
         )
         val context = HookContext(
             runId = "run-1",
@@ -677,7 +682,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("jiraProject" to "DEV") }
+            parseToolArguments = { mapOf("jiraProject" to "DEV") },
+            requesterAwareToolNames = setOf("work_personal_focus_plan")
         )
         val context = HookContext(
             runId = "run-1",
@@ -719,7 +725,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("repo" to "dev") }
+            parseToolArguments = { mapOf("repo" to "dev") },
+            requesterAwareToolNames = setOf("bitbucket_review_queue")
         )
         val context = HookContext(
             runId = "run-1",
@@ -756,7 +763,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { emptyMap() }
+            parseToolArguments = { emptyMap() },
+            requesterAwareToolNames = setOf("bitbucket_my_authored_prs")
         )
         val context = HookContext(
             runId = "run-1",

@@ -84,7 +84,10 @@ data class AgentProperties(
     val promptLab: PromptLabProperties = PromptLabProperties(),
 
     /** Tracing configuration */
-    val tracing: TracingProperties = TracingProperties()
+    val tracing: TracingProperties = TracingProperties(),
+
+    /** Tool parameter enrichment configuration */
+    val toolEnrichment: ToolEnrichmentProperties = ToolEnrichmentProperties()
 )
 
 data class LlmProperties(
