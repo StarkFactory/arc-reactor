@@ -33,9 +33,9 @@ arc:
   reactor:
     rag:
       enabled: true
-      similarity-threshold: 0.70   # Minimum cosine similarity to include a document
-      top-k: 8                     # Number of candidate documents retrieved
-      rerank-enabled: true         # Enable score-based reranking
+      similarity-threshold: 0.65   # Minimum cosine similarity to include a document
+      top-k: 5                     # Number of candidate documents retrieved
+      rerank-enabled: false        # Score-based reranking (enable for higher quality)
       max-context-tokens: 4000     # Maximum tokens injected into the system prompt
 
 # pgvector configuration (if using pgvector)

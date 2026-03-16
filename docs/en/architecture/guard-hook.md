@@ -147,8 +147,8 @@ Defends against homoglyph and invisible-character attacks:
 
 ```kotlin
 class DefaultRateLimitStage(
-    private val requestsPerMinute: Int = 10,
-    private val requestsPerHour: Int = 100,
+    private val requestsPerMinute: Int = 20,
+    private val requestsPerHour: Int = 200,
     private val tenantRateLimits: Map<String, TenantRateLimit> = emptyMap()
 ) : RateLimitStage
 ```

@@ -617,9 +617,9 @@ arc:
   reactor:
     rag:
       enabled: false              # RAG 활성화 여부 (기본: 비활성)
-      similarity-threshold: 0.7   # 최소 유사도 임계값
-      top-k: 10                   # 검색할 문서 수
-      rerank-enabled: true        # 재정렬 활성화
+      similarity-threshold: 0.65  # 최소 유사도 임계값
+      top-k: 5                    # 검색할 문서 수
+      rerank-enabled: false       # 재정렬 (옵트인)
       max-context-tokens: 4000    # RAG 컨텍스트 최대 토큰
 ```
 

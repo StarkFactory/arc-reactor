@@ -189,7 +189,7 @@ arc:
       injection-detection-enabled: true
 
       # New in 4.x
-      rate-limit-per-hour: 100              # hourly rate limit (default: 100)
+      rate-limit-per-hour: 200              # hourly rate limit (default: 200)
       unicode-normalization-enabled: true    # NFKC + zero-width strip (default: true)
       max-zero-width-ratio: 0.1             # rejection threshold for zero-width chars
       canary-token-enabled: false           # system prompt leakage detection (opt-in)
@@ -254,8 +254,8 @@ arc:
   reactor:
     boundaries:
       input-min-chars: 1
-      input-max-chars: 5000       # was guard.max-input-length in some 3.x docs
-      system-prompt-max-chars: 0  # disabled by default
+      input-max-chars: 10000      # was guard.max-input-length in some 3.x docs
+      system-prompt-max-chars: 50000  # maximum system prompt length
       output-min-chars: 0
       output-max-chars: 0
       output-min-violation-mode: warn   # warn | retry_once | fail
@@ -551,9 +551,9 @@ arc:
   reactor:
     rag:
       enabled: true
-      top-k: 10
-      similarity-threshold: 0.7
-      rerank-enabled: true
+      top-k: 5
+      similarity-threshold: 0.65
+      rerank-enabled: false
 ```
 
 Build with PostgreSQL/PGVector:
