@@ -32,12 +32,25 @@ fun interface TokenEstimator {
  * Caffeine-backed caching (10,000 entries, 5-minute TTL) to avoid
  * repeated codePoints() traversals for the same content.
  *
+ * Strings longer than [CACHE_KEY_MAX_LENGTH] are computed directly
+ * without caching to prevent large strings from inflating heap usage
+ * as cache keys.
+ *
  * Uses different ratios for different character sets:
  * - Latin/ASCII: ~4 characters per token
  * - CJK (Chinese/Japanese/Korean): ~1.5 characters per token
  * - Other: ~3 characters per token
  */
 class DefaultTokenEstimator : TokenEstimator {
+
+    companion object {
+        /**
+         * Strings longer than this threshold are computed directly without caching.
+         * Prevents large tool outputs / document chunks from inflating the cache
+         * heap — a 10,000-entry cache of 10KB strings would retain ~100MB.
+         */
+        const val CACHE_KEY_MAX_LENGTH = 2_000
+    }
 
     private val cache = Caffeine.newBuilder()
         .maximumSize(10_000)
@@ -46,6 +59,8 @@ class DefaultTokenEstimator : TokenEstimator {
 
     override fun estimate(text: String): Int {
         if (text.isEmpty()) return 0
+        // Skip cache for long strings to avoid retaining large heap objects as keys
+        if (text.length > CACHE_KEY_MAX_LENGTH) return computeTokens(text)
         return cache.get(text) { computeTokens(it) }
     }
 
