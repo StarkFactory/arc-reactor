@@ -492,6 +492,29 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
+        fun `escapes control characters U+0000 to U+001F as unicode escape sequences`() {
+            val controlChars = String(CharArray(32) { it.toChar() })
+            val attrs = Attributes.of(AttributeKey.stringKey("ctrl"), controlChars)
+            val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
+
+            // \n, \r, \t should use their short forms
+            json shouldContain """\n"""
+            json shouldContain """\r"""
+            json shouldContain """\t"""
+            // NUL (U+0000) should be escaped as \u0000
+            json shouldContain """\u0000"""
+            // SOH (U+0001) should be escaped as \u0001
+            json shouldContain """\u0001"""
+            // US (U+001F) should be escaped as \u001f
+            json shouldContain """\u001f"""
+            // No raw control characters should remain in the JSON
+            val valueStart = json.indexOf(":\"") + 2
+            val valueEnd = json.lastIndexOf("\"}")
+            val extractedValue = json.substring(valueStart, valueEnd)
+            extractedValue.none { it.code in 0x00..0x1F } shouldBe true
+        }
+
+        @Test
         fun `handles very long attribute value exceeding 50KB`() {
             val longValue = "a".repeat(60_000)
             val attrs = Attributes.of(AttributeKey.stringKey("big"), longValue)
