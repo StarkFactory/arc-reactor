@@ -10,11 +10,13 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
+@Tag("safety")
 class ApprovalControllerAuthTest {
 
     private val store = mockk<PendingApprovalStore>()
