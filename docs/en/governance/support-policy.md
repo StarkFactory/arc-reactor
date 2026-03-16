@@ -10,11 +10,11 @@ Arc Reactor follows an **N / N-1 minor support model**:
 - **N-1 (previous minor)**: critical bug fixes and security fixes only
 - Older lines: unsupported
 
-At the time of writing (February 21, 2026):
+As of March 16, 2026:
 
-- Active support: `3.9.x`
-- Maintenance-only: `3.8.x`
-- Unsupported: `< 3.8`
+- Active support: `5.10.x`
+- Maintenance-only: `5.9.x`
+- Unsupported: `< 5.9`
 
 ## Compatibility Expectations
 
