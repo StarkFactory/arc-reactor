@@ -11,7 +11,6 @@ import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
 import io.micrometer.tracing.Tracer
 import mu.KotlinLogging
-import org.slf4j.MDC
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -64,10 +63,11 @@ class AgentTracingHooks(
 
             agentSpans[context.runId] = span
 
-            MDC.put("traceId", span.context().traceId())
-            MDC.put("spanId", span.context().spanId())
-
+            // Store trace identifiers in hook metadata (coroutine-safe).
+            // Direct MDC.put is unreliable in suspend functions because the
+            // coroutine may resume on a different thread.
             context.metadata["traceId"] = span.context().traceId()
+            context.metadata["spanId"] = span.context().spanId()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -97,9 +97,6 @@ class AgentTracingHooks(
             throw e
         } catch (e: Exception) {
             logger.warn(e) { "Failed to end agent span for runId=${context.runId}" }
-        } finally {
-            MDC.remove("traceId")
-            MDC.remove("spanId")
         }
     }
 

@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import org.springframework.context.SmartLifecycle
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.min
 
 private val logger = KotlinLogging.logger {}
@@ -34,6 +35,8 @@ class SlackSocketModeGateway(
     private val metricsRecorder: SlackMetricsRecorder
 ) : SmartLifecycle {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private val startGuard = AtomicBoolean(false)
 
     @Volatile
     private var running: Boolean = false
@@ -50,8 +53,9 @@ class SlackSocketModeGateway(
     private var socketModeClient: SocketModeClient? = null
 
     override fun start() {
-        if (running || startRequested) return
+        if (!startGuard.compareAndSet(false, true)) return
         if (properties.appToken.isBlank()) {
+            startGuard.set(false)
             throw IllegalStateException(
                 "arc.reactor.slack.app-token is required when transport-mode=socket_mode"
             )
@@ -64,6 +68,7 @@ class SlackSocketModeGateway(
     }
 
     override fun stop() {
+        startGuard.set(false)
         startRequested = false
         running = false
         startupJob?.cancel()
