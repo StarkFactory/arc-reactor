@@ -9,6 +9,7 @@ import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.prompt.PromptVersion
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -212,18 +213,24 @@ class PromptTemplateController(
 
 data class CreateTemplateRequest(
     @field:NotBlank(message = "name must not be blank")
+    @field:Size(max = 200, message = "name must not exceed 200 characters")
     val name: String,
+    @field:Size(max = 2000, message = "description must not exceed 2000 characters")
     val description: String = ""
 )
 
 data class UpdateTemplateRequest(
+    @field:Size(max = 200, message = "name must not exceed 200 characters")
     val name: String? = null,
+    @field:Size(max = 2000, message = "description must not exceed 2000 characters")
     val description: String? = null
 )
 
 data class CreateVersionRequest(
     @field:NotBlank(message = "content must not be blank")
+    @field:Size(max = 100000, message = "content must not exceed 100000 characters")
     val content: String,
+    @field:Size(max = 2000, message = "changeLog must not exceed 2000 characters")
     val changeLog: String = ""
 )
 

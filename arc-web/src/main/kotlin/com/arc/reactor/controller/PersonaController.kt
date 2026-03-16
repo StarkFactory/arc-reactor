@@ -157,13 +157,19 @@ class PersonaController(
 
 data class CreatePersonaRequest(
     @field:NotBlank(message = "name must not be blank")
+    @field:Size(max = 200, message = "name must not exceed 200 characters")
     val name: String,
     @field:NotBlank(message = "systemPrompt must not be blank")
+    @field:Size(max = 50000, message = "systemPrompt must not exceed 50000 characters")
     val systemPrompt: String,
     val isDefault: Boolean = false,
+    @field:Size(max = 2000, message = "description must not exceed 2000 characters")
     val description: String? = null,
+    @field:Size(max = 10000, message = "responseGuideline must not exceed 10000 characters")
     val responseGuideline: String? = null,
+    @field:Size(max = 2000, message = "welcomeMessage must not exceed 2000 characters")
     val welcomeMessage: String? = null,
+    @field:Size(max = 200, message = "promptTemplateId must not exceed 200 characters")
     val promptTemplateId: String? = null,
     @field:Size(max = 20, message = "icon must be 20 characters or fewer")
     val icon: String? = null,
@@ -171,12 +177,18 @@ data class CreatePersonaRequest(
 )
 
 data class UpdatePersonaRequest(
+    @field:Size(max = 200, message = "name must not exceed 200 characters")
     val name: String? = null,
+    @field:Size(max = 50000, message = "systemPrompt must not exceed 50000 characters")
     val systemPrompt: String? = null,
     val isDefault: Boolean? = null,
+    @field:Size(max = 2000, message = "description must not exceed 2000 characters")
     val description: String? = null,
+    @field:Size(max = 10000, message = "responseGuideline must not exceed 10000 characters")
     val responseGuideline: String? = null,
+    @field:Size(max = 2000, message = "welcomeMessage must not exceed 2000 characters")
     val welcomeMessage: String? = null,
+    @field:Size(max = 200, message = "promptTemplateId must not exceed 200 characters")
     val promptTemplateId: String? = null,
     @field:Size(max = 20, message = "icon must be 20 characters or fewer")
     val icon: String? = null,
