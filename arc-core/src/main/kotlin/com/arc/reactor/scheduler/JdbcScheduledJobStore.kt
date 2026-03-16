@@ -19,6 +19,7 @@ class JdbcScheduledJobStore(
     private val rowMapper = RowMapper<ScheduledJob> { rs, _ ->
         val argsJson = rs.getString("tool_arguments")
         val jobTypeStr = rs.getString("job_type")
+        val tagsStr = rs.getString("tags")
         ScheduledJob(
             id = rs.getString("id"),
             name = rs.getString("name"),
@@ -34,6 +35,7 @@ class JdbcScheduledJobStore(
             agentSystemPrompt = rs.getString("agent_system_prompt"),
             agentModel = rs.getString("agent_model"),
             agentMaxToolCalls = rs.getObject("agent_max_tool_calls") as? Int,
+            tags = parseTags(tagsStr),
             slackChannelId = rs.getString("slack_channel_id"),
             teamsWebhookUrl = rs.getString("teams_webhook_url"),
             retryOnFailure = rs.getBoolean("retry_on_failure"),
@@ -66,16 +68,16 @@ class JdbcScheduledJobStore(
                 id, name, description, cron_expression, timezone, job_type,
                 mcp_server_name, tool_name, tool_arguments,
                 agent_prompt, persona_id, agent_system_prompt, agent_model, agent_max_tool_calls,
-                slack_channel_id, teams_webhook_url,
+                tags, slack_channel_id, teams_webhook_url,
                 retry_on_failure, max_retry_count, execution_timeout_ms,
                 enabled, created_at, updated_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             saved.id, saved.name, saved.description, saved.cronExpression, saved.timezone,
             saved.jobType.name,
             saved.mcpServerName, saved.toolName, objectMapper.writeValueAsString(saved.toolArguments),
             saved.agentPrompt, saved.personaId, saved.agentSystemPrompt,
             saved.agentModel, saved.agentMaxToolCalls,
-            saved.slackChannelId, saved.teamsWebhookUrl,
+            serializeTags(saved.tags), saved.slackChannelId, saved.teamsWebhookUrl,
             saved.retryOnFailure, saved.maxRetryCount, saved.executionTimeoutMs,
             saved.enabled,
             java.sql.Timestamp.from(saved.createdAt), java.sql.Timestamp.from(saved.updatedAt)
@@ -91,7 +93,7 @@ class JdbcScheduledJobStore(
                 mcp_server_name = ?, tool_name = ?, tool_arguments = ?,
                 agent_prompt = ?, persona_id = ?, agent_system_prompt = ?,
                 agent_model = ?, agent_max_tool_calls = ?,
-                slack_channel_id = ?, teams_webhook_url = ?,
+                tags = ?, slack_channel_id = ?, teams_webhook_url = ?,
                 retry_on_failure = ?, max_retry_count = ?, execution_timeout_ms = ?,
                 enabled = ?, updated_at = ?
                WHERE id = ?""",
@@ -99,7 +101,7 @@ class JdbcScheduledJobStore(
             job.mcpServerName, job.toolName, objectMapper.writeValueAsString(job.toolArguments),
             job.agentPrompt, job.personaId, job.agentSystemPrompt,
             job.agentModel, job.agentMaxToolCalls,
-            job.slackChannelId, job.teamsWebhookUrl,
+            serializeTags(job.tags), job.slackChannelId, job.teamsWebhookUrl,
             job.retryOnFailure, job.maxRetryCount, job.executionTimeoutMs,
             job.enabled, java.sql.Timestamp.from(now), id
         )
@@ -117,4 +119,11 @@ class JdbcScheduledJobStore(
             java.sql.Timestamp.from(now), status.name, result?.take(5000), java.sql.Timestamp.from(now), id
         )
     }
+
+    private fun serializeTags(tags: Set<String>): String? =
+        if (tags.isEmpty()) null else tags.sorted().joinToString(",")
+
+    private fun parseTags(value: String?): Set<String> =
+        if (value.isNullOrBlank()) emptySet()
+        else value.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
 }
