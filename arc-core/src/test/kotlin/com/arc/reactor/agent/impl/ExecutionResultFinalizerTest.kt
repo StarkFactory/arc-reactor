@@ -741,6 +741,53 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
+    fun `should handle special characters in citation URLs and titles`() = runBlocking {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            citationProperties = CitationProperties(enabled = true, format = "markdown"),
+            nowMs = { 1_000L }
+        )
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
+            verifiedSources += VerifiedSource(
+                title = "Policy (v2)",
+                url = "https://example.com?q=test&page=1",
+                toolName = "confluence"
+            )
+            verifiedSources += VerifiedSource(
+                title = "Guide [Draft] & Notes",
+                url = "https://example.com/path#section",
+                toolName = "confluence"
+            )
+        }
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "Here is the answer."),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = hookContext,
+            toolsUsed = listOf("confluence"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertTrue(result.success, "Result should succeed with special-character citations")
+        val content = result.content.orEmpty()
+        assertTrue(
+            content.contains("[1] Policy (v2) (https://example.com?q=test&page=1)"),
+            "Citation with parentheses in title and query string in URL should be preserved verbatim"
+        )
+        assertTrue(
+            content.contains("[2] Guide [Draft] & Notes (https://example.com/path#section)"),
+            "Citation with brackets, ampersand in title and fragment in URL should be preserved verbatim"
+        )
+    }
+
+    @Test
     fun `should not append citations when no verified sources exist`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,

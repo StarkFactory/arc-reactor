@@ -65,9 +65,13 @@ class SchedulerController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        val clamped = clampLimit(limit)
         val jobs = schedulerService.list()
         val filtered = if (tag.isNullOrBlank()) jobs else jobs.filter { tag in it.tags }
+<<<<<<< HEAD
         val clamped = clampLimit(limit)
+=======
+>>>>>>> d860cb0 (test: Add edge case tests for RAG compressor, tool cache TTL, and citation special chars)
         return ResponseEntity.ok(filtered.map { it.toResponse() }.paginate(offset, clamped))
     }
 
