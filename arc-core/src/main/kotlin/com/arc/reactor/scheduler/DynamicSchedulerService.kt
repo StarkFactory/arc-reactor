@@ -73,6 +73,9 @@ class DynamicSchedulerService(
         private const val SCHEDULER_CHANNEL = "scheduler"
         private const val DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant."
         private const val RETRY_DELAY_MS = 2000L
+        private const val MIN_EXECUTION_TIMEOUT_MS = 1000L
+        private const val MAX_EXECUTION_TIMEOUT_MS = 3_600_000L
+        private const val MESSAGE_TRUNCATION_LIMIT = 3000
         private val DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
     }
 
@@ -191,8 +194,8 @@ class DynamicSchedulerService(
 
     private fun validateExecutionTimeout(timeoutMs: Long?) {
         if (timeoutMs == null || timeoutMs == 0L) return
-        require(timeoutMs in 1000..3600000) {
-            "executionTimeoutMs must be 0 (unlimited) or between 1000 and 3600000, got: $timeoutMs"
+        require(timeoutMs in MIN_EXECUTION_TIMEOUT_MS..MAX_EXECUTION_TIMEOUT_MS) {
+            "executionTimeoutMs must be 0 (unlimited) or between $MIN_EXECUTION_TIMEOUT_MS and $MAX_EXECUTION_TIMEOUT_MS, got: $timeoutMs"
         }
     }
 
@@ -547,7 +550,7 @@ class DynamicSchedulerService(
     }
 
     private fun formatSlackMessage(job: ScheduledJob, result: String): String {
-        val truncated = if (result.length > 3000) result.take(3000) + "\n..." else result
+        val truncated = truncateMessage(result)
         return when (job.jobType) {
             ScheduledJobType.MCP_TOOL -> "*[${job.name}]* scheduled task result:\n```\n$truncated\n```"
             ScheduledJobType.AGENT -> "*[${job.name}]* \uBE0C\uB9AC\uD551:\n$truncated"
@@ -564,12 +567,15 @@ class DynamicSchedulerService(
     }
 
     private fun formatTeamsMessage(job: ScheduledJob, result: String): String {
-        val truncated = if (result.length > 3000) result.take(3000) + "\n..." else result
+        val truncated = truncateMessage(result)
         return when (job.jobType) {
             ScheduledJobType.MCP_TOOL -> "**[${job.name}]** scheduled task result:\n```\n$truncated\n```"
             ScheduledJobType.AGENT -> "**[${job.name}]** \uBE0C\uB9AC\uD551:\n$truncated"
         }
     }
+
+    private fun truncateMessage(text: String): String =
+        if (text.length > MESSAGE_TRUNCATION_LIMIT) text.take(MESSAGE_TRUNCATION_LIMIT) + "\n..." else text
 
     private fun markSchedulingFailure(job: ScheduledJob, message: String) {
         store.updateExecutionResult(job.id, JobExecutionStatus.FAILED, message)
