@@ -15,7 +15,7 @@ export GEMINI_API_KEY=your-api-key
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "userPrompt": "간단한 인사 메시지를 작성해줘",
+    "message": "간단한 인사 메시지를 작성해줘",
     "userId": "demo-user"
   }'
 ```

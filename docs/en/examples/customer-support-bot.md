@@ -177,7 +177,7 @@ class SupportApprovalConfig {
 }
 ```
 
-When `process_refund` is triggered, the executor returns `HookResult.PendingApproval`. The agent pauses until an operator approves or rejects via the approval REST API.
+When `process_refund` is triggered, the HITL approval flow suspends the tool call using `CompletableDeferred`. The agent pauses until an operator approves or rejects via the approval REST API.
 
 ```bash
 # List pending approvals

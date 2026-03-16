@@ -150,14 +150,15 @@ Response:
 [
   {
     "id": "abc-123",
+    "runId": "run-789",
+    "userId": "user-456",
     "toolName": "process_refund",
     "arguments": {
       "orderId": "1234",
       "amount": 50000
     },
     "requestedAt": "2026-02-10T14:30:00Z",
-    "sessionId": "session-456",
-    "userPrompt": "Refund order #1234"
+    "status": "PENDING"
   }
 ]
 ```
