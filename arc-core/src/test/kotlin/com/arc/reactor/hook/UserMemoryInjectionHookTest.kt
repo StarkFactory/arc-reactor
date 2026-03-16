@@ -17,7 +17,7 @@ class UserMemoryInjectionHookTest {
 
     private val store = InMemoryUserMemoryStore()
     private val manager = UserMemoryManager(store = store)
-    private val hook = UserMemoryInjectionHook(memoryManager = manager)
+    private val hook = UserMemoryInjectionHook(memoryManager = manager, injectIntoPrompt = true)
 
     @Nested
     inner class HookConfiguration {
@@ -46,7 +46,7 @@ class UserMemoryInjectionHookTest {
                 UserMemory(
                     userId = "user-1",
                     facts = mapOf("team" to "backend"),
-                    recentTopics = listOf("Spring AI")
+                    preferences = mapOf("language" to "Korean")
                 )
             )
             val context = hookContext(userId = "user-1")
@@ -58,7 +58,6 @@ class UserMemoryInjectionHookTest {
             assertNotNull(injected, "User memory context should be injected into metadata")
             val contextStr = injected.toString()
             assertTrue(contextStr.contains("team=backend"), "Injected context should contain fact 'team=backend'")
-            assertTrue(contextStr.contains("Spring AI"), "Injected context should contain recent topic 'Spring AI'")
         }
 
         @Test
@@ -113,25 +112,60 @@ class UserMemoryInjectionHookTest {
                 "Metadata should not contain userMemoryContext when memory has no data"
             )
         }
+
+        @Test
+        fun `does not inject when injectIntoPrompt is false`() = runTest {
+            val disabledHook = UserMemoryInjectionHook(memoryManager = manager, injectIntoPrompt = false)
+            store.save(
+                "user-disabled",
+                UserMemory(userId = "user-disabled", facts = mapOf("team" to "backend"))
+            )
+            val context = hookContext(userId = "user-disabled")
+
+            val result = disabledHook.beforeAgentStart(context)
+
+            assertInstanceOf(HookResult.Continue::class.java, result, "Hook should return Continue when disabled")
+            assertNull(
+                context.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY],
+                "Metadata should not contain userMemoryContext when injectIntoPrompt is false"
+            )
+        }
+
+        @Test
+        fun `injectIntoPrompt defaults to false`() = runTest {
+            val defaultHook = UserMemoryInjectionHook(memoryManager = manager)
+            store.save(
+                "user-default",
+                UserMemory(userId = "user-default", facts = mapOf("team" to "backend"))
+            )
+            val context = hookContext(userId = "user-default")
+
+            defaultHook.beforeAgentStart(context)
+
+            assertNull(
+                context.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY],
+                "Default hook (injectIntoPrompt=false) should not inject memory context"
+            )
+        }
     }
 
     @Nested
     inner class ContextFormat {
 
         @Test
-        fun `injected context starts with User context prefix`() = runTest {
-            store.save("prefix-user", UserMemory(userId = "prefix-user", facts = mapOf("role" to "lead")))
-            val context = hookContext(userId = "prefix-user")
+        fun `injected context uses Facts prefix for facts`() = runTest {
+            store.save("fact-user", UserMemory(userId = "fact-user", facts = mapOf("role" to "lead")))
+            val context = hookContext(userId = "fact-user")
 
             hook.beforeAgentStart(context)
 
             val injected = context.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
             assertNotNull(injected, "Context should be injected")
-            assertTrue(injected!!.startsWith("User context:"), "Injected context should start with 'User context:'")
+            assertTrue(injected!!.startsWith("Facts:"), "Injected context should start with 'Facts:' but was: $injected")
         }
 
         @Test
-        fun `injected context includes preferences`() = runTest {
+        fun `injected context uses Preferences prefix for preferences`() = runTest {
             store.save(
                 "pref-user",
                 UserMemory(userId = "pref-user", preferences = mapOf("detail_level" to "brief"))
@@ -143,9 +177,31 @@ class UserMemoryInjectionHookTest {
             val injected = context.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
             assertNotNull(injected, "Context should be injected when preferences exist")
             assertTrue(
-                injected!!.contains("detail_level=brief"),
-                "Injected context should contain preference 'detail_level=brief'"
+                injected!!.contains("Preferences: detail_level=brief"),
+                "Injected context should contain 'Preferences: detail_level=brief' but was: $injected"
             )
+        }
+
+        @Test
+        fun `injected context has separate lines for facts and preferences`() = runTest {
+            store.save(
+                "full-user",
+                UserMemory(
+                    userId = "full-user",
+                    facts = mapOf("team" to "backend"),
+                    preferences = mapOf("language" to "Korean")
+                )
+            )
+            val context = hookContext(userId = "full-user")
+
+            hook.beforeAgentStart(context)
+
+            val injected = context.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
+            assertNotNull(injected, "Context should be injected for full user")
+            val lines = injected!!.split("\n")
+            assertEquals(2, lines.size, "Context should have exactly 2 lines (Facts + Preferences)")
+            assertTrue(lines[0].startsWith("Facts:"), "First line should be Facts")
+            assertTrue(lines[1].startsWith("Preferences:"), "Second line should be Preferences")
         }
     }
 
@@ -156,7 +212,7 @@ class UserMemoryInjectionHookTest {
         fun `continues without injection when memory manager throws`() = runTest {
             val failingManager = mockk<UserMemoryManager>()
             coEvery { failingManager.getContextPrompt(any()) } throws RuntimeException("Simulated storage failure")
-            val failingHook = UserMemoryInjectionHook(memoryManager = failingManager)
+            val failingHook = UserMemoryInjectionHook(memoryManager = failingManager, injectIntoPrompt = true)
             val context = hookContext(userId = "fail-user")
 
             val result = failingHook.beforeAgentStart(context)

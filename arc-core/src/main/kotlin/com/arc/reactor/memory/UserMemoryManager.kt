@@ -14,18 +14,21 @@ private val logger = KotlinLogging.logger {}
  */
 class UserMemoryManager(
     private val store: UserMemoryStore,
-    private val maxRecentTopics: Int = 10
+    private val maxRecentTopics: Int = 10,
+    private val maxPromptInjectionChars: Int = DEFAULT_MAX_PROMPT_INJECTION_CHARS
 ) {
 
     /**
-     * Converts the user's stored memory into a single natural-language context string.
+     * Converts the user's stored memory into a structured context string.
      *
      * Example output:
      * ```
-     * User context: team=backend, role=senior engineer | recent topics: Spring AI, MCP integration
+     * Facts: team=backend, role=senior engineer
+     * Preferences: language=Korean, detail_level=brief
      * ```
      *
      * Returns an empty string if no memory is found or if the memory contains no usable data.
+     * Output is truncated to [maxPromptInjectionChars] characters.
      */
     suspend fun getContextPrompt(userId: String): String {
         val memory = store.get(userId) ?: return ""
@@ -62,27 +65,30 @@ class UserMemoryManager(
         store.updatePreference(userId, key, value)
 
     private fun buildContextPrompt(memory: UserMemory): String {
-        val parts = mutableListOf<String>()
+        val lines = mutableListOf<String>()
 
-        val factPart = memory.facts.entries.joinToString(", ") { "${it.key}=${it.value}" }
-        if (factPart.isNotBlank()) parts.add(factPart)
-
-        val prefPart = memory.preferences.entries.joinToString(", ") { "${it.key}=${it.value}" }
-        if (prefPart.isNotBlank()) parts.add(prefPart)
-
-        val topicPart = if (memory.recentTopics.isNotEmpty()) {
-            "recent topics: ${memory.recentTopics.joinToString(", ")}"
-        } else null
-
-        if (parts.isEmpty() && topicPart == null) return ""
-
-        val contextBody = buildString {
-            if (parts.isNotEmpty()) append(parts.joinToString(", "))
-            if (topicPart != null) {
-                if (parts.isNotEmpty()) append(" | ")
-                append(topicPart)
-            }
+        if (memory.facts.isNotEmpty()) {
+            val factsStr = memory.facts.entries.joinToString(", ") { "${it.key}=${it.value}" }
+            lines.add("Facts: $factsStr")
         }
-        return "User context: $contextBody"
+
+        if (memory.preferences.isNotEmpty()) {
+            val prefsStr = memory.preferences.entries.joinToString(", ") { "${it.key}=${it.value}" }
+            lines.add("Preferences: $prefsStr")
+        }
+
+        if (lines.isEmpty()) return ""
+
+        val result = lines.joinToString("\n")
+        return if (result.length > maxPromptInjectionChars) {
+            result.take(maxPromptInjectionChars)
+        } else {
+            result
+        }
+    }
+
+    companion object {
+        /** Default maximum character length for injected user memory context. */
+        const val DEFAULT_MAX_PROMPT_INJECTION_CHARS = 1000
     }
 }
