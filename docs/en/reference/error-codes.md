@@ -13,11 +13,9 @@ error response body.
 
 ## Error Response Shape
 
-All chat failures use the `ChatResponse` DTO. Most agent-level errors return HTTP `200`
-with the error communicated in the response body. Exceptions: `OUTPUT_GUARD_REJECTED` and
-`OUTPUT_TOO_SHORT` return HTTP `422` (Unprocessable Entity), and infrastructure-level
-errors (rate limiting, guard rejection, timeout, etc.) use semantically appropriate HTTP
-status codes as documented below.
+All chat failures use the `ChatResponse` DTO. Each agent error code maps to a semantically
+appropriate HTTP status code (e.g., `429` for rate limiting, `403` for guard rejection,
+`504` for timeouts) as documented below.
 
 ```json
 {
@@ -30,7 +28,7 @@ status codes as documented below.
 ```
 
 Infrastructure-level failures (validation, file-size limits, uncaught exceptions) are handled
-by `GlobalExceptionHandler` and do use non-200 HTTP status codes. Those are described at the
+by `GlobalExceptionHandler` and use a separate error body format. Those are described at the
 end of this document.
 
 ---
@@ -42,7 +40,7 @@ end of this document.
 | Field | Value |
 |---|---|
 | Default message | `Rate limit exceeded. Please try again later.` |
-| HTTP status (chat endpoint) | `200` (body: `success: false`) |
+| HTTP status (chat endpoint) | `429 Too Many Requests` |
 | When raised | The incoming request exceeds the per-minute or per-hour rate limit enforced by the Guard pipeline |
 
 **Details.** The Guard applies two sliding-window counters per user ID: `rate-limit-per-minute`
@@ -50,8 +48,8 @@ and `rate-limit-per-hour`. When either counter is exceeded, the Guard rejects th
 fail-close and the executor returns `RATE_LIMITED`.
 
 Default limits (configurable):
-- 10 requests per minute (`arc.reactor.guard.rate-limit-per-minute`)
-- 100 requests per hour (`arc.reactor.guard.rate-limit-per-hour`)
+- 20 requests per minute (`arc.reactor.guard.rate-limit-per-minute`)
+- 200 requests per hour (`arc.reactor.guard.rate-limit-per-hour`)
 
 **Client action.** Back off and retry after the window resets. Use exponential back-off with
 jitter. Do not retry immediately; a burst of retries will extend the window.
@@ -74,7 +72,7 @@ jitter. Do not retry immediately; a burst of retries will extend the window.
 | Field | Value |
 |---|---|
 | Default message | `Request timed out.` |
-| HTTP status (chat endpoint) | `200` (body: `success: false`) |
+| HTTP status (chat endpoint) | `504 Gateway Timeout` |
 | When raised | The total wall-clock time for the request exceeds `concurrency.request-timeout-ms` (default 30 000 ms), or an individual tool call exceeds `concurrency.tool-call-timeout-ms` (default 15 000 ms) |
 
 **Details.** The executor wraps each request in a `withTimeout` coroutine block. When the
@@ -105,7 +103,7 @@ reduce message complexity or increase timeout budgets.
 | Field | Value |
 |---|---|
 | Default message | `Input is too long. Please reduce the content.` |
-| HTTP status (chat endpoint) | `200` (body: `success: false`) |
+| HTTP status (chat endpoint) | `400 Bad Request` |
 | When raised | The LLM provider returns a context-length error (e.g. `"context length exceeded"` in the exception message) |
 
 **Details.** Arc Reactor performs token-based context trimming before each LLM call using
@@ -135,7 +133,7 @@ history. Consider increasing `max-context-window-tokens` if the model supports a
 | Field | Value |
 |---|---|
 | Default message | `An error occurred during tool execution.: <original message>` |
-| HTTP status (chat endpoint) | `200` (body: `success: false`) |
+| HTTP status (chat endpoint) | `500 Internal Server Error` |
 | When raised | A `ToolCallback` throws or returns an error string, and the ReAct loop exhausts retries without recovery |
 
 **Details.** ToolCallback implementations must return errors as strings (`"Error: ..."`)
@@ -166,7 +164,7 @@ if the tool exception message matches patterns like `"connection refused"`, `"ti
 | Field | Value |
 |---|---|
 | Default message | `Request rejected by guard.` |
-| HTTP status (chat endpoint) | `200` (body: `success: false`) |
+| HTTP status (chat endpoint) | `403 Forbidden` |
 | When raised | Any of the 5 Guard stages rejects the request (injection detection, rate limiting, input length, classification, canary token) |
 
 **Details.** The Guard pipeline is fail-close: any stage that rejects a request immediately
@@ -174,7 +172,7 @@ stops processing and returns `GUARD_REJECTED`. The Guard operates before any LLM
 execution. Common rejection scenarios:
 - Unicode normalization detects a zero-width character ratio above `max-zero-width-ratio`
 - Prompt injection pattern is matched
-- Input length exceeds `boundaries.input-max-chars` (default 5 000 characters)
+- Input length exceeds `boundaries.input-max-chars` (default 10 000 characters)
 - Rule-based or LLM-based classification identifies a blocked category
 - Canary token leak is detected in the input
 
@@ -200,7 +198,7 @@ server-side and not exposed to clients (by design, to avoid leaking Guard logic)
 | Field | Value |
 |---|---|
 | Default message | `Request rejected by hook.` |
-| HTTP status (chat endpoint) | `200` (body: `success: false`) |
+| HTTP status (chat endpoint) | `403 Forbidden` |
 | When raised | A lifecycle Hook configured with `failOnError=true` throws an exception during the `BeforeStart` phase |
 
 **Details.** Hooks are fail-open by default (log and continue). Setting `failOnError=true` on
@@ -229,7 +227,7 @@ operator. Retrying is unlikely to help unless the Hook failure is transient.
 | Field | Value |
 |---|---|
 | Default message | `LLM returned an invalid structured response.` |
-| HTTP status (chat endpoint) | `200` (body: `success: false`) |
+| HTTP status (chat endpoint) | `500 Internal Server Error` |
 | When raised | The LLM response does not conform to the requested `responseFormat` (JSON or YAML) after one repair attempt |
 
 **Details.** When `responseFormat` is `JSON` or `YAML`, the response is validated by Jackson
@@ -261,7 +259,7 @@ client-side is a fallback option.
 | Field | Value |
 |---|---|
 | Default message | `Response blocked by output guard.` |
-| HTTP status (chat endpoint) | `422` (body: `success: false`) |
+| HTTP status (chat endpoint) | `422 Unprocessable Entity` |
 | When raised | The Output Guard pipeline rejects the LLM's response (PII detected, custom block pattern matched) |
 
 **Details.** When `arc.reactor.output-guard.enabled=true`, every LLM response passes through
@@ -292,7 +290,7 @@ to review the Output Guard configuration.
 | Field | Value |
 |---|---|
 | Default message | `Response is too short to meet quality requirements.` |
-| HTTP status (chat endpoint) | `422` (body: `success: false`) |
+| HTTP status (chat endpoint) | `422 Unprocessable Entity` |
 | When raised | The LLM response is shorter than `boundaries.output-min-chars` and `boundaries.output-min-violation-mode` is set to `FAIL` |
 
 **Details.** Output length enforcement is opt-in; `output-min-chars` defaults to 0 (disabled).
@@ -323,7 +321,7 @@ detailed output, or reduce the `output-min-chars` threshold.
 | Field | Value |
 |---|---|
 | Default message | `Service temporarily unavailable due to repeated failures. Please try again later.` |
-| HTTP status (chat endpoint) | `200` (body: `success: false`) |
+| HTTP status (chat endpoint) | `503 Service Unavailable` |
 | When raised | The circuit breaker is in `OPEN` state because consecutive failures have exceeded `circuit-breaker.failure-threshold` |
 
 **Details.** The circuit breaker is disabled by default (`arc.reactor.circuit-breaker.enabled=false`).
@@ -354,7 +352,7 @@ request(s). If the trial succeeds, the circuit closes; if it fails, the circuit 
 | Field | Value |
 |---|---|
 | Default message | `An unknown error occurred.` |
-| HTTP status (chat endpoint) | `200` (body: `success: false`) |
+| HTTP status (chat endpoint) | `500 Internal Server Error` |
 | When raised | An exception occurred that does not match any other classification pattern in `AgentErrorPolicy` |
 
 **Details.** `UNKNOWN` is the catch-all classification in `AgentErrorPolicy.classify()`. It
