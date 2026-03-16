@@ -800,6 +800,96 @@ Swagger spec source의 저장된 revision 목록을 조회합니다.
 
 ---
 
+## MCP Preflight
+
+기본 경로: `/api/mcp/servers/{name}/preflight`
+
+MCP 서버의 `/admin/preflight` 엔드포인트에 대해 준비 상태 검사를 실행하는 프록시 컨트롤러. MCP 서버의 `config`에 `adminToken`과 `adminUrl` 또는 `url`이 있어야 합니다. 업스트림이 admin HMAC를 요구하면 `adminHmacRequired=true`와 `adminHmacSecret`도 포함해야 합니다.
+
+### GET /api/mcp/servers/{name}/preflight
+
+MCP 서버의 admin API에 대해 preflight 준비 상태 검사를 실행합니다. 응답은 업스트림 서버에서 전달됩니다.
+
+**인증**: Admin 필수
+
+**응답 `200 OK`**: 업스트림 MCP 서버 admin API가 반환하는 preflight 결과 객체 (그대로 전달). 일반적인 필드로 `ok`, `readyForProduction`, `policySource`, `summary`, `checks`가 포함됩니다.
+
+**응답 코드**: `200` 성공 | `400` 잘못된 서버 설정 (`adminUrl`, `adminToken`, 또는 HMAC secret 누락) | `403` admin 필요 | `404` 서버 없음 | `502` 업스트림 연결 실패 | `504` 업스트림 타임아웃
+
+---
+
+## MCP Security
+
+기본 경로: `/api/mcp/security`
+
+동적 MCP 허용 목록 및 보안 정책 관리. 어떤 MCP 서버가 등록 허용되는지와 최대 도구 출력 길이를 제어합니다. 유효 정책은 저장된(데이터베이스) 값과 설정 파일 기본값을 병합합니다.
+
+### GET /api/mcp/security
+
+유효(사용 중) 정책, 저장된(데이터베이스) 정책, 설정 파일 기본값을 포함한 현재 MCP 보안 정책 상태를 조회합니다.
+
+**인증**: Admin 필수
+
+**응답 `200 OK`**:
+```json
+{
+  "effective": {
+    "allowedServerNames": ["jira-server", "confluence-server"],
+    "maxToolOutputLength": 50000,
+    "createdAt": 1700000000000,
+    "updatedAt": 1700000000000
+  },
+  "stored": null,
+  "configDefault": {
+    "allowedServerNames": [],
+    "maxToolOutputLength": 50000,
+    "createdAt": 1700000000000,
+    "updatedAt": 1700000000000
+  }
+}
+```
+
+**응답 코드**: `200` 성공 | `403` admin 필요
+
+---
+
+### PUT /api/mcp/security
+
+저장된 MCP 보안 정책을 업데이트합니다. 즉시 적용되며 모든 등록된 MCP 서버에 보안 정책이 재적용됩니다.
+
+**인증**: Admin 필수
+
+**요청 본문**:
+```json
+{
+  "allowedServerNames": ["jira-server", "confluence-server"],
+  "maxToolOutputLength": 50000
+}
+```
+
+| 필드 | 타입 | 필수 | 기본값 | 제약 조건 |
+|------|------|------|-------|---------|
+| `allowedServerNames` | set of string | 아니오 | `[]` | 최대 500개. 공백 항목은 제거됨 |
+| `maxToolOutputLength` | integer | 아니오 | `50000` | 최소 1024, 최대 500000 |
+
+**응답 `200 OK`**: `McpSecurityPolicyResponse` 객체 (저장된 정책)
+
+**응답 코드**: `200` 성공 | `400` 유효성 오류 | `403` admin 필요
+
+---
+
+### DELETE /api/mcp/security
+
+저장된 MCP 보안 정책을 삭제하여 설정 파일 기본값으로 복원합니다. 모든 등록된 MCP 서버에 보안 정책이 재적용됩니다.
+
+**인증**: Admin 필수
+
+**응답**: `204 No Content`
+
+**응답 코드**: `204` 삭제됨 | `403` admin 필요
+
+---
+
 ## 도구 정책
 
 기본 경로: `/api/tool-policy`
@@ -1638,7 +1728,7 @@ admin 감사 로그를 조회합니다.
 ]
 ```
 
-**알려진 카테고리**: `mcp_server`, `mcp_access_policy`, `tool_policy`, `rag_ingestion_policy`, `rag_ingestion_candidate`, `output_guard_rule`
+**알려진 카테고리**: `mcp_server`, `mcp_access_policy`, `mcp_preflight`, `mcp_swagger_catalog`, `mcp_security`, `proactive_channel`, `tool_policy`, `rag_ingestion_policy`, `rag_ingestion_candidate`, `output_guard_rule`
 
 **응답 코드**: `200` 성공 | `403` admin 필요
 
@@ -1771,6 +1861,209 @@ ID로 단일 피드백 항목을 조회합니다.
 **인증**: Admin 필수
 
 **응답**: `204 No Content`
+
+---
+
+## 사용자 메모리
+
+기본 경로: `/api/user-memory`
+
+> **활성화 조건**: `UserMemoryManager` 빈이 존재하는 경우
+
+사용자별 장기 메모리 관리. 각 사용자는 자신의 메모리만 접근할 수 있습니다. 호출자의 신원(JWT 기반)이 `userId` 경로 파라미터와 일치해야 합니다.
+
+### GET /api/user-memory/{userId}
+
+사용자의 전체 메모리 레코드를 조회합니다.
+
+**인증**: 인증 필요 (본인만 -- 호출자가 `userId`와 일치해야 함)
+
+**응답 `200 OK`**:
+```json
+{
+  "facts": {
+    "name": "Jane Smith",
+    "role": "Engineering Manager"
+  },
+  "preferences": {
+    "language": "English",
+    "timezone": "America/New_York"
+  },
+  "recentTopics": ["project-alpha", "quarterly-review"],
+  "updatedAt": "2026-03-15T10:30:00Z"
+}
+```
+
+**응답 코드**: `200` 성공 | `403` 호출자가 `userId`와 불일치 | `404` 해당 `userId`의 메모리 없음
+
+---
+
+### PUT /api/user-memory/{userId}/facts
+
+사용자의 단일 fact 항목을 업데이트합니다. 메모리 레코드가 없으면 새로 생성합니다.
+
+**인증**: 인증 필요 (본인만 -- 호출자가 `userId`와 일치해야 함)
+
+**요청 본문**:
+```json
+{
+  "key": "role",
+  "value": "Engineering Manager"
+}
+```
+
+| 필드 | 타입 | 필수 | 제약 조건 |
+|------|------|------|---------|
+| `key` | string | 예 | 공백 불가 |
+| `value` | string | 예 | 공백 불가 |
+
+**응답 `200 OK`**:
+```json
+{
+  "updated": true
+}
+```
+
+**응답 코드**: `200` 성공 | `400` 유효성 오류 | `403` 호출자가 `userId`와 불일치
+
+---
+
+### PUT /api/user-memory/{userId}/preferences
+
+사용자의 단일 preference 항목을 업데이트합니다. 메모리 레코드가 없으면 새로 생성합니다.
+
+**인증**: 인증 필요 (본인만 -- 호출자가 `userId`와 일치해야 함)
+
+**요청 본문**:
+```json
+{
+  "key": "timezone",
+  "value": "America/New_York"
+}
+```
+
+| 필드 | 타입 | 필수 | 제약 조건 |
+|------|------|------|---------|
+| `key` | string | 예 | 공백 불가 |
+| `value` | string | 예 | 공백 불가 |
+
+**응답 `200 OK`**:
+```json
+{
+  "updated": true
+}
+```
+
+**응답 코드**: `200` 성공 | `400` 유효성 오류 | `403` 호출자가 `userId`와 불일치
+
+---
+
+### DELETE /api/user-memory/{userId}
+
+사용자의 모든 저장된 메모리를 삭제합니다. 멱등성.
+
+**인증**: 인증 필요 (본인만 -- 호출자가 `userId`와 일치해야 함)
+
+**응답**: `204 No Content`
+
+**응답 코드**: `204` 삭제됨 | `403` 호출자가 `userId`와 불일치
+
+---
+
+## 프로액티브 채널
+
+기본 경로: `/api/proactive-channels`
+
+> **활성화 조건**: `arc.reactor.slack.enabled=true` 및 `ProactiveChannelStore` 빈이 존재하는 경우
+
+프로액티브 에이전트 응답을 위해 모니터링되는 Slack 채널을 관리합니다.
+
+### GET /api/proactive-channels
+
+모든 프로액티브 모니터링 채널을 조회합니다.
+
+**인증**: Admin 필수
+
+**응답 `200 OK`**:
+```json
+[
+  {
+    "channelId": "C0123456789",
+    "channelName": "engineering-support",
+    "addedAt": 1700000000000
+  }
+]
+```
+
+**응답 코드**: `200` 성공 | `403` admin 필요
+
+---
+
+### POST /api/proactive-channels
+
+프로액티브 모니터링에 채널을 추가합니다.
+
+**인증**: Admin 필수
+
+**요청 본문**:
+```json
+{
+  "channelId": "C0123456789",
+  "channelName": "engineering-support"
+}
+```
+
+| 필드 | 타입 | 필수 | 기본값 | 제약 조건 |
+|------|------|------|-------|---------|
+| `channelId` | string | 예 | -- | 공백 불가, 최대 50자 |
+| `channelName` | string | 아니오 | `null` | 최대 200자 |
+
+**응답 `201 Created`**: `ProactiveChannelResponse` 객체
+
+**응답 코드**: `201` 추가됨 | `400` 유효성 오류 | `403` admin 필요 | `409` 이미 프로액티브 목록에 존재
+
+---
+
+### DELETE /api/proactive-channels/{channelId}
+
+프로액티브 모니터링에서 채널을 제거합니다.
+
+**인증**: Admin 필수
+
+**응답**: `204 No Content`
+
+**응답 코드**: `204` 제거됨 | `403` admin 필요 | `404` 채널 없음
+
+---
+
+## Admin Capabilities
+
+기본 경로: `/api/admin/capabilities`
+
+애플리케이션에 등록된 모든 API 경로의 매니페스트를 반환합니다. admin 콘솔에서 런타임에 사용 가능한 기능을 탐색하는 데 유용합니다.
+
+### GET /api/admin/capabilities
+
+admin capability 매니페스트를 조회합니다. 등록된 모든 `/api/` 경로를 알파벳순으로 반환합니다.
+
+**인증**: Admin 필수
+
+**응답 `200 OK`**:
+```json
+{
+  "generatedAt": 1700000000000,
+  "source": "request-mappings",
+  "paths": [
+    "/api/admin/audits",
+    "/api/admin/capabilities",
+    "/api/auth/login",
+    "/api/chat",
+    "/api/mcp/servers"
+  ]
+}
+```
+
+**응답 코드**: `200` 성공 | `403` admin 필요
 
 ---
 
