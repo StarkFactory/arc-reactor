@@ -3,7 +3,7 @@ name: arc-reactor
 description: A Spring AI-based AI Agent framework — fork and attach tools to use.
 type: application
 version: 0.1.0
-appVersion: "5.2.0"
+appVersion: "5.8.2"
 home: https://github.com/StarkFactory/arc-reactor
 sources:
   - https://github.com/StarkFactory/arc-reactor
