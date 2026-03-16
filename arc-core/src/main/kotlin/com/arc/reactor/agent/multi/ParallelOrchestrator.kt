@@ -59,10 +59,10 @@ class ParallelOrchestrator(
         logger.info { "Parallel: executing ${nodes.size} nodes concurrently" }
 
         val nodeResults = coroutineScope {
-            nodes.map { node ->
+            nodes.mapIndexed { index, node ->
                 async {
                     val nodeStart = System.currentTimeMillis()
-                    logger.info { "Parallel: starting node '${node.name}'" }
+                    logger.info { "Parallel: starting node '${node.name}' (index=$index)" }
 
                     val agent = agentFactory(node)
                     val nodeCommand = command.copy(
@@ -91,6 +91,25 @@ class ParallelOrchestrator(
         val allSuccess = nodeResults.all { it.result.success }
         val hasAnySuccess = nodeResults.any { it.result.success }
 
+        val failedNodes = nodeResults
+            .mapIndexedNotNull { index, nodeResult ->
+                if (!nodeResult.result.success) {
+                    logger.error {
+                        "Parallel: node '${nodeResult.nodeName}' (index=$index) failed — " +
+                            "errorCode=${nodeResult.result.errorCode}, " +
+                            "errorMessage=${nodeResult.result.errorMessage}"
+                    }
+                    FailedNodeInfo(
+                        nodeName = nodeResult.nodeName,
+                        index = index,
+                        errorCode = nodeResult.result.errorCode,
+                        errorMessage = nodeResult.result.errorMessage
+                    )
+                } else {
+                    null
+                }
+            }
+
         val success = if (failFast) allSuccess else hasAnySuccess
         val mergedContent = merger.merge(nodeResults.filter { it.result.success })
         val allToolsUsed = nodeResults.flatMap { it.result.toolsUsed }
@@ -104,7 +123,8 @@ class ParallelOrchestrator(
                 durationMs = System.currentTimeMillis() - startTime
             ),
             nodeResults = nodeResults,
-            totalDurationMs = System.currentTimeMillis() - startTime
+            totalDurationMs = System.currentTimeMillis() - startTime,
+            failedNodes = failedNodes
         )
     }
 }
