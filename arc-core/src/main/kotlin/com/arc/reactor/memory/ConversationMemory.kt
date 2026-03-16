@@ -347,17 +347,25 @@ class InMemoryMemoryStore(
 internal const val PREVIEW_MAX_LENGTH = 50
 
 /**
- * Extract a preview string from conversation history.
- * Uses the first user message, truncated to [PREVIEW_MAX_LENGTH] characters.
+ * Truncate a preview string to [PREVIEW_MAX_LENGTH] characters.
+ * Returns "Empty conversation" when content is null.
  */
-internal fun extractPreview(history: List<Message>): String {
-    val content = history.firstOrNull { it.role == MessageRole.USER }?.content
-        ?: return "Empty conversation"
+internal fun truncatePreview(content: String?): String {
+    if (content == null) return "Empty conversation"
     return if (content.length > PREVIEW_MAX_LENGTH) {
         content.take(PREVIEW_MAX_LENGTH) + "..."
     } else {
         content
     }
+}
+
+/**
+ * Extract a preview string from conversation history.
+ * Uses the first user message, truncated to [PREVIEW_MAX_LENGTH] characters.
+ */
+internal fun extractPreview(history: List<Message>): String {
+    val content = history.firstOrNull { it.role == MessageRole.USER }?.content
+    return truncatePreview(content)
 }
 
 // Extension Functions for ConversationMemory

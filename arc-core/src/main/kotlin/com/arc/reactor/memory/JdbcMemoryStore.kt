@@ -124,15 +124,6 @@ class JdbcMemoryStore(
         )
     }
 
-    private fun truncatePreview(content: String?): String {
-        if (content == null) return "Empty conversation"
-        return if (content.length > PREVIEW_MAX_LENGTH) {
-            content.take(PREVIEW_MAX_LENGTH) + "..."
-        } else {
-            content
-        }
-    }
-
     /**
      * Delete sessions that have been inactive for longer than the specified TTL.
      *
