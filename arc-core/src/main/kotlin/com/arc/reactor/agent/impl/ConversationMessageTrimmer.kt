@@ -19,6 +19,11 @@ class ConversationMessageTrimmer(
     private val outputReserveTokens: Int,
     private val tokenEstimator: TokenEstimator
 ) {
+    companion object {
+        /** Per-message structural overhead (role tags, separators, metadata) in estimated tokens. */
+        const val MESSAGE_STRUCTURE_OVERHEAD = 20
+    }
+
     fun trim(messages: MutableList<Message>, systemPrompt: String, toolTokenReserve: Int = 0) {
         val systemTokens = tokenEstimator.estimate(systemPrompt)
         val budget = maxContextWindowTokens - systemTokens - outputReserveTokens - toolTokenReserve
@@ -157,7 +162,7 @@ class ConversationMessageTrimmer(
     }
 
     private fun estimateMessageTokens(message: Message): Int {
-        return when (message) {
+        val contentTokens = when (message) {
             is UserMessage -> tokenEstimator.estimate(message.text)
             is AssistantMessage -> {
                 val textTokens = tokenEstimator.estimate(message.text ?: "")
@@ -170,5 +175,6 @@ class ConversationMessageTrimmer(
             is ToolResponseMessage -> message.responses.sumOf { tokenEstimator.estimate(it.responseData()) }
             else -> tokenEstimator.estimate(message.text ?: "")
         }
+        return contentTokens + MESSAGE_STRUCTURE_OVERHEAD
     }
 }

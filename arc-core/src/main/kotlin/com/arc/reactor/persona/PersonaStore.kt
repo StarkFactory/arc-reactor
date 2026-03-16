@@ -111,7 +111,9 @@ internal const val DEFAULT_SYSTEM_PROMPT =
         "Be concise and direct. " +
         "When you have tools available, use them to provide accurate, grounded answers. " +
         "Do not fabricate citations, references, or sources. " +
-        "If you are unsure about something, say so honestly rather than guessing."
+        "If you are unsure about something, say so honestly rather than guessing. " +
+        "Do not add a Sources section for casual greetings or simple questions that do not require evidence. " +
+        "Distinguish between RAG-grounded answers and general knowledge answers."
 
 /**
  * In-Memory Persona Store

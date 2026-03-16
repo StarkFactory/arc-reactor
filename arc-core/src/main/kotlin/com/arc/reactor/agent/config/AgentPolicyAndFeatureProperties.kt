@@ -138,13 +138,13 @@ data class RagProperties(
     val enabled: Boolean = false,
 
     /** Search similarity threshold */
-    val similarityThreshold: Double = 0.7,
+    val similarityThreshold: Double = 0.65,
 
     /** Number of search results */
-    val topK: Int = 10,
+    val topK: Int = 5,
 
     /** Enable re-ranking */
-    val rerankEnabled: Boolean = true,
+    val rerankEnabled: Boolean = false,
 
     /** Query transformer mode: passthrough|hyde|decomposition */
     val queryTransformer: String = "passthrough",
@@ -165,7 +165,7 @@ data class RagProperties(
     val parentRetrieval: RagParentRetrievalProperties = RagParentRetrievalProperties(),
 
     /** Retrieval timeout in milliseconds. Prevents thread-pool exhaustion when vector DB is unresponsive. */
-    val retrievalTimeoutMs: Long = 5000,
+    val retrievalTimeoutMs: Long = 3000,
 
     /** Contextual compression configuration */
     val compression: RagCompressionProperties = RagCompressionProperties(),
@@ -193,8 +193,8 @@ data class RagCompressionProperties(
  * @see <a href="https://arxiv.org/abs/2403.14403">Adaptive-RAG (Jeong et al., 2024)</a>
  */
 data class AdaptiveRoutingProperties(
-    /** Enable adaptive query routing. Disabled by default (opt-in). */
-    val enabled: Boolean = false,
+    /** Enable adaptive query routing. Enabled by default to skip RAG for simple queries. */
+    val enabled: Boolean = true,
 
     /** Classification timeout in milliseconds. */
     val timeoutMs: Long = 3000,
