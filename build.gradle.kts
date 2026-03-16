@@ -53,6 +53,11 @@ subprojects {
             if (!project.hasProperty("includeExternalIntegration")) {
                 excludeTags("external")
             }
+            // Run ONLY safety-tagged tests (used by CI safety gate).
+            // Run with: ./gradlew test -PincludeSafety
+            if (project.hasProperty("includeSafety")) {
+                includeTags("safety")
+            }
         }
     }
 
