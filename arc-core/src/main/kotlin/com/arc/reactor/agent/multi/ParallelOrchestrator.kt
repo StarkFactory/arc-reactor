@@ -83,7 +83,8 @@ class ParallelOrchestrator(
                         "Parallel: node '${node.name}' completed in ${nodeDuration}ms, " +
                             "success=${result.success}"
                     }
-                    NodeResult(node.name, result, nodeDuration)
+                    val tokensUsed = result.tokenUsage?.totalTokens ?: 0
+                    NodeResult(node.name, result, nodeDuration, tokensUsed)
                 }
             }.awaitAll()
         }

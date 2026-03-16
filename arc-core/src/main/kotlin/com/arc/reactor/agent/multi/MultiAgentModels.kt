@@ -41,7 +41,11 @@ data class MultiAgentResult(
     val nodeResults: List<NodeResult> = emptyList(),
     val totalDurationMs: Long = 0,
     val failedNodes: List<FailedNodeInfo> = emptyList()
-)
+) {
+    /** Total tokens used across all nodes */
+    val totalTokensUsed: Int
+        get() = nodeResults.sumOf { it.tokensUsed }
+}
 
 /**
  * Individual node execution result.
@@ -49,7 +53,8 @@ data class MultiAgentResult(
 data class NodeResult(
     val nodeName: String,
     val result: AgentResult,
-    val durationMs: Long = 0
+    val durationMs: Long = 0,
+    val tokensUsed: Int = 0
 )
 
 /**

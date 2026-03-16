@@ -59,7 +59,8 @@ class SequentialOrchestrator : MultiAgentOrchestrator {
             val result = agent.execute(nodeCommand)
             val nodeDuration = System.currentTimeMillis() - nodeStart
 
-            nodeResults.add(NodeResult(node.name, result, nodeDuration))
+            val tokensUsed = result.tokenUsage?.totalTokens ?: 0
+            nodeResults.add(NodeResult(node.name, result, nodeDuration, tokensUsed))
 
             if (!result.success) {
                 val failedInfo = FailedNodeInfo(
