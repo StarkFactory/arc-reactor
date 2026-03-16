@@ -26,14 +26,13 @@ Spring AI-based AI Agent framework (Kotlin/Spring Boot). Fork and attach tools t
 | Key | Default | Key | Default |
 |-----|---------|-----|---------|
 | `max-tool-calls` | 10 | `concurrency.request-timeout-ms` | 30000 |
-| `max-tools-per-request` | 20 | `concurrency.tool-call-timeout-ms` | 15000 |
-| `llm.temperature` | 0.3 | `guard.rate-limit-per-minute` | 10 |
-| `llm.max-context-window-tokens` | 128000 | `guard.rate-limit-per-hour` | 100 |
+| `max-tools-per-request` | 30 | `concurrency.tool-call-timeout-ms` | 15000 |
+| `llm.temperature` | 0.1 | `guard.rate-limit-per-minute` | 20 |
+| `llm.max-context-window-tokens` | 128000 | `guard.rate-limit-per-hour` | 200 |
 | `boundaries.input-max-chars` | 10000 | `tool-result-cache.enabled` | false |
 | `tool-result-cache.ttl-seconds` | 60 | `citation.enabled` | false |
 | `rag.adaptive-routing.enabled` | true | `rag.compression.enabled` | false |
-| `rag.grading.enabled` | false | `scheduler.max-executions-per-job` | 100 |
-| `user-memory.inject-into-prompt` | false | | |
+| `scheduler.max-executions-per-job` | 100 | `memory.user.inject-into-prompt` | false |
 
 ## Architecture
 
@@ -41,7 +40,7 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 
 | File | Role |
 |------|------|
-| `agent/impl/SpringAiAgentExecutor.kt` | Core ReAct loop (~1,060 lines). Modify with caution |
+| `agent/impl/SpringAiAgentExecutor.kt` | Core ReAct loop (~555 lines). Modify with caution |
 | `autoconfigure/ArcReactorAutoConfiguration.kt` | All bean auto-configuration |
 | `agent/multi/SupervisorOrchestrator.kt` | Multi-agent orchestration |
 | `agent/config/AgentProperties.kt` | All settings (`arc.reactor.*`) |
