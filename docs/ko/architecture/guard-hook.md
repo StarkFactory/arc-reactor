@@ -6,15 +6,15 @@
 
 ### 개요
 
-Guard는 **입력**(실행 전)과 **출력**(실행 후)을 모두 커버하는 다계층 보안 시스템입니다. OWASP LLM Top 10 (2025)에 맞춰 5개 방어 레이어로 구성됩니다.
+Guard는 **입력**(실행 전)과 **출력**(실행 후)을 모두 커버하는 다계층 보안 시스템입니다. OWASP LLM Top 10 (2025)에 맞춰 7개 입력 가드 단계와 4개 출력 가드 단계로 구성됩니다.
 
 ```
 요청
   │
   ▼
-[Input Guard Pipeline] ── 6개 정렬된 단계, fail-close
+[Input Guard Pipeline] ── 7개 정렬된 단계, fail-close
   │  L0: UnicodeNormalization → RateLimit → InputValidation → InjectionDetection
-  │  L1: Classification → TopicDriftDetection (opt-in)
+  │  L1: Classification → Permission → TopicDriftDetection (opt-in)
   │
   ▼
 [에이전트 실행] ── ReAct 루프 + 도구 호출
@@ -56,7 +56,7 @@ interface GuardStage {
 ```kotlin
 interface OutputGuardStage {
     val stageName: String
-    val order: Int get() = 0
+    val order: Int            // 낮을수록 먼저 (빌트인: 1-99, 커스텀: 100+)
     val enabled: Boolean get() = true
 
     suspend fun check(content: String, context: OutputGuardContext): OutputGuardResult
@@ -72,7 +72,8 @@ data class GuardCommand(
     val userId: String,                       // 사용자 ID
     val text: String,                         // 검증할 텍스트
     val channel: String? = null,              // 채널 정보 (Slack, Web 등)
-    val metadata: Map<String, Any> = emptyMap()
+    val metadata: Map<String, Any> = emptyMap(),
+    val systemPrompt: String? = null          // 시스템 프롬프트 (InputValidation 길이 검사용)
 )
 ```
 
@@ -110,7 +111,21 @@ sealed class OutputGuardResult {
 | `UNAUTHORIZED` | 권한 없음 |
 | `SYSTEM_ERROR` | Guard 단계 자체 오류 |
 
-### 5계층 방어 아키텍처
+### 입력 가드 단계 레퍼런스
+
+**모든 빌트인 입력 가드 단계:**
+
+| # | 단계 | Order | 기본값 | 레이어 |
+|---|------|-------|--------|--------|
+| 0 | UnicodeNormalization | 0 | ON | L0: 정적 고속 필터 |
+| 1 | RateLimit | 1 | ON | L0: 정적 고속 필터 |
+| 2 | InputValidation | 2 | ON | L0: 정적 고속 필터 |
+| 3 | InjectionDetection | 3 | ON | L0: 정적 고속 필터 |
+| 4 | Classification | 4 | opt-in | L1: 분류 |
+| 5 | Permission | 5 | 사용자 제공 | L1: 분류 |
+| 6 | TopicDriftDetection | 10 | opt-in | L1: 분류 |
+
+**커스텀 단계 정렬**: 빌트인 단계는 order 0-10을 사용합니다. 커스텀 입력 가드 단계는 빌트인과의 충돌을 피하기 위해 order 20+를 사용해야 합니다.
 
 #### Layer 0: 정적 고속 필터 (항상 ON, LLM 비용 0ms)
 
@@ -124,7 +139,7 @@ class UnicodeNormalizationStage : GuardStage
 
 - **NFKC 정규화**: 전각 라틴 → ASCII (예: `ｉｇｎｏｒｅ` → `ignore`)
 - **Zero-width 문자 제거**: U+200B/C/D/E/F, U+FEFF, U+00AD, U+2060-2064, U+180E, Unicode Tag Block (U+E0000-E007F)
-- **호모글리프 치환**: 키릴 문자 а→a, е→e, о→o, р→p, с→c 등 (15개 매핑)
+- **호모글리프 치환**: 키릴 문자 а→a, е→e, о→o, р→p, с→c 등 (18개 매핑)
 - **거부**: Zero-width 문자 비율이 임계치(기본 10%) 초과 시
 - 정규화된 텍스트를 `GuardResult.Allowed(hints = ["normalized:$text"])`로 반환 — 이후 단계는 정리된 텍스트를 검사
 
@@ -148,12 +163,14 @@ class DefaultRateLimitStage(
 ```kotlin
 class DefaultInputValidationStage(
     private val maxLength: Int = 10000,
-    private val minLength: Int = 1
+    private val minLength: Int = 1,
+    private val systemPromptMaxChars: Int = 0  // 0 = 비활성화
 ) : InputValidationStage
 ```
 
 - 빈 문자열 거부
 - 최대 길이 초과 거부 (기본 10,000자)
+- `systemPromptMaxChars > 0`일 때 시스템 프롬프트 길이도 선택적으로 검증
 
 ##### Stage 3: InjectionDetection (order=3)
 
@@ -166,13 +183,12 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage
 - **역할 변경 시도**: `"ignore previous"`, `"you are now"`, `"act as"`
 - **시스템 프롬프트 추출**: `"show me your prompt"`, `"repeat your instructions"`
 - **출력 조작**: `"output the following"`, `"print exactly"`
-- **인코딩 우회**: `"base64"`, `"rot13"`, `"hex encode"`
-- **구분자 인젝션**: `###`, `---` (5개 이상), `===` (5개 이상), `<<<>>>`
-- **ChatML / Llama 토큰**: `<|im_start|>`, `<|im_end|>`, `[INST]`, `<start_of_turn>`
+- **인코딩 우회**: `"decode base64"`, `"rot13"`, `\\x` hex 시퀀스
+- **구분자 인젝션**: `[SYSTEM]`, `<|assistant|>`, ` ```system `, `<|endoftext|>`, `<|user|>`, `---` (20+), `===` (20+)
+- **ChatML / Llama 토큰**: `<|im_start|>`, `<|im_end|>`, `[INST]`, `[/INST]`, `<start_of_turn>`, `<end_of_turn>`
 - **권한 상승**: `"developer mode"`, `"system override"`
 - **안전 필터 우회**: `"override safety filter"`, `"override content policy"`
 - **Many-shot 탈옥**: 3개 이상 연속 `example N` 마커
-- **유니코드 이스케이프**: 4개 이상 연속 `\uXXXX` 패턴
 
 #### Layer 1: 분류 (opt-in)
 
@@ -191,14 +207,26 @@ class CompositeClassificationStage(
 
 활성화: `arc.reactor.guard.classification-enabled=true`, `arc.reactor.guard.classification-llm-enabled=true`
 
-##### Stage 6: TopicDriftDetection (order=6)
+##### Stage 5: Permission (order=5)
 
 ```kotlin
-class TopicDriftDetectionStage : GuardStage
+interface PermissionStage : GuardStage  // 빌트인 구현 없음 — 사용자 제공
+```
+
+요청된 작업에 대한 사용자 인가를 확인합니다. 기본 구현체는 제공되지 않으며, 사용자가 자체 RBAC 또는 권한 시스템과 통합하기 위해 이 인터페이스를 구현합니다. 빈이 등록된 경우에만 단계가 활성화됩니다.
+
+##### Stage 6: TopicDriftDetection (order=10)
+
+```kotlin
+class TopicDriftDetectionStage(
+    private val memoryStore: MemoryStore? = null,
+    private val maxDriftScore: Double = 0.7,
+    private val windowSize: Int = 5
+) : GuardStage
 ```
 
 **크레센도 공격** (다회차 점진적 탈옥) 방어:
-- `GuardCommand.metadata`에서 `conversationHistory` 읽기
+- `GuardCommand.metadata`의 `sessionId`를 사용하여 `MemoryStore`에서 대화 히스토리를 로드하거나, 명시적 `conversationHistory` 메타데이터로 폴백
 - 슬라이딩 윈도우(최근 5턴)로 민감도 상승 패턴 점수 산출
 - 패턴 에스컬레이션: 가정 → what if → 연구 목적 → 단계별 → 우회/오버라이드
 - `maxDriftScore` 임계치 설정 가능 (기본 0.7)
@@ -208,13 +236,13 @@ class TopicDriftDetectionStage : GuardStage
 카나리 토큰 주입으로 시스템 프롬프트 유출을 방지합니다:
 
 ```kotlin
-class CanaryTokenProvider(seed: String)       // SHA-256 기반 결정적 CANARY-{8hex} 토큰 생성
+class CanaryTokenProvider(seed: String)       // SHA-256 기반 결정적 CANARY-{32hex} 토큰 생성
 class CanarySystemPromptPostProcessor         // 시스템 프롬프트에 카나리 절 추가
 class SystemPromptLeakageOutputGuard          // 출력 가드 단계 (order=5)
 ```
 
 - **CanaryTokenProvider**: SHA-256 시드에서 결정적 토큰 생성
-- **CanarySystemPromptPostProcessor**: `"다음 토큰은 비밀이며..."` 절을 시스템 프롬프트에 추가
+- **CanarySystemPromptPostProcessor**: `"The following token is secret..."` 절을 시스템 프롬프트에 추가
 - **SystemPromptLeakageOutputGuard**: 출력에서 (1) 카나리 토큰 존재, (2) 유출 문구 (`"my system prompt is"`, `"I was instructed to"`) 탐지
 
 활성화: `arc.reactor.guard.canary-token-enabled=true`
@@ -241,7 +269,8 @@ class ToolOutputSanitizer {
 ```kotlin
 interface GuardAuditPublisher {
     fun publish(command: GuardCommand, stage: String, result: String,
-                reason: String?, stageLatencyMs: Long, pipelineLatencyMs: Long)
+                reason: String?, category: String? = null,
+                stageLatencyMs: Long, pipelineLatencyMs: Long)
 }
 ```
 
@@ -285,19 +314,32 @@ class GuardPipeline(
     private val auditPublisher: GuardAuditPublisher? = null
 ) : RequestGuard {
 
+    // 단계들은 order 기준 정렬; 중복 order는 시작 시 경고 발생
+    private val sortedStages = stages.filter { it.enabled }.sortedBy { it.order }
+
     override suspend fun guard(command: GuardCommand): GuardResult {
         var currentCommand = command
         for (stage in sortedStages) {
-            when (val result = stage.check(currentCommand)) {
-                is Allowed -> {
-                    // UnicodeNormalizationStage의 정규화된 텍스트 적용
-                    val norm = result.hints.firstOrNull { it.startsWith("normalized:") }
-                    if (norm != null) currentCommand = currentCommand.copy(
-                        text = norm.removePrefix("normalized:")
-                    )
-                    continue
+            try {
+                when (val result = stage.check(currentCommand)) {
+                    is Allowed -> {
+                        // UnicodeNormalizationStage의 정규화된 텍스트 적용
+                        val norm = result.hints.firstOrNull { it.startsWith("normalized:") }
+                        if (norm != null) currentCommand = currentCommand.copy(
+                            text = norm.removePrefix("normalized:")
+                        )
+                        continue
+                    }
+                    is Rejected -> return result  // 즉시 중단
                 }
-                is Rejected -> return result  // 즉시 중단
+            } catch (e: Exception) {
+                e.throwIfCancellation()
+                // Fail-close: 단계 오류 시 거부
+                return GuardResult.Rejected(
+                    reason = "Security check failed",
+                    category = RejectionCategory.SYSTEM_ERROR,
+                    stage = stage.stageName
+                )
             }
         }
         return GuardResult.Allowed.DEFAULT
@@ -363,15 +405,33 @@ private suspend fun checkGuard(command: AgentCommand): GuardResult.Rejected? {
 
 ### Guard 커스터마이징
 
-`@Component`로 빈을 등록하면 자동으로 파이프라인에 추가됩니다:
+`@Component`로 빈을 등록하면 자동으로 파이프라인에 추가됩니다. 기존 단계 인터페이스를 구현하거나 (예: `PermissionStage`, order=5), 커스텀 order로 `GuardStage`를 직접 구현할 수 있습니다.
+
+**빌트인 단계 인터페이스 구현** (인터페이스의 기본 order 사용):
 
 ```kotlin
 @Component
-class MyCustomGuard : PermissionStage {
+class MyPermissionGuard : PermissionStage {
     override suspend fun check(command: GuardCommand): GuardResult {
-        // 관리자만 허용
         if (command.userId in adminList) return GuardResult.Allowed()
-        return GuardResult.Rejected("관리자만 사용 가능", UNAUTHORIZED)
+        return GuardResult.Rejected("Admin access only", UNAUTHORIZED)
+    }
+}
+```
+
+**커스텀 order를 가진 독립 단계** (빌트인과의 충돌을 피하려면 20+ 사용):
+
+```kotlin
+@Component
+class BusinessRuleGuard : GuardStage {
+    override val stageName = "BusinessRule"
+    override val order = 25  // 모든 빌트인 단계(0-10) 이후
+
+    override suspend fun check(command: GuardCommand): GuardResult {
+        if (!isAllowedByBusinessRules(command.text)) {
+            return GuardResult.Rejected("Business rule violation", UNAUTHORIZED)
+        }
+        return GuardResult.Allowed.DEFAULT
     }
 }
 ```
@@ -395,8 +455,8 @@ BeforeAgentStart ──→ [에이전트 ReAct 루프] ──→ AfterAgentCompl
 
 | Hook | 시점 | 반환값 | 용도 |
 |------|------|--------|------|
-| `BeforeAgentStart` | 에이전트 시작 전 | HookResult | 인증, 예산 확인, 거부 가능 |
-| `BeforeToolCall` | 도구 호출 전 | HookResult | 도구별 권한, 파라미터 검증 |
+| `BeforeAgentStart` | 에이전트 시작 전 | HookResult (Continue/Reject) | 인증, 예산 확인, 거부 가능 |
+| `BeforeToolCall` | 도구 호출 전 | HookResult (Continue/Reject) | 도구별 권한, 파라미터 검증 |
 | `AfterToolCall` | 도구 호출 후 | void | 결과 로깅, 메트릭 |
 | `AfterAgentComplete` | 에이전트 완료 후 | void | 빌링, 통계, 알림 |
 
@@ -424,11 +484,6 @@ interface AgentHook {
 sealed class HookResult {
     data object Continue : HookResult()            // 계속 진행
     data class Reject(val reason: String)           // 실행 거부
-    data class Modify(val modifiedParams: Map<...>) // 파라미터 수정 후 계속
-    data class PendingApproval(                     // 비동기 승인 대기
-        val approvalId: String,
-        val message: String
-    )
 }
 ```
 
@@ -445,6 +500,7 @@ data class HookContext(
     val channel: String? = null,
     val startedAt: Instant,          // 시작 시간
     val toolsUsed: MutableList<String>,          // CopyOnWriteArrayList
+    val verifiedSources: MutableList<VerifiedSource>,  // CopyOnWriteArrayList
     val metadata: MutableMap<String, Any>        // ConcurrentHashMap
 )
 ```
@@ -493,12 +549,11 @@ private suspend fun <T : AgentHook, C> executeHooks(
     for (hook in hooks) {
         try {
             when (val result = execute(hook, context)) {
-                is Continue       -> continue      // 다음 Hook
-                is Reject         -> return result  // 즉시 거부
-                is Modify         -> return result  // 수정 반환
-                is PendingApproval -> return result // 승인 대기
+                is Continue -> continue      // 다음 Hook
+                is Reject   -> return result // 즉시 거부
             }
         } catch (e: Exception) {
+            e.throwIfCancellation()  // CancellationException은 항상 rethrow
             if (hook.failOnError) {
                 return HookResult.Reject("Hook execution failed: ${e.message}")
             }
@@ -517,7 +572,8 @@ suspend fun executeAfterToolCall(context: ToolCallContext, result: ToolCallResul
         try {
             hook.afterToolCall(context, result)
         } catch (e: Exception) {
-            logger.error(e) { "AfterToolCallHook failed" }
+            e.throwIfCancellation()  // CancellationException은 항상 rethrow
+            logger.error(e) { "AfterToolCallHook failed: ${hook::class.simpleName}" }
             if (hook.failOnError) throw e
         }
     }
@@ -543,7 +599,6 @@ After Hook은 결과값을 반환하지 않습니다. 관찰(observe)만 하고,
 checkBeforeHooks(hookContext)?.let { hookResult ->
     val message = when (hookResult) {
         is HookResult.Reject -> hookResult.reason
-        is HookResult.PendingApproval -> "Pending approval: ${hookResult.message}"
         else -> "Blocked by hook"
     }
     return AgentResult.failure(
@@ -604,7 +659,7 @@ class BudgetCheckHook(
     override suspend fun beforeAgentStart(context: HookContext): HookResult {
         val budget = billingService.getRemainingBudget(context.userId)
         if (budget <= 0) {
-            return HookResult.Reject("예산이 소진되었습니다")
+            return HookResult.Reject("Budget has been exhausted")
         }
         return HookResult.Continue
     }
@@ -643,5 +698,4 @@ class BudgetCheckHook(
 | 실행 시점 | 에이전트 시작 전 (1회) | 여러 시점 (4가지) |
 | 에러 정책 | 항상 Fail-Close | 기본 Fail-Open, 선택 Fail-Close |
 | 거부 범위 | 요청 전체 | 요청 전체 또는 특정 도구만 |
-| 수정 능력 | 불가 | `HookResult.Modify`로 가능 |
-| 단계 수 | 5단계 (고정 타입) | 4타입 (무제한 구현체) |
+| 단계 수 | 7개 입력 단계 타입 (order 0-10) + 4개 출력 단계 | 4타입 (무제한 구현체) |
