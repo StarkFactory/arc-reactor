@@ -27,7 +27,11 @@ import org.springframework.scheduling.TaskScheduler
 import org.springframework.scheduling.support.CronExpression
 import org.springframework.scheduling.support.CronTrigger
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledFuture
 
@@ -69,6 +73,7 @@ class DynamicSchedulerService(
         private const val SCHEDULER_CHANNEL = "scheduler"
         private const val DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant."
         private const val RETRY_DELAY_MS = 2000L
+        private val DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
     }
 
     private val scheduledFutures = ConcurrentHashMap<String, ScheduledFuture<*>>()
@@ -317,7 +322,9 @@ class DynamicSchedulerService(
     }
 
     private suspend fun executeToolWithPolicies(job: ScheduledJob, tool: ToolCallback): String {
-        val baseArguments: Map<String, Any?> = job.toolArguments.mapValues { it.value }
+        val baseArguments: Map<String, Any?> = job.toolArguments.mapValues { (_, v) ->
+            if (v is String) resolveTemplateVariables(v, job) else v
+        }
         val hookContext = buildHookContext(job)
 
         checkBeforeToolCall(
@@ -419,9 +426,11 @@ class DynamicSchedulerService(
         val prompt = job.agentPrompt
             ?: throw IllegalStateException("agentPrompt is required for AGENT job '${job.name}'")
 
+        val resolvedPrompt = resolveTemplateVariables(prompt, job)
+
         val command = AgentCommand(
             systemPrompt = resolveSystemPrompt(job),
-            userPrompt = prompt,
+            userPrompt = resolvedPrompt,
             model = job.agentModel,
             maxToolCalls = job.agentMaxToolCalls ?: 10,
             userId = SCHEDULER_ACTOR,
@@ -450,6 +459,17 @@ class DynamicSchedulerService(
     }
 
     // -- Shared helpers ---------------------------------------------------------
+
+    private fun resolveTemplateVariables(template: String, job: ScheduledJob): String {
+        val now = LocalDateTime.now(ZoneId.of(job.timezone))
+        return template
+            .replace("{{date}}", now.format(DateTimeFormatter.ISO_LOCAL_DATE))
+            .replace("{{time}}", now.format(DateTimeFormatter.ISO_LOCAL_TIME).substringBefore("."))
+            .replace("{{datetime}}", now.format(DATE_TIME_FORMATTER))
+            .replace("{{day_of_week}}", now.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
+            .replace("{{job_name}}", job.name)
+            .replace("{{job_id}}", job.id)
+    }
 
     private fun recordExecution(
         job: ScheduledJob,
