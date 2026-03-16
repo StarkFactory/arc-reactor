@@ -121,12 +121,9 @@ class SpringAiAgentExecutor(
         rerankEnabled = properties.rag.rerankEnabled,
         ragPipeline = ragPipeline,
         retrievalTimeoutMs = properties.rag.retrievalTimeoutMs,
-<<<<<<< HEAD
-        metrics = agentMetrics
-=======
+        metrics = agentMetrics,
         queryRouter = queryRouter,
         complexTopK = properties.rag.adaptiveRouting.complexTopK
->>>>>>> c25c928 (feat(rag): Add Adaptive Query Router based on Adaptive-RAG (Jeong et al., 2024))
     )
     private val agentErrorPolicy = AgentErrorPolicy(transientErrorClassifier)
     private val structuredResponseRepairer = StructuredResponseRepairer(

@@ -167,42 +167,17 @@ data class RagProperties(
     /** Retrieval timeout in milliseconds. Prevents thread-pool exhaustion when vector DB is unresponsive. */
     val retrievalTimeoutMs: Long = 5000,
 
-<<<<<<< HEAD
     /** Contextual compression configuration */
-    val compression: RagCompressionProperties = RagCompressionProperties()
-)
+    val compression: RagCompressionProperties = RagCompressionProperties(),
 
-/**
- * Contextual compression configuration.
- *
- * When enabled, retrieved documents are compressed by an LLM to extract
- * only query-relevant content before context building. This reduces
- * token usage and improves answer quality by removing noise.
- *
- * Based on RECOMP (Xu et al., 2024, arXiv:2310.04408).
-=======
     /** Adaptive query routing configuration (Adaptive-RAG) */
     val adaptiveRouting: AdaptiveRoutingProperties = AdaptiveRoutingProperties()
 )
 
 /**
- * Adaptive query routing configuration.
+ * Contextual compression configuration.
  *
- * When enabled, queries are classified by complexity before retrieval. Simple queries use
- * the default topK, complex queries get an increased topK, and conversational queries
- * (greetings, chitchat) skip retrieval entirely.
->>>>>>> c25c928 (feat(rag): Add Adaptive Query Router based on Adaptive-RAG (Jeong et al., 2024))
- *
- * ## Example
- * ```yaml
- * arc:
- *   reactor:
- *     rag:
-<<<<<<< HEAD
- *       compression:
- *         enabled: true
- *         min-content-length: 200
- * ```
+ * Based on RECOMP (Xu et al., 2024, arXiv:2310.04408).
  */
 data class RagCompressionProperties(
     /** Enable contextual compression. Disabled by default. */
@@ -210,12 +185,10 @@ data class RagCompressionProperties(
 
     /** Documents shorter than this (in chars) skip compression. */
     val minContentLength: Int = 200
-=======
- *       adaptive-routing:
- *         enabled: true
- *         timeout-ms: 3000
- *         complex-top-k: 15
- * ```
+)
+
+/**
+ * Adaptive query routing configuration.
  *
  * @see <a href="https://arxiv.org/abs/2403.14403">Adaptive-RAG (Jeong et al., 2024)</a>
  */
@@ -228,7 +201,6 @@ data class AdaptiveRoutingProperties(
 
     /** topK override for COMPLEX queries. */
     val complexTopK: Int = 15
->>>>>>> c25c928 (feat(rag): Add Adaptive Query Router based on Adaptive-RAG (Jeong et al., 2024))
 )
 
 /**

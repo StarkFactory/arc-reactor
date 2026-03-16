@@ -20,12 +20,9 @@ internal class RagContextRetriever(
     private val rerankEnabled: Boolean,
     private val ragPipeline: RagPipeline?,
     private val retrievalTimeoutMs: Long = 5000,
-<<<<<<< HEAD
-    private val metrics: AgentMetrics = NoOpAgentMetrics()
-=======
+    private val metrics: AgentMetrics = NoOpAgentMetrics(),
     private val queryRouter: QueryRouter? = null,
     private val complexTopK: Int = 15
->>>>>>> c25c928 (feat(rag): Add Adaptive Query Router based on Adaptive-RAG (Jeong et al., 2024))
 ) {
 
     suspend fun retrieve(command: AgentCommand): String? {
