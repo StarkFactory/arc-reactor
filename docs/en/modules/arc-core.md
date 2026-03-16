@@ -54,25 +54,34 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 | Property | Default | Description |
 |---|---|---|
 | `default-provider` | `gemini` | Default LLM provider name |
-| `temperature` | `0.3` | Sampling temperature |
+| `temperature` | `0.1` | Sampling temperature |
 | `max-output-tokens` | `4096` | Maximum tokens per response |
 | `max-context-window-tokens` | `128000` | Context window size for message trimming |
 | `max-conversation-turns` | `10` | History turns kept per request |
+| `top-p` | `null` (provider default) | Nucleus sampling parameter |
+| `frequency-penalty` | `null` (provider default) | Frequency penalty |
+| `presence-penalty` | `null` (provider default) | Presence penalty |
 | `google-search-retrieval-enabled` | `false` | Gemini search grounding (opt-in) |
+| `prompt-caching.enabled` | `false` | Anthropic prompt caching (opt-in) |
+| `prompt-caching.provider` | `anthropic` | Provider to apply caching for |
+| `prompt-caching.cache-system-prompt` | `true` | Mark system prompt for caching |
+| `prompt-caching.cache-tools` | `true` | Mark tool definitions for caching |
+| `prompt-caching.min-cacheable-tokens` | `1024` | Minimum tokens before caching |
 
 ### Guard (`arc.reactor.guard`)
 
 | Property | Default | Description |
 |---|---|---|
 | `enabled` | `true` | Master switch |
-| `rate-limit-per-minute` | `10` | Max requests per user per minute |
-| `rate-limit-per-hour` | `100` | Max requests per user per hour |
+| `rate-limit-per-minute` | `20` | Max requests per user per minute |
+| `rate-limit-per-hour` | `200` | Max requests per user per hour |
 | `injection-detection-enabled` | `true` | Prompt injection heuristic detection |
 | `unicode-normalization-enabled` | `true` | NFKC normalization + zero-width strip |
 | `max-zero-width-ratio` | `0.1` | Rejection threshold for zero-width chars |
 | `classification-enabled` | `false` | Rule-based content classification |
 | `classification-llm-enabled` | `false` | LLM-based classification (requires classification-enabled) |
 | `canary-token-enabled` | `false` | System prompt leakage detection |
+| `canary-seed` | `arc-reactor-canary` | Canary token seed (override per deployment) |
 | `tool-output-sanitization-enabled` | `false` | Sanitize tool output before LLM |
 | `audit-enabled` | `true` | Guard audit trail |
 | `topic-drift-enabled` | `false` | Crescendo attack defense |
@@ -90,7 +99,7 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 | Property | Default | Description |
 |---|---|---|
 | `max-attempts` | `3` | Maximum retry attempts |
-| `initial-delay-ms` | `1000` | First retry delay |
+| `initial-delay-ms` | `200` | First retry delay |
 | `multiplier` | `2.0` | Exponential backoff multiplier |
 | `max-delay-ms` | `10000` | Cap on retry delay |
 
@@ -114,8 +123,8 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 | Property | Default | Description |
 |---|---|---|
 | `input-min-chars` | `1` | Minimum input length |
-| `input-max-chars` | `5000` | Maximum input length |
-| `system-prompt-max-chars` | `0` (disabled) | Maximum system prompt length |
+| `input-max-chars` | `10000` | Maximum input length |
+| `system-prompt-max-chars` | `50000` | Maximum system prompt length |
 | `output-min-chars` | `0` (disabled) | Minimum response length |
 | `output-max-chars` | `0` (disabled) | Maximum response length |
 | `output-min-violation-mode` | `WARN` | `WARN`, `RETRY_ONCE`, or `FAIL` |
@@ -125,13 +134,73 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 | Property | Default | Description |
 |---|---|---|
 | `enabled` | `false` | Master switch |
-| `similarity-threshold` | `0.7` | Vector search threshold |
-| `top-k` | `10` | Search results to retrieve |
-| `rerank-enabled` | `true` | Re-ranking after retrieval |
-| `query-transformer` | `passthrough` | `passthrough` or `hyde` |
+| `similarity-threshold` | `0.65` | Vector search threshold |
+| `top-k` | `5` | Search results to retrieve |
+| `rerank-enabled` | `false` | Re-ranking after retrieval |
+| `query-transformer` | `passthrough` | `passthrough`, `hyde`, or `decomposition` |
 | `max-context-tokens` | `4000` | Injected context token budget |
+| `retrieval-timeout-ms` | `3000` | Retrieval timeout to prevent thread-pool exhaustion |
 
-### Memory Summary (`arc.reactor.memory.summary`)
+#### Hybrid Search (`arc.reactor.rag.hybrid`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `false` | BM25 + vector hybrid search (opt-in) |
+| `bm25-weight` | `0.5` | RRF weight for BM25 ranks |
+| `vector-weight` | `0.5` | RRF weight for vector search ranks |
+| `rrf-k` | `60.0` | RRF smoothing constant |
+| `bm25-k1` | `1.5` | BM25 term-frequency saturation |
+| `bm25-b` | `0.75` | BM25 length normalization |
+
+#### Chunking (`arc.reactor.rag.chunking`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Document chunking (opt-in) |
+| `chunk-size` | `512` | Target chunk size in tokens |
+| `min-chunk-size-chars` | `350` | Minimum chunk size in characters |
+| `min-chunk-threshold` | `512` | Documents at or below this token count are not split |
+| `overlap` | `50` | Overlap tokens between adjacent chunks |
+| `keep-separator` | `true` | Preserve paragraph/sentence separators |
+| `max-num-chunks` | `100` | Maximum chunks per document |
+
+#### Parent Retrieval (`arc.reactor.rag.parent-retrieval`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Parent document retrieval (opt-in) |
+| `window-size` | `1` | Adjacent chunks to include before/after each hit |
+
+#### Ingestion (`arc.reactor.rag.ingestion`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Ingestion candidate capture |
+| `require-review` | `true` | Admin review before vector ingestion |
+| `allowed-channels` | `[]` | Channels for auto-capture (empty = all) |
+| `min-query-chars` | `10` | Minimum query length |
+| `min-response-chars` | `20` | Minimum response length |
+| `dynamic.enabled` | `false` | DB-backed policy override |
+| `dynamic.refresh-ms` | `10000` | Policy cache refresh interval |
+
+#### Compression (`arc.reactor.rag.compression`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Contextual compression (RECOMP) |
+| `min-content-length` | `200` | Documents shorter than this skip compression |
+
+#### Adaptive Routing (`arc.reactor.rag.adaptive-routing`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Skip RAG for simple queries (Adaptive-RAG) |
+| `timeout-ms` | `3000` | Classification timeout |
+| `complex-top-k` | `15` | topK override for COMPLEX queries |
+
+### Memory (`arc.reactor.memory`)
+
+#### Summary (`arc.reactor.memory.summary`)
 
 | Property | Default | Description |
 |---|---|---|
@@ -140,6 +209,16 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 | `recent-message-count` | `10` | Recent messages kept verbatim |
 | `llm-model` | `null` (default provider) | LLM for summarization |
 | `max-narrative-tokens` | `500` | Narrative summary token budget |
+
+#### User Memory (`arc.reactor.memory.user`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Per-user long-term memory (opt-in) |
+| `inject-into-prompt` | `false` | Inject user memory into system prompt |
+| `max-prompt-injection-chars` | `1000` | Max characters for injected memory context |
+| `max-recent-topics` | `10` | Recent topics retained per user |
+| `jdbc.table-name` | `user_memories` | DB table for user memory records |
 
 ### Circuit Breaker (`arc.reactor.circuit-breaker`)
 
@@ -188,6 +267,7 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 | `confidence-threshold` | `0.6` | Minimum confidence for profile application |
 | `rule-confidence-threshold` | `0.8` | Threshold to skip LLM fallback |
 | `max-examples-per-intent` | `3` | Few-shot examples per intent |
+| `max-conversation-turns` | `2` | Conversation turns for context-aware classification |
 | `blocked-intents` | `[]` | Intents that reject the request |
 
 ### Approval / HITL (`arc.reactor.approval`)
@@ -196,6 +276,7 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 |---|---|---|
 | `enabled` | `false` | Human-in-the-Loop approval (opt-in) |
 | `timeout-ms` | `300000` | Approval timeout (5 minutes) |
+| `resolved-retention-ms` | `604800000` | Retention for resolved approvals (7 days) |
 | `tool-names` | `[]` | Tools requiring approval |
 
 ### Tool Policy (`arc.reactor.tool-policy`)
@@ -205,7 +286,11 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 | `enabled` | `false` | Tool policy enforcement |
 | `write-tool-names` | `[]` | Side-effecting tool names |
 | `deny-write-channels` | `[slack]` | Channels where write tools are blocked |
+| `allow-write-tool-names-in-deny-channels` | `[]` | Write tools allowed even in deny channels |
+| `allow-write-tool-names-by-channel` | `{}` | Channel-scoped allowlist for deny channels |
 | `deny-write-message` | (default string) | Message when tool is denied |
+| `dynamic.enabled` | `false` | DB-backed dynamic policy (admin API) |
+| `dynamic.refresh-ms` | `10000` | Dynamic policy cache refresh interval |
 
 ### Multimodal (`arc.reactor.multimodal`)
 
@@ -222,8 +307,13 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 | `enabled` | `false` | Prompt Lab feature |
 | `max-concurrent-experiments` | `3` | Parallel experiment limit |
 | `max-queries-per-experiment` | `100` | Max test queries per experiment |
+| `max-versions-per-experiment` | `10` | Max prompt versions per experiment |
+| `max-repetitions` | `5` | Max repetitions per version-query pair |
+| `candidate-count` | `3` | Candidate prompts to auto-generate |
 | `min-negative-feedback` | `5` | Feedback threshold for auto-pipeline |
 | `experiment-timeout-ms` | `600000` | Experiment execution timeout |
+| `schedule.enabled` | `false` | Scheduled auto-optimization |
+| `schedule.cron` | `0 0 2 * * *` | Cron expression (daily at 2 AM) |
 
 ### Scheduler (`arc.reactor.scheduler`)
 
@@ -231,6 +321,9 @@ All properties are bound under the `arc.reactor` prefix. Defaults are sourced di
 |---|---|---|
 | `enabled` | `false` | Dynamic cron scheduler |
 | `thread-pool-size` | `5` | Scheduler thread pool |
+| `default-timezone` | System default | Default timezone for jobs |
+| `default-execution-timeout-ms` | `300000` | Default job execution timeout |
+| `max-executions-per-job` | `100` | Execution history entries retained per job |
 
 When `enabled=true`, four agent tools are auto-registered (`@ConditionalOnMissingBean`):
 
@@ -252,12 +345,77 @@ All tools have `category = null` (always loaded regardless of user prompt keywor
 | Property | Default | Description |
 |---|---|---|
 | `connection-timeout-ms` | `30000` | MCP connection timeout |
+| `allow-private-addresses` | `false` | Allow connections to private/loopback IPs |
 | `security.max-tool-output-length` | `50000` | Tool output character limit |
+| `security.allowed-server-names` | `[]` | Allowed MCP server names (empty = all) |
+| `security.allowed-stdio-commands` | `[npx, node, python, ...]` | Allowed STDIO command executables |
 | `reconnection.enabled` | `true` | Auto-reconnect failed MCP servers |
 | `reconnection.max-attempts` | `5` | Reconnection attempt limit |
 | `reconnection.initial-delay-ms` | `5000` | First reconnection delay |
 | `reconnection.multiplier` | `2.0` | Backoff multiplier |
 | `reconnection.max-delay-ms` | `60000` | Maximum reconnection delay |
+
+### Tool Result Cache (`arc.reactor.tool-result-cache`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Cache identical tool invocations within a ReAct loop (opt-in) |
+| `ttl-seconds` | `60` | Time-to-live for cached entries |
+| `max-size` | `200` | Maximum cached entries |
+
+### Citation (`arc.reactor.citation`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Citation auto-formatting (opt-in) |
+| `format` | `markdown` | Citation format |
+
+### Webhook (`arc.reactor.webhook`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Webhook notifications (opt-in) |
+| `url` | `""` | POST target URL |
+| `timeout-ms` | `5000` | HTTP timeout |
+| `include-conversation` | `false` | Include full conversation in payload |
+
+### Tool Enrichment (`arc.reactor.tool-enrichment`)
+
+| Property | Default | Description |
+|---|---|---|
+| `requester-aware-tool-names` | `[]` | Tools that receive the caller's identity automatically |
+
+### CORS (`arc.reactor.cors`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `false` | CORS support (opt-in) |
+| `allowed-origins` | `[http://localhost:3000]` | Allowed origins |
+| `allowed-methods` | `[GET, POST, PUT, DELETE, OPTIONS]` | Allowed HTTP methods |
+| `allowed-headers` | `[*]` | Allowed headers |
+| `allow-credentials` | `false` | Allow cookies/Authorization |
+| `max-age` | `3600` | Preflight cache duration (seconds) |
+
+### Security Headers (`arc.reactor.security-headers`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Security headers injection |
+
+### Response (`arc.reactor.response`)
+
+| Property | Default | Description |
+|---|---|---|
+| `max-length` | `0` (unlimited) | Maximum response length in characters |
+| `filters-enabled` | `true` | Response filter chain processing |
+
+### Tracing (`arc.reactor.tracing`)
+
+| Property | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Span emission (no-op tracer when OTel absent) |
+| `service-name` | `arc-reactor` | Service name in span attributes |
+| `include-user-id` | `false` | Include user ID in spans (PII risk) |
 
 ---
 
