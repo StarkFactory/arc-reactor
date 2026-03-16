@@ -163,7 +163,10 @@ class DefaultConversationManager(
 
         // Empty summary — fall back to takeLast to avoid silent context loss
         if (result.isEmpty()) {
-            logger.warn { "Summary produced no content for session $sessionId, falling back to takeLast" }
+            logger.warn {
+                "Summary empty: facts=${summary.facts.size}, " +
+                    "narrative=${summary.narrative.length} for session $sessionId, falling back to takeLast"
+            }
             return allMessages.takeLast(properties.llm.maxConversationTurns * 2)
                 .map { toSpringAiMessage(it) }
         }
