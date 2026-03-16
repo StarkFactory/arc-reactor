@@ -7,6 +7,7 @@ import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
+import com.arc.reactor.guard.model.RejectionCategory
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
@@ -74,9 +75,13 @@ internal class PreExecutionResolver(
                     reason = rejection.reason,
                     metadata = command.metadata
                 )
+                val errorCode = when (rejection.category) {
+                    RejectionCategory.RATE_LIMITED -> AgentErrorCode.RATE_LIMITED
+                    else -> AgentErrorCode.GUARD_REJECTED
+                }
                 return AgentResult.failure(
                     errorMessage = rejection.reason,
-                    errorCode = AgentErrorCode.GUARD_REJECTED,
+                    errorCode = errorCode,
                     durationMs = nowMs() - startTime
                 ).also { agentMetrics.recordExecution(it) }
             }

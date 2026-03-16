@@ -103,6 +103,38 @@ class PreExecutionResolverTest {
     }
 
     @Test
+    fun `should return RATE_LIMITED result when guard rejects with RATE_LIMITED category`() = runBlocking {
+        val guard = mockk<RequestGuard>()
+        coEvery { guard.guard(any()) } returns GuardResult.Rejected(
+            reason = "Rate limit exceeded: 20 requests per minute",
+            category = RejectionCategory.RATE_LIMITED,
+            stage = "RateLimit"
+        )
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val resolver = PreExecutionResolver(
+            guard = guard,
+            hookExecutor = null,
+            intentResolver = null,
+            blockedIntents = emptySet(),
+            agentMetrics = metrics,
+            nowMs = { 1_500L }
+        )
+
+        val result = resolver.checkGuardAndHooks(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            startTime = 1_000L
+        )
+
+        assertEquals(AgentErrorCode.RATE_LIMITED, result?.errorCode,
+            "Rate limit rejections must map to RATE_LIMITED error code, not GUARD_REJECTED")
+        assertEquals("Rate limit exceeded: 20 requests per minute", result?.errorMessage,
+            "Error message should preserve the guard rejection reason")
+        verify(exactly = 1) { metrics.recordGuardRejection("RateLimit", any(), any()) }
+        verify(exactly = 1) { metrics.recordExecution(match { !it.success && it.errorCode == AgentErrorCode.RATE_LIMITED }) }
+    }
+
+    @Test
     fun `should return HOOK_REJECTED result when before hook rejects`() = runBlocking {
         val hookExecutor = mockk<HookExecutor>()
         coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("hook blocked")
