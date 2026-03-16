@@ -11,6 +11,11 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
+/**
+ * RAG 파이프라인 최대 토큰 제한에 대한 테스트.
+ *
+ * RAG 컨텍스트의 토큰 제한 동작을 검증합니다.
+ */
 class RagPipelineMaxTokensTest {
 
     @Test
@@ -64,7 +69,7 @@ class RagPipelineMaxTokensTest {
     fun `SimpleContextBuilder은(는) respect maxTokens limit해야 한다`() {
         val builder = SimpleContextBuilder()
 
-        // Each document has estimatedTokens = content.length / 4
+        // 각 문서의 estimatedTokens = content.length / 4
         // "A".repeat(400) = 100 tokens
         val docs = (1..10).map { i ->
             RetrievedDocument(

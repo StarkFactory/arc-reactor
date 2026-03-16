@@ -14,6 +14,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
 
+/**
+ * WriteToolBlockHook에 대한 테스트.
+ *
+ * 쓰기 도구 차단 훅의 동작을 검증합니다.
+ */
 class WriteToolBlockHookTest {
 
     @Test

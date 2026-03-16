@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
+/**
+ * MCP 저장소 동기화에 대한 테스트.
+ *
+ * MCP 서버 저장소 동기화 로직을 검증합니다.
+ */
 class McpStoreSyncTest {
 
     private val runtimeServer = McpServer(

@@ -4,6 +4,12 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 
+/**
+ * ToolSelector 구현체들에 대한 테스트.
+ *
+ * AllToolSelector, KeywordBasedToolSelector, DefaultToolCategory 등
+ * 도구 선택 전략의 동작을 검증합니다.
+ */
 class ToolSelectorTest {
 
     private fun createMockTool(toolName: String, toolDescription: String): ToolCallback {
@@ -73,7 +79,7 @@ class ToolSelectorTest {
                 createMockTool("general_tool", "General purpose tool")
             )
 
-            // match search category해야 합니다
+            // 검색 카테고리와 매칭되어야 합니다
             val searchResult = selector.select("Please search for documents", tools)
             assertTrue(searchResult.any { it.name == "search_tool" }) {
                 "Search result should include search_tool, got: ${searchResult.map { it.name }}"
@@ -85,7 +91,7 @@ class ToolSelectorTest {
                 "Search result should not include calc_tool, got: ${searchResult.map { it.name }}"
             }
 
-            // match calculation category해야 합니다
+            // 계산 카테고리와 매칭되어야 합니다
             val calcResult = selector.select("Calculate the sum of these numbers", tools)
             assertTrue(calcResult.any { it.name == "calc_tool" }) {
                 "Calc result should include calc_tool, got: ${calcResult.map { it.name }}"
@@ -116,10 +122,10 @@ class ToolSelectorTest {
                 createMockTool("other_tool", "Other functionality")
             )
 
-            // Prompt doesn't match any category
+            // 프롬프트가 어떤 카테고리에도 매칭되지 않음
             val result = selector.select("Hello, how are you?", tools)
 
-            assertEquals(2, result.size) // Returns all tools
+            assertEquals(2, result.size) // 모든 도구를 반환
         }
 
         @Test
@@ -146,7 +152,7 @@ class ToolSelectorTest {
                 createMockTool("general_tool", "General")
             )
 
-            // Prompt matches both categories
+            // 프롬프트가 두 카테고리 모두에 매칭됨
             val result = selector.select("Search the database for data", tools)
 
             assertEquals(3, result.size)  // 두 categorized tools + general

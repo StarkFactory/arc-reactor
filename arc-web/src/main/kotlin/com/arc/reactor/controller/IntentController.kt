@@ -23,17 +23,19 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 
 /**
- * Intent Management API Controller
+ * 인텐트 관리 API 컨트롤러.
  *
- * Provides REST APIs for managing intent definitions.
- * Only available when `arc.reactor.intent.enabled=true`.
+ * 인텐트 정의를 관리하는 REST API를 제공합니다.
+ * `arc.reactor.intent.enabled=true`일 때만 사용 가능합니다.
  *
- * ## Endpoints
- * - GET    /api/intents          : List all intents
- * - GET    /api/intents/{name}   : Get an intent by name
- * - POST   /api/intents          : Create a new intent (ADMIN)
- * - PUT    /api/intents/{name}   : Update an existing intent (ADMIN)
- * - DELETE /api/intents/{name}   : Delete an intent (ADMIN)
+ * ## 엔드포인트
+ * - GET    /api/intents          : 전체 인텐트 목록 조회
+ * - GET    /api/intents/{name}   : 이름으로 인텐트 조회
+ * - POST   /api/intents          : 새 인텐트 생성 (관리자)
+ * - PUT    /api/intents/{name}   : 기존 인텐트 수정 (관리자)
+ * - DELETE /api/intents/{name}   : 인텐트 삭제 (관리자)
+ *
+ * @see IntentRegistry
  */
 @Tag(name = "Intents", description = "Intent definition management")
 @RestController
@@ -43,7 +45,8 @@ class IntentController(
     private val intentRegistry: IntentRegistry
 ) {
 
-    @Operation(summary = "List all intent definitions")
+    /** 전체 인텐트 정의 목록을 조회한다. */
+    @Operation(summary = "전체 인텐트 정의 목록 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of intent definitions"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -54,7 +57,8 @@ class IntentController(
         return ResponseEntity.ok(intentRegistry.list().map { it.toResponse() })
     }
 
-    @Operation(summary = "Get an intent definition by name")
+    /** 이름으로 인텐트 정의를 조회한다. */
+    @Operation(summary = "이름으로 인텐트 정의 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Intent definition"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -70,7 +74,8 @@ class IntentController(
         return ResponseEntity.ok(intent.toResponse())
     }
 
-    @Operation(summary = "Create a new intent definition (ADMIN)")
+    /** 새 인텐트 정의를 생성한다. 동일 이름이 이미 존재하면 409를 반환한다. */
+    @Operation(summary = "새 인텐트 정의 생성 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Intent created"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -93,7 +98,8 @@ class IntentController(
         return ResponseEntity.status(HttpStatus.CREATED).body(saved.toResponse())
     }
 
-    @Operation(summary = "Update an existing intent definition (ADMIN)")
+    /** 기존 인텐트 정의를 수정한다. 제공된 필드만 변경된다. */
+    @Operation(summary = "기존 인텐트 정의 수정 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Intent updated"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -120,7 +126,8 @@ class IntentController(
         return ResponseEntity.ok(saved.toResponse())
     }
 
-    @Operation(summary = "Delete an intent definition (ADMIN)")
+    /** 인텐트 정의를 삭제한다. */
+    @Operation(summary = "인텐트 정의 삭제 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Intent deleted"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -136,7 +143,7 @@ class IntentController(
     }
 }
 
-// --- Request DTOs ---
+// --- 요청 DTO ---
 
 data class CreateIntentRequest(
     @field:NotBlank(message = "name must not be blank")
@@ -166,7 +173,7 @@ data class UpdateIntentRequest(
     val enabled: Boolean? = null
 )
 
-// --- Response DTO ---
+// --- 응답 DTO ---
 
 data class IntentResponse(
     val name: String,
@@ -179,7 +186,7 @@ data class IntentResponse(
     val updatedAt: Long
 )
 
-// --- Mapping extensions ---
+// --- 매핑 확장 ---
 
 private fun IntentDefinition.toResponse() = IntentResponse(
     name = name,

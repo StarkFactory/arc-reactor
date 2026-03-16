@@ -13,6 +13,12 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.prompt.ChatOptions
 
+/**
+ * FallbackStrategy와 SpringAiAgentExecutor의 통합 테스트.
+ *
+ * LLM 호출 실패 시 폴백 전략의 동작과, 성공 시 폴백이
+ * 트리거되지 않는 것을 검증합니다.
+ */
 class ExecutorFallbackIntegrationTest {
 
     @Nested
@@ -22,7 +28,7 @@ class ExecutorFallbackIntegrationTest {
         fun `LLM call fails일 때 fallback triggers`() = runTest {
             val fixture = AgentTestFixture()
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
-            // Primary call fails
+            // 주 호출이 실패
             every { fixture.callResponseSpec.chatResponse() } throws RuntimeException("LLM unavailable")
 
             val fallback = FixedFallbackStrategy(
@@ -163,7 +169,7 @@ class ExecutorFallbackIntegrationTest {
 }
 
 /**
- * Test helper: returns a fixed result.
+ * 테스트 헬퍼: 고정된 결과를 반환합니다.
  */
 private class FixedFallbackStrategy(private val result: AgentResult?) : FallbackStrategy {
     var called = false
@@ -176,7 +182,7 @@ private class FixedFallbackStrategy(private val result: AgentResult?) : Fallback
 }
 
 /**
- * Test helper: always throws.
+ * 테스트 헬퍼: 항상 예외를 던집니다.
  */
 private class ExplodingFallbackStrategy : FallbackStrategy {
     override suspend fun execute(command: AgentCommand, originalError: Exception): AgentResult? {

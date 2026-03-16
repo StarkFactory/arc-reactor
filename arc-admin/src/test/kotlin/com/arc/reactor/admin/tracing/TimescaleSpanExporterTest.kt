@@ -85,8 +85,8 @@ class TimescaleSpanExporterTest {
     }
 
     /**
-     * Captures the BatchPreparedStatementSetter and invokes setValues for the span at the
-     * given index, then returns the captured attributes JSON string (parameter index 12).
+     * BatchPreparedStatementSetter를 캡처하고 주어진 인덱스의 스팬에 대해 setValues를 호출한 후,
+     * 캡처된 attributes JSON 문자열(매개변수 인덱스 12)을 반환합니다.
      */
     private fun captureAttributesJson(spans: Collection<SpanData>, spanIndex: Int = 0): String {
         val setterSlot = slot<BatchPreparedStatementSetter>()
@@ -102,7 +102,7 @@ class TimescaleSpanExporterTest {
     }
 
     // -------------------------------------------------------------------------
-    // Test groups
+    // 테스트 그룹
     // -------------------------------------------------------------------------
 
     @Nested
@@ -404,7 +404,7 @@ class TimescaleSpanExporterTest {
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
             json shouldContain """\""""
-            // The raw unescaped quote must not appear inside the JSON string value
+            // 이스케이프되지 않은 원시 따옴표가 JSON 문자열 값 안에 나타나면 안 됩니다
             json shouldNotContain """"say "hello""""
         }
 
@@ -413,7 +413,7 @@ class TimescaleSpanExporterTest {
             val attrs = Attributes.of(AttributeKey.stringKey("path"), "C:\\Users\\stark")
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
-            // Each backslash becomes \\
+            // 각 백슬래시가 \\가 됩니다
             json shouldContain """\\"""
         }
 
@@ -507,7 +507,7 @@ class TimescaleSpanExporterTest {
             json shouldContain """\u0001"""
             // US (U+001F)은(는) be escaped as \u001f해야 합니다
             json shouldContain """\u001f"""
-            // No raw control characters은(는) remain in the JSON해야 합니다
+            // 원시 제어 문자가 JSON에 남아있으면 안 됩니다
             val valueStart = json.indexOf(":\"") + 2
             val valueEnd = json.lastIndexOf("\"}")
             val extractedValue = json.substring(valueStart, valueEnd)
@@ -521,7 +521,7 @@ class TimescaleSpanExporterTest {
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
             json shouldContain """"big":"""
-            // Value must not be truncated by the exporter
+            // 값이 익스포터에 의해 잘리면 안 됩니다
             json.length shouldBe longValue.length + """{"big":""}""".length
         }
     }

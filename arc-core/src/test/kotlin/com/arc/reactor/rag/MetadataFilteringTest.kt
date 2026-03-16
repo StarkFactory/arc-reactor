@@ -8,6 +8,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 메타데이터 필터링에 대한 테스트.
+ *
+ * RAG 조회 시 메타데이터 기반 필터링을 검증합니다.
+ */
 class MetadataFilteringTest {
 
     private lateinit var retriever: InMemoryDocumentRetriever

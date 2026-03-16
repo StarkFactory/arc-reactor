@@ -18,6 +18,11 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
+/**
+ * AgentExecutionFailureHandler에 대한 테스트.
+ *
+ * 에이전트 실행 실패 처리 로직을 검증합니다.
+ */
 class AgentExecutionFailureHandlerTest {
 
     @Test

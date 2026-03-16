@@ -269,7 +269,7 @@ class ArcReactorCoreBeansConfiguration {
 
     /**
      * Tool Approval Policy — only created when HITL is enabled.
-     * Users can override with custom [ToolApprovalPolicy] bean.
+     * 사용자는 커스텀 [ToolApprovalPolicy] 빈으로 재정의할 수 있다.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -316,8 +316,8 @@ class ArcReactorCoreBeansConfiguration {
     /**
      * Feedback Metadata Capture Hook (only when feedback feature is enabled)
      *
-     * Caches execution metadata so that feedback submissions can auto-enrich
-     * with query, response, toolsUsed, and durationMs via runId.
+     * 실행 메타데이터를 캐시하여 피드백 제출 시 runId를 통해
+     * query, response, toolsUsed, durationMs를 자동 보강할 수 있다.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -346,10 +346,10 @@ class ArcReactorCoreBeansConfiguration {
     fun errorMessageResolver(): ErrorMessageResolver = DefaultErrorMessageResolver()
 
     /**
-     * Agent Metrics (Micrometer-backed when MeterRegistry is available).
+     * 에이전트 메트릭 (MeterRegistry가 사용 가능할 때 Micrometer 기반).
      *
-     * Marked @Primary so that when both MeterRegistry and a fallback NoOp bean
-     * exist, this Micrometer implementation is always selected regardless of
+     * @Primary로 표시하여 MeterRegistry와 폴백 NoOp 빈이 모두
+     * 존재할 때, 빈 등록 순서에 관계없이 이 Micrometer 구현이
      * intra-class bean definition processing order.
      */
     @Bean
@@ -358,7 +358,7 @@ class ArcReactorCoreBeansConfiguration {
     fun micrometerAgentMetrics(registry: MeterRegistry): AgentMetrics = MicrometerAgentMetrics(registry)
 
     /**
-     * Agent Metrics (default: no-op when no MeterRegistry is available)
+     * 에이전트 메트릭 (기본: MeterRegistry가 없을 때 no-op)
      */
     @Bean
     @ConditionalOnMissingBean

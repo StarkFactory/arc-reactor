@@ -13,6 +13,14 @@ import org.springframework.web.reactive.result.method.annotation.RequestMappingH
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
+/**
+ * 관리자 기능 매니페스트 컨트롤러.
+ *
+ * 현재 등록된 모든 API 경로를 조회하여 관리 콘솔이 사용 가능한 기능을
+ * 자동으로 파악할 수 있도록 합니다.
+ *
+ * @see RequestMappingHandlerMapping
+ */
 @Tag(name = "Admin Capabilities", description = "Admin feature capability manifest")
 @RestController
 @RequestMapping("/api/admin/capabilities")
@@ -20,7 +28,8 @@ class AdminCapabilitiesController(
     private val requestMappingHandlerMapping: RequestMappingHandlerMapping
 ) {
 
-    @Operation(summary = "Get admin capability manifest (admin)")
+    /** 관리자 기능 매니페스트를 조회한다. /api/ 접두사를 가진 경로만 반환한다. */
+    @Operation(summary = "관리자 기능 매니페스트 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Capability manifest"),
         ApiResponse(responseCode = "403", description = "Admin access required")

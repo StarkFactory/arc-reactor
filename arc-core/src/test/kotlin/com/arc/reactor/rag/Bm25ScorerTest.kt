@@ -6,6 +6,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * BM25 스코어러에 대한 테스트.
+ *
+ * BM25 텍스트 유사도 점수 계산을 검증합니다.
+ */
 class Bm25ScorerTest {
 
     private lateinit var scorer: Bm25Scorer

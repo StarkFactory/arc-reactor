@@ -442,7 +442,7 @@ class SlackEventProcessorTest {
                 defaultProperties(maxConcurrentRequests = 1, failFastOnSaturation = true)
             )
 
-            // First event holds the semaphore
+            // 첫 번째 이벤트가 세마포어를 보유
             val (p1, _, _) = mentionPayload(user = "U1")
             processor.submitEventCallback(p1, "events_api")
             acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true
@@ -668,7 +668,7 @@ class SlackEventProcessorTest {
             firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
             Thread.sleep(200)  // semaphore release in finally block 허용
 
-            // If semaphore was not released, this second event would time out
+            // 세마포어가 해제되지 않았다면 이 두 번째 이벤트는 타임아웃됩니다
             val processedSecond = AtomicInteger(0)
             val latch = CountDownLatch(1)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {

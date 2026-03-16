@@ -63,7 +63,7 @@ class MetricRingBufferTest {
             // to capacity (64 = next power of 2)를 채웁니다
             repeat(64) { buffer.publish(testEvent("run-$it")) }
 
-            // This은(는) be dropped해야 합니다
+            // 이것은 삭제되어야 합니다
             val published = buffer.publish(testEvent("overflow"))
             published shouldBe false
             buffer.droppedCount.get() shouldBe 1
@@ -87,8 +87,8 @@ class MetricRingBufferTest {
 
         @Test
         fun `single-consumer drain은(는) not lose events해야 한다`() {
-            // Validates that drain() called from a single thread preserves all events.
-            // This documents the single-consumer contract: concurrent drain() is unsafe.
+            // 단일 스레드에서 호출된 drain()이 모든 이벤트를 보존하는지 검증합니다.
+            // 이것은 단일 소비자 계약을 문서화합니다: 동시 drain()은 안전하지 않습니다.
             val largeBuffer = MetricRingBuffer(8192)
             val totalEvents = 4000
             repeat(totalEvents) { largeBuffer.publish(testEvent("run-$it")) }

@@ -20,6 +20,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.scheduling.TaskScheduler
 
 @Tag("safety")
+/**
+ * DynamicSchedulerService의 정책 파이프라인에 대한 테스트.
+ *
+ * 스케줄러 실행 정책 파이프라인 동작을 검증합니다.
+ */
 class DynamicSchedulerServicePolicyPipelineTest {
 
     @Test

@@ -24,6 +24,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
+/**
+ * SessionController에 대한 테스트.
+ *
+ * 세션 관리 REST API의 동작을 검증합니다.
+ */
 class SessionControllerTest {
 
     private lateinit var memoryStore: MemoryStore

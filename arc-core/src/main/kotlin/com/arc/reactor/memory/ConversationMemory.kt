@@ -9,125 +9,125 @@ import kotlin.concurrent.read
 import kotlin.concurrent.write
 
 /**
- * Conversation Memory Interface
+ * 대화 메모리 인터페이스.
  *
- * Manages conversation history for multi-turn interactions with the AI agent.
- * Enables context retention across multiple exchanges.
+ * AI 에이전트와의 멀티턴 대화에서 대화 이력을 관리한다.
+ * 여러 교환에 걸친 컨텍스트 유지를 가능하게 한다.
  *
- * ## Features
- * - Message storage and retrieval
- * - Token-aware history truncation
- * - Automatic oldest message eviction
+ * ## 주요 기능
+ * - 메시지 저장 및 조회
+ * - 토큰 인식 이력 잘림
+ * - 오래된 메시지 자동 퇴거
  *
- * ## Example Usage
+ * ## 사용 예시
  * ```kotlin
  * val memory = InMemoryConversationMemory(maxMessages = 50)
  *
- * // Add messages
+ * // 메시지 추가
  * memory.addUserMessage("Hello!")
  * memory.addAssistantMessage("Hi! How can I help?")
  *
- * // Get history for next LLM call
+ * // 다음 LLM 호출을 위한 이력 조회
  * val history = memory.getHistoryWithinTokenLimit(maxTokens = 4000)
  * ```
  *
- * @see MemoryStore for session-based memory management
- * @see InMemoryConversationMemory for default implementation
- * @see JdbcMemoryStore for persistent JDBC-based implementation
+ * @see MemoryStore 세션 기반 메모리 관리
+ * @see InMemoryConversationMemory 기본 구현체
+ * @see JdbcMemoryStore 영속 JDBC 기반 구현체
  */
 interface ConversationMemory {
     /**
-     * Add a message to the conversation history.
+     * 대화 이력에 메시지를 추가한다.
      *
-     * @param message The message to add
+     * @param message 추가할 메시지
      */
     fun add(message: Message)
 
     /**
-     * Get the complete conversation history.
+     * 전체 대화 이력을 조회한다.
      *
-     * @return All messages in chronological order
+     * @return 시간순으로 정렬된 모든 메시지
      */
     fun getHistory(): List<Message>
 
     /**
-     * Clear all messages from the conversation history.
+     * 대화 이력의 모든 메시지를 삭제한다.
      */
     fun clear()
 
     /**
-     * Get conversation history within a token limit.
+     * 토큰 제한 내의 대화 이력을 조회한다.
      *
-     * Returns the most recent messages that fit within the specified token budget.
-     * Useful for staying within LLM context window limits.
+     * 지정된 토큰 예산 내에 들어가는 가장 최근 메시지를 반환한다.
+     * LLM 컨텍스트 윈도우 제한을 준수하는 데 유용하다.
      *
-     * @param maxTokens Maximum approximate token count
-     * @return Most recent messages within the token limit
+     * @param maxTokens 최대 대략적 토큰 수
+     * @return 토큰 제한 내의 가장 최근 메시지
      */
     fun getHistoryWithinTokenLimit(maxTokens: Int): List<Message>
 }
 
 /**
- * Session-Based Memory Store Interface
+ * 세션 기반 메모리 스토어 인터페이스.
  *
- * Manages multiple conversation memories indexed by session ID.
- * Enables concurrent users with isolated conversation histories.
+ * 세션 ID로 인덱싱된 여러 대화 메모리를 관리한다.
+ * 격리된 대화 이력을 가진 동시 사용자를 지원한다.
  *
- * ## Example Usage
+ * ## 사용 예시
  * ```kotlin
  * val store = InMemoryMemoryStore(maxSessions = 1000)
  *
- * // Get or create session memory
+ * // 세션 메모리를 가져오거나 생성
  * val memory = store.getOrCreate("user-123-session-456")
  * memory.addUserMessage("Hello!")
  *
- * // Add message via store (convenience method)
+ * // 스토어를 통해 메시지 추가 (편의 메서드)
  * store.addMessage("user-123-session-456", "assistant", "Hi there!")
  *
- * // Clean up old session
+ * // 오래된 세션 정리
  * store.remove("old-session-id")
  * ```
  *
- * @see InMemoryMemoryStore for default implementation
- * @see JdbcMemoryStore for persistent JDBC-based implementation
+ * @see InMemoryMemoryStore 기본 구현체
+ * @see JdbcMemoryStore 영속 JDBC 기반 구현체
  */
 interface MemoryStore {
     /**
-     * Get conversation memory for a session.
+     * 세션의 대화 메모리를 조회한다.
      *
-     * @param sessionId Unique session identifier
-     * @return ConversationMemory if exists, null otherwise
+     * @param sessionId 고유 세션 식별자
+     * @return ConversationMemory (있으면), 없으면 null
      */
     fun get(sessionId: String): ConversationMemory?
 
     /**
-     * Get existing or create new conversation memory for a session.
+     * 기존 메모리를 가져오거나 새 대화 메모리를 생성한다.
      *
-     * @param sessionId Unique session identifier
-     * @return Existing or newly created ConversationMemory
+     * @param sessionId 고유 세션 식별자
+     * @return 기존 또는 새로 생성된 ConversationMemory
      */
     fun getOrCreate(sessionId: String): ConversationMemory
 
     /**
-     * Remove conversation memory for a session.
+     * 세션의 대화 메모리를 제거한다.
      *
-     * @param sessionId Session to remove
+     * @param sessionId 제거할 세션
      */
     fun remove(sessionId: String)
 
     /**
-     * Clear all session memories.
+     * 모든 세션 메모리를 삭제한다.
      */
     fun clear()
 
     /**
-     * Add a message to a session's conversation memory.
+     * 세션의 대화 메모리에 메시지를 추가한다.
      *
-     * Convenience method that creates the session if it doesn't exist.
+     * 세션이 존재하지 않으면 자동으로 생성하는 편의 메서드.
      *
-     * @param sessionId Session identifier
-     * @param role Message role (user, assistant, system, tool)
-     * @param content Message content
+     * @param sessionId 세션 식별자
+     * @param role 메시지 역할 (user, assistant, system, tool)
+     * @param content 메시지 내용
      */
     fun addMessage(sessionId: String, role: String, content: String) {
         val memory = getOrCreate(sessionId)
@@ -142,63 +142,62 @@ interface MemoryStore {
     }
 
     /**
-     * Add a message to a session's conversation memory with user ownership.
+     * 사용자 소유권을 가진 세션 대화 메모리에 메시지를 추가한다.
      *
-     * Associates the session with a userId for per-user session isolation.
-     * Default implementation delegates to [addMessage] without userId for backward compatibility.
+     * 사용자별 세션 격리를 위해 세션을 userId와 연결한다.
+     * 하위 호환성을 위해 기본 구현은 userId 없이 [addMessage]에 위임한다.
      *
-     * @param sessionId Session identifier
-     * @param role Message role (user, assistant, system, tool)
-     * @param content Message content
-     * @param userId Owner of the session
+     * @param sessionId 세션 식별자
+     * @param role 메시지 역할 (user, assistant, system, tool)
+     * @param content 메시지 내용
+     * @param userId 세션 소유자
      */
     fun addMessage(sessionId: String, role: String, content: String, userId: String) {
         addMessage(sessionId, role, content)
     }
 
     /**
-     * List all session summaries.
+     * 모든 세션 요약을 조회한다.
      *
-     * Returns metadata for all active sessions, ordered by most recent activity.
-     * Default implementation returns an empty list for backward compatibility
-     * with existing custom implementations.
+     * 모든 활성 세션의 메타데이터를 반환하며 최근 활동 순으로 정렬된다.
+     * 하위 호환성을 위해 기본 구현은 빈 목록을 반환한다.
      *
-     * @return List of session summaries, ordered by lastActivity descending
+     * @return 세션 요약 목록, lastActivity 내림차순
      */
     fun listSessions(): List<SessionSummary> = emptyList()
 
     /**
-     * List session summaries owned by a specific user.
+     * 특정 사용자가 소유한 세션 요약을 조회한다.
      *
-     * Implementations should filter sessions by userId.
-     * Default implementation falls back to [listSessions] for backward compatibility.
+     * 구현체는 userId로 세션을 필터링해야 한다.
+     * 하위 호환성을 위해 기본 구현은 [listSessions]로 폴백한다.
      *
-     * @param userId Owner user ID
-     * @return List of session summaries for the user, ordered by lastActivity descending
+     * @param userId 소유자 사용자 ID
+     * @return 해당 사용자의 세션 요약 목록, lastActivity 내림차순
      */
     fun listSessionsByUserId(userId: String): List<SessionSummary> = listSessions()
 
     /**
-     * Get the owner userId of a session.
+     * 세션의 소유자 userId를 조회한다.
      *
-     * Used for ownership verification in delete/get operations.
-     * Default implementation returns null (no ownership tracking).
+     * 삭제/조회 작업에서 소유권 검증에 사용된다.
+     * 기본 구현은 null을 반환한다 (소유권 추적 없음).
      *
-     * @param sessionId Session identifier
-     * @return userId of the session owner, or null if unknown
+     * @param sessionId 세션 식별자
+     * @return 세션 소유자의 userId, 알 수 없으면 null
      */
     fun getSessionOwner(sessionId: String): String? = null
 }
 
 /**
- * Summary information for a conversation session.
+ * 대화 세션의 요약 정보.
  *
- * Provides metadata without loading the full message history.
+ * 전체 메시지 이력을 로드하지 않고 메타데이터만 제공한다.
  *
- * @param sessionId Unique session identifier
- * @param messageCount Total messages in the session
- * @param lastActivity Timestamp of the most recent message
- * @param preview Truncated first user message (for display)
+ * @param sessionId 고유 세션 식별자
+ * @param messageCount 세션 내 총 메시지 수
+ * @param lastActivity 가장 최근 메시지의 시각
+ * @param preview 첫 번째 사용자 메시지의 잘린 미리보기 (표시용)
  */
 data class SessionSummary(
     val sessionId: String,
@@ -208,18 +207,18 @@ data class SessionSummary(
 )
 
 /**
- * In-Memory Conversation Memory Implementation
+ * 인메모리 대화 메모리 구현체.
  *
- * Simple memory implementation that stores messages in a mutable list.
- * Automatically evicts oldest messages when exceeding the maximum limit.
+ * 메시지를 가변 목록에 저장하는 단순한 메모리 구현체.
+ * 최대 한도 초과 시 가장 오래된 메시지를 자동 퇴거한다.
  *
- * ## Characteristics
- * - Thread-safe via ReentrantReadWriteLock
- * - FIFO eviction when full
- * - Token-aware history truncation
- * - Not persistent (lost on restart)
+ * ## 특성
+ * - ReentrantReadWriteLock으로 스레드 안전성 보장
+ * - 가득 차면 FIFO 퇴거
+ * - 토큰 인식 이력 잘림
+ * - 비영속 (재시작 시 유실)
  *
- * @param maxMessages Maximum messages to retain (default: 50)
+ * @param maxMessages 유지할 최대 메시지 수 (기본값: 50)
  */
 class InMemoryConversationMemory(
     private val maxMessages: Int = 50,
@@ -227,10 +226,12 @@ class InMemoryConversationMemory(
 ) : ConversationMemory {
 
     private val messages = mutableListOf<Message>()
+    /** 읽기/쓰기 분리 락. 다수의 동시 읽기를 허용하면서 쓰기는 배타적으로 보호. */
     private val lock = ReentrantReadWriteLock()
 
     override fun add(message: Message) = lock.write {
         messages.add(message)
+        // 최대 한도 초과 시 가장 오래된 메시지부터 퇴거
         while (messages.size > maxMessages) {
             messages.removeFirst()
         }
@@ -244,6 +245,11 @@ class InMemoryConversationMemory(
         messages.clear()
     }
 
+    /**
+     * 토큰 예산 내의 최근 메시지를 반환한다.
+     * 역순(최신→오래된)으로 순회하며 토큰을 누적하고,
+     * 예산을 초과하면 중단한다.
+     */
     override fun getHistoryWithinTokenLimit(maxTokens: Int): List<Message> = lock.read {
         var totalTokens = 0
         val result = mutableListOf<Message>()
@@ -257,34 +263,39 @@ class InMemoryConversationMemory(
             totalTokens += tokens
         }
 
-        result.reversed()
+        result.reversed()  // 시간순으로 복원
     }
 }
 
 /**
- * In-Memory Memory Store Implementation
+ * 인메모리 세션 기반 메모리 스토어 구현체.
  *
- * Session-based memory store using ConcurrentHashMap for thread-safe access.
+ * ConcurrentHashMap으로 스레드 안전한 동시 접근을 지원한다.
  *
- * ## Characteristics
- * - LRU eviction when session limit reached
- * - Thread-safe concurrent access
- * - Not persistent (lost on restart)
+ * ## 특성
+ * - 세션 한도 도달 시 LRU 퇴거 (Caffeine 캐시)
+ * - 스레드 안전한 동시 접근
+ * - 비영속 (재시작 시 유실)
  *
- * ## For Production
- * Consider implementing MemoryStore with:
- * - Redis for distributed sessions
- * - PostgreSQL for persistence
- * - Custom TTL for automatic cleanup
+ * ## 프로덕션 고려사항
+ * 다음으로 MemoryStore를 구현하는 것을 고려하라:
+ * - Redis: 분산 세션
+ * - PostgreSQL: 영속성
+ * - 커스텀 TTL: 자동 정리
  *
- * @param maxSessions Maximum concurrent sessions (default: 1000)
+ * @param maxSessions 최대 동시 세션 수 (기본값: 1000)
  */
 class InMemoryMemoryStore(
     private val maxSessions: Int = 1000
 ) : MemoryStore {
 
+    /** 세션 ID → 소유자 userId 매핑 */
     private val sessionOwners = java.util.concurrent.ConcurrentHashMap<String, String>()
 
+    /**
+     * Caffeine 캐시를 사용하여 LRU 퇴거와 최대 크기 제한을 적용.
+     * 세션 퇴거 시 소유자 매핑도 함께 정리한다.
+     */
     private val sessions = Caffeine.newBuilder()
         .maximumSize(maxSessions.toLong())
         .removalListener<String, ConversationMemory> { key, _, _ ->
@@ -296,7 +307,7 @@ class InMemoryMemoryStore(
 
     override fun getOrCreate(sessionId: String): ConversationMemory {
         val memory = sessions.get(sessionId) { InMemoryConversationMemory() }
-        sessions.cleanUp() // Ensure maximumSize eviction is applied promptly
+        sessions.cleanUp() // maximumSize 퇴거가 즉시 적용되도록 한다
         return memory
     }
 
@@ -311,6 +322,7 @@ class InMemoryMemoryStore(
     }
 
     override fun addMessage(sessionId: String, role: String, content: String, userId: String) {
+        // 첫 메시지에서 세션 소유자를 기록 (putIfAbsent로 덮어쓰기 방지)
         sessionOwners.putIfAbsent(sessionId, userId)
         addMessage(sessionId, role, content)
     }
@@ -349,11 +361,12 @@ class InMemoryMemoryStore(
     override fun getSessionOwner(sessionId: String): String? = sessionOwners[sessionId]
 }
 
+/** 미리보기의 최대 문자 수 */
 internal const val PREVIEW_MAX_LENGTH = 50
 
 /**
- * Extract a preview string from conversation history.
- * Uses the first user message, truncated to [PREVIEW_MAX_LENGTH] characters.
+ * 대화 이력에서 미리보기 문자열을 추출한다.
+ * 첫 번째 사용자 메시지를 [PREVIEW_MAX_LENGTH]자로 잘라 사용한다.
  */
 internal fun extractPreview(history: List<Message>): String {
     val content = history.firstOrNull { it.role == MessageRole.USER }?.content
@@ -365,30 +378,30 @@ internal fun extractPreview(history: List<Message>): String {
     }
 }
 
-// Extension Functions for ConversationMemory
+// ConversationMemory 확장 함수
 
 /**
- * Add a user message to the conversation.
+ * 대화에 사용자 메시지를 추가한다.
  *
- * @param content Message content
+ * @param content 메시지 내용
  */
 fun ConversationMemory.addUserMessage(content: String) {
     add(Message(MessageRole.USER, content))
 }
 
 /**
- * Add an assistant message to the conversation.
+ * 대화에 어시스턴트 메시지를 추가한다.
  *
- * @param content Message content
+ * @param content 메시지 내용
  */
 fun ConversationMemory.addAssistantMessage(content: String) {
     add(Message(MessageRole.ASSISTANT, content))
 }
 
 /**
- * Add a system message to the conversation.
+ * 대화에 시스템 메시지를 추가한다.
  *
- * @param content Message content
+ * @param content 메시지 내용
  */
 fun ConversationMemory.addSystemMessage(content: String) {
     add(Message(MessageRole.SYSTEM, content))

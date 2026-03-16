@@ -29,6 +29,11 @@ import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.messages.AssistantMessage
 
+/**
+ * AdaptiveQueryRouter에 대한 테스트.
+ *
+ * 적응형 쿼리 라우팅 동작을 검증합니다.
+ */
 class AdaptiveQueryRouterTest {
 
     @Nested

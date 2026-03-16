@@ -3,6 +3,11 @@ package com.arc.reactor.guard.output.policy
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
+/**
+ * 출력 가드 규칙 평가기에 대한 테스트.
+ *
+ * 규칙 평가 로직을 검증합니다.
+ */
 class OutputGuardRuleEvaluatorTest {
 
     private val evaluator = OutputGuardRuleEvaluator()

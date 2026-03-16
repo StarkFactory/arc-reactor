@@ -10,10 +10,26 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * JDBC-backed [PendingApprovalStore].
+ * JDBC 기반 대기 승인 저장소
  *
- * Uses DB rows as the source of truth so approval APIs and agent waiters
- * can coordinate without in-memory shared state.
+ * DB 행을 진실의 원천(source of truth)으로 사용하여
+ * 승인 API와 에이전트 대기자가 메모리 공유 상태 없이 조율할 수 있다.
+ * 다중 인스턴스 배포에 적합하다.
+ *
+ * ## 폴링 방식
+ * [InMemoryPendingApprovalStore]와 달리 CompletableDeferred를 사용할 수 없으므로
+ * DB를 주기적으로 폴링하여 승인/거부 상태 변경을 감지한다.
+ *
+ * ## 정리 정책
+ * 해결된(승인/거부/타임아웃) 행은 [resolvedRetentionMs] 이후 자동 삭제된다.
+ *
+ * @param jdbcTemplate Spring JdbcTemplate
+ * @param defaultTimeoutMs 기본 승인 타임아웃 (밀리초, 기본값: 5분)
+ * @param pollIntervalMs DB 폴링 간격 (밀리초, 기본값: 250ms)
+ * @param resolvedRetentionMs 해결된 행 보관 기간 (밀리초, 기본값: 7일)
+ *
+ * @see PendingApprovalStore 저장소 인터페이스
+ * @see InMemoryPendingApprovalStore 메모리 기반 대안
  */
 class JdbcPendingApprovalStore(
     private val jdbcTemplate: JdbcTemplate,
@@ -29,8 +45,10 @@ class JdbcPendingApprovalStore(
         arguments: Map<String, Any?>,
         timeoutMs: Long
     ): ToolApprovalResponse {
+        // 오래된 해결 행 정리
         cleanupResolvedRows()
 
+        // ── 단계 1: PENDING 행 삽입 ──
         val id = UUID.randomUUID().toString()
         val requestedAt = Instant.now()
         val effectiveTimeoutMs = if (timeoutMs > 0) timeoutMs else defaultTimeoutMs
@@ -51,6 +69,7 @@ class JdbcPendingApprovalStore(
             Timestamp.from(requestedAt)
         )
 
+        // ── 단계 2: 상태 변경을 폴링하며 대기 ──
         val deadline = System.currentTimeMillis() + effectiveTimeoutMs
         while (System.currentTimeMillis() < deadline) {
             val state = findState(id)
@@ -84,6 +103,7 @@ class JdbcPendingApprovalStore(
             }
         }
 
+        // ── 단계 3: 타임아웃 처리 ──
         val now = Instant.now()
         jdbcTemplate.update(
             """
@@ -193,6 +213,7 @@ class JdbcPendingApprovalStore(
         return updated > 0
     }
 
+    /** 보관 기간이 지난 해결된 행을 삭제한다 */
     private fun cleanupResolvedRows() {
         val retentionMs = resolvedRetentionMs.coerceAtLeast(0)
         val cutoff = Instant.now().minusMillis(retentionMs)
@@ -210,6 +231,7 @@ class JdbcPendingApprovalStore(
         )
     }
 
+    /** ID로 승인 상태를 조회한다 */
     private fun findState(id: String): ApprovalState? {
         return jdbcTemplate.query(
             """
@@ -229,18 +251,21 @@ class JdbcPendingApprovalStore(
         ).firstOrNull()
     }
 
+    /** JSON 문자열을 Map으로 파싱한다 (실패 시 빈 맵 반환) */
     private fun parseJsonMap(json: String?): Map<String, Any?> {
         if (json.isNullOrBlank()) return emptyMap()
         return runCatching { objectMapper.readValue<Map<String, Any?>>(json) }
             .getOrDefault(emptyMap())
     }
 
+    /** JSON 문자열을 nullable Map으로 파싱한다 (실패 시 null 반환) */
     private fun parseNullableJsonMap(json: String?): Map<String, Any?>? {
         if (json.isNullOrBlank()) return null
         return runCatching { objectMapper.readValue<Map<String, Any?>>(json) }
             .getOrNull()
     }
 
+    /** 내부 상태 조회용 데이터 클래스 */
     private data class ApprovalState(
         val status: ApprovalStatus,
         val reason: String?,

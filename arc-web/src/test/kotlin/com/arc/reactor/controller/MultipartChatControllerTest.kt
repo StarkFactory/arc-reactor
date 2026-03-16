@@ -27,6 +27,11 @@ import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.ServerWebInputException
 import reactor.core.publisher.Flux
 
+/**
+ * MultipartChatController에 대한 테스트.
+ *
+ * 멀티파트 채팅 REST API의 동작을 검증합니다.
+ */
 class MultipartChatControllerTest {
 
     private val agentExecutor = mockk<AgentExecutor>()

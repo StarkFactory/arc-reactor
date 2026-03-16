@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * RRF(Reciprocal Rank Fusion)에 대한 테스트.
+ *
+ * 역순위 융합 알고리즘의 동작을 검증합니다.
+ */
 class RrfFusionTest {
 
     @Nested

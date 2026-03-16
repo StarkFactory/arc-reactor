@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
+/**
+ * BlockingToolCallbackInvoker에 대한 테스트.
+ *
+ * 블로킹 도구 콜백 호출 로직을 검증합니다.
+ */
 class BlockingToolCallbackInvokerTest {
 
     private val invoker = BlockingToolCallbackInvoker(fallbackTimeoutMs = 5000)

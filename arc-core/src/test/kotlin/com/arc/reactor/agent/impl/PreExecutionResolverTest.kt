@@ -26,6 +26,11 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * PreExecutionResolver에 대한 테스트.
+ *
+ * LLM 호출 전 사전 처리 로직을 검증합니다.
+ */
 class PreExecutionResolverTest {
 
     @Test

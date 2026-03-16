@@ -5,18 +5,21 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import java.io.FileInputStream
 
 /**
- * Provides Google OAuth2 credentials using Service Account + Domain-Wide Delegation.
+ * Service Account + Domain-Wide Delegation을 사용하여 Google OAuth2 자격 증명을 제공한다.
  *
- * The service account must have Domain-Wide Delegation enabled in the Google Admin Console,
- * and the required API scopes must be authorized for the service account's client ID.
+ * Service Account는 Google Admin Console에서 Domain-Wide Delegation이 활성화되어 있어야 하며,
+ * 필요한 API 스코프가 해당 Service Account의 클라이언트 ID에 승인되어 있어야 한다.
+ *
+ * @see GoogleWorkspaceAutoConfiguration 이 프로바이더를 빈으로 등록하는 자동 설정
+ * @see GoogleWorkspaceProperties 인증 설정 프로퍼티
  */
 class GoogleCredentialProvider(private val properties: GoogleWorkspaceProperties) {
 
     /**
-     * Returns scoped GoogleCredentials that impersonate the configured user.
+     * 설정된 사용자를 위임(impersonate)하는 스코프 지정 GoogleCredentials를 반환한다.
      *
-     * @param scopes OAuth2 scopes required for the target Google API
-     * @throws IllegalArgumentException if required properties are not configured
+     * @param scopes 대상 Google API에 필요한 OAuth2 스코프
+     * @throws IllegalArgumentException 필수 프로퍼티가 미설정된 경우
      */
     fun getCredentials(scopes: List<String>): GoogleCredentials {
         require(properties.serviceAccountKeyPath.isNotBlank()) {

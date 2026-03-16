@@ -18,10 +18,10 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * MCP Manager edge case tests.
+ * MCP Manager 엣지 케이스 테스트.
  *
- * 대상: reconnection, disconnect cleanup, concurrent operations,
- * store failure handling, close lifecycle, and re-registration behavior.
+ * 재연결, 연결 해제 정리, 동시 작업, 저장소 실패 처리,
+ * 종료 라이프사이클, 재등록 동작을 검증합니다.
  */
 class McpManagerEdgeCaseTest {
 
@@ -61,7 +61,7 @@ class McpManagerEdgeCaseTest {
                 "Initial status should be PENDING"
             }
 
-            // First connect attempt (will fail since no real process)
+            // 첫 번째 연결 시도 (실제 프로세스가 없으므로 실패)
             manager.connect("reconnect-server")
             assertEquals(McpServerStatus.FAILED, manager.getStatus("reconnect-server")) {
                 "Status should be FAILED after failed connection attempt"
@@ -243,7 +243,7 @@ class McpManagerEdgeCaseTest {
 
             manager.close()
 
-            // After close, internal state은(는) be cleared해야 합니다
+            // 종료 후 내부 상태가 초기화되어야 합니다
             assertNull(manager.getStatus("server-1")) {
                 "Status should be null after close"
             }

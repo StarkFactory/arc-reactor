@@ -8,10 +8,13 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * Auto-configuration for the Microsoft Teams integration module.
+ * Microsoft Teams 통합 모듈 자동 설정.
  *
- * Activated when `arc.reactor.teams.enabled=true`.
- * All beans use @ConditionalOnMissingBean — override with custom implementations.
+ * `arc.reactor.teams.enabled=true`일 때 활성화된다.
+ * 모든 빈은 `@ConditionalOnMissingBean`으로 선언되어 사용자 정의 구현으로 교체 가능하다.
+ *
+ * @see TeamsProperties 설정 프로퍼티
+ * @see TeamsWebhookClient Incoming Webhook 메시지 전송 클라이언트
  */
 @Configuration
 @ConditionalOnProperty(prefix = "arc.reactor.teams", name = ["enabled"], havingValue = "true")

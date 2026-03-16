@@ -14,6 +14,11 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
 @Tag("matrix")
+/**
+ * OutputBoundaryEnforcer의 매트릭스 테스트.
+ *
+ * 다양한 경계 설정에 대한 적용 동작을 검증합니다.
+ */
 class OutputBoundaryEnforcerMatrixTest {
 
     private val command = AgentCommand(systemPrompt = "sys", userPrompt = "line")

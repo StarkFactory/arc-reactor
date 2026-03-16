@@ -16,6 +16,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
 
+/**
+ * StreamingExecutionCoordinator에 대한 테스트.
+ *
+ * 스트리밍 실행 조정 로직을 검증합니다.
+ */
 class StreamingExecutionCoordinatorTest {
 
     @Test

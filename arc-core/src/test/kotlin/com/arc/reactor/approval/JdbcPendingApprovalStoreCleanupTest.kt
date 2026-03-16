@@ -12,6 +12,11 @@ import java.sql.Timestamp
 import java.time.Instant
 
 @Tag("safety")
+/**
+ * JDBC PendingApprovalStore 정리에 대한 테스트.
+ *
+ * JDBC 기반 대기 중 승인 저장소의 정리 로직을 검증합니다.
+ */
 class JdbcPendingApprovalStoreCleanupTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate

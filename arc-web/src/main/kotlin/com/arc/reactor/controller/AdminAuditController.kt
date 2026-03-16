@@ -15,6 +15,14 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * 관리자 감사 로그 컨트롤러.
+ *
+ * 모든 관리자 작업(MCP 서버, 승인, 보안 정책 등)의 통합 감사 로그를 조회합니다.
+ * 카테고리 및 액션으로 필터링하고 페이지네이션을 지원합니다.
+ *
+ * @see AdminAuditStore
+ */
 @Tag(name = "Admin Audits", description = "Unified admin audit logs (ADMIN)")
 @RestController
 @RequestMapping("/api/admin/audits")
@@ -22,7 +30,11 @@ class AdminAuditController(
     private val store: AdminAuditStore
 ) {
 
-    @Operation(summary = "List admin audit logs (ADMIN)")
+    /**
+     * 관리자 감사 로그 목록을 조회한다.
+     * WHY: actor 정보는 보안을 위해 마스킹하여 반환한다.
+     */
+    @Operation(summary = "관리자 감사 로그 목록 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Paginated list of admin audit logs"),
         ApiResponse(responseCode = "403", description = "Admin access required")

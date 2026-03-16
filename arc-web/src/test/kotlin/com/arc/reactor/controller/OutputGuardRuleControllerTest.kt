@@ -25,6 +25,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
+/**
+ * OutputGuardRuleController에 대한 테스트.
+ *
+ * 출력 가드 규칙 REST API의 동작을 검증합니다.
+ */
 class OutputGuardRuleControllerTest {
 
     private lateinit var store: OutputGuardRuleStore

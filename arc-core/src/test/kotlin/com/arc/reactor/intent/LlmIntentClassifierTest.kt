@@ -21,6 +21,11 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 
+/**
+ * LLM 기반 IntentClassifier에 대한 테스트.
+ *
+ * LLM을 활용한 인텐트 분류를 검증합니다.
+ */
 class LlmIntentClassifierTest {
 
     private lateinit var chatClient: ChatClient

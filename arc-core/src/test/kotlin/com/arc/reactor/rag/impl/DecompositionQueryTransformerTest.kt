@@ -15,6 +15,11 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 
+/**
+ * Decomposition 쿼리 변환기에 대한 테스트.
+ *
+ * 복잡한 쿼리를 하위 쿼리로 분해하는 동작을 검증합니다.
+ */
 class DecompositionQueryTransformerTest {
 
     private lateinit var chatClient: ChatClient

@@ -10,8 +10,8 @@ import org.springframework.core.env.Environment
 private val logger = KotlinLogging.logger {}
 
 /**
- * Logs a startup summary when the application is ready.
- * Shows configured provider, enabled features, and useful URLs.
+ * 애플리케이션이 준비되면 시작 요약을 로깅한다.
+ * 설정된 프로바이더, 활성화된 기능, 유용한 URL을 보여준다.
  */
 class StartupInfoLogger(
     private val environment: Environment,

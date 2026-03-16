@@ -13,6 +13,11 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 
+/**
+ * HyDE 쿼리 변환기에 대한 테스트.
+ *
+ * Hypothetical Document Embeddings 쿼리 변환을 검증합니다.
+ */
 class HyDEQueryTransformerTest {
 
     private lateinit var chatClient: ChatClient

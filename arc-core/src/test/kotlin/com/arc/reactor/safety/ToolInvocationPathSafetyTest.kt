@@ -10,6 +10,11 @@ import kotlin.io.path.isRegularFile
 import kotlin.streams.asSequence
 
 @Tag("safety")
+/**
+ * 도구 호출 경로 안전성에 대한 테스트.
+ *
+ * 도구 호출 경로의 보안 검증을 검증합니다.
+ */
 class ToolInvocationPathSafetyTest {
 
     @Test

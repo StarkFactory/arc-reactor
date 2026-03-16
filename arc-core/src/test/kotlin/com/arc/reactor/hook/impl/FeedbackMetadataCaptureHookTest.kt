@@ -12,6 +12,11 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 
+/**
+ * FeedbackMetadataCaptureHook에 대한 테스트.
+ *
+ * 피드백 메타데이터 캡처 훅의 동작을 검증합니다.
+ */
 class FeedbackMetadataCaptureHookTest {
 
     private val baseTime = Instant.parse("2026-02-16T12:00:00Z")
@@ -158,7 +163,7 @@ class FeedbackMetadataCaptureHookTest {
         fun `expired entry on get에 대해 return null해야 한다`() = runTest {
             hook.afterAgentComplete(createContext(runId = "run-1"), createResponse())
 
-            // Advance clock past TTL (1 hour)
+            // TTL(1시간)을 지나도록 클록 진행
             clock.advance(Duration.ofSeconds(FeedbackMetadataCaptureHook.TTL_SECONDS + 1))
 
             assertNull(hook.get("run-1")) { "Expired entry should return null on get" }
@@ -203,7 +208,7 @@ class FeedbackMetadataCaptureHookTest {
                 clock.advance(Duration.ofMillis(1))
             }
 
-            // Advance past eviction interval to trigger eviction on next write
+            // 다음 쓰기 시 축출을 트리거하기 위해 축출 간격을 지나도록 진행
             clock.advance(Duration.ofSeconds(31))
 
             hook.afterAgentComplete(
@@ -219,7 +224,7 @@ class FeedbackMetadataCaptureHookTest {
     }
 
     /**
-     * Mutable clock for testing time-dependent behavior.
+     * 시간 의존적 동작을 테스트하기 위한 가변 클록.
      */
     private class MutableClock(
         private var instant: Instant

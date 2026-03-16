@@ -14,6 +14,11 @@ import org.springframework.web.reactive.result.method.annotation.RequestMappingH
 import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.method.HandlerMethod
 
+/**
+ * AdminCapabilitiesController에 대한 테스트.
+ *
+ * 관리자 기능 목록 REST API의 동작을 검증합니다.
+ */
 class AdminCapabilitiesControllerTest {
 
     private fun exchange(role: UserRole): ServerWebExchange {

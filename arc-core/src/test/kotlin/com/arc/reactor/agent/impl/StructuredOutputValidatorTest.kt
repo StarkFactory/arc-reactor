@@ -6,6 +6,11 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * StructuredOutputValidator에 대한 테스트.
+ *
+ * 구조화된 출력 검증 로직을 검증합니다.
+ */
 class StructuredOutputValidatorTest {
 
     private val validator = StructuredOutputValidator()

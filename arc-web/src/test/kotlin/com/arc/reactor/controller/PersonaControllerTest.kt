@@ -14,6 +14,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
+/**
+ * PersonaController에 대한 테스트.
+ *
+ * 페르소나 관리 REST API의 동작을 검증합니다.
+ */
 class PersonaControllerTest {
 
     private lateinit var personaStore: PersonaStore

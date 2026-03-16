@@ -24,9 +24,14 @@ import org.springframework.ai.chat.messages.Message
 private val logger = KotlinLogging.logger {}
 
 /**
- * Extracted coordinator for streaming execution path.
+ * 스트리밍 실행 경로의 조율기 — SpringAiAgentExecutor에서 분리하여 책임을 명확히 한다.
  *
- * Keeps SpringAiAgentExecutor focused on orchestration while preserving the same runtime behavior.
+ * Guard 검증 -> 히스토리 로드 -> RAG 검색 -> 도구 준비 -> 스트리밍 ReAct 루프를 조율하며,
+ * 동시성 세마포어와 요청 타임아웃을 적용한다. 런타임 동작은 분리 전과 동일하다.
+ *
+ * @see SpringAiAgentExecutor executeStream()에서 이 조율기에 스트리밍 실행을 위임
+ * @see StreamingReActLoopExecutor 스트리밍 ReAct 루프 실행
+ * @see StreamingFlowLifecycleCoordinator 스트리밍 완료 후 수명 주기 관리
  */
 internal class StreamingExecutionCoordinator(
     private val concurrencySemaphore: Semaphore,

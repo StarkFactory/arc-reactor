@@ -8,6 +8,11 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.DriverManagerDataSource
 import java.time.Instant
 
+/**
+ * JdbcTokenRevocationStore에 대한 테스트.
+ *
+ * JDBC 기반 토큰 폐기 저장소의 동작을 검증합니다.
+ */
 class JdbcTokenRevocationStoreTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate

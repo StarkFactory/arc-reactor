@@ -47,7 +47,7 @@ class AlertNotificationServiceTest {
 
             service.dispatch(testAlert)
 
-            // Second notifier은(는) still receive the alert해야 합니다
+            // 두 번째 알림자도 여전히 알림을 수신해야 합니다
             verify { successNotifier.notify(testAlert) }
         }
 

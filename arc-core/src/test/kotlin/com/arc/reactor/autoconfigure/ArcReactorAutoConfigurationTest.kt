@@ -75,6 +75,11 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
+/**
+ * ArcReactorAutoConfiguration에 대한 테스트.
+ *
+ * 자동 설정 빈 등록과 조건부 로딩을 검증합니다.
+ */
 class ArcReactorAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()

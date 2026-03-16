@@ -8,6 +8,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * VerifiedSourcesResponseFilter에 대한 테스트.
+ *
+ * 검증된 출처 응답 필터의 동작을 검증합니다.
+ */
 class VerifiedSourcesResponseFilterTest {
 
     private val filter = VerifiedSourcesResponseFilter()

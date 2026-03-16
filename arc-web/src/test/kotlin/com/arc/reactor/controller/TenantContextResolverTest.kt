@@ -14,6 +14,11 @@ import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.ServerWebInputException
 
+/**
+ * TenantContextResolver에 대한 테스트.
+ *
+ * 테넌트 컨텍스트 해석 로직을 검증합니다.
+ */
 class TenantContextResolverTest {
 
     private fun mockExchange(

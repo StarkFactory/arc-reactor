@@ -13,10 +13,10 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * 에 대한 통합 테스트. CircuitBreaker with SpringAiAgentExecutor.
+ * CircuitBreaker와 SpringAiAgentExecutor의 통합 테스트.
  *
- * 다음을 검증합니다: the circuit breaker wraps LLM calls and produces
- * correct error codes when the circuit is open.
+ * 서킷 브레이커가 LLM 호출을 래핑하고, 서킷이 열린 상태에서
+ * 올바른 오류 코드를 생성하는지 검증합니다.
  */
 class CircuitBreakerIntegrationTest {
 
@@ -112,7 +112,7 @@ class CircuitBreakerIntegrationTest {
                 clock = { clock.get() }
             )
 
-            // First: set up to fail
+            // 먼저: 실패하도록 설정
             every { fixture.callResponseSpec.chatResponse() } throws RuntimeException("fail")
 
             val executor = SpringAiAgentExecutor(
@@ -126,10 +126,10 @@ class CircuitBreakerIntegrationTest {
             repeat(2) { executor.execute(command) }
             assertEquals(CircuitBreakerState.OPEN, cb.state()) { "Should be OPEN" }
 
-            // Advance time past resetTimeout → HALF_OPEN
+            // resetTimeout을 지나도록 시간 진행 → HALF_OPEN
             clock.addAndGet(5000)
 
-            // Now set up to succeed
+            // 이제 성공하도록 설정
             fixture.mockCallResponse("recovered!")
 
             val result = executor.execute(command)

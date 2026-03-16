@@ -7,6 +7,12 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import kotlin.system.measureTimeMillis
 
+/**
+ * ArcToolCallbackAdapter에 대한 테스트.
+ *
+ * ToolCallback을 Spring AI ToolCallback으로 변환하는
+ * 어댑터의 동작을 검증합니다.
+ */
 class ArcToolCallbackAdapterTest {
 
     @Test

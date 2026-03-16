@@ -18,10 +18,12 @@ import java.util.Date
 private val logger = KotlinLogging.logger {}
 
 /**
- * ToolCallback that lists calendar events for a given date.
+ * 지정된 날짜의 Google Calendar 일정을 조회하는 ToolCallback.
  *
- * Uses Google Calendar API v3 with Service Account + Domain-Wide Delegation.
- * Returns errors as strings and never throws from [call].
+ * Google Calendar API v3를 Service Account + Domain-Wide Delegation으로 사용한다.
+ * [call]에서 예외를 던지지 않고 에러를 문자열로 반환한다.
+ *
+ * @see GoogleCredentialProvider 자격 증명 생성
  */
 class GoogleCalendarTool(
     private val credentialProvider: GoogleCredentialProvider
@@ -56,6 +58,7 @@ class GoogleCalendarTool(
         }
     }
 
+    /** 지정 날짜의 시작~종료 시간 범위로 primary 캘린더 이벤트를 조회한다. */
     private fun fetchEvents(date: LocalDate): List<Map<String, Any?>> {
         val credentials = credentialProvider.getCredentials(listOf(CalendarScopes.CALENDAR_READONLY))
         val transport = GoogleNetHttpTransport.newTrustedTransport()

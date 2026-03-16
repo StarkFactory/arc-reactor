@@ -10,6 +10,11 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.springframework.boot.actuate.health.Status
 
+/**
+ * McpServerHealthIndicator에 대한 테스트.
+ *
+ * MCP 서버 헬스 체크 로직을 검증합니다.
+ */
 class McpServerHealthIndicatorTest {
 
     private val mcpManager = mockk<McpManager>()

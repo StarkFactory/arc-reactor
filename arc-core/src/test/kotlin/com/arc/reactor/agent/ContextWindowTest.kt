@@ -15,6 +15,12 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.ToolResponseMessage
 
+/**
+ * 컨텍스트 윈도우 예산 계산 및 메시지 트리밍에 대한 테스트.
+ *
+ * 예산 내 동작, maxOutputTokens 예약, 메시지 제거 순서,
+ * 도구 호출/응답 쌍 보존을 검증합니다.
+ */
 class ContextWindowTest {
 
     private lateinit var fixture: AgentTestFixture

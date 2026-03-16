@@ -6,6 +6,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * CORS 보안 설정에 대한 테스트.
+ *
+ * CORS 설정의 올바른 적용을 검증합니다.
+ */
 class CorsSecurityConfigurationTest {
 
     private val configuration = CorsSecurityConfiguration()

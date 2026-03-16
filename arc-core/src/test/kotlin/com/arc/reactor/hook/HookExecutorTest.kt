@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * HookExecutor에 대한 테스트.
+ *
+ * 훅 실행기의 순서 보장과 오류 처리를 검증합니다.
+ */
 class HookExecutorTest {
 
     @Nested

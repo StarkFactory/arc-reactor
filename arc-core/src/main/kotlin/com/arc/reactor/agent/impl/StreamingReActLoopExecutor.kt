@@ -24,11 +24,11 @@ import kotlinx.coroutines.reactive.asFlow
 private val logger = KotlinLogging.logger {}
 
 /**
- * Unwraps Reactor-wrapped exceptions to expose the original cause
- * for accurate error classification by [AgentErrorPolicy].
+ * Reactor가 래핑한 예외를 언래핑하여 [AgentErrorPolicy]의 정확한 에러 분류를 위해
+ * 원본 원인을 노출한다.
  *
- * Reactor's `Exceptions.propagate()` wraps checked exceptions in
- * a RuntimeException. This function returns the original cause.
+ * Reactor의 `Exceptions.propagate()`는 체크 예외를 RuntimeException으로 래핑한다.
+ * 이 함수는 원본 원인(cause)을 반환한다.
  */
 internal fun unwrapReactorException(throwable: Throwable): Throwable {
     val cause = throwable.cause

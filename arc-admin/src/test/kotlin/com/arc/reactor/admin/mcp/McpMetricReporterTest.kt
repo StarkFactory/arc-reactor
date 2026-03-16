@@ -299,7 +299,7 @@ class McpMetricReporterTest {
             reporter.stop()
 
             val req = receivedRequests.first { it.path.endsWith("/tool-call") }
-            // The body은(는) contain a truncated message (500 chars max)해야 합니다
+            // 본문에 잘린 메시지가 포함되어야 합니다 (최대 500자)
             val errorFieldLength = req.body.substringAfter("\"errorMessage\":\"")
                 .substringBefore("\"")
                 .length

@@ -14,11 +14,11 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Parallel execution orchestrator.
+ * 병렬 실행 오케스트레이터.
  *
- * Executes all agents concurrently and merges the results.
+ * 모든 에이전트를 동시에 실행하고 결과를 병합한다.
  *
- * ## How It Works
+ * ## 동작 방식
  * ```
  *            "Review this PR"
  *           +------+------+
@@ -31,14 +31,14 @@ private val logger = KotlinLogging.logger {}
  *         Combined review result
  * ```
  *
- * ## Result Merging
- * Merges results from multiple nodes into one via [ResultMerger].
- * Defaults to joining with newlines.
+ * ## 결과 병합
+ * [ResultMerger]를 통해 여러 노드의 결과를 하나로 병합한다.
+ * 기본값: 줄바꿈으로 결합.
  *
- * @param merger Result merge strategy (default: join with newlines)
- * @param failFast If true, any failure causes overall failure; if false, only successful results are merged
+ * @param merger 결과 병합 전략 (기본: 줄바꿈으로 결합)
+ * @param failFast true이면 하나의 실패가 전체 실패를 일으킴; false이면 성공한 결과만 병합
  *
- * @see MultiAgentOrchestrator for the interface contract
+ * @see MultiAgentOrchestrator 인터페이스 계약
  */
 class ParallelOrchestrator(
     private val merger: ResultMerger = ResultMerger.JOIN_WITH_NEWLINE,

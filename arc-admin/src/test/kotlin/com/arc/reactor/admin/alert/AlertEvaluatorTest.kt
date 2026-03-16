@@ -134,7 +134,7 @@ class AlertEvaluatorTest {
             every { baselineCalculator.getBaseline("t1", "hourly_cost") } returns
                 Baseline(mean = 10.0, stdDev = 2.0, sampleCount = 168)
 
-            // Mock getHourlyCost to return high hourly cost (25 > 10 + 3*2 = 16)
+            // 높은 시간당 비용을 반환하도록 getHourlyCost 모킹 (25 > 10 + 3*2 = 16)
             every { queryService.getHourlyCost("t1", any(), any()) } returns 25.0
 
             evaluator.evaluate(rule)

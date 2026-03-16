@@ -107,7 +107,7 @@ class ConversationMemoryStressTest {
                     "but got ${history.size}"
             }
 
-            // First message은(는) be Facts해야 합니다
+            // 첫 번째 메시지는 Facts여야 합니다
             assertTrue(history[0] is SystemMessage) {
                 "First message should be Facts SystemMessage, got ${history[0]::class.simpleName}"
             }
@@ -116,7 +116,7 @@ class ConversationMemoryStressTest {
                 "Facts should contain 'total_questions' but was: $factsText"
             }
 
-            // Second message은(는) be Narrative해야 합니다
+            // 두 번째 메시지는 Narrative여야 합니다
             assertTrue(history[1] is SystemMessage) {
                 "Second message should be Narrative SystemMessage, got ${history[1]::class.simpleName}"
             }
@@ -205,7 +205,7 @@ class ConversationMemoryStressTest {
                 "All 10 concurrent loadHistory calls should return results"
             }
 
-            // All results은(는) have consistent structure해야 합니다
+            // 모든 결과가 일관된 구조를 가져야 합니다
             for ((index, history) in results.withIndex()) {
                 assertTrue(history.isNotEmpty()) {
                     "Result #$index should not be empty"
@@ -286,7 +286,7 @@ class ConversationMemoryStressTest {
             )
             manager.saveHistory(saveCommand, AgentResult.success("trigger answer"))
 
-            // Immediately call loadHistory (async summary may not be done yet)
+            // 즉시 loadHistory를 호출 (비동기 요약이 아직 완료되지 않았을 수 있음)
             val history = manager.loadHistory(command(sessionId))
 
             // loadHistory은(는) succeed regardless of async completion state해야 합니다
@@ -315,7 +315,7 @@ class ConversationMemoryStressTest {
             val errors = AtomicInteger(0)
 
             coroutineScope {
-                // Interleave save and load operations
+                // 저장과 로드 작업을 인터리빙
                 repeat(5) { i ->
                     launch {
                         try {
@@ -387,7 +387,7 @@ class ConversationMemoryStressTest {
                 "No exceptions should be thrown during concurrent saves"
             }
 
-            // All 5 sessions은(는) have a summary해야 합니다
+            // 모든 5개 세션에 요약이 있어야 합니다
             for (s in 0 until 5) {
                 val summary = store.get("session-$s")
                 assertNotNull(summary) {
@@ -625,7 +625,7 @@ class ConversationMemoryStressTest {
                     "Summary for cycle $cycle should exist after loadHistory"
                 }
 
-                // Clean up both stores
+                // 두 저장소 모두 정리
                 memoryStore.remove(sid)
                 summaryStore.delete(sid)
 

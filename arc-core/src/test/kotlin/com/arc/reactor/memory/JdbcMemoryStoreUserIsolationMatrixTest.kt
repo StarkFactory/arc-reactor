@@ -10,6 +10,11 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 
 @Tag("matrix")
+/**
+ * JdbcMemoryStore의 사용자 격리 매트릭스 테스트.
+ *
+ * 사용자 간 메모리 격리가 올바르게 동작하는지 검증합니다.
+ */
 class JdbcMemoryStoreUserIsolationMatrixTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate

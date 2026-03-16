@@ -119,7 +119,7 @@ class QuotaEnforcerHookTest {
 
         @Test
         fun `circuit은(는) breaker open results in fail-open`() = runTest {
-            // Set quota very low so we pass the 90% threshold
+            // 90% 임계값을 통과하도록 쿼타를 매우 낮게 설정
             tenantStore.save(testTenant.copy(quota = TenantQuota(maxRequestsPerMonth = 1)))
 
             coEvery { circuitBreaker.execute<TenantUsage>(any()) } throws CircuitBreakerOpenException("quota-enforcer")
@@ -228,7 +228,7 @@ class QuotaEnforcerHookTest {
             val usage = TenantUsage(tenantId = "tenant-1", requests = 9, tokens = 50)
             coEvery { circuitBreaker.execute<TenantUsage>(any()) } returns usage
 
-            // Warm up local counter past 90% threshold (8 fast-path calls)
+            // 로컬 카운터를 90% 임계값 이상으로 웜업 (8회 빠른 경로 호출)
             repeat(8) { hook.beforeAgentStart(newContext()) }
 
             // 9th call → warning emitted
@@ -242,7 +242,7 @@ class QuotaEnforcerHookTest {
 
         @Test
         fun `no QuotaEvent when usage은(는) below 90 percent threshold이다`() = runTest {
-            // With default quota (100 max), first request local count=1 < 90 → fast path, no DB query
+            // 기본 쿼타(최대 100)에서 첫 요청 로컬 카운트=1 < 90 → 빠른 경로, DB 쿼리 없음
             hook.beforeAgentStart(context)
 
             ringBuffer.drain(10).filterIsInstance<QuotaEvent>().size shouldBe 0

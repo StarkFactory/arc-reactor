@@ -3,7 +3,13 @@ package com.arc.reactor.controller
 import java.net.URI
 
 /**
- * Resolves and normalizes MCP admin API base URLs from server config.
+ * MCP 서버 config에서 admin API 기본 URL을 해석하고 정규화하는 유틸리티.
+ *
+ * 해석 우선순위:
+ * 1. config.adminUrl (명시적 admin URL)
+ * 2. config.url에서 /sse 접미사를 제거하여 유도
+ *
+ * WHY: MCP 서버마다 admin URL 지정 방식이 다르므로 여러 소스에서 안전하게 해석해야 한다.
  */
 internal object McpAdminUrlResolver {
 

@@ -13,6 +13,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * GuardPipeline에 대한 테스트.
+ *
+ * 가드 파이프라인의 순차 실행과 거부 처리를 검증합니다.
+ */
 class GuardPipelineTest {
 
     @Nested

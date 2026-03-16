@@ -11,10 +11,10 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * 에 대한 테스트. [DefaultCircuitBreaker].
+ * [DefaultCircuitBreaker]에 대한 테스트.
  *
- * 대상: state transitions, failure counting, half-open recovery,
- * CancellationException handling, reset, and metrics.
+ * 상태 전이, 실패 카운팅, 반열린 상태 복구,
+ * CancellationException 처리, 리셋, 메트릭 기록을 검증합니다.
  */
 class DefaultCircuitBreakerTest {
 
@@ -163,16 +163,16 @@ class DefaultCircuitBreakerTest {
             tripBreaker()
             clock.addAndGet(5000) // → HALF_OPEN
 
-            // First call allowed (halfOpenMaxCalls=1)
-            // But it fails, so circuit reopens
+            // 첫 번째 호출 허용 (halfOpenMaxCalls=1)
+            // 그러나 실패하므로 서킷이 다시 열림
             runCatching { cb.execute { throw RuntimeException("fail") } }
 
             // 다시 시간 진행
             clock.addAndGet(5000)
-            // New HALF_OPEN: first call uses the slot
+            // 새로운 HALF_OPEN: 첫 번째 호출이 슬롯을 사용
             var firstCallStarted = false
-            // We need to test concurrent scenario but we test sequential:
-            // After one call starts, the next은(는) be rejected해야 합니다
+            // 동시성 시나리오를 테스트해야 하지만 순차적으로 테스트합니다:
+            // 한 호출이 시작된 후 다음 호출은 거부되어야 합니다
             val cb2 = DefaultCircuitBreaker(
                 failureThreshold = 1,
                 resetTimeoutMs = 100,
@@ -183,10 +183,10 @@ class DefaultCircuitBreakerTest {
             runCatching { cb2.execute { throw RuntimeException("trip") } }
             clock.addAndGet(100) // → HALF_OPEN
 
-            // the first call to hold the slot 차단
-            // Since halfOpenMaxCalls=1, after incrementing to 1, the next call은(는) be rejected해야 합니다
-            // However in sequential test, the first call will complete before the second starts
-            // So we test by verifying the counter logic directly via the state
+            // 첫 번째 호출이 슬롯을 차지합니다
+            // halfOpenMaxCalls=1이므로 카운트가 1로 증가한 후 다음 호출은 거부되어야 합니다
+            // 그러나 순차 테스트에서는 첫 번째 호출이 두 번째보다 먼저 완료됩니다
+            // 따라서 상태를 통해 카운터 로직을 직접 검증합니다
             assertEquals(CircuitBreakerState.HALF_OPEN, cb2.state()) {
                 "Should be HALF_OPEN for excess call test"
             }
@@ -370,12 +370,12 @@ class DefaultCircuitBreakerTest {
             transitionFromStates.clear()
             transitionToStates.clear()
 
-            // Execute multiple concurrent successes in HALF_OPEN
+            // HALF_OPEN 상태에서 다수의 동시 성공을 실행
             val results = (1..4).map { i ->
                 async { runCatching { concurrentCb.execute { "success-$i" } } }
             }.awaitAll()
 
-            // At least one은(는) succeed해야 합니다
+            // 최소 하나는 성공해야 합니다
             assertTrue(results.any { it.isSuccess }) {
                 "At least one concurrent call should succeed"
             }

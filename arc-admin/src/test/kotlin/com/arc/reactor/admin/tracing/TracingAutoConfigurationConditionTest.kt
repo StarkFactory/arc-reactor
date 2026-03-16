@@ -14,18 +14,18 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Configuration
 
 /**
- * Regression tests for the TracingAutoConfiguration startup bug.
+ * TracingAutoConfiguration 시작 버그에 대한 회귀 테스트.
  *
- * Previously, TracingAutoConfiguration lacked a @ConditionalOnProperty guard and
- * activated regardless of the arc.reactor.admin.enabled flag. This caused OTel
- * SDK beans to be registered in all deployments, producing startup failures when
- * OTel infrastructure was absent and admin was intentionally disabled.
+ * 이전에는 TracingAutoConfiguration에 @ConditionalOnProperty 가드가 없어서
+ * arc.reactor.admin.enabled 플래그와 무관하게 활성화되었습니다.
+ * 이로 인해 OTel SDK 빈이 모든 배포에 등록되어, OTel 인프라가 없고
+ * admin이 의도적으로 비활성화된 환경에서 시작 실패가 발생했습니다.
  */
 class TracingAutoConfigurationConditionTest {
 
     /**
-     * Minimal configuration that satisfies @EnableConfigurationProperties(AdminProperties::class)
-     * inside TracingAutoConfiguration without pulling in the full admin auto-configuration.
+     * 전체 admin 자동 설정을 끌어오지 않으면서 TracingAutoConfiguration 내부의
+     * @EnableConfigurationProperties(AdminProperties::class)를 충족하는 최소 설정.
      */
     @Configuration
     @EnableConfigurationProperties(AdminProperties::class)

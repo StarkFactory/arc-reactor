@@ -8,6 +8,11 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 
+/**
+ * JdbcMemoryStore에 대한 테스트.
+ *
+ * JDBC 기반 메모리 저장소의 동작을 검증합니다.
+ */
 class JdbcMemoryStoreTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate
@@ -73,7 +78,7 @@ class JdbcMemoryStoreTest {
                 com.arc.reactor.agent.model.MessageRole.USER, "Test message"
             ))
 
-            // Reload to verify persistence
+            // 영속성을 확인하기 위해 리로드
             val reloaded = store.get("session-2")
             assertNotNull(reloaded) { "Session should persist after adding message" }
             assertEquals(1, reloaded!!.getHistory().size)
@@ -125,7 +130,7 @@ class JdbcMemoryStoreTest {
             smallStore.addMessage("session-evict", "user", "Message 1")
             smallStore.addMessage("session-evict", "assistant", "Response 1")
             smallStore.addMessage("session-evict", "user", "Message 2")
-            // Now at limit (3)
+            // 이제 한도(3)에 도달
             smallStore.addMessage("session-evict", "assistant", "Response 2")
             // evict "Message 1"해야 합니다
 
@@ -160,7 +165,7 @@ class JdbcMemoryStoreTest {
 
             val memory = store.get("session-tok")!!
 
-            // Very tight limit -은(는) only return the latest message(s)해야 합니다
+            // 매우 타이트한 한도 - 가장 최근 메시지만 반환해야 합니다
             val limited = memory.getHistoryWithinTokenLimit(maxTokens = 20)
             assertTrue(limited.isNotEmpty(), "Token-limited history should not be empty")
             // Last message은(는) be included해야 합니다
@@ -177,7 +182,7 @@ class JdbcMemoryStoreTest {
             )
             store.addMessage("new-session", "user", "New message")
 
-            // Cleanup sessions older than 50 seconds
+            // 50초보다 오래된 세션 정리
             val cleaned = store.cleanupExpiredSessions(ttlMs = 50_000)
 
             assertEquals(1, cleaned)

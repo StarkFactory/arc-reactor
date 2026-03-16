@@ -34,6 +34,12 @@ import org.junit.jupiter.api.Test
  * 전체 흐름을 테스트합니다: Guard → Hook → Agent → Memory
  */
 @Tag("integration")
+/**
+ * 에이전트 통합 테스트.
+ *
+ * Guard, Hook, Memory, Tool 등 전체 컴포넌트가
+ * 연결된 에이전트의 E2E 동작을 검증합니다.
+ */
 class AgentIntegrationTest {
 
     private lateinit var fixture: AgentTestFixture
@@ -186,7 +192,7 @@ class AgentIntegrationTest {
                 )
             }
 
-            // Assert - first 2은(는) succeed, 3rd should fail해야 합니다
+            // 검증 - 처음 2개는 성공, 3번째는 실패해야 합니다
             results[0].assertSuccess()
             results[1].assertSuccess()
             results[2].assertFailure()
@@ -412,7 +418,7 @@ class AgentIntegrationTest {
             result.assertFailure()
             assertNotNull(result.errorMessage) { "Error message should be present on LLM error" }
 
-            // After hook은(는) still be called even on error해야 합니다
+            // 오류 발생 시에도 After 훅은 여전히 호출되어야 합니다
             assertEquals(1, afterHookCalled.size)
             assertFalse(afterHookCalled[0]) { "After hook should receive success=false on error" }
         }

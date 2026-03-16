@@ -34,6 +34,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
+/**
+ * ExecutionResultFinalizer에 대한 테스트.
+ *
+ * 실행 결과 최종 처리 로직을 검증합니다.
+ */
 class ExecutionResultFinalizerTest {
 
     @Test

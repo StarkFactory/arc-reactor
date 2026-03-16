@@ -17,6 +17,11 @@ import org.springframework.data.redis.core.ValueOperations
 import org.springframework.data.redis.core.ZSetOperations
 import java.time.Duration
 
+/**
+ * Redis 기반 의미론적 응답 캐시에 대한 테스트.
+ *
+ * Redis를 활용한 의미론적 유사도 기반 캐싱을 검증합니다.
+ */
 class RedisSemanticResponseCacheTest {
 
     private val objectMapper: ObjectMapper = jacksonObjectMapper()

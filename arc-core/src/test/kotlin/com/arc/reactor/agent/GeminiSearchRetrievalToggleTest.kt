@@ -12,6 +12,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.prompt.ChatOptions
 
+/**
+ * Gemini 검색 조회(Google Search Retrieval) 토글에 대한 테스트.
+ *
+ * 기본값과 설정을 통한 활성화/비활성화 동작을 검증합니다.
+ */
 class GeminiSearchRetrievalToggleTest {
 
     private lateinit var fixture: AgentTestFixture

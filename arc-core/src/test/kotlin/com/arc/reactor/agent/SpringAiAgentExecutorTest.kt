@@ -30,6 +30,12 @@ import org.springframework.ai.chat.metadata.ChatResponseMetadata
 import org.springframework.ai.chat.metadata.Usage
 import org.springframework.ai.chat.model.ChatResponse
 
+/**
+ * SpringAiAgentExecutor의 핵심 기능에 대한 테스트.
+ *
+ * 기본 실행, 가드/훅/메모리 통합, 오류 처리,
+ * 취소 처리, 도구 설정을 검증합니다.
+ */
 class SpringAiAgentExecutorTest {
 
     private lateinit var fixture: AgentTestFixture

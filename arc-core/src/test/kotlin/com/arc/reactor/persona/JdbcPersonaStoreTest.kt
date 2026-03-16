@@ -10,6 +10,11 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 import org.springframework.transaction.support.TransactionTemplate
 
+/**
+ * JdbcPersonaStore에 대한 테스트.
+ *
+ * JDBC 기반 페르소나 저장소의 동작을 검증합니다.
+ */
 class JdbcPersonaStoreTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate

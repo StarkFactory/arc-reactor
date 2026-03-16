@@ -5,6 +5,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * PromptTemplateStore에 대한 테스트.
+ *
+ * 프롬프트 템플릿 저장소의 CRUD 동작을 검증합니다.
+ */
 class PromptTemplateStoreTest {
 
     private lateinit var store: InMemoryPromptTemplateStore

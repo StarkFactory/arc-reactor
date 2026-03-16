@@ -10,6 +10,11 @@ import org.springframework.ai.document.Document
 import org.springframework.ai.vectorstore.SearchRequest
 import org.springframework.ai.vectorstore.VectorStore
 
+/**
+ * Spring AI VectorStore Retriever 타임아웃에 대한 테스트.
+ *
+ * 벡터 저장소 조회 시 타임아웃 처리를 검증합니다.
+ */
 class SpringAiVectorStoreRetrieverTimeoutTest {
 
     @Test

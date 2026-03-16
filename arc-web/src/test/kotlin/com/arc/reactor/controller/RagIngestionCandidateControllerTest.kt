@@ -19,6 +19,11 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * RagIngestionCandidateController에 대한 테스트.
+ *
+ * RAG 인제스트 후보 REST API의 동작을 검증합니다.
+ */
 class RagIngestionCandidateControllerTest {
 
     private lateinit var store: InMemoryRagIngestionCandidateStore

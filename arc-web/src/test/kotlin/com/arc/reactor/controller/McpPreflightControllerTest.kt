@@ -27,6 +27,11 @@ import java.security.MessageDigest
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+/**
+ * McpPreflightController에 대한 테스트.
+ *
+ * MCP 사전 검증 REST API의 동작을 검증합니다.
+ */
 class McpPreflightControllerTest {
 
     private lateinit var store: McpServerStore

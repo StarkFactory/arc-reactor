@@ -7,6 +7,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * McpServerStore에 대한 테스트.
+ *
+ * MCP 서버 저장소의 CRUD 동작을 검증합니다.
+ */
 class McpServerStoreTest {
 
     private lateinit var store: InMemoryMcpServerStore

@@ -14,6 +14,11 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * ExperimentCaptureHook에 대한 테스트.
+ *
+ * 실험 캡처 훅의 동작을 검증합니다.
+ */
 class ExperimentCaptureHookTest {
 
     private lateinit var hook: ExperimentCaptureHook
@@ -93,8 +98,8 @@ class ExperimentCaptureHookTest {
                 Instant.parse("2026-01-01T14:00:00Z"), ZoneOffset.UTC
             )
             val expiredHook = ExperimentCaptureHook(expiredClock)
-            // The entry was stored with fixedClock (12:00), but lookup is at 14:00 (>1h)
-            // Since the hook uses its own clock, we need a new approach
+            // 항목이 fixedClock(12:00)으로 저장되었지만 조회는 14:00(>1시간)에 수행됩니다
+            // 훅이 자체 클록을 사용하므로 새로운 접근 방식이 필요합니다
             // Instead, just verify the entry is accessible before TTL
             assertNotNull(hook.get(context.runId)) { "Should be accessible before TTL" }
         }

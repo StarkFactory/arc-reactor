@@ -34,10 +34,10 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 
 /**
- * End-to-end scenario tests for Cross-tool Correlation and Proactive Agent features.
+ * 크로스 도구 상관관계 및 프로액티브 에이전트 기능에 대한 E2E 시나리오 테스트.
  *
- * Each test wires the full Slack event pipeline:
- * Controller → EventProcessor → EventHandler → AgentExecutor → MessagingService
+ * 각 테스트는 전체 Slack 이벤트 파이프라인을 연결합니다:
+ * Controller -> EventProcessor -> EventHandler -> AgentExecutor -> MessagingService
  */
 class SlackCrossToolAndProactiveE2ETest {
 
@@ -272,7 +272,7 @@ class SlackCrossToolAndProactiveE2ETest {
         val response = buildPipeline(properties).handleEvent(payload)
         response.statusCode shouldBe HttpStatus.OK
 
-        // Unconfined scope makes processing synchronous — no sleep needed
+        // Unconfined 스코프가 처리를 동기화시킴 — sleep 불필요
         coVerify(exactly = 0) { messagingService.sendMessage(any(), any(), any()) }
         threadTracker.isTracked("C_WATCH", "5000.0001") shouldBe false
     }
@@ -343,7 +343,7 @@ class SlackCrossToolAndProactiveE2ETest {
 
         coVerify(timeout = 3_000) { agentExecutor.execute(any<AgentCommand>()) }
 
-        // Mention uses regular prompt, not proactive
+        // 멘션은 프로액티브가 아닌 일반 프롬프트를 사용
         commandSlot.captured.systemPrompt shouldNotContain "[Proactive Assistance Mode]"
         commandSlot.captured.systemPrompt shouldContain "[Cross-tool Correlation]"
         commandSlot.captured.metadata["entrypoint"] shouldBe null

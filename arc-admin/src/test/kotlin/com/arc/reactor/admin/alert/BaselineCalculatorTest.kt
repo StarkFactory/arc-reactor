@@ -103,11 +103,11 @@ class BaselineCalculatorTest {
                 "samples" to 168L
             )
 
-            // First call triggers DB query
+            // 첫 번째 호출이 DB 쿼리를 트리거
             val first = calculator.getBaseline("t1", "hourly_cost")
             first.shouldNotBeNull()
 
-            // Second call은(는) use cache해야 합니다
+            // 두 번째 호출은 캐시를 사용해야 합니다
             val second = calculator.getBaseline("t1", "hourly_cost")
             second.shouldNotBeNull()
             second.mean shouldBe first.mean

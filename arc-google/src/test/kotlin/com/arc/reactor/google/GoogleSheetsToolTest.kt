@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
+/**
+ * GoogleSheetsTool에 대한 테스트.
+ *
+ * Google 스프레드시트 도구의 데이터 읽기/쓰기 동작을 검증합니다.
+ */
 class GoogleSheetsToolTest {
 
     private val credentialProvider = mockk<GoogleCredentialProvider>()

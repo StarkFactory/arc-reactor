@@ -54,7 +54,7 @@ class SlackBackpressureLimiterTest {
                 requestTimeoutMs = 0,
                 failFastOnSaturation = true
             )
-            // Exhaust the single permit
+            // 단일 퍼밋 소진
             val acquired = limiter.acquireForQueuedMode()
             acquired shouldBe true
 
@@ -73,7 +73,7 @@ class SlackBackpressureLimiterTest {
             val firstReject = limiter.rejectImmediatelyIfConfigured()
             firstReject shouldBe false // permit was free and got acquired by tryAcquire
 
-            // Now the semaphore is at 0 → next call rejects
+            // 이제 세마포어가 0 → 다음 호출은 거부됨
             val saturated = limiter.rejectImmediatelyIfConfigured()
             saturated shouldBe true
 
@@ -91,11 +91,11 @@ class SlackBackpressureLimiterTest {
                 requestTimeoutMs = 0,
                 failFastOnSaturation = true
             )
-            // All three은(는) succeed (not reject)해야 합니다
+            // 세 개 모두 성공해야 합니다 (거부되지 않음)
             val rejections = (1..max).count { limiter.rejectImmediatelyIfConfigured() }
             rejections shouldBe 0
 
-            // The next one must be rejected
+            // 다음 것은 거부되어야 합니다
             val saturated = limiter.rejectImmediatelyIfConfigured()
             saturated shouldBe true
         }
@@ -143,7 +143,7 @@ class SlackBackpressureLimiterTest {
             // the only permit를 획득합니다
             limiter.acquireForQueuedMode() shouldBe true
 
-            // Second acquire은(는) time out해야 합니다
+            // 두 번째 획득은 타임아웃되어야 합니다
             val timedOut = limiter.acquireForQueuedMode()
             timedOut shouldBe false
         }
@@ -224,7 +224,7 @@ class SlackBackpressureLimiterTest {
             repeat(max) { limiter.acquireForQueuedMode() }
             repeat(max) { limiter.release() }
 
-            // All permits restored —은(는) acquire max times again해야 합니다
+            // 모든 퍼밋이 복원됨 — 최대 횟수만큼 다시 획득 가능해야 합니다
             var successCount = 0
             repeat(max) {
                 val timedLimiter = SlackBackpressureLimiter(

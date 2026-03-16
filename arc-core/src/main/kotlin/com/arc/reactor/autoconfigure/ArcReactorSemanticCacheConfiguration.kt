@@ -17,9 +17,9 @@ import org.springframework.context.annotation.Primary
 import org.springframework.data.redis.core.StringRedisTemplate
 
 /**
- * Redis semantic cache auto-configuration.
+ * Redis 시맨틱 캐시 자동 설정.
  *
- * Activated only when:
+ * 다음 조건이 모두 충족될 때만 활성화된다:
  * - `arc.reactor.cache.enabled=true`
  * - `arc.reactor.cache.semantic.enabled=true`
  * - Redis and embedding classes are present

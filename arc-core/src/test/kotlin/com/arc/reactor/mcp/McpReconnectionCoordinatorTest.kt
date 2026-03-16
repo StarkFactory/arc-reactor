@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
+/**
+ * MCP 재연결 코디네이터에 대한 테스트.
+ *
+ * MCP 서버 재연결 조정 로직을 검증합니다.
+ */
 class McpReconnectionCoordinatorTest {
 
     @Test

@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 @Tag("matrix")
+/**
+ * RetryExecutor의 매트릭스 테스트.
+ *
+ * 다양한 오류 유형별 재시도 동작을 검증합니다.
+ */
 class RetryExecutorMatrixTest {
 
     private class CountingCircuitBreaker : CircuitBreaker {

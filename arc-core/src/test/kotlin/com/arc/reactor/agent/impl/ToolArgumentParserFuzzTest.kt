@@ -8,6 +8,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 @Tag("matrix")
+/**
+ * ToolArgumentParser의 퍼즈 테스트.
+ *
+ * 비정상적인 JSON 입력에 대한 파싱 안정성을 검증합니다.
+ */
 class ToolArgumentParserFuzzTest {
 
     private val random = Random(20260218)

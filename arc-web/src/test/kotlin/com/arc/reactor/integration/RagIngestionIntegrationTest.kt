@@ -45,6 +45,11 @@ import org.springframework.test.web.reactive.server.WebTestClient
 )
 @AutoConfigureWebTestClient
 @Tag("integration")
+/**
+ * RAG 인제스트 통합 테스트.
+ *
+ * RAG 데이터 수집 파이프라인의 E2E 동작을 검증합니다.
+ */
 class RagIngestionIntegrationTest {
 
     @Autowired

@@ -3,6 +3,11 @@ package com.arc.reactor.audit
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
+/**
+ * AdminAuditStore에 대한 테스트.
+ *
+ * 관리자 감사 저장소의 동작을 검증합니다.
+ */
 class AdminAuditStoreTest {
 
     @Test

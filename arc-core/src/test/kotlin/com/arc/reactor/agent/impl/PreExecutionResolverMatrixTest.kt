@@ -27,6 +27,11 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 
 @Tag("matrix")
+/**
+ * PreExecutionResolver의 매트릭스 테스트.
+ *
+ * 다양한 입력 조합에 대한 사전 처리 동작을 검증합니다.
+ */
 class PreExecutionResolverMatrixTest {
 
     @Test

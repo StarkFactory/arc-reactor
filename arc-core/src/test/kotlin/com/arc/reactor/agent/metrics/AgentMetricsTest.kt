@@ -7,6 +7,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 
+/**
+ * AgentMetrics에 대한 테스트.
+ *
+ * 에이전트 메트릭 기록 인터페이스의 동작을 검증합니다.
+ */
 class AgentMetricsTest {
 
     @Nested
@@ -14,14 +19,14 @@ class AgentMetricsTest {
 
         @Test
         fun `implementation with only 3 required methods은(는) compile and work해야 한다`() {
-            // Simulates an existing user implementation that only overrides the 3 original methods
+            // 원래 3개의 메서드만 오버라이드하는 기존 사용자 구현을 시뮬레이션
             val minimalImpl = object : AgentMetrics {
                 override fun recordExecution(result: AgentResult) {}
                 override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {}
                 override fun recordGuardRejection(stage: String, reason: String) {}
             }
 
-            // New default methods은(는) be callable without override해야 합니다
+            // 새로운 기본 메서드는 오버라이드 없이 호출 가능해야 합니다
             assertDoesNotThrow {
                 minimalImpl.recordCacheHit("key")
                 minimalImpl.recordExactCacheHit("key")
@@ -165,7 +170,7 @@ class AgentMetricsTest {
             assertEquals("sha256-def", lastCacheKey) { "Cache miss key should be captured" }
             assertFalse(cacheHit) { "Should record as cache miss" }
 
-            // Circuit breaker state change
+            // 서킷 브레이커 상태 변경
             trackingMetrics.recordCircuitBreakerStateChange(
                 "llm", CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN
             )

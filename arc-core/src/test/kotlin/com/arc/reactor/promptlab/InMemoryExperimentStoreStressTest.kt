@@ -18,6 +18,11 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * InMemoryExperimentStore의 스트레스 테스트.
+ *
+ * 동시 접근 시 실험 저장소의 안정성을 검증합니다.
+ */
 class InMemoryExperimentStoreStressTest {
 
     private fun experiment(
@@ -188,7 +193,7 @@ class InMemoryExperimentStoreStressTest {
             }
             store.list().size shouldBe maxEntries // "Should be at capacity"
 
-            // Add more experiments —은(는) trigger eviction해야 합니다
+            // 실험 추가 — 축출을 트리거해야 합니다
             for (i in 0 until 20) {
                 store.save(experiment(id = "new-$i", status = ExperimentStatus.PENDING))
             }
@@ -221,7 +226,7 @@ class InMemoryExperimentStoreStressTest {
                 store.save(experiment(id = "new-$i"))
             }
 
-            // All running experiments은(는) still be present해야 합니다
+            // 실행 중인 모든 실험이 여전히 존재해야 합니다
             for (i in 0 until 5) {
                 store.get("running-$i") shouldBe experiment(
                     id = "running-$i",

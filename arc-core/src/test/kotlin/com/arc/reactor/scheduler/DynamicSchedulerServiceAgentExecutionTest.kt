@@ -22,6 +22,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.scheduling.TaskScheduler
 import java.time.Instant
 
+/**
+ * DynamicSchedulerService의 에이전트 실행에 대한 테스트.
+ *
+ * 스케줄러가 에이전트를 실행하는 동작을 검증합니다.
+ */
 class DynamicSchedulerServiceAgentExecutionTest {
 
     // ── AGENT mode tests ──────────────────────────────────────────────────────

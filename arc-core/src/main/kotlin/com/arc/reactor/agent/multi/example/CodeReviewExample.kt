@@ -11,17 +11,17 @@ import com.arc.reactor.agent.multi.ResultMerger
 import org.springframework.ai.chat.client.ChatClient
 
 /**
- * Multi-agent usage example -- Code Review (Parallel pattern)
+ * 멀티 에이전트 사용 예시 -- 코드 리뷰 (병렬 패턴)
  *
- * ## What This Example Demonstrates
- * Three reviewers analyze code concurrently, each from a different angle:
- * - **Security**: Vulnerability analysis
- * - **Style**: Code style and readability
- * - **Logic**: Logic errors and edge cases
+ * ## 이 예시가 보여주는 것
+ * 세 리뷰어가 서로 다른 관점에서 동시에 코드를 분석한다:
+ * - **Security**: 취약점 분석
+ * - **Style**: 코드 스타일 및 가독성
+ * - **Logic**: 논리 에러 및 엣지 케이스
  *
- * Results are merged into a single combined review.
+ * 결과는 단일 통합 리뷰로 병합된다.
  *
- * ## Usage
+ * ## 사용법
  * ```kotlin
  * @Bean
  * fun codeReview(chatClient: ChatClient, props: AgentProperties) =
@@ -36,7 +36,7 @@ import org.springframework.ai.chat.client.ChatClient
  *
  * @see com.arc.reactor.agent.multi.ParallelOrchestrator
  */
-// @Component  <- Uncomment to auto-register
+// @Component  <- 자동 등록하려면 주석 해제
 class CodeReviewExample(
     private val chatClient: ChatClient,
     private val properties: AgentProperties

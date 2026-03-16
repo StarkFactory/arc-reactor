@@ -19,15 +19,15 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import reactor.core.publisher.Flux
 
 /**
- * P0 에 대한 테스트. timeout edge cases.
+ * P0 타임아웃 엣지 케이스에 대한 테스트.
  *
- * ## Scope
- * Tool execution in manual ReAct flow is handled by [com.arc.reactor.agent.impl.ToolCallOrchestrator],
- * which already enforces per-tool timeout.
- * [com.arc.reactor.agent.impl.ArcToolCallbackAdapter.call] also applies timeout for blocking callback paths.
+ * ## 범위
+ * 수동 ReAct 흐름에서 도구 실행은 [com.arc.reactor.agent.impl.ToolCallOrchestrator]가 처리하며,
+ * 이미 도구별 타임아웃을 적용합니다.
+ * [com.arc.reactor.agent.impl.ArcToolCallbackAdapter.call]도 블로킹 콜백 경로에 대해 타임아웃을 적용합니다.
  *
- * These tests focus on LLM-level blocking (inside `runInterruptible`, properly cancellable)
- * to verify request timeout behavior in the ReAct loop.
+ * 이 테스트는 LLM 수준 블로킹(`runInterruptible` 내부, 적절히 취소 가능)에 초점을 맞추어
+ * ReAct 루프에서의 요청 타임아웃 동작을 검증합니다.
  *
  * @see ConcurrencyTimeoutTest for semaphore and basic timeout tests
  */
@@ -54,12 +54,12 @@ class TimeoutEdgeCaseTest {
 
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
-            // First call returns quickly (tool call), second call hangs (simulates slow LLM)
+            // 첫 번째 호출은 빠르게 반환 (도구 호출), 두 번째 호출은 중단됨 (느린 LLM 시뮬레이션)
             val toolCallSpec = fixture.mockToolCallResponse(listOf(toolCall))
 
             every { fixture.requestSpec.call() } returnsMany listOf(
                 toolCallSpec,
-                // Second LLM call blocks (inside runInterruptible → properly cancellable)
+                // 두 번째 LLM 호출이 블록됨 (runInterruptible 내부 → 적절히 취소 가능)
                 mockk<org.springframework.ai.chat.client.ChatClient.CallResponseSpec>().also {
                     every { it.chatResponse() } answers {
                         Thread.sleep(1_000) // Blocks inside runInterruptible, interruptible
@@ -141,7 +141,7 @@ class TimeoutEdgeCaseTest {
 
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
-            // First stream returns tool call quickly, second stream hangs
+            // 첫 번째 스트림은 도구 호출을 빠르게 반환, 두 번째 스트림은 중단됨
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
                 Flux.just(AgentTestFixture.toolCallChunk(listOf(toolCall), "Processing...")),
                 Flux.just(AgentTestFixture.textChunk("start"))

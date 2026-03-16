@@ -35,6 +35,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.time.Instant
 
+/**
+ * ExperimentOrchestrator에 대한 테스트.
+ *
+ * 프롬프트 실험 오케스트레이션을 검증합니다.
+ */
 class ExperimentOrchestratorTest {
 
     private val agentExecutor: AgentExecutor = mockk()
@@ -234,7 +239,7 @@ class ExperimentOrchestratorTest {
             mockAgentExecution("Agent response")
             mockEvaluation(passed = true, score = 0.8)
 
-            // Capture saved experiment so execute() can retrieve it
+            // execute()가 조회할 수 있도록 저장된 실험을 캡처
             val experimentSlot = slot<Experiment>()
             every { experimentStore.save(capture(experimentSlot)) } answers {
                 experimentSlot.captured

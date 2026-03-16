@@ -6,22 +6,29 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * JDBC-based Prompt Template Store for persistent storage.
+ * JDBC 기반 프롬프트 템플릿 저장소 — 영속적 스토리지.
  *
- * Stores templates in `prompt_templates` and versions in `prompt_versions` — see Flyway migration V5.
- * Guarantees at most one active version per template via transactional update.
+ * 템플릿을 `prompt_templates`, 버전을 `prompt_versions` 테이블에 저장한다 — Flyway 마이그레이션 V5 참조.
+ * 트랜잭션 갱신을 통해 템플릿당 최대 하나의 활성 버전을 보장한다.
  *
- * ## Features
- * - Persistent across server restarts
- * - Single active version per template enforcement
- * - Cascade delete (template deletion removes all versions)
- * - Thread-safe via database transactions
+ * ## 특징
+ * - 서버 재시작에도 영속적
+ * - 템플릿당 단일 활성 버전 강제
+ * - 캐스케이드 삭제 (템플릿 삭제 시 모든 버전 제거)
+ * - 데이터베이스 트랜잭션으로 스레드 안전
+ *
+ * WHY: 운영 환경에서 프롬프트 템플릿과 버전 이력을 영구 저장하고,
+ * 외래 키 제약으로 데이터 무결성을 보장한다.
+ *
+ * @param jdbcTemplate Spring JDBC 템플릿
+ * @see PromptTemplateStore 인터페이스 정의
+ * @see InMemoryPromptTemplateStore 인메모리 대안
  */
 class JdbcPromptTemplateStore(
     private val jdbcTemplate: JdbcTemplate
 ) : PromptTemplateStore {
 
-    // ---- Template CRUD ----
+    // ---- 템플릿 CRUD ----
 
     override fun listTemplates(): List<PromptTemplate> {
         return jdbcTemplate.query(
@@ -83,11 +90,11 @@ class JdbcPromptTemplateStore(
     }
 
     override fun deleteTemplate(id: String) {
-        // Versions are cascade-deleted by the foreign key constraint
+        // 버전은 외래 키 제약의 캐스케이드 삭제로 자동 제거된다
         jdbcTemplate.update("DELETE FROM prompt_templates WHERE id = ?", id)
     }
 
-    // ---- Version Management ----
+    // ---- 버전 관리 ----
 
     override fun listVersions(templateId: String): List<PromptVersion> {
         return jdbcTemplate.query(
@@ -121,6 +128,7 @@ class JdbcPromptTemplateStore(
     override fun createVersion(templateId: String, content: String, changeLog: String): PromptVersion? {
         if (getTemplate(templateId) == null) return null
 
+        // 다음 버전 번호를 SQL로 계산한다 (동시성 안전)
         val nextVersion = jdbcTemplate.queryForObject(
             "SELECT COALESCE(MAX(version), 0) + 1 FROM prompt_versions WHERE template_id = ?",
             Int::class.java,
@@ -155,7 +163,7 @@ class JdbcPromptTemplateStore(
         val version = getVersion(versionId) ?: return null
         if (version.templateId != templateId) return null
 
-        // Archive the currently active version
+        // 현재 활성 버전을 아카이브한다
         archiveActiveVersion(templateId)
 
         jdbcTemplate.update(
@@ -179,6 +187,7 @@ class JdbcPromptTemplateStore(
         return version.copy(status = VersionStatus.ARCHIVED)
     }
 
+    /** 지정 템플릿의 현재 활성 버전을 아카이브 상태로 변경한다 */
     private fun archiveActiveVersion(templateId: String) {
         jdbcTemplate.update(
             "UPDATE prompt_versions SET status = ? WHERE template_id = ? AND status = ?",
@@ -189,6 +198,7 @@ class JdbcPromptTemplateStore(
     }
 
     companion object {
+        /** 템플릿 RowMapper */
         private val TEMPLATE_ROW_MAPPER = { rs: ResultSet, _: Int ->
             PromptTemplate(
                 id = rs.getString("id"),
@@ -199,6 +209,7 @@ class JdbcPromptTemplateStore(
             )
         }
 
+        /** 버전 RowMapper */
         private val VERSION_ROW_MAPPER = { rs: ResultSet, _: Int ->
             PromptVersion(
                 id = rs.getString("id"),

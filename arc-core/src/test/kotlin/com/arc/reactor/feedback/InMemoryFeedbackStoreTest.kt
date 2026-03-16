@@ -9,6 +9,11 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * InMemoryFeedbackStore에 대한 테스트.
+ *
+ * 인메모리 피드백 저장소의 CRUD 동작을 검증합니다.
+ */
 class InMemoryFeedbackStoreTest {
 
     private lateinit var store: InMemoryFeedbackStore

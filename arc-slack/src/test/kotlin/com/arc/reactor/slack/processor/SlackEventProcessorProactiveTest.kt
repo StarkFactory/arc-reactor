@@ -135,11 +135,11 @@ class SlackEventProcessorProactiveTest {
 
             val processor = buildProcessor(proactiveProperties(maxConcurrent = 1))
 
-            // First message holds the semaphore
+            // 첫 번째 메시지가 세마포어를 보유
             processor.submitEventCallback(channelMessagePayload(user = "U1"), "events_api")
             acquiredLatch.await(3, TimeUnit.SECONDS) shouldBe true
 
-            // Second message은(는) be dropped해야 합니다
+            // 두 번째 메시지는 삭제되어야 합니다
             processor.submitEventCallback(channelMessagePayload(user = "U2"), "events_api")
             Thread.sleep(500)
 

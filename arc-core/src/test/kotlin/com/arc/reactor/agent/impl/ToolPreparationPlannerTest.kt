@@ -12,6 +12,11 @@ import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * ToolPreparationPlanner에 대한 테스트.
+ *
+ * 도구 준비 계획 수립 로직을 검증합니다.
+ */
 class ToolPreparationPlannerTest {
 
     @Test

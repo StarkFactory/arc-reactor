@@ -9,28 +9,28 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Adapter that wraps a worker agent as a tool.
+ * 워커 에이전트를 도구로 래핑하는 어댑터.
  *
- * This is the core implementation of the Supervisor pattern.
- * Wraps another agent as a ToolCallback and registers it in the Supervisor's tool list.
- * When the Supervisor's ReAct loop calls this tool, the worker agent is executed.
+ * Supervisor 패턴의 핵심 구현이다.
+ * 다른 에이전트를 ToolCallback으로 래핑하여 Supervisor의 도구 목록에 등록한다.
+ * Supervisor의 ReAct 루프가 이 도구를 호출하면 워커 에이전트가 실행된다.
  *
- * ## How It Works Without Modifying Existing Code
+ * ## 기존 코드 수정 없이 동작하는 방식
  * ```
  * SpringAiAgentExecutor (existing code, no modifications)
  *   +-- WorkerAgentTool is included in the tool list
  *         +-- On call(), invokes worker AgentExecutor.execute()
  * ```
  *
- * ## Metadata Propagation
- * When [parentCommand] is provided, the worker agent inherits the parent's
- * [metadata][AgentCommand.metadata] and [userId][AgentCommand.userId].
- * This ensures tenant-scoped metrics (quota, cost, HITL) are correctly attributed
- * to the originating tenant even in multi-agent orchestration.
+ * ## 메타데이터 전파
+ * [parentCommand]가 제공되면 워커 에이전트는 부모의
+ * [metadata][AgentCommand.metadata]와 [userId][AgentCommand.userId]를 상속한다.
+ * 이를 통해 테넌트 범위 메트릭(할당량, 비용, HITL)이
+ * 멀티 에이전트 오케스트레이션에서도 원래 테넌트에 올바르게 귀속된다.
  *
- * @param node Worker agent node definition
- * @param agentExecutor Executor for the worker agent
- * @param parentCommand Parent agent command for metadata propagation (optional for backward compatibility)
+ * @param node 워커 에이전트 노드 정의
+ * @param agentExecutor 워커 에이전트 실행기
+ * @param parentCommand 메타데이터 전파용 부모 에이전트 명령 (하위 호환성을 위해 선택적)
  */
 class WorkerAgentTool(
     private val node: AgentNode,
@@ -90,7 +90,7 @@ class WorkerAgentTool(
     }
 
     companion object {
-        /** Default timeout for worker agent execution (matches request timeout default) */
+        /** 워커 에이전트 실행의 기본 타임아웃 (요청 타임아웃 기본값과 동일) */
         const val DEFAULT_WORKER_TIMEOUT_MS = 30_000L
     }
 }

@@ -19,6 +19,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.security.MessageDigest
 
+/**
+ * DocumentController에 대한 테스트.
+ *
+ * 문서 업로드/관리 REST API의 동작을 검증합니다.
+ */
 class DocumentControllerTest {
 
     private lateinit var vectorStore: VectorStore

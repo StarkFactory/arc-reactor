@@ -15,6 +15,11 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * InMemoryExperimentStore에 대한 테스트.
+ *
+ * 인메모리 실험 저장소의 CRUD 동작을 검증합니다.
+ */
 class InMemoryExperimentStoreTest {
 
     private lateinit var store: InMemoryExperimentStore

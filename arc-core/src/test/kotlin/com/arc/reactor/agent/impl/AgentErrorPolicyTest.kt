@@ -7,6 +7,11 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * AgentErrorPolicy에 대한 테스트.
+ *
+ * 에이전트 오류 정책의 기본 동작을 검증합니다.
+ */
 class AgentErrorPolicyTest {
 
     private val policy = AgentErrorPolicy()

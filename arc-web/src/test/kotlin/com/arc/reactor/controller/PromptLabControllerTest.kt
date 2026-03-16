@@ -32,6 +32,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
+/**
+ * PromptLabController에 대한 테스트.
+ *
+ * 프롬프트 실험실 REST API의 동작을 검증합니다.
+ */
 class PromptLabControllerTest {
 
     private val experimentStore: ExperimentStore = mockk(relaxed = true)

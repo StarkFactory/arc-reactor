@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 유니코드 정규화 단계에 대한 테스트.
+ *
+ * 유니코드 정규화 가드의 동작을 검증합니다.
+ */
 class UnicodeNormalizationStageTest {
 
     private val stage = UnicodeNormalizationStage()
@@ -68,7 +73,7 @@ class UnicodeNormalizationStageTest {
     @Nested
     inner class ZeroWidthStripping {
 
-        // Use a relaxed threshold so small test strings don't get rejected
+        // 작은 테스트 문자열이 거부되지 않도록 완화된 임계값 사용
         private val relaxedStage = UnicodeNormalizationStage(maxZeroWidthRatio = 0.9)
 
         @Test
@@ -86,7 +91,7 @@ class UnicodeNormalizationStageTest {
 
         @Test
         fun `Unicode Tag Block characters은(는) stripped이다`() = runBlocking {
-            // Use surrogate pairs for supplementary codepoints in Tag Block (U+E0001, U+E0020)
+            // 태그 블록(U+E0001, U+E0020)의 보충 코드포인트를 위해 서로게이트 쌍 사용
             val tagChar1 = String(Character.toChars(0xE0001))
             val tagChar2 = String(Character.toChars(0xE0020))
             val text = "a".repeat(30) + tagChar1 + tagChar2 + "hello"

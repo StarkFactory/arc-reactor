@@ -26,19 +26,22 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * MCP Server Management API Controller
+ * MCP 서버 관리 API 컨트롤러.
  *
- * Provides REST APIs for dynamic MCP server registration and management.
- * All operations require ADMIN role.
+ * 동적 MCP 서버 등록 및 관리를 위한 REST API를 제공합니다.
+ * 모든 쓰기 작업은 ADMIN 권한이 필요합니다.
  *
- * ## Endpoints
- * - GET    /api/mcp/servers                    : List all servers with status
- * - POST   /api/mcp/servers                    : Register + connect
- * - GET    /api/mcp/servers/{name}             : Server details with tools
- * - PUT    /api/mcp/servers/{name}             : Update config
- * - DELETE /api/mcp/servers/{name}             : Disconnect + remove
- * - POST   /api/mcp/servers/{name}/connect     : Connect
- * - POST   /api/mcp/servers/{name}/disconnect  : Disconnect
+ * ## 엔드포인트
+ * - GET    /api/mcp/servers                    : 전체 서버 목록 및 상태 조회
+ * - POST   /api/mcp/servers                    : 서버 등록 + 자동 연결
+ * - GET    /api/mcp/servers/{name}             : 서버 상세 정보 및 도구 목록 조회
+ * - PUT    /api/mcp/servers/{name}             : 서버 설정 수정
+ * - DELETE /api/mcp/servers/{name}             : 연결 해제 + 서버 제거
+ * - POST   /api/mcp/servers/{name}/connect     : 서버 연결
+ * - POST   /api/mcp/servers/{name}/disconnect  : 서버 연결 해제
+ *
+ * @see McpManager
+ * @see McpServerStore
  */
 @Tag(name = "MCP Servers", description = "Dynamic MCP server management (ADMIN only for write operations)")
 @RestController
@@ -50,10 +53,8 @@ class McpServerController(
     private val agentProperties: com.arc.reactor.agent.config.AgentProperties
 ) {
 
-    /**
-     * List all registered MCP servers with connection status.
-     */
-    @Operation(summary = "List all registered MCP servers")
+    /** 등록된 모든 MCP 서버와 연결 상태를 조회한다. */
+    @Operation(summary = "등록된 MCP 서버 전체 목록 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of MCP servers"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -65,9 +66,12 @@ class McpServerController(
     }
 
     /**
-     * Register a new MCP server and optionally connect.
+     * 새 MCP 서버를 등록하고 선택적으로 연결한다.
+     *
+     * WHY: 보안 허용 목록에 없는 서버 등록은 거부한다. HTTP 전송 방식은
+     * MCP SDK 0.17.2에서 미지원이므로 SSE 또는 STDIO만 허용한다.
      */
-    @Operation(summary = "Register a new MCP server (ADMIN)")
+    @Operation(summary = "MCP 서버 등록 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "MCP server registered"),
         ApiResponse(responseCode = "400", description = "Invalid request or transport type"),
@@ -129,10 +133,8 @@ class McpServerController(
         return ResponseEntity.status(HttpStatus.CREATED).body(server.toResponse())
     }
 
-    /**
-     * Get server details including connection status and tool list.
-     */
-    @Operation(summary = "Get server details with tools")
+    /** 연결 상태와 도구 목록을 포함한 서버 상세 정보를 조회한다. */
+    @Operation(summary = "MCP 서버 상세 정보 및 도구 목록 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "MCP server details"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -166,10 +168,10 @@ class McpServerController(
     }
 
     /**
-     * Update MCP server configuration.
-     * Requires reconnection to apply transport changes.
+     * MCP 서버 설정을 수정한다.
+     * 전송 방식 또는 연결 설정이 변경되면 자동으로 재연결한다.
      */
-    @Operation(summary = "Update MCP server configuration (ADMIN)")
+    @Operation(summary = "MCP 서버 설정 수정 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "MCP server updated"),
         ApiResponse(responseCode = "400", description = "Invalid transport type"),
@@ -229,6 +231,10 @@ class McpServerController(
         return ResponseEntity.ok(updated.toResponse())
     }
 
+    /**
+     * 설정 변경 후 런타임 상태를 반영한다.
+     * WHY: transport/config/version이 변경되면 재연결 필요. autoConnect가 새로 활성화되면 연결 시도.
+     */
     private suspend fun applyRuntimeUpdate(
         existing: McpServer,
         updated: McpServer,
@@ -260,16 +266,15 @@ class McpServerController(
         }
     }
 
+    /** 전송 방식, config, 또는 버전이 변경되었으면 재연결이 필요한지 판단한다. */
     private fun requiresReconnect(existing: McpServer, updated: McpServer): Boolean {
         return existing.transportType != updated.transportType ||
             existing.config != updated.config ||
             existing.version != updated.version
     }
 
-    /**
-     * Disconnect and remove an MCP server.
-     */
-    @Operation(summary = "Disconnect and remove an MCP server (ADMIN)")
+    /** MCP 서버 연결을 해제하고 제거한다. */
+    @Operation(summary = "MCP 서버 연결 해제 및 제거 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "MCP server removed"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -298,10 +303,8 @@ class McpServerController(
         return ResponseEntity.noContent().build()
     }
 
-    /**
-     * Connect to a registered MCP server.
-     */
-    @Operation(summary = "Connect to a registered MCP server (ADMIN)")
+    /** 등록된 MCP 서버에 연결한다. 연결 성공 시 사용 가능한 도구 목록을 반환한다. */
+    @Operation(summary = "등록된 MCP 서버에 연결 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Connected to MCP server"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -341,10 +344,8 @@ class McpServerController(
         }
     }
 
-    /**
-     * Disconnect from an MCP server (without removing).
-     */
-    @Operation(summary = "Disconnect from an MCP server (ADMIN)")
+    /** MCP 서버 연결을 해제한다 (서버 등록은 유지). */
+    @Operation(summary = "MCP 서버 연결 해제 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Disconnected from MCP server"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -375,18 +376,21 @@ class McpServerController(
         return ResponseEntity.ok(McpStatusResponse(status = status.name))
     }
 
+    /** 전송 방식 문자열을 [McpTransportType] enum으로 파싱한다. 대소문자 무시. */
     private fun parseTransportType(raw: String): McpTransportType? {
         val normalized = raw.trim()
         if (normalized.isEmpty()) return null
         return McpTransportType.entries.firstOrNull { it.name.equals(normalized, ignoreCase = true) }
     }
 
+    /** SSE 전송 방식의 URL을 검증한다. SSRF 방지를 위해 URL 유효성을 확인한다. */
     private fun validateSseUrl(config: Map<String, Any>): String? {
         val url = config["url"]?.toString()
             ?: return "SSE transport requires a 'url' in config"
         return SsrfUrlValidator.validate(url, agentProperties.mcp.allowPrivateAddresses)
     }
 
+    /** 저장소에 서버 정보가 없으면 영속화한다. 동시 저장 충돌은 무시한다. */
     private fun persistServerIfMissing(server: McpServer) {
         if (mcpServerStore.findByName(server.name) != null) return
         try {
@@ -396,6 +400,7 @@ class McpServerController(
         }
     }
 
+    /** API 응답에서 민감한 설정 값(token, secret 등)을 마스킹한다. */
     private fun sanitizeConfig(config: Map<String, Any>): Map<String, Any?> {
         return sanitizeConfigMap(config)
     }
@@ -423,8 +428,9 @@ class McpServerController(
         return SENSITIVE_KEY_MARKERS.any { normalized.contains(it) }
     }
 
-    // ---- DTOs ----
+    // ---- DTO 변환 ----
 
+    /** [McpServer]를 응답 DTO로 변환한다. 런타임 상태 정보와 도구 개수를 포함한다. */
     private fun McpServer.toResponse() = McpServerResponse(
         id = id,
         name = name,

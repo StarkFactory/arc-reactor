@@ -14,10 +14,13 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * ToolCallback that searches files in Google Drive.
+ * Google Drive에서 파일을 검색하는 ToolCallback.
  *
- * Uses Google Drive API v3 with Service Account + Domain-Wide Delegation.
- * Returns a JSON list of matching file metadata. Returns errors as strings and never throws from [call].
+ * Google Drive API v3를 Service Account + Domain-Wide Delegation으로 사용한다.
+ * 일치하는 파일 메타데이터를 JSON 리스트로 반환한다.
+ * [call]에서 예외를 던지지 않고 에러를 문자열로 반환한다.
+ *
+ * @see GoogleCredentialProvider 자격 증명 생성
  */
 class GoogleDriveTool(
     private val credentialProvider: GoogleCredentialProvider
@@ -59,6 +62,7 @@ class GoogleDriveTool(
         }
     }
 
+    /** Drive API로 파일을 검색하여 id, name, mimeType, modifiedTime, webViewLink를 반환한다. */
     private fun searchFiles(query: String, maxResults: Int): List<Map<String, Any?>> {
         val credentials = credentialProvider.getCredentials(listOf(DriveScopes.DRIVE_READONLY))
         val transport = GoogleNetHttpTransport.newTrustedTransport()

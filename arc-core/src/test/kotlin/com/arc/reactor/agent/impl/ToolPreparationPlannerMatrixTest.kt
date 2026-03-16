@@ -8,6 +8,11 @@ import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
 
 @Tag("matrix")
+/**
+ * ToolPreparationPlanner의 매트릭스 테스트.
+ *
+ * 다양한 도구 구성에 대한 계획 수립을 검증합니다.
+ */
 class ToolPreparationPlannerMatrixTest {
 
     @Test

@@ -56,10 +56,10 @@ class UserMemoryConfiguration {
 }
 
 /**
- * JDBC-backed [UserMemoryStore] (when DataSource is available).
+ * JDBC 기반 [UserMemoryStore] (DataSource가 사용 가능할 때).
  *
- * Registers with @Primary so it takes precedence over [InMemoryUserMemoryStore].
- * Only active when both a DataSource URL and user memory are configured.
+ * @Primary로 등록하여 [InMemoryUserMemoryStore]보다 우선한다.
+ * DataSource URL과 사용자 메모리 모두 설정된 경우에만 활성화된다.
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])

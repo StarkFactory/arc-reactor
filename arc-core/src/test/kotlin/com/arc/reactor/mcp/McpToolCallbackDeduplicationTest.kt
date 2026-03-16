@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * MCP 도구 콜백 중복 제거에 대한 테스트.
+ *
+ * 동일 도구의 중복 등록 방지 로직을 검증합니다.
+ */
 class McpToolCallbackDeduplicationTest {
 
     @Test

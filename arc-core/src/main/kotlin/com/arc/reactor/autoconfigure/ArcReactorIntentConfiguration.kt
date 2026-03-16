@@ -19,7 +19,7 @@ import org.springframework.context.annotation.Primary
 import org.springframework.jdbc.core.JdbcTemplate
 
 /**
- * Intent Classification Configuration (only when arc.reactor.intent.enabled=true)
+ * 인텐트 분류 설정 (arc.reactor.intent.enabled=true일 때만)
  */
 @Configuration
 @ConditionalOnProperty(
@@ -29,7 +29,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 class IntentConfiguration {
 
     /**
-     * Intent Classifier: Composite (Rule -> LLM cascading)
+     * 인텐트 분류기: 복합 (규칙 -> LLM 캐스케이딩)
      */
     @Bean
     @ConditionalOnMissingBean
@@ -55,7 +55,7 @@ class IntentConfiguration {
     }
 
     /**
-     * Intent Resolver
+     * 인텐트 해석기
      */
     @Bean
     @ConditionalOnMissingBean
@@ -71,7 +71,7 @@ class IntentConfiguration {
 }
 
 /**
- * JDBC Intent Registry (when JDBC is available and intent is enabled)
+ * JDBC 인텐트 레지스트리 (JDBC가 사용 가능하고 인텐트가 활성화된 경우)
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])

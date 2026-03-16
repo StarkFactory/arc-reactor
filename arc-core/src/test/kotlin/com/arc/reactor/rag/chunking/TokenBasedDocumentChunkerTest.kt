@@ -6,6 +6,11 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 import org.springframework.ai.document.Document
 
+/**
+ * 토큰 기반 문서 청커에 대한 테스트.
+ *
+ * 토큰 수 기반 문서 분할 동작을 검증합니다.
+ */
 class TokenBasedDocumentChunkerTest {
 
     private val chunker = TokenBasedDocumentChunker(
@@ -198,9 +203,9 @@ class TokenBasedDocumentChunkerTest {
             val result = chunker.chunk(listOf(shortDoc, longDoc))
 
             assertTrue(result.size > 2, "Batch should produce more documents than input")
-            // First result is the short doc (unchanged)
+            // 첫 번째 결과는 짧은 문서 (변경 없음)
             assertEquals("short", result[0].id, "Short doc should be first and unchanged")
-            // Remaining are chunks from the long doc
+            // 나머지는 긴 문서의 청크들
             val longChunks = result.drop(1)
             assertTrue(longChunks.all { it.metadata["parent_document_id"] == "long" },
                 "Long doc chunks should reference parent")
@@ -212,7 +217,7 @@ class TokenBasedDocumentChunkerTest {
 
         @Test
         fun `adjacent은(는) chunks have overlapping content`() {
-            // Use content with distinct sentences for overlap detection
+            // 오버랩 감지를 위해 구분되는 문장이 있는 콘텐츠 사용
             val sentences = (1..100).map { "Sentence number $it contains unique information. " }
             val content = sentences.joinToString("")
             val doc = Document("overlap-doc", content, emptyMap())
@@ -306,7 +311,7 @@ class TokenBasedDocumentChunkerTest {
             val estimator = DefaultTokenEstimator()
             val tokens = estimator.estimate(mixed)
 
-            // If tokens exceed threshold, it은(는) be chunked해야 합니다
+            // 토큰이 임계값을 초과하면 청킹되어야 합니다
             if (tokens > 512) {
                 val result = chunker.chunk(doc)
                 assertTrue(result.size > 1, "Mixed-language document with $tokens tokens should be chunked")

@@ -8,7 +8,14 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * JDBC implementation of [ScheduledJobStore] backed by PostgreSQL.
+ * PostgreSQL 기반 [ScheduledJobStore]의 JDBC 구현.
+ *
+ * WHY: 운영 환경에서 스케줄 작업 설정을 서버 재시작 이후에도
+ * 유지하기 위해 PostgreSQL에 영속 저장한다.
+ *
+ * @param jdbcTemplate Spring JDBC 템플릿
+ * @see ScheduledJobStore 인터페이스 정의
+ * @see InMemoryScheduledJobStore 인메모리 대안
  */
 class JdbcScheduledJobStore(
     private val jdbcTemplate: JdbcTemplate
@@ -16,6 +23,7 @@ class JdbcScheduledJobStore(
 
     private val objectMapper = jacksonObjectMapper()
 
+    /** ResultSet 행을 ScheduledJob으로 변환하는 RowMapper */
     private val rowMapper = RowMapper<ScheduledJob> { rs, _ ->
         val argsJson = rs.getString("tool_arguments")
         val jobTypeStr = rs.getString("job_type")
@@ -112,6 +120,7 @@ class JdbcScheduledJobStore(
         jdbcTemplate.update("DELETE FROM scheduled_jobs WHERE id = ?", id)
     }
 
+    /** 마지막 실행 결과를 갱신한다. 결과 텍스트는 잘림 한도로 잘라낸다. */
     override fun updateExecutionResult(id: String, status: JobExecutionStatus, result: String?) {
         val now = Instant.now()
         jdbcTemplate.update(
@@ -120,9 +129,11 @@ class JdbcScheduledJobStore(
         )
     }
 
+    /** 태그 집합을 쉼표로 구분된 문자열로 직렬화한다 */
     private fun serializeTags(tags: Set<String>): String? =
         if (tags.isEmpty()) null else tags.sorted().joinToString(",")
 
+    /** 쉼표로 구분된 문자열을 태그 집합으로 파싱한다 */
     private fun parseTags(value: String?): Set<String> =
         if (value.isNullOrBlank()) emptySet()
         else value.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()

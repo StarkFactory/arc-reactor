@@ -14,17 +14,22 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Fallback strategy that retries the request with alternative LLM models.
+ * 대체 LLM 모델로 요청을 재시도하는 폴백 전략.
  *
- * Models are tried in order. The first successful response is returned.
- * If all models fail, returns `null` to indicate fallback exhaustion.
+ * 모델들을 순서대로 시도한다. 첫 번째 성공한 응답을 반환한다.
+ * 모든 모델이 실패하면 `null`을 반환하여 폴백 소진을 알린다.
  *
- * Fallback calls are simple LLM calls (no tools, no ReAct loop) to
- * maximize the chance of success in degraded conditions.
+ * 폴백 호출은 단순 LLM 호출(도구 없음, ReAct 루프 없음)로 수행하여
+ * 성능 저하 상황에서 성공 확률을 극대화한다.
  *
- * @see FallbackStrategy for the interface contract
+ * ## 왜 단순 호출인가?
+ * 폴백 상황은 이미 장애가 발생한 상태이다.
+ * 도구 호출이나 ReAct 루프를 포함하면 추가 실패 포인트가 생긴다.
+ * 단순 LLM 호출은 가장 안정적인 폴백 경로이다.
  *
- * ## Example
+ * @see FallbackStrategy 인터페이스 계약
+ *
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -48,6 +53,7 @@ class ModelFallbackStrategy(
             try {
                 logger.info { "Attempting fallback to model: $model" }
                 val chatClient = chatModelProvider.getChatClient(model)
+                // Dispatchers.IO로 블로킹 HTTP 호출을 오프로드
                 val response = runInterruptible(Dispatchers.IO) {
                     chatClient.prompt()
                         .system(command.systemPrompt)

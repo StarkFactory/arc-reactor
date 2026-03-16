@@ -12,6 +12,11 @@ import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
 
 @Tag("matrix")
+/**
+ * ConversationMessageTrimmer의 매트릭스 테스트.
+ *
+ * 다양한 메시지 조합에 대한 트리밍 동작을 검증합니다.
+ */
 class ConversationMessageTrimmerMatrixTest {
 
     private val estimator = TokenEstimator { text -> text.length }

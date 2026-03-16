@@ -10,10 +10,10 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Sequential execution orchestrator.
+ * 순차 실행 오케스트레이터.
  *
- * Executes agents in A -> B -> C order.
- * The output of the previous agent becomes the input for the next agent.
+ * A -> B -> C 순서로 에이전트를 실행한다.
+ * 이전 에이전트의 출력이 다음 에이전트의 입력이 된다.
  *
  * ## How It Works
  * ```
@@ -26,8 +26,8 @@ private val logger = KotlinLogging.logger {}
  *   Final report
  * ```
  *
- * ## Failure Handling
- * If an intermediate node fails, execution stops immediately and a failure result is returned.
+ * ## 실패 처리
+ * 중간 노드가 실패하면 실행이 즉시 중단되고 실패 결과가 반환된다.
  *
  * @see MultiAgentOrchestrator for the interface contract
  */
@@ -95,7 +95,7 @@ class SequentialOrchestrator : MultiAgentOrchestrator {
                 )
             }
 
-            // Pass the previous node's output as input to the next node
+            // 이전 노드의 출력을 다음 노드의 입력으로 전달
             currentInput = result.content ?: ""
             logger.info { "Sequential: node '${node.name}' completed in ${nodeDuration}ms" }
         }

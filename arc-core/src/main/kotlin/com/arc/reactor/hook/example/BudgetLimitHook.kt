@@ -10,39 +10,42 @@ import java.util.concurrent.atomic.AtomicInteger
 private val logger = KotlinLogging.logger {}
 
 /**
- * Budget Limit Hook (example) — BeforeAgentStartHook + HookResult.Reject pattern
+ * 예산 제한 Hook (예제) — BeforeAgentStartHook + HookResult.Reject 패턴
  *
- * Limits the daily request count per user. Returns HookResult.Reject when the
- * budget is exceeded, blocking agent execution entirely.
+ * 사용자별 일일 요청 횟수를 제한한다. 예산 초과 시 [HookResult.Reject]를 반환하여
+ * 에이전트 실행 자체를 차단한다.
  *
- * ## Guard vs Hook difference
- * - **Guard**: Security purposes (rate limit, injection detection). Always fail-close.
- * - **Hook**: Business logic (budget, approval, audit). Can choose fail-open/fail-close.
+ * ## Guard vs Hook 차이
+ * - **Guard**: 보안 목적 (속도 제한, Injection 탐지). 항상 fail-close
+ * - **Hook**: 비즈니스 로직 (예산, 승인, 감사). fail-open/fail-close 선택 가능
  *
- * Guard's RateLimitStage limits frequency per minute/hour,
- * while this Hook limits total daily usage. They serve different purposes.
+ * Guard의 RateLimitStage는 분당/시간당 **빈도**를 제한하고,
+ * 이 Hook은 일일 **총량**을 제한한다. 서로 다른 목적을 가진다.
  *
- * ## HookResult types
- * - `HookResult.Continue` — Proceed
- * - `HookResult.Reject(reason)` — Block execution + return reason
+ * ## HookResult 유형
+ * - `HookResult.Continue` — 실행 진행
+ * - `HookResult.Reject(reason)` — 실행 차단 + 사유 반환
  *
- * ## How to activate
- * Add @Component and adjust dailyLimit as needed.
+ * ## 활성화 방법
+ * @Component를 추가하고 dailyLimit을 조정한다.
  *
- * @param dailyLimit Maximum daily request count per user
+ * @param dailyLimit 사용자별 일일 최대 요청 횟수
+ *
+ * @see com.arc.reactor.hook.BeforeAgentStartHook 에이전트 시작 전 Hook 인터페이스
+ * @see com.arc.reactor.guard.impl.DefaultRateLimitStage 비교: 빈도 기반 속도 제한
  */
-// @Component  ← Uncomment to auto-register
+// @Component  ← 자동 등록하려면 주석 해제
 class BudgetLimitHook(
     private val dailyLimit: Int = 100
 ) : BeforeAgentStartHook {
 
-    // 1-99: Critical/early Hook range. Budget check must happen before agent execution
+    // 1-99: 중요/초기 Hook 범위. 예산 확인은 에이전트 실행 전에 이루어져야 함
     override val order = 10
 
-    // fail-close because agent execution must be blocked when budget is exceeded
+    // 왜 fail-close인가: 예산 초과 시 에이전트 실행을 반드시 차단해야 하므로
     override val failOnError = true
 
-    // Per-user daily usage counter (use Redis or DB in production)
+    // 사용자별 일일 사용량 카운터 (프로덕션에서는 Redis 또는 DB 사용 권장)
     private val dailyUsage = ConcurrentHashMap<String, AtomicInteger>()
 
     override suspend fun beforeAgentStart(context: HookContext): HookResult {
@@ -61,7 +64,7 @@ class BudgetLimitHook(
         return HookResult.Continue
     }
 
-    /** Reset daily counters (called at midnight by a scheduler) */
+    /** 일일 카운터를 초기화한다 (스케줄러에서 자정에 호출) */
     fun resetDailyUsage() {
         dailyUsage.clear()
     }

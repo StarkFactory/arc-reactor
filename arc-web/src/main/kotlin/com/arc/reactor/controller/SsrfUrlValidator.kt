@@ -7,21 +7,24 @@ import java.net.URI
 private val logger = KotlinLogging.logger {}
 
 /**
- * Validates URLs to prevent Server-Side Request Forgery (SSRF) attacks.
+ * 서버 측 요청 위조(SSRF) 공격을 방지하기 위한 URL 검증기.
  *
- * Checks:
- * - Only http/https schemes are allowed
- * - Resolved IP must not be in private/reserved ranges
- * - DNS rebinding protection via post-resolution IP check
+ * 검증 항목:
+ * - http/https 스킴만 허용
+ * - 해석된 IP가 사설/예약 범위에 속하지 않아야 함
+ * - DNS 리바인딩 방지를 위한 해석 후 IP 검사
+ *
+ * WHY: MCP 서버 등록 시 사용자가 내부 네트워크 주소를 지정하여
+ * 내부 서비스에 접근하는 SSRF 공격을 방지해야 한다.
  */
 object SsrfUrlValidator {
 
     private val ALLOWED_SCHEMES = setOf("http", "https")
 
     /**
-     * Validates the given URL string for SSRF safety.
+     * 주어진 URL 문자열의 SSRF 안전성을 검증한다.
      *
-     * @return null if the URL is safe, or an error message describing the violation
+     * @return URL이 안전하면 null, 위반 사항이 있으면 오류 메시지를 반환
      */
     fun validate(url: String, allowPrivateAddresses: Boolean = false): String? {
         val uri = try {

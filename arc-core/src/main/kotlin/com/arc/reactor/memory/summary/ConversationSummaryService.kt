@@ -3,19 +3,18 @@ package com.arc.reactor.memory.summary
 import com.arc.reactor.agent.model.Message
 
 /**
- * Service that summarizes conversation history into structured facts
- * and a narrative summary.
+ * 대화 이력을 구조화된 팩트와 서술형 요약으로 요약하는 서비스.
  *
- * @see LlmConversationSummaryService for LLM-based implementation
+ * @see LlmConversationSummaryService LLM 기반 구현체
  */
 interface ConversationSummaryService {
 
     /**
-     * Summarize a list of conversation messages.
+     * 대화 메시지 목록을 요약한다.
      *
-     * @param messages Messages to summarize (chronological order)
-     * @param existingFacts Previously extracted facts to merge/update
-     * @return Summarization result with narrative and facts
+     * @param messages 요약할 메시지 목록 (시간순)
+     * @param existingFacts 이전에 추출된 팩트 (병합/갱신 대상)
+     * @return 서술 요약과 팩트가 포함된 요약 결과
      */
     suspend fun summarize(
         messages: List<Message>,

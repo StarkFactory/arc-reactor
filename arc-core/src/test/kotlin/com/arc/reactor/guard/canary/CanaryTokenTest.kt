@@ -10,6 +10,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 카나리 토큰에 대한 테스트.
+ *
+ * 프롬프트 인젝션 감지용 카나리 토큰을 검증합니다.
+ */
 class CanaryTokenTest {
 
     @Nested
@@ -150,7 +155,7 @@ class CanaryTokenTest {
         fun `guard은(는) without canary provider only checks patterns`() = runBlocking {
             val guardWithoutCanary = SystemPromptLeakageOutputGuard(canaryTokenProvider = null)
 
-            // Should not crash and은(는) still check patterns해야 합니다
+            // 크래시 없이 패턴을 확인해야 합니다
             val safeResult = guardWithoutCanary.check("Hello world", context)
             assertInstanceOf(OutputGuardResult.Allowed::class.java, safeResult,
                 "Safe output should pass even without canary provider")

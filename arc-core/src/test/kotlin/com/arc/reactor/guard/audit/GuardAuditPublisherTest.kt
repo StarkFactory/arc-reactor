@@ -11,9 +11,15 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CopyOnWriteArrayList
 
+/**
+ * GuardAuditPublisher에 대한 테스트.
+ *
+ * 가드 파이프라인 실행 시 감사 이벤트가 올바르게
+ * 발행되는지 검증합니다.
+ */
 class GuardAuditPublisherTest {
 
-    // Test implementation that captures events
+    // 이벤트를 캡처하는 테스트 구현체
     class CapturingAuditPublisher : GuardAuditPublisher {
         val events = CopyOnWriteArrayList<AuditEvent>()
 

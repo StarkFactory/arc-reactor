@@ -11,8 +11,22 @@ import org.springframework.ai.chat.messages.UserMessage
 private val logger = KotlinLogging.logger {}
 
 /**
- * Trims conversation history to fit within context budget while preserving
- * assistant tool-call and tool-response message pair integrity.
+ * 대화 히스토리를 컨텍스트 예산 내에 맞추기 위해 트리밍하는 trimmer.
+ *
+ * AssistantMessage(toolCalls) + ToolResponseMessage 쌍의 무결성을 보존하면서
+ * 오래된 메시지를 우선적으로 제거한다.
+ *
+ * 트리밍 단계:
+ * 1. **Phase 1**: 선행 SystemMessage(계층적 메모리 사실/내러티브)와 마지막 UserMessage를
+ *    보호하면서 가장 오래된 메시지부터 제거
+ * 2. **Phase 1.5**: 최신 도구 관측값이 트리밍되지 않도록 선행 메모리 SystemMessage를 먼저 제거
+ * 3. **Phase 2**: 마지막 UserMessage 이후의 도구 상호작용 쌍 제거 (예산 초과 시)
+ *
+ * @param maxContextWindowTokens 최대 컨텍스트 윈도우 토큰 수
+ * @param outputReserveTokens 출력 응답을 위해 예약할 토큰 수
+ * @param tokenEstimator 텍스트의 토큰 수를 추정하는 estimator
+ * @see ManualReActLoopExecutor 매 LLM 호출 전 메시지 트리밍 수행
+ * @see StreamingReActLoopExecutor 스트리밍 모드에서도 동일하게 트리밍 수행
  */
 class ConversationMessageTrimmer(
     private val maxContextWindowTokens: Int,
@@ -20,14 +34,22 @@ class ConversationMessageTrimmer(
     private val tokenEstimator: TokenEstimator
 ) {
     companion object {
-        /** Per-message structural overhead (role tags, separators, metadata) in estimated tokens. */
+        /** 메시지당 구조적 오버헤드 (역할 태그, 구분자, 메타데이터) — 추정 토큰 수. */
         const val MESSAGE_STRUCTURE_OVERHEAD = 20
     }
 
+    /**
+     * 메시지 목록을 컨텍스트 예산에 맞게 트리밍한다.
+     *
+     * @param messages 트리밍할 메시지 리스트 (in-place 수정)
+     * @param systemPrompt 시스템 프롬프트 (토큰 예산 계산에 사용)
+     * @param toolTokenReserve 도구 정의를 위해 추가 예약할 토큰 수
+     */
     fun trim(messages: MutableList<Message>, systemPrompt: String, toolTokenReserve: Int = 0) {
         val systemTokens = tokenEstimator.estimate(systemPrompt)
         val budget = maxContextWindowTokens - systemTokens - outputReserveTokens - toolTokenReserve
 
+        // ── 예산이 음수이면 마지막 UserMessage만 보존 ──
         if (budget <= 0) {
             logger.warn {
                 "Context budget is non-positive ($budget). " +
@@ -44,14 +66,17 @@ class ConversationMessageTrimmer(
 
         val messageTokens = messages.mapTo(ArrayList(messages.size)) { estimateMessageTokens(it) }
         var totalTokens = messageTokens.sum()
+        // Phase 1: 오래된 히스토리 제거 (선행 SystemMessage와 마지막 UserMessage 보호)
         totalTokens = trimOldHistory(messages, messageTokens, totalTokens, budget)
+        // Phase 1.5: 최신 도구 컨텍스트 보존을 위해 선행 SystemMessage 우선 제거
         totalTokens = trimLeadingSystemMessagesForFreshToolHistory(messages, messageTokens, totalTokens, budget)
+        // Phase 2: 마지막 UserMessage 이후의 도구 히스토리 쌍 제거
         trimToolHistory(messages, messageTokens, totalTokens, budget)
     }
 
     /**
-     * Phase 1: Remove oldest messages from the front, preserving leading SystemMessages
-     * (e.g., hierarchical memory facts/narrative) and the last UserMessage.
+     * Phase 1: 가장 오래된 메시지부터 제거한다.
+     * 선행 SystemMessage(계층적 메모리 사실/내러티브)와 마지막 UserMessage를 보호한다.
      */
     private fun trimOldHistory(
         messages: MutableList<Message>,
@@ -83,7 +108,7 @@ class ConversationMessageTrimmer(
         return totalTokens
     }
 
-    /** Phase 2: Remove tool interaction pairs after the last UserMessage when still over budget. */
+    /** Phase 2: 마지막 UserMessage 이후의 도구 상호작용 쌍을 제거한다 (예산 초과 시). */
     private fun trimToolHistory(
         messages: MutableList<Message>,
         messageTokens: MutableList<Int>,
@@ -113,9 +138,10 @@ class ConversationMessageTrimmer(
     }
 
     /**
-     * When the latest tool observations would otherwise be trimmed, prefer dropping
-     * leading memory SystemMessages first so the next LLM call can still see the
-     * freshest tool-call/tool-response context.
+     * 최신 도구 관측값이 트리밍되지 않도록, 선행 메모리 SystemMessage를 먼저 제거한다.
+     *
+     * 최신 tool-call/tool-response 컨텍스트가 다음 LLM 호출에 보이도록
+     * 선행 메모리 SystemMessage를 우선적으로 drop한다.
      */
     private fun trimLeadingSystemMessagesForFreshToolHistory(
         messages: MutableList<Message>,
@@ -139,28 +165,28 @@ class ConversationMessageTrimmer(
     }
 
     /**
-     * Calculate how many messages from the front should be removed as a group.
+     * 선두에서 그룹 단위로 제거해야 할 메시지 수를 계산한다.
      *
-     * If the first message is an AssistantMessage with tool calls, the following
-     * ToolResponseMessage must also be removed to maintain valid message ordering.
+     * AssistantMessage(toolCalls) 뒤에 ToolResponseMessage가 오면 쌍으로 제거해야
+     * 유효한 메시지 순서를 유지할 수 있다 (메시지 쌍 무결성).
      */
     private fun calculateRemoveGroupSize(messages: List<Message>): Int {
         if (messages.isEmpty()) return 0
         val first = messages[0]
 
-        // AssistantMessage with tool calls -> must also remove the paired ToolResponseMessage
+        // 도구 호출이 있는 AssistantMessage -> 쌍을 이루는 ToolResponseMessage도 함께 제거
         if (first is AssistantMessage && !first.toolCalls.isNullOrEmpty()) {
-            // Find the ToolResponseMessage that follows
             return if (messages.size > 1 && messages[1] is ToolResponseMessage) 2 else 1
         }
 
-        // ToolResponseMessage without preceding AssistantMessage (orphaned) -> remove it
+        // 선행 AssistantMessage 없는 ToolResponseMessage (고아) -> 단독 제거
         if (first is ToolResponseMessage) return 1
 
-        // Regular UserMessage or AssistantMessage -> remove single
+        // 일반 UserMessage 또는 AssistantMessage -> 단독 제거
         return 1
     }
 
+    /** 메시지의 추정 토큰 수를 계산한다 (내용 토큰 + 구조적 오버헤드). */
     private fun estimateMessageTokens(message: Message): Int {
         val contentTokens = when (message) {
             is UserMessage -> tokenEstimator.estimate(message.text)

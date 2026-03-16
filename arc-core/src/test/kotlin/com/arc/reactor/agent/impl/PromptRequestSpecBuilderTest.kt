@@ -9,6 +9,11 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.prompt.ChatOptions
 
+/**
+ * PromptRequestSpecBuilder에 대한 테스트.
+ *
+ * 프롬프트 요청 사양 빌드 로직을 검증합니다.
+ */
 class PromptRequestSpecBuilderTest {
 
     @Test

@@ -33,6 +33,12 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * ConversationManager에 대한 테스트.
+ *
+ * 대화 기록 관리, 요약, 토큰 제한 등
+ * 핵심 기능을 검증합니다.
+ */
 class ConversationManagerTest {
 
     private val properties = AgentProperties(
@@ -537,7 +543,7 @@ class ConversationManagerTest {
                 val current = callCount.incrementAndGet()
                 if (current == 1) {
                     firstCallStarted.countDown()
-                    delay(5000) // First call blocks long
+                    delay(5000) // 첫 번째 호출이 오래 블록됨
                 }
                 if (current == 2) {
                     secondCallLatch.countDown()
@@ -554,7 +560,7 @@ class ConversationManagerTest {
                 metadata = mapOf("sessionId" to "s1")
             )
 
-            // Trigger two rapid saves — second은(는) cancel first해야 합니다
+            // 두 번의 빠른 저장을 트리거 — 두 번째가 첫 번째를 취소해야 합니다
             manager.saveHistory(command, AgentResult.success("r1"))
             assertTrue(firstCallStarted.await(3, TimeUnit.SECONDS)) {
                 "First summarization should start before triggering second save"
@@ -698,7 +704,7 @@ class ConversationManagerTest {
             val summaryService = mockk<ConversationSummaryService>()
 
             // recentMessageCount=4 but only 3 messages above trigger
-            // This requires a config where triggerMessageCount < recentMessageCount
+            // triggerMessageCount < recentMessageCount인 설정이 필요합니다
             val misconfigProps = properties.copy(
                 memory = MemoryProperties(summary = SummaryProperties(
                     enabled = true,

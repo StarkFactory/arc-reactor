@@ -36,8 +36,8 @@ class AgentTracingHooksTest {
     private lateinit var hooks: AgentTracingHooks
 
     /**
-     * Creates a fully-stubbed Span mock that returns itself from all fluent-builder methods
-     * (name/tag/error/start), mirroring the Micrometer Span fluent API.
+     * 모든 플루언트 빌더 메서드(name/tag/error/start)에서 자기 자신을 반환하는
+     * 완전히 스텁된 Span 모킹을 생성합니다. Micrometer Span 플루언트 API를 미러링합니다.
      */
     private fun stubSpan(traceId: String = "trace-abc", spanId: String = "span-xyz"): Span {
         val ctx = mockk<TraceContext>()
@@ -54,7 +54,7 @@ class AgentTracingHooksTest {
     }
 
     /**
-     * Creates a Span that captures all tag(key, value) calls in the provided map.
+     * 제공된 맵에 모든 tag(key, value) 호출을 캡처하는 Span을 생성합니다.
      */
     private fun capturingSpan(capture: MutableMap<String, String>): Span {
         val ctx = mockk<TraceContext>()
@@ -253,7 +253,7 @@ class AgentTracingHooksTest {
 
         @Test
         fun `no span exists for runId일 때 afterAgentComplete does nothing`() = runTest {
-            // Never called beforeAgentStart, so no span is stored
+            // beforeAgentStart가 호출되지 않아 스팬이 저장되지 않음
             val ctx = hookContext(runId = "nonexistent-run")
             hooks.afterAgentComplete(ctx, successAgentResponse())
 
@@ -329,7 +329,7 @@ class AgentTracingHooksTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Tool span lifecycle
+    // 도구 스팬 라이프사이클
     // ─────────────────────────────────────────────────────────────────────
 
     @Nested
@@ -579,7 +579,7 @@ class AgentTracingHooksTest {
     // 참고: kotlin.coroutines.cancellation.CancellationException은 typealias입니다
     // for java.util.concurrent.CancellationException on JVM. When thrown inside
     // runTest {}, it cancels the coroutine scope before a try/catch can intercept it.
-    // These tests therefore call suspend funs via runBlocking, which propagates
+    // 따라서 이 테스트들은 runBlocking을 통해 suspend 함수를 호출하며, 이것은 전파합니다
     // the exception to the JUnit test method where assertThrows captures it.
     // ─────────────────────────────────────────────────────────────────────
 
@@ -658,7 +658,7 @@ class AgentTracingHooksTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Span key isolation
+    // 스팬 키 격리
     // ─────────────────────────────────────────────────────────────────────
 
     @Nested
@@ -713,7 +713,7 @@ class AgentTracingHooksTest {
 
             hooks.beforeToolCall(ctx1)
             hooks.beforeToolCall(ctx2)
-            // End in reverse order to prove isolation
+            // 격리를 증명하기 위해 역순으로 종료
             hooks.afterToolCall(ctx2, successToolResult())
             hooks.afterToolCall(ctx1, successToolResult())
 
@@ -742,7 +742,7 @@ class AgentTracingHooksTest {
             // afterToolCall never called — simulates abrupt cancellation
             hooks.afterAgentComplete(agentCtx, successAgentResponse())
 
-            // The agent span ends, but the orphaned tool span does NOT end
+            // 에이전트 스팬은 종료되지만 고아 도구 스팬은 종료되지 않습니다
             verify(exactly = 1) { agentSpan.end() }
             verify(exactly = 0) { toolSpan.end() }
         }

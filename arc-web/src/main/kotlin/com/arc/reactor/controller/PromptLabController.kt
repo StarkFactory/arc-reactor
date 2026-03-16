@@ -46,10 +46,17 @@ import java.util.concurrent.ConcurrentHashMap
 private val logger = KotlinLogging.logger {}
 
 /**
- * Prompt Lab REST API Controller
+ * Prompt Lab REST API 컨트롤러.
  *
- * Provides endpoints for managing prompt optimization experiments.
- * All endpoints require ADMIN role.
+ * 프롬프트 최적화 실험을 관리하는 엔드포인트를 제공합니다.
+ * 모든 엔드포인트는 ADMIN 권한이 필요합니다.
+ *
+ * 비동기 실험 실행은 SupervisorJob + Dispatchers.IO 코루틴 스코프에서 수행되며,
+ * maxConcurrentExperiments 제한으로 동시 실행 수를 제어합니다.
+ *
+ * @see ExperimentOrchestrator
+ * @see ExperimentStore
+ * @see FeedbackAnalyzer
  */
 @Tag(name = "Prompt Lab", description = "Prompt optimization experiments (ADMIN only)")
 @RestController
@@ -70,9 +77,10 @@ class PromptLabController(
     )
     private val runningJobs = ConcurrentHashMap<String, Job>()
 
-    // ── Experiment CRUD ──
+    // ── 실험 CRUD ──
 
-    @Operation(summary = "Create a new experiment (ADMIN)")
+    /** 새 실험을 생성한다. 쿼리, 버전, 반복 횟수 제한을 검증한다. */
+    @Operation(summary = "새 실험 생성 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Experiment created"),
         ApiResponse(responseCode = "400", description = "Invalid request or limits exceeded"),
@@ -107,7 +115,8 @@ class PromptLabController(
         return ResponseEntity.status(HttpStatus.CREATED).body(saved.toResponse())
     }
 
-    @Operation(summary = "List experiments with optional filters")
+    /** 선택적 필터로 실험 목록을 조회한다. */
+    @Operation(summary = "실험 목록 조회 (선택적 필터)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of experiments"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -123,7 +132,8 @@ class PromptLabController(
         return ResponseEntity.ok(experiments.map { it.toResponse() })
     }
 
-    @Operation(summary = "Get experiment details")
+    /** 실험 상세 정보를 조회한다. */
+    @Operation(summary = "실험 상세 정보 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Experiment details"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -140,7 +150,8 @@ class PromptLabController(
         return ResponseEntity.ok(experiment.toResponse())
     }
 
-    @Operation(summary = "Run experiment asynchronously (ADMIN)")
+    /** 실험을 비동기로 실행한다. PENDING 상태의 실험만 실행 가능하다. */
+    @Operation(summary = "실험 비동기 실행 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "202", description = "Experiment run started"),
         ApiResponse(responseCode = "400", description = "Experiment not in PENDING state or limits exceeded"),
@@ -181,7 +192,8 @@ class PromptLabController(
         )
     }
 
-    @Operation(summary = "Cancel a running experiment (ADMIN)")
+    /** 실행 중인 실험을 취소한다. RUNNING 상태의 실험만 취소 가능하다. */
+    @Operation(summary = "실행 중인 실험 취소 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Experiment cancelled"),
         ApiResponse(responseCode = "400", description = "Experiment is not RUNNING"),
@@ -208,7 +220,8 @@ class PromptLabController(
         return ResponseEntity.ok(cancelled.toResponse())
     }
 
-    @Operation(summary = "Get experiment execution status (ADMIN)")
+    /** 실험 실행 상태를 조회한다. */
+    @Operation(summary = "실험 실행 상태 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Experiment status"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -233,7 +246,8 @@ class PromptLabController(
         )
     }
 
-    @Operation(summary = "Get experiment trial data (ADMIN)")
+    /** 실험 트라이얼 데이터를 조회한다. */
+    @Operation(summary = "실험 트라이얼 데이터 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Experiment trial data"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -248,7 +262,8 @@ class PromptLabController(
         return ResponseEntity.ok(trials.map { it.toResponse() })
     }
 
-    @Operation(summary = "Get experiment report (ADMIN)")
+    /** 실험 보고서를 조회한다. */
+    @Operation(summary = "실험 보고서 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Experiment report"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -265,7 +280,8 @@ class PromptLabController(
         return ResponseEntity.ok(report.toResponse())
     }
 
-    @Operation(summary = "Delete experiment (ADMIN)")
+    /** 실험을 삭제한다. */
+    @Operation(summary = "실험 삭제 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Experiment deleted"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -280,9 +296,10 @@ class PromptLabController(
         return ResponseEntity.noContent().build()
     }
 
-    // ── Automation Endpoints ──
+    // ── 자동화 엔드포인트 ──
 
-    @Operation(summary = "Run full auto-optimization pipeline (ADMIN)")
+    /** 전체 자동 최적화 파이프라인을 실행한다. 후보 생성 -> 실험 -> 평가를 자동 수행한다. */
+    @Operation(summary = "전체 자동 최적화 파이프라인 실행 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "202", description = "Auto-optimization pipeline started"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -320,7 +337,8 @@ class PromptLabController(
         )
     }
 
-    @Operation(summary = "Analyze feedback for a template (ADMIN)")
+    /** 템플릿에 대한 피드백을 분석하여 약점과 개선점을 도출한다. */
+    @Operation(summary = "템플릿 피드백 분석 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Feedback analysis results"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -339,7 +357,8 @@ class PromptLabController(
         return ResponseEntity.ok(analysis.toResponse())
     }
 
-    @Operation(summary = "Activate recommended version from experiment (ADMIN/HITL)")
+    /** 실험 결과에서 추천된 버전을 활성화한다. HITL(Human-in-the-Loop) 승인 용도. */
+    @Operation(summary = "실험 추천 버전 활성화 (관리자/HITL)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Recommended version activated"),
         ApiResponse(responseCode = "400", description = "No report available or version activation failed"),
@@ -372,7 +391,7 @@ class PromptLabController(
         )
     }
 
-    // ── Validation ──
+    // ── 검증 ──
 
     private fun validateExperimentLimits(
         request: CreateExperimentRequest
@@ -399,7 +418,7 @@ class PromptLabController(
     }
 }
 
-// ── Request DTOs ──
+// ── 요청 DTO ──
 
 data class CreateExperimentRequest(
     @field:NotBlank(message = "name must not be blank")
@@ -457,7 +476,7 @@ data class AnalyzeFeedbackRequest(
     val maxSamples: Int? = null
 )
 
-// ── Response DTOs ──
+// ── 응답 DTO ──
 
 data class ExperimentResponse(
     val id: String,
@@ -544,7 +563,7 @@ data class RecommendationResponse(
     val warnings: List<String>
 )
 
-// ── Mapping Extensions ──
+// ── 매핑 확장 ──
 
 private fun Experiment.toResponse() = ExperimentResponse(
     id = id,

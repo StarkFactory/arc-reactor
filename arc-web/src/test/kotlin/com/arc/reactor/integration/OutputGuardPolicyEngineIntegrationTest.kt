@@ -41,6 +41,11 @@ import org.springframework.test.web.reactive.server.WebTestClient
 )
 @AutoConfigureWebTestClient
 @Tag("integration")
+/**
+ * 출력 가드 정책 엔진 통합 테스트.
+ *
+ * 출력 가드 정책 엔진의 E2E 동작을 검증합니다.
+ */
 class OutputGuardPolicyEngineIntegrationTest {
 
     @Autowired

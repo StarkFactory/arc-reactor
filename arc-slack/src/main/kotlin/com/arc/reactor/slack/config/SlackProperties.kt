@@ -12,110 +12,110 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  */
 @ConfigurationProperties(prefix = "arc.reactor.slack")
 data class SlackProperties(
-    /** Enable Slack integration. Default: false (opt-in) */
+    /** Slack 통합 활성화 여부. 기본값: false (명시적 opt-in 필요) */
     val enabled: Boolean = false,
 
     /**
-     * Slack transport mode.
-     * - EVENTS_API: receive payloads over HTTP endpoints
-     * - SOCKET_MODE: receive payloads over WebSocket (no public callback URL required)
+     * Slack 전송 모드.
+     * - EVENTS_API: HTTP 엔드포인트를 통해 페이로드를 수신한다
+     * - SOCKET_MODE: WebSocket을 통해 페이로드를 수신한다 (공개 콜백 URL 불필요)
      */
     val transportMode: SlackTransportMode = SlackTransportMode.SOCKET_MODE,
 
-    /** Slack Bot User OAuth Token (xoxb-...) */
+    /** Slack Bot User OAuth 토큰 (xoxb-...) */
     val botToken: String = "",
 
-    /** Slack App-Level Token for Socket Mode (xapp-...) */
+    /** Socket Mode용 Slack App-Level 토큰 (xapp-...) */
     val appToken: String = "",
 
-    /** Slack signing secret for request signature verification */
+    /** 요청 서명 검증용 Slack signing secret */
     val signingSecret: String = "",
 
-    /** Enable HMAC-SHA256 signature verification on incoming Slack requests */
+    /** 수신 Slack 요청에 대해 HMAC-SHA256 서명 검증을 활성화한다 */
     val signatureVerificationEnabled: Boolean = true,
 
-    /** Maximum allowed clock skew for signature verification (seconds) */
+    /** 서명 검증 시 허용하는 최대 시간 오차 (초) */
     val timestampToleranceSeconds: Long = 300,
 
-    /** Maximum concurrent Slack event processing */
+    /** 최대 동시 Slack 이벤트 처리 수 */
     val maxConcurrentRequests: Int = 5,
 
-    /** Request timeout for agent execution (ms) */
+    /** 에이전트 실행 요청 타임아웃 (밀리초) */
     val requestTimeoutMs: Long = 30000,
 
     /**
-     * If true, reject immediately when the processing semaphore is saturated.
-     * Prevents coroutine queue buildup under burst traffic.
+     * true이면 처리 세마포어가 포화 상태일 때 즉시 거부한다.
+     * 버스트 트래픽 발생 시 코루틴 큐 적체를 방지한다.
      */
     val failFastOnSaturation: Boolean = true,
 
     /**
-     * If true, send busy notifications to Slack when events/commands are dropped.
-     * Keep false in high-load environments to avoid amplifying outbound traffic.
+     * true이면 이벤트/명령이 드롭될 때 Slack으로 사용 중(busy) 알림을 전송한다.
+     * 고부하 환경에서는 아웃바운드 트래픽 증폭을 방지하기 위해 false로 유지한다.
      */
     val notifyOnDrop: Boolean = false,
 
-    /** Max retry attempts for Slack Web API on retryable errors (429/5xx) */
+    /** Slack Web API의 재시도 가능한 오류(429/5xx) 발생 시 최대 재시도 횟수 */
     val apiMaxRetries: Int = 2,
 
-    /** Default retry delay (ms) when Retry-After header is missing */
+    /** Retry-After 헤더가 없을 때 기본 재시도 지연 (밀리초) */
     val apiRetryDefaultDelayMs: Long = 1000,
 
-    /** Resolve requester email from Slack users.info and attach to AgentCommand metadata */
+    /** Slack users.info에서 요청자 이메일을 조회하여 AgentCommand 메타데이터에 첨부한다 */
     val userEmailResolutionEnabled: Boolean = true,
 
-    /** In-memory cache TTL (seconds) for resolved Slack user emails */
+    /** 조회된 Slack 사용자 이메일의 인메모리 캐시 TTL (초) */
     val userEmailCacheTtlSeconds: Long = 3600,
 
-    /** Maximum in-memory cache entries for resolved Slack user emails */
+    /** 조회된 Slack 사용자 이메일의 최대 인메모리 캐시 엔트리 수 */
     val userEmailCacheMaxEntries: Int = 20000,
 
-    /** Enable in-memory deduplication for Slack Events API using event_id */
+    /** event_id 기반 인메모리 중복 제거 활성화 (Slack Events API용) */
     val eventDedupEnabled: Boolean = true,
 
-    /** Retention time (seconds) for deduplication event_id cache */
+    /** 중복 제거 event_id 캐시 보관 기간 (초) */
     val eventDedupTtlSeconds: Long = 600,
 
-    /** Max in-memory event_id entries kept for deduplication */
+    /** 중복 제거를 위해 보관하는 최대 event_id 엔트리 수 */
     val eventDedupMaxEntries: Int = 10000,
 
-    /** Track Slack threads initiated by Arc Reactor to avoid unrelated thread side effects */
+    /** Arc Reactor가 개시한 Slack 스레드를 추적하여 관련 없는 스레드 부작용을 방지한다 */
     val threadTrackingEnabled: Boolean = true,
 
-    /** Retention time (seconds) for tracked Slack threads */
+    /** 추적 중인 Slack 스레드의 보관 기간 (초) */
     val threadTrackingTtlSeconds: Long = 86400,
 
-    /** Max in-memory tracked thread entries */
+    /** 최대 인메모리 추적 스레드 엔트리 수 */
     val threadTrackingMaxEntries: Int = 20000,
 
     /**
-     * If true, top-level direct messages (channel_type=im/mpim) are processed even without thread_ts.
-     * Keep false to preserve thread-only behavior.
+     * true이면 thread_ts 없는 최상위 DM(channel_type=im/mpim)도 처리한다.
+     * 스레드 전용 동작을 유지하려면 false로 유지한다.
      */
     val processDirectMessagesWithoutThread: Boolean = false,
 
-    /** Socket Mode WebSocket backend implementation */
+    /** Socket Mode WebSocket 백엔드 구현체 */
     val socketBackend: SlackSocketBackend = SlackSocketBackend.JAVA_WEBSOCKET,
 
-    /** Initial retry delay for Socket Mode startup connection failures (ms) */
+    /** Socket Mode 시작 시 연결 실패에 대한 초기 재시도 지연 (밀리초) */
     val socketConnectRetryInitialDelayMs: Long = 1000,
 
-    /** Max retry delay for Socket Mode startup connection failures (ms) */
+    /** Socket Mode 시작 시 연결 실패에 대한 최대 재시도 지연 (밀리초) */
     val socketConnectRetryMaxDelayMs: Long = 30000,
 
-    /** Enable proactive channel monitoring. Bot observes messages and offers help when relevant. */
+    /** 선행적 채널 모니터링 활성화. 봇이 메시지를 관찰하고 관련 시 도움을 제안한다. */
     val proactiveEnabled: Boolean = false,
 
-    /** Channel IDs where proactive monitoring is active. Empty = disabled even if proactiveEnabled. */
+    /** 선행적 모니터링이 활성화된 채널 ID 목록. 비어 있으면 proactiveEnabled=true여도 비활성화. */
     val proactiveChannelIds: List<String> = emptyList(),
 
-    /** Maximum concurrent proactive evaluations to prevent LLM cost spikes */
+    /** LLM 비용 급증을 방지하기 위한 최대 동시 선행적 평가 수 */
     val proactiveMaxConcurrent: Int = 2,
 
-    /** Collect feedback from Slack emoji reactions (thumbsup/thumbsdown) on bot responses */
+    /** 봇 응답에 대한 Slack 이모지 리액션(thumbsup/thumbsdown)으로 피드백을 수집한다 */
     val reactionFeedbackEnabled: Boolean = true,
 
-    /** Inject per-user long-term memory (team, role, preferences) into agent system prompt */
+    /** 사용자별 장기 기억(팀, 역할, 선호도)을 에이전트 시스템 프롬프트에 주입한다 */
     val userMemoryEnabled: Boolean = true
 )
 

@@ -21,9 +21,16 @@ import java.time.Duration
 private val logger = KotlinLogging.logger {}
 
 /**
- * Returns true if the given host resolves to a private, reserved, or unresolvable address.
- * Blocks loopback, site-local, link-local, multicast, and cloud metadata addresses
- * to prevent SSRF attacks.
+ * 주어진 호스트가 프라이빗, 예약됨, 또는 해석 불가능한 주소로 해석되는지 확인한다.
+ * 루프백, 사이트 로컬, 링크 로컬, 멀티캐스트, 클라우드 메타데이터 주소를 차단하여
+ * SSRF 공격을 방지한다.
+ *
+ * WHY: 외부 사용자가 MCP SSE URL로 내부 네트워크 주소를 지정하면
+ * 서버가 내부 서비스에 접근하는 SSRF 취약점이 발생한다.
+ * 이 검증으로 내부/메타데이터 주소를 사전에 차단한다.
+ *
+ * @param host 확인할 호스트명
+ * @return 프라이빗/예약 주소이면 true
  */
 fun isPrivateOrReservedAddress(host: String?): Boolean {
     if (host.isNullOrBlank()) return true
@@ -32,27 +39,49 @@ fun isPrivateOrReservedAddress(host: String?): Boolean {
         addr.isLoopbackAddress || addr.isSiteLocalAddress || addr.isLinkLocalAddress ||
             addr.isMulticastAddress || isCloudMetadataAddress(addr)
     } catch (_: Exception) {
-        true // unresolvable host treated as blocked
+        true // 해석 불가능한 호스트는 차단 처리
     }
 }
 
 /**
- * Detects cloud provider metadata service addresses (AWS, GCP, Azure).
- * These endpoints expose instance credentials and must be blocked for SSRF prevention.
+ * 클라우드 프로바이더 메타데이터 서비스 주소(AWS, GCP, Azure)를 감지한다.
+ * 이 엔드포인트는 인스턴스 자격증명을 노출하므로 SSRF 방지를 위해 차단해야 한다.
  */
 private fun isCloudMetadataAddress(addr: InetAddress): Boolean {
     val ip = addr.hostAddress
-    return ip == "169.254.169.254" || // AWS/GCP/Azure metadata (IPv4)
+    return ip == "169.254.169.254" || // AWS/GCP/Azure 메타데이터 (IPv4)
         ip == "fd00:ec2::254"         // AWS IMDSv2 (IPv6)
 }
 
+/**
+ * MCP 연결 핸들 — 클라이언트와 해당 도구 콜백을 함께 보관한다.
+ *
+ * @param client MCP 동기 클라이언트
+ * @param tools 서버에서 로딩된 도구 콜백 목록
+ */
 internal data class McpConnectionHandle(
     val client: McpSyncClient,
     val tools: List<ToolCallback>
 )
 
 /**
- * MCP transport and tool-discovery support.
+ * MCP 전송 및 도구 탐색 지원 클래스.
+ *
+ * STDIO, SSE, HTTP 전송 연결을 처리하고, 연결된 서버에서 도구 목록을 로딩한다.
+ *
+ * ## 보안 검증
+ * - STDIO: 명령어 화이트리스트, 경로 순회 검증, 제어 문자 검증
+ * - SSE: URL 스킴 검증, 프라이빗 주소 차단 (SSRF 방지)
+ * - HTTP: MCP SDK 0.17.2에서 미지원
+ *
+ * WHY: 연결 설정의 보안 검증과 전송 프로토콜 처리를 DefaultMcpManager에서 분리하여
+ * 관심사를 분리하고 테스트를 용이하게 한다.
+ *
+ * @param connectionTimeoutMs 연결 타임아웃 (밀리초)
+ * @param maxToolOutputLengthProvider 도구 출력 최대 길이 제공 함수
+ * @param allowPrivateAddresses 프라이빗 주소 허용 여부
+ * @param allowedStdioCommandsProvider STDIO 허용 명령어 집합 제공 함수
+ * @param onConnectionError 연결 오류 발생 시 호출되는 콜백 (서버 이름)
  */
 internal class McpConnectionSupport(
     private val connectionTimeoutMs: Long,
@@ -65,10 +94,16 @@ internal class McpConnectionSupport(
 ) {
 
     companion object {
-        /** Matches control characters below 0x20 except tab (0x09) and newline (0x0A). */
+        /** 탭(0x09)과 개행(0x0A)을 제외한 0x20 미만의 제어 문자를 매칭한다. */
         private val UNSAFE_CONTROL_CHAR_REGEX = Regex("[\\x00-\\x08\\x0B-\\x1F]")
     }
 
+    /**
+     * MCP 서버에 대한 전송 연결을 열고 도구를 로딩한다.
+     *
+     * @param server MCP 서버 설정
+     * @return 연결 핸들, 또는 연결 실패 시 null
+     */
     fun open(server: McpServer): McpConnectionHandle? {
         val client = when (server.transportType) {
             McpTransportType.STDIO -> connectStdio(server)
@@ -80,28 +115,38 @@ internal class McpConnectionSupport(
         return McpConnectionHandle(client = client, tools = tools)
     }
 
+    /**
+     * MCP 클라이언트 연결을 안전하게 닫는다.
+     * 우아한 종료(graceful shutdown)를 시도하고 실패 시 강제 종료한다.
+     */
     fun close(serverName: String, client: McpSyncClient) {
         try {
             client.closeGracefully()
         } catch (e: Exception) {
-            logger.warn(e) { "Error during graceful shutdown of $serverName, attempting force close" }
+            logger.warn(e) { "$serverName 의 우아한 종료 실패, 강제 종료 시도" }
             try {
                 client.close()
             } catch (closeEx: Exception) {
-                logger.error(closeEx) { "Force close also failed for $serverName" }
+                logger.error(closeEx) { "$serverName 의 강제 종료도 실패" }
             }
         }
     }
 
+    /**
+     * STDIO 전송으로 연결한다.
+     * 명령어와 인자를 보안 검증한 후 로컬 프로세스를 시작한다.
+     */
     private fun connectStdio(server: McpServer): McpSyncClient? {
         val command = server.config["command"] as? String ?: run {
-            logger.warn { "STDIO transport requires 'command' in config for server: ${server.name}" }
+            logger.warn { "STDIO 전송에는 config에 'command'가 필요: ${server.name}" }
             return null
         }
         val args = (server.config["args"] as? List<*>)
             ?.filterIsInstance<String>() ?: emptyList()
 
+        // 보안 검증: 명령어 화이트리스트 및 경로 순회 검증
         if (!validateStdioCommand(command, server.name)) return null
+        // 보안 검증: 인자 내 제어 문자 검증
         if (!validateStdioArgs(args, server.name)) return null
 
         var client: McpSyncClient? = null
@@ -121,43 +166,46 @@ internal class McpConnectionSupport(
             client.initialize()
             client
         } catch (e: Exception) {
-            logger.error(e) { "Failed to create STDIO transport for ${server.name}" }
-            try { client?.close() } catch (_: Exception) { /* best-effort cleanup */ }
+            logger.error(e) { "${server.name}의 STDIO 전송 생성 실패" }
+            try { client?.close() } catch (_: Exception) { /* 최선의 정리 시도 */ }
             null
         }
     }
 
     /**
-     * Validates the STDIO command against the allowlist and rejects
-     * path traversal patterns.
+     * STDIO 명령어를 허용 목록과 대조하고 경로 순회 패턴을 거부한다.
+     *
+     * @param command 실행할 명령어
+     * @param serverName 서버 이름 (로깅용)
+     * @return 유효하면 true
      */
     internal fun validateStdioCommand(
         command: String,
         serverName: String
     ): Boolean {
+        // 경로 순회 패턴("..")을 거부한다
         if (command.contains("..")) {
             logger.warn {
-                "STDIO command contains path traversal for server " +
-                    "'$serverName': $command"
+                "서버 '$serverName'의 STDIO 명령어에 경로 순회 포함: $command"
             }
             return false
         }
 
+        // 명령어의 기본 이름(base name)이 허용 목록에 있는지 확인한다
         val baseName = command.substringAfterLast("/")
         val allowed = allowedStdioCommandsProvider()
         if (baseName !in allowed) {
             logger.warn {
-                "STDIO command '$baseName' is not in the allowed commands " +
-                    "list for server '$serverName'. " +
-                    "Allowed: $allowed"
+                "서버 '$serverName'의 STDIO 명령어 '$baseName'가 " +
+                    "허용 목록에 없음. 허용: $allowed"
             }
             return false
         }
 
+        // 전체 경로가 지정된 경우 파일 존재 여부를 확인한다
         if (command.contains("/") && !Files.exists(Paths.get(command))) {
             logger.warn {
-                "STDIO command does not exist for server " +
-                    "'$serverName': $command"
+                "서버 '$serverName'의 STDIO 명령어가 존재하지 않음: $command"
             }
             return false
         }
@@ -165,7 +213,13 @@ internal class McpConnectionSupport(
     }
 
     /**
-     * Validates STDIO args, rejecting null bytes and control characters.
+     * STDIO 인자에서 null 바이트와 제어 문자를 거부한다.
+     *
+     * WHY: 제어 문자가 포함된 인자는 명령어 인젝션에 악용될 수 있다.
+     *
+     * @param args 검증할 인자 목록
+     * @param serverName 서버 이름 (로깅용)
+     * @return 유효하면 true
      */
     internal fun validateStdioArgs(
         args: List<String>,
@@ -174,8 +228,8 @@ internal class McpConnectionSupport(
         for (arg in args) {
             if (UNSAFE_CONTROL_CHAR_REGEX.containsMatchIn(arg)) {
                 logger.warn {
-                    "STDIO args contain unsafe control characters " +
-                        "for server '$serverName'"
+                    "서버 '$serverName'의 STDIO 인자에 " +
+                        "안전하지 않은 제어 문자 포함"
                 }
                 return false
             }
@@ -183,26 +237,32 @@ internal class McpConnectionSupport(
         return true
     }
 
+    /**
+     * SSE(Server-Sent Events) 전송으로 연결한다.
+     * URL 스킴 검증과 SSRF 방지를 위한 프라이빗 주소 검증을 수행한다.
+     */
     private fun connectSse(server: McpServer): McpSyncClient? {
         val url = server.config["url"] as? String ?: run {
-            logger.warn { "SSE transport requires 'url' in config for server: ${server.name}" }
+            logger.warn { "SSE 전송에는 config에 'url'이 필요: ${server.name}" }
             return null
         }
 
         val parsed = try {
             URI(url)
         } catch (e: Exception) {
-            logger.warn { "Invalid SSE URL for server '${server.name}': $url" }
+            logger.warn { "서버 '${server.name}'의 잘못된 SSE URL: $url" }
             return null
         }
 
+        // HTTP/HTTPS만 허용
         if (!parsed.isAbsolute || (parsed.scheme != "http" && parsed.scheme != "https")) {
-            logger.warn { "SSE URL must be absolute http/https for server '${server.name}': $url" }
+            logger.warn { "SSE URL은 절대 경로 http/https여야 함: '${server.name}': $url" }
             return null
         }
 
+        // SSRF 방지: 프라이빗/예약 주소 차단
         if (isPrivateAddress(parsed.host)) {
-            logger.warn { "SSE URL resolves to private/reserved address for server '${server.name}'" }
+            logger.warn { "SSE URL이 프라이빗/예약 주소로 해석됨: '${server.name}'" }
             return null
         }
 
@@ -221,33 +281,38 @@ internal class McpConnectionSupport(
             client.initialize()
             client
         } catch (e: Exception) {
-            logger.error(e) { "Failed to create SSE transport for ${server.name}" }
-            try { client?.close() } catch (_: Exception) { /* best-effort cleanup */ }
+            logger.error(e) { "${server.name}의 SSE 전송 생성 실패" }
+            try { client?.close() } catch (_: Exception) { /* 최선의 정리 시도 */ }
             null
         }
     }
 
     /**
-     * Streamable HTTP transport is not available in MCP SDK 0.17.2.
+     * Streamable HTTP 전송은 MCP SDK 0.17.2에서 사용할 수 없다.
      */
     private fun connectHttp(server: McpServer): McpSyncClient? {
         logger.warn {
-            "HTTP (Streamable) transport is not yet supported in MCP SDK 0.17.2. " +
-                "Use SSE transport instead for server: ${server.name}"
+            "HTTP (Streamable) 전송은 MCP SDK 0.17.2에서 아직 지원되지 않음. " +
+                "서버 '${server.name}'에 SSE 전송을 대신 사용하세요"
         }
         return null
     }
 
+    /** 프라이빗 주소 허용 설정을 고려하여 확인한다 */
     private fun isPrivateAddress(host: String?): Boolean {
         if (allowPrivateAddresses) return false
         return isPrivateOrReservedAddress(host)
     }
 
+    /**
+     * MCP 서버에서 도구 콜백 목록을 로딩한다.
+     * 각 MCP 도구를 Arc Reactor의 McpToolCallback으로 래핑한다.
+     */
     private fun loadToolCallbacks(client: McpSyncClient, serverName: String): List<ToolCallback> {
         return try {
             val toolsResult = client.listTools()
             val tools = toolsResult.tools()
-            logger.info { "Loaded ${tools.size} tools from $serverName" }
+            logger.info { "$serverName 에서 ${tools.size}개 도구 로딩됨" }
 
             tools.map { tool ->
                 McpToolCallback(
@@ -260,7 +325,7 @@ internal class McpConnectionSupport(
                 )
             }
         } catch (e: Exception) {
-            logger.error(e) { "Failed to load tools from $serverName" }
+            logger.error(e) { "$serverName 에서 도구 로딩 실패" }
             emptyList()
         }
     }

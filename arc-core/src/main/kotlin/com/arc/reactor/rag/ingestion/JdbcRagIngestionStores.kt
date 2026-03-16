@@ -7,6 +7,15 @@ import org.springframework.transaction.support.TransactionTemplate
 import java.sql.ResultSet
 import java.time.Instant
 
+/**
+ * [RagIngestionPolicyStore]의 JDBC 구현체.
+ *
+ * 관계형 데이터베이스에 수집 정책을 영구 저장한다.
+ * 단일 레코드(DEFAULT_ID)로 전역 정책을 관리한다.
+ *
+ * @param jdbcTemplate JDBC 작업용 템플릿
+ * @param transactionTemplate 트랜잭션 관리용 템플릿
+ */
 class JdbcRagIngestionPolicyStore(
     private val jdbcTemplate: JdbcTemplate,
     private val transactionTemplate: TransactionTemplate
@@ -29,6 +38,7 @@ class JdbcRagIngestionPolicyStore(
             val updated = policy.copy(createdAt = createdAt, updatedAt = now)
 
             if (existing == null) {
+                // INSERT: 최초 정책 생성
                 jdbcTemplate.update(
                     "INSERT INTO rag_ingestion_policy " +
                         "(id, enabled, require_review, allowed_channels, min_query_chars, min_response_chars, " +
@@ -45,6 +55,7 @@ class JdbcRagIngestionPolicyStore(
                     java.sql.Timestamp.from(now)
                 )
             } else {
+                // UPDATE: 기존 정책 갱신
                 jdbcTemplate.update(
                     "UPDATE rag_ingestion_policy SET enabled = ?, require_review = ?, allowed_channels = ?, " +
                         "min_query_chars = ?, min_response_chars = ?, blocked_patterns = ?, updated_at = ? " +
@@ -68,6 +79,7 @@ class JdbcRagIngestionPolicyStore(
         return count > 0
     }
 
+    /** ResultSet을 RagIngestionPolicy로 매핑한다. */
     private fun mapPolicy(rs: ResultSet): RagIngestionPolicy {
         return RagIngestionPolicy(
             enabled = rs.getBoolean("enabled"),
@@ -81,6 +93,7 @@ class JdbcRagIngestionPolicyStore(
         )
     }
 
+    /** JSON 배열 문자열을 Set<String>으로 파싱한다. 파싱 실패 시 빈 집합. */
     private fun parseJsonSet(json: String?): Set<String> {
         if (json.isNullOrBlank()) return emptySet()
         return runCatching {
@@ -92,11 +105,21 @@ class JdbcRagIngestionPolicyStore(
     }
 
     companion object {
+        /** 전역 정책의 고정 ID. 단일 레코드 패턴. */
         private const val DEFAULT_ID = "default"
         private val objectMapper = jacksonObjectMapper()
     }
 }
 
+/**
+ * [RagIngestionCandidateStore]의 JDBC 구현체.
+ *
+ * 관계형 데이터베이스에 수집 후보를 영구 저장한다.
+ * runId 기반 중복 방지 및 상태/채널별 필터링을 지원한다.
+ *
+ * @param jdbcTemplate JDBC 작업용 템플릿
+ * @param transactionTemplate 트랜잭션 관리용 템플릿
+ */
 class JdbcRagIngestionCandidateStore(
     private val jdbcTemplate: JdbcTemplate,
     private val transactionTemplate: TransactionTemplate
@@ -104,6 +127,7 @@ class JdbcRagIngestionCandidateStore(
 
     override fun save(candidate: RagIngestionCandidate): RagIngestionCandidate {
         return transactionTemplate.execute {
+            // 같은 runId가 이미 존재하면 중복 수집을 방지
             findByRunId(candidate.runId)?.let { return@execute it }
             jdbcTemplate.update(
                 "INSERT INTO rag_ingestion_candidates " +
@@ -149,6 +173,7 @@ class JdbcRagIngestionCandidateStore(
     }
 
     override fun list(limit: Int, status: RagIngestionCandidateStatus?, channel: String?): List<RagIngestionCandidate> {
+        // 최대 500개로 제한하여 메모리 부담 방지
         val cappedLimit = limit.coerceIn(1, 500)
         val normalizedChannel = channel?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
         val where = mutableListOf<String>()
@@ -191,6 +216,7 @@ class JdbcRagIngestionCandidateStore(
         return findById(id)
     }
 
+    /** ResultSet을 RagIngestionCandidate로 매핑한다. */
     private fun mapCandidate(rs: ResultSet): RagIngestionCandidate {
         val reviewedAt = rs.getTimestamp("reviewed_at")?.toInstant()
         return RagIngestionCandidate(

@@ -7,6 +7,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.ToolResponseMessage
 
+/**
+ * ConversationManager의 도구 메시지 호환성에 대한 테스트.
+ *
+ * 도구 호출/응답 메시지 처리 호환성을 검증합니다.
+ */
 class ConversationManagerToolMessageCompatibilityTest {
 
     private val objectMapper = jacksonObjectMapper()

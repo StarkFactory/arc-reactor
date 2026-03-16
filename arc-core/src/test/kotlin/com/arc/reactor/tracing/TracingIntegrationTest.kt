@@ -89,7 +89,7 @@ class TracingIntegrationTest {
 
             // 검증
             assertTrue(!result.success, "Expected failed result when guard rejects")
-            // All spans은(는) be closed even on guard rejection해야 합니다
+            // 가드 거부 시에도 모든 스팬이 종료되어야 합니다
             verify(atLeast = 1) { spanHandle.close() }
         }
 
@@ -252,14 +252,14 @@ class TracingIntegrationTest {
 
         @Test
         fun `executor without explicit tracer은(는) use no-op and not throw해야 한다`() = runTest {
-            // Arrange — no tracer injected, defaults to NoOpArcReactorTracer
+            // 준비 — 트레이서 미주입, NoOpArcReactorTracer가 기본값
             fixture.mockCallResponse("All good")
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
                 properties = properties
             )
 
-            // Act + Assert — must not throw and must succeed
+            // 실행 + 검증 — 예외가 발생하지 않고 성공해야 합니다
             val result = executor.execute(
                 AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Test")
             )

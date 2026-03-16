@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 @Tag("matrix")
+/**
+ * ArcToolCallbackAdapter의 퍼즈 테스트.
+ *
+ * 비정상적인 입력에 대한 어댑터의 안정성을 검증합니다.
+ */
 class ArcToolCallbackAdapterFuzzTest {
 
     @Test

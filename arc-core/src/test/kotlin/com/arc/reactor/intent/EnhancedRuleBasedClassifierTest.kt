@@ -54,7 +54,7 @@ class EnhancedRuleBasedClassifierTest {
 
             val result = classifier.classify("환불 돌려줘")
             assertFalse(result.isUnknown) { "Should match" }
-            // Only "환불" keyword matched (via original), "취소" didn't match -> 1/2 = 0.5
+            // "환불" 키워드만 매칭됨 (원본 경유), "취소"는 매칭 안 됨 -> 1/2 = 0.5
             assertEquals(0.5, result.primary!!.confidence, 0.01) {
                 "Should be 0.5 — original+synonym = 1 keyword, 취소 unmatched"
             }
@@ -93,7 +93,7 @@ class EnhancedRuleBasedClassifierTest {
                 // "환불" weight=3.0, "문의" weight=1.0 (default)
             ))
 
-            // Only "환불" matches -> matchedWeight=3.0, totalWeight=4.0 -> confidence=0.75
+            // "환불"만 매칭됨 -> matchedWeight=3.0, totalWeight=4.0 -> confidence=0.75
             val result = classifier.classify("환불 요청합니다")
             assertFalse(result.isUnknown) { "Should match" }
             assertEquals(0.75, result.primary!!.confidence, 0.01) {

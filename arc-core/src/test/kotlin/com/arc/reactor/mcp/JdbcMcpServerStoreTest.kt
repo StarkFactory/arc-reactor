@@ -10,6 +10,11 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 
+/**
+ * JdbcMcpServerStore에 대한 테스트.
+ *
+ * JDBC 기반 MCP 서버 저장소의 동작을 검증합니다.
+ */
 class JdbcMcpServerStoreTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate

@@ -11,6 +11,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * TeamsWebhookClient에 대한 테스트.
+ *
+ * Teams 웹훅 클라이언트의 메시지 발송 동작을 검증합니다.
+ */
 class TeamsWebhookClientTest {
 
     private val server = MockWebServer()

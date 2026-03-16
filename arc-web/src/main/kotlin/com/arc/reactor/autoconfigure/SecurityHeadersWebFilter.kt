@@ -7,20 +7,20 @@ import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
 
 /**
- * Security Headers WebFilter
+ * 보안 헤더 WebFilter.
  *
- * Adds standard security headers to HTTP responses:
- * - `X-Content-Type-Options: nosniff` — prevents MIME type sniffing
- * - `X-Frame-Options: DENY` — prevents clickjacking
- * - `Content-Security-Policy: default-src 'self'` — restricts resource loading (API paths only)
- * - `X-XSS-Protection: 0` — disables legacy XSS filter (modern best practice)
- * - `Referrer-Policy: strict-origin-when-cross-origin` — limits referrer info
- * - `Strict-Transport-Security: max-age=31536000; includeSubDomains` — enforces HTTPS
+ * HTTP 응답에 표준 보안 헤더를 추가합니다:
+ * - `X-Content-Type-Options: nosniff` -- MIME 타입 스니핑 방지
+ * - `X-Frame-Options: DENY` -- 클릭재킹 방지
+ * - `Content-Security-Policy: default-src 'self'` -- 리소스 로딩 제한 (API 경로 전용)
+ * - `X-XSS-Protection: 0` -- 레거시 XSS 필터 비활성화 (최신 권장 사항)
+ * - `Referrer-Policy: strict-origin-when-cross-origin` -- referrer 정보 제한
+ * - `Strict-Transport-Security: max-age=31536000; includeSubDomains` -- HTTPS 강제
  *
- * Swagger UI paths (`/swagger-ui`, `/v3/api-docs`, `/webjars`) use a relaxed CSP
- * that permits inline styles required by the UI.
+ * Swagger UI 경로(`/swagger-ui`, `/v3/api-docs`, `/webjars`)에는 UI에 필요한
+ * 인라인 스타일을 허용하는 완화된 CSP를 적용합니다.
  *
- * Enabled by default. Disable via `arc.reactor.security-headers.enabled=false`.
+ * 기본값: 활성화. `arc.reactor.security-headers.enabled=false`로 비활성화.
  */
 class SecurityHeadersWebFilter : WebFilter, Ordered {
 

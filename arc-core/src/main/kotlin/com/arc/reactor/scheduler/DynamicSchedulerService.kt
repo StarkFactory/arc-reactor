@@ -38,18 +38,33 @@ import java.util.concurrent.ScheduledFuture
 private val logger = KotlinLogging.logger {}
 
 /**
- * Dynamic Scheduler Service
+ * 동적 스케줄러 서비스
  *
- * Manages cron-scheduled job executions at runtime.
- * Jobs can be created, updated, deleted, and triggered manually via REST API.
+ * 런타임에 크론 스케줄 작업 실행을 관리한다.
+ * 작업은 REST API를 통해 생성, 갱신, 삭제, 수동 트리거할 수 있다.
  *
- * Supports two execution modes:
- * - **MCP_TOOL**: Directly invokes a single MCP tool (original behavior).
- * - **AGENT**: Runs the full ReAct agent loop, allowing the LLM to reason over
- *   multiple MCP tools and produce a natural-language summary.
+ * 두 가지 실행 모드를 지원한다:
+ * - **MCP_TOOL**: 단일 MCP 도구를 직접 호출한다 (원래 동작).
+ * - **AGENT**: 전체 ReAct 에이전트 루프를 실행한다. LLM이 여러 MCP 도구를 추론하여
+ *   자연어 요약을 생성한다.
  *
- * On startup, loads all enabled jobs from the store and registers cron triggers.
- * Each job execution optionally sends its result to a Slack or Teams channel.
+ * ## 크론 스케줄링 흐름
+ * 1. 시작 시: 스토어에서 활성화된 모든 작업을 로딩하고 크론 트리거를 등록한다
+ * 2. 작업 생성/갱신: 기존 트리거를 취소하고 새 트리거를 등록한다
+ * 3. 크론 트리거 발동: executeJob() -> runJobWithRetryAndTimeout() -> executeJobContent()
+ * 4. executeJobContent()에서 jobType에 따라 MCP_TOOL 또는 AGENT 모드로 분기
+ * 5. 실행 결과를 Slack/Teams로 전송하고, 실행 이력을 기록한다
+ *
+ * ## 시스템 프롬프트 결정 순서 (AGENT 모드)
+ * agentSystemPrompt -> personaId의 페르소나 -> 기본 페르소나 -> DEFAULT_SYSTEM_PROMPT
+ *
+ * WHY: 반복적 작업(일일 브리핑, 정기 보고서 등)을 자동화하여
+ * 사용자가 수동으로 매번 요청할 필요 없게 한다.
+ * 두 모드를 지원하여 단순 도구 호출과 복잡한 추론 작업을 모두 스케줄링한다.
+ *
+ * @see ScheduledJob 작업 정의 모델
+ * @see ScheduledJobStore 작업 저장소
+ * @see ScheduledJobExecutionStore 실행 이력 저장소
  */
 class DynamicSchedulerService(
     private val store: ScheduledJobStore,
@@ -586,8 +601,14 @@ class DynamicSchedulerService(
 }
 
 /**
- * Interface for sending Slack messages.
- * Decouples scheduler from arc-slack module dependency.
+ * Slack 메시지 전송 인터페이스.
+ * 스케줄러와 arc-slack 모듈의 의존성을 분리한다.
+ *
+ * WHY: 스케줄러가 Slack SDK에 직접 의존하지 않고,
+ * 실행 결과를 Slack으로 전달할 수 있게 한다.
+ *
+ * @see DynamicSchedulerService 스케줄러에서의 활용
+ * @see TeamsMessageSender Teams 메시지 전송 인터페이스
  */
 fun interface SlackMessageSender {
     fun sendMessage(channelId: String, text: String)

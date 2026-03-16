@@ -14,6 +14,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 구조화된 출력(JSON 스키마) 기능에 대한 테스트.
+ *
+ * JSON 검증, 복구 시도, 스키마 적용을 검증합니다.
+ */
 class StructuredOutputTest {
 
     private lateinit var fixture: AgentTestFixture
@@ -153,14 +158,14 @@ class StructuredOutputTest {
 
         @Test
         fun `invalid JSON은(는) trigger repair and succeed if repair returns valid JSON해야 한다`() = runBlocking {
-            // First call returns invalid JSON
+            // 첫 번째 호출이 유효하지 않은 JSON을 반환
             every { fixture.callResponseSpec.chatResponse() } returns
                 AgentTestFixture.simpleChatResponse("{invalid json here")
 
-            // Repair call returns valid JSON (uses chatClient.prompt().user().call().chatResponse())
+            // 복구 호출이 유효한 JSON을 반환 (chatClient.prompt().user().call().chatResponse() 사용)
             val repairCallSpec = fixture.mockFinalResponse("""{"repaired": true}""")
-            // The repair call goes through the same chatClient.prompt() chain
-            // Since fixture already mocks prompt() → requestSpec → call() → callResponseSpec,
+            // 복구 호출은 동일한 chatClient.prompt() 체인을 통과
+            // 픽스처가 이미 prompt() → requestSpec → call() → callResponseSpec을 모킹하고 있으므로,
             // we need to make the second call return the repair response
             every { fixture.callResponseSpec.chatResponse() } returnsMany listOf(
                 AgentTestFixture.simpleChatResponse("{invalid json here"),

@@ -16,17 +16,19 @@ import org.springframework.web.server.ServerWebExchange
 import java.util.UUID
 
 /**
- * Persona Management API Controller
+ * 페르소나 관리 API 컨트롤러.
  *
- * Provides REST APIs for managing system prompt personas.
- * Personas are named system prompt templates that can be selected by users.
+ * 시스템 프롬프트 페르소나를 관리하는 REST API를 제공합니다.
+ * 페르소나는 사용자가 선택할 수 있는 이름이 지정된 시스템 프롬프트 템플릿입니다.
  *
- * ## Endpoints
- * - GET    /api/personas          : List all personas
- * - GET    /api/personas/{id}     : Get a persona by ID
- * - POST   /api/personas          : Create a new persona
- * - PUT    /api/personas/{id}     : Update an existing persona
- * - DELETE /api/personas/{id}     : Delete a persona
+ * ## 엔드포인트
+ * - GET    /api/personas          : 전체 페르소나 목록 조회
+ * - GET    /api/personas/{id}     : ID로 페르소나 조회
+ * - POST   /api/personas          : 새 페르소나 생성 (관리자)
+ * - PUT    /api/personas/{id}     : 기존 페르소나 수정 (관리자)
+ * - DELETE /api/personas/{id}     : 페르소나 삭제 (관리자)
+ *
+ * @see PersonaStore
  */
 @Tag(name = "Personas", description = "System prompt persona management")
 @RestController
@@ -35,10 +37,8 @@ class PersonaController(
     private val personaStore: PersonaStore
 ) {
 
-    /**
-     * List all personas. Requires ADMIN role.
-     */
-    @Operation(summary = "List all personas (ADMIN)")
+    /** 전체 페르소나 목록을 조회한다. activeOnly=true이면 활성 상태만 반환한다. 관리자 권한 필요. */
+    @Operation(summary = "전체 페르소나 목록 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of personas"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -54,10 +54,8 @@ class PersonaController(
         return ResponseEntity.ok(filtered.map { it.toResponse() })
     }
 
-    /**
-     * Get a persona by ID.
-     */
-    @Operation(summary = "Get a persona by ID")
+    /** ID로 페르소나를 조회한다. */
+    @Operation(summary = "ID로 페르소나 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Persona details"),
         ApiResponse(responseCode = "404", description = "Persona not found")
@@ -69,10 +67,8 @@ class PersonaController(
         return ResponseEntity.ok(persona.toResponse())
     }
 
-    /**
-     * Create a new persona. Requires ADMIN role.
-     */
-    @Operation(summary = "Create a new persona (ADMIN)")
+    /** 새 페르소나를 생성한다. 관리자 권한 필요. */
+    @Operation(summary = "새 페르소나 생성 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Persona created"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -100,11 +96,8 @@ class PersonaController(
         return ResponseEntity.status(HttpStatus.CREATED).body(saved.toResponse())
     }
 
-    /**
-     * Update an existing persona. Only provided fields are changed.
-     * Requires ADMIN role.
-     */
-    @Operation(summary = "Update an existing persona (ADMIN)")
+    /** 기존 페르소나를 수정한다. 제공된 필드만 변경된다. 관리자 권한 필요. */
+    @Operation(summary = "기존 페르소나 수정 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Persona updated"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -133,11 +126,8 @@ class PersonaController(
         return ResponseEntity.ok(updated.toResponse())
     }
 
-    /**
-     * Delete a persona. Idempotent — returns 204 even if not found.
-     * Requires ADMIN role.
-     */
-    @Operation(summary = "Delete a persona (ADMIN)")
+    /** 페르소나를 삭제한다. 멱등성 보장 -- 미존재 시에도 204를 반환한다. 관리자 권한 필요. */
+    @Operation(summary = "페르소나 삭제 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Persona deleted"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -153,7 +143,7 @@ class PersonaController(
     }
 }
 
-// --- Request DTOs ---
+// --- 요청 DTO ---
 
 data class CreatePersonaRequest(
     @field:NotBlank(message = "name must not be blank")
@@ -195,7 +185,7 @@ data class UpdatePersonaRequest(
     val isActive: Boolean? = null
 )
 
-// --- Response DTO ---
+// --- 응답 DTO ---
 
 data class PersonaResponse(
     val id: String,
@@ -212,7 +202,7 @@ data class PersonaResponse(
     val updatedAt: Long
 )
 
-// --- Mapping extensions ---
+// --- 매핑 확장 ---
 
 private fun Persona.toResponse() = PersonaResponse(
     id = id,

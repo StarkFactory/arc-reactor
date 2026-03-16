@@ -5,9 +5,15 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.assertThrows
 
+/**
+ * SpringAiToolCallbackAdapter에 대한 테스트.
+ *
+ * Spring AI의 ToolCallback 인터페이스를 래핑하는 어댑터의 동작을 검증합니다.
+ * 리플렉션 기반 메서드 탐색, JSON 직렬화, ToolDefinition 메타데이터 추출 등을 테스트합니다.
+ */
 class SpringAiToolCallbackAdapterTest {
 
-    // Test double that mimics Spring AI ToolCallback
+    // Spring AI ToolCallback을 모방하는 테스트 더블
     class FakeSpringCallback {
         fun getName(): String = "test-tool"
         fun getDescription(): String = "A test tool"
@@ -37,10 +43,10 @@ class SpringAiToolCallbackAdapterTest {
         override fun call(toolInput: String): String = "Spring: $toolInput"
     }
 
-    // Object with no matching methods at all
+    // 매칭되는 메서드가 전혀 없는 객체
     class EmptyObject
 
-    // Object with only getName
+    // getName만 있는 객체
     class NameOnlyCallback {
         fun getName(): String = "name-only-tool"
     }
@@ -106,7 +112,7 @@ class SpringAiToolCallbackAdapterTest {
             adapter.call(mapOf("name" to "arc", "count" to 42))
         } as String
 
-        // The fake callback returns "Result: <json>", so extract the JSON part
+        // 가짜 콜백은 "Result: <json>"을 반환하므로 JSON 부분을 추출합니다
         val json = result.removePrefix("Result: ")
         assertTrue(json.contains("\"name\""), "JSON should contain 'name' key, got: $json")
         assertTrue(json.contains("\"arc\""), "JSON should contain 'arc' value, got: $json")

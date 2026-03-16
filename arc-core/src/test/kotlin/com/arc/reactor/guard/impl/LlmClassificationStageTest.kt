@@ -13,6 +13,11 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.ChatClient.CallResponseSpec
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec
 
+/**
+ * LLM 분류 단계에 대한 테스트.
+ *
+ * LLM 기반 입력 분류 가드의 동작을 검증합니다.
+ */
 class LlmClassificationStageTest {
 
     private fun mockChatClient(responseContent: String): ChatClient {

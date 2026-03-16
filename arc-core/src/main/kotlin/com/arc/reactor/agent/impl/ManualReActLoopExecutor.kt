@@ -256,7 +256,7 @@ internal class ManualReActLoopExecutor(
     }
 
     companion object {
-        /** Conservative per-tool token estimate (name + description + JSON schema). */
+        /** 도구당 보수적 토큰 추정치 (이름 + 설명 + JSON 스키마). */
         private const val TOKENS_PER_TOOL_DEFINITION = 200
     }
 }

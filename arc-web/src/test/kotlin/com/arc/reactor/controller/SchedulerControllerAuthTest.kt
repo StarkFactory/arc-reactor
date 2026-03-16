@@ -18,6 +18,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 
 @Tag("safety")
+/**
+ * SchedulerController 인증에 대한 테스트.
+ *
+ * 스케줄러 컨트롤러의 인증/인가 동작을 검증합니다.
+ */
 class SchedulerControllerAuthTest {
 
     private val schedulerService = mockk<DynamicSchedulerService>()

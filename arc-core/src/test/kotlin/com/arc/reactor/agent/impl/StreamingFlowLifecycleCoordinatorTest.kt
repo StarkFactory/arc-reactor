@@ -17,6 +17,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
+/**
+ * StreamingFlowLifecycleCoordinator에 대한 테스트.
+ *
+ * 스트리밍 Flow 라이프사이클 조정을 검증합니다.
+ */
 class StreamingFlowLifecycleCoordinatorTest {
 
     @Test

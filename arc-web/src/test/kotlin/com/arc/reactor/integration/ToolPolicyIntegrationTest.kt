@@ -50,6 +50,11 @@ import org.springframework.test.web.reactive.server.WebTestClient
 )
 @AutoConfigureWebTestClient
 @Tag("integration")
+/**
+ * 도구 정책 통합 테스트.
+ *
+ * 도구 정책 파이프라인의 E2E 동작을 검증합니다.
+ */
 class ToolPolicyIntegrationTest {
 
     @Autowired

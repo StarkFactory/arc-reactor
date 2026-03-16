@@ -16,6 +16,11 @@ import org.springframework.test.web.reactive.server.WebTestClient
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * ErrorReportController에 대한 테스트.
+ *
+ * 에러 리포트 REST API의 동작을 검증합니다.
+ */
 class ErrorReportControllerTest {
 
     private val handler = mockk<ErrorReportHandler>(relaxed = true)

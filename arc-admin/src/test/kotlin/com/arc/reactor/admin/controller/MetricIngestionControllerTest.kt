@@ -360,7 +360,7 @@ class MetricIngestionControllerTest {
             evalEvents[1].failureClass shouldBe "HALLUCINATION"
             evalEvents[2].tags shouldBe listOf("redteam")
 
-            // All은(는) share the same evalRunId and tenantId해야 합니다
+            // 모두 동일한 evalRunId와 tenantId를 공유해야 합니다
             evalEvents.forEach { event ->
                 event.evalRunId shouldBe "eval-run-002"
                 event.tenantId shouldBe "tenant-1"

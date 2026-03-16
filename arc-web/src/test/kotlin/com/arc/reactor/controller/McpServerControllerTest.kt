@@ -25,10 +25,10 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 
 /**
- * McpServerController scenario tests.
+ * McpServerController 시나리오 테스트.
  *
- * Tests REST API behavior with real InMemoryMcpServerStore
- * and mocked ServerWebExchange for auth context.
+ * 실제 InMemoryMcpServerStore와 인증 컨텍스트를 위한
+ * 모킹된 ServerWebExchange로 REST API 동작을 검증합니다.
  */
 class McpServerControllerTest {
 

@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration
 /**
  * Tool Output Sanitizer Configuration
  *
- * Enables indirect prompt injection defense via tool output sanitization.
+ * 도구 출력 새니타이징을 통한 간접 프롬프트 주입 방어를 활성화한다.
  */
 @Configuration
 @ConditionalOnProperty(

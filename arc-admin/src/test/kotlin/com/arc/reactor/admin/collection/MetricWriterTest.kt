@@ -262,7 +262,7 @@ class MetricWriterTest {
             writer.start()
 
             await atMost Duration.ofSeconds(5) untilAsserted {
-                // All events은(는) be stored exactly once (no duplicates)해야 합니다
+                // 모든 이벤트가 정확히 한 번만 저장되어야 합니다 (중복 없음)
                 storedEvents.size shouldBe 100
             }
             writer.stop()

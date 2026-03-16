@@ -17,7 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 private val logger = KotlinLogging.logger {}
 
 /**
- * Token revocation store selection with safe fallback.
+ * 안전한 폴백을 가진 토큰 폐기 저장소 선택.
  *
  * Behavior:
  * - `memory` (default) -> in-memory store

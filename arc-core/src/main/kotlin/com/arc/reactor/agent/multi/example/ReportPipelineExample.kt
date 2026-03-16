@@ -10,15 +10,15 @@ import com.arc.reactor.agent.multi.MultiAgentResult
 import org.springframework.ai.chat.client.ChatClient
 
 /**
- * Multi-agent usage example -- Report Pipeline (Sequential pattern)
+ * 멀티 에이전트 사용 예시 -- 보고서 파이프라인 (순차 패턴)
  *
- * ## What This Example Demonstrates
- * A three-stage pipeline where each agent's output feeds into the next:
- * 1. **Researcher** gathers information
- * 2. **Writer** produces a structured report
- * 3. **Reviewer** polishes and improves
+ * ## 이 예시가 보여주는 것
+ * 각 에이전트의 출력이 다음 단계로 전달되는 3단계 파이프라인:
+ * 1. **Researcher** 정보를 수집
+ * 2. **Writer** 구조화된 보고서를 작성
+ * 3. **Reviewer** 검토 및 개선
  *
- * ## Usage
+ * ## 사용법
  * ```kotlin
  * @Bean
  * fun reportPipeline(chatClient: ChatClient, props: AgentProperties) =
@@ -33,7 +33,7 @@ import org.springframework.ai.chat.client.ChatClient
  *
  * @see com.arc.reactor.agent.multi.SequentialOrchestrator
  */
-// @Component  <- Uncomment to auto-register
+// @Component  <- 자동 등록하려면 주석 해제
 class ReportPipelineExample(
     private val chatClient: ChatClient,
     private val properties: AgentProperties

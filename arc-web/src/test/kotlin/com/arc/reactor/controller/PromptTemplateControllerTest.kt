@@ -13,6 +13,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
+/**
+ * PromptTemplateController에 대한 테스트.
+ *
+ * 프롬프트 템플릿 REST API의 동작을 검증합니다.
+ */
 class PromptTemplateControllerTest {
 
     private lateinit var store: PromptTemplateStore

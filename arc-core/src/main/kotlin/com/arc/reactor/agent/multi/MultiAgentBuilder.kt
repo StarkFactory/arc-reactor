@@ -6,11 +6,11 @@ import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 
 /**
- * Multi-agent builder.
+ * 멀티 에이전트 빌더.
  *
- * Configures a multi-agent pipeline using a concise DSL.
+ * 간결한 DSL을 사용하여 멀티 에이전트 파이프라인을 구성한다.
  *
- * ## Sequential Example
+ * ## 순차 실행 예시
  * ```kotlin
  * val result = MultiAgent.sequential()
  *     .node("researcher") {
@@ -23,7 +23,7 @@ import com.arc.reactor.tool.ToolCallback
  *     .execute(command, agentFactory)
  * ```
  *
- * ## Parallel Example
+ * ## 병렬 실행 예시
  * ```kotlin
  * val result = MultiAgent.parallel()
  *     .node("security") { systemPrompt = "Analyze security vulnerabilities" }
@@ -32,7 +32,7 @@ import com.arc.reactor.tool.ToolCallback
  *     .execute(command, agentFactory)
  * ```
  *
- * ## Supervisor Example
+ * ## Supervisor 예시
  * ```kotlin
  * val result = MultiAgent.supervisor()
  *     .node("order") {

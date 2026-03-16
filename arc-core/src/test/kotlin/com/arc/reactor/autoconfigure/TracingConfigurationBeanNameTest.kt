@@ -10,6 +10,11 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
+/**
+ * 트레이싱 설정 빈 이름에 대한 테스트.
+ *
+ * 트레이싱 빈 이름 충돌 방지를 검증합니다.
+ */
 class TracingConfigurationBeanNameTest {
 
     private val contextRunner = ApplicationContextRunner()

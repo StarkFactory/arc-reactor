@@ -6,6 +6,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 
+/**
+ * MemoryStore에 대한 테스트.
+ *
+ * 메모리 저장소의 기본 CRUD 동작을 검증합니다.
+ */
 class MemoryStoreTest {
 
     @Test
@@ -74,7 +79,7 @@ class MemoryStoreTest {
         val surviving = listOf("session-1", "session-2", "session-3")
             .count { store.get(it) != null }
         assertEquals(2, surviving, "Exactly maxSessions entries should survive after eviction")
-        // Most recently added은(는) survive해야 합니다
+        // 가장 최근에 추가된 것이 유지되어야 합니다
         assertNotNull(store.get("session-3"), "Most recently added session should survive eviction")
     }
 
@@ -86,7 +91,7 @@ class MemoryStoreTest {
         store.addMessage("session-2", "user", "Hello", "owner-2")
         store.addMessage("session-3", "user", "Hello", "owner-3")
 
-        // Caffeine cleanup so RemovalListener fires를 강제합니다
+        // Caffeine 정리를 강제하여 RemovalListener가 실행되도록 합니다
         Thread.sleep(50)
         store.getOrCreate("session-3") // triggers cleanUp()
 
@@ -95,7 +100,7 @@ class MemoryStoreTest {
         assertEquals("owner-3", store.getSessionOwner("session-3"),
             "Surviving session owner should remain")
 
-        // At least one of session-1/session-2 was evicted — its owner은(는) be gone해야 합니다
+        // session-1/session-2 중 하나 이상이 축출됨 — 해당 소유자도 제거되어야 합니다
         val evictedOwners = listOf("session-1", "session-2")
             .count { store.get(it) == null && store.getSessionOwner(it) == null }
         assertTrue(evictedOwners >= 1,
@@ -200,7 +205,7 @@ class MemoryStoreTest {
         fun `order by last activity descending해야 한다`() {
             val store = InMemoryMemoryStore()
             store.addMessage("old-session", "user", "Old")
-            Thread.sleep(10) // Ensure different timestamps
+            Thread.sleep(10) // 다른 타임스탬프를 보장
             store.addMessage("new-session", "user", "New")
 
             val sessions = store.listSessions()
@@ -271,7 +276,7 @@ class ConversationMemoryTest {
         memory.add(Message(MessageRole.USER, "B".repeat(100))) // ~25 tokens
         memory.add(Message(MessageRole.USER, "C".repeat(100))) // ~25 tokens
 
-        // Get history with small token limit
+        // 작은 토큰 한도로 기록 조회
         val limitedHistory = memory.getHistoryWithinTokenLimit(40)  // fit ~1-2 messages해야 합니다
 
         assertTrue(limitedHistory.size < 3) { "Expected fewer than 3 messages within token limit, got: ${limitedHistory.size}" }

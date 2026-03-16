@@ -4,6 +4,11 @@ import jakarta.validation.Validation
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * MCP 서버 요청 유효성 검사에 대한 테스트.
+ *
+ * MCP 서버 등록 요청의 유효성 검사를 검증합니다.
+ */
 class McpServerRequestValidationTest {
 
     private val validator = Validation.buildDefaultValidatorFactory().validator

@@ -11,6 +11,11 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
+/**
+ * ParentDocumentRetriever에 대한 테스트.
+ *
+ * 상위 문서 조회 전략의 동작을 검증합니다.
+ */
 class ParentDocumentRetrieverTest {
 
     private val delegate = mockk<DocumentRetriever>()
@@ -214,7 +219,7 @@ class ParentDocumentRetrieverTest {
 
         val result = retriever(windowSize = 0).retrieve(listOf("q"), 10)
 
-        // Even with windowSize=0, chunks from same parent are merged
+        // windowSize=0이더라도 동일 부모의 청크는 병합됨
         result shouldHaveSize 1
         result[0].id shouldBe parentId
         result[0].content shouldContain "X"

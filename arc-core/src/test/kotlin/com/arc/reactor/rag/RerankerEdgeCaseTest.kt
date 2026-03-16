@@ -9,6 +9,11 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 
+/**
+ * Reranker 엣지 케이스에 대한 테스트.
+ *
+ * 재순위 모듈의 경계 상황을 검증합니다.
+ */
 class RerankerEdgeCaseTest {
 
     @Test
@@ -84,9 +89,9 @@ class RerankerEdgeCaseTest {
             RetrievedDocument(id = "3", content = "spring boot web framework deployment", score = 0.80)
         )
         val result = reranker.rerank("programming", docs, 3)
-        // First은(는) be highest score해야 합니다
+        // 첫 번째가 가장 높은 점수여야 합니다
         assertEquals("1", result[0].id)
-        // Second은(는) be diverse (spring boot) rather than similar (kotlin syntax)해야 합니다
+        // 두 번째는 유사한 것(kotlin syntax)보다 다양한 것(spring boot)이어야 합니다
         assertEquals("3", result[1].id)
     }
 

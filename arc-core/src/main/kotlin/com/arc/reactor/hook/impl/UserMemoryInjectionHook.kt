@@ -10,41 +10,52 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Injects per-user long-term memory into the agent system prompt.
+ * 사용자별 장기 메모리 주입 Hook
  *
- * When [injectIntoPrompt] is `true` and a non-blank userId is present in the [HookContext],
- * this hook:
- * 1. Loads the user's memory via [UserMemoryManager.getContextPrompt]
- * 2. Stores the resulting context string in [HookContext.metadata] under key `userMemoryContext`
+ * [injectIntoPrompt]가 `true`이고 비어있지 않은 userId가 [HookContext]에 있으면:
+ * 1. [UserMemoryManager.getContextPrompt]로 사용자 메모리를 로드한다
+ * 2. 결과를 [HookContext.metadata]의 `userMemoryContext` 키에 저장한다
  *
- * The agent executor reads this key from metadata and appends it to the system prompt
- * before the first LLM call. This hook is fail-open (errors are logged, never propagated).
+ * 에이전트 실행기가 이 키를 읽어 시스템 프롬프트 끝에 추가한다.
+ * Fail-Open: 오류는 로깅만 하고 절대 전파하지 않는다.
  *
- * ## Activation
- * Enabled by setting `arc.reactor.memory.user.enabled=true` AND
- * `arc.reactor.memory.user.inject-into-prompt=true`.
+ * ## 왜 Hook으로 구현하는가
+ * 메모리 로드는 에이전트 실행 전에 이루어져야 하며,
+ * 코어 에이전트 코드를 수정하지 않고 시스템 프롬프트를 보강할 수 있도록
+ * BeforeAgentStartHook으로 구현한다.
  *
- * ## Example output in system prompt
+ * ## 활성화 조건
+ * `arc.reactor.memory.user.enabled=true` AND
+ * `arc.reactor.memory.user.inject-into-prompt=true`
+ *
+ * ## 시스템 프롬프트에 추가되는 형태 예시
  * ```
  * [User Context]
  * Facts: team=backend, role=senior engineer
  * Preferences: language=Korean, detail_level=brief
  * ```
+ *
+ * @param memoryManager 사용자 메모리 매니저
+ * @param injectIntoPrompt 메모리 주입 활성화 여부
+ *
+ * @see com.arc.reactor.hook.BeforeAgentStartHook 에이전트 시작 전 Hook 인터페이스
+ * @see com.arc.reactor.memory.UserMemoryManager 사용자 메모리 관리자
  */
 class UserMemoryInjectionHook(
     private val memoryManager: UserMemoryManager,
     private val injectIntoPrompt: Boolean = false
 ) : BeforeAgentStartHook {
 
-    /** Run early (order 5) so memory context is available to all subsequent hooks. */
+    /** Order 5: 초기에 실행하여 후속 모든 Hook에서 메모리 컨텍스트를 사용할 수 있도록 한다 */
     override val order: Int = 5
 
-    /** Fail-open: memory injection failure should never block request processing. */
+    /** Fail-Open: 메모리 주입 실패가 요청 처리를 차단하면 안 된다 */
     override val failOnError: Boolean = false
 
     override suspend fun beforeAgentStart(context: HookContext): HookResult {
         if (!injectIntoPrompt) return HookResult.Continue
 
+        // "anonymous" 사용자는 메모리가 없으므로 건너뜀
         val userId = context.userId.takeIf { it.isNotBlank() && it != "anonymous" }
             ?: return HookResult.Continue
 
@@ -63,7 +74,7 @@ class UserMemoryInjectionHook(
     }
 
     companion object {
-        /** Metadata key used to pass user memory context to the system prompt builder. */
+        /** 시스템 프롬프트 빌더에 사용자 메모리 컨텍스트를 전달하는 메타데이터 키 */
         const val USER_MEMORY_CONTEXT_KEY = "userMemoryContext"
     }
 }

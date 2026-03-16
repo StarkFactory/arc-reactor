@@ -6,17 +6,17 @@ import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 
 /**
- * Multi-agent node definition.
+ * 멀티 에이전트 노드 정의.
  *
- * Defines a single agent role. Each node has its own system prompt and tools.
+ * 단일 에이전트 역할을 정의한다. 각 노드는 자체 시스템 프롬프트와 도구를 가진다.
  *
- * @param name Node name (e.g., "researcher", "writer", "reviewer")
- * @param systemPrompt System prompt that defines this agent's role
- * @param description What this agent does (referenced for routing in the Supervisor pattern)
- * @param tools List of ToolCallback-based tools
- * @param localTools List of LocalTool-based tools
- * @param maxToolCalls Maximum number of tool calls for this agent
- * @param timeoutMs Per-node timeout in milliseconds. If null, the global default is used.
+ * @param name 노드 이름 (예: "researcher", "writer", "reviewer")
+ * @param systemPrompt 이 에이전트의 역할을 정의하는 시스템 프롬프트
+ * @param description 이 에이전트가 하는 일 (Supervisor 패턴에서 라우팅 참조용)
+ * @param tools ToolCallback 기반 도구 목록
+ * @param localTools LocalTool 기반 도구 목록
+ * @param maxToolCalls 이 에이전트의 최대 도구 호출 횟수
+ * @param timeoutMs 노드별 타임아웃 (밀리초). null이면 전역 기본값 사용.
  */
 data class AgentNode(
     val name: String,
@@ -29,13 +29,13 @@ data class AgentNode(
 )
 
 /**
- * Multi-agent execution result.
+ * 멀티 에이전트 실행 결과.
  *
- * @param success Whether the overall execution succeeded
- * @param finalResult Final result (last node output or merged result)
- * @param nodeResults Execution results for each node (order preserved)
- * @param totalDurationMs Total execution time
- * @param failedNodes Details about which nodes failed and why (empty if all succeeded)
+ * @param success 전체 실행 성공 여부
+ * @param finalResult 최종 결과 (마지막 노드 출력 또는 병합 결과)
+ * @param nodeResults 각 노드의 실행 결과 (순서 보존)
+ * @param totalDurationMs 총 실행 시간
+ * @param failedNodes 실패한 노드의 상세 정보 (모두 성공하면 빈 목록)
  */
 data class MultiAgentResult(
     val success: Boolean,
@@ -44,13 +44,13 @@ data class MultiAgentResult(
     val totalDurationMs: Long = 0,
     val failedNodes: List<FailedNodeInfo> = emptyList()
 ) {
-    /** Total tokens used across all nodes */
+    /** 모든 노드에서 사용된 총 토큰 수 */
     val totalTokensUsed: Int
         get() = nodeResults.sumOf { it.tokensUsed }
 }
 
 /**
- * Individual node execution result.
+ * 개별 노드 실행 결과.
  */
 data class NodeResult(
     val nodeName: String,
@@ -60,12 +60,12 @@ data class NodeResult(
 )
 
 /**
- * Information about a failed node for structured error reporting.
+ * 구조화된 에러 보고를 위한 실패 노드 정보.
  *
- * @param nodeName Name of the failed node
- * @param index Index of the failed node in the execution list
- * @param errorCode Error code from the agent result, if available
- * @param errorMessage Error message describing the failure
+ * @param nodeName 실패한 노드 이름
+ * @param index 실행 목록에서의 실패 노드 인덱스
+ * @param errorCode 에이전트 결과의 에러 코드 (가용 시)
+ * @param errorMessage 실패를 설명하는 에러 메시지
  */
 data class FailedNodeInfo(
     val nodeName: String,
@@ -75,24 +75,24 @@ data class FailedNodeInfo(
 )
 
 /**
- * Merge strategy for parallel execution results.
+ * 병렬 실행 결과의 병합 전략.
  */
 fun interface ResultMerger {
     /**
-     * Merges results from multiple nodes into one.
+     * 여러 노드의 결과를 하나로 병합한다.
      *
-     * @param results Execution results from each node
-     * @return Merged final content
+     * @param results 각 노드의 실행 결과
+     * @return 병합된 최종 내용
      */
     fun merge(results: List<NodeResult>): String
 
     companion object {
-        /** Join with newline separator */
+        /** 줄바꿈 구분자로 결합 */
         val JOIN_WITH_NEWLINE = ResultMerger { results ->
             results.joinToString("\n\n") { "[${it.nodeName}]\n${it.result.content ?: ""}" }
         }
 
-        /** Use only the last successful result */
+        /** 마지막 성공 결과만 사용 */
         val LAST_SUCCESS = ResultMerger { results ->
             results.lastOrNull { it.result.success }?.result?.content ?: "No successful results"
         }

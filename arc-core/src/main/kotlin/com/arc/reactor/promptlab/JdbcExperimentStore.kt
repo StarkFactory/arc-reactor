@@ -22,14 +22,22 @@ import java.sql.Timestamp
 private val logger = KotlinLogging.logger {}
 
 /**
- * JDBC-based Experiment Store for persistent experiment storage.
+ * JDBC 기반 실험 저장소 — 영속적 실험 스토리지.
  *
- * Stores experiments in the `experiments` table, trials in `trials`,
- * and reports in `experiment_reports` — see Flyway migration V25.
- * Complex fields are stored as JSON TEXT columns.
+ * 실험을 `experiments` 테이블, 트라이얼을 `trials`,
+ * 보고서를 `experiment_reports`에 저장한다 — Flyway 마이그레이션 V25 참조.
+ * 복합 필드는 JSON TEXT 컬럼으로 저장된다.
  *
- * Uses UPDATE-then-INSERT pattern for database-agnostic upsert (H2 + PostgreSQL).
- * Cascade delete is wrapped in a transaction for atomicity.
+ * UPDATE-then-INSERT 패턴으로 데이터베이스 비종속 업서트를 구현한다 (H2 + PostgreSQL).
+ * 캐스케이드 삭제는 원자성을 위해 트랜잭션으로 래핑된다.
+ *
+ * WHY: 운영 환경에서 실험 데이터를 영구 저장하여
+ * 과거 실험 결과를 조회하고 분석할 수 있게 한다.
+ *
+ * @param jdbcTemplate Spring JDBC 템플릿
+ * @param transactionTemplate 트랜잭션 지원 (캐스케이드 삭제 원자성)
+ * @see ExperimentStore 인터페이스 정의
+ * @see InMemoryExperimentStore 인메모리 대안
  */
 class JdbcExperimentStore(
     private val jdbcTemplate: JdbcTemplate,

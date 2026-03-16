@@ -5,54 +5,72 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Intent Registry Interface
+ * 인텐트 레지스트리 인터페이스
  *
- * Manages CRUD operations for intent definitions.
- * Intent definitions describe the types of user requests the system can handle
- * and the pipeline configuration to apply for each.
+ * 인텐트 정의의 CRUD 작업을 관리한다.
+ * 인텐트 정의는 시스템이 처리할 수 있는 사용자 요청 유형과
+ * 각 유형에 적용할 파이프라인 설정을 기술한다.
  *
- * @see InMemoryIntentRegistry for default implementation
+ * WHY: 인텐트 정의를 레지스트리로 관리하여 런타임에 동적으로
+ * 인텐트를 추가/수정/삭제할 수 있게 한다. REST API를 통한 관리도 가능하다.
+ *
+ * @see InMemoryIntentRegistry 기본 인메모리 구현
+ * @see com.arc.reactor.intent.impl.JdbcIntentRegistry JDBC 영속 구현
  */
 interface IntentRegistry {
 
     /**
-     * List all intent definitions, ordered by name.
+     * 모든 인텐트 정의를 이름 순으로 조회한다.
+     *
+     * @return 인텐트 정의 목록
      */
     fun list(): List<IntentDefinition>
 
     /**
-     * List only enabled intent definitions.
+     * 활성화된 인텐트 정의만 조회한다.
+     *
+     * @return 활성 인텐트 정의 목록
      */
     fun listEnabled(): List<IntentDefinition>
 
     /**
-     * Get an intent definition by name.
+     * 이름으로 인텐트 정의를 조회한다.
      *
-     * @return IntentDefinition if found, null otherwise
+     * @param intentName 인텐트 이름
+     * @return 인텐트 정의가 존재하면 반환, 없으면 null
      */
     fun get(intentName: String): IntentDefinition?
 
     /**
-     * Register or update an intent definition.
+     * 인텐트 정의를 등록하거나 갱신한다.
      *
-     * @return The saved intent definition
+     * @param intent 저장할 인텐트 정의
+     * @return 저장된 인텐트 정의
      */
     fun save(intent: IntentDefinition): IntentDefinition
 
     /**
-     * Delete an intent definition by name. Idempotent.
+     * 이름으로 인텐트 정의를 삭제한다. 멱등성.
+     *
+     * @param intentName 삭제할 인텐트 이름
      */
     fun delete(intentName: String)
 }
 
 /**
- * In-Memory Intent Registry
+ * 인메모리 인텐트 레지스트리
  *
- * Thread-safe implementation using [ConcurrentHashMap].
- * Not persistent — data is lost on server restart.
+ * [ConcurrentHashMap]을 사용한 스레드 안전 구현.
+ * 영속적이지 않음 — 서버 재시작 시 데이터가 소실된다.
+ *
+ * WHY: DB 없이도 기본 동작을 보장하기 위한 기본 구현.
+ * 운영 환경에서는 JdbcIntentRegistry로 대체한다.
+ *
+ * @see com.arc.reactor.intent.impl.JdbcIntentRegistry 운영 환경용 JDBC 구현
  */
 class InMemoryIntentRegistry : IntentRegistry {
 
+    /** 인텐트 이름을 키로 하는 동시성 안전 맵 */
     private val intents = ConcurrentHashMap<String, IntentDefinition>()
 
     override fun list(): List<IntentDefinition> {
@@ -65,6 +83,10 @@ class InMemoryIntentRegistry : IntentRegistry {
 
     override fun get(intentName: String): IntentDefinition? = intents[intentName]
 
+    /**
+     * 인텐트를 저장한다.
+     * 기존 인텐트가 있으면 createdAt은 보존하고 updatedAt만 갱신한다.
+     */
     override fun save(intent: IntentDefinition): IntentDefinition {
         val existing = intents[intent.name]
         val toSave = if (existing != null) {

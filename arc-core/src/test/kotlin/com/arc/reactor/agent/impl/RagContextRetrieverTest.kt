@@ -18,6 +18,11 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 
+/**
+ * RagContextRetriever에 대한 테스트.
+ *
+ * RAG 컨텍스트 조회 로직을 검증합니다.
+ */
 class RagContextRetrieverTest {
 
     @Test

@@ -24,16 +24,16 @@ import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 
 /**
- * Integration test — verifies the full intent pipeline with real components.
+ * 인텐트 파이프라인 전체에 대한 통합 테스트.
  *
- * Components wired together (no mocks except LLM):
- * - InMemoryIntentRegistry (real)
- * - RuleBasedIntentClassifier (real)
- * - LlmIntentClassifier (LLM mocked — no API key needed)
- * - CompositeIntentClassifier (real)
- * - IntentResolver (real)
+ * 실제 컴포넌트로 연결 (LLM만 모킹):
+ * - InMemoryIntentRegistry (실제)
+ * - RuleBasedIntentClassifier (실제)
+ * - LlmIntentClassifier (LLM 모킹 — API 키 불필요)
+ * - CompositeIntentClassifier (실제)
+ * - IntentResolver (실제)
  *
- * Tests the complete flow: register intents -> classify input -> resolve profile -> apply to AgentCommand.
+ * 전체 흐름을 테스트합니다: 인텐트 등록 -> 입력 분류 -> 프로파일 해석 -> AgentCommand 적용.
  */
 class IntentIntegrationTest {
 
@@ -372,7 +372,7 @@ class IntentIntegrationTest {
             val resolved = resolver.resolve(original.userPrompt)!!
             val final = resolver.applyProfile(original, resolved)
 
-            // Refund profile overrides
+            // 환불 프로파일 오버라이드
             assertEquals("You are a refund specialist. Follow the refund policy strictly.", final.systemPrompt) {
                 "SystemPrompt overridden by refund profile"
             }

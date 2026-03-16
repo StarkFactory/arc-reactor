@@ -6,6 +6,11 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * TokenEstimator에 대한 테스트.
+ *
+ * 토큰 추정기의 기본 동작을 검증합니다.
+ */
 class TokenEstimatorTest {
 
     private val estimator = DefaultTokenEstimator()

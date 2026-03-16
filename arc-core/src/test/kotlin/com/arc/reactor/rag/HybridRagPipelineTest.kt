@@ -14,6 +14,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 하이브리드 RAG 파이프라인에 대한 테스트.
+ *
+ * 벡터+BM25 하이브리드 검색의 동작을 검증합니다.
+ */
 class HybridRagPipelineTest {
 
     private lateinit var mockRetriever: DocumentRetriever
@@ -62,7 +67,7 @@ class HybridRagPipelineTest {
 
         @Test
         fun `proper noun query은(는) surface BM25 match even when vector score is lower해야 한다`() = runTest {
-            // Vector search returns docBeta first (higher vector score), docAlpha second
+            // 벡터 검색은 docBeta를 먼저 반환 (높은 벡터 점수), docAlpha가 두 번째
             coEvery { mockRetriever.retrieve(any(), any(), any()) } returns listOf(
                 docBeta.copy(score = 0.95),
                 docAlpha.copy(score = 0.60)

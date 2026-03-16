@@ -29,6 +29,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
+/**
+ * 시나리오 가정 검증에 대한 테스트.
+ *
+ * 테스트 시나리오의 기본 가정이 올바른지 확인합니다.
+ */
 class ScenarioAssumptionValidationTest {
 
     private lateinit var fixture: AgentTestFixture

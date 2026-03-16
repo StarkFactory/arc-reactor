@@ -4,147 +4,159 @@ import com.arc.reactor.promptlab.PromptLabProperties
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
- * Arc Reactor Agent Configuration
+ * Arc Reactor 에이전트 설정.
+ *
+ * `arc.reactor.*` 접두사로 시작하는 모든 에이전트 관련 설정 속성을 관리한다.
+ * Spring Boot의 [ConfigurationProperties]를 통해 YAML/환경변수에서 바인딩된다.
+ *
+ * @see com.arc.reactor.autoconfigure.ArcReactorAutoConfiguration 자동 설정에서 이 속성 사용
+ * @see AgentPolicyAndFeatureProperties 정책 및 기능 토글 기본값
  */
 @ConfigurationProperties(prefix = "arc.reactor")
 data class AgentProperties(
-    /** LLM configuration */
+    /** LLM 설정 (프로바이더, temperature, 토큰 제한 등) */
     val llm: LlmProperties = LlmProperties(),
 
-    /** Guard configuration */
+    /** Guard 설정 (속도 제한, 인젝션 탐지, 분류 등) */
     val guard: GuardProperties = GuardProperties(),
 
-    /** RAG configuration */
+    /** RAG(검색 증강 생성) 설정 */
     val rag: RagProperties = RagProperties(),
 
-    /** Concurrency configuration */
+    /** 동시성 설정 (동시 요청 수, 타임아웃 등) */
     val concurrency: ConcurrencyProperties = ConcurrencyProperties(),
 
-    /** Retry configuration */
+    /** 재시도 설정 (최대 횟수, 지수 백오프 등) */
     val retry: RetryProperties = RetryProperties(),
 
-    /** Maximum tools per request */
+    /** 요청당 최대 도구 수 */
     val maxToolsPerRequest: Int = 30,
 
-    /** Maximum tool calls (prevents infinite loops) */
+    /** 최대 도구 호출 횟수 (무한 루프 방지) */
     val maxToolCalls: Int = 10,
 
-    /** CORS configuration */
+    /** CORS 설정 */
     val cors: CorsProperties = CorsProperties(),
 
-    /** Security headers configuration */
+    /** 보안 헤더 설정 */
     val securityHeaders: SecurityHeadersProperties = SecurityHeadersProperties(),
 
-    /** MCP configuration */
+    /** MCP(Model Context Protocol) 설정 */
     val mcp: McpConfigProperties = McpConfigProperties(),
 
-    /** Webhook configuration */
+    /** 웹훅 알림 설정 */
     val webhook: WebhookConfigProperties = WebhookConfigProperties(),
 
-    /** Tool selection configuration */
+    /** 도구 선택 전략 설정 */
     val toolSelection: ToolSelectionProperties = ToolSelectionProperties(),
 
-    /** Human-in-the-Loop approval configuration */
+    /** Human-in-the-Loop 승인 설정 */
     val approval: ApprovalProperties = ApprovalProperties(),
 
-    /** Tool policy configuration (e.g., read-only vs write tools) */
+    /** 도구 정책 설정 (읽기 전용 vs 쓰기 도구 등) */
     val toolPolicy: ToolPolicyProperties = ToolPolicyProperties(),
 
-    /** Multimodal (file upload / media URL) configuration */
+    /** 멀티모달 (파일 업로드 / 미디어 URL) 설정 */
     val multimodal: MultimodalProperties = MultimodalProperties(),
 
-    /** Response post-processing configuration */
+    /** 응답 후처리 설정 */
     val response: ResponseProperties = ResponseProperties(),
 
-    /** Circuit breaker configuration */
+    /** 서킷 브레이커 설정 */
     val circuitBreaker: CircuitBreakerProperties = CircuitBreakerProperties(),
 
-    /** Response caching configuration */
+    /** 응답 캐시 설정 */
     val cache: CacheProperties = CacheProperties(),
 
-    /** Graceful degradation / fallback configuration */
+    /** 장애 완화 / 폴백 설정 */
     val fallback: FallbackProperties = FallbackProperties(),
 
-    /** Intent classification configuration */
+    /** 인텐트 분류 설정 */
     val intent: IntentProperties = IntentProperties(),
 
-    /** Output guard configuration */
+    /** 출력 가드 설정 */
     val outputGuard: OutputGuardProperties = OutputGuardProperties(),
 
-    /** Dynamic scheduler configuration */
+    /** 동적 스케줄러 설정 */
     val scheduler: SchedulerProperties = SchedulerProperties(),
 
-    /** Input/output boundary policy configuration */
+    /** 입출력 경계값 정책 설정 */
     val boundaries: BoundaryProperties = BoundaryProperties(),
 
-    /** Conversation memory configuration */
+    /** 대화 메모리 설정 */
     val memory: MemoryProperties = MemoryProperties(),
 
-    /** Prompt Lab configuration */
+    /** Prompt Lab 설정 */
     val promptLab: PromptLabProperties = PromptLabProperties(),
 
-    /** Tracing configuration */
+    /** 추적(트레이싱) 설정 */
     val tracing: TracingProperties = TracingProperties(),
 
-    /** Tool parameter enrichment configuration */
+    /** 도구 파라미터 보강 설정 */
     val toolEnrichment: ToolEnrichmentProperties = ToolEnrichmentProperties(),
 
-    /** Tool result caching configuration */
+    /** 도구 결과 캐시 설정 */
     val toolResultCache: ToolResultCacheProperties = ToolResultCacheProperties(),
 
-    /** Citation auto-formatting configuration */
+    /** Citation(출처 인용) 자동 포맷 설정 */
     val citation: CitationProperties = CitationProperties()
 )
 
+/**
+ * LLM 설정 속성.
+ *
+ * @see com.arc.reactor.agent.impl.ChatOptionsFactory 이 속성으로 ChatOptions 생성
+ */
 data class LlmProperties(
-    /** Default LLM provider (e.g., "gemini", "openai", "anthropic") */
+    /** 기본 LLM 프로바이더 (예: "gemini", "openai", "anthropic") */
     val defaultProvider: String = "gemini",
 
-    /** Default temperature */
+    /** 기본 temperature (0에 가까울수록 결정적) */
     val temperature: Double = 0.1,
 
-    /** Maximum output tokens */
+    /** 최대 출력 토큰 수 */
     val maxOutputTokens: Int = 4096,
 
-    /** Top-P (nucleus sampling). Null = use provider default. */
+    /** Top-P (핵 샘플링). null이면 프로바이더 기본값 사용. */
     val topP: Double? = null,
 
-    /** Frequency penalty. Null = use provider default. */
+    /** 빈도 패널티. null이면 프로바이더 기본값 사용. */
     val frequencyPenalty: Double? = null,
 
-    /** Presence penalty. Null = use provider default. */
+    /** 존재 패널티. null이면 프로바이더 기본값 사용. */
     val presencePenalty: Double? = null,
 
     /**
-     * Enable Gemini Google Search retrieval grounding.
-     * Default OFF to avoid unintended external retrieval in enterprise environments.
+     * Gemini Google Search Retrieval 그라운딩 활성화.
+     * 기업 환경에서 의도치 않은 외부 검색을 방지하기 위해 기본 OFF.
      */
     val googleSearchRetrievalEnabled: Boolean = false,
 
-    /** Maximum conversation history turns */
+    /** 최대 대화 히스토리 턴 수 */
     val maxConversationTurns: Int = 10,
 
-    /** Maximum context window tokens (for token-based message trimming) */
+    /** 최대 컨텍스트 윈도우 토큰 수 (토큰 기반 메시지 트리밍용) */
     val maxContextWindowTokens: Int = 128000,
 
-    /** Anthropic prompt caching configuration */
+    /** Anthropic 프롬프트 캐싱 설정 */
     val promptCaching: PromptCachingProperties = PromptCachingProperties()
 )
 
 /**
- * Anthropic Prompt Caching configuration.
+ * Anthropic 프롬프트 캐싱 설정.
  *
- * When enabled, repeating content (system prompts, tool definitions) is marked with
- * `cache_control: {"type": "ephemeral"}` so Anthropic can reuse cached tokens across requests.
- * This can reduce prompt token costs by 80-90% for requests that share a common prefix.
+ * 활성화하면 반복되는 콘텐츠(시스템 프롬프트, 도구 정의)에
+ * `cache_control: {"type": "ephemeral"}`을 표시하여 Anthropic이
+ * 요청 간 캐시된 토큰을 재사용할 수 있게 한다.
+ * 공통 접두사를 공유하는 요청에 대해 프롬프트 토큰 비용을 80-90% 절감할 수 있다.
  *
- * Only supported for the `anthropic` provider. Requests to other providers are unaffected.
+ * `anthropic` 프로바이더에서만 지원. 다른 프로바이더 요청은 영향 없음.
  *
- * Minimum cacheable token count enforced by Anthropic API:
- * - claude-3-5-sonnet-20241022 and later: 1024 tokens
- * - claude-3-haiku: 2048 tokens
+ * Anthropic API가 요구하는 최소 캐시 가능 토큰 수:
+ * - claude-3-5-sonnet-20241022 이상: 1024 토큰
+ * - claude-3-haiku: 2048 토큰
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -158,133 +170,163 @@ data class LlmProperties(
  * ```
  */
 data class PromptCachingProperties(
-    /** Enable Anthropic prompt caching. Disabled by default (opt-in). */
+    /** Anthropic 프롬프트 캐싱 활성화. 기본 비활성 (opt-in). */
     val enabled: Boolean = false,
 
-    /** LLM provider to apply caching for. Only "anthropic" is supported. */
+    /** 캐싱을 적용할 LLM 프로바이더. "anthropic"만 지원. */
     val provider: String = "anthropic",
 
-    /** Whether to mark the system prompt for caching. */
+    /** 시스템 프롬프트에 캐싱 표시 여부. */
     val cacheSystemPrompt: Boolean = true,
 
-    /** Whether to mark tool definitions for caching. */
+    /** 도구 정의에 캐싱 표시 여부. */
     val cacheTools: Boolean = true,
 
     /**
-     * Minimum estimated token count before marking content for caching.
-     * Prevents cache_control on short prompts that Anthropic would reject.
+     * 캐싱 표시를 위한 최소 추정 토큰 수.
+     * Anthropic이 거부할 짧은 프롬프트에 cache_control이 설정되는 것을 방지한다.
      */
     val minCacheableTokens: Int = 1024
 )
 
+/**
+ * 재시도 설정 속성.
+ *
+ * @see com.arc.reactor.agent.impl.RetryExecutor 이 속성을 사용하여 재시도 실행
+ */
 data class RetryProperties(
-    /** Maximum number of retry attempts */
+    /** 최대 재시도 횟수 */
     val maxAttempts: Int = 3,
 
-    /** Initial delay between retries (milliseconds) */
+    /** 재시도 간 초기 지연 (밀리초) */
     val initialDelayMs: Long = 200,
 
-    /** Backoff multiplier */
+    /** 백오프 승수 */
     val multiplier: Double = 2.0,
 
-    /** Maximum delay between retries (milliseconds) */
+    /** 재시도 간 최대 지연 (밀리초) */
     val maxDelayMs: Long = 10000
 )
 
+/**
+ * Guard 설정 속성.
+ *
+ * 요청 보안 가드레일의 5단계 파이프라인을 구성한다.
+ * Guard는 fail-close 정책: 거부 시 즉시 요청 차단.
+ *
+ * @see com.arc.reactor.guard.RequestGuard Guard 파이프라인
+ */
 data class GuardProperties(
-    /** Guard enabled */
+    /** Guard 활성화 여부 */
     val enabled: Boolean = true,
 
-    /** Requests per minute limit */
+    /** 분당 요청 제한 */
     val rateLimitPerMinute: Int = 20,
 
-    /** Requests per hour limit */
+    /** 시간당 요청 제한 */
     val rateLimitPerHour: Int = 200,
 
-    /** Injection detection enabled */
+    /** 인젝션 탐지 활성화 여부 */
     val injectionDetectionEnabled: Boolean = true,
 
-    /** Unicode normalization enabled (NFKC + zero-width strip + homoglyph) */
+    /** 유니코드 정규화 활성화 (NFKC + 제로폭 문자 제거 + 호모글리프) */
     val unicodeNormalizationEnabled: Boolean = true,
 
-    /** Maximum zero-width character ratio before rejection (0.0-1.0) */
+    /** 최대 제로폭 문자 비율 (0.0-1.0). 초과 시 거부 */
     val maxZeroWidthRatio: Double = 0.1,
 
-    /** Classification enabled (rule-based + optional LLM) */
+    /** 분류 활성화 (규칙 기반 + 선택적 LLM) */
     val classificationEnabled: Boolean = false,
 
-    /** LLM-based classification enabled (requires classificationEnabled) */
+    /** LLM 기반 분류 활성화 (classificationEnabled 필요) */
     val classificationLlmEnabled: Boolean = false,
 
-    /** Canary token for system prompt leakage detection */
+    /** 시스템 프롬프트 유출 탐지를 위한 카나리 토큰 활성화 */
     val canaryTokenEnabled: Boolean = false,
 
-    /** Tool output sanitization enabled */
+    /** 도구 출력 새니타이징 활성화 */
     val toolOutputSanitizationEnabled: Boolean = false,
 
-    /** Guard audit trail enabled */
+    /** Guard 감사 추적 활성화 */
     val auditEnabled: Boolean = true,
 
-    /** Topic drift detection enabled (Crescendo attack defense) */
+    /** 주제 이탈 탐지 활성화 (Crescendo 공격 방어) */
     val topicDriftEnabled: Boolean = false,
 
-    /** Canary token seed (override per deployment for unique tokens) */
+    /** 카나리 토큰 시드 (배포별 고유 토큰을 위해 재정의) */
     val canarySeed: String = "arc-reactor-canary",
 
-    /** Tenant-specific rate limits */
+    /** 테넌트별 속도 제한 */
     val tenantRateLimits: Map<String, TenantRateLimit> = emptyMap()
 )
 
+/**
+ * 테넌트별 속도 제한 설정.
+ *
+ * @param perMinute 이 테넌트의 분당 요청 제한
+ * @param perHour 이 테넌트의 시간당 요청 제한
+ */
 data class TenantRateLimit(
-    /** Requests per minute for this tenant */
+    /** 이 테넌트의 분당 요청 제한 */
     val perMinute: Int,
 
-    /** Requests per hour for this tenant */
+    /** 이 테넌트의 시간당 요청 제한 */
     val perHour: Int
 )
 
+/**
+ * 동시성 설정 속성.
+ *
+ * @see com.arc.reactor.agent.impl.SpringAiAgentExecutor 세마포어와 타임아웃에 사용
+ */
 data class ConcurrencyProperties(
-    /** Maximum concurrent requests */
+    /** 최대 동시 요청 수 */
     val maxConcurrentRequests: Int = 20,
 
-    /** Request timeout (milliseconds) */
+    /** 요청 타임아웃 (밀리초) */
     val requestTimeoutMs: Long = 30000,
 
-    /** Per-tool call timeout (milliseconds) */
+    /** 개별 도구 호출 타임아웃 (밀리초) */
     val toolCallTimeoutMs: Long = 15000
 )
 
+/**
+ * CORS 설정 속성.
+ */
 data class CorsProperties(
-    /** CORS enabled (opt-in) */
+    /** CORS 활성화 (opt-in) */
     val enabled: Boolean = false,
 
-    /** Allowed origins */
+    /** 허용된 오리진 목록 */
     val allowedOrigins: List<String> = listOf("http://localhost:3000"),
 
-    /** Allowed HTTP methods */
+    /** 허용된 HTTP 메서드 목록 */
     val allowedMethods: List<String> = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS"),
 
-    /** Allowed headers */
+    /** 허용된 헤더 목록 */
     val allowedHeaders: List<String> = listOf("*"),
 
-    /** Allow credentials (cookies, Authorization header) */
+    /** 자격 증명(쿠키, Authorization 헤더) 허용 여부 */
     val allowCredentials: Boolean = false,
 
-    /** Preflight cache duration in seconds */
+    /** 프리플라이트 캐시 지속 시간 (초) */
     val maxAge: Long = 3600
 )
 
+/**
+ * 보안 헤더 설정 속성.
+ */
 data class SecurityHeadersProperties(
-    /** Security headers enabled (default: true) */
+    /** 보안 헤더 활성화 (기본: true) */
     val enabled: Boolean = true
 )
 
 /**
- * MCP configuration — runtime security and connection settings.
+ * MCP(Model Context Protocol) 설정 — 런타임 보안 및 연결 설정.
  *
- * MCP servers are registered and managed via REST API (`/api/mcp/servers`).
+ * MCP 서버는 REST API(`/api/mcp/servers`)를 통해 등록 및 관리된다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -295,32 +337,37 @@ data class SecurityHeadersProperties(
  * ```
  */
 data class McpConfigProperties(
-    /** Security settings */
+    /** 보안 설정 */
     val security: McpSecurityProperties = McpSecurityProperties(),
 
-    /** MCP connection timeout (milliseconds) */
+    /** MCP 연결 타임아웃 (밀리초) */
     val connectionTimeoutMs: Long = 30_000,
 
-    /** Auto-reconnection settings */
+    /** 자동 재연결 설정 */
     val reconnection: McpReconnectionProperties = McpReconnectionProperties(),
 
-    /** Allow connections to private/reserved IP addresses (loopback, site-local, link-local).
-     *  Enable only for local development where MCP servers run on localhost. */
+    /**
+     * 사설/예약 IP 주소(루프백, 사이트-로컬, 링크-로컬) 연결 허용.
+     * MCP 서버가 localhost에서 실행되는 로컬 개발 환경에서만 활성화할 것.
+     */
     val allowPrivateAddresses: Boolean = false
 )
 
+/**
+ * MCP 보안 설정 속성.
+ */
 data class McpSecurityProperties(
-    /** Allowed MCP server names (empty = allow all) */
+    /** 허용된 MCP 서버 이름 (빈 집합 = 모두 허용) */
     val allowedServerNames: Set<String> = emptySet(),
 
-    /** Maximum tool output length in characters */
+    /** 최대 도구 출력 길이 (문자 수) */
     val maxToolOutputLength: Int = 50_000,
 
-    /** Allowed STDIO command executables. Only these base commands are permitted. */
+    /** 허용된 STDIO 명령 실행 파일. 이 기본 명령만 허용된다. */
     val allowedStdioCommands: Set<String> = DEFAULT_ALLOWED_STDIO_COMMANDS
 ) {
     companion object {
-        /** Default set of known-safe STDIO executables for MCP servers. */
+        /** MCP 서버용 기본 안전 STDIO 실행 파일 집합. */
         val DEFAULT_ALLOWED_STDIO_COMMANDS: Set<String> = setOf(
             "npx", "node", "python", "python3", "uvx", "uv", "docker", "deno", "bun"
         )
@@ -328,13 +375,12 @@ data class McpSecurityProperties(
 }
 
 /**
- * MCP auto-reconnection configuration.
+ * MCP 자동 재연결 설정.
  *
- * When enabled, failed MCP server connections are automatically retried
- * with exponential backoff. On-demand reconnection is also attempted
- * when a tool call targets a disconnected/failed server.
+ * 활성화하면 실패한 MCP 서버 연결이 지수 백오프로 자동 재시도된다.
+ * 도구 호출 시 연결이 끊어진 서버에 대해 온디맨드 재연결도 시도한다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -348,26 +394,26 @@ data class McpSecurityProperties(
  * ```
  */
 data class McpReconnectionProperties(
-    /** Enable auto-reconnection for failed MCP servers. */
+    /** 실패한 MCP 서버에 대한 자동 재연결 활성화. */
     val enabled: Boolean = true,
 
-    /** Maximum reconnection attempts before giving up. */
+    /** 최대 재연결 시도 횟수. */
     val maxAttempts: Int = 5,
 
-    /** Initial delay between reconnection attempts (milliseconds). */
+    /** 재연결 시도 간 초기 지연 (밀리초). */
     val initialDelayMs: Long = 5000,
 
-    /** Backoff multiplier for subsequent attempts. */
+    /** 후속 시도에 대한 백오프 승수. */
     val multiplier: Double = 2.0,
 
-    /** Maximum delay between reconnection attempts (milliseconds). */
+    /** 재연결 시도 간 최대 지연 (밀리초). */
     val maxDelayMs: Long = 60_000
 )
 
 /**
- * Webhook notification configuration.
+ * 웹훅 알림 설정.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -379,23 +425,23 @@ data class McpReconnectionProperties(
  * ```
  */
 data class WebhookConfigProperties(
-    /** Enable webhook notifications */
+    /** 웹훅 알림 활성화 */
     val enabled: Boolean = false,
 
-    /** POST target URL */
+    /** POST 대상 URL */
     val url: String = "",
 
-    /** HTTP timeout (milliseconds) */
+    /** HTTP 타임아웃 (밀리초) */
     val timeoutMs: Long = 5000,
 
-    /** Whether to include full conversation in payload */
+    /** 페이로드에 전체 대화 포함 여부 */
     val includeConversation: Boolean = false
 )
 
 /**
- * Tool selection strategy configuration.
+ * 도구 선택 전략 설정.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -406,26 +452,27 @@ data class WebhookConfigProperties(
  * ```
  */
 data class ToolSelectionProperties(
-    /** Selection strategy: "all", "keyword", or "semantic" */
+    /** 선택 전략: "all", "keyword", 또는 "semantic" */
     val strategy: String = "all",
 
-    /** Minimum cosine similarity threshold for semantic selection */
+    /** 시맨틱 선택의 최소 코사인 유사도 임계값 */
     val similarityThreshold: Double = 0.3,
 
-    /** Maximum number of tools to return from semantic selection */
+    /** 시맨틱 선택에서 반환할 최대 도구 수 */
     val maxResults: Int = 10
 )
 
 /**
- * Tool result caching configuration.
+ * 도구 결과 캐시 설정.
  *
- * When enabled, identical tool invocations (same tool name + same arguments) within the
- * same ReAct loop return cached results instead of re-executing the tool. This prevents
- * redundant calls when the LLM repeatedly invokes the same tool with the same arguments.
+ * 활성화하면 동일한 도구 호출(같은 도구 이름 + 같은 인자)이 동일 ReAct 루프 내에서
+ * 도구를 다시 실행하는 대신 캐시된 결과를 반환한다. LLM이 같은 도구를
+ * 같은 인자로 반복 호출할 때 중복 호출을 방지한다.
  *
- * Cache is scoped per ToolCallOrchestrator instance and uses Caffeine for TTL eviction.
+ * 캐시는 [com.arc.reactor.agent.impl.ToolCallOrchestrator] 인스턴스별로 스코핑되며
+ * TTL 만료에 Caffeine을 사용한다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -436,12 +483,12 @@ data class ToolSelectionProperties(
  * ```
  */
 data class ToolResultCacheProperties(
-    /** Enable tool result caching. Disabled by default (opt-in). */
+    /** 도구 결과 캐시 활성화. 기본 비활성 (opt-in). */
     val enabled: Boolean = false,
 
-    /** Time-to-live for cached entries in seconds. */
+    /** 캐시 항목의 유효 시간(TTL, 초). */
     val ttlSeconds: Long = 60,
 
-    /** Maximum number of cached entries. */
+    /** 최대 캐시 항목 수. */
     val maxSize: Long = 200
 )

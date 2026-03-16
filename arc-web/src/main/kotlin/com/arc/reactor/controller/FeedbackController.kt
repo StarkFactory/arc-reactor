@@ -22,17 +22,20 @@ import java.time.format.DateTimeParseException
 private val logger = KotlinLogging.logger {}
 
 /**
- * Feedback API Controller
+ * 피드백 API 컨트롤러.
  *
- * Provides REST APIs for collecting and exporting user feedback on agent responses.
- * Feedback data can be exported in eval-testing schema format for offline evaluation.
+ * 에이전트 응답에 대한 사용자 피드백을 수집하고 내보내는 REST API를 제공합니다.
+ * 피드백 데이터를 eval-testing 스키마 형식으로 내보내 오프라인 평가에 활용할 수 있습니다.
  *
- * ## Endpoints
- * - POST   /api/feedback          : Submit feedback (any user, auto-enriches with runId)
- * - GET    /api/feedback          : List feedback with filters (Admin)
- * - GET    /api/feedback/export   : Export in eval-testing schema format (Admin)
- * - GET    /api/feedback/{id}     : Get single feedback (any user)
- * - DELETE /api/feedback/{id}     : Delete feedback (Admin)
+ * ## 엔드포인트
+ * - POST   /api/feedback          : 피드백 제출 (모든 사용자, runId로 자동 보강)
+ * - GET    /api/feedback          : 필터 기반 피드백 목록 조회 (관리자)
+ * - GET    /api/feedback/export   : eval-testing 스키마 형식으로 내보내기 (관리자)
+ * - GET    /api/feedback/{id}     : 단일 피드백 조회 (모든 사용자)
+ * - DELETE /api/feedback/{id}     : 피드백 삭제 (관리자)
+ *
+ * @see FeedbackStore
+ * @see FeedbackMetadataCaptureHook
  */
 @Tag(name = "Feedback", description = "User feedback collection and export")
 @RestController
@@ -44,11 +47,11 @@ class FeedbackController(
 ) {
 
     /**
-     * Submit feedback. If runId is provided, auto-enriches with execution metadata.
+     * 피드백을 제출한다. runId가 제공되면 실행 메타데이터로 자동 보강한다.
      *
-     * Enrichment priority: explicit request values > cached metadata > empty defaults.
+     * 보강 우선순위: 요청에 명시된 값 > 캐시된 메타데이터 > 빈 기본값.
      */
-    @Operation(summary = "Submit feedback on an agent response")
+    @Operation(summary = "에이전트 응답에 대한 피드백 제출")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Feedback submitted"),
         ApiResponse(responseCode = "400", description = "Invalid rating value")
@@ -87,10 +90,8 @@ class FeedbackController(
         return ResponseEntity.status(HttpStatus.CREATED).body(saved.toResponse())
     }
 
-    /**
-     * List feedback with optional filters. Requires Admin.
-     */
-    @Operation(summary = "List feedback with filters (Admin)")
+    /** 선택적 필터로 피드백 목록을 조회한다. 관리자 권한 필요. */
+    @Operation(summary = "필터 기반 피드백 목록 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Paginated list of feedback entries"),
         ApiResponse(responseCode = "400", description = "Invalid filter parameters"),
@@ -126,10 +127,8 @@ class FeedbackController(
         return ResponseEntity.ok(results.map { it.toResponse() }.paginate(offset, clamped))
     }
 
-    /**
-     * Export feedback in eval-testing schema format. Requires Admin.
-     */
-    @Operation(summary = "Export feedback in eval-testing format (Admin)")
+    /** eval-testing 스키마 형식으로 피드백을 내보낸다. 관리자 권한 필요. */
+    @Operation(summary = "eval-testing 형식으로 피드백 내보내기 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Exported feedback data"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -148,10 +147,8 @@ class FeedbackController(
         return ResponseEntity.ok(export)
     }
 
-    /**
-     * Get a single feedback entry by ID.
-     */
-    @Operation(summary = "Get feedback by ID")
+    /** ID로 단일 피드백 항목을 조회한다. */
+    @Operation(summary = "ID로 피드백 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Feedback entry"),
         ApiResponse(responseCode = "404", description = "Feedback not found")
@@ -163,10 +160,8 @@ class FeedbackController(
         return ResponseEntity.ok(feedback.toResponse())
     }
 
-    /**
-     * Delete a feedback entry. Requires Admin.
-     */
-    @Operation(summary = "Delete feedback (Admin)")
+    /** 피드백 항목을 삭제한다. 관리자 권한 필요. */
+    @Operation(summary = "피드백 삭제 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Feedback deleted"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -198,14 +193,12 @@ class FeedbackController(
     }
 }
 
-/**
- * Returns explicit value if non-blank, otherwise falls back to metadata value, then empty string.
- */
+/** 명시적 값이 비어있지 않으면 사용하고, 아니면 메타데이터 값으로 대체하고, 그것도 없으면 빈 문자열을 반환한다. */
 private fun enrichString(explicit: String?, fallback: String?): String {
     return explicit.takeUnless { it.isNullOrBlank() } ?: fallback.orEmpty()
 }
 
-// --- Request DTO ---
+// --- 요청 DTO ---
 
 data class SubmitFeedbackRequest(
     val rating: String,
@@ -224,7 +217,7 @@ data class SubmitFeedbackRequest(
     val templateId: String? = null
 )
 
-// --- Response DTO ---
+// --- 응답 DTO ---
 
 data class FeedbackResponse(
     val feedbackId: String,
@@ -244,7 +237,7 @@ data class FeedbackResponse(
     val templateId: String?
 )
 
-// --- Mapping extensions ---
+// --- 매핑 확장 ---
 
 private fun Feedback.toResponse() = FeedbackResponse(
     feedbackId = feedbackId,

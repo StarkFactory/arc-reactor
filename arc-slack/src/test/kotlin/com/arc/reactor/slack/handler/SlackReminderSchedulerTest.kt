@@ -30,19 +30,19 @@ class SlackReminderSchedulerTest {
 
         // the dueAt to be in the past by adding directly를 강제합니다
         val list = store.list("U_TEST")
-        // The "at 0:00"은(는) have been parsed and set to a future time해야 합니다
+        // "at 0:00"은 파싱되어 미래 시간으로 설정되어야 합니다
         // Instead, let's use collectDueReminders after manually inserting a past-due one
 
         // scheduler (large interval so it won't auto-poll) 생성
         scheduler = SlackReminderScheduler(store, messagingService, pollIntervalSeconds = 3600)
 
-        // If the reminder is already past due, collectDueReminders은(는) return it해야 합니다
-        // Since we used "at 0:00" which resolves to tomorrow, let's verify with a direct test
+        // 리마인더가 이미 만료되었다면 collectDueReminders가 반환해야 합니다
+        // 내일로 해석되는 "at 0:00"을 사용했으므로 직접 테스트로 확인합니다
     }
 
     @Test
     fun `collectDueReminders은(는) returns and removes due entries`() {
-        // Test that reminders without dueAt are not collected
+        // dueAt이 없는 리마인더는 수집되지 않는지 테스트
         store.add("U1", "no time reminder")
         val collected = store.collectDueReminders()
         collected.size shouldBe 0

@@ -6,6 +6,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.util.Date
 
+/**
+ * JwtTokenProvider에 대한 테스트.
+ *
+ * JWT 토큰 생성/검증 로직을 검증합니다.
+ */
 class JwtTokenProviderTest {
 
     private val testSecret = "arc-reactor-test-jwt-secret-key-at-least-32-chars-long"
@@ -58,7 +63,7 @@ class JwtTokenProviderTest {
             val userId = tokenProvider.validateToken(token)
             assertNotNull(userId) { "Token should be valid and parseable" }
 
-            // Decode the payload manually to check email claim
+            // 이메일 클레임을 확인하기 위해 페이로드를 수동으로 디코딩
             val payloadPart = token.split(".")[1]
             val payload = String(
                 java.util.Base64.getUrlDecoder().decode(payloadPart),

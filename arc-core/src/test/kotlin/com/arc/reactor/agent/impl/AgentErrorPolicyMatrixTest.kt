@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 @Tag("matrix")
+/**
+ * AgentErrorPolicy의 매트릭스 테스트.
+ *
+ * 다양한 오류 유형에 대한 정책 적용을 검증합니다.
+ */
 class AgentErrorPolicyMatrixTest {
 
     private val prefixes = listOf("", "provider: ", "error: ", "[llm] ")

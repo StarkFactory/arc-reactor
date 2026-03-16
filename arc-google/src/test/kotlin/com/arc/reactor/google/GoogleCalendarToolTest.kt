@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
+/**
+ * GoogleCalendarTool에 대한 테스트.
+ *
+ * Google 캘린더 도구의 이벤트 조회 동작을 검증합니다.
+ */
 class GoogleCalendarToolTest {
 
     private val credentialProvider = mockk<GoogleCredentialProvider>()

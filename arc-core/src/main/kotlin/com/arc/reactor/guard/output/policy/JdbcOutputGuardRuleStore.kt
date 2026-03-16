@@ -5,7 +5,15 @@ import java.sql.ResultSet
 import java.time.Instant
 
 /**
- * JDBC-backed store for dynamic output guard rules.
+ * JDBC 기반 동적 출력 Guard 규칙 저장소
+ *
+ * output_guard_rules 테이블에 규칙을 영구 저장한다.
+ * 다중 인스턴스 배포에서 모든 인스턴스가 동일한 규칙을 참조할 수 있다.
+ *
+ * @param jdbcTemplate Spring JdbcTemplate
+ *
+ * @see OutputGuardRuleStore 저장소 인터페이스
+ * @see InMemoryOutputGuardRuleStore 메모리 기반 대안
  */
 class JdbcOutputGuardRuleStore(
     private val jdbcTemplate: JdbcTemplate
@@ -79,6 +87,7 @@ class JdbcOutputGuardRuleStore(
     }
 
     companion object {
+        /** ResultSet → OutputGuardRule 매핑 함수 */
         private val ROW_MAPPER = { rs: ResultSet, _: Int ->
             OutputGuardRule(
                 id = rs.getString("id"),

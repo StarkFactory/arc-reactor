@@ -19,6 +19,11 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.redis.core.StringRedisTemplate
 
+/**
+ * 토큰 폐기 저장소 자동 설정에 대한 테스트.
+ *
+ * 토큰 폐기 저장소의 조건부 빈 등록을 검증합니다.
+ */
 class TokenRevocationStoreAutoConfigurationTest {
 
     private val baseRunner = ApplicationContextRunner()

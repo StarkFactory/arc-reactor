@@ -7,6 +7,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * IntentRegistry에 대한 테스트.
+ *
+ * 인텐트 레지스트리의 등록/조회 동작을 검증합니다.
+ */
 class IntentRegistryTest {
 
     private lateinit var registry: InMemoryIntentRegistry

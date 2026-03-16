@@ -10,6 +10,11 @@ import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
 import reactor.test.StepVerifier
 
+/**
+ * RequestCorrelationFilter에 대한 테스트.
+ *
+ * 요청 상관관계 필터의 동작을 검증합니다.
+ */
 class RequestCorrelationFilterTest {
 
     private val filter = RequestCorrelationFilter()

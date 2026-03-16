@@ -15,20 +15,20 @@ import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.TestMethodOrder
 
 /**
- * MCP Integration Test
+ * MCP 통합 테스트.
  *
- * Validates the full MCP lifecycle against the official
- * `@modelcontextprotocol/server-everything` test server via STDIO transport.
+ * 공식 `@modelcontextprotocol/server-everything` 테스트 서버에 대해
+ * STDIO 전송 방식으로 전체 MCP 라이프사이클을 검증합니다.
  *
- * ## Prerequisites
- * - Node.js 18+ and npx on PATH
+ * ## 사전 조건
+ * - Node.js 18+ 및 npx가 PATH에 포함
  *
- * ## Running
+ * ## 실행 방법
  * ```bash
  * ./gradlew test -PincludeIntegration
  * ```
  *
- * Excluded from default `./gradlew test` via @Tag("integration").
+ * @Tag("integration")를 통해 기본 `./gradlew test`에서 제외됩니다.
  */
 @Tag("integration")
 @Tag("external")

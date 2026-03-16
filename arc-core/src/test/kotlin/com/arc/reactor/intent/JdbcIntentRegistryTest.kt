@@ -17,6 +17,11 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 import java.sql.Timestamp
 import java.time.Instant
 
+/**
+ * JdbcIntentRegistry에 대한 테스트.
+ *
+ * JDBC 기반 인텐트 레지스트리의 동작을 검증합니다.
+ */
 class JdbcIntentRegistryTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate

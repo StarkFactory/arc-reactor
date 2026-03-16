@@ -28,15 +28,19 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 /**
- * Document Management API Controller
+ * 문서 관리 API 컨트롤러.
  *
- * Provides REST APIs for managing documents in the VectorStore (RAG knowledge base).
- * Only available when a VectorStore bean exists (requires PGVector or similar).
+ * VectorStore(RAG 지식 베이스)의 문서를 관리하는 REST API를 제공합니다.
+ * VectorStore 빈이 존재할 때(PGVector 등 필요)만 사용 가능합니다.
  *
- * ## Endpoints
- * - POST   /api/documents         : Add a document (embeds and stores)
- * - POST   /api/documents/search  : Similarity search
- * - DELETE /api/documents         : Delete documents by IDs
+ * ## 엔드포인트
+ * - POST   /api/documents         : 문서 추가 (임베딩 및 저장)
+ * - POST   /api/documents/batch   : 문서 일괄 추가
+ * - POST   /api/documents/search  : 유사도 검색
+ * - DELETE /api/documents         : ID로 문서 삭제
+ *
+ * @see VectorStore
+ * @see DocumentChunker
  */
 @Tag(name = "Documents", description = "RAG document management (requires VectorStore)")
 @RestController
@@ -49,10 +53,11 @@ class DocumentController(
 ) {
 
     /**
-     * Add a document to the vector store.
-     * The document content is automatically embedded and stored.
+     * 벡터 스토어에 문서를 추가한다.
+     * 문서 내용이 자동으로 임베딩되어 저장된다.
+     * WHY: SHA-256 해시로 중복 문서를 감지하여 불필요한 임베딩 비용을 방지한다.
      */
-    @Operation(summary = "Add a document to the vector store (ADMIN)")
+    @Operation(summary = "벡터 스토어에 문서 추가 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Document added to vector store"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -108,10 +113,8 @@ class DocumentController(
         )
     }
 
-    /**
-     * Add multiple documents at once.
-     */
-    @Operation(summary = "Add multiple documents in batch (ADMIN)")
+    /** 여러 문서를 한 번에 추가한다. 각 문서에 대해 중복 검사를 수행한다. */
+    @Operation(summary = "문서 일괄 추가 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Documents added to vector store"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -165,10 +168,8 @@ class DocumentController(
         )
     }
 
-    /**
-     * Search documents by similarity.
-     */
-    @Operation(summary = "Search documents by similarity")
+    /** 유사도 기반으로 문서를 검색한다. */
+    @Operation(summary = "유사도 기반 문서 검색")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Similarity search results"),
         ApiResponse(responseCode = "400", description = "Invalid request")
@@ -196,9 +197,11 @@ class DocumentController(
     }
 
     /**
-     * Delete documents by IDs.
+     * ID로 문서를 삭제한다.
+     * WHY: Spring AI VectorStore에는 getById()가 없으므로 청크 ID를 유도하여 삭제한다.
+     * delete()는 멱등성을 보장하므로 존재하지 않는 ID는 무시된다.
      */
-    @Operation(summary = "Delete documents by IDs (ADMIN)")
+    @Operation(summary = "ID로 문서 삭제 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Documents deleted"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -210,12 +213,11 @@ class DocumentController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
 
-        // Each ID may be a parent document — derive deterministic chunk IDs to clean up.
-        // VectorStore.delete is idempotent: non-existent IDs are silently ignored.
-        // Skip derivation for IDs that are already chunk IDs.
-        // Brute-force: derive up to maxNumChunks IDs per parent. VectorStore.delete() is
-        // idempotent so phantom IDs are silently ignored. A lookup-first approach would require
-        // a getById() not present in Spring AI VectorStore, so this trade-off is intentional.
+        // 각 ID는 부모 문서일 수 있다 -- 정리를 위해 결정론적 청크 ID를 유도한다.
+        // VectorStore.delete는 멱등성: 존재하지 않는 ID는 무시된다.
+        // 이미 청크 ID인 경우 유도를 건너뛴다.
+        // WHY: Spring AI VectorStore에 getById()가 없으므로 조회 후 삭제 방식 대신
+        // 최대 maxNumChunks개까지 유도하는 brute-force 방식을 의도적으로 선택했다.
         val maxChunks = properties.rag.chunking.maxNumChunks
         val allIds = request.ids.flatMap { id ->
             if (DocumentChunker.isChunkId(id)) {
@@ -230,7 +232,7 @@ class DocumentController(
         return ResponseEntity.noContent().build()
     }
 
-    // ---- Deduplication helpers ----
+    // ---- 중복 검사 헬퍼 ----
 
     private fun computeSha256(content: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -259,7 +261,7 @@ class DocumentController(
             "Document with identical content already exists"
     }
 
-    // ---- DTOs ----
+    // ---- 요청/응답 DTO ----
 
     data class AddDocumentRequest(
         @field:NotBlank(message = "Document content is required")

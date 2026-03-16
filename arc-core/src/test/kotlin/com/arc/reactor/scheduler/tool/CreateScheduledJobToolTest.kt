@@ -15,6 +15,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * CreateScheduledJobTool에 대한 테스트.
+ *
+ * 스케줄된 작업 생성 도구의 동작을 검증합니다.
+ */
 class CreateScheduledJobToolTest {
 
     private val objectMapper = jacksonObjectMapper()

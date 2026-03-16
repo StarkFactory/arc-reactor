@@ -20,6 +20,11 @@ import reactor.core.publisher.Mono
 import java.net.InetSocketAddress
 import java.net.URI
 
+/**
+ * AuthRateLimitFilter에 대한 테스트.
+ *
+ * 인증 속도 제한 필터의 동작을 검증합니다.
+ */
 class AuthRateLimitFilterTest {
 
     private lateinit var filter: AuthRateLimitFilter
@@ -108,7 +113,7 @@ class AuthRateLimitFilterTest {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
             currentStatus = HttpStatus.UNAUTHORIZED
 
-            // First 3은(는) pass해야 합니다
+            // 처음 3개는 통과해야 합니다
             for (i in 1..3) {
                 filter.filter(exchange, chain).block()
             }
@@ -206,7 +211,7 @@ class AuthRateLimitFilterTest {
             headers.set("X-Forwarded-For", "10.0.0.2")
             filter.filter(exchange, chain).block()
 
-            // All requests은(는) be tracked under 127.0.0.1 (direct IP)해야 합니다
+            // 모든 요청은 127.0.0.1 (직접 IP)로 추적되어야 합니다
             // 3 + 1 blocked = 3 chain.filter calls
             verify(exactly = 3) { chain.filter(exchange) }
         }

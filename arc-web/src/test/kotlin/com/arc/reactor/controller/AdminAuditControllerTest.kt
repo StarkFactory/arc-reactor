@@ -13,6 +13,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * AdminAuditController에 대한 테스트.
+ *
+ * 관리자 감사 로그 REST API의 동작을 검증합니다.
+ */
 class AdminAuditControllerTest {
 
     private fun adminExchange(): ServerWebExchange {

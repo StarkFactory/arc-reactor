@@ -11,6 +11,11 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 
+/**
+ * JdbcConversationSummaryStore에 대한 테스트.
+ *
+ * JDBC 기반 대화 요약 저장소의 동작을 검증합니다.
+ */
 class JdbcConversationSummaryStoreTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate

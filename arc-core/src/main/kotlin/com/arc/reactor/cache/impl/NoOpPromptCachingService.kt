@@ -5,10 +5,10 @@ import com.arc.reactor.cache.PromptCachingService
 import org.springframework.ai.chat.prompt.ChatOptions
 
 /**
- * No-op implementation of [PromptCachingService].
+ * [PromptCachingService]의 No-op 구현체.
  *
- * Used when prompt caching is disabled or no provider-specific implementation
- * is available. All operations pass through without modification.
+ * 프롬프트 캐싱이 비활성화되어 있거나 프로바이더별 구현이 없을 때 사용된다.
+ * 모든 작업이 수정 없이 통과한다.
  */
 class NoOpPromptCachingService : PromptCachingService {
 

@@ -15,6 +15,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.time.Instant
 
+/**
+ * ReportGenerator에 대한 테스트.
+ *
+ * 실험 보고서 생성 로직을 검증합니다.
+ */
 class ReportGeneratorTest {
 
     private lateinit var generator: ReportGenerator
