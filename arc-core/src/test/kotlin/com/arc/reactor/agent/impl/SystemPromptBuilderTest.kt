@@ -76,6 +76,7 @@ class SystemPromptBuilderTest {
             [Retrieved Context]
             The following information was retrieved from the knowledge base and may be relevant.
             Use this context to inform your answer when relevant. If the context does not contain the answer, say so rather than guessing.
+            When using this context, cite the source. If the context doesn't answer the question, use general knowledge and say so.
             Do not mention the retrieval process to the user.
 
             fact1

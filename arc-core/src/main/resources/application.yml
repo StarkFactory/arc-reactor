@@ -130,7 +130,8 @@ arc:
 
     rag:
       enabled: ${ARC_REACTOR_RAG_ENABLED:false}
-      similarity-threshold: 0.3
+      similarity-threshold: 0.65
+      top-k: 5
       query-transformer: ${ARC_REACTOR_RAG_QUERY_TRANSFORMER:passthrough}
       retrieval-timeout-ms: ${ARC_REACTOR_RAG_RETRIEVAL_TIMEOUT_MS:5000}
       chunking:
@@ -144,7 +145,7 @@ arc:
           enabled: ${ARC_REACTOR_RAG_INGESTION_DYNAMIC_ENABLED:false}
           refresh-ms: ${ARC_REACTOR_RAG_INGESTION_DYNAMIC_REFRESH_MS:10000}
       adaptive-routing:
-        enabled: ${ARC_REACTOR_RAG_ADAPTIVE_ROUTING_ENABLED:false}
+        enabled: ${ARC_REACTOR_RAG_ADAPTIVE_ROUTING_ENABLED:true}
         timeout-ms: ${ARC_REACTOR_RAG_ADAPTIVE_ROUTING_TIMEOUT_MS:3000}
       compression:
         enabled: ${ARC_REACTOR_RAG_COMPRESSION_ENABLED:false}

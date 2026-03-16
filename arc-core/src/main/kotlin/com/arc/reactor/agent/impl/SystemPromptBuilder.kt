@@ -292,6 +292,8 @@ class SystemPromptBuilder(
         append("The following information was retrieved from the knowledge base and may be relevant.\n")
         append("Use this context to inform your answer when relevant. ")
         append("If the context does not contain the answer, say so rather than guessing.\n")
+        append("When using this context, cite the source. ")
+        append("If the context doesn't answer the question, use general knowledge and say so.\n")
         append("Do not mention the retrieval process to the user.\n\n")
         append(ragContext)
     }
