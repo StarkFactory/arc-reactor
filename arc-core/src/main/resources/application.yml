@@ -109,7 +109,7 @@ arc:
     boundaries:
       input-min-chars: 1
       input-max-chars: 10000
-      system-prompt-max-chars: 0
+      system-prompt-max-chars: 50000
 
     rag:
       enabled: ${ARC_REACTOR_RAG_ENABLED:false}
