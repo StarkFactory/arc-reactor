@@ -174,26 +174,19 @@ class JdbcMemoryStore(
     }
 
     private fun evictOldMessages(sessionId: String) {
-        val count = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM conversation_messages WHERE session_id = ?",
-            Int::class.java,
-            sessionId
-        ) ?: 0
-
-        if (count > maxMessagesPerSession) {
-            val excess = count - maxMessagesPerSession
-            jdbcTemplate.update(
-                """
-                DELETE FROM conversation_messages WHERE id IN (
-                    SELECT id FROM conversation_messages
-                    WHERE session_id = ?
-                    ORDER BY id ASC
-                    LIMIT ?
-                )
-                """.trimIndent(),
-                sessionId, excess
-            )
-        }
+        jdbcTemplate.update(
+            """
+            DELETE FROM conversation_messages
+            WHERE session_id = ?
+              AND id NOT IN (
+                  SELECT id FROM conversation_messages
+                  WHERE session_id = ?
+                  ORDER BY id DESC
+                  LIMIT ?
+              )
+            """.trimIndent(),
+            sessionId, sessionId, maxMessagesPerSession
+        )
     }
 
     private fun parseRole(role: String): MessageRole {
