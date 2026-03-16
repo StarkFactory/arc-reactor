@@ -331,8 +331,8 @@ arc:
   reactor:
     guard:
       enabled: true                            # Master toggle
-      rate-limit-per-minute: 10                # Per-user per-minute limit
-      rate-limit-per-hour: 100                 # Per-user per-hour limit
+      rate-limit-per-minute: 20                # Per-user per-minute limit
+      rate-limit-per-hour: 200                 # Per-user per-hour limit
       injection-detection-enabled: true        # Regex-based injection detection
       unicode-normalization-enabled: true      # NFKC + homoglyph + zero-width
       classification-enabled: false            # Rule-based classification (opt-in)

@@ -257,7 +257,7 @@ Key properties with their defaults. Full reference: [`docs/en/getting-started/co
 arc:
   reactor:
     max-tool-calls: 10               # Max tool iterations per request
-    max-tools-per-request: 20        # Max distinct tools exposed to LLM
+    max-tools-per-request: 30        # Max distinct tools exposed to LLM
 
     llm:
       default-provider: gemini

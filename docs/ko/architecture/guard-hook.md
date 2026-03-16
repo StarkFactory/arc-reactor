@@ -331,8 +331,8 @@ arc:
   reactor:
     guard:
       enabled: true                            # 마스터 토글
-      rate-limit-per-minute: 10                # 사용자별 분당 제한
-      rate-limit-per-hour: 100                 # 사용자별 시간당 제한
+      rate-limit-per-minute: 20                # 사용자별 분당 제한
+      rate-limit-per-hour: 200                 # 사용자별 시간당 제한
       injection-detection-enabled: true        # 정규식 기반 인젝션 탐지
       unicode-normalization-enabled: true      # NFKC + 호모글리프 + zero-width
       classification-enabled: false            # 규칙 기반 분류 (opt-in)
