@@ -161,36 +161,55 @@ class UserMemoryStoreTest {
         }
 
         @Test
-        fun `getContextPrompt includes facts in output`() = runTest {
+        fun `getContextPrompt includes facts with Facts prefix`() = runTest {
             store.save("ctx-user-1", UserMemory(userId = "ctx-user-1", facts = mapOf("team" to "backend")))
 
             val prompt = manager.getContextPrompt("ctx-user-1")
             assertTrue(prompt.contains("team=backend"), "Context prompt should include facts")
-            assertTrue(prompt.startsWith("User context:"), "Context prompt should start with 'User context:'")
+            assertTrue(prompt.startsWith("Facts:"), "Context prompt should start with 'Facts:' but was: $prompt")
         }
 
         @Test
-        fun `getContextPrompt includes preferences in output`() = runTest {
+        fun `getContextPrompt includes preferences with Preferences prefix`() = runTest {
             store.save(
                 "ctx-user-2",
                 UserMemory(userId = "ctx-user-2", preferences = mapOf("language" to "Korean"))
             )
 
             val prompt = manager.getContextPrompt("ctx-user-2")
-            assertTrue(prompt.contains("language=Korean"), "Context prompt should include preferences")
+            assertTrue(
+                prompt.contains("Preferences: language=Korean"),
+                "Context prompt should include 'Preferences: language=Korean' but was: $prompt"
+            )
         }
 
         @Test
-        fun `getContextPrompt includes recent topics in output`() = runTest {
+        fun `getContextPrompt uses separate lines for facts and preferences`() = runTest {
             store.save(
                 "ctx-user-3",
-                UserMemory(userId = "ctx-user-3", recentTopics = listOf("Spring AI", "MCP"))
+                UserMemory(
+                    userId = "ctx-user-3",
+                    facts = mapOf("team" to "backend"),
+                    preferences = mapOf("language" to "Korean")
+                )
             )
 
             val prompt = manager.getContextPrompt("ctx-user-3")
-            assertTrue(prompt.contains("recent topics:"), "Context prompt should include 'recent topics:' label")
-            assertTrue(prompt.contains("Spring AI"), "Context prompt should include recent topic Spring AI")
-            assertTrue(prompt.contains("MCP"), "Context prompt should include recent topic MCP")
+            val lines = prompt.split("\n")
+            assertEquals(2, lines.size, "Context should have 2 lines (Facts + Preferences)")
+            assertTrue(lines[0].startsWith("Facts:"), "First line should start with 'Facts:'")
+            assertTrue(lines[1].startsWith("Preferences:"), "Second line should start with 'Preferences:'")
+        }
+
+        @Test
+        fun `getContextPrompt returns empty for memory with only recent topics`() = runTest {
+            store.save(
+                "topic-only-user",
+                UserMemory(userId = "topic-only-user", recentTopics = listOf("Spring AI", "MCP"))
+            )
+
+            val prompt = manager.getContextPrompt("topic-only-user")
+            assertEquals("", prompt, "Memory with only recent topics should produce empty context prompt")
         }
 
         @Test
@@ -199,6 +218,19 @@ class UserMemoryStoreTest {
 
             val prompt = manager.getContextPrompt("empty-user")
             assertEquals("", prompt, "Empty memory should produce empty context prompt")
+        }
+
+        @Test
+        fun `getContextPrompt truncates output to maxPromptInjectionChars`() = runTest {
+            val smallLimitManager = UserMemoryManager(store = store, maxRecentTopics = 3, maxPromptInjectionChars = 30)
+            val longFacts = (1..20).associate { "key$it" to "value$it" }
+            store.save("trunc-user", UserMemory(userId = "trunc-user", facts = longFacts))
+
+            val prompt = smallLimitManager.getContextPrompt("trunc-user")
+            assertTrue(
+                prompt.length <= 30,
+                "Context prompt should be truncated to 30 chars but was ${prompt.length}: $prompt"
+            )
         }
 
         @Test

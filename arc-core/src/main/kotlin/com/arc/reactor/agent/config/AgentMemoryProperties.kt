@@ -34,6 +34,15 @@ data class UserMemoryProperties(
     /** Enable per-user long-term memory. Disabled by default (opt-in). */
     val enabled: Boolean = false,
 
+    /**
+     * Inject user memory (facts/preferences) into the system prompt.
+     * Requires [enabled]=true. Disabled by default (opt-in).
+     */
+    val injectIntoPrompt: Boolean = false,
+
+    /** Maximum character length for the injected user memory context block. */
+    val maxPromptInjectionChars: Int = 1000,
+
     /** Maximum number of recent topics to retain per user. */
     val maxRecentTopics: Int = 10,
 

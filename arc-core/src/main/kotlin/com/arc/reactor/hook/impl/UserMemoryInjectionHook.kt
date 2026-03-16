@@ -12,7 +12,8 @@ private val logger = KotlinLogging.logger {}
 /**
  * Injects per-user long-term memory into the agent system prompt.
  *
- * When a non-blank userId is present in the [HookContext], this hook:
+ * When [injectIntoPrompt] is `true` and a non-blank userId is present in the [HookContext],
+ * this hook:
  * 1. Loads the user's memory via [UserMemoryManager.getContextPrompt]
  * 2. Stores the resulting context string in [HookContext.metadata] under key `userMemoryContext`
  *
@@ -20,16 +21,19 @@ private val logger = KotlinLogging.logger {}
  * before the first LLM call. This hook is fail-open (errors are logged, never propagated).
  *
  * ## Activation
- * Enabled by setting `arc.reactor.memory.user.enabled=true`.
+ * Enabled by setting `arc.reactor.memory.user.enabled=true` AND
+ * `arc.reactor.memory.user.inject-into-prompt=true`.
  *
  * ## Example output in system prompt
  * ```
  * [User Context]
- * User context: team=backend, role=senior engineer | recent topics: Spring AI, MCP integration
+ * Facts: team=backend, role=senior engineer
+ * Preferences: language=Korean, detail_level=brief
  * ```
  */
 class UserMemoryInjectionHook(
-    private val memoryManager: UserMemoryManager
+    private val memoryManager: UserMemoryManager,
+    private val injectIntoPrompt: Boolean = false
 ) : BeforeAgentStartHook {
 
     /** Run early (order 5) so memory context is available to all subsequent hooks. */
@@ -39,6 +43,8 @@ class UserMemoryInjectionHook(
     override val failOnError: Boolean = false
 
     override suspend fun beforeAgentStart(context: HookContext): HookResult {
+        if (!injectIntoPrompt) return HookResult.Continue
+
         val userId = context.userId.takeIf { it.isNotBlank() && it != "anonymous" }
             ?: return HookResult.Continue
 
