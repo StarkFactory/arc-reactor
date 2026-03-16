@@ -44,7 +44,7 @@ class InMemoryScheduledJobStore : ScheduledJobStore {
         jobs[id] = existing.copy(
             lastRunAt = Instant.now(),
             lastStatus = status,
-            lastResult = result?.take(5000),
+            lastResult = result?.take(ScheduledJobStore.RESULT_TRUNCATION_LIMIT),
             updatedAt = Instant.now()
         )
     }
