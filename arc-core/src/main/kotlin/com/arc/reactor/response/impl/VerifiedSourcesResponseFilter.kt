@@ -25,6 +25,9 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         if (sources.isEmpty() && allowsIdentityResolutionRefusal(finalContent)) {
             return finalContent.trimEnd()
         }
+        if (sources.isEmpty() && !requiresVerifiedSources(context)) {
+            return finalContent.trimEnd()
+        }
         return finalContent.trimEnd() + "\n\n" + buildSourcesBlock(context.command.userPrompt, sources)
     }
 

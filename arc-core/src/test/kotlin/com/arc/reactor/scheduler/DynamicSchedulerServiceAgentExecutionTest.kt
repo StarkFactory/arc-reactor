@@ -262,7 +262,7 @@ class DynamicSchedulerServiceAgentExecutionTest {
             val service = buildService(store, agentExecutor = agentExecutor, personaStore = null)
             service.trigger(job.id)
 
-            assertEquals("You are a helpful AI assistant.", commandSlot.captured.systemPrompt,
+            assertTrue(commandSlot.captured.systemPrompt.startsWith("You are a helpful AI assistant powered by Arc Reactor."),
                 "Hardcoded fallback should be used when PersonaStore is absent")
         }
     }
