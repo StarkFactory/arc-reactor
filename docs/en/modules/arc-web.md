@@ -30,10 +30,29 @@ All controllers are registered as Spring beans and can be replaced with your own
 | `ApprovalController` | Human-in-the-Loop approval workflow | `controller` |
 | `PromptLabController` | Prompt Lab experiment management | `controller` |
 | `OpsDashboardController` | Operations dashboard (metrics, anomaly detection) | `controller` |
+| `UserMemoryController` | Per-user long-term memory CRUD (facts, preferences) | `controller` |
+| `ProactiveChannelController` | Manage proactive monitoring channels (ADMIN) | `controller` |
+| `McpPreflightController` | Proxy MCP server admin preflight readiness checks (ADMIN) | `controller` |
+| `McpSwaggerCatalogController` | Proxy Swagger spec source lifecycle on MCP servers (ADMIN) | `controller` |
+| `McpAccessPolicyController` | Proxy MCP server access-policy management (ADMIN) | `controller` |
+| `McpSecurityController` | Dynamic MCP allowlist and security policy (ADMIN) | `controller` |
+| `AdminCapabilitiesController` | Admin feature capability manifest (lists all API paths) | `controller` |
+| `AdminAuditController` | Paginated admin audit log viewer (ADMIN) | `controller` |
+| `RagIngestionCandidateController` | RAG ingestion candidate review and approve/reject (ADMIN) | `controller` |
+| `RagIngestionPolicyController` | Dynamic RAG ingestion capture policy management (ADMIN) | `controller` |
 | `GlobalExceptionHandler` | `@RestControllerAdvice` — standardized error responses | `controller` |
+| `AdminAuditSupport` | Shared `recordAdminAudit()` helper for audit log persistence | `controller` |
+| `SystemPromptResolver` | System prompt resolution (persona, template, default) and user ID extraction | `controller` |
+| `PaginatedResponse` | Generic paginated response wrapper for list endpoints | `controller` |
+| `SsrfUrlValidator` | SSRF-safe URL validation (blocks private/reserved IPs) | `controller` |
+| `McpAdminRequestSigner` | HMAC-SHA256 request signing for MCP admin proxy calls | `controller` |
+| `McpAdminUrlResolver` | Resolves and normalizes MCP admin API base URLs from config | `controller` |
+| `McpAdminWebClientFactory` | Cached WebClient instances for MCP admin proxy calls | `controller` |
 | `SecurityHeadersWebFilter` | Adds security headers to every HTTP response | `autoconfigure` |
 | `CorsSecurityConfiguration` | Optional CORS filter (opt-in) | `autoconfigure` |
 | `ApiVersionContractWebFilter` | API version contract enforcement via `X-Api-Version` header | `autoconfigure` |
+| `RequestCorrelationFilter` | Propagates or generates `X-Request-ID` for every request | `autoconfigure` |
+| `OpenApiConfiguration` | Auto-configures OpenAPI/Swagger UI when SpringDoc is present | `autoconfigure` |
 | `TenantContextResolver` | Resolves tenant ID from JWT attributes or `X-Tenant-Id` header | `controller` |
 | `AdminAuthSupport` | Shared `isAdmin()` and `forbiddenResponse()` helpers | `controller` |
 | `ArcReactorWebAutoConfiguration` | Web-layer auto-configuration entrypoint | `autoconfigure` |

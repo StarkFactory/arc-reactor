@@ -53,6 +53,16 @@ A `DataSource` (PostgreSQL with TimescaleDB extension) is required for the JDBC 
 | `SloService` | Availability and latency SLO status plus error-budget burn-rate |
 | `PlatformAdminController` | `GET/POST /api/admin/platform/*` — tenant CRUD, pricing, alerts, platform health |
 | `TenantAdminController` | `GET /api/admin/tenant/*` — tenant dashboards, SLO, quota, CSV export |
+| `MetricIngestionController` | `POST /api/admin/metrics/ingest` — metric ingestion for MCP servers and external sources |
+| `AdminAuthHelper` | Shared `isAdmin()`, `isAnyAdmin()`, `forbiddenResponse()` helpers for admin controllers |
+| `AdminAuditSupport` | Shared `recordAdminAudit()` helper for audit log persistence |
+| `MetricGuardAuditPublisher` | Publishes guard audit events to ring buffer (SHA-256 hashed input for SOC 2 compliance) |
+| `PipelineHealthMonitor` | Tracks pipeline health meta-metrics (write latency, errors, drops, cache hits) |
+| `ExportService` | JDBC-based CSV export for tenant execution and tool-call data |
+| `BaselineCalculator` | Computes cached mean/stddev baselines for anomaly detection alerts |
+| `AlertNotificationService` | Dispatches alert notifications via configured channels (log, Slack, webhook) |
+| `TenantSpanProcessor` | OTel `SpanProcessor` that injects `tenant_id` into every trace span |
+| `OtlpExporterConfiguration` | Configures OTLP span exporters (gRPC or HTTP) and TimescaleDB exporter |
 | `McpMetricReporter` | Lightweight HTTP reporter for MCP servers to push their own tool-call metrics |
 
 ## Configuration
