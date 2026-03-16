@@ -14,16 +14,18 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
 
 /**
- * User Memory API Controller
+ * 사용자 메모리 컨트롤러.
  *
- * Provides REST APIs for managing per-user long-term memory.
- * Each user can access only their own memory.
+ * 사용자별 장기 메모리(facts, preferences, recentTopics)를 관리하는 REST API를 제공합니다.
+ * 각 사용자는 자신의 메모리에만 접근할 수 있습니다.
  *
- * ## Endpoints
- * - GET    /api/user-memory/{userId}              : Retrieve full memory record
- * - PUT    /api/user-memory/{userId}/facts        : Update a single fact entry
- * - PUT    /api/user-memory/{userId}/preferences  : Update a single preference entry
- * - DELETE /api/user-memory/{userId}              : Delete all memory for a user
+ * ## 엔드포인트
+ * - GET    /api/user-memory/{userId}              : 전체 메모리 레코드 조회
+ * - PUT    /api/user-memory/{userId}/facts        : 단일 fact 항목 수정
+ * - PUT    /api/user-memory/{userId}/preferences  : 단일 preference 항목 수정
+ * - DELETE /api/user-memory/{userId}              : 사용자의 모든 메모리 삭제
+ *
+ * @see UserMemoryManager
  */
 @Tag(name = "User Memory", description = "Per-user long-term memory management")
 @RestController
@@ -33,10 +35,8 @@ class UserMemoryController(
     private val userMemoryManager: UserMemoryManager
 ) {
 
-    /**
-     * Retrieve the full memory record for a user.
-     */
-    @Operation(summary = "Get user memory by userId")
+    /** 사용자의 전체 메모리 레코드를 조회한다. */
+    @Operation(summary = "사용자 메모리 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "User memory retrieved"),
         ApiResponse(responseCode = "404", description = "No memory found for userId"),
@@ -53,10 +53,8 @@ class UserMemoryController(
         return ResponseEntity.ok(memory.toResponse())
     }
 
-    /**
-     * Update a single fact for the user. Creates the memory record if it does not exist.
-     */
-    @Operation(summary = "Update a user fact")
+    /** 사용자의 단일 fact를 수정한다. 메모리 레코드가 없으면 새로 생성한다. */
+    @Operation(summary = "사용자 fact 수정")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Fact updated"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -73,10 +71,8 @@ class UserMemoryController(
         return ResponseEntity.ok(mapOf("updated" to true))
     }
 
-    /**
-     * Update a single preference for the user. Creates the memory record if it does not exist.
-     */
-    @Operation(summary = "Update a user preference")
+    /** 사용자의 단일 preference를 수정한다. 메모리 레코드가 없으면 새로 생성한다. */
+    @Operation(summary = "사용자 preference 수정")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Preference updated"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -93,10 +89,8 @@ class UserMemoryController(
         return ResponseEntity.ok(mapOf("updated" to true))
     }
 
-    /**
-     * Delete all stored memory for a user. Idempotent.
-     */
-    @Operation(summary = "Delete all memory for a user")
+    /** 사용자의 모든 메모리를 삭제한다. 멱등성을 보장한다. */
+    @Operation(summary = "사용자 전체 메모리 삭제")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Memory deleted"),
         ApiResponse(responseCode = "403", description = "Access denied")
@@ -111,10 +105,7 @@ class UserMemoryController(
         return ResponseEntity.noContent().build()
     }
 
-    /**
-     * Determines whether the caller is authorized to access the given userId's memory.
-     * Only the owner can access.
-     */
+    /** 호출자가 해당 userId의 메모리에 접근할 수 있는지 판단한다. 본인만 접근 가능하다. */
     private fun canAccess(userId: String, exchange: ServerWebExchange): Boolean {
         val callerId = currentActor(exchange)
         return callerId.isNotBlank() && callerId == userId

@@ -21,6 +21,15 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * Tool Policy 동적 관리 컨트롤러.
+ *
+ * 쓰기 전용 도구(write tool)의 채널별 허용/차단 정책을 런타임에 관리합니다.
+ * 저장된 정책을 삭제하면 설정 파일 기본값으로 복원됩니다.
+ *
+ * @see ToolPolicyStore
+ * @see ToolPolicyProvider
+ */
 @Tag(name = "Tool Policy", description = "Dynamic tool policy (ADMIN only)")
 @RestController
 @RequestMapping("/api/tool-policy")
@@ -35,7 +44,8 @@ class ToolPolicyController(
     private val adminAuditStore: AdminAuditStore
 ) {
 
-    @Operation(summary = "Get tool policy state (effective + stored) (ADMIN)")
+    /** 현재 적용 중인 정책과 저장된 정책 상태를 조회한다. */
+    @Operation(summary = "Tool Policy 상태 조회 (적용 중 + 저장) (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Current tool policy state"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -55,7 +65,8 @@ class ToolPolicyController(
         )
     }
 
-    @Operation(summary = "Update stored tool policy (ADMIN)")
+    /** 저장된 Tool Policy를 수정한다. */
+    @Operation(summary = "저장된 Tool Policy 수정 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tool policy updated"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -83,7 +94,8 @@ class ToolPolicyController(
         return ResponseEntity.ok(saved.toResponse())
     }
 
-    @Operation(summary = "Delete stored tool policy (reset to config defaults) (ADMIN)")
+    /** 저장된 Tool Policy를 삭제하고 설정 기본값으로 복원한다. */
+    @Operation(summary = "저장된 Tool Policy 삭제 (설정 기본값 복원) (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Tool policy deleted, reset to config defaults"),
         ApiResponse(responseCode = "403", description = "Admin access required")
