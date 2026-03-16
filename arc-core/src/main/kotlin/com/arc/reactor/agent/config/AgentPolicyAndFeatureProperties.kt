@@ -162,7 +162,44 @@ data class RagProperties(
     val chunking: RagChunkingProperties = RagChunkingProperties(),
 
     /** Retrieval timeout in milliseconds. Prevents thread-pool exhaustion when vector DB is unresponsive. */
-    val retrievalTimeoutMs: Long = 5000
+    val retrievalTimeoutMs: Long = 5000,
+
+    /** CRAG document grading configuration */
+    val grading: RagGradingProperties = RagGradingProperties()
+)
+
+/**
+ * Corrective RAG (CRAG) document grading configuration.
+ *
+ * When enabled, retrieved documents are evaluated for relevance by an LLM
+ * before reranking. Low-relevance document sets trigger query rewrite and re-retrieval.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     rag:
+ *       grading:
+ *         enabled: true
+ *         relevance-threshold: 0.5
+ *         max-content-chars: 500
+ *         timeout-ms: 10000
+ * ```
+ *
+ * @see <a href="https://arxiv.org/abs/2401.15884">CRAG Paper (Yan et al., 2024)</a>
+ */
+data class RagGradingProperties(
+    /** Enable CRAG document grading. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Minimum ratio of relevant documents before triggering query rewrite (0.0-1.0). */
+    val relevanceThreshold: Double = 0.5,
+
+    /** Maximum characters per document in the grading prompt. */
+    val maxContentChars: Int = 500,
+
+    /** Timeout for the LLM grading call in milliseconds. */
+    val timeoutMs: Long = 10_000
 )
 
 /**

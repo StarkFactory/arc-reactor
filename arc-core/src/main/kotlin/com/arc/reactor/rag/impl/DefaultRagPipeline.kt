@@ -3,8 +3,10 @@ package com.arc.reactor.rag.impl
 import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.rag.ContextBuilder
+import com.arc.reactor.rag.DocumentGrader
 import com.arc.reactor.rag.DocumentReranker
 import com.arc.reactor.rag.DocumentRetriever
+import com.arc.reactor.rag.GradingAction
 import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.model.RagContext
@@ -17,12 +19,17 @@ private val logger = KotlinLogging.logger {}
 /**
  * Default RAG Pipeline Implementation
  *
- * Query → Transform → Retrieve → Rerank → Build Context
+ * Query → Transform → Retrieve → [Grade] → Rerank → Build Context
+ *
+ * When a [DocumentGrader] is provided, retrieved documents are evaluated
+ * for relevance before reranking. If overall relevance is too low, the
+ * query is rewritten and retrieval is retried once.
  */
 class DefaultRagPipeline(
     private val queryTransformer: QueryTransformer? = null,
     private val retriever: DocumentRetriever,
     private val reranker: DocumentReranker? = null,
+    private val grader: DocumentGrader? = null,
     private val contextBuilder: ContextBuilder = SimpleContextBuilder(),
     private val maxContextTokens: Int = 4000,
     private val tokenEstimator: TokenEstimator = DefaultTokenEstimator()
@@ -32,28 +39,31 @@ class DefaultRagPipeline(
         logger.debug { "RAG pipeline started: ${query.query}" }
 
         // 1. Query Transform
-        val transformedQueries = if (queryTransformer != null) {
-            queryTransformer.transform(query.query)
-        } else {
-            listOf(query.query)
-        }
+        val transformedQueries = transformQueries(query.query)
 
         // 2. Retrieve
-        val documents = retriever.retrieve(transformedQueries, query.topK, query.filters)
+        var documents = retriever.retrieve(transformedQueries, query.topK, query.filters)
         logger.debug { "Retrieved ${documents.size} documents" }
 
         if (documents.isEmpty()) {
             return RagContext.EMPTY
         }
 
-        // 3. Rerank
+        // 3. Grade (CRAG) — filter irrelevant docs, rewrite if needed
+        documents = gradeAndRetryIfNeeded(query, documents)
+
+        if (documents.isEmpty()) {
+            return RagContext.EMPTY
+        }
+
+        // 4. Rerank
         val rerankedDocs = if (query.rerank && reranker != null) {
             reranker.rerank(query.query, documents, query.topK)
         } else {
             documents.take(query.topK)
         }
 
-        // 4. Build Context (with token limit)
+        // 5. Build Context (with token limit)
         val context = contextBuilder.build(rerankedDocs, maxContextTokens)
 
         return RagContext(
@@ -61,6 +71,36 @@ class DefaultRagPipeline(
             documents = rerankedDocs,
             totalTokens = tokenEstimator.estimate(context)
         )
+    }
+
+    private suspend fun transformQueries(query: String): List<String> {
+        return if (queryTransformer != null) {
+            queryTransformer.transform(query)
+        } else {
+            listOf(query)
+        }
+    }
+
+    private suspend fun gradeAndRetryIfNeeded(
+        query: RagQuery,
+        documents: List<RetrievedDocument>
+    ): List<RetrievedDocument> {
+        if (grader == null) return documents
+
+        val result = grader.grade(query.query, documents)
+        if (result.action != GradingAction.NEEDS_REWRITE) {
+            return result.relevantDocuments
+        }
+
+        logger.info { "CRAG: relevance too low, rewriting query and retrying" }
+        val rewrittenQueries = transformQueries(query.query + " (rephrased)")
+        val retried = retriever.retrieve(rewrittenQueries, query.topK, query.filters)
+        if (retried.isEmpty()) {
+            return result.relevantDocuments
+        }
+
+        val retryResult = grader.grade(query.query, retried)
+        return retryResult.relevantDocuments
     }
 }
 

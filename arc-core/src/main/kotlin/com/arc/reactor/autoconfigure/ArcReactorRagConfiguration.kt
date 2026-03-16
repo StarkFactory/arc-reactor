@@ -2,6 +2,7 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.config.ChatModelProvider
+import com.arc.reactor.rag.DocumentGrader
 import com.arc.reactor.rag.DocumentReranker
 import com.arc.reactor.rag.DocumentRetriever
 import com.arc.reactor.rag.QueryTransformer
@@ -13,6 +14,7 @@ import com.arc.reactor.rag.chunking.InstrumentedDocumentChunker
 import com.arc.reactor.rag.chunking.NoOpDocumentChunker
 import com.arc.reactor.rag.chunking.TokenBasedDocumentChunker
 import com.arc.reactor.rag.impl.Bm25WarmUpRunner
+import com.arc.reactor.rag.impl.CragDocumentGrader
 import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HybridRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
@@ -167,6 +169,45 @@ class RagConfiguration {
     }
 
     /**
+     * CRAG Document Grader — LLM-based relevance evaluation for retrieved documents.
+     * Only created when grading is explicitly enabled.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.rag.grading", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun documentGrader(
+        chatModelProvider: ObjectProvider<ChatModelProvider>,
+        properties: AgentProperties
+    ): DocumentGrader {
+        val provider = chatModelProvider.ifAvailable
+            ?: throw BeanInitializationException(
+                "CRAG grading is enabled but no ChatModelProvider is available."
+            )
+        val selectedProvider = provider.availableProviders()
+            .firstOrNull { it == provider.defaultProvider() }
+            ?: provider.availableProviders().firstOrNull()
+        if (selectedProvider == null) {
+            throw BeanInitializationException(
+                "CRAG grading is enabled but no chat providers are available."
+            )
+        }
+        val grading = properties.rag.grading
+        ragLogger.info {
+            "RAG: Using CragDocumentGrader " +
+                "(threshold=${grading.relevanceThreshold}, timeout=${grading.timeoutMs}ms)"
+        }
+        return CragDocumentGrader(
+            chatClient = provider.getChatClient(selectedProvider),
+            relevanceThreshold = grading.relevanceThreshold,
+            maxContentChars = grading.maxContentChars,
+            timeoutMs = grading.timeoutMs
+        )
+    }
+
+    /**
      * Default RAG Pipeline — used when hybrid search is disabled.
      */
     @Bean
@@ -175,11 +216,13 @@ class RagConfiguration {
         queryTransformer: QueryTransformer,
         retriever: DocumentRetriever,
         reranker: DocumentReranker,
+        graderProvider: ObjectProvider<DocumentGrader>,
         properties: AgentProperties
     ): RagPipeline = DefaultRagPipeline(
         queryTransformer = queryTransformer,
         retriever = retriever,
         reranker = reranker,
+        grader = graderProvider.ifAvailable,
         maxContextTokens = properties.rag.maxContextTokens
     )
 
