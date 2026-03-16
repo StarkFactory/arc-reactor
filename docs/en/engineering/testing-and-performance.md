@@ -2,6 +2,18 @@
 
 This guide documents current test scope defaults and practical speed optimization tactics.
 
+## Test Tags
+
+| Tag | Purpose | Gradle flag | Default |
+|-----|---------|-------------|---------|
+| `@Tag("integration")` | Tests requiring external dependencies (DB, Spring context) | `-PincludeIntegration` | excluded |
+| `@Tag("matrix")` | Combinatorial/fuzz regression suites | `-PincludeMatrix` | excluded |
+| `@Tag("external")` | Network/NPX/Docker dependencies | `-PincludeExternalIntegration` (requires `-PincludeIntegration`) | excluded |
+| `@Tag("safety")` | Security validation gate (CI only) | `-PincludeSafety` | excluded; include-only (runs ONLY safety-tagged tests) |
+| `@Tag("regression")` | Targeted regression markers | none | always included |
+
+Tag exclusion is configured in the root `build.gradle.kts` `tasks.withType<Test>` block (applied to all subprojects). The `safety` tag uses `includeTags` instead of `excludeTags`, meaning `-PincludeSafety` runs ONLY safety-tagged tests.
+
 ## Default Test Scope
 
 All modules exclude `@Tag("integration")`, `@Tag("external")`, and `@Tag("matrix")` tests by default.
@@ -11,6 +23,7 @@ All modules exclude `@Tag("integration")`, `@Tag("external")`, and `@Tag("matrix
 - include matrix/fuzz suites: `./gradlew test -PincludeMatrix`
 - integration API suite (core + web): `./gradlew :arc-core:test :arc-web:test -PincludeIntegration --tests "com.arc.reactor.integration.*"`
 - include external integration (npx/docker/network): `./gradlew test -PincludeIntegration -PincludeExternalIntegration`
+- run safety gate only: `./gradlew :arc-core:test :arc-web:test -PincludeSafety`
 
 This keeps local feedback loops fast while allowing explicit integration coverage when needed.
 
@@ -70,13 +83,18 @@ Developer helpers:
 
 ## CI Duration Guard
 
-CI now enforces time budgets using `scripts/ci/run-with-duration-guard.sh`:
+CI enforces time budgets using `scripts/ci/run-with-duration-guard.sh`:
 
-- unit test suite: 90s
-- integration API suite: 150s
+| Suite | Budget | CI env var |
+|-------|--------|------------|
+| safety gate (`-PincludeSafety`) | 120s | `SAFETY_TEST_MAX_SECONDS` |
+| integration API suite (`-PincludeIntegration`) | 150s | `INTEGRATION_TEST_MAX_SECONDS` |
+| API regression flow (single test) | 120s | hardcoded in `ci.yml` |
+| pre-open gate (full preflight) | 1200s | `PRE_OPEN_MAX_SECONDS` |
+| nightly matrix (`-PincludeMatrix`) | 420s | `MATRIX_TEST_MAX_SECONDS` |
 
 If execution exceeds the budget, CI fails fast with a clear duration error.
-Integration gate also verifies that external MCP integration tests are excluded.
+The integration gate also verifies that external MCP integration tests are excluded.
 
 Nightly matrix workflow:
 
@@ -98,8 +116,82 @@ Guard script: `scripts/ci/check-file-size-guard.sh`
 
 CI enforces documentation consistency and navigability:
 
-- `scripts/ci/check-agent-doc-sync.sh` verifies `AGENTS.md` and `CLAUDE.md` are identical.
+- `scripts/ci/check-agent-doc-sync.sh` verifies `AGENTS.md` contains all critical sections from `CLAUDE.md` (subset check, not byte-identical).
 - `scripts/ci/check-doc-links.py` verifies local markdown links and package README indexes in `docs/en` + `docs/ko`.
+- `scripts/ci/check-default-config-alignment.py` verifies default config values in docs match the source code.
+
+## CI Flyway Migration Guard
+
+CI enforces immutability of existing Flyway migrations:
+
+- `scripts/ci/check-flyway-migration-immutability.sh` fails when any already-versioned `V*.sql` file is modified, deleted, or renamed.
+- New versioned migrations (added files) pass the guard.
+
+## Test Fixtures and Assertions
+
+### AgentTestFixture
+
+`arc-core/src/test/kotlin/com/arc/reactor/agent/AgentTestFixture.kt`
+
+Shared mock setup for agent tests. Eliminates duplicated `ChatClient` / `RequestSpec` / `CallResponseSpec` mock wiring.
+
+Instance methods:
+
+| Method | Purpose |
+|--------|---------|
+| `mockCallResponse(content)` | Set up a simple successful call response |
+| `mockToolCallResponse(toolCalls)` | Create a `CallResponseSpec` containing tool calls (triggers ReAct loop) |
+| `mockFinalResponse(content)` | Create a `CallResponseSpec` for a final (no tool call) response |
+
+Companion object helpers:
+
+| Method | Purpose |
+|--------|---------|
+| `simpleChatResponse(content)` | Build a `ChatResponse` with text content (no tool calls) |
+| `defaultProperties()` | Build `AgentProperties` with request timeout disabled for `runTest` |
+| `toolCallback(name, description, result)` | Create a simple `ToolCallback` returning a fixed result |
+| `delayingToolCallback(name, delayMs, result)` | Create a `ToolCallback` with coroutine delay (NOT `Thread.sleep`) |
+| `textChunk(text)` | Create a `ChatResponse` chunk with text content (streaming tests) |
+| `toolCallChunk(toolCalls, text)` | Create a `ChatResponse` chunk with tool calls (streaming tests) |
+
+### TrackingTool
+
+`TrackingTool` is a `ToolCallback` implementation that records call count and captured arguments:
+
+```kotlin
+val tracker = TrackingTool("search", result = "found it")
+// ... run agent ...
+assertEquals(2, tracker.callCount, "search should be called twice")
+assertEquals("query-value", tracker.capturedArgs[0]["query"], "first call should pass query")
+```
+
+### AgentResultAssertions
+
+`arc-core/src/test/kotlin/com/arc/reactor/agent/AgentResultAssertions.kt`
+
+Extension functions on `AgentResult` that surface actual errors on failure:
+
+| Method | Purpose |
+|--------|---------|
+| `assertSuccess(message)` | Assert `success == true`, show `errorMessage` on failure |
+| `assertFailure(message)` | Assert `success == false`, show `content` on failure |
+| `assertErrorContains(expected)` | Assert failure with `errorMessage` containing `expected` (case-insensitive) |
+| `assertErrorCode(expected)` | Assert failure with specific `AgentErrorCode` |
+
+## Gradle Test JVM Configuration
+
+The root `build.gradle.kts` configures test JVM args for all subprojects:
+
+```kotlin
+tasks.withType<Test> {
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+    jvmArgs(
+        "-XX:+UseParallelGC",
+        "-XX:+TieredCompilation",
+        "-XX:TieredStopAtLevel=1"
+    )
+}
+```
 
 ## H2/JDBC Validation
 
