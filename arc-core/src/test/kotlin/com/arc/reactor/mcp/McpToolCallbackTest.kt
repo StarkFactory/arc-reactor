@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test
 class McpToolCallbackTest {
 
     @Test
-    fun `invokes onConnectionError when callTool throws`() = runBlocking {
+    fun `onConnectionError when callTool throws를 호출한다`() = runBlocking {
         val client = mockk<McpSyncClient>()
         var errorCallbackInvoked = false
         val callback = McpToolCallback(
@@ -32,7 +32,7 @@ class McpToolCallbackTest {
     }
 
     @Test
-    fun `does not invoke onConnectionError on successful call`() = runBlocking {
+    fun `invoke onConnectionError on successful call하지 않는다`() = runBlocking {
         val client = mockk<McpSyncClient>()
         var errorCallbackInvoked = false
         val callback = McpToolCallback(
@@ -56,7 +56,7 @@ class McpToolCallbackTest {
     }
 
     @Test
-    fun `returns structured content when text output does not carry machine-readable payload`() = runBlocking {
+    fun `text output does not carry machine-readable payload일 때 structured content를 반환한다`() = runBlocking {
         val client = mockk<McpSyncClient>()
         val callback = McpToolCallback(
             client = client,
@@ -86,7 +86,7 @@ class McpToolCallbackTest {
     }
 
     @Test
-    fun `keeps textual json output when it already contains machine-readable payload`() = runBlocking {
+    fun `it already contains machine-readable payload일 때 keeps textual json output`() = runBlocking {
         val client = mockk<McpSyncClient>()
         val callback = McpToolCallback(
             client = client,

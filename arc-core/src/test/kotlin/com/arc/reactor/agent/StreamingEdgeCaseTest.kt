@@ -26,10 +26,10 @@ import reactor.core.publisher.Flux
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Streaming edge case tests.
+ * 스트리밍 엣지 케이스 테스트.
  *
- * Covers: response format rejection, memory edge cases,
- * tool timeout during streaming, and concurrency enforcement.
+ * 대상: 응답 형식 거부, 메모리 엣지 케이스,
+ * 스트리밍 중 도구 타임아웃, 동시성 적용.
  */
 class StreamingEdgeCaseTest {
 
@@ -45,7 +45,7 @@ class StreamingEdgeCaseTest {
     inner class ResponseFormatRejection {
 
         @Test
-        fun `streaming should reject JSON response format`() = runBlocking {
+        fun `스트리밍이 JSON 응답 형식을 거부해야 한다`() = runBlocking {
             every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("should not stream"))
 
@@ -62,7 +62,7 @@ class StreamingEdgeCaseTest {
                 )
             ).toList()
 
-            // Error should be emitted as a typed error marker
+            // 오류는 타입이 지정된 에러 마커로 방출되어야 합니다
             val hasErrorMarker = chunks.any { StreamEventMarker.parse(it)?.first == "error" }
             assertTrue(hasErrorMarker) {
                 "Should emit typed error marker for JSON format, got: $chunks"
@@ -75,7 +75,7 @@ class StreamingEdgeCaseTest {
         }
 
         @Test
-        fun `streaming should reject YAML response format`() = runBlocking {
+        fun `스트리밍이 YAML 응답 형식을 거부해야 한다`() = runBlocking {
             every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("should not stream"))
 
@@ -92,7 +92,7 @@ class StreamingEdgeCaseTest {
                 )
             ).toList()
 
-            // Error should be emitted as a typed error marker
+            // 오류는 타입이 지정된 에러 마커로 방출되어야 합니다
             val hasErrorMarker = chunks.any { StreamEventMarker.parse(it)?.first == "error" }
             assertTrue(hasErrorMarker) {
                 "Should emit typed error marker for YAML format, got: $chunks"
@@ -109,7 +109,7 @@ class StreamingEdgeCaseTest {
     inner class MemoryEdgeCases {
 
         @Test
-        fun `streaming should save memory on success`() = runBlocking {
+        fun `스트리밍이 성공 시 메모리를 저장해야 한다`() = runBlocking {
             val memoryStore = InMemoryMemoryStore()
 
             every { fixture.streamResponseSpec.chatResponse() } returns
@@ -135,7 +135,7 @@ class StreamingEdgeCaseTest {
         }
 
         @Test
-        fun `streaming should work without sessionId`() = runBlocking {
+        fun `스트리밍이 sessionId 없이 작동해야 한다`() = runBlocking {
             every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("Response"))
 
@@ -148,7 +148,7 @@ class StreamingEdgeCaseTest {
                 AgentCommand(
                     systemPrompt = "Test",
                     userPrompt = "No session"
-                    // No sessionId in metadata
+                    // 메타데이터에 sessionId 없음
                 )
             ).toList()
 
@@ -159,7 +159,7 @@ class StreamingEdgeCaseTest {
         }
 
         @Test
-        fun `streaming should handle memoryStore save failure gracefully`() = runBlocking {
+        fun `스트리밍이 memoryStore 저장 실패를 우아하게 처리해야 한다`() = runBlocking {
             val failingStore = mockk<MemoryStore>(relaxed = true)
             every { failingStore.addMessage(any(), any(), any(), any()) } throws
                 RuntimeException("DB write failed")
@@ -173,7 +173,7 @@ class StreamingEdgeCaseTest {
                 memoryStore = failingStore
             )
 
-            // Should not throw
+            // 예외를 던지면 안 됩니다
             val chunks = executor.executeStream(
                 AgentCommand(
                     systemPrompt = "Test",
@@ -192,7 +192,7 @@ class StreamingEdgeCaseTest {
     inner class ToolTimeoutDuringStreaming {
 
         @Test
-        fun `streaming should handle tool timeout gracefully`() = runBlocking {
+        fun `스트리밍이 도구 타임아웃을 우아하게 처리해야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "slow-tool", """{}""")
 
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
@@ -202,7 +202,7 @@ class StreamingEdgeCaseTest {
 
             val slowTool = AgentTestFixture.delayingToolCallback(
                 name = "slow-tool",
-                delayMs = 300, // keep above timeout while avoiding long wall-clock waits
+                delayMs = 300,  // 긴 실제 시간 대기를 피하면서 타임아웃 이상으로 유지
                 result = "should not return"
             )
 
@@ -214,7 +214,7 @@ class StreamingEdgeCaseTest {
                     concurrency = ConcurrencyProperties(
                         maxConcurrentRequests = 20,
                         requestTimeoutMs = 30000,
-                        toolCallTimeoutMs = 50 // Very short timeout
+                        toolCallTimeoutMs = 50  // 매우 짧은 타임아웃
                     )
                 )
             }
@@ -230,7 +230,7 @@ class StreamingEdgeCaseTest {
             ).toList()
 
             val output = chunks.joinToString("")
-            // Tool should timeout but stream should continue
+            // 도구는 타임아웃되어야 하지만 스트림은 계속되어야 합니다
             assertTrue(output.isNotEmpty()) {
                 "Stream should produce output even when tool times out"
             }
@@ -241,14 +241,14 @@ class StreamingEdgeCaseTest {
     inner class ConcurrencyEnforcement {
 
         @Test
-        fun `streaming should enforce concurrency semaphore`() = runBlocking {
+        fun `스트리밍이 동시성 세마포어를 적용해야 한다`() = runBlocking {
             val concurrentCount = AtomicInteger(0)
             val maxConcurrent = AtomicInteger(0)
 
             every { fixture.streamResponseSpec.chatResponse() } answers {
                 val current = concurrentCount.incrementAndGet()
                 maxConcurrent.updateAndGet { max -> maxOf(max, current) }
-                // Return after a brief moment
+                // 잠시 후 반환합니다
                 Flux.just(textChunk("Response")).doFinally {
                     concurrentCount.decrementAndGet()
                 }
@@ -260,7 +260,7 @@ class StreamingEdgeCaseTest {
                     guard = it.guard,
                     rag = it.rag,
                     concurrency = ConcurrencyProperties(
-                        maxConcurrentRequests = 1, // Only 1 at a time
+                        maxConcurrentRequests = 1,  // 한 번에 1개만
                         requestTimeoutMs = 30000,
                         toolCallTimeoutMs = 15000
                     )
@@ -272,7 +272,7 @@ class StreamingEdgeCaseTest {
                 properties = props
             )
 
-            // Launch 2 streaming requests in parallel
+            // 2개의 스트리밍 요청을 병렬로 시작합니다
             coroutineScope {
                 val jobs = (1..2).map {
                     async {
@@ -284,18 +284,18 @@ class StreamingEdgeCaseTest {
                 jobs.awaitAll()
             }
 
-            // With semaphore=1, max concurrent should be 1
+            // 세마포어=1이면 최대 동시 실행 수는 1이어야 합니다
             assertTrue(maxConcurrent.get() <= 1) {
                 "Max concurrent streams should be <=1 with semaphore=1, got: ${maxConcurrent.get()}"
             }
         }
 
         @Test
-        fun `streaming should enforce request timeout`() = runBlocking {
-            // Stream that takes a long time
+        fun `스트리밍이 요청 타임아웃을 적용해야 한다`() = runBlocking {
+            // 오래 걸리는 스트림
             every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("start"))
-                    .concatWith(Flux.never()) // Never completes
+                    .concatWith(Flux.never())  // 완료되지 않음
 
             val props = AgentTestFixture.defaultProperties().let {
                 AgentProperties(
@@ -304,7 +304,7 @@ class StreamingEdgeCaseTest {
                     rag = it.rag,
                     concurrency = ConcurrencyProperties(
                         maxConcurrentRequests = 20,
-                        requestTimeoutMs = 200, // Very short timeout
+                        requestTimeoutMs = 200,  // 매우 짧은 타임아웃
                         toolCallTimeoutMs = 15000
                     )
                 )
@@ -319,7 +319,7 @@ class StreamingEdgeCaseTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Slow request")
             ).toList()
 
-            // Should timeout and emit error marker
+            // 타임아웃 발생 후 에러 마커를 방출해야 합니다
             val hasContent = chunks.any { !StreamEventMarker.isMarker(it) && it.contains("start") }
             val hasErrorMarker = chunks.any { StreamEventMarker.parse(it)?.first == "error" }
             assertTrue(hasContent || hasErrorMarker) {

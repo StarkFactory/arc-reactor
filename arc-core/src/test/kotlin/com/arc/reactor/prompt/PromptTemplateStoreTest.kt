@@ -18,7 +18,7 @@ class PromptTemplateStoreTest {
     inner class BasicTemplateCrud {
 
         @Test
-        fun `should save and retrieve a template`() {
+        fun `save and retrieve a template해야 한다`() {
             val template = PromptTemplate(
                 id = "t-1",
                 name = "customer-support",
@@ -34,7 +34,7 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should list all templates sorted by createdAt`() {
+        fun `list all templates sorted by createdAt해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "first"))
             store.saveTemplate(PromptTemplate(id = "t-2", name = "second"))
 
@@ -45,7 +45,7 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should update template name and description`() {
+        fun `update template name and description해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "original", description = "original desc"))
 
             val updated = store.updateTemplate("t-1", name = "updated", description = null)
@@ -56,7 +56,7 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should delete template and all its versions`() {
+        fun `delete template and all its versions해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "to-delete"))
             store.createVersion("t-1", "prompt content v1")
             store.createVersion("t-1", "prompt content v2")
@@ -68,12 +68,12 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should return null for nonexistent template`() {
+        fun `nonexistent template에 대해 return null해야 한다`() {
             assertNull(store.getTemplate("nonexistent")) { "Should return null for unknown ID" }
         }
 
         @Test
-        fun `should find template by name`() {
+        fun `find template by name해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "unique-name"))
 
             val found = store.getTemplateByName("unique-name")
@@ -85,12 +85,12 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `delete should be idempotent for nonexistent template`() {
+        fun `delete은(는) be idempotent for nonexistent template해야 한다`() {
             assertDoesNotThrow { store.deleteTemplate("nonexistent") }
         }
 
         @Test
-        fun `should return null when updating nonexistent template`() {
+        fun `updating nonexistent template일 때 return null해야 한다`() {
             val result = store.updateTemplate("nonexistent", name = "new", description = null)
             assertNull(result) { "Update of nonexistent template should return null" }
         }
@@ -100,7 +100,7 @@ class PromptTemplateStoreTest {
     inner class VersionManagement {
 
         @Test
-        fun `should create version with auto-increment number`() {
+        fun `auto-increment number로 create version해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
 
             val v1 = store.createVersion("t-1", "content v1")
@@ -115,13 +115,13 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should return null when creating version for nonexistent template`() {
+        fun `creating version for nonexistent template일 때 return null해야 한다`() {
             val result = store.createVersion("nonexistent", "content")
             assertNull(result) { "Should return null for nonexistent template" }
         }
 
         @Test
-        fun `new versions should start in DRAFT status`() {
+        fun `new versions은(는) start in DRAFT status해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
             val version = store.createVersion("t-1", "content")
 
@@ -129,7 +129,7 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should list versions for a template sorted by version number`() {
+        fun `a template sorted by version number에 대해 list versions해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
             store.createVersion("t-1", "v1")
             store.createVersion("t-1", "v2")
@@ -144,7 +144,7 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should activate a version`() {
+        fun `activate a version해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
             val v1 = store.createVersion("t-1", "content v1")!!
 
@@ -155,7 +155,7 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should archive previous ACTIVE when activating new version`() {
+        fun `activating new version일 때 archive previous ACTIVE해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
             val v1 = store.createVersion("t-1", "content v1")!!
             val v2 = store.createVersion("t-1", "content v2")!!
@@ -171,7 +171,7 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should return null when activating version with wrong templateId`() {
+        fun `activating version with wrong templateId일 때 return null해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
             val v1 = store.createVersion("t-1", "content v1")!!
 
@@ -180,7 +180,7 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should archive a version`() {
+        fun `archive a version해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
             val v1 = store.createVersion("t-1", "content v1")!!
 
@@ -191,7 +191,7 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should return active version for template`() {
+        fun `template에 대해 return active version해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
             val v1 = store.createVersion("t-1", "content v1")!!
             store.activateVersion("t-1", v1.id)
@@ -204,7 +204,7 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should return null active version when none exists`() {
+        fun `none exists일 때 return null active version해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
             store.createVersion("t-1", "content v1") // DRAFT, not ACTIVE
 
@@ -213,12 +213,12 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should return null when archiving nonexistent version`() {
+        fun `archiving nonexistent version일 때 return null해야 한다`() {
             assertNull(store.archiveVersion("nonexistent")) { "Should return null for unknown version" }
         }
 
         @Test
-        fun `should return null when activating nonexistent version`() {
+        fun `activating nonexistent version일 때 return null해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
             assertNull(store.activateVersion("t-1", "nonexistent")) { "Should return null for unknown version" }
         }
@@ -228,7 +228,7 @@ class PromptTemplateStoreTest {
     inner class VersionStatusFlow {
 
         @Test
-        fun `should transition DRAFT to ACTIVE to ARCHIVED`() {
+        fun `transition DRAFT to ACTIVE to ARCHIVED해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
             val v1 = store.createVersion("t-1", "content v1")!!
 
@@ -249,7 +249,7 @@ class PromptTemplateStoreTest {
         }
 
         @Test
-        fun `should support direct DRAFT to ARCHIVED via archiveVersion`() {
+        fun `support direct DRAFT to ARCHIVED via archiveVersion해야 한다`() {
             store.saveTemplate(PromptTemplate(id = "t-1", name = "test"))
             val v1 = store.createVersion("t-1", "content v1")!!
 

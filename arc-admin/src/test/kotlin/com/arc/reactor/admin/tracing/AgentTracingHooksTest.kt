@@ -149,7 +149,7 @@ class AgentTracingHooksTest {
     inner class Properties {
 
         @Test
-        fun `hook properties are correct`() {
+        fun `hook properties은(는) correct이다`() {
             hooks.order shouldBe 199
             hooks.failOnError shouldBe false
             hooks.enabled shouldBe true
@@ -157,14 +157,14 @@ class AgentTracingHooksTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Agent span lifecycle
+    // 에이전트 span 라이프사이클
     // ─────────────────────────────────────────────────────────────────────
 
     @Nested
     inner class AgentSpanLifecycle {
 
         @Test
-        fun `beforeAgentStart creates span and returns Continue`() = runTest {
+        fun `beforeAgentStart은(는) creates span and returns Continue`() = runTest {
             val result = hooks.beforeAgentStart(hookContext())
 
             result shouldBe HookResult.Continue
@@ -174,7 +174,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `beforeAgentStart tags span with run metadata`() = runTest {
+        fun `beforeAgentStart은(는) tags span with run metadata`() = runTest {
             hooks.beforeAgentStart(hookContext(runId = "run-42", userId = "user-7"))
 
             verify { agentSpan.tag("run_id", "run-42") }
@@ -186,7 +186,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `beforeAgentStart skips user and session tags when identifier storage is disabled`() = runTest {
+        fun `beforeAgentStart skips user and session tags when identifier storage은(는) disabled이다`() = runTest {
             val capturedTags = mutableMapOf<String, String>()
             val noIdentifierSpan = capturingSpan(capturedTags)
             val noIdentifierTracer = mockk<Tracer>()
@@ -201,7 +201,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `beforeAgentStart injects traceId into context metadata`() = runTest {
+        fun `beforeAgentStart은(는) injects traceId into context metadata`() = runTest {
             val ctx = hookContext()
             hooks.beforeAgentStart(ctx)
 
@@ -209,7 +209,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `afterAgentComplete ends span and tags success`() = runTest {
+        fun `afterAgentComplete은(는) ends span and tags success`() = runTest {
             val ctx = hookContext()
             hooks.beforeAgentStart(ctx)
             hooks.afterAgentComplete(ctx, successAgentResponse(toolsUsed = listOf("tool1", "tool2"), totalDurationMs = 800))
@@ -221,7 +221,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `afterAgentComplete tags error details on failure`() = runTest {
+        fun `afterAgentComplete은(는) tags error details on failure`() = runTest {
             val ctx = hookContext(metadata = mutableMapOf("tenantId" to "t1", "errorCode" to "TIMEOUT"))
             hooks.beforeAgentStart(ctx)
             hooks.afterAgentComplete(ctx, failureAgentResponse(errorMessage = "Timed out", errorCode = "TIMEOUT"))
@@ -234,7 +234,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `afterAgentComplete uses UNKNOWN error code when metadata has none`() = runTest {
+        fun `metadata has none일 때 afterAgentComplete uses UNKNOWN error code`() = runTest {
             val ctx = hookContext(metadata = mutableMapOf("tenantId" to "t1"))
             hooks.beforeAgentStart(ctx)
             hooks.afterAgentComplete(ctx, failureAgentResponse())
@@ -243,7 +243,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `afterAgentComplete uses errorCode from context metadata when present`() = runTest {
+        fun `present일 때 afterAgentComplete uses errorCode from context metadata`() = runTest {
             val ctx = hookContext(metadata = mutableMapOf("tenantId" to "t1", "errorCode" to "RATE_LIMITED"))
             hooks.beforeAgentStart(ctx)
             hooks.afterAgentComplete(ctx, failureAgentResponse())
@@ -252,7 +252,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `afterAgentComplete does nothing when no span exists for runId`() = runTest {
+        fun `no span exists for runId일 때 afterAgentComplete does nothing`() = runTest {
             // Never called beforeAgentStart, so no span is stored
             val ctx = hookContext(runId = "nonexistent-run")
             hooks.afterAgentComplete(ctx, successAgentResponse())
@@ -261,7 +261,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `agent span is removed after afterAgentComplete — second call is a no-op`() = runTest {
+        fun `agent span은(는) removed after afterAgentComplete — second call is a no-op이다`() = runTest {
             val ctx = hookContext(runId = "run-cleanup")
             hooks.beforeAgentStart(ctx)
             hooks.afterAgentComplete(ctx, successAgentResponse())
@@ -271,7 +271,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `beforeAgentStart uses default values for missing optional metadata`() = runTest {
+        fun `beforeAgentStart은(는) uses default values for missing optional metadata`() = runTest {
             val ctx = HookContext(
                 runId = "run-defaults",
                 userId = "u1",
@@ -287,7 +287,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `error from tracer during beforeAgentStart is swallowed and returns Continue`() = runTest {
+        fun `error from tracer during beforeAgentStart은(는) swallowed and returns Continue이다`() = runTest {
             every { tracer.nextSpan() } throws RuntimeException("OTel unavailable")
 
             val result = hooks.beforeAgentStart(hookContext())
@@ -296,17 +296,17 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `error from span tagging during afterAgentComplete is swallowed`() = runTest {
+        fun `error from span tagging during afterAgentComplete은(는) swallowed이다`() = runTest {
             every { agentSpan.tag(any<String>(), any<String>()) } throws RuntimeException("tag failed")
 
             val ctx = hookContext()
             hooks.beforeAgentStart(ctx)
-            // Must not propagate — hook is fail-open (failOnError = false)
+            // not propagate — hook is fail-open (failOnError = false)해야 합니다
             hooks.afterAgentComplete(ctx, successAgentResponse())
         }
 
         @Test
-        fun `span creation and end are called in order`() = runTest {
+        fun `span creation and end은(는) called in order이다`() = runTest {
             val ctx = hookContext()
             hooks.beforeAgentStart(ctx)
             hooks.afterAgentComplete(ctx, successAgentResponse())
@@ -318,7 +318,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `error message is tagged with at most 500 chars`() = runTest {
+        fun `error message은(는) tagged with at most 500 chars이다`() = runTest {
             val longMessage = "e".repeat(1000)
             val ctx = hookContext(metadata = mutableMapOf("tenantId" to "t1"))
             hooks.beforeAgentStart(ctx)
@@ -340,12 +340,12 @@ class AgentTracingHooksTest {
         @BeforeEach
         fun setUpToolSpan() {
             toolSpan = stubSpan()
-            // Override tracer to return toolSpan for all tool-only tests in this nested class
+            // tracer to return toolSpan for all tool-only tests in this nested class 오버라이드
             every { tracer.nextSpan() } returns toolSpan
         }
 
         @Test
-        fun `beforeToolCall creates tool span with correct name and tags`() = runTest {
+        fun `beforeToolCall은(는) creates tool span with correct name and tags`() = runTest {
             val ctx = toolCallContext(toolName = "search_docs", callIndex = 3)
             hooks.beforeToolCall(ctx)
 
@@ -356,14 +356,14 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `beforeToolCall returns Continue`() = runTest {
+        fun `beforeToolCall은(는) returns Continue`() = runTest {
             val result = hooks.beforeToolCall(toolCallContext())
 
             result shouldBe HookResult.Continue
         }
 
         @Test
-        fun `afterToolCall ends span and tags success`() = runTest {
+        fun `afterToolCall은(는) ends span and tags success`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             hooks.afterToolCall(ctx, successToolResult(durationMs = 200))
@@ -374,7 +374,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `afterToolCall tags error details on failure`() = runTest {
+        fun `afterToolCall은(는) tags error details on failure`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             hooks.afterToolCall(ctx, failureToolResult(errorMessage = "Connection timeout occurred"))
@@ -387,7 +387,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `afterToolCall does nothing when no span entry for the key`() = runTest {
+        fun `no span entry for the key일 때 afterToolCall does nothing`() = runTest {
             val ctx = toolCallContext(toolName = "never_started")
             hooks.afterToolCall(ctx, successToolResult())
 
@@ -395,7 +395,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `tool span is removed after afterToolCall — second end call is a no-op`() = runTest {
+        fun `tool span은(는) removed after afterToolCall — second end call is a no-op이다`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             hooks.afterToolCall(ctx, successToolResult())
@@ -405,7 +405,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `error from tracer during beforeToolCall is swallowed and returns Continue`() = runTest {
+        fun `error from tracer during beforeToolCall은(는) swallowed and returns Continue이다`() = runTest {
             every { tracer.nextSpan() } throws RuntimeException("OTel down")
 
             val result = hooks.beforeToolCall(toolCallContext())
@@ -414,7 +414,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `no error tags on successful tool call`() = runTest {
+        fun `없는 error tags on successful tool call`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             hooks.afterToolCall(ctx, successToolResult())
@@ -441,7 +441,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `timeout keyword maps to TimeoutException`() = runTest {
+        fun `타임아웃 keyword maps to TimeoutException`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             hooks.afterToolCall(ctx, failureToolResult("Request timeout after 15000ms"))
@@ -450,7 +450,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `connection keyword maps to ConnectionException`() = runTest {
+        fun `connection은(는) keyword maps to ConnectionException`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             hooks.afterToolCall(ctx, failureToolResult("connection refused"))
@@ -459,7 +459,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `permission keyword maps to PermissionDenied`() = runTest {
+        fun `permission은(는) keyword maps to PermissionDenied`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             hooks.afterToolCall(ctx, failureToolResult("permission denied for resource"))
@@ -468,7 +468,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `unknown error message maps to RuntimeException`() = runTest {
+        fun `알 수 없는 error message maps to RuntimeException`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             hooks.afterToolCall(ctx, failureToolResult("something unexpected happened"))
@@ -477,7 +477,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `error message is truncated to 500 chars`() = runTest {
+        fun `error message은(는) truncated to 500 chars이다`() = runTest {
             val longMessage = "x".repeat(1000)
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
@@ -504,7 +504,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `no HITL tag when total elapsed is within 100ms of tool duration`() = runTest {
+        fun `no HITL tag when total elapsed은(는) within 100ms of tool duration이다`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             // durationMs ~= totalElapsed → hitlWaitMs ≈ 0, below threshold
@@ -514,10 +514,10 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `HITL wait is tagged when elapsed significantly exceeds tool duration`() = runTest {
+        fun `elapsed significantly exceeds tool duration일 때 HITL wait은(는) tagged이다`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
-            // Simulate HITL wait: tool reports durationMs = 0 but real wall time > 100ms
+            // HITL wait: tool reports durationMs = 0 but real wall time > 100ms를 시뮬레이션합니다
             withContext(Dispatchers.IO) { delay(150) }
             hooks.afterToolCall(ctx, successToolResult(durationMs = 0))
 
@@ -526,7 +526,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `HITL rejection is tagged when output starts with Rejected`() = runTest {
+        fun `output starts with Rejected일 때 HITL rejection은(는) tagged이다`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             withContext(Dispatchers.IO) { delay(150) }
@@ -539,7 +539,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `HITL rejection is tagged when output starts with Error Tool call rejected`() = runTest {
+        fun `output starts with Error Tool call rejected일 때 HITL rejection은(는) tagged이다`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             withContext(Dispatchers.IO) { delay(150) }
@@ -550,7 +550,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `HITL approval is tagged when output does not indicate rejection`() = runTest {
+        fun `output does not indicate rejection일 때 HITL approval은(는) tagged이다`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
             withContext(Dispatchers.IO) { delay(150) }
@@ -561,7 +561,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `HITL rejection reason is truncated to 500 chars`() = runTest {
+        fun `HITL rejection reason은(는) truncated to 500 chars이다`() = runTest {
             val longOutput = "Rejected: " + "r".repeat(1000)
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
@@ -576,7 +576,7 @@ class AgentTracingHooksTest {
     // ─────────────────────────────────────────────────────────────────────
     // CancellationException propagation
     //
-    // NOTE: kotlin.coroutines.cancellation.CancellationException is a typealias
+    // 참고: kotlin.coroutines.cancellation.CancellationException은 typealias입니다
     // for java.util.concurrent.CancellationException on JVM. When thrown inside
     // runTest {}, it cancels the coroutine scope before a try/catch can intercept it.
     // These tests therefore call suspend funs via runBlocking, which propagates
@@ -587,7 +587,7 @@ class AgentTracingHooksTest {
     inner class CancellationExceptionHandling {
 
         @Test
-        fun `beforeAgentStart rethrows CancellationException`() {
+        fun `beforeAgentStart은(는) rethrows CancellationException`() {
             every { tracer.nextSpan() } throws CancellationException("cancelled in beforeAgentStart")
 
             assertThrows<CancellationException>("beforeAgentStart must rethrow CancellationException") {
@@ -596,7 +596,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `afterAgentComplete rethrows CancellationException`() {
+        fun `afterAgentComplete은(는) rethrows CancellationException`() {
             // Phase 1: beforeAgentStart must succeed (normal span)
             // Phase 2: afterAgentComplete must rethrow CancellationException from tag()
             var started = false
@@ -622,7 +622,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `beforeToolCall rethrows CancellationException`() {
+        fun `beforeToolCall은(는) rethrows CancellationException`() {
             every { tracer.nextSpan() } throws CancellationException("cancelled in beforeToolCall")
 
             assertThrows<CancellationException>("beforeToolCall must rethrow CancellationException") {
@@ -631,7 +631,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `afterToolCall rethrows CancellationException`() {
+        fun `afterToolCall은(는) rethrows CancellationException`() {
             // Phase 1: beforeToolCall must succeed to store the span entry
             // Phase 2: afterToolCall must rethrow CancellationException from tag()
             var started = false
@@ -665,7 +665,7 @@ class AgentTracingHooksTest {
     inner class SpanKeyIsolation {
 
         @Test
-        fun `tool spans for different runIds are independent`() = runTest {
+        fun `tool spans for different runIds은(는) independent이다`() = runTest {
             val toolSpan1 = stubSpan()
             val toolSpan2 = stubSpan()
             every { tracer.nextSpan() } returnsMany listOf(toolSpan1, toolSpan2)
@@ -684,7 +684,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `same tool called at different callIndex creates separate span entries`() = runTest {
+        fun `동일한 tool called at different callIndex creates separate span entries`() = runTest {
             val toolSpan1 = stubSpan()
             val toolSpan2 = stubSpan()
             every { tracer.nextSpan() } returnsMany listOf(toolSpan1, toolSpan2)
@@ -703,7 +703,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `span key includes runId toolName and callIndex for uniqueness`() = runTest {
+        fun `span은(는) key includes runId toolName and callIndex for uniqueness`() = runTest {
             val toolSpan1 = stubSpan()
             val toolSpan2 = stubSpan()
             every { tracer.nextSpan() } returnsMany listOf(toolSpan1, toolSpan2)
@@ -730,7 +730,7 @@ class AgentTracingHooksTest {
     inner class OrphanedSpans {
 
         @Test
-        fun `orphaned tool span in map is not ended automatically by afterAgentComplete`() = runTest {
+        fun `orphaned tool span in map은(는) not ended automatically by afterAgentComplete이다`() = runTest {
             val toolSpan = stubSpan()
             every { tracer.nextSpan() } returnsMany listOf(agentSpan, toolSpan)
 
@@ -748,16 +748,16 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `afterToolCall with non-existent key is a safe no-op`() = runTest {
+        fun `afterToolCall with non-existent key은(는) a safe no-op이다`() = runTest {
             val ctx = toolCallContext(runId = "ghost-run", toolName = "ghost_tool", callIndex = 99)
-            // Should not throw
+            // 예외를 던지면 안 됩니다
             hooks.afterToolCall(ctx, successToolResult())
         }
 
         @Test
-        fun `afterAgentComplete with non-existent runId is a safe no-op`() = runTest {
+        fun `afterAgentComplete with non-existent runId은(는) a safe no-op이다`() = runTest {
             val ctx = hookContext(runId = "never-started")
-            // Should not throw
+            // 예외를 던지면 안 됩니다
             hooks.afterAgentComplete(ctx, successAgentResponse())
         }
     }
@@ -770,7 +770,7 @@ class AgentTracingHooksTest {
     inner class ConcurrencyTests {
 
         @Test
-        fun `concurrent tool span creation and removal are race-condition free`() = runTest {
+        fun `concurrent tool span creation and removal은(는) race-condition free이다`() = runTest {
             val threadCount = 12
             val successCount = AtomicInteger(0)
             val errorCount = AtomicInteger(0)
@@ -811,7 +811,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `concurrent agent span creation for different runIds are isolated`() = runTest {
+        fun `concurrent agent span creation for different runIds은(는) isolated이다`() = runTest {
             val threadCount = 8
             val successCount = AtomicInteger(0)
             val barrier = CyclicBarrier(threadCount)
@@ -847,7 +847,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `high-concurrency beforeToolCall and afterToolCall produce no exceptions`() = runTest {
+        fun `high-concurrency beforeToolCall and afterToolCall은(는) no exceptions를 생성한다`() = runTest {
             val iterations = 200
             val errCount = AtomicInteger(0)
 
@@ -875,7 +875,7 @@ class AgentTracingHooksTest {
         }
 
         @Test
-        fun `interleaved beforeToolCall and afterToolCall from 16 threads do not lose or double-end spans`() = runTest {
+        fun `interleaved은(는) beforeToolCall and afterToolCall from 16 threads do not lose or double-end spans`() = runTest {
             val threadCount = 16
             val endCount = AtomicInteger(0)
             val barrier = CyclicBarrier(threadCount)

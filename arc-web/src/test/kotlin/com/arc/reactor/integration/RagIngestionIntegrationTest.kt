@@ -75,7 +75,7 @@ class RagIngestionIntegrationTest {
     }
 
     @Test
-    fun `wires jdbc rag ingestion stores when datasource and dynamic are enabled`() {
+    fun `datasource and dynamic are enabled일 때 wires jdbc rag ingestion stores`() {
         assertInstanceOf(JdbcRagIngestionPolicyStore::class.java, ragIngestionPolicyStore) {
             "Expected JdbcRagIngestionPolicyStore when datasource and dynamic policy are enabled"
         }
@@ -85,7 +85,7 @@ class RagIngestionIntegrationTest {
     }
 
     @Test
-    fun `policy api persists and returns effective state`() {
+    fun `policy은(는) api persists and returns effective state`() {
         adminClient.put()
             .uri("/api/rag-ingestion/policy")
             .bodyValue(
@@ -118,7 +118,7 @@ class RagIngestionIntegrationTest {
     }
 
     @Test
-    fun `candidate reject api updates status in database`() {
+    fun `candidate은(는) reject api updates status in database`() {
         val candidate = ragIngestionCandidateStore.save(
             RagIngestionCandidate(
                 runId = "run-1",

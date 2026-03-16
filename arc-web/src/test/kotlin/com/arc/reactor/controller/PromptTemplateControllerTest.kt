@@ -48,7 +48,7 @@ class PromptTemplateControllerTest {
     inner class TemplateEndpoints {
 
         @Test
-        fun `GET should list all templates`() = runTest {
+        fun `GET은(는) list all templates해야 한다`() = runTest {
             every { store.listTemplates() } returns listOf(
                 PromptTemplate("t-1", "customer-support", "CS agent", now, now),
                 PromptTemplate("t-2", "code-reviewer", "Code review", now, now)
@@ -62,7 +62,7 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `GET {id} should return template with versions`() = runTest {
+        fun `GET {id}은(는) return template with versions해야 한다`() = runTest {
             val template = PromptTemplate("t-1", "customer-support", "CS agent", now, now)
             val activeVersion = PromptVersion("v-2", "t-1", 2, "You are a CS agent v2.", VersionStatus.ACTIVE, "improved", now)
             val versions = listOf(
@@ -83,7 +83,7 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `GET {id} should return 404 for nonexistent template`() = runTest {
+        fun `GET {id}은(는) return 404 for nonexistent template해야 한다`() = runTest {
             every { store.getTemplate("nonexistent") } returns null
 
             val response = controller.getTemplate("nonexistent")
@@ -92,7 +92,7 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `POST should create template and return 201 for ADMIN`() = runTest {
+        fun `POST은(는) create template and return 201 for ADMIN해야 한다`() = runTest {
             val slot = slot<PromptTemplate>()
             every { store.saveTemplate(capture(slot)) } answers { slot.captured }
 
@@ -107,7 +107,7 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `POST should return 403 for non-ADMIN`() = runTest {
+        fun `POST은(는) return 403 for non-ADMIN해야 한다`() = runTest {
             val request = CreateTemplateRequest(name = "new-template", description = "A new one")
             val response = controller.createTemplate(request, userExchange())
 
@@ -115,7 +115,7 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `PUT should update template for ADMIN`() = runTest {
+        fun `PUT은(는) update template for ADMIN해야 한다`() = runTest {
             every { store.updateTemplate("t-1", "updated", null) } returns PromptTemplate(
                 "t-1", "updated", "original desc", now, now.plusSeconds(10)
             )
@@ -127,14 +127,14 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `PUT should return 403 for non-ADMIN`() = runTest {
+        fun `PUT은(는) return 403 for non-ADMIN해야 한다`() = runTest {
             val response = controller.updateTemplate("t-1", UpdateTemplateRequest(name = "updated"), userExchange())
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
 
         @Test
-        fun `PUT should return 404 for nonexistent template`() = runTest {
+        fun `PUT은(는) return 404 for nonexistent template해야 한다`() = runTest {
             every { store.updateTemplate("nonexistent", any(), any()) } returns null
 
             val response = controller.updateTemplate("nonexistent", UpdateTemplateRequest(name = "x"), adminExchange())
@@ -143,7 +143,7 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `DELETE should return 204 for ADMIN`() = runTest {
+        fun `DELETE은(는) return 204 for ADMIN해야 한다`() = runTest {
             every { store.deleteTemplate("t-1") } returns Unit
 
             val response = controller.deleteTemplate("t-1", adminExchange())
@@ -153,7 +153,7 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `DELETE should return 403 for non-ADMIN`() = runTest {
+        fun `DELETE은(는) return 403 for non-ADMIN해야 한다`() = runTest {
             val response = controller.deleteTemplate("t-1", userExchange())
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
@@ -164,7 +164,7 @@ class PromptTemplateControllerTest {
     inner class VersionEndpoints {
 
         @Test
-        fun `POST versions should create new version and return 201 for ADMIN`() = runTest {
+        fun `POST versions은(는) create new version and return 201 for ADMIN해야 한다`() = runTest {
             every { store.createVersion("t-1", "prompt content", "initial") } returns PromptVersion(
                 "v-1", "t-1", 1, "prompt content", VersionStatus.DRAFT, "initial", now
             )
@@ -183,7 +183,7 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `POST versions should return 403 for non-ADMIN`() = runTest {
+        fun `POST versions은(는) return 403 for non-ADMIN해야 한다`() = runTest {
             val response = controller.createVersion(
                 "t-1",
                 CreateVersionRequest(content = "content"),
@@ -194,7 +194,7 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `POST versions should return 404 for nonexistent template`() = runTest {
+        fun `POST versions은(는) return 404 for nonexistent template해야 한다`() = runTest {
             every { store.createVersion("nonexistent", any(), any()) } returns null
 
             val response = controller.createVersion(
@@ -207,7 +207,7 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `PUT activate should activate version for ADMIN`() = runTest {
+        fun `PUT activate은(는) activate version for ADMIN해야 한다`() = runTest {
             every { store.activateVersion("t-1", "v-1") } returns PromptVersion(
                 "v-1", "t-1", 1, "content", VersionStatus.ACTIVE, "", now
             )
@@ -219,14 +219,14 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `PUT activate should return 403 for non-ADMIN`() = runTest {
+        fun `PUT activate은(는) return 403 for non-ADMIN해야 한다`() = runTest {
             val response = controller.activateVersion("t-1", "v-1", userExchange())
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
 
         @Test
-        fun `PUT activate should return 404 for nonexistent version`() = runTest {
+        fun `PUT activate은(는) return 404 for nonexistent version해야 한다`() = runTest {
             every { store.activateVersion("t-1", "nonexistent") } returns null
 
             val response = controller.activateVersion("t-1", "nonexistent", adminExchange())
@@ -235,7 +235,7 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `PUT archive should archive version for ADMIN`() = runTest {
+        fun `PUT archive은(는) archive version for ADMIN해야 한다`() = runTest {
             every { store.archiveVersion("v-1") } returns PromptVersion(
                 "v-1", "t-1", 1, "content", VersionStatus.ARCHIVED, "", now
             )
@@ -247,14 +247,14 @@ class PromptTemplateControllerTest {
         }
 
         @Test
-        fun `PUT archive should return 403 for non-ADMIN`() = runTest {
+        fun `PUT archive은(는) return 403 for non-ADMIN해야 한다`() = runTest {
             val response = controller.archiveVersion("t-1", "v-1", userExchange())
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
 
         @Test
-        fun `PUT archive should return 404 for nonexistent version`() = runTest {
+        fun `PUT archive은(는) return 404 for nonexistent version해야 한다`() = runTest {
             every { store.archiveVersion("nonexistent") } returns null
 
             val response = controller.archiveVersion("t-1", "nonexistent", adminExchange())

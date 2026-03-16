@@ -85,7 +85,7 @@ class OpsDashboardControllerTest {
     }
 
     @Test
-    fun `dashboard returns 403 for non-admin`() {
+    fun `대시보드 returns 403 for non-admin`() {
         val controller = OpsDashboardController(
             mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
             properties = AgentProperties(),
@@ -101,7 +101,7 @@ class OpsDashboardControllerTest {
     }
 
     @Test
-    fun `dashboard returns metric snapshot for requested names`() {
+    fun `대시보드 returns metric snapshot for requested names`() {
         val registry = SimpleMeterRegistry()
         registry.counter("arc.slack.inbound.total", "entrypoint", "events").increment(3.0)
 
@@ -134,7 +134,7 @@ class OpsDashboardControllerTest {
     }
 
     @Test
-    fun `dashboard exposes tagged series for stage duration metrics`() {
+    fun `대시보드 exposes tagged series for stage duration metrics`() {
         val registry = SimpleMeterRegistry()
         Timer.builder("arc.agent.stage.duration")
             .tag("stage", "guard")
@@ -187,7 +187,7 @@ class OpsDashboardControllerTest {
     }
 
     @Test
-    fun `dashboard allows ADMIN_MANAGER`() {
+    fun `대시보드 allows ADMIN_MANAGER`() {
         val controller = OpsDashboardController(
             mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
             properties = AgentProperties(),
@@ -203,7 +203,7 @@ class OpsDashboardControllerTest {
     }
 
     @Test
-    fun `dashboard allows ADMIN_DEVELOPER`() {
+    fun `대시보드 allows ADMIN_DEVELOPER`() {
         val controller = OpsDashboardController(
             mcpManager = DefaultMcpManager(store = InMemoryMcpServerStore()),
             properties = AgentProperties(),
@@ -219,7 +219,7 @@ class OpsDashboardControllerTest {
     }
 
     @Test
-    fun `metric names returns discovered metrics`() {
+    fun `metric은(는) names returns discovered metrics`() {
         val registry = SimpleMeterRegistry()
         registry.counter("arc.slack.inbound.total").increment()
         registry.counter("jvm.gc.pause").increment()
@@ -242,7 +242,7 @@ class OpsDashboardControllerTest {
     }
 
     @Test
-    fun `dashboard includes scheduler approvals and response trust summaries`() {
+    fun `대시보드 includes scheduler approvals and response trust summaries`() {
         val registry = SimpleMeterRegistry()
         registry.counter("arc.agent.responses.unverified", "channel", "web").increment(2.0)
         registry.counter("arc.agent.output.guard.actions", "stage", "pipeline", "action", "rejected").increment(1.0)
@@ -421,7 +421,7 @@ class OpsDashboardControllerTest {
     }
 
     @Test
-    fun `dashboard falls back to in-memory trust metrics when meter registry is unavailable`() {
+    fun `dashboard falls back to in-memory trust metrics when meter registry은(는) unavailable이다`() {
         val agentMetrics = NoOpAgentMetrics().apply {
             recordUnverifiedResponse(
                 mapOf(

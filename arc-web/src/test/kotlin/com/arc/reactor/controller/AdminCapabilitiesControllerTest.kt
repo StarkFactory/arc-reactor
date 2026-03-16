@@ -25,7 +25,7 @@ class AdminCapabilitiesControllerTest {
     }
 
     @Test
-    fun `capability manifest rejects non-admin callers`() {
+    fun `capability은(는) manifest rejects non-admin callers`() {
         val handlerMapping = mockk<RequestMappingHandlerMapping>()
         val controller = AdminCapabilitiesController(handlerMapping)
 
@@ -35,7 +35,7 @@ class AdminCapabilitiesControllerTest {
     }
 
     @Test
-    fun `capability manifest returns api routes only`() {
+    fun `capability은(는) manifest returns api routes only`() {
         val handlerMapping = mockk<RequestMappingHandlerMapping>()
         every { handlerMapping.handlerMethods } returns linkedMapOf(
             RequestMappingInfo.paths("/api/ops/dashboard").build() to mockk<HandlerMethod>(),

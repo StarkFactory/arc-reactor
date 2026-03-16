@@ -11,13 +11,13 @@ class RrfFusionTest {
     inner class EmptyInputs {
 
         @Test
-        fun `fuse with both empty lists should return empty result`() {
+        fun `fuse with both empty lists은(는) return empty result해야 한다`() {
             val result = RrfFusion.fuse(emptyList(), emptyList())
             assertTrue(result.isEmpty()) { "Fusing two empty lists should produce an empty result" }
         }
 
         @Test
-        fun `fuse with empty vector list should use only BM25 ranks`() {
+        fun `fuse with empty vector list은(는) use only BM25 ranks해야 한다`() {
             val bm25 = listOf("doc-a" to 5.0, "doc-b" to 3.0)
             val result = RrfFusion.fuse(vectorResults = emptyList(), bm25Results = bm25)
             assertEquals(2, result.size) { "Should have 2 results when only BM25 provides ranks" }
@@ -25,7 +25,7 @@ class RrfFusionTest {
         }
 
         @Test
-        fun `fuse with empty BM25 list should use only vector ranks`() {
+        fun `fuse with empty BM25 list은(는) use only vector ranks해야 한다`() {
             val vector = listOf("doc-x" to 0.9, "doc-y" to 0.7)
             val result = RrfFusion.fuse(vectorResults = vector, bm25Results = emptyList())
             assertEquals(2, result.size) { "Should have 2 results when only vector provides ranks" }
@@ -37,7 +37,7 @@ class RrfFusionTest {
     inner class FusionOrdering {
 
         @Test
-        fun `document appearing in both lists should have higher fused score than document in one list only`() {
+        fun `document appearing in both lists은(는) have higher fused score than document in one list only해야 한다`() {
             val vector = listOf("common" to 0.9, "vector-only" to 0.8)
             val bm25 = listOf("common" to 10.0, "bm25-only" to 8.0)
 
@@ -60,7 +60,7 @@ class RrfFusionTest {
         }
 
         @Test
-        fun `results should be ordered by fused score descending`() {
+        fun `results은(는) be ordered by fused score descending해야 한다`() {
             val vector = listOf("doc-1" to 0.9, "doc-2" to 0.8, "doc-3" to 0.7)
             val bm25 = listOf("doc-2" to 9.0, "doc-3" to 7.0, "doc-1" to 5.0)
 
@@ -76,7 +76,7 @@ class RrfFusionTest {
         }
 
         @Test
-        fun `all unique documents from both lists should appear in fused result`() {
+        fun `all unique documents from both lists은(는) appear in fused result해야 한다`() {
             val vector = listOf("doc-v1" to 0.9, "doc-v2" to 0.8)
             val bm25 = listOf("doc-b1" to 5.0, "doc-v1" to 4.0)
 
@@ -93,7 +93,7 @@ class RrfFusionTest {
     inner class Weights {
 
         @Test
-        fun `higher vector weight should promote vector-only documents relative to bm25-only`() {
+        fun `higher vector weight은(는) promote vector-only documents relative to bm25-only해야 한다`() {
             val vector = listOf("v-only" to 0.9)
             val bm25 = listOf("b-only" to 9.0)
 
@@ -114,7 +114,7 @@ class RrfFusionTest {
         }
 
         @Test
-        fun `equal weights should produce symmetric scores for equal-ranked documents`() {
+        fun `equal weights은(는) produce symmetric scores for equal-ranked documents해야 한다`() {
             val vector = listOf("doc-1" to 0.9)
             val bm25 = listOf("doc-2" to 9.0)
 
@@ -134,18 +134,18 @@ class RrfFusionTest {
     inner class RrfFormula {
 
         @Test
-        fun `rrf score should use K constant of 60`() {
+        fun `rrf score은(는) use K constant of 60해야 한다`() {
             assertEquals(60.0, RrfFusion.K, 0.0001) {
                 "RrfFusion.K should be the standard 60.0 smoothing constant"
             }
         }
 
         @Test
-        fun `rank 0 document with weight 0_5 should have score near 1 over 122`() {
+        fun `rank 0 document with weight 0_5은(는) have score near 1 over 122해야 한다`() {
             val vector = listOf("doc-1" to 1.0)
             val result = RrfFusion.fuse(vector, emptyList(), vectorWeight = 0.5)
             val score = result[0].second
-            // expected: 0.5 / (60 + 0 + 1) = 0.5 / 61 ≈ 0.008196
+            // 기대값: 0.5 / (60 + 0 + 1) = 0.5 / 61 ≈ 0.008196
             val expected = 0.5 / (RrfFusion.K + 1)
             assertEquals(expected, score, 0.000001) {
                 "RRF score for rank-0 doc with weight 0.5 should be 0.5/(K+1)=$expected, got $score"

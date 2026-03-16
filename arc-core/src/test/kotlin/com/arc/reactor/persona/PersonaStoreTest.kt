@@ -21,7 +21,7 @@ class PersonaStoreTest {
     inner class BasicCrud {
 
         @Test
-        fun `should have default persona on initialization`() {
+        fun `have default persona on initialization해야 한다`() {
             val personas = store.list()
 
             assertEquals(1, personas.size) { "Should have 1 default persona" }
@@ -31,7 +31,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should save and retrieve a persona`() {
+        fun `save and retrieve a persona해야 한다`() {
             val persona = Persona(
                 id = "test-1",
                 name = "Test Persona",
@@ -47,7 +47,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should list all personas sorted by createdAt`() {
+        fun `list all personas sorted by createdAt해야 한다`() {
             store.save(Persona(id = "p-2", name = "Second", systemPrompt = "prompt-2"))
             store.save(Persona(id = "p-3", name = "Third", systemPrompt = "prompt-3"))
 
@@ -58,7 +58,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should delete a persona`() {
+        fun `delete a persona해야 한다`() {
             store.save(Persona(id = "to-delete", name = "Delete Me", systemPrompt = "prompt"))
 
             store.delete("to-delete")
@@ -67,7 +67,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should return null for nonexistent persona`() {
+        fun `nonexistent persona에 대해 return null해야 한다`() {
             assertNull(store.get("nonexistent")) { "Should return null for unknown ID" }
         }
     }
@@ -76,7 +76,7 @@ class PersonaStoreTest {
     inner class DefaultHandling {
 
         @Test
-        fun `should return default persona via getDefault`() {
+        fun `return default persona via getDefault해야 한다`() {
             val defaultPersona = store.getDefault()
 
             assertNotNull(defaultPersona) { "Should have a default persona" }
@@ -85,7 +85,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should clear existing default when saving new default`() {
+        fun `saving new default일 때 clear existing default해야 한다`() {
             store.save(Persona(id = "new-default", name = "New Default", systemPrompt = "prompt", isDefault = true))
 
             val oldDefault = store.get("default")
@@ -96,7 +96,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should clear existing default when updating isDefault to true`() {
+        fun `updating isDefault to true일 때 clear existing default해야 한다`() {
             store.save(Persona(id = "candidate", name = "Candidate", systemPrompt = "prompt"))
 
             store.update("candidate", name = null, systemPrompt = null, isDefault = true)
@@ -109,8 +109,8 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `getDefault should return null when no default exists`() {
-            // Delete the seed default
+        fun `getDefault은(는) return null when no default exists해야 한다`() {
+            // the seed default 삭제
             store.delete("default")
 
             assertNull(store.getDefault()) { "Should return null when no default persona exists" }
@@ -121,7 +121,7 @@ class PersonaStoreTest {
     inner class UpdateBehavior {
 
         @Test
-        fun `should partially update only provided fields`() {
+        fun `partially update only provided fields해야 한다`() {
             store.save(Persona(id = "partial", name = "Original", systemPrompt = "Original Prompt"))
 
             val updated = store.update("partial", name = "Updated Name", systemPrompt = null, isDefault = null)
@@ -132,14 +132,14 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should return null when updating nonexistent persona`() {
+        fun `updating nonexistent persona일 때 return null해야 한다`() {
             val result = store.update("nonexistent", name = "New Name", systemPrompt = null, isDefault = null)
 
             assertNull(result) { "Update of nonexistent persona should return null" }
         }
 
         @Test
-        fun `delete should be idempotent for nonexistent persona`() {
+        fun `delete은(는) be idempotent for nonexistent persona해야 한다`() {
             assertDoesNotThrow { store.delete("nonexistent") }
         }
     }
@@ -148,7 +148,7 @@ class PersonaStoreTest {
     inner class ExtendedFields {
 
         @Test
-        fun `should save and retrieve all extended fields`() {
+        fun `save and retrieve all extended fields해야 한다`() {
             val persona = Persona(
                 id = "ext-1",
                 name = "Expert",
@@ -172,7 +172,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should default extended fields to null and isActive to true`() {
+        fun `default extended fields to null and isActive to true해야 한다`() {
             val persona = Persona(id = "minimal", name = "Minimal", systemPrompt = "prompt")
 
             store.save(persona)
@@ -187,7 +187,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should update extended fields independently`() {
+        fun `update extended fields independently해야 한다`() {
             store.save(Persona(
                 id = "upd-ext",
                 name = "Original",
@@ -212,7 +212,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should update linked prompt template independently`() {
+        fun `update linked prompt template independently해야 한다`() {
             store.save(Persona(
                 id = "templated",
                 name = "Linked",
@@ -228,7 +228,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should preserve existing extended fields when update sends null`() {
+        fun `update sends null일 때 preserve existing extended fields해야 한다`() {
             store.save(Persona(
                 id = "preserve",
                 name = "Persona",
@@ -246,7 +246,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should set isActive to false`() {
+        fun `set isActive to false해야 한다`() {
             store.save(Persona(id = "deactivate", name = "Active", systemPrompt = "prompt", isActive = true))
 
             val updated = store.update("deactivate", isActive = false)
@@ -256,7 +256,7 @@ class PersonaStoreTest {
         }
 
         @Test
-        fun `should clear nullable fields when empty string is sent`() {
+        fun `empty string is sent일 때 clear nullable fields해야 한다`() {
             store.save(Persona(
                 id = "clearable",
                 name = "Persona",
@@ -281,7 +281,7 @@ class PersonaStoreTest {
     inner class ConcurrentDefaultHandling {
 
         @Test
-        fun `concurrent saves with isDefault should result in exactly one default`() {
+        fun `concurrent saves with isDefault은(는) result in exactly one default해야 한다`() {
             val threadCount = 10
             val latch = CountDownLatch(1)
             val executor = Executors.newFixedThreadPool(threadCount)

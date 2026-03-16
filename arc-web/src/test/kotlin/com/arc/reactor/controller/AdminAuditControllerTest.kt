@@ -32,7 +32,7 @@ class AdminAuditControllerTest {
     }
 
     @Test
-    fun `list returns 403 for non-admin`() {
+    fun `목록 returns 403 for non-admin`() {
         val store = InMemoryAdminAuditStore()
         val controller = AdminAuditController(store)
         val response = controller.list(
@@ -43,7 +43,7 @@ class AdminAuditControllerTest {
     }
 
     @Test
-    fun `list supports category-action filters`() {
+    fun `목록 supports category-action filters`() {
         val store = InMemoryAdminAuditStore()
         store.save(AdminAuditLog(category = "tool_policy", action = "UPDATE", actor = "admin"))
         store.save(AdminAuditLog(category = "mcp_server", action = "CREATE", actor = "admin"))
@@ -63,7 +63,7 @@ class AdminAuditControllerTest {
     }
 
     @Test
-    fun `list exposes admin account reference without profile fields`() {
+    fun `목록 exposes admin account reference without profile fields`() {
         val store = InMemoryAdminAuditStore()
         val rawActor = "80b18ee9-d20d-4359-bc5a-a40c4754f958"
         store.save(
@@ -97,7 +97,7 @@ class AdminAuditControllerTest {
     }
 
     @Test
-    fun `list paginates results correctly`() {
+    fun `목록 paginates results correctly`() {
         val store = InMemoryAdminAuditStore()
         repeat(5) { i ->
             store.save(AdminAuditLog(category = "test", action = "ACTION$i", actor = "admin"))
@@ -119,7 +119,7 @@ class AdminAuditControllerTest {
     }
 
     @Test
-    fun `list clamps limit to 200`() {
+    fun `목록 clamps limit to 200`() {
         val store = InMemoryAdminAuditStore()
         store.save(AdminAuditLog(category = "test", action = "A", actor = "admin"))
         val controller = AdminAuditController(store)

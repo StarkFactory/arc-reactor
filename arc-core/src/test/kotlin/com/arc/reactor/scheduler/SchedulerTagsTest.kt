@@ -11,7 +11,7 @@ class SchedulerTagsTest {
     inner class InMemoryStoreTagsPersistence {
 
         @Test
-        fun `save and retrieve job with tags`() {
+        fun `and retrieve job with tags를 저장한다`() {
             val store = InMemoryScheduledJobStore()
             val job = mcpJob(tags = setOf("daily", "reporting"))
             val saved = store.save(job)
@@ -23,7 +23,7 @@ class SchedulerTagsTest {
         }
 
         @Test
-        fun `save and retrieve job with empty tags`() {
+        fun `and retrieve job with empty tags를 저장한다`() {
             val store = InMemoryScheduledJobStore()
             val job = mcpJob(tags = emptySet())
             val saved = store.save(job)
@@ -35,7 +35,7 @@ class SchedulerTagsTest {
         }
 
         @Test
-        fun `update preserves tags`() {
+        fun `preserves tags를 업데이트한다`() {
             val store = InMemoryScheduledJobStore()
             val job = mcpJob(tags = setOf("v1"))
             val saved = store.save(job)
@@ -47,7 +47,7 @@ class SchedulerTagsTest {
         }
 
         @Test
-        fun `tags with special characters are preserved`() {
+        fun `tags with special characters은(는) preserved이다`() {
             val store = InMemoryScheduledJobStore()
             val specialTags = setOf(
                 "tag with spaces",
@@ -65,7 +65,7 @@ class SchedulerTagsTest {
         }
 
         @Test
-        fun `list returns jobs with their tags intact`() {
+        fun `목록 returns jobs with their tags intact`() {
             val store = InMemoryScheduledJobStore()
             store.save(mcpJob(name = "job-a", tags = setOf("alpha")))
             store.save(mcpJob(name = "job-b", tags = setOf("beta", "gamma")))
@@ -88,7 +88,7 @@ class SchedulerTagsTest {
     inner class TagFiltering {
 
         @Test
-        fun `filter jobs by tag returns only matching jobs`() {
+        fun `jobs by tag returns only matching jobs를 필터링한다`() {
             val jobs = listOf(
                 mcpJob(name = "job-a", tags = setOf("daily", "reporting")),
                 mcpJob(name = "job-b", tags = setOf("weekly")),
@@ -104,7 +104,7 @@ class SchedulerTagsTest {
         }
 
         @Test
-        fun `filter by tag not present returns empty list`() {
+        fun `by tag not present returns empty list를 필터링한다`() {
             val jobs = listOf(
                 mcpJob(name = "job-a", tags = setOf("daily")),
                 mcpJob(name = "job-b", tags = setOf("weekly"))
@@ -117,7 +117,7 @@ class SchedulerTagsTest {
         }
 
         @Test
-        fun `filter with blank tag returns all jobs`() {
+        fun `blank tag를 가진 filter은(는) all jobs를 반환한다`() {
             val jobs = listOf(
                 mcpJob(name = "job-a", tags = setOf("daily")),
                 mcpJob(name = "job-b", tags = emptySet())
@@ -131,7 +131,7 @@ class SchedulerTagsTest {
         }
 
         @Test
-        fun `filter by tag with special characters matches exactly`() {
+        fun `by tag with special characters matches exactly를 필터링한다`() {
             val specialTag = "tag with spaces"
             val jobs = listOf(
                 mcpJob(name = "job-a", tags = setOf(specialTag)),
@@ -147,7 +147,7 @@ class SchedulerTagsTest {
         }
     }
 
-    // -- Helpers ---------------------------------------------------------------
+    // -- 헬퍼 ---------------------------------------------------------------
 
     private fun mcpJob(
         name: String = "test-job",

@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test
 class ToolResponseSignalExtractorTest {
 
     @Test
-    fun `extract should infer policy denied from tool error payload`() {
+    fun `extract은(는) infer policy denied from tool error payload해야 한다`() {
         val signal = ToolResponseSignalExtractor.extract(
             "jira_search_issues",
             """{"ok":false,"error":"Access denied: project is not allowed: CAMPAIGN","grounded":false,"sources":[],"blockReason":"policy_denied"}"""
@@ -19,7 +19,7 @@ class ToolResponseSignalExtractorTest {
     }
 
     @Test
-    fun `extract should infer read only mutation from tool error message`() {
+    fun `extract은(는) infer read only mutation from tool error message해야 한다`() {
         val signal = ToolResponseSignalExtractor.extract(
             "jira_add_comment",
             """{"error":"MCP_READONLY_MODE=true: mutating tool is disabled: jira_add_comment"}"""
@@ -30,7 +30,7 @@ class ToolResponseSignalExtractorTest {
     }
 
     @Test
-    fun `extract should infer identity unresolved from requester mapping failure`() {
+    fun `extract은(는) infer identity unresolved from requester mapping failure해야 한다`() {
         val signal = ToolResponseSignalExtractor.extract(
             "work_personal_focus_plan",
             """{"ok":false,"error":"requester identity could not be resolved for work_personal_focus_plan","grounded":false,"sources":[],"blockReason":"identity_unresolved"}"""
@@ -42,7 +42,7 @@ class ToolResponseSignalExtractorTest {
     }
 
     @Test
-    fun `extract should infer upstream auth failure from tool error message`() {
+    fun `extract은(는) infer upstream auth failure from tool error message해야 한다`() {
         val signal = ToolResponseSignalExtractor.extract(
             "confluence_answer_question",
             """{"ok":false,"error":"Authentication failed. Check your API token.","grounded":false,"sources":[]}"""
@@ -54,7 +54,7 @@ class ToolResponseSignalExtractorTest {
     }
 
     @Test
-    fun `extract should infer upstream permission failure from issue visibility error`() {
+    fun `extract은(는) infer upstream permission failure from issue visibility error해야 한다`() {
         val signal = ToolResponseSignalExtractor.extract(
             "jira_get_issue",
             """{"ok":false,"error":"Issue does not exist or you do not have permission to see it.","grounded":false,"sources":[]}"""
@@ -69,7 +69,7 @@ class ToolResponseSignalExtractorTest {
     }
 
     @Test
-    fun `extract should capture slack send_message delivery success`() {
+    fun `extract은(는) capture slack send_message delivery success해야 한다`() {
         val signal = ToolResponseSignalExtractor.extract(
             "send_message",
             """{"ok":true,"channel":"C123","ts":"1710000.1234"}"""
@@ -81,7 +81,7 @@ class ToolResponseSignalExtractorTest {
     }
 
     @Test
-    fun `extract should capture slack thread reply delivery success`() {
+    fun `extract은(는) capture slack thread reply delivery success해야 한다`() {
         val signal = ToolResponseSignalExtractor.extract(
             "reply_to_thread",
             """{"ok":true,"channel":"C123","ts":"1710000.1235"}"""
@@ -93,7 +93,7 @@ class ToolResponseSignalExtractorTest {
     }
 
     @Test
-    fun `extract should not mark failed slack delivery as acknowledged`() {
+    fun `extract은(는) not mark failed slack delivery as acknowledged해야 한다`() {
         val signal = ToolResponseSignalExtractor.extract(
             "send_message",
             """{"ok":false,"error":"channel_not_found"}"""

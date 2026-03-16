@@ -41,8 +41,8 @@ class HumanInTheLoopTest {
     inner class ApprovalRequired {
 
         @Test
-        fun `should pause and wait for approval before tool execution`() = runBlocking {
-            // Arrange: Tool call that requires approval
+        fun `도구 실행 전에 일시 중지하고 승인을 기다려야 한다`() = runBlocking {
+            // 준비: 승인이 필요한 도구 호출
             val approvalStore = InMemoryPendingApprovalStore(defaultTimeoutMs = 5_000)
             val policy = ToolNameApprovalPolicy(setOf("delete_order"))
 
@@ -63,7 +63,7 @@ class HumanInTheLoopTest {
                 pendingApprovalStore = approvalStore
             )
 
-            // Act: Start execution in background
+            // 실행: 백그라운드에서 실행 시작
             val result = async {
                 executor.execute(
                     AgentCommand(
@@ -73,20 +73,20 @@ class HumanInTheLoopTest {
                 )
             }
 
-            // Wait for approval request (polling instead of fixed delay)
+            // 승인 요청 대기 (고정 지연 대신 폴링)
             val approval = awaitPending(approvalStore)
             assertEquals("delete_order", approval.toolName) { "Tool name mismatch" }
 
-            // Approve the tool call
+            // 도구 호출을 승인합니다
             approvalStore.approve(approval.id)
 
-            // Assert: execution completes successfully
+            // 검증: 실행이 성공적으로 완료됩니다
             val agentResult = result.await()
             agentResult.assertSuccess()
         }
 
         @Test
-        fun `should reject tool execution when human rejects`() = runBlocking {
+        fun `사람이 거부하면 도구 실행을 거부해야 한다`() = runBlocking {
             val approvalStore = InMemoryPendingApprovalStore(defaultTimeoutMs = 5_000)
             val policy = ToolNameApprovalPolicy(setOf("delete_order"))
 
@@ -116,14 +116,14 @@ class HumanInTheLoopTest {
                 )
             }
 
-            // Wait for approval request (polling instead of fixed delay)
+            // 승인 요청 대기 (고정 지연 대신 폴링)
             val approval = awaitPending(approvalStore)
 
-            // Reject the tool call
+            // 도구 호출을 거부합니다
             approvalStore.reject(approval.id, "Not authorized")
 
             val agentResult = result.await()
-            // The agent should still succeed (LLM gets rejection message and generates final answer)
+            // 에이전트는 여전히 성공해야 합니다 (LLM이 거부 메시지를 받고 최종 응답을 생성합니다)
             agentResult.assertSuccess()
         }
     }
@@ -132,9 +132,9 @@ class HumanInTheLoopTest {
     inner class NoApprovalNeeded {
 
         @Test
-        fun `should execute tool without approval when policy returns false`() = runBlocking {
+        fun `정책이 false를 반환하면 승인 없이 도구를 실행해야 한다`() = runBlocking {
             val approvalStore = InMemoryPendingApprovalStore()
-            val policy = ToolNameApprovalPolicy(setOf("delete_order")) // Only delete needs approval
+            val policy = ToolNameApprovalPolicy(setOf("delete_order"))  // 삭제만 승인이 필요합니다
 
             val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search_orders", """{"query":"123"}""")
             val toolCallSpec = fixture.mockToolCallResponse(listOf(toolCall))
@@ -161,15 +161,15 @@ class HumanInTheLoopTest {
             )
 
             result.assertSuccess()
-            // No pending approvals should exist
+            // 대기 중인 승인이 없어야 합니다
             assertTrue(approvalStore.listPending().isEmpty()) {
                 "No approvals should be pending for search_orders"
             }
         }
 
         @Test
-        fun `should execute normally when no approval policy configured`() = runBlocking {
-            // No policy = no HITL
+        fun `승인 정책이 설정되지 않으면 정상적으로 실행해야 한다`() = runBlocking {
+            // 정책 없음 = HITL 없음
             val toolCall = AssistantMessage.ToolCall("tc-1", "call", "delete_order", """{"orderId":"123"}""")
             val toolCallSpec = fixture.mockToolCallResponse(listOf(toolCall))
             val finalSpec = fixture.mockFinalResponse("Done")
@@ -183,7 +183,7 @@ class HumanInTheLoopTest {
                 chatClient = fixture.chatClient,
                 properties = properties,
                 toolCallbacks = listOf(tool)
-                // No toolApprovalPolicy, no pendingApprovalStore
+                // toolApprovalPolicy 없음, pendingApprovalStore 없음
             )
 
             val result = executor.execute(
@@ -201,7 +201,7 @@ class HumanInTheLoopTest {
     inner class ApprovalTimeout {
 
         @Test
-        fun `should reject tool call on approval timeout`() = runBlocking {
+        fun `승인 타임아웃 시 도구 호출을 거부해야 한다`() = runBlocking {
             val shortTimeoutStore = InMemoryPendingApprovalStore(defaultTimeoutMs = 300)
             val policy = ToolNameApprovalPolicy(setOf("slow_tool"))
 
@@ -222,7 +222,7 @@ class HumanInTheLoopTest {
                 pendingApprovalStore = shortTimeoutStore
             )
 
-            // No one approves → should timeout
+            // 아무도 승인하지 않음 → 타임아웃 발생
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -230,7 +230,7 @@ class HumanInTheLoopTest {
                 )
             )
 
-            // Agent should still produce a response (LLM handles the timeout message)
+            // 에이전트는 여전히 응답을 생성해야 합니다 (LLM이 타임아웃 메시지를 처리합니다)
             agentResult(result)
         }
 

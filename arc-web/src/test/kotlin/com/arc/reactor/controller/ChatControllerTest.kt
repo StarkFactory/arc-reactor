@@ -35,7 +35,7 @@ import reactor.test.StepVerifier
 import java.net.URI
 
 /**
- * Unit tests for ChatController.
+ * 에 대한 단위 테스트. ChatController.
  *
  * Tests request-to-command mapping, response construction,
  * and SSE event type conversion for streaming.
@@ -69,7 +69,7 @@ class ChatControllerTest {
     inner class StandardChat {
 
         @Test
-        fun `should return successful response with content`() = runTest {
+        fun `content로 return successful response해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success(
                 content = "Hello!",
@@ -94,7 +94,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should map request fields to AgentCommand correctly`() = runTest {
+        fun `map request fields to AgentCommand correctly해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
@@ -123,7 +123,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should use default system prompt when not provided`() = runTest {
+        fun `not provided일 때 use default system prompt해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
@@ -135,7 +135,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should fallback to hardcoded prompt when default persona lookup fails`() = runTest {
+        fun `default persona lookup fails일 때 fallback to hardcoded prompt해야 한다`() = runTest {
             val failingPersonaStore = mockk<PersonaStore>()
             every { failingPersonaStore.getDefault() } throws RuntimeException("relation personas does not exist")
 
@@ -155,7 +155,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should use default metadata when not provided`() = runTest {
+        fun `not provided일 때 use default metadata해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
@@ -167,7 +167,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should mark controller intent resolution attempt when no intent matches`() = runTest {
+        fun `no intent matches일 때 mark controller intent resolution attempt해야 한다`() = runTest {
             val intentResolver = mockk<IntentResolver>()
             val controllerWithIntent = ChatController(agentExecutor = agentExecutor, intentResolver = intentResolver)
             val commandSlot = slot<AgentCommand>()
@@ -185,7 +185,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should defer loading conversation history until intent resolver accesses it`() = runTest {
+        fun `defer loading conversation history until intent resolver accesses it해야 한다`() = runTest {
             val intentResolver = mockk<IntentResolver>()
             val memoryStore = mockk<MemoryStore>()
             val controllerWithIntent = ChatController(
@@ -205,7 +205,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should inject requester email from exchange userEmail when not explicitly provided`() = runTest {
+        fun `not explicitly provided일 때 inject requester email from exchange userEmail해야 한다`() = runTest {
             val exchangeWithEmail = mockExchange(attributes = mutableMapOf("resolvedTenantId" to "default", "userEmail" to "web@example.com"))
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
@@ -221,7 +221,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should inject accountId from exchange when metadata not explicitly provided`() = runTest {
+        fun `metadata not explicitly provided일 때 inject accountId from exchange해야 한다`() = runTest {
             val exchangeWithAccount = mockExchange(
                 attributes = mutableMapOf("resolvedTenantId" to "default", "userAccountId" to "acct-001")
             )
@@ -239,7 +239,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should attach linked prompt template metadata when persona resolves a template`() = runTest {
+        fun `persona resolves a template일 때 attach linked prompt template metadata해야 한다`() = runTest {
             val personaStore = mockk<PersonaStore>()
             val promptTemplateStore = mockk<PromptTemplateStore>()
             val linkedController = ChatController(
@@ -278,7 +278,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should prefer resolved tenantId exchange attribute over request header`() = runTest {
+        fun `prefer resolved tenantId exchange attribute over request header해야 한다`() = runTest {
             val headers = HttpHeaders()
             headers.add("X-Tenant-Id", "resolved-tenant")
             val tenantExchange = mockExchange(
@@ -297,7 +297,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should reject request when tenant header mismatches resolved tenant context`() = runTest {
+        fun `tenant header mismatches resolved tenant context일 때 reject request해야 한다`() = runTest {
             val headers = HttpHeaders()
             headers.add("X-Tenant-Id", "tenant-b")
             val tenantExchange = mockExchange(
@@ -317,7 +317,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should reject request when tenant context is missing`() = runTest {
+        fun `tenant context is missing일 때 reject request해야 한다`() = runTest {
             val ex = try {
                 controller.chat(ChatRequest(message = "hello"), mockExchange(attributes = mutableMapOf()))
                 throw AssertionError("Missing tenant context should throw ServerWebInputException")
@@ -330,7 +330,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should allow request when tenant header is provided`() = runTest {
+        fun `tenant header is provided일 때 allow request해야 한다`() = runTest {
             val headers = HttpHeaders()
             headers.add("X-Tenant-Id", "tenant-secure")
             val tenantExchange = mockExchange(attributes = mutableMapOf(), headers = headers)
@@ -346,7 +346,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should return failure response with error message and appropriate HTTP status`() = runTest {
+        fun `error message and appropriate HTTP status로 return failure response해야 한다`() = runTest {
             coEvery { agentExecutor.execute(any()) } returns AgentResult.failure(
                 errorMessage = "Rate limit exceeded",
                 errorCode = AgentErrorCode.RATE_LIMITED
@@ -362,7 +362,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should forward model in response`() = runTest {
+        fun `forward model in response해야 한다`() = runTest {
             coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
 
             val entity = controller.chat(ChatRequest(message = "hi", model = "gemini-2.0-flash"), exchange)
@@ -371,7 +371,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should resolve userId from exchange attributes when present`() = runTest {
+        fun `present일 때 resolve userId from exchange attributes해야 한다`() = runTest {
             val authExchange = mockExchange(mutableMapOf("userId" to "jwt-user-1", "resolvedTenantId" to "default"))
 
             val commandSlot = slot<AgentCommand>()
@@ -385,7 +385,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should fallback to request userId when exchange has no auth`() = runTest {
+        fun `exchange has no auth일 때 fallback to request userId해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
@@ -397,7 +397,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should fallback to anonymous when no userId available`() = runTest {
+        fun `no userId available일 때 fallback to anonymous해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
@@ -413,7 +413,7 @@ class ChatControllerTest {
     inner class StreamingChat {
 
         @Test
-        fun `should return ServerSentEvents with message event type`() = runTest {
+        fun `message event type로 return ServerSentEvents해야 한다`() = runTest {
             coEvery { agentExecutor.executeStream(any()) } returns flowOf("Hello", " ", "World")
 
             val flux = controller.chatStream(ChatRequest(message = "Hi"), exchange)
@@ -438,7 +438,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should convert tool markers to SSE events`() = runTest {
+        fun `convert tool markers to SSE events해야 한다`() = runTest {
             coEvery { agentExecutor.executeStream(any()) } returns flowOf(
                 "Thinking...",
                 StreamEventMarker.toolStart("calculator"),
@@ -472,7 +472,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should always emit done event at the end`() = runTest {
+        fun `always emit done event at the end해야 한다`() = runTest {
             coEvery { agentExecutor.executeStream(any()) } returns flowOf("ok")
 
             val flux = controller.chatStream(ChatRequest(message = "hello"), exchange)
@@ -489,7 +489,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should map streaming request fields to AgentCommand`() = runTest {
+        fun `map streaming request fields to AgentCommand해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.executeStream(capture(commandSlot)) } returns flowOf("ok")
 
@@ -509,7 +509,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should use default values for optional streaming fields`() = runTest {
+        fun `optional streaming fields에 대해 use default values해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.executeStream(capture(commandSlot)) } returns flowOf("ok")
 
@@ -532,7 +532,7 @@ class ChatControllerTest {
     inner class StreamEventMarkerTest {
 
         @Test
-        fun `toolStart should create proper marker`() {
+        fun `toolStart은(는) create proper marker해야 한다`() {
             val marker = StreamEventMarker.toolStart("calculator")
 
             assertTrue(StreamEventMarker.isMarker(marker)) { "Should be recognized as marker" }
@@ -543,7 +543,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `toolEnd should create proper marker`() {
+        fun `toolEnd은(는) create proper marker해야 한다`() {
             val marker = StreamEventMarker.toolEnd("web_search")
 
             assertTrue(StreamEventMarker.isMarker(marker)) { "Should be recognized as marker" }
@@ -554,7 +554,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `regular text should not be a marker`() {
+        fun `regular text은(는) not be a marker해야 한다`() {
             assertFalse(StreamEventMarker.isMarker("Hello world")) {
                 "Regular text should not be a marker"
             }
@@ -564,7 +564,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `empty string should not be a marker`() {
+        fun `empty string은(는) not be a marker해야 한다`() {
             assertFalse(StreamEventMarker.isMarker("")) { "Empty string should not be a marker" }
             assertNull(StreamEventMarker.parse("")) { "Empty string should not be parseable" }
         }
@@ -574,7 +574,7 @@ class ChatControllerTest {
     inner class ErrorCodeToHttpStatus {
 
         @Test
-        fun `should map error codes to correct HTTP status codes`() {
+        fun `map error codes to correct HTTP status codes해야 한다`() {
             assertEquals(HttpStatus.TOO_MANY_REQUESTS, mapErrorCodeToStatus(AgentErrorCode.RATE_LIMITED)) {
                 "RATE_LIMITED should map to 429"
             }
@@ -612,7 +612,7 @@ class ChatControllerTest {
     inner class RequestDefaults {
 
         @Test
-        fun `ChatRequest should have sensible defaults`() {
+        fun `ChatRequest은(는) have sensible defaults해야 한다`() {
             val request = ChatRequest(message = "test")
 
             assertNull(request.model) { "model should default to null" }
@@ -624,7 +624,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `ChatResponse should include all fields`() {
+        fun `ChatResponse은(는) include all fields해야 한다`() {
             val response = ChatResponse(
                 content = "result",
                 success = true,
@@ -653,7 +653,7 @@ class ChatControllerTest {
     inner class MultimodalToggle {
 
         @Test
-        fun `should resolve mediaUrls when multimodal is enabled (default)`() = runTest {
+        fun `multimodal is enabled (default)일 때 resolve mediaUrls해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
@@ -669,7 +669,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should ignore mediaUrls when multimodal is disabled`() = runTest {
+        fun `multimodal is disabled일 때 ignore mediaUrls해야 한다`() = runTest {
             val disabledProps = AgentProperties(multimodal = MultimodalProperties(enabled = false))
             val disabledController = ChatController(agentExecutor, properties = disabledProps)
 
@@ -688,7 +688,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should ignore mediaUrls in streaming when multimodal is disabled`() = runTest {
+        fun `multimodal is disabled일 때 ignore mediaUrls in streaming해야 한다`() = runTest {
             val disabledProps = AgentProperties(multimodal = MultimodalProperties(enabled = false))
             val disabledController = ChatController(agentExecutor, properties = disabledProps)
 
@@ -707,7 +707,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should pass empty media when no mediaUrls provided regardless of toggle`() = runTest {
+        fun `no mediaUrls provided regardless of toggle일 때 pass empty media해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
@@ -719,7 +719,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should reject invalid media mime type with bad request exception`() = runTest {
+        fun `bad request exception로 reject invalid media mime type해야 한다`() = runTest {
             coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
 
             val exception = try {
@@ -740,7 +740,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should reject invalid media url with bad request exception`() = runTest {
+        fun `bad request exception로 reject invalid media url해야 한다`() = runTest {
             coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
 
             val exception = try {
@@ -761,7 +761,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should reject relative media url with bad request exception`() = runTest {
+        fun `bad request exception로 reject relative media url해야 한다`() = runTest {
             coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
 
             val exception = try {
@@ -782,7 +782,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should reject non-http media url scheme`() = runTest {
+        fun `reject non-http media url scheme해야 한다`() = runTest {
             coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
 
             val exception = try {
@@ -803,7 +803,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should accept trimmed https media url and mime type`() = runTest {
+        fun `accept trimmed https media url and mime type해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
@@ -823,7 +823,7 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should reject absolute https url without host`() = runTest {
+        fun `reject absolute https url without host해야 한다`() = runTest {
             coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
 
             val exception = try {

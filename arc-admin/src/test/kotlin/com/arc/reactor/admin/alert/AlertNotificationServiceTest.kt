@@ -26,7 +26,7 @@ class AlertNotificationServiceTest {
     inner class Dispatch {
 
         @Test
-        fun `dispatches to all notifiers`() {
+        fun `to all notifiers를 디스패치한다`() {
             val notifier1 = mockk<AlertNotifier>(relaxed = true)
             val notifier2 = mockk<AlertNotifier>(relaxed = true)
             val service = AlertNotificationService(listOf(notifier1, notifier2))
@@ -38,7 +38,7 @@ class AlertNotificationServiceTest {
         }
 
         @Test
-        fun `continues dispatching when a notifier throws exception`() {
+        fun `a notifier throws exception일 때 continues dispatching`() {
             val failingNotifier = mockk<AlertNotifier>()
             val successNotifier = mockk<AlertNotifier>(relaxed = true)
             every { failingNotifier.notify(any()) } throws RuntimeException("Slack connection failed")
@@ -47,20 +47,20 @@ class AlertNotificationServiceTest {
 
             service.dispatch(testAlert)
 
-            // Second notifier should still receive the alert
+            // Second notifier은(는) still receive the alert해야 합니다
             verify { successNotifier.notify(testAlert) }
         }
 
         @Test
-        fun `handles empty notifier list`() {
+        fun `empty notifier list를 처리한다`() {
             val service = AlertNotificationService(emptyList())
 
-            // Should not throw
+            // 예외를 던지면 안 됩니다
             service.dispatch(testAlert)
         }
 
         @Test
-        fun `dispatches with all severity levels`() {
+        fun `with all severity levels를 디스패치한다`() {
             val notifier = mockk<AlertNotifier>(relaxed = true)
             val service = AlertNotificationService(listOf(notifier))
 
@@ -76,7 +76,7 @@ class AlertNotificationServiceTest {
     inner class LogAlertNotifierTest {
 
         @Test
-        fun `does not throw for any severity`() {
+        fun `throw for any severity하지 않는다`() {
             val logNotifier = LogAlertNotifier()
 
             for (severity in AlertSeverity.entries) {
@@ -85,7 +85,7 @@ class AlertNotificationServiceTest {
         }
 
         @Test
-        fun `handles null tenant ID`() {
+        fun `null tenant ID를 처리한다`() {
             val logNotifier = LogAlertNotifier()
 
             logNotifier.notify(testAlert.copy(tenantId = null))

@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test
 class RetryExecutorTest {
 
     @Test
-    fun `should retry transient failures and eventually succeed`() = runTest {
+    fun `retry transient failures and eventually succeed해야 한다`() = runTest {
         val delays = mutableListOf<Long>()
         var attempts = 0
         val executor = RetryExecutor(
@@ -40,7 +40,7 @@ class RetryExecutorTest {
     }
 
     @Test
-    fun `should not retry non transient failures`() = runTest {
+    fun `not retry non transient failures해야 한다`() = runTest {
         var attempts = 0
         val executor = RetryExecutor(
             retry = RetryProperties(maxAttempts = 5),
@@ -57,14 +57,14 @@ class RetryExecutorTest {
             }
             fail("Expected IllegalArgumentException")
         } catch (_: IllegalArgumentException) {
-            // expected
+            // 예상 결과
         }
 
         assertEquals(1, attempts)
     }
 
     @Test
-    fun `should rethrow cancellation without retry`() = runTest {
+    fun `rethrow cancellation without retry해야 한다`() = runTest {
         var attempts = 0
         val executor = RetryExecutor(
             retry = RetryProperties(maxAttempts = 5),
@@ -81,7 +81,7 @@ class RetryExecutorTest {
             }
             fail("Expected CancellationException")
         } catch (_: CancellationException) {
-            // expected
+            // 예상 결과
         }
 
         assertEquals(1, attempts)

@@ -25,7 +25,7 @@ class ApprovalControllerAuthTest {
     private val controller = ApprovalController(store, adminAuditStore)
 
     @Test
-    fun `listPending rejects anonymous request`() {
+    fun `listPending은(는) rejects anonymous request`() {
         val ex = exchange()
 
         val response = controller.listPending(offset = 0, limit = 50, exchange = ex)
@@ -38,7 +38,7 @@ class ApprovalControllerAuthTest {
     }
 
     @Test
-    fun `listPending returns all for admin`() {
+    fun `listPending은(는) returns all for admin`() {
         every { store.listPending() } returns listOf(summary("ap-1", "user-1"))
 
         val response = controller.listPending(
@@ -57,7 +57,7 @@ class ApprovalControllerAuthTest {
     }
 
     @Test
-    fun `listPending returns own requests for user`() {
+    fun `listPending은(는) returns own requests for user`() {
         every { store.listPendingByUser("user-1") } returns listOf(summary("ap-2", "user-1"))
 
         val response = controller.listPending(
@@ -75,7 +75,7 @@ class ApprovalControllerAuthTest {
     }
 
     @Test
-    fun `approve rejects non-admin`() {
+    fun `rejects non-admin를 승인한다`() {
         val response = controller.approve("ap-3", null, exchange(userId = "user-1", role = UserRole.USER))
         val body = response.body as ErrorResponse
 
@@ -85,7 +85,7 @@ class ApprovalControllerAuthTest {
     }
 
     @Test
-    fun `approve allows admin`() {
+    fun `allows admin를 승인한다`() {
         every { store.approve("ap-4", null) } returns true
 
         val response = controller.approve(
@@ -101,7 +101,7 @@ class ApprovalControllerAuthTest {
     }
 
     @Test
-    fun `reject rejects non-admin`() {
+    fun `rejects non-admin를 거부한다`() {
         val response = controller.reject("ap-5", null, exchange(userId = "user-1", role = UserRole.USER))
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Non-admin reject action should be forbidden" }

@@ -46,21 +46,21 @@ class SpringAiToolCallbackAdapterTest {
     }
 
     @Test
-    fun `name returns unknown when object has no getName method`() {
+    fun `object has no getName method일 때 name returns unknown`() {
         val adapter = SpringAiToolCallbackAdapter(EmptyObject())
 
         assertEquals("unknown", adapter.name) { "Name should be 'unknown' for object without getName" }
     }
 
     @Test
-    fun `description returns empty string when object has no getDescription method`() {
+    fun `object has no getDescription method일 때 description returns empty string`() {
         val adapter = SpringAiToolCallbackAdapter(EmptyObject())
 
         assertEquals("", adapter.description) { "Description should be empty for object without getDescription" }
     }
 
     @Test
-    fun `call throws RuntimeException when object has no call method`() {
+    fun `throws RuntimeException when object has no call method를 호출한다`() {
         val adapter = SpringAiToolCallbackAdapter(EmptyObject())
 
         val exception = assertThrows<RuntimeException> {
@@ -74,7 +74,7 @@ class SpringAiToolCallbackAdapterTest {
     }
 
     @Test
-    fun `wrapping object with getName getDescription and call methods works correctly`() {
+    fun `wrapping은(는) object with getName getDescription and call methods works correctly`() {
         val fake = FakeSpringCallback()
         val adapter = SpringAiToolCallbackAdapter(fake)
 
@@ -90,7 +90,7 @@ class SpringAiToolCallbackAdapterTest {
     }
 
     @Test
-    fun `unwrap returns the original object`() {
+    fun `returns the original object를 언래핑한다`() {
         val fake = FakeSpringCallback()
         val adapter = SpringAiToolCallbackAdapter(fake)
 
@@ -98,7 +98,7 @@ class SpringAiToolCallbackAdapterTest {
     }
 
     @Test
-    fun `arguments are serialized to JSON correctly`() {
+    fun `arguments은(는) serialized to JSON correctly이다`() {
         val fake = FakeSpringCallback()
         val adapter = SpringAiToolCallbackAdapter(fake)
 
@@ -115,7 +115,7 @@ class SpringAiToolCallbackAdapterTest {
     }
 
     @Test
-    fun `tool definition metadata is preferred when available`() {
+    fun `available일 때 tool definition metadata은(는) preferred이다`() {
         val adapter = SpringAiToolCallbackAdapter(DefinitionOnlyCallback())
 
         assertEquals("definition-tool", adapter.name) { "Name should come from ToolDefinition when getName is absent" }
@@ -130,7 +130,7 @@ class SpringAiToolCallbackAdapterTest {
     }
 
     @Test
-    fun `spring ai tool definition metadata with name methods is supported`() {
+    fun `spring ai tool definition metadata with name methods은(는) supported이다`() {
         val adapter = SpringAiToolCallbackAdapter(SpringApiCallback())
 
         assertEquals("spring-tool", adapter.name) { "Name should come from ToolDefinition.name()" }
@@ -145,7 +145,7 @@ class SpringAiToolCallbackAdapterTest {
     }
 
     @Test
-    fun `name returns value from getName method on partial object`() {
+    fun `name은(는) returns value from getName method on partial object`() {
         val adapter = SpringAiToolCallbackAdapter(NameOnlyCallback())
 
         assertEquals("name-only-tool", adapter.name) { "Name should come from getName method" }
@@ -153,7 +153,7 @@ class SpringAiToolCallbackAdapterTest {
     }
 
     @Test
-    fun `call with empty arguments serializes to empty JSON object`() {
+    fun `with empty arguments serializes to empty JSON object를 호출한다`() {
         val fake = FakeSpringCallback()
         val adapter = SpringAiToolCallbackAdapter(fake)
 

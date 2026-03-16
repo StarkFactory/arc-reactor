@@ -60,20 +60,20 @@ class AlertSchedulerTest {
     inner class Lifecycle {
 
         @Test
-        fun `start and stop without errors`() {
+        fun `and stop without errors를 시작한다`() {
             scheduler.start()
             scheduler.stop()
         }
 
         @Test
-        fun `destroy calls stop`() {
+        fun `destroy은(는) calls stop`() {
             scheduler.start()
             scheduler.destroy()
-            // Should not throw
+            // 예외를 던지면 안 됩니다
         }
 
         @Test
-        fun `can stop without starting`() {
+        fun `can은(는) stop without starting`() {
             scheduler.stop()
         }
     }
@@ -82,7 +82,7 @@ class AlertSchedulerTest {
     inner class EvaluationDispatch {
 
         @Test
-        fun `fires alert and dispatches notification`() {
+        fun `alert and dispatches notification를 발생시킨다`() {
             val rule = AlertRule(
                 tenantId = "t1",
                 name = "High Error Rate",
@@ -96,7 +96,7 @@ class AlertSchedulerTest {
             // error rate = 0.20 > 0.10
             every { queryService.getSuccessRate(any(), any(), any()) } returns 0.80
 
-            // Trigger evaluation manually (same logic as scheduler's runEvaluation)
+            // evaluation manually (same logic as scheduler's runEvaluation)를 트리거합니다
             val beforeCount = alertStore.findActiveAlerts().size
             evaluator.evaluateAll()
             val afterCount = alertStore.findActiveAlerts().size
@@ -104,7 +104,7 @@ class AlertSchedulerTest {
 
             newAlerts shouldBe 1
 
-            // Simulate what scheduler does with new alerts
+            // what scheduler does with new alerts를 시뮬레이션합니다
             if (newAlerts > 0) {
                 val active = alertStore.findActiveAlerts()
                 val newest = active.sortedByDescending { it.firedAt }.take(newAlerts)
@@ -117,7 +117,7 @@ class AlertSchedulerTest {
         }
 
         @Test
-        fun `does not dispatch when no new alerts`() {
+        fun `dispatch when no new alerts하지 않는다`() {
             alertStore.saveRule(
                 AlertRule(
                     tenantId = "t1",
@@ -140,7 +140,7 @@ class AlertSchedulerTest {
         }
 
         @Test
-        fun `evaluation exception is caught and logged`() {
+        fun `evaluation exception은(는) caught and logged이다`() {
             alertStore.saveRule(
                 AlertRule(
                     tenantId = "t1",
@@ -154,7 +154,7 @@ class AlertSchedulerTest {
 
             every { queryService.getSuccessRate(any(), any(), any()) } throws RuntimeException("DB down")
 
-            // evaluateAll should not throw — errors are caught per rule
+            // evaluateAll은(는) not throw — errors are caught per rule해야 합니다
             evaluator.evaluateAll()
 
             alertStore.findActiveAlerts().size shouldBe 0
@@ -165,7 +165,7 @@ class AlertSchedulerTest {
     inner class MultipleRules {
 
         @Test
-        fun `evaluates rules from multiple tenants`() {
+        fun `rules from multiple tenants를 평가한다`() {
             val tenant2 = Tenant(
                 id = "t2",
                 name = "Test2",
@@ -197,7 +197,7 @@ class AlertSchedulerTest {
                 )
             )
 
-            // Both tenants have high error rate
+            // 두 tenants have high error rate
             every { queryService.getSuccessRate(any(), any(), any()) } returns 0.80
 
             evaluator.evaluateAll()

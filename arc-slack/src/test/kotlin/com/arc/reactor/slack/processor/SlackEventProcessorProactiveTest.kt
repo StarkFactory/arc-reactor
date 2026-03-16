@@ -69,7 +69,7 @@ class SlackEventProcessorProactiveTest {
     inner class ProactiveRouting {
 
         @Test
-        fun `dispatches to handleChannelMessage for proactive-enabled channel`() = runTest {
+        fun `to handleChannelMessage for proactive-enabled channel를 디스패치한다`() = runTest {
             val latch = CountDownLatch(1)
             coEvery { eventHandler.handleChannelMessage(any()) } coAnswers {
                 latch.countDown()
@@ -84,7 +84,7 @@ class SlackEventProcessorProactiveTest {
         }
 
         @Test
-        fun `does not dispatch proactive for non-allowlisted channel`() = runTest {
+        fun `dispatch proactive for non-allowlisted channel하지 않는다`() = runTest {
             val processor = buildProcessor(proactiveProperties(), channelIds = listOf("C_OTHER"))
 
             processor.submitEventCallback(
@@ -96,7 +96,7 @@ class SlackEventProcessorProactiveTest {
         }
 
         @Test
-        fun `does not dispatch proactive when feature is disabled`() = runTest {
+        fun `does not dispatch proactive when feature은(는) disabled이다`() = runTest {
             val processor = buildProcessor(disabledProperties())
 
             processor.submitEventCallback(channelMessagePayload(), "events_api")
@@ -106,7 +106,7 @@ class SlackEventProcessorProactiveTest {
         }
 
         @Test
-        fun `does not dispatch proactive for DM channel type`() = runTest {
+        fun `dispatch proactive for DM channel type하지 않는다`() = runTest {
             val payload = objectMapper.readTree(
                 """{"type":"event_callback","event":{"type":"message","user":"U1",""" +
                     """"channel":"C_PROACTIVE","text":"hello","ts":"1.0","channel_type":"im"}}"""
@@ -124,7 +124,7 @@ class SlackEventProcessorProactiveTest {
     inner class ProactiveConcurrencyLimit {
 
         @Test
-        fun `drops proactive evaluation when concurrency limit reached`() = runTest {
+        fun `concurrency limit reached일 때 drops proactive evaluation`() = runTest {
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1)
             coEvery { eventHandler.handleChannelMessage(any()) } coAnswers {
@@ -139,7 +139,7 @@ class SlackEventProcessorProactiveTest {
             processor.submitEventCallback(channelMessagePayload(user = "U1"), "events_api")
             acquiredLatch.await(3, TimeUnit.SECONDS) shouldBe true
 
-            // Second message should be dropped
+            // Second message은(는) be dropped해야 합니다
             processor.submitEventCallback(channelMessagePayload(user = "U2"), "events_api")
             Thread.sleep(500)
 
@@ -159,7 +159,7 @@ class SlackEventProcessorProactiveTest {
     inner class ProactiveMetrics {
 
         @Test
-        fun `records proactive handler success metric`() = runTest {
+        fun `proactive handler success metric를 기록한다`() = runTest {
             val latch = CountDownLatch(1)
             coEvery { eventHandler.handleChannelMessage(any()) } coAnswers {
                 latch.countDown()
@@ -182,7 +182,7 @@ class SlackEventProcessorProactiveTest {
         }
 
         @Test
-        fun `records proactive handler declined metric`() = runTest {
+        fun `proactive handler declined metric를 기록한다`() = runTest {
             val latch = CountDownLatch(1)
             coEvery { eventHandler.handleChannelMessage(any()) } coAnswers {
                 latch.countDown()

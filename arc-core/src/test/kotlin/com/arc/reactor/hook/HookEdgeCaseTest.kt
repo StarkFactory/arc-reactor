@@ -24,7 +24,7 @@ class HookEdgeCaseTest {
     inner class DisabledHooks {
 
         @Test
-        fun `disabled hooks are skipped`() = runBlocking {
+        fun `disabled hooks은(는) skipped이다`() = runBlocking {
             val executionOrder = mutableListOf<Int>()
 
             val enabledHook = object : BeforeAgentStartHook {
@@ -56,14 +56,14 @@ class HookEdgeCaseTest {
     inner class EmptyHookRegistration {
 
         @Test
-        fun `returns Continue when no beforeStart hooks registered`() = runBlocking {
+        fun `no beforeStart hooks registered일 때 Continue를 반환한다`() = runBlocking {
             val executor = HookExecutor()
             val result = executor.executeBeforeAgentStart(createContext())
             assertInstanceOf(HookResult.Continue::class.java, result)
         }
 
         @Test
-        fun `returns Continue when no tool call hooks registered`() = runBlocking {
+        fun `no tool call hooks registered일 때 Continue를 반환한다`() = runBlocking {
             val executor = HookExecutor()
             val result = executor.executeBeforeToolCall(ToolCallContext(
                 agentContext = createContext(),
@@ -79,7 +79,7 @@ class HookEdgeCaseTest {
     inner class FailOnErrorBehavior {
 
         @Test
-        fun `afterToolCall propagates exception when failOnError is true`() {
+        fun `afterToolCall propagates exception when failOnError은(는) true이다`() {
             val failingHook = object : AfterToolCallHook {
                 override val order = 1
                 override val failOnError = true
@@ -104,7 +104,7 @@ class HookEdgeCaseTest {
         }
 
         @Test
-        fun `afterToolCall continues when failOnError is false`() = runBlocking {
+        fun `afterToolCall continues when failOnError은(는) false이다`() = runBlocking {
             val executed = mutableListOf<String>()
 
             val failingHook = object : AfterToolCallHook {
@@ -135,7 +135,7 @@ class HookEdgeCaseTest {
         }
 
         @Test
-        fun `afterAgentComplete propagates exception when failOnError is true`() {
+        fun `afterAgentComplete propagates exception when failOnError은(는) true이다`() {
             val failingHook = object : AfterAgentCompleteHook {
                 override val order = 1
                 override val failOnError = true
@@ -157,7 +157,7 @@ class HookEdgeCaseTest {
         }
 
         @Test
-        fun `afterToolCall rethrows cancellation even when failOnError is false`() {
+        fun `afterToolCall rethrows cancellation even when failOnError은(는) false이다`() {
             val cancellingHook = object : AfterToolCallHook {
                 override val order = 1
                 override val failOnError = false
@@ -188,7 +188,7 @@ class HookEdgeCaseTest {
         }
 
         @Test
-        fun `afterAgentComplete rethrows cancellation even when failOnError is false`() {
+        fun `afterAgentComplete rethrows cancellation even when failOnError은(는) false이다`() {
             val cancellingHook = object : AfterAgentCompleteHook {
                 override val order = 1
                 override val failOnError = false
@@ -218,7 +218,7 @@ class HookEdgeCaseTest {
     inner class ThreadSafety {
 
         @Test
-        fun `HookContext toolsUsed is thread-safe`() {
+        fun `HookContext toolsUsed은(는) thread-safe이다`() {
             val context = createContext()
 
             val threads = (1..10).map { i ->
@@ -237,7 +237,7 @@ class HookEdgeCaseTest {
         }
 
         @Test
-        fun `HookContext metadata is thread-safe`() {
+        fun `HookContext metadata은(는) thread-safe이다`() {
             val context = createContext()
 
             val threads = (1..10).map { i ->
@@ -260,7 +260,7 @@ class HookEdgeCaseTest {
     inner class HookContextProperties {
 
         @Test
-        fun `durationMs returns non-negative value`() {
+        fun `durationMs은(는) returns non-negative value`() {
             val context = createContext()
             assertTrue(context.durationMs() >= 0) { "durationMs should be non-negative, got: ${context.durationMs()}" }
         }

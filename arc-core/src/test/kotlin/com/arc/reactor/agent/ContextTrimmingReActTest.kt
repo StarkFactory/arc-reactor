@@ -18,13 +18,13 @@ import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
 
 /**
- * P0 Tests for context trimming during multi-round ReAct loops.
+ * 다중 라운드 ReAct 루프 중 컨텍스트 트리밍에 대한 P0 테스트.
  *
- * Verifies that when the context window fills up during tool call iterations,
- * the trimming logic:
- * - Never orphans ToolResponseMessages (always removed as pair with preceding AssistantMessage)
- * - Always preserves the most recent UserMessage (current prompt)
- * - Correctly handles the growing message list as tool results accumulate
+ * 도구 호출 반복 중 컨텍스트 윈도우가 가득 찰 때,
+ * 트리밍 로직이:
+ * - ToolResponseMessage를 고아로 만들지 않고 (항상 선행 AssistantMessage와 쌍으로 제거)
+ * - 가장 최근 UserMessage (현재 프롬프트)를 항상 보존하고
+ * - 도구 결과가 누적됨에 따라 증가하는 메시지 목록을 올바르게 처리하는지 검증합니다
  */
 class ContextTrimmingReActTest {
 
@@ -40,8 +40,8 @@ class ContextTrimmingReActTest {
     inner class TrimmingDuringReActLoop {
 
         @Test
-        fun `should trim old history while preserving tool call pairs during multi-round ReAct`() = runBlocking {
-            // Tight context budget forces trimming during ReAct iterations
+        fun `다중 라운드 ReAct 중 도구 호출 쌍을 보존하면서 오래된 기록을 제거해야 한다`() = runBlocking {
+            // 타이트한 컨텍스트 예산이 ReAct 반복 중 트리밍을 강제합니다
             val properties = AgentProperties(
                 llm = LlmProperties(
                     maxContextWindowTokens = 300,
@@ -50,16 +50,16 @@ class ContextTrimmingReActTest {
                 )
             )
 
-            // System prompt "S" = 1 char/token → budget = 300 - 1 - 50 = 249
+            // 시스템 프롬프트 "S" = 1 글자/토큰 → 예산 = 300 - 1 - 50 = 249
             val toolCall1 = AssistantMessage.ToolCall("call-1", "function", "search", """{"q":"round 1"}""")
             val toolCall2 = AssistantMessage.ToolCall("call-2", "function", "search", """{"q":"round 2"}""")
             val toolCall3 = AssistantMessage.ToolCall("call-3", "function", "search", """{"q":"round 3"}""")
 
-            // Track all message lists sent to LLM
+            // LLM에 전송된 모든 메시지 목록을 추적합니다
             val allMessageCaptures = mutableListOf<List<Message>>()
             every { fixture.requestSpec.messages(any<List<Message>>()) } answers {
                 val msgs = firstArg<List<Message>>()
-                allMessageCaptures.add(msgs.toList()) // Snapshot copy
+                allMessageCaptures.add(msgs.toList())  // 스냅샷 복사
                 fixture.requestSpec
             }
 
@@ -70,11 +70,11 @@ class ContextTrimmingReActTest {
                 fixture.mockFinalResponse("Final answer after 3 rounds")
             )
 
-            // Tool that returns large output (eats context budget)
+            // 큰 출력을 반환하는 도구 (컨텍스트 예산을 소모)
             val tool = AgentTestFixture.toolCallback("search", result = "X".repeat(80))
 
             val memoryStore = com.arc.reactor.memory.InMemoryMemoryStore()
-            // Pre-fill some conversation history
+            // 대화 기록을 미리 채웁니다
             memoryStore.addMessage("session-trim", "user", "A".repeat(60))
             memoryStore.addMessage("session-trim", "assistant", "B".repeat(60))
 
@@ -97,7 +97,7 @@ class ContextTrimmingReActTest {
 
             result.assertSuccess()
 
-            // Verify message integrity in EVERY iteration
+            // 모든 반복에서 메시지 무결성을 확인합니다
             for ((iteration, messages) in allMessageCaptures.withIndex()) {
                 for (i in messages.indices) {
                     if (messages[i] is ToolResponseMessage) {
@@ -112,9 +112,9 @@ class ContextTrimmingReActTest {
                     }
                 }
 
-                // Last message should always be UserMessage (current prompt)
-                // or messages added by tool call loop (AssistantMessage/ToolResponseMessage)
-                // But the original UserMessage must still be present somewhere
+                // 마지막 메시지는 항상 UserMessage (현재 프롬프트)여야 합니다
+                // 또는 도구 호출 루프에 의해 추가된 메시지 (AssistantMessage/ToolResponseMessage)
+                // 하지만 원본 UserMessage는 어딘가에 여전히 존재해야 합니다
                 val hasUserMessage = messages.any { it is UserMessage }
                 assertTrue(hasUserMessage,
                     "Iteration $iteration: UserMessage should always be present in messages")
@@ -126,8 +126,8 @@ class ContextTrimmingReActTest {
     inner class ExtremeBudgetPressure {
 
         @Test
-        fun `should keep only current user message when budget is extremely tight`() = runBlocking {
-            // Budget so tight only the user message fits
+        fun `예산이 매우 타이트할 때 현재 사용자 메시지만 유지해야 한다`() = runBlocking {
+            // 사용자 메시지만 들어갈 정도로 타이트한 예산
             val properties = AgentProperties(
                 llm = LlmProperties(
                     maxContextWindowTokens = 50,
@@ -164,15 +164,15 @@ class ContextTrimmingReActTest {
             result.assertSuccess()
 
             val captured = messagesSlot.captured
-            // Current user prompt must always survive
+            // 현재 사용자 프롬프트는 항상 유지되어야 합니다
             assertTrue(captured.any { it is UserMessage && it.text == "Current question" },
                 "Current user prompt must always be preserved, got: ${captured.map { "${it::class.simpleName}(${it.text?.take(20)})" }}")
         }
 
         @Test
-        fun `should handle zero budget gracefully without crash`() = runBlocking {
-            // maxOutputTokens >= maxContextWindowTokens → budget goes negative
-            // (init block requires maxContextWindowTokens > maxOutputTokens, so use equal values that pass)
+        fun `예산이 0일 때 크래시 없이 우아하게 처리해야 한다`() = runBlocking {
+            // maxOutputTokens >= maxContextWindowTokens → 예산이 음수가 됩니다
+            // (init 블록이 maxContextWindowTokens > maxOutputTokens를 요구하므로, 통과하는 값을 사용합니다)
             val properties = AgentProperties(
                 llm = LlmProperties(
                     maxContextWindowTokens = 100,
@@ -187,13 +187,13 @@ class ContextTrimmingReActTest {
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
                 properties = properties,
-                tokenEstimator = TokenEstimator { text -> text.length * 10 } // Inflated estimator
+                tokenEstimator = TokenEstimator { text -> text.length * 10 }  // 부풀린 추정기
             )
 
-            // Should not throw, even if budget is effectively zero after system prompt
+            // 시스템 프롬프트 후 예산이 사실상 0이더라도 예외를 던지지 않아야 합니다
             val result = executor.execute(
                 AgentCommand(
-                    systemPrompt = "A".repeat(50), // 500 "tokens" with inflated estimator
+                    systemPrompt = "A".repeat(50),  // 부풀린 추정기로 500 "토큰"
                     userPrompt = "Hello"
                 )
             )
@@ -208,8 +208,8 @@ class ContextTrimmingReActTest {
     inner class MessagePairValidation {
 
         @Test
-        fun `should never leave orphaned ToolResponseMessage after trimming history`() = runBlocking {
-            // Moderate budget with pre-loaded tool call history
+        fun `기록 트리밍 후 고아 ToolResponseMessage를 남기지 않아야 한다`() = runBlocking {
+            // 도구 호출 기록이 미리 로드된 적절한 예산
             val properties = AgentProperties(
                 llm = LlmProperties(
                     maxContextWindowTokens = 200,
@@ -224,7 +224,7 @@ class ContextTrimmingReActTest {
                 fixture.requestSpec
             }
 
-            // Tool call that produces medium-sized output
+            // 중간 크기 출력을 생성하는 도구 호출
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "lookup", """{"id":"123"}""")
 
             every { fixture.requestSpec.call() } returnsMany listOf(
@@ -235,7 +235,7 @@ class ContextTrimmingReActTest {
 
             val tool = AgentTestFixture.toolCallback("lookup", result = "Y".repeat(60))
 
-            // Pre-fill with mixed history
+            // 혼합된 기록으로 미리 채웁니다
             val memoryStore = com.arc.reactor.memory.InMemoryMemoryStore()
             memoryStore.addMessage("session-pairs", "user", "Old question 1".repeat(5))
             memoryStore.addMessage("session-pairs", "assistant", "Old answer 1".repeat(5))
@@ -259,7 +259,7 @@ class ContextTrimmingReActTest {
 
             result.assertSuccess()
 
-            // Validate ALL message snapshots for pair integrity
+            // 모든 메시지 스냅샷에 대해 쌍 무결성을 검증합니다
             for ((iteration, messages) in allMessageCaptures.withIndex()) {
                 var i = 0
                 while (i < messages.size) {

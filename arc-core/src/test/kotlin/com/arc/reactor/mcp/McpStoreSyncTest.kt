@@ -18,7 +18,7 @@ class McpStoreSyncTest {
     )
 
     @Test
-    fun `loadAll should return empty list when store list throws`() {
+    fun `loadAll은(는) return empty list when store list throws해야 한다`() {
         val failingStore = mockk<McpServerStore>()
         every { failingStore.list() } throws RuntimeException("relation mcp_servers does not exist")
 
@@ -31,7 +31,7 @@ class McpStoreSyncTest {
     }
 
     @Test
-    fun `listOr should fallback to runtime servers when store list throws`() {
+    fun `listOr은(는) fallback to runtime servers when store list throws해야 한다`() {
         val failingStore = mockk<McpServerStore>()
         every { failingStore.list() } throws RuntimeException("column config does not exist")
 
@@ -44,7 +44,7 @@ class McpStoreSyncTest {
     }
 
     @Test
-    fun `saveIfAbsent should swallow findByName exception`() {
+    fun `saveIfAbsent은(는) swallow findByName exception해야 한다`() {
         val failingStore = mockk<McpServerStore>()
         every { failingStore.findByName(any()) } throws RuntimeException("invalid table schema")
 
@@ -57,7 +57,7 @@ class McpStoreSyncTest {
     }
 
     @Test
-    fun `delete should swallow store delete exception`() {
+    fun `delete은(는) swallow store delete exception해야 한다`() {
         val failingStore = mockk<McpServerStore>()
         every { failingStore.delete(any()) } throws RuntimeException("delete failed")
 

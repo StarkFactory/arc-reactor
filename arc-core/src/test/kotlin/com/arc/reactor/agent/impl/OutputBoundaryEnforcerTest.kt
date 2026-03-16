@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test
 class OutputBoundaryEnforcerTest {
 
     @Test
-    fun `should truncate content when output exceeds max chars`() = runBlocking {
+    fun `output exceeds max chars일 때 truncate content해야 한다`() = runBlocking {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val enforcer = OutputBoundaryEnforcer(
             boundaries = BoundaryProperties(outputMaxChars = 5),
@@ -35,7 +35,7 @@ class OutputBoundaryEnforcerTest {
     }
 
     @Test
-    fun `should return null when output is too short and mode is FAIL`() = runBlocking {
+    fun `output is too short and mode is FAIL일 때 return null해야 한다`() = runBlocking {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val enforcer = OutputBoundaryEnforcer(
             boundaries = BoundaryProperties(outputMinChars = 10, outputMinViolationMode = OutputMinViolationMode.FAIL),
@@ -54,7 +54,7 @@ class OutputBoundaryEnforcerTest {
     }
 
     @Test
-    fun `should use retried content when mode is RETRY_ONCE and retry is long enough`() = runBlocking {
+    fun `mode is RETRY_ONCE and retry is long enough일 때 use retried content해야 한다`() = runBlocking {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val enforcer = OutputBoundaryEnforcer(
             boundaries = BoundaryProperties(outputMinChars = 10, outputMinViolationMode = OutputMinViolationMode.RETRY_ONCE),
@@ -74,7 +74,7 @@ class OutputBoundaryEnforcerTest {
     }
 
     @Test
-    fun `should keep original content when RETRY_ONCE retry result is still short`() = runBlocking {
+    fun `RETRY_ONCE retry result is still short일 때 keep original content해야 한다`() = runBlocking {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val enforcer = OutputBoundaryEnforcer(
             boundaries = BoundaryProperties(outputMinChars = 10, outputMinViolationMode = OutputMinViolationMode.RETRY_ONCE),

@@ -23,7 +23,7 @@ class RuleBasedIntentClassifierTest {
     inner class KeywordMatching {
 
         @Test
-        fun `matches single keyword`() = runTest {
+        fun `matches은(는) single keyword`() = runTest {
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",
@@ -38,7 +38,7 @@ class RuleBasedIntentClassifierTest {
         }
 
         @Test
-        fun `matches case-insensitively`() = runTest {
+        fun `matches은(는) case-insensitively`() = runTest {
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",
@@ -51,7 +51,7 @@ class RuleBasedIntentClassifierTest {
         }
 
         @Test
-        fun `returns unknown when no keywords match`() = runTest {
+        fun `no keywords match일 때 unknown를 반환한다`() = runTest {
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",
@@ -64,7 +64,7 @@ class RuleBasedIntentClassifierTest {
         }
 
         @Test
-        fun `returns unknown when no intents have keywords`() = runTest {
+        fun `no intents have keywords일 때 unknown를 반환한다`() = runTest {
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",
@@ -80,7 +80,7 @@ class RuleBasedIntentClassifierTest {
     inner class MultipleIntents {
 
         @Test
-        fun `selects highest confidence when multiple intents match`() = runTest {
+        fun `multiple intents match일 때 selects highest confidence`() = runTest {
             registry.save(IntentDefinition(
                 name = "order",
                 description = "Orders",
@@ -100,7 +100,7 @@ class RuleBasedIntentClassifierTest {
         }
 
         @Test
-        fun `returns secondary intents for multi-intent input`() = runTest {
+        fun `multi-intent input에 대해 secondary intents를 반환한다`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund",
                 description = "Refunds",
@@ -127,7 +127,7 @@ class RuleBasedIntentClassifierTest {
     inner class ConfidenceScoring {
 
         @Test
-        fun `confidence reflects keyword match ratio`() = runTest {
+        fun `confidence은(는) reflects keyword match ratio`() = runTest {
             registry.save(IntentDefinition(
                 name = "order",
                 description = "Orders",
@@ -143,7 +143,7 @@ class RuleBasedIntentClassifierTest {
         }
 
         @Test
-        fun `full match gives confidence 1_0`() = runTest {
+        fun `전체 match gives confidence 1_0`() = runTest {
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",
@@ -161,7 +161,7 @@ class RuleBasedIntentClassifierTest {
     inner class DisabledIntents {
 
         @Test
-        fun `does not match disabled intents`() = runTest {
+        fun `match disabled intents하지 않는다`() = runTest {
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",
@@ -178,7 +178,7 @@ class RuleBasedIntentClassifierTest {
     inner class PerformanceCharacteristics {
 
         @Test
-        fun `classification has zero token cost`() = runTest {
+        fun `classification은(는) zero token cost를 가진다`() = runTest {
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",
@@ -190,7 +190,7 @@ class RuleBasedIntentClassifierTest {
         }
 
         @Test
-        fun `latency is measured`() = runTest {
+        fun `latency은(는) measured이다`() = runTest {
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",

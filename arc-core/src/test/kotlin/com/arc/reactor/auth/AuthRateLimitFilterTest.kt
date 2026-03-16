@@ -55,7 +55,7 @@ class AuthRateLimitFilterTest {
     inner class NonAuthPaths {
 
         @Test
-        fun `should pass through for non-auth paths`() {
+        fun `non-auth paths에 대해 pass through해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
 
             val result = filter.filter(exchange, chain)
@@ -65,7 +65,7 @@ class AuthRateLimitFilterTest {
         }
 
         @Test
-        fun `should pass through for actuator paths`() {
+        fun `actuator paths에 대해 pass through해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/actuator/health")
 
             val result = filter.filter(exchange, chain)
@@ -75,7 +75,7 @@ class AuthRateLimitFilterTest {
         }
 
         @Test
-        fun `should not rate limit auth me endpoint`() {
+        fun `not rate limit auth me endpoint해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/me")
 
             for (i in 1..4) {
@@ -91,7 +91,7 @@ class AuthRateLimitFilterTest {
     inner class RateLimiting {
 
         @Test
-        fun `should allow successful requests without consuming the failure budget`() {
+        fun `allow successful requests without consuming the failure budget해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
 
             for (i in 1..4) {
@@ -104,16 +104,16 @@ class AuthRateLimitFilterTest {
         }
 
         @Test
-        fun `should block requests exceeding limit with 429 after repeated failures`() {
+        fun `429 after repeated failures로 block requests exceeding limit해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
             currentStatus = HttpStatus.UNAUTHORIZED
 
-            // First 3 should pass
+            // First 3은(는) pass해야 합니다
             for (i in 1..3) {
                 filter.filter(exchange, chain).block()
             }
 
-            // 4th should be blocked
+            // 4th은(는) be blocked해야 합니다
             filter.filter(exchange, chain).block()
 
             verify(exactly = 3) { chain.filter(exchange) }
@@ -121,7 +121,7 @@ class AuthRateLimitFilterTest {
         }
 
         @Test
-        fun `should clear failed attempt history after a successful login`() {
+        fun `a successful login 후 clear failed attempt history해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
             currentStatus = HttpStatus.UNAUTHORIZED
 
@@ -138,7 +138,7 @@ class AuthRateLimitFilterTest {
         }
 
         @Test
-        fun `should also rate limit register endpoint on validation failures`() {
+        fun `also rate limit register endpoint on validation failures해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/register")
             currentStatus = HttpStatus.BAD_REQUEST
 
@@ -160,7 +160,7 @@ class AuthRateLimitFilterTest {
         )
 
         @Test
-        fun `should use X-Forwarded-For when trust is enabled`() {
+        fun `trust is enabled일 때 use X-Forwarded-For해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
             currentStatus = HttpStatus.UNAUTHORIZED
 
@@ -176,7 +176,7 @@ class AuthRateLimitFilterTest {
         }
 
         @Test
-        fun `should track separate limits per IP when trust is enabled`() {
+        fun `trust is enabled일 때 track separate limits per IP해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
             currentStatus = HttpStatus.UNAUTHORIZED
 
@@ -194,7 +194,7 @@ class AuthRateLimitFilterTest {
         }
 
         @Test
-        fun `should ignore X-Forwarded-For when trust is disabled`() {
+        fun `trust is disabled일 때 ignore X-Forwarded-For해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
             currentStatus = HttpStatus.UNAUTHORIZED
 
@@ -206,7 +206,7 @@ class AuthRateLimitFilterTest {
             headers.set("X-Forwarded-For", "10.0.0.2")
             filter.filter(exchange, chain).block()
 
-            // All requests should be tracked under 127.0.0.1 (direct IP)
+            // All requests은(는) be tracked under 127.0.0.1 (direct IP)해야 합니다
             // 3 + 1 blocked = 3 chain.filter calls
             verify(exactly = 3) { chain.filter(exchange) }
         }
@@ -216,7 +216,7 @@ class AuthRateLimitFilterTest {
     inner class FilterOrder {
 
         @Test
-        fun `should have high precedence order`() {
+        fun `have high precedence order해야 한다`() {
             assertEquals(
                 Ordered.HIGHEST_PRECEDENCE + 1,
                 filter.order,

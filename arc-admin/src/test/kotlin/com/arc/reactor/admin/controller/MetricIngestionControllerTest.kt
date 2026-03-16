@@ -44,7 +44,7 @@ class MetricIngestionControllerTest {
     inner class Authentication {
 
         @Test
-        fun `should return 403 for non-admin on ingestMcpHealth`() {
+        fun `non-admin on ingestMcpHealth에 대해 return 403해야 한다`() {
             val userExchange = exchangeWithRole(UserRole.USER)
             val request = McpHealthRequest(tenantId = "t1", serverName = "s1")
 
@@ -54,7 +54,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin on ingestToolCall`() {
+        fun `non-admin on ingestToolCall에 대해 return 403해야 한다`() {
             val userExchange = exchangeWithRole(UserRole.USER)
             val request = ToolCallRequest(tenantId = "t1", runId = "r1", toolName = "tool1")
 
@@ -63,7 +63,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin on ingestEvalResult`() {
+        fun `non-admin on ingestEvalResult에 대해 return 403해야 한다`() {
             val userExchange = exchangeWithRole(UserRole.USER)
             val request = EvalResultRequest(tenantId = "t1", evalRunId = "e1", testCaseId = "tc1", pass = true)
 
@@ -72,7 +72,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin on ingestEvalResults batch`() {
+        fun `non-admin on ingestEvalResults batch에 대해 return 403해야 한다`() {
             val userExchange = exchangeWithRole(UserRole.USER)
             val request = EvalRunResultsRequest(
                 tenantId = "t1", evalRunId = "e1",
@@ -84,7 +84,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin on ingestBatch`() {
+        fun `non-admin on ingestBatch에 대해 return 403해야 한다`() {
             val userExchange = exchangeWithRole(UserRole.USER)
             val requests = listOf(McpHealthRequest(tenantId = "t1", serverName = "s1"))
 
@@ -97,7 +97,7 @@ class MetricIngestionControllerTest {
     inner class BatchLimits {
 
         @Test
-        fun `should reject eval results batch exceeding limit`() {
+        fun `reject eval results batch exceeding limit해야 한다`() {
             val results = (1..1001).map { EvalTestCaseResult(testCaseId = "tc-$it", pass = true) }
             val request = EvalRunResultsRequest(tenantId = "t1", evalRunId = "e1", results = results)
 
@@ -107,7 +107,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should reject mcp health batch exceeding limit`() {
+        fun `reject mcp health batch exceeding limit해야 한다`() {
             val requests = (1..1001).map { McpHealthRequest(tenantId = "t1", serverName = "s-$it") }
 
             val response = controller.ingestBatch(requests, adminExchange)
@@ -120,7 +120,7 @@ class MetricIngestionControllerTest {
     inner class McpHealthIngestion {
 
         @Test
-        fun `should accept valid MCP health event`() {
+        fun `accept valid MCP health event해야 한다`() {
             val request = McpHealthRequest(
                 tenantId = "tenant-1",
                 serverName = "error-log-mcp",
@@ -143,7 +143,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should accept MCP health with error details`() {
+        fun `error details로 accept MCP health해야 한다`() {
             val request = McpHealthRequest(
                 tenantId = "tenant-1",
                 serverName = "figma-mcp",
@@ -166,7 +166,7 @@ class MetricIngestionControllerTest {
     inner class ToolCallIngestion {
 
         @Test
-        fun `should accept valid tool call event`() {
+        fun `accept valid tool call event해야 한다`() {
             val request = ToolCallRequest(
                 tenantId = "tenant-1",
                 runId = "run-123",
@@ -191,7 +191,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should default toolSource to mcp when null`() {
+        fun `null일 때 default toolSource to mcp해야 한다`() {
             val request = ToolCallRequest(
                 tenantId = "tenant-1",
                 runId = "run-123",
@@ -206,7 +206,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should default callIndex to 0 when null`() {
+        fun `null일 때 default callIndex to 0해야 한다`() {
             val request = ToolCallRequest(
                 tenantId = "tenant-1",
                 runId = "run-123",
@@ -225,7 +225,7 @@ class MetricIngestionControllerTest {
     inner class EvalResultIngestion {
 
         @Test
-        fun `should accept valid eval result event`() {
+        fun `accept valid eval result event해야 한다`() {
             val request = EvalResultRequest(
                 tenantId = "tenant-1",
                 evalRunId = "eval-run-001",
@@ -256,7 +256,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should accept failed eval result with failure details`() {
+        fun `failure details로 accept failed eval result해야 한다`() {
             val request = EvalResultRequest(
                 tenantId = "tenant-1",
                 evalRunId = "eval-run-001",
@@ -276,7 +276,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should truncate long failure detail to 500 chars`() {
+        fun `truncate long failure detail to 500 chars해야 한다`() {
             val longDetail = "x".repeat(1000)
             val request = EvalResultRequest(
                 tenantId = "tenant-1",
@@ -293,7 +293,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should default cost to ZERO when null`() {
+        fun `null일 때 default cost to ZERO해야 한다`() {
             val request = EvalResultRequest(
                 tenantId = "tenant-1",
                 evalRunId = "eval-run-001",
@@ -308,7 +308,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should default tags to empty list when null`() {
+        fun `null일 때 default tags to empty list해야 한다`() {
             val request = EvalResultRequest(
                 tenantId = "tenant-1",
                 evalRunId = "eval-run-001",
@@ -328,7 +328,7 @@ class MetricIngestionControllerTest {
     inner class BatchEvalIngestion {
 
         @Test
-        fun `should accept batch eval results`() {
+        fun `accept batch eval results해야 한다`() {
             val request = EvalRunResultsRequest(
                 tenantId = "tenant-1",
                 evalRunId = "eval-run-002",
@@ -360,7 +360,7 @@ class MetricIngestionControllerTest {
             evalEvents[1].failureClass shouldBe "HALLUCINATION"
             evalEvents[2].tags shouldBe listOf("redteam")
 
-            // All should share the same evalRunId and tenantId
+            // All은(는) share the same evalRunId and tenantId해야 합니다
             evalEvents.forEach { event ->
                 event.evalRunId shouldBe "eval-run-002"
                 event.tenantId shouldBe "tenant-1"
@@ -368,7 +368,7 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should reject empty results list`() {
+        fun `reject empty results list해야 한다`() {
             val request = EvalRunResultsRequest(
                 tenantId = "tenant-1",
                 evalRunId = "eval-run-003",
@@ -384,7 +384,7 @@ class MetricIngestionControllerTest {
     inner class BatchMcpHealthIngestion {
 
         @Test
-        fun `should accept batch MCP health events`() {
+        fun `accept batch MCP health events해야 한다`() {
             val requests = listOf(
                 McpHealthRequest(tenantId = "t1", serverName = "error-log-mcp", status = "CONNECTED"),
                 McpHealthRequest(tenantId = "t1", serverName = "figma-mcp", status = "CONNECTED"),
@@ -409,18 +409,18 @@ class MetricIngestionControllerTest {
     inner class BufferFull {
 
         @Test
-        fun `should return 503 when buffer is full for single event`() {
+        fun `buffer is full for single event일 때 return 503해야 한다`() {
             val tinyBuffer = MetricRingBuffer(64) // capacity = 64
             val ctrl = MetricIngestionController(tinyBuffer)
 
-            // Fill the buffer
+            // the buffer를 채웁니다
             repeat(64) {
                 ctrl.ingestMcpHealth(McpHealthRequest(
                     tenantId = "t1", serverName = "s$it"
                 ), adminExchange)
             }
 
-            // Next should be rejected
+            // Next은(는) be rejected해야 합니다
             val response = ctrl.ingestMcpHealth(McpHealthRequest(
                 tenantId = "t1", serverName = "overflow"
             ), adminExchange)
@@ -428,16 +428,16 @@ class MetricIngestionControllerTest {
         }
 
         @Test
-        fun `should report drops in batch response when buffer fills`() {
+        fun `buffer fills일 때 report drops in batch response해야 한다`() {
             val tinyBuffer = MetricRingBuffer(64)
             val ctrl = MetricIngestionController(tinyBuffer)
 
-            // Fill most of the buffer
+            // most of the buffer를 채웁니다
             repeat(60) {
                 ctrl.ingestMcpHealth(McpHealthRequest(tenantId = "t1", serverName = "s$it"), adminExchange)
             }
 
-            // Batch of 10 — some should be accepted, some dropped
+            // Batch of 10 — some은(는) be accepted, some dropped해야 합니다
             val requests = (0 until 10).map {
                 McpHealthRequest(tenantId = "t1", serverName = "batch-$it")
             }

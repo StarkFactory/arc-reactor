@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Tests for concurrency limiting (P1-1) and request timeout (P1-2) features.
+ * 동시성 제한 (P1-1) 및 요청 타임아웃 (P1-2) 기능에 대한 테스트.
  */
 class ConcurrencyTimeoutTest {
 
@@ -28,7 +28,7 @@ class ConcurrencyTimeoutTest {
     inner class ConcurrencyLimiting {
 
         @Test
-        fun `should enforce maxConcurrentRequests limit`() = runBlocking {
+        fun `maxConcurrentRequests 제한을 적용해야 한다`() = runBlocking {
             val currentConcurrent = AtomicInteger(0)
             val maxConcurrentObserved = AtomicInteger(0)
 
@@ -65,7 +65,7 @@ class ConcurrencyTimeoutTest {
     inner class RequestTimeout {
 
         @Test
-        fun `should timeout when request exceeds requestTimeoutMs`() = runBlocking {
+        fun `요청이 requestTimeoutMs를 초과하면 타임아웃이 발생해야 한다`() = runBlocking {
             val properties = AgentProperties(
                 concurrency = ConcurrencyProperties(
                     maxConcurrentRequests = 20,
@@ -93,7 +93,7 @@ class ConcurrencyTimeoutTest {
         }
 
         @Test
-        fun `should allow requests within timeout`() = runBlocking {
+        fun `타임아웃 내의 요청을 허용해야 한다`() = runBlocking {
             val properties = AgentProperties(
                 concurrency = ConcurrencyProperties(
                     maxConcurrentRequests = 20,

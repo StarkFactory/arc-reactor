@@ -30,10 +30,10 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Stress tests for the hierarchical conversation memory feature.
+ * 계층적 대화 메모리 기능에 대한 스트레스 테스트.
  *
- * Validates correctness under high-volume conversations, concurrent access,
- * and async summarization race conditions. All tests use a mocked
+ * 대량 대화, 동시 접근,
+ * 비동기 요약 경쟁 조건에서의 정확성을 검증합니다. 모든 테스트는 mock된
  * [ConversationSummaryService] to avoid real LLM calls.
  */
 class ConversationMemoryStressTest {
@@ -62,7 +62,7 @@ class ConversationMemoryStressTest {
     }
 
     /**
-     * Populate a session with the given number of user/assistant message pairs.
+     * 주어진 수의 사용자/어시스턴트 메시지 쌍으로 세션을 채웁니다.
      */
     private fun populateSession(sessionId: String, messageCount: Int) {
         for (i in 1..messageCount) {
@@ -82,7 +82,7 @@ class ConversationMemoryStressTest {
     inner class LongConversation {
 
         @Test
-        fun `should produce hierarchical structure for 100-message conversation`() = runTest {
+        fun `100-message conversation에 대해 produce hierarchical structure해야 한다`() = runTest {
             val sessionId = "long-session"
             populateSession(sessionId, 100)
 
@@ -100,14 +100,14 @@ class ConversationMemoryStressTest {
 
             val history = manager.loadHistory(command(sessionId))
 
-            // Expected: [Facts SystemMessage] + [Narrative SystemMessage] + [10 recent messages]
+            // 기대값: [Facts SystemMessage] + [Narrative SystemMessage] + [10 recent messages]
             val expectedSize = 2 + summaryProps.recentMessageCount
             assertEquals(expectedSize, history.size) {
                 "Should have 2 summary system messages + ${summaryProps.recentMessageCount} recent messages, " +
                     "but got ${history.size}"
             }
 
-            // First message should be Facts
+            // First message은(는) be Facts해야 합니다
             assertTrue(history[0] is SystemMessage) {
                 "First message should be Facts SystemMessage, got ${history[0]::class.simpleName}"
             }
@@ -116,7 +116,7 @@ class ConversationMemoryStressTest {
                 "Facts should contain 'total_questions' but was: $factsText"
             }
 
-            // Second message should be Narrative
+            // Second message은(는) be Narrative해야 합니다
             assertTrue(history[1] is SystemMessage) {
                 "Second message should be Narrative SystemMessage, got ${history[1]::class.simpleName}"
             }
@@ -125,7 +125,7 @@ class ConversationMemoryStressTest {
                 "Narrative should contain summary text but was: $narrativeText"
             }
 
-            // Remaining messages should be the most recent verbatim ones (not all 100)
+            // Remaining messages은(는) be the most recent verbatim ones (not all 100)해야 합니다
             val recentMessages = history.subList(2, history.size)
             assertEquals(summaryProps.recentMessageCount, recentMessages.size) {
                 "Should have exactly ${summaryProps.recentMessageCount} recent messages, " +
@@ -134,7 +134,7 @@ class ConversationMemoryStressTest {
         }
 
         @Test
-        fun `should not include all 100 messages verbatim`() = runTest {
+        fun `not include all 100 messages verbatim해야 한다`() = runTest {
             val sessionId = "long-no-verbatim"
             populateSession(sessionId, 100)
 
@@ -163,14 +163,14 @@ class ConversationMemoryStressTest {
     inner class ConcurrentLoadHistory {
 
         @Test
-        fun `should handle 10 concurrent loadHistory calls without crashes`() = runTest {
+        fun `handle 10 concurrent loadHistory calls without crashes해야 한다`() = runTest {
             val sessionId = "concurrent-load"
             populateSession(sessionId, 30)
 
             val callCount = AtomicInteger(0)
             coEvery { summaryService.summarize(any(), any()) } coAnswers {
                 callCount.incrementAndGet()
-                delay(50) // simulate LLM latency
+                delay(50)  // LLM latency를 시뮬레이션합니다
                 SummarizationResult(
                     narrative = "Concurrent summary",
                     facts = listOf(StructuredFact(key = "concurrent", value = "true"))
@@ -205,7 +205,7 @@ class ConversationMemoryStressTest {
                 "All 10 concurrent loadHistory calls should return results"
             }
 
-            // All results should have consistent structure
+            // All results은(는) have consistent structure해야 합니다
             for ((index, history) in results.withIndex()) {
                 assertTrue(history.isNotEmpty()) {
                     "Result #$index should not be empty"
@@ -218,11 +218,11 @@ class ConversationMemoryStressTest {
         }
 
         @Test
-        fun `all concurrent loadHistory results should have same size`() = runTest {
+        fun `all concurrent loadHistory results은(는) have same size해야 한다`() = runTest {
             val sessionId = "concurrent-consistency"
             populateSession(sessionId, 40)
 
-            // Pre-populate a summary so all calls use the cache (no LLM call variance)
+            // a summary so all calls use the cache (no LLM call variance)를 미리 채웁니다
             summaryStore.save(
                 ConversationSummary(
                     sessionId = sessionId,
@@ -259,14 +259,14 @@ class ConversationMemoryStressTest {
     inner class SaveHistoryAsyncSummarization {
 
         @Test
-        fun `loadHistory should work immediately after saveHistory`() = runTest {
+        fun `loadHistory은(는) work immediately after saveHistory해야 한다`() = runTest {
             val sessionId = "async-race"
             populateSession(sessionId, 22) // above trigger (20)
 
             val summarizeCallCount = AtomicInteger(0)
             coEvery { summaryService.summarize(any(), any()) } coAnswers {
                 summarizeCallCount.incrementAndGet()
-                delay(200) // simulate slow async summarization
+                delay(200)  // slow async summarization를 시뮬레이션합니다
                 SummarizationResult(
                     narrative = "Async summary",
                     facts = listOf(StructuredFact(key = "async", value = "true"))
@@ -277,7 +277,7 @@ class ConversationMemoryStressTest {
                 memoryStore, properties, summaryStore, summaryService
             )
 
-            // Save triggers async summarization
+            // triggers async summarization 저장
             val saveCommand = AgentCommand(
                 systemPrompt = "",
                 userPrompt = "trigger question",
@@ -289,14 +289,14 @@ class ConversationMemoryStressTest {
             // Immediately call loadHistory (async summary may not be done yet)
             val history = manager.loadHistory(command(sessionId))
 
-            // loadHistory should succeed regardless of async completion state
+            // loadHistory은(는) succeed regardless of async completion state해야 합니다
             assertTrue(history.isNotEmpty()) {
                 "loadHistory should return non-empty result even before async summary completes"
             }
         }
 
         @Test
-        fun `no exceptions when async summary and loadHistory race`() = runTest {
+        fun `async summary and loadHistory race일 때 no exceptions`() = runTest {
             val sessionId = "race-safety"
             populateSession(sessionId, 25)
 
@@ -353,7 +353,7 @@ class ConversationMemoryStressTest {
     inner class SummaryStoreConsistencyUnderConcurrentWrites {
 
         @Test
-        fun `InMemoryConversationSummaryStore should not corrupt under concurrent saves`() = runTest {
+        fun `InMemoryConversationSummaryStore은(는) not corrupt under concurrent saves해야 한다`() = runTest {
             val store = InMemoryConversationSummaryStore()
             val errors = AtomicInteger(0)
 
@@ -387,7 +387,7 @@ class ConversationMemoryStressTest {
                 "No exceptions should be thrown during concurrent saves"
             }
 
-            // All 5 sessions should have a summary
+            // All 5 sessions은(는) have a summary해야 합니다
             for (s in 0 until 5) {
                 val summary = store.get("session-$s")
                 assertNotNull(summary) {
@@ -400,12 +400,12 @@ class ConversationMemoryStressTest {
         }
 
         @Test
-        fun `concurrent reads and writes should not corrupt InMemoryConversationSummaryStore`() = runTest {
+        fun `concurrent reads and writes은(는) not corrupt InMemoryConversationSummaryStore해야 한다`() = runTest {
             val store = InMemoryConversationSummaryStore()
             val readErrors = AtomicInteger(0)
             val writeErrors = AtomicInteger(0)
 
-            // Pre-populate
+            // 미리 채우기
             store.save(
                 ConversationSummary(
                     sessionId = "shared",
@@ -443,7 +443,7 @@ class ConversationMemoryStressTest {
                         try {
                             delay((i * 3).toLong())
                             val result = store.get("shared")
-                            // Result should never be structurally invalid
+                            // Result은(는) never be structurally invalid해야 합니다
                             assertNotNull(result) {
                                 "Read #$i should find 'shared' session"
                             }
@@ -474,7 +474,7 @@ class ConversationMemoryStressTest {
     inner class DeleteDuringAsyncSummarization {
 
         @Test
-        fun `should not crash when session is deleted while async summarization is in-flight`() = runTest {
+        fun `session is deleted while async summarization is in-flight일 때 not crash해야 한다`() = runTest {
             val sessionId = "delete-race"
             populateSession(sessionId, 30) // above trigger
 
@@ -483,7 +483,7 @@ class ConversationMemoryStressTest {
 
             coEvery { summaryService.summarize(any(), any()) } coAnswers {
                 summarizeStarted.countDown()
-                // Block until delete happens
+                // until delete happens 차단
                 proceedWithSummarize.await(5, java.util.concurrent.TimeUnit.SECONDS)
                 SummarizationResult(
                     narrative = "Summary after delete",
@@ -530,7 +530,7 @@ class ConversationMemoryStressTest {
         }
 
         @Test
-        fun `should handle rapid delete-then-load without exceptions`() = runTest {
+        fun `handle rapid delete-then-load without exceptions해야 한다`() = runTest {
             val sessionId = "rapid-delete-load"
             populateSession(sessionId, 30)
 
@@ -554,7 +554,7 @@ class ConversationMemoryStressTest {
                     val sid = "session-$sessionIdx"
                     populateSession(sid, 25)
 
-                    // Save (triggers async summarization)
+                    // (triggers async summarization) 저장
                     launch {
                         try {
                             val cmd = AgentCommand(
@@ -569,7 +569,7 @@ class ConversationMemoryStressTest {
                             errors.incrementAndGet()
                         }
                     }
-                    // Delete (while async may be running)
+                    // (while async may be running) 삭제
                     launch {
                         try {
                             delay(50)
@@ -580,7 +580,7 @@ class ConversationMemoryStressTest {
                             errors.incrementAndGet()
                         }
                     }
-                    // Load (after delete — should handle missing session gracefully)
+                    // Load (after delete —은(는) handle missing session gracefully)해야 합니다
                     launch {
                         try {
                             delay(100)
@@ -600,7 +600,7 @@ class ConversationMemoryStressTest {
         }
 
         @Test
-        fun `should not accumulate orphaned summaries after repeated create-delete cycles`() = runTest {
+        fun `repeated create-delete cycles 후 not accumulate orphaned summaries해야 한다`() = runTest {
             coEvery { summaryService.summarize(any(), any()) } coAnswers {
                 SummarizationResult(
                     narrative = "Cycle summary",
@@ -612,15 +612,15 @@ class ConversationMemoryStressTest {
                 memoryStore, properties, summaryStore, summaryService
             )
 
-            // Run 10 create-summarize-delete cycles for different sessions
+            // 10 create-summarize-delete cycles for different sessions 실행
             for (cycle in 1..10) {
                 val sid = "cycle-$cycle"
                 populateSession(sid, 25)
 
-                // Load triggers synchronous summarization
+                // triggers synchronous summarization 로드
                 manager.loadHistory(command(sid))
 
-                // Verify summary was created
+                // summary was created 확인
                 assertNotNull(summaryStore.get(sid)) {
                     "Summary for cycle $cycle should exist after loadHistory"
                 }
@@ -629,7 +629,7 @@ class ConversationMemoryStressTest {
                 memoryStore.remove(sid)
                 summaryStore.delete(sid)
 
-                // Verify clean deletion
+                // clean deletion 확인
                 assertNull(summaryStore.get(sid)) {
                     "Summary for cycle $cycle should be deleted after cleanup"
                 }
@@ -668,7 +668,7 @@ class ConversationMemoryStressTest {
         }
 
         @Test
-        fun `should roundtrip 100 facts through JDBC serialization`() {
+        fun `roundtrip 100 facts through JDBC serialization해야 한다`() {
             val facts = (1..100).map { i ->
                 StructuredFact(
                     key = "fact_$i",
@@ -710,7 +710,7 @@ class ConversationMemoryStressTest {
         }
 
         @Test
-        fun `should roundtrip facts with unicode and long values`() {
+        fun `unicode and long values로 roundtrip facts해야 한다`() {
             val facts = listOf(
                 StructuredFact(
                     key = "unicode_name",
@@ -762,8 +762,8 @@ class ConversationMemoryStressTest {
         }
 
         @Test
-        fun `should handle upsert with growing facts list`() {
-            // Start with 10 facts
+        fun `growing facts list로 handle upsert해야 한다`() {
+            // with 10 facts 시작
             val initialFacts = (1..10).map { i ->
                 StructuredFact(key = "fact_$i", value = "initial_$i")
             }
@@ -776,7 +776,7 @@ class ConversationMemoryStressTest {
                 )
             )
 
-            // Update to 100 facts
+            // to 100 facts 업데이트
             val expandedFacts = (1..100).map { i ->
                 StructuredFact(key = "fact_$i", value = "expanded_$i")
             }

@@ -21,23 +21,23 @@ class SsrfProtectionTest {
         "0:0:0:0:0:0:0:1", // IPv6 loopback
         "::1"              // IPv6 loopback shorthand
     ])
-    fun `should block private and reserved addresses`(host: String) {
+    fun `block private and reserved addresses해야 한다`(host: String) {
         isPrivateOrReservedAddress(host) shouldBe true
     }
 
     @Test
-    fun `should block null host`() {
+    fun `block null host해야 한다`() {
         isPrivateOrReservedAddress(null) shouldBe true
     }
 
     @Test
-    fun `should block blank host`() {
+    fun `block blank host해야 한다`() {
         isPrivateOrReservedAddress("") shouldBe true
         isPrivateOrReservedAddress("  ") shouldBe true
     }
 
     @Test
-    fun `should block unresolvable host`() {
+    fun `block unresolvable host해야 한다`() {
         isPrivateOrReservedAddress("this-host-definitely-does-not-exist.invalid") shouldBe true
     }
 
@@ -45,7 +45,7 @@ class SsrfProtectionTest {
     @ValueSource(strings = [
         "169.254.169.254" // AWS/GCP/Azure metadata endpoint
     ])
-    fun `should block cloud metadata addresses`(host: String) {
+    fun `block cloud metadata addresses해야 한다`(host: String) {
         isPrivateOrReservedAddress(host) shouldBe true
     }
 
@@ -54,7 +54,7 @@ class SsrfProtectionTest {
         "224.0.0.1",
         "239.255.255.255"
     ])
-    fun `should block multicast addresses`(host: String) {
+    fun `block multicast addresses해야 한다`(host: String) {
         isPrivateOrReservedAddress(host) shouldBe true
     }
 
@@ -63,7 +63,7 @@ class SsrfProtectionTest {
         "8.8.8.8",
         "1.1.1.1"
     ])
-    fun `should allow public addresses`(host: String) {
+    fun `allow public addresses해야 한다`(host: String) {
         isPrivateOrReservedAddress(host) shouldBe false
     }
 }

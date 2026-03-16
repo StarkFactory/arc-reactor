@@ -43,7 +43,7 @@ class SlackEventControllerConcurrencyTest {
     inner class SemaphoreLimiting {
 
         @Test
-        fun `limits concurrent processing to maxConcurrentRequests`() {
+        fun `concurrent processing to maxConcurrentRequests를 제한한다`() {
             val totalEvents = 6
             val maxConcurrentLimit = 2
             val maxConcurrent = AtomicInteger(0)
@@ -78,7 +78,7 @@ class SlackEventControllerConcurrencyTest {
         }
 
         @Test
-        fun `all events complete despite semaphore queuing`() {
+        fun `모든 events complete despite semaphore queuing`() {
             val totalEvents = 8
             val processedCount = AtomicInteger(0)
             val latch = CountDownLatch(totalEvents)
@@ -113,7 +113,7 @@ class SlackEventControllerConcurrencyTest {
     inner class ErrorIsolation {
 
         @Test
-        fun `handler exception does not affect other events`() {
+        fun `handler은(는) exception does not affect other events`() {
             val successCount = AtomicInteger(0)
             val totalEvents = 4
 
@@ -139,7 +139,7 @@ class SlackEventControllerConcurrencyTest {
         }
 
         @Test
-        fun `drops overloaded events quickly in fail fast mode`() {
+        fun `drops은(는) overloaded events quickly in fail fast mode`() {
             val processedCount = AtomicInteger(0)
             val handler = mockk<SlackEventHandler>(relaxed = true)
             coEvery { handler.handleAppMention(any()) } coAnswers {

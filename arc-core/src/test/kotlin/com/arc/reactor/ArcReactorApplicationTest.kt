@@ -15,7 +15,7 @@ import org.springframework.core.env.StandardEnvironment
 class ArcReactorApplicationTest {
 
     @Test
-    fun `should exclude datasource auto configuration when datasource url is blank`() {
+    fun `datasource url is blank일 때 exclude datasource auto configuration해야 한다`() {
         val excludes = resolveOptionalDatasourceExcludes(
             StandardEnvironment().apply {
                 propertySources.addFirst(
@@ -46,7 +46,7 @@ class ArcReactorApplicationTest {
     }
 
     @Test
-    fun `should not exclude datasource auto configuration when datasource url is provided`() {
+    fun `datasource url is provided일 때 not exclude datasource auto configuration해야 한다`() {
         val excludes = resolveOptionalDatasourceExcludes(
             StandardEnvironment().apply {
                 propertySources.addFirst(
@@ -63,7 +63,7 @@ class ArcReactorApplicationTest {
     }
 
     @Test
-    fun `should preserve existing exclusions while appending datasource exclusions`() {
+    fun `preserve existing exclusions while appending datasource exclusions해야 한다`() {
         val excludes = resolveOptionalDatasourceExcludes(
             StandardEnvironment().apply {
                 propertySources.addFirst(

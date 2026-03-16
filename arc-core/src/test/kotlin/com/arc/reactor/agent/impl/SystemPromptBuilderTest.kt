@@ -10,7 +10,7 @@ class SystemPromptBuilderTest {
     private val builder = SystemPromptBuilder()
 
     @Test
-    fun `should include only base prompt for text format without rag`() {
+    fun `text format without rag에 대해 include only base prompt해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -37,7 +37,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should include sources instruction for workspace prompts`() {
+    fun `workspace prompts에 대해 include sources instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -52,7 +52,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should append rag and json instructions`() {
+    fun `append rag and json instructions해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = "fact1",
@@ -94,7 +94,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add required confluence routing instruction for page summary prompts`() {
+    fun `page summary prompts에 대해 add required confluence routing instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -108,7 +108,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add required work briefing instruction for briefing prompts`() {
+    fun `briefing prompts에 대해 add required work briefing instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -125,7 +125,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add required work release risk instruction for release prompts`() {
+    fun `release prompts에 대해 add required work release risk instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -142,7 +142,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add required work profile instruction for profile prompts`() {
+    fun `profile prompts에 대해 add required work profile instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -156,7 +156,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add required work owner instruction for ownership prompts`() {
+    fun `ownership prompts에 대해 add required work owner instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -170,7 +170,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add required personal focus instruction`() {
+    fun `add required personal focus instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -184,7 +184,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add required personal learning instruction`() {
+    fun `add required personal learning instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -198,7 +198,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add required personal interrupt instruction`() {
+    fun `add required personal interrupt instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -212,7 +212,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add required personal wrapup instruction`() {
+    fun `add required personal wrapup instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -226,7 +226,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should suppress must call instructions after forced workspace tool execution`() {
+    fun `forced workspace tool execution 후 suppress must call instructions해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = "tool output",
@@ -247,7 +247,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add required work item context instruction for issue context prompts`() {
+    fun `issue context prompts에 대해 add required work item context instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -261,7 +261,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add required work service instruction for service context prompts`() {
+    fun `service context prompts에 대해 add required work service instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -275,7 +275,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add jira routing instruction for jira prompts`() {
+    fun `jira prompts에 대해 add jira routing instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -289,7 +289,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add jira project summary instruction for recent summary prompts`() {
+    fun `recent summary prompts에 대해 add jira project summary instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -306,7 +306,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add bitbucket routing instruction for bitbucket prompts`() {
+    fun `bitbucket prompts에 대해 add bitbucket routing instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -320,7 +320,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add bitbucket review risk instruction for risk prompts`() {
+    fun `risk prompts에 대해 add bitbucket review risk instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -334,7 +334,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add bitbucket repository list instruction for repository prompts`() {
+    fun `repository prompts에 대해 add bitbucket repository list instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -351,7 +351,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add swagger routing instruction for swagger prompts`() {
+    fun `swagger prompts에 대해 add swagger routing instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -365,7 +365,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add loaded swagger routing instruction for loaded spec summaries`() {
+    fun `loaded spec summaries에 대해 add loaded swagger routing instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -379,7 +379,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should route named swagger detail prompts without url through loaded spec tools`() {
+    fun `route named swagger detail prompts without url through loaded spec tools해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -396,7 +396,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add wrong endpoint swagger instruction`() {
+    fun `add wrong endpoint swagger instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -410,7 +410,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should treat confluence page body prompt as answer prompt`() {
+    fun `treat confluence page body prompt as answer prompt해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -424,7 +424,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should add confluence discovery instruction for keyword search prompts`() {
+    fun `keyword search prompts에 대해 add confluence discovery instruction해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -438,7 +438,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should explicitly refuse workspace mutation prompts in read only mode`() {
+    fun `explicitly refuse workspace mutation prompts in read only mode해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -458,7 +458,7 @@ class SystemPromptBuilderTest {
     }
 
     @Test
-    fun `should not treat release readiness pack prompt as mutation refusal`() {
+    fun `not treat release readiness pack prompt as mutation refusal해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,

@@ -12,7 +12,7 @@ class SlackSystemPromptFactoryTest {
     inner class BasicPrompt {
 
         @Test
-        fun `build without tool summary produces base prompt only`() {
+        fun `without tool summary produces base prompt only를 빌드한다`() {
             val prompt = SlackSystemPromptFactory.build("gemini")
 
             prompt shouldContain "gemini"
@@ -25,21 +25,21 @@ class SlackSystemPromptFactoryTest {
         }
 
         @Test
-        fun `build with null tool summary omits cross-tool section`() {
+        fun `with null tool summary omits cross-tool section를 빌드한다`() {
             val prompt = SlackSystemPromptFactory.build("gemini", connectedToolSummary = null)
 
             prompt shouldNotContain "[Cross-tool Correlation]"
         }
 
         @Test
-        fun `build with blank tool summary omits cross-tool section`() {
+        fun `with blank tool summary omits cross-tool section를 빌드한다`() {
             val prompt = SlackSystemPromptFactory.build("gemini", connectedToolSummary = "  ")
 
             prompt shouldNotContain "[Cross-tool Correlation]"
         }
 
         @Test
-        fun `build uses fallback when provider is blank`() {
+        fun `build uses fallback when provider은(는) blank이다`() {
             val prompt = SlackSystemPromptFactory.build("")
 
             prompt shouldContain "configured backend model"
@@ -51,7 +51,7 @@ class SlackSystemPromptFactoryTest {
     inner class CrossToolCorrelation {
 
         @Test
-        fun `build with tool summary includes cross-tool section`() {
+        fun `with tool summary includes cross-tool section를 빌드한다`() {
             val summary = "[Connected Workspace Tools]\n- atlassian: jira_search, confluence_search"
             val prompt = SlackSystemPromptFactory.build("gemini", connectedToolSummary = summary)
 
@@ -65,7 +65,7 @@ class SlackSystemPromptFactoryTest {
     inner class ProactivePrompt {
 
         @Test
-        fun `buildProactive includes proactive assistance section`() {
+        fun `buildProactive은(는) includes proactive assistance section`() {
             val prompt = SlackSystemPromptFactory.buildProactive("gemini", null)
 
             prompt shouldContain "[Proactive Assistance Mode]"
@@ -73,7 +73,7 @@ class SlackSystemPromptFactoryTest {
         }
 
         @Test
-        fun `buildProactive includes both cross-tool and proactive when summary provided`() {
+        fun `summary provided일 때 buildProactive includes both cross-tool and proactive`() {
             val summary = "[Connected Workspace Tools]\n- atlassian: jira_search"
             val prompt = SlackSystemPromptFactory.buildProactive("gemini", summary)
 
@@ -87,12 +87,12 @@ class SlackSystemPromptFactoryTest {
     inner class ToolSummaryBuilder {
 
         @Test
-        fun `buildToolSummary returns null for empty map`() {
+        fun `buildToolSummary은(는) returns null for empty map`() {
             SlackSystemPromptFactory.buildToolSummary(emptyMap()) shouldBe null
         }
 
         @Test
-        fun `buildToolSummary formats server and tool names`() {
+        fun `buildToolSummary은(는) formats server and tool names`() {
             val result = SlackSystemPromptFactory.buildToolSummary(
                 mapOf(
                     "atlassian" to listOf("jira_search", "confluence_search"),
@@ -106,7 +106,7 @@ class SlackSystemPromptFactoryTest {
         }
 
         @Test
-        fun `buildToolSummary handles single server`() {
+        fun `buildToolSummary은(는) handles single server`() {
             val result = SlackSystemPromptFactory.buildToolSummary(
                 mapOf("atlassian" to listOf("jira_search"))
             )

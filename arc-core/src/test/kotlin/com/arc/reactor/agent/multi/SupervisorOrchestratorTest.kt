@@ -19,7 +19,7 @@ class SupervisorOrchestratorTest {
     inner class SupervisorSetup {
 
         @Test
-        fun `should create worker tools for supervisor agent`() = runTest {
+        fun `supervisor agent에 대해 create worker tools해야 한다`() = runTest {
             val orchestrator = SupervisorOrchestrator()
             val commandSlot = slot<AgentCommand>()
 
@@ -33,7 +33,7 @@ class SupervisorOrchestratorTest {
                 agent
             }
 
-            // Supervisor's system prompt should contain the worker list
+            // Supervisor's system prompt은(는) contain the worker list해야 합니다
             val supervisorPrompt = commandSlot.captured.systemPrompt
             assertTrue(
                 supervisorPrompt.contains("delegate_to_order"),
@@ -46,7 +46,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `should use custom supervisor system prompt`() = runTest {
+        fun `use custom supervisor system prompt해야 한다`() = runTest {
             val customPrompt = "너는 고객 상담 매니저야. 적절한 팀에 전달해."
             val orchestrator = SupervisorOrchestrator(supervisorSystemPrompt = customPrompt)
             val commandSlot = slot<AgentCommand>()
@@ -63,7 +63,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `should return failure for empty nodes`() = runTest {
+        fun `empty nodes에 대해 return failure해야 한다`() = runTest {
             val orchestrator = SupervisorOrchestrator()
             val result = orchestrator.execute(baseCommand, emptyList()) { node ->
                 mockk<AgentExecutor>()
@@ -77,7 +77,7 @@ class SupervisorOrchestratorTest {
     inner class WorkerAgentToolTest {
 
         @Test
-        fun `should delegate instruction to worker agent`() = runTest {
+        fun `delegate instruction to worker agent해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             val workerAgent = mockk<AgentExecutor>()
             coEvery { workerAgent.execute(capture(commandSlot)) } returns
@@ -94,7 +94,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `should return error when worker fails`() = runTest {
+        fun `worker fails일 때 return error해야 한다`() = runTest {
             val workerAgent = mockk<AgentExecutor>()
             coEvery { workerAgent.execute(any()) } returns AgentResult.failure("서비스 오류")
 
@@ -110,7 +110,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `should return error when instruction is missing`() = runTest {
+        fun `instruction is missing일 때 return error해야 한다`() = runTest {
             val workerAgent = mockk<AgentExecutor>()
             val node = AgentNode("worker", systemPrompt = "")
             val tool = WorkerAgentTool(node, workerAgent)
@@ -124,7 +124,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `should have correct tool name and description`() {
+        fun `have correct tool name and description해야 한다`() {
             val workerAgent = mockk<AgentExecutor>()
             val node = AgentNode("refund", systemPrompt = "", description = "환불 처리 담당")
             val tool = WorkerAgentTool(node, workerAgent)
@@ -137,7 +137,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `should use default worker timeout instead of tool call timeout`() {
+        fun `use default worker timeout instead of tool call timeout해야 한다`() {
             val workerAgent = mockk<AgentExecutor>()
             val node = AgentNode("worker", systemPrompt = "")
             val tool = WorkerAgentTool(node, workerAgent)
@@ -154,7 +154,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `should allow custom worker timeout`() {
+        fun `allow custom worker timeout해야 한다`() {
             val workerAgent = mockk<AgentExecutor>()
             val node = AgentNode("worker", systemPrompt = "")
             val tool = WorkerAgentTool(node, workerAgent, workerTimeoutMs = 60_000L)
@@ -167,7 +167,7 @@ class SupervisorOrchestratorTest {
     inner class MetadataPropagation {
 
         @Test
-        fun `WorkerAgentTool should propagate parent metadata to worker command`() = runTest {
+        fun `WorkerAgentTool은(는) propagate parent metadata to worker command해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             val workerAgent = mockk<AgentExecutor>()
             coEvery { workerAgent.execute(capture(commandSlot)) } returns
@@ -197,14 +197,14 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `WorkerAgentTool without parentCommand should have empty metadata`() = runTest {
+        fun `WorkerAgentTool without parentCommand은(는) have empty metadata해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             val workerAgent = mockk<AgentExecutor>()
             coEvery { workerAgent.execute(capture(commandSlot)) } returns
                 AgentResult.success("done")
 
             val node = AgentNode("worker", systemPrompt = "Do work")
-            val tool = WorkerAgentTool(node, workerAgent) // no parentCommand
+            val tool = WorkerAgentTool(node, workerAgent)  // parentCommand 없음
 
             tool.call(mapOf("instruction" to "process this"))
 
@@ -215,7 +215,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `SupervisorOrchestrator should propagate metadata through WorkerAgentTools`() = runTest {
+        fun `SupervisorOrchestrator은(는) propagate metadata through WorkerAgentTools해야 한다`() = runTest {
             val orchestrator = SupervisorOrchestrator()
             val parentCommand = AgentCommand(
                 systemPrompt = "",
@@ -240,7 +240,7 @@ class SupervisorOrchestratorTest {
                 agent
             }
 
-            // Supervisor itself should inherit metadata via command.copy()
+            // Supervisor itself은(는) inherit metadata via command.copy()해야 합니다
             val supervisorCmd = supervisorCommandSlot.captured
             assertEquals("enterprise-corp", supervisorCmd.metadata["tenantId"],
                 "Supervisor command should carry parent tenantId")
@@ -253,7 +253,7 @@ class SupervisorOrchestratorTest {
     inner class PerNodeTimeout {
 
         @Test
-        fun `WorkerAgentTool should use node timeout when specified`() {
+        fun `WorkerAgentTool은(는) use node timeout when specified해야 한다`() {
             val workerAgent = mockk<AgentExecutor>()
             val node = AgentNode("worker", systemPrompt = "", timeoutMs = 60_000L)
             val tool = WorkerAgentTool(
@@ -266,7 +266,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `WorkerAgentTool should fall back to default when node timeout is null`() {
+        fun `WorkerAgentTool은(는) fall back to default when node timeout is null해야 한다`() {
             val workerAgent = mockk<AgentExecutor>()
             val node = AgentNode("worker", systemPrompt = "", timeoutMs = null)
             val tool = WorkerAgentTool(
@@ -283,7 +283,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `SupervisorOrchestrator should pass node timeout to WorkerAgentTool`() = runTest {
+        fun `SupervisorOrchestrator은(는) pass node timeout to WorkerAgentTool해야 한다`() = runTest {
             val orchestrator = SupervisorOrchestrator()
             val node = AgentNode(
                 "timed-worker",
@@ -300,7 +300,7 @@ class SupervisorOrchestratorTest {
                 agent
             }
 
-            // Verify the supervisor was called (indirect validation that the orchestrator ran)
+            // the supervisor was called (indirect validation that the orchestrator ran) 확인
             assertTrue(commandSlot.isCaptured, "Supervisor agent should have been called")
         }
     }
@@ -309,7 +309,7 @@ class SupervisorOrchestratorTest {
     inner class BuilderIntegration {
 
         @Test
-        fun `should build sequential pipeline via builder`() = runTest {
+        fun `build sequential pipeline via builder해야 한다`() = runTest {
             val result = MultiAgent.sequential()
                 .node("A") {
                     systemPrompt = "You are A"
@@ -328,7 +328,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `should set timeout via builder`() = runTest {
+        fun `set timeout via builder해야 한다`() = runTest {
             val result = MultiAgent.sequential()
                 .node("A") {
                     systemPrompt = "You are A"
@@ -349,7 +349,7 @@ class SupervisorOrchestratorTest {
         }
 
         @Test
-        fun `should build parallel pipeline via builder`() = runTest {
+        fun `build parallel pipeline via builder해야 한다`() = runTest {
             val result = MultiAgent.parallel()
                 .node("X") { systemPrompt = "" }
                 .node("Y") { systemPrompt = "" }

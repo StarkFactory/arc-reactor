@@ -14,7 +14,7 @@ class JwtSecretValidatorTest {
 
         @Test
         @Tag("regression")
-        fun `should fail fast on startup when auth enabled with empty JWT secret`() {
+        fun `auth enabled with empty JWT secret일 때 fail fast on startup해야 한다`() {
             val exception = assertThrows(IllegalStateException::class.java) {
                 JwtSecretValidator("")
             }
@@ -31,7 +31,7 @@ class JwtSecretValidatorTest {
     inner class ShortSecret {
 
         @Test
-        fun `should throw IllegalStateException for secret shorter than 32 bytes`() {
+        fun `secret shorter than 32 bytes에 대해 throw IllegalStateException해야 한다`() {
             val exception = assertThrows(IllegalStateException::class.java) {
                 JwtSecretValidator("too-short")
             }
@@ -42,7 +42,7 @@ class JwtSecretValidatorTest {
 
         @Test
         @Tag("regression")
-        fun `should fail fast on startup when auth enabled with 31-byte JWT secret`() {
+        fun `auth enabled with 31-byte JWT secret일 때 fail fast on startup해야 한다`() {
             assertThrows(IllegalStateException::class.java) {
                 JwtSecretValidator("a".repeat(31))
             }
@@ -53,14 +53,14 @@ class JwtSecretValidatorTest {
     inner class ValidSecret {
 
         @Test
-        fun `should not throw for secret of exactly 32 bytes`() {
+        fun `secret of exactly 32 bytes에 대해 not throw해야 한다`() {
             assertDoesNotThrow({
                 JwtSecretValidator("a".repeat(32))
             }) { "Validator should accept a 32-byte secret without throwing" }
         }
 
         @Test
-        fun `should not throw for secret longer than 32 bytes`() {
+        fun `secret longer than 32 bytes에 대해 not throw해야 한다`() {
             assertDoesNotThrow({
                 JwtSecretValidator("arc-reactor-test-jwt-secret-key-at-least-32-chars-long")
             }) { "Validator should accept a long secret without throwing" }

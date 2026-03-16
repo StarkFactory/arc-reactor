@@ -30,7 +30,7 @@ class StructuredOutputTest {
     inner class TextFormat {
 
         @Test
-        fun `TEXT format should not modify system prompt`() = runBlocking {
+        fun `TEXT format은(는) not modify system prompt해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
 
@@ -63,7 +63,7 @@ class StructuredOutputTest {
     inner class JsonFormat {
 
         @Test
-        fun `JSON format should add enhanced JSON instruction to system prompt`() = runBlocking {
+        fun `JSON format은(는) add enhanced JSON instruction to system prompt해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
 
@@ -89,7 +89,7 @@ class StructuredOutputTest {
         }
 
         @Test
-        fun `JSON format with schema should include schema in system prompt`() = runBlocking {
+        fun `JSON format with schema은(는) include schema in system prompt해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
 
@@ -113,7 +113,7 @@ class StructuredOutputTest {
         }
 
         @Test
-        fun `valid JSON should pass through without repair`() = runBlocking {
+        fun `valid JSON은(는) pass through without repair해야 한다`() = runBlocking {
             every { fixture.callResponseSpec.chatResponse() } returns
                 AgentTestFixture.simpleChatResponse("""{"name": "Arc", "version": "1.0"}""")
 
@@ -132,7 +132,7 @@ class StructuredOutputTest {
         }
 
         @Test
-        fun `JSON wrapped in markdown code fence should be stripped`() = runBlocking {
+        fun `JSON wrapped in markdown code fence은(는) be stripped해야 한다`() = runBlocking {
             val wrappedJson = "```json\n{\"name\": \"Arc\"}\n```"
             every { fixture.callResponseSpec.chatResponse() } returns
                 AgentTestFixture.simpleChatResponse(wrappedJson)
@@ -152,7 +152,7 @@ class StructuredOutputTest {
         }
 
         @Test
-        fun `invalid JSON should trigger repair and succeed if repair returns valid JSON`() = runBlocking {
+        fun `invalid JSON은(는) trigger repair and succeed if repair returns valid JSON해야 한다`() = runBlocking {
             // First call returns invalid JSON
             every { fixture.callResponseSpec.chatResponse() } returns
                 AgentTestFixture.simpleChatResponse("{invalid json here")
@@ -182,8 +182,8 @@ class StructuredOutputTest {
         }
 
         @Test
-        fun `invalid JSON that cannot be repaired should return INVALID_RESPONSE`() = runBlocking {
-            // Both original and repair return invalid JSON
+        fun `invalid JSON that cannot be repaired은(는) return INVALID_RESPONSE해야 한다`() = runBlocking {
+            // 두 original and repair return invalid JSON
             every { fixture.callResponseSpec.chatResponse() } returnsMany listOf(
                 AgentTestFixture.simpleChatResponse("this is not json at all"),
                 AgentTestFixture.simpleChatResponse("still not json")
@@ -204,7 +204,7 @@ class StructuredOutputTest {
         }
 
         @Test
-        fun `JSON array should be valid`() = runBlocking {
+        fun `JSON array은(는) be valid해야 한다`() = runBlocking {
             every { fixture.callResponseSpec.chatResponse() } returns
                 AgentTestFixture.simpleChatResponse("""[{"id": 1}, {"id": 2}]""")
 
@@ -227,7 +227,7 @@ class StructuredOutputTest {
     inner class YamlFormat {
 
         @Test
-        fun `YAML format should add YAML instruction to system prompt`() = runBlocking {
+        fun `YAML format은(는) add YAML instruction to system prompt해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             every { fixture.callResponseSpec.chatResponse() } returns
@@ -250,7 +250,7 @@ class StructuredOutputTest {
         }
 
         @Test
-        fun `YAML format with schema should include structure hint`() = runBlocking {
+        fun `YAML format with schema은(는) include structure hint해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             every { fixture.callResponseSpec.chatResponse() } returns
@@ -275,7 +275,7 @@ class StructuredOutputTest {
         }
 
         @Test
-        fun `valid YAML should pass through without repair`() = runBlocking {
+        fun `valid YAML은(는) pass through without repair해야 한다`() = runBlocking {
             val yamlContent = "name: Arc\nversion: 1.0\nfeatures:\n  - agents\n  - tools"
             every { fixture.callResponseSpec.chatResponse() } returns
                 AgentTestFixture.simpleChatResponse(yamlContent)
@@ -295,7 +295,7 @@ class StructuredOutputTest {
         }
 
         @Test
-        fun `YAML wrapped in code fence should be stripped`() = runBlocking {
+        fun `YAML wrapped in code fence은(는) be stripped해야 한다`() = runBlocking {
             val wrappedYaml = "```yaml\nname: Arc\nversion: 1.0\n```"
             every { fixture.callResponseSpec.chatResponse() } returns
                 AgentTestFixture.simpleChatResponse(wrappedYaml)
@@ -315,7 +315,7 @@ class StructuredOutputTest {
         }
 
         @Test
-        fun `streaming mode should reject YAML format`() = runBlocking {
+        fun `streaming mode은(는) reject YAML format해야 한다`() = runBlocking {
             val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
             val chunks = executor.executeStream(
@@ -338,7 +338,7 @@ class StructuredOutputTest {
     inner class StreamingMode {
 
         @Test
-        fun `streaming mode should reject JSON format`() = runBlocking {
+        fun `streaming mode은(는) reject JSON format해야 한다`() = runBlocking {
             val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
             val chunks = executor.executeStream(
@@ -355,7 +355,7 @@ class StructuredOutputTest {
         }
 
         @Test
-        fun `streaming mode should include format name in error message`() = runBlocking {
+        fun `streaming mode은(는) include format name in error message해야 한다`() = runBlocking {
             val executor = SpringAiAgentExecutor(chatClient = fixture.chatClient, properties = properties)
 
             val jsonChunks = executor.executeStream(

@@ -73,7 +73,7 @@ class PromptLabControllerTest {
     inner class ExperimentCrud {
 
         @Test
-        fun `POST should create experiment`() {
+        fun `POST은(는) create experiment해야 한다`() {
             every { experimentStore.save(any()) } answers { firstArg() }
             val request = CreateExperimentRequest(
                 name = "Test Experiment",
@@ -91,7 +91,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `POST should reject non-admin users`() {
+        fun `POST은(는) reject non-admin users해야 한다`() {
             val request = CreateExperimentRequest(
                 name = "Test",
                 templateId = "tmpl-1",
@@ -106,7 +106,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `GET should list experiments`() {
+        fun `GET은(는) list experiments해야 한다`() {
             every { experimentStore.list(null, null) } returns listOf(buildExperiment())
 
             val response = controller.listExperiments(null, null, adminExchange())
@@ -115,7 +115,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `GET {id} should return experiment details`() {
+        fun `GET {id}은(는) return experiment details해야 한다`() {
             every { experimentStore.get("exp-1") } returns buildExperiment()
 
             val response = controller.getExperiment("exp-1", adminExchange())
@@ -124,7 +124,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `GET {id} should return 404 for unknown experiment`() {
+        fun `GET {id}은(는) return 404 for unknown experiment해야 한다`() {
             every { experimentStore.get("unknown") } returns null
 
             val response = controller.getExperiment("unknown", adminExchange())
@@ -133,7 +133,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `DELETE should remove experiment`() {
+        fun `DELETE은(는) remove experiment해야 한다`() {
             val response = controller.deleteExperiment("exp-1", adminExchange())
 
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) { "Should return 204" }
@@ -145,7 +145,7 @@ class PromptLabControllerTest {
     inner class ExperimentExecution {
 
         @Test
-        fun `POST run should accept PENDING experiment`() {
+        fun `POST run은(는) accept PENDING experiment해야 한다`() {
             every { experimentStore.get("exp-1") } returns buildExperiment(
                 status = ExperimentStatus.PENDING
             )
@@ -156,7 +156,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `POST run should reject non-PENDING experiment`() {
+        fun `POST run은(는) reject non-PENDING experiment해야 한다`() {
             every { experimentStore.get("exp-1") } returns buildExperiment(
                 status = ExperimentStatus.COMPLETED
             )
@@ -167,7 +167,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `POST cancel should cancel RUNNING experiment`() {
+        fun `POST cancel은(는) cancel RUNNING experiment해야 한다`() {
             every { experimentStore.get("exp-1") } returns buildExperiment(
                 status = ExperimentStatus.RUNNING
             )
@@ -179,7 +179,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `POST cancel should reject non-RUNNING experiment`() {
+        fun `POST cancel은(는) reject non-RUNNING experiment해야 한다`() {
             every { experimentStore.get("exp-1") } returns buildExperiment(
                 status = ExperimentStatus.PENDING
             )
@@ -190,7 +190,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `GET status should return experiment status`() {
+        fun `GET status은(는) return experiment status해야 한다`() {
             every { experimentStore.get("exp-1") } returns buildExperiment(
                 status = ExperimentStatus.COMPLETED
             )
@@ -203,7 +203,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `GET status should reject non-admin users`() {
+        fun `GET status은(는) reject non-admin users해야 한다`() {
             val response = controller.getStatus("exp-1", userExchange())
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403" }
@@ -214,7 +214,7 @@ class PromptLabControllerTest {
     inner class ReportAndTrials {
 
         @Test
-        fun `GET trials should return trial data`() {
+        fun `GET trials은(는) return trial data해야 한다`() {
             every { experimentStore.getTrials("exp-1") } returns listOf(buildTrial())
 
             val response = controller.getTrials("exp-1", adminExchange())
@@ -223,7 +223,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `GET report should return report data`() {
+        fun `GET report은(는) return report data해야 한다`() {
             every { experimentStore.getReport("exp-1") } returns buildReport()
 
             val response = controller.getReport("exp-1", adminExchange())
@@ -233,7 +233,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `GET report should return 404 when no report`() {
+        fun `GET report은(는) return 404 when no report해야 한다`() {
             every { experimentStore.getReport("exp-1") } returns null
 
             val response = controller.getReport("exp-1", adminExchange())
@@ -246,7 +246,7 @@ class PromptLabControllerTest {
     inner class Automation {
 
         @Test
-        fun `POST auto-optimize should start pipeline`() {
+        fun `POST auto-optimize은(는) start pipeline해야 한다`() {
             val request = AutoOptimizeRequest(templateId = "tmpl-1")
 
             val response = controller.autoOptimize(request, adminExchange())
@@ -255,12 +255,12 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `POST auto-optimize should return 429 when max concurrent experiments reached`() {
+        fun `POST auto-optimize은(는) return 429 when max concurrent experiments reached해야 한다`() {
             val limitedController = PromptLabController(
                 experimentStore, orchestrator, feedbackAnalyzer, promptTemplateStore,
                 PromptLabProperties(maxConcurrentExperiments = 1)
             )
-            // Fill the single slot
+            // the single slot를 채웁니다
             limitedController.autoOptimize(AutoOptimizeRequest(templateId = "tmpl-1"), adminExchange())
 
             val response = limitedController.autoOptimize(
@@ -271,13 +271,13 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `POST run should return 429 when max concurrent experiments reached`() {
+        fun `POST run은(는) return 429 when max concurrent experiments reached해야 한다`() {
             val limitedController = PromptLabController(
                 experimentStore, orchestrator, feedbackAnalyzer, promptTemplateStore,
                 PromptLabProperties(maxConcurrentExperiments = 1)
             )
             every { experimentStore.get(any()) } returns buildExperiment(status = ExperimentStatus.PENDING)
-            // Fill the single slot
+            // the single slot를 채웁니다
             limitedController.runExperiment("exp-1", adminExchange())
 
             val response = limitedController.runExperiment("exp-2", adminExchange())
@@ -286,7 +286,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `POST analyze should return feedback analysis`() = runTest {
+        fun `POST analyze은(는) return feedback analysis해야 한다`() = runTest {
             coEvery { feedbackAnalyzer.analyze("tmpl-1", null, 50) } returns FeedbackAnalysis(
                 totalFeedback = 10,
                 negativeCount = 5,
@@ -307,7 +307,7 @@ class PromptLabControllerTest {
     inner class ActivateRecommended {
 
         @Test
-        fun `POST activate should activate recommended version`() {
+        fun `POST activate은(는) activate recommended version해야 한다`() {
             every { experimentStore.get("exp-1") } returns buildExperiment()
             every { experimentStore.getReport("exp-1") } returns buildReport()
             every {
@@ -323,7 +323,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `POST activate should return 404 for unknown experiment`() {
+        fun `POST activate은(는) return 404 for unknown experiment해야 한다`() {
             every { experimentStore.get("unknown") } returns null
 
             val response = controller.activateRecommended("unknown", adminExchange())
@@ -332,7 +332,7 @@ class PromptLabControllerTest {
         }
 
         @Test
-        fun `POST activate should return 400 when no report available`() {
+        fun `POST activate은(는) return 400 when no report available해야 한다`() {
             every { experimentStore.get("exp-1") } returns buildExperiment()
             every { experimentStore.getReport("exp-1") } returns null
 

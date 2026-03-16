@@ -63,7 +63,7 @@ class InMemoryExperimentStoreStressTest {
     inner class ConcurrentAccess {
 
         @Test
-        fun `should handle concurrent saves without data loss`() {
+        fun `handle concurrent saves without data loss해야 한다`() {
             val store = InMemoryExperimentStore()
             val threadCount = 20
             val opsPerThread = 50
@@ -90,14 +90,14 @@ class InMemoryExperimentStoreStressTest {
                 latch.await(30, TimeUnit.SECONDS)
 
                 errors.get() shouldBe 0 // "No errors during concurrent saves"
-                store.list().size shouldBe threadCount * opsPerThread // "All experiments should be saved"
+                store.list().size shouldBe threadCount * opsPerThread  // "All experiments은(는) be saved"해야 합니다
             } finally {
                 executor.shutdownNow()
             }
         }
 
         @Test
-        fun `should handle concurrent trial appends safely`() {
+        fun `handle concurrent trial appends safely해야 한다`() {
             val store = InMemoryExperimentStore()
             val expId = "exp-concurrent"
             store.save(experiment(id = expId))
@@ -122,14 +122,14 @@ class InMemoryExperimentStoreStressTest {
                 }
                 latch.await(30, TimeUnit.SECONDS)
 
-                store.getTrials(expId).size shouldBe threadCount * trialsPerThread // "All trials should be appended"
+                store.getTrials(expId).size shouldBe threadCount * trialsPerThread  // "All trials은(는) be appended"해야 합니다
             } finally {
                 executor.shutdownNow()
             }
         }
 
         @Test
-        fun `should handle concurrent read and write mix`() {
+        fun `handle concurrent read and write mix해야 한다`() {
             val store = InMemoryExperimentStore()
             val threadCount = 16
             val barrier = CyclicBarrier(threadCount)
@@ -172,11 +172,11 @@ class InMemoryExperimentStoreStressTest {
     inner class EvictionUnderLoad {
 
         @Test
-        fun `should evict oldest completed experiments when capacity exceeded`() {
+        fun `capacity exceeded일 때 evict oldest completed experiments해야 한다`() {
             val maxEntries = 50
             val store = InMemoryExperimentStore(maxEntries = maxEntries)
 
-            // Fill with completed experiments
+            // with completed experiments를 채웁니다
             for (i in 0 until maxEntries) {
                 store.save(
                     experiment(
@@ -188,7 +188,7 @@ class InMemoryExperimentStoreStressTest {
             }
             store.list().size shouldBe maxEntries // "Should be at capacity"
 
-            // Add more experiments — should trigger eviction
+            // Add more experiments —은(는) trigger eviction해야 합니다
             for (i in 0 until 20) {
                 store.save(experiment(id = "new-$i", status = ExperimentStatus.PENDING))
             }
@@ -197,15 +197,15 @@ class InMemoryExperimentStoreStressTest {
         }
 
         @Test
-        fun `should not evict running experiments during eviction`() {
+        fun `not evict running experiments during eviction해야 한다`() {
             val maxEntries = 10
             val store = InMemoryExperimentStore(maxEntries = maxEntries)
 
-            // Add running experiments
+            // running experiments를 추가합니다
             for (i in 0 until 5) {
                 store.save(experiment(id = "running-$i", status = ExperimentStatus.RUNNING))
             }
-            // Add completed experiments
+            // completed experiments를 추가합니다
             for (i in 0 until 5) {
                 store.save(
                     experiment(
@@ -216,12 +216,12 @@ class InMemoryExperimentStoreStressTest {
                 )
             }
 
-            // Add 5 more to trigger eviction
+            // 5 more to trigger eviction를 추가합니다
             for (i in 0 until 5) {
                 store.save(experiment(id = "new-$i"))
             }
 
-            // All running experiments should still be present
+            // All running experiments은(는) still be present해야 합니다
             for (i in 0 until 5) {
                 store.get("running-$i") shouldBe experiment(
                     id = "running-$i",
@@ -231,11 +231,11 @@ class InMemoryExperimentStoreStressTest {
         }
 
         @Test
-        fun `should delete trials and reports during eviction`() {
+        fun `delete trials and reports during eviction해야 한다`() {
             val maxEntries = 5
             val store = InMemoryExperimentStore(maxEntries = maxEntries)
 
-            // Add experiments with trials and reports
+            // experiments with trials and reports를 추가합니다
             for (i in 0 until maxEntries) {
                 val id = "exp-$i"
                 store.save(
@@ -249,19 +249,19 @@ class InMemoryExperimentStoreStressTest {
                 store.saveReport(id, report(id))
             }
 
-            // Trigger eviction
+            // eviction를 트리거합니다
             store.save(experiment(id = "new-1"))
             store.save(experiment(id = "new-2"))
 
-            // Evicted experiments should have no trials or reports
+            // Evicted experiments은(는) have no trials or reports해야 합니다
             val evictedId = "exp-0" // oldest
-            store.get(evictedId) shouldBe null // "Evicted experiment should be gone"
-            store.getTrials(evictedId).size shouldBe 0 // "Evicted trials should be cleaned"
-            store.getReport(evictedId) shouldBe null // "Evicted report should be cleaned"
+            store.get(evictedId) shouldBe null  // "Evicted experiment은(는) be gone"해야 합니다
+            store.getTrials(evictedId).size shouldBe 0  // "Evicted trials은(는) be cleaned"해야 합니다
+            store.getReport(evictedId) shouldBe null  // "Evicted report은(는) be cleaned"해야 합니다
         }
 
         @Test
-        fun `should handle concurrent saves with eviction pressure`() {
+        fun `eviction pressure로 handle concurrent saves해야 한다`() {
             val maxEntries = 100
             val store = InMemoryExperimentStore(maxEntries = maxEntries)
             val threadCount = 8
@@ -277,7 +277,7 @@ class InMemoryExperimentStoreStressTest {
                         try {
                             barrier.await(5, TimeUnit.SECONDS)
                             for (i in 0 until opsPerThread) {
-                                // All COMPLETED so they can be evicted
+                                // 모든 COMPLETED so they can be evicted
                                 store.save(experiment(id = "stress-$t-$i", status = ExperimentStatus.COMPLETED))
                             }
                         } catch (e: Exception) {

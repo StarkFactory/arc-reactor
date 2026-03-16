@@ -77,7 +77,7 @@ class FeedbackControllerTest {
     inner class SubmitFeedback {
 
         @Test
-        fun `should return 201 with created feedback`() = runTest {
+        fun `created feedback로 return 201해야 한다`() = runTest {
             val slot = slot<Feedback>()
             every { feedbackStore.save(capture(slot)) } answers { slot.captured }
             every { metadataCaptureHook.get(any()) } returns null
@@ -98,7 +98,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should return 400 for invalid rating`() = runTest {
+        fun `invalid rating에 대해 return 400해야 한다`() = runTest {
             val request = SubmitFeedbackRequest(rating = "invalid_rating")
             val exception = assertThrows(ServerWebInputException::class.java) {
                 controller.submitFeedback(request, noAuthExchange())
@@ -109,7 +109,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should auto-enrich from metadata when runId provided`() = runTest {
+        fun `runId provided일 때 auto-enrich from metadata해야 한다`() = runTest {
             val metadata = CapturedExecutionMetadata(
                 runId = "run-42",
                 userId = "user-7",
@@ -142,7 +142,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should prefer explicit values over metadata`() = runTest {
+        fun `prefer explicit values over metadata해야 한다`() = runTest {
             val metadata = CapturedExecutionMetadata(
                 runId = "run-1",
                 userId = "meta-user",
@@ -178,7 +178,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should accept uppercase rating`() = runTest {
+        fun `accept uppercase rating해야 한다`() = runTest {
             val slot = slot<Feedback>()
             every { feedbackStore.save(capture(slot)) } answers { slot.captured }
             every { metadataCaptureHook.get(any()) } returns null
@@ -195,7 +195,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should accept rating with surrounding spaces`() = runTest {
+        fun `surrounding spaces로 accept rating해야 한다`() = runTest {
             val slot = slot<Feedback>()
             every { feedbackStore.save(capture(slot)) } answers { slot.captured }
             every { metadataCaptureHook.get(any()) } returns null
@@ -218,7 +218,7 @@ class FeedbackControllerTest {
     inner class ListFeedback {
 
         @Test
-        fun `should return feedback list for admin`() = runTest {
+        fun `admin에 대해 return feedback list해야 한다`() = runTest {
             every {
                 feedbackStore.list(
                     rating = null, from = null, to = null,
@@ -241,7 +241,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin user`() = runTest {
+        fun `non-admin user에 대해 return 403해야 한다`() = runTest {
             val response = controller.listFeedback(
                 rating = null, from = null, to = null,
                 intent = null, sessionId = null, templateId = null,
@@ -253,7 +253,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should pass filter parameters to store`() = runTest {
+        fun `pass filter parameters to store해야 한다`() = runTest {
             every {
                 feedbackStore.list(
                     rating = FeedbackRating.THUMBS_DOWN,
@@ -290,7 +290,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should parse rating filter with surrounding spaces`() = runTest {
+        fun `surrounding spaces로 parse rating filter해야 한다`() = runTest {
             every {
                 feedbackStore.list(
                     rating = FeedbackRating.THUMBS_UP,
@@ -327,7 +327,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should reject list when role is missing`() = runTest {
+        fun `role is missing일 때 reject list해야 한다`() = runTest {
             every {
                 feedbackStore.list(
                     rating = null, from = null, to = null,
@@ -352,7 +352,7 @@ class FeedbackControllerTest {
     inner class ExportFeedback {
 
         @Test
-        fun `should return export in eval-testing format for admin`() = runTest {
+        fun `admin에 대해 return export in eval-testing format해야 한다`() = runTest {
             every { feedbackStore.list() } returns listOf(sampleFeedback())
 
             val response = controller.exportFeedback(adminExchange())
@@ -370,7 +370,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin user`() = runTest {
+        fun `non-admin user에 대해 return 403해야 한다`() = runTest {
             val response = controller.exportFeedback(userExchange())
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
@@ -381,7 +381,7 @@ class FeedbackControllerTest {
     inner class GetFeedback {
 
         @Test
-        fun `should return feedback by ID`() = runTest {
+        fun `return feedback by ID해야 한다`() = runTest {
             every { feedbackStore.get("fb-1") } returns sampleFeedback()
 
             val response = controller.getFeedback("fb-1")
@@ -394,7 +394,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should return 404 for nonexistent feedback`() = runTest {
+        fun `nonexistent feedback에 대해 return 404해야 한다`() = runTest {
             every { feedbackStore.get("nonexistent") } returns null
 
             val response = controller.getFeedback("nonexistent")
@@ -407,7 +407,7 @@ class FeedbackControllerTest {
     inner class DeleteFeedback {
 
         @Test
-        fun `should return 204 on successful deletion for admin`() = runTest {
+        fun `admin에 대해 return 204 on successful deletion해야 한다`() = runTest {
             every { feedbackStore.delete("fb-1") } returns Unit
 
             val response = controller.deleteFeedback("fb-1", adminExchange())
@@ -416,14 +416,14 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin user`() = runTest {
+        fun `non-admin user에 대해 return 403해야 한다`() = runTest {
             val response = controller.deleteFeedback("fb-1", userExchange())
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
 
         @Test
-        fun `should call store delete with correct feedbackId`() = runTest {
+        fun `correct feedbackId로 call store delete해야 한다`() = runTest {
             every { feedbackStore.delete(any()) } returns Unit
 
             controller.deleteFeedback("target-fb", adminExchange())
@@ -436,7 +436,7 @@ class FeedbackControllerTest {
     inner class InvalidTimestampHandling {
 
         @Test
-        fun `should return 400 for invalid from timestamp`() = runTest {
+        fun `invalid from timestamp에 대해 return 400해야 한다`() = runTest {
             val exception = assertThrows(ServerWebInputException::class.java) {
                 controller.listFeedback(
                     rating = null,
@@ -455,7 +455,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should return 400 for invalid to timestamp`() = runTest {
+        fun `invalid to timestamp에 대해 return 400해야 한다`() = runTest {
             val exception = assertThrows(ServerWebInputException::class.java) {
                 controller.listFeedback(
                     rating = null,
@@ -474,7 +474,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should return 400 for invalid rating in list`() = runTest {
+        fun `invalid rating in list에 대해 return 400해야 한다`() = runTest {
             val exception = assertThrows(ServerWebInputException::class.java) {
                 controller.listFeedback(
                     rating = "five_stars",
@@ -497,7 +497,7 @@ class FeedbackControllerTest {
     inner class MetadataFallback {
 
         @Test
-        fun `should use empty defaults when runId has no cached metadata`() = runTest {
+        fun `runId has no cached metadata일 때 use empty defaults해야 한다`() = runTest {
             every { metadataCaptureHook.get("expired-run") } returns null
 
             val slot = slot<Feedback>()
@@ -516,7 +516,7 @@ class FeedbackControllerTest {
         }
 
         @Test
-        fun `should work without runId at all`() = runTest {
+        fun `work without runId at all해야 한다`() = runTest {
             val slot = slot<Feedback>()
             every { feedbackStore.save(capture(slot)) } answers { slot.captured }
 

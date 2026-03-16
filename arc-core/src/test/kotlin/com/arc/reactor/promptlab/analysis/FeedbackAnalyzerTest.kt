@@ -57,7 +57,7 @@ class FeedbackAnalyzerTest {
     inner class AnalyzeWithFeedback {
 
         @Test
-        fun `should analyze negative feedback and return weaknesses`() = runTest {
+        fun `analyze negative feedback and return weaknesses해야 한다`() = runTest {
             val feedback = listOf(
                 createFeedback(id = "fb-1", comment = "Too short"),
                 createFeedback(id = "fb-2", query = "Where are the docs?", comment = "No sources")
@@ -78,13 +78,13 @@ class FeedbackAnalyzerTest {
             result.totalFeedback shouldBe 4 // "Should count all feedback"
             result.negativeCount shouldBe 2 // "Should count negative feedback"
             result.weaknesses shouldHaveSize 2 // "Should identify 2 weakness categories"
-            result.weaknesses[0].category shouldBe "short_answer" // "First weakness should be short_answer"
-            result.weaknesses[1].category shouldBe "missing_sources" // "Second weakness should be missing_sources"
-            result.weaknesses[0].frequency shouldBe 2 // "Frequency should match"
+            result.weaknesses[0].category shouldBe "short_answer"  // "First weakness은(는) be short_answer"해야 합니다
+            result.weaknesses[1].category shouldBe "missing_sources"  // "Second weakness은(는) be missing_sources"해야 합니다
+            result.weaknesses[0].frequency shouldBe 2  // "Frequency은(는) match"해야 합니다
         }
 
         @Test
-        fun `should extract test queries from feedback`() = runTest {
+        fun `extract test queries from feedback해야 한다`() = runTest {
             val feedback = listOf(
                 createFeedback(id = "fb-1", query = "Reset password", intent = "account", domain = "support"),
                 createFeedback(id = "fb-2", query = "Find docs", intent = "docs", domain = "knowledge")
@@ -96,13 +96,13 @@ class FeedbackAnalyzerTest {
             val result = analyzer.analyze("template-1")
 
             result.sampleQueries shouldHaveSize 2 // "Should extract 2 test queries"
-            result.sampleQueries[0].query shouldBe "Reset password" // "First query text should match"
-            result.sampleQueries[0].intent shouldBe "account" // "Intent should be preserved"
-            result.sampleQueries[0].domain shouldBe "support" // "Domain should be preserved"
+            result.sampleQueries[0].query shouldBe "Reset password"  // "First query text은(는) match"해야 합니다
+            result.sampleQueries[0].intent shouldBe "account"  // "Intent은(는) be preserved"해야 합니다
+            result.sampleQueries[0].domain shouldBe "support"  // "Domain은(는) be preserved"해야 합니다
         }
 
         @Test
-        fun `should limit feedback to maxSamples`() = runTest {
+        fun `limit feedback to maxSamples해야 한다`() = runTest {
             val feedback = (1..100).map { createFeedback(id = "fb-$it") }
             every { feedbackStore.list(from = null, templateId = "template-1") } returns feedback
             every { feedbackStore.list(rating = FeedbackRating.THUMBS_DOWN, from = null, templateId = "template-1") } returns feedback
@@ -112,11 +112,11 @@ class FeedbackAnalyzerTest {
 
             result.totalFeedback shouldBe 100 // "Should count all feedback"
             result.negativeCount shouldBe 10 // "Should limit negative to maxSamples"
-            result.sampleQueries shouldHaveSize 10 // "Queries should also be limited"
+            result.sampleQueries shouldHaveSize 10  // "Queries은(는) also be limited"해야 합니다
         }
 
         @Test
-        fun `should pass since parameter to feedbackStore`() = runTest {
+        fun `pass since parameter to feedbackStore해야 한다`() = runTest {
             val since = Instant.parse("2026-01-01T00:00:00Z")
             every { feedbackStore.list(from = since, templateId = "template-1") } returns emptyList()
             every { feedbackStore.list(rating = FeedbackRating.THUMBS_DOWN, from = since, templateId = "template-1") } returns emptyList()
@@ -131,20 +131,20 @@ class FeedbackAnalyzerTest {
     inner class NoNegativeFeedback {
 
         @Test
-        fun `should return empty analysis when no negative feedback exists`() = runTest {
+        fun `no negative feedback exists일 때 return empty analysis해야 한다`() = runTest {
             every { feedbackStore.list(from = null, templateId = "template-1") } returns emptyList()
             every { feedbackStore.list(rating = FeedbackRating.THUMBS_DOWN, from = null, templateId = "template-1") } returns emptyList()
 
             val result = analyzer.analyze("template-1")
 
-            result.totalFeedback shouldBe 0 // "Total should be 0"
-            result.negativeCount shouldBe 0 // "Negative count should be 0"
+            result.totalFeedback shouldBe 0  // "Total은(는) be 0"해야 합니다
+            result.negativeCount shouldBe 0  // "Negative count은(는) be 0"해야 합니다
             result.weaknesses.shouldBeEmpty() // "No weaknesses expected"
             result.sampleQueries.shouldBeEmpty() // "No sample queries expected"
         }
 
         @Test
-        fun `should not call LLM when no negative feedback`() = runTest {
+        fun `no negative feedback일 때 not call LLM해야 한다`() = runTest {
             every { feedbackStore.list(from = null, templateId = "template-1") } returns emptyList()
             every { feedbackStore.list(rating = FeedbackRating.THUMBS_DOWN, from = null, templateId = "template-1") } returns emptyList()
 
@@ -158,41 +158,41 @@ class FeedbackAnalyzerTest {
     inner class LlmErrorHandling {
 
         @Test
-        fun `should return empty weaknesses when LLM returns invalid JSON`() = runTest {
+        fun `LLM returns invalid JSON일 때 return empty weaknesses해야 한다`() = runTest {
             every { feedbackStore.list(from = null, templateId = "template-1") } returns listOf(createFeedback())
             every { feedbackStore.list(rating = FeedbackRating.THUMBS_DOWN, from = null, templateId = "template-1") } returns listOf(createFeedback())
             every { callResponseSpec.content() } returns "not valid json at all"
 
             val result = analyzer.analyze("template-1")
 
-            result.weaknesses.shouldBeEmpty() // "Invalid JSON should result in empty weaknesses"
-            result.sampleQueries shouldHaveSize 1 // "Queries should still be extracted"
+            result.weaknesses.shouldBeEmpty()  // "Invalid JSON은(는) result in empty weaknesses"해야 합니다
+            result.sampleQueries shouldHaveSize 1  // "Queries은(는) still be extracted"해야 합니다
         }
 
         @Test
-        fun `should return empty weaknesses when LLM returns empty response`() = runTest {
+        fun `LLM returns empty response일 때 return empty weaknesses해야 한다`() = runTest {
             every { feedbackStore.list(from = null, templateId = "template-1") } returns listOf(createFeedback())
             every { feedbackStore.list(rating = FeedbackRating.THUMBS_DOWN, from = null, templateId = "template-1") } returns listOf(createFeedback())
             every { callResponseSpec.content() } returns ""
 
             val result = analyzer.analyze("template-1")
 
-            result.weaknesses.shouldBeEmpty() // "Empty response should result in empty weaknesses"
+            result.weaknesses.shouldBeEmpty()  // "Empty response은(는) result in empty weaknesses"해야 합니다
         }
 
         @Test
-        fun `should return empty weaknesses when LLM returns null content`() = runTest {
+        fun `LLM returns null content일 때 return empty weaknesses해야 한다`() = runTest {
             every { feedbackStore.list(from = null, templateId = "template-1") } returns listOf(createFeedback())
             every { feedbackStore.list(rating = FeedbackRating.THUMBS_DOWN, from = null, templateId = "template-1") } returns listOf(createFeedback())
             every { callResponseSpec.content() } returns null
 
             val result = analyzer.analyze("template-1")
 
-            result.weaknesses.shouldBeEmpty() // "Null content should result in empty weaknesses"
+            result.weaknesses.shouldBeEmpty()  // "Null content은(는) result in empty weaknesses"해야 합니다
         }
 
         @Test
-        fun `should handle LLM response wrapped in code fences`() = runTest {
+        fun `handle LLM response wrapped in code fences해야 한다`() = runTest {
             every { feedbackStore.list(from = null, templateId = "template-1") } returns listOf(createFeedback())
             every { feedbackStore.list(rating = FeedbackRating.THUMBS_DOWN, from = null, templateId = "template-1") } returns listOf(createFeedback())
             val wrappedResponse = """
@@ -205,19 +205,19 @@ class FeedbackAnalyzerTest {
             val result = analyzer.analyze("template-1")
 
             result.weaknesses shouldHaveSize 1 // "Should parse JSON inside code fences"
-            result.weaknesses[0].category shouldBe "short_answer" // "Category should match"
+            result.weaknesses[0].category shouldBe "short_answer"  // "Category은(는) match"해야 합니다
         }
 
         @Test
-        fun `should handle LLM call exception gracefully`() = runTest {
+        fun `handle LLM call exception gracefully해야 한다`() = runTest {
             every { feedbackStore.list(from = null, templateId = "template-1") } returns listOf(createFeedback())
             every { feedbackStore.list(rating = FeedbackRating.THUMBS_DOWN, from = null, templateId = "template-1") } returns listOf(createFeedback())
             every { callResponseSpec.content() } throws RuntimeException("API error")
 
             val result = analyzer.analyze("template-1")
 
-            result.weaknesses.shouldBeEmpty() // "Exception should result in empty weaknesses"
-            result.sampleQueries shouldHaveSize 1 // "Queries should still be extracted"
+            result.weaknesses.shouldBeEmpty()  // "Exception은(는) result in empty weaknesses"해야 합니다
+            result.sampleQueries shouldHaveSize 1  // "Queries은(는) still be extracted"해야 합니다
         }
     }
 }

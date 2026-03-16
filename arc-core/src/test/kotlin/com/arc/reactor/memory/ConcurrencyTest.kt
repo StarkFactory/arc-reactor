@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 class ConversationMemoryConcurrencyTest {
 
     @Test
-    fun `concurrent add should not lose messages`() {
+    fun `concurrent add은(는) not lose messages해야 한다`() {
         val memory = InMemoryConversationMemory(maxMessages = 500)
         val threadCount = 100
         val executor = Executors.newFixedThreadPool(threadCount)
@@ -45,7 +45,7 @@ class ConversationMemoryConcurrencyTest {
     }
 
     @Test
-    fun `concurrent add with eviction should maintain max size`() {
+    fun `concurrent add with eviction은(는) maintain max size해야 한다`() {
         val maxMessages = 10
         val memory = InMemoryConversationMemory(maxMessages = maxMessages)
         val threadCount = 100
@@ -79,10 +79,10 @@ class ConversationMemoryConcurrencyTest {
     }
 
     @Test
-    fun `concurrent read and write should not throw`() = runBlocking {
+    fun `concurrent read and write은(는) not throw해야 한다`() = runBlocking {
         val memory = InMemoryConversationMemory(maxMessages = 50)
 
-        // Pre-populate
+        // 미리 채우기
         for (i in 1..20) {
             memory.add(Message(MessageRole.USER, "Initial $i"))
         }
@@ -112,7 +112,7 @@ class ConversationMemoryConcurrencyTest {
 class MemoryStoreConcurrencyTest {
 
     @Test
-    fun `concurrent getOrCreate with different session IDs should not lose sessions`() {
+    fun `concurrent getOrCreate with different session IDs은(는) not lose sessions해야 한다`() {
         val store = InMemoryMemoryStore(maxSessions = 1000)
         val threadCount = 100
         val executor = Executors.newFixedThreadPool(threadCount)
@@ -128,19 +128,19 @@ class MemoryStoreConcurrencyTest {
                 }
             }
 
-            // Release all threads at once for maximum contention
+            // all threads at once for maximum contention를 해제합니다
             readyLatch.await(5, TimeUnit.SECONDS)
             startLatch.countDown()
 
             val results = futures.map { it.get(10, TimeUnit.SECONDS) }
 
-            // Every future should have returned a non-null memory
+            // Every future은(는) have returned a non-null memory해야 합니다
             assertEquals(threadCount, results.size) { "All futures should return results" }
             results.forEachIndexed { index, it ->
                 assertNotNull(it, "Session memory at index $index should not be null")
             }
 
-            // Every session ID should be retrievable from the store
+            // Every session ID은(는) be retrievable from the store해야 합니다
             for (i in 1..threadCount) {
                 assertNotNull(
                     store.get("session-$i"),
@@ -154,7 +154,7 @@ class MemoryStoreConcurrencyTest {
     }
 
     @Test
-    fun `concurrent getOrCreate with same session ID should return same instance`() {
+    fun `concurrent getOrCreate with same session ID은(는) return same instance해야 한다`() {
         val store = InMemoryMemoryStore()
         val threadCount = 50
         val executor = Executors.newFixedThreadPool(threadCount)
@@ -175,7 +175,7 @@ class MemoryStoreConcurrencyTest {
 
             val results = futures.map { it.get(10, TimeUnit.SECONDS) }
 
-            // All threads should receive the exact same ConversationMemory instance
+            // All threads은(는) receive the exact same ConversationMemory instance해야 합니다
             val firstMemory = results[0]
             results.forEach { memory ->
                 assertSame(firstMemory, memory, "All threads must get the same memory instance")
@@ -187,7 +187,7 @@ class MemoryStoreConcurrencyTest {
     }
 
     @Test
-    fun `concurrent eviction with maxSessions should not exceed limit`() {
+    fun `concurrent eviction with maxSessions은(는) not exceed limit해야 한다`() {
         val maxSessions = 10
         val store = InMemoryMemoryStore(maxSessions = maxSessions)
         val totalSessions = 100
@@ -210,7 +210,7 @@ class MemoryStoreConcurrencyTest {
 
             futures.forEach { it.get(10, TimeUnit.SECONDS) }
 
-            // Count surviving sessions
+            // surviving sessions를 세다
             var survivingCount = 0
             for (i in 1..totalSessions) {
                 if (store.get("evict-session-$i") != null) {
@@ -230,7 +230,7 @@ class MemoryStoreConcurrencyTest {
     }
 
     @Test
-    fun `concurrent toolsUsed additions should not throw or lose entries`() = runBlocking {
+    fun `concurrent toolsUsed additions은(는) not throw or lose entries해야 한다`() = runBlocking {
         val context = HookContext(
             runId = "run-1",
             userId = "user-1",
@@ -252,11 +252,11 @@ class MemoryStoreConcurrencyTest {
             "All tool entries should be present without loss"
         )
 
-        // Verify no duplicates were introduced
+        // no duplicates were introduced 확인
         val distinctTools = context.toolsUsed.toSet()
         assertEquals(toolCount, distinctTools.size, "Each tool entry should be unique")
 
-        // Verify all expected tools are present
+        // all expected tools are present 확인
         for (i in 1..toolCount) {
             assertTrue(
                 context.toolsUsed.contains("tool-$i"),
@@ -266,14 +266,14 @@ class MemoryStoreConcurrencyTest {
     }
 
     @Test
-    fun `concurrent toolsUsed iteration during modification should not throw`() = runBlocking {
+    fun `concurrent toolsUsed iteration during modification은(는) not throw해야 한다`() = runBlocking {
         val context = HookContext(
             runId = "run-2",
             userId = "user-2",
             userPrompt = "test prompt"
         )
 
-        // Pre-populate with some tools
+        // with some tools를 미리 채웁니다
         for (i in 1..10) {
             context.toolsUsed.add("initial-tool-$i")
         }
@@ -289,8 +289,8 @@ class MemoryStoreConcurrencyTest {
 
         val readers = (1..readerCount).map {
             async(Dispatchers.Default) {
-                // Iteration over CopyOnWriteArrayList should not throw
-                // ConcurrentModificationException even during concurrent writes
+                // Iteration over CopyOnWriteArrayList은(는) not throw해야 합니다
+                // 동시 쓰기 중에도 ConcurrentModificationException 없음
                 context.toolsUsed.toList()
             }
         }
@@ -298,18 +298,18 @@ class MemoryStoreConcurrencyTest {
         writers.awaitAll()
         val snapshots = readers.awaitAll()
 
-        // All snapshots should be valid lists (no exceptions thrown)
+        // All snapshots은(는) be valid lists (no exceptions thrown)해야 합니다
         snapshots.forEach { snapshot ->
             assertNotNull(snapshot) { "Snapshot from concurrent toolsUsed read should not be null" }
             assertTrue(snapshot.isNotEmpty(), "Snapshots should contain at least initial tools")
         }
 
-        // Final state should contain all tools
+        // Final state은(는) contain all tools해야 합니다
         assertEquals(10 + writerCount, context.toolsUsed.size) { "Should have initial + new tools" }
     }
 
     @Test
-    fun `concurrent metadata writes should not lose entries`() = runBlocking {
+    fun `concurrent metadata writes은(는) not lose entries해야 한다`() = runBlocking {
         val context = HookContext(
             runId = "run-3",
             userId = "user-3",
@@ -331,7 +331,7 @@ class MemoryStoreConcurrencyTest {
             "All metadata entries should be present without loss"
         )
 
-        // Verify every entry is correct
+        // every entry is correct 확인
         for (i in 1..entryCount) {
             assertEquals(
                 "value-$i",
@@ -342,14 +342,14 @@ class MemoryStoreConcurrencyTest {
     }
 
     @Test
-    fun `concurrent metadata reads and writes should not throw`() = runBlocking {
+    fun `concurrent metadata reads and writes은(는) not throw해야 한다`() = runBlocking {
         val context = HookContext(
             runId = "run-4",
             userId = "user-4",
             userPrompt = "test prompt"
         )
 
-        // Pre-populate metadata
+        // metadata를 미리 채웁니다
         for (i in 1..20) {
             context.metadata["existing-$i"] = "value-$i"
         }
@@ -365,7 +365,7 @@ class MemoryStoreConcurrencyTest {
 
         val readers = (1..readerCount).map {
             async(Dispatchers.Default) {
-                // Reading from ConcurrentHashMap during writes should be safe
+                // Reading from ConcurrentHashMap during writes은(는) be safe해야 합니다
                 context.metadata.entries.associate { entry -> entry.key to entry.value }
             }
         }
@@ -373,13 +373,13 @@ class MemoryStoreConcurrencyTest {
         writers.awaitAll()
         val snapshots = readers.awaitAll()
 
-        // All reader snapshots should be valid maps (no exceptions thrown)
+        // All reader snapshots은(는) be valid maps (no exceptions thrown)해야 합니다
         snapshots.forEach { snapshot ->
             assertNotNull(snapshot) { "Snapshot from concurrent metadata read should not be null" }
             assertTrue(snapshot.isNotEmpty(), "Snapshots should contain at least pre-populated entries")
         }
 
-        // Final state should contain all entries
+        // Final state은(는) contain all entries해야 합니다
         assertEquals(20 + writerCount, context.metadata.size) { "Should have pre-populated + new entries" }
 
         for (i in 1..writerCount) {

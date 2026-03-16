@@ -58,7 +58,7 @@ class MetricWriterTest {
     inner class CostEnrichment {
 
         @Test
-        fun `enriches TokenUsageEvent with calculated cost`() {
+        fun `enriches은(는) TokenUsageEvent with calculated cost`() {
             every {
                 costCalculator.calculate(
                     provider = "google",
@@ -78,7 +78,7 @@ class MetricWriterTest {
                 store = store,
                 costCalculator = costCalculator,
                 batchSize = 10,
-                flushIntervalMs = 60000, // long interval — stop() triggers final flush
+                flushIntervalMs = 60000,  // long interval — stop() triggers final flush
                 writerThreads = 1,
                 healthMonitor = healthMonitor
             )
@@ -91,7 +91,7 @@ class MetricWriterTest {
         }
 
         @Test
-        fun `does not enrich when cost already set`() {
+        fun `enrich when cost already set하지 않는다`() {
             val existingCost = BigDecimal("0.005")
             ringBuffer.publish(tokenEvent(cost = existingCost))
 
@@ -111,12 +111,12 @@ class MetricWriterTest {
             val stored = storedEvents[0].shouldBeInstanceOf<TokenUsageEvent>()
             stored.estimatedCostUsd shouldBe existingCost
 
-            // CostCalculator should not have been called
+            // CostCalculator은(는) not have been called해야 합니다
             verify(exactly = 0) { costCalculator.calculate(any(), any(), any(), any(), any(), any(), any()) }
         }
 
         @Test
-        fun `keeps original event when cost calculation returns zero`() {
+        fun `cost calculation returns zero일 때 keeps original event`() {
             every {
                 costCalculator.calculate(any(), any(), any(), any(), any(), any(), any())
             } returns BigDecimal.ZERO
@@ -141,7 +141,7 @@ class MetricWriterTest {
         }
 
         @Test
-        fun `keeps original event when cost calculation throws`() {
+        fun `cost calculation throws일 때 keeps original event`() {
             every {
                 costCalculator.calculate(any(), any(), any(), any(), any(), any(), any())
             } throws RuntimeException("pricing DB down")
@@ -166,7 +166,7 @@ class MetricWriterTest {
         }
 
         @Test
-        fun `passes through non-token events unchanged`() {
+        fun `through non-token events unchanged를 전달한다`() {
             ringBuffer.publish(executionEvent())
 
             val writer = MetricWriter(
@@ -192,7 +192,7 @@ class MetricWriterTest {
     inner class HealthTracking {
 
         @Test
-        fun `records write count and latency on successful flush`() {
+        fun `write count and latency on successful flush를 기록한다`() {
             ringBuffer.publish(executionEvent())
 
             val writer = MetricWriter(
@@ -211,7 +211,7 @@ class MetricWriterTest {
         }
 
         @Test
-        fun `records write error on store failure`() {
+        fun `write error on store failure를 기록한다`() {
             val failStore = object : MetricEventStore {
                 override fun batchInsert(events: List<MetricEvent>) {
                     throw RuntimeException("DB unavailable")
@@ -240,12 +240,12 @@ class MetricWriterTest {
     inner class FlushSerialization {
 
         @Test
-        fun `concurrent flush calls do not cause duplicate events`() {
+        fun `concurrent은(는) flush calls do not cause duplicate events`() {
             every {
                 costCalculator.calculate(any(), any(), any(), any(), any(), any(), any())
             } returns BigDecimal("0.001")
 
-            // Publish 100 events
+            // 100 events 발행
             repeat(100) { i ->
                 ringBuffer.publish(tokenEvent(model = "model-$i"))
             }
@@ -262,7 +262,7 @@ class MetricWriterTest {
             writer.start()
 
             await atMost Duration.ofSeconds(5) untilAsserted {
-                // All events should be stored exactly once (no duplicates)
+                // All events은(는) be stored exactly once (no duplicates)해야 합니다
                 storedEvents.size shouldBe 100
             }
             writer.stop()
@@ -273,7 +273,7 @@ class MetricWriterTest {
     inner class Lifecycle {
 
         @Test
-        fun `start is idempotent`() {
+        fun `start은(는) idempotent이다`() {
             val writer = MetricWriter(
                 ringBuffer = ringBuffer,
                 store = store,
@@ -281,12 +281,12 @@ class MetricWriterTest {
                 healthMonitor = healthMonitor
             )
             writer.start()
-            writer.start() // second call should be no-op
+            writer.start()  // 두 번째 호출은 아무 동작도 하지 않아야 합니다
             writer.stop()
         }
 
         @Test
-        fun `stop is idempotent`() {
+        fun `stop은(는) idempotent이다`() {
             val writer = MetricWriter(
                 ringBuffer = ringBuffer,
                 store = store,
@@ -295,11 +295,11 @@ class MetricWriterTest {
             )
             writer.start()
             writer.stop()
-            writer.stop() // second call should be no-op
+            writer.stop()  // 두 번째 호출은 아무 동작도 하지 않아야 합니다
         }
 
         @Test
-        fun `flushes remaining events on stop`() {
+        fun `flushes은(는) remaining events on stop`() {
             val writer = MetricWriter(
                 ringBuffer = ringBuffer,
                 store = store,
@@ -314,12 +314,12 @@ class MetricWriterTest {
                 costCalculator.calculate(any(), any(), any(), any(), any(), any(), any())
             } returns BigDecimal("0.001")
 
-            // Publish events AFTER start so they're in buffer
+            // events AFTER start so they're in buffer 발행
             writer.start()
             ringBuffer.publish(tokenEvent())
             ringBuffer.publish(executionEvent())
 
-            // Stop should trigger final flush
+            // Stop은(는) trigger final flush해야 합니다
             writer.stop()
 
             storedEvents.size shouldBe 2

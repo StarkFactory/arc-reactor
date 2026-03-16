@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test
 class OutputGuardRuleAuditStoreTest {
 
     @Test
-    fun `in-memory audit store saves newest first`() {
+    fun `인메모리 audit store saves newest first`() {
         val store = InMemoryOutputGuardRuleAuditStore()
         store.save(OutputGuardRuleAuditLog(ruleId = "r1", action = OutputGuardRuleAuditAction.CREATE, actor = "admin"))
         store.save(OutputGuardRuleAuditLog(ruleId = "r2", action = OutputGuardRuleAuditAction.UPDATE, actor = "admin"))

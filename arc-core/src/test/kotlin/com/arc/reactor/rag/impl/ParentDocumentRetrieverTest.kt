@@ -18,7 +18,7 @@ class ParentDocumentRetrieverTest {
     private fun retriever(windowSize: Int = 1) =
         ParentDocumentRetriever(delegate = delegate, windowSize = windowSize)
 
-    // -- helpers --
+    // -- 헬퍼 --
 
     private fun chunkedDoc(
         parentId: String,
@@ -51,10 +51,10 @@ class ParentDocumentRetrieverTest {
         score = score
     )
 
-    // -- tests --
+    // -- 테스트 --
 
     @Test
-    fun `should pass through non-chunked documents unchanged`() = runTest {
+    fun `pass through non-chunked documents unchanged해야 한다`() = runTest {
         val docs = listOf(plainDoc("d1", "hello"), plainDoc("d2", "world"))
         coEvery { delegate.retrieve(any(), any(), any()) } returns docs
 
@@ -66,7 +66,7 @@ class ParentDocumentRetrieverTest {
     }
 
     @Test
-    fun `should return empty list when delegate returns nothing`() = runTest {
+    fun `delegate returns nothing일 때 return empty list해야 한다`() = runTest {
         coEvery { delegate.retrieve(any(), any(), any()) } returns emptyList()
 
         val result = retriever().retrieve(listOf("query"), 10)
@@ -75,13 +75,13 @@ class ParentDocumentRetrieverTest {
     }
 
     @Test
-    fun `should merge adjacent chunks from same parent`() = runTest {
+    fun `merge adjacent chunks from same parent해야 한다`() = runTest {
         val parentId = "parent-1"
         val chunk0 = chunkedDoc(parentId, 0, 3, "first chunk", score = 0.7)
         val chunk1 = chunkedDoc(parentId, 1, 3, "second chunk", score = 0.9)
         val chunk2 = chunkedDoc(parentId, 2, 3, "third chunk", score = 0.6)
 
-        // Delegate returns chunks 0, 1, 2 (all within window of each other)
+        // returns chunks 0, 1, 2 (all within window of each other) 위임
         coEvery { delegate.retrieve(any(), any(), any()) } returns listOf(chunk1, chunk0, chunk2)
 
         val result = retriever(windowSize = 1).retrieve(listOf("query"), 10)
@@ -95,7 +95,7 @@ class ParentDocumentRetrieverTest {
     }
 
     @Test
-    fun `should preserve chunk order in merged content`() = runTest {
+    fun `preserve chunk order in merged content해야 한다`() = runTest {
         val parentId = "doc-abc"
         val c0 = chunkedDoc(parentId, 0, 3, "AAA")
         val c1 = chunkedDoc(parentId, 1, 3, "BBB")
@@ -113,7 +113,7 @@ class ParentDocumentRetrieverTest {
     }
 
     @Test
-    fun `should handle mix of chunked and non-chunked documents`() = runTest {
+    fun `handle mix of chunked and non-chunked documents해야 한다`() = runTest {
         val parentId = "parent-2"
         val chunk = chunkedDoc(parentId, 0, 2, "chunked content", score = 0.8)
         val plain = plainDoc("standalone", "plain content", score = 0.95)
@@ -123,13 +123,13 @@ class ParentDocumentRetrieverTest {
         val result = retriever().retrieve(listOf("query"), 10)
 
         result shouldHaveSize 2
-        // plain doc has higher score, should come first
+        // plain doc has higher score,은(는) come first해야 합니다
         result[0].id shouldBe "standalone"
         result[1].id shouldBe parentId
     }
 
     @Test
-    fun `should deduplicate overlapping windows from same parent`() = runTest {
+    fun `deduplicate overlapping windows from same parent해야 한다`() = runTest {
         val parentId = "parent-3"
         // chunks 1 and 2 both in results; with window=1, their windows overlap
         val c1 = chunkedDoc(parentId, 1, 5, "chunk-1", score = 0.9)
@@ -139,7 +139,7 @@ class ParentDocumentRetrieverTest {
 
         val result = retriever(windowSize = 1).retrieve(listOf("q"), 10)
 
-        // Should produce a single merged document for the parent
+        // produce a single merged document for the parent해야 합니다
         result shouldHaveSize 1
         result[0].id shouldBe parentId
         result[0].content shouldContain "chunk-1"
@@ -147,7 +147,7 @@ class ParentDocumentRetrieverTest {
     }
 
     @Test
-    fun `should handle multiple parent documents separately`() = runTest {
+    fun `handle multiple parent documents separately해야 한다`() = runTest {
         val c1 = chunkedDoc("parent-A", 0, 2, "A-chunk-0", score = 0.9)
         val c2 = chunkedDoc("parent-B", 1, 3, "B-chunk-1", score = 0.8)
 
@@ -161,7 +161,7 @@ class ParentDocumentRetrieverTest {
     }
 
     @Test
-    fun `should respect topK limit after expansion`() = runTest {
+    fun `expansion 후 respect topK limit해야 한다`() = runTest {
         val docs = (0 until 5).map { i ->
             chunkedDoc("parent-$i", 0, 1, "content-$i", score = 0.9 - i * 0.1)
         }
@@ -173,7 +173,7 @@ class ParentDocumentRetrieverTest {
     }
 
     @Test
-    fun `should use best score from chunk group`() = runTest {
+    fun `use best score from chunk group해야 한다`() = runTest {
         val parentId = "scored-parent"
         val c0 = chunkedDoc(parentId, 0, 3, "low", score = 0.5)
         val c1 = chunkedDoc(parentId, 1, 3, "high", score = 0.95)
@@ -188,7 +188,7 @@ class ParentDocumentRetrieverTest {
     }
 
     @Test
-    fun `should include merged metadata with chunk indices`() = runTest {
+    fun `chunk indices로 include merged metadata해야 한다`() = runTest {
         val parentId = "meta-parent"
         val c0 = chunkedDoc(parentId, 0, 2, "A", score = 0.9)
         val c1 = chunkedDoc(parentId, 1, 2, "B", score = 0.8)
@@ -205,7 +205,7 @@ class ParentDocumentRetrieverTest {
     }
 
     @Test
-    fun `windowSize zero should still merge same-parent hits`() = runTest {
+    fun `windowSize zero은(는) still merge same-parent hits해야 한다`() = runTest {
         val parentId = "zero-win"
         val c0 = chunkedDoc(parentId, 0, 3, "X", score = 0.9)
         val c2 = chunkedDoc(parentId, 2, 3, "Z", score = 0.8)
@@ -222,7 +222,7 @@ class ParentDocumentRetrieverTest {
     }
 
     @Test
-    fun `should forward filters to delegate`() = runTest {
+    fun `forward filters to delegate해야 한다`() = runTest {
         val filters = mapOf("category" to "docs")
         coEvery { delegate.retrieve(any(), any(), eq(filters)) } returns emptyList()
 

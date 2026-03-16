@@ -7,7 +7,7 @@ import org.junit.jupiter.api.assertThrows
 class GoogleCredentialProviderTest {
 
     @Test
-    fun `getCredentials throws IllegalArgumentException when serviceAccountKeyPath is blank`() {
+    fun `getCredentials throws IllegalArgumentException when serviceAccountKeyPath은(는) blank이다`() {
         val properties = GoogleWorkspaceProperties(
             enabled = true,
             serviceAccountKeyPath = "",
@@ -27,7 +27,7 @@ class GoogleCredentialProviderTest {
     }
 
     @Test
-    fun `getCredentials throws IllegalArgumentException when impersonateUser is blank`() {
+    fun `getCredentials throws IllegalArgumentException when impersonateUser은(는) blank이다`() {
         val properties = GoogleWorkspaceProperties(
             enabled = true,
             serviceAccountKeyPath = "/some/key.json",
@@ -47,7 +47,7 @@ class GoogleCredentialProviderTest {
     }
 
     @Test
-    fun `getCredentials throws when key file does not exist`() {
+    fun `key file does not exist일 때 getCredentials throws`() {
         val properties = GoogleWorkspaceProperties(
             enabled = true,
             serviceAccountKeyPath = "/nonexistent/path/key.json",

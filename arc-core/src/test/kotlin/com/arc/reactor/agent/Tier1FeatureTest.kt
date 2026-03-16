@@ -49,7 +49,7 @@ class Tier1FeatureTest {
     inner class ToolSelectorIntegration {
 
         @Test
-        fun `should call ToolSelector with toolCallbacks`() = runBlocking {
+        fun `toolCallbacks로 call ToolSelector해야 한다`() = runBlocking {
             val callback1 = AgentTestFixture.toolCallback("tool1", "Tool 1")
             val callback2 = AgentTestFixture.toolCallback("tool2", "Tool 2")
 
@@ -69,7 +69,7 @@ class Tier1FeatureTest {
         }
 
         @Test
-        fun `should include MCP callbacks in ToolSelector filtering`() = runBlocking {
+        fun `include MCP callbacks in ToolSelector filtering해야 한다`() = runBlocking {
             val customCallback = AgentTestFixture.toolCallback("custom", "Custom Tool")
             val mcpCallback = AgentTestFixture.toolCallback("mcp-tool", "MCP Tool")
 
@@ -86,14 +86,14 @@ class Tier1FeatureTest {
 
             executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "query"))
 
-            // ToolSelector should receive both custom and MCP callbacks
+            // ToolSelector은(는) receive both custom and MCP callbacks해야 합니다
             verify {
                 selector.select("query", match { it.size == 2 && it.any { cb -> cb.name == "mcp-tool" } })
             }
         }
 
         @Test
-        fun `should pass filtered ToolCallbacks as Spring AI tools`() = runBlocking {
+        fun `pass filtered ToolCallbacks as Spring AI tools해야 한다`() = runBlocking {
             val included = AgentTestFixture.toolCallback("included", "Included")
             val excluded = AgentTestFixture.toolCallback("excluded", "Excluded")
 
@@ -114,7 +114,7 @@ class Tier1FeatureTest {
         }
 
         @Test
-        fun `should use AllToolSelector when no selector provided`() = runBlocking {
+        fun `no selector provided일 때 use AllToolSelector해야 한다`() = runBlocking {
             val callback = AgentTestFixture.toolCallback("tool", "Tool")
 
             val executor = SpringAiAgentExecutor(
@@ -131,7 +131,7 @@ class Tier1FeatureTest {
         }
 
         @Test
-        fun `should not call tools when no callbacks and no local tools`() = runBlocking {
+        fun `no callbacks and no local tools일 때 not call tools해야 한다`() = runBlocking {
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
                 properties = properties
@@ -139,7 +139,7 @@ class Tier1FeatureTest {
 
             executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "query"))
 
-            // Neither tools() nor toolCallbacks() should be called when no tools
+            // Neither tools() nor toolCallbacks()은(는) be called when no tools해야 합니다
             verify(exactly = 0) { fixture.requestSpec.tools(*anyVararg<Any>()) }
             verify(exactly = 0) { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
@@ -152,7 +152,7 @@ class Tier1FeatureTest {
     inner class AgentMetricsIntegration {
 
         @Test
-        fun `should call recordExecution on success`() = runBlocking {
+        fun `call recordExecution on success해야 한다`() = runBlocking {
             val metrics = mockk<AgentMetrics>(relaxed = true)
 
             val executor = SpringAiAgentExecutor(
@@ -167,7 +167,7 @@ class Tier1FeatureTest {
         }
 
         @Test
-        fun `should call recordExecution on failure`() = runBlocking {
+        fun `call recordExecution on failure해야 한다`() = runBlocking {
             val metrics = mockk<AgentMetrics>(relaxed = true)
             every { fixture.requestSpec.call() } throws RuntimeException("LLM error")
 
@@ -183,7 +183,7 @@ class Tier1FeatureTest {
         }
 
         @Test
-        fun `should call recordGuardRejection when guard rejects`() = runBlocking {
+        fun `guard rejects일 때 call recordGuardRejection해야 한다`() = runBlocking {
             val metrics = mockk<AgentMetrics>(relaxed = true)
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Rejected(
@@ -205,8 +205,8 @@ class Tier1FeatureTest {
         }
 
         @Test
-        fun `should work with NoOpAgentMetrics by default`() = runBlocking {
-            // No agentMetrics parameter → should use NoOpAgentMetrics
+        fun `NoOpAgentMetrics by default로 work해야 한다`() = runBlocking {
+            // No agentMetrics parameter →은(는) use NoOpAgentMetrics해야 합니다
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
                 properties = properties
@@ -214,7 +214,7 @@ class Tier1FeatureTest {
 
             val result = executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
 
-            result.assertSuccess() // Should not throw even without metrics
+            result.assertSuccess()  // not throw even without metrics해야 합니다
         }
     }
 
@@ -225,7 +225,7 @@ class Tier1FeatureTest {
     inner class RagIntegration {
 
         @Test
-        fun `should inject RAG context into system prompt`() = runBlocking {
+        fun `inject RAG context into system prompt해야 한다`() = runBlocking {
             val ragPipeline = mockk<RagPipeline>()
             coEvery { ragPipeline.retrieve(any()) } returns RagContext(
                 context = "Relevant document: Return policy allows 30-day returns.",
@@ -246,17 +246,17 @@ class Tier1FeatureTest {
 
             executor.execute(AgentCommand(systemPrompt = "You are helpful.", userPrompt = "What is the return policy?"))
 
-            // RAG pipeline should be called
+            // RAG pipeline은(는) be called해야 합니다
             coVerify { ragPipeline.retrieve(match { it.query == "What is the return policy?" }) }
 
-            // System prompt should include RAG context
+            // System prompt은(는) include RAG context해야 합니다
             verify {
                 fixture.requestSpec.system(match<String> { it.contains("Return policy allows 30-day returns.") })
             }
         }
 
         @Test
-        fun `should pass metadata filters to RAG query`() = runBlocking {
+        fun `pass metadata filters to RAG query해야 한다`() = runBlocking {
             val ragPipeline = mockk<RagPipeline>()
             coEvery { ragPipeline.retrieve(any()) } returns RagContext.EMPTY
 
@@ -292,7 +292,7 @@ class Tier1FeatureTest {
         }
 
         @Test
-        fun `should not call RAG when disabled`() = runBlocking {
+        fun `disabled일 때 not call RAG해야 한다`() = runBlocking {
             val ragPipeline = mockk<RagPipeline>()
 
             val ragProperties = RagProperties(enabled = false)
@@ -310,23 +310,23 @@ class Tier1FeatureTest {
         }
 
         @Test
-        fun `should not call RAG when pipeline is null`() = runBlocking {
+        fun `pipeline is null일 때 not call RAG해야 한다`() = runBlocking {
             val ragProperties = RagProperties(enabled = true)
             val props = properties.copy(rag = ragProperties)
 
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
                 properties = props
-                // No ragPipeline provided
+                // ragPipeline provided 없음
             )
 
-            // Should execute successfully without RAG
+            // execute successfully without RAG해야 합니다
             val result = executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
             result.assertSuccess()
         }
 
         @Test
-        fun `should handle RAG failure gracefully`() = runBlocking {
+        fun `handle RAG failure gracefully해야 한다`() = runBlocking {
             val ragPipeline = mockk<RagPipeline>()
             coEvery { ragPipeline.retrieve(any()) } throws RuntimeException("Vector store unavailable")
 
@@ -339,13 +339,13 @@ class Tier1FeatureTest {
                 ragPipeline = ragPipeline
             )
 
-            // Should still execute successfully (RAG failure should not block agent)
+            // Should still execute successfully (RAG failure은(는) not block agent)해야 합니다
             val result = executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
             result.assertSuccess()
         }
 
         @Test
-        fun `should skip RAG context when no documents found`() = runBlocking {
+        fun `no documents found일 때 skip RAG context해야 한다`() = runBlocking {
             val ragPipeline = mockk<RagPipeline>()
             val systemPromptSlot = slot<String>()
             coEvery { ragPipeline.retrieve(any()) } returns RagContext.EMPTY
@@ -383,11 +383,11 @@ class Tier1FeatureTest {
 
         @Test
         @Disabled("Verified via integration test")
-        fun `should apply maxToolCalls from AgentCommand`() = runBlocking {
+        fun `apply maxToolCalls from AgentCommand해야 한다`() = runBlocking {
         }
 
         @Test
-        fun `should run in STANDARD mode without tools`() = runBlocking {
+        fun `run in STANDARD mode without tools해야 한다`() = runBlocking {
             val callback = AgentTestFixture.toolCallback("tool1", "Tool 1")
 
             val executor = SpringAiAgentExecutor(
@@ -396,7 +396,7 @@ class Tier1FeatureTest {
                 toolCallbacks = listOf(callback)
             )
 
-            // STANDARD mode should not include tools
+            // STANDARD mode은(는) not include tools해야 합니다
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "Test",
@@ -406,13 +406,13 @@ class Tier1FeatureTest {
             )
 
             result.assertSuccess()
-            // In STANDARD mode, tools should NOT be passed
+            // In STANDARD mode, tools은(는) NOT be passed해야 합니다
             verify(exactly = 0) { fixture.requestSpec.tools(*anyVararg<Any>()) }
             verify(exactly = 0) { fixture.requestSpec.toolCallbacks(any<List<org.springframework.ai.tool.ToolCallback>>()) }
         }
 
         @Test
-        fun `should include tools in REACT mode`() = runBlocking {
+        fun `include tools in REACT mode해야 한다`() = runBlocking {
             val callback = AgentTestFixture.toolCallback("tool1", "Tool 1")
 
             val executor = SpringAiAgentExecutor(

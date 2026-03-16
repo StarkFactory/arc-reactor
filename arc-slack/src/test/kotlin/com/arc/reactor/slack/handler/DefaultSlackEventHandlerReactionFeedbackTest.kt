@@ -47,7 +47,7 @@ class DefaultSlackEventHandlerReactionFeedbackTest {
     inner class ReactionFeedback {
 
         @Test
-        fun `thumbsup reaction saves THUMBS_UP feedback`() = runTest {
+        fun `thumbsup은(는) reaction saves THUMBS_UP feedback`() = runTest {
             val handler = buildHandler()
 
             handler.handleReaction(
@@ -68,7 +68,7 @@ class DefaultSlackEventHandlerReactionFeedbackTest {
         }
 
         @Test
-        fun `thumbsdown reaction saves THUMBS_DOWN feedback`() = runTest {
+        fun `thumbsdown은(는) reaction saves THUMBS_DOWN feedback`() = runTest {
             val handler = buildHandler()
 
             handler.handleReaction(
@@ -85,7 +85,7 @@ class DefaultSlackEventHandlerReactionFeedbackTest {
         }
 
         @Test
-        fun `unknown reaction emoji does not save feedback`() = runTest {
+        fun `알 수 없는 reaction emoji does not save feedback`() = runTest {
             val handler = buildHandler()
 
             handler.handleReaction(
@@ -97,14 +97,14 @@ class DefaultSlackEventHandlerReactionFeedbackTest {
         }
 
         @Test
-        fun `no-op when feedbackStore is null`() = runTest {
+        fun `no-op when feedbackStore은(는) null이다`() = runTest {
             val handler = buildHandler(feedbackStore = null)
 
             handler.handleReaction(
                 userId = "U1", channelId = "C1", messageTs = "1.0",
                 reaction = "thumbsup", sessionId = "s1", userPrompt = "hi"
             )
-            // no exception, no store to check
+            // exception, no store to check 없음
         }
     }
 
@@ -112,7 +112,7 @@ class DefaultSlackEventHandlerReactionFeedbackTest {
     inner class BotResponseTracking {
 
         @Test
-        fun `tracks bot response after successful send`() = runTest {
+        fun `bot response after successful send를 추적한다`() = runTest {
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns AgentResult(
                 success = true, content = "Kotlin is a JVM language."
             )
@@ -135,7 +135,7 @@ class DefaultSlackEventHandlerReactionFeedbackTest {
     inner class UserMemoryInjection {
 
         @Test
-        fun `injects user context into system prompt when memory exists`() = runTest {
+        fun `user context into system prompt when memory exists를 주입한다`() = runTest {
             val memoryStore = mockk<UserMemoryStore>()
             coEvery { memoryStore.get("U1") } returns UserMemory(
                 userId = "U1",
@@ -161,7 +161,7 @@ class DefaultSlackEventHandlerReactionFeedbackTest {
         }
 
         @Test
-        fun `does not inject user context when memory is null`() = runTest {
+        fun `does not inject user context when memory은(는) null이다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult(
                 success = true, content = "ok"
@@ -173,7 +173,7 @@ class DefaultSlackEventHandlerReactionFeedbackTest {
                 SlackEventCommand("app_mention", "U1", "C1", "<@BOT> hi", "1.0", null)
             )
 
-            // Should not contain "User context:" since no memory manager
+            // not contain "User context:" since no memory manager해야 합니다
             commandSlot.captured.systemPrompt.contains("User context:") shouldBe false
         }
     }

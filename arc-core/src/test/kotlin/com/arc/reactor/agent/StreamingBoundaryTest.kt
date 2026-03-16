@@ -40,7 +40,7 @@ class StreamingBoundaryTest {
     inner class OutputMinViolation {
 
         @Test
-        fun `short streamed output emits error event`() = runTest {
+        fun `짧은 스트리밍 출력이 에러 이벤트를 방출해야 한다`() = runTest {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
                 AgentTestFixture.textChunk("Hi")
             )
@@ -69,7 +69,7 @@ class StreamingBoundaryTest {
         }
 
         @Test
-        fun `RETRY_ONCE falls back to WARN in streaming`() = runTest {
+        fun `스트리밍에서 RETRY_ONCE가 WARN으로 폴백해야 한다`() = runTest {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
                 AgentTestFixture.textChunk("Hi")
             )
@@ -85,7 +85,7 @@ class StreamingBoundaryTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            // Should contain the original text (not retried) plus an error event
+            // 원본 텍스트(재시도 없음)와 에러 이벤트를 포함해야 합니다
             assertTrue(chunks.any { it == "Hi" }) {
                 "Should contain original streamed content"
             }
@@ -102,7 +102,7 @@ class StreamingBoundaryTest {
     inner class OutputMaxViolation {
 
         @Test
-        fun `long streamed output emits error event`() = runTest {
+        fun `긴 스트리밍 출력이 에러 이벤트를 방출해야 한다`() = runTest {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
                 AgentTestFixture.textChunk("a".repeat(200))
             )

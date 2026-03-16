@@ -12,14 +12,14 @@ import org.junit.jupiter.api.Assertions.*
 class RerankerEdgeCaseTest {
 
     @Test
-    fun `SimpleScoreReranker should handle empty list`() = runBlocking {
+    fun `SimpleScoreReranker은(는) handle empty list해야 한다`() = runBlocking {
         val reranker = SimpleScoreReranker()
         val result = reranker.rerank("query", emptyList(), 5)
         assertTrue(result.isEmpty()) { "Expected empty result for empty input, got: ${result.size} documents" }
     }
 
     @Test
-    fun `SimpleScoreReranker should respect topK limit`() = runBlocking {
+    fun `SimpleScoreReranker은(는) respect topK limit해야 한다`() = runBlocking {
         val reranker = SimpleScoreReranker()
         val docs = (1..10).map {
             RetrievedDocument(id = "doc-$it", content = "content $it", score = it.toDouble())
@@ -30,7 +30,7 @@ class RerankerEdgeCaseTest {
     }
 
     @Test
-    fun `KeywordWeightedReranker should handle empty query`() = runBlocking {
+    fun `KeywordWeightedReranker은(는) handle empty query해야 한다`() = runBlocking {
         val reranker = KeywordWeightedReranker()
         val docs = listOf(
             RetrievedDocument(id = "1", content = "test content", score = 0.8)
@@ -40,32 +40,32 @@ class RerankerEdgeCaseTest {
     }
 
     @Test
-    fun `KeywordWeightedReranker should handle empty documents`() = runBlocking {
+    fun `KeywordWeightedReranker은(는) handle empty documents해야 한다`() = runBlocking {
         val reranker = KeywordWeightedReranker()
         val result = reranker.rerank("test query", emptyList(), 5)
         assertTrue(result.isEmpty()) { "Expected empty result for empty input, got: ${result.size} documents" }
     }
 
     @Test
-    fun `KeywordWeightedReranker should boost documents with matching keywords`() = runBlocking {
+    fun `KeywordWeightedReranker은(는) boost documents with matching keywords해야 한다`() = runBlocking {
         val reranker = KeywordWeightedReranker(keywordWeight = 0.8)
         val docs = listOf(
             RetrievedDocument(id = "1", content = "unrelated topic about weather", score = 0.9),
             RetrievedDocument(id = "2", content = "kotlin programming language guide", score = 0.5)
         )
         val result = reranker.rerank("kotlin programming", docs, 2)
-        assertEquals("2", result[0].id) // keyword match should win with high keyword weight
+        assertEquals("2", result[0].id)  // keyword match은(는) win with high keyword weight해야 합니다
     }
 
     @Test
-    fun `DiversityReranker should handle empty list`() = runBlocking {
+    fun `DiversityReranker은(는) handle empty list해야 한다`() = runBlocking {
         val reranker = DiversityReranker()
         val result = reranker.rerank("query", emptyList(), 5)
         assertTrue(result.isEmpty()) { "Expected empty result for empty input, got: ${result.size} documents" }
     }
 
     @Test
-    fun `DiversityReranker should handle single document`() = runBlocking {
+    fun `DiversityReranker은(는) handle single document해야 한다`() = runBlocking {
         val reranker = DiversityReranker()
         val docs = listOf(
             RetrievedDocument(id = "1", content = "only document", score = 0.8)
@@ -76,7 +76,7 @@ class RerankerEdgeCaseTest {
     }
 
     @Test
-    fun `DiversityReranker should prefer diverse content`() = runBlocking {
+    fun `DiversityReranker은(는) prefer diverse content해야 한다`() = runBlocking {
         val reranker = DiversityReranker(lambda = 0.3) // Strong diversity preference
         val docs = listOf(
             RetrievedDocument(id = "1", content = "kotlin programming language features", score = 0.95),
@@ -84,14 +84,14 @@ class RerankerEdgeCaseTest {
             RetrievedDocument(id = "3", content = "spring boot web framework deployment", score = 0.80)
         )
         val result = reranker.rerank("programming", docs, 3)
-        // First should be highest score
+        // First은(는) be highest score해야 합니다
         assertEquals("1", result[0].id)
-        // Second should be diverse (spring boot) rather than similar (kotlin syntax)
+        // Second은(는) be diverse (spring boot) rather than similar (kotlin syntax)해야 합니다
         assertEquals("3", result[1].id)
     }
 
     @Test
-    fun `DiversityReranker should respect topK`() = runBlocking {
+    fun `DiversityReranker은(는) respect topK해야 한다`() = runBlocking {
         val reranker = DiversityReranker()
         val docs = (1..10).map {
             RetrievedDocument(id = "doc-$it", content = "unique content $it", score = it.toDouble() / 10)
@@ -101,7 +101,7 @@ class RerankerEdgeCaseTest {
     }
 
     @Test
-    fun `InMemoryDocumentRetriever should handle multiple queries`() = runBlocking {
+    fun `InMemoryDocumentRetriever은(는) handle multiple queries해야 한다`() = runBlocking {
         val retriever = InMemoryDocumentRetriever()
         retriever.addDocuments(listOf(
             RetrievedDocument(id = "1", content = "kotlin language"),
@@ -115,7 +115,7 @@ class RerankerEdgeCaseTest {
     }
 
     @Test
-    fun `InMemoryDocumentRetriever should return empty for no matches`() = runBlocking {
+    fun `InMemoryDocumentRetriever은(는) return empty for no matches해야 한다`() = runBlocking {
         val retriever = InMemoryDocumentRetriever()
         retriever.addDocument(RetrievedDocument(id = "1", content = "kotlin language"))
 
@@ -124,7 +124,7 @@ class RerankerEdgeCaseTest {
     }
 
     @Test
-    fun `InMemoryDocumentRetriever should respect topK`() = runBlocking {
+    fun `InMemoryDocumentRetriever은(는) respect topK해야 한다`() = runBlocking {
         val retriever = InMemoryDocumentRetriever()
         retriever.addDocuments((1..20).map {
             RetrievedDocument(id = "doc-$it", content = "common keyword content $it")

@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test
 class SlackEventDeduplicatorTest {
 
     @Test
-    fun `marks first event as new and second as duplicate`() {
+    fun `marks은(는) first event as new and second as duplicate`() {
         val deduplicator = SlackEventDeduplicator(enabled = true, ttlSeconds = 60, maxEntries = 100)
 
         deduplicator.isDuplicateAndMark("Ev123") shouldBe false
@@ -15,7 +15,7 @@ class SlackEventDeduplicatorTest {
     }
 
     @Test
-    fun `expires old entries after ttl`() {
+    fun `ttl후 expires old entries`() {
         val deduplicator = SlackEventDeduplicator(enabled = true, ttlSeconds = 1, maxEntries = 100)
 
         deduplicator.isDuplicateAndMark("Ev123", nowMillis = 1_000) shouldBe false

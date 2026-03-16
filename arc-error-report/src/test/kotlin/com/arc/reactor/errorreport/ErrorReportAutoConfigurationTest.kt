@@ -20,7 +20,7 @@ class ErrorReportAutoConfigurationTest {
     inner class ConditionalActivation {
 
         @Test
-        fun `beans are NOT created when error-report is disabled`() {
+        fun `beans are NOT created when error-report은(는) disabled이다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.error-report.enabled=false")
                 .run { context ->
@@ -30,7 +30,7 @@ class ErrorReportAutoConfigurationTest {
         }
 
         @Test
-        fun `beans are NOT created without enabled property`() {
+        fun `beans은(는) NOT created without enabled property이다`() {
             contextRunner.run { context ->
                 context.getBeansOfType(ErrorReportHandler::class.java).isEmpty()
                     .shouldBeTrue()
@@ -42,7 +42,7 @@ class ErrorReportAutoConfigurationTest {
     inner class BeanCreation {
 
         @Test
-        fun `ErrorReportHandler is created when enabled with AgentExecutor`() {
+        fun `enabled with AgentExecutor일 때 ErrorReportHandler은(는) created이다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.error-report.enabled=true")
                 .withBean(AgentExecutor::class.java, { mockk(relaxed = true) })
@@ -52,7 +52,7 @@ class ErrorReportAutoConfigurationTest {
         }
 
         @Test
-        fun `ErrorReportHandler is NOT created without AgentExecutor`() {
+        fun `ErrorReportHandler은(는) NOT created without AgentExecutor이다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.error-report.enabled=true")
                 .run { context ->
@@ -66,7 +66,7 @@ class ErrorReportAutoConfigurationTest {
     inner class CustomOverride {
 
         @Test
-        fun `custom ErrorReportHandler bean takes precedence`() {
+        fun `커스텀 ErrorReportHandler bean takes precedence`() {
             val customHandler = mockk<ErrorReportHandler>()
             contextRunner
                 .withPropertyValues("arc.reactor.error-report.enabled=true")

@@ -30,7 +30,7 @@ class SemanticToolSelectorTest {
     inner class SelectionLogic {
 
         @Test
-        fun `should return all tools when count below maxResults`() {
+        fun `count below maxResults일 때 return all tools해야 한다`() {
             val smallToolList = tools.take(3)
             val selector = SemanticToolSelector(embeddingModel, maxResults = 10)
 
@@ -40,7 +40,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should return empty for empty tool list`() {
+        fun `empty tool list에 대해 return empty해야 한다`() {
             val selector = SemanticToolSelector(embeddingModel)
 
             val result = selector.select("any prompt", emptyList())
@@ -49,15 +49,15 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should select tools by semantic similarity`() {
-            // Simulate embeddings where "refund" prompt is close to "process_refund" tool
+        fun `select tools by semantic similarity해야 한다`() {
+            // embeddings where "refund" prompt is close to "process_refund" tool를 시뮬레이션합니다
             val refundToolEmbedding = floatArrayOf(0.9f, 0.1f, 0.0f)
             val searchToolEmbedding = floatArrayOf(0.1f, 0.9f, 0.0f)
             val shippingToolEmbedding = floatArrayOf(0.0f, 0.1f, 0.9f)
             val emailToolEmbedding = floatArrayOf(0.2f, 0.3f, 0.5f)
             val taxToolEmbedding = floatArrayOf(0.3f, 0.3f, 0.3f)
             val reportToolEmbedding = floatArrayOf(0.1f, 0.5f, 0.4f)
-            val promptEmbedding = floatArrayOf(0.85f, 0.15f, 0.0f) // Close to refund
+            val promptEmbedding = floatArrayOf(0.85f, 0.15f, 0.0f)  // to refund 닫기
 
             // Mock batch embedding (for tool descriptions)
             every { embeddingModel.embed(any<List<String>>()) } returns listOf(
@@ -75,7 +75,7 @@ class SemanticToolSelectorTest {
 
             val result = selector.select("I want to refund my order", tools)
 
-            // process_refund should be the top match (highest cosine similarity with prompt)
+            // process_refund은(는) be the top match (highest cosine similarity with prompt)해야 합니다
             assertTrue(result.isNotEmpty()) { "Should return at least one tool" }
             assertEquals("process_refund", result[0].name) {
                 "First tool should be process_refund (closest to 'refund' prompt), got: ${result.map { it.name }}"
@@ -84,8 +84,8 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should fall back to all tools when no tool meets threshold`() {
-            // All tools have very low similarity
+        fun `no tool meets threshold일 때 fall back to all tools해야 한다`() {
+            // 모든 tools have very low similarity
             val lowSimilarity = floatArrayOf(0.1f, 0.0f, 0.0f)
             val promptEmbedding = floatArrayOf(0.0f, 0.0f, 1.0f) // Orthogonal to all tools
 
@@ -107,7 +107,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should fall back to all tools when embedding fails`() {
+        fun `embedding fails일 때 fall back to all tools해야 한다`() {
             every { embeddingModel.embed(any<List<String>>()) } throws RuntimeException("API error")
 
             val selector = SemanticToolSelector(embeddingModel, maxResults = 3)
@@ -120,7 +120,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force confluence knowledge tool for answer style prompts`() {
+        fun `answer style prompts에 대해 force confluence knowledge tool해야 한다`() {
             val confluenceTools = listOf(
                 createTool("confluence_search_by_text", "Low-level search"),
                 createTool("confluence_answer_question", "Preferred Confluence knowledge tool"),
@@ -152,7 +152,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should narrow confluence answer prompts to preferred tools only`() {
+        fun `narrow confluence answer prompts to preferred tools only해야 한다`() {
             val confluenceTools = listOf(
                 createTool("confluence_search_by_text", "Low-level search"),
                 createTool("confluence_answer_question", "Preferred Confluence knowledge tool"),
@@ -180,7 +180,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force work item context tool for issue context prompts`() {
+        fun `issue context prompts에 대해 force work item context tool해야 한다`() {
             val workTools = listOf(
                 createTool("jira_get_issue", "Get Jira issue metadata"),
                 createTool("work_item_context", "Build a Jira issue context package with owner, related docs, PRs, and next actions"),
@@ -199,7 +199,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force work service context tool for service summary prompts`() {
+        fun `service summary prompts에 대해 force work service context tool해야 한다`() {
             val workTools = listOf(
                 createTool("jira_search_issues", "Search Jira issues"),
                 createTool("work_service_context", "Build a service-centric digest across Jira, Confluence, and Bitbucket"),
@@ -218,7 +218,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force work service context tool for service baseline prompts`() {
+        fun `service baseline prompts에 대해 force work service context tool해야 한다`() {
             val workTools = listOf(
                 createTool("jira_search_issues", "Search Jira issues"),
                 createTool("work_service_context", "Build a service-centric digest across Jira, Confluence, and Bitbucket"),
@@ -237,7 +237,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force work owner lookup tool for ownership prompts`() {
+        fun `ownership prompts에 대해 force work owner lookup tool해야 한다`() {
             val workTools = listOf(
                 createTool("jira_get_issue", "Get Jira issue metadata"),
                 createTool("work_owner_lookup", "Resolve who owns a service, Jira issue, Jira project, or repository"),
@@ -256,7 +256,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force work morning briefing tool for briefing prompts`() {
+        fun `briefing prompts에 대해 force work morning briefing tool해야 한다`() {
             val workTools = listOf(
                 createTool("jira_list_projects", "List Jira projects"),
                 createTool("work_morning_briefing", "Generate a single morning briefing across Jira, Bitbucket, and Confluence"),
@@ -279,7 +279,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force work release risk tool for release risk prompts`() {
+        fun `release risk prompts에 대해 force work release risk tool해야 한다`() {
             val workTools = listOf(
                 createTool("work_morning_briefing", "Generate a morning briefing"),
                 createTool("work_release_risk_digest", "Generate release risk digest"),
@@ -297,7 +297,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force work release readiness tool for release readiness prompts`() {
+        fun `release readiness prompts에 대해 force work release readiness tool해야 한다`() {
             val workTools = listOf(
                 createTool("work_release_readiness_pack", "Build a release readiness pack"),
                 createTool("work_release_risk_digest", "Generate release risk digest"),
@@ -318,7 +318,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force work briefing profile tool for profile prompts`() {
+        fun `profile prompts에 대해 force work briefing profile tool해야 한다`() {
             val workTools = listOf(
                 createTool("work_morning_briefing", "Generate a morning briefing"),
                 createTool("work_list_briefing_profiles", "List briefing profiles")
@@ -335,7 +335,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should prefer read only evidence tool for workspace mutation prompts`() {
+        fun `workspace mutation prompts에 대해 prefer read only evidence tool해야 한다`() {
             val workspaceTools = listOf(
                 createTool("jira_assign_issue", "Assign a Jira issue"),
                 createTool("work_owner_lookup", "Resolve who owns a Jira issue"),
@@ -354,7 +354,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force jira list projects tool for project inventory prompts`() {
+        fun `project inventory prompts에 대해 force jira list projects tool해야 한다`() {
             val jiraTools = listOf(
                 createTool("jira_search_issues", "Search Jira issues"),
                 createTool("jira_list_projects", "List Jira projects"),
@@ -373,7 +373,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should bypass embeddings for deterministic jira routing when tool count exceeds maxResults`() {
+        fun `tool count exceeds maxResults일 때 bypass embeddings for deterministic jira routing해야 한다`() {
             val jiraTools = listOf(
                 createTool("jira_search_issues", "Search Jira issues"),
                 createTool("jira_list_projects", "List Jira projects"),
@@ -394,7 +394,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should reuse prewarmed embeddings on first semantic selection`() {
+        fun `reuse prewarmed embeddings on first semantic selection해야 한다`() {
             val promptEmbedding = floatArrayOf(0.85f, 0.15f, 0.0f)
             every { embeddingModel.embed(any<List<String>>()) } returns listOf(
                 floatArrayOf(0.1f, 0.9f, 0.0f),
@@ -419,7 +419,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force jira search tool for recent project summary prompts`() {
+        fun `recent project summary prompts에 대해 force jira search tool해야 한다`() {
             val jiraTools = listOf(
                 createTool("jira_search_issues", "Search Jira issues"),
                 createTool("jira_daily_briefing", "Generate a daily Jira briefing"),
@@ -437,7 +437,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force bitbucket repository tool for repository inventory prompts`() {
+        fun `repository inventory prompts에 대해 force bitbucket repository tool해야 한다`() {
             val tools = listOf(
                 createTool("bitbucket_list_prs", "List pull requests"),
                 createTool("bitbucket_list_repositories", "List repositories"),
@@ -456,7 +456,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force bitbucket review queue for my review prompts`() {
+        fun `my review prompts에 대해 force bitbucket review queue해야 한다`() {
             val tools = listOf(
                 createTool("bitbucket_review_queue", "List pull requests needing review attention"),
                 createTool("bitbucket_list_prs", "List pull requests"),
@@ -474,7 +474,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should force bitbucket review sla for review risk prompts`() {
+        fun `review risk prompts에 대해 force bitbucket review sla해야 한다`() {
             val tools = listOf(
                 createTool("bitbucket_review_sla_alerts", "List review SLA breaches"),
                 createTool("bitbucket_review_queue", "List review queue"),
@@ -492,7 +492,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should prioritize swagger load and detail tools for endpoint detail prompts`() {
+        fun `endpoint detail prompts에 대해 prioritize swagger load and detail tools해야 한다`() {
             val tools = listOf(
                 createTool("spec_search", "Search endpoints"),
                 createTool("spec_load", "Load an OpenAPI spec"),
@@ -515,7 +515,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should route loaded swagger summaries to spec list and summary`() {
+        fun `route loaded swagger summaries to spec list and summary해야 한다`() {
             val tools = listOf(
                 createTool("spec_list", "List loaded specs"),
                 createTool("spec_summary", "Summarize a loaded spec"),
@@ -533,7 +533,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should route named swagger detail prompts without url to loaded spec tools`() {
+        fun `route named swagger detail prompts without url to loaded spec tools해야 한다`() {
             val tools = listOf(
                 createTool("spec_list", "List loaded specs"),
                 createTool("spec_load", "Load an OpenAPI spec"),
@@ -554,7 +554,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should route wrong endpoint prompts to swagger search tools`() {
+        fun `route wrong endpoint prompts to swagger search tools해야 한다`() {
             val tools = listOf(
                 createTool("spec_search", "Search endpoints in loaded specs"),
                 createTool("spec_list", "List loaded specs"),
@@ -572,7 +572,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should treat confluence page body prompts as answer prompts`() {
+        fun `treat confluence page body prompts as answer prompts해야 한다`() {
             val confluenceTools = listOf(
                 createTool("confluence_search_by_text", "Low-level search"),
                 createTool("confluence_answer_question", "Preferred Confluence knowledge tool"),
@@ -593,7 +593,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should route confluence discovery prompts to search tools`() {
+        fun `route confluence discovery prompts to search tools해야 한다`() {
             val confluenceTools = listOf(
                 createTool("confluence_search_by_text", "Search Confluence by keyword"),
                 createTool("confluence_search", "Search Confluence by CQL"),
@@ -618,7 +618,7 @@ class SemanticToolSelectorTest {
     inner class EmbeddingCache {
 
         @Test
-        fun `should cache tool embeddings and reuse on same tool list`() {
+        fun `cache tool embeddings and reuse on same tool list해야 한다`() {
             val toolEmbeddings = tools.map { floatArrayOf(0.5f, 0.5f) }
             every { embeddingModel.embed(any<List<String>>()) } returns toolEmbeddings
             every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
@@ -629,18 +629,18 @@ class SemanticToolSelectorTest {
                 maxResults = 3
             )
 
-            // First call: should embed tools
+            // First call:은(는) embed tools해야 합니다
             selector.select("prompt 1", tools)
-            // Second call with same tools: should NOT re-embed tools
+            // Second call with same tools:은(는) NOT re-embed tools해야 합니다
             selector.select("prompt 2", tools)
 
-            // Batch embed should be called only once (for tools), embed(String) called twice (for prompts)
+            // Batch embed은(는) be called only once (for tools), embed(String) called twice (for prompts)해야 합니다
             verify(exactly = 1) { embeddingModel.embed(any<List<String>>()) }
             verify(exactly = 2) { embeddingModel.embed(any<String>()) }
         }
 
         @Test
-        fun `should cache semantic selection for repeated prompt and tool fingerprint`() {
+        fun `repeated prompt and tool fingerprint에 대해 cache semantic selection해야 한다`() {
             val toolEmbeddings = listOf(
                 floatArrayOf(0.1f, 0.9f, 0.0f),
                 floatArrayOf(0.9f, 0.1f, 0.0f),
@@ -670,7 +670,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should refresh cache when tool list changes`() {
+        fun `tool list changes일 때 refresh cache해야 한다`() {
             val toolsA = tools  // 6 tools
             val toolsB = tools.drop(1)  // 5 tools (different list)
             val embeddingsA = toolsA.map { floatArrayOf(0.5f, 0.5f) }
@@ -695,7 +695,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should refresh cache when tool description changes`() {
+        fun `tool description changes일 때 refresh cache해야 한다`() {
             val originalTools = listOf(
                 createTool("search_orders", "Search and retrieve customer orders by ID or date range"),
                 createTool("process_refund", "Process refund for a customer order"),
@@ -732,7 +732,7 @@ class SemanticToolSelectorTest {
     inner class CosineSimilarityTest {
 
         @Test
-        fun `identical vectors should have similarity 1`() {
+        fun `identical vectors은(는) have similarity 1해야 한다`() {
             val a = floatArrayOf(1.0f, 0.0f, 0.0f)
             val b = floatArrayOf(1.0f, 0.0f, 0.0f)
 
@@ -742,7 +742,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `orthogonal vectors should have similarity 0`() {
+        fun `orthogonal vectors은(는) have similarity 0해야 한다`() {
             val a = floatArrayOf(1.0f, 0.0f, 0.0f)
             val b = floatArrayOf(0.0f, 1.0f, 0.0f)
 
@@ -752,7 +752,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `opposite vectors should have similarity -1`() {
+        fun `opposite vectors은(는) have similarity -1해야 한다`() {
             val a = floatArrayOf(1.0f, 0.0f, 0.0f)
             val b = floatArrayOf(-1.0f, 0.0f, 0.0f)
 
@@ -762,7 +762,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `zero vector should have similarity 0`() {
+        fun `zero vector은(는) have similarity 0해야 한다`() {
             val a = floatArrayOf(0.0f, 0.0f, 0.0f)
             val b = floatArrayOf(1.0f, 0.0f, 0.0f)
 
@@ -772,7 +772,7 @@ class SemanticToolSelectorTest {
         }
 
         @Test
-        fun `should reject mismatched dimensions`() {
+        fun `reject mismatched dimensions해야 한다`() {
             val a = floatArrayOf(1.0f, 0.0f)
             val b = floatArrayOf(1.0f, 0.0f, 0.0f)
 

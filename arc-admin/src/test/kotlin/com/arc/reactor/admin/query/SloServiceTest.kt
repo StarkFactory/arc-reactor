@@ -24,7 +24,7 @@ class SloServiceTest {
     inner class GetSloStatus {
 
         @Test
-        fun `returns healthy SLO status when targets met`() {
+        fun `targets met일 때 healthy SLO status를 반환한다`() {
             every { queryService.getSuccessRate(any(), any(), any()) } returns 0.999
             every { queryService.getLatencyPercentiles(any(), any(), any()) } returns
                 mapOf("p50" to 200L, "p95" to 1000L, "p99" to 3000L)
@@ -42,7 +42,7 @@ class SloServiceTest {
         }
 
         @Test
-        fun `returns unhealthy when availability below target`() {
+        fun `availability below target일 때 unhealthy를 반환한다`() {
             every { queryService.getSuccessRate(any(), any(), any()) } returns 0.98
             every { queryService.getLatencyPercentiles(any(), any(), any()) } returns
                 mapOf("p50" to 200L, "p95" to 1000L, "p99" to 3000L)
@@ -57,7 +57,7 @@ class SloServiceTest {
         }
 
         @Test
-        fun `returns unhealthy when latency exceeds target`() {
+        fun `latency exceeds target일 때 unhealthy를 반환한다`() {
             every { queryService.getSuccessRate(any(), any(), any()) } returns 0.999
             every { queryService.getLatencyPercentiles(any(), any(), any()) } returns
                 mapOf("p50" to 5000L, "p95" to 15000L, "p99" to 25000L)
@@ -76,7 +76,7 @@ class SloServiceTest {
     inner class CalculateErrorBudget {
 
         @Test
-        fun `returns default budget for zero requests`() {
+        fun `zero requests에 대해 default budget를 반환한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "total" to 0L,
                 "failed" to 0L
@@ -91,7 +91,7 @@ class SloServiceTest {
         }
 
         @Test
-        fun `calculates consumed budget correctly`() {
+        fun `consumed budget correctly를 계산한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "total" to 10000L,
                 "failed" to 200L
@@ -106,7 +106,7 @@ class SloServiceTest {
         }
 
         @Test
-        fun `healthy budget has positive remaining`() {
+        fun `healthy budget은(는) positive remaining를 가진다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "total" to 10000L,
                 "failed" to 10L
@@ -119,7 +119,7 @@ class SloServiceTest {
         }
 
         @Test
-        fun `exhausted budget has zero remaining`() {
+        fun `exhausted budget은(는) zero remaining를 가진다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "total" to 1000L,
                 "failed" to 100L
@@ -135,7 +135,7 @@ class SloServiceTest {
     inner class GetApdex {
 
         @Test
-        fun `calculates apdex with satisfied, tolerating, frustrated distribution`() {
+        fun `apdex with satisfied, tolerating, frustrated distribution를 계산한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "satisfied" to 800L,
                 "tolerating" to 150L,
@@ -153,7 +153,7 @@ class SloServiceTest {
         }
 
         @Test
-        fun `returns 1_0 for zero requests`() {
+        fun `zero requests에 대해 1_0를 반환한다`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "satisfied" to 0L,
                 "tolerating" to 0L,
@@ -166,7 +166,7 @@ class SloServiceTest {
         }
 
         @Test
-        fun `all satisfied results in perfect apdex`() {
+        fun `모든 satisfied results in perfect apdex`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "satisfied" to 1000L,
                 "tolerating" to 0L,
@@ -177,7 +177,7 @@ class SloServiceTest {
         }
 
         @Test
-        fun `all frustrated results in zero apdex`() {
+        fun `모든 frustrated results in zero apdex`() {
             every { jdbcTemplate.queryForMap(any(), *anyVararg()) } returns mapOf(
                 "satisfied" to 0L,
                 "tolerating" to 0L,

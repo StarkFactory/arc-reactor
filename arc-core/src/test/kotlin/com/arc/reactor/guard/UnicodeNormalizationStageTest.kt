@@ -19,7 +19,7 @@ class UnicodeNormalizationStageTest {
     inner class NfkcNormalization {
 
         @Test
-        fun `fullwidth Latin characters are normalized to ASCII`() = runBlocking {
+        fun `fullwidth Latin characters은(는) normalized to ASCII이다`() = runBlocking {
             // ｉｇｎｏｒｅ → ignore
             val result = stage.check(command("\uFF49\uFF47\uFF4E\uFF4F\uFF52\uFF45"))
             val allowed = assertInstanceOf(GuardResult.Allowed::class.java, result)
@@ -29,7 +29,7 @@ class UnicodeNormalizationStageTest {
         }
 
         @Test
-        fun `normal ASCII text passes unchanged`() = runBlocking {
+        fun `normal ASCII 텍스트는 변경 없이 통과한다`() = runBlocking {
             val result = stage.check(command("Hello world, how are you?"))
             assertEquals(GuardResult.Allowed.DEFAULT, result,
                 "Normal ASCII text should not be modified")
@@ -40,8 +40,8 @@ class UnicodeNormalizationStageTest {
     inner class HomoglyphReplacement {
 
         @Test
-        fun `Cyrillic homoglyphs are replaced with Latin equivalents`() = runBlocking {
-            // Cyrillic а (U+0430) in "ignore" → should normalize to Latin 'a'
+        fun `Cyrillic homoglyphs은(는) replaced with Latin equivalents이다`() = runBlocking {
+            // Cyrillic а (U+0430) in "ignore" →은(는) normalize to Latin 'a'해야 합니다
             val cyrillicA = '\u0430'
             val text = "${cyrillicA}bcd"
             val result = stage.check(command(text))
@@ -53,7 +53,7 @@ class UnicodeNormalizationStageTest {
         }
 
         @Test
-        fun `mixed Cyrillic and Latin in injection attempt is normalized`() = runBlocking {
+        fun `mixed Cyrillic and Latin in injection attempt은(는) normalized이다`() = runBlocking {
             // "ignоre" with Cyrillic о (U+043E) instead of Latin o
             val text = "ign\u043Ere"
             val result = stage.check(command(text))
@@ -72,7 +72,7 @@ class UnicodeNormalizationStageTest {
         private val relaxedStage = UnicodeNormalizationStage(maxZeroWidthRatio = 0.9)
 
         @Test
-        fun `zero-width characters between words are stripped`() = runBlocking {
+        fun `zero-width characters between words은(는) stripped이다`() = runBlocking {
             // "ignore" with U+200B between each char
             val text = "i\u200Bg\u200Bn\u200Bo\u200Br\u200Be"
             val result = relaxedStage.check(command(text))
@@ -85,7 +85,7 @@ class UnicodeNormalizationStageTest {
         }
 
         @Test
-        fun `Unicode Tag Block characters are stripped`() = runBlocking {
+        fun `Unicode Tag Block characters은(는) stripped이다`() = runBlocking {
             // Use surrogate pairs for supplementary codepoints in Tag Block (U+E0001, U+E0020)
             val tagChar1 = String(Character.toChars(0xE0001))
             val tagChar2 = String(Character.toChars(0xE0020))
@@ -103,7 +103,7 @@ class UnicodeNormalizationStageTest {
         }
 
         @Test
-        fun `soft hyphen is stripped`() = runBlocking {
+        fun `soft hyphen은(는) stripped이다`() = runBlocking {
             val text = "ig\u00ADnore"
             val result = relaxedStage.check(command(text))
             val allowed = assertInstanceOf(GuardResult.Allowed::class.java, result,
@@ -119,7 +119,7 @@ class UnicodeNormalizationStageTest {
     inner class ZeroWidthRatioRejection {
 
         @Test
-        fun `high zero-width ratio exceeding threshold is rejected`() = runBlocking {
+        fun `high zero-width ratio exceeding threshold은(는) rejected이다`() = runBlocking {
             // 2 visible chars, many zero-width → ratio > 10%
             val text = "ab" + "\u200B".repeat(20)
             val result = stage.check(command(text))
@@ -129,7 +129,7 @@ class UnicodeNormalizationStageTest {
         }
 
         @Test
-        fun `acceptable zero-width ratio passes`() = runBlocking {
+        fun `acceptable은(는) zero-width ratio passes`() = runBlocking {
             // 100 visible chars, 5 zero-width → 5% ratio, under 10%
             val text = "a".repeat(100) + "\u200B".repeat(5)
             val result = stage.check(command(text))
@@ -142,21 +142,21 @@ class UnicodeNormalizationStageTest {
     inner class CjkPreservation {
 
         @Test
-        fun `Korean text passes unchanged`() = runBlocking {
+        fun `Korean 텍스트는 변경 없이 통과한다`() = runBlocking {
             val result = stage.check(command("안녕하세요, 오늘 날씨 어때요?"))
             assertEquals(GuardResult.Allowed.DEFAULT, result,
                 "Korean text should pass unchanged")
         }
 
         @Test
-        fun `Chinese text passes unchanged`() = runBlocking {
+        fun `Chinese 텍스트는 변경 없이 통과한다`() = runBlocking {
             val result = stage.check(command("你好世界"))
             assertEquals(GuardResult.Allowed.DEFAULT, result,
                 "Chinese text should pass unchanged")
         }
 
         @Test
-        fun `Japanese text passes unchanged`() = runBlocking {
+        fun `Japanese 텍스트는 변경 없이 통과한다`() = runBlocking {
             val result = stage.check(command("こんにちは世界"))
             assertEquals(GuardResult.Allowed.DEFAULT, result,
                 "Japanese text should pass unchanged")
@@ -167,19 +167,19 @@ class UnicodeNormalizationStageTest {
     inner class EdgeCases {
 
         @Test
-        fun `empty input passes as DEFAULT`() = runBlocking {
+        fun `비어있는 input passes as DEFAULT`() = runBlocking {
             val result = stage.check(command(""))
             assertEquals(GuardResult.Allowed.DEFAULT, result,
                 "Empty input should return DEFAULT")
         }
 
         @Test
-        fun `order is 0`() {
+        fun `order은(는) 0이다`() {
             assertEquals(0, stage.order, "UnicodeNormalization should execute before all stages (order=0)")
         }
 
         @Test
-        fun `stage name is correct`() {
+        fun `stage name은(는) correct이다`() {
             assertEquals("UnicodeNormalization", stage.stageName)
         }
     }

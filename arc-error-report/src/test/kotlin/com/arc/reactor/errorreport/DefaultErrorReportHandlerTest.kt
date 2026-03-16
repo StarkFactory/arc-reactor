@@ -47,7 +47,7 @@ class DefaultErrorReportHandlerTest {
     inner class AgentCommandConstruction {
 
         @Test
-        fun `user prompt contains all request fields`() = runTest {
+        fun `user prompt은(는) all request fields를 포함한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult.success("done")
@@ -64,7 +64,7 @@ class DefaultErrorReportHandlerTest {
         }
 
         @Test
-        fun `system prompt contains key instructions`() = runTest {
+        fun `system prompt은(는) key instructions를 포함한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult.success("done")
@@ -80,7 +80,7 @@ class DefaultErrorReportHandlerTest {
         }
 
         @Test
-        fun `maxToolCalls comes from properties`() = runTest {
+        fun `maxToolCalls은(는) comes from properties`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult.success("done")
@@ -91,7 +91,7 @@ class DefaultErrorReportHandlerTest {
         }
 
         @Test
-        fun `metadata includes source and requestId`() = runTest {
+        fun `metadata은(는) includes source and requestId`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult.success("done")
@@ -104,7 +104,7 @@ class DefaultErrorReportHandlerTest {
         }
 
         @Test
-        fun `optional fields are omitted from prompt when null`() = runTest {
+        fun `null일 때 optional fields are omitted from prompt`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult.success("done")
@@ -113,7 +113,7 @@ class DefaultErrorReportHandlerTest {
 
             val prompt = commandSlot.captured.userPrompt
             prompt shouldContain "my-service"
-            // Should not contain "Environment:" or "Timestamp:" lines
+            // not contain "Environment:" or "Timestamp:" lines해야 합니다
             assert(!prompt.contains("Environment:"))
             assert(!prompt.contains("Timestamp:"))
         }
@@ -123,21 +123,21 @@ class DefaultErrorReportHandlerTest {
     inner class ErrorHandling {
 
         @Test
-        fun `does not throw when agent returns failure`() = runTest {
+        fun `throw when agent returns failure하지 않는다`() = runTest {
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult.failure("LLM error", AgentErrorCode.UNKNOWN)
 
-            // Should not throw
+            // 예외를 던지면 안 됩니다
             handler.handle("req-1", request())
 
             coVerify(exactly = 1) { agentExecutor.execute(any<AgentCommand>()) }
         }
 
         @Test
-        fun `does not throw when executor throws exception`() = runTest {
+        fun `throw when executor throws exception하지 않는다`() = runTest {
             coEvery { agentExecutor.execute(any<AgentCommand>()) } throws RuntimeException("LLM down")
 
-            // Should not throw — exception is caught and logged
+            // not throw — exception is caught and logged해야 합니다
             handler.handle("req-1", request())
         }
     }

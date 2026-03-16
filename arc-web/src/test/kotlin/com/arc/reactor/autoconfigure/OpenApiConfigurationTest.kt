@@ -8,7 +8,7 @@ import org.springframework.boot.info.BuildProperties
 import java.util.Properties
 
 /**
- * Tests for OpenAPI configuration bean.
+ * 에 대한 테스트. OpenAPI configuration bean.
  */
 class OpenApiConfigurationTest {
 
@@ -18,7 +18,7 @@ class OpenApiConfigurationTest {
     inner class OpenAPIBeanConfiguration {
 
         @Test
-        fun `should have correct title and version`() {
+        fun `have correct title and version해야 한다`() {
             val openAPI = config.arcReactorOpenAPI()
 
             assertEquals("Arc Reactor API", openAPI.info.title,
@@ -28,7 +28,7 @@ class OpenApiConfigurationTest {
         }
 
         @Test
-        fun `should have Apache 2 license`() {
+        fun `have Apache 2 license해야 한다`() {
             val openAPI = config.arcReactorOpenAPI()
 
             assertNotNull(openAPI.info.license, "License should be set")
@@ -37,7 +37,7 @@ class OpenApiConfigurationTest {
         }
 
         @Test
-        fun `should configure Bearer JWT security scheme`() {
+        fun `configure Bearer JWT security scheme해야 한다`() {
             val openAPI = config.arcReactorOpenAPI()
 
             val scheme = openAPI.components.securitySchemes["bearerAuth"]
@@ -51,7 +51,7 @@ class OpenApiConfigurationTest {
         }
 
         @Test
-        fun `should have global security requirement`() {
+        fun `have global security requirement해야 한다`() {
             val openAPI = config.arcReactorOpenAPI()
 
             assertFalse(openAPI.security.isNullOrEmpty(),
@@ -61,7 +61,7 @@ class OpenApiConfigurationTest {
         }
 
         @Test
-        fun `should have description mentioning auth and api version contract`() {
+        fun `have description mentioning auth and api version contract해야 한다`() {
             val openAPI = config.arcReactorOpenAPI()
 
             assertTrue(openAPI.info.description.contains("Authentication is mandatory"),
@@ -71,7 +71,7 @@ class OpenApiConfigurationTest {
         }
 
         @Test
-        fun `should prefer build properties version when available`() {
+        fun `available일 때 prefer build properties version해야 한다`() {
             val properties = Properties().apply { setProperty("version", "9.9.9-test") }
             val openAPI = OpenApiConfiguration(BuildProperties(properties)).arcReactorOpenAPI()
 

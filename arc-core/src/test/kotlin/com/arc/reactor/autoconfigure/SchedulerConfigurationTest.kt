@@ -38,7 +38,7 @@ class SchedulerConfigurationTest {
     inner class ConditionalActivation {
 
         @Test
-        fun `beans are NOT created when scheduler is disabled`() {
+        fun `beans are NOT created when scheduler은(는) disabled이다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.scheduler.enabled=false")
                 .run { context ->
@@ -50,7 +50,7 @@ class SchedulerConfigurationTest {
         }
 
         @Test
-        fun `beans are NOT created without enabled property`() {
+        fun `beans은(는) NOT created without enabled property이다`() {
             contextRunner.run { context ->
                 context.getBeansOfType(DynamicSchedulerService::class.java).isEmpty()
                     .shouldBeTrue()
@@ -62,7 +62,7 @@ class SchedulerConfigurationTest {
     inner class ToolBeanWiring {
 
         @Test
-        fun `scheduler tool beans are created when scheduler is enabled`() {
+        fun `scheduler tool beans are created when scheduler은(는) enabled이다`() {
             contextRunner
                 .withPropertyValues("arc.reactor.scheduler.enabled=true")
                 .run { context ->
@@ -75,7 +75,7 @@ class SchedulerConfigurationTest {
         }
 
         @Test
-        fun `scheduler falls back to in-memory store when no persistent store exists`() {
+        fun `no persistent store exists일 때 scheduler falls back to in-memory store`() {
             dbLessContextRunner
                 .withPropertyValues("arc.reactor.scheduler.enabled=true")
                 .run { context ->
@@ -89,7 +89,7 @@ class SchedulerConfigurationTest {
         }
 
         @Test
-        fun `tool beans depend on DynamicSchedulerService`() {
+        fun `도구 beans depend on DynamicSchedulerService`() {
             contextRunner
                 .withPropertyValues("arc.reactor.scheduler.enabled=true")
                 .run { context ->
@@ -102,7 +102,7 @@ class SchedulerConfigurationTest {
         }
 
         @Test
-        fun `custom tool bean overrides default via ConditionalOnMissingBean`() {
+        fun `커스텀 tool bean overrides default via ConditionalOnMissingBean`() {
             val customTool = CreateScheduledJobTool(mockk(relaxed = true), "UTC")
             contextRunner
                 .withPropertyValues("arc.reactor.scheduler.enabled=true")
@@ -114,7 +114,7 @@ class SchedulerConfigurationTest {
         }
 
         @Test
-        fun `scheduler service can lazily resolve agent executor without circular dependency`() {
+        fun `scheduler은(는) service can lazily resolve agent executor without circular dependency`() {
             contextRunner
                 .withPropertyValues("arc.reactor.scheduler.enabled=true")
                 .withUserConfiguration(CyclicAgentExecutorConfig::class.java)

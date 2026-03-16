@@ -23,7 +23,7 @@ class UseCaseDelegationTest {
     private val slackClient = mockk<SlackApiClient>()
 
     @Test
-    fun `SendMessageUseCase delegates to SlackApiClient`() {
+    fun `SendMessageUseCase은(는) SlackApiClient에 위임한다`() {
         val useCase = SendMessageUseCase(slackClient)
         val expected = PostMessageResult(ok = true, ts = "1234.5678", channel = "C123")
         every { slackClient.postMessage("C123", "hello", null) } returns expected
@@ -35,7 +35,7 @@ class UseCaseDelegationTest {
     }
 
     @Test
-    fun `ReplyToThreadUseCase delegates to SlackApiClient`() {
+    fun `ReplyToThreadUseCase은(는) SlackApiClient에 위임한다`() {
         val useCase = ReplyToThreadUseCase(slackClient)
         val expected = PostMessageResult(ok = true, ts = "1234.9999", channel = "C123")
         every { slackClient.postMessage("C123", "reply", "1234.5678") } returns expected
@@ -47,7 +47,7 @@ class UseCaseDelegationTest {
     }
 
     @Test
-    fun `ListChannelsUseCase delegates to SlackApiClient`() {
+    fun `ListChannelsUseCase은(는) SlackApiClient에 위임한다`() {
         val useCase = ListChannelsUseCase(slackClient)
         val expected = ConversationsListResult(ok = true)
         every { slackClient.conversationsList(100, null) } returns expected
@@ -59,7 +59,7 @@ class UseCaseDelegationTest {
     }
 
     @Test
-    fun `FindChannelUseCase delegates to SlackApiClient`() {
+    fun `FindChannelUseCase은(는) SlackApiClient에 위임한다`() {
         val useCase = FindChannelUseCase(slackClient)
         val expected = FindChannelsResult(ok = true, query = "gen")
         every { slackClient.findChannelsByName("gen", false, 10) } returns expected
@@ -71,7 +71,7 @@ class UseCaseDelegationTest {
     }
 
     @Test
-    fun `ReadMessagesUseCase delegates to SlackApiClient`() {
+    fun `ReadMessagesUseCase은(는) SlackApiClient에 위임한다`() {
         val useCase = ReadMessagesUseCase(slackClient)
         val expected = ConversationHistoryResult(ok = true)
         every { slackClient.conversationHistory("C123", 10, null) } returns expected
@@ -83,7 +83,7 @@ class UseCaseDelegationTest {
     }
 
     @Test
-    fun `ReadThreadRepliesUseCase delegates to SlackApiClient`() {
+    fun `ReadThreadRepliesUseCase은(는) SlackApiClient에 위임한다`() {
         val useCase = ReadThreadRepliesUseCase(slackClient)
         val expected = ConversationHistoryResult(ok = true)
         every { slackClient.threadReplies("C123", "1234.5678", 10, null) } returns expected
@@ -95,7 +95,7 @@ class UseCaseDelegationTest {
     }
 
     @Test
-    fun `AddReactionUseCase delegates to SlackApiClient`() {
+    fun `AddReactionUseCase은(는) SlackApiClient에 위임한다`() {
         val useCase = AddReactionUseCase(slackClient)
         val expected = SimpleResult(ok = true)
         every { slackClient.addReaction("C123", "1234.5678", "thumbsup") } returns expected
@@ -107,7 +107,7 @@ class UseCaseDelegationTest {
     }
 
     @Test
-    fun `GetUserInfoUseCase delegates to SlackApiClient`() {
+    fun `GetUserInfoUseCase은(는) SlackApiClient에 위임한다`() {
         val useCase = GetUserInfoUseCase(slackClient)
         val expected = UserInfoResult(ok = true, user = SlackUser(id = "U123", name = "john"))
         every { slackClient.getUserInfo("U123") } returns expected
@@ -119,7 +119,7 @@ class UseCaseDelegationTest {
     }
 
     @Test
-    fun `FindUserUseCase delegates to SlackApiClient`() {
+    fun `FindUserUseCase은(는) SlackApiClient에 위임한다`() {
         val useCase = FindUserUseCase(slackClient)
         val expected = FindUsersResult(ok = true, query = "john")
         every { slackClient.findUsersByName("john", false, 10) } returns expected
@@ -131,7 +131,7 @@ class UseCaseDelegationTest {
     }
 
     @Test
-    fun `SearchMessagesUseCase delegates to SlackApiClient`() {
+    fun `SearchMessagesUseCase은(는) SlackApiClient에 위임한다`() {
         val useCase = SearchMessagesUseCase(slackClient)
         val expected = SearchMessagesResult(
             ok = true,
@@ -147,7 +147,7 @@ class UseCaseDelegationTest {
     }
 
     @Test
-    fun `UploadFileUseCase delegates to SlackApiClient`() {
+    fun `UploadFileUseCase은(는) SlackApiClient에 위임한다`() {
         val useCase = UploadFileUseCase(slackClient)
         val expected = UploadFileResult(ok = true, fileId = "F123")
         every {

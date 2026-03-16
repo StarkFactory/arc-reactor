@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Tests for CacheKeyBuilder.
+ * CacheKeyBuilder에 대한 테스트.
  */
 class CacheKeyBuilderTest {
 
@@ -15,7 +15,7 @@ class CacheKeyBuilderTest {
     inner class KeyGeneration {
 
         @Test
-        fun `same inputs produce same key`() {
+        fun `동일한 inputs produce same key`() {
             val command = AgentCommand(
                 systemPrompt = "You are helpful",
                 userPrompt = "Hello"
@@ -28,7 +28,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `different user prompts produce different keys`() {
+        fun `다른 user prompts produce different keys`() {
             val cmd1 = AgentCommand(systemPrompt = "sys", userPrompt = "Hello")
             val cmd2 = AgentCommand(systemPrompt = "sys", userPrompt = "Goodbye")
 
@@ -39,7 +39,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `different system prompts produce different keys`() {
+        fun `다른 system prompts produce different keys`() {
             val cmd1 = AgentCommand(systemPrompt = "You are helpful", userPrompt = "Hi")
             val cmd2 = AgentCommand(systemPrompt = "You are concise", userPrompt = "Hi")
 
@@ -50,7 +50,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `different tool lists produce different keys`() {
+        fun `다른 tool lists produce different keys`() {
             val command = AgentCommand(systemPrompt = "sys", userPrompt = "Hello")
 
             val key1 = CacheKeyBuilder.buildKey(command, listOf("tool1"))
@@ -60,7 +60,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `tool order does not affect key`() {
+        fun `도구 order does not affect key`() {
             val command = AgentCommand(systemPrompt = "sys", userPrompt = "Hello")
 
             val key1 = CacheKeyBuilder.buildKey(command, listOf("tool1", "tool2"))
@@ -70,7 +70,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `different models produce different keys`() {
+        fun `다른 models produce different keys`() {
             val cmd1 = AgentCommand(systemPrompt = "sys", userPrompt = "Hello", model = "openai")
             val cmd2 = AgentCommand(systemPrompt = "sys", userPrompt = "Hello", model = "anthropic")
 
@@ -81,7 +81,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `different user ids produce different keys`() {
+        fun `다른 user ids produce different keys`() {
             val cmd1 = AgentCommand(systemPrompt = "sys", userPrompt = "Hello", userId = "user-a")
             val cmd2 = AgentCommand(systemPrompt = "sys", userPrompt = "Hello", userId = "user-b")
 
@@ -92,7 +92,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `different session ids produce different keys`() {
+        fun `다른 session ids produce different keys`() {
             val cmd1 = AgentCommand(
                 systemPrompt = "sys",
                 userPrompt = "Hello",
@@ -111,7 +111,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `different tenant ids produce different keys`() {
+        fun `다른 tenant ids produce different keys`() {
             val cmd1 = AgentCommand(
                 systemPrompt = "sys",
                 userPrompt = "Hello",
@@ -130,7 +130,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `different requester identities produce different keys`() {
+        fun `다른 requester identities produce different keys`() {
             val cmd1 = AgentCommand(
                 systemPrompt = "sys",
                 userPrompt = "내 일 알려줘",
@@ -149,7 +149,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `requesterAccountId is included in cache key identity scope`() {
+        fun `requesterAccountId은(는) included in cache key identity scope이다`() {
             val commandWithEmail = AgentCommand(
                 systemPrompt = "sys",
                 userPrompt = "내 일 알려줘",
@@ -168,7 +168,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `different response schema produces different keys`() {
+        fun `다른 response schema produces different keys`() {
             val cmd1 = AgentCommand(
                 systemPrompt = "sys",
                 userPrompt = "Hello",
@@ -189,7 +189,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `key is a valid SHA-256 hex string`() {
+        fun `key은(는) a valid SHA-256 hex string이다`() {
             val command = AgentCommand(systemPrompt = "sys", userPrompt = "test")
 
             val key = CacheKeyBuilder.buildKey(command, emptyList())
@@ -199,7 +199,7 @@ class CacheKeyBuilderTest {
         }
 
         @Test
-        fun `scope fingerprint should exclude user prompt text`() {
+        fun `scope fingerprint은(는) exclude user prompt text해야 한다`() {
             val cmd1 = AgentCommand(systemPrompt = "sys", userPrompt = "Question A")
             val cmd2 = AgentCommand(systemPrompt = "sys", userPrompt = "Question B")
 

@@ -26,7 +26,7 @@ class AdminInitializerTest {
     inner class WhenEnvVarsSet {
 
         @Test
-        fun `should create admin when email does not exist`() {
+        fun `email does not exist일 때 create admin해야 한다`() {
             envVars["ARC_REACTOR_AUTH_ADMIN_EMAIL"] = "admin@test.com"
             envVars["ARC_REACTOR_AUTH_ADMIN_PASSWORD"] = "securepass"
             envVars["ARC_REACTOR_AUTH_ADMIN_NAME"] = "Test Admin"
@@ -45,7 +45,7 @@ class AdminInitializerTest {
         }
 
         @Test
-        fun `should skip when admin email already exists`() {
+        fun `admin email already exists일 때 skip해야 한다`() {
             envVars["ARC_REACTOR_AUTH_ADMIN_EMAIL"] = "admin@test.com"
             envVars["ARC_REACTOR_AUTH_ADMIN_PASSWORD"] = "securepass"
             every { userStore.existsByEmail("admin@test.com") } returns true
@@ -56,10 +56,10 @@ class AdminInitializerTest {
         }
 
         @Test
-        fun `should use default name when env var not set`() {
+        fun `env var not set일 때 use default name해야 한다`() {
             envVars["ARC_REACTOR_AUTH_ADMIN_EMAIL"] = "admin@test.com"
             envVars["ARC_REACTOR_AUTH_ADMIN_PASSWORD"] = "securepass"
-            // ARC_REACTOR_AUTH_ADMIN_NAME not set
+            // ARC_REACTOR_AUTH_ADMIN_NAME이 설정되지 않음
             every { userStore.existsByEmail("admin@test.com") } returns false
             every { authProvider.hashPassword("securepass") } returns "hashed"
             val slot = slot<User>()
@@ -75,7 +75,7 @@ class AdminInitializerTest {
     inner class PasswordValidation {
 
         @Test
-        fun `should skip when password is shorter than 8 characters`() {
+        fun `password is shorter than 8 characters일 때 skip해야 한다`() {
             envVars["ARC_REACTOR_AUTH_ADMIN_EMAIL"] = "admin@test.com"
             envVars["ARC_REACTOR_AUTH_ADMIN_PASSWORD"] = "short"
 
@@ -85,7 +85,7 @@ class AdminInitializerTest {
         }
 
         @Test
-        fun `should accept password with exactly 8 characters`() {
+        fun `exactly 8 characters로 accept password해야 한다`() {
             envVars["ARC_REACTOR_AUTH_ADMIN_EMAIL"] = "admin@test.com"
             envVars["ARC_REACTOR_AUTH_ADMIN_PASSWORD"] = "12345678"
             every { userStore.existsByEmail("admin@test.com") } returns false
@@ -102,9 +102,9 @@ class AdminInitializerTest {
     inner class WhenEnvVarsNotSet {
 
         @Test
-        fun `should skip when email env var is missing`() {
+        fun `email env var is missing일 때 skip해야 한다`() {
             envVars["ARC_REACTOR_AUTH_ADMIN_PASSWORD"] = "securepass"
-            // ARC_REACTOR_AUTH_ADMIN_EMAIL not set
+            // ARC_REACTOR_AUTH_ADMIN_EMAIL이 설정되지 않음
 
             createInitializer().initAdmin()
 
@@ -112,9 +112,9 @@ class AdminInitializerTest {
         }
 
         @Test
-        fun `should skip when password env var is missing`() {
+        fun `password env var is missing일 때 skip해야 한다`() {
             envVars["ARC_REACTOR_AUTH_ADMIN_EMAIL"] = "admin@test.com"
-            // ARC_REACTOR_AUTH_ADMIN_PASSWORD not set
+            // ARC_REACTOR_AUTH_ADMIN_PASSWORD이 설정되지 않음
 
             createInitializer().initAdmin()
 

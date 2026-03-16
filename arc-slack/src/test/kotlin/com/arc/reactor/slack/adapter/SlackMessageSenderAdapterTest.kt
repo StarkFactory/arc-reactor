@@ -18,7 +18,7 @@ class SlackMessageSenderAdapterTest {
     inner class SendMessage {
 
         @Test
-        fun `calls SlackMessagingService sendMessage with correct parameters`() {
+        fun `SlackMessagingService sendMessage with correct parameters를 호출한다`() {
             coEvery { messagingService.sendMessage("C123", "hello") } returns
                 SlackApiResult(ok = true)
 
@@ -28,7 +28,7 @@ class SlackMessageSenderAdapterTest {
         }
 
         @Test
-        fun `passes message text through without modification`() {
+        fun `message text through without modification를 전달한다`() {
             val longMessage = "*[morning-briefing]* 브리핑:\n오늘 스프린트 요약입니다."
             coEvery { messagingService.sendMessage("C456", longMessage) } returns
                 SlackApiResult(ok = true)
@@ -39,7 +39,7 @@ class SlackMessageSenderAdapterTest {
         }
 
         @Test
-        fun `does not throw when SlackApiResult ok is false`() {
+        fun `does not throw when SlackApiResult ok은(는) false이다`() {
             coEvery { messagingService.sendMessage("C123", "hello") } returns
                 SlackApiResult(ok = false, error = "channel_not_found")
 
@@ -49,7 +49,7 @@ class SlackMessageSenderAdapterTest {
         }
 
         @Test
-        fun `propagates exception from SlackMessagingService`() {
+        fun `exception from SlackMessagingService를 전파한다`() {
             coEvery { messagingService.sendMessage("C123", "hello") } throws
                 RuntimeException("Network error")
 

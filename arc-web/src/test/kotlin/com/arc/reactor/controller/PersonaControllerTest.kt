@@ -51,7 +51,7 @@ class PersonaControllerTest {
     inner class ListPersonas {
 
         @Test
-        fun `should return empty list when no personas exist`() = runTest {
+        fun `no personas exist일 때 return empty list해야 한다`() = runTest {
             every { personaStore.list() } returns emptyList()
 
             val response = controller.listPersonas(activeOnly = false, exchange = adminExchange())
@@ -63,7 +63,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should return default persona in list`() = runTest {
+        fun `return default persona in list해야 한다`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             every { personaStore.list() } returns listOf(
                 Persona("default", "Default Assistant", "You are helpful.", true, createdAt = now, updatedAt = now)
@@ -80,7 +80,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should return multiple personas with correct fields`() = runTest {
+        fun `correct fields로 return multiple personas해야 한다`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             every { personaStore.list() } returns listOf(
                 Persona("default", "Default", "prompt-1", true, createdAt = now, updatedAt = now),
@@ -98,7 +98,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin user`() = runTest {
+        fun `non-admin user에 대해 return 403해야 한다`() = runTest {
             val response = controller.listPersonas(activeOnly = false, exchange = userExchange())
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
@@ -109,7 +109,7 @@ class PersonaControllerTest {
     inner class GetPersona {
 
         @Test
-        fun `should return 404 when persona does not exist`() = runTest {
+        fun `persona does not exist일 때 return 404해야 한다`() = runTest {
             every { personaStore.get("nonexistent") } returns null
 
             val response = controller.getPersona("nonexistent")
@@ -118,7 +118,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should return persona with correct fields`() = runTest {
+        fun `correct fields로 return persona해야 한다`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             every { personaStore.get("p-1") } returns Persona(
                 "p-1", "Customer Agent", "You handle customer inquiries.", false, createdAt = now, updatedAt = now
@@ -137,7 +137,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should return extended fields in response`() = runTest {
+        fun `return extended fields in response해야 한다`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             every { personaStore.get("ext-1") } returns Persona(
                 id = "ext-1",
@@ -170,7 +170,7 @@ class PersonaControllerTest {
     inner class CreatePersona {
 
         @Test
-        fun `should return 201 with created persona for admin`() = runTest {
+        fun `created persona for admin로 return 201해야 한다`() = runTest {
             val slot = slot<Persona>()
             every { personaStore.save(capture(slot)) } answers { slot.captured }
 
@@ -190,7 +190,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin user`() = runTest {
+        fun `non-admin user에 대해 return 403해야 한다`() = runTest {
             val request = CreatePersonaRequest(name = "test", systemPrompt = "test")
 
             val response = controller.createPersona(request, userExchange())
@@ -199,7 +199,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should reject create when role is missing`() = runTest {
+        fun `role is missing일 때 reject create해야 한다`() = runTest {
             val slot = slot<Persona>()
             every { personaStore.save(capture(slot)) } answers { slot.captured }
 
@@ -212,7 +212,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should pass isDefault to store when creating default persona`() = runTest {
+        fun `creating default persona일 때 pass isDefault to store해야 한다`() = runTest {
             val slot = slot<Persona>()
             every { personaStore.save(capture(slot)) } answers { slot.captured }
 
@@ -227,7 +227,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should pass extended fields to store when creating persona`() = runTest {
+        fun `creating persona일 때 pass extended fields to store해야 한다`() = runTest {
             val slot = slot<Persona>()
             every { personaStore.save(capture(slot)) } answers { slot.captured }
 
@@ -252,14 +252,14 @@ class PersonaControllerTest {
             assertEquals("🧑‍💻", body.icon) { "Icon should match" }
             assertTrue(body.isActive) { "isActive should be true" }
 
-            // Verify captured persona
+            // captured persona 확인
             assertEquals("A domain expert", slot.captured.description) { "Stored description should match" }
             assertEquals("Use bullet points.", slot.captured.responseGuideline) { "Stored guideline should match" }
             assertEquals("template-expert", slot.captured.promptTemplateId) { "Stored linked prompt template should match" }
         }
 
         @Test
-        fun `should default isActive to true and extended fields to null`() = runTest {
+        fun `default isActive to true and extended fields to null해야 한다`() = runTest {
             val slot = slot<Persona>()
             every { personaStore.save(capture(slot)) } answers { slot.captured }
 
@@ -282,7 +282,7 @@ class PersonaControllerTest {
     inner class UpdatePersona {
 
         @Test
-        fun `should return 404 when updating nonexistent persona`() = runTest {
+        fun `updating nonexistent persona일 때 return 404해야 한다`() = runTest {
             every { personaStore.update("nonexistent",
                 any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns null
 
@@ -296,7 +296,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should return updated persona with correct fields`() = runTest {
+        fun `correct fields로 return updated persona해야 한다`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
             every { personaStore.update("p-1", "Updated Name",
                 null, null, null, null, null, null, null, null) } returns Persona(
@@ -315,7 +315,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin user`() = runTest {
+        fun `non-admin user에 대해 return 403해야 한다`() = runTest {
             val response = controller.updatePersona(
                 "p-1",
                 UpdatePersonaRequest(name = "Hacked"),
@@ -326,7 +326,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should pass isDefault change to store`() = runTest {
+        fun `pass isDefault change to store해야 한다`() = runTest {
             val now = Instant.now()
             every { personaStore.update("p-1", null, null, true,
                 null, null, null, null, null, null) } returns Persona(
@@ -344,7 +344,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should pass linked prompt template changes to store`() = runTest {
+        fun `pass linked prompt template changes to store해야 한다`() = runTest {
             val now = Instant.now()
             every { personaStore.update("p-1", null, null, null,
                 null, null, null, null, "template-a", null) } returns Persona(
@@ -373,7 +373,7 @@ class PersonaControllerTest {
     inner class DeletePersona {
 
         @Test
-        fun `should return 204 on successful deletion for admin`() = runTest {
+        fun `admin에 대해 return 204 on successful deletion해야 한다`() = runTest {
             every { personaStore.delete("p-1") } returns Unit
 
             val response = controller.deletePersona("p-1", adminExchange())
@@ -382,14 +382,14 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin user`() = runTest {
+        fun `non-admin user에 대해 return 403해야 한다`() = runTest {
             val response = controller.deletePersona("p-1", userExchange())
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Should return 403 for USER role" }
         }
 
         @Test
-        fun `should call store delete with correct personaId`() = runTest {
+        fun `correct personaId로 call store delete해야 한다`() = runTest {
             every { personaStore.delete(any()) } returns Unit
 
             controller.deletePersona("target-persona", adminExchange())
@@ -398,7 +398,7 @@ class PersonaControllerTest {
         }
 
         @Test
-        fun `should return 204 even for nonexistent persona`() = runTest {
+        fun `nonexistent persona에 대해 return 204 even해야 한다`() = runTest {
             every { personaStore.delete("nonexistent") } returns Unit
 
             val response = controller.deletePersona("nonexistent", adminExchange())

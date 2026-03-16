@@ -27,7 +27,7 @@ class SemanticCacheAutoConfigurationTest {
         .withConfiguration(AutoConfigurations.of(ArcReactorAutoConfiguration::class.java))
 
     @Test
-    fun `should register RedisSemanticResponseCache when redis and embedding beans exist`() {
+    fun `redis and embedding beans exist일 때 register RedisSemanticResponseCache해야 한다`() {
         baseRunner
             .withUserConfiguration(AvailableSemanticCacheDepsConfig::class.java)
             .run { context ->
@@ -39,7 +39,7 @@ class SemanticCacheAutoConfigurationTest {
     }
 
     @Test
-    fun `should fall back to CaffeineResponseCache when redis is unreachable`() {
+    fun `redis is unreachable일 때 fall back to CaffeineResponseCache해야 한다`() {
         baseRunner
             .withUserConfiguration(UnavailableSemanticCacheDepsConfig::class.java)
             .run { context ->
@@ -51,7 +51,7 @@ class SemanticCacheAutoConfigurationTest {
     }
 
     @Test
-    fun `should fall back to CaffeineResponseCache when semantic deps are missing`() {
+    fun `semantic deps are missing일 때 fall back to CaffeineResponseCache해야 한다`() {
         baseRunner.run { context ->
             val cache = context.getBean(ResponseCache::class.java)
             assertInstanceOf(CaffeineResponseCache::class.java, cache) {

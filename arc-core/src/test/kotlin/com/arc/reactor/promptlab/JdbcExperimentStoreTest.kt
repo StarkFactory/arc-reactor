@@ -32,7 +32,7 @@ class JdbcExperimentStoreTest {
         jdbcTemplate = JdbcTemplate(dataSource)
         val transactionTemplate = TransactionTemplate(DataSourceTransactionManager(dataSource))
 
-        // Apply V25 migration schema
+        // V25 마이그레이션 스키마 적용
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS experiments (
                 id                    VARCHAR(36)   PRIMARY KEY,
@@ -204,12 +204,12 @@ class JdbcExperimentStoreTest {
     inner class ExperimentCrud {
 
         @Test
-        fun `should start empty`() {
+        fun `start empty해야 한다`() {
             store.list().shouldBeEmpty()
         }
 
         @Test
-        fun `should save and retrieve experiment`() {
+        fun `save and retrieve experiment해야 한다`() {
             val experiment = createExperiment()
 
             store.save(experiment)
@@ -229,7 +229,7 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should preserve complex JSON fields through round-trip`() {
+        fun `preserve complex JSON fields through round-trip해야 한다`() {
             val experiment = createExperiment()
             store.save(experiment)
             val retrieved = store.get("exp-1")
@@ -244,12 +244,12 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should return null for nonexistent experiment`() {
+        fun `nonexistent experiment에 대해 return null해야 한다`() {
             store.get("nonexistent").shouldBeNull()
         }
 
         @Test
-        fun `should delete experiment and associated data`() {
+        fun `delete experiment and associated data해야 한다`() {
             store.save(createExperiment())
             store.saveTrials("exp-1", listOf(createTrial()))
             store.saveReport("exp-1", createReport())
@@ -262,12 +262,12 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `delete should be idempotent for nonexistent experiment`() {
+        fun `delete은(는) be idempotent for nonexistent experiment해야 한다`() {
             assertDoesNotThrow { store.delete("nonexistent") }
         }
 
         @Test
-        fun `should upsert experiment on save with same id`() {
+        fun `same id로 upsert experiment on save해야 한다`() {
             store.save(createExperiment(name = "First", status = ExperimentStatus.PENDING))
             store.save(createExperiment(name = "Updated", status = ExperimentStatus.RUNNING))
 
@@ -279,7 +279,7 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should preserve nullable timestamp fields`() {
+        fun `preserve nullable timestamp fields해야 한다`() {
             val withTimestamps = createExperiment().copy(
                 startedAt = Instant.parse("2026-01-15T12:01:00Z"),
                 completedAt = Instant.parse("2026-01-15T12:09:00Z"),
@@ -295,7 +295,7 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should handle null optional fields`() {
+        fun `handle null optional fields해야 한다`() {
             val withNulls = createExperiment().copy(
                 model = null,
                 judgeModel = null,
@@ -339,7 +339,7 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should filter by status`() {
+        fun `filter by status해야 한다`() {
             val result = store.list(status = ExperimentStatus.COMPLETED)
 
             result shouldHaveSize 2
@@ -347,7 +347,7 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should filter by templateId`() {
+        fun `filter by templateId해야 한다`() {
             val result = store.list(templateId = "tpl-1")
 
             result shouldHaveSize 2
@@ -355,7 +355,7 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should combine status and templateId filters`() {
+        fun `combine status and templateId filters해야 한다`() {
             val result = store.list(
                 status = ExperimentStatus.COMPLETED,
                 templateId = "tpl-1"
@@ -366,17 +366,17 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should return all when no filters provided`() {
+        fun `no filters provided일 때 return all해야 한다`() {
             store.list() shouldHaveSize 3
         }
 
         @Test
-        fun `should return empty list when no entries match`() {
+        fun `no entries match일 때 return empty list해야 한다`() {
             store.list(status = ExperimentStatus.FAILED).shouldBeEmpty()
         }
 
         @Test
-        fun `should sort by createdAt descending`() {
+        fun `sort by createdAt descending해야 한다`() {
             val result = store.list()
 
             result[0].id shouldBe "exp-3"
@@ -389,7 +389,7 @@ class JdbcExperimentStoreTest {
     inner class TrialOperations {
 
         @Test
-        fun `should save and retrieve trials`() {
+        fun `save and retrieve trials해야 한다`() {
             val trials = listOf(
                 createTrial(id = "t-1", promptVersionId = "v1"),
                 createTrial(id = "t-2", promptVersionId = "v2")
@@ -404,7 +404,7 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should preserve trial JSON fields through round-trip`() {
+        fun `preserve trial JSON fields through round-trip해야 한다`() {
             store.saveTrials("exp-1", listOf(createTrial()))
             val retrieved = store.getTrials("exp-1")
 
@@ -426,12 +426,12 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should return empty list for nonexistent experiment trials`() {
+        fun `nonexistent experiment trials에 대해 return empty list해야 한다`() {
             store.getTrials("nonexistent").shouldBeEmpty()
         }
 
         @Test
-        fun `should append trials on subsequent saves`() {
+        fun `append trials on subsequent saves해야 한다`() {
             store.saveTrials("exp-1", listOf(createTrial(id = "t-1")))
             store.saveTrials("exp-1", listOf(createTrial(id = "t-2")))
 
@@ -439,7 +439,7 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should isolate trials by experiment`() {
+        fun `isolate trials by experiment해야 한다`() {
             store.saveTrials("exp-1", listOf(createTrial(id = "t-1", experimentId = "exp-1")))
             store.saveTrials("exp-2", listOf(createTrial(id = "t-2", experimentId = "exp-2")))
 
@@ -448,7 +448,7 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should handle trial with null optional fields`() {
+        fun `null optional fields로 handle trial해야 한다`() {
             val minimalTrial = Trial(
                 id = "t-minimal",
                 experimentId = "exp-1",
@@ -473,11 +473,11 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should be idempotent when saving same trial ids again`() {
+        fun `saving same trial ids again일 때 be idempotent해야 한다`() {
             val trial = createTrial(id = "t-1")
             store.saveTrials("exp-1", listOf(trial))
 
-            // Same trial ID saved again — should not throw or duplicate
+            // Same trial ID saved again —은(는) not throw or duplicate해야 합니다
             assertDoesNotThrow { store.saveTrials("exp-1", listOf(trial)) }
             store.getTrials("exp-1") shouldHaveSize 1
         }
@@ -487,7 +487,7 @@ class JdbcExperimentStoreTest {
     inner class ReportOperations {
 
         @Test
-        fun `should save and retrieve report`() {
+        fun `save and retrieve report해야 한다`() {
             val report = createReport()
 
             store.saveReport("exp-1", report)
@@ -500,7 +500,7 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should preserve report complex fields through round-trip`() {
+        fun `preserve report complex fields through round-trip해야 한다`() {
             store.saveReport("exp-1", createReport())
             val retrieved = store.getReport("exp-1")
 
@@ -521,12 +521,12 @@ class JdbcExperimentStoreTest {
         }
 
         @Test
-        fun `should return null for nonexistent experiment report`() {
+        fun `nonexistent experiment report에 대해 return null해야 한다`() {
             store.getReport("nonexistent").shouldBeNull()
         }
 
         @Test
-        fun `should overwrite existing report`() {
+        fun `overwrite existing report해야 한다`() {
             store.saveReport("exp-1", createReport())
             val updated = createReport().copy(totalTrials = 10)
             store.saveReport("exp-1", updated)

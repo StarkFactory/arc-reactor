@@ -28,35 +28,35 @@ class AdminAuthSupportTest {
     inner class IsAdmin {
 
         @Test
-        fun `returns true when role is ADMIN`() {
+        fun `role is ADMIN일 때 true를 반환한다`() {
             assertTrue(isAdmin(exchangeWithRole(UserRole.ADMIN))) {
                 "ADMIN role should be treated as admin"
             }
         }
 
         @Test
-        fun `returns true when role is ADMIN_DEVELOPER`() {
+        fun `role is ADMIN_DEVELOPER일 때 true를 반환한다`() {
             assertTrue(isAdmin(exchangeWithRole(UserRole.ADMIN_DEVELOPER))) {
                 "ADMIN_DEVELOPER role should be treated as developer admin"
             }
         }
 
         @Test
-        fun `returns false when role is ADMIN_MANAGER`() {
+        fun `role is ADMIN_MANAGER일 때 false를 반환한다`() {
             assertFalse(isAdmin(exchangeWithRole(UserRole.ADMIN_MANAGER))) {
                 "ADMIN_MANAGER role should not be treated as developer admin"
             }
         }
 
         @Test
-        fun `returns false when role is USER`() {
+        fun `role is USER일 때 false를 반환한다`() {
             assertFalse(isAdmin(exchangeWithRole(UserRole.USER))) {
                 "USER role should not be treated as admin"
             }
         }
 
         @Test
-        fun `returns false when role is null`() {
+        fun `role is null일 때 false를 반환한다`() {
             assertFalse(isAdmin(exchangeWithRole(null))) {
                 "Null role should fail-close as non-admin"
             }
@@ -67,21 +67,21 @@ class AdminAuthSupportTest {
     inner class IsAnyAdmin {
 
         @Test
-        fun `returns true when role is ADMIN_MANAGER`() {
+        fun `role is ADMIN_MANAGER일 때 true를 반환한다`() {
             assertTrue(isAnyAdmin(exchangeWithRole(UserRole.ADMIN_MANAGER))) {
                 "ADMIN_MANAGER role should be treated as admin for manager surfaces"
             }
         }
 
         @Test
-        fun `returns true when role is ADMIN_DEVELOPER`() {
+        fun `role is ADMIN_DEVELOPER일 때 true를 반환한다`() {
             assertTrue(isAnyAdmin(exchangeWithRole(UserRole.ADMIN_DEVELOPER))) {
                 "ADMIN_DEVELOPER role should be treated as admin for manager surfaces"
             }
         }
 
         @Test
-        fun `returns false when role is USER`() {
+        fun `role is USER일 때 false를 반환한다`() {
             assertFalse(isAnyAdmin(exchangeWithRole(UserRole.USER))) {
                 "USER role should not be treated as admin"
             }
@@ -92,7 +92,7 @@ class AdminAuthSupportTest {
     inner class ForbiddenResponse {
 
         @Test
-        fun `returns 403 with standard error body`() {
+        fun `403 with standard error body를 반환한다`() {
             val response = forbiddenResponse()
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
@@ -109,7 +109,7 @@ class AdminAuthSupportTest {
     inner class NotFoundResponse {
 
         @Test
-        fun `returns 404 with descriptive message`() {
+        fun `404 with descriptive message를 반환한다`() {
             val response = notFoundResponse("Resource not found: abc")
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
@@ -126,7 +126,7 @@ class AdminAuthSupportTest {
     inner class ConflictResponse {
 
         @Test
-        fun `returns 409 with descriptive message`() {
+        fun `409 with descriptive message를 반환한다`() {
             val response = conflictResponse("Already exists")
 
             assertEquals(HttpStatus.CONFLICT, response.statusCode) {
@@ -143,7 +143,7 @@ class AdminAuthSupportTest {
     inner class BadRequestResponse {
 
         @Test
-        fun `returns 400 with descriptive message`() {
+        fun `400 with descriptive message를 반환한다`() {
             val response = badRequestResponse("Invalid input")
 
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {

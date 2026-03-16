@@ -18,7 +18,7 @@ class PipelineHealthMonitorTest {
     inner class RecordWrite {
 
         @Test
-        fun `increments writtenTotal by count`() {
+        fun `increments은(는) writtenTotal by count`() {
             monitor.recordWrite(5, 10L)
             monitor.writtenTotal.get() shouldBe 5
 
@@ -27,7 +27,7 @@ class PipelineHealthMonitorTest {
         }
 
         @Test
-        fun `sets writeLatencyMs to latest value`() {
+        fun `writeLatencyMs to latest value를 설정한다`() {
             monitor.recordWrite(1, 10L)
             monitor.writeLatencyMs.get() shouldBe 10
 
@@ -40,7 +40,7 @@ class PipelineHealthMonitorTest {
     inner class RecordDrop {
 
         @Test
-        fun `increments droppedTotal by count`() {
+        fun `increments은(는) droppedTotal by count`() {
             monitor.recordDrop(3)
             monitor.droppedTotal.get() shouldBe 3
 
@@ -53,7 +53,7 @@ class PipelineHealthMonitorTest {
     inner class RecordWriteError {
 
         @Test
-        fun `increments writeErrorsTotal`() {
+        fun `increments은(는) writeErrorsTotal`() {
             monitor.recordWriteError()
             monitor.writeErrorsTotal.get() shouldBe 1
 
@@ -66,7 +66,7 @@ class PipelineHealthMonitorTest {
     inner class BufferUsage {
 
         @Test
-        fun `updates bufferUsagePercent`() {
+        fun `bufferUsagePercent를 업데이트한다`() {
             monitor.updateBufferUsage(45.5)
             monitor.bufferUsagePercent shouldBe 45.5
 
@@ -79,7 +79,7 @@ class PipelineHealthMonitorTest {
     inner class Snapshot {
 
         @Test
-        fun `returns consistent snapshot of all metrics`() {
+        fun `consistent snapshot of all metrics를 반환한다`() {
             monitor.recordWrite(10, 50L)
             monitor.recordDrop(2)
             monitor.recordWriteError()
@@ -95,7 +95,7 @@ class PipelineHealthMonitorTest {
         }
 
         @Test
-        fun `returns zero values for fresh monitor`() {
+        fun `fresh monitor에 대해 zero values를 반환한다`() {
             val snapshot = monitor.snapshot()
 
             snapshot.writtenTotal shouldBe 0

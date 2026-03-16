@@ -15,7 +15,7 @@ class SlackAuthTestScopeProviderTest {
     private val provider = SlackAuthTestScopeProvider(methodsClient)
 
     @Test
-    fun `parses granted scopes from auth test response headers`() {
+    fun `granted scopes from auth test response headers를 파싱한다`() {
         every { methodsClient.authTest(any<AuthTestRequest>()) } returns authResponse(
             ok = true,
             headers = mapOf("x-oauth-scopes" to listOf("chat:write, channels:read, users:read"))
@@ -27,7 +27,7 @@ class SlackAuthTestScopeProviderTest {
     }
 
     @Test
-    fun `throws when auth test response is not ok`() {
+    fun `throws when auth test response은(는) not ok이다`() {
         every { methodsClient.authTest(any<AuthTestRequest>()) } returns authResponse(
             ok = false,
             error = "invalid_auth"
@@ -39,7 +39,7 @@ class SlackAuthTestScopeProviderTest {
     }
 
     @Test
-    fun `returns empty set when scope header is missing`() {
+    fun `scope header is missing일 때 empty set를 반환한다`() {
         every { methodsClient.authTest(any<AuthTestRequest>()) } returns authResponse(
             ok = true,
             headers = emptyMap()

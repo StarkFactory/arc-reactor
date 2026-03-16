@@ -109,7 +109,7 @@ class TimescaleSpanExporterTest {
     inner class EmptyCollection {
 
         @Test
-        fun `returns success immediately without calling jdbcTemplate`() {
+        fun `success immediately without calling jdbcTemplate를 반환한다`() {
             val result = exporter.export(emptyList())
 
             result.isSuccess shouldBe true
@@ -121,7 +121,7 @@ class TimescaleSpanExporterTest {
     inner class BatchInsert {
 
         @Test
-        fun `calls batchUpdate once for a single span`() {
+        fun `batchUpdate once for a single span를 호출한다`() {
             every { jdbcTemplate.batchUpdate(any<String>(), any<BatchPreparedStatementSetter>()) } returns intArrayOf(1)
 
             val result = exporter.export(listOf(buildSpan()))
@@ -131,7 +131,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `calls batchUpdate once for multiple spans`() {
+        fun `batchUpdate once for multiple spans를 호출한다`() {
             every { jdbcTemplate.batchUpdate(any<String>(), any<BatchPreparedStatementSetter>()) } returns IntArray(5) { 1 }
 
             val result = exporter.export((1..5).map { buildSpan(name = "span-$it") })
@@ -141,7 +141,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `getBatchSize matches the number of spans submitted`() {
+        fun `getBatchSize은(는) matches the number of spans submitted`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns IntArray(3)
 
@@ -151,7 +151,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `SQL targets metric_spans table`() {
+        fun `SQL은(는) metric_spans table를 대상으로 한다`() {
             val sqlSlot = slot<String>()
             every { jdbcTemplate.batchUpdate(capture(sqlSlot), any<BatchPreparedStatementSetter>()) } returns intArrayOf(1)
 
@@ -161,7 +161,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `SQL includes jsonb cast for attributes parameter`() {
+        fun `SQL은(는) jsonb cast for attributes parameter를 포함한다`() {
             val sqlSlot = slot<String>()
             every { jdbcTemplate.batchUpdate(capture(sqlSlot), any<BatchPreparedStatementSetter>()) } returns intArrayOf(1)
 
@@ -175,7 +175,7 @@ class TimescaleSpanExporterTest {
     inner class PreparedStatementValues {
 
         @Test
-        fun `sets traceId at parameter index 3`() {
+        fun `traceId at parameter index 3를 설정한다`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns intArrayOf(1)
 
@@ -191,7 +191,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `sets spanId at parameter index 4`() {
+        fun `spanId at parameter index 4를 설정한다`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns intArrayOf(1)
 
@@ -207,7 +207,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `sets parentSpanId to null when span has no valid parent`() {
+        fun `parentSpanId to null when span has no valid parent를 설정한다`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns intArrayOf(1)
 
@@ -220,7 +220,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `sets parentSpanId when span has valid parent`() {
+        fun `parentSpanId when span has valid parent를 설정한다`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns intArrayOf(1)
 
@@ -236,7 +236,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `sets success to true when span status is OK`() {
+        fun `sets success to true when span status은(는) OK이다`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns intArrayOf(1)
 
@@ -251,7 +251,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `sets success to false when span status is ERROR`() {
+        fun `sets success to false when span status은(는) ERROR이다`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns intArrayOf(1)
 
@@ -266,7 +266,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `computes durationMs from start and end epoch nanos`() {
+        fun `durationMs from start and end epoch nanos를 계산한다`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns intArrayOf(1)
 
@@ -282,7 +282,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `defaults tenant_id to default when attribute is absent`() {
+        fun `defaults tenant_id to default when attribute은(는) absent이다`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns intArrayOf(1)
 
@@ -297,7 +297,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `uses tenant_id attribute value when present`() {
+        fun `present일 때 tenant_id attribute value를 사용한다`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns intArrayOf(1)
 
@@ -313,7 +313,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `defaults service name to arc-reactor when resource attribute is absent`() {
+        fun `defaults service name to arc-reactor when resource attribute은(는) absent이다`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns intArrayOf(1)
 
@@ -328,7 +328,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `uses service_name resource attribute when present`() {
+        fun `present일 때 service_name resource attribute를 사용한다`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns intArrayOf(1)
 
@@ -348,14 +348,14 @@ class TimescaleSpanExporterTest {
     inner class AttributesJson {
 
         @Test
-        fun `returns empty object when span has no attributes`() {
+        fun `span has no attributes일 때 empty object를 반환한다`() {
             val json = captureAttributesJson(listOf(buildSpan(attributes = Attributes.empty())))
 
             json shouldBe "{}"
         }
 
         @Test
-        fun `excludes tenant_id key from serialized attributes`() {
+        fun `tenant_id key from serialized attributes를 제외한다`() {
             val attrs = Attributes.of(
                 AttributeKey.stringKey("tenant_id"), "acme",
                 AttributeKey.stringKey("run_id"), "run-42"
@@ -367,7 +367,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `serializes single attribute as a valid JSON key-value pair`() {
+        fun `serializes은(는) single attribute as a valid JSON key-value pair`() {
             val attrs = Attributes.of(AttributeKey.stringKey("run_id"), "run-1")
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
@@ -375,7 +375,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `serializes multiple attributes with correct JSON structure`() {
+        fun `serializes은(는) multiple attributes with correct JSON structure`() {
             val attrs = Attributes.of(
                 AttributeKey.stringKey("model"), "gpt-4",
                 AttributeKey.stringKey("provider"), "openai"
@@ -387,7 +387,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `returns empty object when only tenant_id attribute is present`() {
+        fun `only tenant_id attribute is present일 때 empty object를 반환한다`() {
             val attrs = Attributes.of(AttributeKey.stringKey("tenant_id"), "acme")
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
@@ -399,7 +399,7 @@ class TimescaleSpanExporterTest {
     inner class JsonEscaping {
 
         @Test
-        fun `escapes double-quote characters in attribute values`() {
+        fun `double-quote characters in attribute values를 이스케이프한다`() {
             val attrs = Attributes.of(AttributeKey.stringKey("msg"), "say \"hello\"")
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
@@ -409,7 +409,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `escapes backslash characters in attribute values`() {
+        fun `backslash characters in attribute values를 이스케이프한다`() {
             val attrs = Attributes.of(AttributeKey.stringKey("path"), "C:\\Users\\stark")
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
@@ -418,7 +418,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `escapes newline characters in attribute values`() {
+        fun `newline characters in attribute values를 이스케이프한다`() {
             val attrs = Attributes.of(AttributeKey.stringKey("body"), "line1\nline2")
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
@@ -426,7 +426,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `escapes carriage-return characters in attribute values`() {
+        fun `carriage-return characters in attribute values를 이스케이프한다`() {
             val attrs = Attributes.of(AttributeKey.stringKey("body"), "line1\rline2")
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
@@ -434,7 +434,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `escapes tab characters in attribute values`() {
+        fun `tab characters in attribute values를 이스케이프한다`() {
             val attrs = Attributes.of(AttributeKey.stringKey("body"), "col1\tcol2")
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
@@ -442,7 +442,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `escapes double-quote characters in attribute keys`() {
+        fun `double-quote characters in attribute keys를 이스케이프한다`() {
             val key = AttributeKey.stringKey("key\"with\"quotes")
             val attrs = Attributes.of(key, "value")
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
@@ -451,7 +451,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `handles unicode characters passthrough without escaping`() {
+        fun `unicode characters passthrough without escaping를 처리한다`() {
             val attrs = Attributes.of(AttributeKey.stringKey("msg"), "\u4e2d\u6587\u6d4b\u8bd5")
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
@@ -459,7 +459,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `handles emoji characters passthrough without escaping`() {
+        fun `emoji characters passthrough without escaping를 처리한다`() {
             val attrs = Attributes.of(AttributeKey.stringKey("status"), "ok \uD83D\uDE80")
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
@@ -467,7 +467,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `handles combined escaping in a single attribute value`() {
+        fun `combined escaping in a single attribute value를 처리한다`() {
             val attrs = Attributes.of(
                 AttributeKey.stringKey("data"),
                 "path: C:\\dir\nval: \"quoted\"\ttabbed"
@@ -482,7 +482,7 @@ class TimescaleSpanExporterTest {
 
         @ParameterizedTest(name = "attribute value [{0}] produces well-formed JSON structure")
         @MethodSource("com.arc.reactor.admin.tracing.TimescaleSpanExporterTest#jsonEscapeEdgeCases")
-        fun `special characters in attribute values do not break JSON envelope`(input: String) {
+        fun `special은(는) characters in attribute values do not break JSON envelope`(input: String) {
             val attrs = Attributes.of(AttributeKey.stringKey("k"), input)
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
@@ -492,22 +492,22 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `escapes control characters U+0000 to U+001F as unicode escape sequences`() {
+        fun `control characters U+0000 to U+001F as unicode escape sequences를 이스케이프한다`() {
             val controlChars = String(CharArray(32) { it.toChar() })
             val attrs = Attributes.of(AttributeKey.stringKey("ctrl"), controlChars)
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
 
-            // \n, \r, \t should use their short forms
+            // \n, \r, \t은(는) use their short forms해야 합니다
             json shouldContain """\n"""
             json shouldContain """\r"""
             json shouldContain """\t"""
-            // NUL (U+0000) should be escaped as \u0000
+            // NUL (U+0000)은(는) be escaped as \u0000해야 합니다
             json shouldContain """\u0000"""
-            // SOH (U+0001) should be escaped as \u0001
+            // SOH (U+0001)은(는) be escaped as \u0001해야 합니다
             json shouldContain """\u0001"""
-            // US (U+001F) should be escaped as \u001f
+            // US (U+001F)은(는) be escaped as \u001f해야 합니다
             json shouldContain """\u001f"""
-            // No raw control characters should remain in the JSON
+            // No raw control characters은(는) remain in the JSON해야 합니다
             val valueStart = json.indexOf(":\"") + 2
             val valueEnd = json.lastIndexOf("\"}")
             val extractedValue = json.substring(valueStart, valueEnd)
@@ -515,7 +515,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `handles very long attribute value exceeding 50KB`() {
+        fun `very long attribute value exceeding 50KB를 처리한다`() {
             val longValue = "a".repeat(60_000)
             val attrs = Attributes.of(AttributeKey.stringKey("big"), longValue)
             val json = captureAttributesJson(listOf(buildSpan(attributes = attrs)))
@@ -530,7 +530,7 @@ class TimescaleSpanExporterTest {
     inner class ErrorHandling {
 
         @Test
-        fun `returns failure result when jdbcTemplate throws`() {
+        fun `jdbcTemplate throws일 때 failure result를 반환한다`() {
             every {
                 jdbcTemplate.batchUpdate(any<String>(), any<BatchPreparedStatementSetter>())
             } throws RuntimeException("DB connection lost")
@@ -541,19 +541,19 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `does not propagate the exception to the caller`() {
+        fun `propagate the exception to the caller하지 않는다`() {
             every {
                 jdbcTemplate.batchUpdate(any<String>(), any<BatchPreparedStatementSetter>())
             } throws RuntimeException("deadlock detected")
 
-            // Must not throw; caller receives a failure result code instead
+            // not throw; caller receives a failure result code instead해야 합니다
             val result = exporter.export(listOf(buildSpan()))
 
             result.isSuccess shouldBe false
         }
 
         @Test
-        fun `returns success when batchUpdate completes without exception`() {
+        fun `batchUpdate completes without exception일 때 success를 반환한다`() {
             every {
                 jdbcTemplate.batchUpdate(any<String>(), any<BatchPreparedStatementSetter>())
             } returns intArrayOf(1)
@@ -568,12 +568,12 @@ class TimescaleSpanExporterTest {
     inner class LifecycleMethods {
 
         @Test
-        fun `flush always returns success`() {
+        fun `flush은(는) always returns success`() {
             exporter.flush().isSuccess shouldBe true
         }
 
         @Test
-        fun `shutdown always returns success`() {
+        fun `shutdown은(는) always returns success`() {
             exporter.shutdown().isSuccess shouldBe true
         }
     }
@@ -582,7 +582,7 @@ class TimescaleSpanExporterTest {
     inner class MultipleBatchItems {
 
         @Test
-        fun `setValues resolves each span by its sequential index`() {
+        fun `setValues은(는) resolves each span by its sequential index`() {
             val setterSlot = slot<BatchPreparedStatementSetter>()
             every { jdbcTemplate.batchUpdate(any<String>(), capture(setterSlot)) } returns IntArray(3)
 
@@ -606,7 +606,7 @@ class TimescaleSpanExporterTest {
         }
 
         @Test
-        fun `a batch of 10 spans is handled in a single batchUpdate call`() {
+        fun `a batch of 10 spans은(는) handled in a single batchUpdate call이다`() {
             every {
                 jdbcTemplate.batchUpdate(any<String>(), any<BatchPreparedStatementSetter>())
             } returns IntArray(10) { 1 }

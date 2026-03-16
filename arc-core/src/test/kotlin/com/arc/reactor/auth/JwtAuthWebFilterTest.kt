@@ -68,7 +68,7 @@ class JwtAuthWebFilterTest {
     inner class PublicPaths {
 
         @Test
-        fun `should pass through for public login path`() {
+        fun `public login path에 대해 pass through해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/login")
 
             val result = filter.filter(exchange, chain)
@@ -78,7 +78,7 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
-        fun `should pass through for public register path`() {
+        fun `public register path에 대해 pass through해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/auth/register")
 
             val result = filter.filter(exchange, chain)
@@ -92,7 +92,7 @@ class JwtAuthWebFilterTest {
     inner class AuthenticationRequired {
 
         @Test
-        fun `should return 401 when Authorization header is missing`() {
+        fun `Authorization header is missing일 때 return 401해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             // headers is empty - no Authorization header
 
@@ -104,7 +104,7 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
-        fun `should return 401 for malformed Authorization header without Bearer prefix`() {
+        fun `malformed Authorization header without Bearer prefix에 대해 return 401해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Basic some-token")
 
@@ -116,7 +116,7 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
-        fun `should return 401 for invalid token`() {
+        fun `invalid token에 대해 return 401해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer invalid-token")
             every { jwtTokenProvider.validateToken("invalid-token") } returns null
@@ -129,7 +129,7 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
-        fun `should return 401 for expired token`() {
+        fun `expired token에 대해 return 401해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer expired-token")
             every { jwtTokenProvider.validateToken("expired-token") } returns null
@@ -142,7 +142,7 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
-        fun `should set userId attribute and pass through for valid token`() {
+        fun `valid token에 대해 set userId attribute and pass through해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
             every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
@@ -179,7 +179,7 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
-        fun `should fallback to userId when accountId claim is missing`() {
+        fun `accountId claim is missing일 때 fallback to userId해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token-no-account-id")
             every { jwtTokenProvider.validateToken("valid-token-no-account-id") } returns "user-42"
@@ -208,7 +208,7 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
-        fun `should fallback to auth user email when token email claim is absent`() {
+        fun `token email claim is absent일 때 fallback to auth user email해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token-no-email")
             every { jwtTokenProvider.validateToken("valid-token-no-email") } returns "user-42"
@@ -232,7 +232,7 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
-        fun `should set resolvedTenantId from token claim when present`() {
+        fun `present일 때 set resolvedTenantId from token claim해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
             every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
@@ -256,7 +256,7 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
-        fun `should use current role from auth provider over token claim`() {
+        fun `use current role from auth provider over token claim해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
             every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
@@ -279,7 +279,7 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
-        fun `should return 401 when token user no longer exists`() {
+        fun `token user no longer exists일 때 return 401해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
             every { jwtTokenProvider.validateToken("valid-token") } returns "user-42"
@@ -294,7 +294,7 @@ class JwtAuthWebFilterTest {
         }
 
         @Test
-        fun `should return 401 when token is revoked`() {
+        fun `token is revoked일 때 return 401해야 한다`() {
             every { request.uri } returns URI.create("http://localhost/api/chat")
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer revoked-token")
             every { jwtTokenProvider.validateToken("revoked-token") } returns "user-42"
@@ -313,7 +313,7 @@ class JwtAuthWebFilterTest {
     inner class FilterOrder {
 
         @Test
-        fun `should run after security headers and rate-limit filters`() {
+        fun `security headers and rate-limit filters 후 run해야 한다`() {
             assertEquals(
                 Ordered.HIGHEST_PRECEDENCE + 2,
                 filter.order,

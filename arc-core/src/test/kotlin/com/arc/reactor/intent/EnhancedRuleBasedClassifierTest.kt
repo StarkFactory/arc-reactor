@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Tests for enhanced rule-based classification features:
+ * 에 대한 테스트. enhanced rule-based classification features:
  * synonyms, keyword weights, and negative keywords.
  */
 class EnhancedRuleBasedClassifierTest {
@@ -27,7 +27,7 @@ class EnhancedRuleBasedClassifierTest {
     inner class SynonymMatching {
 
         @Test
-        fun `synonym matches as if it were the original keyword`() = runTest {
+        fun `it were the original keyword이면 synonym matches as`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund",
                 description = "Refund requests",
@@ -43,7 +43,7 @@ class EnhancedRuleBasedClassifierTest {
         }
 
         @Test
-        fun `synonym and original keyword count as one match`() = runTest {
+        fun `synonym은(는) and original keyword count as one match`() = runTest {
             // "환불" and its synonym "돌려줘" both appear — should still count as 1 match
             registry.save(IntentDefinition(
                 name = "refund",
@@ -61,7 +61,7 @@ class EnhancedRuleBasedClassifierTest {
         }
 
         @Test
-        fun `multiple synonym groups match independently`() = runTest {
+        fun `다중 synonym groups match independently`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund",
                 description = "Refund requests",
@@ -84,7 +84,7 @@ class EnhancedRuleBasedClassifierTest {
     inner class WeightedKeywords {
 
         @Test
-        fun `weighted keyword increases confidence contribution`() = runTest {
+        fun `weighted은(는) keyword increases confidence contribution`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund",
                 description = "Refund requests",
@@ -102,12 +102,12 @@ class EnhancedRuleBasedClassifierTest {
         }
 
         @Test
-        fun `unspecified weight defaults to 1_0`() = runTest {
+        fun `unspecified은(는) weight defaults to 1_0`() = runTest {
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",
                 keywords = listOf("hello", "hi")
-                // No keywordWeights -> both default to 1.0
+                // keywordWeights -> both default to 1.0 없음
             ))
 
             val result = classifier.classify("hello there")
@@ -118,7 +118,7 @@ class EnhancedRuleBasedClassifierTest {
         }
 
         @Test
-        fun `weight changes winner between intents`() = runTest {
+        fun `weight은(는) changes winner between intents`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund",
                 description = "Refund requests",
@@ -147,7 +147,7 @@ class EnhancedRuleBasedClassifierTest {
     inner class NegativeKeywords {
 
         @Test
-        fun `negative keyword excludes intent`() = runTest {
+        fun `음수 keyword excludes intent`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund",
                 description = "Refund requests",
@@ -160,7 +160,7 @@ class EnhancedRuleBasedClassifierTest {
         }
 
         @Test
-        fun `negative keyword only affects its own intent`() = runTest {
+        fun `음수 keyword only affects its own intent`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund",
                 description = "Refund requests",
@@ -181,7 +181,7 @@ class EnhancedRuleBasedClassifierTest {
         }
 
         @Test
-        fun `no negative keyword match allows normal scoring`() = runTest {
+        fun `없는 negative keyword match allows normal scoring`() = runTest {
             registry.save(IntentDefinition(
                 name = "refund",
                 description = "Refund requests",
@@ -199,8 +199,8 @@ class EnhancedRuleBasedClassifierTest {
     inner class BackwardsCompat {
 
         @Test
-        fun `existing IntentDefinition without new fields works identically`() = runTest {
-            // No synonyms, no weights, no negativeKeywords
+        fun `existing은(는) IntentDefinition without new fields works identically`() = runTest {
+            // synonyms, no weights, no negativeKeywords 없음
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",
@@ -217,7 +217,7 @@ class EnhancedRuleBasedClassifierTest {
         }
 
         @Test
-        fun `empty synonyms map has no effect`() = runTest {
+        fun `empty synonyms map은(는) no effect를 가진다`() = runTest {
             registry.save(IntentDefinition(
                 name = "greeting",
                 description = "Greetings",
@@ -230,7 +230,7 @@ class EnhancedRuleBasedClassifierTest {
         }
 
         @Test
-        fun `empty keywordWeights defaults all to 1_0`() = runTest {
+        fun `비어있는 keywordWeights defaults all to 1_0`() = runTest {
             registry.save(IntentDefinition(
                 name = "order",
                 description = "Orders",
@@ -238,7 +238,7 @@ class EnhancedRuleBasedClassifierTest {
                 keywordWeights = emptyMap()
             ))
 
-            // 2 out of 3 match
+            // 3개 중 2개 일치
             val result = classifier.classify("주문 조회")
             assertEquals(2.0 / 3.0, result.primary!!.confidence, 0.01) {
                 "Default weights -> 2/3"

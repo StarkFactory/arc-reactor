@@ -21,7 +21,7 @@ class TokenBasedDocumentChunkerTest {
     inner class ShortDocuments {
 
         @Test
-        fun `short document below threshold returns single document unchanged`() {
+        fun `짧은 document below threshold returns single document unchanged`() {
             val content = "Q: What is Kotlin?\n\nA: Kotlin is a modern programming language."
             val doc = Document("doc-1", content, mapOf("source" to "test"))
 
@@ -33,7 +33,7 @@ class TokenBasedDocumentChunkerTest {
         }
 
         @Test
-        fun `document at exact threshold boundary is not split`() {
+        fun `document at exact threshold boundary은(는) not split이다`() {
             // DefaultTokenEstimator: Latin chars ~4 chars/token → 2048 chars ≈ 512 tokens = threshold
             val content = "x".repeat(2048)
             val doc = Document("boundary-doc", content, emptyMap())
@@ -44,7 +44,7 @@ class TokenBasedDocumentChunkerTest {
         }
 
         @Test
-        fun `blank document returns unchanged`() {
+        fun `빈 document returns unchanged`() {
             val doc = Document("blank-doc", "   ", emptyMap())
 
             val result = chunker.chunk(doc)
@@ -57,8 +57,8 @@ class TokenBasedDocumentChunkerTest {
     inner class LongDocuments {
 
         @Test
-        fun `long document is split into multiple chunks`() {
-            // Create a document well above threshold (~1500 tokens = ~6000 chars)
+        fun `long document은(는) split into multiple chunks이다`() {
+            // a document well above threshold (~1500 tokens = ~6000 chars) 생성
             val content = buildLongContent(6000)
             val doc = Document("long-doc", content, mapOf("source" to "test"))
 
@@ -71,7 +71,7 @@ class TokenBasedDocumentChunkerTest {
         }
 
         @Test
-        fun `very long document produces many chunks`() {
+        fun `very은(는) long document produces many chunks`() {
             // ~10000 tokens = ~40000 chars
             val content = buildLongContent(40000)
             val doc = Document("very-long", content, emptyMap())
@@ -89,7 +89,7 @@ class TokenBasedDocumentChunkerTest {
     inner class MetadataPropagation {
 
         @Test
-        fun `original metadata is copied to all chunks`() {
+        fun `original metadata은(는) copied to all chunks이다`() {
             val metadata = mapOf<String, Any>(
                 "source" to "rag_ingestion_candidate",
                 "runId" to "run-123",
@@ -112,7 +112,7 @@ class TokenBasedDocumentChunkerTest {
         }
 
         @Test
-        fun `chunking metadata is added to all chunks`() {
+        fun `chunking metadata은(는) added to all chunks이다`() {
             val content = buildLongContent(6000)
             val doc = Document("chunk-meta", content, emptyMap())
 
@@ -134,7 +134,7 @@ class TokenBasedDocumentChunkerTest {
         }
 
         @Test
-        fun `chunk IDs are unique and different from parent`() {
+        fun `chunk IDs은(는) unique and different from parent이다`() {
             val content = buildLongContent(6000)
             val doc = Document("parent-id", content, emptyMap())
 
@@ -150,7 +150,7 @@ class TokenBasedDocumentChunkerTest {
     inner class QaFormat {
 
         @Test
-        fun `short QA format document is not split`() {
+        fun `short QA format document은(는) not split이다`() {
             val content = "Q: How do I reset my password?\n\nA: Go to Settings > Security > Reset Password."
             val doc = Document("qa-short", content, mapOf("source" to "rag_ingestion_candidate"))
 
@@ -160,7 +160,7 @@ class TokenBasedDocumentChunkerTest {
         }
 
         @Test
-        fun `long QA format document is split correctly`() {
+        fun `long QA format document은(는) split correctly이다`() {
             val longAnswer = "A: " + "This is a detailed explanation. ".repeat(200)
             val content = "Q: Explain RAG architecture in detail?\n\n$longAnswer"
             val doc = Document("qa-long", content, mapOf("source" to "rag_ingestion_candidate"))
@@ -175,7 +175,7 @@ class TokenBasedDocumentChunkerTest {
     inner class NoOpChunker {
 
         @Test
-        fun `NoOpDocumentChunker always returns original document`() {
+        fun `NoOpDocumentChunker는 항상 원본 문서를 반환한다`() {
             val noop = NoOpDocumentChunker()
             val content = buildLongContent(10000)
             val doc = Document("noop-doc", content, mapOf("key" to "value"))
@@ -191,7 +191,7 @@ class TokenBasedDocumentChunkerTest {
     inner class BatchProcessing {
 
         @Test
-        fun `batch processing chunks each document independently`() {
+        fun `배치 processing chunks each document independently`() {
             val shortDoc = Document("short", "Short content", emptyMap())
             val longDoc = Document("long", buildLongContent(6000), emptyMap())
 
@@ -211,7 +211,7 @@ class TokenBasedDocumentChunkerTest {
     inner class OverlapVerification {
 
         @Test
-        fun `adjacent chunks have overlapping content`() {
+        fun `adjacent은(는) chunks have overlapping content`() {
             // Use content with distinct sentences for overlap detection
             val sentences = (1..100).map { "Sentence number $it contains unique information. " }
             val content = sentences.joinToString("")
@@ -220,11 +220,11 @@ class TokenBasedDocumentChunkerTest {
             val result = chunker.chunk(doc)
 
             if (result.size >= 2) {
-                // Check that some content from end of chunk N appears in start of chunk N+1
+                // that some content from end of chunk N appears in start of chunk N+1 확인
                 for (i in 0 until result.size - 1) {
                     val currentEnd = result[i].text.orEmpty().takeLast(100)
                     val nextStart = result[i + 1].text.orEmpty().take(300)
-                    // With overlap, the end of current chunk should share some words with next
+                    // With overlap, the end of current chunk은(는) share some words with next해야 합니다
                     val currentWords = currentEnd.split("\\s+".toRegex()).filter { it.length > 3 }
                     val nextWords = nextStart.split("\\s+".toRegex()).toSet()
                     val overlap = currentWords.count { it in nextWords }
@@ -241,7 +241,7 @@ class TokenBasedDocumentChunkerTest {
     inner class MaxChunksLimit {
 
         @Test
-        fun `chunks are limited to maxNumChunks`() {
+        fun `chunks은(는) limited to maxNumChunks이다`() {
             val limitedChunker = TokenBasedDocumentChunker(
                 chunkSize = 50,       // Very small chunks
                 minChunkSizeChars = 10,
@@ -265,7 +265,7 @@ class TokenBasedDocumentChunkerTest {
     inner class CjkTokenEstimation {
 
         @Test
-        fun `korean document is chunked with accurate token estimation`() {
+        fun `korean document은(는) chunked with accurate token estimation이다`() {
             // CJK chars: ~1.5 chars/token → 3000 Korean chars ≈ 2000 tokens (well above 512 threshold)
             val koreanParagraph = "인공지능과 머신러닝은 현대 기술의 핵심입니다. " +
                 "딥러닝과 자연어 처리 기술은 전 세계 산업을 변화시키고 있습니다.\n\n"
@@ -283,7 +283,7 @@ class TokenBasedDocumentChunkerTest {
         }
 
         @Test
-        fun `short korean document below threshold is not split`() {
+        fun `short korean document below threshold은(는) not split이다`() {
             // ~200 Korean chars ≈ ~133 tokens (below 512 threshold)
             val content = "한국어 짧은 문서입니다. ".repeat(10)
             val doc = Document("korean-short", content, emptyMap())
@@ -294,7 +294,7 @@ class TokenBasedDocumentChunkerTest {
         }
 
         @Test
-        fun `mixed language document uses dynamic char-per-token ratio`() {
+        fun `mixed은(는) language document uses dynamic char-per-token ratio`() {
             // Mix of English and Korean — ratio adapts per document
             val mixed = buildString {
                 repeat(50) {
@@ -306,7 +306,7 @@ class TokenBasedDocumentChunkerTest {
             val estimator = DefaultTokenEstimator()
             val tokens = estimator.estimate(mixed)
 
-            // If tokens exceed threshold, it should be chunked
+            // If tokens exceed threshold, it은(는) be chunked해야 합니다
             if (tokens > 512) {
                 val result = chunker.chunk(doc)
                 assertTrue(result.size > 1, "Mixed-language document with $tokens tokens should be chunked")
@@ -318,33 +318,33 @@ class TokenBasedDocumentChunkerTest {
     inner class ChunkIdHelpers {
 
         @Test
-        fun `chunkId produces valid UUID strings`() {
+        fun `chunkId은(는) produces valid UUID strings`() {
             val chunkId = DocumentChunker.chunkId("parent-123", 0)
             val parsed = java.util.UUID.fromString(chunkId)
             assertEquals(chunkId, parsed.toString(), "chunkId should produce a valid UUID")
         }
 
         @Test
-        fun `chunkId is deterministic`() {
+        fun `chunkId은(는) deterministic이다`() {
             val id1 = DocumentChunker.chunkId("parent-123", 0)
             val id2 = DocumentChunker.chunkId("parent-123", 0)
             assertEquals(id1, id2, "Same parent + index should produce the same chunk ID")
         }
 
         @Test
-        fun `chunkId varies by index`() {
+        fun `chunkId은(는) varies by index`() {
             val id0 = DocumentChunker.chunkId("parent-123", 0)
             val id1 = DocumentChunker.chunkId("parent-123", 1)
             assertNotEquals(id0, id1, "Different indices should produce different chunk IDs")
         }
 
         @Test
-        fun `isChunkId returns true for legacy chunk IDs`() {
+        fun `isChunkId은(는) returns true for legacy chunk IDs`() {
             assertTrue(DocumentChunker.isChunkId("parent-123:chunk:0"), "Legacy chunk ID should be recognized")
         }
 
         @Test
-        fun `isChunkId returns false for parent IDs`() {
+        fun `isChunkId은(는) returns false for parent IDs`() {
             assertFalse(DocumentChunker.isChunkId("parent-123"), "Plain ID should not be a chunk ID")
             assertFalse(DocumentChunker.isChunkId("uuid-abc-def"), "UUID should not be a chunk ID")
         }

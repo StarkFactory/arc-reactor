@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * P0 Edge Case Tests for Supervisor pattern.
+ * P0 Edge Case 에 대한 테스트. Supervisor pattern.
  *
  * Covers scenarios:
  * - Worker agent throwing unexpected exception
@@ -29,7 +29,7 @@ class SupervisorEdgeCaseTest {
     inner class WorkerExceptionHandling {
 
         @Test
-        fun `WorkerAgentTool should return error string when worker throws exception`() = runTest {
+        fun `WorkerAgentTool은(는) return error string when worker throws exception해야 한다`() = runTest {
             val workerAgent = mockk<AgentExecutor>()
             coEvery { workerAgent.execute(any()) } throws RuntimeException("Worker crashed unexpectedly")
 
@@ -44,7 +44,7 @@ class SupervisorEdgeCaseTest {
         }
 
         @Test
-        fun `WorkerAgentTool should return failure message when worker returns failure`() = runTest {
+        fun `WorkerAgentTool은(는) return failure message when worker returns failure해야 한다`() = runTest {
             val workerAgent = mockk<AgentExecutor>()
             coEvery { workerAgent.execute(any()) } returns AgentResult.failure(
                 errorMessage = "Rate limit exceeded",
@@ -63,7 +63,7 @@ class SupervisorEdgeCaseTest {
         }
 
         @Test
-        fun `WorkerAgentTool should handle success with null content`() = runTest {
+        fun `WorkerAgentTool은(는) handle success with null content해야 한다`() = runTest {
             val workerAgent = mockk<AgentExecutor>()
             coEvery { workerAgent.execute(any()) } returns AgentResult(
                 success = true,
@@ -75,7 +75,7 @@ class SupervisorEdgeCaseTest {
 
             val result = tool.call(mapOf("instruction" to "do something"))
 
-            // Should not throw NPE, should return fallback message
+            // Should not throw NPE,은(는) return fallback message해야 합니다
             assertNotNull(result, "Result should not be null")
             assertTrue((result as String).isNotEmpty(),
                 "Result should have some content even when worker returns null")
@@ -86,7 +86,7 @@ class SupervisorEdgeCaseTest {
     inner class SupervisorWithFailingWorkers {
 
         @Test
-        fun `supervisor should handle worker failure gracefully via agentFactory`() = runTest {
+        fun `supervisor은(는) handle worker failure gracefully via agentFactory해야 한다`() = runTest {
             val orchestrator = SupervisorOrchestrator()
             val commandSlot = slot<AgentCommand>()
 
@@ -94,7 +94,7 @@ class SupervisorEdgeCaseTest {
             val refundNode = AgentNode("refund", systemPrompt = "Process refunds", description = "Refund handler")
 
             // Supervisor agent succeeds, but one worker inside will fail
-            // (from the orchestrator's perspective, it only calls the supervisor agent)
+            // (오케스트레이터 관점에서, 감독자 에이전트만 호출합니다)
             val result = orchestrator.execute(baseCommand, listOf(orderNode, refundNode)) { node ->
                 val agent = mockk<AgentExecutor>()
                 if (node.name == "supervisor") {
@@ -116,7 +116,7 @@ class SupervisorEdgeCaseTest {
         }
 
         @Test
-        fun `supervisor should fail when supervisor agent itself fails`() = runTest {
+        fun `supervisor은(는) fail when supervisor agent itself fails해야 한다`() = runTest {
             val orchestrator = SupervisorOrchestrator()
 
             val node = AgentNode("worker", systemPrompt = "Do work")
@@ -136,7 +136,7 @@ class SupervisorEdgeCaseTest {
     inner class InstructionForwarding {
 
         @Test
-        fun `WorkerAgentTool should forward long instructions without truncation`() = runTest {
+        fun `WorkerAgentTool은(는) forward long instructions without truncation해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             val workerAgent = mockk<AgentExecutor>()
             coEvery { workerAgent.execute(capture(commandSlot)) } returns
@@ -153,7 +153,7 @@ class SupervisorEdgeCaseTest {
         }
 
         @Test
-        fun `WorkerAgentTool should use node systemPrompt as worker systemPrompt`() = runTest {
+        fun `WorkerAgentTool은(는) use node systemPrompt as worker systemPrompt해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             val workerAgent = mockk<AgentExecutor>()
             coEvery { workerAgent.execute(capture(commandSlot)) } returns
@@ -180,7 +180,7 @@ class SupervisorEdgeCaseTest {
     inner class SystemPromptGeneration {
 
         @Test
-        fun `default supervisor prompt should list all worker tools`() = runTest {
+        fun `default supervisor prompt은(는) list all worker tools해야 한다`() = runTest {
             val orchestrator = SupervisorOrchestrator()
             val commandSlot = slot<AgentCommand>()
 
@@ -208,7 +208,7 @@ class SupervisorEdgeCaseTest {
         }
 
         @Test
-        fun `supervisor should use node description fallback to systemPrompt prefix`() = runTest {
+        fun `supervisor은(는) use node description fallback to systemPrompt prefix해야 한다`() = runTest {
             val orchestrator = SupervisorOrchestrator()
             val commandSlot = slot<AgentCommand>()
 
@@ -230,7 +230,7 @@ class SupervisorEdgeCaseTest {
         }
 
         @Test
-        fun `supervisor maxToolCalls should scale with number of workers`() = runTest {
+        fun `supervisor maxToolCalls은(는) scale with number of workers해야 한다`() = runTest {
             val orchestrator = SupervisorOrchestrator()
             val commandSlot = slot<AgentCommand>()
 
@@ -255,7 +255,7 @@ class SupervisorEdgeCaseTest {
     inner class SingleNodeSupervisor {
 
         @Test
-        fun `supervisor should work with single worker node`() = runTest {
+        fun `supervisor은(는) work with single worker node해야 한다`() = runTest {
             val orchestrator = SupervisorOrchestrator()
             val commandSlot = slot<AgentCommand>()
 

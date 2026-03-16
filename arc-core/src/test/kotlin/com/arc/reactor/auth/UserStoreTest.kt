@@ -18,7 +18,7 @@ class UserStoreTest {
     inner class BasicCrud {
 
         @Test
-        fun `should save and findById`() {
+        fun `save and findById해야 한다`() {
             val user = User(
                 id = "user-1",
                 email = "tony@stark.com",
@@ -37,7 +37,7 @@ class UserStoreTest {
         }
 
         @Test
-        fun `should save and findByEmail`() {
+        fun `save and findByEmail해야 한다`() {
             val user = User(
                 id = "user-2",
                 email = "pepper@stark.com",
@@ -55,7 +55,7 @@ class UserStoreTest {
         }
 
         @Test
-        fun `existsByEmail should return true for existing user`() {
+        fun `existsByEmail은(는) return true for existing user해야 한다`() {
             store.save(
                 User(id = "u-1", email = "exists@test.com", name = "Exists", passwordHash = "hash")
             )
@@ -66,7 +66,7 @@ class UserStoreTest {
         }
 
         @Test
-        fun `existsByEmail should return false for unknown email`() {
+        fun `existsByEmail은(는) return false for unknown email해야 한다`() {
             assertFalse(store.existsByEmail("unknown@test.com")) {
                 "existsByEmail should return false for unknown email"
             }
@@ -77,7 +77,7 @@ class UserStoreTest {
     inner class EdgeCases {
 
         @Test
-        fun `should throw IllegalArgumentException on duplicate email`() {
+        fun `throw IllegalArgumentException on duplicate email해야 한다`() {
             store.save(
                 User(id = "u-1", email = "dup@test.com", name = "First", passwordHash = "hash1")
             )
@@ -94,14 +94,14 @@ class UserStoreTest {
         }
 
         @Test
-        fun `findById should return null for unknown ID`() {
+        fun `findById은(는) return null for unknown ID해야 한다`() {
             val result = store.findById("nonexistent-id")
 
             assertNull(result) { "findById should return null for unknown ID" }
         }
 
         @Test
-        fun `findByEmail should return null for unknown email`() {
+        fun `findByEmail은(는) return null for unknown email해야 한다`() {
             val result = store.findByEmail("nonexistent@test.com")
 
             assertNull(result) { "findByEmail should return null for unknown email" }
@@ -112,12 +112,12 @@ class UserStoreTest {
     inner class Count {
 
         @Test
-        fun `count should return 0 when empty`() {
+        fun `count은(는) return 0 when empty해야 한다`() {
             assertEquals(0L, store.count()) { "Empty store should have count 0" }
         }
 
         @Test
-        fun `count should return correct number after saves`() {
+        fun `count은(는) return correct number after saves해야 한다`() {
             store.save(User(id = "u-1", email = "a@test.com", name = "A", passwordHash = "h"))
             store.save(User(id = "u-2", email = "b@test.com", name = "B", passwordHash = "h"))
 
@@ -129,14 +129,14 @@ class UserStoreTest {
     inner class RoleField {
 
         @Test
-        fun `should default to USER role`() {
+        fun `default to USER role해야 한다`() {
             val user = User(id = "u-1", email = "a@test.com", name = "A", passwordHash = "h")
 
             assertEquals(UserRole.USER, user.role) { "Default role should be USER" }
         }
 
         @Test
-        fun `should preserve ADMIN role`() {
+        fun `preserve ADMIN role해야 한다`() {
             val user = User(id = "u-1", email = "a@test.com", name = "A", passwordHash = "h", role = UserRole.ADMIN)
             store.save(user)
 
@@ -151,7 +151,7 @@ class UserStoreTest {
     inner class Concurrency {
 
         @Test
-        fun `should save multiple users with different emails`() {
+        fun `different emails로 save multiple users해야 한다`() {
             val users = (1..10).map { i ->
                 User(
                     id = "user-$i",

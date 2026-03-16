@@ -28,7 +28,7 @@ class AgentErrorPolicyMatrixTest {
     }
 
     @Test
-    fun `classify should handle large message matrix consistently`() {
+    fun `classify은(는) handle large message matrix consistently해야 한다`() {
         val policy = AgentErrorPolicy()
         val expectations = linkedMapOf(
             "rate limit exceeded" to AgentErrorCode.RATE_LIMITED,
@@ -51,14 +51,14 @@ class AgentErrorPolicyMatrixTest {
     }
 
     @Test
-    fun `classify should prioritize timeout over tool when both words exist`() {
+    fun `classify은(는) prioritize timeout over tool when both words exist해야 한다`() {
         val policy = AgentErrorPolicy()
         val message = "tool timeout while executing tool callback"
         assertEquals(AgentErrorCode.TIMEOUT, policy.classify(RuntimeException(message)))
     }
 
     @Test
-    fun `classify should return circuit breaker open for dedicated exception type`() {
+    fun `classify은(는) return circuit breaker open for dedicated exception type해야 한다`() {
         val policy = AgentErrorPolicy()
         assertEquals(
             AgentErrorCode.CIRCUIT_BREAKER_OPEN,
@@ -67,7 +67,7 @@ class AgentErrorPolicyMatrixTest {
     }
 
     @Test
-    fun `default transient classifier should match broad transient matrix`() {
+    fun `default transient classifier은(는) match broad transient matrix해야 한다`() {
         val seeds = listOf(
             "status 429",
             "http 503",
@@ -95,7 +95,7 @@ class AgentErrorPolicyMatrixTest {
     }
 
     @Test
-    fun `default transient classifier should reject stable non transient matrix`() {
+    fun `default transient classifier은(는) reject stable non transient matrix해야 한다`() {
         val stableSeeds = listOf(
             "validation failed",
             "invalid argument",

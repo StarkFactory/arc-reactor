@@ -12,7 +12,7 @@ import org.springframework.ai.chat.prompt.ChatOptions
 class PromptRequestSpecBuilderTest {
 
     @Test
-    fun `builds request spec without system prompt and tools`() {
+    fun `request spec without system prompt and tools를 빌드한다`() {
         val chatClient = mockk<ChatClient>()
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         every { chatClient.prompt() } returns requestSpec
@@ -43,7 +43,7 @@ class PromptRequestSpecBuilderTest {
     }
 
     @Test
-    fun `routes annotated tools and callback tools to separate spring ai methods`() {
+    fun `annotated tools and callback tools to separate spring ai methods를 라우팅한다`() {
         val chatClient = mockk<ChatClient>()
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         every { chatClient.prompt() } returns requestSpec

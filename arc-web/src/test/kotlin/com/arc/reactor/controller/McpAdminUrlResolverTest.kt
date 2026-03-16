@@ -11,7 +11,7 @@ class McpAdminUrlResolverTest {
     inner class ExplicitAdminUrl {
 
         @Test
-        fun `should prefer explicit adminUrl over sse url`() {
+        fun `prefer explicit adminUrl over sse url해야 한다`() {
             val config = mapOf(
                 "adminUrl" to "https://admin.example.com/base/",
                 "url" to "https://sse.example.com/sse"
@@ -27,7 +27,7 @@ class McpAdminUrlResolverTest {
         }
 
         @Test
-        fun `should reject non-http scheme in adminUrl`() {
+        fun `reject non-http scheme in adminUrl해야 한다`() {
             val config = mapOf("adminUrl" to "ftp://admin.example.com/policy")
 
             val resolved = McpAdminUrlResolver.resolve(config)
@@ -40,7 +40,7 @@ class McpAdminUrlResolverTest {
     inner class SseDerivedUrl {
 
         @Test
-        fun `should derive admin base from sse url`() {
+        fun `derive admin base from sse url해야 한다`() {
             val config = mapOf("url" to "https://mcp.example.com/admin/sse")
 
             val resolved = McpAdminUrlResolver.resolve(config)
@@ -53,7 +53,7 @@ class McpAdminUrlResolverTest {
         }
 
         @Test
-        fun `should keep path when url does not end with sse`() {
+        fun `url does not end with sse일 때 keep path해야 한다`() {
             val config = mapOf("url" to "https://mcp.example.com/admin/v1")
 
             val resolved = McpAdminUrlResolver.resolve(config)
@@ -66,7 +66,7 @@ class McpAdminUrlResolverTest {
         }
 
         @Test
-        fun `should strip query and fragment from derived url`() {
+        fun `strip query and fragment from derived url해야 한다`() {
             val config = mapOf("url" to "https://mcp.example.com/admin/sse?token=x#section")
 
             val resolved = McpAdminUrlResolver.resolve(config)
@@ -83,7 +83,7 @@ class McpAdminUrlResolverTest {
     inner class InvalidUrls {
 
         @Test
-        fun `should reject relative adminUrl`() {
+        fun `reject relative adminUrl해야 한다`() {
             val config = mapOf("adminUrl" to "/admin")
 
             val resolved = McpAdminUrlResolver.resolve(config)
@@ -92,7 +92,7 @@ class McpAdminUrlResolverTest {
         }
 
         @Test
-        fun `should reject invalid sse url`() {
+        fun `reject invalid sse url해야 한다`() {
             val config = mapOf("url" to "not-a-url")
 
             val resolved = McpAdminUrlResolver.resolve(config)

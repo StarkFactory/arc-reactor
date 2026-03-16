@@ -35,7 +35,7 @@ class MetricCollectorAgentMetricsTest {
     inner class DelegatedToHook {
 
         @Test
-        fun `execution and tool metrics are delegated to hook as no-op`() {
+        fun `execution and tool metrics은(는) delegated to hook as no-op이다`() {
             val result = AgentResult(success = true, content = "ok")
             metrics.recordExecution(result)
             metrics.recordToolCall("check_order", 100, true)
@@ -48,7 +48,7 @@ class MetricCollectorAgentMetricsTest {
     inner class GuardRejection {
 
         @Test
-        fun `publishes guard event with correct classification`() {
+        fun `guard event with correct classification를 발행한다`() {
             metrics.recordGuardRejection("RateLimitStage", "Too many requests", defaultMetadata)
 
             val events = ringBuffer.drain(10)
@@ -62,7 +62,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `classifies injection detection`() {
+        fun `injection detection를 분류한다`() {
             metrics.recordGuardRejection("InjectionDetectionStage", "SQL injection detected", defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
@@ -70,7 +70,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `classifies classification stage`() {
+        fun `classification stage를 분류한다`() {
             metrics.recordGuardRejection("ClassificationStage", "Off-topic", defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
@@ -78,7 +78,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `classifies permission stage`() {
+        fun `permission stage를 분류한다`() {
             metrics.recordGuardRejection("PermissionStage", "No access", defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
@@ -86,7 +86,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `classifies input validation stage`() {
+        fun `input validation stage를 분류한다`() {
             metrics.recordGuardRejection("InputValidationStage", "Too long", defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
@@ -94,7 +94,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `classifies unknown stage as other`() {
+        fun `unknown stage as other를 분류한다`() {
             metrics.recordGuardRejection("CustomStage", "Custom reason", defaultMetadata)
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
@@ -102,7 +102,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `truncates reason to 500 chars`() {
+        fun `reason to 500 chars를 잘라낸다`() {
             val longReason = "x".repeat(1000)
             metrics.recordGuardRejection("CustomStage", longReason, defaultMetadata)
 
@@ -111,7 +111,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `uses default tenantId when metadata has no tenantId`() {
+        fun `metadata has no tenantId일 때 default tenantId를 사용한다`() {
             metrics.recordGuardRejection("CustomStage", "reason", emptyMap())
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
@@ -123,7 +123,7 @@ class MetricCollectorAgentMetricsTest {
     inner class TokenUsageRecording {
 
         @Test
-        fun `publishes token usage event with metadata extraction`() {
+        fun `token usage event with metadata extraction를 발행한다`() {
             val metadata = mapOf<String, Any>(
                 "tenantId" to "tenant-1",
                 "runId" to "run-42",
@@ -148,7 +148,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `derives provider from model name when not in metadata`() {
+        fun `not in metadata일 때 derives provider from model name`() {
             metrics.recordTokenUsage(
                 TokenUsage(promptTokens = 10, completionTokens = 5, totalTokens = 15),
                 mapOf("tenantId" to "t1", "model" to "gpt-4o")
@@ -160,7 +160,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `derives anthropic provider from claude model`() {
+        fun `derives은(는) anthropic provider from claude model`() {
             metrics.recordTokenUsage(
                 TokenUsage(promptTokens = 10, completionTokens = 5, totalTokens = 15),
                 mapOf("tenantId" to "t1", "model" to "claude-3-sonnet")
@@ -171,7 +171,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `uses unknown when metadata has no model or provider`() {
+        fun `metadata has no model or provider일 때 unknown를 사용한다`() {
             metrics.recordTokenUsage(
                 TokenUsage(promptTokens = 10, completionTokens = 5, totalTokens = 15),
                 defaultMetadata
@@ -183,7 +183,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `uses default tenantId when metadata has no tenantId`() {
+        fun `metadata has no tenantId일 때 default tenantId를 사용한다`() {
             metrics.recordTokenUsage(
                 TokenUsage(promptTokens = 10, completionTokens = 5, totalTokens = 15),
                 emptyMap()
@@ -194,7 +194,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `calculates cost for known model pricing`() {
+        fun `cost for known model pricing를 계산한다`() {
             pricingStore.save(
                 ModelPricing(
                     provider = "openai",
@@ -215,7 +215,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `returns zero cost for unknown model pricing`() {
+        fun `unknown model pricing에 대해 zero cost를 반환한다`() {
             metrics.recordTokenUsage(
                 TokenUsage(promptTokens = 100, completionTokens = 50, totalTokens = 150),
                 mapOf("tenantId" to "tenant-1", "model" to "unknown-model-xyz")
@@ -230,7 +230,7 @@ class MetricCollectorAgentMetricsTest {
     inner class OutputGuardAction {
 
         @Test
-        fun `publishes output guard event`() {
+        fun `output guard event를 발행한다`() {
             metrics.recordOutputGuardAction(
                 "ContentFilterStage", "modified", "PII detected and redacted", defaultMetadata
             )
@@ -247,7 +247,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `truncates output guard reason to 500 chars`() {
+        fun `output guard reason to 500 chars를 잘라낸다`() {
             val longReason = "y".repeat(800)
             metrics.recordOutputGuardAction("Stage", "rejected", longReason, defaultMetadata)
 
@@ -256,7 +256,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `uses default tenantId when metadata has no tenantId`() {
+        fun `metadata has no tenantId일 때 default tenantId를 사용한다`() {
             metrics.recordOutputGuardAction("Stage", "allowed", "", emptyMap())
 
             val event = ringBuffer.drain(10)[0].shouldBeInstanceOf<GuardEvent>()
@@ -268,12 +268,12 @@ class MetricCollectorAgentMetricsTest {
     inner class DropTracking {
 
         @Test
-        fun `records drop when buffer is full`() {
-            // Min capacity is 64 (MetricRingBuffer coerces to at least 64)
+        fun `records drop when buffer은(는) full이다`() {
+            // 최소 용량은 64입니다 (MetricRingBuffer가 최소 64로 강제함)
             val tinyBuffer = MetricRingBuffer(64)
             val tinyMetrics = MetricCollectorAgentMetrics(tinyBuffer, healthMonitor, costCalculator)
 
-            // Fill buffer to capacity
+            // buffer to capacity를 채웁니다
             repeat(64) {
                 tinyBuffer.publish(
                     com.arc.reactor.admin.model.AgentExecutionEvent(tenantId = "t", runId = "r-$it", success = true)
@@ -290,7 +290,7 @@ class MetricCollectorAgentMetricsTest {
     inner class NoOpMethods {
 
         @Test
-        fun `cache counters update without publishing ring-buffer events`() {
+        fun `counters update without publishing ring-buffer events를 캐시한다`() {
             metrics.recordCacheHit("key")
             metrics.recordExactCacheHit("key")
             metrics.recordSemanticCacheHit("key")
@@ -303,7 +303,7 @@ class MetricCollectorAgentMetricsTest {
         }
 
         @Test
-        fun `remaining non-pipeline metrics methods are no-op`() {
+        fun `remaining non-pipeline metrics methods은(는) no-op이다`() {
             metrics.recordCircuitBreakerStateChange("cb", CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN)
             metrics.recordFallbackAttempt("gpt-4", true)
             metrics.recordBoundaryViolation("input_too_long", "max_input", 5000, 6000)

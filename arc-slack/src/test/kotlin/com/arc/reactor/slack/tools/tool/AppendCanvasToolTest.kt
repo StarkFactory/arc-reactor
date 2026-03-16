@@ -15,7 +15,7 @@ class AppendCanvasToolTest {
     private val tool = AppendCanvasTool(appendCanvasUseCase, policyService)
 
     @Test
-    fun `blocks edit when canvas is not in allowlist`() {
+    fun `blocks edit when canvas은(는) not in allowlist이다`() {
         every { policyService.canEdit("F123") } returns false
 
         val result = tool.append_canvas("F123", "more details")
@@ -25,7 +25,7 @@ class AppendCanvasToolTest {
     }
 
     @Test
-    fun `appends markdown when canvas is allowed`() {
+    fun `appends markdown when canvas은(는) allowed이다`() {
         every { policyService.canEdit("F123") } returns true
         every { appendCanvasUseCase.execute("F123", "more details") } returns
             CanvasEditResult(ok = true, canvasId = "F123")

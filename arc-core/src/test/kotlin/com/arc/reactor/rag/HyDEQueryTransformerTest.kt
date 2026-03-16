@@ -35,7 +35,7 @@ class HyDEQueryTransformerTest {
     inner class HappyPath {
 
         @Test
-        fun `should return original query and hypothetical document`() = runTest {
+        fun `return original query and hypothetical document해야 한다`() = runTest {
             val hypothetical = "Our return policy allows returns within 30 days of purchase."
             mockLlmResponse(hypothetical)
 
@@ -48,7 +48,7 @@ class HyDEQueryTransformerTest {
         }
 
         @Test
-        fun `should use custom system prompt`() = runTest {
+        fun `use custom system prompt해야 한다`() = runTest {
             val customPrompt = "Generate a FAQ answer."
             mockLlmResponse("Some answer.")
 
@@ -63,7 +63,7 @@ class HyDEQueryTransformerTest {
     inner class ErrorHandling {
 
         @Test
-        fun `should fallback to original query when LLM returns null`() = runTest {
+        fun `LLM returns null일 때 fallback to original query해야 한다`() = runTest {
             every { callResponseSpec.chatResponse() } returns null
 
             val transformer = HyDEQueryTransformer(chatClient)
@@ -74,7 +74,7 @@ class HyDEQueryTransformerTest {
         }
 
         @Test
-        fun `should fallback to original query when LLM returns blank`() = runTest {
+        fun `LLM returns blank일 때 fallback to original query해야 한다`() = runTest {
             mockLlmResponse("   ")
 
             val transformer = HyDEQueryTransformer(chatClient)
@@ -85,7 +85,7 @@ class HyDEQueryTransformerTest {
         }
 
         @Test
-        fun `should fallback to original query when LLM throws exception`() = runTest {
+        fun `LLM throws exception일 때 fallback to original query해야 한다`() = runTest {
             every { requestSpec.call() } throws RuntimeException("LLM unavailable")
 
             val transformer = HyDEQueryTransformer(chatClient)
@@ -96,7 +96,7 @@ class HyDEQueryTransformerTest {
         }
 
         @Test
-        fun `should propagate CancellationException for structured concurrency`() = runTest {
+        fun `structured concurrency에 대해 propagate CancellationException해야 한다`() = runTest {
             every { requestSpec.call() } throws java.util.concurrent.CancellationException("cancelled")
 
             val transformer = HyDEQueryTransformer(chatClient)

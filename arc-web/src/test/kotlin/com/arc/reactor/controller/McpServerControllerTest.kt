@@ -63,7 +63,7 @@ class McpServerControllerTest {
     inner class ListServers {
 
         @Test
-        fun `should return empty list when no servers registered`() {
+        fun `no servers registered일 때 return empty list해야 한다`() {
             val response = controller.listServers(adminExchange())
             assertEquals(HttpStatus.OK, response.statusCode) { "Admin list should return 200" }
             @Suppress("UNCHECKED_CAST")
@@ -72,7 +72,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should list registered servers with status`() {
+        fun `status로 list registered servers해야 한다`() {
             manager.register(McpServer(
                 name = "test-sse",
                 transportType = McpTransportType.SSE,
@@ -90,7 +90,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject non-admin list`() {
+        fun `reject non-admin list해야 한다`() {
             val response = controller.listServers(userExchange())
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
                 "Non-admin should receive 403 when listing servers"
@@ -102,7 +102,7 @@ class McpServerControllerTest {
     inner class RegisterServer {
 
         @Test
-        fun `should register server as admin`() = runTest {
+        fun `register server as admin해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "my-server",
                 transportType = "SSE",
@@ -115,7 +115,7 @@ class McpServerControllerTest {
                 "Expected 201 CREATED, got ${response.statusCode}"
             }
 
-            // Verify persisted in store
+            // persisted in store 확인
             val saved = store.findByName("my-server")
             assertNotNull(saved) { "Server should be persisted in store" }
             assertEquals(McpTransportType.SSE, saved!!.transportType)
@@ -126,7 +126,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject duplicate server name`() = runTest {
+        fun `reject duplicate server name해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "duplicate",
                 transportType = "SSE",
@@ -143,7 +143,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject non-admin register`() = runTest {
+        fun `reject non-admin register해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "forbidden-server",
                 transportType = "SSE",
@@ -157,7 +157,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject invalid transport type`() = runTest {
+        fun `reject invalid transport type해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "invalid-transport",
                 transportType = "SSEE",
@@ -171,7 +171,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject unsupported http transport`() = runTest {
+        fun `reject unsupported http transport해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "http-server",
                 transportType = "HTTP",
@@ -185,7 +185,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should accept transport type with surrounding spaces`() = runTest {
+        fun `surrounding spaces로 accept transport type해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "trimmed-transport",
                 transportType = "  sSe  ",
@@ -206,7 +206,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should register realistic stdio server payload`() = runTest {
+        fun `register realistic stdio server payload해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "filesystem-prod",
                 description = "Filesystem MCP server for production-like scenario",
@@ -240,7 +240,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject SSE server with private IP url`() = runTest {
+        fun `private IP url로 reject SSE server해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "ssrf-private",
                 transportType = "SSE",
@@ -255,7 +255,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject SSE server with cloud metadata url`() = runTest {
+        fun `cloud metadata url로 reject SSE server해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "ssrf-metadata",
                 transportType = "SSE",
@@ -270,7 +270,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject SSE server with localhost url`() = runTest {
+        fun `localhost url로 reject SSE server해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "ssrf-localhost",
                 transportType = "SSE",
@@ -285,7 +285,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject SSE server with file scheme url`() = runTest {
+        fun `file scheme url로 reject SSE server해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "ssrf-file",
                 transportType = "SSE",
@@ -300,7 +300,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should skip SSRF validation for STDIO transport`() = runTest {
+        fun `STDIO transport에 대해 skip SSRF validation해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "stdio-no-ssrf",
                 transportType = "STDIO",
@@ -315,7 +315,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject SSE server with 192_168 private url`() = runTest {
+        fun `192_168 private url로 reject SSE server해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "ssrf-192",
                 transportType = "SSE",
@@ -330,7 +330,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject SSE server with 172_16 private url`() = runTest {
+        fun `172_16 private url로 reject SSE server해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "ssrf-172",
                 transportType = "SSE",
@@ -349,7 +349,7 @@ class McpServerControllerTest {
     inner class GetServer {
 
         @Test
-        fun `should return server details`() {
+        fun `return server details해야 한다`() {
             manager.register(McpServer(
                 name = "detail-test",
                 description = "Test server",
@@ -372,7 +372,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should mask sensitive config values recursively in server details`() {
+        fun `mask sensitive config values recursively in server details해야 한다`() {
             manager.register(McpServer(
                 name = "masked-config",
                 transportType = McpTransportType.SSE,
@@ -410,7 +410,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should return 404 for unknown server`() {
+        fun `unknown server에 대해 return 404해야 한다`() {
             val response = controller.getServer("nonexistent", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
                 "Expected 404 NOT_FOUND for unknown server"
@@ -418,7 +418,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject non-admin get detail`() {
+        fun `reject non-admin get detail해야 한다`() {
             val response = controller.getServer("detail-test", userExchange())
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
                 "Non-admin should receive 403 for server detail"
@@ -430,7 +430,7 @@ class McpServerControllerTest {
     inner class UpdateServer {
 
         @Test
-        fun `should update server config as admin`() = runTest {
+        fun `update server config as admin해야 한다`() = runTest {
             manager.register(McpServer(
                 name = "update-me",
                 transportType = McpTransportType.SSE,
@@ -454,7 +454,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should return 404 when updating nonexistent server`() = runTest {
+        fun `updating nonexistent server일 때 return 404해야 한다`() = runTest {
             val response = controller.updateServer(
                 "ghost",
                 UpdateMcpServerRequest(description = "test"),
@@ -466,7 +466,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject non-admin update`() = runTest {
+        fun `reject non-admin update해야 한다`() = runTest {
             manager.register(McpServer(
                 name = "no-update",
                 transportType = McpTransportType.SSE,
@@ -484,7 +484,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should preserve existing transport when transportType is omitted`() = runTest {
+        fun `transportType is omitted일 때 preserve existing transport해야 한다`() = runTest {
             manager.register(McpServer(
                 name = "preserve-transport",
                 transportType = McpTransportType.STDIO,
@@ -509,7 +509,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject invalid transport type on update`() = runTest {
+        fun `reject invalid transport type on update해야 한다`() = runTest {
             manager.register(McpServer(
                 name = "invalid-update-transport",
                 transportType = McpTransportType.SSE,
@@ -528,7 +528,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject unsupported http transport on update`() = runTest {
+        fun `reject unsupported http transport on update해야 한다`() = runTest {
             manager.register(McpServer(
                 name = "http-update-transport",
                 transportType = McpTransportType.SSE,
@@ -547,7 +547,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should accept trimmed transport type on update`() = runTest {
+        fun `accept trimmed transport type on update해야 한다`() = runTest {
             manager.register(McpServer(
                 name = "trim-update-transport",
                 transportType = McpTransportType.SSE,
@@ -572,7 +572,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject update with SSRF url on SSE transport`() = runTest {
+        fun `SSRF url on SSE transport로 reject update해야 한다`() = runTest {
             manager.register(McpServer(
                 name = "ssrf-update",
                 transportType = McpTransportType.SSE,
@@ -591,7 +591,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should sync runtime manager state when store and manager are decoupled`() = runTest {
+        fun `store and manager are decoupled일 때 sync runtime manager state해야 한다`() = runTest {
             val runtimeManager = DefaultMcpManager()
             val persistentStore = InMemoryMcpServerStore()
             val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
@@ -622,7 +622,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reconnect connected server when connection config changes`() = runTest {
+        fun `connection config changes일 때 reconnect connected server해야 한다`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
             val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
@@ -653,7 +653,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should not reconnect connected server when only description changes`() = runTest {
+        fun `only description changes일 때 not reconnect connected server해야 한다`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
             val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
@@ -683,7 +683,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should connect server after update when autoConnect is enabled from disconnected state`() = runTest {
+        fun `autoConnect is enabled from disconnected state일 때 connect server after update해야 한다`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
             val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
@@ -717,7 +717,7 @@ class McpServerControllerTest {
     inner class DeleteServer {
 
         @Test
-        fun `should delete server as admin`() = runTest {
+        fun `delete server as admin해야 한다`() = runTest {
             manager.register(McpServer(
                 name = "delete-me",
                 transportType = McpTransportType.SSE,
@@ -735,7 +735,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should return 404 when deleting nonexistent server`() = runTest {
+        fun `deleting nonexistent server일 때 return 404해야 한다`() = runTest {
             val response = controller.deleteServer("ghost", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
                 "Expected 404 for nonexistent server delete"
@@ -743,7 +743,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `should reject non-admin delete`() = runTest {
+        fun `reject non-admin delete해야 한다`() = runTest {
             manager.register(McpServer(
                 name = "protected",
                 transportType = McpTransportType.SSE,
@@ -761,7 +761,7 @@ class McpServerControllerTest {
     inner class ConnectDisconnect {
 
         @Test
-        fun `connect should return 503 when server has no valid config`() = runTest {
+        fun `connect은(는) return 503 when server has no valid config해야 한다`() = runTest {
             manager.register(McpServer(
                 name = "bad-config",
                 transportType = McpTransportType.SSE,
@@ -776,7 +776,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `connect should return 404 for unknown server`() = runTest {
+        fun `connect은(는) return 404 for unknown server해야 한다`() = runTest {
             val response = controller.connectServer("nonexistent", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
                 "Expected 404 for unknown server"
@@ -784,7 +784,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `disconnect should return 404 for unknown server`() = runTest {
+        fun `disconnect은(는) return 404 for unknown server해야 한다`() = runTest {
             val response = controller.disconnectServer("nonexistent", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
                 "Expected 404 for unknown server"
@@ -792,7 +792,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `disconnect should succeed for registered server`() = runTest {
+        fun `disconnect은(는) succeed for registered server해야 한다`() = runTest {
             manager.register(McpServer(
                 name = "disc-test",
                 transportType = McpTransportType.SSE,
@@ -811,10 +811,10 @@ class McpServerControllerTest {
     inner class FullLifecycleScenario {
 
         @Test
-        fun `register then update then delete lifecycle`() = runTest {
+        fun `then update then delete lifecycle를 등록한다`() = runTest {
             val exchange = adminExchange()
 
-            // 1. Register
+            // 1. 등록
             val registerReq = RegisterMcpServerRequest(
                 name = "lifecycle-server",
                 description = "Initial",
@@ -825,7 +825,7 @@ class McpServerControllerTest {
             val created = controller.registerServer(registerReq, exchange)
             assertEquals(HttpStatus.CREATED, created.statusCode) { "Step 1: Register should succeed" }
 
-            // 2. Verify in list
+            // 2. 목록에서 확인
             val listResponse = controller.listServers(exchange)
             assertEquals(HttpStatus.OK, listResponse.statusCode) { "Step 2: list should return 200" }
             @Suppress("UNCHECKED_CAST")
@@ -833,12 +833,12 @@ class McpServerControllerTest {
             assertEquals(1, list.size) { "Step 2: Should have 1 server" }
             assertEquals("lifecycle-server", list[0].name)
 
-            // 3. Get detail
+            // 3. 상세 조회
             val detail = controller.getServer("lifecycle-server", exchange)
             assertEquals(HttpStatus.OK, detail.statusCode) { "Step 3: Get should succeed" }
             assertEquals("Initial", (detail.body as McpServerDetailResponse).description)
 
-            // 4. Update
+            // 4. 업데이트
             val updated = controller.updateServer(
                 "lifecycle-server",
                 UpdateMcpServerRequest(description = "Updated"),
@@ -846,17 +846,17 @@ class McpServerControllerTest {
             )
             assertEquals(HttpStatus.OK, updated.statusCode) { "Step 4: Update should succeed" }
 
-            // 5. Verify update
+            // 5. 업데이트 확인
             val afterUpdate = controller.getServer("lifecycle-server", exchange)
             assertEquals("Updated", (afterUpdate.body as McpServerDetailResponse).description) {
                 "Step 5: Description should be updated"
             }
 
-            // 6. Delete
+            // 6. 삭제
             val deleted = controller.deleteServer("lifecycle-server", exchange)
             assertEquals(HttpStatus.NO_CONTENT, deleted.statusCode) { "Step 6: Delete should succeed" }
 
-            // 7. Verify gone
+            // 7. 삭제 확인
             val afterDeleteListResponse = controller.listServers(exchange)
             @Suppress("UNCHECKED_CAST")
             val afterDeleteList = afterDeleteListResponse.body as List<McpServerResponse>
@@ -864,7 +864,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `security config should filter servers through allowlist`() = runTest {
+        fun `security config은(는) filter servers through allowlist해야 한다`() = runTest {
             val secureStore = InMemoryMcpServerStore()
             val secureManager = DefaultMcpManager(
                 securityConfig = McpSecurityConfig(allowedServerNames = setOf("trusted")),
@@ -872,7 +872,7 @@ class McpServerControllerTest {
             )
             val secureController = McpServerController(secureManager, secureStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
 
-            // Register allowed server
+            // allowed server 등록
             val trustedReq = RegisterMcpServerRequest(
                 name = "trusted",
                 transportType = "SSE",
@@ -884,7 +884,7 @@ class McpServerControllerTest {
                 "Trusted server should register"
             }
 
-            // List should have only trusted
+            // List은(는) have only trusted해야 합니다
             val listResponse = secureController.listServers(adminExchange())
             @Suppress("UNCHECKED_CAST")
             val list = listResponse.body as List<McpServerResponse>
@@ -893,7 +893,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `register should return bad request when server is blocked by allowlist`() = runTest {
+        fun `register은(는) return bad request when server is blocked by allowlist해야 한다`() = runTest {
             val secureStore = InMemoryMcpServerStore()
             val secureManager = DefaultMcpManager(
                 securityConfig = McpSecurityConfig(allowedServerNames = setOf("trusted")),
@@ -919,7 +919,7 @@ class McpServerControllerTest {
         }
 
         @Test
-        fun `register should persist when runtime manager and store are decoupled`() = runTest {
+        fun `register은(는) persist when runtime manager and store are decoupled해야 한다`() = runTest {
             val runtimeManager = DefaultMcpManager()
             val persistentStore = InMemoryMcpServerStore()
             val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())

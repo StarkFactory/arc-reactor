@@ -14,7 +14,7 @@ class CorsSecurityConfigurationTest {
     inner class DefaultProperties {
 
         @Test
-        fun `should create CorsWebFilter with default properties`() {
+        fun `default properties로 create CorsWebFilter해야 한다`() {
             val properties = AgentProperties(cors = CorsProperties())
             val filter = configuration.corsWebFilter(properties)
 
@@ -26,7 +26,7 @@ class CorsSecurityConfigurationTest {
     inner class CustomProperties {
 
         @Test
-        fun `should accept custom allowed origins`() {
+        fun `accept custom allowed origins해야 한다`() {
             val corsProps = CorsProperties(
                 allowedOrigins = listOf("https://example.com", "https://app.example.com"),
                 allowedMethods = listOf("GET", "POST"),
@@ -44,7 +44,7 @@ class CorsSecurityConfigurationTest {
     inner class CorsPropertiesDefaults {
 
         @Test
-        fun `should have sensible defaults`() {
+        fun `have sensible defaults해야 한다`() {
             val defaults = CorsProperties()
 
             assertFalse(defaults.enabled) { "CORS should be opt-in (disabled by default)" }

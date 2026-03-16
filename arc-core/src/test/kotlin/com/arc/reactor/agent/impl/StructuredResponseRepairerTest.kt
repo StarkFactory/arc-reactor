@@ -22,7 +22,7 @@ import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec
 class StructuredResponseRepairerTest {
 
     @Test
-    fun `returns raw success for text format`() = runBlocking {
+    fun `text format에 대해 raw success를 반환한다`() = runBlocking {
         val repairer = StructuredResponseRepairer(
             errorMessageResolver = DefaultErrorMessageResolver(),
             resolveChatClient = { mockk() }
@@ -44,7 +44,7 @@ class StructuredResponseRepairerTest {
     }
 
     @Test
-    fun `returns repaired success when invalid json is fixed by llm`() = runBlocking {
+    fun `invalid json is fixed by llm일 때 repaired success를 반환한다`() = runBlocking {
         val chatClient = mockk<ChatClient>()
         val requestSpec = mockk<ChatClientRequestSpec>(relaxed = true)
         val responseSpec = mockk<CallResponseSpec>()
@@ -71,7 +71,7 @@ class StructuredResponseRepairerTest {
     }
 
     @Test
-    fun `returns invalid response failure when repair does not produce valid format`() = runBlocking {
+    fun `repair does not produce valid format일 때 invalid response failure를 반환한다`() = runBlocking {
         val chatClient = mockk<ChatClient>()
         val requestSpec = mockk<ChatClientRequestSpec>(relaxed = true)
         val responseSpec = mockk<CallResponseSpec>()
@@ -98,7 +98,7 @@ class StructuredResponseRepairerTest {
     }
 
     @Test
-    fun `rethrows cancellation exception during repair`() {
+    fun `repair동안 rethrows cancellation exception`() {
         val chatClient = mockk<ChatClient>()
         val requestSpec = mockk<ChatClientRequestSpec>(relaxed = true)
         val responseSpec = mockk<CallResponseSpec>()

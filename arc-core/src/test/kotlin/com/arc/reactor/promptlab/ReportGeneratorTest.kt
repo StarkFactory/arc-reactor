@@ -28,7 +28,7 @@ class ReportGeneratorTest {
     inner class BasicReport {
 
         @Test
-        fun `should generate report with correct experiment info`() {
+        fun `correct experiment info로 generate report해야 한다`() {
             val experiment = buildExperiment()
             val trials = listOf(
                 buildTrial(experiment.id, "baseline-v", 1),
@@ -43,7 +43,7 @@ class ReportGeneratorTest {
         }
 
         @Test
-        fun `should include version summaries for all versions`() {
+        fun `all versions에 대해 include version summaries해야 한다`() {
             val experiment = buildExperiment()
             val trials = listOf(
                 buildTrial(experiment.id, "baseline-v", 1),
@@ -63,7 +63,7 @@ class ReportGeneratorTest {
     inner class VersionSummaryCalculations {
 
         @Test
-        fun `should calculate pass rate correctly`() {
+        fun `calculate pass rate correctly해야 한다`() {
             val experiment = buildExperiment()
             val trials = listOf(
                 buildTrial(experiment.id, "baseline-v", 1, passed = true),
@@ -84,7 +84,7 @@ class ReportGeneratorTest {
         }
 
         @Test
-        fun `should calculate token usage totals`() {
+        fun `calculate token usage totals해야 한다`() {
             val experiment = buildExperiment()
             val trials = listOf(
                 buildTrial(experiment.id, "baseline-v", 1, tokens = TokenUsageSummary(100, 50)),
@@ -102,7 +102,7 @@ class ReportGeneratorTest {
         }
 
         @Test
-        fun `should calculate tier breakdown`() {
+        fun `calculate tier breakdown해야 한다`() {
             val experiment = buildExperiment()
             val trials = listOf(
                 buildTrial(
@@ -128,7 +128,7 @@ class ReportGeneratorTest {
         }
 
         @Test
-        fun `should track tool usage frequency`() {
+        fun `track tool usage frequency해야 한다`() {
             val experiment = buildExperiment()
             val trials = listOf(
                 buildTrial(experiment.id, "baseline-v", 1, tools = listOf("search", "calculate")),
@@ -147,7 +147,7 @@ class ReportGeneratorTest {
     inner class QueryComparisons {
 
         @Test
-        fun `should create per-query comparison across versions`() {
+        fun `create per-query comparison across versions해야 한다`() {
             val query = TestQuery(query = "What is AI?")
             val experiment = buildExperiment(queries = listOf(query))
             val trials = listOf(
@@ -168,7 +168,7 @@ class ReportGeneratorTest {
     inner class Recommendations {
 
         @Test
-        fun `should recommend candidate when significantly better`() {
+        fun `significantly better일 때 recommend candidate해야 한다`() {
             val experiment = buildExperiment()
             val trials = listOf(
                 buildTrial(experiment.id, "baseline-v", 1, passed = false, score = 0.3),
@@ -186,7 +186,7 @@ class ReportGeneratorTest {
         }
 
         @Test
-        fun `should recommend baseline when candidates are worse`() {
+        fun `candidates are worse일 때 recommend baseline해야 한다`() {
             val experiment = buildExperiment()
             val trials = listOf(
                 buildTrial(experiment.id, "baseline-v", 1, passed = true, score = 0.9),
@@ -199,7 +199,7 @@ class ReportGeneratorTest {
         }
 
         @Test
-        fun `should have LOW confidence for close results`() {
+        fun `close results에 대해 have LOW confidence해야 한다`() {
             val experiment = buildExperiment()
             val trials = listOf(
                 buildTrial(experiment.id, "baseline-v", 1, passed = true, score = 0.85),
@@ -214,7 +214,7 @@ class ReportGeneratorTest {
         }
 
         @Test
-        fun `should include improvements list when candidate is better`() {
+        fun `candidate is better일 때 include improvements list해야 한다`() {
             val experiment = buildExperiment()
             val trials = listOf(
                 buildTrial(experiment.id, "baseline-v", 1, passed = false, score = 0.3, durationMs = 500),
@@ -233,7 +233,7 @@ class ReportGeneratorTest {
     inner class EdgeCases {
 
         @Test
-        fun `should handle empty trials`() {
+        fun `handle empty trials해야 한다`() {
             val experiment = buildExperiment()
             val report = generator.generate(experiment, emptyList())
 
@@ -245,7 +245,7 @@ class ReportGeneratorTest {
         }
 
         @Test
-        fun `should handle single version`() {
+        fun `handle single version해야 한다`() {
             val experiment = buildExperiment(candidateIds = emptyList())
             val trials = listOf(
                 buildTrial(experiment.id, "baseline-v", 1, passed = true)

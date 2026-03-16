@@ -26,7 +26,7 @@ class SlackCommandControllerTest {
     private val controller = SlackCommandController(processor)
 
     @Test
-    fun `returns 200 immediately for slash command`() = runTest {
+    fun `slash command에 대해 200 immediately를 반환한다`() = runTest {
         val response = controller.handleSlashCommand(
             command = "/jarvis",
             text = "hello",
@@ -43,7 +43,7 @@ class SlackCommandControllerTest {
     }
 
     @Test
-    fun `dispatches slash command to handler asynchronously`() = runTest {
+    fun `slash command to handler asynchronously를 디스패치한다`() = runTest {
         coEvery { commandHandler.handleSlashCommand(any()) } returns Unit
 
         controller.handleSlashCommand(
@@ -68,7 +68,7 @@ class SlackCommandControllerTest {
     }
 
     @Test
-    fun `returns busy ack immediately when saturated in fail fast mode`() = runTest {
+    fun `saturated in fail fast mode일 때 busy ack immediately를 반환한다`() = runTest {
         val slowHandler = mockk<SlackCommandHandler>()
         val failFastMessagingService = mockk<SlackMessagingService>(relaxed = true)
         val failFastController = SlackCommandController(
@@ -112,7 +112,7 @@ class SlackCommandControllerTest {
     }
 
     @Test
-    fun `sends busy response_url message when request queue times out in queue mode`() = runTest {
+    fun `busy response_url message when request queue times out in queue mode를 전송한다`() = runTest {
         val slowHandler = mockk<SlackCommandHandler>()
         val timeoutMessagingService = mockk<SlackMessagingService>(relaxed = true)
         val timeoutController = SlackCommandController(

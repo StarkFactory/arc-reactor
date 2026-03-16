@@ -42,13 +42,13 @@ class InMemoryFeedbackStoreTest {
     inner class BasicCrud {
 
         @Test
-        fun `should start empty`() {
+        fun `start empty해야 한다`() {
             assertEquals(0L, store.count()) { "New store should have 0 entries" }
             assertTrue(store.list().isEmpty()) { "New store should return empty list" }
         }
 
         @Test
-        fun `should save and retrieve feedback`() {
+        fun `save and retrieve feedback해야 한다`() {
             val feedback = createFeedback(feedbackId = "fb-1", comment = "Great answer!")
 
             store.save(feedback)
@@ -63,12 +63,12 @@ class InMemoryFeedbackStoreTest {
         }
 
         @Test
-        fun `should return null for nonexistent feedback`() {
+        fun `nonexistent feedback에 대해 return null해야 한다`() {
             assertNull(store.get("nonexistent")) { "Should return null for unknown ID" }
         }
 
         @Test
-        fun `should delete feedback`() {
+        fun `delete feedback해야 한다`() {
             store.save(createFeedback(feedbackId = "to-delete"))
 
             store.delete("to-delete")
@@ -78,12 +78,12 @@ class InMemoryFeedbackStoreTest {
         }
 
         @Test
-        fun `delete should be idempotent for nonexistent feedback`() {
+        fun `delete은(는) be idempotent for nonexistent feedback해야 한다`() {
             assertDoesNotThrow { store.delete("nonexistent") }
         }
 
         @Test
-        fun `should count entries correctly`() {
+        fun `count entries correctly해야 한다`() {
             store.save(createFeedback(feedbackId = "fb-1"))
             store.save(createFeedback(feedbackId = "fb-2"))
             store.save(createFeedback(feedbackId = "fb-3"))
@@ -96,7 +96,7 @@ class InMemoryFeedbackStoreTest {
     inner class ListAndSort {
 
         @Test
-        fun `should list all entries sorted by timestamp descending`() {
+        fun `list all entries sorted by timestamp descending해야 한다`() {
             val t1 = Instant.parse("2026-01-01T00:00:00Z")
             val t2 = Instant.parse("2026-01-02T00:00:00Z")
             val t3 = Instant.parse("2026-01-03T00:00:00Z")
@@ -138,7 +138,7 @@ class InMemoryFeedbackStoreTest {
         }
 
         @Test
-        fun `should filter by rating`() {
+        fun `filter by rating해야 한다`() {
             val result = store.list(rating = FeedbackRating.THUMBS_DOWN)
 
             assertEquals(2, result.size) { "Should have 2 thumbs_down entries" }
@@ -148,7 +148,7 @@ class InMemoryFeedbackStoreTest {
         }
 
         @Test
-        fun `should filter by time range`() {
+        fun `filter by time range해야 한다`() {
             val result = store.list(from = t2, to = t3)
 
             assertEquals(2, result.size) { "Should have 2 entries in range" }
@@ -157,21 +157,21 @@ class InMemoryFeedbackStoreTest {
         }
 
         @Test
-        fun `should filter by intent`() {
+        fun `filter by intent해야 한다`() {
             val result = store.list(intent = "order")
 
             assertEquals(2, result.size) { "Should have 2 'order' intent entries" }
         }
 
         @Test
-        fun `should filter by sessionId`() {
+        fun `filter by sessionId해야 한다`() {
             val result = store.list(sessionId = "s-1")
 
             assertEquals(2, result.size) { "Should have 2 entries for session s-1" }
         }
 
         @Test
-        fun `should combine multiple filters`() {
+        fun `combine multiple filters해야 한다`() {
             val result = store.list(
                 rating = FeedbackRating.THUMBS_DOWN,
                 intent = "order"
@@ -182,21 +182,21 @@ class InMemoryFeedbackStoreTest {
         }
 
         @Test
-        fun `should return all when no filters provided`() {
+        fun `no filters provided일 때 return all해야 한다`() {
             val result = store.list(rating = null, from = null, to = null, intent = null, sessionId = null)
 
             assertEquals(3, result.size) { "Should return all entries without filters" }
         }
 
         @Test
-        fun `should return empty list when no entries match`() {
+        fun `no entries match일 때 return empty list해야 한다`() {
             val result = store.list(rating = FeedbackRating.THUMBS_UP, intent = "refund")
 
             assertTrue(result.isEmpty()) { "Should return empty list when no entries match" }
         }
 
         @Test
-        fun `should include exact boundary timestamps in range`() {
+        fun `include exact boundary timestamps in range해야 한다`() {
             val result = store.list(from = t1, to = t1)
 
             assertEquals(1, result.size) { "Should include entry at exact boundary timestamp" }
@@ -208,14 +208,14 @@ class InMemoryFeedbackStoreTest {
     inner class EdgeCases {
 
         @Test
-        fun `should filter on empty store`() {
+        fun `filter on empty store해야 한다`() {
             val result = store.list(rating = FeedbackRating.THUMBS_UP)
 
             assertTrue(result.isEmpty()) { "Filtering empty store should return empty list" }
         }
 
         @Test
-        fun `should save and retrieve with all null optional fields`() {
+        fun `all null optional fields로 save and retrieve해야 한다`() {
             val minimal = Feedback(
                 feedbackId = "minimal",
                 query = "q",
@@ -234,7 +234,7 @@ class InMemoryFeedbackStoreTest {
         }
 
         @Test
-        fun `should save with toolsUsed containing special characters`() {
+        fun `toolsUsed containing special characters로 save해야 한다`() {
             val feedback = createFeedback(feedbackId = "special").copy(
                 toolsUsed = listOf("fetch,data", "tool|pipe", "tool with spaces")
             )
@@ -248,7 +248,7 @@ class InMemoryFeedbackStoreTest {
         }
 
         @Test
-        fun `should overwrite existing entry with same feedbackId`() {
+        fun `same feedbackId로 overwrite existing entry해야 한다`() {
             store.save(createFeedback(feedbackId = "fb-1", comment = "First"))
             store.save(createFeedback(feedbackId = "fb-1", comment = "Second"))
 
@@ -261,7 +261,7 @@ class InMemoryFeedbackStoreTest {
     inner class ConcurrentAccess {
 
         @Test
-        fun `concurrent saves should not lose entries`() {
+        fun `concurrent saves은(는) not lose entries해야 한다`() {
             val threadCount = 50
             val latch = CountDownLatch(1)
             val executor = Executors.newFixedThreadPool(threadCount)
@@ -294,7 +294,7 @@ class InMemoryFeedbackStoreTest {
         }
 
         @Test
-        fun `concurrent list should not fail during modifications`() {
+        fun `concurrent list은(는) not fail during modifications해야 한다`() {
             val threadCount = 20
             val latch = CountDownLatch(1)
             val executor = Executors.newFixedThreadPool(threadCount)
