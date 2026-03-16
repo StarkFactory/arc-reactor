@@ -17,6 +17,7 @@ import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
+import java.security.MessageDigest
 
 class DocumentControllerTest {
 
@@ -100,6 +101,44 @@ class DocumentControllerTest {
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should create document with metadata" }
         }
+
+        @Test
+        fun `should store content_hash in metadata`() {
+            val request = DocumentController.AddDocumentRequest(content = "Hash me")
+
+            val response = controller.addDocument(request, adminExchange())
+
+            assertEquals(HttpStatus.CREATED, response.statusCode) { "Should create document" }
+            val body = response.body as DocumentController.DocumentResponse
+            assertTrue(body.metadata.containsKey("content_hash")) {
+                "Metadata should contain content_hash"
+            }
+            assertEquals(sha256("Hash me"), body.metadata["content_hash"]) {
+                "content_hash should be SHA-256 of content"
+            }
+        }
+
+        @Test
+        fun `should return 409 when duplicate content exists`() {
+            val content = "Duplicate content"
+            val hash = sha256(content)
+            every { vectorStore.similaritySearch(any<SearchRequest>()) } returns listOf(
+                Document("existing-id", content, mapOf("content_hash" to hash))
+            )
+
+            val request = DocumentController.AddDocumentRequest(content = content)
+            val response = controller.addDocument(request, adminExchange())
+
+            assertEquals(HttpStatus.CONFLICT, response.statusCode) {
+                "Duplicate content should return 409"
+            }
+            @Suppress("UNCHECKED_CAST")
+            val body = response.body as Map<String, Any>
+            assertEquals("existing-id", body["existingId"]) {
+                "Response should include existingId"
+            }
+            verify(exactly = 0) { vectorStore.add(any()) }
+        }
     }
 
     @Nested
@@ -128,6 +167,29 @@ class DocumentControllerTest {
             val response = controller.addDocuments(request, userExchange())
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "USER should get 403 on batch add" }
+        }
+
+        @Test
+        fun `should return 409 when batch contains duplicate content`() {
+            val content = "Already stored"
+            val hash = sha256(content)
+            every { vectorStore.similaritySearch(any<SearchRequest>()) } returns listOf(
+                Document("existing-id", content, mapOf("content_hash" to hash))
+            )
+
+            val request = DocumentController.BatchAddDocumentRequest(
+                documents = listOf(
+                    DocumentController.AddDocumentRequest(content = content),
+                    DocumentController.AddDocumentRequest(content = "Unique")
+                )
+            )
+
+            val response = controller.addDocuments(request, adminExchange())
+
+            assertEquals(HttpStatus.CONFLICT, response.statusCode) {
+                "Batch with duplicate content should return 409"
+            }
+            verify(exactly = 0) { vectorStore.add(any()) }
         }
     }
 
@@ -170,5 +232,10 @@ class DocumentControllerTest {
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "USER should get 403 on delete" }
             verify(exactly = 0) { vectorStore.delete(any<List<String>>()) }
         }
+    }
+
+    private fun sha256(content: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        return digest.digest(content.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 }
