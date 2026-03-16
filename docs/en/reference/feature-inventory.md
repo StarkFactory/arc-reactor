@@ -1,6 +1,6 @@
 # Arc Reactor Feature Inventory & Data Architecture
 
-> Last updated: 2026-03-01
+> Last updated: 2026-03-16
 
 ---
 
@@ -20,7 +20,7 @@
 | **Hook System** | Internal (no API) | Active | BeforeAgentStart → BeforeToolCall → AfterToolCall → AfterAgentComplete |
 | **Tool Execution** | Internal (no API) | Active | Local tools + MCP tool auto-discovery |
 | **RAG Pipeline** | Internal (no API) | Inactive (configurable) | Auto-activates when VectorStore is connected. Supports HyDE, conversation-aware query rewriting, metadata filtering |
-| **Multi-Agent** | `POST /api/multi/*` | **Inactive** | @RestController is commented out |
+| **Multi-Agent** | `POST /api/multi/*` | Example (ready to enable) | Supervisor/Sequential/Parallel orchestration; uncomment @RestController to activate |
 | **Session List** | `GET /api/sessions` | Active | Session summary list (messageCount, lastActivity, preview) |
 | **Conversation History** | `GET /api/sessions/{id}` | Active | Full message history for a specific session |
 | **Session Deletion** | `DELETE /api/sessions/{id}` | Active | Server-side session data deletion |
@@ -28,13 +28,24 @@
 | **JWT Authentication** | `POST /api/auth/*` | **required** | Runtime requires `arc.reactor.auth.jwt-secret` |
 | **Persona Management** | `GET/POST/PUT/DELETE /api/personas` | Active | System prompt template CRUD |
 | **Per-User Session Isolation** | Internal (no API) | Active | Sessions are filtered by JWT-derived userId (auth is always required) |
-| **Response Caching** | Internal (no API) | **opt-in** | Scoped SHA-256 keys (user/tenant/session aware), temperature gating, optional Redis semantic fallback |
-| **Circuit Breaker** | Internal (no API) | **opt-in** | Kotlin-native CB: CLOSED → OPEN → HALF_OPEN state machine |
-| **Graceful Degradation** | Internal (no API) | **opt-in** | Sequential model fallback on primary model failure |
+| **Response Caching** | Internal (no API) | Opt-in (disabled by default) | Scoped SHA-256 keys (user/tenant/session aware), temperature gating, optional Redis semantic fallback |
+| **Circuit Breaker** | Internal (no API) | Opt-in (disabled by default) | Kotlin-native CB: CLOSED → OPEN → HALF_OPEN state machine |
+| **Graceful Degradation** | Internal (no API) | Opt-in (disabled by default) | Sequential model fallback on primary model failure |
 | **Response Filters** | Internal (no API) | Active | Post-processing pipeline (MaxLengthResponseFilter built-in) |
 | **Streaming Error Events** | SSE `error` event | Active | Error events during streaming with StreamEventMarker |
 | **Observability Metrics** | Internal (no API) | Active | 9 metric points: execution, tool, guard, cache, CB, fallback, tokens |
 | **MCP Auto-Reconnection** | Internal (no API) | Active | Exponential backoff + jitter, per-server Mutex |
+| **User Memory** | `GET/PUT/DELETE /api/user-memory/{userId}` | Opt-in (disabled by default) | Per-user long-term facts, preferences, and recent topics; auto-injected into system prompt when enabled |
+| **Proactive Channels** | `GET/POST/DELETE /api/proactive-channels` | Opt-in (disabled by default) | Manage Slack proactive monitoring channels (admin); requires `arc.reactor.slack.enabled=true` |
+| **MCP Swagger Catalog** | `GET/POST/PUT /api/mcp/servers/{name}/swagger/sources` | Active | Proxy Swagger spec source lifecycle (list, create, update, sync, diff, publish) on MCP servers (admin) |
+| **MCP Preflight Validation** | `GET /api/mcp/servers/{name}/preflight` | Active | Proxy MCP server admin readiness checks (admin) |
+| **MCP Access Policy** | `GET/PUT/DELETE /api/mcp/servers/{name}/access-policy` | Active | Proxy access-policy management for MCP servers (admin) |
+| **Admin Capabilities** | `GET /api/admin/capabilities` | Active | Returns registered API path manifest for admin consoles |
+| **Tool Result Caching** | Internal (no API) | Opt-in (disabled by default) | Per-ReAct-loop Caffeine cache for identical tool name + args; prevents redundant tool calls |
+| **Citation Auto-Formatting** | Internal (no API) | Opt-in (disabled by default) | Appends deduplicated source citations to responses when verified sources exist |
+| **Prompt Caching (Anthropic)** | Internal (no API) | Opt-in (disabled by default) | Marks system prompt and tool definitions with `cache_control` for Anthropic prompt caching |
+| **Tool Enrichment** | Internal (no API) | Active (config-driven) | Auto-injects requester identity into tool parameters for listed tools |
+| **Webhook Notifications** | Internal (no API) | Opt-in (disabled by default) | POST agent execution results to a configured webhook URL |
 
 ### 1.2 Frontend (arc-reactor-web)
 
@@ -419,16 +430,23 @@ arc:
       max-output-tokens: 4096       # Max response length
       max-conversation-turns: 10    # Max conversation history turns
       max-context-window-tokens: 128000  # Context window token limit
+      prompt-caching:
+        enabled: false              # Anthropic prompt caching (opt-in)
+        provider: anthropic
+        cache-system-prompt: true
+        cache-tools: true
+        min-cacheable-tokens: 1024
 
     retry:
       max-attempts: 3               # LLM retry count
-      initial-delay-ms: 1000        # Initial delay (ms)
+      initial-delay-ms: 200         # Initial delay (ms)
       multiplier: 2.0               # Exponential backoff multiplier
       max-delay-ms: 10000           # Max delay (ms)
 
     concurrency:
       max-concurrent-requests: 20   # Max concurrent requests
       request-timeout-ms: 30000     # Request timeout (30 seconds)
+      tool-call-timeout-ms: 15000   # Per-tool call timeout (ms)
 
     guard:
       enabled: true                 # Enable Guard
@@ -460,6 +478,15 @@ arc:
         max-entries-per-scope: 1000
         key-prefix: arc:cache
 
+    tool-result-cache:
+      enabled: false                # Enable tool result caching (opt-in)
+      ttl-seconds: 60               # Cache TTL (seconds)
+      max-size: 200                 # Max cached entries
+
+    citation:
+      enabled: false                # Enable citation auto-formatting (opt-in)
+      format: markdown              # Citation format
+
     circuit-breaker:
       enabled: false                # Enable circuit breaker (opt-in)
       failure-threshold: 5          # Failures before OPEN
@@ -470,6 +497,27 @@ arc:
       enabled: false                # Enable graceful degradation (opt-in)
       models: []                    # Fallback models in priority order
 
+    webhook:
+      enabled: false                # Enable webhook notifications (opt-in)
+      url: ""                       # POST target URL
+      timeout-ms: 5000              # HTTP timeout (ms)
+      include-conversation: false   # Include full conversation in payload
+
+    tool-enrichment:
+      requester-aware-tool-names: []  # Tools receiving requester identity
+
+    memory:
+      summary:
+        enabled: false              # Hierarchical memory summarization (opt-in)
+        trigger-message-count: 20
+        recent-message-count: 10
+        max-narrative-tokens: 500
+      user:
+        enabled: false              # Per-user long-term memory (opt-in)
+        inject-into-prompt: false   # Auto-inject into system prompt
+        max-prompt-injection-chars: 1000
+        max-recent-topics: 10
+
     api-version:
       enabled: true                 # Enable API version contract filter
       current: v1                   # Current API version
@@ -477,10 +525,21 @@ arc:
 
     rag:
       enabled: false                # Enable RAG pipeline
-      similarity-threshold: 0.7     # Similarity threshold
-      top-k: 10                     # Number of documents to retrieve
-      rerank-enabled: true          # Enable Re-ranking
+      similarity-threshold: 0.65    # Similarity threshold
+      top-k: 5                      # Number of documents to retrieve
+      rerank-enabled: false         # Enable Re-ranking
       max-context-tokens: 4000      # Max RAG context tokens
+      retrieval-timeout-ms: 3000    # Retrieval timeout (ms)
+      adaptive-routing:
+        enabled: true               # Skip RAG for simple queries
+      compression:
+        enabled: false              # Contextual compression (opt-in)
+
+    scheduler:
+      enabled: false                # Dynamic scheduler (opt-in)
+      thread-pool-size: 5
+      default-execution-timeout-ms: 300000
+      max-executions-per-job: 100
 ```
 
 ---
@@ -500,8 +559,8 @@ arc:
 
 | Current State | Impact | Severity |
 |---------------|--------|----------|
-| Only uses Sliding Window (last 10 turns) | Older conversation context lost | Low |
-| Summarization not implemented | Initial context lost in long conversations | Low (10 turns is sufficient for most cases) |
+| Only uses Sliding Window (last 10 turns) by default | Older conversation context lost without summarization | Low |
+| ~~Summarization not implemented~~ | **Resolved** — Opt-in hierarchical memory summarization (`memory.summary.enabled: true`) | — |
 
 > Details: [memory-rag.md — Token Management Strategy](../architecture/memory-rag.md#토큰-관리-전략--매번-전체-이력을-보내면-낭비-아닌가)
 
@@ -538,19 +597,35 @@ All beans are registered with `@ConditionalOnMissingBean`, so users can override
 | `McpManager` | `DefaultMcpManager` | Always | Register `@Bean` |
 | `ChatModelProvider` | Auto-discovered | When ChatModel bean exists | Register `@Bean` |
 | `AgentExecutor` | `SpringAiAgentExecutor` | Always | Register `@Bean` |
-| `AgentMetrics` | `NoOpAgentMetrics` | Always | Register `@Bean` |
+| `AgentMetrics` | `NoOpAgentMetrics` (`MicrometerAgentMetrics` when MeterRegistry present) | Always | Register `@Bean` |
 | `ResponseFilterChain` | `ResponseFilterChain` | Always | Add `@Component` ResponseFilter |
 | `ResponseCache` | `CaffeineResponseCache` (default), `RedisSemanticResponseCache` (primary when semantic enabled + deps available) | cache.enabled=true | Register `@Bean` |
-| `CircuitBreaker` | `DefaultCircuitBreaker` | circuit-breaker.enabled=true | Register `@Bean` |
+| `CircuitBreakerRegistry` | `CircuitBreakerRegistry` | circuit-breaker.enabled=true | Register `@Bean` |
 | `FallbackStrategy` | `ModelFallbackStrategy` | fallback.enabled=true | Register `@Bean` |
 | `ErrorMessageResolver` | `DefaultErrorMessageResolver` | Always | Register `@Bean` |
-| `PersonaStore` | `InMemoryPersonaStore` | When no PersonaStore | Register `@Bean` |
+| `PersonaStore` | `InMemoryPersonaStore` | When no DataSource | Register `@Bean` |
 | `PersonaStore` | `JdbcPersonaStore` | When DataSource + JdbcTemplate present | Register `@Bean` |
+| `PromptTemplateStore` | `InMemoryPromptTemplateStore` | Always | Register `@Bean` |
 | `AuthProvider` | `DefaultAuthProvider` | Always | Register `@Bean` |
 | `UserStore` | `InMemoryUserStore` | No DataSource | Register `@Bean` |
 | `UserStore` | `JdbcUserStore` | DataSource present | Register `@Bean` |
 | `JwtTokenProvider` | — | Always | — |
 | `JwtAuthWebFilter` | — | Always | — |
+| `McpServerStore` | `InMemoryMcpServerStore` | Always | Register `@Bean` |
+| `McpSecurityPolicyStore` | `InMemoryMcpSecurityPolicyStore` | Always | Register `@Bean` |
+| `AdminAuditStore` | `InMemoryAdminAuditStore` | Always | Register `@Bean` |
+| `ToolPolicyStore` | `InMemoryToolPolicyStore` | Always | Register `@Bean` |
+| `ToolExecutionPolicyEngine` | `ToolExecutionPolicyEngine` | Always | Register `@Bean` |
+| `RagIngestionPolicyStore` | `InMemoryRagIngestionPolicyStore` | Always | Register `@Bean` |
+| `OutputGuardRuleStore` | `InMemoryOutputGuardRuleStore` | Always | Register `@Bean` |
+| `OutputGuardRuleAuditStore` | `InMemoryOutputGuardRuleAuditStore` | Always | Register `@Bean` |
+| `UserMemoryStore` | `InMemoryUserMemoryStore` (`JdbcUserMemoryStore` when DataSource present) | memory.user.enabled=true | Register `@Bean` |
+| `UserMemoryManager` | `UserMemoryManager` | memory.user.enabled=true | Register `@Bean` |
+| `ConversationSummaryStore` | `InMemoryConversationSummaryStore` (`JdbcConversationSummaryStore` when DataSource present) | memory.summary.enabled=true | Register `@Bean` |
+| `ConversationSummaryService` | `LlmConversationSummaryService` | memory.summary.enabled=true | Register `@Bean` |
+| `PromptCachingService` | `AnthropicPromptCachingService` | llm.prompt-caching.enabled=true + Anthropic on classpath | Register `@Bean` |
+| `ToolApprovalPolicy` | `DynamicToolApprovalPolicy` or `AlwaysApprovePolicy` | approval.enabled=true | Register `@Bean` |
+| `PendingApprovalStore` | `InMemoryPendingApprovalStore` | approval.enabled=true + no DataSource | Register `@Bean` |
 
 ---
 
