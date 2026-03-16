@@ -5,6 +5,7 @@ import com.arc.reactor.slack.tools.usecase.SearchMessagesUseCase
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** 쿼리 텍스트로 Slack 메시지를 검색하는 도구. */
 open class SearchMessagesTool(private val searchMessagesUseCase: SearchMessagesUseCase) : LocalTool {
 
     @Tool(description = "Search Slack messages by query text.")

@@ -2,6 +2,12 @@ package com.arc.reactor.slack.tools.tool
 
 import java.security.MessageDigest
 
+/**
+ * 도구 입력값 검증 유틸리티.
+ *
+ * 채널 ID, 사용자 ID, 스레드 타임스탬프, 이모지, 파일명 등의
+ * 형식을 정규식으로 검증하고 정규화한다.
+ */
 internal object ToolInputValidation {
     private val channelIdPattern = Regex("^[CDG][A-Z0-9]{2,}$")
     private val userIdPattern = Regex("^[UW][A-Z0-9]{2,}$")

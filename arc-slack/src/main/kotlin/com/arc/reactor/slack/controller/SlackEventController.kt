@@ -19,14 +19,17 @@ import org.springframework.web.bind.annotation.RestController
 private val logger = KotlinLogging.logger {}
 
 /**
- * Handles incoming Slack events (webhook endpoint).
+ * Slack 이벤트 웹훅 엔드포인트 컨트롤러.
  *
- * Supports:
- * - URL verification challenge (Slack setup)
- * - app_mention events (bot mentioned in channel)
- * - message events (thread replies)
+ * 지원하는 이벤트:
+ * - URL 검증 챌린지 (Slack 앱 설정 시)
+ * - `app_mention` (봇이 채널에서 멘션될 때)
+ * - `message` (스레드 답글)
  *
- * All heavy processing is done asynchronously to meet Slack's 3-second response requirement.
+ * Slack의 3초 응답 요구사항을 충족하기 위해 모든 처리는 비동기로 수행된다.
+ * Events API 전송 모드(`transport-mode=events_api`)에서만 활성화된다.
+ *
+ * @see SlackEventProcessor
  */
 @RestController
 @RequestMapping("/api/slack")
@@ -55,7 +58,7 @@ class SlackEventController(
     ): ResponseEntity<Any> {
         val json = objectMapper.readTree(payload)
 
-        // URL verification challenge
+        // URL 검증 챌린지
         if (json.has("challenge")) {
             val challenge = json.path("challenge").asText()
             logger.info { "Slack URL verification challenge received" }

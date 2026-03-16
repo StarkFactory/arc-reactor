@@ -26,6 +26,29 @@ import kotlin.math.min
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * Slack Socket Mode 게이트웨이.
+ *
+ * WebSocket 기반 Socket Mode 연결을 관리하며, 이벤트(Events API), 슬래시 명령,
+ * 인터랙티브 페이로드를 수신하여 각 프로세서에 위임한다.
+ *
+ * Spring [SmartLifecycle]을 구현하여 애플리케이션 시작/종료 시 자동으로
+ * 연결/해제된다. 연결 실패 시 지수 백오프로 재시도한다.
+ *
+ * 흐름:
+ * 1. 앱 시작 -> Socket Mode WebSocket 연결
+ * 2. 이벤트 수신 -> 즉시 ACK -> [SlackEventProcessor] 또는 [SlackCommandProcessor]에 위임
+ * 3. 앱 종료 -> WebSocket 연결 해제
+ *
+ * @param properties Slack 설정 (앱 토큰, 백엔드 선택 등)
+ * @param objectMapper JSON 파싱용 ObjectMapper
+ * @param commandProcessor 슬래시 명령 프로세서
+ * @param eventProcessor 이벤트 프로세서
+ * @param messagingService 메시지 전송 서비스
+ * @param metricsRecorder 메트릭 기록기
+ * @see SlackEventProcessor
+ * @see SlackCommandProcessor
+ */
 class SlackSocketModeGateway(
     private val properties: SlackProperties,
     private val objectMapper: ObjectMapper,

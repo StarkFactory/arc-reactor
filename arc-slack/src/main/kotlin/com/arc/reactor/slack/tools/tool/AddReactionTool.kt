@@ -5,6 +5,7 @@ import com.arc.reactor.slack.tools.usecase.AddReactionUseCase
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** Slack 메시지에 이모지 리액션을 추가하는 도구. */
 open class AddReactionTool(
     private val addReactionUseCase: AddReactionUseCase,
     private val idempotencyService: WriteOperationIdempotencyService = NoopWriteOperationIdempotencyService

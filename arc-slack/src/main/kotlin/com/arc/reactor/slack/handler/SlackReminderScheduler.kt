@@ -14,10 +14,15 @@ import java.util.concurrent.TimeUnit
 private val logger = KotlinLogging.logger {}
 
 /**
- * Polls [SlackReminderStore] every minute for due reminders and sends DM notifications.
+ * [SlackReminderStore]를 매분 폴링하여 만료된 리마인더를 DM으로 알림 전송하는 스케줄러.
  *
- * Uses Slack `chat.postMessage` with user ID as channel to deliver DMs.
- * Automatically started when constructed (call [shutdown] to stop).
+ * Slack `chat.postMessage`에 사용자 ID를 채널로 지정하여 DM을 전달한다.
+ * 생성 시 자동 시작되며, [shutdown]을 호출하여 종료한다.
+ *
+ * @param reminderStore 리마인더 저장소
+ * @param messagingService 메시지 전송 서비스
+ * @param pollIntervalSeconds 폴링 간격 (초, 기본 60)
+ * @see SlackReminderStore
  */
 class SlackReminderScheduler(
     private val reminderStore: SlackReminderStore,

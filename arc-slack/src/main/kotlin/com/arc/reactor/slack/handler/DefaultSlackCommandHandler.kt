@@ -14,12 +14,22 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Default slash command handler.
+ * 기본 슬래시 명령 핸들러.
  *
- * Flow:
- * 1. Post user question to the channel to create a thread
- * 2. Execute agent and reply in the created thread
- * 3. If channel post fails, fallback to response_url
+ * 흐름:
+ * 1. 사용자 질문을 채널에 게시하여 스레드를 생성
+ * 2. 에이전트를 실행하고 생성된 스레드에 답장
+ * 3. 채널 게시 실패 시 response_url로 폴백
+ *
+ * 내장 인텐트:
+ * - `help`: 도움말 표시
+ * - `brief`: 일일 브리핑 생성
+ * - `my-work`: 업무 현황 요약
+ * - `remind`: 리마인더 관리 (추가/목록/완료/전체삭제)
+ * - 기타: 일반 에이전트 질의
+ *
+ * @see SlackSlashIntentParser
+ * @see SlackCommandHandler
  */
 class DefaultSlackCommandHandler(
     private val agentExecutor: AgentExecutor,

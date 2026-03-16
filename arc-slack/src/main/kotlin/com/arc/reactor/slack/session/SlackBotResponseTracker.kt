@@ -4,10 +4,15 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Tracks bot response messages so that emoji reactions can be correlated back
- * to the original conversation session for feedback collection.
+ * 봇 응답 메시지를 추적하여 이모지 리액션을 원래 대화 세션과 연결하는 추적기.
  *
- * Entries are automatically evicted after [ttlSeconds].
+ * 피드백 수집을 위해 봇이 전송한 메시지의 채널 ID + 타임스탬프를 키로,
+ * 세션 ID와 사용자 프롬프트를 값으로 저장한다.
+ * [ttlSeconds] 경과 후 자동으로 만료된다.
+ *
+ * @param ttlSeconds 엔트리 보관 기간 (초, 기본 24시간)
+ * @param maxEntries 최대 보관 엔트리 수
+ * @see DefaultSlackEventHandler
  */
 class SlackBotResponseTracker(
     private val ttlSeconds: Long = 86400,
@@ -54,6 +59,7 @@ class SlackBotResponseTracker(
     private fun key(channelId: String, messageTs: String): String = "$channelId:$messageTs"
 }
 
+/** 추적 중인 봇 응답 정보. */
 data class TrackedBotResponse(
     val sessionId: String,
     val userPrompt: String,
