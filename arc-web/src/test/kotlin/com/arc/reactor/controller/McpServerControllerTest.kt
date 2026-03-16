@@ -56,7 +56,7 @@ class McpServerControllerTest {
         store = InMemoryMcpServerStore()
         manager = DefaultMcpManager(store = store)
         adminAuditStore = InMemoryAdminAuditStore()
-        controller = McpServerController(manager, store, adminAuditStore)
+        controller = McpServerController(manager, store, adminAuditStore, com.arc.reactor.agent.config.AgentProperties())
     }
 
     @Nested
@@ -594,7 +594,7 @@ class McpServerControllerTest {
         fun `should sync runtime manager state when store and manager are decoupled`() = runTest {
             val runtimeManager = DefaultMcpManager()
             val persistentStore = InMemoryMcpServerStore()
-            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
+            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
 
             val original = McpServer(
                 name = "sync-runtime",
@@ -625,7 +625,7 @@ class McpServerControllerTest {
         fun `should reconnect connected server when connection config changes`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
-            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
+            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
 
             val original = McpServer(
                 name = "reconnect-me",
@@ -656,7 +656,7 @@ class McpServerControllerTest {
         fun `should not reconnect connected server when only description changes`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
-            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
+            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
 
             persistentStore.save(
                 McpServer(
@@ -686,7 +686,7 @@ class McpServerControllerTest {
         fun `should connect server after update when autoConnect is enabled from disconnected state`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
-            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
+            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
 
             persistentStore.save(
                 McpServer(
@@ -870,7 +870,7 @@ class McpServerControllerTest {
                 securityConfig = McpSecurityConfig(allowedServerNames = setOf("trusted")),
                 store = secureStore
             )
-            val secureController = McpServerController(secureManager, secureStore, InMemoryAdminAuditStore())
+            val secureController = McpServerController(secureManager, secureStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
 
             // Register allowed server
             val trustedReq = RegisterMcpServerRequest(
@@ -899,7 +899,7 @@ class McpServerControllerTest {
                 securityConfig = McpSecurityConfig(allowedServerNames = setOf("trusted")),
                 store = secureStore
             )
-            val secureController = McpServerController(secureManager, secureStore, InMemoryAdminAuditStore())
+            val secureController = McpServerController(secureManager, secureStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
 
             val blockedReq = RegisterMcpServerRequest(
                 name = "untrusted",
@@ -922,7 +922,7 @@ class McpServerControllerTest {
         fun `register should persist when runtime manager and store are decoupled`() = runTest {
             val runtimeManager = DefaultMcpManager()
             val persistentStore = InMemoryMcpServerStore()
-            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore())
+            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
 
             val request = RegisterMcpServerRequest(
                 name = "decoupled-register",

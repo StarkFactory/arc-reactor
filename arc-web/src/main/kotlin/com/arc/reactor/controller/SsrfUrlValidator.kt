@@ -23,7 +23,7 @@ object SsrfUrlValidator {
      *
      * @return null if the URL is safe, or an error message describing the violation
      */
-    fun validate(url: String): String? {
+    fun validate(url: String, allowPrivateAddresses: Boolean = false): String? {
         val uri = try {
             URI(url)
         } catch (e: Exception) {
@@ -46,7 +46,7 @@ object SsrfUrlValidator {
             return "Cannot resolve host '$host': ${e.message}"
         }
 
-        if (isPrivateOrReserved(address)) {
+        if (!allowPrivateAddresses && isPrivateOrReserved(address)) {
             logger.warn { "SSRF blocked: URL '$url' resolves to private/reserved address ${address.hostAddress}" }
             return "URL resolves to a private or reserved IP address, which is not allowed."
         }
