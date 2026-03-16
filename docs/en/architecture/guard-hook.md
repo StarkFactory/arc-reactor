@@ -6,15 +6,15 @@
 
 ### Overview
 
-Guard is a multi-layer security system covering both **input** (before execution) and **output** (after execution). The architecture is organized into 5 defense layers aligned with the OWASP LLM Top 10 (2025).
+Guard is a multi-layer security system covering both **input** (before execution) and **output** (after execution). The architecture is organized into 7 input guard stages and 4 output guard stages, aligned with the OWASP LLM Top 10 (2025).
 
 ```
 Request
   │
   ▼
-[Input Guard Pipeline] ── 6 ordered stages, fail-close
+[Input Guard Pipeline] ── 7 ordered stages, fail-close
   │  L0: UnicodeNormalization → RateLimit → InputValidation → InjectionDetection
-  │  L1: Classification → TopicDriftDetection (opt-in)
+  │  L1: Classification → Permission → TopicDriftDetection (opt-in)
   │
   ▼
 [Agent Execution] ── ReAct loop with tool calls
@@ -56,7 +56,7 @@ interface GuardStage {
 ```kotlin
 interface OutputGuardStage {
     val stageName: String
-    val order: Int get() = 0
+    val order: Int            // Lower values execute first (built-in: 1-99, custom: 100+)
     val enabled: Boolean get() = true
 
     suspend fun check(content: String, context: OutputGuardContext): OutputGuardResult
@@ -72,7 +72,8 @@ data class GuardCommand(
     val userId: String,                       // User ID
     val text: String,                         // Text to validate
     val channel: String? = null,              // Channel info (Slack, Web, etc.)
-    val metadata: Map<String, Any> = emptyMap()
+    val metadata: Map<String, Any> = emptyMap(),
+    val systemPrompt: String? = null          // System prompt (for InputValidation length check)
 )
 ```
 
@@ -110,7 +111,21 @@ sealed class OutputGuardResult {
 | `UNAUTHORIZED` | Insufficient permissions |
 | `SYSTEM_ERROR` | Error within the guard stage itself |
 
-### 5-Layer Defense Architecture
+### Input Guard Stage Reference
+
+**All built-in input guard stages:**
+
+| # | Stage | Order | Default | Layer |
+|---|-------|-------|---------|-------|
+| 0 | UnicodeNormalization | 0 | ON | L0: Static fast filters |
+| 1 | RateLimit | 1 | ON | L0: Static fast filters |
+| 2 | InputValidation | 2 | ON | L0: Static fast filters |
+| 3 | InjectionDetection | 3 | ON | L0: Static fast filters |
+| 4 | Classification | 4 | opt-in | L1: Classification |
+| 5 | Permission | 5 | user-provided | L1: Classification |
+| 6 | TopicDriftDetection | 10 | opt-in | L1: Classification |
+
+**Custom stage ordering**: Built-in stages use orders 0-10. Custom input guard stages should use order 20+ to avoid conflicts with built-in stages.
 
 #### Layer 0: Static Fast Filters (always ON, 0ms LLM cost)
 
@@ -124,7 +139,7 @@ Defends against homoglyph and invisible-character attacks:
 
 - **NFKC normalization**: fullwidth Latin → ASCII (e.g., `ｉｇｎｏｒｅ` → `ignore`)
 - **Zero-width character stripping**: U+200B/C/D/E/F, U+FEFF, U+00AD, U+2060-2064, U+180E, Unicode Tag Block (U+E0000-E007F)
-- **Homoglyph replacement**: Cyrillic а→a, е→e, о→o, р→p, с→c, etc. (15 common mappings)
+- **Homoglyph replacement**: Cyrillic а→a, е→e, о→o, р→p, с→c, etc. (18 common mappings)
 - **Rejection**: If zero-width character ratio exceeds threshold (default 10%)
 - Returns normalized text via `GuardResult.Allowed(hints = ["normalized:$text"])` — downstream stages see the cleaned text
 
@@ -148,12 +163,14 @@ class DefaultRateLimitStage(
 ```kotlin
 class DefaultInputValidationStage(
     private val maxLength: Int = 10000,
-    private val minLength: Int = 1
+    private val minLength: Int = 1,
+    private val systemPromptMaxChars: Int = 0  // 0 = disabled
 ) : InputValidationStage
 ```
 
 - Rejects empty strings
 - Rejects input exceeding maximum length (default 10,000 characters)
+- Optionally validates system prompt length when `systemPromptMaxChars > 0`
 
 ##### Stage 3: InjectionDetection (order=3)
 
@@ -166,13 +183,12 @@ Detects prompt injection attacks using 28 regex patterns:
 - **Role change attempts**: `"ignore previous"`, `"you are now"`, `"act as"`
 - **System prompt extraction**: `"show me your prompt"`, `"repeat your instructions"`
 - **Output manipulation**: `"output the following"`, `"print exactly"`
-- **Encoding bypass**: `"base64"`, `"rot13"`, `"hex encode"`
-- **Delimiter injection**: `###`, `---` (5+), `===` (5+), `<<<>>>`
-- **ChatML / Llama tokens**: `<|im_start|>`, `<|im_end|>`, `[INST]`, `<start_of_turn>`
+- **Encoding bypass**: `"decode base64"`, `"rot13"`, `\\x` hex sequences
+- **Delimiter injection**: `[SYSTEM]`, `<|assistant|>`, ` ```system `, `<|endoftext|>`, `<|user|>`, `---` (20+), `===` (20+)
+- **ChatML / Llama tokens**: `<|im_start|>`, `<|im_end|>`, `[INST]`, `[/INST]`, `<start_of_turn>`, `<end_of_turn>`
 - **Authority escalation**: `"developer mode"`, `"system override"`
 - **Safety override**: `"override safety filter"`, `"override content policy"`
 - **Many-shot jailbreak**: 3+ sequential `example N` markers
-- **Unicode escape sequences**: 4+ consecutive `\uXXXX` patterns
 
 #### Layer 1: Classification (opt-in)
 
@@ -191,14 +207,26 @@ Two-tier classification:
 
 Enable: `arc.reactor.guard.classification-enabled=true`, `arc.reactor.guard.classification-llm-enabled=true`
 
-##### Stage 6: TopicDriftDetection (order=6)
+##### Stage 5: Permission (order=5)
 
 ```kotlin
-class TopicDriftDetectionStage : GuardStage
+interface PermissionStage : GuardStage  // No built-in implementation — user-provided
+```
+
+Verifies user authorization for the requested operation. No default implementation is provided; users implement this interface to integrate with their own RBAC or permission system. The stage is only active if a bean is registered.
+
+##### Stage 6: TopicDriftDetection (order=10)
+
+```kotlin
+class TopicDriftDetectionStage(
+    private val memoryStore: MemoryStore? = null,
+    private val maxDriftScore: Double = 0.7,
+    private val windowSize: Int = 5
+) : GuardStage
 ```
 
 Defends against **Crescendo attacks** (multi-turn progressive jailbreaks):
-- Reads `conversationHistory` from `GuardCommand.metadata`
+- Loads conversation history from `MemoryStore` using `sessionId` in `GuardCommand.metadata`, or falls back to explicit `conversationHistory` metadata
 - Scores escalating sensitivity patterns across a sliding window (last 5 turns)
 - Pattern escalation: hypothetical → what if → for research → step by step → bypass/override
 - Configurable `maxDriftScore` threshold (default 0.7)
@@ -208,7 +236,7 @@ Defends against **Crescendo attacks** (multi-turn progressive jailbreaks):
 Prevents system prompt leakage via canary token injection:
 
 ```kotlin
-class CanaryTokenProvider(seed: String)       // Generates deterministic CANARY-{8hex} token
+class CanaryTokenProvider(seed: String)       // Generates deterministic CANARY-{32hex} token
 class CanarySystemPromptPostProcessor         // Appends canary clause to system prompt
 class SystemPromptLeakageOutputGuard          // Output guard stage (order=5)
 ```
@@ -241,7 +269,8 @@ Enable: `arc.reactor.guard.tool-output-sanitization-enabled=true`
 ```kotlin
 interface GuardAuditPublisher {
     fun publish(command: GuardCommand, stage: String, result: String,
-                reason: String?, stageLatencyMs: Long, pipelineLatencyMs: Long)
+                reason: String?, category: String? = null,
+                stageLatencyMs: Long, pipelineLatencyMs: Long)
 }
 ```
 
@@ -285,19 +314,32 @@ class GuardPipeline(
     private val auditPublisher: GuardAuditPublisher? = null
 ) : RequestGuard {
 
+    // Stages sorted by order; duplicate orders produce a warning at startup
+    private val sortedStages = stages.filter { it.enabled }.sortedBy { it.order }
+
     override suspend fun guard(command: GuardCommand): GuardResult {
         var currentCommand = command
         for (stage in sortedStages) {
-            when (val result = stage.check(currentCommand)) {
-                is Allowed -> {
-                    // Apply normalized text from hints (UnicodeNormalizationStage)
-                    val norm = result.hints.firstOrNull { it.startsWith("normalized:") }
-                    if (norm != null) currentCommand = currentCommand.copy(
-                        text = norm.removePrefix("normalized:")
-                    )
-                    continue
+            try {
+                when (val result = stage.check(currentCommand)) {
+                    is Allowed -> {
+                        // Apply normalized text from hints (UnicodeNormalizationStage)
+                        val norm = result.hints.firstOrNull { it.startsWith("normalized:") }
+                        if (norm != null) currentCommand = currentCommand.copy(
+                            text = norm.removePrefix("normalized:")
+                        )
+                        continue
+                    }
+                    is Rejected -> return result  // Stop immediately
                 }
-                is Rejected -> return result  // Stop immediately
+            } catch (e: Exception) {
+                e.throwIfCancellation()
+                // Fail-close: reject on any stage error
+                return GuardResult.Rejected(
+                    reason = "Security check failed",
+                    category = RejectionCategory.SYSTEM_ERROR,
+                    stage = stage.stageName
+                )
             }
         }
         return GuardResult.Allowed.DEFAULT
@@ -363,15 +405,33 @@ If `userId` is null, `"anonymous"` is used. The guard is never skipped (prevents
 
 ### Customizing Guards
 
-Register a bean with `@Component` to automatically add it to the pipeline:
+Register a bean with `@Component` to automatically add it to the pipeline. Implement an existing stage interface (e.g., `PermissionStage` at order=5) or `GuardStage` directly with a custom order.
+
+**Implementing a built-in stage interface** (uses the interface's default order):
 
 ```kotlin
 @Component
-class MyCustomGuard : PermissionStage {
+class MyPermissionGuard : PermissionStage {
     override suspend fun check(command: GuardCommand): GuardResult {
-        // Allow only admins
         if (command.userId in adminList) return GuardResult.Allowed()
         return GuardResult.Rejected("Admin access only", UNAUTHORIZED)
+    }
+}
+```
+
+**Custom stage with its own order** (use 20+ to avoid built-in stage conflicts):
+
+```kotlin
+@Component
+class BusinessRuleGuard : GuardStage {
+    override val stageName = "BusinessRule"
+    override val order = 25  // After all built-in stages (0-10)
+
+    override suspend fun check(command: GuardCommand): GuardResult {
+        if (!isAllowedByBusinessRules(command.text)) {
+            return GuardResult.Rejected("Business rule violation", UNAUTHORIZED)
+        }
+        return GuardResult.Allowed.DEFAULT
     }
 }
 ```
@@ -395,8 +455,8 @@ BeforeAgentStart ──→ [Agent ReAct Loop] ──→ AfterAgentComplete
 
 | Hook | Timing | Return Value | Purpose |
 |------|------|--------|------|
-| `BeforeAgentStart` | Before agent starts | HookResult | Authentication, budget check, can reject |
-| `BeforeToolCall` | Before tool invocation | HookResult | Per-tool permissions, parameter validation |
+| `BeforeAgentStart` | Before agent starts | HookResult (Continue/Reject) | Authentication, budget check, can reject |
+| `BeforeToolCall` | Before tool invocation | HookResult (Continue/Reject) | Per-tool permissions, parameter validation |
 | `AfterToolCall` | After tool invocation | void | Result logging, metrics |
 | `AfterAgentComplete` | After agent completes | void | Billing, statistics, notifications |
 
@@ -424,11 +484,6 @@ interface AgentHook {
 sealed class HookResult {
     data object Continue : HookResult()            // Proceed
     data class Reject(val reason: String)           // Reject execution
-    data class Modify(val modifiedParams: Map<...>) // Modify parameters and proceed
-    data class PendingApproval(                     // Await asynchronous approval
-        val approvalId: String,
-        val message: String
-    )
 }
 ```
 
@@ -445,6 +500,7 @@ data class HookContext(
     val channel: String? = null,
     val startedAt: Instant,          // Start time
     val toolsUsed: MutableList<String>,          // CopyOnWriteArrayList
+    val verifiedSources: MutableList<VerifiedSource>,  // CopyOnWriteArrayList
     val metadata: MutableMap<String, Any>        // ConcurrentHashMap
 )
 ```
@@ -493,12 +549,11 @@ private suspend fun <T : AgentHook, C> executeHooks(
     for (hook in hooks) {
         try {
             when (val result = execute(hook, context)) {
-                is Continue       -> continue      // Next hook
-                is Reject         -> return result  // Reject immediately
-                is Modify         -> return result  // Return modification
-                is PendingApproval -> return result // Await approval
+                is Continue -> continue      // Next hook
+                is Reject   -> return result // Reject immediately
             }
         } catch (e: Exception) {
+            e.throwIfCancellation()  // Always rethrow CancellationException
             if (hook.failOnError) {
                 return HookResult.Reject("Hook execution failed: ${e.message}")
             }
@@ -517,7 +572,8 @@ suspend fun executeAfterToolCall(context: ToolCallContext, result: ToolCallResul
         try {
             hook.afterToolCall(context, result)
         } catch (e: Exception) {
-            logger.error(e) { "AfterToolCallHook failed" }
+            e.throwIfCancellation()  // Always rethrow CancellationException
+            logger.error(e) { "AfterToolCallHook failed: ${hook::class.simpleName}" }
             if (hook.failOnError) throw e
         }
     }
@@ -543,7 +599,6 @@ After hooks do not return a result value. They only observe and cannot reject or
 checkBeforeHooks(hookContext)?.let { hookResult ->
     val message = when (hookResult) {
         is HookResult.Reject -> hookResult.reason
-        is HookResult.PendingApproval -> "Pending approval: ${hookResult.message}"
         else -> "Blocked by hook"
     }
     return AgentResult.failure(
@@ -643,5 +698,4 @@ User Request
 | Execution timing | Before agent starts (once) | At multiple points (4 types) |
 | Error policy | Always Fail-Close | Default Fail-Open, opt-in Fail-Close |
 | Rejection scope | Entire request | Entire request or specific tool only |
-| Modification ability | Not possible | Possible via `HookResult.Modify` |
-| Number of stages | 5 stages (fixed types) | 4 types (unlimited implementations) |
+| Number of stages | 7 input stage types (orders 0-10) + 4 output stages | 4 types (unlimited implementations) |
