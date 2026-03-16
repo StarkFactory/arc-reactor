@@ -30,10 +30,29 @@
 | `ApprovalController` | Human-in-the-Loop 승인 워크플로우 | `controller` |
 | `PromptLabController` | Prompt Lab 실험 관리 | `controller` |
 | `OpsDashboardController` | 운영 대시보드 (메트릭, 이상 감지) | `controller` |
+| `UserMemoryController` | 사용자별 장기 메모리 CRUD (사실, 선호도) | `controller` |
+| `ProactiveChannelController` | 프로액티브 모니터링 채널 관리 (관리자) | `controller` |
+| `McpPreflightController` | MCP 서버 관리자 preflight 준비 상태 프록시 확인 (관리자) | `controller` |
+| `McpSwaggerCatalogController` | MCP 서버의 Swagger 스펙 소스 라이프사이클 프록시 (관리자) | `controller` |
+| `McpAccessPolicyController` | MCP 서버 접근 정책 관리 프록시 (관리자) | `controller` |
+| `McpSecurityController` | 동적 MCP 허용 목록 및 보안 정책 (관리자) | `controller` |
+| `AdminCapabilitiesController` | 관리자 기능 매니페스트 (모든 API 경로 목록) | `controller` |
+| `AdminAuditController` | 페이지네이션된 관리자 감사 로그 뷰어 (관리자) | `controller` |
+| `RagIngestionCandidateController` | RAG 수집 후보 검토 및 승인/거부 (관리자) | `controller` |
+| `RagIngestionPolicyController` | 동적 RAG 수집 캡처 정책 관리 (관리자) | `controller` |
 | `GlobalExceptionHandler` | `@RestControllerAdvice` — 표준화된 오류 응답 | `controller` |
+| `AdminAuditSupport` | 감사 로그 영속성을 위한 공유 `recordAdminAudit()` 헬퍼 | `controller` |
+| `SystemPromptResolver` | 시스템 프롬프트 해석 (Persona, 템플릿, 기본값) 및 사용자 ID 추출 | `controller` |
+| `PaginatedResponse` | 목록 엔드포인트용 범용 페이지네이션 응답 래퍼 | `controller` |
+| `SsrfUrlValidator` | SSRF 안전 URL 검증 (사설/예약 IP 차단) | `controller` |
+| `McpAdminRequestSigner` | MCP 관리자 프록시 호출용 HMAC-SHA256 요청 서명 | `controller` |
+| `McpAdminUrlResolver` | 설정에서 MCP 관리자 API 기본 URL 해석 및 정규화 | `controller` |
+| `McpAdminWebClientFactory` | MCP 관리자 프록시 호출용 캐시된 WebClient 인스턴스 | `controller` |
 | `SecurityHeadersWebFilter` | 모든 HTTP 응답에 보안 헤더 추가 | `autoconfigure` |
 | `CorsSecurityConfiguration` | 선택적 CORS 필터 | `autoconfigure` |
 | `ApiVersionContractWebFilter` | `X-Api-Version` 헤더를 통한 API 버전 계약 적용 | `autoconfigure` |
+| `RequestCorrelationFilter` | 모든 요청에 대해 `X-Request-ID` 전파 또는 생성 | `autoconfigure` |
+| `OpenApiConfiguration` | SpringDoc 존재 시 OpenAPI/Swagger UI 자동 구성 | `autoconfigure` |
 | `TenantContextResolver` | JWT 속성 또는 `X-Tenant-Id` 헤더에서 테넌트 ID 해석 | `controller` |
 | `AdminAuthSupport` | 공유 `isAdmin()`, `forbiddenResponse()` 헬퍼 | `controller` |
 | `ArcReactorWebAutoConfiguration` | 웹 레이어 자동 구성 진입점 | `autoconfigure` |

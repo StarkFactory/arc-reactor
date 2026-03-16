@@ -54,25 +54,34 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | 프로퍼티 | 기본값 | 설명 |
 |---|---|---|
 | `default-provider` | `gemini` | 기본 LLM 공급자 이름 |
-| `temperature` | `0.3` | 샘플링 온도 |
+| `temperature` | `0.1` | 샘플링 온도 |
 | `max-output-tokens` | `4096` | 응답당 최대 토큰 수 |
 | `max-context-window-tokens` | `128000` | 메시지 트리밍을 위한 컨텍스트 윈도우 크기 |
 | `max-conversation-turns` | `10` | 요청당 유지할 히스토리 턴 수 |
+| `top-p` | `null` (공급자 기본값) | Nucleus 샘플링 파라미터 |
+| `frequency-penalty` | `null` (공급자 기본값) | 빈도 페널티 |
+| `presence-penalty` | `null` (공급자 기본값) | 존재 페널티 |
 | `google-search-retrieval-enabled` | `false` | Gemini 검색 기반 그라운딩 (선택적 활성화) |
+| `prompt-caching.enabled` | `false` | Anthropic 프롬프트 캐싱 (선택적 활성화) |
+| `prompt-caching.provider` | `anthropic` | 캐싱을 적용할 공급자 |
+| `prompt-caching.cache-system-prompt` | `true` | 시스템 프롬프트에 캐싱 마크 |
+| `prompt-caching.cache-tools` | `true` | Tool 정의에 캐싱 마크 |
+| `prompt-caching.min-cacheable-tokens` | `1024` | 캐싱 적용 최소 토큰 수 |
 
 ### Guard (`arc.reactor.guard`)
 
 | 프로퍼티 | 기본값 | 설명 |
 |---|---|---|
 | `enabled` | `true` | 마스터 스위치 |
-| `rate-limit-per-minute` | `10` | 사용자당 분당 최대 요청 수 |
-| `rate-limit-per-hour` | `100` | 사용자당 시간당 최대 요청 수 |
+| `rate-limit-per-minute` | `20` | 사용자당 분당 최대 요청 수 |
+| `rate-limit-per-hour` | `200` | 사용자당 시간당 최대 요청 수 |
 | `injection-detection-enabled` | `true` | 프롬프트 인젝션 감지 |
 | `unicode-normalization-enabled` | `true` | NFKC 정규화 + 제로폭 문자 제거 |
 | `max-zero-width-ratio` | `0.1` | 제로폭 문자 거부 임계값 |
 | `classification-enabled` | `false` | 규칙 기반 콘텐츠 분류 |
 | `classification-llm-enabled` | `false` | LLM 기반 분류 (classification-enabled 필요) |
 | `canary-token-enabled` | `false` | 시스템 프롬프트 유출 감지 |
+| `canary-seed` | `arc-reactor-canary` | Canary 토큰 시드 (배포별 오버라이드) |
 | `tool-output-sanitization-enabled` | `false` | LLM 전달 전 Tool 출력 정제 |
 | `audit-enabled` | `true` | Guard 감사 로그 |
 | `topic-drift-enabled` | `false` | Crescendo 공격 방어 |
@@ -90,7 +99,7 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | 프로퍼티 | 기본값 | 설명 |
 |---|---|---|
 | `max-attempts` | `3` | 최대 재시도 횟수 |
-| `initial-delay-ms` | `1000` | 첫 재시도 대기 시간 |
+| `initial-delay-ms` | `200` | 첫 재시도 대기 시간 |
 | `multiplier` | `2.0` | 지수 백오프 승수 |
 | `max-delay-ms` | `10000` | 재시도 대기 시간 상한 |
 
@@ -114,8 +123,8 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | 프로퍼티 | 기본값 | 설명 |
 |---|---|---|
 | `input-min-chars` | `1` | 최소 입력 길이 |
-| `input-max-chars` | `5000` | 최대 입력 길이 |
-| `system-prompt-max-chars` | `0` (비활성) | 최대 시스템 프롬프트 길이 |
+| `input-max-chars` | `10000` | 최대 입력 길이 |
+| `system-prompt-max-chars` | `50000` | 최대 시스템 프롬프트 길이 |
 | `output-min-chars` | `0` (비활성) | 최소 응답 길이 |
 | `output-max-chars` | `0` (비활성) | 최대 응답 길이 |
 | `output-min-violation-mode` | `WARN` | `WARN`, `RETRY_ONCE`, 또는 `FAIL` |
@@ -125,13 +134,73 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | 프로퍼티 | 기본값 | 설명 |
 |---|---|---|
 | `enabled` | `false` | 마스터 스위치 |
-| `similarity-threshold` | `0.7` | 벡터 검색 임계값 |
-| `top-k` | `10` | 검색할 결과 수 |
-| `rerank-enabled` | `true` | 검색 후 재순위 |
-| `query-transformer` | `passthrough` | `passthrough` 또는 `hyde` |
+| `similarity-threshold` | `0.65` | 벡터 검색 임계값 |
+| `top-k` | `5` | 검색할 결과 수 |
+| `rerank-enabled` | `false` | 검색 후 재순위 |
+| `query-transformer` | `passthrough` | `passthrough`, `hyde`, 또는 `decomposition` |
 | `max-context-tokens` | `4000` | 주입할 컨텍스트의 최대 토큰 수 |
+| `retrieval-timeout-ms` | `3000` | 스레드 풀 고갈 방지를 위한 검색 타임아웃 |
 
-### 메모리 요약 (`arc.reactor.memory.summary`)
+#### 하이브리드 검색 (`arc.reactor.rag.hybrid`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `false` | BM25 + 벡터 하이브리드 검색 (선택적 활성화) |
+| `bm25-weight` | `0.5` | BM25 순위의 RRF 가중치 |
+| `vector-weight` | `0.5` | 벡터 검색 순위의 RRF 가중치 |
+| `rrf-k` | `60.0` | RRF 평활 상수 |
+| `bm25-k1` | `1.5` | BM25 용어 빈도 포화 |
+| `bm25-b` | `0.75` | BM25 길이 정규화 |
+
+#### 청킹 (`arc.reactor.rag.chunking`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `false` | 문서 청킹 (선택적 활성화) |
+| `chunk-size` | `512` | 토큰 기준 목표 청크 크기 |
+| `min-chunk-size-chars` | `350` | 최소 청크 문자 수 |
+| `min-chunk-threshold` | `512` | 이 토큰 수 이하의 문서는 분할하지 않음 |
+| `overlap` | `50` | 인접 청크 간 오버랩 토큰 |
+| `keep-separator` | `true` | 단락/문장 구분자 유지 |
+| `max-num-chunks` | `100` | 문서당 최대 청크 수 |
+
+#### 부모 검색 (`arc.reactor.rag.parent-retrieval`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `false` | 부모 문서 검색 (선택적 활성화) |
+| `window-size` | `1` | 각 히트 전후에 포함할 인접 청크 수 |
+
+#### 수집 (`arc.reactor.rag.ingestion`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `false` | 수집 후보 캡처 |
+| `require-review` | `true` | 벡터 수집 전 관리자 검토 |
+| `allowed-channels` | `[]` | 자동 캡처 채널 (비어 있으면 모두) |
+| `min-query-chars` | `10` | 최소 쿼리 길이 |
+| `min-response-chars` | `20` | 최소 응답 길이 |
+| `dynamic.enabled` | `false` | DB 기반 정책 오버라이드 |
+| `dynamic.refresh-ms` | `10000` | 정책 캐시 갱신 주기 |
+
+#### 압축 (`arc.reactor.rag.compression`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `false` | 문맥 압축 (RECOMP) |
+| `min-content-length` | `200` | 이보다 짧은 문서는 압축 건너뜀 |
+
+#### 적응형 라우팅 (`arc.reactor.rag.adaptive-routing`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `true` | 단순 쿼리는 RAG 건너뜀 (Adaptive-RAG) |
+| `timeout-ms` | `3000` | 분류 타임아웃 |
+| `complex-top-k` | `15` | COMPLEX 쿼리에 대한 topK 오버라이드 |
+
+### 메모리 (`arc.reactor.memory`)
+
+#### 요약 (`arc.reactor.memory.summary`)
 
 | 프로퍼티 | 기본값 | 설명 |
 |---|---|---|
@@ -140,6 +209,16 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | `recent-message-count` | `10` | 원문 그대로 유지할 최근 메시지 수 |
 | `llm-model` | `null` (기본 공급자) | 요약에 사용할 LLM |
 | `max-narrative-tokens` | `500` | 서사 요약의 최대 토큰 수 |
+
+#### 사용자 메모리 (`arc.reactor.memory.user`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `false` | 사용자별 장기 메모리 (선택적 활성화) |
+| `inject-into-prompt` | `false` | 시스템 프롬프트에 사용자 메모리 주입 |
+| `max-prompt-injection-chars` | `1000` | 주입 메모리 컨텍스트 최대 문자 수 |
+| `max-recent-topics` | `10` | 사용자당 보존할 최근 토픽 수 |
+| `jdbc.table-name` | `user_memories` | 사용자 메모리 레코드용 DB 테이블 |
 
 ### Circuit Breaker (`arc.reactor.circuit-breaker`)
 
@@ -188,6 +267,7 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | `confidence-threshold` | `0.6` | 프로파일 적용을 위한 최소 신뢰도 |
 | `rule-confidence-threshold` | `0.8` | LLM 폴백 생략 기준 임계값 |
 | `max-examples-per-intent` | `3` | 의도당 few-shot 예시 수 |
+| `max-conversation-turns` | `2` | 컨텍스트 인식 분류를 위한 대화 턴 수 |
 | `blocked-intents` | `[]` | 거부할 의도 이름 목록 |
 
 ### 승인 / HITL (`arc.reactor.approval`)
@@ -196,6 +276,7 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 |---|---|---|
 | `enabled` | `false` | Human-in-the-Loop 승인 (선택적 활성화) |
 | `timeout-ms` | `300000` | 승인 타임아웃 (5분) |
+| `resolved-retention-ms` | `604800000` | 처리 완료된 승인 보존 기간 (7일) |
 | `tool-names` | `[]` | 승인이 필요한 Tool 이름 목록 |
 
 ### Tool 정책 (`arc.reactor.tool-policy`)
@@ -205,7 +286,11 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | `enabled` | `false` | Tool 정책 적용 |
 | `write-tool-names` | `[]` | 부작용이 있는 Tool 이름 목록 |
 | `deny-write-channels` | `[slack]` | 쓰기 Tool이 차단되는 채널 |
+| `allow-write-tool-names-in-deny-channels` | `[]` | 거부 채널에서도 허용되는 쓰기 Tool |
+| `allow-write-tool-names-by-channel` | `{}` | 거부 채널에 대한 채널별 허용 목록 |
 | `deny-write-message` | (기본 문자열) | Tool 거부 시 반환 메시지 |
+| `dynamic.enabled` | `false` | DB 기반 동적 정책 (관리자 API) |
+| `dynamic.refresh-ms` | `10000` | 동적 정책 캐시 갱신 주기 |
 
 ### 멀티모달 (`arc.reactor.multimodal`)
 
@@ -222,8 +307,13 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | `enabled` | `false` | Prompt Lab 기능 활성화 |
 | `max-concurrent-experiments` | `3` | 병렬 실험 한도 |
 | `max-queries-per-experiment` | `100` | 실험당 최대 테스트 쿼리 수 |
+| `max-versions-per-experiment` | `10` | 실험당 최대 프롬프트 버전 수 |
+| `max-repetitions` | `5` | 버전-쿼리 쌍당 최대 반복 횟수 |
+| `candidate-count` | `3` | 자동 생성할 후보 프롬프트 수 |
 | `min-negative-feedback` | `5` | 자동 파이프라인 트리거 피드백 임계값 |
 | `experiment-timeout-ms` | `600000` | 실험 실행 타임아웃 |
+| `schedule.enabled` | `false` | 스케줄 자동 최적화 |
+| `schedule.cron` | `0 0 2 * * *` | Cron 표현식 (매일 오전 2시) |
 
 ### 스케줄러 (`arc.reactor.scheduler`)
 
@@ -231,6 +321,9 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 |---|---|---|
 | `enabled` | `false` | 동적 cron 스케줄러 |
 | `thread-pool-size` | `5` | 스케줄러 스레드 풀 크기 |
+| `default-timezone` | 시스템 기본값 | 작업의 기본 타임존 |
+| `default-execution-timeout-ms` | `300000` | 기본 작업 실행 타임아웃 |
+| `max-executions-per-job` | `100` | 작업당 보존할 실행 이력 수 |
 
 `enabled=true`이면 4개의 에이전트 도구가 자동 등록됩니다 (`@ConditionalOnMissingBean`):
 
@@ -252,12 +345,77 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | 프로퍼티 | 기본값 | 설명 |
 |---|---|---|
 | `connection-timeout-ms` | `30000` | MCP 연결 타임아웃 |
+| `allow-private-addresses` | `false` | 사설/루프백 IP 연결 허용 |
 | `security.max-tool-output-length` | `50000` | Tool 출력 최대 문자 수 |
+| `security.allowed-server-names` | `[]` | 허용되는 MCP 서버 이름 (비어 있으면 모두) |
+| `security.allowed-stdio-commands` | `[npx, node, python, ...]` | 허용되는 STDIO 명령어 실행 파일 |
 | `reconnection.enabled` | `true` | 실패한 MCP 서버 자동 재연결 |
 | `reconnection.max-attempts` | `5` | 재연결 최대 시도 횟수 |
 | `reconnection.initial-delay-ms` | `5000` | 첫 재연결 대기 시간 |
 | `reconnection.multiplier` | `2.0` | 백오프 승수 |
 | `reconnection.max-delay-ms` | `60000` | 최대 재연결 대기 시간 |
+
+### Tool 결과 캐시 (`arc.reactor.tool-result-cache`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `false` | ReAct 루프 내 동일 Tool 호출 캐싱 (선택적 활성화) |
+| `ttl-seconds` | `60` | 캐시 항목 유효 시간 |
+| `max-size` | `200` | 최대 캐시 항목 수 |
+
+### 인용 (`arc.reactor.citation`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `false` | 인용 자동 포맷 (선택적 활성화) |
+| `format` | `markdown` | 인용 형식 |
+
+### 웹훅 (`arc.reactor.webhook`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `false` | 웹훅 알림 (선택적 활성화) |
+| `url` | `""` | POST 대상 URL |
+| `timeout-ms` | `5000` | HTTP 타임아웃 |
+| `include-conversation` | `false` | 페이로드에 전체 대화 포함 |
+
+### Tool 보강 (`arc.reactor.tool-enrichment`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `requester-aware-tool-names` | `[]` | 호출자 ID를 자동으로 수신하는 Tool |
+
+### CORS (`arc.reactor.cors`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `false` | CORS 지원 (선택적 활성화) |
+| `allowed-origins` | `[http://localhost:3000]` | 허용되는 출처 |
+| `allowed-methods` | `[GET, POST, PUT, DELETE, OPTIONS]` | 허용되는 HTTP 메서드 |
+| `allowed-headers` | `[*]` | 허용되는 헤더 |
+| `allow-credentials` | `false` | 쿠키/Authorization 허용 |
+| `max-age` | `3600` | Preflight 캐시 유효 시간(초) |
+
+### 보안 헤더 (`arc.reactor.security-headers`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `true` | 보안 헤더 주입 |
+
+### 응답 (`arc.reactor.response`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `max-length` | `0` (무제한) | 응답 최대 문자 수 |
+| `filters-enabled` | `true` | 응답 필터 체인 처리 |
+
+### 추적 (`arc.reactor.tracing`)
+
+| 프로퍼티 | 기본값 | 설명 |
+|---|---|---|
+| `enabled` | `true` | span 발행 (OTel 미존재 시 no-op tracer) |
+| `service-name` | `arc-reactor` | span 속성의 서비스 이름 |
+| `include-user-id` | `false` | span에 사용자 ID 포함 (PII 위험) |
 
 ---
 
