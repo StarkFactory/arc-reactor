@@ -618,9 +618,9 @@ arc:
   reactor:
     rag:
       enabled: false              # Whether to enable RAG (default: disabled)
-      similarity-threshold: 0.7   # Minimum similarity threshold
-      top-k: 10                   # Number of documents to retrieve
-      rerank-enabled: true        # Enable reranking
+      similarity-threshold: 0.65  # Minimum similarity threshold
+      top-k: 5                    # Number of documents to retrieve
+      rerank-enabled: false       # Reranking (opt-in)
       max-context-tokens: 4000    # Maximum tokens for RAG context
 ```
 
