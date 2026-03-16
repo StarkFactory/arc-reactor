@@ -1,6 +1,6 @@
 # ReAct Loop Internal Implementation
 
-> **Key file:** `SpringAiAgentExecutor.kt` (~1,730 lines)
+> **Key file:** `SpringAiAgentExecutor.kt` (~555 lines, orchestrator that delegates to extracted helper classes)
 > This document explains the internal workings of the ReAct loop, the core execution engine of Arc Reactor.
 
 ## Overall Execution Flow
@@ -11,23 +11,26 @@ User Request (AgentCommand)
     ▼
 ┌─────────────────────────────┐
 │  execute() / executeStream()│  Entry points (2 types)
-│  ├─ MDC setup               │
+│  ├─ Run context setup       │
 │  ├─ Concurrency semaphore   │
 │  └─ withTimeout applied     │
 └──────────┬──────────────────┘
            │
            ▼
-┌─────────────────────────────┐
-│  executeInternal()          │  8-stage pipeline
-│  1. Guard check             │
-│  2. BeforeAgentStart Hook   │
-│  3. Load conversation history│
-│  4. RAG context retrieval   │
-│  5. Tool selection & setup  │
-│  6. executeWithTools()      │  ← ReAct loop body
-│  7. Save conversation history│
-│  8. AfterAgentComplete Hook │
-└─────────────────────────────┘
+┌──────────────────────────────────┐
+│  AgentExecutionCoordinator       │  Multi-stage pipeline
+│  1. Guard check                  │  (PreExecutionResolver)
+│  2. BeforeAgentStart Hook        │  (PreExecutionResolver)
+│  3. Intent resolution            │  (PreExecutionResolver)
+│  4. Response cache lookup        │
+│  5. Load conversation history    │
+│  6. RAG context retrieval        │  (RagContextRetriever)
+│  7. Tool selection & setup       │  (ToolPreparationPlanner)
+│  8. executeWithTools()           │  ← ReAct loop body (ManualReActLoopExecutor)
+│  9. Output guard + boundaries    │  (ExecutionResultFinalizer)
+│  10. Save conversation history   │  (ExecutionResultFinalizer)
+│  11. AfterAgentComplete Hook     │  (ExecutionResultFinalizer)
+└──────────────────────────────────┘
 ```
 
 ## Entry Points: execute() vs executeStream()
@@ -38,12 +41,12 @@ User Request (AgentCommand)
 override suspend fun execute(command: AgentCommand): AgentResult
 ```
 
-1. Sets `runId`, `userId`, `sessionId` in MDC (structured logging)
+1. Opens a run context (`AgentRunContextManager`) for structured logging
 2. `concurrencySemaphore.withPermit { }` — limits concurrent execution count
 3. `withTimeout(requestTimeoutMs)` — overall request timeout
-4. Calls `executeInternal()`
-5. On failure, `classifyError(e)` returns `AgentResult.failure()`
-6. `CancellationException` must always be rethrown (to preserve structured concurrency)
+4. Delegates to `AgentExecutionCoordinator.execute()`
+5. On failure, `AgentErrorPolicy.classify(e)` returns `AgentResult.failure()`
+6. `CancellationException` must always be rethrown (via `throwIfCancellation()`)
 
 ### executeStream() — Streaming
 
@@ -51,7 +54,7 @@ override suspend fun execute(command: AgentCommand): AgentResult
 override fun executeStream(command: AgentCommand): Flow<String>
 ```
 
-Follows the same 8 stages as non-streaming, with the following differences:
+Follows the same stages as non-streaming, with the following differences:
 
 | Difference | execute() | executeStream() |
 |--------|-----------|-----------------|
@@ -60,30 +63,36 @@ Follows the same 8 stages as non-streaming, with the following differences:
 | Content collection | All at once from final response | `emit()` per chunk |
 | Memory save | `saveHistory()` | `saveStreamingHistory()` (finally block) |
 | Error delivery | AgentResult.failure() | `emit("[error] message")` |
+| Coordinator | `AgentExecutionCoordinator` | `StreamingExecutionCoordinator` |
+| Finalizer | `ExecutionResultFinalizer` | `StreamingCompletionFinalizer` |
 
 **Key point about streaming memory save:**
 
 ```kotlin
-// Saved in a finally block outside of withTimeout
-finally {
-    if (streamSuccess) {
-        conversationManager.saveStreamingHistory(command, lastIterationContent.toString())
-    }
+// StreamingCompletionFinalizer.finalize() runs in the finally block
+if (streamSuccess) {
+    conversationManager.saveStreamingHistory(command, lastIterationContent)
 }
 ```
 
 Only `lastIterationContent` is saved. Rather than the entire accumulated content (`collectedContent`), only the content from the last ReAct iteration is stored in the conversation history.
 
-## ReAct Loop Body: executeWithTools()
+## ReAct Loop Body: ManualReActLoopExecutor
+
+The ReAct loop is implemented in `ManualReActLoopExecutor.execute()`. The entry point `SpringAiAgentExecutor.executeWithTools()` delegates to it after resolving the system prompt and chat client:
 
 ```kotlin
-private suspend fun executeWithTools(
+// ManualReActLoopExecutor.execute()
+suspend fun execute(
     command: AgentCommand,
-    tools: List<Any>,
+    activeChatClient: ChatClient,
+    systemPrompt: String,
+    initialTools: List<Any>,
     conversationHistory: List<Message>,
     hookContext: HookContext,
     toolsUsed: MutableList<String>,
-    ragContext: String? = null
+    allowedTools: Set<String>?,
+    maxToolCalls: Int
 ): AgentResult
 ```
 
@@ -91,19 +100,20 @@ private suspend fun executeWithTools(
 
 ```
 while (true) {
-    1. trimMessagesToFitContext()     — trim messages to fit within token budget
-    2. chatClient.prompt() setup     — system + messages + options + tools
-    3. callWithRetry { call() }      — LLM call (with retry)
+    1. messageTrimmer.trim()          — trim messages to fit within token budget
+    2. buildRequestSpec()             — system + messages + options + tools
+    3. callWithRetry { call() }       — LLM call (with retry + circuit breaker)
     4. Accumulate token usage
     5. Detect tool calls
-       ├─ None → return AgentResult.success() (exit loop)
+       ├─ None → validateAndRepairResponse() (exit loop)
        └─ Present → continue
-    6. Add AssistantMessage          — includes tool call info
-    7. executeToolCallsInParallel()  — parallel tool execution
-    8. Add ToolResponseMessage       — tool results
+    6. Add AssistantMessage           — includes tool call info
+    7. toolCallOrchestrator
+         .executeInParallel()         — parallel tool execution
+    8. Add ToolResponseMessage        — tool results
     9. Check maxToolCalls
        ├─ Not reached → continue loop
-       └─ Reached → activeTools = emptyList() (remove tools)
+       └─ Reached → activeTools = emptyList() + add SystemMessage nudge
 }
 ```
 
@@ -114,12 +124,11 @@ val assistantOutput = chatResponse?.results?.firstOrNull()?.output
 val pendingToolCalls = assistantOutput?.toolCalls.orEmpty()
 
 if (pendingToolCalls.isEmpty() || activeTools.isEmpty()) {
-    // Return final response
-    return AgentResult.success(content = response.content() ?: "")
+    return validateAndRepairResponse(assistantOutput?.text.orEmpty(), ...)
 }
 ```
 
-If the LLM response's `output.toolCalls` is empty, it is treated as the final text response.
+If the LLM response's `output.toolCalls` is empty, it is treated as the final text response. The response is then validated (and optionally repaired for structured output formats) by `StructuredResponseRepairer`.
 
 ### maxToolCalls Forced Termination
 
@@ -127,17 +136,25 @@ If the LLM response's `output.toolCalls` is empty, it is treated as the final te
 if (totalToolCalls >= maxToolCalls) {
     activeTools = emptyList()           // Remove tools
     chatOptions = buildChatOptions(command, false)  // Options without tools
+    messages.add(SystemMessage(
+        "Tool call limit reached ($totalToolCalls/$maxToolCalls). " +
+            "Summarize the results you have so far and provide your best answer. " +
+            "Do not request additional tool calls."
+    ))
 }
 ```
 
-Replacing tools with an empty list forces the next LLM call to generate a final text response without any tool calls. Simply logging a message would cause the LLM to keep attempting tool calls, so **removing the tools entirely** is the critical technique.
+Replacing tools with an empty list forces the next LLM call to generate a final text response without any tool calls. Simply logging a message would cause the LLM to keep attempting tool calls, so **removing the tools entirely** is the critical technique. A `SystemMessage` is also injected to nudge the LLM to summarize rather than request more tools.
 
 ## Parallel Tool Execution
+
+Tool execution is handled by `ToolCallOrchestrator`, a dedicated class extracted from the main executor.
 
 ### Execution Pattern
 
 ```kotlin
-private suspend fun executeToolCallsInParallel(
+// ToolCallOrchestrator.executeInParallel()
+suspend fun executeInParallel(
     toolCalls: List<AssistantMessage.ToolCall>,
     ...
 ): List<ToolResponseMessage.ToolResponse> = coroutineScope {
@@ -156,28 +173,35 @@ private suspend fun executeToolCallsInParallel(
 ### Single Tool Execution Flow
 
 ```kotlin
-private suspend fun executeSingleToolCall(...): ToolResponseMessage.ToolResponse {
-    // 1. Check maxToolCalls with AtomicInteger (concurrency-safe)
-    val currentCount = totalToolCallsCounter.getAndIncrement()
-    if (currentCount >= maxToolCalls) return error response
+private suspend fun executeSingleToolCall(...): ParallelToolExecution {
+    // 1. Check intent-based tool allowlist
+    if (allowedTools != null && toolName !in allowedTools) return error response
 
     // 2. BeforeToolCall Hook
     hookExecutor?.executeBeforeToolCall(toolCallContext)
     // → On Reject, only that specific tool is skipped
 
-    // 3. Execute tool
-    val adapter = findToolAdapter(toolName, tools)
-    if (adapter != null) {
-        toolsUsed.add(toolName)        // Only added after confirming adapter exists
-        adapter.call(toolCall.arguments())
-    } else {
-        "Error: Tool '$toolName' not found"  // Prevents LLM hallucination
-    }
+    // 3. Human-in-the-Loop approval check (ToolApprovalPolicy)
+    checkToolApproval(toolName, toolCallContext, hookContext)
 
-    // 4. AfterToolCall Hook
+    // 4. Verify tool exists before reserving a slot
+    val toolExists = findToolAdapter(toolName, tools) != null
+        || springCallbacksByName.containsKey(toolName)
+
+    // 5. Reserve maxToolCalls slot with CAS (concurrency-safe)
+    reserveToolExecutionSlot(totalToolCallsCounter, maxToolCalls)
+    // → Uses compareAndSet loop instead of getAndIncrement
+
+    // 6. Execute tool (with per-tool timeout)
+    val invocation = invokeToolAdapter(toolName, toolInput, tools, ...)
+    // → toolsUsed.add(toolName) only after confirming adapter exists
+
+    // 7. Sanitize tool output (ToolOutputSanitizer, for indirect injection defense)
+
+    // 8. AfterToolCall Hook
     hookExecutor?.executeAfterToolCall(context, result)
 
-    // 5. Record metrics
+    // 9. Record metrics
     agentMetrics.recordToolCall(toolName, durationMs, success)
 }
 ```
@@ -186,32 +210,41 @@ private suspend fun executeSingleToolCall(...): ToolResponseMessage.ToolResponse
 
 ## Context Window Management
 
+Context trimming is handled by `ConversationMessageTrimmer`.
+
 ### Token Budget Calculation
 
 ```
-budget = maxContextWindowTokens - systemPromptTokens - maxOutputTokens
+budget = maxContextWindowTokens - systemPromptTokens - maxOutputTokens - toolTokenReserve
 ```
 
-Example: `128000 - 2000 - 4096 = 121904 tokens`
+`toolTokenReserve` accounts for the estimated tokens needed to describe active tool definitions (~200 tokens per tool).
 
-### 2-Phase Trimming
+Example: `128000 - 2000 - 4096 - 2000 = 119904 tokens`
+
+### 3-Phase Trimming
 
 ```kotlin
-private fun trimMessagesToFitContext(messages: MutableList<Message>, systemPrompt: String)
+// ConversationMessageTrimmer.trim()
+fun trim(messages: MutableList<Message>, systemPrompt: String, toolTokenReserve: Int = 0)
 ```
 
 **Phase 1: Remove old history (from the front)**
 
 ```
-[History messages...] [Current UserMessage] [Tool interactions...]
- ↑ Removal starts here
+[SystemMessages...] [History messages...] [Current UserMessage] [Tool interactions...]
+                     ↑ Removal starts here
 ```
 
-Removes messages starting from the oldest. Stops when it reaches the **last UserMessage (current prompt)**.
+Removes messages starting from the oldest non-SystemMessage. Stops when it reaches the **last UserMessage (current prompt)**. Leading `SystemMessage` entries (e.g., hierarchical memory facts) are preserved during this phase.
+
+**Phase 1.5: Drop leading SystemMessages to preserve fresh tool context**
+
+If Phase 1 is insufficient and there are tool interactions after the UserMessage, leading memory `SystemMessage` entries are dropped to keep the most recent tool-call/tool-response context visible to the LLM.
 
 **Phase 2: Remove tool interactions (after UserMessage)**
 
-If Phase 1 is insufficient, removes tool call/response pairs that come after the current UserMessage.
+If still over budget, removes tool call/response pairs that come after the current UserMessage.
 
 ### Message Pair Integrity
 
@@ -220,7 +253,7 @@ private fun calculateRemoveGroupSize(messages: List<Message>): Int {
     val first = messages[0]
     // Remove AssistantMessage(toolCalls) → ToolResponseMessage as a pair
     if (first is AssistantMessage && !first.toolCalls.isNullOrEmpty()) {
-        return if (messages[1] is ToolResponseMessage) 2 else 1
+        return if (messages.size > 1 && messages[1] is ToolResponseMessage) 2 else 1
     }
     return 1
 }
@@ -232,7 +265,7 @@ private fun calculateRemoveGroupSize(messages: List<Message>): Int {
 
 ```kotlin
 private fun estimateMessageTokens(message: Message): Int {
-    return when (message) {
+    val contentTokens = when (message) {
         is UserMessage -> tokenEstimator.estimate(message.text)
         is AssistantMessage -> {
             val textTokens = tokenEstimator.estimate(message.text ?: "")
@@ -241,40 +274,49 @@ private fun estimateMessageTokens(message: Message): Int {
             }
             textTokens + toolCallTokens
         }
+        is SystemMessage -> tokenEstimator.estimate(message.text)
         is ToolResponseMessage -> message.responses.sumOf {
             tokenEstimator.estimate(it.responseData())
         }
         // ...
     }
+    return contentTokens + MESSAGE_STRUCTURE_OVERHEAD  // +20 tokens per message
 }
 ```
 
-`TokenEstimator` is CJK-aware:
+Each message estimate includes a fixed `MESSAGE_STRUCTURE_OVERHEAD` (20 tokens) for role tags, separators, and metadata.
+
+`TokenEstimator` is CJK-aware and uses a Caffeine cache (10,000 entries, 5-minute TTL). Strings longer than 2,000 characters bypass the cache to avoid retaining large heap objects:
 - Latin characters: ~4 chars/token
 - Korean/CJK: ~1.5 chars/token
 - Emoji: ~1 char/token
 
-## LLM Retry (callWithRetry)
+## LLM Retry (RetryExecutor)
+
+Retry logic is extracted into `RetryExecutor`, which optionally wraps a `CircuitBreaker`.
 
 ### Exponential Backoff + Jitter
 
 ```kotlin
-private suspend fun <T> callWithRetry(block: suspend () -> T): T {
-    repeat(maxAttempts) { attempt ->
-        try {
-            return block()
-        } catch (e: CancellationException) {
-            throw e  // Never retry
-        } catch (e: Exception) {
-            if (!isTransientError(e) || last attempt) throw e
+// RetryExecutor.execute()
+suspend fun <T> execute(block: suspend () -> T): T {
+    val retryBlock: suspend () -> T = {
+        repeat(maxAttempts) { attempt ->
+            try {
+                return@repeat block()
+            } catch (e: Exception) {
+                e.throwIfCancellation()  // Never retry cancellation
+                if (!isTransientError(e) || attempt == maxAttempts - 1) throw e
 
-            // Exponential backoff: 1s → 2s → 4s (max 10s)
-            val baseDelay = min(initialDelay * 2^attempt, maxDelay)
-            // ±25% jitter: distributes concurrent retries
-            val jitter = baseDelay * 0.25 * random(-1, 1)
-            delay(baseDelay + jitter)
+                // Exponential backoff with ±25% jitter
+                val baseDelay = min(initialDelay * multiplier^attempt, maxDelay)
+                val jitter = baseDelay * 0.25 * random(-1, 1)
+                delay(baseDelay + jitter)
+            }
         }
     }
+    // Optionally wrapped with CircuitBreaker
+    return circuitBreaker?.execute(retryBlock) ?: retryBlock()
 }
 ```
 
@@ -291,13 +333,14 @@ Immediate failure:
 - Context too long
 - Invalid request
 - `CancellationException` (coroutine cancellation — must never be retried)
+- `CircuitBreakerOpenException` (circuit is open — fail fast)
 
 ## Concurrency Semaphore
 
 ```kotlin
 concurrencySemaphore.withPermit {
-    withTimeout(properties.concurrency.requestTimeoutMs) {
-        executeInternal(command, hookContext, toolsUsed, startTime)
+    executeWithRequestTimeout(properties.concurrency.requestTimeoutMs) {
+        agentExecutionCoordinator.execute(command, hookContext, toolsUsed, startTime)
     }
 }
 ```
@@ -307,13 +350,15 @@ concurrencySemaphore.withPermit {
 ## Error Classification
 
 ```kotlin
-private fun classifyError(e: Exception): AgentErrorCode {
+// AgentErrorPolicy.classify()
+fun classify(e: Exception): AgentErrorCode {
     return when {
-        "rate limit" in message  → RATE_LIMITED
-        "timeout" in message     → TIMEOUT
-        "context length" in msg  → CONTEXT_TOO_LONG
-        "tool" in message        → TOOL_ERROR
-        else                     → UNKNOWN
+        e is CircuitBreakerOpenException → CIRCUIT_BREAKER_OPEN
+        "rate limit" in message          → RATE_LIMITED
+        "timeout" in message             → TIMEOUT
+        "context length" in msg          → CONTEXT_TOO_LONG
+        "tool" in message                → TOOL_ERROR
+        else                             → UNKNOWN
     }
 }
 ```
@@ -322,29 +367,33 @@ Classification is based on error messages, which are then converted to user-frie
 
 ## System Prompt Construction
 
+System prompt assembly is handled by `SystemPromptBuilder`:
+
 ```kotlin
-private fun buildSystemPrompt(
+// SystemPromptBuilder.build()
+fun build(
     basePrompt: String,
     ragContext: String?,
-    responseFormat: ResponseFormat,
-    responseSchema: String?
+    responseFormat: ResponseFormat = ResponseFormat.TEXT,
+    responseSchema: String? = null,
+    userPrompt: String? = null,
+    workspaceToolAlreadyCalled: Boolean = false
 ): String {
     val parts = mutableListOf(basePrompt)
+    parts.add(buildGroundingInstruction(...))  // Grounding rules
 
-    // Append RAG context
     if (ragContext != null) {
-        parts.add("[Retrieved Context]\n$ragContext")
+        parts.add(buildRagInstruction(ragContext))
     }
 
-    // Append JSON mode directive
-    if (responseFormat == ResponseFormat.JSON) {
-        parts.add("[Response Format]\nYou MUST respond with valid JSON only.")
-        if (responseSchema != null) {
-            parts.add("Expected JSON schema:\n$responseSchema")
-        }
+    when (responseFormat) {
+        ResponseFormat.JSON -> parts.add(buildJsonInstruction(responseSchema))
+        ResponseFormat.YAML -> parts.add(buildYamlInstruction(responseSchema))
+        ResponseFormat.TEXT -> {}
     }
 
-    return parts.joinToString("\n\n")
+    val result = parts.joinToString("\n\n")
+    return postProcessor?.process(result) ?: result  // Canary token injection
 }
 ```
 
@@ -352,6 +401,9 @@ Final system prompt structure:
 
 ```
 {User-defined system prompt}
+
+[Grounding Rules]
+{Fact-grounding and tool-call directives}
 
 [Retrieved Context]
 {Documents retrieved via RAG}
@@ -361,12 +413,19 @@ You MUST respond with valid JSON only.
 Expected JSON schema: {...}
 ```
 
+The builder also supports YAML response format and an optional `SystemPromptPostProcessor` for canary token injection.
+
 ## Tool Selection and Preparation
 
+Tool selection is handled by `ToolPreparationPlanner`:
+
 ```kotlin
-private fun selectAndPrepareTools(userPrompt: String): List<Any> {
-    // 1. LocalTool (@Tool annotation-based)
-    val localToolInstances = localTools.toList()
+// ToolPreparationPlanner.prepareForPrompt()
+fun prepareForPrompt(userPrompt: String): List<Any> {
+    // 1. LocalTool (@Tool annotation-based), filtered through LocalToolFilters
+    val localToolInstances = localToolFilters.fold(localTools.toList()) { acc, filter ->
+        filter.filter(acc)
+    }
 
     // 2. Collect ToolCallback + MCP tools, then deduplicate by tool name
     val allCallbacks = deduplicateCallbacks(toolCallbacks + mcpToolCallbacks())
@@ -375,8 +434,8 @@ private fun selectAndPrepareTools(userPrompt: String): List<Any> {
     val selectedCallbacks = toolSelector?.select(userPrompt, allCallbacks)
         ?: allCallbacks
 
-    // 4. Wrap with ArcToolCallbackAdapter
-    val wrappedCallbacks = selectedCallbacks.map { ArcToolCallbackAdapter(it) }
+    // 4. Wrap with ArcToolCallbackAdapter (WeakHashMap cache)
+    val wrappedCallbacks = selectedCallbacks.map(::resolveAdapter)
 
     // 5. Apply maxToolsPerRequest
     return (localToolInstances + wrappedCallbacks).take(maxToolsPerRequest)
@@ -384,7 +443,7 @@ private fun selectAndPrepareTools(userPrompt: String): List<Any> {
 ```
 
 Duplicate callback names are resolved before selection and wrapping.
-The first callback in the merged callback list is kept, and later duplicates are dropped with a warning log.
+The first callback in the merged callback list is kept, and later duplicates are dropped with a warning log. Adapters are cached in a `WeakHashMap` to avoid creating new wrappers on every request.
 
 ## ArcToolCallbackAdapter
 
@@ -392,35 +451,35 @@ An adapter that bridges Spring AI's `ToolCallback` and Arc Reactor's `ToolCallba
 
 ```kotlin
 internal class ArcToolCallbackAdapter(
-    val arcCallback: ToolCallback
+    val arcCallback: ToolCallback,
+    fallbackToolTimeoutMs: Long = 15_000
 ) : org.springframework.ai.tool.ToolCallback {
 
+    private val blockingInvoker = BlockingToolCallbackInvoker(fallbackToolTimeoutMs)
+
     override fun call(toolInput: String): String {
-        val args = parseJsonToMap(toolInput)
+        val parsedArguments = parseToolArguments(toolInput)
         // suspend fun → blocking conversion (Spring AI interface constraint)
-        return runBlocking(Dispatchers.IO) {
-            arcCallback.call(args)?.toString() ?: ""
-        }
+        return blockingInvoker.invokeWithTimeout(arcCallback, parsedArguments)
     }
 }
 ```
 
-`runBlocking(Dispatchers.IO)` is used because the Spring AI interface only supports a synchronous `call()`. This is a known constraint.
+`BlockingToolCallbackInvoker` uses `runBlocking(Dispatchers.IO)` with `withTimeout` because the Spring AI interface only supports a synchronous `call()`. Per-tool timeouts are respected via `toolCallback.timeoutMs`, falling back to the configured `toolCallTimeoutMs`.
 
 ## CancellationException Rule
 
-In every `suspend fun`, `CancellationException` must be caught and rethrown before catching a generic `Exception`:
+In every `suspend fun`, `CancellationException` must be caught and rethrown before catching a generic `Exception`. The codebase uses a `throwIfCancellation()` extension to enforce this:
 
 ```kotlin
 try {
     // Business logic
-} catch (e: CancellationException) {
-    throw e  // Preserve structured concurrency
 } catch (e: Exception) {
+    e.throwIfCancellation()  // Rethrows if CancellationException
     // Error handling
 }
 ```
 
-This pattern applies to **all** suspend functions including `execute()`, `executeWithTools()`, `callWithRetry()`, and others. If omitted, `withTimeout` will not function correctly.
+This pattern applies to **all** suspend functions including `execute()`, `executeWithTools()`, `RetryExecutor.execute()`, and others. If omitted, `withTimeout` will not function correctly.
 
 > `java.util.concurrent.CancellationException` is a typealias for `kotlin.coroutines.cancellation.CancellationException`.
