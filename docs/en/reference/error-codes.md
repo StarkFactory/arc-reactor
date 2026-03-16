@@ -13,8 +13,11 @@ error response body.
 
 ## Error Response Shape
 
-All chat failures use the `ChatResponse` DTO. HTTP status is always `200` for the chat
-endpoints; the agent-level error is communicated in the response body, not the HTTP layer.
+All chat failures use the `ChatResponse` DTO. Most agent-level errors return HTTP `200`
+with the error communicated in the response body. Exceptions: `OUTPUT_GUARD_REJECTED` and
+`OUTPUT_TOO_SHORT` return HTTP `422` (Unprocessable Entity), and infrastructure-level
+errors (rate limiting, guard rejection, timeout, etc.) use semantically appropriate HTTP
+status codes as documented below.
 
 ```json
 {
@@ -258,7 +261,7 @@ client-side is a fallback option.
 | Field | Value |
 |---|---|
 | Default message | `Response blocked by output guard.` |
-| HTTP status (chat endpoint) | `200` (body: `success: false`) |
+| HTTP status (chat endpoint) | `422` (body: `success: false`) |
 | When raised | The Output Guard pipeline rejects the LLM's response (PII detected, custom block pattern matched) |
 
 **Details.** When `arc.reactor.output-guard.enabled=true`, every LLM response passes through
@@ -289,7 +292,7 @@ to review the Output Guard configuration.
 | Field | Value |
 |---|---|
 | Default message | `Response is too short to meet quality requirements.` |
-| HTTP status (chat endpoint) | `200` (body: `success: false`) |
+| HTTP status (chat endpoint) | `422` (body: `success: false`) |
 | When raised | The LLM response is shorter than `boundaries.output-min-chars` and `boundaries.output-min-violation-mode` is set to `FAIL` |
 
 **Details.** Output length enforcement is opt-in; `output-min-chars` defaults to 0 (disabled).

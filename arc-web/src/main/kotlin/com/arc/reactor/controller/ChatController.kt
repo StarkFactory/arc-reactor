@@ -92,6 +92,7 @@ class ChatController(
         ApiResponse(responseCode = "429", description = "Rate limit exceeded"),
         ApiResponse(responseCode = "500", description = "Server or LLM error"),
         ApiResponse(responseCode = "503", description = "Service unavailable (circuit breaker open)"),
+        ApiResponse(responseCode = "422", description = "Output rejected by output guard or too short"),
         ApiResponse(responseCode = "504", description = "Request timed out")
     ])
     @PostMapping
@@ -393,7 +394,7 @@ internal fun mapErrorCodeToStatus(errorCode: AgentErrorCode?): HttpStatus {
         AgentErrorCode.TIMEOUT -> HttpStatus.GATEWAY_TIMEOUT
         AgentErrorCode.CIRCUIT_BREAKER_OPEN -> HttpStatus.SERVICE_UNAVAILABLE
         AgentErrorCode.CONTEXT_TOO_LONG -> HttpStatus.BAD_REQUEST
-        AgentErrorCode.OUTPUT_GUARD_REJECTED, AgentErrorCode.OUTPUT_TOO_SHORT -> HttpStatus.OK
+        AgentErrorCode.OUTPUT_GUARD_REJECTED, AgentErrorCode.OUTPUT_TOO_SHORT -> HttpStatus.UNPROCESSABLE_ENTITY
         else -> HttpStatus.INTERNAL_SERVER_ERROR
     }
 }
