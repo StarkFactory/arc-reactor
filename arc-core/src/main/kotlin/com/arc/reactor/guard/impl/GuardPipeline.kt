@@ -39,6 +39,26 @@ class GuardPipeline(
         .filter { it.enabled }
         .sortedBy { it.order }
 
+    init {
+        validateStageOrders()
+        logger.debug {
+            val desc = sortedStages.joinToString { "order=${it.order}:${it.stageName}" }
+            "Guard stages: [$desc]"
+        }
+    }
+
+    private fun validateStageOrders() {
+        sortedStages.groupBy { it.order }
+            .filter { it.value.size > 1 }
+            .forEach { (order, stages) ->
+                val names = stages.joinToString { it.stageName }
+                logger.warn {
+                    "Duplicate guard stage order=$order: [$names]. " +
+                        "Execution order among these stages is undefined."
+                }
+            }
+    }
+
     override suspend fun guard(command: GuardCommand): GuardResult {
         if (sortedStages.isEmpty()) {
             logger.debug { "No guard stages enabled, allowing request" }
