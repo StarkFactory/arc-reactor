@@ -133,7 +133,10 @@ class SpringAiAgentExecutor(
     private val chatOptionsFactory = ChatOptionsFactory(
         defaultTemperature = properties.llm.temperature,
         maxOutputTokens = properties.llm.maxOutputTokens,
-        googleSearchRetrievalEnabled = properties.llm.googleSearchRetrievalEnabled
+        googleSearchRetrievalEnabled = properties.llm.googleSearchRetrievalEnabled,
+        topP = properties.llm.topP,
+        frequencyPenalty = properties.llm.frequencyPenalty,
+        presencePenalty = properties.llm.presencePenalty
     )
     private val promptRequestSpecBuilder = PromptRequestSpecBuilder()
     private val toolPreparationPlanner = ToolPreparationPlanner(

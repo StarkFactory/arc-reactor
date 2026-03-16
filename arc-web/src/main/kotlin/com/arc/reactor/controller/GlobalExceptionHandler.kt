@@ -79,6 +79,27 @@ class GlobalExceptionHandler {
         )
     }
 
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun handleIllegalArgument(ex: IllegalArgumentException): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.badRequest().body(
+            ErrorResponse(
+                error = "Bad request: ${ex.message ?: "Invalid argument"}",
+                timestamp = Instant.now().toString()
+            )
+        )
+    }
+
+    @ExceptionHandler(IllegalStateException::class)
+    fun handleIllegalState(ex: IllegalStateException): ResponseEntity<ErrorResponse> {
+        logger.error(ex) { "Illegal state" }
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+            ErrorResponse(
+                error = "Internal server error",
+                timestamp = Instant.now().toString()
+            )
+        )
+    }
+
     @ExceptionHandler(Exception::class)
     fun handleGenericException(ex: Exception): ResponseEntity<ErrorResponse> {
         logger.error(ex) { "Unhandled exception" }

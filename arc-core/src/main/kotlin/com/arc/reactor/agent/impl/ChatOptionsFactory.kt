@@ -8,7 +8,10 @@ import org.springframework.ai.model.tool.ToolCallingChatOptions
 internal class ChatOptionsFactory(
     private val defaultTemperature: Double,
     private val maxOutputTokens: Int,
-    private val googleSearchRetrievalEnabled: Boolean
+    private val googleSearchRetrievalEnabled: Boolean,
+    private val topP: Double? = null,
+    private val frequencyPenalty: Double? = null,
+    private val presencePenalty: Double? = null
 ) {
 
     fun create(command: AgentCommand, hasTools: Boolean, fallbackProvider: String): ChatOptions {
@@ -20,6 +23,9 @@ internal class ChatOptionsFactory(
             return GoogleGenAiChatOptions.builder()
                 .temperature(temperature)
                 .maxOutputTokens(maxOutputTokens)
+                .topP(topP)
+                .frequencyPenalty(frequencyPenalty)
+                .presencePenalty(presencePenalty)
                 .googleSearchRetrieval(googleSearchRetrievalEnabled)
                 .internalToolExecutionEnabled(!hasTools)
                 .build()
@@ -29,12 +35,18 @@ internal class ChatOptionsFactory(
             ToolCallingChatOptions.builder()
                 .temperature(temperature)
                 .maxTokens(maxOutputTokens)
+                .topP(topP)
+                .frequencyPenalty(frequencyPenalty)
+                .presencePenalty(presencePenalty)
                 .internalToolExecutionEnabled(false)
                 .build()
         } else {
             ChatOptions.builder()
                 .temperature(temperature)
                 .maxTokens(maxOutputTokens)
+                .topP(topP)
+                .frequencyPenalty(frequencyPenalty)
+                .presencePenalty(presencePenalty)
                 .build()
         }
     }
