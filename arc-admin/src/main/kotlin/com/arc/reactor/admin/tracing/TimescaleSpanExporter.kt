@@ -89,12 +89,21 @@ class TimescaleSpanExporter(
         }
     }
 
-    private fun escapeJson(s: String): String =
-        s.replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
+    private fun escapeJson(s: String): String {
+        val sb = StringBuilder(s.length)
+        for (ch in s) {
+            when {
+                ch == '\\' -> sb.append("\\\\")
+                ch == '"' -> sb.append("\\\"")
+                ch == '\n' -> sb.append("\\n")
+                ch == '\r' -> sb.append("\\r")
+                ch == '\t' -> sb.append("\\t")
+                ch.code in 0x00..0x1F -> sb.append("\\u%04x".format(ch.code))
+                else -> sb.append(ch)
+            }
+        }
+        return sb.toString()
+    }
 
     companion object {
         private val TENANT_ID_KEY = AttributeKey.stringKey("tenant_id")
