@@ -1,6 +1,7 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.agent.model.ResponseFormat
@@ -8,6 +9,7 @@ import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.tracing.ArcReactorTracer
 import com.arc.reactor.tracing.NoOpArcReactorTracer
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import mu.KotlinLogging
@@ -123,10 +125,13 @@ internal class ManualReActLoopExecutor(
                 )
             }
 
-            val assistantMessage = requireNotNull(assistantOutput) {
-                "Assistant output is required when tool calls are present"
+            if (assistantOutput == null) {
+                logger.error { "Assistant output is null despite pending tool calls" }
+                return AgentResult.failure(
+                    errorMessage = "Assistant output is null when tool calls are present",
+                    errorCode = AgentErrorCode.UNKNOWN
+                )
             }
-            messages.add(assistantMessage)
 
             val totalToolCallsCounter = AtomicInteger(totalToolCalls)
             val toolStart = System.nanoTime()
@@ -150,12 +155,19 @@ internal class ManualReActLoopExecutor(
                     allowedTools,
                     normalizeToolResponseToJson = shouldNormalizeToolResponses(chatOptions)
                 )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.error(e) { "Tool execution failed, skipping message pair" }
+                throw e
             } finally {
                 toolSpans.forEach { it.close() }
             }
             totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
             totalToolCalls = totalToolCallsCounter.get()
 
+            // Add AssistantMessage + ToolResponseMessage together (pair integrity)
+            messages.add(assistantOutput)
             messages.add(
                 ToolResponseMessage.builder()
                     .responses(toolResponses)
