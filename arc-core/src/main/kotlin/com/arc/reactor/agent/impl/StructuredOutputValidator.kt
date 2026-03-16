@@ -2,6 +2,9 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.model.ResponseFormat
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import org.yaml.snakeyaml.LoaderOptions
+import org.yaml.snakeyaml.Yaml
+import org.yaml.snakeyaml.constructor.SafeConstructor
 
 private val objectMapper = jacksonObjectMapper()
 
@@ -35,7 +38,7 @@ class StructuredOutputValidator {
 
     private fun validateYaml(content: String): Boolean {
         return try {
-            val yaml = org.yaml.snakeyaml.Yaml()
+            val yaml = Yaml(SafeConstructor(LoaderOptions()))
             val result = yaml.load<Any>(content)
             result != null
         } catch (e: Exception) {
