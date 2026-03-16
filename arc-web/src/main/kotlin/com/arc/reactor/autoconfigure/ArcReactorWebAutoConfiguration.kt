@@ -29,6 +29,17 @@ class ArcReactorWebAutoConfiguration {
     fun securityHeadersWebFilter(): WebFilter = SecurityHeadersWebFilter()
 
     /**
+     * Request Correlation WebFilter (default: enabled)
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = ["requestCorrelationFilter"])
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.request-correlation", name = ["enabled"],
+        havingValue = "true", matchIfMissing = true
+    )
+    fun requestCorrelationFilter(): WebFilter = RequestCorrelationFilter()
+
+    /**
      * API version contract WebFilter (default: enabled)
      */
     @Bean
