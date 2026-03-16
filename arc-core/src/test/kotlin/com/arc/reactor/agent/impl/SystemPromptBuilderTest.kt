@@ -30,9 +30,25 @@ class SystemPromptBuilderTest {
             NEVER include curl, wget, fetch, httpie, or direct HTTP request examples that target Jira, Confluence, Bitbucket, or any workspace API in your response. Even if the user asks for a workaround, do not provide API call instructions that would bypass read-only restrictions.
             Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.
             Do not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.
-            End the response with a 'Sources' section that lists the supporting links.
         """.trimIndent()
-        assertEquals(expected, prompt)
+        assertEquals(expected, prompt) {
+            "Non-workspace prompts should not include 'Sources' section instruction"
+        }
+    }
+
+    @Test
+    fun `should include sources instruction for workspace prompts`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            responseSchema = null,
+            userPrompt = "DEV 프로젝트 Jira 이슈를 요약해줘."
+        )
+
+        assertTrue(prompt.contains("End the response with a 'Sources' section")) {
+            "Workspace prompts should include 'Sources' section instruction"
+        }
     }
 
     @Test
