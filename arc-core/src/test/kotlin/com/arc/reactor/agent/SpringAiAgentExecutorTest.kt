@@ -139,7 +139,7 @@ class SpringAiAgentExecutorTest {
             // Assert
             result.assertFailure()
             assertEquals("Rate limit exceeded", result.errorMessage)
-            result.assertErrorCode(AgentErrorCode.GUARD_REJECTED)
+            result.assertErrorCode(AgentErrorCode.RATE_LIMITED)
         }
 
         @Test
