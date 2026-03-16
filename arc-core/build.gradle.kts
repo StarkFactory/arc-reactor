@@ -34,7 +34,7 @@ dependencies {
 
     // Logging
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
-    implementation("net.logstash.logback:logstash-logback-encoder:8.0")
+    implementation("net.logstash.logback:logstash-logback-encoder:9.0")
 
     // Cache (for Rate Limiting)
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.3")
