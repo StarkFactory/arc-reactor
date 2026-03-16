@@ -3,6 +3,7 @@ package com.arc.reactor.rag.impl
 import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.rag.ContextBuilder
+import com.arc.reactor.rag.ContextCompressor
 import com.arc.reactor.rag.DocumentReranker
 import com.arc.reactor.rag.DocumentRetriever
 import com.arc.reactor.rag.QueryTransformer
@@ -17,12 +18,13 @@ private val logger = KotlinLogging.logger {}
 /**
  * Default RAG Pipeline Implementation
  *
- * Query → Transform → Retrieve → Rerank → Build Context
+ * Query → Transform → Retrieve → Rerank → [Compress] → Build Context
  */
 class DefaultRagPipeline(
     private val queryTransformer: QueryTransformer? = null,
     private val retriever: DocumentRetriever,
     private val reranker: DocumentReranker? = null,
+    private val contextCompressor: ContextCompressor? = null,
     private val contextBuilder: ContextBuilder = SimpleContextBuilder(),
     private val maxContextTokens: Int = 4000,
     private val tokenEstimator: TokenEstimator = DefaultTokenEstimator()
@@ -53,12 +55,23 @@ class DefaultRagPipeline(
             documents.take(query.topK)
         }
 
-        // 4. Build Context (with token limit)
-        val context = contextBuilder.build(rerankedDocs, maxContextTokens)
+        // 4. Compress (optional, after rerank, before context building)
+        val compressedDocs = if (contextCompressor != null) {
+            contextCompressor.compress(query.query, rerankedDocs)
+        } else {
+            rerankedDocs
+        }
+
+        if (compressedDocs.isEmpty()) {
+            return RagContext.EMPTY
+        }
+
+        // 5. Build Context (with token limit)
+        val context = contextBuilder.build(compressedDocs, maxContextTokens)
 
         return RagContext(
             context = context,
-            documents = rerankedDocs,
+            documents = compressedDocs,
             totalTokens = tokenEstimator.estimate(context)
         )
     }

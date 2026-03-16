@@ -162,7 +162,37 @@ data class RagProperties(
     val chunking: RagChunkingProperties = RagChunkingProperties(),
 
     /** Retrieval timeout in milliseconds. Prevents thread-pool exhaustion when vector DB is unresponsive. */
-    val retrievalTimeoutMs: Long = 5000
+    val retrievalTimeoutMs: Long = 5000,
+
+    /** Contextual compression configuration */
+    val compression: RagCompressionProperties = RagCompressionProperties()
+)
+
+/**
+ * Contextual compression configuration.
+ *
+ * When enabled, retrieved documents are compressed by an LLM to extract
+ * only query-relevant content before context building. This reduces
+ * token usage and improves answer quality by removing noise.
+ *
+ * Based on RECOMP (Xu et al., 2024, arXiv:2310.04408).
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     rag:
+ *       compression:
+ *         enabled: true
+ *         min-content-length: 200
+ * ```
+ */
+data class RagCompressionProperties(
+    /** Enable contextual compression. Disabled by default. */
+    val enabled: Boolean = false,
+
+    /** Documents shorter than this (in chars) skip compression. */
+    val minContentLength: Int = 200
 )
 
 /**

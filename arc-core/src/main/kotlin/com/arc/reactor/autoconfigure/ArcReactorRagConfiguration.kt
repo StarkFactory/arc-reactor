@@ -2,6 +2,7 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.config.ChatModelProvider
+import com.arc.reactor.rag.ContextCompressor
 import com.arc.reactor.rag.DocumentReranker
 import com.arc.reactor.rag.DocumentRetriever
 import com.arc.reactor.rag.QueryTransformer
@@ -16,6 +17,7 @@ import com.arc.reactor.rag.impl.Bm25WarmUpRunner
 import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HybridRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
+import com.arc.reactor.rag.impl.LlmContextualCompressor
 import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
@@ -113,6 +115,41 @@ class RagConfiguration {
     }
 
     /**
+     * Contextual Compressor — LLM-based document compression.
+     * Only created when compression is explicitly enabled.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.rag.compression", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun contextCompressor(
+        chatModelProvider: ObjectProvider<ChatModelProvider>,
+        properties: AgentProperties
+    ): ContextCompressor {
+        val provider = chatModelProvider.ifAvailable
+        if (provider == null) {
+            throw BeanInitializationException(
+                "RAG compression is enabled but no ChatModelProvider is available."
+            )
+        }
+        val selectedProvider = provider.availableProviders()
+            .firstOrNull { it == provider.defaultProvider() }
+            ?: provider.availableProviders().firstOrNull()
+        if (selectedProvider == null) {
+            throw BeanInitializationException(
+                "RAG compression is enabled but no chat providers are available."
+            )
+        }
+        ragLogger.info { "RAG: Using LlmContextualCompressor" }
+        return LlmContextualCompressor(
+            chatClient = provider.getChatClient(selectedProvider),
+            minContentLength = properties.rag.compression.minContentLength
+        )
+    }
+
+    /**
      * BM25 Scorer — only created when hybrid search is enabled.
      * Users can override with a custom [Bm25Scorer] bean.
      */
@@ -175,11 +212,13 @@ class RagConfiguration {
         queryTransformer: QueryTransformer,
         retriever: DocumentRetriever,
         reranker: DocumentReranker,
+        contextCompressorProvider: ObjectProvider<ContextCompressor>,
         properties: AgentProperties
     ): RagPipeline = DefaultRagPipeline(
         queryTransformer = queryTransformer,
         retriever = retriever,
         reranker = reranker,
+        contextCompressor = contextCompressorProvider.ifAvailable,
         maxContextTokens = properties.rag.maxContextTokens
     )
 
