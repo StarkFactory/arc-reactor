@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
+import java.time.Instant
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -53,7 +54,8 @@ class DocumentController(
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Document added to vector store"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
-        ApiResponse(responseCode = "403", description = "Admin access required")
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "500", description = "Embedding or storage failure")
     ])
     @PostMapping
     fun addDocument(
@@ -67,7 +69,18 @@ class DocumentController(
         val document = Document(id, request.content, metadata)
         val chunks = documentChunkerProvider.ifAvailable?.chunk(document)
             ?: listOf(document)
-        vectorStore.add(chunks)
+
+        try {
+            vectorStore.add(chunks)
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to embed document: id=$id" }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                ErrorResponse(
+                    error = "Failed to embed document: ${e.message}",
+                    timestamp = Instant.now().toString()
+                )
+            )
+        }
 
         logger.info {
             "Document added: id=$id, chunks=${chunks.size}, " +
@@ -93,7 +106,8 @@ class DocumentController(
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Documents added to vector store"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
-        ApiResponse(responseCode = "403", description = "Admin access required")
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "500", description = "Embedding or storage failure")
     ])
     @PostMapping("/batch")
     fun addDocuments(
@@ -109,7 +123,18 @@ class DocumentController(
         }
 
         val chunks = chunker?.chunk(documents) ?: documents
-        vectorStore.add(chunks)
+
+        try {
+            vectorStore.add(chunks)
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to embed batch of ${documents.size} documents" }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                ErrorResponse(
+                    error = "Failed to embed documents: ${e.message}",
+                    timestamp = Instant.now().toString()
+                )
+            )
+        }
 
         logger.info { "Batch added ${documents.size} documents (${chunks.size} chunks)" }
 
