@@ -22,7 +22,16 @@ Request
   |
   v
 +------------------------------------------------------+
-|  JwtAuthWebFilter (WebFilter, HIGHEST_PRECEDENCE)    |
+|  AuthRateLimitFilter (HIGHEST_PRECEDENCE + 1)        |
+|                                                       |
+|  POST /api/auth/login, /api/auth/register             |
+|  -> Under limit: pass through                         |
+|  -> Over limit: 429 Too Many Requests                 |
++------------------------------------------------------+
+  |
+  v
++------------------------------------------------------+
+|  JwtAuthWebFilter (HIGHEST_PRECEDENCE + 2)           |
 |                                                       |
 |  /api/auth/login (+ /api/auth/register when enabled)  |
 |  -> pass (public)                                     |
@@ -62,10 +71,13 @@ Request
 arc:
   reactor:
     auth:
-      jwt-secret: ${JWT_SECRET}        # HS256 signing secret (32+ bytes recommended)
-      jwt-expiration-ms: 86400000      # Token validity period (default: 24 hours)
-      self-registration-enabled: false # Default: closed registration (recommended)
-      public-paths:                    # Paths accessible without authentication
+      jwt-secret: ${JWT_SECRET}              # HS256 signing secret (32+ bytes recommended)
+      jwt-expiration-ms: 86400000            # Token validity period (default: 24 hours)
+      self-registration-enabled: false       # Default: closed registration (recommended)
+      login-rate-limit-per-minute: 10        # Max failed auth attempts per IP per minute
+      trust-forwarded-headers: false         # Trust X-Forwarded-For for IP extraction (proxy setups)
+      token-revocation-store: memory         # Revoked token backend: memory | jdbc | redis
+      public-paths:                          # Paths accessible without authentication
         - /api/auth/login
 ```
 
@@ -232,15 +244,18 @@ curl -X POST http://localhost:8080/api/auth/logout \
 |-----------|------|----------------------|
 | `AuthProvider` | Authentication logic (authenticate, getUserById) | `DefaultAuthProvider` (BCrypt) |
 | `UserStore` | User CRUD (findByEmail, save, update) | `InMemoryUserStore` / `JdbcUserStore` |
+| `TokenRevocationStore` | Tracks revoked JWT `jti` values until original expiry | `InMemoryTokenRevocationStore` / `JdbcTokenRevocationStore` / `RedisTokenRevocationStore` |
 
 ### Classes
 
 | Class | Role |
 |-------|------|
-| `AuthModels.kt` | `User` data class, `AuthProperties` configuration |
+| `AuthModels.kt` | `User`, `UserRole`, `AdminScope`, `AuthProperties`, `TokenRevocationStoreType` |
 | `JwtTokenProvider` | Token creation (`createToken`) / validation (`validateToken`) via JJWT |
 | `JwtAuthWebFilter` | WebFilter -- validates Bearer token on every request |
-| `TokenRevocationStore` | Tracks revoked JWT `jti` values until original expiry |
+| `AuthRateLimitFilter` | WebFilter -- rate-limits POST requests to `/api/auth/login` and `/api/auth/register` |
+| `AdminInitializer` | Bootstraps an initial ADMIN account on startup from environment variables |
+| `AdminAuthorizationSupport` | Shared admin authorization helpers (`isAdmin`, `isAnyAdmin`) |
 | `DefaultAuthProvider` | Default BCrypt password verification implementation |
 | `InMemoryUserStore` | ConcurrentHashMap-based (for development) |
 | `JdbcUserStore` | PostgreSQL `users` table (for production) |
@@ -255,12 +270,18 @@ arc.reactor.auth.jwt-secret set
   |
   +-- AuthProperties
   +-- JwtTokenProvider
-  +-- JwtAuthWebFilter (WebFilter)
+  +-- AuthRateLimitFilter (WebFilter, HIGHEST_PRECEDENCE + 1)
+  +-- JwtAuthWebFilter (WebFilter, HIGHEST_PRECEDENCE + 2)
   +-- UserStore
   |     +-- If DataSource exists -> JdbcUserStore (@Primary)
   |     +-- If DataSource absent -> InMemoryUserStore
   +-- AuthProvider
   |     +-- @ConditionalOnMissingBean -> DefaultAuthProvider
+  +-- TokenRevocationStore
+  |     +-- memory (default) -> InMemoryTokenRevocationStore
+  |     +-- jdbc -> JdbcTokenRevocationStore (fallback: in-memory)
+  |     +-- redis -> RedisTokenRevocationStore (fallback: in-memory)
+  +-- AdminInitializer (creates admin account on startup)
   +-- AuthController (@RestController)
 ```
 
@@ -327,6 +348,137 @@ class RedisUserStore(private val redisTemplate: RedisTemplate<String, User>) : U
 
 ---
 
+## User Roles and Admin Scopes
+
+### UserRole
+
+Each user has a `role` field stored in the database and embedded in their JWT token. The role controls access to admin endpoints and dashboards.
+
+| Role | Description | `isAnyAdmin()` | `isDeveloperAdmin()` |
+|------|-------------|:---:|:---:|
+| `USER` | Standard access (chat, persona selection) | no | no |
+| `ADMIN` | Full admin access (legacy role, grants all admin permissions) | yes | yes |
+| `ADMIN_MANAGER` | Manager-facing dashboards only | yes | no |
+| `ADMIN_DEVELOPER` | Developer/admin control surfaces | yes | yes |
+
+### AdminScope
+
+`AdminScope` is a coarse-grained enum derived from `UserRole` for frontend workspace decisions. Each admin role maps to a scope:
+
+| AdminScope | Mapped from UserRole | Purpose |
+|------------|---------------------|---------|
+| `FULL` | `ADMIN` | Unrestricted admin access |
+| `MANAGER` | `ADMIN_MANAGER` | Manager dashboards (usage analytics, billing) |
+| `DEVELOPER` | `ADMIN_DEVELOPER` | Developer control surfaces (tool config, prompts, MCP) |
+
+`USER` role has no `AdminScope` (returns `null`).
+
+### AdminAuthorizationSupport
+
+Admin authorization in controllers must always use `AdminAuthorizationSupport`:
+
+- `AdminAuthorizationSupport.isAdmin(exchange)` -- checks developer-level admin access (`ADMIN` or `ADMIN_DEVELOPER`)
+- `AdminAuthorizationSupport.isAnyAdmin(exchange)` -- checks any admin role (`ADMIN`, `ADMIN_MANAGER`, or `ADMIN_DEVELOPER`)
+
+Null role is treated as non-admin (fail-close). Never duplicate this logic inline.
+
+---
+
+## Admin Initialization
+
+`AdminInitializer` creates an initial ADMIN account on server startup from environment variables. It runs once on the `ApplicationReadyEvent`.
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ARC_REACTOR_AUTH_ADMIN_EMAIL` | Yes | Admin account email |
+| `ARC_REACTOR_AUTH_ADMIN_PASSWORD` | Yes | Admin account password (minimum 8 characters) |
+| `ARC_REACTOR_AUTH_ADMIN_NAME` | No | Display name (default: `"Admin"`) |
+
+### Behavior
+
+1. If the environment variables are not set, initialization is silently skipped.
+2. If the password is shorter than 8 characters, initialization is skipped with a warning.
+3. If a user with the given email already exists, initialization is skipped (idempotent).
+4. A custom `AuthProvider` (e.g., LDAP) prevents admin seeding because password hashing requires `DefaultAuthProvider`. A warning is logged.
+
+### Docker Compose Example
+
+```yaml
+services:
+  app:
+    environment:
+      ARC_REACTOR_AUTH_JWT_SECRET: "your-256-bit-secret-here-minimum-32-bytes"
+      ARC_REACTOR_AUTH_ADMIN_EMAIL: "admin@example.com"
+      ARC_REACTOR_AUTH_ADMIN_PASSWORD: "changeme123"
+      ARC_REACTOR_AUTH_ADMIN_NAME: "Platform Admin"
+```
+
+---
+
+## Auth Rate Limiting
+
+`AuthRateLimitFilter` is a `WebFilter` (order `HIGHEST_PRECEDENCE + 1`) that limits brute-force attempts on authentication endpoints. It runs before `JwtAuthWebFilter` in the filter chain.
+
+### How It Works
+
+- Applies only to `POST /api/auth/login` and `POST /api/auth/register`.
+- Tracks failed attempts per IP address using a Caffeine cache with a 1-minute expiry window.
+- Successful authentication (2xx response) resets the counter for that IP.
+- When the limit is exceeded, returns `429 Too Many Requests` with a `Retry-After: 60` header.
+
+### Configuration
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `arc.reactor.auth.login-rate-limit-per-minute` | `10` | Maximum failed authentication attempts per IP per minute |
+| `arc.reactor.auth.trust-forwarded-headers` | `false` | Trust `X-Forwarded-For` header for client IP extraction |
+
+**Important:** Only enable `trust-forwarded-headers` when the application runs behind a trusted reverse proxy. An untrusted client can forge the `X-Forwarded-For` header to bypass rate limiting.
+
+---
+
+## Token Revocation Store
+
+When a user logs out (`POST /api/auth/logout`), the token's `jti` (JWT ID) is stored in the revocation store until the token's original expiration time. `JwtAuthWebFilter` checks this store on every request.
+
+### Implementations
+
+| Type | Config value | When to use | Notes |
+|------|-------------|-------------|-------|
+| `InMemoryTokenRevocationStore` | `memory` (default) | Single-instance deployments, development | ConcurrentHashMap, max 10,000 entries, auto-purge on overflow |
+| `JdbcTokenRevocationStore` | `jdbc` | Multi-instance with shared PostgreSQL | Requires Flyway migration `V31__create_token_revocations.sql` |
+| `RedisTokenRevocationStore` | `redis` | Multi-instance with Redis | Uses Redis key TTL for automatic expiry, key prefix `arc:auth:revoked` |
+
+### Configuration
+
+```yaml
+arc:
+  reactor:
+    auth:
+      token-revocation-store: memory   # memory | jdbc | redis
+```
+
+If the requested backend is unavailable (e.g., `jdbc` without a `DataSource`, or `redis` without a `StringRedisTemplate`), the system logs a warning and falls back to the in-memory store.
+
+### DB Schema (Flyway V31)
+
+Required when `token-revocation-store: jdbc`:
+
+```sql
+CREATE TABLE IF NOT EXISTS auth_token_revocations (
+    token_id        VARCHAR(255) PRIMARY KEY,
+    expires_at      TIMESTAMPTZ NOT NULL,
+    revoked_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_token_revocations_expires_at
+    ON auth_token_revocations (expires_at);
+```
+
+---
+
 ## Session Isolation
 
 Because authentication is always required, per-user session isolation is automatic:
@@ -389,12 +541,14 @@ Existing data is automatically migrated with `'anonymous'`.
 | Password storage | BCrypt (spring-security-crypto) |
 | Token signing | HS256 (HMAC-SHA256) |
 | Token transmission | `Authorization: Bearer` header |
-| Token revocation | `POST /api/auth/logout` stores token `jti` until expiration |
+| Token revocation | `POST /api/auth/logout` stores token `jti` until expiration (memory, JDBC, or Redis) |
+| Login brute-force protection | `AuthRateLimitFilter` -- per-IP rate limit on auth endpoints (default: 10/min) |
 | Token storage (frontend) | localStorage |
 | CORS | Vite proxy or nginx reverse proxy |
 | Password validation | Minimum 8 characters (`@Size(min=8)`) |
 | Email validation | `@Email` format validation |
 | Duplicate registration prevention | DB unique constraint + API-level check |
+| Admin authorization | `AdminAuthorizationSupport.isAdmin(exchange)` -- fail-close on null role |
 
 ### Recommended jwt-secret Generation
 
@@ -409,12 +563,18 @@ Store in a `.env` file and never commit to source control.
 
 ## Reference Code
 
+- [`auth/AuthModels.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/AuthModels.kt) -- User, UserRole, AdminScope, AuthProperties
 - [`auth/AuthProvider.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/AuthProvider.kt) -- Authentication interface
 - [`auth/UserStore.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/UserStore.kt) -- User store interface + InMemory implementation
 - [`auth/JdbcUserStore.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/JdbcUserStore.kt) -- PostgreSQL implementation
 - [`auth/JwtTokenProvider.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/JwtTokenProvider.kt) -- JWT token creation/validation
-- [`auth/JwtAuthWebFilter.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/JwtAuthWebFilter.kt) -- WebFilter
+- [`auth/JwtAuthWebFilter.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/JwtAuthWebFilter.kt) -- WebFilter (authentication)
+- [`auth/AuthRateLimitFilter.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/AuthRateLimitFilter.kt) -- WebFilter (brute-force protection)
+- [`auth/AdminInitializer.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/AdminInitializer.kt) -- Startup admin account bootstrap
+- [`auth/AdminAuthorizationSupport.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/AdminAuthorizationSupport.kt) -- Admin authorization helpers
+- [`auth/TokenRevocationStore.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/TokenRevocationStore.kt) -- Revocation store interface + Memory/JDBC/Redis implementations
 - [`auth/DefaultAuthProvider.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/auth/DefaultAuthProvider.kt) -- BCrypt default implementation
 - [`controller/AuthController.kt`](../../../arc-web/src/main/kotlin/com/arc/reactor/controller/AuthController.kt) -- REST endpoints
 - [`V3__create_users.sql`](../../../arc-core/src/main/resources/db/migration/V3__create_users.sql) -- Users table
 - [`V4__add_user_id_to_conversation_messages.sql`](../../../arc-core/src/main/resources/db/migration/V4__add_user_id_to_conversation_messages.sql) -- userId column addition
+- [`V31__create_token_revocations.sql`](../../../arc-core/src/main/resources/db/migration/V31__create_token_revocations.sql) -- Token revocations table
