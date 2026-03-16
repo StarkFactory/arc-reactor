@@ -43,6 +43,8 @@ private val logger = KotlinLogging.logger {}
  * @param embeddingModel Spring AI embedding model for vectorization
  * @param similarityThreshold Minimum cosine similarity to include a tool (0.0 to 1.0)
  * @param maxResults Maximum number of tools to return
+ *
+ * @see ToolSelector for the interface contract
  */
 class SemanticToolSelector(
     private val embeddingModel: EmbeddingModel,

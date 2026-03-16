@@ -25,6 +25,9 @@ private val logger = KotlinLogging.logger {}
  * @param name Identifier for logging and exception messages
  * @param clock Time source for testability (default: System.currentTimeMillis)
  * @param agentMetrics Metrics recorder for state transitions
+ *
+ * @see CircuitBreaker for the interface contract
+ * @see com.arc.reactor.resilience.CircuitBreakerRegistry for managing named instances
  */
 class DefaultCircuitBreaker(
     private val failureThreshold: Int = 5,

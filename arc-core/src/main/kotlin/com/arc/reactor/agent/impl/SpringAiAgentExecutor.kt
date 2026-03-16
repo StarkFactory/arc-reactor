@@ -69,6 +69,8 @@ private val logger = KotlinLogging.logger {}
  * - [AgentMode.STANDARD]: Single LLM call without tools
  * - [AgentMode.REACT]: LLM with tool calling (Spring AI handles the iteration loop)
  * - [AgentMode.STREAMING]: Planned for future (see executeStream)
+ *
+ * @see AgentExecutor for the interface contract
  */
 class SpringAiAgentExecutor(
     private val chatClient: ChatClient,

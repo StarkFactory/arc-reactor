@@ -29,6 +29,9 @@ private val logger = KotlinLogging.logger {}
  * [UnicodeNormalization] → [RateLimit] → [InputValidation] → [InjectionDetection]
  *            → [Classification] → [Permission] → Allowed
  * ```
+ *
+ * @see GuardStage for individual stage interface
+ * @see RequestGuard for the guard contract
  */
 class GuardPipeline(
     stages: List<GuardStage> = emptyList(),

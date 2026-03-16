@@ -38,6 +38,8 @@ private val logger = KotlinLogging.logger {}
  * @param rrfK             RRF smoothing constant — higher values reduce rank-position sensitivity
  * @param maxContextTokens Maximum context tokens passed to [ContextBuilder]
  * @param tokenEstimator   Token count estimator for context size accounting
+ *
+ * @see RagPipeline for the interface contract
  */
 class HybridRagPipeline(
     private val retriever: DocumentRetriever,
