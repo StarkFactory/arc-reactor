@@ -529,7 +529,10 @@ data class SchedulerProperties(
     val defaultTimezone: String = java.time.ZoneId.systemDefault().id,
 
     /** Default execution timeout for jobs without an explicit timeout (milliseconds). */
-    val defaultExecutionTimeoutMs: Long = 300_000
+    val defaultExecutionTimeoutMs: Long = 300_000,
+
+    /** Maximum execution history entries to retain per job. 0 = unlimited. */
+    val maxExecutionsPerJob: Int = 100
 )
 
 /**

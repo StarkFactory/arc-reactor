@@ -28,4 +28,11 @@ class InMemoryScheduledJobExecutionStore : ScheduledJobExecutionStore {
 
     override fun findRecent(limit: Int): List<ScheduledJobExecution> =
         executions.take(limit)
+
+    override fun deleteOldestExecutions(jobId: String, keepCount: Int) {
+        val jobEntries = executions.filter { it.jobId == jobId }
+        if (jobEntries.size <= keepCount) return
+        val toRemove = jobEntries.drop(keepCount)
+        executions.removeAll(toRemove.toSet())
+    }
 }
