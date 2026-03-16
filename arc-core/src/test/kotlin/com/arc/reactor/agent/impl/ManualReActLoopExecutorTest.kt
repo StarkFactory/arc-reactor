@@ -6,6 +6,7 @@ import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.TokenEstimator
+import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -13,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
@@ -172,6 +174,142 @@ class ManualReActLoopExecutorTest {
             toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
+
+    @Test
+    fun `should not leave orphan AssistantMessage when tool execution fails`() = runBlocking {
+        val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
+        val responseWithTools = AgentTestFixture.simpleChatResponse("")
+            .mutateWithToolCalls(listOf(toolCall))
+
+        val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
+        io.mockk.every { requestSpec.call() } returns callResponseSpec
+        io.mockk.every { callResponseSpec.chatResponse() } returns responseWithTools
+
+        val toolOrchestrator = mockk<ToolCallOrchestrator>()
+        coEvery {
+            toolOrchestrator.executeInParallel(
+                any(), any(), any(), any(), any(), any(), any(), any()
+            )
+        } throws RuntimeException("Tool execution failed")
+
+        val capturedMessages = mutableListOf<List<String>>()
+        val loopExecutor = ManualReActLoopExecutor(
+            messageTrimmer = ConversationMessageTrimmer(
+                maxContextWindowTokens = 10_000,
+                outputReserveTokens = 100,
+                tokenEstimator = TokenEstimator { it.length }
+            ),
+            toolCallOrchestrator = toolOrchestrator,
+            buildRequestSpec = { _, _, msgs, _, _ ->
+                capturedMessages.add(
+                    msgs.map { it.javaClass.simpleName }
+                )
+                requestSpec
+            },
+            callWithRetry = { block -> block() },
+            buildChatOptions = { _, _ -> ChatOptions.builder().build() },
+            validateAndRepairResponse = { _, _, _, _, _ ->
+                AgentResult.success(content = "unused")
+            },
+            recordTokenUsage = { _, _ -> }
+        )
+
+        val exception = assertThrows<RuntimeException> {
+            loopExecutor.execute(
+                command = AgentCommand(
+                    systemPrompt = "sys", userPrompt = "hi"
+                ),
+                activeChatClient = mockk(relaxed = true),
+                systemPrompt = "sys",
+                initialTools = listOf(mockk<Any>(relaxed = true)),
+                conversationHistory = emptyList(),
+                hookContext = HookContext(
+                    runId = "run-1", userId = "u", userPrompt = "hi"
+                ),
+                toolsUsed = mutableListOf(),
+                allowedTools = null,
+                maxToolCalls = 3
+            )
+        }
+        exception.message shouldBe "Tool execution failed"
+
+        // Verify that the messages list passed to buildRequestSpec never
+        // contained an orphan AssistantMessage without a ToolResponseMessage
+        for (msgTypes in capturedMessages) {
+            val assistantCount = msgTypes.count { it == "AssistantMessage" }
+            val toolResponseCount = msgTypes.count {
+                it == "ToolResponseMessage"
+            }
+            assertTrue(
+                assistantCount == toolResponseCount,
+                "AssistantMessage count ($assistantCount) must equal " +
+                    "ToolResponseMessage count ($toolResponseCount) " +
+                    "for pair integrity"
+            )
+        }
+    }
+
+    @Test
+    fun `should return empty content when chatResponse has no results`() =
+        runBlocking {
+            // ChatResponse with empty generations list -- assistantOutput
+            // will be null, pendingToolCalls empty, returns via validation
+            val chatResponse = org.springframework.ai.chat.model.ChatResponse(
+                emptyList()
+            )
+
+            val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+            val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
+            io.mockk.every { requestSpec.call() } returns callResponseSpec
+            io.mockk.every {
+                callResponseSpec.chatResponse()
+            } returns chatResponse
+
+            val toolOrchestrator = mockk<ToolCallOrchestrator>(relaxed = true)
+            val loopExecutor = ManualReActLoopExecutor(
+                messageTrimmer = ConversationMessageTrimmer(
+                    maxContextWindowTokens = 10_000,
+                    outputReserveTokens = 100,
+                    tokenEstimator = TokenEstimator { it.length }
+                ),
+                toolCallOrchestrator = toolOrchestrator,
+                buildRequestSpec = { _, _, _, _, _ -> requestSpec },
+                callWithRetry = { block -> block() },
+                buildChatOptions = { _, _ -> ChatOptions.builder().build() },
+                validateAndRepairResponse = { rawContent, _, _, _, _ ->
+                    AgentResult.success(content = rawContent)
+                },
+                recordTokenUsage = { _, _ -> }
+            )
+
+            val result = loopExecutor.execute(
+                command = AgentCommand(
+                    systemPrompt = "sys", userPrompt = "hi"
+                ),
+                activeChatClient = mockk(relaxed = true),
+                systemPrompt = "sys",
+                initialTools = emptyList(),
+                conversationHistory = emptyList(),
+                hookContext = HookContext(
+                    runId = "run-1", userId = "u", userPrompt = "hi"
+                ),
+                toolsUsed = mutableListOf(),
+                allowedTools = null,
+                maxToolCalls = 3
+            )
+
+            assertTrue(
+                result.success,
+                "Null assistant output with no active tools should " +
+                    "gracefully return via validation"
+            )
+            assertEquals(
+                "",
+                result.content,
+                "Content should be empty string when no results"
+            )
+        }
 
     private fun org.springframework.ai.chat.model.ChatResponse.mutateWithToolCalls(
         toolCalls: List<AssistantMessage.ToolCall>
