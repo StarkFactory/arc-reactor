@@ -33,7 +33,7 @@ class RagContextRetrieverTest {
 
         val result = retriever.retrieve(AgentCommand(systemPrompt = "sys", userPrompt = "hello"))
 
-        assertNull(result, "Disabled retriever should return null without calling pipeline")
+        assertNull(result, "Disabled retriever should return null when RAG is disabled")
         coVerify(exactly = 0) { pipeline.retrieve(any()) }
     }
 
@@ -64,7 +64,8 @@ class RagContextRetrieverTest {
 
         val result = retriever.retrieve(command)
 
-        assertEquals("retrieved context", result)
+        assertEquals("retrieved context", result?.context, "Should return the RAG context string")
+        assertEquals(1, result?.documents?.size, "Should return the retrieved documents")
         assertEquals("refund policy", querySlot.captured.query)
         assertEquals(7, querySlot.captured.topK)
         assertEquals(false, querySlot.captured.rerank)

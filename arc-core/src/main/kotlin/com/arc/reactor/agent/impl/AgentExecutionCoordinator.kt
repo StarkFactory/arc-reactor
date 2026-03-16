@@ -10,7 +10,9 @@ import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.cache.SemanticResponseCache
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
+import com.arc.reactor.rag.model.RagContext
 import com.arc.reactor.resilience.FallbackStrategy
+import com.arc.reactor.response.VerifiedSource
 import com.arc.reactor.support.runSuspendCatchingNonCancellation
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
@@ -30,7 +32,7 @@ internal class AgentExecutionCoordinator(
     private val mcpToolCallbacks: () -> List<ToolCallback>,
     private val conversationManager: ConversationManager,
     private val selectAndPrepareTools: (String) -> List<Any>,
-    private val retrieveRagContext: suspend (AgentCommand) -> String?,
+    private val retrieveRagContext: suspend (AgentCommand) -> RagContext?,
     private val executeWithTools: suspend (
         AgentCommand,
         List<Any>,
@@ -75,9 +77,11 @@ internal class AgentExecutionCoordinator(
         agentMetrics.recordStageLatency("history_load", nowMs() - historyLoadStart, effectiveCommand.metadata)
 
         val ragStart = nowMs()
-        val ragContext = retrieveRagContext(effectiveCommand)
+        val ragResult = retrieveRagContext(effectiveCommand)
         recordStageTiming(hookContext, "rag_retrieval", nowMs() - ragStart)
         agentMetrics.recordStageLatency("rag_retrieval", nowMs() - ragStart, effectiveCommand.metadata)
+        registerRagVerifiedSources(ragResult, hookContext)
+        val ragContext = ragResult?.context
 
         val toolSelectionStart = nowMs()
         val selectedTools = if (shouldSkipToolSelection(effectiveCommand)) {
@@ -252,6 +256,21 @@ internal class AgentExecutionCoordinator(
 
     private fun effectiveMaxToolCalls(command: AgentCommand): Int {
         return minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(0)
+    }
+
+    private fun registerRagVerifiedSources(ragResult: RagContext?, hookContext: HookContext) {
+        if (ragResult == null || !ragResult.hasDocuments) return
+        for (doc in ragResult.documents) {
+            val source = doc.source?.takeIf { it.isNotBlank() } ?: continue
+            hookContext.verifiedSources.add(
+                VerifiedSource(
+                    title = doc.metadata["title"]?.toString()
+                        ?: doc.id,
+                    url = source,
+                    toolName = "rag"
+                )
+            )
+        }
     }
 
     private data class CacheLookupResult(
