@@ -32,7 +32,7 @@ class SlackEventControllerTest {
     inner class UrlVerification {
 
         @Test
-        fun `responds to URL verification challenge`() = runTest {
+        fun `responds은(는) to URL verification challenge`() = runTest {
             val payload = """{"type":"url_verification","challenge":"test-challenge-token"}"""
 
             val response = controller.handleEvent(payload)
@@ -47,7 +47,7 @@ class SlackEventControllerTest {
     inner class EventRouting {
 
         @Test
-        fun `returns 200 immediately for app_mention`() = runTest {
+        fun `app_mention에 대해 200 immediately를 반환한다`() = runTest {
             val payload = """
                 {
                     "type": "event_callback",
@@ -67,7 +67,7 @@ class SlackEventControllerTest {
         }
 
         @Test
-        fun `dispatches app_mention to handler`() = runTest {
+        fun `app_mention to handler를 디스패치한다`() = runTest {
             coEvery { eventHandler.handleAppMention(any()) } returns Unit
 
             val payload = """
@@ -89,7 +89,7 @@ class SlackEventControllerTest {
         }
 
         @Test
-        fun `deduplicates event callback by event_id`() = runTest {
+        fun `event callback by event_id를 중복 제거한다`() = runTest {
             coEvery { eventHandler.handleAppMention(any()) } returns Unit
 
             val payload = """
@@ -117,7 +117,7 @@ class SlackEventControllerTest {
     inner class BotMessageFiltering {
 
         @Test
-        fun `filters messages with bot_id`() = runTest {
+        fun `messages with bot_id를 필터링한다`() = runTest {
             val payload = """
                 {
                     "type": "event_callback",
@@ -138,7 +138,7 @@ class SlackEventControllerTest {
         }
 
         @Test
-        fun `filters messages with subtype`() = runTest {
+        fun `messages with subtype를 필터링한다`() = runTest {
             val payload = """
                 {
                     "type": "event_callback",
@@ -163,7 +163,7 @@ class SlackEventControllerTest {
     inner class ThreadMessageHandling {
 
         @Test
-        fun `dispatches thread message to handler`() = runTest {
+        fun `thread message to handler를 디스패치한다`() = runTest {
             coEvery { eventHandler.handleMessage(any()) } returns Unit
 
             val payload = """
@@ -190,7 +190,7 @@ class SlackEventControllerTest {
         }
 
         @Test
-        fun `ignores non-thread messages`() = runTest {
+        fun `non-thread messages를 무시한다`() = runTest {
             val payload = """
                 {
                     "type": "event_callback",

@@ -30,7 +30,7 @@ class UserMemoryControllerTest {
     }
 
     @Test
-    fun `get user memory should return 403 for non-owner user`() = runTest {
+    fun `get user memory은(는) return 403 for non-owner user해야 한다`() = runTest {
         val response = controller.getUserMemory("target-user", userExchange("caller-user"))
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
@@ -39,7 +39,7 @@ class UserMemoryControllerTest {
     }
 
     @Test
-    fun `get user memory should return 404 when no memory exists`() = runTest {
+    fun `get user memory은(는) return 404 when no memory exists해야 한다`() = runTest {
         coEvery { userMemoryManager.get("user-1") } returns null
 
         val response = controller.getUserMemory("user-1", userExchange("user-1"))
@@ -50,7 +50,7 @@ class UserMemoryControllerTest {
     }
 
     @Test
-    fun `get user memory should return mapped response for owner`() = runTest {
+    fun `get user memory은(는) return mapped response for owner해야 한다`() = runTest {
         val updatedAt = Instant.parse("2026-03-01T00:00:00Z")
         coEvery { userMemoryManager.get("user-1") } returns UserMemory(
             userId = "user-1",
@@ -75,7 +75,7 @@ class UserMemoryControllerTest {
     }
 
     @Test
-    fun `update fact should call manager and return updated true`() = runTest {
+    fun `update fact은(는) call manager and return updated true해야 한다`() = runTest {
         coEvery { userMemoryManager.updateFact("user-1", "timezone", "Asia-Seoul") } returns Unit
 
         val response = controller.updateFact(
@@ -94,7 +94,7 @@ class UserMemoryControllerTest {
     }
 
     @Test
-    fun `update preference should return 403 for unauthorized user`() = runTest {
+    fun `update preference은(는) return 403 for unauthorized user해야 한다`() = runTest {
         val response = controller.updatePreference(
             userId = "target-user",
             request = KeyValueRequest("tone", "formal"),
@@ -108,7 +108,7 @@ class UserMemoryControllerTest {
     }
 
     @Test
-    fun `delete user memory should reject admin for another user`() = runTest {
+    fun `delete user memory은(는) reject admin for another user해야 한다`() = runTest {
         val response = controller.deleteUserMemory("target-user", adminExchange("admin-1"))
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {

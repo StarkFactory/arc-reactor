@@ -26,10 +26,12 @@ import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Flux
 
 /**
- * Multipart Chat Controller — file upload endpoint for multimodal LLMs.
+ * Multipart 채팅 컨트롤러 -- 멀티모달 LLM용 파일 업로드 엔드포인트.
  *
- * Validates file count and per-file size before loading bytes into memory,
- * preventing DoS via unbounded file uploads.
+ * 파일을 메모리에 로드하기 전에 파일 수와 개별 파일 크기를 검증하여
+ * 무제한 파일 업로드로 인한 DoS를 방지합니다.
+ *
+ * @see AgentExecutor
  */
 @Tag(name = "Chat", description = "AI agent chat endpoints")
 @RestController
@@ -46,9 +48,10 @@ class MultipartChatController(
     )
 
     /**
-     * Multipart chat - send a message with file attachments (images, audio, etc.)
+     * 파일 첨부와 함께 메시지를 전송하는 멀티파트 채팅.
      *
-     * Supports multimodal LLMs by accepting file uploads alongside the text prompt.
+     * 텍스트 프롬프트와 함께 이미지, 오디오 등 파일 업로드를 수용하여
+     * 멀티모달 LLM을 지원합니다.
      *
      * ```bash
      * curl -X POST http://localhost:8080/api/chat/multipart \
@@ -56,7 +59,7 @@ class MultipartChatController(
      *   -F "files=@photo.png"
      * ```
      */
-    @Operation(summary = "Multipart chat with file attachments")
+    @Operation(summary = "파일 첨부 멀티파트 채팅")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Chat response"),
         ApiResponse(responseCode = "400", description = "Invalid file or multimodal disabled")
@@ -155,7 +158,7 @@ class MultipartChatController(
 }
 
 /**
- * Exception thrown when a file upload violates size or count limits.
- * Mapped to HTTP 400 Bad Request by [GlobalExceptionHandler].
+ * 파일 업로드가 크기 또는 개수 제한을 위반했을 때 발생하는 예외.
+ * [GlobalExceptionHandler]에 의해 HTTP 400 Bad Request로 매핑됩니다.
  */
 class FileSizeLimitException(message: String) : ResponseStatusException(HttpStatus.BAD_REQUEST, message)

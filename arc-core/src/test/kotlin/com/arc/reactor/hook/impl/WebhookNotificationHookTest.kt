@@ -92,13 +92,13 @@ class WebhookNotificationHookTest {
     inner class HookProperties {
 
         @Test
-        fun `should have order 200 for late hook execution`() {
+        fun `late hook execution에 대해 have order 200해야 한다`() {
             val hook = createHook()
             assertEquals(200, hook.order) { "Webhook hook should be in late-hooks range (200+)" }
         }
 
         @Test
-        fun `should be fail-open by default`() {
+        fun `be fail-open by default해야 한다`() {
             val hook = createHook()
             assertFalse(hook.failOnError) { "Webhook should never block the agent on failure" }
         }
@@ -108,7 +108,7 @@ class WebhookNotificationHookTest {
     inner class SuccessNotification {
 
         @Test
-        fun `should POST to webhook URL on agent success`() = runTest {
+        fun `POST to webhook URL on agent success해야 한다`() = runTest {
             val hook = createHook(url = "https://hooks.example.com/notify")
 
             hook.afterAgentComplete(createContext(), createSuccessResponse())
@@ -118,7 +118,7 @@ class WebhookNotificationHookTest {
         }
 
         @Test
-        fun `should include required fields in payload`() = runTest {
+        fun `include required fields in payload해야 한다`() = runTest {
             val payloadSlot = slot<Map<String, Any?>>()
             every { requestBodySpec.bodyValue(capture(payloadSlot)) } returns requestHeadersSpec
 
@@ -140,7 +140,7 @@ class WebhookNotificationHookTest {
         }
 
         @Test
-        fun `should include content preview on success`() = runTest {
+        fun `include content preview on success해야 한다`() = runTest {
             val payloadSlot = slot<Map<String, Any?>>()
             every { requestBodySpec.bodyValue(capture(payloadSlot)) } returns requestHeadersSpec
 
@@ -153,7 +153,7 @@ class WebhookNotificationHookTest {
         }
 
         @Test
-        fun `should truncate content preview to 200 chars`() = runTest {
+        fun `truncate content preview to 200 chars해야 한다`() = runTest {
             val payloadSlot = slot<Map<String, Any?>>()
             every { requestBodySpec.bodyValue(capture(payloadSlot)) } returns requestHeadersSpec
 
@@ -170,7 +170,7 @@ class WebhookNotificationHookTest {
     inner class FailureNotification {
 
         @Test
-        fun `should include error message on failure`() = runTest {
+        fun `include error message on failure해야 한다`() = runTest {
             val payloadSlot = slot<Map<String, Any?>>()
             every { requestBodySpec.bodyValue(capture(payloadSlot)) } returns requestHeadersSpec
 
@@ -188,7 +188,7 @@ class WebhookNotificationHookTest {
     inner class ConversationInclusion {
 
         @Test
-        fun `should not include conversation by default`() = runTest {
+        fun `not include conversation by default해야 한다`() = runTest {
             val payloadSlot = slot<Map<String, Any?>>()
             every { requestBodySpec.bodyValue(capture(payloadSlot)) } returns requestHeadersSpec
 
@@ -205,7 +205,7 @@ class WebhookNotificationHookTest {
         }
 
         @Test
-        fun `should include conversation when enabled`() = runTest {
+        fun `enabled일 때 include conversation해야 한다`() = runTest {
             val payloadSlot = slot<Map<String, Any?>>()
             every { requestBodySpec.bodyValue(capture(payloadSlot)) } returns requestHeadersSpec
 
@@ -226,27 +226,27 @@ class WebhookNotificationHookTest {
     inner class ErrorHandling {
 
         @Test
-        fun `should not throw when webhook POST fails`() = runTest {
+        fun `webhook POST fails일 때 not throw해야 한다`() = runTest {
             every { responseSpec.toBodilessEntity() } returns Mono.error(RuntimeException("Connection refused"))
 
             val hook = createHook()
 
-            // Should not throw — fail-open
+            // not throw — fail-open해야 합니다
             hook.afterAgentComplete(createContext(), createSuccessResponse())
         }
 
         @Test
-        fun `should skip when webhook URL is blank`() = runTest {
+        fun `webhook URL is blank일 때 skip해야 한다`() = runTest {
             val hook = createHook(url = "")
 
-            // Should not throw, just skip
+            // not throw, just skip해야 합니다
             hook.afterAgentComplete(createContext(), createSuccessResponse())
 
             verify(exactly = 0) { webClient.post() }
         }
 
         @Test
-        fun `should rethrow cancellation exception`() {
+        fun `rethrow cancellation exception해야 한다`() {
             every { responseSpec.toBodilessEntity() } returns Mono.error(CancellationException("cancelled"))
             val hook = createHook()
 
@@ -258,12 +258,12 @@ class WebhookNotificationHookTest {
         }
 
         @Test
-        fun `should not throw when uri call throws`() = runTest {
+        fun `uri call throws일 때 not throw해야 한다`() = runTest {
             every { requestBodyUriSpec.uri(any<String>()) } throws RuntimeException("Invalid URI")
 
             val hook = createHook(url = "not-a-valid-url")
 
-            // Should not throw — caught by outer try-catch
+            // not throw — caught by outer try-catch해야 합니다
             hook.afterAgentComplete(createContext(), createSuccessResponse())
         }
     }

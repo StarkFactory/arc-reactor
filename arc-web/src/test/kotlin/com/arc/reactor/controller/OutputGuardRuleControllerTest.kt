@@ -65,7 +65,7 @@ class OutputGuardRuleControllerTest {
     inner class CreateRule {
 
         @Test
-        fun `creates rule for admin`() {
+        fun `rule for admin를 생성한다`() {
             val captured = slot<OutputGuardRule>()
             every { store.save(capture(captured)) } answers { captured.captured }
 
@@ -92,7 +92,7 @@ class OutputGuardRuleControllerTest {
         }
 
         @Test
-        fun `returns 403 for non-admin`() {
+        fun `non-admin에 대해 403를 반환한다`() {
             val response = controller.createRule(
                 CreateOutputGuardRuleRequest(
                     name = "Secret",
@@ -109,7 +109,7 @@ class OutputGuardRuleControllerTest {
     @Nested
     inner class ListRules {
         @Test
-        fun `returns mapped rule list`() {
+        fun `mapped rule list를 반환한다`() {
             val now = Instant.parse("2026-02-13T10:00:00Z")
             every { store.list() } returns listOf(
                 OutputGuardRule(
@@ -136,13 +136,13 @@ class OutputGuardRuleControllerTest {
         }
 
         @Test
-        fun `returns 403 for non-admin`() {
+        fun `non-admin에 대해 403를 반환한다`() {
             val response = controller.listRules(userExchange())
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
         }
 
         @Test
-        fun `returns admin account reference in audit responses`() {
+        fun `admin account reference in audit responses를 반환한다`() {
             val rawActor = "80b18ee9-d20d-4359-bc5a-a40c4754f958"
             every { auditStore.list(any()) } returns listOf(
                 OutputGuardRuleAuditLog(
@@ -174,7 +174,7 @@ class OutputGuardRuleControllerTest {
     @Nested
     inner class DeleteRule {
         @Test
-        fun `deletes for admin`() {
+        fun `for admin를 삭제한다`() {
             every { store.findById("r1") } returns OutputGuardRule(
                 id = "r1",
                 name = "rule1",
@@ -200,7 +200,7 @@ class OutputGuardRuleControllerTest {
     @Nested
     inner class Simulate {
         @Test
-        fun `simulates and returns blocked response`() {
+        fun `simulates은(는) and returns blocked response`() {
             every { store.list() } returns listOf(
                 OutputGuardRule(
                     id = "r1",

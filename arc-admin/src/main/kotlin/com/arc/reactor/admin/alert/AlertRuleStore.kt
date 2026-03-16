@@ -7,6 +7,12 @@ import com.arc.reactor.admin.model.AlertStatus
 import com.arc.reactor.admin.model.AlertType
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * 알림 규칙 및 알림 인스턴스 저장소 인터페이스.
+ *
+ * @see JdbcAlertRuleStore JDBC 기반 구현
+ * @see InMemoryAlertRuleStore 인메모리 구현 (테스트/DataSource 미사용 시)
+ */
 interface AlertRuleStore {
     fun findRulesForTenant(tenantId: String): List<AlertRule>
     fun findPlatformRules(): List<AlertRule>
@@ -18,6 +24,7 @@ interface AlertRuleStore {
     fun resolveAlert(id: String)
 }
 
+/** ConcurrentHashMap 기반 인메모리 [AlertRuleStore] 구현체. */
 class InMemoryAlertRuleStore : AlertRuleStore {
     private val rules = ConcurrentHashMap<String, AlertRule>()
     private val alerts = ConcurrentHashMap<String, AlertInstance>()
@@ -59,10 +66,14 @@ class InMemoryAlertRuleStore : AlertRuleStore {
 }
 
 /**
- * Default alert templates created when a tenant is provisioned.
+ * 테넌트 프로비저닝 시 생성되는 기본 알림 규칙 템플릿.
+ *
+ * 테넌트용: 높은 오류율, 높은 P99 지연, 비용 이상치, error budget 소진, 토큰 쿼터 80%, MCP 연속 실패.
+ * 플랫폼용: 메트릭 버퍼 오버플로우, aggregate refresh lag.
  */
 object DefaultAlertTemplates {
 
+    /** 특정 테넌트용 기본 알림 규칙 목록을 생성한다. */
     fun forTenant(tenantId: String): List<AlertRule> = listOf(
         AlertRule(
             tenantId = tenantId,
@@ -120,6 +131,7 @@ object DefaultAlertTemplates {
         )
     )
 
+    /** 플랫폼 전역 기본 알림 규칙 목록을 생성한다. */
     fun platformRules(): List<AlertRule> = listOf(
         AlertRule(
             name = "MetricBuffer Overflow",

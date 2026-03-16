@@ -31,19 +31,19 @@ class BlockingToolCallbackInvokerTest {
     inner class SuccessfulInvocation {
 
         @Test
-        fun `returns string result from tool`() {
+        fun `string result from tool를 반환한다`() {
             val tool = mockTool(result = { "hello" })
             invoker.invokeWithTimeout(tool, emptyMap()) shouldBe "hello"
         }
 
         @Test
-        fun `converts non-string result to string`() {
+        fun `non-string result to string를 변환한다`() {
             val tool = mockTool(result = { 42 })
             invoker.invokeWithTimeout(tool, emptyMap()) shouldBe "42"
         }
 
         @Test
-        fun `null result returns empty string`() {
+        fun `null인 result returns empty string`() {
             val tool = mockTool(result = { null })
             invoker.invokeWithTimeout(tool, emptyMap()) shouldBe ""
         }
@@ -53,7 +53,7 @@ class BlockingToolCallbackInvokerTest {
     inner class TimeoutBehavior {
 
         @Test
-        fun `uses tool-specific timeout when provided`() {
+        fun `provided일 때 tool-specific timeout를 사용한다`() {
             val tool = mockTool(timeout = 100, result = {
                 delay(500)
                 "late"
@@ -64,7 +64,7 @@ class BlockingToolCallbackInvokerTest {
         }
 
         @Test
-        fun `timeout error message includes tool name and duration`() {
+        fun `타임아웃 error message includes tool name and duration`() {
             val tool = mockTool(name = "slow-tool", timeout = 3000)
             val msg = invoker.timeoutErrorMessage(tool)
             msg shouldContain "slow-tool"
@@ -72,7 +72,7 @@ class BlockingToolCallbackInvokerTest {
         }
 
         @Test
-        fun `timeout coerced to at least 1ms`() {
+        fun `타임아웃 coerced to at least 1ms`() {
             val tool = mockTool(name = "zero-timeout", timeout = 0)
             val msg = invoker.timeoutErrorMessage(tool)
             msg shouldContain "1ms"

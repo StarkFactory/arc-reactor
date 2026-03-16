@@ -22,7 +22,7 @@ class DynamicSchedulerServiceEnhancementsTest {
     inner class ExecutionHistory {
 
         @Test
-        fun `execution history is recorded on SUCCESS`() {
+        fun `execution history은(는) recorded on SUCCESS이다`() {
             val job = mcpJob()
             val store = RecordingStore(job)
             val execStore = RecordingExecutionStore()
@@ -40,7 +40,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `execution history is recorded on FAILURE`() {
+        fun `execution history은(는) recorded on FAILURE이다`() {
             val job = mcpJob()
             val store = RecordingStore(job)
             val execStore = RecordingExecutionStore()
@@ -61,7 +61,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `getExecutions delegates to executionStore`() {
+        fun `getExecutions은(는) executionStore에 위임한다`() {
             val job = mcpJob()
             val store = RecordingStore(job)
             val execStore = RecordingExecutionStore()
@@ -87,7 +87,7 @@ class DynamicSchedulerServiceEnhancementsTest {
     inner class DryRun {
 
         @Test
-        fun `dry-run does not update job status`() {
+        fun `드라이런 does not update job status`() {
             val job = mcpJob()
             val store = RecordingStore(job)
             val execStore = RecordingExecutionStore()
@@ -100,7 +100,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `dry-run does not send Slack notifications`() {
+        fun `드라이런 does not send Slack notifications`() {
             val job = mcpJob(slackChannelId = "C-TEST")
             val store = RecordingStore(job)
             val slackMessages = CopyOnWriteArrayList<Pair<String, String>>()
@@ -118,7 +118,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `dry-run records to executionStore with dryRun=true`() {
+        fun `드라이런 records to executionStore with dryRun=true`() {
             val job = mcpJob()
             val store = RecordingStore(job)
             val execStore = RecordingExecutionStore()
@@ -139,7 +139,7 @@ class DynamicSchedulerServiceEnhancementsTest {
     inner class Retry {
 
         @Test
-        fun `retry succeeds on second attempt`() {
+        fun `retry은(는) succeeds on second attempt`() {
             val job = mcpJob(retryOnFailure = true, maxRetryCount = 3)
             val store = RecordingStore(job)
             val tool = mockk<ToolCallback>()
@@ -164,7 +164,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `all retries fail, job status is FAILED`() {
+        fun `all retries fail, job status은(는) FAILED이다`() {
             val job = mcpJob(retryOnFailure = true, maxRetryCount = 2)
             val store = RecordingStore(job)
             val tool = mockk<ToolCallback>()
@@ -188,7 +188,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `maxRetryCount=0 with retryOnFailure=true executes at least once`() {
+        fun `maxRetryCount=0 with retryOnFailure=true은(는) at least once를 실행한다`() {
             val job = mcpJob(retryOnFailure = true, maxRetryCount = 0)
             val store = RecordingStore(job)
             val tool = mockk<ToolCallback>()
@@ -214,7 +214,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `no retry when retryOnFailure=false`() {
+        fun `retryOnFailure=false일 때 no retry`() {
             val job = mcpJob(retryOnFailure = false)
             val store = RecordingStore(job)
             val tool = mockk<ToolCallback>()
@@ -244,7 +244,7 @@ class DynamicSchedulerServiceEnhancementsTest {
     inner class Timeout {
 
         @Test
-        fun `timeout causes job to fail with timeout message`() {
+        fun `타임아웃 causes job to fail with timeout message`() {
             val job = mcpJob(executionTimeoutMs = 100)
             val store = RecordingStore(job)
 
@@ -257,7 +257,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `default timeout applies when job has no explicit timeout`() {
+        fun `timeout applies when job has no explicit timeout를 기본값으로 한다`() {
             val job = mcpJob(executionTimeoutMs = null)
             val store = RecordingStore(job)
             val props = SchedulerProperties(defaultExecutionTimeoutMs = 100)
@@ -273,7 +273,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `job explicit timeout overrides default timeout`() {
+        fun `job은(는) explicit timeout overrides default timeout`() {
             val job = mcpJob(executionTimeoutMs = 100)
             val store = RecordingStore(job)
             val props = SchedulerProperties(defaultExecutionTimeoutMs = 60_000)
@@ -295,7 +295,7 @@ class DynamicSchedulerServiceEnhancementsTest {
     inner class ExecutionRetention {
 
         @Test
-        fun `cleanup is called after recording execution`() {
+        fun `cleanup은(는) called after recording execution이다`() {
             val job = mcpJob()
             val store = RecordingStore(job)
             val execStore = RecordingExecutionStore()
@@ -314,7 +314,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `cleanup is skipped when maxExecutionsPerJob is 0`() {
+        fun `maxExecutionsPerJob is 0일 때 cleanup은(는) skipped이다`() {
             val job = mcpJob()
             val store = RecordingStore(job)
             val execStore = RecordingExecutionStore()
@@ -329,7 +329,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `cleanup is called for dry-run executions too`() {
+        fun `cleanup은(는) called for dry-run executions too이다`() {
             val job = mcpJob()
             val store = RecordingStore(job)
             val execStore = RecordingExecutionStore()
@@ -346,7 +346,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `InMemoryScheduledJobExecutionStore deleteOldestExecutions retains keepCount`() {
+        fun `InMemoryScheduledJobExecutionStore deleteOldestExecutions은(는) keepCount를 유지한다`() {
             val memStore = InMemoryScheduledJobExecutionStore()
             for (i in 1..5) {
                 memStore.save(ScheduledJobExecution(
@@ -368,7 +368,7 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
-        fun `InMemoryScheduledJobExecutionStore deleteOldestExecutions no-op when under limit`() {
+        fun `under limit일 때 InMemoryScheduledJobExecutionStore deleteOldestExecutions no-op`() {
             val memStore = InMemoryScheduledJobExecutionStore()
             for (i in 1..3) {
                 memStore.save(ScheduledJobExecution(

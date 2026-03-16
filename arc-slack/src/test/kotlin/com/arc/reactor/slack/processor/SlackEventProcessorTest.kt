@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Unit tests for [SlackEventProcessor].
+ * 에 대한 단위 테스트. [SlackEventProcessor].
  *
  * Covers event routing, deduplication, backpressure (fail-fast and queue modes),
  * bot/subtype filtering, notification-on-drop, and error isolation.
@@ -133,7 +133,7 @@ class SlackEventProcessorTest {
     inner class EventRouting {
 
         @Test
-        fun `app_mention dispatches to handleAppMention`() = runTest {
+        fun `app_mention은(는) handleAppMention로 디스패치한다`() = runTest {
             val processor = buildProcessor(defaultProperties())
             val (payload, retryNum, retryReason) = mentionPayload()
 
@@ -145,7 +145,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `thread message dispatches to handleMessage`() = runTest {
+        fun `thread은(는) message dispatches to handleMessage`() = runTest {
             val processor = buildProcessor(defaultProperties())
             val payload = threadMessagePayload()
 
@@ -157,7 +157,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `thread message is ignored when tracker is enabled and thread is untracked`() = runTest {
+        fun `tracker is enabled and thread is untracked일 때 thread message은(는) ignored이다`() = runTest {
             val tracker = SlackThreadTracker()
             val processor = buildProcessor(defaultProperties(), tracker)
             val payload = threadMessagePayload(threadTs = "2000.000")
@@ -176,7 +176,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `thread message dispatches when tracker contains thread`() = runTest {
+        fun `tracker contains thread일 때 thread message dispatches`() = runTest {
             val tracker = SlackThreadTracker()
             tracker.track("C456", "1000.000")
             val processor = buildProcessor(defaultProperties(), tracker)
@@ -190,7 +190,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `non-thread message does not dispatch to handleMessage`() = runTest {
+        fun `비스레드 메시지는 handleMessage로 디스패치하지 않는다`() = runTest {
             val payload = topLevelMessagePayload()
             val processor = buildProcessor(defaultProperties())
 
@@ -201,7 +201,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `non-thread direct message dispatches when dm processing is enabled`() = runTest {
+        fun `non-thread direct message dispatches when dm processing은(는) enabled이다`() = runTest {
             val payload = topLevelMessagePayload(channel = "D1", channelType = "im")
             val processor = buildProcessor(
                 defaultProperties().copy(processDirectMessagesWithoutThread = true)
@@ -215,7 +215,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `non-thread channel message remains ignored when dm processing is enabled`() = runTest {
+        fun `non-thread channel message remains ignored when dm processing은(는) enabled이다`() = runTest {
             val payload = topLevelMessagePayload(channel = "C1", channelType = "channel")
             val processor = buildProcessor(
                 defaultProperties().copy(processDirectMessagesWithoutThread = true)
@@ -228,7 +228,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `unknown event type does not dispatch to any handler`() = runTest {
+        fun `알 수 없는 event type does not dispatch to any handler`() = runTest {
             val payload = objectMapper.readTree(
                 """{"type":"event_callback","event":{"type":"reaction_added","user":"U1","channel":"C1","ts":"1.0"}}"""
             )
@@ -250,7 +250,7 @@ class SlackEventProcessorTest {
     inner class InboundMetrics {
 
         @Test
-        fun `recordInbound is called with correct entrypoint and eventType`() {
+        fun `recordInbound은(는) called with correct entrypoint and eventType이다`() {
             val processor = buildProcessor(defaultProperties())
             val (payload, _, _) = mentionPayload()
 
@@ -260,7 +260,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `recordHandler success metric is emitted after successful processing`() = runTest {
+        fun `recordHandler success metric은(는) emitted after successful processing이다`() = runTest {
             val latch = CountDownLatch(1)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers { latch.countDown() }
             val processor = buildProcessor(defaultProperties())
@@ -269,7 +269,7 @@ class SlackEventProcessorTest {
             processor.submitEventCallback(payload, "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200) // allow recordHandler call to be dispatched after handler completes
+            Thread.sleep(200)  // recordHandler call to be dispatched after handler completes 허용
             coVerify {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
@@ -281,7 +281,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `recordHandler failure metric is emitted when handler throws`() = runTest {
+        fun `handler throws일 때 recordHandler failure metric은(는) emitted이다`() = runTest {
             val latch = CountDownLatch(1)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {
                 latch.countDown()
@@ -306,14 +306,14 @@ class SlackEventProcessorTest {
     }
 
     // =========================================================================
-    // Bot and subtype filtering
+    // 봇 및 서브타입 필터링
     // =========================================================================
 
     @Nested
     inner class BotAndSubtypeFiltering {
 
         @Test
-        fun `messages with bot_id are silently dropped`() = runTest {
+        fun `messages with bot_id은(는) silently dropped이다`() = runTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(botMessagePayload(), "events_api")
@@ -324,7 +324,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `messages with subtype are silently dropped`() = runTest {
+        fun `messages with subtype은(는) silently dropped이다`() = runTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(subtypeMessagePayload(), "events_api")
@@ -334,7 +334,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `events missing userId are skipped before dispatch`() = runTest {
+        fun `dispatch전에 events missing userId are skipped`() = runTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(noUserPayload(), "events_api")
@@ -352,7 +352,7 @@ class SlackEventProcessorTest {
     inner class Deduplication {
 
         @Test
-        fun `duplicate event_id causes second event to be skipped`() = runTest {
+        fun `duplicate은(는) event_id causes second event to be skipped`() = runTest {
             val processor = buildProcessor(defaultProperties(eventDedupEnabled = true))
             val (payload, _, _) = mentionPayload(eventId = "Ev-dup-001")
 
@@ -363,7 +363,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `duplicate is recorded in metrics`() {
+        fun `duplicate은(는) recorded in metrics이다`() {
             val processor = buildProcessor(defaultProperties(eventDedupEnabled = true))
             val (payload, _, _) = mentionPayload(eventId = "Ev-dup-002")
 
@@ -374,7 +374,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `different event_ids are both processed`() = runTest {
+        fun `different event_ids은(는) both processed이다`() = runTest {
             val processor = buildProcessor(defaultProperties(eventDedupEnabled = true))
             val (payload1, _, _) = mentionPayload(eventId = "Ev-A", user = "U1")
             val (payload2, _, _) = mentionPayload(eventId = "Ev-B", user = "U2")
@@ -386,7 +386,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `event without event_id is never considered duplicate`() = runTest {
+        fun `event without event_id은(는) never considered duplicate이다`() = runTest {
             val processor = buildProcessor(defaultProperties(eventDedupEnabled = true))
             val (payload, _, _) = mentionPayload(eventId = null, user = "U_no_id")
 
@@ -398,14 +398,14 @@ class SlackEventProcessorTest {
     }
 
     // =========================================================================
-    // Retry metadata forwarding
+    // metadata forwarding 재시도
     // =========================================================================
 
     @Nested
     inner class RetryMetadataForwarding {
 
         @Test
-        fun `retry headers are logged but processing still proceeds`() = runTest {
+        fun `retry headers은(는) logged but processing still proceeds이다`() = runTest {
             val processor = buildProcessor(defaultProperties())
             val (payload, _, _) = mentionPayload(retryNum = "1", retryReason = "http_timeout")
 
@@ -421,14 +421,14 @@ class SlackEventProcessorTest {
     }
 
     // =========================================================================
-    // Backpressure — fail-fast mode
+    // 백프레셔 — fail-fast 모드
     // =========================================================================
 
     @Nested
     inner class BackpressureFailFastMode {
 
         @Test
-        fun `events are dropped when semaphore is saturated in fail-fast mode`() = runTest {
+        fun `events are dropped when semaphore은(는) saturated in fail-fast mode이다`() = runTest {
             val processedCount = AtomicInteger(0)
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1)
@@ -460,7 +460,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `recordDropped with queue_overflow is emitted for fail-fast rejections`() = runTest {
+        fun `recordDropped with queue_overflow은(는) emitted for fail-fast rejections이다`() = runTest {
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {
@@ -489,7 +489,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `notifyOnDrop sends busy message to channel when enabled`() = runTest {
+        fun `enabled일 때 notifyOnDrop sends busy message to channel`() = runTest {
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {
@@ -525,7 +525,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `notifyOnDrop is suppressed when disabled`() = runTest {
+        fun `disabled일 때 notifyOnDrop은(는) suppressed이다`() = runTest {
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {
@@ -554,14 +554,14 @@ class SlackEventProcessorTest {
     }
 
     // =========================================================================
-    // Backpressure — queue mode with timeout
+    // 백프레셔 — 타임아웃이 있는 큐 모드
     // =========================================================================
 
     @Nested
     inner class BackpressureQueueModeTimeout {
 
         @Test
-        fun `events wait for permit in queue mode when capacity is available`() = runTest {
+        fun `events wait for permit in queue mode when capacity은(는) available이다`() = runTest {
             val processedCount = AtomicInteger(0)
             val latch = CountDownLatch(2)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {
@@ -587,7 +587,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `event is dropped with queue_timeout when requestTimeoutMs is very small`() {
+        fun `requestTimeoutMs is very small일 때 event은(는) dropped with queue_timeout이다`() {
             val holdLatch = CountDownLatch(1)
             val acquiredLatch = CountDownLatch(1) // signals when first handler holds semaphore
             runBlocking {
@@ -610,7 +610,7 @@ class SlackEventProcessorTest {
                 val (p2, _, _) = mentionPayload(user = "U2")
                 processor.submitEventCallback(p2, "events_api")
             }
-            Thread.sleep(800) // wait for 200ms timeout + Dispatchers.Default scheduling margin
+            Thread.sleep(800)  // for 200ms timeout + Dispatchers.Default scheduling margin를 기다립니다
             holdLatch.countDown()
 
             verify {
@@ -624,14 +624,14 @@ class SlackEventProcessorTest {
     }
 
     // =========================================================================
-    // Error isolation
+    // 오류 격리
     // =========================================================================
 
     @Nested
     inner class ErrorIsolation {
 
         @Test
-        fun `handler exception for one event does not prevent processing of others`() = runTest {
+        fun `handler은(는) exception for one event does not prevent processing of others`() = runTest {
             val successCount = AtomicInteger(0)
             val latch = CountDownLatch(3) // 3 successful events expected
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {
@@ -652,7 +652,7 @@ class SlackEventProcessorTest {
         }
 
         @Test
-        fun `semaphore is always released even when handler throws`() = runTest {
+        fun `handler throws일 때 semaphore은(는) always released even이다`() = runTest {
             val firstHandled = CountDownLatch(1)
             coEvery { eventHandler.handleAppMention(any()) } coAnswers {
                 firstHandled.countDown()
@@ -666,7 +666,7 @@ class SlackEventProcessorTest {
             val (p1, _, _) = mentionPayload(user = "U1")
             processor.submitEventCallback(p1, "events_api")
             firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200) // allow semaphore release in finally block
+            Thread.sleep(200)  // semaphore release in finally block 허용
 
             // If semaphore was not released, this second event would time out
             val processedSecond = AtomicInteger(0)

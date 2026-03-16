@@ -20,7 +20,7 @@ class IntentRegistryTest {
     inner class BasicCrud {
 
         @Test
-        fun `save and get intent definition`() {
+        fun `and get intent definition를 저장한다`() {
             val intent = createIntent("greeting", "Simple greetings")
             registry.save(intent)
 
@@ -31,13 +31,13 @@ class IntentRegistryTest {
         }
 
         @Test
-        fun `get returns null for non-existent intent`() {
+        fun `returns null for non-existent intent를 가져온다`() {
             val found = registry.get("non-existent")
             assertNull(found) { "Expected null for non-existent intent" }
         }
 
         @Test
-        fun `list returns all intents sorted by name`() {
+        fun `목록 returns all intents sorted by name`() {
             registry.save(createIntent("order", "Orders"))
             registry.save(createIntent("greeting", "Greetings"))
             registry.save(createIntent("refund", "Refunds"))
@@ -50,7 +50,7 @@ class IntentRegistryTest {
         }
 
         @Test
-        fun `delete removes intent`() {
+        fun `removes intent를 삭제한다`() {
             registry.save(createIntent("greeting", "Greetings"))
             registry.delete("greeting")
 
@@ -59,7 +59,7 @@ class IntentRegistryTest {
         }
 
         @Test
-        fun `delete is idempotent for non-existent intent`() {
+        fun `delete은(는) idempotent for non-existent intent이다`() {
             assertDoesNotThrow { registry.delete("non-existent") }
         }
     }
@@ -68,7 +68,7 @@ class IntentRegistryTest {
     inner class UpdateBehavior {
 
         @Test
-        fun `save existing intent preserves createdAt and updates updatedAt`() {
+        fun `existing intent preserves createdAt and updates updatedAt를 저장한다`() {
             val original = createIntent("greeting", "V1")
             registry.save(original)
             val savedOriginal = registry.get("greeting")!!
@@ -92,7 +92,7 @@ class IntentRegistryTest {
     inner class EnabledFiltering {
 
         @Test
-        fun `listEnabled returns only enabled intents`() {
+        fun `listEnabled은(는) returns only enabled intents`() {
             registry.save(createIntent("greeting", "Greetings", enabled = true))
             registry.save(createIntent("disabled", "Disabled", enabled = false))
             registry.save(createIntent("order", "Orders", enabled = true))
@@ -106,7 +106,7 @@ class IntentRegistryTest {
         }
 
         @Test
-        fun `listEnabled returns empty list when no intents are enabled`() {
+        fun `no intents are enabled일 때 listEnabled returns empty list`() {
             registry.save(createIntent("a", "A", enabled = false))
             registry.save(createIntent("b", "B", enabled = false))
 
@@ -119,7 +119,7 @@ class IntentRegistryTest {
     inner class ProfileStorage {
 
         @Test
-        fun `intent profile is preserved on save and get`() {
+        fun `intent profile은(는) preserved on save and get이다`() {
             val profile = IntentProfile(
                 model = "gemini",
                 temperature = 0.5,

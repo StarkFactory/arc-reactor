@@ -2,6 +2,14 @@ package com.arc.reactor.slack.handler
 
 import com.arc.reactor.agent.model.AgentResult
 
+/**
+ * 에이전트 실행 결과를 Slack 메시지 텍스트로 변환하는 포매터.
+ *
+ * 에러, 빈 응답, 일반적 거절 패턴을 감지하여 사용자에게 유용한 대안 메시지를 제공한다.
+ *
+ * @see DefaultSlackEventHandler
+ * @see DefaultSlackCommandHandler
+ */
 internal object SlackResponseTextFormatter {
     private val genericRefusalPatterns = listOf(
         Regex("요청하신 작업을 수행할 수 없습니다"),

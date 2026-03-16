@@ -9,10 +9,12 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Bridges the scheduler's [SlackMessageSender] interface to [SlackMessagingService].
+ * 스케줄러의 [SlackMessageSender] 인터페이스와 [SlackMessagingService]를 연결하는 어댑터.
  *
- * Uses `runBlocking(Dispatchers.IO)` because the scheduler executes jobs
- * on a [TaskScheduler] thread pool (non-coroutine context).
+ * 스케줄러는 [TaskScheduler] 스레드 풀(비코루틴 컨텍스트)에서 작업을 실행하므로,
+ * `runBlocking(Dispatchers.IO)`로 suspend 함수를 호출한다.
+ *
+ * @see SlackMessagingService
  */
 class SlackMessageSenderAdapter(
     private val messagingService: SlackMessagingService

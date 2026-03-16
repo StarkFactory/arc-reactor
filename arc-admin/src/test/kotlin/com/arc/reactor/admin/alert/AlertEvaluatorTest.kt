@@ -56,7 +56,7 @@ class AlertEvaluatorTest {
     inner class StaticThreshold {
 
         @Test
-        fun `fires when error rate exceeds threshold`() {
+        fun `when error rate exceeds threshold를 발생시킨다`() {
             val rule = AlertRule(
                 tenantId = "t1",
                 name = "High Error Rate",
@@ -77,7 +77,7 @@ class AlertEvaluatorTest {
         }
 
         @Test
-        fun `does not fire when error rate is below threshold`() {
+        fun `does not fire when error rate은(는) below threshold이다`() {
             val rule = AlertRule(
                 tenantId = "t1",
                 name = "High Error Rate",
@@ -96,7 +96,7 @@ class AlertEvaluatorTest {
         }
 
         @Test
-        fun `fires when latency p99 exceeds threshold`() {
+        fun `when latency p99 exceeds threshold를 발생시킨다`() {
             val rule = AlertRule(
                 tenantId = "t1",
                 name = "High Latency",
@@ -121,7 +121,7 @@ class AlertEvaluatorTest {
     inner class BaselineAnomaly {
 
         @Test
-        fun `fires when current value exceeds baseline + threshold sigma`() {
+        fun `when current value exceeds baseline + threshold sigma를 발생시킨다`() {
             val rule = AlertRule(
                 tenantId = "t1",
                 name = "Cost Anomaly",
@@ -145,7 +145,7 @@ class AlertEvaluatorTest {
         }
 
         @Test
-        fun `does not fire when baseline is unavailable`() {
+        fun `does not fire when baseline은(는) unavailable이다`() {
             val rule = AlertRule(
                 tenantId = "t1",
                 name = "Cost Anomaly",
@@ -167,7 +167,7 @@ class AlertEvaluatorTest {
     inner class BurnRate {
 
         @Test
-        fun `fires when burn rate exceeds threshold`() {
+        fun `when burn rate exceeds threshold를 발생시킨다`() {
             val rule = AlertRule(
                 tenantId = "t1",
                 name = "Fast Burn",
@@ -202,7 +202,7 @@ class AlertEvaluatorTest {
     inner class TokenBudgetUsage {
 
         @Test
-        fun `fires when token usage exceeds budget threshold`() {
+        fun `when token usage exceeds budget threshold를 발생시킨다`() {
             tenantStore.save(testTenant.copy(quota = TenantQuota(maxTokensPerMonth = 10000)))
 
             val rule = AlertRule(
@@ -225,7 +225,7 @@ class AlertEvaluatorTest {
         }
 
         @Test
-        fun `does not fire when token usage is below threshold`() {
+        fun `does not fire when token usage은(는) below threshold이다`() {
             tenantStore.save(testTenant.copy(quota = TenantQuota(maxTokensPerMonth = 10000)))
 
             val rule = AlertRule(
@@ -250,7 +250,7 @@ class AlertEvaluatorTest {
     inner class McpConsecutiveFailures {
 
         @Test
-        fun `fires when consecutive failures exceed threshold`() {
+        fun `when consecutive failures exceed threshold를 발생시킨다`() {
             val rule = AlertRule(
                 tenantId = "t1",
                 name = "MCP Server Down",
@@ -274,7 +274,7 @@ class AlertEvaluatorTest {
     inner class PlatformMetrics {
 
         @Test
-        fun `fires when pipeline buffer usage exceeds threshold`() {
+        fun `when pipeline buffer usage exceeds threshold를 발생시킨다`() {
             healthMonitor.updateBufferUsage(90.0)
 
             val rule = AlertRule(
@@ -294,7 +294,7 @@ class AlertEvaluatorTest {
         }
 
         @Test
-        fun `fires when aggregate refresh lag exceeds threshold`() {
+        fun `when aggregate refresh lag exceeds threshold를 발생시킨다`() {
             val rule = AlertRule(
                 name = "Aggregate Refresh Lag",
                 type = AlertType.STATIC_THRESHOLD,
@@ -318,14 +318,14 @@ class AlertEvaluatorTest {
     inner class DefaultTemplates {
 
         @Test
-        fun `creates correct number of tenant templates`() {
+        fun `correct number of tenant templates를 생성한다`() {
             val rules = DefaultAlertTemplates.forTenant("t1")
             rules.size shouldBe 6
             rules.all { it.tenantId == "t1" } shouldBe true
         }
 
         @Test
-        fun `creates correct number of platform templates`() {
+        fun `correct number of platform templates를 생성한다`() {
             val rules = DefaultAlertTemplates.platformRules()
             rules.size shouldBe 2
             rules.all { it.platformOnly } shouldBe true

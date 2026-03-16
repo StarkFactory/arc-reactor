@@ -50,7 +50,7 @@ class HybridRagPipelineTest {
     inner class HappyPath {
 
         @Test
-        fun `should return documents when vector and BM25 both find results`() = runTest {
+        fun `vector and BM25 both find results일 때 return documents해야 한다`() = runTest {
             coEvery { mockRetriever.retrieve(any(), any(), any()) } returns listOf(docAlpha, docBeta)
 
             val pipeline = HybridRagPipeline(retriever = mockRetriever, bm25Scorer = bm25Scorer)
@@ -61,7 +61,7 @@ class HybridRagPipelineTest {
         }
 
         @Test
-        fun `proper noun query should surface BM25 match even when vector score is lower`() = runTest {
+        fun `proper noun query은(는) surface BM25 match even when vector score is lower해야 한다`() = runTest {
             // Vector search returns docBeta first (higher vector score), docAlpha second
             coEvery { mockRetriever.retrieve(any(), any(), any()) } returns listOf(
                 docBeta.copy(score = 0.95),
@@ -83,7 +83,7 @@ class HybridRagPipelineTest {
         }
 
         @Test
-        fun `should call vector retriever exactly once`() = runTest {
+        fun `call vector retriever exactly once해야 한다`() = runTest {
             coEvery { mockRetriever.retrieve(any(), any(), any()) } returns listOf(docAlpha)
 
             val pipeline = HybridRagPipeline(retriever = mockRetriever, bm25Scorer = bm25Scorer)
@@ -93,7 +93,7 @@ class HybridRagPipelineTest {
         }
 
         @Test
-        fun `context should contain content from retrieved documents`() = runTest {
+        fun `context은(는) contain content from retrieved documents해야 한다`() = runTest {
             coEvery { mockRetriever.retrieve(any(), any(), any()) } returns listOf(docAlpha, docGamma)
 
             val pipeline = HybridRagPipeline(retriever = mockRetriever, bm25Scorer = bm25Scorer)
@@ -103,7 +103,7 @@ class HybridRagPipelineTest {
         }
 
         @Test
-        fun `topK should limit the number of returned documents`() = runTest {
+        fun `topK은(는) limit the number of returned documents해야 한다`() = runTest {
             val manyDocs = (1..10).map { i ->
                 RetrievedDocument(id = "doc-$i", content = "document content number $i about the platform", score = 0.9 - i * 0.01)
             }
@@ -125,7 +125,7 @@ class HybridRagPipelineTest {
     inner class EmptyAndEdgeCases {
 
         @Test
-        fun `should return empty context when vector retriever returns nothing and BM25 index is empty`() = runTest {
+        fun `vector retriever returns nothing and BM25 index is empty일 때 return empty context해야 한다`() = runTest {
             val emptyBm25 = Bm25Scorer()
             coEvery { mockRetriever.retrieve(any(), any(), any()) } returns emptyList()
 
@@ -137,7 +137,7 @@ class HybridRagPipelineTest {
         }
 
         @Test
-        fun `should return empty context when vector returns nothing but BM25 also empty`() = runTest {
+        fun `vector returns nothing but BM25 also empty일 때 return empty context해야 한다`() = runTest {
             coEvery { mockRetriever.retrieve(any(), any(), any()) } returns emptyList()
             val pipeline = HybridRagPipeline(retriever = mockRetriever, bm25Scorer = Bm25Scorer())
 
@@ -153,7 +153,7 @@ class HybridRagPipelineTest {
     inner class Indexing {
 
         @Test
-        fun `indexDocument should make new document searchable via BM25`() = runTest {
+        fun `indexDocument은(는) make new document searchable via BM25해야 한다`() = runTest {
             val freshScorer = Bm25Scorer()
             val newDoc = RetrievedDocument(
                 id = "doc-new", content = "TeamEpsilon owns the notification service", score = 0.8
@@ -169,7 +169,7 @@ class HybridRagPipelineTest {
         }
 
         @Test
-        fun `indexDocuments bulk should index all provided documents`() = runTest {
+        fun `indexDocuments bulk은(는) index all provided documents해야 한다`() = runTest {
             val freshScorer = Bm25Scorer()
             val docs = listOf(
                 RetrievedDocument(id = "bulk-1", content = "OrionTeam pipeline documentation", score = 0.9),
@@ -188,7 +188,7 @@ class HybridRagPipelineTest {
     inner class FusionBehavior {
 
         @Test
-        fun `document appearing in both vector and BM25 results should have higher fused score`() = runTest {
+        fun `document appearing in both vector and BM25 results은(는) have higher fused score해야 한다`() = runTest {
             val scorerLocal = Bm25Scorer()
             // doc-common appears in both vector and BM25; doc-vector-only only in vector
             val docCommon = RetrievedDocument(id = "doc-common", content = "SentinelSystem monitors production", score = 0.8)
@@ -213,7 +213,7 @@ class HybridRagPipelineTest {
         }
 
         @Test
-        fun `bm25-only weight should bring BM25 result to top`() = runTest {
+        fun `bm25-only weight은(는) bring BM25 result to top해야 한다`() = runTest {
             val scorerLocal = Bm25Scorer()
             // doc-bm25 matches the proper noun; doc-vector has higher vector score
             val docBm25 = RetrievedDocument(id = "doc-bm25", content = "NeptuneDB is the internal database", score = 0.6)

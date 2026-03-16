@@ -75,7 +75,7 @@ class IntentExecutorIntegrationTest {
     inner class ProfileApplication {
 
         @Test
-        fun `intent profile is applied to command`() = runTest {
+        fun `intent profile은(는) applied to command이다`() = runTest {
             val executor = buildExecutor()
             val command = AgentCommand(
                 systemPrompt = "original",
@@ -91,7 +91,7 @@ class IntentExecutorIntegrationTest {
         }
 
         @Test
-        fun `intent profile with zero maxToolCalls should not expose tools to the LLM`() = runTest {
+        fun `intent profile with zero maxToolCalls은(는) not expose tools to the LLM해야 한다`() = runTest {
             fixture.mockCallResponse("Hello without tools")
             val tool = AgentTestFixture.toolCallback("search", "Search")
             val executor = SpringAiAgentExecutor(
@@ -119,7 +119,7 @@ class IntentExecutorIntegrationTest {
     inner class NullResolver {
 
         @Test
-        fun `null IntentResolver preserves original command`() = runTest {
+        fun `null인 IntentResolver preserves original command`() = runTest {
             val executor = buildExecutor(intentResolver = null)
             val command = AgentCommand(
                 systemPrompt = "original",
@@ -136,7 +136,7 @@ class IntentExecutorIntegrationTest {
     inner class ResolverReturnsNull {
 
         @Test
-        fun `unmatched input preserves original command`() = runTest {
+        fun `unmatched은(는) input preserves original command`() = runTest {
             val executor = buildExecutor()
             // "xyz" doesn't match any keywords -> resolver returns null -> original command used
             val command = AgentCommand(
@@ -153,7 +153,7 @@ class IntentExecutorIntegrationTest {
     inner class ResolverException {
 
         @Test
-        fun `resolver exception uses original command (fail-safe)`() = runTest {
+        fun `resolver은(는) exception uses original command (fail-safe)`() = runTest {
             val failingResolver = mockk<IntentResolver>()
             coEvery {
                 failingResolver.resolve(any(), any<ClassificationContext>())
@@ -180,7 +180,7 @@ class IntentExecutorIntegrationTest {
     inner class BlockedIntents {
 
         @Test
-        fun `blocked intent returns GUARD_REJECTED`() = runTest {
+        fun `blocked은(는) intent returns GUARD_REJECTED`() = runTest {
             val executor = buildExecutor(blockedIntents = setOf("refund"))
             val command = AgentCommand(
                 systemPrompt = "original",
@@ -196,7 +196,7 @@ class IntentExecutorIntegrationTest {
         }
 
         @Test
-        fun `non-blocked intent proceeds normally`() = runTest {
+        fun `non-blocked intent은(는) normally를 진행한다`() = runTest {
             val executor = buildExecutor(blockedIntents = setOf("refund"))
             val command = AgentCommand(
                 systemPrompt = "original",

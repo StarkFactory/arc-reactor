@@ -49,7 +49,7 @@ class DefaultSlackCommandHandlerTest {
     inner class Validation {
 
         @Test
-        fun `blank text sends guide message via response_url`() = runTest {
+        fun `빈 text sends guide message via response_url`() = runTest {
             coEvery { messagingService.sendResponseUrl(any(), any(), any()) } returns true
 
             handler.handleSlashCommand(slashCommand(text = "   "))
@@ -69,7 +69,7 @@ class DefaultSlackCommandHandlerTest {
     inner class Routing {
 
         @Test
-        fun `posts to channel and replies in thread when channel post succeeds`() = runTest {
+        fun `channel post succeeds일 때 posts to channel and replies in thread`() = runTest {
             coEvery {
                 messagingService.sendMessage("C123", any(), null)
             } returns SlackApiResult(ok = true, ts = "1111.2222", channel = "C123")
@@ -97,7 +97,7 @@ class DefaultSlackCommandHandlerTest {
         }
 
         @Test
-        fun `includes requester email metadata when resolver succeeds`() = runTest {
+        fun `requester email metadata when resolver succeeds를 포함한다`() = runTest {
             val resolver = mockk<SlackUserEmailResolver>()
             val emailHandler = DefaultSlackCommandHandler(
                 agentExecutor = agentExecutor,
@@ -123,7 +123,7 @@ class DefaultSlackCommandHandlerTest {
         }
 
         @Test
-        fun `brief intent rewrites prompt and tags intent metadata`() = runTest {
+        fun `brief은(는) intent rewrites prompt and tags intent metadata`() = runTest {
             coEvery {
                 messagingService.sendMessage("C123", any(), null)
             } returns SlackApiResult(ok = true, ts = "1111.2222", channel = "C123")
@@ -143,7 +143,7 @@ class DefaultSlackCommandHandlerTest {
         }
 
         @Test
-        fun `my-work intent rewrites prompt and tags intent metadata`() = runTest {
+        fun `my-work intent은(는) prompt and tags intent metadata를 재작성한다`() = runTest {
             coEvery {
                 messagingService.sendMessage("C123", any(), null)
             } returns SlackApiResult(ok = false, error = "not_in_channel")
@@ -162,7 +162,7 @@ class DefaultSlackCommandHandlerTest {
         }
 
         @Test
-        fun `falls back to response_url when channel post fails`() = runTest {
+        fun `response_url when channel post fails로 폴백한다`() = runTest {
             coEvery {
                 messagingService.sendMessage("C123", any(), null)
             } returns SlackApiResult(ok = false, error = "not_in_channel")
@@ -178,7 +178,7 @@ class DefaultSlackCommandHandlerTest {
         }
 
         @Test
-        fun `falls back to response_url when thread reply send fails`() = runTest {
+        fun `response_url when thread reply send fails로 폴백한다`() = runTest {
             coEvery {
                 messagingService.sendMessage("C123", any(), null)
             } returns SlackApiResult(ok = true, ts = "1111.2222", channel = "C123")
@@ -202,7 +202,7 @@ class DefaultSlackCommandHandlerTest {
         }
 
         @Test
-        fun `tracks thread when channel post succeeds`() = runTest {
+        fun `thread when channel post succeeds를 추적한다`() = runTest {
             val tracker = SlackThreadTracker()
             val trackingHandler = DefaultSlackCommandHandler(agentExecutor, messagingService, threadTracker = tracker)
             coEvery {
@@ -224,7 +224,7 @@ class DefaultSlackCommandHandlerTest {
     inner class ReminderCommands {
 
         @Test
-        fun `remind add stores reminder and replies without agent execution`() = runTest {
+        fun `add stores reminder and replies without agent execution를 리마인드한다`() = runTest {
             val store = SlackReminderStore()
             val reminderHandler = DefaultSlackCommandHandler(
                 agentExecutor = agentExecutor,
@@ -243,7 +243,7 @@ class DefaultSlackCommandHandlerTest {
         }
 
         @Test
-        fun `remind list returns reminders for the user`() = runTest {
+        fun `list returns reminders for the user를 리마인드한다`() = runTest {
             val store = SlackReminderStore()
             store.add("U456", "A")
             store.add("U456", "B")
@@ -264,7 +264,7 @@ class DefaultSlackCommandHandlerTest {
         }
 
         @Test
-        fun `remind done marks reminder complete`() = runTest {
+        fun `done marks reminder complete를 리마인드한다`() = runTest {
             val store = SlackReminderStore()
             store.add("U456", "A")
             val reminderHandler = DefaultSlackCommandHandler(
@@ -283,7 +283,7 @@ class DefaultSlackCommandHandlerTest {
         }
 
         @Test
-        fun `remind commands return unavailable when store is not configured`() = runTest {
+        fun `remind commands return unavailable when store은(는) not configured이다`() = runTest {
             coEvery { messagingService.sendResponseUrl(any(), any(), any()) } returns true
 
             handler.handleSlashCommand(slashCommand(text = "remind list"))
@@ -303,7 +303,7 @@ class DefaultSlackCommandHandlerTest {
     inner class AgentScenarios {
 
         @Test
-        fun `guard rejected result is surfaced as warning`() = runTest {
+        fun `guard rejected result은(는) surfaced as warning이다`() = runTest {
             coEvery {
                 messagingService.sendMessage("C123", any(), null)
             } returns SlackApiResult(ok = true, ts = "1111.2222", channel = "C123")
@@ -334,7 +334,7 @@ class DefaultSlackCommandHandlerTest {
         }
 
         @Test
-        fun `generic refusal response is rewritten into best effort answer`() = runTest {
+        fun `generic refusal response은(는) rewritten into best effort answer이다`() = runTest {
             coEvery {
                 messagingService.sendMessage("C123", any(), null)
             } returns SlackApiResult(ok = true, ts = "1111.2222", channel = "C123")
@@ -360,7 +360,7 @@ class DefaultSlackCommandHandlerTest {
         }
 
         @Test
-        fun `react and mcp success response is delivered in thread`() = runTest {
+        fun `react and mcp success response은(는) delivered in thread이다`() = runTest {
             coEvery {
                 messagingService.sendMessage("C123", any(), null)
             } returns SlackApiResult(ok = true, ts = "1111.2222", channel = "C123")

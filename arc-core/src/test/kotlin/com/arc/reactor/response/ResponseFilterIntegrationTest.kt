@@ -12,9 +12,9 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Integration tests for ResponseFilter with SpringAiAgentExecutor.
+ * ResponseFilter와 SpringAiAgentExecutor의 통합 테스트.
  *
- * Verifies that filters are applied to execute() results.
+ * 필터가 execute() 결과에 적용되는지 검증합니다.
  */
 class ResponseFilterIntegrationTest {
 
@@ -30,7 +30,7 @@ class ResponseFilterIntegrationTest {
     inner class ExecuteWithFilter {
 
         @Test
-        fun `should apply max length filter to execute result`() = runTest {
+        fun `apply max length filter to execute result해야 한다`() = runTest {
             fixture.mockCallResponse("A".repeat(200))
 
             val chain = ResponseFilterChain(listOf(MaxLengthResponseFilter(maxLength = 50)))
@@ -56,7 +56,7 @@ class ResponseFilterIntegrationTest {
         }
 
         @Test
-        fun `should not apply filter when content is within limit`() = runTest {
+        fun `content is within limit일 때 not apply filter해야 한다`() = runTest {
             fixture.mockCallResponse("Short response")
 
             val chain = ResponseFilterChain(listOf(MaxLengthResponseFilter(maxLength = 1000)))
@@ -77,7 +77,7 @@ class ResponseFilterIntegrationTest {
         }
 
         @Test
-        fun `should not apply filter on failure result`() = runTest {
+        fun `not apply filter on failure result해야 한다`() = runTest {
             every { fixture.callResponseSpec.chatResponse() } throws RuntimeException("LLM down")
 
             val filterCalled = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -104,7 +104,7 @@ class ResponseFilterIntegrationTest {
         }
 
         @Test
-        fun `should work without filter chain (null)`() = runTest {
+        fun `work without filter chain (null)해야 한다`() = runTest {
             fixture.mockCallResponse("No filter applied")
 
             val executor = SpringAiAgentExecutor(
@@ -124,7 +124,7 @@ class ResponseFilterIntegrationTest {
         }
 
         @Test
-        fun `should apply custom filter transforming content`() = runTest {
+        fun `apply custom filter transforming content해야 한다`() = runTest {
             fixture.mockCallResponse("hello world")
 
             val uppercaseFilter = object : ResponseFilter {
@@ -150,7 +150,7 @@ class ResponseFilterIntegrationTest {
         }
 
         @Test
-        fun `should continue if filter throws exception`() = runTest {
+        fun `filter throws exception이면 continue해야 한다`() = runTest {
             fixture.mockCallResponse("original content")
 
             val failingFilter = object : ResponseFilter {

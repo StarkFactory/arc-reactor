@@ -45,7 +45,7 @@ class JdbcAlertRuleStoreTest {
     inner class FindRulesForTenant {
 
         @Test
-        fun `queries with tenant_id and enabled filter`() {
+        fun `queries은(는) with tenant_id and enabled filter`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns listOf(testRule)
 
             val result = store.findRulesForTenant("t1")
@@ -62,7 +62,7 @@ class JdbcAlertRuleStoreTest {
         }
 
         @Test
-        fun `returns empty list when no rules match`() {
+        fun `no rules match일 때 empty list를 반환한다`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns emptyList<Any>()
 
             store.findRulesForTenant("unknown").size shouldBe 0
@@ -73,7 +73,7 @@ class JdbcAlertRuleStoreTest {
     inner class FindPlatformRules {
 
         @Test
-        fun `queries with platform_only and enabled filter`() {
+        fun `queries은(는) with platform_only and enabled filter`() {
             val platformRule = testRule.copy(id = "pr-1", platformOnly = true, tenantId = null)
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>()) } returns listOf(platformRule)
 
@@ -93,7 +93,7 @@ class JdbcAlertRuleStoreTest {
     inner class FindAllRules {
 
         @Test
-        fun `returns all rules ordered by created_at`() {
+        fun `all rules ordered by created_at를 반환한다`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>()) } returns listOf(testRule)
 
             val result = store.findAllRules()
@@ -112,7 +112,7 @@ class JdbcAlertRuleStoreTest {
     inner class SaveRule {
 
         @Test
-        fun `performs UPSERT with all fields`() {
+        fun `performs은(는) UPSERT with all fields`() {
             every { jdbcTemplate.update(any<String>(), *anyVararg()) } returns 1
 
             val result = store.saveRule(testRule)
@@ -131,14 +131,14 @@ class JdbcAlertRuleStoreTest {
     inner class DeleteRule {
 
         @Test
-        fun `returns true when rule deleted`() {
+        fun `rule deleted일 때 true를 반환한다`() {
             every { jdbcTemplate.update(match<String> { it.contains("DELETE") }, any<String>()) } returns 1
 
             store.deleteRule("rule-1") shouldBe true
         }
 
         @Test
-        fun `returns false when rule not found`() {
+        fun `rule not found일 때 false를 반환한다`() {
             every { jdbcTemplate.update(match<String> { it.contains("DELETE") }, any<String>()) } returns 0
 
             store.deleteRule("nonexistent") shouldBe false
@@ -149,7 +149,7 @@ class JdbcAlertRuleStoreTest {
     inner class FindActiveAlerts {
 
         @Test
-        fun `filters by tenant when tenantId provided`() {
+        fun `by tenant when tenantId provided를 필터링한다`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns listOf(testAlert)
 
             val result = store.findActiveAlerts("t1")
@@ -165,7 +165,7 @@ class JdbcAlertRuleStoreTest {
         }
 
         @Test
-        fun `returns all active alerts when tenantId is null`() {
+        fun `tenantId is null일 때 all active alerts를 반환한다`() {
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>()) } returns listOf(testAlert)
 
             val result = store.findActiveAlerts(null)
@@ -184,7 +184,7 @@ class JdbcAlertRuleStoreTest {
     inner class SaveAlert {
 
         @Test
-        fun `inserts alert with all fields`() {
+        fun `alert with all fields를 삽입한다`() {
             every { jdbcTemplate.update(any<String>(), *anyVararg()) } returns 1
 
             val result = store.saveAlert(testAlert)
@@ -203,7 +203,7 @@ class JdbcAlertRuleStoreTest {
     inner class ResolveAlert {
 
         @Test
-        fun `updates status to RESOLVED with resolved_at`() {
+        fun `status to RESOLVED with resolved_at를 업데이트한다`() {
             every { jdbcTemplate.update(any<String>(), any<String>()) } returns 1
 
             store.resolveAlert("alert-1")

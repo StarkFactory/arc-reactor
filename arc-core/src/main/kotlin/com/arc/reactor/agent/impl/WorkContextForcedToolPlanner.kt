@@ -2,11 +2,34 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.support.WorkContextPatterns
 
+/**
+ * 강제 도구 호출 계획 — 사용자 프롬프트 분석 결과에 따라 특정 도구를 강제로 호출하도록 지시한다.
+ *
+ * @param toolName 호출할 도구 이름
+ * @param arguments 도구에 전달할 인자 맵
+ */
 internal data class ForcedToolCallPlan(
     val toolName: String,
     val arguments: Map<String, Any?>
 )
 
+/**
+ * 사용자 프롬프트를 분석하여 강제로 호출해야 할 workspace 도구와 인자를 결정하는 planner.
+ *
+ * ReAct 루프의 첫 번째 반복에서 LLM이 도구를 호출하지 않더라도,
+ * 프롬프트의 의도에 맞는 도구를 강제로 호출할 수 있도록 [ForcedToolCallPlan]을 생성한다.
+ *
+ * 지원하는 workspace 도구 카테고리:
+ * - **Jira**: 이슈 조회, 검색, 브리핑, 블로커, 마감 임박 등
+ * - **Confluence**: 문서 답변, 검색, 페이지 본문, 스페이스 목록 등
+ * - **Bitbucket**: PR 목록, 리뷰 큐, SLA 경고, 브랜치 등
+ * - **Swagger/OpenAPI**: 스펙 로드, 검색, 스키마, 검증 등
+ * - **Work 통합**: 브리핑, 스탠드업, 릴리즈 리스크, 소유자 조회, 서비스 컨텍스트 등
+ * - **개인화**: 포커스 플랜, 학습 다이제스트, 인터럽트 가드, 마감 정리 등
+ *
+ * @see SystemPromptBuilder 시스템 프롬프트에서 도구 호출 강제 지시를 추가하는 대응 역할
+ * @see SpringAiAgentExecutor ReAct 루프에서 강제 도구 호출 계획을 실행
+ */
 internal object WorkContextForcedToolPlanner {
     private val specNameSanitizeRegex = Regex("[^a-z0-9._-]")
     private val issueKeyRegex = WorkContextPatterns.ISSUE_KEY_REGEX
@@ -182,6 +205,16 @@ internal object WorkContextForcedToolPlanner {
         Regex("\\b([A-Za-z0-9][A-Za-z0-9_-]{1,63})\\s*service\\b", RegexOption.IGNORE_CASE)
     )
 
+    /**
+     * 사용자 프롬프트를 분석하여 강제 도구 호출 계획을 수립한다.
+     *
+     * 프롬프트에서 이슈 키, 서비스명, 프로젝트 키, 레포지토리, URL 등을 추출하고,
+     * 힌트 키워드 매칭을 통해 가장 적합한 도구와 인자를 결정한다.
+     * 우선순위가 높은 규칙부터 순서대로 평가하여 첫 번째 매칭된 계획을 반환한다.
+     *
+     * @param prompt 사용자 프롬프트 (null/빈 문자열이면 null 반환)
+     * @return 강제 호출 계획. 매칭되는 규칙이 없으면 null
+     */
     fun plan(prompt: String?): ForcedToolCallPlan? {
         if (prompt.isNullOrBlank()) return null
 
@@ -995,10 +1028,14 @@ internal object WorkContextForcedToolPlanner {
         return null
     }
 
+    // ── 프롬프트에서 엔티티를 추출하는 헬퍼 메서드들 ──
+
+    /** Jira 이슈 키(예: PROJ-123)를 추출한다. */
     private fun extractIssueKey(prompt: String): String? {
         return issueKeyRegex.find(prompt.uppercase())?.value
     }
 
+    /** 프롬프트가 개인화된 요청("내 이슈", "내가 담당" 등)인지 판별한다. */
     private fun isPersonalPrompt(normalizedPrompt: String): Boolean {
         if (personalIdentityPhrases.any { normalizedPrompt.contains(it) }) {
             return true
@@ -1006,6 +1043,7 @@ internal object WorkContextForcedToolPlanner {
         return personalIdentityRegexes.any { it.containsMatchIn(normalizedPrompt) }
     }
 
+    /** 프롬프트에서 서비스명을 추출한다 (예: "payment-service 서비스"). */
     private fun extractServiceName(prompt: String): String? {
         return serviceRegexes.asSequence()
             .mapNotNull { regex -> regex.find(prompt)?.groupValues?.getOrNull(1) }
@@ -1013,6 +1051,7 @@ internal object WorkContextForcedToolPlanner {
             .firstOrNull { it.isNotBlank() }
     }
 
+    /** 프롬프트에서 Jira 프로젝트 키를 추출한다 (예: "PROJ 프로젝트"). */
     private fun extractProjectKey(prompt: String): String? {
         return projectRegexes.asSequence()
             .mapNotNull { regex -> regex.find(prompt)?.groupValues?.getOrNull(1) }
@@ -1020,6 +1059,7 @@ internal object WorkContextForcedToolPlanner {
             .firstOrNull { it.isNotBlank() }
     }
 
+    /** 느슨한 규칙으로 프로젝트 키를 추출한다. 일반 단어와 stop word를 제외한다. */
     private fun extractLooseProjectKey(prompt: String): String? {
         return looseProjectRegex.find(prompt)?.groupValues?.getOrNull(1)
             ?.trim()
@@ -1033,19 +1073,23 @@ internal object WorkContextForcedToolPlanner {
             }
     }
 
+    /** "workspace/repository" 형식의 레포지토리 참조를 추출한다. */
     private fun extractRepository(prompt: String): Pair<String, String>? {
         val match = repositoryRegex.find(prompt) ?: return null
         return match.groupValues[1] to match.groupValues[2]
     }
 
+    /** "xxx 저장소" 형식에서 레포지토리 slug를 추출한다. */
     private fun extractRepositorySlug(prompt: String): String? {
         return repositorySlugRegex.find(prompt)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }
     }
 
+    /** 프롬프트에서 HTTP/HTTPS URL을 추출한다. */
     private fun extractUrl(prompt: String): String? {
         return urlRegex.find(prompt)?.value?.trim()
     }
 
+    /** 따옴표('...' 또는 "...")로 감싼 키워드를 추출한다. */
     private fun extractQuotedKeyword(prompt: String): String? {
         return quotedKeywordRegexes.asSequence()
             .mapNotNull { regex -> regex.find(prompt)?.groupValues?.getOrNull(1) }
@@ -1053,6 +1097,7 @@ internal object WorkContextForcedToolPlanner {
             .firstOrNull { it.isNotBlank() }
     }
 
+    /** 검색 키워드를 추출한다. 따옴표 키워드를 우선하고, 없으면 "키워드" 패턴을 사용한다. */
     private fun extractSearchKeyword(prompt: String): String? {
         return extractQuotedKeyword(prompt)
             ?: keywordRegexes.asSequence()
@@ -1061,6 +1106,7 @@ internal object WorkContextForcedToolPlanner {
                 .firstOrNull { it.isNotBlank() }
     }
 
+    /** 소유자 조회에 사용할 키워드를 추출한다. 레포지토리, 서비스명, API명 등을 시도한다. */
     private fun extractOwnershipKeyword(prompt: String): String? {
         val trimmed = prompt.trim()
         if (trimmed.isBlank()) return null
@@ -1088,6 +1134,7 @@ internal object WorkContextForcedToolPlanner {
         }
     }
 
+    /** 릴리즈 준비 팩에 사용할 릴리즈 이름을 추론한다. */
     private fun inferReleaseName(
         prompt: String,
         projectKey: String?,
@@ -1099,6 +1146,7 @@ internal object WorkContextForcedToolPlanner {
             ?: "release-readiness"
     }
 
+    /** URL에서 스펙 이름을 추론한다 (파일명 기반, 소문자/특수문자 정리). */
     private fun inferSpecName(url: String): String {
         val sanitized = url.substringAfterLast('/').substringBefore('?').substringBefore('#')
         val base = sanitized.substringBeforeLast('.').ifBlank { "openapi-spec" }
@@ -1108,6 +1156,7 @@ internal object WorkContextForcedToolPlanner {
             .ifBlank { "openapi-spec" }
     }
 
+    /** Swagger/OpenAPI 스펙 이름을 추출한다. 따옴표 키워드 → 패턴 매칭 순으로 시도한다. */
     private fun extractSwaggerSpecName(prompt: String): String? {
         extractQuotedKeyword(prompt)
             ?.trim()
@@ -1120,6 +1169,7 @@ internal object WorkContextForcedToolPlanner {
             .firstOrNull(::looksLikeSwaggerSpecName)
     }
 
+    /** 후보 문자열이 Swagger 스펙 이름처럼 보이는지 판별한다 (하이픈/언더스코어 필수). */
     private fun looksLikeSwaggerSpecName(candidate: String): Boolean {
         val normalized = candidate.lowercase()
         if (normalized.isBlank()) return false

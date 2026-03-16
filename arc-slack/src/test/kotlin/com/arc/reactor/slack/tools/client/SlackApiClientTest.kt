@@ -56,7 +56,7 @@ class SlackApiClientTest {
     private val client = slackApiClient(methodsClient)
 
     @Test
-    fun `postMessage maps Slack response`() {
+    fun `postMessage은(는) maps Slack response`() {
         val response = mockk<ChatPostMessageResponse>()
         every { response.isOk } returns true
         every { response.ts } returns "1234.5678"
@@ -73,7 +73,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `addReaction maps Slack response`() {
+    fun `addReaction은(는) maps Slack response`() {
         val response = mockk<ReactionsAddResponse>()
         every { response.isOk } returns false
         every { response.error } returns "already_reacted"
@@ -86,7 +86,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `conversationsList maps channels and cursor`() {
+    fun `conversationsList은(는) maps channels and cursor`() {
         val channel = mockk<Conversation>()
         every { channel.id } returns "C123"
         every { channel.name } returns "general"
@@ -120,7 +120,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `conversationHistory maps messages`() {
+    fun `conversationHistory은(는) maps messages`() {
         val message = mockk<Message>()
         every { message.user } returns "U123"
         every { message.text } returns "hello world"
@@ -143,7 +143,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `threadReplies maps reply messages`() {
+    fun `threadReplies은(는) maps reply messages`() {
         val message = mockk<Message>()
         every { message.user } returns "U234"
         every { message.text } returns "thread reply"
@@ -169,7 +169,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `threadReplies excludes parent message`() {
+    fun `threadReplies은(는) excludes parent message`() {
         val parent = mockk<Message>()
         every { parent.user } returns "U100"
         every { parent.text } returns "parent"
@@ -197,7 +197,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `getUserInfo maps user fields`() {
+    fun `getUserInfo은(는) maps user fields`() {
         val user = mockk<User>()
         every { user.id } returns "U123"
         every { user.name } returns "john"
@@ -221,7 +221,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `postMessage returns error result when Slack SDK throws`() {
+    fun `Slack SDK throws일 때 postMessage returns error result`() {
         every { methodsClient.chatPostMessage(any<ChatPostMessageRequest>()) } throws RuntimeException("network failed")
 
         val result = client.postMessage("C123", "hello")
@@ -231,7 +231,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `conversationsList returns error result when Slack SDK throws`() {
+    fun `Slack SDK throws일 때 conversationsList returns error result`() {
         every { methodsClient.conversationsList(any<ConversationsListRequest>()) } throws RuntimeException("timeout")
 
         val result = client.conversationsList()
@@ -242,7 +242,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `postMessage rate-limited exception includes retry metadata`() {
+    fun `postMessage은(는) rate-limited exception includes retry metadata`() {
         every { methodsClient.chatPostMessage(any<ChatPostMessageRequest>()) } throws
             slackApiException(status = 429, body = """{"ok":false,"error":"rate_limited"}""", retryAfter = "0")
 
@@ -256,7 +256,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `io exception is marked retryable`() {
+    fun `io exception은(는) marked retryable이다`() {
         every { methodsClient.conversationsHistory(any<ConversationsHistoryRequest>()) } throws IOException("socket timeout")
 
         val result = client.conversationHistory("C123", 10)
@@ -270,7 +270,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `threadReplies returns error result when Slack SDK throws`() {
+    fun `Slack SDK throws일 때 threadReplies returns error result`() {
         every { methodsClient.conversationsReplies(any<ConversationsRepliesRequest>()) } throws IOException("socket timeout")
 
         val result = client.threadReplies("C123", "1234.5678", 10)
@@ -284,7 +284,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `findChannelsByName paginates and filters by partial query`() {
+    fun `findChannelsByName은(는) paginates and filters by partial query`() {
         val general = mockk<Conversation>()
         every { general.id } returns "C123"
         every { general.name } returns "general"
@@ -335,7 +335,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `findChannelsByName respects exact match and limit`() {
+    fun `findChannelsByName은(는) respects exact match and limit`() {
         val general = mockk<Conversation>()
         every { general.id } returns "C123"
         every { general.name } returns "general"
@@ -365,7 +365,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `findChannelsByName propagates conversationsList error`() {
+    fun `findChannelsByName은(는) propagates conversationsList error`() {
         val page = mockk<ConversationsListResponse>()
         every { page.isOk } returns false
         every { page.channels } returns emptyList()
@@ -380,7 +380,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `conversationHistory accepts cursor and maps next cursor`() {
+    fun `conversationHistory은(는) accepts cursor and maps next cursor`() {
         val message = mockk<Message>()
         every { message.user } returns "U123"
         every { message.text } returns "hello world"
@@ -407,7 +407,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `threadReplies accepts cursor and maps next cursor`() {
+    fun `threadReplies은(는) accepts cursor and maps next cursor`() {
         val reply = mockk<Message>()
         every { reply.user } returns "U200"
         every { reply.text } returns "reply"
@@ -434,7 +434,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `postMessage retries on transient io errors`() {
+    fun `postMessage은(는) retries on transient io errors`() {
         val response = mockk<ChatPostMessageResponse>()
         every { response.isOk } returns true
         every { response.ts } returns "1234.5678"
@@ -456,7 +456,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `postMessage does not retry on non-retryable slack api error`() {
+    fun `postMessage은(는) does not retry on non-retryable slack api error`() {
         every { methodsClient.chatPostMessage(any<ChatPostMessageRequest>()) } throws
             slackApiException(status = 400, body = """{"ok":false,"error":"invalid_auth"}""")
 
@@ -468,7 +468,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `conversationHistory returns timeout error when Slack API call exceeds configured timeout`() {
+    fun `Slack API call exceeds configured timeout일 때 conversationHistory returns timeout error`() {
         val timeoutClient = slackApiClient(
             methodsClient = methodsClient,
             timeoutMs = 30,
@@ -498,7 +498,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `postMessage opens circuit breaker after consecutive server errors`() {
+    fun `consecutive server errors후 postMessage opens circuit breaker`() {
         val breakerClient = slackApiClient(
             methodsClient = methodsClient,
             circuitFailureThreshold = 2,
@@ -528,7 +528,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `postMessage rate-limited failures do not open circuit breaker`() {
+    fun `postMessage은(는) rate-limited failures do not open circuit breaker`() {
         val breakerClient = slackApiClient(
             methodsClient = methodsClient,
             circuitFailureThreshold = 1,
@@ -552,7 +552,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `postMessage records retry and success metrics`() {
+    fun `postMessage은(는) records retry and success metrics`() {
         val meterRegistry = SimpleMeterRegistry()
         val metricClient = slackApiClient(methodsClient = methodsClient, meterRegistry = meterRegistry)
 
@@ -592,7 +592,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `postMessage records error code metrics on rate limit failure`() {
+    fun `postMessage은(는) records error code metrics on rate limit failure`() {
         val meterRegistry = SimpleMeterRegistry()
         val metricClient = slackApiClient(methodsClient = methodsClient, meterRegistry = meterRegistry)
 
@@ -626,7 +626,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `findUsersByName paginates and filters by partial query`() {
+    fun `findUsersByName은(는) paginates and filters by partial query`() {
         val john = mockk<User>()
         every { john.id } returns "U123"
         every { john.name } returns "john"
@@ -680,7 +680,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `searchMessages maps matches and pagination`() {
+    fun `searchMessages은(는) maps matches and pagination`() {
         val channel = mockk<Channel>()
         every { channel.id } returns "C123"
         every { channel.name } returns "general"
@@ -719,7 +719,7 @@ class SlackApiClientTest {
     }
 
     @Test
-    fun `uploadFile maps uploaded file details`() {
+    fun `uploadFile은(는) maps uploaded file details`() {
         val uploadedFile = mockk<File>()
         every { uploadedFile.id } returns "F123"
         every { uploadedFile.name } returns "report.txt"

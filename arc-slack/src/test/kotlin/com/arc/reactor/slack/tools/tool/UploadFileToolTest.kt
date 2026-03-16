@@ -14,7 +14,7 @@ class UploadFileToolTest {
     private val tool = UploadFileTool(uploadFileUseCase)
 
     @Test
-    fun `uploads file successfully`() {
+    fun `file successfully를 업로드한다`() {
         every {
             uploadFileUseCase.execute(
                 channelId = "C123",
@@ -32,35 +32,35 @@ class UploadFileToolTest {
     }
 
     @Test
-    fun `returns error for invalid channel id`() {
+    fun `invalid channel id에 대해 error를 반환한다`() {
         val result = tool.upload_file("123", "report.txt", "hello", null, null, null)
         result shouldContain "channelId must be a valid Slack channel ID"
         verify(exactly = 0) { uploadFileUseCase.execute(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
-    fun `returns error for invalid filename`() {
+    fun `invalid filename에 대해 error를 반환한다`() {
         val result = tool.upload_file("C123", "dir/report.txt", "hello", null, null, null)
         result shouldContain "filename must be 1-255 chars and must not include path separators"
         verify(exactly = 0) { uploadFileUseCase.execute(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
-    fun `returns error for blank content`() {
+    fun `blank content에 대해 error를 반환한다`() {
         val result = tool.upload_file("C123", "report.txt", " ", null, null, null)
         result shouldContain "content is required"
         verify(exactly = 0) { uploadFileUseCase.execute(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
-    fun `returns error for invalid thread timestamp`() {
+    fun `invalid thread timestamp에 대해 error를 반환한다`() {
         val result = tool.upload_file("C123", "report.txt", "hello", null, null, "abc")
         result shouldContain "threadTs must be a valid Slack timestamp"
         verify(exactly = 0) { uploadFileUseCase.execute(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
-    fun `normalizes optional text fields`() {
+    fun `optional text fields를 정규화한다`() {
         every {
             uploadFileUseCase.execute(
                 channelId = "C123",

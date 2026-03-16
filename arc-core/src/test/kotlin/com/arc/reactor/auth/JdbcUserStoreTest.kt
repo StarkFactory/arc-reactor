@@ -50,7 +50,7 @@ class JdbcUserStoreTest {
     inner class BasicCrud {
 
         @Test
-        fun `should save and find by id`() {
+        fun `save and find by id해야 한다`() {
             val user = createUser()
             store.save(user)
 
@@ -64,7 +64,7 @@ class JdbcUserStoreTest {
         }
 
         @Test
-        fun `should save and find by email`() {
+        fun `save and find by email해야 한다`() {
             store.save(createUser())
 
             val found = store.findByEmail("test@example.com")
@@ -74,7 +74,7 @@ class JdbcUserStoreTest {
         }
 
         @Test
-        fun `should update name and role`() {
+        fun `update name and role해야 한다`() {
             val user = createUser()
             store.save(user)
 
@@ -88,7 +88,7 @@ class JdbcUserStoreTest {
         }
 
         @Test
-        fun `should check existsByEmail`() {
+        fun `check existsByEmail해야 한다`() {
             assertFalse(store.existsByEmail("test@example.com")) { "Should not exist before save" }
 
             store.save(createUser())
@@ -98,7 +98,7 @@ class JdbcUserStoreTest {
         }
 
         @Test
-        fun `should count users`() {
+        fun `count users해야 한다`() {
             assertEquals(0, store.count()) { "Count should be 0 initially" }
 
             store.save(createUser(id = "u1", email = "a@test.com"))
@@ -112,21 +112,21 @@ class JdbcUserStoreTest {
     inner class EdgeCases {
 
         @Test
-        fun `should return null for unknown id`() {
+        fun `unknown id에 대해 return null해야 한다`() {
             val found = store.findById("nonexistent")
 
             assertNull(found, "Should return null for unknown ID")
         }
 
         @Test
-        fun `should return null for unknown email`() {
+        fun `unknown email에 대해 return null해야 한다`() {
             val found = store.findByEmail("nobody@test.com")
 
             assertNull(found, "Should return null for unknown email")
         }
 
         @Test
-        fun `should throw on duplicate email`() {
+        fun `throw on duplicate email해야 한다`() {
             store.save(createUser(id = "u1", email = "dup@test.com"))
 
             assertThrows(Exception::class.java, {
@@ -135,7 +135,7 @@ class JdbcUserStoreTest {
         }
 
         @Test
-        fun `should roundtrip USER role`() {
+        fun `roundtrip USER role해야 한다`() {
             store.save(createUser(role = UserRole.USER))
 
             val found = store.findById("user-1")
@@ -143,7 +143,7 @@ class JdbcUserStoreTest {
         }
 
         @Test
-        fun `should roundtrip ADMIN role`() {
+        fun `roundtrip ADMIN role해야 한다`() {
             store.save(createUser(role = UserRole.ADMIN))
 
             val found = store.findById("user-1")
@@ -151,7 +151,7 @@ class JdbcUserStoreTest {
         }
 
         @Test
-        fun `should preserve created_at timestamp`() {
+        fun `preserve created_at timestamp해야 한다`() {
             val createdAt = Instant.parse("2026-01-15T10:00:00Z")
             store.save(createUser().copy(createdAt = createdAt))
 

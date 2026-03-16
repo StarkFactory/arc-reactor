@@ -28,6 +28,17 @@ import java.util.concurrent.TimeoutException
 
 private val swaggerCatalogLogger = KotlinLogging.logger {}
 
+/**
+ * MCP Swagger Catalog 컨트롤러.
+ *
+ * 등록된 MCP 서버의 admin API를 프록시하여 Swagger OpenAPI 스펙 소스의
+ * 생명주기(조회, 생성, 수정, 동기화, 리비전, diff, 퍼블리시)를 관리합니다.
+ * 모든 요청은 HMAC 서명 및 admin token 인증을 거칩니다.
+ *
+ * @see McpServerStore
+ * @see McpAdminWebClientFactory
+ * @see McpAdminRequestSigner
+ */
 @Tag(name = "MCP Swagger Catalog", description = "Proxy Swagger MCP admin source lifecycle APIs (ADMIN)")
 @RestController
 @RequestMapping("/api/mcp/servers/{name}/swagger/sources")
@@ -37,7 +48,8 @@ class McpSwaggerCatalogController(
     private val meterRegistry: MeterRegistry? = null,
     private val adminWebClientFactory: McpAdminWebClientFactory = McpAdminWebClientFactory()
 ) {
-    @Operation(summary = "List Swagger spec sources via MCP admin API")
+    /** MCP admin API를 통해 Swagger 스펙 소스 목록을 조회한다. */
+    @Operation(summary = "MCP admin API를 통해 Swagger 스펙 소스 목록 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Swagger sources"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -62,7 +74,8 @@ class McpSwaggerCatalogController(
         return response
     }
 
-    @Operation(summary = "Get Swagger spec source via MCP admin API")
+    /** MCP admin API를 통해 특정 Swagger 스펙 소스를 조회한다. */
+    @Operation(summary = "MCP admin API를 통해 Swagger 스펙 소스 단건 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Swagger source"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -88,7 +101,8 @@ class McpSwaggerCatalogController(
         return response
     }
 
-    @Operation(summary = "Create Swagger spec source via MCP admin API")
+    /** MCP admin API를 통해 새 Swagger 스펙 소스를 생성한다. */
+    @Operation(summary = "MCP admin API를 통해 Swagger 스펙 소스 생성")
     @PostMapping
     suspend fun createSource(
         @PathVariable name: String,
@@ -109,7 +123,8 @@ class McpSwaggerCatalogController(
         return response
     }
 
-    @Operation(summary = "Update Swagger spec source via MCP admin API")
+    /** MCP admin API를 통해 Swagger 스펙 소스를 수정한다. */
+    @Operation(summary = "MCP admin API를 통해 Swagger 스펙 소스 수정")
     @PutMapping("/{sourceName}")
     suspend fun updateSource(
         @PathVariable name: String,
@@ -131,7 +146,8 @@ class McpSwaggerCatalogController(
         return response
     }
 
-    @Operation(summary = "Trigger Swagger spec source sync via MCP admin API")
+    /** MCP admin API를 통해 Swagger 스펙 소스 동기화를 트리거한다. */
+    @Operation(summary = "MCP admin API를 통해 Swagger 스펙 소스 동기화 트리거")
     @PostMapping("/{sourceName}/sync")
     suspend fun syncSource(
         @PathVariable name: String,
@@ -152,7 +168,8 @@ class McpSwaggerCatalogController(
         return response
     }
 
-    @Operation(summary = "List Swagger spec source revisions via MCP admin API")
+    /** MCP admin API를 통해 Swagger 스펙 소스의 리비전 목록을 조회한다. */
+    @Operation(summary = "MCP admin API를 통해 Swagger 스펙 소스 리비전 목록 조회")
     @GetMapping("/{sourceName}/revisions")
     suspend fun listRevisions(
         @PathVariable name: String,
@@ -178,7 +195,8 @@ class McpSwaggerCatalogController(
         return response
     }
 
-    @Operation(summary = "Get Swagger spec source diff via MCP admin API")
+    /** MCP admin API를 통해 Swagger 스펙 소스의 리비전 간 diff를 조회한다. */
+    @Operation(summary = "MCP admin API를 통해 Swagger 스펙 소스 diff 조회")
     @GetMapping("/{sourceName}/diff")
     suspend fun getDiff(
         @PathVariable name: String,
@@ -208,7 +226,8 @@ class McpSwaggerCatalogController(
         return response
     }
 
-    @Operation(summary = "Publish Swagger spec source revision via MCP admin API")
+    /** MCP admin API를 통해 Swagger 스펙 소스 리비전을 퍼블리시한다. */
+    @Operation(summary = "MCP admin API를 통해 Swagger 스펙 소스 리비전 퍼블리시")
     @PostMapping("/{sourceName}/publish")
     suspend fun publishRevision(
         @PathVariable name: String,

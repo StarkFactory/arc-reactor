@@ -23,7 +23,7 @@ class SchedulerControllerTagFilterTest {
     inner class ListJobsTagFiltering {
 
         @Test
-        fun `listJobs without tag returns all jobs`() {
+        fun `listJobs은(는) without tag returns all jobs`() {
             every { schedulerService.list() } returns listOf(
                 job("job-1", tags = setOf("daily")),
                 job("job-2", tags = setOf("weekly")),
@@ -45,7 +45,7 @@ class SchedulerControllerTagFilterTest {
         }
 
         @Test
-        fun `listJobs with tag filters to matching jobs only`() {
+        fun `listJobs은(는) with tag filters to matching jobs only`() {
             every { schedulerService.list() } returns listOf(
                 job("job-1", tags = setOf("daily", "reporting")),
                 job("job-2", tags = setOf("weekly")),
@@ -69,7 +69,7 @@ class SchedulerControllerTagFilterTest {
         }
 
         @Test
-        fun `listJobs with non-matching tag returns empty`() {
+        fun `non-matching tag를 가진 listJobs은(는) empty를 반환한다`() {
             every { schedulerService.list() } returns listOf(
                 job("job-1", tags = setOf("daily"))
             )
@@ -89,7 +89,7 @@ class SchedulerControllerTagFilterTest {
         }
 
         @Test
-        fun `listJobs with blank tag returns all jobs`() {
+        fun `blank tag를 가진 listJobs은(는) all jobs를 반환한다`() {
             every { schedulerService.list() } returns listOf(
                 job("job-1", tags = setOf("daily"))
             )
@@ -109,7 +109,7 @@ class SchedulerControllerTagFilterTest {
         }
 
         @Test
-        fun `listJobs tag filter combined with pagination`() {
+        fun `listJobs은(는) tag filter combined with pagination`() {
             every { schedulerService.list() } returns listOf(
                 job("job-1", tags = setOf("daily")),
                 job("job-2", tags = setOf("daily")),
@@ -136,7 +136,7 @@ class SchedulerControllerTagFilterTest {
         }
     }
 
-    // -- Helpers ---------------------------------------------------------------
+    // -- 헬퍼 ---------------------------------------------------------------
 
     private fun job(
         name: String,

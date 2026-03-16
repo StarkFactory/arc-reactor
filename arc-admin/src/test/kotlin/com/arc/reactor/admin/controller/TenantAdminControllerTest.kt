@@ -97,68 +97,68 @@ class TenantAdminControllerTest {
     inner class Authentication {
 
         @Test
-        fun `overview returns 403 for USER role`() {
+        fun `overview은(는) returns 403 for USER role`() {
             val response = controller.overview(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
             (response.body as AdminErrorResponse).error shouldBe "Admin access required"
         }
 
         @Test
-        fun `usage returns 403 for USER role`() {
+        fun `usage은(는) returns 403 for USER role`() {
             val response = controller.usage(null, null, exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `quality returns 403 for USER role`() {
+        fun `quality은(는) returns 403 for USER role`() {
             val response = controller.quality(null, null, exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `tools returns 403 for USER role`() {
+        fun `tools은(는) returns 403 for USER role`() {
             val response = controller.tools(null, null, exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `cost returns 403 for USER role`() {
+        fun `cost은(는) returns 403 for USER role`() {
             val response = controller.cost(null, null, exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `slo returns 403 for USER role`() {
+        fun `slo은(는) returns 403 for USER role`() {
             val response = controller.slo(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `alerts returns 403 for USER role`() {
+        fun `alerts은(는) returns 403 for USER role`() {
             val response = controller.alerts(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `quota returns 403 for USER role`() {
+        fun `quota은(는) returns 403 for USER role`() {
             val response = controller.quota(exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `exportExecutions returns 403 for USER role`() {
+        fun `exportExecutions은(는) returns 403 for USER role`() {
             val response = controller.exportExecutions(null, null, exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `exportTools returns 403 for USER role`() {
+        fun `exportTools은(는) returns 403 for USER role`() {
             val response = controller.exportTools(null, null, exchangeWithRole(UserRole.USER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
 
         @Test
-        fun `overview allows ADMIN_MANAGER role`() {
+        fun `overview은(는) allows ADMIN_MANAGER role`() {
             every { dashboardService.getOverview("t1") } returns OverviewDashboard()
 
             val response = controller.overview(exchangeWithRole(UserRole.ADMIN_MANAGER))
@@ -167,7 +167,7 @@ class TenantAdminControllerTest {
         }
 
         @Test
-        fun `usage allows ADMIN_MANAGER role`() {
+        fun `usage은(는) allows ADMIN_MANAGER role`() {
             every { dashboardService.getUsage(any(), any(), any()) } returns UsageDashboard()
 
             val response = controller.usage(null, null, exchangeWithRole(UserRole.ADMIN_MANAGER))
@@ -176,7 +176,7 @@ class TenantAdminControllerTest {
         }
 
         @Test
-        fun `exportExecutions remains developer-admin only for ADMIN_MANAGER role`() {
+        fun `exportExecutions은(는) remains developer-admin only for ADMIN_MANAGER role`() {
             val response = controller.exportExecutions(null, null, exchangeWithRole(UserRole.ADMIN_MANAGER))
             response.statusCode shouldBe HttpStatus.FORBIDDEN
         }
@@ -186,7 +186,7 @@ class TenantAdminControllerTest {
     inner class OverviewEndpoint {
 
         @Test
-        fun `returns 200 with overview for admin`() {
+        fun `admin에 대해 200 with overview를 반환한다`() {
             val overview = OverviewDashboard(
                 totalRequests = 1000,
                 successRate = 0.98,
@@ -203,7 +203,7 @@ class TenantAdminControllerTest {
         }
 
         @Test
-        fun `returns 404 when dashboard returns null`() {
+        fun `dashboard returns null일 때 404를 반환한다`() {
             every { dashboardService.getOverview("t1") } returns null
 
             val response = controller.overview(exchangeWithRole(UserRole.ADMIN))
@@ -216,7 +216,7 @@ class TenantAdminControllerTest {
     inner class SloEndpoint {
 
         @Test
-        fun `returns SLO status for known tenant`() {
+        fun `known tenant에 대해 SLO status를 반환한다`() {
             val sloStatus = SloStatus(
                 availability = SliMetric("Availability", 0.995, 0.999),
                 latency = SliMetric("Latency P99", 10000.0, 3000.0),
@@ -231,7 +231,7 @@ class TenantAdminControllerTest {
         }
 
         @Test
-        fun `returns 404 when tenant not found`() {
+        fun `tenant not found일 때 404를 반환한다`() {
             val response = controller.slo(exchangeWithTenant("unknown", UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.NOT_FOUND
@@ -242,7 +242,7 @@ class TenantAdminControllerTest {
     inner class QuotaEndpoint {
 
         @Test
-        fun `returns quota and usage for admin`() {
+        fun `admin에 대해 quota and usage를 반환한다`() {
             every { queryService.getCurrentMonthUsage("t1") } returns
                 TenantUsage("t1", 500, 250000, BigDecimal("5.00"))
 
@@ -255,7 +255,7 @@ class TenantAdminControllerTest {
         }
 
         @Test
-        fun `quota returns 404 for unknown tenant`() {
+        fun `quota은(는) returns 404 for unknown tenant`() {
             val response = controller.quota(exchangeWithTenant("unknown", UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.NOT_FOUND
@@ -266,7 +266,7 @@ class TenantAdminControllerTest {
     inner class AlertsEndpoint {
 
         @Test
-        fun `returns active alerts for tenant`() {
+        fun `tenant에 대해 active alerts를 반환한다`() {
             val response = controller.alerts(exchangeWithRole(UserRole.ADMIN))
 
             response.statusCode shouldBe HttpStatus.OK
@@ -279,7 +279,7 @@ class TenantAdminControllerTest {
     inner class UsageEndpoint {
 
         @Test
-        fun `returns 200 with usage dashboard`() {
+        fun `200 with usage dashboard를 반환한다`() {
             every { dashboardService.getUsage(any(), any(), any()) } returns UsageDashboard()
 
             val response = controller.usage(null, null, exchangeWithRole(UserRole.ADMIN))
@@ -292,7 +292,7 @@ class TenantAdminControllerTest {
     inner class ExportEndpoints {
 
         @Test
-        fun `exportExecutions returns CSV for admin`() {
+        fun `exportExecutions은(는) returns CSV for admin`() {
             every { exportService.exportExecutionsCsv(any(), any(), any(), any()) } answers {
                 val writer = arg<java.io.Writer>(3)
                 writer.write("time,run_id\n")

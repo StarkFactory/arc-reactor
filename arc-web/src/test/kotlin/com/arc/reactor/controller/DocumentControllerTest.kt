@@ -59,7 +59,7 @@ class DocumentControllerTest {
     inner class AddDocument {
 
         @Test
-        fun `should return 201 for admin`() {
+        fun `admin에 대해 return 201해야 한다`() {
             val request = DocumentController.AddDocumentRequest(content = "Test content")
 
             val response = controller.addDocument(request, adminExchange())
@@ -69,7 +69,7 @@ class DocumentControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin user`() {
+        fun `non-admin user에 대해 return 403해야 한다`() {
             val request = DocumentController.AddDocumentRequest(content = "Test content")
 
             val response = controller.addDocument(request, userExchange())
@@ -79,7 +79,7 @@ class DocumentControllerTest {
         }
 
         @Test
-        fun `should reject write when role is missing`() {
+        fun `role is missing일 때 reject write해야 한다`() {
             val request = DocumentController.AddDocumentRequest(content = "Test content")
 
             val response = controller.addDocument(request, noAuthExchange())
@@ -91,7 +91,7 @@ class DocumentControllerTest {
         }
 
         @Test
-        fun `should include metadata in document`() {
+        fun `include metadata in document해야 한다`() {
             val request = DocumentController.AddDocumentRequest(
                 content = "Content",
                 metadata = mapOf("source" to "test")
@@ -103,7 +103,7 @@ class DocumentControllerTest {
         }
 
         @Test
-        fun `should store content_hash in metadata`() {
+        fun `store content_hash in metadata해야 한다`() {
             val request = DocumentController.AddDocumentRequest(content = "Hash me")
 
             val response = controller.addDocument(request, adminExchange())
@@ -119,7 +119,7 @@ class DocumentControllerTest {
         }
 
         @Test
-        fun `should return 409 when duplicate content exists`() {
+        fun `duplicate content exists일 때 return 409해야 한다`() {
             val content = "Duplicate content"
             val hash = sha256(content)
             every { vectorStore.similaritySearch(any<SearchRequest>()) } returns listOf(
@@ -145,7 +145,7 @@ class DocumentControllerTest {
     inner class BatchAddDocuments {
 
         @Test
-        fun `should return 201 for admin batch add`() {
+        fun `admin batch add에 대해 return 201해야 한다`() {
             val request = DocumentController.BatchAddDocumentRequest(
                 documents = listOf(
                     DocumentController.AddDocumentRequest(content = "Doc 1"),
@@ -159,7 +159,7 @@ class DocumentControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin batch add`() {
+        fun `non-admin batch add에 대해 return 403해야 한다`() {
             val request = DocumentController.BatchAddDocumentRequest(
                 documents = listOf(DocumentController.AddDocumentRequest(content = "Doc"))
             )
@@ -170,7 +170,7 @@ class DocumentControllerTest {
         }
 
         @Test
-        fun `should return 409 when batch contains duplicate content`() {
+        fun `batch contains duplicate content일 때 return 409해야 한다`() {
             val content = "Already stored"
             val hash = sha256(content)
             every { vectorStore.similaritySearch(any<SearchRequest>()) } returns listOf(
@@ -197,7 +197,7 @@ class DocumentControllerTest {
     inner class SearchDocuments {
 
         @Test
-        fun `should allow search without admin check`() {
+        fun `allow search without admin check해야 한다`() {
             every { vectorStore.similaritySearch(any<SearchRequest>()) } returns listOf(
                 Document("id-1", "Found content", mapOf<String, Any>())
             )
@@ -214,7 +214,7 @@ class DocumentControllerTest {
     inner class DeleteDocuments {
 
         @Test
-        fun `should return 204 for admin delete`() {
+        fun `admin delete에 대해 return 204해야 한다`() {
             val request = DocumentController.DeleteDocumentRequest(ids = listOf("id-1", "id-2"))
 
             val response = controller.deleteDocuments(request, adminExchange())
@@ -224,7 +224,7 @@ class DocumentControllerTest {
         }
 
         @Test
-        fun `should return 403 for non-admin delete`() {
+        fun `non-admin delete에 대해 return 403해야 한다`() {
             val request = DocumentController.DeleteDocumentRequest(ids = listOf("id-1"))
 
             val response = controller.deleteDocuments(request, userExchange())

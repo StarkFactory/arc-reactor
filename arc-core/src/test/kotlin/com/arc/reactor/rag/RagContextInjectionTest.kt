@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Tests for RAG context injection quality improvements:
+ * 에 대한 테스트. RAG context injection quality improvements:
  * 1. System prompt includes instructed RAG context (not bare text)
  * 2. SimpleContextBuilder produces numbered document references
  */
@@ -39,7 +39,7 @@ class RagContextInjectionTest {
         }
 
         @Test
-        fun `should include RAG instructions when context is available`() = runBlocking {
+        fun `context is available일 때 include RAG instructions해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             io.mockk.every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("Answer based on context")
@@ -96,7 +96,7 @@ class RagContextInjectionTest {
         }
 
         @Test
-        fun `should not include RAG section when pipeline returns empty context`() = runBlocking {
+        fun `pipeline returns empty context일 때 not include RAG section해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             io.mockk.every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("No context available")
@@ -132,7 +132,7 @@ class RagContextInjectionTest {
         }
 
         @Test
-        fun `should not include RAG section when RAG is disabled`() = runBlocking {
+        fun `RAG is disabled일 때 not include RAG section해야 한다`() = runBlocking {
             val systemSlot = slot<String>()
             io.mockk.every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("Response")
@@ -159,7 +159,7 @@ class RagContextInjectionTest {
         }
 
         @Test
-        fun `should pass correct topK from properties to RAG pipeline`() = runBlocking {
+        fun `pass correct topK from properties to RAG pipeline해야 한다`() = runBlocking {
             val ragQuerySlot = slot<RagQuery>()
             coEvery { ragPipeline.retrieve(capture(ragQuerySlot)) } returns RagContext.EMPTY
             fixture.mockCallResponse("Response")
@@ -196,7 +196,7 @@ class RagContextInjectionTest {
     inner class NumberedDocumentReferences {
 
         @Test
-        fun `should produce numbered document references`() {
+        fun `produce numbered document references해야 한다`() {
             val builder = SimpleContextBuilder()
             val docs = listOf(
                 RetrievedDocument(id = "1", content = "First document content", score = 0.9, source = "docs"),
@@ -220,7 +220,7 @@ class RagContextInjectionTest {
         }
 
         @Test
-        fun `should produce numbered references without source when source is null`() {
+        fun `source is null일 때 produce numbered references without source해야 한다`() {
             val builder = SimpleContextBuilder()
             val docs = listOf(
                 RetrievedDocument(id = "1", content = "Content without source", score = 0.9)
@@ -240,7 +240,7 @@ class RagContextInjectionTest {
         }
 
         @Test
-        fun `numbered references should respect maxTokens limit`() {
+        fun `numbered references은(는) respect maxTokens limit해야 한다`() {
             val builder = SimpleContextBuilder()
 
             // Each document: "[N]\n" + "A".repeat(400) = ~100 tokens
@@ -258,7 +258,7 @@ class RagContextInjectionTest {
         }
 
         @Test
-        fun `should use separator between numbered documents`() {
+        fun `use separator between numbered documents해야 한다`() {
             val builder = SimpleContextBuilder(separator = "\n---\n")
             val docs = listOf(
                 RetrievedDocument(id = "1", content = "Doc1", score = 0.9),

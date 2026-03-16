@@ -69,7 +69,7 @@ class MultipartChatControllerTest {
     inner class TenantAndRouting {
 
         @Test
-        fun `should include tenant metadata in multipart command`() = runTest {
+        fun `include tenant metadata in multipart command해야 한다`() = runTest {
             val controller = MultipartChatController(agentExecutor = agentExecutor)
             val headers = HttpHeaders()
             headers.add("X-Tenant-Id", "tenant-multipart")
@@ -112,7 +112,7 @@ class MultipartChatControllerTest {
         }
 
         @Test
-        fun `should reject multipart request when tenant is missing`() = runTest {
+        fun `tenant is missing일 때 reject multipart request해야 한다`() = runTest {
             val exception = try {
                 MultipartChatController(agentExecutor = agentExecutor).chatMultipart(
                     message = "describe image",
@@ -140,7 +140,7 @@ class MultipartChatControllerTest {
 
         @Test
         @Tag("regression")
-        fun `should reject file exceeding configured size limit`() = runTest {
+        fun `reject file exceeding configured size limit해야 한다`() = runTest {
             val oversizedContent = ByteArray(1025) { 0x42 }
             val controller = controllerWith(MultimodalProperties(maxFileSizeBytes = 1024))
 
@@ -166,7 +166,7 @@ class MultipartChatControllerTest {
         }
 
         @Test
-        fun `should process file within maxFileSizeBytes`() = runTest {
+        fun `process file within maxFileSizeBytes해야 한다`() = runTest {
             val smallContent = ByteArray(512) { 0x42 }
             val controller = controllerWith(MultimodalProperties(maxFileSizeBytes = 1024))
 
@@ -192,7 +192,7 @@ class MultipartChatControllerTest {
 
         @Test
         @Tag("regression")
-        fun `should reject request when file count exceeds configured limit`() = runTest {
+        fun `file count exceeds configured limit일 때 reject request해야 한다`() = runTest {
             val controller = controllerWith(MultimodalProperties(maxFilesPerRequest = 2))
             val files = listOf(mockFilePart("a.png"), mockFilePart("b.png"), mockFilePart("c.png"))
 
@@ -218,7 +218,7 @@ class MultipartChatControllerTest {
         }
 
         @Test
-        fun `should allow request at maxFilesPerRequest boundary`() = runTest {
+        fun `allow request at maxFilesPerRequest boundary해야 한다`() = runTest {
             val controller = controllerWith(MultimodalProperties(maxFilesPerRequest = 2))
             val files = listOf(mockFilePart("a.png"), mockFilePart("b.png"))
 
@@ -243,7 +243,7 @@ class MultipartChatControllerTest {
     inner class MultimodalDisabled {
 
         @Test
-        fun `should return 400 when multimodal is disabled`() = runTest {
+        fun `multimodal is disabled일 때 return 400해야 한다`() = runTest {
             val controller = controllerWith(MultimodalProperties(enabled = false))
 
             val ex = assertThrows<FileSizeLimitException>(

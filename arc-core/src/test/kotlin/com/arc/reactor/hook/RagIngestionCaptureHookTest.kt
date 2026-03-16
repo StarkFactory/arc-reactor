@@ -20,7 +20,7 @@ import org.springframework.ai.vectorstore.VectorStore
 class RagIngestionCaptureHookTest {
 
     @Test
-    fun `captures pending candidate when review is required`() = runBlocking {
+    fun `captures pending candidate when review은(는) required이다`() = runBlocking {
         val provider = provider(
             RagIngestionPolicy(
                 enabled = true,
@@ -46,7 +46,7 @@ class RagIngestionCaptureHookTest {
     }
 
     @Test
-    fun `skips candidate when blocked pattern matches`() = runBlocking {
+    fun `candidate when blocked pattern matches를 건너뛴다`() = runBlocking {
         val provider = provider(
             RagIngestionPolicy(
                 enabled = true,
@@ -69,7 +69,7 @@ class RagIngestionCaptureHookTest {
     }
 
     @Test
-    fun `auto-ingests when review is disabled and vector store exists`() = runBlocking {
+    fun `auto-ingests when review은(는) disabled and vector store exists이다`() = runBlocking {
         val provider = provider(
             RagIngestionPolicy(
                 enabled = true,
@@ -98,7 +98,7 @@ class RagIngestionCaptureHookTest {
     }
 
     @Test
-    fun `deduplicates by runId`() = runBlocking {
+    fun `by runId를 중복 제거한다`() = runBlocking {
         val provider = provider(
             RagIngestionPolicy(
                 enabled = true,

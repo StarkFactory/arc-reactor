@@ -91,7 +91,7 @@ class DocumentChunkingIntegrationTest {
     }
 
     @Test
-    fun `long document is chunked and stored as multiple entries`() {
+    fun `long document은(는) chunked and stored as multiple entries이다`() {
         val longContent = buildLongContent(6000)
 
         val response = exchangeJson(
@@ -108,7 +108,7 @@ class DocumentChunkingIntegrationTest {
         val chunkIds = response["chunkIds"].map { it.asText() }
         assertEquals(chunkCount, chunkIds.size, "chunkIds count should match chunkCount")
 
-        // Verify chunks are individually stored in VectorStore
+        // chunks are individually stored in VectorStore 확인
         val store = vectorStore as ChunkingVectorStore
         for (chunkId in chunkIds) {
             assertTrue(store.contains(chunkId), "VectorStore should contain chunk: $chunkId")
@@ -116,7 +116,7 @@ class DocumentChunkingIntegrationTest {
     }
 
     @Test
-    fun `short document is not chunked`() {
+    fun `short document은(는) not chunked이다`() {
         val shortContent = "This is a short document for testing purposes."
 
         val response = exchangeJson(
@@ -132,7 +132,7 @@ class DocumentChunkingIntegrationTest {
     }
 
     @Test
-    fun `search returns chunks with parent metadata`() {
+    fun `search은(는) returns chunks with parent metadata`() {
         val longContent = buildLongContent(6000)
 
         val addResponse = exchangeJson(
@@ -163,7 +163,7 @@ class DocumentChunkingIntegrationTest {
     }
 
     @Test
-    fun `delete with parent ID removes all chunks`() {
+    fun `with parent ID removes all chunks를 삭제한다`() {
         val longContent = buildLongContent(6000)
 
         val addResponse = exchangeJson(
@@ -177,7 +177,7 @@ class DocumentChunkingIntegrationTest {
         val chunkIds = addResponse["chunkIds"].map { it.asText() }
         assertTrue(chunkIds.size > 1, "Should have multiple chunks to test deletion")
 
-        // Delete using parent ID
+        // using parent ID 삭제
         adminClient.method(org.springframework.http.HttpMethod.DELETE)
             .uri("/api/documents")
             .contentType(MediaType.APPLICATION_JSON)
@@ -185,7 +185,7 @@ class DocumentChunkingIntegrationTest {
             .exchange()
             .expectStatus().isNoContent
 
-        // Verify all chunks are removed
+        // all chunks are removed 확인
         val store = vectorStore as ChunkingVectorStore
         for (chunkId in chunkIds) {
             assertFalse(store.contains(chunkId), "Chunk $chunkId should be deleted after parent deletion")
@@ -193,7 +193,7 @@ class DocumentChunkingIntegrationTest {
     }
 
     @Test
-    fun `batch add chunks each document independently`() {
+    fun `배치 add chunks each document independently`() {
         val shortContent = "Short document that should not be split."
         val longContent = buildLongContent(6000)
 
@@ -212,14 +212,14 @@ class DocumentChunkingIntegrationTest {
             expectedStatus = 201
         )
 
-        // VectorStore should have more than 2 entries (1 short + N long chunks)
+        // VectorStore은(는) have more than 2 entries (1 short + N long chunks)해야 합니다
         val store = vectorStore as ChunkingVectorStore
         assertTrue(
             store.size() > 2,
             "Batch should produce more than 2 stored entries (1 short + multiple chunks), got: ${store.size()}"
         )
 
-        // At least one entry should have chunking metadata
+        // At least one entry은(는) have chunking metadata해야 합니다
         val chunkedEntries = store.allDocs().filter { it.metadata["chunked"] == true }
         assertTrue(
             chunkedEntries.isNotEmpty(),

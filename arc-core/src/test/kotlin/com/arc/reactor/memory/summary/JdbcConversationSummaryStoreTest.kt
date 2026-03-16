@@ -43,12 +43,12 @@ class JdbcConversationSummaryStoreTest {
     inner class BasicOperations {
 
         @Test
-        fun `should return null for unknown session`() {
+        fun `unknown session에 대해 return null해야 한다`() {
             assertNull(store.get("unknown"), "Unknown session should return null")
         }
 
         @Test
-        fun `should save and retrieve summary`() {
+        fun `save and retrieve summary해야 한다`() {
             val summary = ConversationSummary(
                 sessionId = "s1",
                 narrative = "User asked about refund policy",
@@ -73,7 +73,7 @@ class JdbcConversationSummaryStoreTest {
         }
 
         @Test
-        fun `should delete summary`() {
+        fun `delete summary해야 한다`() {
             store.save(ConversationSummary(
                 sessionId = "s1",
                 narrative = "test",
@@ -91,7 +91,7 @@ class JdbcConversationSummaryStoreTest {
     inner class UpsertBehavior {
 
         @Test
-        fun `should update existing summary on save`() {
+        fun `update existing summary on save해야 한다`() {
             store.save(ConversationSummary(
                 sessionId = "s1",
                 narrative = "original",
@@ -113,7 +113,7 @@ class JdbcConversationSummaryStoreTest {
         }
 
         @Test
-        fun `should preserve timestamps on update`() {
+        fun `preserve timestamps on update해야 한다`() {
             store.save(ConversationSummary(
                 sessionId = "s1",
                 narrative = "first",
@@ -141,7 +141,7 @@ class JdbcConversationSummaryStoreTest {
     inner class FactsSerialization {
 
         @Test
-        fun `should handle empty facts list`() {
+        fun `handle empty facts list해야 한다`() {
             store.save(ConversationSummary(
                 sessionId = "s1",
                 narrative = "no facts",
@@ -154,7 +154,7 @@ class JdbcConversationSummaryStoreTest {
         }
 
         @Test
-        fun `should handle all fact categories`() {
+        fun `handle all fact categories해야 한다`() {
             val facts = FactCategory.entries.mapIndexed { i, category ->
                 StructuredFact(key = "key$i", value = "val$i", category = category)
             }

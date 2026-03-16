@@ -5,6 +5,7 @@ import com.arc.reactor.slack.tools.usecase.ReadMessagesUseCase
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** Slack 채널의 최근 메시지를 읽는 도구. */
 open class ReadMessagesTool(private val readMessagesUseCase: ReadMessagesUseCase) : LocalTool {
 
     @Tool(description = "Read recent messages from a Slack channel. Returns message text, sender, and timestamp.")

@@ -28,7 +28,7 @@ class FallbackStrategyTest {
     inner class NoOpFallbackStrategyTest {
 
         @Test
-        fun `always returns null`() = runTest {
+        fun `always은(는) returns null`() = runTest {
             val strategy = NoOpFallbackStrategy()
 
             val result = strategy.execute(command, RuntimeException("fail"))
@@ -41,7 +41,7 @@ class FallbackStrategyTest {
     inner class ModelFallbackStrategyTest {
 
         @Test
-        fun `first model success returns result`() = runTest {
+        fun `첫 번째 model success returns result`() = runTest {
             val provider = mockChatModelProvider("openai" to "Fallback response")
             val strategy = ModelFallbackStrategy(
                 fallbackModels = listOf("openai"),
@@ -56,7 +56,7 @@ class FallbackStrategyTest {
         }
 
         @Test
-        fun `first model fails second succeeds`() = runTest {
+        fun `첫 번째 model fails second succeeds`() = runTest {
             val provider = mockk<ChatModelProvider>()
             mockFailingModel(provider, "bad-model")
             mockSuccessModel(provider, "good-model", "Recovered")
@@ -74,7 +74,7 @@ class FallbackStrategyTest {
         }
 
         @Test
-        fun `all models fail returns null`() = runTest {
+        fun `모든 models fail returns null`() = runTest {
             val provider = mockk<ChatModelProvider>()
             mockFailingModel(provider, "model-a")
             mockFailingModel(provider, "model-b")
@@ -90,7 +90,7 @@ class FallbackStrategyTest {
         }
 
         @Test
-        fun `empty model list returns null`() = runTest {
+        fun `비어있는 model list returns null`() = runTest {
             val provider = mockk<ChatModelProvider>()
             val strategy = ModelFallbackStrategy(
                 fallbackModels = emptyList(),
@@ -103,7 +103,7 @@ class FallbackStrategyTest {
         }
 
         @Test
-        fun `blank response is treated as failure`() = runTest {
+        fun `blank response은(는) treated as failure이다`() = runTest {
             val provider = mockChatModelProvider("openai" to "")
             val strategy = ModelFallbackStrategy(
                 fallbackModels = listOf("openai"),
@@ -132,7 +132,7 @@ class FallbackStrategyTest {
         }
 
         @Test
-        fun `should record success on first model`() = runTest {
+        fun `record success on first model해야 한다`() = runTest {
             val provider = mockChatModelProvider("openai" to "Success")
             val strategy = ModelFallbackStrategy(
                 fallbackModels = listOf("openai"),
@@ -148,7 +148,7 @@ class FallbackStrategyTest {
         }
 
         @Test
-        fun `should record failure then success across models`() = runTest {
+        fun `record failure then success across models해야 한다`() = runTest {
             val provider = mockk<ChatModelProvider>()
             mockFailingModel(provider, "bad-model")
             mockSuccessModel(provider, "good-model", "Recovered")
@@ -169,7 +169,7 @@ class FallbackStrategyTest {
         }
 
         @Test
-        fun `should record all failures when all models fail`() = runTest {
+        fun `all models fail일 때 record all failures해야 한다`() = runTest {
             val provider = mockk<ChatModelProvider>()
             mockFailingModel(provider, "model-a")
             mockFailingModel(provider, "model-b")
@@ -187,7 +187,7 @@ class FallbackStrategyTest {
         }
 
         @Test
-        fun `should record failure for blank response`() = runTest {
+        fun `blank response에 대해 record failure해야 한다`() = runTest {
             val provider = mockChatModelProvider("openai" to "")
             val strategy = ModelFallbackStrategy(
                 fallbackModels = listOf("openai"),

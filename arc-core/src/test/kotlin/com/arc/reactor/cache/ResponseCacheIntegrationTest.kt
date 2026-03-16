@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.prompt.ChatOptions
 
 /**
- * Integration test for response caching with SpringAiAgentExecutor.
+ * SpringAiAgentExecutor와 응답 캐싱의 통합 테스트.
  */
 class ResponseCacheIntegrationTest {
 
@@ -22,7 +22,7 @@ class ResponseCacheIntegrationTest {
     inner class CacheHitAndMiss {
 
         @Test
-        fun `second call with same input should return cached response`() = runTest {
+        fun `second call with same input은(는) return cached response해야 한다`() = runTest {
             val fixture = AgentTestFixture()
             fixture.mockCallResponse("Cached response")
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
@@ -52,12 +52,12 @@ class ResponseCacheIntegrationTest {
             assertTrue(result2.success) { "Second call should succeed (cached)" }
             assertEquals("Cached response", result2.content) { "Cached content should match" }
 
-            // Verify LLM was called only once
+            // LLM was called only once 확인
             verify(exactly = 1) { fixture.requestSpec.call() }
         }
 
         @Test
-        fun `high temperature should bypass cache`() = runTest {
+        fun `high temperature은(는) bypass cache해야 한다`() = runTest {
             val fixture = AgentTestFixture()
             fixture.mockCallResponse("Non-deterministic")
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
@@ -77,7 +77,7 @@ class ResponseCacheIntegrationTest {
                 temperature = 0.8 // Above cacheable threshold
             )
 
-            // Both calls should hit LLM
+            // Both calls은(는) hit LLM해야 합니다
             executor.execute(command)
             executor.execute(command)
 
@@ -85,11 +85,11 @@ class ResponseCacheIntegrationTest {
         }
 
         @Test
-        fun `different prompts should not share cache`() = runTest {
+        fun `different prompts은(는) not share cache해야 한다`() = runTest {
             val fixture = AgentTestFixture()
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
 
-            // Return different responses for each call
+            // different responses for each call 반환
             val callSpec1 = fixture.mockFinalResponse("Answer A")
             val callSpec2 = fixture.mockFinalResponse("Answer B")
             every { fixture.requestSpec.call() } returnsMany listOf(callSpec1, callSpec2)
@@ -125,7 +125,7 @@ class ResponseCacheIntegrationTest {
     inner class CacheDisabled {
 
         @Test
-        fun `null cache should skip caching entirely`() = runTest {
+        fun `null cache은(는) skip caching entirely해야 한다`() = runTest {
             val fixture = AgentTestFixture()
             fixture.mockCallResponse("No cache")
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
@@ -146,7 +146,7 @@ class ResponseCacheIntegrationTest {
             executor.execute(command)
             executor.execute(command)
 
-            // Both calls should hit LLM
+            // Both calls은(는) hit LLM해야 합니다
             verify(exactly = 2) { fixture.requestSpec.call() }
         }
     }

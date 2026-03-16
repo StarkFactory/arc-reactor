@@ -12,6 +12,17 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
+/**
+ * 도구 호출 관측성(Observability) AOP Aspect.
+ *
+ * `@Tool` 어노테이션이 붙은 메서드의 실행을 가로채어 다음을 수행한다:
+ * - Micrometer 카운터/타이머 기록 (`mcp_tool_invocations_total`, `mcp_tool_latency`)
+ * - MDC에 requestId 설정 (구조화 로깅용)
+ * - 도구 결과 JSON에서 성공/실패를 파싱하여 에러 코드 추출
+ *
+ * @param meterRegistry Micrometer 메트릭 레지스트리
+ * @see org.springframework.ai.tool.annotation.Tool
+ */
 @Aspect
 class ToolObservabilityAspect(
     private val meterRegistry: MeterRegistry

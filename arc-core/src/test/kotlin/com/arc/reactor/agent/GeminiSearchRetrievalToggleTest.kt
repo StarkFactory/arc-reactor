@@ -22,7 +22,7 @@ class GeminiSearchRetrievalToggleTest {
     }
 
     @Test
-    fun `google search retrieval defaults to false`() = runTest {
+    fun `Google 검색 조회가 기본적으로 false여야 한다`() = runTest {
         val capturedOptions = mutableListOf<ChatOptions>()
         every { fixture.requestSpec.options(capture(capturedOptions)) } returns fixture.requestSpec
         fixture.mockCallResponse("ok")
@@ -45,7 +45,7 @@ class GeminiSearchRetrievalToggleTest {
     }
 
     @Test
-    fun `google search retrieval can be enabled by config`() = runTest {
+    fun `설정으로 Google 검색 조회를 활성화할 수 있어야 한다`() = runTest {
         val capturedOptions = mutableListOf<ChatOptions>()
         every { fixture.requestSpec.options(capture(capturedOptions)) } returns fixture.requestSpec
         fixture.mockCallResponse("ok")

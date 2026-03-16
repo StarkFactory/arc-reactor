@@ -24,6 +24,7 @@ package com.arc.reactor.tool
  *
  * @see KeywordBasedToolSelector for keyword-based filtering
  * @see AllToolSelector for no filtering (pass-through)
+ * @see SemanticToolSelector for embedding-based semantic filtering
  * @see ToolCategory for defining tool categories
  */
 interface ToolSelector {

@@ -11,7 +11,7 @@ class StructuredOutputValidatorTest {
     private val validator = StructuredOutputValidator()
 
     @Test
-    fun `should strip markdown code fence`() {
+    fun `strip markdown code fence해야 한다`() {
         val raw = """
             ```json
             {"ok": true}
@@ -22,7 +22,7 @@ class StructuredOutputValidatorTest {
     }
 
     @Test
-    fun `should validate json and yaml`() {
+    fun `validate json and yaml해야 한다`() {
         assertTrue(validator.isValidFormat("""{"name":"arc"}""", ResponseFormat.JSON), "Valid JSON object should pass validation")
         assertTrue(validator.isValidFormat("name: arc", ResponseFormat.YAML), "Valid YAML should pass validation")
         assertFalse(validator.isValidFormat("{bad", ResponseFormat.JSON), "Malformed JSON should fail validation")

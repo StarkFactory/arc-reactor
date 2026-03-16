@@ -21,6 +21,15 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * RAG Ingestion Policy 동적 관리 컨트롤러.
+ *
+ * RAG 수집 캡처 정책(허용 채널, 최소 글자 수, 차단 패턴 등)을 런타임에 관리합니다.
+ * 저장된 정책을 삭제하면 설정 파일 기본값으로 복원됩니다.
+ *
+ * @see RagIngestionPolicyStore
+ * @see RagIngestionPolicyProvider
+ */
 @Tag(name = "RAG Ingestion Policy", description = "Dynamic RAG ingestion capture policy (ADMIN only)")
 @RestController
 @RequestMapping("/api/rag-ingestion/policy")
@@ -35,7 +44,8 @@ class RagIngestionPolicyController(
     private val adminAuditStore: AdminAuditStore
 ) {
 
-    @Operation(summary = "Get RAG ingestion policy state (effective + stored) (ADMIN)")
+    /** 현재 적용 중인 정책과 저장된 정책 상태를 조회한다. */
+    @Operation(summary = "RAG Ingestion Policy 상태 조회 (적용 중 + 저장) (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Current RAG ingestion policy state"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -53,7 +63,8 @@ class RagIngestionPolicyController(
         )
     }
 
-    @Operation(summary = "Update stored RAG ingestion policy (ADMIN)")
+    /** 저장된 RAG Ingestion Policy를 수정한다. */
+    @Operation(summary = "저장된 RAG Ingestion Policy 수정 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "RAG ingestion policy updated"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -80,7 +91,8 @@ class RagIngestionPolicyController(
         return ResponseEntity.ok(saved.toResponse())
     }
 
-    @Operation(summary = "Delete stored RAG ingestion policy (reset to config defaults) (ADMIN)")
+    /** 저장된 RAG Ingestion Policy를 삭제하고 설정 기본값으로 복원한다. */
+    @Operation(summary = "저장된 RAG Ingestion Policy 삭제 (설정 기본값 복원) (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "RAG ingestion policy deleted, reset to config defaults"),
         ApiResponse(responseCode = "403", description = "Admin access required")

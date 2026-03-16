@@ -7,12 +7,21 @@ import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+/** 메트릭의 baseline 통계 (평균, 표준편차, 샘플 수). */
 data class Baseline(
     val mean: Double,
     val stdDev: Double,
     val sampleCount: Long
 )
 
+/**
+ * 최근 7일 시간별 집계 데이터를 기반으로 baseline 통계를 계산한다.
+ *
+ * Caffeine 캐시(1시간 TTL)를 사용하여 반복 조회를 최적화한다.
+ * 최소 24개 샘플이 있어야 유효한 baseline을 반환한다.
+ *
+ * @see AlertEvaluator BASELINE_ANOMALY 알림에서 사용
+ */
 class BaselineCalculator(private val jdbcTemplate: JdbcTemplate) {
 
     private val cache = Caffeine.newBuilder()
@@ -20,6 +29,7 @@ class BaselineCalculator(private val jdbcTemplate: JdbcTemplate) {
         .expireAfterWrite(Duration.ofHours(1))
         .build<String, Baseline>()
 
+    /** 캐시 우선 조회 후, 미스 시 DB에서 계산하여 캐시에 저장한다. */
     fun getBaseline(tenantId: String, metric: String): Baseline? {
         val key = "$tenantId:$metric"
         return cache.getIfPresent(key) ?: computeBaseline(tenantId, metric)?.also { cache.put(key, it) }
@@ -78,9 +88,7 @@ class BaselineCalculator(private val jdbcTemplate: JdbcTemplate) {
         return toBaseline(result, minSamples = 24)
     }
 
-    /**
-     * Safely converts a JDBC queryForMap result to a Baseline, handling null/type-mismatch.
-     */
+    /** JDBC queryForMap 결과를 [Baseline]으로 안전하게 변환한다. null/타입 불일치를 처리한다. */
     private fun toBaseline(result: Map<String, Any?>, minSamples: Long): Baseline? {
         val samples = (result["samples"] as? Number)?.toLong() ?: 0L
         if (samples < minSamples) return null

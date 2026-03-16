@@ -21,7 +21,7 @@ class ListScheduledJobsToolTest {
     private val tool = ListScheduledJobsTool(schedulerService)
 
     @Test
-    fun `has null category so it is always loaded`() {
+    fun `has null category so it은(는) always loaded이다`() {
         assertNull(tool.category,
             "Scheduler tools must have null category to be always available")
     }
@@ -30,7 +30,7 @@ class ListScheduledJobsToolTest {
     inner class ListJobs {
 
         @Test
-        fun `returns empty list when no jobs exist`() {
+        fun `no jobs exist일 때 empty list를 반환한다`() {
             every { schedulerService.list() } returns emptyList()
 
             val result = tool.list_scheduled_jobs()
@@ -43,7 +43,7 @@ class ListScheduledJobsToolTest {
         }
 
         @Test
-        fun `returns all jobs with summary fields`() {
+        fun `all jobs with summary fields를 반환한다`() {
             every { schedulerService.list() } returns listOf(
                 ScheduledJob(
                     id = "job-1",
@@ -86,7 +86,7 @@ class ListScheduledJobsToolTest {
         }
 
         @Test
-        fun `does not expose agentPrompt in summary`() {
+        fun `expose agentPrompt in summary하지 않는다`() {
             every { schedulerService.list() } returns listOf(
                 ScheduledJob(
                     id = "job-1",
@@ -110,7 +110,7 @@ class ListScheduledJobsToolTest {
     inner class UnexpectedExceptions {
 
         @Test
-        fun `returns error JSON on unexpected exception`() {
+        fun `error JSON on unexpected exception를 반환한다`() {
             every { schedulerService.list() } throws
                 RuntimeException("Store unavailable")
 

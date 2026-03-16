@@ -52,7 +52,7 @@ class JdbcPendingApprovalStoreCleanupTest {
     }
 
     @Test
-    fun `listPending cleans up old resolved rows by retention`() {
+    fun `listPending은(는) cleans up old resolved rows by retention`() {
         val oldResolvedAt = Instant.now().minusSeconds(7_200)
         val freshResolvedAt = Instant.now()
 

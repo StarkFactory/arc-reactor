@@ -15,7 +15,7 @@ class ReadThreadRepliesToolTest {
     private val tool = ReadThreadRepliesTool(readThreadRepliesUseCase)
 
     @Test
-    fun `reads thread replies successfully`() {
+    fun `thread replies successfully를 읽는다`() {
         every { readThreadRepliesUseCase.execute("C123", "1234.5678", 10, null) } returns
             ConversationHistoryResult(
                 ok = true,
@@ -32,21 +32,21 @@ class ReadThreadRepliesToolTest {
     }
 
     @Test
-    fun `returns error for blank channelId`() {
+    fun `blank channelId에 대해 error를 반환한다`() {
         val result = tool.read_thread_replies("", "1234.5678", null, null)
         result shouldContain "error"
         result shouldContain "channelId must be a valid Slack channel ID"
     }
 
     @Test
-    fun `returns error for blank threadTs`() {
+    fun `blank threadTs에 대해 error를 반환한다`() {
         val result = tool.read_thread_replies("C123", "", null, null)
         result shouldContain "error"
         result shouldContain "threadTs must be a valid Slack timestamp"
     }
 
     @Test
-    fun `returns error for non-positive limit`() {
+    fun `non-positive limit에 대해 error를 반환한다`() {
         val result = tool.read_thread_replies("C123", "1234.5678", 0, null)
         result shouldContain "error"
         result shouldContain "limit must be between 1 and 200"
@@ -54,7 +54,7 @@ class ReadThreadRepliesToolTest {
     }
 
     @Test
-    fun `returns error for limit above max`() {
+    fun `limit above max에 대해 error를 반환한다`() {
         val result = tool.read_thread_replies("C123", "1234.5678", 201, null)
         result shouldContain "error"
         result shouldContain "limit must be between 1 and 200"
@@ -62,7 +62,7 @@ class ReadThreadRepliesToolTest {
     }
 
     @Test
-    fun `uses custom limit`() {
+    fun `custom limit를 사용한다`() {
         every { readThreadRepliesUseCase.execute("C123", "1234.5678", 5, null) } returns
             ConversationHistoryResult(ok = true, messages = emptyList())
 
@@ -71,7 +71,7 @@ class ReadThreadRepliesToolTest {
     }
 
     @Test
-    fun `passes cursor when provided`() {
+    fun `cursor when provided를 전달한다`() {
         every { readThreadRepliesUseCase.execute("C123", "1234.5678", 10, "next-cursor") } returns
             ConversationHistoryResult(ok = true, messages = emptyList(), nextCursor = null)
 
@@ -81,14 +81,14 @@ class ReadThreadRepliesToolTest {
     }
 
     @Test
-    fun `returns error for invalid channel id format`() {
+    fun `invalid channel id format에 대해 error를 반환한다`() {
         val result = tool.read_thread_replies("123", "1234.5678", null, null)
         result shouldContain "channelId must be a valid Slack channel ID"
         verify(exactly = 0) { readThreadRepliesUseCase.execute(any(), any(), any(), any()) }
     }
 
     @Test
-    fun `returns error for invalid thread timestamp format`() {
+    fun `invalid thread timestamp format에 대해 error를 반환한다`() {
         val result = tool.read_thread_replies("C123", "abc", null, null)
         result shouldContain "threadTs must be a valid Slack timestamp"
         verify(exactly = 0) { readThreadRepliesUseCase.execute(any(), any(), any(), any()) }

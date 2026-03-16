@@ -25,10 +25,10 @@ import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.UserMessage
 
 /**
- * E2E integration test for the Hierarchical Conversation Memory feature.
+ * 계층적 대화 메모리 기능에 대한 E2E 통합 테스트.
  *
- * Verifies the full flow of DefaultConversationManager with summary enabled:
- * structured facts + narrative summary + recent messages (3-layer memory).
+ * 요약이 활성화된 DefaultConversationManager의 전체 흐름을 검증합니다:
+ * 구조화된 사실 + 서술 요약 + 최근 메시지 (3계층 메모리).
  *
  * Uses real InMemoryMemoryStore and InMemoryConversationSummaryStore,
  * with a mock ConversationSummaryService (no real LLM calls).
@@ -95,8 +95,8 @@ class HierarchicalMemoryIntegrationTest {
     }
 
     /**
-     * Populates the memory store with 32 messages (16 turns) simulating
-     * a realistic customer service conversation about an order refund.
+     * 주문 환불에 대한 현실적인 고객 서비스 대화를
+     * 시뮬레이션하는 32개 메시지(16턴)로 메모리 스토어를 채웁니다.
      */
     private fun populateCustomerServiceConversation() {
         val conversationMessages = listOf(
@@ -165,7 +165,7 @@ class HierarchicalMemoryIntegrationTest {
     inner class FullHierarchicalFlow {
 
         @Test
-        fun `should return facts system message, narrative system message, and recent messages`() = runTest {
+        fun `return facts system message, narrative system message, and recent messages해야 한다`() = runTest {
             val manager = DefaultConversationManager(
                 memoryStore, agentProperties, summaryStore, summaryService
             )
@@ -173,7 +173,7 @@ class HierarchicalMemoryIntegrationTest {
             val history = manager.loadHistory(createCommand())
 
             // 32 messages > triggerMessageCount(20), recentMessageCount=10
-            // Expected: [Facts SystemMessage] + [Narrative SystemMessage] + [10 recent messages]
+            // 기대값: [Facts SystemMessage] + [Narrative SystemMessage] + [10 recent messages]
             assertEquals(12, history.size,
                 "Total should be 2 system messages + 10 recent messages, got ${history.size}")
 
@@ -184,7 +184,7 @@ class HierarchicalMemoryIntegrationTest {
         }
 
         @Test
-        fun `facts system message should contain key entities`() = runTest {
+        fun `facts system message은(는) contain key entities해야 한다`() = runTest {
             val manager = DefaultConversationManager(
                 memoryStore, agentProperties, summaryStore, summaryService
             )
@@ -208,7 +208,7 @@ class HierarchicalMemoryIntegrationTest {
         }
 
         @Test
-        fun `narrative system message should be coherent and contain summary`() = runTest {
+        fun `narrative system message은(는) be coherent and contain summary해야 한다`() = runTest {
             val manager = DefaultConversationManager(
                 memoryStore, agentProperties, summaryStore, summaryService
             )
@@ -228,7 +228,7 @@ class HierarchicalMemoryIntegrationTest {
         }
 
         @Test
-        fun `recent messages should be verbatim with exact content match`() = runTest {
+        fun `recent messages은(는) be verbatim with exact content match해야 한다`() = runTest {
             val manager = DefaultConversationManager(
                 memoryStore, agentProperties, summaryStore, summaryService
             )
@@ -240,7 +240,7 @@ class HierarchicalMemoryIntegrationTest {
             assertEquals(10, recentMessages.size,
                 "Should have exactly 10 recent messages (recentMessageCount=10)")
 
-            // Verify the very last message (assistant closing) is verbatim
+            // the very last message (assistant closing) is verbatim 확인
             val lastMessage = recentMessages.last()
             assertTrue(lastMessage is AssistantMessage,
                 "Last recent message should be AssistantMessage but was ${lastMessage::class.simpleName}")
@@ -249,7 +249,7 @@ class HierarchicalMemoryIntegrationTest {
             assertTrue(lastMessage.text.orEmpty().contains("Have a wonderful day!"),
                 "Last assistant message should contain closing greeting verbatim")
 
-            // Verify a user message from the recent window is verbatim
+            // a user message from the recent window is verbatim 확인
             val recentUserMessages = recentMessages.filterIsInstance<UserMessage>()
             assertTrue(recentUserMessages.isNotEmpty(),
                 "Recent messages should contain at least one UserMessage")
@@ -260,7 +260,7 @@ class HierarchicalMemoryIntegrationTest {
         }
 
         @Test
-        fun `total message count should equal 2 system messages plus recentMessageCount`() = runTest {
+        fun `total message count은(는) equal 2 system messages plus recentMessageCount해야 한다`() = runTest {
             val manager = DefaultConversationManager(
                 memoryStore, agentProperties, summaryStore, summaryService
             )
@@ -286,7 +286,7 @@ class HierarchicalMemoryIntegrationTest {
     inner class Caching {
 
         @Test
-        fun `second loadHistory call should use cached summary without calling summaryService again`() = runTest {
+        fun `second loadHistory call은(는) use cached summary without calling summaryService again해야 한다`() = runTest {
             val manager = DefaultConversationManager(
                 memoryStore, agentProperties, summaryStore, summaryService
             )
@@ -296,17 +296,17 @@ class HierarchicalMemoryIntegrationTest {
             assertEquals(12, firstHistory.size,
                 "First call should return hierarchical history")
 
-            // Second call: same session, same message count -> should use cache
+            // Second call: same session, same message count ->은(는) use cache해야 합니다
             val secondHistory = manager.loadHistory(createCommand())
             assertEquals(12, secondHistory.size,
                 "Second call should also return hierarchical history")
 
-            // summaryService.summarize should have been called exactly once
+            // summaryService.summarize은(는) have been called exactly once해야 합니다
             coVerify(exactly = 1) { summaryService.summarize(any(), any()) }
         }
 
         @Test
-        fun `cached summary should produce identical results`() = runTest {
+        fun `cached summary은(는) produce identical results해야 한다`() = runTest {
             val manager = DefaultConversationManager(
                 memoryStore, agentProperties, summaryStore, summaryService
             )
@@ -314,13 +314,13 @@ class HierarchicalMemoryIntegrationTest {
             val firstHistory = manager.loadHistory(createCommand())
             val secondHistory = manager.loadHistory(createCommand())
 
-            // Facts should be identical
+            // Facts은(는) be identical해야 합니다
             val firstFacts = (firstHistory[0] as SystemMessage).text
             val secondFacts = (secondHistory[0] as SystemMessage).text
             assertEquals(firstFacts, secondFacts,
                 "Cached facts should be identical to first call")
 
-            // Narrative should be identical
+            // Narrative은(는) be identical해야 합니다
             val firstNarrative = (firstHistory[1] as SystemMessage).text
             val secondNarrative = (secondHistory[1] as SystemMessage).text
             assertEquals(firstNarrative, secondNarrative,
@@ -332,7 +332,7 @@ class HierarchicalMemoryIntegrationTest {
     inner class SummaryRefreshOnNewMessages {
 
         @Test
-        fun `should refresh summary when new messages are added after initial summarization`() = runTest {
+        fun `new messages are added after initial summarization일 때 refresh summary해야 한다`() = runTest {
             val manager = DefaultConversationManager(
                 memoryStore, agentProperties, summaryStore, summaryService
             )
@@ -341,7 +341,7 @@ class HierarchicalMemoryIntegrationTest {
             manager.loadHistory(createCommand())
             coVerify(exactly = 1) { summaryService.summarize(any(), any()) }
 
-            // Add 2 new messages (1 turn) to the conversation
+            // 2 new messages (1 turn) to the conversation를 추가합니다
             memoryStore.addMessage(sessionId, "user", "Actually, can I change the refund to store credit?", "user-minjun")
             memoryStore.addMessage(sessionId, "assistant", "Of course! I've changed your refund to store credit of 89,000 KRW.", "user-minjun")
 
@@ -357,14 +357,14 @@ class HierarchicalMemoryIntegrationTest {
                 tokenCost = 400
             )
 
-            // Second call: conversation grew, so splitIndex changed -> triggers re-summarization
+            // Second call: conversation grew, so splitIndex changed → triggers re-summarization
             val refreshedHistory = manager.loadHistory(createCommand())
 
             // Now 34 messages, recentMessageCount=10, splitIndex=24
             // Previous summarizedUpToIndex was 22 (from 32-10), now needs 24
             coVerify(exactly = 2) { summaryService.summarize(any(), any()) }
 
-            // Verify updated facts appear
+            // updated facts appear 확인
             val factsText = (refreshedHistory[0] as SystemMessage).text
             assertTrue(factsText.contains("refund_method_updated") || factsText.contains("Store credit"),
                 "Refreshed facts should contain updated refund method info, got: $factsText")
@@ -375,7 +375,7 @@ class HierarchicalMemoryIntegrationTest {
     inner class GracefulFallback {
 
         @Test
-        fun `should fall back to takeLast when summaryService throws exception`() = runTest {
+        fun `summaryService throws exception일 때 fall back to takeLast해야 한다`() = runTest {
             val failingService = mockk<ConversationSummaryService>()
             coEvery { failingService.summarize(any(), any()) } throws RuntimeException(
                 "LLM service unavailable: connection timeout"
@@ -388,18 +388,18 @@ class HierarchicalMemoryIntegrationTest {
             val history = manager.loadHistory(createCommand())
 
             // Fallback: takeLast(maxConversationTurns * 2) = takeLast(20)
-            // 32 messages total, take last 20
+            // 총 32개 메시지, 마지막 20개를 가져옵니다
             assertEquals(20, history.size,
                 "Fallback should return takeLast(maxConversationTurns * 2 = 20), got ${history.size}")
 
-            // Fallback should not contain any SystemMessage (no facts/narrative)
+            // Fallback은(는) not contain any SystemMessage (no facts/narrative)해야 합니다
             val systemMessages = history.filterIsInstance<SystemMessage>()
             assertTrue(systemMessages.isEmpty(),
                 "Fallback should not contain SystemMessages, found ${systemMessages.size}")
         }
 
         @Test
-        fun `should preserve recent messages verbatim even in fallback mode`() = runTest {
+        fun `preserve recent messages verbatim even in fallback mode해야 한다`() = runTest {
             val failingService = mockk<ConversationSummaryService>()
             coEvery { failingService.summarize(any(), any()) } throws RuntimeException("LLM error")
 
@@ -409,7 +409,7 @@ class HierarchicalMemoryIntegrationTest {
 
             val history = manager.loadHistory(createCommand())
 
-            // The last message should still be the closing assistant message
+            // The last message은(는) still be the closing assistant message해야 합니다
             val lastMessage = history.last()
             assertTrue(lastMessage is AssistantMessage,
                 "Last message in fallback should be AssistantMessage but was ${lastMessage::class.simpleName}")
@@ -418,7 +418,7 @@ class HierarchicalMemoryIntegrationTest {
         }
 
         @Test
-        fun `should fall back to takeLast when summaryService throws OutOfMemoryError wrapped in RuntimeException`() = runTest {
+        fun `summaryService throws OutOfMemoryError wrapped in RuntimeException일 때 fall back to takeLast해야 한다`() = runTest {
             val failingService = mockk<ConversationSummaryService>()
             coEvery { failingService.summarize(any(), any()) } throws RuntimeException(
                 "Summarization failed", OutOfMemoryError("Java heap space")
@@ -439,9 +439,9 @@ class HierarchicalMemoryIntegrationTest {
     inner class EdgeCases {
 
         @Test
-        fun `should use takeLast when conversation is below trigger threshold`() = runTest {
+        fun `conversation is below trigger threshold일 때 use takeLast해야 한다`() = runTest {
             val smallMemoryStore = InMemoryMemoryStore()
-            // Add only 10 messages (below triggerMessageCount=20)
+            // only 10 messages (below triggerMessageCount=20)를 추가합니다
             for (i in 1..10) {
                 val role = if (i % 2 == 1) "user" else "assistant"
                 smallMemoryStore.addMessage("small-session", role, "message $i", "user-1")
@@ -464,7 +464,7 @@ class HierarchicalMemoryIntegrationTest {
         }
 
         @Test
-        fun `should handle conversation with exactly triggerMessageCount messages`() = runTest {
+        fun `exactly triggerMessageCount messages로 handle conversation해야 한다`() = runTest {
             val exactStore = InMemoryMemoryStore()
             // Add exactly 20 messages (== triggerMessageCount)
             for (i in 1..20) {
@@ -490,7 +490,7 @@ class HierarchicalMemoryIntegrationTest {
         }
 
         @Test
-        fun `should handle empty facts gracefully`() = runTest {
+        fun `handle empty facts gracefully해야 한다`() = runTest {
             coEvery { summaryService.summarize(any(), any()) } returns SummarizationResult(
                 narrative = realisticNarrative,
                 facts = emptyList(),
@@ -503,7 +503,7 @@ class HierarchicalMemoryIntegrationTest {
 
             val history = manager.loadHistory(createCommand())
 
-            // No facts -> only [Narrative SystemMessage] + [10 recent messages]
+            // facts -> only [Narrative SystemMessage] + [10 recent messages] 없음
             assertEquals(11, history.size,
                 "Empty facts should produce 1 narrative + 10 recent = 11 messages")
             assertTrue(history[0] is SystemMessage,
@@ -513,7 +513,7 @@ class HierarchicalMemoryIntegrationTest {
         }
 
         @Test
-        fun `should handle empty narrative gracefully`() = runTest {
+        fun `handle empty narrative gracefully해야 한다`() = runTest {
             coEvery { summaryService.summarize(any(), any()) } returns SummarizationResult(
                 narrative = "",
                 facts = realisticFacts,
@@ -526,7 +526,7 @@ class HierarchicalMemoryIntegrationTest {
 
             val history = manager.loadHistory(createCommand())
 
-            // No narrative -> only [Facts SystemMessage] + [10 recent messages]
+            // narrative -> only [Facts SystemMessage] + [10 recent messages] 없음
             assertEquals(11, history.size,
                 "Empty narrative should produce 1 facts + 10 recent = 11 messages")
             assertTrue(history[0] is SystemMessage,
@@ -536,7 +536,7 @@ class HierarchicalMemoryIntegrationTest {
         }
 
         @Test
-        fun `should handle both empty facts and empty narrative`() = runTest {
+        fun `handle both empty facts and empty narrative해야 한다`() = runTest {
             coEvery { summaryService.summarize(any(), any()) } returns SummarizationResult(
                 narrative = "",
                 facts = emptyList(),
@@ -549,7 +549,7 @@ class HierarchicalMemoryIntegrationTest {
 
             val history = manager.loadHistory(createCommand())
 
-            // No facts, no narrative -> falls back to takeLast(maxConversationTurns * 2) = 20
+            // facts, no narrative -> falls back to takeLast(maxConversationTurns * 2) = 20 없음
             val expectedFallbackSize = agentProperties.llm.maxConversationTurns * 2
             assertEquals(expectedFallbackSize, history.size,
                 "Empty summary should fall back to takeLast($expectedFallbackSize) to avoid silent context loss")

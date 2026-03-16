@@ -13,7 +13,7 @@ import org.springframework.ai.vectorstore.VectorStore
 class SpringAiVectorStoreRetrieverTimeoutTest {
 
     @Test
-    fun `returns empty list when vector store exceeds timeout`() = runBlocking {
+    fun `vector store exceeds timeout일 때 empty list를 반환한다`() = runBlocking {
         val vectorStore = mockk<VectorStore>()
         every { vectorStore.similaritySearch(any<SearchRequest>()) } answers {
             Thread.sleep(500)
@@ -38,7 +38,7 @@ class SpringAiVectorStoreRetrieverTimeoutTest {
     }
 
     @Test
-    fun `returns documents when vector store responds within timeout`() = runBlocking {
+    fun `vector store responds within timeout일 때 documents를 반환한다`() = runBlocking {
         val vectorStore = mockk<VectorStore>()
         every { vectorStore.similaritySearch(any<SearchRequest>()) } returns listOf(
             Document.builder().text("test content").metadata("score", 0.9).build()
@@ -62,7 +62,7 @@ class SpringAiVectorStoreRetrieverTimeoutTest {
     }
 
     @Test
-    fun `returns empty list when vector store throws exception`() = runBlocking {
+    fun `vector store throws exception일 때 empty list를 반환한다`() = runBlocking {
         val vectorStore = mockk<VectorStore>()
         every { vectorStore.similaritySearch(any<SearchRequest>()) } throws
             RuntimeException("connection refused")

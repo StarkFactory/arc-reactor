@@ -54,10 +54,10 @@ class ToolOutputSanitizer(
     companion object {
         private val INJECTION_PATTERNS: List<Pair<Regex, String>> =
             InjectionPatterns.SHARED.map { it.regex to it.name } + listOf(
-                // Prompt override (output-only)
+                // 프롬프트 재정의 (출력 전용)
                 Regex("(?i)new (role|persona|instructions?)") to "prompt_override",
 
-                // Data exfiltration attempts (output-only)
+                // 데이터 유출 시도 (출력 전용)
                 Regex("(?i)(fetch|send|post|get)\\s+https?://[^\\s]+") to "data_exfil",
                 Regex("(?i)exfiltrate|leak\\s+data|send\\s+to\\s+external") to "data_exfil"
             )

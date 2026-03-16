@@ -17,7 +17,7 @@ class ConversationMessageTrimmerMatrixTest {
     private val estimator = TokenEstimator { text -> text.length }
 
     @Test
-    fun `non-positive budget should preserve only last user when present across 180 cases`() {
+    fun `non-positive budget은(는) preserve only last user when present across 180 cases해야 한다`() {
         repeat(180) { i ->
             val messages = mutableListOf<Message>(
                 AssistantMessage("a$i"),
@@ -51,7 +51,7 @@ class ConversationMessageTrimmerMatrixTest {
     }
 
     @Test
-    fun `high budget should keep history unchanged across 150 size combinations`() {
+    fun `high budget은(는) keep history unchanged across 150 size combinations해야 한다`() {
         var checked = 0
         for (userCount in 1..5) {
             for (assistantCount in 1..6) {
@@ -76,7 +76,7 @@ class ConversationMessageTrimmerMatrixTest {
     }
 
     @Test
-    fun `tool response should never become orphan after trim across 120 budgets`() {
+    fun `tool response은(는) never become orphan after trim across 120 budgets해야 한다`() {
         fun buildToolCall(index: Int): AssistantMessage.ToolCall {
             return AssistantMessage.ToolCall("call-$index", "function", "tool-$index", "{}")
         }

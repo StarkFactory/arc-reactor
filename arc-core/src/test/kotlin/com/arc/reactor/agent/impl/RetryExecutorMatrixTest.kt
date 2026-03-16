@@ -36,7 +36,7 @@ class RetryExecutorMatrixTest {
     }
 
     @Test
-    fun `retry should run inside circuit breaker and preserve attempt behavior`() = runTest {
+    fun `retry은(는) run inside circuit breaker and preserve attempt behavior해야 한다`() = runTest {
         val circuitBreaker = CountingCircuitBreaker()
         var attempts = 0
         val delays = mutableListOf<Long>()
@@ -61,7 +61,7 @@ class RetryExecutorMatrixTest {
     }
 
     @Test
-    fun `retry delay should stay within jitter bounds across delay matrix`() = runTest {
+    fun `retry delay은(는) stay within jitter bounds across delay matrix해야 한다`() = runTest {
         val randomValues = listOf(0.0, 0.25, 0.5, 0.75, 1.0)
         var randomIndex = 0
         val delays = mutableListOf<Long>()
@@ -96,7 +96,7 @@ class RetryExecutorMatrixTest {
     }
 
     @Test
-    fun `retry delay should never be negative even with out-of-range random`() = runTest {
+    fun `retry delay은(는) never be negative even with out-of-range random해야 한다`() = runTest {
         val delays = mutableListOf<Long>()
         var attempts = 0
         val executor = RetryExecutor(
@@ -118,7 +118,7 @@ class RetryExecutorMatrixTest {
     }
 
     @Test
-    fun `max attempts should be coerced to one when configured with zero`() = runTest {
+    fun `max attempts은(는) be coerced to one when configured with zero해야 한다`() = runTest {
         var attempts = 0
         val executor = RetryExecutor(
             retry = RetryProperties(maxAttempts = 0, initialDelayMs = 1, multiplier = 2.0, maxDelayMs = 10),
@@ -134,7 +134,7 @@ class RetryExecutorMatrixTest {
                 throw IllegalStateException("always fails")
             }
         } catch (_: IllegalStateException) {
-            // expected
+            // 예상 결과
         }
 
         assertEquals(1, attempts)

@@ -28,6 +28,8 @@ private val logger = KotlinLogging.logger {}
  *
  * ## Failure Handling
  * If an intermediate node fails, execution stops immediately and a failure result is returned.
+ *
+ * @see MultiAgentOrchestrator for the interface contract
  */
 class SequentialOrchestrator : MultiAgentOrchestrator {
 

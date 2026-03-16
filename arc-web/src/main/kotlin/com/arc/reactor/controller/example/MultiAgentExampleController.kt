@@ -16,17 +16,16 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * Multi-agent controller examples.
+ * 멀티 에이전트 컨트롤러 예제.
  *
- * Demonstrates how to expose multi-agent orchestration via REST endpoints.
- * The controller only handles HTTP concerns -- all agent orchestration
- * logic lives in service classes.
+ * REST 엔드포인트를 통해 멀티 에이전트 오케스트레이션을 노출하는 방법을 보여줍니다.
+ * 컨트롤러는 HTTP 관심사만 처리하고, 에이전트 오케스트레이션 로직은 서비스 클래스에 있습니다.
  *
- * Uncomment [@RestController] to activate.
+ * [@RestController] 주석을 해제하면 활성화됩니다.
  *
- * @see CustomerServiceExample Supervisor pattern (service layer)
- * @see ReportPipelineExample Sequential pattern (service layer)
- * @see CodeReviewExample Parallel pattern (service layer)
+ * @see CustomerServiceExample Supervisor 패턴 (서비스 계층)
+ * @see ReportPipelineExample Sequential 패턴 (서비스 계층)
+ * @see CodeReviewExample Parallel 패턴 (서비스 계층)
  */
 // @RestController  <- Uncomment to activate
 // @RequestMapping("/api/multi")
@@ -38,7 +37,7 @@ class MultiAgentExampleController(
 ) {
 
     /**
-     * Supervisor: delegates to the right specialist automatically.
+     * Supervisor: 적절한 전문가 에이전트에게 자동으로 위임한다.
      *
      * ```bash
      * curl -X POST http://localhost:8080/api/multi/supervisor \
@@ -46,7 +45,7 @@ class MultiAgentExampleController(
      *   -d '{"message": "I want to cancel my order and get a refund"}'
      * ```
      */
-    @Operation(summary = "Supervisor: delegate to the right specialist agent")
+    @Operation(summary = "Supervisor: 적절한 전문가 에이전트에게 위임")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Agent response"),
         ApiResponse(responseCode = "400", description = "Invalid request")
@@ -67,7 +66,7 @@ class MultiAgentExampleController(
     }
 
     /**
-     * Sequential: research -> write -> review pipeline.
+     * Sequential: 조사 -> 작성 -> 검토 파이프라인.
      *
      * ```bash
      * curl -X POST http://localhost:8080/api/multi/sequential \
@@ -75,7 +74,7 @@ class MultiAgentExampleController(
      *   -d '{"message": "Write a report about AI trends in 2025"}'
      * ```
      */
-    @Operation(summary = "Sequential: research → write → review pipeline")
+    @Operation(summary = "Sequential: 조사 -> 작성 -> 검토 파이프라인")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Agent response"),
         ApiResponse(responseCode = "400", description = "Invalid request")
@@ -96,7 +95,7 @@ class MultiAgentExampleController(
     }
 
     /**
-     * Parallel: security + style + logic review concurrently.
+     * Parallel: 보안 + 스타일 + 로직 검토를 동시에 수행한다.
      *
      * ```bash
      * curl -X POST http://localhost:8080/api/multi/parallel \
@@ -104,7 +103,7 @@ class MultiAgentExampleController(
      *   -d '{"message": "Review this code: fun add(a: Int, b: Int) = a + b"}'
      * ```
      */
-    @Operation(summary = "Parallel: security + style + logic review concurrently")
+    @Operation(summary = "Parallel: 보안 + 스타일 + 로직 동시 검토")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Agent response"),
         ApiResponse(responseCode = "400", description = "Invalid request")

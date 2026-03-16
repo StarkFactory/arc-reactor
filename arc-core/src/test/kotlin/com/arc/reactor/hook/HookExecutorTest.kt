@@ -17,7 +17,7 @@ class HookExecutorTest {
     inner class BeforeAgentStartHooks {
 
         @Test
-        fun `hooks execute in ascending order`() = runBlocking {
+        fun `hooks은(는) execute in ascending order`() = runBlocking {
             val executionOrder = mutableListOf<Int>()
 
             val hook1 = object : BeforeAgentStartHook {
@@ -47,7 +47,7 @@ class HookExecutorTest {
         }
 
         @Test
-        fun `stops and returns Reject when a hook rejects`() = runBlocking {
+        fun `and returns Reject when a hook rejects를 중지한다`() = runBlocking {
             val executionOrder = mutableListOf<Int>()
 
             val hook1 = object : BeforeAgentStartHook {
@@ -85,7 +85,7 @@ class HookExecutorTest {
         }
 
         @Test
-        fun `fail-close when hook has failOnError true`() = runBlocking {
+        fun `hook has failOnError true일 때 fail-close`() = runBlocking {
             val hook = object : BeforeAgentStartHook {
                 override val order = 1
                 override val failOnError = true
@@ -106,7 +106,7 @@ class HookExecutorTest {
         }
 
         @Test
-        fun `fail-open when hook has failOnError false`() = runBlocking {
+        fun `hook has failOnError false일 때 fail-open`() = runBlocking {
             val executionOrder = mutableListOf<Int>()
 
             val failingHook = object : BeforeAgentStartHook {
@@ -134,7 +134,7 @@ class HookExecutorTest {
         }
 
         @Test
-        fun `should rethrow cancellation exception from hook`() {
+        fun `rethrow cancellation exception from hook해야 한다`() {
             val hook = object : BeforeAgentStartHook {
                 override val order = 1
                 override suspend fun beforeAgentStart(context: HookContext): HookResult {
@@ -157,7 +157,7 @@ class HookExecutorTest {
     inner class ToolCallHooks {
 
         @Test
-        fun `BeforeToolCallHook receives correct tool name`() = runBlocking {
+        fun `BeforeToolCallHook은(는) correct tool name를 수신한다`() = runBlocking {
             val capturedToolNames = mutableListOf<String>()
 
             val hook = object : BeforeToolCallHook {
@@ -181,7 +181,7 @@ class HookExecutorTest {
         }
 
         @Test
-        fun `AfterToolCallHook receives tool result`() = runBlocking {
+        fun `AfterToolCallHook은(는) tool result를 수신한다`() = runBlocking {
             val capturedResults = mutableListOf<ToolCallResult>()
 
             val hook = object : AfterToolCallHook {
@@ -212,7 +212,7 @@ class HookExecutorTest {
     inner class AfterAgentCompleteHooks {
 
         @Test
-        fun `receives agent response correctly`() = runBlocking {
+        fun `receives은(는) agent response correctly`() = runBlocking {
             val capturedResponses = mutableListOf<AgentResponse>()
 
             val hook = object : AfterAgentCompleteHook {
@@ -238,7 +238,7 @@ class HookExecutorTest {
     inner class SensitiveParamMasking {
 
         @Test
-        fun `masks sensitive parameters in ToolCallContext`() {
+        fun `sensitive parameters in ToolCallContext를 마스킹한다`() {
             val toolContext = ToolCallContext(
                 agentContext = HookContext(runId = "run-1", userId = "user-1", userPrompt = "Test"),
                 toolName = "api_call",

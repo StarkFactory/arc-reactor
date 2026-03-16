@@ -48,7 +48,7 @@ class SlackMessagingServiceTest {
     inner class SendMessage {
 
         @Test
-        fun `sends message successfully`() = runTest {
+        fun `message successfully를 전송한다`() = runTest {
             mockServer.enqueue(
                 MockResponse()
                     .setHeader("Content-Type", "application/json")
@@ -68,7 +68,7 @@ class SlackMessagingServiceTest {
         }
 
         @Test
-        fun `sends thread reply`() = runTest {
+        fun `thread reply를 전송한다`() = runTest {
             mockServer.enqueue(
                 MockResponse()
                     .setHeader("Content-Type", "application/json")
@@ -85,7 +85,7 @@ class SlackMessagingServiceTest {
         }
 
         @Test
-        fun `handles API error response`() = runTest {
+        fun `API error response를 처리한다`() = runTest {
             mockServer.enqueue(
                 MockResponse()
                     .setHeader("Content-Type", "application/json")
@@ -99,7 +99,7 @@ class SlackMessagingServiceTest {
         }
 
         @Test
-        fun `retries on rate limit and succeeds`() = runTest {
+        fun `on rate limit and succeeds를 재시도한다`() = runTest {
             mockServer.enqueue(
                 MockResponse()
                     .setResponseCode(429)
@@ -120,7 +120,7 @@ class SlackMessagingServiceTest {
         }
 
         @Test
-        fun `retries on server error and succeeds`() = runTest {
+        fun `on server error and succeeds를 재시도한다`() = runTest {
             mockServer.enqueue(MockResponse().setResponseCode(503))
             mockServer.enqueue(
                 MockResponse()
@@ -140,7 +140,7 @@ class SlackMessagingServiceTest {
     inner class AddReaction {
 
         @Test
-        fun `adds reaction successfully`() = runTest {
+        fun `reaction successfully를 추가한다`() = runTest {
             mockServer.enqueue(
                 MockResponse()
                     .setHeader("Content-Type", "application/json")
@@ -162,7 +162,7 @@ class SlackMessagingServiceTest {
     inner class ResponseUrl {
 
         @Test
-        fun `sends callback to response_url successfully`() = runTest {
+        fun `callback to response_url successfully를 전송한다`() = runTest {
             mockServer.enqueue(MockResponse().setResponseCode(200))
 
             val ok = service.sendResponseUrl(

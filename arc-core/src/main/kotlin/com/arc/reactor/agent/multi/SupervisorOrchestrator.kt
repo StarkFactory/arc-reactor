@@ -37,6 +37,8 @@ private val logger = KotlinLogging.logger {}
  * ```
  *
  * @param supervisorSystemPrompt System prompt for the Supervisor agent (customizable)
+ *
+ * @see MultiAgentOrchestrator for the interface contract
  */
 class SupervisorOrchestrator(
     private val supervisorSystemPrompt: String? = null

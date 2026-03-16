@@ -22,7 +22,7 @@ class MetricGuardAuditPublisherTest {
     inner class PublishRejection {
 
         @Test
-        fun `rejection event has correct stage and category`() {
+        fun `rejection event은(는) correct stage and category를 가진다`() {
             val (publisher, ringBuffer, _) = createPublisher()
 
             publisher.publish(
@@ -48,7 +48,7 @@ class MetricGuardAuditPublisherTest {
         }
 
         @Test
-        fun `rejection without category falls back to stage-derived category`() {
+        fun `rejection은(는) without category falls back to stage-derived category`() {
             val (publisher, ringBuffer, _) = createPublisher()
 
             publisher.publish(
@@ -72,7 +72,7 @@ class MetricGuardAuditPublisherTest {
     inner class PublishAllowed {
 
         @Test
-        fun `allowed event has correct action`() {
+        fun `allowed event은(는) correct action를 가진다`() {
             val (publisher, ringBuffer, _) = createPublisher()
 
             publisher.publish(
@@ -98,7 +98,7 @@ class MetricGuardAuditPublisherTest {
     inner class InputHashing {
 
         @Test
-        fun `input text is SHA-256 hashed, not stored raw`() {
+        fun `input text은(는) SHA-256 hashed, not stored raw이다`() {
             val (publisher, ringBuffer, _) = createPublisher()
             val rawText = "sensitive user input that should not be stored"
 
@@ -122,7 +122,7 @@ class MetricGuardAuditPublisherTest {
         }
 
         @Test
-        fun `same input produces same hash`() {
+        fun `동일한 input produces same hash`() {
             val (publisher, ringBuffer, _) = createPublisher()
             val text = "deterministic test"
 
@@ -147,7 +147,7 @@ class MetricGuardAuditPublisherTest {
     inner class MetadataExtraction {
 
         @Test
-        fun `tenant, session, and request IDs extracted from metadata`() {
+        fun `메타데이터에서 tenant, session, request ID가 추출된다`() {
             val (publisher, ringBuffer, _) = createPublisher()
 
             publisher.publish(
@@ -178,7 +178,7 @@ class MetricGuardAuditPublisherTest {
         }
 
         @Test
-        fun `missing metadata defaults gracefully`() {
+        fun `누락된 metadata defaults gracefully`() {
             val (publisher, ringBuffer, _) = createPublisher()
 
             publisher.publish(
@@ -203,10 +203,10 @@ class MetricGuardAuditPublisherTest {
     inner class BufferFull {
 
         @Test
-        fun `drop recorded when ring buffer is full`() {
+        fun `drop recorded when ring buffer은(는) full이다`() {
             val (publisher, _, healthMonitor) = createPublisher(bufferSize = 64)
 
-            // Fill the buffer completely
+            // the buffer completely를 채웁니다
             repeat(70) { i ->
                 publisher.publish(
                     command = GuardCommand(userId = "user-$i", text = "test-$i"),
@@ -227,7 +227,7 @@ class MetricGuardAuditPublisherTest {
     inner class ReasonTruncation {
 
         @Test
-        fun `long reason is truncated to 500 chars`() {
+        fun `long reason은(는) truncated to 500 chars이다`() {
             val (publisher, ringBuffer, _) = createPublisher()
             val longReason = "x".repeat(1000)
 

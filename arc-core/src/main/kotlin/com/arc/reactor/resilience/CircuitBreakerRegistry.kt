@@ -15,6 +15,9 @@ import java.util.concurrent.ConcurrentHashMap
  * @param resetTimeoutMs Default reset timeout for new breakers
  * @param halfOpenMaxCalls Default half-open trial calls for new breakers
  * @param agentMetrics Metrics recorder for circuit breaker state transitions
+ *
+ * @see CircuitBreaker for the circuit breaker interface
+ * @see com.arc.reactor.resilience.impl.DefaultCircuitBreaker for the default implementation
  */
 class CircuitBreakerRegistry(
     private val failureThreshold: Int = 5,

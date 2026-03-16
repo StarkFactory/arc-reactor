@@ -39,7 +39,7 @@ class SlackUserEmailResolverTest {
     }
 
     @Test
-    fun `resolves email from users info`() = runTest {
+    fun `email from users info를 해결한다`() = runTest {
         mockServer.enqueue(
             MockResponse()
                 .setHeader("Content-Type", "application/json")
@@ -65,7 +65,7 @@ class SlackUserEmailResolverTest {
     }
 
     @Test
-    fun `returns null when users info is not ok`() = runTest {
+    fun `users info is not ok일 때 null를 반환한다`() = runTest {
         mockServer.enqueue(
             MockResponse()
                 .setHeader("Content-Type", "application/json")
@@ -79,7 +79,7 @@ class SlackUserEmailResolverTest {
     }
 
     @Test
-    fun `uses cache for repeated user lookups`() = runTest {
+    fun `cache for repeated user lookups를 사용한다`() = runTest {
         mockServer.enqueue(
             MockResponse()
                 .setHeader("Content-Type", "application/json")

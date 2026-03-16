@@ -38,6 +38,17 @@ import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * 플랫폼 전역 관리 REST API 컨트롤러.
+ *
+ * 테넌트 CRUD, 가격 정책, 캐시 무효화, 알림 규칙 관리 등
+ * 플랫폼 관리자(ADMIN) 전용 엔드포인트를 제공한다.
+ *
+ * `arc.reactor.admin.enabled=true`이고 [DataSource]가 존재할 때만 활성화된다.
+ *
+ * @see TenantAdminController 테넌트 범위 대시보드 API
+ * @see MetricIngestionController 메트릭 수집 API
+ */
 @Tag(name = "Platform Admin", description = "Platform-wide administration APIs (ADMIN)")
 @RestController
 @ConditionalOnProperty(
@@ -59,8 +70,9 @@ class PlatformAdminController(
     private val responseCache: ResponseCache? = null
 ) {
 
-    // --- Platform Health ---
+    // ── 단계: 플랫폼 헬스 ──
 
+    /** 파이프라인 버퍼, 캐시, 활성 알림 등 플랫폼 전체 상태를 반환한다. */
     @Operation(summary = "Get platform health dashboard")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Platform health dashboard"),
@@ -82,8 +94,9 @@ class PlatformAdminController(
         return ResponseEntity.ok(dashboard)
     }
 
-    // --- Tenant Management ---
+    // ── 단계: 테넌트 관리 ──
 
+    /** 이메일로 사용자를 조회한다. */
     @Operation(summary = "Get user by email")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "User details"),
@@ -107,6 +120,7 @@ class PlatformAdminController(
         return ResponseEntity.ok(user.toAdminUserResponse())
     }
 
+    /** 사용자 역할을 변경한다. 자기 자신의 개발자 권한 삭제를 방지한다. */
     @Operation(summary = "Update user role")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "User role updated"),
@@ -144,6 +158,7 @@ class PlatformAdminController(
         return ResponseEntity.ok(updated.toAdminUserResponse())
     }
 
+    /** 전체 테넌트 목록을 조회한다. */
     @Operation(summary = "List all tenants")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of tenants"),
@@ -155,6 +170,7 @@ class PlatformAdminController(
         return ResponseEntity.ok(tenantStore.findAll())
     }
 
+    /** ID로 단일 테넌트 상세를 조회한다. */
     @Operation(summary = "Get tenant by ID")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant details"),
@@ -172,6 +188,7 @@ class PlatformAdminController(
         return ResponseEntity.ok(tenant)
     }
 
+    /** 신규 테넌트를 생성한다. slug 중복 시 400을 반환한다. */
     @Operation(summary = "Create a new tenant")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Tenant created"),
@@ -207,6 +224,7 @@ class PlatformAdminController(
         }
     }
 
+    /** 테넌트를 일시 정지한다. */
     @Operation(summary = "Suspend a tenant")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant suspended"),
@@ -235,6 +253,7 @@ class PlatformAdminController(
         }
     }
 
+    /** 정지된 테넌트를 재활성화한다. */
     @Operation(summary = "Activate a tenant")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant activated"),
@@ -263,6 +282,7 @@ class PlatformAdminController(
         }
     }
 
+    /** 전체 테넌트별 요청 수, 비용, 쿼터 사용률 요약을 반환한다. */
     @Operation(summary = "Get tenant analytics summary")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant analytics summary"),
@@ -292,8 +312,9 @@ class PlatformAdminController(
         return ResponseEntity.ok(summaries)
     }
 
-    // --- Pricing Management ---
+    // ── 단계: 가격 정책 관리 ──
 
+    /** 등록된 모든 모델 가격 정책을 조회한다. */
     @Operation(summary = "List all model pricing entries")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of model pricing entries"),
@@ -305,6 +326,7 @@ class PlatformAdminController(
         return ResponseEntity.ok(pricingStore.findAll())
     }
 
+    /** 모델 가격 정책을 생성하거나 갱신한다 (upsert). */
     @Operation(summary = "Create or update model pricing")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Model pricing saved"),
@@ -328,6 +350,7 @@ class PlatformAdminController(
         return ResponseEntity.ok(saved)
     }
 
+    /** 응답 캐시 전체를 무효화한다. 캐시 미활성 시 안내 메시지를 반환한다. */
     @Operation(summary = "Invalidate response cache entries")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Response cache invalidated"),
@@ -370,8 +393,9 @@ class PlatformAdminController(
         }
     }
 
-    // --- Alert Management ---
+    // ── 단계: 알림 관리 ──
 
+    /** 등록된 모든 알림 규칙을 조회한다. */
     @Operation(summary = "List all alert rules")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of alert rules"),
@@ -383,6 +407,7 @@ class PlatformAdminController(
         return ResponseEntity.ok(alertStore.findAllRules())
     }
 
+    /** 알림 규칙을 생성하거나 갱신한다 (upsert). */
     @Operation(summary = "Create or update an alert rule")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Alert rule saved"),
@@ -406,6 +431,7 @@ class PlatformAdminController(
         return ResponseEntity.ok(saved)
     }
 
+    /** 알림 규칙을 삭제한다. 존재하지 않으면 404를 반환한다. */
     @Operation(summary = "Delete an alert rule")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Alert rule deleted"),
@@ -433,6 +459,7 @@ class PlatformAdminController(
         }
     }
 
+    /** 플랫폼 전체에서 활성 상태인 알림 목록을 조회한다. */
     @Operation(summary = "List all active alerts (platform-wide)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of active alerts"),
@@ -444,6 +471,7 @@ class PlatformAdminController(
         return ResponseEntity.ok(alertStore.findActiveAlerts())
     }
 
+    /** 활성 알림을 해결(resolve) 처리한다. */
     @Operation(summary = "Resolve an alert")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Alert resolved"),
@@ -467,6 +495,7 @@ class PlatformAdminController(
         return ResponseEntity.ok().build()
     }
 
+    /** 알림 규칙 전체를 즉시 평가한다 (스케줄러 사이클 대기 없이). */
     @Operation(summary = "Trigger alert evaluation now")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Alert evaluation completed"),
@@ -487,6 +516,7 @@ class PlatformAdminController(
     }
 }
 
+/** 테넌트 생성 요청 DTO. */
 data class CreateTenantRequest(
     @field:jakarta.validation.constraints.NotBlank
     @field:jakarta.validation.constraints.Size(min = 1, max = 200)
@@ -501,17 +531,20 @@ data class CreateTenantRequest(
     val plan: String = "FREE"
 )
 
+/** 사용자 역할 변경 요청 DTO. */
 data class UpdateUserRoleRequest(
     @field:jakarta.validation.constraints.NotBlank
     val role: String
 )
 
+/** 캐시 무효화 응답 DTO. */
 data class CacheInvalidationResponse(
     val invalidated: Boolean,
     val cacheEnabled: Boolean,
     val message: String
 )
 
+/** 관리자용 사용자 응답 DTO. */
 data class AdminUserResponse(
     val id: String,
     val email: String,
@@ -521,6 +554,7 @@ data class AdminUserResponse(
     val createdAt: String
 )
 
+/** [User] 도메인 객체를 관리자 응답 DTO로 변환한다. */
 private fun User.toAdminUserResponse(): AdminUserResponse = AdminUserResponse(
     id = id,
     email = email,
@@ -530,6 +564,7 @@ private fun User.toAdminUserResponse(): AdminUserResponse = AdminUserResponse(
     createdAt = createdAt.toString()
 )
 
+/** 문자열을 [UserRole] enum으로 파싱한다. 유효하지 않으면 null을 반환한다. */
 private fun parseUserRole(rawRole: String): UserRole? = try {
     UserRole.valueOf(rawRole.trim().uppercase())
 } catch (_: IllegalArgumentException) {

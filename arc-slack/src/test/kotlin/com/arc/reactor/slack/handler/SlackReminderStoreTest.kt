@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 class SlackReminderStoreTest {
 
     @Test
-    fun `add and list returns reminders in id order`() {
+    fun `and list returns reminders in id order를 추가한다`() {
         val store = SlackReminderStore()
 
         store.add("U1", "first")
@@ -20,7 +20,7 @@ class SlackReminderStoreTest {
     }
 
     @Test
-    fun `done removes a reminder and returns removed item`() {
+    fun `done은(는) removes a reminder and returns removed item`() {
         val store = SlackReminderStore()
         store.add("U1", "first")
         store.add("U1", "second")
@@ -33,7 +33,7 @@ class SlackReminderStoreTest {
     }
 
     @Test
-    fun `done returns null when reminder id does not exist`() {
+    fun `reminder id does not exist일 때 done returns null`() {
         val store = SlackReminderStore()
         store.add("U1", "first")
 
@@ -41,7 +41,7 @@ class SlackReminderStoreTest {
     }
 
     @Test
-    fun `clear removes all reminders and returns removed count`() {
+    fun `removes all reminders and returns removed count를 비운다`() {
         val store = SlackReminderStore()
         store.add("U1", "first")
         store.add("U1", "second")
@@ -53,7 +53,7 @@ class SlackReminderStoreTest {
     }
 
     @Test
-    fun `max per user trims oldest reminders`() {
+    fun `max은(는) per user trims oldest reminders`() {
         val store = SlackReminderStore(maxPerUser = 2)
 
         store.add("U1", "first")

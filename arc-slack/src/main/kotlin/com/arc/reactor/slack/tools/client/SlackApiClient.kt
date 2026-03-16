@@ -31,6 +31,27 @@ import java.util.concurrent.TimeoutException
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * Slack Web API 클라이언트.
+ *
+ * [MethodsClient]를 래핑하여 재시도, 타임아웃, Circuit Breaker, Micrometer 메트릭 기록 등
+ * 복원력(resilience) 기능을 투명하게 제공한다.
+ *
+ * 주요 기능:
+ * - 메시지 전송 / 스레드 답장
+ * - 채널 목록 조회 및 이름 검색
+ * - 대화 이력 및 스레드 답글 읽기
+ * - 사용자 정보 조회 및 이름 검색
+ * - 메시지 검색
+ * - 파일 업로드
+ * - Canvas 생성 및 추가
+ * - 이모지 리액션 추가
+ *
+ * @param client Slack SDK [MethodsClient] 인스턴스
+ * @param properties Slack 도구 설정 (타임아웃, Circuit Breaker 임계값 등)
+ * @param meterRegistry Micrometer 메트릭 레지스트리 (선택)
+ * @see SlackToolsProperties
+ */
 class SlackApiClient(
     private val client: MethodsClient,
     private val properties: SlackToolsProperties,
@@ -39,6 +60,14 @@ class SlackApiClient(
 
     private val circuitStates = ConcurrentHashMap<String, CircuitBreakerState>()
 
+    /**
+     * 채널에 메시지를 전송한다. [threadTs]를 지정하면 스레드 답장으로 전송된다.
+     *
+     * @param channelId 대상 채널 ID
+     * @param text 메시지 본문
+     * @param threadTs 스레드 타임스탬프 (선택, 지정 시 스레드 답장)
+     * @return 전송 결과 (타임스탬프, 채널 ID 포함)
+     */
     fun postMessage(channelId: String, text: String, threadTs: String? = null): PostMessageResult {
         return try {
             val request = ChatPostMessageRequest.builder()
@@ -63,6 +92,14 @@ class SlackApiClient(
         }
     }
 
+    /**
+     * 메시지에 이모지 리액션을 추가한다.
+     *
+     * @param channelId 채널 ID
+     * @param timestamp 대상 메시지의 타임스탬프
+     * @param emoji 이모지 이름 (콜론 없이, 예: thumbsup)
+     * @return 성공 여부
+     */
     fun addReaction(channelId: String, timestamp: String, emoji: String): SimpleResult {
         return try {
             val request = ReactionsAddRequest.builder()
@@ -85,6 +122,13 @@ class SlackApiClient(
         }
     }
 
+    /**
+     * 워크스페이스의 채널 목록을 조회한다. 아카이브된 채널은 제외된다.
+     *
+     * @param limit 페이지당 최대 채널 수 (기본 100)
+     * @param cursor 페이지네이션 커서 (다음 페이지 요청 시)
+     * @return 채널 목록 및 다음 페이지 커서
+     */
     fun conversationsList(limit: Int = 100, cursor: String? = null): ConversationsListResult {
         return try {
             val request = ConversationsListRequest.builder()
@@ -118,6 +162,14 @@ class SlackApiClient(
         }
     }
 
+    /**
+     * 이름으로 채널을 검색한다. 전체 채널 목록을 페이지 단위로 스캔하여 일치하는 채널을 반환한다.
+     *
+     * @param query 검색어 (채널 이름)
+     * @param exactMatch true이면 정확히 일치, false이면 부분 일치 (기본)
+     * @param limit 최대 반환 건수 (기본 10)
+     * @return 일치하는 채널 목록 및 스캔 정보
+     */
     fun findChannelsByName(query: String, exactMatch: Boolean = false, limit: Int = 10): FindChannelsResult {
         val normalizedQuery = query.trim()
         if (normalizedQuery.isBlank()) {
@@ -173,6 +225,14 @@ class SlackApiClient(
         )
     }
 
+    /**
+     * 채널의 최근 메시지 이력을 조회한다.
+     *
+     * @param channelId 대상 채널 ID
+     * @param limit 최대 메시지 수 (기본 10)
+     * @param cursor 페이지네이션 커서
+     * @return 메시지 목록 및 다음 페이지 커서
+     */
     fun conversationHistory(channelId: String, limit: Int = 10, cursor: String? = null): ConversationHistoryResult {
         return try {
             val request = ConversationsHistoryRequest.builder()
@@ -204,6 +264,15 @@ class SlackApiClient(
         }
     }
 
+    /**
+     * 스레드의 답글 목록을 조회한다. 부모 메시지는 결과에서 제외된다.
+     *
+     * @param channelId 채널 ID
+     * @param threadTs 스레드 부모 메시지의 타임스탬프
+     * @param limit 최대 답글 수 (기본 10)
+     * @param cursor 페이지네이션 커서
+     * @return 답글 목록 및 다음 페이지 커서
+     */
     fun threadReplies(channelId: String, threadTs: String, limit: Int = 10, cursor: String? = null): ConversationHistoryResult {
         return try {
             val request = ConversationsRepliesRequest.builder()
@@ -238,6 +307,12 @@ class SlackApiClient(
         }
     }
 
+    /**
+     * 사용자 정보를 조회한다 (이름, 이메일, 봇 여부 등).
+     *
+     * @param userId Slack 사용자 ID
+     * @return 사용자 정보 또는 에러
+     */
     fun getUserInfo(userId: String): UserInfoResult {
         return try {
             val request = UsersInfoRequest.builder().user(userId).build()
@@ -258,6 +333,14 @@ class SlackApiClient(
         }
     }
 
+    /**
+     * 이름, 표시 이름 또는 실명으로 사용자를 검색한다.
+     *
+     * @param query 검색어
+     * @param exactMatch true이면 정확히 일치, false이면 부분 일치 (기본)
+     * @param limit 최대 반환 건수 (기본 10)
+     * @return 일치하는 사용자 목록
+     */
     fun findUsersByName(query: String, exactMatch: Boolean = false, limit: Int = 10): FindUsersResult {
         val normalizedQuery = query.trim()
         if (normalizedQuery.isBlank()) {
@@ -313,6 +396,14 @@ class SlackApiClient(
         )
     }
 
+    /**
+     * 워크스페이스에서 메시지를 검색한다.
+     *
+     * @param query 검색 쿼리
+     * @param count 페이지당 결과 수 (기본 20)
+     * @param page 페이지 번호 (기본 1)
+     * @return 검색 결과 (일치 메시지, 총 건수, 페이지 정보)
+     */
     fun searchMessages(query: String, count: Int = 20, page: Int = 1): SearchMessagesResult {
         val normalizedQuery = query.trim()
         if (normalizedQuery.isBlank()) {
@@ -363,6 +454,17 @@ class SlackApiClient(
         }
     }
 
+    /**
+     * 텍스트 파일을 채널에 업로드한다.
+     *
+     * @param channelId 대상 채널 ID
+     * @param filename 파일명
+     * @param content 파일 내용 (텍스트)
+     * @param title 파일 제목 (선택)
+     * @param initialComment 업로드와 함께 게시할 코멘트 (선택)
+     * @param threadTs 스레드 답장으로 업로드할 경우 부모 타임스탬프 (선택)
+     * @return 업로드 결과 (파일 ID, 퍼머링크 등)
+     */
     fun uploadFile(
         channelId: String,
         filename: String,
@@ -402,6 +504,13 @@ class SlackApiClient(
         }
     }
 
+    /**
+     * Slack Canvas를 새로 생성한다.
+     *
+     * @param title Canvas 제목
+     * @param markdown Canvas 마크다운 내용
+     * @return 생성 결과 (Canvas ID 포함)
+     */
     fun createCanvas(title: String, markdown: String): CanvasCreateResult {
         return try {
             val request = CanvasesCreateRequest.builder()
@@ -424,6 +533,13 @@ class SlackApiClient(
         }
     }
 
+    /**
+     * 기존 Slack Canvas의 끝에 마크다운 내용을 추가한다.
+     *
+     * @param canvasId 대상 Canvas ID
+     * @param markdown 추가할 마크다운 내용
+     * @return 편집 결과
+     */
     fun appendCanvas(canvasId: String, markdown: String): CanvasEditResult {
         return try {
             val content = CanvasDocumentContent.builder()
@@ -586,6 +702,9 @@ class SlackApiClient(
         }
     }
 
+    // ── 복원력 계층: 재시도 + Circuit Breaker + 타임아웃 + 메트릭 ──
+
+    /** API 호출을 재시도/타임아웃/Circuit Breaker로 감싸 실행하고 메트릭을 기록한다. */
     private fun <T> executeWithRetry(apiName: String, context: String, operation: () -> T): T {
         val startedAtNs = System.nanoTime()
         var attempts = 1
@@ -679,6 +798,7 @@ class SlackApiClient(
         }
     }
 
+    /** 별도 스레드 풀에서 API 호출을 실행하고 지정 시간 내 완료되지 않으면 타임아웃 예외를 발생시킨다. */
     private fun <T> executeWithTimeout(apiName: String, operation: () -> T): T {
         val timeoutMs = properties.resilience.timeoutMs
         val future: Future<T> = timeoutExecutor.submit<T> { operation() }
@@ -698,6 +818,7 @@ class SlackApiClient(
         }
     }
 
+    /** Circuit Breaker가 열려 있으면 [CircuitOpenException]을 던진다. */
     private fun ensureCircuitClosed(apiName: String) {
         val cfg = properties.resilience.circuitBreaker
         if (!cfg.enabled) return
@@ -788,6 +909,7 @@ class SlackApiClient(
     }
 }
 
+/** API 타임아웃 워커 스레드를 데몬 스레드로 생성하는 팩토리. */
 private class TimeoutWorkerThreadFactory : ThreadFactory {
     override fun newThread(runnable: Runnable): Thread {
         return Thread(runnable, "slack-api-timeout-worker").apply {
@@ -796,14 +918,22 @@ private class TimeoutWorkerThreadFactory : ThreadFactory {
     }
 }
 
+/** Slack API 호출 타임아웃 시 발생하는 내부 예외. */
 private class SlackApiTimeoutException(apiName: String, timeoutMs: Long) :
     RuntimeException("Slack API call timed out after ${timeoutMs}ms (api=$apiName)")
 
+/** Circuit Breaker가 열린 상태에서 호출 시 발생하는 예외. */
 private class CircuitOpenException(
     apiName: String,
     val retryAfterSeconds: Long
 ) : RuntimeException("Circuit is open for $apiName")
 
+/**
+ * API별 Circuit Breaker 상태.
+ *
+ * 연속 실패가 임계값에 도달하면 지정 시간 동안 회로를 열어 호출을 차단한다.
+ * 성공 호출이 기록되면 실패 카운터를 초기화한다.
+ */
 private class CircuitBreakerState {
     @Volatile
     private var openUntilMs: Long = 0
@@ -837,7 +967,9 @@ private class CircuitBreakerState {
     }
 }
 
-// Result data classes
+// ── 결과 데이터 클래스 ──
+
+/** 메시지 전송 결과. */
 data class PostMessageResult(
     val ok: Boolean,
     val ts: String? = null,
@@ -846,12 +978,14 @@ data class PostMessageResult(
     val errorDetails: SlackErrorDetails? = null
 )
 
+/** 단순 성공/실패 결과 (리액션 추가 등). */
 data class SimpleResult(
     val ok: Boolean,
     val error: String? = null,
     val errorDetails: SlackErrorDetails? = null
 )
 
+/** 채널 목록 조회 결과. */
 data class ConversationsListResult(
     val ok: Boolean,
     val channels: List<SlackChannel> = emptyList(),
@@ -860,6 +994,7 @@ data class ConversationsListResult(
     val errorDetails: SlackErrorDetails? = null
 )
 
+/** Slack 채널 요약 정보. */
 data class SlackChannel(
     val id: String,
     val name: String,
@@ -868,6 +1003,7 @@ data class SlackChannel(
     val isPrivate: Boolean = false
 )
 
+/** 채널 이름 검색 결과. */
 data class FindChannelsResult(
     val ok: Boolean,
     val query: String,
@@ -879,6 +1015,7 @@ data class FindChannelsResult(
     val errorDetails: SlackErrorDetails? = null
 )
 
+/** 대화 이력 / 스레드 답글 조회 결과. */
 data class ConversationHistoryResult(
     val ok: Boolean,
     val messages: List<SlackMessage> = emptyList(),
@@ -887,6 +1024,7 @@ data class ConversationHistoryResult(
     val errorDetails: SlackErrorDetails? = null
 )
 
+/** Slack 메시지 단건 정보. */
 data class SlackMessage(
     val user: String? = null,
     val text: String? = null,
@@ -894,6 +1032,7 @@ data class SlackMessage(
     val threadTs: String? = null
 )
 
+/** 사용자 정보 조회 결과. */
 data class UserInfoResult(
     val ok: Boolean,
     val user: SlackUser? = null,
@@ -901,6 +1040,7 @@ data class UserInfoResult(
     val errorDetails: SlackErrorDetails? = null
 )
 
+/** 사용자 이름 검색 결과. */
 data class FindUsersResult(
     val ok: Boolean,
     val query: String,
@@ -912,6 +1052,7 @@ data class FindUsersResult(
     val errorDetails: SlackErrorDetails? = null
 )
 
+/** 메시지 검색 결과. */
 data class SearchMessagesResult(
     val ok: Boolean,
     val query: String,
@@ -923,6 +1064,7 @@ data class SearchMessagesResult(
     val errorDetails: SlackErrorDetails? = null
 )
 
+/** 검색된 메시지 단건 정보. */
 data class SlackSearchMessage(
     val channelId: String? = null,
     val channelName: String? = null,
@@ -932,6 +1074,7 @@ data class SlackSearchMessage(
     val permalink: String? = null
 )
 
+/** 파일 업로드 결과. */
 data class UploadFileResult(
     val ok: Boolean,
     val fileId: String? = null,
@@ -942,6 +1085,7 @@ data class UploadFileResult(
     val errorDetails: SlackErrorDetails? = null
 )
 
+/** Canvas 생성 결과. */
 data class CanvasCreateResult(
     val ok: Boolean,
     val canvasId: String? = null,
@@ -949,6 +1093,7 @@ data class CanvasCreateResult(
     val errorDetails: SlackErrorDetails? = null
 )
 
+/** Canvas 편집 결과. */
 data class CanvasEditResult(
     val ok: Boolean,
     val canvasId: String,
@@ -956,6 +1101,7 @@ data class CanvasEditResult(
     val errorDetails: SlackErrorDetails? = null
 )
 
+/** Slack API 에러 상세 정보 (재시도 가능 여부, Retry-After 등). */
 data class SlackErrorDetails(
     val code: String,
     val message: String? = null,
@@ -963,6 +1109,7 @@ data class SlackErrorDetails(
     val retryAfterSeconds: Long? = null
 )
 
+/** Slack 사용자 요약 정보. */
 data class SlackUser(
     val id: String,
     val name: String?,

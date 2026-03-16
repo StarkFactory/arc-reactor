@@ -17,12 +17,15 @@ import kotlin.coroutines.cancellation.CancellationException
 private val logger = KotlinLogging.logger {}
 
 /**
- * Hook that enriches metric events with context from the hook system.
+ * Hook 시스템의 컨텍스트로 메트릭 이벤트를 보강하는 Hook.
  *
- * Captures latency breakdown (LLM/tool/guard) and contextual metadata.
- * user/session identifiers are persisted only when explicitly enabled.
+ * 지연 분해(LLM/도구/가드)와 컨텍스트 메타데이터를 캡처한다.
+ * user/session 식별자는 명시적으로 활성화된 경우에만 저장한다.
  *
- * Order 200: runs after standard hooks, capturing final state.
+ * Order 200: 표준 Hook 이후에 실행되어 최종 상태를 캡처한다.
+ *
+ * @see HitlEventHook HITL 이벤트 수집 (order 201)
+ * @see MetricRingBuffer 이벤트가 publish되는 링 버퍼
  */
 class MetricCollectionHook(
     private val ringBuffer: MetricRingBuffer,

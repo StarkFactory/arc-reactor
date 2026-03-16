@@ -20,6 +20,8 @@ private val logger = KotlinLogging.logger {}
  * - Exception → reject with SYSTEM_ERROR (fail-close)
  *
  * If all stages pass, returns the final [OutputGuardResult] (Allowed or last Modified).
+ *
+ * @see OutputGuardStage for individual stage interface
  */
 class OutputGuardPipeline(
     stages: List<OutputGuardStage>,

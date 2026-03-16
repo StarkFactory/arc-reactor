@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 class SlackBotResponseTrackerTest {
 
     @Test
-    fun `tracks and looks up bot response`() {
+    fun `and looks up bot response를 추적한다`() {
         val tracker = SlackBotResponseTracker()
         tracker.track("C1", "1.001", "session-1", "What is Kotlin?")
 
@@ -19,13 +19,13 @@ class SlackBotResponseTrackerTest {
     }
 
     @Test
-    fun `returns null for untracked message`() {
+    fun `untracked message에 대해 null를 반환한다`() {
         val tracker = SlackBotResponseTracker()
         tracker.lookup("C1", "999.999").shouldBeNull()
     }
 
     @Test
-    fun `returns null for expired entry`() {
+    fun `expired entry에 대해 null를 반환한다`() {
         val tracker = SlackBotResponseTracker(ttlSeconds = 1)
         tracker.track("C1", "1.001", "session-1", "hello")
         Thread.sleep(1100)
@@ -33,7 +33,7 @@ class SlackBotResponseTrackerTest {
     }
 
     @Test
-    fun `ignores blank inputs`() {
+    fun `blank inputs를 무시한다`() {
         val tracker = SlackBotResponseTracker()
         tracker.track("", "1.001", "s", "p")
         tracker.track("C1", "", "s", "p")
@@ -42,7 +42,7 @@ class SlackBotResponseTrackerTest {
     }
 
     @Test
-    fun `evicts oldest when max entries exceeded`() {
+    fun `oldest when max entries exceeded를 제거한다`() {
         val tracker = SlackBotResponseTracker(maxEntries = 2)
         tracker.track("C1", "1.0", "s1", "p1")
         tracker.track("C1", "2.0", "s2", "p2")

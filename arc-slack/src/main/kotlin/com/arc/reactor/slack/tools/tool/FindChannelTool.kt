@@ -5,6 +5,7 @@ import com.arc.reactor.slack.tools.usecase.FindChannelUseCase
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** 이름으로 Slack 채널을 검색하는 도구. 정확 일치 및 부분 일치를 지원한다. */
 open class FindChannelTool(private val findChannelUseCase: FindChannelUseCase) : LocalTool {
 
     @Tool(description = "Find Slack channels by name. Supports exact or partial matching.")

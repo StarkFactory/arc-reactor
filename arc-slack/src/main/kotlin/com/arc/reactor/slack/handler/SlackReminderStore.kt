@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 
+/** 리마인더 단건 정보. */
 data class SlackReminder(
     val id: Int,
     val text: String,
@@ -16,6 +17,18 @@ data class SlackReminder(
     val createdAt: Instant = Instant.now()
 )
 
+/**
+ * 사용자별 인메모리 리마인더 저장소.
+ *
+ * 슬래시 명령(`/jarvis remind`)으로 등록된 리마인더를 관리한다.
+ * 시간 표현("at HH:mm" 또는 "N시 M분")을 자동 파싱하여 [SlackReminder.dueAt]을 설정하며,
+ * [SlackReminderScheduler]가 주기적으로 만료된 리마인더를 수거한다.
+ *
+ * @param maxPerUser 사용자당 최대 리마인더 수 (초과 시 오래된 순 삭제)
+ * @param timezone 시간 파싱에 사용할 타임존 (기본: Asia/Seoul)
+ * @see SlackReminderScheduler
+ * @see ReminderTimeParser
+ */
 class SlackReminderStore(
     private val maxPerUser: Int = DEFAULT_MAX_PER_USER,
     private val timezone: ZoneId = ZoneId.of("Asia/Seoul")
@@ -23,6 +36,7 @@ class SlackReminderStore(
     private val remindersByUser = ConcurrentHashMap<String, CopyOnWriteArrayList<SlackReminder>>()
     private val sequenceByUser = ConcurrentHashMap<String, AtomicInteger>()
 
+    /** 리마인더를 추가한다. 텍스트에서 시간 표현을 파싱하여 [SlackReminder.dueAt]을 설정한다. */
     fun add(userId: String, text: String): SlackReminder {
         val parsed = ReminderTimeParser.parse(text.trim(), timezone)
         val reminder = SlackReminder(
@@ -36,9 +50,11 @@ class SlackReminderStore(
         return reminder
     }
 
+    /** 사용자의 리마인더 목록을 ID 순으로 반환한다. */
     fun list(userId: String): List<SlackReminder> =
         listRef(userId).sortedBy { it.id }
 
+    /** 리마인더를 완료 처리(삭제)한다. 존재하지 않으면 null을 반환한다. */
     fun done(userId: String, id: Int): SlackReminder? {
         val list = listRef(userId)
         val existing = list.firstOrNull { it.id == id } ?: return null
@@ -46,6 +62,7 @@ class SlackReminderStore(
         return existing
     }
 
+    /** 사용자의 모든 리마인더를 삭제하고 삭제된 건수를 반환한다. */
     fun clear(userId: String): Int {
         val list = listRef(userId)
         val size = list.size
@@ -54,8 +71,9 @@ class SlackReminderStore(
     }
 
     /**
-     * Returns all reminders across all users that are due (dueAt <= now)
-     * and removes them from the store.
+     * 모든 사용자에서 만료된(dueAt <= now) 리마인더를 수거하고 저장소에서 제거한다.
+     *
+     * @return (사용자 ID, 리마인더) 쌍의 리스트
      */
     fun collectDueReminders(): List<Pair<String, SlackReminder>> {
         val now = Instant.now()
@@ -89,6 +107,15 @@ class SlackReminderStore(
     }
 }
 
+/**
+ * 리마인더 텍스트에서 시간 표현을 파싱하는 유틸리티.
+ *
+ * 지원 형식:
+ * - 영문: "at HH:mm" (예: "at 15:30")
+ * - 한국어: "N시 M분에" (예: "3시 30분에")
+ *
+ * 파싱된 시간이 현재보다 과거이면 다음 날로 설정한다.
+ */
 internal object ReminderTimeParser {
     private val atTimeRegex = Regex(
         """(?:^|\s)at\s+(\d{1,2}):(\d{2})(?:\s*$)""",

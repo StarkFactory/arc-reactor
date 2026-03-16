@@ -30,7 +30,7 @@ class ChatOptionsFactoryTest {
     )
 
     @Test
-    fun `creates gemini options when provider resolves to gemini`() {
+    fun `gemini options when provider resolves to gemini를 생성한다`() {
         val options = factory.create(
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hello"),
             hasTools = false,
@@ -44,7 +44,7 @@ class ChatOptionsFactoryTest {
     }
 
     @Test
-    fun `uses command model and command temperature override`() {
+    fun `command model and command temperature override를 사용한다`() {
         val options = factory.create(
             command = AgentCommand(
                 systemPrompt = "sys",
@@ -62,7 +62,7 @@ class ChatOptionsFactoryTest {
     }
 
     @Test
-    fun `creates tool calling options for non-gemini provider when tools exist`() {
+    fun `tool calling options for non-gemini provider when tools exist를 생성한다`() {
         val options = factory.create(
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hello", model = "openai"),
             hasTools = true,
@@ -75,7 +75,7 @@ class ChatOptionsFactoryTest {
     }
 
     @Test
-    fun `creates plain chat options when non-gemini provider has no tools`() {
+    fun `plain chat options when non-gemini provider has no tools를 생성한다`() {
         val options = factory.create(
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hello", model = "anthropic"),
             hasTools = false,
@@ -88,7 +88,7 @@ class ChatOptionsFactoryTest {
     }
 
     @Test
-    fun `applies sampling parameters for gemini provider`() {
+    fun `sampling parameters for gemini provider를 적용한다`() {
         val options = factoryWithSampling.create(
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hello"),
             hasTools = false,
@@ -102,7 +102,7 @@ class ChatOptionsFactoryTest {
     }
 
     @Test
-    fun `applies sampling parameters for non-gemini provider with tools`() {
+    fun `sampling parameters for non-gemini provider with tools를 적용한다`() {
         val options = factoryWithSampling.create(
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hello", model = "openai"),
             hasTools = true,
@@ -116,7 +116,7 @@ class ChatOptionsFactoryTest {
     }
 
     @Test
-    fun `applies sampling parameters for non-gemini provider without tools`() {
+    fun `sampling parameters for non-gemini provider without tools를 적용한다`() {
         val options = factoryWithSampling.create(
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hello", model = "anthropic"),
             hasTools = false,
@@ -129,7 +129,7 @@ class ChatOptionsFactoryTest {
     }
 
     @Test
-    fun `leaves sampling parameters null when not configured`() {
+    fun `not configured일 때 leaves sampling parameters null`() {
         val options = factory.create(
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hello", model = "openai"),
             hasTools = false,

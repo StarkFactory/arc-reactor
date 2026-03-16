@@ -25,10 +25,10 @@ import org.junit.jupiter.api.Test
 import reactor.core.publisher.Flux
 
 /**
- * TDD tests for Streaming support (Tier 1-5).
+ * 스트리밍 지원 (Tier 1-5)에 대한 TDD 테스트.
  *
- * Tests the AgentExecutor.executeStream() method which returns
- * a Kotlin Flow<String> from Spring AI's streaming ChatResponse API.
+ * Spring AI의 스트리밍 ChatResponse API에서
+ * Kotlin Flow<String>을 반환하는 AgentExecutor.executeStream() 메서드를 테스트합니다.
  */
 class StreamingTest {
 
@@ -44,7 +44,7 @@ class StreamingTest {
     inner class BasicStreaming {
 
         @Test
-        fun `should return flow of string chunks`() = runBlocking {
+        fun `return flow of string chunks해야 한다`() = runBlocking {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
                 AgentTestFixture.textChunk("Hello"),
                 AgentTestFixture.textChunk(" "),
@@ -64,7 +64,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `should apply system prompt in streaming mode`() = runBlocking {
+        fun `apply system prompt in streaming mode해야 한다`() = runBlocking {
             val systemPromptSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemPromptSlot)) } returns fixture.requestSpec
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
@@ -90,7 +90,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `should use STREAMING mode by default for executeStream`() = runBlocking {
+        fun `executeStream에 대해 use STREAMING mode by default해야 한다`() = runBlocking {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
                 AgentTestFixture.textChunk("chunk")
             )
@@ -100,7 +100,7 @@ class StreamingTest {
                 properties = properties
             )
 
-            // executeStream should work regardless of the mode in command
+            // executeStream은(는) work regardless of the mode in command해야 합니다
             val chunks = executor.executeStream(
                 AgentCommand(
                     systemPrompt = "Test",
@@ -113,7 +113,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `should handle empty stream`() = runBlocking {
+        fun `handle empty stream해야 한다`() = runBlocking {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.empty()
 
             val executor = SpringAiAgentExecutor(
@@ -133,7 +133,7 @@ class StreamingTest {
     inner class StreamingWithGuard {
 
         @Test
-        fun `should run guard before streaming`() = runBlocking {
+        fun `streaming 전에 run guard해야 한다`() = runBlocking {
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Allowed.DEFAULT
 
@@ -156,7 +156,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `should emit error when guard rejects`() = runBlocking {
+        fun `guard rejects일 때 emit error해야 한다`() = runBlocking {
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Rejected(
                 reason = "Blocked",
@@ -174,13 +174,13 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello", userId = "user-1")
             ).toList()
 
-            // Should emit single error chunk
+            // emit single error chunk해야 합니다
             assertEquals(1, chunks.size)
             assertTrue(chunks[0].contains("Blocked")) { "Error chunk should contain rejection reason, got: ${chunks[0]}" }
         }
 
         @Test
-        fun `should record GUARD_REJECTED in streaming metrics when guard rejects`() = runBlocking {
+        fun `guard rejects일 때 record GUARD_REJECTED in streaming metrics해야 한다`() = runBlocking {
             val guard = mockk<RequestGuard>()
             val metrics = mockk<AgentMetrics>(relaxed = true)
             coEvery { guard.guard(any()) } returns GuardResult.Rejected(
@@ -214,7 +214,7 @@ class StreamingTest {
     inner class StreamingWithHooks {
 
         @Test
-        fun `should run before hook in streaming mode`() = runBlocking {
+        fun `hook in streaming mode 전에 run해야 한다`() = runBlocking {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
 
@@ -236,7 +236,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `should reject when before hook rejects in streaming`() = runBlocking {
+        fun `before hook rejects in streaming일 때 reject해야 한다`() = runBlocking {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("Not allowed")
 
@@ -255,7 +255,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `should record HOOK_REJECTED in streaming metrics when before hook rejects`() = runBlocking {
+        fun `before hook rejects일 때 record HOOK_REJECTED in streaming metrics해야 한다`() = runBlocking {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             val metrics = mockk<AgentMetrics>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("Not allowed")
@@ -285,7 +285,7 @@ class StreamingTest {
     inner class StreamingErrorHandling {
 
         @Test
-        fun `should handle stream error gracefully`() = runBlocking {
+        fun `handle stream error gracefully해야 한다`() = runBlocking {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.error(RuntimeException("Stream failed"))
 
             val executor = SpringAiAgentExecutor(
@@ -297,7 +297,7 @@ class StreamingTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            // Should emit error as last chunk
+            // emit error as last chunk해야 합니다
             assertTrue(chunks.isNotEmpty()) { "Stream error should produce at least one error chunk" }
             assertTrue(
                 chunks.last().contains("error", ignoreCase = true) || chunks.last().contains("failed", ignoreCase = true),
@@ -306,7 +306,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `should emit typed error marker on stream failure`() = runBlocking {
+        fun `emit typed error marker on stream failure해야 한다`() = runBlocking {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.error(RuntimeException("LLM unavailable"))
 
             val executor = SpringAiAgentExecutor(
@@ -326,7 +326,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `guard rejection should emit typed error marker`() = runBlocking {
+        fun `guard rejection은(는) emit typed error marker해야 한다`() = runBlocking {
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Rejected(
                 reason = "Rate limited",
@@ -352,7 +352,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `hook rejection should emit typed error marker`() = runBlocking {
+        fun `hook rejection은(는) emit typed error marker해야 한다`() = runBlocking {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("Budget exceeded")
 

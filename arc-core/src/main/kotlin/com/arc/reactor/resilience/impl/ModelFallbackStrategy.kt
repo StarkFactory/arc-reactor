@@ -22,6 +22,8 @@ private val logger = KotlinLogging.logger {}
  * Fallback calls are simple LLM calls (no tools, no ReAct loop) to
  * maximize the chance of success in degraded conditions.
  *
+ * @see FallbackStrategy for the interface contract
+ *
  * ## Example
  * ```yaml
  * arc:

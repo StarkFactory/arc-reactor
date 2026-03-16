@@ -5,6 +5,7 @@ import com.arc.reactor.slack.tools.usecase.SendMessageUseCase
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** Slack 채널에 메시지를 전송하는 도구. 스레드 답장도 지원한다. */
 open class SendMessageTool(
     private val sendMessageUseCase: SendMessageUseCase,
     private val idempotencyService: WriteOperationIdempotencyService = NoopWriteOperationIdempotencyService

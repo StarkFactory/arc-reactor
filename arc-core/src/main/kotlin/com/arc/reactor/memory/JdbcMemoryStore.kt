@@ -24,6 +24,9 @@ private val logger = KotlinLogging.logger {}
  * ## Usage
  * When `spring-boot-starter-jdbc` and a DataSource are on the classpath,
  * this bean is auto-configured by [ArcReactorAutoConfiguration].
+ *
+ * @see MemoryStore for the interface contract
+ * @see ConversationMemory for the per-session memory interface
  */
 class JdbcMemoryStore(
     private val jdbcTemplate: JdbcTemplate,

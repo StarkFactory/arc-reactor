@@ -26,7 +26,7 @@ class StreamEventMarkerFuzzTest {
     }
 
     @Test
-    fun `marker roundtrip should hold for 1000 random payloads`() {
+    fun `marker roundtrip은(는) hold for 1000 random payloads해야 한다`() {
         val random = Random(42)
 
         repeat(1_000) {
@@ -47,7 +47,7 @@ class StreamEventMarkerFuzzTest {
     }
 
     @Test
-    fun `parse should ignore non marker text across random corpus`() {
+    fun `parse은(는) ignore non marker text across random corpus해야 한다`() {
         val random = Random(2026)
         repeat(1_000) {
             val text = randomPayload(random)

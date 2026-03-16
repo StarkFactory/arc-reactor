@@ -13,7 +13,7 @@ class VerifiedSourcesResponseFilterTest {
     private val filter = VerifiedSourcesResponseFilter()
 
     @Test
-    fun `should append normalized sources block`() = runTest {
+    fun `append normalized sources block해야 한다`() = runTest {
         val result = filter.filter(
             content = "정책은 승인된 문서에 따릅니다.",
             context = ResponseFilterContext(
@@ -35,7 +35,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should block unverified workspace answer`() = runTest {
+    fun `block unverified workspace answer해야 한다`() = runTest {
         val result = filter.filter(
             content = "배포 정책은 매주 수요일입니다.",
             context = ResponseFilterContext(
@@ -55,7 +55,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should keep read only mutation refusal even without verified sources`() = runTest {
+    fun `keep read only mutation refusal even without verified sources해야 한다`() = runTest {
         val result = filter.filter(
             content = "죄송합니다. 해당 워크스페이스는 읽기 전용이므로 요청하신 변경 작업을 수행할 수 없습니다.",
             context = ResponseFilterContext(
@@ -78,7 +78,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should keep identity resolution refusal even without verified sources`() = runTest {
+    fun `keep identity resolution refusal even without verified sources해야 한다`() = runTest {
         val result = filter.filter(
             content = "요청자 계정을 Jira 사용자로 확인할 수 없어 개인화 조회를 확정할 수 없습니다. requesterEmail과 Atlassian 사용자 매핑을 확인해 주세요.",
             context = ResponseFilterContext(
@@ -98,7 +98,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should treat swagger spec tools as verified workspace tools`() = runTest {
+    fun `treat swagger spec tools as verified workspace tools해야 한다`() = runTest {
         val result = filter.filter(
             content = "공식 업로드 엔드포인트는 POST /pet/{petId}/uploadImage 입니다.",
             context = ResponseFilterContext(
@@ -124,7 +124,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should block unverified workspace question without tool`() = runTest {
+    fun `block unverified workspace question without tool해야 한다`() = runTest {
         val result = filter.filter(
             content = "배포 정책은 매주 수요일입니다.",
             context = ResponseFilterContext(
@@ -144,7 +144,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should allow general question without workspace context`() = runTest {
+    fun `allow general question without workspace context해야 한다`() = runTest {
         val result = filter.filter(
             content = "오늘 서울 날씨는 맑겠습니다.",
             context = ResponseFilterContext(
@@ -164,7 +164,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should allow how are you style greetings`() = runTest {
+    fun `allow how are you style greetings해야 한다`() = runTest {
         val result = filter.filter(
             content = "I'm doing well, thanks!",
             context = ResponseFilterContext(
@@ -184,7 +184,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should keep casual reply without empty sources footer`() = runTest {
+    fun `keep casual reply without empty sources footer해야 한다`() = runTest {
         val result = filter.filter(
             content = "안녕하세요.",
             context = ResponseFilterContext(
@@ -201,7 +201,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should keep casual Korean greetings unblocked`() = runTest {
+    fun `keep casual Korean greetings unblocked해야 한다`() = runTest {
         val greetings = listOf("안녕하세요", "안녕하세요!", "반갑습니다")
         for (greeting in greetings) {
             val result = filter.filter(
@@ -224,7 +224,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should keep casual Korean acknowledgements unblocked`() = runTest {
+    fun `keep casual Korean acknowledgements unblocked해야 한다`() = runTest {
         val acks = listOf("네", "알겠습니다", "좋아", "고마워요")
         for (ack in acks) {
             val result = filter.filter(
@@ -247,7 +247,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should skip non text responses`() = runTest {
+    fun `skip non text responses해야 한다`() = runTest {
         val result = filter.filter(
             content = "{\"ok\":true}",
             context = ResponseFilterContext(
@@ -266,7 +266,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should strip leaked tool code and generated sources block before appending normalized footer`() = runTest {
+    fun `appending normalized footer 전에 strip leaked tool code and generated sources block해야 한다`() = runTest {
         val result = filter.filter(
             content = """
                 ```tool_code
@@ -303,7 +303,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should return verified fallback message when sanitized content becomes empty`() = runTest {
+    fun `sanitized content becomes empty일 때 return verified fallback message해야 한다`() = runTest {
         val result = filter.filter(
             content = """
                 ```tool_code
@@ -329,7 +329,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should strip inline and emphasized sources sections from tool output`() = runTest {
+    fun `strip inline and emphasized sources sections from tool output해야 한다`() = runTest {
         val result = filter.filter(
             content = """
                 문서를 찾지 못했습니다.
@@ -360,7 +360,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should not append empty sources footer for internal read tools without links`() = runTest {
+    fun `internal read tools without links에 대해 not append empty sources footer해야 한다`() = runTest {
         val result = filter.filter(
             content = "저장된 briefing profile은 default 하나입니다.",
             context = ResponseFilterContext(

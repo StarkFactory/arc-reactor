@@ -13,7 +13,7 @@ import kotlin.streams.asSequence
 class ToolInvocationPathSafetyTest {
 
     @Test
-    fun `direct tool call must stay in approved execution boundary`() {
+    fun `direct은(는) tool call must stay in approved execution boundary`() {
         val sourceRoot = resolveSourceRoot()
         val directCallFiles = Files.walk(sourceRoot).use { stream ->
             stream.asSequence()

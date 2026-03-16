@@ -34,6 +34,14 @@ import javax.sql.DataSource
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * JDBC 기반 bean을 등록하는 Admin 설정 클래스.
+ *
+ * [DataSource]가 존재할 때만 활성화되며, 인메모리 기본 bean을 JDBC 구현체로 대체한다.
+ * 모든 bean에 `@ConditionalOnMissingBean`이 적용되어 사용자 정의 bean으로 대체 가능하다.
+ *
+ * @see AdminAutoConfiguration DataSource 없이도 동작하는 기본 설정
+ */
 @Configuration
 @ConditionalOnProperty(
     prefix = "arc.reactor.admin", name = ["enabled"],
@@ -86,7 +94,7 @@ class AdminJdbcConfiguration {
         return writer
     }
 
-    // --- Phase 3: Query + SLO + Alert ---
+    // ── 단계: 쿼리 + SLO + 알림 ──
 
     @Bean
     @ConditionalOnMissingBean
@@ -152,7 +160,7 @@ class AdminJdbcConfiguration {
         return QuotaEnforcerHook(tenantStore, queryService, circuitBreakerRegistry, healthMonitor, ringBuffer)
     }
 
-    // --- Alerting ---
+    // ── 단계: 알림 스케줄러 ──
 
     @Bean
     @ConditionalOnMissingBean

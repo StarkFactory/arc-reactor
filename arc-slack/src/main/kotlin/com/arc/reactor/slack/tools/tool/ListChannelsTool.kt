@@ -5,6 +5,7 @@ import com.arc.reactor.slack.tools.usecase.ListChannelsUseCase
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** 워크스페이스의 Slack 채널 목록을 조회하는 도구. */
 open class ListChannelsTool(private val listChannelsUseCase: ListChannelsUseCase) : LocalTool {
 
     @Tool(description = "List Slack channels in the workspace. Returns channel ID, name, topic, member count, and privacy status.")

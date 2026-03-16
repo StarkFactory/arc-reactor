@@ -23,7 +23,7 @@ class UserMemoryInjectionHookTest {
     inner class HookConfiguration {
 
         @Test
-        fun `hook has low order to run early`() {
+        fun `hook은(는) low order to run early를 가진다`() {
             assertTrue(
                 hook.order <= 10,
                 "UserMemoryInjectionHook.order should be <=10 to run before most hooks, got ${hook.order}"
@@ -31,7 +31,7 @@ class UserMemoryInjectionHookTest {
         }
 
         @Test
-        fun `hook is fail-open by default`() {
+        fun `hook은(는) fail-open by default이다`() {
             assertFalse(hook.failOnError, "UserMemoryInjectionHook should be fail-open (failOnError=false)")
         }
     }
@@ -40,7 +40,7 @@ class UserMemoryInjectionHookTest {
     inner class ContextInjection {
 
         @Test
-        fun `injects memory context into HookContext metadata when memory exists`() = runTest {
+        fun `memory context into HookContext metadata when memory exists를 주입한다`() = runTest {
             store.save(
                 "user-1",
                 UserMemory(
@@ -61,7 +61,7 @@ class UserMemoryInjectionHookTest {
         }
 
         @Test
-        fun `does not inject when user has no stored memory`() = runTest {
+        fun `inject when user has no stored memory하지 않는다`() = runTest {
             val context = hookContext(userId = "no-memory-user")
 
             val result = hook.beforeAgentStart(context)
@@ -74,7 +74,7 @@ class UserMemoryInjectionHookTest {
         }
 
         @Test
-        fun `does not inject for anonymous userId`() = runTest {
+        fun `inject for anonymous userId하지 않는다`() = runTest {
             val context = hookContext(userId = "anonymous")
 
             val result = hook.beforeAgentStart(context)
@@ -87,7 +87,7 @@ class UserMemoryInjectionHookTest {
         }
 
         @Test
-        fun `does not inject for blank userId`() = runTest {
+        fun `inject for blank userId하지 않는다`() = runTest {
             val context = hookContext(userId = "")
 
             val result = hook.beforeAgentStart(context)
@@ -100,7 +100,7 @@ class UserMemoryInjectionHookTest {
         }
 
         @Test
-        fun `does not inject when memory contains no data`() = runTest {
+        fun `inject when memory contains no data하지 않는다`() = runTest {
             store.save("empty-user", UserMemory(userId = "empty-user"))
             val context = hookContext(userId = "empty-user")
 
@@ -114,7 +114,7 @@ class UserMemoryInjectionHookTest {
         }
 
         @Test
-        fun `does not inject when injectIntoPrompt is false`() = runTest {
+        fun `does not inject when injectIntoPrompt은(는) false이다`() = runTest {
             val disabledHook = UserMemoryInjectionHook(memoryManager = manager, injectIntoPrompt = false)
             store.save(
                 "user-disabled",
@@ -132,7 +132,7 @@ class UserMemoryInjectionHookTest {
         }
 
         @Test
-        fun `injectIntoPrompt defaults to false`() = runTest {
+        fun `injectIntoPrompt은(는) defaults to false`() = runTest {
             val defaultHook = UserMemoryInjectionHook(memoryManager = manager)
             store.save(
                 "user-default",
@@ -153,7 +153,7 @@ class UserMemoryInjectionHookTest {
     inner class ContextFormat {
 
         @Test
-        fun `injected context uses Facts prefix for facts`() = runTest {
+        fun `injected은(는) context uses Facts prefix for facts`() = runTest {
             store.save("fact-user", UserMemory(userId = "fact-user", facts = mapOf("role" to "lead")))
             val context = hookContext(userId = "fact-user")
 
@@ -165,7 +165,7 @@ class UserMemoryInjectionHookTest {
         }
 
         @Test
-        fun `injected context uses Preferences prefix for preferences`() = runTest {
+        fun `injected은(는) context uses Preferences prefix for preferences`() = runTest {
             store.save(
                 "pref-user",
                 UserMemory(userId = "pref-user", preferences = mapOf("detail_level" to "brief"))
@@ -183,7 +183,7 @@ class UserMemoryInjectionHookTest {
         }
 
         @Test
-        fun `injected context has separate lines for facts and preferences`() = runTest {
+        fun `injected context은(는) separate lines for facts and preferences를 가진다`() = runTest {
             store.save(
                 "full-user",
                 UserMemory(
@@ -209,7 +209,7 @@ class UserMemoryInjectionHookTest {
     inner class FailureBehavior {
 
         @Test
-        fun `continues without injection when memory manager throws`() = runTest {
+        fun `memory manager throws일 때 continues without injection`() = runTest {
             val failingManager = mockk<UserMemoryManager>()
             coEvery { failingManager.getContextPrompt(any()) } throws RuntimeException("Simulated storage failure")
             val failingHook = UserMemoryInjectionHook(memoryManager = failingManager, injectIntoPrompt = true)

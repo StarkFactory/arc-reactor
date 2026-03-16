@@ -5,6 +5,7 @@ import com.arc.reactor.slack.tools.usecase.UploadFileUseCase
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** 텍스트 파일을 Slack 채널에 업로드하는 도구. 코멘트 및 스레드 답장을 지원한다. */
 open class UploadFileTool(
     private val uploadFileUseCase: UploadFileUseCase,
     private val idempotencyService: WriteOperationIdempotencyService = NoopWriteOperationIdempotencyService

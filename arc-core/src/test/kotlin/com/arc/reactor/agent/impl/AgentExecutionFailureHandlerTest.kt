@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test
 class AgentExecutionFailureHandlerTest {
 
     @Test
-    fun `should resolve failure call hook and record metrics`() = runBlocking {
+    fun `resolve failure call hook and record metrics해야 한다`() = runBlocking {
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val errorResolver = ErrorMessageResolver { code, original ->
@@ -60,7 +60,7 @@ class AgentExecutionFailureHandlerTest {
     }
 
     @Test
-    fun `should continue and record metrics when after hook fails`() = runBlocking {
+    fun `after hook fails일 때 continue and record metrics해야 한다`() = runBlocking {
         val hookExecutor = mockk<HookExecutor>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery { hookExecutor.executeAfterAgentComplete(any(), any()) } throws IllegalArgumentException("hook failed")
@@ -85,7 +85,7 @@ class AgentExecutionFailureHandlerTest {
     }
 
     @Test
-    fun `should rethrow cancellation from after hook`() = runBlocking {
+    fun `hook 후 rethrow cancellation from해야 한다`() = runBlocking {
         val hookExecutor = mockk<HookExecutor>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery { hookExecutor.executeAfterAgentComplete(any(), any()) } throws CancellationException("cancelled")
@@ -104,7 +104,7 @@ class AgentExecutionFailureHandlerTest {
             )
             fail("Expected CancellationException to be rethrown from failure handler")
         } catch (_: CancellationException) {
-            // expected
+            // 예상 결과
         }
 
         verify(exactly = 0) { metrics.recordExecution(any()) }

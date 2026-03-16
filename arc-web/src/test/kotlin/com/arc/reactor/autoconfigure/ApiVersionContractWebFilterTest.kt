@@ -42,7 +42,7 @@ class ApiVersionContractWebFilterTest {
     inner class ContractHeaders {
 
         @Test
-        fun `should include current and supported version headers`() {
+        fun `include current and supported version headers해야 한다`() {
             val (exchange, _) = executeFilter()
 
             assertEquals(
@@ -60,21 +60,21 @@ class ApiVersionContractWebFilterTest {
     inner class VersionValidation {
 
         @Test
-        fun `should allow requests when version header is missing`() {
+        fun `version header is missing일 때 allow requests해야 한다`() {
             val (_, chainCalled) = executeFilter()
 
             assertTrue(chainCalled.get()) { "Request without version header should pass" }
         }
 
         @Test
-        fun `should allow requests with supported version`() {
+        fun `supported version로 allow requests해야 한다`() {
             val (_, chainCalled) = executeFilter("v1")
 
             assertTrue(chainCalled.get()) { "Request with supported version should pass" }
         }
 
         @Test
-        fun `should reject requests with unsupported version`() {
+        fun `unsupported version로 reject requests해야 한다`() {
             val (exchange, chainCalled) = executeFilter("v9")
 
             assertFalse(chainCalled.get()) { "Unsupported version should not proceed to downstream chain" }
@@ -94,7 +94,7 @@ class ApiVersionContractWebFilterTest {
     inner class Ordering {
 
         @Test
-        fun `should run after security headers filter`() {
+        fun `security headers filter 후 run해야 한다`() {
             assertEquals(Ordered.HIGHEST_PRECEDENCE + 2, filter.order) {
                 "API version filter should run after auth/security header filters"
             }

@@ -8,7 +8,7 @@ class OutputGuardRuleEvaluatorTest {
     private val evaluator = OutputGuardRuleEvaluator()
 
     @Test
-    fun `masks content when mask rule matches`() {
+    fun `content when mask rule matches를 마스킹한다`() {
         val result = evaluator.evaluate(
             content = "password: test123",
             rules = listOf(
@@ -28,7 +28,7 @@ class OutputGuardRuleEvaluatorTest {
     }
 
     @Test
-    fun `rejects content when reject rule matches`() {
+    fun `content when reject rule matches를 거부한다`() {
         val result = evaluator.evaluate(
             content = "internal only",
             rules = listOf(
@@ -47,7 +47,7 @@ class OutputGuardRuleEvaluatorTest {
     }
 
     @Test
-    fun `collects invalid regex rules and continues evaluation`() {
+    fun `collects은(는) invalid regex rules and continues evaluation`() {
         val result = evaluator.evaluate(
             content = "secret",
             rules = listOf(

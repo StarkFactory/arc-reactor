@@ -24,7 +24,7 @@ class TenantServiceTest {
     inner class Create {
 
         @Test
-        fun `should create tenant with default quota`() {
+        fun `default quota로 create tenant해야 한다`() {
             val tenant = service.create("Acme Corp", "acme-corp", TenantPlan.STARTER)
 
             tenant.name shouldBe "Acme Corp"
@@ -36,21 +36,21 @@ class TenantServiceTest {
         }
 
         @Test
-        fun `should reject blank name`() {
+        fun `reject blank name해야 한다`() {
             shouldThrow<IllegalArgumentException> {
                 service.create("", "acme", TenantPlan.FREE)
             }.message shouldBe "Tenant name must not be blank"
         }
 
         @Test
-        fun `should reject invalid slug`() {
+        fun `reject invalid slug해야 한다`() {
             shouldThrow<IllegalArgumentException> {
                 service.create("Acme", "ACME_CORP", TenantPlan.FREE)
             }.message shouldBe "Slug must contain only lowercase letters, numbers, and hyphens"
         }
 
         @Test
-        fun `should reject duplicate slug`() {
+        fun `reject duplicate slug해야 한다`() {
             service.create("Acme 1", "acme-corp", TenantPlan.FREE)
 
             shouldThrow<IllegalArgumentException> {
@@ -63,7 +63,7 @@ class TenantServiceTest {
     inner class UpdatePlan {
 
         @Test
-        fun `should update plan and quota`() {
+        fun `update plan and quota해야 한다`() {
             val tenant = service.create("Acme", "acme-corp", TenantPlan.FREE)
             val updated = service.updatePlan(tenant.id, TenantPlan.BUSINESS)
 
@@ -72,7 +72,7 @@ class TenantServiceTest {
         }
 
         @Test
-        fun `should fail for non-existent tenant`() {
+        fun `non-existent tenant에 대해 fail해야 한다`() {
             shouldThrow<IllegalArgumentException> {
                 service.updatePlan("non-existent", TenantPlan.BUSINESS)
             }.message shouldBe "Tenant not found: non-existent"
@@ -83,7 +83,7 @@ class TenantServiceTest {
     inner class Lifecycle {
 
         @Test
-        fun `should suspend and activate tenant`() {
+        fun `suspend and activate tenant해야 한다`() {
             val tenant = service.create("Acme", "acme-corp", TenantPlan.FREE)
 
             val suspended = service.suspend(tenant.id)
@@ -94,7 +94,7 @@ class TenantServiceTest {
         }
 
         @Test
-        fun `should list tenants filtered by status`() {
+        fun `list tenants filtered by status해야 한다`() {
             service.create("Active 1", "active-1", TenantPlan.FREE)
             val t2 = service.create("Active 2", "active-2", TenantPlan.FREE)
             service.suspend(t2.id)
@@ -116,7 +116,7 @@ class TenantServiceTest {
     inner class DefaultQuotas {
 
         @Test
-        fun `should have correct default quotas per plan`() {
+        fun `have correct default quotas per plan해야 한다`() {
             val free = com.arc.reactor.admin.model.Tenant.defaultQuotaFor(TenantPlan.FREE)
             free.maxRequestsPerMonth shouldBe 1000
             free.maxUsers shouldBe 5

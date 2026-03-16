@@ -16,19 +16,17 @@ private const val TENANT_ID_INVALID_MSG =
     "Invalid tenant ID format. Only alphanumeric characters, hyphens, and underscores are allowed (max 64 chars)"
 
 /**
- * Resolves the current tenant ID.
+ * 현재 테넌트 ID를 해석하는 resolver.
  *
- * Preferred: [resolveTenantId] with [ServerWebExchange] — reliable in WebFlux (no ThreadLocal).
- * Legacy: [currentTenantId] via ThreadLocal — only safe when thread-hop is impossible.
+ * 권장: [ServerWebExchange]를 사용하는 [resolveTenantId] — WebFlux에서 안정적 (ThreadLocal 미사용).
+ * 레거시: ThreadLocal 기반 [currentTenantId] — 스레드 전환이 불가능한 경우에만 안전.
  *
- * The companion [TenantWebFilter] stores the resolved tenant both in
- * exchange attributes (WebFlux-safe) and ThreadLocal (legacy compatibility).
+ * 동반 [TenantWebFilter]가 해석된 테넌트를 exchange attribute (WebFlux-safe)와
+ * ThreadLocal (레거시 호환) 양쪽에 저장한다.
  */
 class TenantResolver {
 
-    /**
-     * Resolves tenant ID from exchange attributes/headers. WebFlux-safe — no ThreadLocal.
-     */
+    /** exchange attribute/헤더에서 테넌트 ID를 해석한다. WebFlux-safe — ThreadLocal 미사용. */
     fun resolveTenantId(exchange: ServerWebExchange): String {
         val resolvedTenantId = exchange.attributes[EXCHANGE_ATTR_KEY]?.toString()?.trim()
             ?.takeIf { it.isNotBlank() }
@@ -51,10 +49,7 @@ class TenantResolver {
         return "default"
     }
 
-    /**
-     * ThreadLocal-based tenant ID. **Unreliable in WebFlux reactive chains** — use
-     * [resolveTenantId] with exchange instead for controller endpoints.
-     */
+    /** ThreadLocal 기반 테넌트 ID. **WebFlux reactive 체인에서 불안정** — 컨트롤러에서는 [resolveTenantId] 사용 권장. */
     fun currentTenantId(): String = TENANT_ID.get() ?: "default"
 
     fun setTenantId(tenantId: String) {
@@ -85,11 +80,10 @@ class TenantResolver {
 }
 
 /**
- * WebFilter that extracts tenant ID from the request (header or attribute)
- * and sets it on the TenantResolver. Clears after the request completes
- * to prevent ThreadLocal leaks in pooled thread environments.
+ * 요청에서 테넌트 ID를 추출하여 [TenantResolver]에 설정하는 WebFilter.
  *
- * Runs at highest priority to ensure tenant is available to all downstream filters.
+ * 요청 완료 후 정리하여 풀링된 스레드 환경에서 ThreadLocal 누수를 방지한다.
+ * 최고 우선순위에서 실행되어 모든 하위 필터에서 테넌트를 사용할 수 있게 한다.
  */
 class TenantWebFilter(
     private val tenantResolver: TenantResolver
@@ -102,7 +96,7 @@ class TenantWebFilter(
         tenantResolver.setTenantId(tenantId)
         exchange.attributes[TenantResolver.EXCHANGE_ATTR_KEY] = tenantId
 
-        // Also propagate via OTel Context for TenantSpanProcessor
+        // TenantSpanProcessor를 위해 OTel Context에도 전파
         val otelScope = Context.current()
             .with(TenantSpanProcessor.TENANT_CONTEXT_KEY, tenantId)
             .makeCurrent()

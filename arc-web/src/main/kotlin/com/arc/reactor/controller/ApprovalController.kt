@@ -22,16 +22,17 @@ import org.springframework.web.server.ServerWebExchange
 private val logger = KotlinLogging.logger {}
 
 /**
- * Human-in-the-Loop Approval API
+ * Human-in-the-Loop 승인 컨트롤러.
  *
- * Provides REST endpoints for managing pending tool approval requests.
- * Only registered when a [PendingApprovalStore] bean is available
- * (i.e., when HITL is enabled via configuration).
+ * 대기 중인 도구 호출 승인 요청을 조회하고 승인/거부합니다.
+ * [PendingApprovalStore] Bean이 등록된 경우(HITL 활성화 시)에만 동작합니다.
  *
- * ## Endpoints
- * - GET /api/approvals          : List pending approvals (filtered by user)
- * - POST /api/approvals/{id}/approve : Approve a tool call
- * - POST /api/approvals/{id}/reject  : Reject a tool call
+ * ## 엔드포인트
+ * - GET  /api/approvals                : 대기 중인 승인 목록 조회 (사용자별 필터)
+ * - POST /api/approvals/{id}/approve   : 도구 호출 승인
+ * - POST /api/approvals/{id}/reject    : 도구 호출 거부
+ *
+ * @see PendingApprovalStore
  */
 @Tag(name = "Approvals", description = "Human-in-the-Loop tool approval endpoints")
 @RestController
@@ -45,7 +46,8 @@ class ApprovalController(
     private val adminAuditStore: AdminAuditStore
 ) {
 
-    @Operation(summary = "List pending approval requests")
+    /** 대기 중인 승인 요청 목록을 조회한다. 관리자는 전체, 일반 사용자는 본인 건만 조회 가능하다. */
+    @Operation(summary = "대기 중인 승인 요청 목록 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Paginated list of pending approvals"),
         ApiResponse(responseCode = "403", description = "Access denied")
@@ -66,7 +68,8 @@ class ApprovalController(
         return ResponseEntity.ok(pending.map { it.toAdminResponse() }.paginate(offset, clamped))
     }
 
-    @Operation(summary = "Approve a pending tool call")
+    /** 대기 중인 도구 호출을 승인한다. 선택적으로 인자를 수정할 수 있다. */
+    @Operation(summary = "대기 중인 도구 호출 승인")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Approval action result"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -104,7 +107,8 @@ class ApprovalController(
         )
     }
 
-    @Operation(summary = "Reject a pending tool call")
+    /** 대기 중인 도구 호출을 거부한다. 선택적으로 거부 사유를 기록할 수 있다. */
+    @Operation(summary = "대기 중인 도구 호출 거부")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Rejection action result"),
         ApiResponse(responseCode = "403", description = "Admin access required")

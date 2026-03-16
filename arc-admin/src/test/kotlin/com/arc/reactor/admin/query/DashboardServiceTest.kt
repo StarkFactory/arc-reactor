@@ -58,12 +58,12 @@ class DashboardServiceTest {
     inner class GetOverview {
 
         @Test
-        fun `returns null for unknown tenant`() {
+        fun `unknown tenant에 대해 null를 반환한다`() {
             dashboardService.getOverview("unknown").shouldBeNull()
         }
 
         @Test
-        fun `assembles overview from all services`() {
+        fun `overview from all services를 조합한다`() {
             every { queryService.getSuccessRate(any(), any(), any()) } returns 0.98
             every { sloService.getApdex(any(), any(), any()) } returns
                 ApdexScore(score = 0.85, satisfied = 800, tolerating = 150, frustrated = 50, total = 1000)
@@ -93,7 +93,7 @@ class DashboardServiceTest {
     inner class GetUsage {
 
         @Test
-        fun `assembles usage dashboard`() {
+        fun `usage dashboard를 조합한다`() {
             every { queryService.getRequestTimeSeries(any(), any(), any()) } returns listOf(
                 TimeSeriesPoint(now.minus(1, ChronoUnit.HOURS), 100.0)
             )
@@ -116,7 +116,7 @@ class DashboardServiceTest {
     inner class GetQuality {
 
         @Test
-        fun `assembles quality dashboard`() {
+        fun `quality dashboard를 조합한다`() {
             every { queryService.getLatencyPercentiles(any(), any(), any()) } returns
                 mapOf("p50" to 200L, "p95" to 1000L, "p99" to 3000L)
             every { queryService.getErrorDistribution(any(), any(), any()) } returns
@@ -135,7 +135,7 @@ class DashboardServiceTest {
     inner class GetTools {
 
         @Test
-        fun `assembles tool dashboard with ranking and slowest`() {
+        fun `tool dashboard with ranking and slowest를 조합한다`() {
             val tools = listOf(
                 ToolUsageSummary("tool1", 100, 0.95, 200, 500),
                 ToolUsageSummary("tool2", 50, 0.90, 400, 1200),
@@ -158,7 +158,7 @@ class DashboardServiceTest {
     inner class GetCost {
 
         @Test
-        fun `assembles cost dashboard`() {
+        fun `cost dashboard를 조합한다`() {
             every { queryService.getCurrentMonthUsage(any()) } returns
                 TenantUsage("t1", costUsd = BigDecimal("50.00"))
             every { jdbcTemplate.query(any<String>(), any<RowMapper<*>>(), *anyVararg()) } returns

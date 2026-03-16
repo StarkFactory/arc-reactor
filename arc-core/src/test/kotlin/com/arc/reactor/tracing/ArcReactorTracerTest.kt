@@ -13,25 +13,25 @@ class ArcReactorTracerTest {
         private val tracer = NoOpArcReactorTracer()
 
         @Test
-        fun `startSpan should return a non-null handle`() {
+        fun `startSpan은(는) return a non-null handle해야 한다`() {
             val handle = tracer.startSpan("arc.agent.request")
             assertNotNull(handle, "Expected a non-null SpanHandle from NoOpArcReactorTracer")
         }
 
         @Test
-        fun `startSpan with attributes should return a non-null handle`() {
+        fun `startSpan with attributes은(는) return a non-null handle해야 한다`() {
             val handle = tracer.startSpan("arc.agent.request", mapOf("key" to "value"))
             assertNotNull(handle, "Expected a non-null SpanHandle even when attributes are provided")
         }
 
         @Test
-        fun `close should not throw`() {
+        fun `close은(는) not throw해야 한다`() {
             val handle = tracer.startSpan("arc.agent.request")
             assertDoesNotThrow({ handle.close() }, "NoOp close should never throw")
         }
 
         @Test
-        fun `setError should not throw`() {
+        fun `setError은(는) not throw해야 한다`() {
             val handle = tracer.startSpan("arc.agent.request")
             assertDoesNotThrow(
                 { handle.setError(RuntimeException("test error")) },
@@ -40,7 +40,7 @@ class ArcReactorTracerTest {
         }
 
         @Test
-        fun `setAttribute should not throw`() {
+        fun `setAttribute은(는) not throw해야 한다`() {
             val handle = tracer.startSpan("arc.agent.request")
             assertDoesNotThrow(
                 { handle.setAttribute("key", "value") },
@@ -49,7 +49,7 @@ class ArcReactorTracerTest {
         }
 
         @Test
-        fun `close called multiple times should not throw`() {
+        fun `close called multiple times은(는) not throw해야 한다`() {
             val handle = tracer.startSpan("arc.agent.request")
             assertDoesNotThrow({
                 handle.close()
@@ -58,7 +58,7 @@ class ArcReactorTracerTest {
         }
 
         @Test
-        fun `span handle usable as AutoCloseable via use-block`() {
+        fun `span은(는) handle usable as AutoCloseable via use-block`() {
             assertDoesNotThrow({
                 tracer.startSpan("arc.agent.guard").use { span ->
                     span.setAttribute("guard.result", "passed")

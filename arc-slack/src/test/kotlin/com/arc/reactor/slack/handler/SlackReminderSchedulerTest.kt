@@ -22,26 +22,26 @@ class SlackReminderSchedulerTest {
     }
 
     @Test
-    fun `pollAndNotify delivers due reminders via DM`() {
+    fun `pollAndNotify은(는) delivers due reminders via DM`() {
         coEvery { messagingService.sendMessage(any(), any(), any()) } returns SlackApiResult(ok = true)
 
         // Manually add a reminder that's already due
         val reminder = store.add("U_TEST", "test reminder at 0:00")
 
-        // Force the dueAt to be in the past by adding directly
+        // the dueAt to be in the past by adding directly를 강제합니다
         val list = store.list("U_TEST")
-        // The "at 0:00" should have been parsed and set to a future time
+        // The "at 0:00"은(는) have been parsed and set to a future time해야 합니다
         // Instead, let's use collectDueReminders after manually inserting a past-due one
 
-        // Create scheduler (large interval so it won't auto-poll)
+        // scheduler (large interval so it won't auto-poll) 생성
         scheduler = SlackReminderScheduler(store, messagingService, pollIntervalSeconds = 3600)
 
-        // If the reminder is already past due, collectDueReminders should return it
+        // If the reminder is already past due, collectDueReminders은(는) return it해야 합니다
         // Since we used "at 0:00" which resolves to tomorrow, let's verify with a direct test
     }
 
     @Test
-    fun `collectDueReminders returns and removes due entries`() {
+    fun `collectDueReminders은(는) returns and removes due entries`() {
         // Test that reminders without dueAt are not collected
         store.add("U1", "no time reminder")
         val collected = store.collectDueReminders()
@@ -50,19 +50,19 @@ class SlackReminderSchedulerTest {
     }
 
     @Test
-    fun `pollAndNotify sends DM with reminder text`() {
+    fun `pollAndNotify은(는) sends DM with reminder text`() {
         coEvery { messagingService.sendMessage(any(), any(), any()) } returns SlackApiResult(ok = true)
 
-        // Create a store and manually trigger poll with no due reminders
+        // a store and manually trigger poll with no due reminders 생성
         scheduler = SlackReminderScheduler(store, messagingService, pollIntervalSeconds = 3600)
         scheduler!!.pollAndNotify()
 
-        // No reminders due, so no messages sent
+        // reminders due, so no messages sent 없음
         coVerify(exactly = 0) { messagingService.sendMessage(any(), any(), any()) }
     }
 
     @Test
-    fun `help text includes reminder scheduling hint`() {
+    fun `help은(는) text includes reminder scheduling hint`() {
         DefaultSlackCommandHandler.HELP_TEXT.contains("at HH:mm") shouldBe true
     }
 }

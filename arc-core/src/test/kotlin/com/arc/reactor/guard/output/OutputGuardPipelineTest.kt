@@ -19,7 +19,7 @@ class OutputGuardPipelineTest {
     inner class BasicBehavior {
 
         @Test
-        fun `empty pipeline returns Allowed`() = runTest {
+        fun `비어있는 pipeline returns Allowed`() = runTest {
             val pipeline = OutputGuardPipeline(emptyList())
             val result = pipeline.check("some content", defaultContext)
             assertInstanceOf(OutputGuardResult.Allowed::class.java, result) {
@@ -28,7 +28,7 @@ class OutputGuardPipelineTest {
         }
 
         @Test
-        fun `single allowing stage returns Allowed`() = runTest {
+        fun `단일 allowing stage returns Allowed`() = runTest {
             val stage = allowingStage("AllowAll")
             val pipeline = OutputGuardPipeline(listOf(stage))
 
@@ -39,7 +39,7 @@ class OutputGuardPipelineTest {
         }
 
         @Test
-        fun `single rejecting stage returns Rejected`() = runTest {
+        fun `단일 rejecting stage returns Rejected`() = runTest {
             val stage = rejectingStage("BlockAll", "blocked")
             val pipeline = OutputGuardPipeline(listOf(stage))
 
@@ -52,7 +52,7 @@ class OutputGuardPipelineTest {
         }
 
         @Test
-        fun `single modifying stage returns Modified`() = runTest {
+        fun `단일 modifying stage returns Modified`() = runTest {
             val stage = modifyingStage("Masker", "masked content", "PII found")
             val pipeline = OutputGuardPipeline(listOf(stage))
 
@@ -70,7 +70,7 @@ class OutputGuardPipelineTest {
     inner class StageOrdering {
 
         @Test
-        fun `stages execute in ascending order`() = runTest {
+        fun `stages은(는) execute in ascending order`() = runTest {
             val executionOrder = mutableListOf<String>()
             val stages = listOf(
                 trackingStage("Third", 30, executionOrder),
@@ -86,7 +86,7 @@ class OutputGuardPipelineTest {
         }
 
         @Test
-        fun `disabled stages are skipped`() = runTest {
+        fun `disabled stages은(는) skipped이다`() = runTest {
             val executionOrder = mutableListOf<String>()
             val stages = listOf(
                 trackingStage("Active", 10, executionOrder),
@@ -102,7 +102,7 @@ class OutputGuardPipelineTest {
         }
 
         @Test
-        fun `size reflects only enabled stages`() {
+        fun `size은(는) reflects only enabled stages`() {
             val stages = listOf(
                 allowingStage("A", order = 10),
                 allowingStage("B", order = 20, enabled = false),
@@ -117,7 +117,7 @@ class OutputGuardPipelineTest {
     inner class PipelineFlow {
 
         @Test
-        fun `rejection stops pipeline immediately`() = runTest {
+        fun `rejection은(는) stops pipeline immediately`() = runTest {
             val executionOrder = mutableListOf<String>()
             val stages = listOf(
                 trackingStage("First", 10, executionOrder),
@@ -136,7 +136,7 @@ class OutputGuardPipelineTest {
         }
 
         @Test
-        fun `modification propagates to next stage`() = runTest {
+        fun `modification은(는) propagates to next stage`() = runTest {
             val receivedContent = mutableListOf<String>()
             val stages = listOf(
                 object : OutputGuardStage {
@@ -169,7 +169,7 @@ class OutputGuardPipelineTest {
         }
 
         @Test
-        fun `multiple modifications chain correctly`() = runTest {
+        fun `다중 modifications chain correctly`() = runTest {
             val stages = listOf(
                 modifyingStage("First", "step1", "reason1", order = 10),
                 modifyingStage("Second", "step2", "reason2", order = 20)
@@ -189,7 +189,7 @@ class OutputGuardPipelineTest {
     inner class FailClose {
 
         @Test
-        fun `exception causes rejection (fail-close)`() = runTest {
+        fun `exception은(는) causes rejection (fail-close)`() = runTest {
             val stage = object : OutputGuardStage {
                 override val stageName = "Crasher"
                 override val order = 10
@@ -210,7 +210,7 @@ class OutputGuardPipelineTest {
         }
 
         @Test
-        fun `CancellationException is rethrown, not caught`() = runTest {
+        fun `CancellationException은(는) rethrown, not caught이다`() = runTest {
             val stage = object : OutputGuardStage {
                 override val stageName = "Canceller"
                 override val order = 10
@@ -228,7 +228,7 @@ class OutputGuardPipelineTest {
         }
     }
 
-    // -- Helper functions --
+    // -- 헬퍼 함수 --
 
     private fun allowingStage(name: String, order: Int = 100, enabled: Boolean = true) = object : OutputGuardStage {
         override val stageName = name

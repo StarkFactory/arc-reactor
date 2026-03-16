@@ -13,7 +13,7 @@ class InstrumentedDocumentChunkerTest {
     private val instrumented = InstrumentedDocumentChunker(delegate, registry)
 
     @Test
-    fun `chunked document increments metrics`() {
+    fun `chunked은(는) document increments metrics`() {
         val content = buildString {
             val para = "This is a paragraph about artificial intelligence and machine learning. " +
                 "It covers topics such as neural networks, deep learning, and natural language processing. " +
@@ -34,7 +34,7 @@ class InstrumentedDocumentChunkerTest {
     }
 
     @Test
-    fun `short document does not record metrics`() {
+    fun `짧은 document does not record metrics`() {
         val doc = Document("short-doc", "Short content", emptyMap())
 
         val result = instrumented.chunk(doc)
@@ -50,7 +50,7 @@ class InstrumentedDocumentChunkerTest {
     }
 
     @Test
-    fun `batch processing records metrics for each chunked document`() {
+    fun `배치 processing records metrics for each chunked document`() {
         val longContent = buildString {
             val para = "This is a paragraph about artificial intelligence and machine learning. " +
                 "It covers topics such as neural networks and deep learning.\n\n"

@@ -35,7 +35,7 @@ class AdaptiveQueryRouterTest {
     inner class ParseComplexityTest {
 
         @Test
-        fun `parses NO_RETRIEVAL correctly`() {
+        fun `NO_RETRIEVAL correctly를 파싱한다`() {
             assertEquals(
                 QueryComplexity.NO_RETRIEVAL,
                 AdaptiveQueryRouter.parseComplexity("NO_RETRIEVAL"),
@@ -44,7 +44,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `parses SIMPLE correctly`() {
+        fun `SIMPLE correctly를 파싱한다`() {
             assertEquals(
                 QueryComplexity.SIMPLE,
                 AdaptiveQueryRouter.parseComplexity("SIMPLE"),
@@ -53,7 +53,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `parses COMPLEX correctly`() {
+        fun `COMPLEX correctly를 파싱한다`() {
             assertEquals(
                 QueryComplexity.COMPLEX,
                 AdaptiveQueryRouter.parseComplexity("COMPLEX"),
@@ -62,7 +62,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `parses lowercase response`() {
+        fun `lowercase response를 파싱한다`() {
             assertEquals(
                 QueryComplexity.COMPLEX,
                 AdaptiveQueryRouter.parseComplexity("complex"),
@@ -71,7 +71,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `parses response with extra text`() {
+        fun `response with extra text를 파싱한다`() {
             assertEquals(
                 QueryComplexity.NO_RETRIEVAL,
                 AdaptiveQueryRouter.parseComplexity("Classification: NO_RETRIEVAL because it's a greeting"),
@@ -80,7 +80,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `defaults to SIMPLE for unrecognized response`() {
+        fun `SIMPLE for unrecognized response를 기본값으로 한다`() {
             assertEquals(
                 QueryComplexity.SIMPLE,
                 AdaptiveQueryRouter.parseComplexity("something unexpected"),
@@ -89,7 +89,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `defaults to SIMPLE for empty response`() {
+        fun `SIMPLE for empty response를 기본값으로 한다`() {
             assertEquals(
                 QueryComplexity.SIMPLE,
                 AdaptiveQueryRouter.parseComplexity(""),
@@ -121,7 +121,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `routes greeting as NO_RETRIEVAL`() = runBlocking {
+        fun `greeting as NO_RETRIEVAL를 라우팅한다`() = runBlocking {
             val chatClient = mockChatClient("NO_RETRIEVAL")
             val router = AdaptiveQueryRouter(chatClient)
 
@@ -134,7 +134,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `routes simple question as SIMPLE`() = runBlocking {
+        fun `simple question as SIMPLE를 라우팅한다`() = runBlocking {
             val chatClient = mockChatClient("SIMPLE")
             val router = AdaptiveQueryRouter(chatClient)
 
@@ -147,7 +147,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `routes multi-hop question as COMPLEX`() = runBlocking {
+        fun `multi-hop question as COMPLEX를 라우팅한다`() = runBlocking {
             val chatClient = mockChatClient("COMPLEX")
             val router = AdaptiveQueryRouter(chatClient)
 
@@ -162,7 +162,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `defaults to SIMPLE on LLM failure`() = runBlocking {
+        fun `SIMPLE on LLM failure를 기본값으로 한다`() = runBlocking {
             val chatClient = mockk<ChatClient>()
             val requestSpec = mockk<ChatClientRequestSpec>()
             every { chatClient.prompt() } returns requestSpec
@@ -180,7 +180,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `rethrows CancellationException`() {
+        fun `rethrows은(는) CancellationException`() {
             val chatClient = mockk<ChatClient>()
             val requestSpec = mockk<ChatClientRequestSpec>()
             every { chatClient.prompt() } returns requestSpec
@@ -196,7 +196,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `defaults to SIMPLE on timeout`() = runTest {
+        fun `SIMPLE on timeout를 기본값으로 한다`() = runTest {
             val chatClient = mockk<ChatClient>()
             val requestSpec = mockk<ChatClientRequestSpec>()
             every { chatClient.prompt() } returns requestSpec
@@ -221,7 +221,7 @@ class AdaptiveQueryRouterTest {
     inner class RagContextRetrieverIntegrationTest {
 
         @Test
-        fun `skips retrieval when router returns NO_RETRIEVAL`() = runBlocking {
+        fun `retrieval when router returns NO_RETRIEVAL를 건너뛴다`() = runBlocking {
             val pipeline = mockk<RagPipeline>()
             val router = mockk<QueryRouter>()
             coEvery { router.route(any()) } returns QueryComplexity.NO_RETRIEVAL
@@ -245,7 +245,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `uses default topK when router returns SIMPLE`() = runBlocking {
+        fun `router returns SIMPLE일 때 default topK를 사용한다`() = runBlocking {
             val pipeline = mockk<RagPipeline>()
             val router = mockk<QueryRouter>()
             val querySlot = slot<RagQuery>()
@@ -276,7 +276,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `uses complexTopK when router returns COMPLEX`() = runBlocking {
+        fun `router returns COMPLEX일 때 complexTopK를 사용한다`() = runBlocking {
             val pipeline = mockk<RagPipeline>()
             val router = mockk<QueryRouter>()
             val querySlot = slot<RagQuery>()
@@ -310,7 +310,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `uses default topK when no router is configured`() = runBlocking {
+        fun `uses default topK when no router은(는) configured이다`() = runBlocking {
             val pipeline = mockk<RagPipeline>()
             val querySlot = slot<RagQuery>()
             coEvery { pipeline.retrieve(capture(querySlot)) } returns RagContext(
@@ -349,7 +349,7 @@ class AdaptiveQueryRouterTest {
     inner class QueryComplexityTest {
 
         @Test
-        fun `NO_RETRIEVAL has zero multiplier`() {
+        fun `NO_RETRIEVAL은(는) zero multiplier를 가진다`() {
             assertEquals(
                 0.0, QueryComplexity.NO_RETRIEVAL.topKMultiplier,
                 "NO_RETRIEVAL should have 0.0 multiplier"
@@ -357,7 +357,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `SIMPLE has 1x multiplier`() {
+        fun `SIMPLE은(는) 1x multiplier를 가진다`() {
             assertEquals(
                 1.0, QueryComplexity.SIMPLE.topKMultiplier,
                 "SIMPLE should have 1.0 multiplier"
@@ -365,7 +365,7 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `COMPLEX has 3x multiplier`() {
+        fun `COMPLEX은(는) 3x multiplier를 가진다`() {
             assertEquals(
                 3.0, QueryComplexity.COMPLEX.topKMultiplier,
                 "COMPLEX should have 3.0 multiplier"

@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 class DynamicToolApprovalPolicyTest {
 
     @Test
-    fun `does not require approval for preview release readiness pack`() {
+    fun `require approval for preview release readiness pack하지 않는다`() {
         val props = ToolPolicyProperties(
             enabled = true,
             writeToolNames = setOf("work_release_readiness_pack")
@@ -30,7 +30,7 @@ class DynamicToolApprovalPolicyTest {
     }
 
     @Test
-    fun `requires approval for auto execute release readiness pack`() {
+    fun `requires은(는) approval for auto execute release readiness pack`() {
         val props = ToolPolicyProperties(
             enabled = true,
             writeToolNames = setOf("work_release_readiness_pack")

@@ -15,7 +15,7 @@ class ReadMessagesToolTest {
     private val tool = ReadMessagesTool(readMessagesUseCase)
 
     @Test
-    fun `reads messages successfully`() {
+    fun `messages successfully를 읽는다`() {
         every { readMessagesUseCase.execute("C123", 10, null) } returns
             ConversationHistoryResult(
                 ok = true,
@@ -32,14 +32,14 @@ class ReadMessagesToolTest {
     }
 
     @Test
-    fun `returns error for blank channelId`() {
+    fun `blank channelId에 대해 error를 반환한다`() {
         val result = tool.read_messages("", null, null)
         result shouldContain "error"
         result shouldContain "channelId must be a valid Slack channel ID"
     }
 
     @Test
-    fun `uses custom limit`() {
+    fun `custom limit를 사용한다`() {
         every { readMessagesUseCase.execute("C123", 5, null) } returns
             ConversationHistoryResult(ok = true, messages = emptyList())
 
@@ -48,7 +48,7 @@ class ReadMessagesToolTest {
     }
 
     @Test
-    fun `returns error for non-positive limit`() {
+    fun `non-positive limit에 대해 error를 반환한다`() {
         val result = tool.read_messages("C123", 0, null)
         result shouldContain "error"
         result shouldContain "limit must be between 1 and 200"
@@ -56,7 +56,7 @@ class ReadMessagesToolTest {
     }
 
     @Test
-    fun `returns error for limit above max`() {
+    fun `limit above max에 대해 error를 반환한다`() {
         val result = tool.read_messages("C123", 201, null)
         result shouldContain "error"
         result shouldContain "limit must be between 1 and 200"
@@ -64,7 +64,7 @@ class ReadMessagesToolTest {
     }
 
     @Test
-    fun `passes cursor when provided`() {
+    fun `cursor when provided를 전달한다`() {
         every { readMessagesUseCase.execute("C123", 10, "next-cursor") } returns
             ConversationHistoryResult(ok = true, messages = emptyList(), nextCursor = null)
 
@@ -74,7 +74,7 @@ class ReadMessagesToolTest {
     }
 
     @Test
-    fun `returns error for invalid channel id format`() {
+    fun `invalid channel id format에 대해 error를 반환한다`() {
         val result = tool.read_messages("123", null, null)
         result shouldContain "channelId must be a valid Slack channel ID"
         verify(exactly = 0) { readMessagesUseCase.execute(any(), any(), any()) }

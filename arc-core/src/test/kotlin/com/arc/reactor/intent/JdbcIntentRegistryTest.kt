@@ -55,7 +55,7 @@ class JdbcIntentRegistryTest {
     }
 
     @Test
-    fun `should reuse snapshot across reads until save invalidates it`() {
+    fun `reuse snapshot across reads until save invalidates it해야 한다`() {
         rawInsert(createIntent("greeting", enabled = true))
 
         assertEquals(listOf("greeting"), registry.listEnabled().map { it.name }) {
@@ -82,7 +82,7 @@ class JdbcIntentRegistryTest {
     }
 
     @Test
-    fun `should invalidate enabled snapshot after updating an intent`() {
+    fun `updating an intent 후 invalidate enabled snapshot해야 한다`() {
         registry.save(createIntent("greeting", enabled = true))
         assertEquals(listOf("greeting"), registry.listEnabled().map { it.name }) {
             "Enabled list should contain greeting before the update"
@@ -100,7 +100,7 @@ class JdbcIntentRegistryTest {
     }
 
     @Test
-    fun `should invalidate snapshot after delete`() {
+    fun `delete 후 invalidate snapshot해야 한다`() {
         registry.save(createIntent("alpha", enabled = true))
         registry.save(createIntent("beta", enabled = true))
         assertEquals(listOf("alpha", "beta"), registry.list().map { it.name }) {

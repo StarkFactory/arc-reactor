@@ -77,7 +77,7 @@ class QuotaEnforcerHookTest {
     inner class FastPath {
 
         @Test
-        fun `default tenant bypasses quota check`() = runTest {
+        fun `tenant bypasses quota check를 기본값으로 한다`() = runTest {
             val defaultCtx = HookContext(
                 runId = "run-1", userId = "user-1", userPrompt = "test",
                 metadata = mutableMapOf()
@@ -86,7 +86,7 @@ class QuotaEnforcerHookTest {
         }
 
         @Test
-        fun `first request passes immediately via local counter fast path`() = runTest {
+        fun `첫 번째 request passes immediately via local counter fast path`() = runTest {
             // Local count = 1, quota = 100, 90% threshold = 90 → fast path
             hook.beforeAgentStart(context) shouldBe HookResult.Continue
         }
@@ -96,7 +96,7 @@ class QuotaEnforcerHookTest {
     inner class TenantStatusCheck {
 
         @Test
-        fun `suspended tenant is rejected`() = runTest {
+        fun `suspended tenant은(는) rejected이다`() = runTest {
             tenantStore.save(testTenant.copy(status = TenantStatus.SUSPENDED))
 
             val result = hook.beforeAgentStart(context)
@@ -105,7 +105,7 @@ class QuotaEnforcerHookTest {
         }
 
         @Test
-        fun `deactivated tenant is rejected`() = runTest {
+        fun `deactivated tenant은(는) rejected이다`() = runTest {
             tenantStore.save(testTenant.copy(status = TenantStatus.DEACTIVATED))
 
             val result = hook.beforeAgentStart(context)
@@ -118,7 +118,7 @@ class QuotaEnforcerHookTest {
     inner class QuotaEnforcement {
 
         @Test
-        fun `circuit breaker open results in fail-open`() = runTest {
+        fun `circuit은(는) breaker open results in fail-open`() = runTest {
             // Set quota very low so we pass the 90% threshold
             tenantStore.save(testTenant.copy(quota = TenantQuota(maxRequestsPerMonth = 1)))
 
@@ -129,7 +129,7 @@ class QuotaEnforcerHookTest {
         }
 
         @Test
-        fun `unknown exception results in fail-open`() = runTest {
+        fun `알 수 없는 exception results in fail-open`() = runTest {
             tenantStore.save(testTenant.copy(quota = TenantQuota(maxRequestsPerMonth = 1)))
 
             coEvery { circuitBreaker.execute<TenantUsage>(any()) } throws RuntimeException("DB down")
@@ -143,7 +143,7 @@ class QuotaEnforcerHookTest {
     inner class Properties {
 
         @Test
-        fun `hook properties are correct`() {
+        fun `hook properties은(는) correct이다`() {
             hook.order shouldBe 5
             hook.failOnError shouldBe false
             hook.enabled shouldBe true
@@ -154,7 +154,7 @@ class QuotaEnforcerHookTest {
     inner class QuotaEvents {
 
         @Test
-        fun `publishes QuotaEvent on request quota rejection`() = runTest {
+        fun `QuotaEvent on request quota rejection를 발행한다`() = runTest {
             tenantStore.save(testTenant.copy(quota = TenantQuota(maxRequestsPerMonth = 1)))
 
             val usage = TenantUsage(tenantId = "tenant-1", requests = 100, tokens = 0)
@@ -172,7 +172,7 @@ class QuotaEnforcerHookTest {
         }
 
         @Test
-        fun `publishes QuotaEvent on token quota rejection`() = runTest {
+        fun `QuotaEvent on token quota rejection를 발행한다`() = runTest {
             tenantStore.save(testTenant.copy(quota = TenantQuota(maxRequestsPerMonth = 1, maxTokensPerMonth = 10)))
 
             val usage = TenantUsage(tenantId = "tenant-1", requests = 0, tokens = 100)
@@ -187,7 +187,7 @@ class QuotaEnforcerHookTest {
         }
 
         @Test
-        fun `publishes QuotaEvent on suspended tenant rejection`() = runTest {
+        fun `QuotaEvent on suspended tenant rejection를 발행한다`() = runTest {
             tenantStore.save(testTenant.copy(status = TenantStatus.SUSPENDED))
 
             hook.beforeAgentStart(context)
@@ -199,7 +199,7 @@ class QuotaEnforcerHookTest {
         }
 
         @Test
-        fun `publishes warning QuotaEvent when usage reaches 90 percent`() = runTest {
+        fun `warning QuotaEvent when usage reaches 90 percent를 발행한다`() = runTest {
             // quota=10, fast path threshold: localCount < 9. Warm up local counter to 9.
             tenantStore.save(testTenant.copy(quota = TenantQuota(maxRequestsPerMonth = 10, maxTokensPerMonth = 100000)))
 
@@ -222,7 +222,7 @@ class QuotaEnforcerHookTest {
         }
 
         @Test
-        fun `warning is emitted only once per tenant per month (dedup)`() = runTest {
+        fun `warning은(는) emitted only once per tenant per month (dedup)이다`() = runTest {
             tenantStore.save(testTenant.copy(quota = TenantQuota(maxRequestsPerMonth = 10, maxTokensPerMonth = 100000)))
 
             val usage = TenantUsage(tenantId = "tenant-1", requests = 9, tokens = 50)
@@ -241,7 +241,7 @@ class QuotaEnforcerHookTest {
         }
 
         @Test
-        fun `no QuotaEvent when usage is below 90 percent threshold`() = runTest {
+        fun `no QuotaEvent when usage은(는) below 90 percent threshold이다`() = runTest {
             // With default quota (100 max), first request local count=1 < 90 → fast path, no DB query
             hook.beforeAgentStart(context)
 

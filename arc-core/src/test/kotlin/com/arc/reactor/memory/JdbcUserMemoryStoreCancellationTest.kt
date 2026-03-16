@@ -15,7 +15,7 @@ import java.util.concurrent.CancellationException
 class JdbcUserMemoryStoreCancellationTest {
 
     @Test
-    fun `get rethrows CancellationException for structured concurrency`() = runTest {
+    fun `rethrows CancellationException for structured concurrency를 가져온다`() = runTest {
         val jdbcTemplate = mockk<JdbcTemplate>()
         every {
             jdbcTemplate.query(any<String>(), any<RowMapper<UserMemory>>(), any<String>())
@@ -26,12 +26,12 @@ class JdbcUserMemoryStoreCancellationTest {
             store.get("user-1")
             fail("CancellationException must be rethrown from JdbcUserMemoryStore.get")
         } catch (_: CancellationException) {
-            // expected
+            // 예상 결과
         }
     }
 
     @Test
-    fun `get returns null on non-cancellation database exception`() = runTest {
+    fun `returns null on non-cancellation database exception를 가져온다`() = runTest {
         val jdbcTemplate = mockk<JdbcTemplate>()
         every {
             jdbcTemplate.query(any<String>(), any<RowMapper<UserMemory>>(), any<String>())

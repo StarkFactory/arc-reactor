@@ -22,10 +22,10 @@ class DynamicSchedulerServiceValidationTest {
         mcpManager = mcpManager
     )
 
-    // -- job name validation --
+    // -- 작업 이름 유효성 검사 --
 
     @Test
-    fun `create rejects blank job name`() {
+    fun `rejects blank job name를 생성한다`() {
         val job = validMcpJob().copy(name = "")
 
         val ex = assertThrows<IllegalArgumentException>("blank name should be rejected") {
@@ -36,7 +36,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create rejects whitespace-only job name`() {
+    fun `rejects whitespace-only job name를 생성한다`() {
         val job = validMcpJob().copy(name = "   ")
 
         val ex = assertThrows<IllegalArgumentException>("whitespace-only name should be rejected") {
@@ -46,10 +46,10 @@ class DynamicSchedulerServiceValidationTest {
         verify(exactly = 0) { store.save(any()) }
     }
 
-    // -- executionTimeoutMs validation --
+    // -- executionTimeoutMs 유효성 검사 --
 
     @Test
-    fun `create allows null executionTimeoutMs`() {
+    fun `allows null executionTimeoutMs를 생성한다`() {
         val job = validMcpJob().copy(executionTimeoutMs = null)
         every { store.save(job) } returns job.copy(id = "job-1")
 
@@ -59,7 +59,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create allows zero executionTimeoutMs as unlimited`() {
+    fun `allows zero executionTimeoutMs as unlimited를 생성한다`() {
         val job = validMcpJob().copy(executionTimeoutMs = 0L)
         every { store.save(job) } returns job.copy(id = "job-1")
 
@@ -69,7 +69,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create rejects executionTimeoutMs below 1000ms`() {
+    fun `rejects executionTimeoutMs below 1000ms를 생성한다`() {
         val job = validMcpJob().copy(executionTimeoutMs = 500L)
 
         val ex = assertThrows<IllegalArgumentException>("timeout below 1000 should be rejected") {
@@ -80,7 +80,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create rejects executionTimeoutMs above 3600000ms`() {
+    fun `rejects executionTimeoutMs above 3600000ms를 생성한다`() {
         val job = validMcpJob().copy(executionTimeoutMs = 3600001L)
 
         val ex = assertThrows<IllegalArgumentException>("timeout above 3600000 should be rejected") {
@@ -91,7 +91,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create accepts executionTimeoutMs at boundary values`() {
+    fun `accepts executionTimeoutMs at boundary values를 생성한다`() {
         val jobMin = validMcpJob().copy(executionTimeoutMs = 1000L)
         every { store.save(jobMin) } returns jobMin.copy(id = "job-1")
         service.create(jobMin)
@@ -103,10 +103,10 @@ class DynamicSchedulerServiceValidationTest {
         verify(exactly = 1) { store.save(jobMax) }
     }
 
-    // -- retry config validation --
+    // -- 재시도 설정 유효성 검사 --
 
     @Test
-    fun `create rejects retryOnFailure with maxRetryCount 0`() {
+    fun `rejects retryOnFailure with maxRetryCount 0를 생성한다`() {
         val job = validMcpJob().copy(retryOnFailure = true, maxRetryCount = 0)
 
         val ex = assertThrows<IllegalArgumentException>("retry with 0 max count should be rejected") {
@@ -117,7 +117,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create rejects retryOnFailure with negative maxRetryCount`() {
+    fun `rejects retryOnFailure with negative maxRetryCount를 생성한다`() {
         val job = validMcpJob().copy(retryOnFailure = true, maxRetryCount = -1)
 
         val ex = assertThrows<IllegalArgumentException>("retry with negative max count should be rejected") {
@@ -128,7 +128,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create allows retryOnFailure false with any maxRetryCount`() {
+    fun `allows retryOnFailure false with any maxRetryCount를 생성한다`() {
         val job = validMcpJob().copy(retryOnFailure = false, maxRetryCount = 0)
         every { store.save(job) } returns job.copy(id = "job-1")
 
@@ -137,10 +137,10 @@ class DynamicSchedulerServiceValidationTest {
         verify(exactly = 1) { store.save(job) }
     }
 
-    // -- MCP_TOOL required fields --
+    // -- MCP_TOOL 필수 필드 --
 
     @Test
-    fun `create rejects MCP_TOOL job with blank mcpServerName`() {
+    fun `rejects MCP_TOOL job with blank mcpServerName를 생성한다`() {
         val job = validMcpJob().copy(mcpServerName = "")
 
         val ex = assertThrows<IllegalArgumentException>("blank mcpServerName should be rejected") {
@@ -151,7 +151,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create rejects MCP_TOOL job with null mcpServerName`() {
+    fun `rejects MCP_TOOL job with null mcpServerName를 생성한다`() {
         val job = validMcpJob().copy(mcpServerName = null)
 
         val ex = assertThrows<IllegalArgumentException>("null mcpServerName should be rejected") {
@@ -162,7 +162,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create rejects MCP_TOOL job with blank toolName`() {
+    fun `rejects MCP_TOOL job with blank toolName를 생성한다`() {
         val job = validMcpJob().copy(toolName = "")
 
         val ex = assertThrows<IllegalArgumentException>("blank toolName should be rejected") {
@@ -173,7 +173,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create rejects MCP_TOOL job with null toolName`() {
+    fun `rejects MCP_TOOL job with null toolName를 생성한다`() {
         val job = validMcpJob().copy(toolName = null)
 
         val ex = assertThrows<IllegalArgumentException>("null toolName should be rejected") {
@@ -183,10 +183,10 @@ class DynamicSchedulerServiceValidationTest {
         verify(exactly = 0) { store.save(any()) }
     }
 
-    // -- AGENT required fields --
+    // -- AGENT 필수 필드 --
 
     @Test
-    fun `create rejects AGENT job with blank agentPrompt`() {
+    fun `rejects AGENT job with blank agentPrompt를 생성한다`() {
         val job = validAgentJob().copy(agentPrompt = "")
 
         val ex = assertThrows<IllegalArgumentException>("blank agentPrompt should be rejected") {
@@ -197,7 +197,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create rejects AGENT job with null agentPrompt`() {
+    fun `rejects AGENT job with null agentPrompt를 생성한다`() {
         val job = validAgentJob().copy(agentPrompt = null)
 
         val ex = assertThrows<IllegalArgumentException>("null agentPrompt should be rejected") {
@@ -208,7 +208,7 @@ class DynamicSchedulerServiceValidationTest {
     }
 
     @Test
-    fun `create accepts valid AGENT job`() {
+    fun `accepts valid AGENT job를 생성한다`() {
         val job = validAgentJob()
         every { store.save(job) } returns job.copy(id = "job-1")
 
@@ -217,10 +217,10 @@ class DynamicSchedulerServiceValidationTest {
         verify(exactly = 1) { store.save(job) }
     }
 
-    // -- update also validates --
+    // -- 업데이트도 유효성 검사를 수행 --
 
     @Test
-    fun `update rejects blank job name`() {
+    fun `rejects blank job name를 업데이트한다`() {
         val job = validMcpJob().copy(name = "")
 
         assertThrows<IllegalArgumentException>("update should also validate") {
@@ -229,7 +229,7 @@ class DynamicSchedulerServiceValidationTest {
         verify(exactly = 0) { store.update(any(), any()) }
     }
 
-    // -- helpers --
+    // -- 헬퍼 --
 
     private fun validMcpJob(): ScheduledJob = ScheduledJob(
         id = "",

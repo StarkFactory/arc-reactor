@@ -4,12 +4,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 
 /**
- * Slack URL verification challenge response.
+ * Slack URL 검증 챌린지 응답.
  */
 data class SlackChallengeResponse(val challenge: String)
 
 /**
- * Slack event callback wrapper (top-level payload).
+ * Slack 이벤트 콜백 래퍼 (최상위 페이로드).
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class SlackEventPayload(
@@ -19,7 +19,7 @@ data class SlackEventPayload(
 )
 
 /**
- * Slack event data.
+ * Slack 이벤트 데이터.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class SlackEvent(
@@ -36,7 +36,7 @@ data class SlackEvent(
 )
 
 /**
- * Internal command for event processing.
+ * 이벤트 처리용 내부 커맨드 모델.
  */
 data class SlackEventCommand(
     val eventType: String,
@@ -51,7 +51,7 @@ data class SlackEventCommand(
 }
 
 /**
- * Internal command for slash command processing.
+ * 슬래시 명령 처리용 내부 커맨드 모델.
  */
 data class SlackSlashCommand(
     val command: String,
@@ -65,7 +65,7 @@ data class SlackSlashCommand(
 )
 
 /**
- * Immediate acknowledgement body for slash command endpoint.
+ * 슬래시 명령 엔드포인트의 즉시 확인 응답 본문.
  */
 data class SlackCommandAckResponse(
     @param:JsonProperty("response_type")
@@ -74,7 +74,7 @@ data class SlackCommandAckResponse(
 )
 
 /**
- * Slack Web API response.
+ * Slack Web API 응답 모델.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class SlackApiResult(

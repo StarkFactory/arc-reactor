@@ -47,7 +47,7 @@ class AuthControllerTest {
     inner class Register {
 
         @Test
-        fun `should return 201 on successful registration`() {
+        fun `return 201 on successful registration해야 한다`() {
             every { userStore.existsByEmail("new@test.com") } returns false
             every { authProvider.hashPassword("password123") } returns "hashed-pw"
             every { userStore.save(any()) } answers { firstArg() }
@@ -74,7 +74,7 @@ class AuthControllerTest {
         }
 
         @Test
-        fun `should return 409 for duplicate email`() {
+        fun `duplicate email에 대해 return 409해야 한다`() {
             every { userStore.existsByEmail("dup@test.com") } returns true
 
             val request = RegisterRequest(
@@ -94,7 +94,7 @@ class AuthControllerTest {
         }
 
         @Test
-        fun `should create token for registered user`() {
+        fun `registered user에 대해 create token해야 한다`() {
             every { userStore.existsByEmail("token@test.com") } returns false
             every { authProvider.hashPassword("password123") } returns "hashed"
             every { userStore.save(any()) } answers { firstArg() }
@@ -112,7 +112,7 @@ class AuthControllerTest {
         }
 
         @Test
-        fun `should return 403 when self-registration is disabled`() {
+        fun `self-registration is disabled일 때 return 403해야 한다`() {
             val disabledController = AuthController(
                 authProvider = authProvider,
                 userStore = userStore,
@@ -136,7 +136,7 @@ class AuthControllerTest {
         }
 
         @Test
-        fun `should return 400 when custom auth provider does not support registration`() {
+        fun `custom auth provider does not support registration일 때 return 400해야 한다`() {
             val customProvider = mockk<AuthProvider>()
             val customController = AuthController(
                 authProvider = customProvider,
@@ -170,7 +170,7 @@ class AuthControllerTest {
     inner class Login {
 
         @Test
-        fun `should return token on successful login`() {
+        fun `return token on successful login해야 한다`() {
             val user = User(
                 id = "user-1",
                 email = "tony@stark.com",
@@ -190,7 +190,7 @@ class AuthControllerTest {
         }
 
         @Test
-        fun `should return 401 for wrong password`() {
+        fun `wrong password에 대해 return 401해야 한다`() {
             every { authProvider.authenticate("tony@stark.com", "wrong-pw") } returns null
 
             val request = LoginRequest(email = "tony@stark.com", password = "wrong-pw")
@@ -203,7 +203,7 @@ class AuthControllerTest {
         }
 
         @Test
-        fun `should return 401 for unknown email`() {
+        fun `unknown email에 대해 return 401해야 한다`() {
             every { authProvider.authenticate("unknown@test.com", "any-pw") } returns null
 
             val request = LoginRequest(email = "unknown@test.com", password = "any-pw")
@@ -219,7 +219,7 @@ class AuthControllerTest {
     inner class Me {
 
         @Test
-        fun `should return user profile when userId in exchange`() {
+        fun `userId in exchange일 때 return user profile해야 한다`() {
             val exchange = mockk<ServerWebExchange>()
             val attributes = mutableMapOf<String, Any>(
                 JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1"
@@ -246,7 +246,7 @@ class AuthControllerTest {
         }
 
         @Test
-        fun `should return adminScope for manager admin`() {
+        fun `manager admin에 대해 return adminScope해야 한다`() {
             val exchange = mockk<ServerWebExchange>()
             val attributes = mutableMapOf<String, Any>(
                 JwtAuthWebFilter.USER_ID_ATTRIBUTE to "admin-manager-1"
@@ -273,7 +273,7 @@ class AuthControllerTest {
         }
 
         @Test
-        fun `should return 401 when no userId in exchange`() {
+        fun `no userId in exchange일 때 return 401해야 한다`() {
             val exchange = mockk<ServerWebExchange>()
             val attributes = mutableMapOf<String, Any>()
             every { exchange.attributes } returns attributes
@@ -291,7 +291,7 @@ class AuthControllerTest {
     inner class Logout {
 
         @Test
-        fun `should revoke token and return 200 when bearer token is provided`() {
+        fun `bearer token is provided일 때 revoke token and return 200해야 한다`() {
             val exchange = mockk<ServerWebExchange>()
             val request = mockk<ServerHttpRequest>()
             val headers = HttpHeaders().apply {
@@ -311,7 +311,7 @@ class AuthControllerTest {
         }
 
         @Test
-        fun `should return 401 when authorization header is missing`() {
+        fun `authorization header is missing일 때 return 401해야 한다`() {
             val exchange = mockk<ServerWebExchange>()
             val request = mockk<ServerHttpRequest>()
             every { exchange.request } returns request

@@ -19,7 +19,7 @@ class OutputBoundaryEnforcerMatrixTest {
     private val command = AgentCommand(systemPrompt = "sys", userPrompt = "line")
 
     @Test
-    fun `fail mode should reject all outputs below minimum across wide length matrix`() = runBlocking {
+    fun `fail mode은(는) reject all outputs below minimum across wide length matrix해야 한다`() = runBlocking {
         val enforcer = OutputBoundaryEnforcer(
             boundaries = BoundaryProperties(
                 outputMinChars = 60,
@@ -44,7 +44,7 @@ class OutputBoundaryEnforcerMatrixTest {
     }
 
     @Test
-    fun `warn mode should preserve non-truncated text and truncate over max across matrix`() = runBlocking {
+    fun `warn mode은(는) preserve non-truncated text and truncate over max across matrix해야 한다`() = runBlocking {
         val max = 80
         val enforcer = OutputBoundaryEnforcer(
             boundaries = BoundaryProperties(
@@ -77,7 +77,7 @@ class OutputBoundaryEnforcerMatrixTest {
     }
 
     @Test
-    fun `retry once should upgrade short outputs when retry meets minimum across matrix`() = runBlocking {
+    fun `retry once은(는) upgrade short outputs when retry meets minimum across matrix해야 한다`() = runBlocking {
         val min = 50
         val enforcer = OutputBoundaryEnforcer(
             boundaries = BoundaryProperties(
@@ -115,7 +115,7 @@ class OutputBoundaryEnforcerMatrixTest {
     }
 
     @Test
-    fun `retry once should keep original when retry output is still short`() = runBlocking {
+    fun `retry once은(는) keep original when retry output is still short해야 한다`() = runBlocking {
         val min = 40
         val enforcer = OutputBoundaryEnforcer(
             boundaries = BoundaryProperties(

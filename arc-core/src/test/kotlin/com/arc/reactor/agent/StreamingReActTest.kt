@@ -27,18 +27,18 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import reactor.core.publisher.Flux
 
 /**
- * TDD Tests for Full Streaming ReAct Loop.
+ * 전체 스트리밍 ReAct 루프에 대한 TDD 테스트.
  *
- * Tests that executeStream() implements the complete ReAct pattern:
- * Stream → Detect Tool Calls → Execute Tools (with hooks) → Re-Stream → Final Answer
+ * executeStream()이 완전한 ReAct 패턴을 구현하는지 테스트합니다:
+ * 스트림 → 도구 호출 감지 → 도구 실행 (훅 포함) → 재스트림 → 최종 응답
  *
- * Verification focus:
- * - Tool actually called (call count, arguments)
- * - ReAct loop iterations (chatClient.prompt() count)
- * - Hook invocation order and effects
- * - maxToolCalls exact enforcement
- * - Multi-round tool calls
- * - Text chunk ordering (first stream before second stream)
+ * 검증 초점:
+ * - 도구 실제 호출 여부 (호출 횟수, 인수)
+ * - ReAct 루프 반복 횟수 (chatClient.prompt() 호출 수)
+ * - 훅 호출 순서 및 효과
+ * - maxToolCalls 정확한 적용
+ * - 다중 라운드 도구 호출
+ * - 텍스트 청크 순서 (첫 번째 스트림이 두 번째 스트림보다 먼저)
  */
 class StreamingReActTest {
 
@@ -51,7 +51,7 @@ class StreamingReActTest {
     }
 
     // =========================================================================
-    // 1. ReAct Loop Basic Behavior Verification
+    // 1. ReAct 루프 기본 동작 검증
     // =========================================================================
     @Nested
     inner class ReActLoopBasic {
@@ -77,13 +77,13 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "서울 날씨?")
             ).toList()
 
-            // Verify 1: Tool was called exactly once
+            // 검증 1: 도구가 정확히 한 번 호출되었습니다
             assertEquals(1, tool.callCount, "Tool should be called exactly once")
 
-            // Verify 2: ReAct loop ran 2 times (tool call -> final response)
+            // 검증 2: ReAct 루프가 2번 실행되었습니다 (도구 호출 -> 최종 응답)
             verify(exactly = 2) { fixture.requestSpec.stream() }
 
-            // Verify 3: Both first stream text and second stream text are included
+            // 검증 3: 첫 번째 스트림 텍스트와 두 번째 스트림 텍스트가 모두 포함되었습니다
             val fullText = chunks.joinToString("")
             assertTrue(fullText.contains("확인할게요"), "First stream text should be present")
             assertTrue(fullText.contains("서울은 맑고 25도입니다."), "Second stream (final response) should be present")
@@ -113,7 +113,7 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "날씨?")
             ).toList()
 
-            // Verify: Check arguments passed to the tool
+            // 검증: 도구에 전달된 인수를 확인합니다
             assertEquals(1, tool.capturedArgs.size, "Arguments should be captured exactly once")
             assertEquals("Seoul", tool.capturedArgs[0]["city"], "city=Seoul should be passed")
             assertEquals("celsius", tool.capturedArgs[0]["unit"], "unit=celsius should be passed")
@@ -147,11 +147,11 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "계산해줘")
             ).toList()
 
-            // Verify: Order must be correct (first stream A,B,C -> tool markers -> second stream D,E)
+            // 검증: 순서가 올바라야 합니다 (첫 번째 스트림 A,B,C -> 도구 마커 -> 두 번째 스트림 D,E)
             val textChunks = chunks.filter { !StreamEventMarker.isMarker(it) }
             assertEquals(listOf("A", "B", "C", "D", "E"), textChunks, "Text chunk order must be preserved")
 
-            // Verify: Tool markers are emitted between iterations
+            // 검증: 반복 간에 도구 마커가 방출됩니다
             val markerChunks = chunks.filter { StreamEventMarker.isMarker(it) }
             assertTrue(markerChunks.isNotEmpty()) { "Tool markers should be emitted" }
             assertEquals("tool_start", StreamEventMarker.parse(markerChunks[0])?.first) {
@@ -182,7 +182,7 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "날씨랑 시간?")
             ).toList()
 
-            // Verify: Both tools called exactly once each
+            // 검증: 두 도구 모두 정확히 한 번씩 호출되었습니다
             assertEquals(1, weatherTool.callCount, "weather tool should be called once")
             assertEquals(1, timeTool.callCount, "time tool should be called once")
         }
@@ -201,10 +201,10 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            // Verify 1: Text is passed through as-is
+            // 검증 1: 텍스트가 그대로 전달됩니다
             assertEquals(listOf("Hello", " World"), chunks)
 
-            // Verify 2: Streaming happens only once (no ReAct loop)
+            // 검증 2: 스트리밍이 한 번만 발생합니다 (ReAct 루프 없음)
             verify(exactly = 1) { fixture.requestSpec.stream() }
         }
 
@@ -229,16 +229,16 @@ class StreamingReActTest {
                 )
             ).toList()
 
-            // Verify: Tool was not called
+            // 검증: 도구가 호출되지 않았습니다
             assertEquals(0, tool.callCount, "Tool should not be called in STANDARD mode")
 
-            // Verify: Streaming happens only once
+            // 검증: 스트리밍이 한 번만 발생합니다
             verify(exactly = 1) { fixture.requestSpec.stream() }
         }
     }
 
     // =========================================================================
-    // 2. Multi-Round ReAct
+    // 2. 다중 라운드 ReAct
     // =========================================================================
     @Nested
     inner class MultiRoundReAct {
@@ -249,11 +249,11 @@ class StreamingReActTest {
             val toolCall2 = AssistantMessage.ToolCall("call-2", "function", "search", """{"q":"서울 맛집"}""")
 
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
-                // Round 1: First search
+                // 라운드 1: 첫 번째 검색
                 Flux.just(toolCallChunk(listOf(toolCall1), "검색 중...")),
-                // Round 2: Second search
+                // 라운드 2: 두 번째 검색
                 Flux.just(toolCallChunk(listOf(toolCall2), "추가 검색...")),
-                // Round 3: Final response
+                // 라운드 3: 최종 응답
                 Flux.just(textChunk("서울은 맑고, 강남 맛집은 OOO입니다."))
             )
 
@@ -269,26 +269,26 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "서울 날씨랑 맛집 알려줘")
             ).toList()
 
-            // Verify 1: Tool was called exactly 2 times
+            // 검증 1: 도구가 정확히 2번 호출되었습니다
             assertEquals(2, tool.callCount, "search tool should be called exactly 2 times")
 
-            // Verify 2: ReAct loop ran 3 times
+            // 검증 2: ReAct 루프가 3번 실행되었습니다
             verify(exactly = 3) { fixture.requestSpec.stream() }
 
-            // Verify 3: Text from all rounds is included
+            // 검증 3: 모든 라운드의 텍스트가 포함되었습니다
             val fullText = chunks.joinToString("")
             assertTrue(fullText.contains("검색 중..."), "Round 1 text")
             assertTrue(fullText.contains("추가 검색..."), "Round 2 text")
             assertTrue(fullText.contains("서울은 맑고"), "Final response text")
 
-            // Verify 4: Correct arguments passed in each round
+            // 검증 4: 각 라운드에 올바른 인수가 전달되었습니다
             assertEquals("서울 날씨", tool.capturedArgs[0]["q"], "Round 1 argument")
             assertEquals("서울 맛집", tool.capturedArgs[1]["q"], "Round 2 argument")
         }
     }
 
     // =========================================================================
-    // 3. Hook Verification (Enhanced)
+    // 3. 훅 검증 (향상됨)
     // =========================================================================
     @Nested
     inner class StreamingToolHooks {
@@ -319,14 +319,14 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Use tool")
             ).toList()
 
-            // Verify 1: BeforeToolCallHook called with exact tool name
+            // 검증 1: BeforeToolCallHook이 정확한 도구 이름으로 호출되었습니다
             coVerify(exactly = 1) {
                 hookExecutor.executeBeforeToolCall(match {
                     it.toolName == "my_tool" && it.callIndex == 0
                 })
             }
 
-            // Verify 2: Tool is actually called after hook passes
+            // 검증 2: 훅이 통과한 후 도구가 실제로 호출되었습니다
             assertEquals(1, tool.callCount, "Tool should be called after hook passes")
         }
 
@@ -356,7 +356,7 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Use tool")
             ).toList()
 
-            // Verify: AfterToolCallHook called with exact result
+            // 검증: AfterToolCallHook이 정확한 결과와 함께 호출되었습니다
             coVerify(exactly = 1) {
                 hookExecutor.executeAfterToolCall(
                     match { it.toolName == "my_tool" },
@@ -395,16 +395,16 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Use tool")
             ).toList()
 
-            // Key verification: Tool was NOT called!
+            // 핵심 검증: 도구가 호출되지 않았습니다!
             assertEquals(0, tool.callCount, "Rejected tool should never be called")
 
-            // Verify 2: AfterToolCallHook was also not called
+            // 검증 2: AfterToolCallHook도 호출되지 않았습니다
             coVerify(exactly = 0) { hookExecutor.executeAfterToolCall(any(), any()) }
         }
     }
 
     // =========================================================================
-    // 4. maxToolCalls Exact Verification
+    // 4. maxToolCalls 정확한 검증
     // =========================================================================
     @Nested
     inner class StreamingMaxToolCalls {
@@ -414,10 +414,10 @@ class StreamingReActTest {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
-                Flux.just(toolCallChunk(listOf(toolCall))),  // Round 1
-                Flux.just(toolCallChunk(listOf(toolCall))),  // Round 2
-                Flux.just(toolCallChunk(listOf(toolCall))),  // Round 3 (limit reached)
-                Flux.just(textChunk("최종 응답"))              // Round 4
+                Flux.just(toolCallChunk(listOf(toolCall))),  // 라운드 1
+                Flux.just(toolCallChunk(listOf(toolCall))),  // 라운드 2
+                Flux.just(toolCallChunk(listOf(toolCall))),  // 라운드 3 (제한 도달)
+                Flux.just(textChunk("최종 응답"))  // 라운드 4
             )
 
             val tool = TrackingTool("my_tool")
@@ -432,7 +432,7 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "반복", maxToolCalls = 2)
             ).toList()
 
-            // Key verification: Called exactly 2 times only
+            // 핵심 검증: 정확히 2번만 호출되었습니다
             assertEquals(2, tool.callCount, "Tool should be called exactly 2 times since maxToolCalls=2")
         }
 
@@ -441,7 +441,7 @@ class StreamingReActTest {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
-                Flux.just(toolCallChunk(listOf(toolCall))),  // Round 1
+                Flux.just(toolCallChunk(listOf(toolCall))),  // 라운드 1
                 Flux.just(toolCallChunk(listOf(toolCall))),  // Round 2 (limit reached)
                 Flux.just(textChunk("끝"))
             )
@@ -463,7 +463,7 @@ class StreamingReActTest {
     }
 
     // =========================================================================
-    // 5. Timeout
+    // 5. 타임아웃
     // =========================================================================
     @Nested
     inner class StreamingTimeout {
@@ -496,7 +496,7 @@ class StreamingReActTest {
     }
 
     // =========================================================================
-    // 6. AfterAgentComplete Hook + Metrics
+    // 6. AfterAgentComplete 훅 + 메트릭
     // =========================================================================
     @Nested
     inner class StreamingAfterComplete {
@@ -519,7 +519,7 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            // Verify: success=true, full text included
+            // 검증: success=true, 전체 텍스트 포함
             coVerify(exactly = 1) {
                 hookExecutor.executeAfterAgentComplete(
                     any(),
@@ -557,7 +557,7 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Use tool")
             ).toList()
 
-            // Verify: toolsUsed contains "my_tool"
+            // 검증: toolsUsed에 "my_tool"이 포함됩니다
             coVerify(exactly = 1) {
                 hookExecutor.executeAfterAgentComplete(
                     any(),
@@ -586,7 +586,7 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             ).toList()
 
-            // Verify: success=true, content included, durationMs >= 0
+            // 검증: success=true, 콘텐츠 포함, durationMs >= 0
             verify(exactly = 1) {
                 metrics.recordStreamingExecution(match {
                     it.success &&
@@ -620,7 +620,7 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Use tool")
             ).toList()
 
-            // Verify: tool name, durationMs >= 0, success=true
+            // 검증: 도구 이름, durationMs >= 0, success=true
             verify(exactly = 1) {
                 metrics.recordToolCall(
                     eq("my_tool"),
@@ -632,7 +632,7 @@ class StreamingReActTest {
     }
 
     // =========================================================================
-    // 7. Conversation History Storage
+    // 7. 대화 기록 저장
     // =========================================================================
     @Nested
     inner class StreamingMemory {
@@ -658,7 +658,7 @@ class StreamingReActTest {
                 )
             ).toList()
 
-            // Verify: Saved with exact values (userId defaults to "anonymous" when not set)
+            // 검증: 정확한 값으로 저장 (userId가 설정되지 않으면 "anonymous"로 기본값)
             verify(exactly = 1) { memoryStore.addMessage("session-123", "user", "안녕", "anonymous") }
             verify(exactly = 1) { memoryStore.addMessage("session-123", "assistant", "Hello World", "anonymous") }
         }
@@ -691,7 +691,7 @@ class StreamingReActTest {
                 )
             ).toList()
 
-            // Verify: Only final round text is saved (intermediate tool-related text excluded)
+            // 검증: 최종 라운드 텍스트만 저장됩니다 (중간 도구 관련 텍스트 제외)
             verify(exactly = 1) { memoryStore.addMessage("session-456", "user", "해줘", "anonymous") }
             verify(exactly = 1) { memoryStore.addMessage("session-456", "assistant", "결과: 완료", "anonymous") }
         }
@@ -711,16 +711,16 @@ class StreamingReActTest {
 
             executor.executeStream(
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
-                // No sessionId in metadata
+                // 메타데이터에 sessionId 없음
             ).toList()
 
-            // Verify: addMessage was not called
+            // 검증: addMessage가 호출되지 않았습니다
             verify(exactly = 0) { memoryStore.addMessage(any(), any(), any(), any()) }
         }
     }
 
     // =========================================================================
-    // 8. Tool Error Handling
+    // 8. 도구 오류 처리
     // =========================================================================
     @Nested
     inner class StreamingToolErrors {
@@ -754,13 +754,13 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Use tool")
             ).toList()
 
-            // Verify 1: Stream completed normally (no crash)
+            // 검증 1: 스트림이 정상 완료되었습니다 (크래시 없음)
             assertTrue(chunks.isNotEmpty(), "Stream should return results")
 
-            // Verify 2: ReAct loop continued (error forwarded to LLM, then response received)
+            // 검증 2: ReAct 루프가 계속되었습니다 (오류가 LLM에 전달된 후 응답 수신)
             verify(exactly = 2) { fixture.requestSpec.stream() }
 
-            // Verify 3: Recorded as failure in Metrics
+            // 검증 3: Metrics에 실패로 기록되었습니다
             verify(exactly = 1) { metrics.recordToolCall("failing_tool", any(), false) }
         }
 
@@ -785,10 +785,10 @@ class StreamingReActTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Use unknown tool")
             ).toList()
 
-            // Verify 1: other_tool was not called
+            // 검증 1: other_tool이 호출되지 않았습니다
             assertEquals(0, tool.callCount, "Other tool should not be called")
 
-            // Verify 2: Stream completed normally
+            // 검증 2: 스트림이 정상 완료되었습니다
             assertTrue(chunks.isNotEmpty(), "Stream should produce at least one chunk")
             verify(exactly = 2) { fixture.requestSpec.stream() }
         }

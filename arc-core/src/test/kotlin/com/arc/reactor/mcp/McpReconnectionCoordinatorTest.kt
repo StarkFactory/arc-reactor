@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test
 class McpReconnectionCoordinatorTest {
 
     @Test
-    fun `clear cancels scheduled reconnect before it runs`() = runTest {
+    fun `cancels scheduled reconnect before it runs를 비운다`() = runTest {
         var reconnectAttempts = 0
         var status = McpServerStatus.FAILED
         val coordinator = McpReconnectionCoordinator(
@@ -41,7 +41,7 @@ class McpReconnectionCoordinatorTest {
     }
 
     @Test
-    fun `clear allows a fresh reconnect schedule without leaking the old job`() = runTest {
+    fun `allows a fresh reconnect schedule without leaking the old job를 비운다`() = runTest {
         var reconnectAttempts = 0
         var status = McpServerStatus.FAILED
         val coordinator = McpReconnectionCoordinator(

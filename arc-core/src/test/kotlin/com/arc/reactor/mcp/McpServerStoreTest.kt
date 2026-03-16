@@ -20,7 +20,7 @@ class McpServerStoreTest {
     inner class Save {
 
         @Test
-        fun `should save and retrieve server by name`() {
+        fun `save and retrieve server by name해야 한다`() {
             val server = McpServer(
                 name = "test-server",
                 description = "Test",
@@ -38,7 +38,7 @@ class McpServerStoreTest {
         }
 
         @Test
-        fun `should reject duplicate server name`() {
+        fun `reject duplicate server name해야 한다`() {
             store.save(McpServer(name = "dup", transportType = McpTransportType.SSE))
 
             assertThrows(IllegalArgumentException::class.java) {
@@ -47,7 +47,7 @@ class McpServerStoreTest {
         }
 
         @Test
-        fun `should set timestamps on save`() {
+        fun `set timestamps on save해야 한다`() {
             val saved = store.save(McpServer(name = "ts-test", transportType = McpTransportType.SSE))
 
             assertNotNull(saved.createdAt) { "createdAt should be set" }
@@ -59,13 +59,13 @@ class McpServerStoreTest {
     inner class List {
 
         @Test
-        fun `should return empty list when no servers`() {
+        fun `no servers일 때 return empty list해야 한다`() {
             val servers = store.list()
             assertTrue(servers.isEmpty()) { "Expected empty list, got ${servers.size}" }
         }
 
         @Test
-        fun `should list all saved servers`() {
+        fun `list all saved servers해야 한다`() {
             store.save(McpServer(name = "server-1", transportType = McpTransportType.SSE))
             store.save(McpServer(name = "server-2", transportType = McpTransportType.STDIO, config = mapOf("command" to "echo")))
 
@@ -74,7 +74,7 @@ class McpServerStoreTest {
         }
 
         @Test
-        fun `should list servers sorted by createdAt`() {
+        fun `list servers sorted by createdAt해야 한다`() {
             store.save(McpServer(name = "b-server", transportType = McpTransportType.SSE))
             store.save(McpServer(name = "a-server", transportType = McpTransportType.SSE))
 
@@ -89,7 +89,7 @@ class McpServerStoreTest {
     inner class FindByName {
 
         @Test
-        fun `should return null for unknown server`() {
+        fun `unknown server에 대해 return null해야 한다`() {
             val found = store.findByName("nonexistent")
             assertNull(found) { "Should return null for unknown server" }
         }
@@ -99,7 +99,7 @@ class McpServerStoreTest {
     inner class Update {
 
         @Test
-        fun `should update server config`() {
+        fun `update server config해야 한다`() {
             store.save(McpServer(
                 name = "update-test",
                 description = "Original",
@@ -122,7 +122,7 @@ class McpServerStoreTest {
         }
 
         @Test
-        fun `should preserve id and createdAt on update`() {
+        fun `preserve id and createdAt on update해야 한다`() {
             val saved = store.save(McpServer(name = "preserve-test", transportType = McpTransportType.SSE))
             val updated = store.update("preserve-test", McpServer(
                 name = "preserve-test",
@@ -136,7 +136,7 @@ class McpServerStoreTest {
         }
 
         @Test
-        fun `should return null for unknown server update`() {
+        fun `unknown server update에 대해 return null해야 한다`() {
             val result = store.update("nonexistent", McpServer(name = "nonexistent", transportType = McpTransportType.SSE))
             assertNull(result) { "Update of nonexistent server should return null" }
         }
@@ -146,7 +146,7 @@ class McpServerStoreTest {
     inner class Delete {
 
         @Test
-        fun `should delete existing server`() {
+        fun `delete existing server해야 한다`() {
             store.save(McpServer(name = "delete-test", transportType = McpTransportType.SSE))
 
             store.delete("delete-test")
@@ -156,8 +156,8 @@ class McpServerStoreTest {
         }
 
         @Test
-        fun `should handle delete of nonexistent server gracefully`() {
-            // Should not throw
+        fun `handle delete of nonexistent server gracefully해야 한다`() {
+            // 예외를 던지면 안 됩니다
             store.delete("nonexistent")
         }
     }

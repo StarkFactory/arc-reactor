@@ -5,10 +5,39 @@ import com.arc.reactor.support.WorkContextPatterns
 import com.arc.reactor.guard.canary.SystemPromptPostProcessor
 import com.arc.reactor.tool.WorkspaceMutationIntentDetector
 
+/**
+ * LLM에 전달할 시스템 프롬프트를 조합하는 빌더.
+ *
+ * 다음 요소들을 순서대로 결합하여 최종 시스템 프롬프트를 생성한다:
+ * 1. **기본 프롬프트**: 에이전트의 기본 시스템 프롬프트
+ * 2. **Grounding 규칙**: 사실 기반 응답, 도구 호출 강제 규칙, 읽기 전용 정책
+ * 3. **RAG 컨텍스트**: 벡터 검색으로 찾은 관련 문서 (있는 경우)
+ * 4. **응답 형식 지시**: JSON/YAML 형식 지정 (있는 경우)
+ * 5. **후처리**: [SystemPromptPostProcessor] (카나리 토큰 등)
+ *
+ * Grounding 규칙에서는 사용자 프롬프트를 분석하여 적절한 도구 호출을 강제한다.
+ * (예: Jira 관련 질문 → `jira_get_issue` 호출 강제)
+ *
+ * @see RagContextRetriever RAG 컨텍스트 검색
+ * @see PromptRequestSpecBuilder 조합된 프롬프트를 요청 스펙에 적용
+ * @see SystemPromptPostProcessor 카나리 토큰 등 후처리
+ * @see WorkContextForcedToolPlanner 도구 호출 강제 계획 수립 (대응 역할)
+ */
 class SystemPromptBuilder(
     private val postProcessor: SystemPromptPostProcessor? = null
 ) {
 
+    /**
+     * 시스템 프롬프트를 조합한다.
+     *
+     * @param basePrompt 기본 시스템 프롬프트
+     * @param ragContext RAG 검색 결과 텍스트 (없으면 null)
+     * @param responseFormat 응답 형식 (TEXT, JSON, YAML)
+     * @param responseSchema JSON/YAML 스키마 (있는 경우)
+     * @param userPrompt 사용자 프롬프트 (도구 호출 강제 판단용)
+     * @param workspaceToolAlreadyCalled workspace 도구가 이미 호출되었는지 여부
+     * @return 조합된 최종 시스템 프롬프트
+     */
     fun build(
         basePrompt: String,
         ragContext: String?,
@@ -34,6 +63,12 @@ class SystemPromptBuilder(
         return postProcessor?.process(result) ?: result
     }
 
+    /**
+     * Grounding 규칙 지시문을 구성한다.
+     *
+     * 사용자 프롬프트를 분석하여 적절한 도구 호출 강제 지시를 추가한다.
+     * Jira, Confluence, Bitbucket, Swagger 등 workspace 도구에 대한 라우팅 규칙을 포함한다.
+     */
     private fun buildGroundingInstruction(
         responseFormat: ResponseFormat,
         userPrompt: String?,
@@ -265,6 +300,7 @@ class SystemPromptBuilder(
         }
     }
 
+    /** JSON 형식 응답 지시문을 구성한다. */
     private fun buildJsonInstruction(responseSchema: String?): String = buildString {
         append("[Response Format]\n")
         append("You MUST respond with valid JSON only.\n")
@@ -276,6 +312,7 @@ class SystemPromptBuilder(
         }
     }
 
+    /** YAML 형식 응답 지시문을 구성한다. */
     private fun buildYamlInstruction(responseSchema: String?): String = buildString {
         append("[Response Format]\n")
         append("You MUST respond with valid YAML only.\n")
@@ -287,6 +324,7 @@ class SystemPromptBuilder(
         }
     }
 
+    /** RAG 검색 결과를 시스템 프롬프트에 주입하는 지시문을 구성한다. */
     private fun buildRagInstruction(ragContext: String): String = buildString {
         append("[Retrieved Context]\n")
         append("The following information was retrieved from the knowledge base and may be relevant.\n")
@@ -613,6 +651,7 @@ class SystemPromptBuilder(
             looksLikeWorkServiceContextPrompt(prompt)
     }
 
+    // ── 프롬프트 분류를 위한 힌트 키워드 집합 (한국어/영어) ──
     companion object {
         private val CONFLUENCE_KNOWLEDGE_HINTS = setOf(
             "confluence", "wiki", "page", "document", "policy", "policies", "guideline", "guidelines",

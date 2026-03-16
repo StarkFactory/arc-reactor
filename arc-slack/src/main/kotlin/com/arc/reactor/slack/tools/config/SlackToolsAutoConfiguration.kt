@@ -47,6 +47,19 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
+/**
+ * Slack 도구 모듈 자동 설정.
+ *
+ * `arc.reactor.slack.tools.enabled=true`일 때 활성화되며,
+ * [SlackApiClient], 각 도구(Tool), 유스케이스(UseCase), 헬스 인디케이터,
+ * 관측성(Observability) 빈을 등록한다.
+ *
+ * 모든 빈은 `@ConditionalOnMissingBean`으로 선언되어 사용자 정의 빈으로 교체 가능하다.
+ *
+ * @see SlackToolsProperties
+ * @see SlackApiClient
+ * @see ToolObservabilityAspect
+ */
 @Configuration
 @ConditionalOnProperty(
     prefix = "arc.reactor.slack.tools", name = ["enabled"],

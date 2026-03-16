@@ -43,7 +43,7 @@ class GuardAuditPublisherTest {
     inner class AuditOnRejection {
 
         @Test
-        fun `audit event published on rejection with correct stage`() = runBlocking {
+        fun `감사 event published on rejection with correct stage`() = runBlocking {
             val publisher = CapturingAuditPublisher()
             val rejectingStage = object : GuardStage {
                 override val stageName = "TestReject"
@@ -73,7 +73,7 @@ class GuardAuditPublisherTest {
     inner class AuditOnAllowed {
 
         @Test
-        fun `audit event published on pipeline complete`() = runBlocking {
+        fun `감사 event published on pipeline complete`() = runBlocking {
             val publisher = CapturingAuditPublisher()
             val passingStage = object : GuardStage {
                 override val stageName = "TestPass"
@@ -84,7 +84,7 @@ class GuardAuditPublisherTest {
 
             pipeline.guard(GuardCommand(userId = "user-1", text = "hello"))
 
-            // Should have per-stage + pipeline-complete events
+            // have per-stage + pipeline-complete events해야 합니다
             val pipelineEvent = publisher.events.find { it.stage == "pipeline" }
             assertNotNull(pipelineEvent, "Should have pipeline-complete event")
             assertEquals("allowed", pipelineEvent!!.result)
@@ -95,7 +95,7 @@ class GuardAuditPublisherTest {
     inner class AuditOnError {
 
         @Test
-        fun `audit event published on stage error`() = runBlocking {
+        fun `감사 event published on stage error`() = runBlocking {
             val publisher = CapturingAuditPublisher()
             val errorStage = object : GuardStage {
                 override val stageName = "ErrorStage"
@@ -118,13 +118,13 @@ class GuardAuditPublisherTest {
     inner class LatencyTracking {
 
         @Test
-        fun `per-stage latency is recorded`() = runBlocking {
+        fun `per-stage latency은(는) recorded이다`() = runBlocking {
             val publisher = CapturingAuditPublisher()
             val slowStage = object : GuardStage {
                 override val stageName = "SlowStage"
                 override val order = 1
                 override suspend fun check(command: GuardCommand): GuardResult {
-                    Thread.sleep(10) // Simulate some work
+                    Thread.sleep(10)  // some work를 시뮬레이션합니다
                     return GuardResult.Allowed.DEFAULT
                 }
             }
@@ -139,7 +139,7 @@ class GuardAuditPublisherTest {
         }
 
         @Test
-        fun `pipeline latency accumulates across stages`() = runBlocking {
+        fun `파이프라인 latency accumulates across stages`() = runBlocking {
             val publisher = CapturingAuditPublisher()
             val stage1 = object : GuardStage {
                 override val stageName = "Stage1"
@@ -172,7 +172,7 @@ class GuardAuditPublisherTest {
     inner class NullPublisher {
 
         @Test
-        fun `pipeline works without audit publisher`() = runBlocking {
+        fun `파이프라인 works without audit publisher`() = runBlocking {
             val passingStage = object : GuardStage {
                 override val stageName = "NoAudit"
                 override val order = 1

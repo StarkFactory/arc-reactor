@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test
 class AgentExecutionCoordinatorTest {
 
     @Test
-    fun `should return cached response and skip tool execution when cache hit`() = runBlocking {
+    fun `cache hit일 때 return cached response and skip tool execution해야 한다`() = runBlocking {
         val responseCache = mockk<ResponseCache>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
@@ -74,7 +74,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `should apply fallback result when tool execution fails`() = runBlocking {
+    fun `tool execution fails일 때 apply fallback result해야 한다`() = runBlocking {
         val fallback = mockk<FallbackStrategy>()
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi")
         coEvery {
@@ -118,7 +118,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `should cache final successful response after finalization`() = runBlocking {
+    fun `finalization 후 cache final successful response해야 한다`() = runBlocking {
         val responseCache = mockk<ResponseCache>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
@@ -164,7 +164,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `should prefer semantic cache interface when available`() = runBlocking {
+    fun `available일 때 prefer semantic cache interface해야 한다`() = runBlocking {
         val responseCache = mockk<SemanticResponseCache>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
@@ -208,7 +208,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `should capture stage timings in hook context metadata`() = runBlocking {
+    fun `capture stage timings in hook context metadata해야 한다`() = runBlocking {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi")
         val coordinator = AgentExecutionCoordinator(
@@ -258,7 +258,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `should skip tool selection when effective maxToolCalls is zero`() = runBlocking {
+    fun `effective maxToolCalls is zero일 때 skip tool selection해야 한다`() = runBlocking {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         var selectCalled = false
         var capturedTools: List<Any>? = null
@@ -303,7 +303,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `should include finalizer stage timing in result metadata`() = runBlocking {
+    fun `include finalizer stage timing in result metadata해야 한다`() = runBlocking {
         val coordinator = AgentExecutionCoordinator(
             responseCache = null,
             cacheableTemperature = 0.0,
@@ -336,7 +336,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `should register RAG documents as verified sources in hookContext`() = runBlocking {
+    fun `register RAG documents as verified sources in hookContext해야 한다`() = runBlocking {
         val hookContext = HookContext(runId = "run-rag", userId = "u", userPrompt = "refund policy")
         val ragContext = RagContext(
             context = "Refund policy context",

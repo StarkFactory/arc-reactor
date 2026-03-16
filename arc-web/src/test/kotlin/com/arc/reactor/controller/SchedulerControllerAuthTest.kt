@@ -24,7 +24,7 @@ class SchedulerControllerAuthTest {
     private val controller = SchedulerController(schedulerService)
 
     @Test
-    fun `listJobs rejects non-admin`() {
+    fun `listJobs은(는) rejects non-admin`() {
         val response = controller.listJobs(
             offset = 0, limit = 50,
             exchange = exchange(userId = "user-1", role = UserRole.USER)
@@ -35,7 +35,7 @@ class SchedulerControllerAuthTest {
     }
 
     @Test
-    fun `getJob rejects non-admin`() {
+    fun `getJob은(는) rejects non-admin`() {
         val response = controller.getJob("job-1", exchange(userId = "user-1", role = UserRole.USER))
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Non-admin get should be forbidden" }
@@ -43,7 +43,7 @@ class SchedulerControllerAuthTest {
     }
 
     @Test
-    fun `listJobs rejects ADMIN_MANAGER`() {
+    fun `listJobs은(는) rejects ADMIN_MANAGER`() {
         val response = controller.listJobs(
             offset = 0, limit = 50,
             exchange = exchange(userId = "manager-1", role = UserRole.ADMIN_MANAGER)
@@ -56,7 +56,7 @@ class SchedulerControllerAuthTest {
     }
 
     @Test
-    fun `listJobs allows admin`() {
+    fun `listJobs은(는) allows admin`() {
         every { schedulerService.list() } returns emptyList()
 
         val response = controller.listJobs(
@@ -72,7 +72,7 @@ class SchedulerControllerAuthTest {
     }
 
     @Test
-    fun `listJobs allows ADMIN_DEVELOPER`() {
+    fun `listJobs은(는) allows ADMIN_DEVELOPER`() {
         every { schedulerService.list() } returns emptyList()
 
         val response = controller.listJobs(
@@ -88,7 +88,7 @@ class SchedulerControllerAuthTest {
     }
 
     @Test
-    fun `listJobs exposes latest failure reason and result preview`() {
+    fun `listJobs은(는) exposes latest failure reason and result preview`() {
         every { schedulerService.list() } returns listOf(
             ScheduledJob(
                 id = "job-1",
@@ -119,7 +119,7 @@ class SchedulerControllerAuthTest {
     }
 
     @Test
-    fun `triggerJob rejects non-admin`() {
+    fun `triggerJob은(는) rejects non-admin`() {
         val response = controller.triggerJob("job-1", exchange(userId = "user-1", role = UserRole.USER)).block()
 
         assertEquals(HttpStatus.FORBIDDEN, response?.statusCode) { "Non-admin trigger should be forbidden" }
@@ -127,7 +127,7 @@ class SchedulerControllerAuthTest {
     }
 
     @Test
-    fun `triggerJob allows admin and returns result`() {
+    fun `triggerJob은(는) allows admin and returns result`() {
         every { schedulerService.trigger("job-1") } returns "triggered"
 
         val response = controller.triggerJob("job-1", exchange(userId = "admin-1", role = UserRole.ADMIN)).block()
@@ -139,7 +139,7 @@ class SchedulerControllerAuthTest {
     }
 
     @Test
-    fun `dryRunJob allows admin and returns dry run marker`() {
+    fun `dryRunJob은(는) allows admin and returns dry run marker`() {
         every { schedulerService.dryRun("job-1") } returns "preview"
 
         val response = controller.dryRunJob("job-1", exchange(userId = "admin-1", role = UserRole.ADMIN)).block()

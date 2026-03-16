@@ -15,12 +15,15 @@ import java.util.concurrent.locks.ReentrantLock
 private val logger = KotlinLogging.logger {}
 
 /**
- * Drains MetricRingBuffer and writes batches to MetricEventStore.
+ * [MetricRingBuffer]에서 drain하여 [MetricEventStore]에 배치 기록하는 writer.
  *
- * Uses a scheduled executor with configurable flush interval and batch size.
- * Writer threads operate independently - the ring buffer is lock-free.
+ * 설정 가능한 flush 주기와 배치 크기를 가진 ScheduledExecutor를 사용한다.
+ * 링 버퍼가 lock-free이므로 writer 스레드는 독립적으로 동작한다.
  *
- * Implements DisposableBean to ensure executor shutdown on Spring context close.
+ * [DisposableBean]을 구현하여 Spring 컨텍스트 종료 시 executor를 정리한다.
+ *
+ * @see MetricRingBuffer 이벤트가 버퍼링되는 링 버퍼
+ * @see MetricEventStore 최종 저장소
  */
 class MetricWriter(
     private val ringBuffer: MetricRingBuffer,
@@ -35,7 +38,7 @@ class MetricWriter(
     private val running = AtomicBoolean(false)
     private var executor: ScheduledExecutorService? = null
 
-    // Serializes drain() access — ring buffer is single-consumer only
+    // drain() 접근을 직렬화 — 링 버퍼는 단일 Consumer 전용
     private val flushLock = ReentrantLock()
 
     fun start() {
@@ -74,7 +77,7 @@ class MetricWriter(
             Thread.currentThread().interrupt()
         }
 
-        // Final flush to persist any remaining buffered events
+        // 잔여 버퍼 이벤트를 최종 flush
         flush()
         logger.info { "MetricWriter stopped" }
     }
@@ -83,10 +86,7 @@ class MetricWriter(
         stop()
     }
 
-    /**
-     * Enrich TokenUsageEvents with estimated cost from pricing table.
-     * Runs in writer thread (off hot path) to avoid blocking agent execution.
-     */
+    /** TokenUsageEvent에 가격 테이블 기반 추정 비용을 보강한다. writer 스레드에서 실행 (hot path 밖). */
     private fun enrichCosts(events: List<MetricEvent>): List<MetricEvent> {
         return events.map { event ->
             if (event is TokenUsageEvent && event.estimatedCostUsd == BigDecimal.ZERO) {
@@ -119,7 +119,7 @@ class MetricWriter(
 
             healthMonitor.updateBufferUsage(ringBuffer.usagePercent())
 
-            // Enrich token usage events with estimated cost (off hot path)
+            // ── 단계: 토큰 사용량 이벤트에 추정 비용 보강 (hot path 밖) ──
             val enriched = enrichCosts(events)
 
             val startMs = System.currentTimeMillis()

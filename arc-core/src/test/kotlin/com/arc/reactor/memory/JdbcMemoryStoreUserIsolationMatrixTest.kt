@@ -39,7 +39,7 @@ class JdbcMemoryStoreUserIsolationMatrixTest {
     }
 
     @Test
-    fun `listSessionsByUserId and getSessionOwner should stay consistent across 240 writes`() {
+    fun `listSessionsByUserId and getSessionOwner은(는) stay consistent across 240 writes해야 한다`() {
         val sessions = (0 until 12).map { "session-$it" }
         val users = listOf("u-a", "u-b", "u-c")
         val ownerBySession = sessions.associateWith { session ->
@@ -76,7 +76,7 @@ class JdbcMemoryStoreUserIsolationMatrixTest {
     }
 
     @Test
-    fun `default addMessage path should map owner to anonymous`() {
+    fun `default addMessage path은(는) map owner to anonymous해야 한다`() {
         store.addMessage("anon-session", "user", "hello")
         store.addMessage("anon-session", "assistant", "hi")
 

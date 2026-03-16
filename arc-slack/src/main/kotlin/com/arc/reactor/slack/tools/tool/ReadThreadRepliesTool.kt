@@ -5,6 +5,7 @@ import com.arc.reactor.slack.tools.usecase.ReadThreadRepliesUseCase
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** Slack 스레드의 답글을 읽는 도구. */
 open class ReadThreadRepliesTool(private val readThreadRepliesUseCase: ReadThreadRepliesUseCase) : LocalTool {
 
     @Tool(description = "Read replies from a Slack thread. Returns reply text, sender, and timestamp.")

@@ -47,7 +47,7 @@ class DefaultSlackEventHandlerTest {
     inner class MentionTagStripping {
 
         @Test
-        fun `strips bot mention tag from text`() = runTest {
+        fun `bot mention tag from text를 제거한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult(success = true, content = "Hi!")
@@ -58,7 +58,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `strips multiple mention tags`() = runTest {
+        fun `multiple mention tags를 제거한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult(success = true, content = "Ok")
@@ -69,14 +69,14 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `skips empty text after stripping mention`() = runTest {
+        fun `empty text after stripping mention를 건너뛴다`() = runTest {
             handler.handleAppMention(command(text = "<@BOT123>"))
 
             coVerify(exactly = 0) { agentExecutor.execute(any<AgentCommand>()) }
         }
 
         @Test
-        fun `skips whitespace-only text after stripping mention`() = runTest {
+        fun `whitespace-only text after stripping mention를 건너뛴다`() = runTest {
             handler.handleAppMention(command(text = "<@BOT123>   "))
 
             coVerify(exactly = 0) { agentExecutor.execute(any<AgentCommand>()) }
@@ -87,7 +87,7 @@ class DefaultSlackEventHandlerTest {
     inner class SessionIdMapping {
 
         @Test
-        fun `creates session ID from channel and ts when no thread`() = runTest {
+        fun `session ID from channel and ts when no thread를 생성한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult(success = true, content = "Done")
@@ -99,7 +99,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `creates session ID from channel and threadTs when in thread`() = runTest {
+        fun `session ID from channel and threadTs when in thread를 생성한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult(success = true, content = "Done")
@@ -113,7 +113,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `includes source metadata`() = runTest {
+        fun `source metadata를 포함한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult(success = true, content = "Done")
@@ -124,7 +124,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `includes channel metadata`() = runTest {
+        fun `channel metadata를 포함한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult(success = true, content = "Done")
@@ -135,7 +135,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `includes requester email metadata when resolver succeeds`() = runTest {
+        fun `requester email metadata when resolver succeeds를 포함한다`() = runTest {
             val resolver = mockk<SlackUserEmailResolver>()
             val emailHandler = DefaultSlackEventHandler(
                 agentExecutor = agentExecutor,
@@ -155,7 +155,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `tracks mention thread for follow up routing`() = runTest {
+        fun `mention thread for follow up routing를 추적한다`() = runTest {
             val tracker = SlackThreadTracker()
             val trackingHandler = DefaultSlackEventHandler(
                 agentExecutor = agentExecutor,
@@ -175,7 +175,7 @@ class DefaultSlackEventHandlerTest {
     inner class ResponseHandling {
 
         @Test
-        fun `sends success content to Slack`() = runTest {
+        fun `success content to Slack를 전송한다`() = runTest {
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(success = true, content = "The answer is 42")
 
@@ -185,7 +185,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `sends error message with warning emoji on failure`() = runTest {
+        fun `error message with warning emoji on failure를 전송한다`() = runTest {
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(
                     success = false,
@@ -202,7 +202,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `formats guard rejection as warning response`() = runTest {
+        fun `guard rejection as warning response를 포맷한다`() = runTest {
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(
                     success = false,
@@ -227,7 +227,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `passes through rag and mcp enriched response content`() = runTest {
+        fun `through rag and mcp enriched response content를 전달한다`() = runTest {
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(
                     success = true,
@@ -246,7 +246,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `sends fallback message when content is null on success`() = runTest {
+        fun `sends fallback message when content은(는) null on success이다`() = runTest {
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(success = true, content = null)
 
@@ -258,7 +258,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `sends error message to Slack when executor throws`() = runTest {
+        fun `error message to Slack when executor throws를 전송한다`() = runTest {
             coEvery { agentExecutor.execute(any<AgentCommand>()) } throws RuntimeException("LLM down")
 
             handler.handleAppMention(command())
@@ -269,7 +269,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `does not throw when Slack sendMessage returns non-ok result`() = runTest {
+        fun `throw when Slack sendMessage returns non-ok result하지 않는다`() = runTest {
             coEvery { agentExecutor.execute(any<AgentCommand>()) } returns
                 AgentResult(success = true, content = "The answer is 42")
             coEvery { messagingService.sendMessage(any(), any(), any()) } returns
@@ -287,7 +287,7 @@ class DefaultSlackEventHandlerTest {
     inner class MessageHandling {
 
         @Test
-        fun `handleMessage delegates to agent with raw text`() = runTest {
+        fun `handleMessage은(는) agent with raw text에 위임한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns
                 AgentResult(success = true, content = "Reply")
@@ -302,7 +302,7 @@ class DefaultSlackEventHandlerTest {
         }
 
         @Test
-        fun `handleMessage skips blank text`() = runTest {
+        fun `handleMessage은(는) skips blank text`() = runTest {
             handler.handleMessage(
                 command(text = "   ", threadTs = "1111.0000").copy(eventType = "message")
             )

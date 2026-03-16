@@ -8,7 +8,7 @@ import java.time.Instant
 class TokenRevocationStoreTest {
 
     @Test
-    fun `should mark token as revoked until expiration`() {
+    fun `mark token as revoked until expiration해야 한다`() {
         val store = InMemoryTokenRevocationStore()
         val tokenId = "jti-test-1"
         val expiresAt = Instant.now().plusSeconds(60)
@@ -21,7 +21,7 @@ class TokenRevocationStoreTest {
     }
 
     @Test
-    fun `should auto-expire revoked token entries`() {
+    fun `auto-expire revoked token entries해야 한다`() {
         val store = InMemoryTokenRevocationStore()
         val tokenId = "jti-test-2"
         val expiredAt = Instant.now().minusSeconds(1)
@@ -34,7 +34,7 @@ class TokenRevocationStoreTest {
     }
 
     @Test
-    fun `should not store already-expired tokens`() {
+    fun `not store already-expired tokens해야 한다`() {
         val store = InMemoryTokenRevocationStore()
         store.revoke("expired", Instant.now().minusSeconds(10))
 
@@ -47,9 +47,9 @@ class TokenRevocationStoreTest {
     }
 
     @Test
-    fun `should purge expired entries when capacity reached`() {
+    fun `capacity reached일 때 purge expired entries해야 한다`() {
         val store = InMemoryTokenRevocationStore()
-        // Add expired and valid tokens
+        // expired and valid tokens를 추가합니다
         store.revoke("expired-1", Instant.now().minusSeconds(1))
         store.revoke("valid-1", Instant.now().plusSeconds(3600))
 

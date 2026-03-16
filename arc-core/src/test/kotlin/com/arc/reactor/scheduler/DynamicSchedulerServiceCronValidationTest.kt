@@ -23,7 +23,7 @@ class DynamicSchedulerServiceCronValidationTest {
     )
 
     @Test
-    fun `create fails fast on invalid cron and does not persist`() {
+    fun `fails fast on invalid cron and does not persist를 생성한다`() {
         val job = validJob().copy(cronExpression = "invalid-cron")
         every { store.save(any()) } answers { firstArg() }
 
@@ -35,7 +35,7 @@ class DynamicSchedulerServiceCronValidationTest {
     }
 
     @Test
-    fun `create fails fast on invalid timezone and does not persist`() {
+    fun `fails fast on invalid timezone and does not persist를 생성한다`() {
         val job = validJob().copy(timezone = "Invalid/Timezone")
         every { store.save(any()) } answers { firstArg() }
 
@@ -47,7 +47,7 @@ class DynamicSchedulerServiceCronValidationTest {
     }
 
     @Test
-    fun `update fails fast on invalid cron and does not persist`() {
+    fun `fails fast on invalid cron and does not persist를 업데이트한다`() {
         val job = validJob().copy(cronExpression = "nope")
         every { store.update(any(), any()) } answers { secondArg() }
 
@@ -59,7 +59,7 @@ class DynamicSchedulerServiceCronValidationTest {
     }
 
     @Test
-    fun `create persists when cron and timezone are valid`() {
+    fun `persists when cron and timezone are valid를 생성한다`() {
         val job = validJob()
         every { store.save(job) } returns job.copy(id = "job-1")
 

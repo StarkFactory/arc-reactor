@@ -41,6 +41,8 @@ import com.arc.reactor.rag.model.RetrievedDocument
  *
  * @see RagQuery for query configuration
  * @see RagContext for retrieval results
+ * @see com.arc.reactor.rag.impl.DefaultRagPipeline for default implementation
+ * @see com.arc.reactor.rag.impl.HybridRagPipeline for BM25 + vector hybrid implementation
  */
 interface RagPipeline {
     /**

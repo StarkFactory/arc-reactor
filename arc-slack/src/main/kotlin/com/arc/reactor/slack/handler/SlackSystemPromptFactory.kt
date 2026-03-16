@@ -1,5 +1,14 @@
 package com.arc.reactor.slack.handler
 
+/**
+ * Slack 에이전트용 시스템 프롬프트를 생성하는 팩토리.
+ *
+ * 기본 프롬프트(정체성/행동 규칙), 교차 도구 연계 프롬프트,
+ * 선행적(proactive) 지원 프롬프트를 조합하여 완성된 시스템 프롬프트를 반환한다.
+ *
+ * @see DefaultSlackEventHandler
+ * @see DefaultSlackCommandHandler
+ */
 object SlackSystemPromptFactory {
     fun build(defaultProvider: String): String =
         build(defaultProvider, connectedToolSummary = null)

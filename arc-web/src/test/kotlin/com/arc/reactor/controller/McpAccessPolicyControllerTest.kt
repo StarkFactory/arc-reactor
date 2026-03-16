@@ -105,7 +105,7 @@ class McpAccessPolicyControllerTest {
     inner class Authorization {
 
         @Test
-        fun `getPolicy should reject non-admin`() = runTest {
+        fun `getPolicy은(는) reject non-admin해야 한다`() = runTest {
             val response = controller.getPolicy(name = "any", exchange = userExchange())
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
@@ -123,7 +123,7 @@ class McpAccessPolicyControllerTest {
     inner class ValidationAndAudit {
 
         @Test
-        fun `getPolicy should return not found and record read audit`() = runTest {
+        fun `getPolicy은(는) return not found and record read audit해야 한다`() = runTest {
             val response = controller.getPolicy(name = "missing-server", exchange = adminExchange("ops-admin"))
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
@@ -148,7 +148,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `getPolicy should reject invalid admin url config`() = runTest {
+        fun `getPolicy은(는) reject invalid admin url config해야 한다`() = runTest {
             saveServer(
                 name = "invalid-admin-url",
                 config = mapOf(
@@ -169,7 +169,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `getPolicy should reject when admin token is missing`() = runTest {
+        fun `getPolicy은(는) reject when admin token is missing해야 한다`() = runTest {
             saveServer(
                 name = "missing-admin-token",
                 config = mapOf("url" to "https://mcp.example.com/sse")
@@ -187,7 +187,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `updatePolicy should include project and space counts in audit detail`() = runTest {
+        fun `updatePolicy은(는) include project and space counts in audit detail해야 한다`() = runTest {
             saveServer(
                 name = "update-audit-target",
                 config = mapOf(
@@ -245,7 +245,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `updatePolicy should reject too many jira project keys`() = runTest {
+        fun `updatePolicy은(는) reject too many jira project keys해야 한다`() = runTest {
             val oversizedRequest = UpdateMcpAccessPolicyRequest(
                 allowedJiraProjectKeys = (1..201).map { "PROJ$it" },
                 allowedConfluenceSpaceKeys = listOf("SPACE")
@@ -277,7 +277,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `updatePolicy should reject invalid jira project key format`() = runTest {
+        fun `updatePolicy은(는) reject invalid jira project key format해야 한다`() = runTest {
             val invalidRequest = UpdateMcpAccessPolicyRequest(
                 allowedJiraProjectKeys = listOf("proj-1"),
                 allowedConfluenceSpaceKeys = emptyList()
@@ -299,7 +299,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `updatePolicy should reject invalid confluence space key format`() = runTest {
+        fun `updatePolicy은(는) reject invalid confluence space key format해야 한다`() = runTest {
             val invalidRequest = UpdateMcpAccessPolicyRequest(
                 allowedJiraProjectKeys = listOf("CORE"),
                 allowedConfluenceSpaceKeys = listOf("SPACE/OPS")
@@ -321,7 +321,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `updatePolicy should reject invalid bitbucket repository format`() = runTest {
+        fun `updatePolicy은(는) reject invalid bitbucket repository format해야 한다`() = runTest {
             val invalidRequest = UpdateMcpAccessPolicyRequest(
                 allowedJiraProjectKeys = listOf("CORE"),
                 allowedConfluenceSpaceKeys = listOf("SPACE"),
@@ -344,7 +344,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `updatePolicy should reject too many swagger source names`() = runTest {
+        fun `updatePolicy은(는) reject too many swagger source names해야 한다`() = runTest {
             val oversizedRequest = UpdateMcpAccessPolicyRequest(
                 allowedSourceNames = (1..101).map { "source-$it" }
             )
@@ -365,7 +365,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `updatePolicy should reject invalid swagger source name format`() = runTest {
+        fun `updatePolicy은(는) reject invalid swagger source name format해야 한다`() = runTest {
             val invalidRequest = UpdateMcpAccessPolicyRequest(
                 allowedSourceNames = listOf("payments source")
             )
@@ -390,7 +390,7 @@ class McpAccessPolicyControllerTest {
     inner class ProxyStatusHandling {
 
         @Test
-        fun `clearPolicy should preserve upstream no-content status`() = runTest {
+        fun `clearPolicy은(는) preserve upstream no-content status해야 한다`() = runTest {
             val server = HttpServer.create(InetSocketAddress(0), 0)
             server.createContext("/admin/access-policy") { exchange ->
                 if (exchange.requestMethod != "DELETE") {
@@ -438,7 +438,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `getPolicy should return gateway timeout when upstream is too slow`() = runTest {
+        fun `getPolicy은(는) return gateway timeout when upstream is too slow해야 한다`() = runTest {
             val server = HttpServer.create(InetSocketAddress(0), 0)
             server.createContext("/admin/access-policy") { exchange ->
                 if (exchange.requestMethod != "GET") {
@@ -492,7 +492,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `updatePolicy should forward hmac actor and request id headers`() = runTest {
+        fun `updatePolicy은(는) forward hmac actor and request id headers해야 한다`() = runTest {
             val secret = "hmac-secret"
             var capturedActor: String? = null
             var capturedRequestId: String? = null
@@ -579,7 +579,7 @@ class McpAccessPolicyControllerTest {
         }
 
         @Test
-        fun `updatePolicy should forward swagger source flags to upstream`() = runTest {
+        fun `updatePolicy은(는) forward swagger source flags to upstream해야 한다`() = runTest {
             var capturedBody: String? = null
 
             val server = HttpServer.create(InetSocketAddress(0), 0)

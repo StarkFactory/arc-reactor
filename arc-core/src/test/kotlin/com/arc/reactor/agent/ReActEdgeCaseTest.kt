@@ -18,14 +18,14 @@ import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 
 /**
- * P0 Edge Case Tests for the ReAct loop (execute() path).
+ * ReAct 루프 (execute() 경로)에 대한 P0 엣지 케이스 테스트.
  *
- * Covers scenarios not yet tested:
- * - LLM hallucinated tool names (non-existent tools)
- * - Tool execution throwing exceptions
- * - Partial tool failure (mix of success and failure)
- * - Empty/null LLM response
- * - LLM returning tool call for registered tool that then fails
+ * 아직 테스트되지 않은 시나리오를 다룹니다:
+ * - LLM이 환각한 도구 이름 (존재하지 않는 도구)
+ * - 도구 실행 시 예외 발생
+ * - 부분 도구 실패 (성공과 실패의 혼합)
+ * - 빈/null LLM 응답
+ * - 등록된 도구에 대해 LLM이 도구 호출을 반환하지만 실패하는 경우
  */
 class ReActEdgeCaseTest {
 
@@ -41,7 +41,7 @@ class ReActEdgeCaseTest {
     inner class HallucinatedToolInExecute {
 
         @Test
-        fun `should handle hallucinated tool name and continue to final answer`() = runBlocking {
+        fun `환각된 도구 이름을 처리하고 최종 답변까지 계속해야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "nonexistent_tool", "{}")
 
             every { fixture.requestSpec.call() } returnsMany listOf(
@@ -70,7 +70,7 @@ class ReActEdgeCaseTest {
         }
 
         @Test
-        fun `should forward error message to LLM when tool is hallucinated`() = runBlocking {
+        fun `도구가 환각되었을 때 LLM에 오류 메시지를 전달해야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "imaginary_calc", """{"expr":"1+1"}""")
 
             every { fixture.requestSpec.call() } returnsMany listOf(
@@ -88,7 +88,7 @@ class ReActEdgeCaseTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Calculate 1+1")
             )
 
-            // The ReAct loop should have continued (2 LLM calls)
+            // ReAct 루프가 계속되었어야 합니다 (2번의 LLM 호출)
             result.assertSuccess()
             assertEquals("Sorry, I used a wrong tool name. The answer is 2.", result.content)
         }
@@ -98,7 +98,7 @@ class ReActEdgeCaseTest {
     inner class ToolExceptionInExecute {
 
         @Test
-        fun `should handle tool exception and continue to final answer`() = runBlocking {
+        fun `도구 예외를 처리하고 최종 답변까지 계속해야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "failing_tool", "{}")
 
             every { fixture.requestSpec.call() } returnsMany listOf(
@@ -131,7 +131,7 @@ class ReActEdgeCaseTest {
         }
 
         @Test
-        fun `should record failed tool call in metrics`() = runBlocking {
+        fun `실패한 도구 호출을 메트릭에 기록해야 한다`() = runBlocking {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "bad_tool", "{}")
             val metrics = mockk<AgentMetrics>(relaxed = true)
 
@@ -165,7 +165,7 @@ class ReActEdgeCaseTest {
     inner class PartialToolFailure {
 
         @Test
-        fun `should handle mixed success and failure in parallel tool calls`() = runBlocking {
+        fun `병렬 도구 호출에서 성공과 실패를 혼합 처리해야 한다`() = runBlocking {
             val successToolCall = AssistantMessage.ToolCall("call-1", "function", "weather", """{"city":"Seoul"}""")
             val failToolCall = AssistantMessage.ToolCall("call-2", "function", "stock", """{"ticker":"AAPL"}""")
 
@@ -202,7 +202,7 @@ class ReActEdgeCaseTest {
         }
 
         @Test
-        fun `should handle mix of real and hallucinated tools in single call`() = runBlocking {
+        fun `단일 호출에서 실제 도구와 환각된 도구를 혼합 처리해야 한다`() = runBlocking {
             val realCall = AssistantMessage.ToolCall("call-1", "function", "calculator", """{"expr":"2+2"}""")
             val fakeCall = AssistantMessage.ToolCall("call-2", "function", "quantum_computer", """{"algo":"shor"}""")
 
@@ -236,7 +236,7 @@ class ReActEdgeCaseTest {
     inner class EmptyLlmResponse {
 
         @Test
-        fun `should return success with empty content when LLM returns empty results`() = runBlocking {
+        fun `LLM이 빈 결과를 반환할 때 빈 콘텐츠로 성공을 반환해야 한다`() = runBlocking {
             val emptyChatResponse = mockk<ChatResponse>()
             every { emptyChatResponse.results } returns emptyList()
             every { emptyChatResponse.metadata } returns mockk(relaxed = true)
@@ -257,7 +257,7 @@ class ReActEdgeCaseTest {
         }
 
         @Test
-        fun `should return success with empty content when generation output text is empty`() = runBlocking {
+        fun `생성 출력 텍스트가 비어있을 때 빈 콘텐츠로 성공을 반환해야 한다`() = runBlocking {
             val assistantMsg = AssistantMessage("")
             val generation = Generation(assistantMsg)
 
@@ -283,7 +283,7 @@ class ReActEdgeCaseTest {
     inner class StandardModeToolIsolation {
 
         @Test
-        fun `STANDARD mode should never call tools even if registered`() = runBlocking {
+        fun `STANDARD 모드에서는 등록되어도 도구를 호출하지 않아야 한다`() = runBlocking {
             fixture.mockCallResponse("Direct response without tools")
 
             val tool = TrackingTool("my_tool")

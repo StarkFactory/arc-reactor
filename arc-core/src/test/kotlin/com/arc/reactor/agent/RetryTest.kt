@@ -22,7 +22,7 @@ class RetryTest {
         properties = AgentProperties(
             retry = RetryProperties(
                 maxAttempts = 3,
-                initialDelayMs = 10,  // short delays for test speed
+                initialDelayMs = 10,  // 테스트 속도를 위한 짧은 지연
                 multiplier = 2.0,
                 maxDelayMs = 100
             )
@@ -33,7 +33,7 @@ class RetryTest {
     inner class TransientErrors {
 
         @Test
-        fun `should succeed after transient failure with retry`() = runBlocking {
+        fun `재시도로 일시적 실패 후 성공해야 한다`() = runBlocking {
             val callCount = AtomicInteger(0)
 
             every { fixture.requestSpec.call() } answers {
@@ -57,7 +57,7 @@ class RetryTest {
         }
 
         @Test
-        fun `should retry on connection error`() = runBlocking {
+        fun `연결 오류 시 재시도해야 한다`() = runBlocking {
             val callCount = AtomicInteger(0)
 
             every { fixture.requestSpec.call() } answers {
@@ -80,7 +80,7 @@ class RetryTest {
         }
 
         @Test
-        fun `should retry on timeout error`() = runBlocking {
+        fun `타임아웃 오류 시 재시도해야 한다`() = runBlocking {
             val callCount = AtomicInteger(0)
 
             every { fixture.requestSpec.call() } answers {
@@ -107,7 +107,7 @@ class RetryTest {
     inner class NonTransientErrors {
 
         @Test
-        fun `should not retry non-transient errors`() = runBlocking {
+        fun `비일시적 오류에 대해 재시도하지 않아야 한다`() = runBlocking {
             val callCount = AtomicInteger(0)
 
             every { fixture.requestSpec.call() } answers {
@@ -126,7 +126,7 @@ class RetryTest {
         }
 
         @Test
-        fun `should not false-positive on error messages containing numbers`() = runBlocking {
+        fun `숫자가 포함된 오류 메시지에 대해 거짓 양성이 발생하지 않아야 한다`() = runBlocking {
             val callCount = AtomicInteger(0)
 
             // "Processed 500 records" contains "500" but is NOT a server error
@@ -139,8 +139,8 @@ class RetryTest {
 
             executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
 
-            // Should NOT retry because "500" in this context is not a transient error
-            // The regex uses word boundaries so "500" in "Processed 500 records" won't match
+            // 이 맥락에서 "500"은 일시적 오류가 아니므로 재시도하면 안 됩니다
+            // 정규식이 단어 경계를 사용하므로 "Processed 500 records"의 "500"은 매치되지 않습니다
             assertEquals(1, callCount.get(), "Should not retry false-positive 500")
         }
     }
@@ -149,7 +149,7 @@ class RetryTest {
     inner class BackoffBehavior {
 
         @Test
-        fun `should apply exponential backoff with increasing delays`() = runBlocking {
+        fun `증가하는 지연과 함께 지수 백오프를 적용해야 한다`() = runBlocking {
             val timestamps = mutableListOf<Long>()
 
             every { fixture.requestSpec.call() } answers {
@@ -178,10 +178,10 @@ class RetryTest {
             assertEquals(3, timestamps.size, "Should have attempted 3 calls")
             val firstDelayMs = (timestamps[1] - timestamps[0]) / 1_000_000
             val secondDelayMs = (timestamps[2] - timestamps[1]) / 1_000_000
-            // Verify delays are non-trivial (> 30ms proves backoff is active, not instant retry)
+            // 지연이 의미 있는지 확인합니다 (> 30ms이면 백오프가 활성화된 것이며, 즉시 재시도가 아님)
             assertTrue(firstDelayMs > 30) { "First delay (${firstDelayMs}ms) should be non-trivial" }
             assertTrue(secondDelayMs > 30) { "Second delay (${secondDelayMs}ms) should be non-trivial" }
-            // Verify exponential increase: second delay should be larger than first
+            // 지수 증가를 확인합니다: 두 번째 지연이 첫 번째보다 커야 합니다
             assertTrue(secondDelayMs > firstDelayMs) {
                 "Exponential backoff: second delay (${secondDelayMs}ms) should exceed first (${firstDelayMs}ms)"
             }
@@ -192,7 +192,7 @@ class RetryTest {
     inner class EdgeCases {
 
         @Test
-        fun `should make at least one attempt when maxAttempts is zero`() = runBlocking {
+        fun `maxAttempts가 0일 때 최소 한 번은 시도해야 한다`() = runBlocking {
             val callCount = AtomicInteger(0)
 
             every { fixture.requestSpec.call() } answers {
@@ -217,7 +217,7 @@ class RetryTest {
         }
 
         @Test
-        fun `should propagate CancellationException without retry`() {
+        fun `재시도 없이 CancellationException을 전파해야 한다`() {
             every { fixture.requestSpec.call() } answers {
                 throw java.util.concurrent.CancellationException("Cancelled")
             }
@@ -229,7 +229,7 @@ class RetryTest {
                 )
             )
 
-            // CancellationException should propagate through execute() (structured concurrency)
+            // CancellationException은 execute()를 통해 전파되어야 합니다 (구조적 동시성)
             assertThrows(java.util.concurrent.CancellationException::class.java) {
                 runBlocking {
                     executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
@@ -238,7 +238,7 @@ class RetryTest {
         }
 
         @Test
-        fun `should fail when all retry attempts exhausted`() = runBlocking {
+        fun `모든 재시도가 소진되면 실패해야 한다`() = runBlocking {
             val callCount = AtomicInteger(0)
 
             every { fixture.requestSpec.call() } answers {

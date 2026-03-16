@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test
 class MicrometerAgentMetricsTest {
 
     @Test
-    fun `records execution output guard and unverified counters`() {
+    fun `execution output guard and unverified counters를 기록한다`() {
         val registry = SimpleMeterRegistry()
         val metrics = MicrometerAgentMetrics(registry)
 
@@ -31,7 +31,7 @@ class MicrometerAgentMetricsTest {
     }
 
     @Test
-    fun `keeps recent trust events for dashboard drill-down`() {
+    fun `keeps은(는) recent trust events for dashboard drill-down`() {
         val metrics = MicrometerAgentMetrics(SimpleMeterRegistry())
 
         metrics.recordOutputGuardAction(
@@ -77,7 +77,7 @@ class MicrometerAgentMetricsTest {
     }
 
     @Test
-    fun `tracks response value summary and top missing questions`() {
+    fun `response value summary and top missing questions를 추적한다`() {
         val metrics = MicrometerAgentMetrics(SimpleMeterRegistry())
 
         metrics.recordResponseObservation(
@@ -147,7 +147,7 @@ class MicrometerAgentMetricsTest {
     }
 
     @Test
-    fun `records stage latency timer`() {
+    fun `stage latency timer를 기록한다`() {
         val registry = SimpleMeterRegistry()
         val metrics = MicrometerAgentMetrics(registry)
 
@@ -164,7 +164,7 @@ class MicrometerAgentMetricsTest {
     }
 
     @Test
-    fun `records LLM latency timer with percentiles`() {
+    fun `LLM latency timer with percentiles를 기록한다`() {
         val registry = SimpleMeterRegistry()
         val metrics = MicrometerAgentMetrics(registry)
 
@@ -181,7 +181,7 @@ class MicrometerAgentMetricsTest {
     }
 
     @Test
-    fun `records tool output size and truncation counter`() {
+    fun `tool output size and truncation counter를 기록한다`() {
         val registry = SimpleMeterRegistry()
         val metrics = MicrometerAgentMetrics(registry)
 
@@ -201,7 +201,7 @@ class MicrometerAgentMetricsTest {
     }
 
     @Test
-    fun `does not increment truncation counter when output is not truncated`() {
+    fun `does not increment truncation counter when output은(는) not truncated이다`() {
         val registry = SimpleMeterRegistry()
         val metrics = MicrometerAgentMetrics(registry)
 
@@ -221,7 +221,7 @@ class MicrometerAgentMetricsTest {
     }
 
     @Test
-    fun `tracks active requests gauge`() {
+    fun `active requests gauge를 추적한다`() {
         val registry = SimpleMeterRegistry()
         val metrics = MicrometerAgentMetrics(registry)
 

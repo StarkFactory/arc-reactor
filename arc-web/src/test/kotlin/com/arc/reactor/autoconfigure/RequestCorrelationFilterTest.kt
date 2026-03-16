@@ -18,7 +18,7 @@ class RequestCorrelationFilterTest {
     inner class WhenNoRequestHeader {
 
         @Test
-        fun `should generate UUID and set response header`() {
+        fun `generate UUID and set response header해야 한다`() {
             val exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/test").build()
             )
@@ -31,7 +31,7 @@ class RequestCorrelationFilterTest {
         }
 
         @Test
-        fun `should generate different IDs for separate requests`() {
+        fun `separate requests에 대해 generate different IDs해야 한다`() {
             val chain = WebFilterChain { Mono.empty() }
 
             val exchange1 = MockServerWebExchange.from(
@@ -54,7 +54,7 @@ class RequestCorrelationFilterTest {
     inner class WhenRequestHeaderPresent {
 
         @Test
-        fun `should reuse client-provided X-Request-ID`() {
+        fun `reuse client-provided X-Request-ID해야 한다`() {
             val clientId = "client-correlation-123"
             val exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/test")
@@ -71,7 +71,7 @@ class RequestCorrelationFilterTest {
         }
 
         @Test
-        fun `should generate new ID when header is blank`() {
+        fun `header is blank일 때 generate new ID해야 한다`() {
             val exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/test")
                     .header("X-Request-ID", "   ")
@@ -92,7 +92,7 @@ class RequestCorrelationFilterTest {
     inner class ReactorContextPropagation {
 
         @Test
-        fun `should write requestId into Reactor context`() {
+        fun `write requestId into Reactor context해야 한다`() {
             val clientId = "ctx-test-456"
             val exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/test")
@@ -120,7 +120,7 @@ class RequestCorrelationFilterTest {
     inner class Ordering {
 
         @Test
-        fun `should run after security headers and before API version filter`() {
+        fun `security headers and before API version filter 후 run해야 한다`() {
             assertEquals(
                 Ordered.HIGHEST_PRECEDENCE + 1,
                 filter.order

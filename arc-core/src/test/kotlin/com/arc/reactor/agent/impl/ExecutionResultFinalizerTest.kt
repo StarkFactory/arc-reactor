@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Test
 class ExecutionResultFinalizerTest {
 
     @Test
-    fun `should apply response filter then save history and call hook on success`() = runBlocking {
+    fun `apply response filter then save history and call hook on success해야 한다`() = runBlocking {
         val chain = ResponseFilterChain(listOf(object : ResponseFilter {
             override suspend fun filter(content: String, context: ResponseFilterContext): String = "$content!"
         }))
@@ -94,7 +94,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should return OUTPUT_GUARD_REJECTED when output guard rejects`() = runBlocking {
+    fun `output guard rejects일 때 return OUTPUT_GUARD_REJECTED해야 한다`() = runBlocking {
         val rejectingStage = object : OutputGuardStage {
             override val stageName = "RejectingStage"
             override val order = 1
@@ -144,7 +144,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should return OUTPUT_TOO_SHORT when boundary mode is FAIL`() = runBlocking {
+    fun `boundary mode is FAIL일 때 return OUTPUT_TOO_SHORT해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -175,7 +175,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should retry once for short response when boundary mode is RETRY_ONCE`() = runBlocking {
+    fun `boundary mode is RETRY_ONCE일 때 retry once for short response해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -206,7 +206,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should expose stage timings from hook metadata`() = runBlocking {
+    fun `expose stage timings from hook metadata해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -241,7 +241,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should skip retry once for short response when tool-backed grounding already exists`() = runBlocking {
+    fun `tool-backed grounding already exists일 때 skip retry once for short response해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -279,7 +279,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should record unverified response metric when sources are missing`() = runBlocking {
+    fun `sources are missing일 때 record unverified response metric해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -320,7 +320,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should replace generic unverified copy with identity resolution guidance`() = runBlocking {
+    fun `identity resolution guidance로 replace generic unverified copy해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -361,7 +361,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should replace unverified blocked copy with slack delivery acknowledgement`() = runBlocking {
+    fun `slack delivery acknowledgement로 replace unverified blocked copy해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = ResponseFilterChain(listOf(VerifiedSourcesResponseFilter())),
@@ -412,7 +412,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should keep generic unverified response when slack delivery was not acknowledged`() = runBlocking {
+    fun `slack delivery was not acknowledged일 때 keep generic unverified response해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = ResponseFilterChain(listOf(VerifiedSourcesResponseFilter())),
@@ -442,7 +442,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should reject boundary-retried content when output guard blocks the longer response`() = runBlocking {
+    fun `output guard blocks the longer response일 때 reject boundary-retried content해야 한다`() = runBlocking {
         val rejectingStage = object : OutputGuardStage {
             override val stageName = "RejectLong"
             override val order = 1
@@ -492,7 +492,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should rethrow cancellation from after hook`() = runBlocking {
+    fun `hook 후 rethrow cancellation from해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>()
         coEvery { hookExecutor.executeAfterAgentComplete(any(), any()) } throws CancellationException("cancelled")
@@ -519,12 +519,12 @@ class ExecutionResultFinalizerTest {
             )
             fail("Expected CancellationException")
         } catch (_: CancellationException) {
-            // expected
+            // 예상 결과
         }
     }
 
     @Test
-    fun `should synthesize visible upstream auth guidance when tool metadata reports authentication failure`() = runBlocking {
+    fun `tool metadata reports authentication failure일 때 synthesize visible upstream auth guidance해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = null,
@@ -563,7 +563,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should synthesize visible policy denied response when tool metadata blocks access`() = runBlocking {
+    fun `tool metadata blocks access일 때 synthesize visible policy denied response해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = null,
@@ -595,7 +595,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should synthesize read only refusal for empty swagger mutation response`() = runBlocking {
+    fun `empty swagger mutation response에 대해 synthesize read only refusal해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = null,
@@ -621,7 +621,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should append citation section when citation is enabled and verified sources exist`() = runBlocking {
+    fun `citation is enabled and verified sources exist일 때 append citation section해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = null,
@@ -664,7 +664,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should not append citations when citation is disabled`() = runBlocking {
+    fun `citation is disabled일 때 not append citations해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = null,
@@ -697,7 +697,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should deduplicate sources by url in citations`() = runBlocking {
+    fun `deduplicate sources by url in citations해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = null,
@@ -741,7 +741,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should handle special characters in citation URLs and titles`() = runBlocking {
+    fun `handle special characters in citation URLs and titles해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = null,
@@ -788,7 +788,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `should not append citations when no verified sources exist`() = runBlocking {
+    fun `no verified sources exist일 때 not append citations해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = null,

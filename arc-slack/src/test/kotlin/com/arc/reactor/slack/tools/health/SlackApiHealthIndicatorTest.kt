@@ -20,7 +20,7 @@ class SlackApiHealthIndicatorTest {
     private val methodsClient = mockk<MethodsClient>()
 
     @Test
-    fun `health is up when auth test succeeds and required scopes exist`() {
+    fun `auth test succeeds and required scopes exist일 때 health은(는) up이다`() {
         val indicator = SlackApiHealthIndicator(
             methodsClient = methodsClient,
             properties = SlackToolsProperties()
@@ -41,7 +41,7 @@ class SlackApiHealthIndicatorTest {
     }
 
     @Test
-    fun `health is unknown when required scopes are missing`() {
+    fun `required scopes are missing일 때 health은(는) unknown이다`() {
         val indicator = SlackApiHealthIndicator(
             methodsClient = methodsClient,
             properties = SlackToolsProperties()
@@ -58,7 +58,7 @@ class SlackApiHealthIndicatorTest {
     }
 
     @Test
-    fun `health is unknown when auth test fails`() {
+    fun `auth test fails일 때 health은(는) unknown이다`() {
         val indicator = SlackApiHealthIndicator(
             methodsClient = methodsClient,
             properties = SlackToolsProperties()
@@ -77,7 +77,7 @@ class SlackApiHealthIndicatorTest {
     }
 
     @Test
-    fun `health is unknown on auth test exception`() {
+    fun `health은(는) unknown on auth test exception이다`() {
         val indicator = SlackApiHealthIndicator(
             methodsClient = methodsClient,
             properties = SlackToolsProperties()
@@ -91,7 +91,7 @@ class SlackApiHealthIndicatorTest {
     }
 
     @Test
-    fun `health is up with private or dm scopes when configured`() {
+    fun `configured일 때 health은(는) up with private or dm scopes이다`() {
         val indicator = SlackApiHealthIndicator(
             methodsClient = methodsClient,
             properties = SlackToolsProperties(
@@ -116,7 +116,7 @@ class SlackApiHealthIndicatorTest {
     }
 
     @Test
-    fun `health is unknown when canvas scope is missing`() {
+    fun `canvas scope is missing일 때 health은(는) unknown이다`() {
         val indicator = SlackApiHealthIndicator(
             methodsClient = methodsClient,
             properties = SlackToolsProperties(
@@ -140,7 +140,7 @@ class SlackApiHealthIndicatorTest {
     }
 
     @Test
-    fun `unknown slack api health keeps aggregate status up when core health is up`() {
+    fun `unknown slack api health keeps aggregate status up when core health은(는) up이다`() {
         val indicator = SlackApiHealthIndicator(
             methodsClient = methodsClient,
             properties = SlackToolsProperties()

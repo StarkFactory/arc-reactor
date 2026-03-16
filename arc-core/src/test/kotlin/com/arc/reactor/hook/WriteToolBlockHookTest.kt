@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test
 class WriteToolBlockHookTest {
 
     @Test
-    fun `blocks configured write tool on slack channel`() = runTest {
+    fun `configured write tool on slack channel를 차단한다`() = runTest {
         val props = ToolPolicyProperties(
             enabled = true,
             writeToolNames = setOf("jira_create_issue"),
@@ -47,7 +47,7 @@ class WriteToolBlockHookTest {
     }
 
     @Test
-    fun `allows write tool on non-deny channel`() = runTest {
+    fun `write tool on non-deny channel를 허용한다`() = runTest {
         val props = ToolPolicyProperties(
             enabled = true,
             writeToolNames = setOf("jira_create_issue"),
@@ -75,7 +75,7 @@ class WriteToolBlockHookTest {
     }
 
     @Test
-    fun `allows release readiness preview on slack because it is read only`() = runTest {
+    fun `allows release readiness preview on slack because it은(는) read only이다`() = runTest {
         val props = ToolPolicyProperties(
             enabled = true,
             writeToolNames = setOf("work_release_readiness_pack"),

@@ -29,9 +29,9 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 
 /**
- * Integration tests for the full Agent execution pipeline.
+ * 전체 에이전트 실행 파이프라인에 대한 통합 테스트.
  *
- * Tests the complete flow: Guard → Hook → Agent → Memory
+ * 전체 흐름을 테스트합니다: Guard → Hook → Agent → Memory
  */
 @Tag("integration")
 class AgentIntegrationTest {
@@ -50,8 +50,8 @@ class AgentIntegrationTest {
     inner class RequestValidation {
 
         @Test
-        fun `full pipeline - valid request flows through all stages`() = runBlocking {
-            // Arrange
+        fun `전체 pipeline - valid request flows through all stages`() = runBlocking {
+            // 준비
             val executionLog = mutableListOf<String>()
 
             val guard = GuardPipeline(listOf(
@@ -90,7 +90,7 @@ class AgentIntegrationTest {
                 memoryStore = memoryStore
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are a helpful assistant.",
@@ -100,7 +100,7 @@ class AgentIntegrationTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertSuccess()
             assertEquals("Hello! I'm here to help.", result.content)
 
@@ -114,8 +114,8 @@ class AgentIntegrationTest {
         }
 
         @Test
-        fun `full pipeline - injection attack blocked by guard`() = runBlocking {
-            // Arrange
+        fun `전체 pipeline - injection attack blocked by guard`() = runBlocking {
+            // 준비
             val guard = GuardPipeline(listOf(
                 DefaultInjectionDetectionStage()
             ))
@@ -139,7 +139,7 @@ class AgentIntegrationTest {
                 hookExecutor = hookExecutor
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -148,7 +148,7 @@ class AgentIntegrationTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertFailure()
             val errorMessage = requireNotNull(result.errorMessage)
             assertTrue(
@@ -161,8 +161,8 @@ class AgentIntegrationTest {
         }
 
         @Test
-        fun `full pipeline - rate limit blocks excessive requests`() = runBlocking {
-            // Arrange
+        fun `전체 pipeline - rate limit blocks excessive requests`() = runBlocking {
+            // 준비
             val guard = GuardPipeline(listOf(
                 DefaultRateLimitStage(requestsPerMinute = 2, requestsPerHour = 10)
             ))
@@ -175,7 +175,7 @@ class AgentIntegrationTest {
                 guard = guard
             )
 
-            // Act - make 3 requests (limit is 2)
+            // 실행 - make 3 requests (limit is 2)
             val results = (1..3).map {
                 executor.execute(
                     AgentCommand(
@@ -186,7 +186,7 @@ class AgentIntegrationTest {
                 )
             }
 
-            // Assert - first 2 should succeed, 3rd should fail
+            // Assert - first 2은(는) succeed, 3rd should fail해야 합니다
             results[0].assertSuccess()
             results[1].assertSuccess()
             results[2].assertFailure()
@@ -198,8 +198,8 @@ class AgentIntegrationTest {
         }
 
         @Test
-        fun `full pipeline - input validation blocks oversized input`() = runBlocking {
-            // Arrange
+        fun `전체 pipeline - input validation blocks oversized input`() = runBlocking {
+            // 준비
             val guard = GuardPipeline(listOf(
                 DefaultInputValidationStage(maxLength = 50)
             ))
@@ -210,7 +210,7 @@ class AgentIntegrationTest {
                 guard = guard
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -219,7 +219,7 @@ class AgentIntegrationTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertFailure()
             val errorMessage = requireNotNull(result.errorMessage)
             assertTrue(
@@ -231,8 +231,8 @@ class AgentIntegrationTest {
         }
 
         @Test
-        fun `full pipeline - hook can reject request`() = runBlocking {
-            // Arrange
+        fun `전체 pipeline - hook can reject request`() = runBlocking {
+            // 준비
             val guard = GuardPipeline(listOf(
                 DefaultRateLimitStage(requestsPerMinute = 100, requestsPerHour = 1000)
             ))
@@ -256,7 +256,7 @@ class AgentIntegrationTest {
                 hookExecutor = hookExecutor
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -265,14 +265,14 @@ class AgentIntegrationTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertFailure()
             assertEquals("This topic is blocked by policy", result.errorMessage)
         }
 
         @Test
-        fun `full pipeline - custom guard stage integrates correctly`() = runBlocking {
-            // Arrange
+        fun `전체 pipeline - custom guard stage integrates correctly`() = runBlocking {
+            // 준비
             val customStage = object : GuardStage {
                 override val stageName = "business-hours"
                 override val order = 5
@@ -303,7 +303,7 @@ class AgentIntegrationTest {
                 guard = guard
             )
 
-            // Act - Normal request
+            // 실행 - Normal request
             val normalResult = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -312,7 +312,7 @@ class AgentIntegrationTest {
                 )
             )
 
-            // Act - After hours request
+            // 실행 - After hours request
             val afterHoursResult = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -321,7 +321,7 @@ class AgentIntegrationTest {
                 )
             )
 
-            // Assert
+            // 검증
             normalResult.assertSuccess()
             afterHoursResult.assertFailure()
             assertTrue(afterHoursResult.errorMessage!!.contains("business hours"),
@@ -333,8 +333,8 @@ class AgentIntegrationTest {
     inner class EndToEnd {
 
         @Test
-        fun `full pipeline - multi-turn conversation with memory`() = runBlocking {
-            // Arrange
+        fun `전체 pipeline - multi-turn conversation with memory`() = runBlocking {
+            // 준비
             every { fixture.callResponseSpec.chatResponse() } returnsMany listOf(
                 AgentTestFixture.simpleChatResponse("Hello! I'm Arc, your AI assistant."),
                 AgentTestFixture.simpleChatResponse("You asked: 'Hello!' - I'm still here to help!")
@@ -348,7 +348,7 @@ class AgentIntegrationTest {
 
             val sessionId = "multi-turn-session"
 
-            // Act - First turn
+            // 실행 - First turn
             val result1 = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are Arc, an AI assistant.",
@@ -357,7 +357,7 @@ class AgentIntegrationTest {
                 )
             )
 
-            // Act - Second turn
+            // 실행 - Second turn
             val result2 = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are Arc, an AI assistant.",
@@ -366,7 +366,7 @@ class AgentIntegrationTest {
                 )
             )
 
-            // Assert
+            // 검증
             result1.assertSuccess()
             result2.assertSuccess()
 
@@ -379,8 +379,8 @@ class AgentIntegrationTest {
         }
 
         @Test
-        fun `full pipeline - error in LLM call handled gracefully`() = runBlocking {
-            // Arrange
+        fun `전체 pipeline - error in LLM call handled gracefully`() = runBlocking {
+            // 준비
             val afterHookCalled = mutableListOf<Boolean>()
 
             val afterHook = object : AfterAgentCompleteHook {
@@ -400,7 +400,7 @@ class AgentIntegrationTest {
                 hookExecutor = hookExecutor
             )
 
-            // Act
+            // 실행
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
@@ -408,11 +408,11 @@ class AgentIntegrationTest {
                 )
             )
 
-            // Assert
+            // 검증
             result.assertFailure()
             assertNotNull(result.errorMessage) { "Error message should be present on LLM error" }
 
-            // After hook should still be called even on error
+            // After hook은(는) still be called even on error해야 합니다
             assertEquals(1, afterHookCalled.size)
             assertFalse(afterHookCalled[0]) { "After hook should receive success=false on error" }
         }

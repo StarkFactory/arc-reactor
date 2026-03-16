@@ -21,7 +21,7 @@ class SchedulerControllerConditionalTest {
         )
 
     @Test
-    fun `controller is registered when scheduler is enabled`() {
+    fun `scheduler is enabled일 때 controller은(는) registered이다`() {
         contextRunner
             .withPropertyValues("arc.reactor.scheduler.enabled=true")
             .run { context ->
@@ -30,7 +30,7 @@ class SchedulerControllerConditionalTest {
     }
 
     @Test
-    fun `controller is not registered when scheduler is disabled`() {
+    fun `scheduler is disabled일 때 controller은(는) not registered이다`() {
         contextRunner
             .withPropertyValues("arc.reactor.scheduler.enabled=false")
             .run { context ->

@@ -58,7 +58,7 @@ class JdbcPersonaStoreTest {
     inner class BasicCrud {
 
         @Test
-        fun `should save and get persona`() {
+        fun `save and get persona해야 한다`() {
             val persona = createPersona()
             store.save(persona)
 
@@ -72,7 +72,7 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should list personas ordered by createdAt`() {
+        fun `list personas ordered by createdAt해야 한다`() {
             store.save(createPersona(id = "p-1", name = "First"))
             Thread.sleep(10)
             store.save(createPersona(id = "p-2", name = "Second"))
@@ -85,7 +85,7 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should delete persona`() {
+        fun `delete persona해야 한다`() {
             store.save(createPersona())
             assertNotNull(store.get("p-1")) { "Should exist before delete" }
 
@@ -95,7 +95,7 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should return null for unknown persona`() {
+        fun `unknown persona에 대해 return null해야 한다`() {
             assertNull(store.get("nonexistent"), "Unknown persona should return null")
         }
     }
@@ -104,7 +104,7 @@ class JdbcPersonaStoreTest {
     inner class DefaultManagement {
 
         @Test
-        fun `should save persona as default`() {
+        fun `save persona as default해야 한다`() {
             store.save(createPersona(isDefault = true))
 
             val found = store.get("p-1")
@@ -116,7 +116,7 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should switch default when saving new default`() {
+        fun `saving new default일 때 switch default해야 한다`() {
             store.save(createPersona(id = "p-1", name = "Old Default", isDefault = true))
             store.save(createPersona(id = "p-2", name = "New Default", isDefault = true))
 
@@ -131,14 +131,14 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should return null when no default exists`() {
+        fun `no default exists일 때 return null해야 한다`() {
             store.save(createPersona(isDefault = false))
 
             assertNull(store.getDefault(), "Should return null when no default persona exists")
         }
 
         @Test
-        fun `should update persona to be default`() {
+        fun `update persona to be default해야 한다`() {
             store.save(createPersona(id = "p-1", isDefault = false))
             store.save(createPersona(id = "p-2", isDefault = true))
 
@@ -155,7 +155,7 @@ class JdbcPersonaStoreTest {
     inner class PartialUpdate {
 
         @Test
-        fun `should update name only`() {
+        fun `update name only해야 한다`() {
             store.save(createPersona(name = "Original", systemPrompt = "Original prompt"))
 
             val updated = store.update("p-1", name = "Updated Name", systemPrompt = null, isDefault = null)
@@ -166,7 +166,7 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should update systemPrompt only`() {
+        fun `update systemPrompt only해야 한다`() {
             store.save(createPersona(name = "Keep This", systemPrompt = "Old prompt"))
 
             val updated = store.update("p-1", name = null, systemPrompt = "New prompt", isDefault = null)
@@ -177,14 +177,14 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should return null when updating nonexistent persona`() {
+        fun `updating nonexistent persona일 때 return null해야 한다`() {
             val result = store.update("nonexistent", name = "New Name", systemPrompt = null, isDefault = null)
 
             assertNull(result, "Updating nonexistent persona should return null")
         }
 
         @Test
-        fun `should update updatedAt timestamp`() {
+        fun `update updatedAt timestamp해야 한다`() {
             store.save(createPersona())
             val original = store.get("p-1")!!
 
@@ -203,7 +203,7 @@ class JdbcPersonaStoreTest {
     inner class ExtendedFields {
 
         @Test
-        fun `should save and retrieve all extended fields via JDBC`() {
+        fun `save and retrieve all extended fields via JDBC해야 한다`() {
             val persona = Persona(
                 id = "ext-1",
                 name = "Expert",
@@ -231,7 +231,7 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should default isActive to true for minimal persona`() {
+        fun `minimal persona에 대해 default isActive to true해야 한다`() {
             store.save(createPersona())
             val retrieved = store.get("p-1")
 
@@ -244,7 +244,7 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should update extended fields via JDBC`() {
+        fun `update extended fields via JDBC해야 한다`() {
             store.save(Persona(
                 id = "upd-ext",
                 name = "Original",
@@ -267,7 +267,7 @@ class JdbcPersonaStoreTest {
             assertEquals("template-b", updated.promptTemplateId) { "Linked prompt template should be updated" }
             assertEquals("Original", updated.name) { "Name should remain unchanged" }
 
-            // Verify via fresh read from DB
+            // via fresh read from DB 확인
             val fromDb = store.get("upd-ext")!!
             assertEquals("New desc", fromDb.description) { "DB should have updated description" }
             assertEquals("New guideline", fromDb.responseGuideline) { "DB should have updated guideline" }
@@ -276,7 +276,7 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should clear linked prompt template via JDBC`() {
+        fun `clear linked prompt template via JDBC해야 한다`() {
             store.save(Persona(
                 id = "clear-link",
                 name = "Linked",
@@ -291,7 +291,7 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should deactivate persona via JDBC`() {
+        fun `deactivate persona via JDBC해야 한다`() {
             store.save(Persona(
                 id = "deactivate",
                 name = "Active",
@@ -306,7 +306,7 @@ class JdbcPersonaStoreTest {
         }
 
         @Test
-        fun `should list extended fields correctly`() {
+        fun `list extended fields correctly해야 한다`() {
             store.save(Persona(
                 id = "list-ext",
                 name = "Listed",

@@ -3,36 +3,38 @@ package com.arc.reactor.slack.handler
 import com.arc.reactor.slack.model.SlackEventCommand
 
 /**
- * Interface for handling Slack events.
+ * Slack 이벤트 처리 인터페이스.
  *
- * Implement this interface to customize how Slack events (mentions, messages)
- * are processed. Register as a bean to override the default behavior.
+ * 멘션, 메시지, 채널 메시지(선행적), 리액션 이벤트 처리를 정의한다.
+ * 커스텀 빈으로 등록하여 기본 동작([DefaultSlackEventHandler])을 교체할 수 있다.
+ *
+ * @see DefaultSlackEventHandler
  */
 interface SlackEventHandler {
 
     /**
-     * Handles an @mention event (app_mention).
-     * Called when a user mentions the bot in a channel or DM.
+     * @mention 이벤트(app_mention)를 처리한다.
+     * 사용자가 채널이나 DM에서 봇을 멘션했을 때 호출된다.
      */
     suspend fun handleAppMention(command: SlackEventCommand)
 
     /**
-     * Handles a message event in a thread where the bot is participating.
-     * Called for thread replies after the initial mention.
+     * 봇이 참여 중인 스레드의 메시지 이벤트를 처리한다.
+     * 최초 멘션 이후의 스레드 답글에 대해 호출된다.
      */
     suspend fun handleMessage(command: SlackEventCommand)
 
     /**
-     * Handles a channel message for proactive assistance.
-     * Called for top-level messages in proactive-enabled channels.
+     * 선행적 지원을 위한 채널 메시지를 처리한다.
+     * 선행적 모니터링이 활성화된 채널의 최상위 메시지에 대해 호출된다.
      *
-     * @return true if the agent responded, false if it declined (no useful context)
+     * @return 에이전트가 응답했으면 true, 거부(유용한 맥락 없음)했으면 false
      */
     suspend fun handleChannelMessage(command: SlackEventCommand): Boolean = false
 
     /**
-     * Handles a reaction_added event for feedback collection.
-     * Called when a user adds thumbsup/thumbsdown to a tracked bot response.
+     * 피드백 수집을 위한 reaction_added 이벤트를 처리한다.
+     * 사용자가 추적 중인 봇 응답에 thumbsup/thumbsdown 리액션을 추가했을 때 호출된다.
      */
     suspend fun handleReaction(
         userId: String,
