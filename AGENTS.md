@@ -71,10 +71,10 @@ Request flow: **Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hoo
 | Property | Default | Property | Default |
 |----------|---------|----------|---------|
 | `max-tool-calls` | 10 | `concurrency.request-timeout-ms` | 30000 |
-| `max-tools-per-request` | 20 | `concurrency.tool-call-timeout-ms` | 15000 |
-| `llm.temperature` | 0.3 | `guard.rate-limit-per-minute` | 10 |
-| `llm.max-context-window-tokens` | 128000 | `guard.rate-limit-per-hour` | 100 |
-| `boundaries.input-max-chars` | 5000 | | |
+| `max-tools-per-request` | 30 | `concurrency.tool-call-timeout-ms` | 15000 |
+| `llm.temperature` | 0.1 | `guard.rate-limit-per-minute` | 20 |
+| `llm.max-context-window-tokens` | 128000 | `guard.rate-limit-per-hour` | 200 |
+| `boundaries.input-max-chars` | 10000 | | |
 
 ## Code Rules
 

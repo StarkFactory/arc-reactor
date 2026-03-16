@@ -9,11 +9,11 @@
 ```yaml
 arc:
   reactor:
-    max-tools-per-request: 20    # Max tools per request
+    max-tools-per-request: 30    # Max tools per request
     max-tool-calls: 10           # Max tool calls in the ReAct loop
 
     llm:                         # LLM call settings
-      temperature: 0.3
+      temperature: 0.1
       max-output-tokens: 4096
       max-conversation-turns: 10
       max-context-window-tokens: 128000
@@ -26,13 +26,13 @@ arc:
 
     guard:                       # Guard pipeline settings
       enabled: true
-      rate-limit-per-minute: 10
-      rate-limit-per-hour: 100
+      rate-limit-per-minute: 20
+      rate-limit-per-hour: 200
       injection-detection-enabled: true
 
     boundaries:                  # Input/output boundary checks
       input-min-chars: 1
-      input-max-chars: 5000
+      input-max-chars: 10000
 
     rag:                         # RAG pipeline settings
       enabled: false
@@ -73,14 +73,14 @@ arc:
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `max-tools-per-request` | Int | 20 | Maximum number of tools available per request. `take(n)` is applied after combining local + MCP tools |
+| `max-tools-per-request` | Int | 30 | Maximum number of tools available per request. `take(n)` is applied after combining local + MCP tools |
 | `max-tool-calls` | Int | 10 | Maximum number of tool calls allowed in the ReAct loop. When reached, the tool list is replaced with an empty list to force termination |
 
 ### LlmProperties
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `temperature` | Double | 0.3 | LLM generation temperature. 0.0 (deterministic) to 2.0 (creative) |
+| `temperature` | Double | 0.1 | LLM generation temperature. 0.0 (deterministic) to 2.0 (creative) |
 | `max-output-tokens` | Int | 4096 | Maximum number of tokens in the LLM response |
 | `max-conversation-turns` | Int | 10 | Maximum number of conversation turns to load from Memory |
 | `max-context-window-tokens` | Int | 128000 | Context window token budget. `budget = maxContextWindowTokens - systemPromptTokens - maxOutputTokens` |
@@ -126,7 +126,7 @@ arc:
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `input-min-chars` | Int | 1 | Minimum user input length (character count) |
-| `input-max-chars` | Int | 5000 | Maximum user input length (character count) |
+| `input-max-chars` | Int | 10000 | Maximum user input length (character count) |
 | `system-prompt-max-chars` | Int | 0 | Maximum system prompt length. `0` means unlimited |
 
 ### ConcurrencyProperties

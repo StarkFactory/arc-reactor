@@ -24,7 +24,7 @@ data class AgentProperties(
     val retry: RetryProperties = RetryProperties(),
 
     /** Maximum tools per request */
-    val maxToolsPerRequest: Int = 20,
+    val maxToolsPerRequest: Int = 30,
 
     /** Maximum tool calls (prevents infinite loops) */
     val maxToolCalls: Int = 10,
@@ -101,7 +101,7 @@ data class LlmProperties(
     val defaultProvider: String = "gemini",
 
     /** Default temperature */
-    val temperature: Double = 0.3,
+    val temperature: Double = 0.1,
 
     /** Maximum output tokens */
     val maxOutputTokens: Int = 4096,
@@ -196,10 +196,10 @@ data class GuardProperties(
     val enabled: Boolean = true,
 
     /** Requests per minute limit */
-    val rateLimitPerMinute: Int = 10,
+    val rateLimitPerMinute: Int = 20,
 
     /** Requests per hour limit */
-    val rateLimitPerHour: Int = 100,
+    val rateLimitPerHour: Int = 200,
 
     /** Injection detection enabled */
     val injectionDetectionEnabled: Boolean = true,

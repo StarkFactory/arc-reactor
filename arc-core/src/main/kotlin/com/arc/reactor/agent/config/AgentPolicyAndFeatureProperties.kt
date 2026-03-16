@@ -559,10 +559,10 @@ data class BoundaryProperties(
     val inputMinChars: Int = 1,
 
     /** Maximum input length in characters. */
-    val inputMaxChars: Int = 5000,
+    val inputMaxChars: Int = 10000,
 
     /** Maximum system prompt length in characters. 0 = disabled. */
-    val systemPromptMaxChars: Int = 0,
+    val systemPromptMaxChars: Int = 50000,
 
     /** Minimum output length in characters. 0 = disabled. */
     val outputMinChars: Int = 0,

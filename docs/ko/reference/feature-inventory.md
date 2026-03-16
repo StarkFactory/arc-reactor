@@ -411,11 +411,11 @@ cd arc-reactor && docker compose up -d
 arc:
   reactor:
     max-tool-calls: 10              # ReAct 루프 최대 도구 호출 횟수
-    max-tools-per-request: 20       # 요청당 최대 도구 수
+    max-tools-per-request: 30       # 요청당 최대 도구 수
 
     llm:
       default-provider: gemini      # 기본 LLM 프로바이더
-      temperature: 0.3              # 창의성 (0.0~1.0)
+      temperature: 0.1              # 창의성 (0.0~1.0)
       max-output-tokens: 4096       # 최대 응답 길이
       max-conversation-turns: 10    # 대화 이력 최대 턴 수
       max-context-window-tokens: 128000  # 컨텍스트 윈도우 토큰 한도
@@ -432,13 +432,13 @@ arc:
 
     guard:
       enabled: true                 # Guard 활성화
-      rate-limit-per-minute: 10     # 분당 요청 한도
-      rate-limit-per-hour: 100      # 시간당 요청 한도
+      rate-limit-per-minute: 20     # 분당 요청 한도
+      rate-limit-per-hour: 200      # 시간당 요청 한도
       injection-detection-enabled: true  # 프롬프트 인젝션 탐지
 
     boundaries:
       input-min-chars: 1            # 최소 입력 길이 (자)
-      input-max-chars: 5000         # 최대 입력 길이 (자)
+      input-max-chars: 10000        # 최대 입력 길이 (자)
 
     auth:
       jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}  # HMAC 서명 시크릿 (필수, 최소 32바이트)

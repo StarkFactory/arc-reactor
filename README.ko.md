@@ -249,7 +249,7 @@ Arc Reactor는 세 가지 플레인으로 역할을 구분합니다.
 arc:
   reactor:
     max-tool-calls: 10               # 요청당 최대 Tool 반복 횟수
-    max-tools-per-request: 20        # LLM에 노출할 최대 Tool 수
+    max-tools-per-request: 30        # LLM에 노출할 최대 Tool 수
 
     llm:
       default-provider: gemini

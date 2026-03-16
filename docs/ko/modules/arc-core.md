@@ -107,7 +107,7 @@ Guard → Hook(BeforeAgentStart) → ReAct Loop (LLM ↔ Tool)* → Hook(AfterAg
 | 프로퍼티 | 기본값 | 설명 |
 |---|---|---|
 | `max-tool-calls` | `10` | 요청당 최대 ReAct 루프 반복 횟수 |
-| `max-tools-per-request` | `20` | 요청당 LLM에 노출되는 최대 Tool 수 |
+| `max-tools-per-request` | `30` | 요청당 LLM에 노출되는 최대 Tool 수 |
 
 ### 경계 (`arc.reactor.boundaries`)
 

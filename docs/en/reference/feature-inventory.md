@@ -411,11 +411,11 @@ Setting `failOnError: true` causes errors in that Hook to halt execution.
 arc:
   reactor:
     max-tool-calls: 10              # Max tool calls in ReAct loop
-    max-tools-per-request: 20       # Max tools per request
+    max-tools-per-request: 30       # Max tools per request
 
     llm:
       default-provider: gemini      # Default LLM provider
-      temperature: 0.3              # Creativity (0.0~1.0)
+      temperature: 0.1              # Creativity (0.0~1.0)
       max-output-tokens: 4096       # Max response length
       max-conversation-turns: 10    # Max conversation history turns
       max-context-window-tokens: 128000  # Context window token limit
@@ -432,13 +432,13 @@ arc:
 
     guard:
       enabled: true                 # Enable Guard
-      rate-limit-per-minute: 10     # Requests per minute limit
-      rate-limit-per-hour: 100      # Requests per hour limit
+      rate-limit-per-minute: 20     # Requests per minute limit
+      rate-limit-per-hour: 200      # Requests per hour limit
       injection-detection-enabled: true  # Prompt injection detection
 
     boundaries:
       input-min-chars: 1            # Min input length (characters)
-      input-max-chars: 5000         # Max input length (characters)
+      input-max-chars: 10000        # Max input length (characters)
 
     auth:
       jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}  # HMAC signing secret (required, min 32 bytes)
