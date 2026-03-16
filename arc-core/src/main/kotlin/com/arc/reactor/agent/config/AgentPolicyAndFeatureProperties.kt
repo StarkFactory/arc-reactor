@@ -146,7 +146,7 @@ data class RagProperties(
     /** Enable re-ranking */
     val rerankEnabled: Boolean = true,
 
-    /** Query transformer mode: passthrough|hyde */
+    /** Query transformer mode: passthrough|hyde|decomposition */
     val queryTransformer: String = "passthrough",
 
     /** RAG ingestion policy (Q&A -> candidate queue -> reviewed vector ingestion) */

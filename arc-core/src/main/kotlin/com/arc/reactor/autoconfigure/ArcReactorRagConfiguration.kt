@@ -14,6 +14,7 @@ import com.arc.reactor.rag.chunking.InstrumentedDocumentChunker
 import com.arc.reactor.rag.chunking.NoOpDocumentChunker
 import com.arc.reactor.rag.chunking.TokenBasedDocumentChunker
 import com.arc.reactor.rag.impl.Bm25WarmUpRunner
+import com.arc.reactor.rag.impl.DecompositionQueryTransformer
 import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HybridRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
@@ -24,6 +25,7 @@ import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
 import com.arc.reactor.rag.search.Bm25Scorer
 import io.micrometer.core.instrument.MeterRegistry
 import mu.KotlinLogging
+import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.BeanInitializationException
@@ -79,6 +81,7 @@ class RagConfiguration {
      * Query transformer strategy.
      * - passthrough (default): no rewrite
      * - hyde: hypothetical document generation for better retrieval
+     * - decomposition: break complex queries into simpler sub-queries
      */
     @Bean
     @ConditionalOnMissingBean
@@ -86,32 +89,42 @@ class RagConfiguration {
         chatModelProvider: ObjectProvider<ChatModelProvider>,
         properties: AgentProperties
     ): QueryTransformer {
-        return when (properties.rag.queryTransformer.trim().lowercase()) {
-            "hyde" -> {
-                val provider = chatModelProvider.ifAvailable
-                if (provider != null) {
-                    val selectedProvider = provider.availableProviders()
-                        .firstOrNull { it == provider.defaultProvider() }
-                        ?: provider.availableProviders().firstOrNull()
-                    if (selectedProvider == null) {
-                        ragLogger.warn { "RAG: HyDE requested but no chat providers are available, using passthrough" }
-                        return PassthroughQueryTransformer()
-                    }
-                    ragLogger.info { "RAG: Using HyDEQueryTransformer" }
-                    HyDEQueryTransformer(provider.getChatClient(selectedProvider))
-                } else {
-                    ragLogger.warn { "RAG: HyDE requested but ChatModelProvider is unavailable, using passthrough" }
-                    PassthroughQueryTransformer()
-                }
-            }
+        val mode = properties.rag.queryTransformer.trim().lowercase()
+        return when (mode) {
+            "hyde" -> llmTransformerOrPassthrough(chatModelProvider, ::HyDEQueryTransformer)
+            "decomposition" -> llmTransformerOrPassthrough(chatModelProvider, ::DecompositionQueryTransformer)
             "passthrough", "" -> PassthroughQueryTransformer()
             else -> {
-                ragLogger.warn {
-                    "RAG: Unknown query transformer '${properties.rag.queryTransformer}', falling back to passthrough"
-                }
+                ragLogger.warn { "RAG: Unknown query transformer '$mode', falling back to passthrough" }
                 PassthroughQueryTransformer()
             }
         }
+    }
+
+    private fun llmTransformerOrPassthrough(
+        chatModelProvider: ObjectProvider<ChatModelProvider>,
+        factory: (ChatClient) -> QueryTransformer
+    ): QueryTransformer {
+        val chatClient = resolveChatClient(chatModelProvider) ?: return PassthroughQueryTransformer()
+        val transformer = factory(chatClient)
+        ragLogger.info { "RAG: Using ${transformer::class.simpleName}" }
+        return transformer
+    }
+
+    private fun resolveChatClient(chatModelProvider: ObjectProvider<ChatModelProvider>): ChatClient? {
+        val provider = chatModelProvider.ifAvailable
+        if (provider == null) {
+            ragLogger.warn { "RAG: ChatModelProvider is unavailable, using passthrough" }
+            return null
+        }
+        val selectedProvider = provider.availableProviders()
+            .firstOrNull { it == provider.defaultProvider() }
+            ?: provider.availableProviders().firstOrNull()
+        if (selectedProvider == null) {
+            ragLogger.warn { "RAG: No chat providers are available, using passthrough" }
+            return null
+        }
+        return provider.getChatClient(selectedProvider)
     }
 
     /**
