@@ -1,5 +1,7 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.model.RagQuery
@@ -15,12 +17,14 @@ internal class RagContextRetriever(
     private val topK: Int,
     private val rerankEnabled: Boolean,
     private val ragPipeline: RagPipeline?,
-    private val retrievalTimeoutMs: Long = 5000
+    private val retrievalTimeoutMs: Long = 5000,
+    private val metrics: AgentMetrics = NoOpAgentMetrics()
 ) {
 
     suspend fun retrieve(command: AgentCommand): String? {
         if (!enabled || ragPipeline == null) return null
 
+        val startTime = System.currentTimeMillis()
         return try {
             withTimeout(retrievalTimeoutMs) {
                 val ragFilters = extractRagFilters(command.metadata)
@@ -32,14 +36,27 @@ internal class RagContextRetriever(
                         rerank = rerankEnabled
                     )
                 )
-                if (ragResult.hasDocuments) ragResult.context else null
+                val durationMs = System.currentTimeMillis() - startTime
+                if (ragResult.hasDocuments) {
+                    logger.debug { "RAG retrieval succeeded with ${ragResult.documents.size} documents in ${durationMs}ms" }
+                    metrics.recordRagRetrieval("success", durationMs)
+                    ragResult.context
+                } else {
+                    logger.info { "RAG retrieval returned empty results in ${durationMs}ms" }
+                    metrics.recordRagRetrieval("empty", durationMs)
+                    null
+                }
             }
         } catch (e: TimeoutCancellationException) {
+            val durationMs = System.currentTimeMillis() - startTime
             logger.warn { "RAG retrieval timed out after ${retrievalTimeoutMs}ms, continuing without context" }
+            metrics.recordRagRetrieval("timeout", durationMs)
             null
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "RAG retrieval failed, continuing without context" }
+            val durationMs = System.currentTimeMillis() - startTime
+            logger.error(e) { "RAG retrieval failed after ${durationMs}ms, continuing without context" }
+            metrics.recordRagRetrieval("error", durationMs)
             null
         }
     }
