@@ -281,11 +281,14 @@ class InMemoryMemoryStore(
     private val maxSessions: Int = 1000
 ) : MemoryStore {
 
+    private val sessionOwners = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     private val sessions = Caffeine.newBuilder()
         .maximumSize(maxSessions.toLong())
+        .removalListener<String, ConversationMemory> { key, _, _ ->
+            if (key != null) sessionOwners.remove(key)
+        }
         .build<String, ConversationMemory>()
-
-    private val sessionOwners = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     override fun get(sessionId: String): ConversationMemory? = sessions.getIfPresent(sessionId)
 
