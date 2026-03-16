@@ -6,7 +6,7 @@ val jackson3Version = "3.1.0"       // GHSA-72hv-8253-57qq (async parser DoS)
 
 plugins {
     kotlin("jvm") version "2.3.10" apply false
-    kotlin("plugin.spring") version "2.3.10" apply false
+    kotlin("plugin.spring") version "2.3.20" apply false
     id("org.springframework.boot") version "3.5.9" apply false
     id("io.spring.dependency-management") version "1.1.7" apply false
 }
