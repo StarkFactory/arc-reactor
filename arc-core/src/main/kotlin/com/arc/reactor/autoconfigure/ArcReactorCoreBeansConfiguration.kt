@@ -59,6 +59,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Primary
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import io.micrometer.core.instrument.MeterRegistry
@@ -345,15 +346,19 @@ class ArcReactorCoreBeansConfiguration {
     fun errorMessageResolver(): ErrorMessageResolver = DefaultErrorMessageResolver()
 
     /**
-     * Agent Metrics (Micrometer-backed when MeterRegistry is available)
+     * Agent Metrics (Micrometer-backed when MeterRegistry is available).
+     *
+     * Marked @Primary so that when both MeterRegistry and a fallback NoOp bean
+     * exist, this Micrometer implementation is always selected regardless of
+     * intra-class bean definition processing order.
      */
     @Bean
-    @ConditionalOnMissingBean
+    @Primary
     @ConditionalOnBean(MeterRegistry::class)
     fun micrometerAgentMetrics(registry: MeterRegistry): AgentMetrics = MicrometerAgentMetrics(registry)
 
     /**
-     * Agent Metrics (default: no-op)
+     * Agent Metrics (default: no-op when no MeterRegistry is available)
      */
     @Bean
     @ConditionalOnMissingBean
