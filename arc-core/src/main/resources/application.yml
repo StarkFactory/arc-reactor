@@ -143,6 +143,29 @@ arc:
         dynamic:
           enabled: ${ARC_REACTOR_RAG_INGESTION_DYNAMIC_ENABLED:false}
           refresh-ms: ${ARC_REACTOR_RAG_INGESTION_DYNAMIC_REFRESH_MS:10000}
+      adaptive-routing:
+        enabled: ${ARC_REACTOR_RAG_ADAPTIVE_ROUTING_ENABLED:false}
+        timeout-ms: ${ARC_REACTOR_RAG_ADAPTIVE_ROUTING_TIMEOUT_MS:3000}
+      compression:
+        enabled: ${ARC_REACTOR_RAG_COMPRESSION_ENABLED:false}
+        min-content-length: ${ARC_REACTOR_RAG_COMPRESSION_MIN_CONTENT_LENGTH:200}
+
+    tool-result-cache:
+      enabled: ${ARC_REACTOR_TOOL_RESULT_CACHE_ENABLED:false}
+      ttl-seconds: ${ARC_REACTOR_TOOL_RESULT_CACHE_TTL_SECONDS:60}
+      max-size: ${ARC_REACTOR_TOOL_RESULT_CACHE_MAX_SIZE:200}
+
+    citation:
+      enabled: ${ARC_REACTOR_CITATION_ENABLED:false}
+      format: ${ARC_REACTOR_CITATION_FORMAT:markdown}
+
+    scheduler:
+      max-executions-per-job: ${ARC_REACTOR_SCHEDULER_MAX_EXECUTIONS_PER_JOB:100}
+
+    memory:
+      user:
+        inject-into-prompt: ${ARC_REACTOR_USER_MEMORY_INJECT_INTO_PROMPT:false}
+        max-prompt-injection-chars: ${ARC_REACTOR_USER_MEMORY_MAX_PROMPT_INJECTION_CHARS:1000}
 
     error-report:
       enabled: ${ARC_REACTOR_ERROR_REPORT_ENABLED:false}

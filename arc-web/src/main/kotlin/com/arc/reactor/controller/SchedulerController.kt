@@ -57,23 +57,16 @@ class SchedulerController(
     ])
     @GetMapping
     fun listJobs(
-<<<<<<< HEAD
         @RequestParam(defaultValue = "0") offset: Int,
         @RequestParam(defaultValue = "50") limit: Int,
-        exchange: ServerWebExchange
-    ): ResponseEntity<Any> {
-        if (!isAdmin(exchange)) return forbiddenResponse()
-        val clamped = clampLimit(limit)
-        return ResponseEntity.ok(schedulerService.list().map { it.toResponse() }.paginate(offset, clamped))
-=======
         @RequestParam(required = false) tag: String? = null,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        val clamped = clampLimit(limit)
         val jobs = schedulerService.list()
         val filtered = if (tag.isNullOrBlank()) jobs else jobs.filter { tag in it.tags }
-        return ResponseEntity.ok(filtered.map { it.toResponse() })
->>>>>>> acf3976 (feat(scheduler): Add tags support for scheduled job filtering)
+        return ResponseEntity.ok(filtered.map { it.toResponse() }.paginate(offset, clamped))
     }
 
     @Operation(summary = "Create a new scheduled job (ADMIN)")

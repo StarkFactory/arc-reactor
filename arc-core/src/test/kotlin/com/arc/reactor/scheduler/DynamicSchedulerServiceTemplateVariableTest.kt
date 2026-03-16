@@ -123,6 +123,35 @@ class DynamicSchedulerServiceTemplateVariableTest {
             assertEquals("일반 프롬프트입니다", commandSlot.captured.userPrompt,
                 "Prompt without template variables should remain unchanged")
         }
+
+        @Test
+        fun `AGENT job resolves date using job timezone instead of default Seoul`() {
+            val nyTimezone = "America/New_York"
+            val job = ScheduledJob(
+                id = "tz-job-1",
+                name = "ny-briefing",
+                cronExpression = "0 0 22 * * *",
+                jobType = ScheduledJobType.AGENT,
+                agentPrompt = "Report for {{date}} at {{time}}",
+                timezone = nyTimezone,
+                enabled = true
+            )
+            val store = RecordingStore(job)
+            val agentExecutor = mockk<AgentExecutor>()
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            val service = buildService(store, agentExecutor = agentExecutor)
+            service.trigger(job.id)
+
+            val nyNow = LocalDateTime.now(ZoneId.of(nyTimezone))
+            val expectedDate = nyNow.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val resolved = commandSlot.captured.userPrompt
+            assertTrue(resolved.startsWith("Report for $expectedDate"),
+                "{{date}} should resolve using $nyTimezone (expected $expectedDate), got: $resolved")
+            assertTrue(!resolved.contains("{{"),
+                "All template variables should be resolved, got: $resolved")
+        }
     }
 
     @Nested
