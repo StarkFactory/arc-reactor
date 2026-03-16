@@ -271,7 +271,7 @@ class AdaptiveQueryRouterTest {
                 AgentCommand(systemPrompt = "sys", userPrompt = "What is X?")
             )
 
-            assertEquals("simple context", result, "Should return context for SIMPLE query")
+            assertEquals("simple context", result?.context, "Should return context for SIMPLE query")
             assertEquals(5, querySlot.captured.topK, "Should use default topK=5 for SIMPLE")
         }
 
@@ -305,7 +305,7 @@ class AdaptiveQueryRouterTest {
                 )
             )
 
-            assertEquals("complex context", result, "Should return context for COMPLEX query")
+            assertEquals("complex context", result?.context, "Should return context for COMPLEX query")
             assertEquals(15, querySlot.captured.topK, "Should use complexTopK=15 for COMPLEX")
         }
 
@@ -335,7 +335,7 @@ class AdaptiveQueryRouterTest {
             )
 
             assertEquals(
-                "context without router", result,
+                "context without router", result?.context,
                 "Should return context when no router configured"
             )
             assertEquals(

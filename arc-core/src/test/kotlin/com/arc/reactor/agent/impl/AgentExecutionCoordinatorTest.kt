@@ -9,6 +9,8 @@ import com.arc.reactor.cache.CachedResponse
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.cache.SemanticResponseCache
 import com.arc.reactor.hook.model.HookContext
+import com.arc.reactor.rag.model.RagContext
+import com.arc.reactor.rag.model.RetrievedDocument
 import com.arc.reactor.resilience.FallbackStrategy
 import com.arc.reactor.tool.ToolCallback
 import io.mockk.coEvery
@@ -331,6 +333,67 @@ class AgentExecutionCoordinatorTest {
         assertTrue(stageTimings?.containsKey("finalizer") == true) {
             "Final result metadata should include the finalizer stage timing"
         }
+    }
+
+    @Test
+    fun `should register RAG documents as verified sources in hookContext`() = runBlocking {
+        val hookContext = HookContext(runId = "run-rag", userId = "u", userPrompt = "refund policy")
+        val ragContext = RagContext(
+            context = "Refund policy context",
+            documents = listOf(
+                RetrievedDocument(
+                    id = "doc-1",
+                    content = "Refund within 30 days",
+                    metadata = mapOf("title" to "Refund Policy"),
+                    source = "https://docs.example.com/refund"
+                ),
+                RetrievedDocument(
+                    id = "doc-2",
+                    content = "No source document",
+                    metadata = mapOf("title" to "No Source")
+                ),
+                RetrievedDocument(
+                    id = "doc-3",
+                    content = "Another doc",
+                    source = "https://docs.example.com/returns"
+                )
+            )
+        )
+
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = null,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = mockk(relaxed = true),
+            toolCallbacks = emptyList(),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { ragContext },
+            executeWithTools = { _, _, _, _, _, ragCtx ->
+                assertEquals("Refund policy context", ragCtx, "RAG context string should be passed to executeWithTools")
+                AgentResult.success(content = "answer")
+            },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command }
+        )
+
+        coordinator.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "refund policy"),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        val sources = hookContext.verifiedSources
+        assertEquals(2, sources.size, "Only documents with non-blank source should become verified sources")
+        assertEquals("Refund Policy", sources[0].title, "Title should come from document metadata")
+        assertEquals("https://docs.example.com/refund", sources[0].url, "URL should come from document source")
+        assertEquals("rag", sources[0].toolName, "Tool name should be 'rag'")
+        assertEquals("doc-3", sources[1].title, "Title should fall back to document id when metadata has no title")
+        assertEquals("https://docs.example.com/returns", sources[1].url, "URL should come from document source")
     }
 
     private fun testTool(name: String): ToolCallback = object : ToolCallback {

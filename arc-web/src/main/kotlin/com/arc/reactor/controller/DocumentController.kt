@@ -14,12 +14,15 @@ import mu.KotlinLogging
 import org.springframework.ai.document.Document
 import org.springframework.ai.vectorstore.SearchRequest
 import org.springframework.ai.vectorstore.VectorStore
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
+import java.time.Instant
+import java.security.MessageDigest
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -53,7 +56,9 @@ class DocumentController(
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Document added to vector store"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
-        ApiResponse(responseCode = "403", description = "Admin access required")
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "409", description = "Document with identical content already exists"),
+        ApiResponse(responseCode = "500", description = "Embedding or storage failure")
     ])
     @PostMapping
     fun addDocument(
@@ -61,13 +66,30 @@ class DocumentController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+
+        val contentHash = computeSha256(request.content)
+        val existing = findByContentHash(contentHash)
+        if (existing != null) return duplicateConflictResponse(existing.id)
+
         val id = UUID.randomUUID().toString()
         val metadata = request.metadata?.toMutableMap() ?: mutableMapOf()
+        metadata[CONTENT_HASH_KEY] = contentHash
 
         val document = Document(id, request.content, metadata)
         val chunks = documentChunkerProvider.ifAvailable?.chunk(document)
             ?: listOf(document)
-        vectorStore.add(chunks)
+
+        try {
+            vectorStore.add(chunks)
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to embed document: id=$id" }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                ErrorResponse(
+                    error = "Failed to embed document: ${e.message}",
+                    timestamp = Instant.now().toString()
+                )
+            )
+        }
 
         logger.info {
             "Document added: id=$id, chunks=${chunks.size}, " +
@@ -93,7 +115,9 @@ class DocumentController(
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Documents added to vector store"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
-        ApiResponse(responseCode = "403", description = "Admin access required")
+        ApiResponse(responseCode = "403", description = "Admin access required"),
+        ApiResponse(responseCode = "409", description = "Document with identical content already exists"),
+        ApiResponse(responseCode = "500", description = "Embedding or storage failure")
     ])
     @PostMapping("/batch")
     fun addDocuments(
@@ -101,15 +125,34 @@ class DocumentController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+
+        val hashes = request.documents.map { computeSha256(it.content) }
+        for (hash in hashes) {
+            val existing = findByContentHash(hash)
+            if (existing != null) return duplicateConflictResponse(existing.id)
+        }
+
         val chunker = documentChunkerProvider.ifAvailable
-        val documents = request.documents.map { doc ->
+        val documents = request.documents.mapIndexed { index, doc ->
             val id = UUID.randomUUID().toString()
             val metadata = doc.metadata?.toMutableMap() ?: mutableMapOf()
+            metadata[CONTENT_HASH_KEY] = hashes[index]
             Document(id, doc.content, metadata)
         }
 
         val chunks = chunker?.chunk(documents) ?: documents
-        vectorStore.add(chunks)
+
+        try {
+            vectorStore.add(chunks)
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to embed batch of ${documents.size} documents" }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                ErrorResponse(
+                    error = "Failed to embed documents: ${e.message}",
+                    timestamp = Instant.now().toString()
+                )
+            )
+        }
 
         logger.info { "Batch added ${documents.size} documents (${chunks.size} chunks)" }
 
@@ -185,6 +228,35 @@ class DocumentController(
         vectorStore.delete(allIds)
         logger.info { "Deleted documents: ${request.ids.size} requested IDs -> ${allIds.size} total IDs" }
         return ResponseEntity.noContent().build()
+    }
+
+    // ---- Deduplication helpers ----
+
+    private fun computeSha256(content: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        return digest.digest(content.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+
+    private fun findByContentHash(hash: String): Document? {
+        val filter = FilterExpressionBuilder()
+        val searchRequest = SearchRequest.builder()
+            .query("duplicate check")
+            .topK(1)
+            .filterExpression(filter.eq(CONTENT_HASH_KEY, hash).build())
+            .build()
+        return vectorStore.similaritySearch(searchRequest).firstOrNull()
+    }
+
+    private fun duplicateConflictResponse(existingId: String): ResponseEntity<Any> {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+            mapOf("error" to DUPLICATE_ERROR_MESSAGE, "existingId" to existingId)
+        )
+    }
+
+    companion object {
+        const val CONTENT_HASH_KEY = "content_hash"
+        private const val DUPLICATE_ERROR_MESSAGE =
+            "Document with identical content already exists"
     }
 
     // ---- DTOs ----

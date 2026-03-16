@@ -6,6 +6,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.rag.QueryComplexity
 import com.arc.reactor.rag.QueryRouter
 import com.arc.reactor.rag.RagPipeline
+import com.arc.reactor.rag.model.RagContext
 import com.arc.reactor.rag.model.RagQuery
 import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.TimeoutCancellationException
@@ -25,7 +26,7 @@ internal class RagContextRetriever(
     private val complexTopK: Int = 15
 ) {
 
-    suspend fun retrieve(command: AgentCommand): String? {
+    suspend fun retrieve(command: AgentCommand): RagContext? {
         if (!enabled || ragPipeline == null) return null
 
         val startTime = System.currentTimeMillis()
@@ -46,7 +47,7 @@ internal class RagContextRetriever(
                 if (ragResult.hasDocuments) {
                     logger.debug { "RAG retrieval succeeded with ${ragResult.documents.size} documents in ${durationMs}ms" }
                     metrics.recordRagRetrieval("success", durationMs)
-                    ragResult.context
+                    ragResult
                 } else {
                     logger.info { "RAG retrieval returned empty results in ${durationMs}ms" }
                     metrics.recordRagRetrieval("empty", durationMs)
