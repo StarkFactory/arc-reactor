@@ -11,9 +11,17 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Hook Execution Orchestrator
+ * Hook Execution Orchestrator.
  *
  * Executes registered hooks in order and processes results.
+ *
+ * **Before-hooks** (beforeAgentStart, beforeToolCall) use **blocking semantics**:
+ * execution aborts on the first `failOnError=true` failure, returning [HookResult.Reject].
+ * This is intentional — a failing before-hook signals that the operation should not proceed.
+ *
+ * **After-hooks** (afterToolCall, afterAgentComplete) use **observational semantics**:
+ * each hook runs independently, logging failures without affecting subsequent hooks
+ * (unless `failOnError=true` is explicitly set, which re-throws the exception).
  */
 class HookExecutor(
     beforeStartHooks: List<BeforeAgentStartHook> = emptyList(),
@@ -28,9 +36,10 @@ class HookExecutor(
     private val sortedAfterCompleteHooks = afterCompleteHooks.filter { it.enabled }.sortedBy { it.order }
 
     /**
-     * Execute hooks before agent starts.
+     * Executes before-start hooks with blocking semantics.
+     * Aborts on the first `failOnError=true` failure.
      *
-     * @return Continue to proceed, Reject to abort
+     * @return [HookResult.Continue] to proceed, [HookResult.Reject] to abort
      */
     suspend fun executeBeforeAgentStart(context: HookContext): HookResult {
         return executeHooks(
@@ -42,7 +51,10 @@ class HookExecutor(
     }
 
     /**
-     * Execute hooks before tool call.
+     * Executes before-tool-call hooks with blocking semantics.
+     * Aborts on the first `failOnError=true` failure.
+     *
+     * @return [HookResult.Continue] to proceed, [HookResult.Reject] to abort
      */
     suspend fun executeBeforeToolCall(context: ToolCallContext): HookResult {
         return executeHooks(
@@ -54,7 +66,9 @@ class HookExecutor(
     }
 
     /**
-     * Execute hooks after tool call.
+     * Executes after-tool-call hooks with observational semantics.
+     * Each hook runs independently; failures are logged and do not block subsequent hooks
+     * unless `failOnError=true` is set.
      */
     suspend fun executeAfterToolCall(context: ToolCallContext, result: ToolCallResult) {
         for (hook in sortedAfterToolCallHooks) {
@@ -69,7 +83,9 @@ class HookExecutor(
     }
 
     /**
-     * Execute hooks after agent completes.
+     * Executes after-agent-complete hooks with observational semantics.
+     * Each hook runs independently; failures are logged and do not block subsequent hooks
+     * unless `failOnError=true` is set.
      */
     suspend fun executeAfterAgentComplete(context: HookContext, response: AgentResponse) {
         for (hook in sortedAfterCompleteHooks) {
@@ -84,7 +100,9 @@ class HookExecutor(
     }
 
     /**
-     * Common hook execution logic.
+     * Common before-hook execution logic implementing blocking semantics.
+     * On `failOnError=true` failure, returns [HookResult.Reject] immediately,
+     * skipping remaining hooks. Otherwise logs and continues (fail-open).
      */
     private suspend fun <T : AgentHook, C> executeHooks(
         hooks: List<T>,
