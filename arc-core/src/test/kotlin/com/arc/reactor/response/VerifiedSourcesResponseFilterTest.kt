@@ -184,7 +184,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should keep casual reply and append empty footer`() = runTest {
+    fun `should keep casual reply without empty sources footer`() = runTest {
         val result = filter.filter(
             content = "안녕하세요.",
             context = ResponseFilterContext(
@@ -195,11 +195,8 @@ class VerifiedSourcesResponseFilterTest {
             )
         )
 
-        assertTrue(result.startsWith("안녕하세요.")) {
-            "Casual prompts should not be replaced with a verification failure"
-        }
-        assertTrue(result.endsWith("출처\n- 검증된 출처를 찾지 못했습니다.")) {
-            "Casual replies should still include the mandatory footer"
+        assertEquals("안녕하세요.", result) {
+            "Casual prompts should not have an empty sources footer appended"
         }
     }
 

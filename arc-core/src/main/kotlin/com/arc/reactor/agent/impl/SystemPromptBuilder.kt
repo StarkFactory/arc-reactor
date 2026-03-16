@@ -260,7 +260,7 @@ class SystemPromptBuilder(
                 }
             }
         }
-        if (responseFormat == ResponseFormat.TEXT) {
+        if (responseFormat == ResponseFormat.TEXT && looksLikeWorkspacePrompt(userPrompt)) {
             append("\nEnd the response with a 'Sources' section that lists the supporting links.")
         }
     }
@@ -592,6 +592,23 @@ class SystemPromptBuilder(
     private fun hasSwaggerUrl(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
         return OPENAPI_URL_REGEX.containsMatchIn(prompt)
+    }
+
+    private fun looksLikeWorkspacePrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        return looksLikeJiraPrompt(prompt) ||
+            looksLikeBitbucketPrompt(prompt) ||
+            looksLikeSwaggerPrompt(prompt) ||
+            looksLikeConfluenceAnswerPrompt(prompt) ||
+            looksLikeConfluenceDiscoveryPrompt(prompt) ||
+            looksLikeConfluencePageBodyPrompt(prompt) ||
+            looksLikeWorkBriefingPrompt(prompt) ||
+            looksLikeWorkStandupPrompt(prompt) ||
+            looksLikeWorkReleaseRiskPrompt(prompt) ||
+            looksLikeWorkReleaseReadinessPrompt(prompt) ||
+            looksLikeWorkOwnerPrompt(prompt) ||
+            looksLikeWorkItemContextPrompt(prompt) ||
+            looksLikeWorkServiceContextPrompt(prompt)
     }
 
     companion object {

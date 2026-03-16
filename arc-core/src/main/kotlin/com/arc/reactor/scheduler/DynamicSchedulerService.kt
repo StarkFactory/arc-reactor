@@ -71,7 +71,10 @@ class DynamicSchedulerService(
     companion object {
         private const val SCHEDULER_ACTOR = "scheduler"
         private const val SCHEDULER_CHANNEL = "scheduler"
-        private const val DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant."
+        private const val DEFAULT_SYSTEM_PROMPT =
+            "You are a helpful AI assistant powered by Arc Reactor. " +
+                "Be concise and direct. Use available tools to provide accurate answers. " +
+                "Do not fabricate citations or sources."
         private const val RETRY_DELAY_MS = 2000L
         private const val MIN_EXECUTION_TIMEOUT_MS = 1000L
         private const val MAX_EXECUTION_TIMEOUT_MS = 3_600_000L

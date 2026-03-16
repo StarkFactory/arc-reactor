@@ -106,8 +106,12 @@ interface PersonaStore {
  * Default system prompt — same as ChatController's fallback.
  */
 internal const val DEFAULT_SYSTEM_PROMPT =
-    "You are a helpful AI assistant. You can use tools when needed. " +
-        "Answer in the same language as the user's message."
+    "You are a helpful AI assistant powered by Arc Reactor. " +
+        "Answer in the same language as the user's message. " +
+        "Be concise and direct. " +
+        "When you have tools available, use them to provide accurate, grounded answers. " +
+        "Do not fabricate citations, references, or sources. " +
+        "If you are unsure about something, say so honestly rather than guessing."
 
 /**
  * In-Memory Persona Store
