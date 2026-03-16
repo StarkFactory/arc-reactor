@@ -22,6 +22,28 @@ import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * Slack 이벤트 비동기 처리기.
+ *
+ * Events API 또는 Socket Mode에서 수신된 이벤트 콜백을 처리한다.
+ *
+ * 주요 기능:
+ * - `app_mention`, `message` 이벤트 디스패치
+ * - `reaction_added` 이벤트를 피드백 수집으로 라우팅
+ * - backpressure (동시성 제한 + 타임아웃 큐)
+ * - 이벤트 ID 기반 중복 방지
+ * - 선행적(proactive) 채널 모니터링
+ *
+ * @param eventHandler 실제 이벤트 처리 핸들러
+ * @param messagingService 메시지 전송 서비스 (드롭 알림용)
+ * @param metricsRecorder 메트릭 기록기
+ * @param properties Slack 설정 (동시성, 타임아웃 등)
+ * @param threadTracker 스레드 추적기 (선택, 미추적 스레드 메시지 무시용)
+ * @param proactiveChannelStore 선행적 모니터링 대상 채널 저장소 (선택)
+ * @param botResponseTracker 봇 응답 추적기 (선택, 리액션 피드백용)
+ * @see SlackEventHandler
+ * @see SlackBackpressureLimiter
+ */
 class SlackEventProcessor(
     private val eventHandler: SlackEventHandler,
     private val messagingService: SlackMessagingService,

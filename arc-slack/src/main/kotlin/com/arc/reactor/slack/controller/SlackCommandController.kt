@@ -16,9 +16,15 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * Handles Slack slash commands.
+ * Slack 슬래시 명령 엔드포인트 컨트롤러.
  *
- * Returns immediate acknowledgement and processes command asynchronously.
+ * Slack에서 전송된 슬래시 명령을 수신하고 즉시 확인 응답(ACK)을 반환한 뒤,
+ * [SlackCommandProcessor]를 통해 비동기로 처리한다.
+ * Slack의 3초 응답 요구사항을 충족하기 위해 비동기 패턴을 사용한다.
+ *
+ * Events API 전송 모드(`transport-mode=events_api`)에서만 활성화된다.
+ *
+ * @see SlackCommandProcessor
  */
 @RestController
 @RequestMapping("/api/slack")

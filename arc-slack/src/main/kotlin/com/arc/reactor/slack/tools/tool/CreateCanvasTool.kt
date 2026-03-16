@@ -5,6 +5,7 @@ import com.arc.reactor.tool.LocalTool
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** 새 Slack Canvas를 생성하는 도구. 소유권 정책에 의해 생성 후 편집 허용 목록에 등록된다. */
 open class CreateCanvasTool(
     private val createCanvasUseCase: CreateCanvasUseCase,
     private val canvasOwnershipPolicyService: CanvasOwnershipPolicyService =

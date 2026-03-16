@@ -5,6 +5,7 @@ import com.arc.reactor.tool.LocalTool
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
+/** 기존 Slack Canvas에 마크다운 내용을 추가하는 도구. 소유권 허용 목록 확인 후 실행된다. */
 open class AppendCanvasTool(
     private val appendCanvasUseCase: AppendCanvasUseCase,
     private val canvasOwnershipPolicyService: CanvasOwnershipPolicyService =

@@ -18,14 +18,18 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Default Slack event handler that delegates to AgentExecutor.
+ * 기본 Slack 이벤트 핸들러. [AgentExecutor]에 위임하여 에이전트를 실행한다.
  *
- * - Extracts clean text from @mention events (removes bot mention tag)
- * - Maps Slack threads to arc-reactor sessions via sessionId
- * - Sends agent response back to the Slack thread
- * - Guard pipeline is applied automatically via AgentExecutor.execute()
- * - Cross-tool correlation: injects connected MCP tool summaries into system prompt
- * - Proactive mode: handles channel messages with [NO_RESPONSE] filtering
+ * - @mention 이벤트에서 봇 멘션 태그를 제거하여 깨끗한 텍스트 추출
+ * - Slack 스레드를 arc-reactor 세션(sessionId)에 매핑
+ * - 에이전트 응답을 Slack 스레드에 전송
+ * - Guard 파이프라인은 AgentExecutor.execute()를 통해 자동 적용
+ * - 교차 도구 연계: 연결된 MCP 도구 요약을 시스템 프롬프트에 주입
+ * - 선행적(proactive) 모드: 채널 메시지를 처리하되 [NO_RESPONSE] 필터링 적용
+ * - 리액션 피드백: 봇 응답에 대한 이모지 리액션을 [FeedbackStore]에 저장
+ *
+ * @see SlackEventHandler
+ * @see SlackSystemPromptFactory
  */
 class DefaultSlackEventHandler(
     private val agentExecutor: AgentExecutor,

@@ -16,6 +16,24 @@ import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * 슬래시 명령 비동기 처리기.
+ *
+ * Events API 또는 Socket Mode에서 수신된 슬래시 명령을 비동기로 처리하며,
+ * backpressure 제어를 통해 과부하를 방지한다.
+ *
+ * 흐름:
+ * 1. [submit] 호출 -> backpressure 확인
+ * 2. 허용 시 코루틴으로 [SlackCommandHandler.handleSlashCommand] 실행
+ * 3. 거부 시 response_url로 "busy" 메시지 전송
+ *
+ * @param commandHandler 실제 슬래시 명령 처리 핸들러
+ * @param messagingService 메시지 전송 서비스 (드롭 알림용)
+ * @param metricsRecorder 메트릭 기록기
+ * @param properties Slack 설정 (동시성, 타임아웃 등)
+ * @see SlackCommandHandler
+ * @see SlackBackpressureLimiter
+ */
 class SlackCommandProcessor(
     private val commandHandler: SlackCommandHandler,
     private val messagingService: SlackMessagingService,

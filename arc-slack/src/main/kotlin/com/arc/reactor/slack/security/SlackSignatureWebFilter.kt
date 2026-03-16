@@ -23,11 +23,15 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * WebFlux WebFilter that verifies Slack request signatures.
+ * Slack 요청 서명을 검증하는 WebFlux WebFilter.
  *
- * Only applies to /api/slack/ paths. Caches the request body
- * for signature verification and replays it for downstream handlers
- * via ServerHttpRequestDecorator.
+ * `/api/slack/` 경로에만 적용된다. 서명 검증을 위해 요청 본문을 캐싱하고,
+ * 다운스트림 핸들러에게 ServerHttpRequestDecorator를 통해 본문을 재생(replay)한다.
+ * form-urlencoded 요청의 경우 파싱된 폼 파라미터도 함께 제공한다.
+ *
+ * @param verifier 서명 검증기
+ * @param objectMapper JSON 직렬화용 ObjectMapper (에러 응답 생성)
+ * @see SlackSignatureVerifier
  */
 class SlackSignatureWebFilter(
     private val verifier: SlackSignatureVerifier,
@@ -37,7 +41,7 @@ class SlackSignatureWebFilter(
     override fun filter(exchange: ServerWebExchange, chain: WebFilterChain): Mono<Void> {
         val path = exchange.request.path.value()
 
-        // Only filter Slack webhook paths
+        // Slack 웹훅 경로만 필터링
         if (!path.startsWith("/api/slack")) {
             return chain.filter(exchange)
         }
@@ -58,7 +62,7 @@ class SlackSignatureWebFilter(
             }
     }
 
-    // Must run before form/body parsing filters so raw body is still available for signature verification.
+    // 서명 검증을 위해 원시 본문이 필요하므로, 폼/본문 파싱 필터보다 먼저 실행되어야 한다.
     override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE
 
     private fun verifyAndFilter(
@@ -135,6 +139,7 @@ class SlackSignatureWebFilter(
     }
 }
 
+/** 서명 검증 실패 시 403 응답 본문. */
 private data class SignatureErrorResponse(
     val error: String,
     val details: String,

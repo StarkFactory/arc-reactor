@@ -3,9 +3,12 @@ package com.arc.reactor.slack.config
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
- * Configuration properties for the Slack integration module.
+ * Slack 통합 모듈 설정 프로퍼티.
  *
- * Prefix: `arc.reactor.slack`
+ * 프리픽스: `arc.reactor.slack`
+ *
+ * 전송 모드, 토큰, 서명 검증, 동시성, backpressure, 이벤트 중복 제거,
+ * 스레드 추적, 선행적 모니터링, 리액션 피드백 등 전체 Slack 동작을 제어한다.
  */
 @ConfigurationProperties(prefix = "arc.reactor.slack")
 data class SlackProperties(
