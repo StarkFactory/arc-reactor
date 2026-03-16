@@ -54,8 +54,8 @@ following properties limit both dimensions.
 | Property | Default | Description |
 |---|---|---|
 | `arc.reactor.max-tool-calls` | `10` | Maximum tool-call iterations per ReAct loop before forcing a final LLM call without tools |
-| `arc.reactor.max-tools-per-request` | `20` | Maximum tool definitions sent to the LLM per request (limits prompt size) |
-| `arc.reactor.llm.temperature` | `0.3` | Sampling temperature (0.0 = deterministic, higher = more creative) |
+| `arc.reactor.max-tools-per-request` | `30` | Maximum tool definitions sent to the LLM per request (limits prompt size) |
+| `arc.reactor.llm.temperature` | `0.1` | Sampling temperature (0.0 = deterministic, higher = more creative) |
 | `arc.reactor.llm.max-output-tokens` | `4096` | Token cap on the LLM response |
 | `arc.reactor.llm.max-context-window-tokens` | `128000` | Token budget for the full prompt (conversation history + system prompt + user message) |
 | `arc.reactor.llm.max-conversation-turns` | `10` | Maximum conversation history turns retained per session |
@@ -72,7 +72,7 @@ answer without further tool calls (this is the mandatory behavior to prevent inf
 semantic or keyword tool selection (`arc.reactor.tool-selection.strategy`), only the most
 relevant tools reach the LLM.
 
-**Temperature.** The default `0.3` balances consistency with mild creativity. For pipelines
+**Temperature.** The default `0.1` prioritizes consistency with minimal creativity. For pipelines
 requiring deterministic output (structured JSON/YAML responses, data extraction), set
 `temperature: 0.0`. Response caching (see section 5) only applies at or below
 `cache.cacheable-temperature` (default `0.0`).
@@ -162,10 +162,10 @@ exceeds either limit returns `RATE_LIMITED`.
 
 | Property | Default | Description |
 |---|---|---|
-| `arc.reactor.guard.rate-limit-per-minute` | `10` | Max requests per user per minute |
-| `arc.reactor.guard.rate-limit-per-hour` | `100` | Max requests per user per hour |
+| `arc.reactor.guard.rate-limit-per-minute` | `20` | Max requests per user per minute |
+| `arc.reactor.guard.rate-limit-per-hour` | `200` | Max requests per user per hour |
 | `arc.reactor.guard.tenant-rate-limits` | `{}` | Per-tenant overrides (map of tenant ID → limits) |
-| `arc.reactor.boundaries.input-max-chars` | `5000` | Maximum input length in characters |
+| `arc.reactor.boundaries.input-max-chars` | `10000` | Maximum input length in characters |
 | `arc.reactor.boundaries.input-min-chars` | `1` | Minimum input length in characters |
 
 **Tenant-specific rate limits** allow differentiated service levels without separate
@@ -175,8 +175,8 @@ deployments:
 arc:
   reactor:
     guard:
-      rate-limit-per-minute: 10
-      rate-limit-per-hour: 100
+      rate-limit-per-minute: 20
+      rate-limit-per-hour: 200
       tenant-rate-limits:
         premium-tenant:
           per-minute: 60
@@ -187,7 +187,7 @@ arc:
 ```
 
 **Input length.** Increase `input-max-chars` cautiously; long inputs consume tokens directly.
-The default 5 000-character limit prevents accidental token budget exhaustion from user paste
+The default 10 000-character limit prevents accidental token budget exhaustion from user paste
 operations.
 
 **Example — production rate limits:**
@@ -337,11 +337,11 @@ at the ReAct loop level; only the LLM call itself is retried.
 | Property | Default | Description |
 |---|---|---|
 | `arc.reactor.retry.max-attempts` | `3` | Maximum retry attempts per LLM call |
-| `arc.reactor.retry.initial-delay-ms` | `1000` | Initial wait before first retry |
+| `arc.reactor.retry.initial-delay-ms` | `200` | Initial wait before first retry |
 | `arc.reactor.retry.multiplier` | `2.0` | Back-off multiplier between retries |
 | `arc.reactor.retry.max-delay-ms` | `10000` | Maximum wait between retries |
 
-With defaults, the retry sequence is: immediate call → 1 s wait → 2 s wait → fail. This
+With defaults, the retry sequence is: immediate call → 200 ms wait → 400 ms wait → fail. This
 keeps the total retry overhead under `request-timeout-ms` for most cases.
 
 ### Circuit Breaker
@@ -443,7 +443,7 @@ arc:
     max-tool-calls: 10
     max-tools-per-request: 15
     llm:
-      temperature: 0.3
+      temperature: 0.1
       max-output-tokens: 4096
       max-context-window-tokens: 128000
       max-conversation-turns: 10
@@ -539,5 +539,5 @@ logging:
 - `max-tool-calls` reaching its limit forces an empty tool list on the next LLM call. Setting
   this to 0 effectively disables tool calling (STANDARD mode only).
 - Retry introduces additional latency equal to the sum of delay intervals. With defaults,
-  3 attempts add up to 3 s of back-off. Ensure `request-timeout-ms` is large enough to
+  3 attempts add up to 600 ms of back-off. Ensure `request-timeout-ms` is large enough to
   accommodate retries: minimum recommended is `initial-delay-ms * (multiplier^max-attempts)`.
