@@ -4,9 +4,12 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.config.MultimodalProperties
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.intent.IntentResolver
+import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.persona.Persona
 import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.prompt.PromptTemplateStore
@@ -16,11 +19,13 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import org.springframework.http.HttpHeaders
 import org.springframework.http.server.reactive.ServerHttpRequest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
+import org.springframework.http.HttpStatus
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -74,8 +79,10 @@ class ChatControllerTest {
             )
 
             val request = ChatRequest(message = "Hi there")
-            val response = controller.chat(request, exchange)
+            val entity = controller.chat(request, exchange)
 
+            assertEquals(HttpStatus.OK, entity.statusCode) { "Successful result should return HTTP 200" }
+            val response = entity.body!!
             assertTrue(response.success) { "Response should be successful" }
             assertEquals("Hello!", response.content) { "Content should match agent result" }
             assertEquals(listOf("calculator"), response.toolsUsed) { "Tools used should be forwarded" }
@@ -157,6 +164,44 @@ class ChatControllerTest {
             assertEquals(mapOf("channel" to "web", "tenantId" to "default"), commandSlot.captured.metadata) {
                 "Default metadata should contain channel=web and tenantId=default"
             }
+        }
+
+        @Test
+        fun `should mark controller intent resolution attempt when no intent matches`() = runTest {
+            val intentResolver = mockk<IntentResolver>()
+            val controllerWithIntent = ChatController(agentExecutor = agentExecutor, intentResolver = intentResolver)
+            val commandSlot = slot<AgentCommand>()
+            coEvery { intentResolver.resolve(any(), any()) } returns null
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            controllerWithIntent.chat(ChatRequest(message = "hello"), exchange)
+
+            assertEquals(true, commandSlot.captured.metadata[IntentResolver.METADATA_INTENT_RESOLUTION_ATTEMPTED]) {
+                "Controller should mark that intent resolution already ran"
+            }
+            assertTrue(commandSlot.captured.metadata.containsKey(IntentResolver.METADATA_INTENT_RESOLUTION_DURATION_MS)) {
+                "Controller should preserve intent resolution duration for downstream stage timing"
+            }
+        }
+
+        @Test
+        fun `should defer loading conversation history until intent resolver accesses it`() = runTest {
+            val intentResolver = mockk<IntentResolver>()
+            val memoryStore = mockk<MemoryStore>()
+            val controllerWithIntent = ChatController(
+                agentExecutor = agentExecutor,
+                intentResolver = intentResolver,
+                memoryStore = memoryStore
+            )
+            coEvery { intentResolver.resolve(any(), any()) } returns null
+            coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
+
+            controllerWithIntent.chat(
+                ChatRequest(message = "hello", metadata = mapOf("sessionId" to "session-1")),
+                exchange
+            )
+
+            verify(exactly = 0) { memoryStore.get(any()) }
         }
 
         @Test
@@ -301,13 +346,16 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `should return failure response with error message`() = runTest {
+        fun `should return failure response with error message and appropriate HTTP status`() = runTest {
             coEvery { agentExecutor.execute(any()) } returns AgentResult.failure(
-                errorMessage = "Rate limit exceeded"
+                errorMessage = "Rate limit exceeded",
+                errorCode = AgentErrorCode.RATE_LIMITED
             )
 
-            val response = controller.chat(ChatRequest(message = "hello"), exchange)
+            val entity = controller.chat(ChatRequest(message = "hello"), exchange)
 
+            assertEquals(HttpStatus.TOO_MANY_REQUESTS, entity.statusCode) { "Rate limited should return HTTP 429" }
+            val response = entity.body!!
             assertFalse(response.success) { "Response should indicate failure" }
             assertNull(response.content) { "Content should be null on failure" }
             assertEquals("Rate limit exceeded", response.errorMessage) { "Error message should be forwarded" }
@@ -317,9 +365,9 @@ class ChatControllerTest {
         fun `should forward model in response`() = runTest {
             coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
 
-            val response = controller.chat(ChatRequest(message = "hi", model = "gemini-2.0-flash"), exchange)
+            val entity = controller.chat(ChatRequest(message = "hi", model = "gemini-2.0-flash"), exchange)
 
-            assertEquals("gemini-2.0-flash", response.model) { "Model should be forwarded in response" }
+            assertEquals("gemini-2.0-flash", entity.body!!.model) { "Model should be forwarded in response" }
         }
 
         @Test
@@ -519,6 +567,44 @@ class ChatControllerTest {
         fun `empty string should not be a marker`() {
             assertFalse(StreamEventMarker.isMarker("")) { "Empty string should not be a marker" }
             assertNull(StreamEventMarker.parse("")) { "Empty string should not be parseable" }
+        }
+    }
+
+    @Nested
+    inner class ErrorCodeToHttpStatus {
+
+        @Test
+        fun `should map error codes to correct HTTP status codes`() {
+            assertEquals(HttpStatus.TOO_MANY_REQUESTS, mapErrorCodeToStatus(AgentErrorCode.RATE_LIMITED)) {
+                "RATE_LIMITED should map to 429"
+            }
+            assertEquals(HttpStatus.FORBIDDEN, mapErrorCodeToStatus(AgentErrorCode.GUARD_REJECTED)) {
+                "GUARD_REJECTED should map to 403"
+            }
+            assertEquals(HttpStatus.FORBIDDEN, mapErrorCodeToStatus(AgentErrorCode.HOOK_REJECTED)) {
+                "HOOK_REJECTED should map to 403"
+            }
+            assertEquals(HttpStatus.GATEWAY_TIMEOUT, mapErrorCodeToStatus(AgentErrorCode.TIMEOUT)) {
+                "TIMEOUT should map to 504"
+            }
+            assertEquals(HttpStatus.SERVICE_UNAVAILABLE, mapErrorCodeToStatus(AgentErrorCode.CIRCUIT_BREAKER_OPEN)) {
+                "CIRCUIT_BREAKER_OPEN should map to 503"
+            }
+            assertEquals(HttpStatus.BAD_REQUEST, mapErrorCodeToStatus(AgentErrorCode.CONTEXT_TOO_LONG)) {
+                "CONTEXT_TOO_LONG should map to 400"
+            }
+            assertEquals(HttpStatus.OK, mapErrorCodeToStatus(AgentErrorCode.OUTPUT_GUARD_REJECTED)) {
+                "OUTPUT_GUARD_REJECTED should remain 200 (request succeeded, output filtered)"
+            }
+            assertEquals(HttpStatus.OK, mapErrorCodeToStatus(AgentErrorCode.OUTPUT_TOO_SHORT)) {
+                "OUTPUT_TOO_SHORT should remain 200 (request succeeded, output filtered)"
+            }
+            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, mapErrorCodeToStatus(AgentErrorCode.UNKNOWN)) {
+                "UNKNOWN should map to 500"
+            }
+            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, mapErrorCodeToStatus(null)) {
+                "null error code should map to 500"
+            }
         }
     }
 

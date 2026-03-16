@@ -137,7 +137,10 @@ class AuthConfiguration {
     @Bean
     @ConditionalOnMissingBean(name = ["authRateLimitFilter"])
     fun authRateLimitFilter(authProperties: AuthProperties): WebFilter =
-        AuthRateLimitFilter(maxAttemptsPerMinute = authProperties.loginRateLimitPerMinute)
+        AuthRateLimitFilter(
+            maxAttemptsPerMinute = authProperties.loginRateLimitPerMinute,
+            trustForwardedHeaders = authProperties.trustForwardedHeaders
+        )
 }
 
 private fun parseTokenRevocationStore(environment: Environment): TokenRevocationStoreType {

@@ -70,8 +70,16 @@ class LlmIntentClassifier(
                 )
             }
 
-            val primary = parsed.first()
-            val secondary = parsed.drop(1)
+            if (parsed.intents.isEmpty()) {
+                return IntentResult.unknown(
+                    classifiedBy = CLASSIFIER_NAME,
+                    tokenCost = tokenCost,
+                    latencyMs = latencyMs
+                )
+            }
+
+            val primary = parsed.intents.first()
+            val secondary = parsed.intents.drop(1)
 
             logger.debug {
                 "LLM classifier: intent=${primary.intentName} " +
@@ -131,7 +139,7 @@ class LlmIntentClassifier(
     }
 
     private fun buildConversationContext(context: ClassificationContext): String {
-        val history = context.conversationHistory
+        val history = context.resolveConversationHistory()
         if (history.isEmpty()) return ""
 
         val recentMessages = history.takeLast(maxConversationTurns * 2)
@@ -152,7 +160,7 @@ class LlmIntentClassifier(
         return response?.result?.output?.text.orEmpty()
     }
 
-    internal fun parseResponse(response: String): List<ClassifiedIntent>? {
+    internal fun parseResponse(response: String): ParsedClassificationResponse? {
         return try {
             val cleaned = response
                 .replace(CODE_FENCE_REGEX, "")
@@ -164,7 +172,7 @@ class LlmIntentClassifier(
                 .map { ClassifiedIntent(intentName = it.name, confidence = it.confidence.coerceIn(0.0, 1.0)) }
                 .sortedByDescending { it.confidence }
 
-            validIntents.ifEmpty { null }
+            ParsedClassificationResponse(validIntents)
         } catch (e: Exception) {
             logger.debug(e) { "Failed to parse LLM classification response" }
             null
@@ -182,6 +190,10 @@ class LlmIntentClassifier(
     private data class LlmClassifiedIntent(
         val name: String,
         val confidence: Double
+    )
+
+    internal data class ParsedClassificationResponse(
+        val intents: List<ClassifiedIntent>
     )
 
     companion object {

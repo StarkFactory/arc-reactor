@@ -55,8 +55,17 @@ interface McpManager {
  */
 data class McpSecurityConfig(
     val allowedServerNames: Set<String> = emptySet(),
-    val maxToolOutputLength: Int = 50_000
-)
+    val maxToolOutputLength: Int = 50_000,
+    val allowedStdioCommands: Set<String> = DEFAULT_ALLOWED_STDIO_COMMANDS
+) {
+    companion object {
+        /** Default set of known-safe STDIO executables for MCP servers. */
+        val DEFAULT_ALLOWED_STDIO_COMMANDS: Set<String> = setOf(
+            "npx", "node", "python", "python3", "uvx", "uv",
+            "docker", "deno", "bun"
+        )
+    }
+}
 
 /**
  * Default MCP manager implementation.
@@ -72,7 +81,8 @@ class DefaultMcpManager(
     private val securityConfig: McpSecurityConfig = McpSecurityConfig(),
     private val securityConfigProvider: () -> McpSecurityConfig = { securityConfig },
     private val store: McpServerStore? = null,
-    private val reconnectionProperties: McpReconnectionProperties = McpReconnectionProperties()
+    private val reconnectionProperties: McpReconnectionProperties = McpReconnectionProperties(),
+    private val allowPrivateAddresses: Boolean = false
 ) : McpManager, AutoCloseable {
 
     private val servers = ConcurrentHashMap<String, McpServer>()
@@ -81,12 +91,17 @@ class DefaultMcpManager(
     internal val statuses = ConcurrentHashMap<String, McpServerStatus>()
     private val serverMutexes = ConcurrentHashMap<String, Mutex>()
     private val duplicateToolWarningKeys = ConcurrentHashMap.newKeySet<String>()
+    @Volatile
+    private var allToolCallbacksSnapshot: List<ToolCallback>? = null
+    private val toolCallbacksSnapshotLock = Any()
 
     private val reconnectScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val storeSync = McpStoreSync(store)
     private val connectionSupport = McpConnectionSupport(
         connectionTimeoutMs = connectionTimeoutMs,
         maxToolOutputLengthProvider = { currentSecurityConfig().maxToolOutputLength },
+        allowPrivateAddresses = allowPrivateAddresses,
+        allowedStdioCommandsProvider = { currentSecurityConfig().allowedStdioCommands },
         onConnectionError = { serverName -> handleConnectionError(serverName) }
     )
     private val reconnectionCoordinator = McpReconnectionCoordinator(
@@ -181,6 +196,13 @@ class DefaultMcpManager(
         return mutexFor(serverName).withLock {
             try {
                 logger.info { "Connecting to MCP server: $serverName" }
+
+                // Close existing client before opening a new one to prevent resource leak
+                clients.remove(serverName)?.let { oldClient ->
+                    connectionSupport.close(serverName, oldClient)
+                }
+                toolCallbacksCache.remove(serverName)
+
                 statuses[serverName] = McpServerStatus.CONNECTING
 
                 val handle = connectionSupport.open(server)
@@ -192,6 +214,7 @@ class DefaultMcpManager(
 
                 clients[serverName] = handle.client
                 toolCallbacksCache[serverName] = handle.tools
+                invalidateAllToolCallbacksSnapshot()
                 statuses[serverName] = McpServerStatus.CONNECTED
                 reconnectionCoordinator.clear(serverName)
                 logger.info { "MCP server connected: $serverName with ${handle.tools.size} tools" }
@@ -221,6 +244,7 @@ class DefaultMcpManager(
         }
 
         toolCallbacksCache.remove(serverName)
+        invalidateAllToolCallbacksSnapshot()
         statuses[serverName] = McpServerStatus.DISCONNECTED
     }
 
@@ -231,8 +255,11 @@ class DefaultMcpManager(
     internal fun handleConnectionError(serverName: String) {
         if (statuses[serverName] != McpServerStatus.CONNECTED) return
         logger.warn { "MCP connection error detected on tool call for '$serverName' — marking FAILED and scheduling reconnection" }
-        clients.remove(serverName)
+        clients.remove(serverName)?.let { client ->
+            connectionSupport.close(serverName, client)
+        }
         toolCallbacksCache.remove(serverName)
+        invalidateAllToolCallbacksSnapshot()
         statuses[serverName] = McpServerStatus.FAILED
         reconnectionCoordinator.schedule(serverName)
     }
@@ -280,14 +307,20 @@ class DefaultMcpManager(
     }
 
     override fun getAllToolCallbacks(): List<ToolCallback> {
-        return deduplicateCallbacksByName(toolCallbacksCache) { toolName, keptServer, droppedServer ->
-            val warningKey = "$toolName|$keptServer|$droppedServer"
-            if (duplicateToolWarningKeys.add(warningKey)) {
-                logger.warn {
-                    "Duplicate MCP tool name '$toolName' detected across servers. " +
-                        "Keeping '$keptServer', ignoring '$droppedServer'."
+        allToolCallbacksSnapshot?.let { return it }
+        synchronized(toolCallbacksSnapshotLock) {
+            allToolCallbacksSnapshot?.let { return it }
+            val snapshot = deduplicateCallbacksByName(toolCallbacksCache) { toolName, keptServer, droppedServer ->
+                val warningKey = "$toolName|$keptServer|$droppedServer"
+                if (duplicateToolWarningKeys.add(warningKey)) {
+                    logger.warn {
+                        "Duplicate MCP tool name '$toolName' detected across servers. " +
+                            "Keeping '$keptServer', ignoring '$droppedServer'."
+                    }
                 }
             }
+            allToolCallbacksSnapshot = snapshot
+            return snapshot
         }
     }
 
@@ -313,6 +346,10 @@ class DefaultMcpManager(
         servers.clear()
         statuses.clear()
         serverMutexes.clear()
+    }
+
+    private fun invalidateAllToolCallbacksSnapshot() {
+        allToolCallbacksSnapshot = null
     }
 }
 

@@ -106,15 +106,33 @@ arc:
       token-revocation-redis-key-prefix: ${ARC_REACTOR_AUTH_TOKEN_REVOCATION_REDIS_KEY_PREFIX:arc:auth:revoked}
       public-actuator-health: ${ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH:true}
 
+    tool-enrichment:
+      requester-aware-tool-names:
+        - jira_my_open_issues
+        - jira_due_soon_issues
+        - jira_blocker_digest
+        - jira_daily_briefing
+        - jira_search_my_issues_by_text
+        - bitbucket_review_queue
+        - bitbucket_review_sla_alerts
+        - bitbucket_my_authored_prs
+        - work_personal_focus_plan
+        - work_personal_learning_digest
+        - work_personal_interrupt_guard
+        - work_personal_end_of_day_wrapup
+        - work_prepare_standup_update
+        - work_personal_document_search
+
     boundaries:
       input-min-chars: 1
       input-max-chars: 10000
-      system-prompt-max-chars: 0
+      system-prompt-max-chars: 50000
 
     rag:
       enabled: ${ARC_REACTOR_RAG_ENABLED:false}
       similarity-threshold: 0.3
       query-transformer: ${ARC_REACTOR_RAG_QUERY_TRANSFORMER:passthrough}
+      retrieval-timeout-ms: ${ARC_REACTOR_RAG_RETRIEVAL_TIMEOUT_MS:5000}
       chunking:
         enabled: ${ARC_REACTOR_RAG_CHUNKING_ENABLED:false}
         chunk-size: ${ARC_REACTOR_RAG_CHUNKING_CHUNK_SIZE:512}
@@ -149,6 +167,7 @@ arc:
     mcp:
       security:
         allowed-server-names: ${ARC_REACTOR_MCP_ALLOWED_SERVER_NAMES:atlassian}
+      allow-private-addresses: ${ARC_REACTOR_MCP_ALLOW_PRIVATE_ADDRESSES:false}
 
     slack:
       enabled: ${ARC_REACTOR_SLACK_ENABLED:false}
@@ -200,6 +219,15 @@ management:
     health:
       probes:
         enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Arc Reactor
+    description: AI Agent Framework
+    version: ${project.version:unknown}
 
 # ----- Spring WebFlux Multipart (optional override) -----
 # Uncomment to cap in-memory buffer before Arc Reactor's per-file limit is evaluated.
@@ -212,3 +240,4 @@ management:
 logging:
   level:
     com.arc.reactor: INFO
+    io.netty.resolver.dns.DnsServerAddressStreamProviders: WARN

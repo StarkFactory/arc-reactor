@@ -23,6 +23,7 @@ internal class AgentExecutionCoordinator(
     private val responseCache: ResponseCache?,
     private val cacheableTemperature: Double,
     private val defaultTemperature: Double,
+    private val maxToolCallsLimit: Int = Int.MAX_VALUE,
     private val fallbackStrategy: FallbackStrategy?,
     private val agentMetrics: AgentMetrics,
     private val toolCallbacks: List<ToolCallback>,
@@ -79,7 +80,7 @@ internal class AgentExecutionCoordinator(
         agentMetrics.recordStageLatency("rag_retrieval", nowMs() - ragStart, effectiveCommand.metadata)
 
         val toolSelectionStart = nowMs()
-        val selectedTools = if (effectiveCommand.mode == AgentMode.STANDARD) {
+        val selectedTools = if (shouldSkipToolSelection(effectiveCommand)) {
             emptyList()
         } else {
             selectAndPrepareTools(effectiveCommand.userPrompt)
@@ -242,6 +243,15 @@ internal class AgentExecutionCoordinator(
 
     private fun isCacheable(command: AgentCommand): Boolean {
         return (command.temperature ?: defaultTemperature) <= cacheableTemperature
+    }
+
+    private fun shouldSkipToolSelection(command: AgentCommand): Boolean {
+        if (command.mode == AgentMode.STANDARD) return true
+        return effectiveMaxToolCalls(command) == 0
+    }
+
+    private fun effectiveMaxToolCalls(command: AgentCommand): Int {
+        return minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(0)
     }
 
     private data class CacheLookupResult(

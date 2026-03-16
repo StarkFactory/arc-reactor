@@ -3,7 +3,9 @@ package com.arc.reactor.agent.impl
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.model.RagQuery
-import com.arc.reactor.support.runSuspendCatchingNonCancellation
+import com.arc.reactor.support.throwIfCancellation
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -12,24 +14,31 @@ internal class RagContextRetriever(
     private val enabled: Boolean,
     private val topK: Int,
     private val rerankEnabled: Boolean,
-    private val ragPipeline: RagPipeline?
+    private val ragPipeline: RagPipeline?,
+    private val retrievalTimeoutMs: Long = 5000
 ) {
 
     suspend fun retrieve(command: AgentCommand): String? {
         if (!enabled || ragPipeline == null) return null
 
-        return runSuspendCatchingNonCancellation {
-            val ragFilters = extractRagFilters(command.metadata)
-            val ragResult = ragPipeline.retrieve(
-                RagQuery(
-                    query = command.userPrompt,
-                    filters = ragFilters,
-                    topK = topK,
-                    rerank = rerankEnabled
+        return try {
+            withTimeout(retrievalTimeoutMs) {
+                val ragFilters = extractRagFilters(command.metadata)
+                val ragResult = ragPipeline.retrieve(
+                    RagQuery(
+                        query = command.userPrompt,
+                        filters = ragFilters,
+                        topK = topK,
+                        rerank = rerankEnabled
+                    )
                 )
-            )
-            if (ragResult.hasDocuments) ragResult.context else null
-        }.getOrElse { e ->
+                if (ragResult.hasDocuments) ragResult.context else null
+            }
+        } catch (e: TimeoutCancellationException) {
+            logger.warn { "RAG retrieval timed out after ${retrievalTimeoutMs}ms, continuing without context" }
+            null
+        } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "RAG retrieval failed, continuing without context" }
             null
         }

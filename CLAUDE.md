@@ -29,7 +29,7 @@ Spring AI-based AI Agent framework (Kotlin/Spring Boot). Fork and attach tools t
 | `max-tools-per-request` | 20 | `concurrency.tool-call-timeout-ms` | 15000 |
 | `llm.temperature` | 0.3 | `guard.rate-limit-per-minute` | 10 |
 | `llm.max-context-window-tokens` | 128000 | `guard.rate-limit-per-hour` | 100 |
-| `boundaries.input-max-chars` | 5000 | | |
+| `boundaries.input-max-chars` | 10000 | | |
 
 ## Architecture
 

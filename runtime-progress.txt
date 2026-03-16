@@ -1,0 +1,21 @@
+[Runtime 반복 2 계속] 2026-03-13 — 렌즈 8: Approval Flow
+- Pending list 200 (빈 배열), approve/reject non-existent → 200 + success=false (envelope 패턴, 설계 의도)
+- Tool policies 404 (ConditionalOnBean 미충족, 설계 의도)
+- No-auth → 401 PASS
+- P0-P3 이슈: 0건
+
+[Runtime 반복 2 계속] 2026-03-13 — 렌즈 9: Admin UI (E2E)
+- Playwright 33 tests 전부 PASS (11.1s)
+- P0-P3 이슈: 0건
+
+[Runtime 반복 2 계속] 2026-03-13 — 렌즈 10: Error & Edge
+- Invalid JSON→400, non-existent→404, oversized→403, empty→400, no auth→401, bad JWT→401, wrong method→405
+- 동시 요청 10건→전부 200 OK
+- P0-P3 이슈: 0건
+
+[Runtime 반복 3] 2026-03-13 — 수렴 검증 (전체 렌즈 스윕)
+- Auth /me→200, Chat sync→200, MCP servers→CONNECTED(swagger 11, atlassian 41)
+- RAG upload→201, search→OK, delete→204
+- Persona create→201, delete→204, Session list→200
+- Error edge→400/401/404/405 모두 정상
+- 신규 P0-P3 이슈: 0건 → 수렴 완료

@@ -124,11 +124,14 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `should block unverified informational answer without workspace tool`() = runTest {
+    fun `should block unverified workspace question without tool`() = runTest {
         val result = filter.filter(
-            content = "정답은 4입니다.",
+            content = "배포 정책은 매주 수요일입니다.",
             context = ResponseFilterContext(
-                command = AgentCommand(systemPrompt = "sys", userPrompt = "2+2가 뭐야?"),
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "우리팀 배포 정책이 뭐야?"
+                ),
                 toolsUsed = emptyList(),
                 verifiedSources = emptyList(),
                 durationMs = 75
@@ -136,7 +139,47 @@ class VerifiedSourcesResponseFilterTest {
         )
 
         assertTrue(result.contains("검증 가능한 출처를 찾지 못해")) {
-            "Informational answers without verified sources should fail closed"
+            "Workspace questions without verified sources should fail closed"
+        }
+    }
+
+    @Test
+    fun `should allow general question without workspace context`() = runTest {
+        val result = filter.filter(
+            content = "오늘 서울 날씨는 맑겠습니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "오늘 날씨 어때?"
+                ),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 50
+            )
+        )
+
+        assertTrue(!result.contains("검증 가능한 출처를 찾지 못해")) {
+            "General questions without workspace context should not be blocked"
+        }
+    }
+
+    @Test
+    fun `should allow how are you style greetings`() = runTest {
+        val result = filter.filter(
+            content = "I'm doing well, thanks!",
+            context = ResponseFilterContext(
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "how are you?"
+                ),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 40
+            )
+        )
+
+        assertTrue(!result.contains("couldn't verify")) {
+            "General English questions should not be blocked"
         }
     }
 
@@ -157,6 +200,52 @@ class VerifiedSourcesResponseFilterTest {
         }
         assertTrue(result.endsWith("출처\n- 검증된 출처를 찾지 못했습니다.")) {
             "Casual replies should still include the mandatory footer"
+        }
+    }
+
+    @Test
+    fun `should keep casual Korean greetings unblocked`() = runTest {
+        val greetings = listOf("안녕하세요", "안녕하세요!", "반갑습니다")
+        for (greeting in greetings) {
+            val result = filter.filter(
+                content = "안녕하세요! 무엇을 도와드릴까요?",
+                context = ResponseFilterContext(
+                    command = AgentCommand(
+                        systemPrompt = "sys",
+                        userPrompt = greeting
+                    ),
+                    toolsUsed = emptyList(),
+                    verifiedSources = emptyList(),
+                    durationMs = 40
+                )
+            )
+
+            assertTrue(result.startsWith("안녕하세요!")) {
+                "Casual greeting '$greeting' should not be blocked"
+            }
+        }
+    }
+
+    @Test
+    fun `should keep casual Korean acknowledgements unblocked`() = runTest {
+        val acks = listOf("네", "알겠습니다", "좋아", "고마워요")
+        for (ack in acks) {
+            val result = filter.filter(
+                content = "다른 도움이 필요하시면 말씀해 주세요.",
+                context = ResponseFilterContext(
+                    command = AgentCommand(
+                        systemPrompt = "sys",
+                        userPrompt = ack
+                    ),
+                    toolsUsed = emptyList(),
+                    verifiedSources = emptyList(),
+                    durationMs = 40
+                )
+            )
+
+            assertTrue(!result.contains("검증 가능한 출처를 찾지 못해")) {
+                "Acknowledgement '$ack' should not be blocked"
+            }
         }
     }
 

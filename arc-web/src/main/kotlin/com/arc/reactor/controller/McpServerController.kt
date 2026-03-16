@@ -15,7 +15,6 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
@@ -98,6 +97,11 @@ class McpServerController(
             return badRequest("HTTP transport is not supported. Use SSE or STDIO.")
         }
 
+        if (transportType == McpTransportType.SSE) {
+            val urlError = validateSseUrl(request.config)
+            if (urlError != null) return badRequest(urlError)
+        }
+
         val server = request.toMcpServer(transportType)
         mcpManager.register(server)
         val registeredInRuntime = mcpManager.getStatus(server.name) != null ||
@@ -178,7 +182,7 @@ class McpServerController(
         ApiResponse(responseCode = "404", description = "MCP server not found")
     ])
     @PutMapping("/{name}")
-    fun updateServer(
+    suspend fun updateServer(
         @PathVariable name: String,
         @Valid @RequestBody request: UpdateMcpServerRequest,
         exchange: ServerWebExchange
@@ -197,11 +201,17 @@ class McpServerController(
             return badRequest("HTTP transport is not supported. Use SSE or STDIO.")
         }
 
+        val effectiveConfig = request.config ?: existing.config
+        if (transportType == McpTransportType.SSE) {
+            val urlError = validateSseUrl(effectiveConfig)
+            if (urlError != null) return badRequest(urlError)
+        }
+
         val updateData = McpServer(
             name = name,
             description = request.description ?: existing.description,
             transportType = transportType,
-            config = request.config ?: existing.config,
+            config = effectiveConfig,
             version = request.version ?: existing.version,
             autoConnect = request.autoConnect ?: existing.autoConnect
         )
@@ -224,7 +234,7 @@ class McpServerController(
         return ResponseEntity.ok(updated.toResponse())
     }
 
-    private fun applyRuntimeUpdate(
+    private suspend fun applyRuntimeUpdate(
         existing: McpServer,
         updated: McpServer,
         previousStatus: McpServerStatus?
@@ -236,7 +246,7 @@ class McpServerController(
             previousStatus != McpServerStatus.CONNECTING
 
         when {
-            reconnectRequired -> runBlocking(Dispatchers.IO) {
+            reconnectRequired -> withContext(Dispatchers.IO) {
                 logger.info { "Reconnecting MCP server '${updated.name}' after configuration update" }
                 mcpManager.disconnect(updated.name)
                 val connected = mcpManager.connect(updated.name)
@@ -245,7 +255,7 @@ class McpServerController(
                 }
             }
 
-            connectRequired -> runBlocking(Dispatchers.IO) {
+            connectRequired -> withContext(Dispatchers.IO) {
                 logger.info { "Connecting MCP server '${updated.name}' after enabling autoConnect or updating config" }
                 val connected = mcpManager.connect(updated.name)
                 if (!connected) {
@@ -385,6 +395,12 @@ class McpServerController(
         ResponseEntity.badRequest().body(
             ErrorResponse(error = message, timestamp = Instant.now().toString())
         )
+
+    private fun validateSseUrl(config: Map<String, Any>): String? {
+        val url = config["url"]?.toString()
+            ?: return "SSE transport requires a 'url' in config"
+        return SsrfUrlValidator.validate(url)
+    }
 
     private fun persistServerIfMissing(server: McpServer) {
         if (mcpServerStore.findByName(server.name) != null) return

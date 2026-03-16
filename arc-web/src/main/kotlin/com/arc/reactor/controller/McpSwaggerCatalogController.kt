@@ -333,7 +333,7 @@ class McpSwaggerCatalogController(
         } catch (e: Exception) {
             e.throwIfCancellation()
             swaggerCatalogLogger.warn(e) { "Failed to proxy Swagger catalog request to MCP server '$name'" }
-            errorResponse(HttpStatus.BAD_GATEWAY, "Failed to call MCP admin API: ${e.message}")
+            errorResponse(HttpStatus.BAD_GATEWAY, "Failed to call MCP admin API")
         }
 
         observeProxyCall(name, method, response.statusCode.value(), startedAtNanos)
@@ -375,7 +375,10 @@ class McpSwaggerCatalogController(
         }
     }
 
-    private fun recordAudit(serverName: String, actor: String, action: String, statusCode: Int, detail: String? = null) {
+    private fun recordAudit(
+        serverName: String, actor: String, action: String,
+        statusCode: Int, detail: String? = null
+    ) {
         recordAdminAudit(
             store = adminAuditStore,
             category = "mcp_swagger_catalog",

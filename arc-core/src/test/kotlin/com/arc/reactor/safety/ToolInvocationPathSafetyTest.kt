@@ -1,6 +1,7 @@
 package com.arc.reactor.safety
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import java.nio.file.Path
@@ -8,6 +9,7 @@ import java.nio.file.Paths
 import kotlin.io.path.isRegularFile
 import kotlin.streams.asSequence
 
+@Tag("safety")
 class ToolInvocationPathSafetyTest {
 
     @Test

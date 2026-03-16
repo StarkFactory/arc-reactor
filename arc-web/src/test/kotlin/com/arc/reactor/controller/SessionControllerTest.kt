@@ -2,6 +2,7 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.agent.model.Message
 import com.arc.reactor.agent.model.MessageRole
+import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.ConversationMemory
@@ -14,6 +15,7 @@ import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.auth.UserRole
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -26,6 +28,7 @@ class SessionControllerTest {
 
     private lateinit var memoryStore: MemoryStore
     private lateinit var chatModelProvider: ChatModelProvider
+    private lateinit var adminAuditStore: AdminAuditStore
     private lateinit var summaryStoreProvider: ObjectProvider<ConversationSummaryStore>
     private lateinit var conversationManagerProvider: ObjectProvider<ConversationManager>
     private lateinit var summaryStore: ConversationSummaryStore
@@ -37,6 +40,7 @@ class SessionControllerTest {
     fun setup() {
         memoryStore = mockk()
         chatModelProvider = mockk()
+        adminAuditStore = mockk(relaxed = true)
         summaryStore = mockk(relaxed = true)
         conversationManager = mockk(relaxed = true)
         summaryStoreProvider = mockk()
@@ -44,11 +48,11 @@ class SessionControllerTest {
         every { summaryStoreProvider.ifAvailable } returns summaryStore
         every { conversationManagerProvider.ifAvailable } returns conversationManager
         controller = SessionController(
-            memoryStore, chatModelProvider, summaryStoreProvider, conversationManagerProvider
+            memoryStore, chatModelProvider, adminAuditStore, summaryStoreProvider, conversationManagerProvider
         )
         exchange = mockk()
         every { exchange.attributes } returns mutableMapOf(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
-        every { memoryStore.getSessionOwner(any()) } returns null
+        every { memoryStore.getSessionOwner(any()) } returns "user-1"
     }
 
     @Nested
@@ -219,6 +223,24 @@ class SessionControllerTest {
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404" }
         }
+
+        @Test
+        fun `should sanitize session id in Content-Disposition header`() = runTest {
+            val maliciousId = "session\r\nX-Injected: evil"
+            val memory = mockk<ConversationMemory>()
+            every { memoryStore.get(maliciousId) } returns memory
+            every { memory.getHistory() } returns listOf(
+                Message(MessageRole.USER, "Hello!")
+            )
+
+            val response = controller.exportSession(maliciousId, "json", exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
+            val disposition = response.headers["Content-Disposition"]?.firstOrNull().orEmpty()
+            assertFalse(disposition.contains("\r")) { "Content-Disposition must not contain CR" }
+            assertFalse(disposition.contains("\n")) { "Content-Disposition must not contain LF" }
+            assertTrue(disposition.contains("session_")) { "Unsafe chars should be replaced with underscore" }
+        }
     }
 
     @Nested
@@ -265,7 +287,7 @@ class SessionControllerTest {
             every { summaryStoreProvider.ifAvailable } returns null
             every { conversationManagerProvider.ifAvailable } returns null
             val noSummaryController = SessionController(
-                memoryStore, chatModelProvider, summaryStoreProvider, conversationManagerProvider
+                memoryStore, chatModelProvider, adminAuditStore, summaryStoreProvider, conversationManagerProvider
             )
             every { memoryStore.remove("session-1") } returns Unit
 
@@ -317,17 +339,16 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should allow access when session has no owner`() = runTest {
+        fun `should deny access when session has no owner`() = runTest {
             val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
             every { exchange.attributes } returns attrs
             every { memoryStore.getSessionOwner("session-1") } returns null
-            val memory = mockk<ConversationMemory>()
-            every { memoryStore.get("session-1") } returns memory
-            every { memory.getHistory() } returns emptyList()
 
             val response = controller.getSession("session-1", exchange)
 
-            assertEquals(HttpStatus.OK, response.statusCode) { "Should allow access when no owner recorded" }
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "Deny-by-default: unowned sessions should not be accessible"
+            }
         }
 
         @Test
@@ -363,6 +384,44 @@ class SessionControllerTest {
 
             assertEquals(HttpStatus.UNAUTHORIZED, response.statusCode) {
                 "Missing user context should fail-close with 401"
+            }
+        }
+
+        @Test
+        fun `admin should access any session regardless of ownership`() = runTest {
+            val attrs = mutableMapOf<String, Any>(
+                JwtAuthWebFilter.USER_ID_ATTRIBUTE to "admin-1",
+                JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.ADMIN
+            )
+            every { exchange.attributes } returns attrs
+            every { memoryStore.getSessionOwner("session-1") } returns "user-2"
+            val memory = mockk<ConversationMemory>()
+            every { memoryStore.get("session-1") } returns memory
+            every { memory.getHistory() } returns emptyList()
+
+            val response = controller.getSession("session-1", exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "Admin should bypass ownership check"
+            }
+        }
+
+        @Test
+        fun `admin should access unowned session`() = runTest {
+            val attrs = mutableMapOf<String, Any>(
+                JwtAuthWebFilter.USER_ID_ATTRIBUTE to "admin-1",
+                JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.ADMIN
+            )
+            every { exchange.attributes } returns attrs
+            every { memoryStore.getSessionOwner("session-1") } returns null
+            val memory = mockk<ConversationMemory>()
+            every { memoryStore.get("session-1") } returns memory
+            every { memory.getHistory() } returns emptyList()
+
+            val response = controller.getSession("session-1", exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "Admin should access sessions even without owner"
             }
         }
     }

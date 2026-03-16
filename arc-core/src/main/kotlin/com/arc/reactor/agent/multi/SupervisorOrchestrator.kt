@@ -79,7 +79,10 @@ class SupervisorOrchestrator(
         // 4. Execute the Supervisor agent (using existing SpringAiAgentExecutor as-is)
         val supervisorAgent = agentFactory(supervisorNode)
         val result = supervisorAgent.execute(
-            command.copy(systemPrompt = systemPrompt)
+            command.copy(
+                systemPrompt = systemPrompt,
+                maxToolCalls = supervisorNode.maxToolCalls
+            )
         )
 
         val totalDuration = System.currentTimeMillis() - startTime

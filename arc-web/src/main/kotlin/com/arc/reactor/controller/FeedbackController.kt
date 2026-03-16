@@ -1,10 +1,12 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.feedback.Feedback
 import com.arc.reactor.feedback.FeedbackRating
 import com.arc.reactor.feedback.FeedbackStore
 import com.arc.reactor.hook.impl.FeedbackMetadataCaptureHook
 import io.swagger.v3.oas.annotations.Operation
+import mu.KotlinLogging
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -16,6 +18,8 @@ import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.ServerWebInputException
 import java.time.Instant
 import java.time.format.DateTimeParseException
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * Feedback API Controller
@@ -51,11 +55,15 @@ class FeedbackController(
     ])
     @PostMapping
     fun submitFeedback(
-        @RequestBody request: SubmitFeedbackRequest
+        @RequestBody request: SubmitFeedbackRequest,
+        exchange: ServerWebExchange
     ): ResponseEntity<FeedbackResponse> {
         val rating = parseRating(request.rating)
+        val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
 
         val metadata = request.runId?.let { metadataCaptureHook.get(it) }
+
+        logger.info { "audit category=feedback action=SUBMIT actor=${userId ?: "anonymous"} sessionId=${request.sessionId}" }
 
         val feedback = Feedback(
             query = enrichString(request.query, metadata?.userPrompt),
@@ -64,7 +72,7 @@ class FeedbackController(
             comment = request.comment,
             sessionId = request.sessionId ?: metadata?.sessionId,
             runId = request.runId,
-            userId = null,
+            userId = userId,
             intent = request.intent,
             domain = request.domain,
             model = request.model,

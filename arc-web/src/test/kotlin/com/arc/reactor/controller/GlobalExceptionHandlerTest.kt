@@ -7,10 +7,13 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpMethod
 import org.springframework.validation.BindingResult
 import org.springframework.validation.FieldError
 import org.springframework.web.bind.support.WebExchangeBindException
 import org.springframework.web.reactive.resource.NoResourceFoundException
+import org.springframework.web.server.MethodNotAllowedException
+import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.server.ServerWebInputException
 
 class GlobalExceptionHandlerTest {
@@ -85,6 +88,40 @@ class GlobalExceptionHandlerTest {
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404" }
             assertEquals("Not found", response.body!!.error) { "Should have generic not found message" }
             assertNotNull(response.body!!.timestamp) { "Should include timestamp" }
+        }
+    }
+
+    @Nested
+    inner class ResponseStatusErrors {
+
+        @Test
+        fun `should preserve explicit response status and reason`() {
+            val ex = ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing authenticated user context")
+
+            val response = handler.handleResponseStatusException(ex)
+
+            assertEquals(HttpStatus.UNAUTHORIZED, response.statusCode) { "Should preserve 401 UNAUTHORIZED" }
+            assertEquals("Missing authenticated user context", response.body!!.error) {
+                "Should preserve the explicit ResponseStatusException reason"
+            }
+            assertNotNull(response.body!!.timestamp) { "Should include timestamp" }
+        }
+
+        @Test
+        fun `should preserve framework method not allowed responses`() {
+            val ex = MethodNotAllowedException(HttpMethod.POST, setOf(HttpMethod.GET))
+
+            val response = handler.handleResponseStatusException(ex)
+
+            assertEquals(HttpStatus.METHOD_NOT_ALLOWED, response.statusCode) {
+                "Should preserve 405 METHOD_NOT_ALLOWED"
+            }
+            assertTrue(response.body!!.error.contains("POST")) {
+                "Error should explain the unsupported method, got: ${response.body!!.error}"
+            }
+            assertFalse(response.body!!.error.contains("Internal server error")) {
+                "405 errors must not be rewritten to generic 500 responses"
+            }
         }
     }
 

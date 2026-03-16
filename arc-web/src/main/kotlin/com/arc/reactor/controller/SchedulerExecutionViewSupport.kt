@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 private val schedulerFailurePrefix = Regex("^Job\\s+'[^']+'\\s+failed:\\s*", RegexOption.IGNORE_CASE)
+private val whitespaceRegex = Regex("\\s+")
 
 internal fun schedulerFailureReason(result: String?): String? {
     val value = result?.trim().orEmpty()
@@ -10,7 +11,7 @@ internal fun schedulerFailureReason(result: String?): String? {
 }
 
 internal fun schedulerResultPreview(result: String?, maxLength: Int = 140): String? {
-    val normalized = result?.replace(Regex("\\s+"), " ")?.trim().orEmpty()
+    val normalized = result?.replace(whitespaceRegex, " ")?.trim().orEmpty()
     if (normalized.isBlank()) return null
     return if (normalized.length <= maxLength) normalized else normalized.take(maxLength - 1).trimEnd() + "…"
 }

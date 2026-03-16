@@ -1,0 +1,378 @@
+# Arc Reactor — Autonomous Improvement Progress
+
+## 이전 사이클 요약 (2026-03-10 ~ 2026-03-11)
+- Plan: 컴파일 경고 0개, 테스트 전체 통과, CancellationException 위반 1건 발견
+- Build: 4개 항목 수정 (CancellationException, TokenEstimator, ToolResponsePayloadNormalizer, BlockingToolCallbackInvoker)
+- 한계: 표면적 린트 수준 분석. AI Agent 동작 검증 미흡.
+
+## 현재 사이클 (2026-03-11~)
+목표: AI Agent로서의 비즈니스 동작 정확성, 성능, 견고성 심층 검증
+
+### 분석 영역 체크리스트
+- [ ] 1. ReAct Loop 정확성
+- [ ] 2. Tool Calling 전체 경로
+- [ ] 3. 컨텍스트 윈도우 관리
+- [ ] 4. Guard & Hook 시스템
+- [ ] 5. 멀티에이전트 오케스트레이션
+- [ ] 6. 외부 연동 (MCP, Slack, API)
+- [ ] 7. 동시성 & 리소스
+- [ ] 8. 성능
+- [ ] 9. 실제 기동 검증 (서버 띄워서 기능 테스트)
+
+[Build 반복 1] 2026-03-11
+- 선택: 탐색 모드 — 실제 서버 기동 및 기능 테스트
+- 구현: CASUAL_PROMPTS에 "안녕하세요", "반갑습니다", "네", "알겠습니다" 등 한국어 변형 13개 추가
+- 기능 테스트: 서버 기동 → "안녕하세요" 요청 → blockReason=null (수정 전: unverified_sources 차단)
+- 발견: P1 3개 (casual prompt 누락, ? 기반 과잉 차단, 범용 영단어 패턴), P5 1개 (casual 경계값 테스트)
+- 결과: 단위 테스트 통과 + 기능 테스트 통과 / 커밋 83ade27
+- 남은 항목: P0: 0, P1: 2, P2: 0, P3: 0, P4: 0, P5: 1
+- 다음: P1 — looksLikeInformationRequest의 ? 과잉 차단
+- 서버 기동에 필요한 추가 설정: JWT_SECRET, postgres.required=false, self-registration=true, admin env vars
+
+[Build 반복 2] 2026-03-11
+- 선택: P1 — looksLikeInformationRequest의 ? 과잉 차단 + 범용 영단어 패턴
+- 구현: WORKSPACE_CONTEXT_HINTS 추가. ?/패턴만으로 차단하지 않고 workspace 키워드와 함께 있을 때만 차단
+- 기능 테스트: "오늘 날씨 어때?" → blockReason=null (수정 전: unverified_sources), "배포 정책이 뭐야?" → 정상 차단 유지
+- 발견: 없음
+- 결과: 단위 테스트 통과 + 기능 테스트 통과 / 커밋 3330c9c
+- 남은 항목: P0: 0, P1: 0, P2: 0, P3: 0, P4: 0, P5: 1
+- 다음: P5 — VerifiedSourcesResponseFilter casual 경계값 테스트 (이미 반복1에서 추가됨, 확인 필요)
+
+[Build 반복 3] 2026-03-11
+- 선택: 탐색 모드 — P2-P4 코드 탐색 + 에러 유발 시나리오 테스트
+- 구현: ToolCallOrchestrator의 실패한 도구 에러 메시지가 sanitizer를 우회하는 버그 수정 (success=false 경로)
+- 코드 탐색: 2개 Agent 병렬 탐색 (에러 핸들링/메모리/컨트롤러 + 보안/성능). P3 2건, P2 1건 발견
+- 기능 테스트: 서버 기동 → 에러 유발 시나리오 10개 → 전부 정상. 스트리밍 정상. input-max-chars=10000 확인 (CLAUDE.md 문서 오류)
+- 발견: P2 1건 (도구 에러 sanitize — 수정 완료), P3 2건 (Header injection, X-Forwarded-For bypass — 등록)
+- 결과: 단위 테스트 통과 + 기능 테스트 통과 / 커밋 613d0a0
+- 남은 항목: P0: 0, P1: 0, P2: 0, P3: 2, P4: 0, P5: 0
+- 다음: P3 — SessionController Content-Disposition header injection
+
+[Build 반복 4] 2026-03-11
+- 선택: P3 — SessionController Content-Disposition header injection
+- 구현: sessionId를 안전한 파일명 문자로 치환하는 sanitizeFilename() 추가
+- 결과: 단위 테스트 통과 / 커밋 6c31022
+- 남은 항목: P0: 0, P1: 0, P2: 0, P3: 1, P4: 0, P5: 0
+- 다음: P3 — AuthRateLimitFilter X-Forwarded-For bypass
+
+[Build 반복 5] 2026-03-11
+- 선택: P3 — AuthRateLimitFilter X-Forwarded-For rate limit bypass
+- 구현: trustForwardedHeaders 프로퍼티 추가 (기본 false). X-Forwarded-For 신뢰를 opt-in으로 변경
+- 결과: 단위 테스트 통과 / 커밋 6e8640f
+- 남은 항목: P0: 0, P1: 0, P2: 0, P3: 0, P4: 0, P5: 0
+- 다음: 탐색 모드 — P0-P4 완료, 3회 연속 0발견 확인 필요
+
+[Build 반복 6] 2026-03-11
+- 선택: 탐색 모드 — 세션 관리 + 동시성 + 크로스유저 접근
+- 기능 테스트: 세션 생성/조회/삭제/내보내기 정상, 동시 요청 3개 정상, 크로스유저 403, 모델 목록 정상
+- 발견: 0건
+- 결과: 탐색 1/3 완료
+- 다음: 탐색 2/3 — 다른 시나리오
+
+[Build 반복 7] 2026-03-11
+- 선택: 탐색 모드 — 멀티에이전트 오케스트레이션 + 응답 필터 + 설정 검증
+- 코드 탐색: WorkerAgentTool, SupervisorOrchestrator, MaxLengthResponseFilter, VerifiedSourcesResponseFilter, ConcurrencyProperties
+- 발견: P2 1건 (WorkerAgentTool.timeoutMs 미설정 → 15초 tool-call timeout으로 워커 에이전트 강제 취소)
+- 기각: 2건 (응답 필터 간섭 — maxLength 기본 비활성, 설계 의도 / requestTimeoutMs vs toolCallTimeoutMs 검증 — 기본값 정상, P5)
+- 결과: 탐색 2/3 — P2 1건 발견 (0-finding 카운터 리셋)
+- 남은 항목: P0: 0, P1: 0, P2: 1, P3: 0, P4: 0, P5: 0
+- 다음: P2 — WorkerAgentTool timeout 수정
+
+[Build 반복 8] 2026-03-11
+- 선택: P2 — WorkerAgentTool timeoutMs 미설정으로 인한 워커 에이전트 조기 취소
+- 구현: WorkerAgentTool에 workerTimeoutMs 파라미터 추가 (기본 30초), timeoutMs 오버라이드
+- 결과: 단위 테스트 통과 / 커밋 f452489
+- 남은 항목: P0: 0, P1: 0, P2: 0, P3: 0, P4: 0, P5: 0
+- 다음: 탐색 모드 — 0-finding 카운터 리셋됨, 새 탐색 1/3 시작
+
+[Build 반복 9] 2026-03-11
+- 선택: 탐색 모드 — 가드 파이프라인 + 훅 시스템 + 대화 메모리
+- 코드 탐색: RuleBasedClassificationStage, UnicodeNormalizationStage, DefaultInputValidationStage, WebhookNotificationHook, JdbcConversationSummaryStore, BlockingToolCallbackInvoker, ConversationManager
+- 후보 10건 검토 → 전부 기각 (설계 의도, 코드 정상, 이론적 우려)
+  - empty blockedCategories: 설계 의도 (빈 세트=차단 안 함)
+  - Unicode char/codepoint: BMP 내 값만 사용, 정확
+  - trim 미전파: 이론적, 실제 bypass 불가
+  - encoding 패턴: P5 수준
+  - createdAt 분실: SQL MATCHED절에 created_at 없음 (에이전트 오독)
+  - nested runBlocking: 드물게 사용되는 fallback 경로, P5
+  - race condition: ConcurrentHashMap.remove(key,value) 정확
+  - CancellationException webhook: Reactor timeout ≠ CancellationException
+  - JdbcUserMemoryStore init: P5 운영 노이즈
+  - NULL mapRow: NOT NULL 스키마 + catch 처리
+- 발견: 0건
+- 결과: 탐색 1/3 완료 (리셋 후)
+- 다음: 탐색 2/3
+
+[Build 반복 10] 2026-03-11
+- 선택: 탐색 모드 — ReAct 루프 + 스트리밍 + 자동 설정 + 컨트롤러
+- 코드 탐색: StreamingReActLoopExecutor, ManualReActLoopExecutor, ToolCallOrchestrator(병렬), ChatController(@Size), AdminAuthHelper
+- 후보 4건 검토 → 전부 기각
+  - SSE tool_start/end 불일치: executeInParallel은 예외 던지지 않음, CancellationException 시 SSE 연결 자체 종료
+  - maxToolCalls 병렬 초과: getAndIncrement() 원자적, 올바르게 제한
+  - @Size 하드코딩: Jakarta 컴파일타임 상수 필수, 가드 파이프라인이 설정 가능 제한 담당 (방어 계층)
+  - 403 응답 타입 불일치: 동일 JSON 구조, P5 수준
+- 발견: 0건
+- 결과: 탐색 2/3 완료 (리셋 후)
+- 다음: 탐색 3/3 — 서버 기동 기능 테스트
+
+[Build 반복 11] 2026-03-11
+- 선택: 탐색 모드 — 서버 기동 기능 테스트 (최종 검증)
+- 기능 테스트:
+  - Health check: UP ✓
+  - Auth register/login: JWT 발급 정상 ✓
+  - 기본 대화 ("안녕하세요"): success=True, blockReason=None ✓
+  - 스트리밍 (1+1=?): SSE 이벤트 정상 수신, "2" 응답 ✓
+  - 잘못된 토큰: 401 ✓
+  - 빈 메시지: 400 ✓
+  - 세션 목록 조회: 정상 ✓
+- 발견: 0건
+- 결과: 탐색 3/3 완료 — 3회 연속 0 findings 달성
+
+[Build 반복 12] 2026-03-11
+- 선택: 탐색 모드 — MCP 관리 + 토큰 폐기 + Slack/Teams + 에러 리포트 + 의미적 도구 선택
+- 코드 탐색: TokenRevocationStore(3구현체), SlackSignatureVerifier, SemanticToolSelector, TeamsWebhookClient, ErrorReportController, TenantResolver, McpManager
+- 후보 11건 검토 → 전부 기각
+  - InMemory 토큰 race: 보안 위협 없음, 만료 cleanup 경로 정상
+  - InMemory 무한 성장: P5, dev 전용 스토어, lazy cleanup
+  - JDBC TOCTOU: P5, 중복 revoke 극히 드물고 최종 상태 정상
+  - Slack 서명 정수 오버플로: 수학적 검증 결과 exploit 불가
+  - SemanticToolSelector ALL fallback: 설계 의도 (graceful degradation)
+  - ErrorReport 스택트레이스: 제출자 책임, 수신자는 truncate만
+  - Admin 크로스테넌트: self-hosted 배포 설계 의도
+  - Teams JSON 이스케이핑: Kotlin 이스케이프 시퀀스 오해, 실제 정상
+  - MCP stale client: handleConnectionError 콜백으로 자가 복구
+  - 임베딩 캐시 fingerprint: P5, 런타임에 설명 변경 불가
+  - ErrorReport 전역 rate limit: P5, 선택적 모듈, 설계 선택
+- 기능 테스트: 서버 기동 → 인증 → 기본 대화 → success=True ✓
+- 발견: 0건
+- 결과: 탐색 4/3 완료 (추가 라운드) — 4회 연속 0 findings
+
+## 완료 조건 확인
+1. IMPLEMENTATION_PLAN.md P0~P4 전부 [x]: ✓
+2. 3회 연속 탐색 모드 0 findings: ✓ (반복 9, 10, 11, 12)
+3. 서버 기동 → 기본 대화 → 정상 응답: ✓
+
+
+## Ralph 반복 7-12 (2026-03-13, 렌즈 1-8 두 바퀴)
+- 8렌즈 회전 스캔: 보안, 견고성, Agent, 성능, 테스트, API, 운영, Gotchas
+- 수정: P2 8건, P3 4건, P4 4건, 테스트 21개 추가
+- 기각: 30+건 → KNOWN_ACCEPTABLE
+- 2바퀴 완료: 렌즈 2에서만 P1-P2 발견, 나머지 모두 클린
+
+## 새 사이클 (2026-03-12~)
+
+[Build 반복 1] 2026-03-12 — 1단계: 계획
+- 선택: 1단계 — 5개 병렬 서브에이전트로 전체 코드베이스 탐색
+- 결과: P0: 0, P1: 0, P2: 2, P3: 3, P4: 11 = 총 16개 항목 발견
+- P2: Bm25Scorer 동시성, PlatformAdminController 예외 삼킴
+- P3: MCP 에러 정보 노출, ErrorReport timing attack, MCP SSRF
+- P4: Regex 핫패스 4건, 중복 로직 4건, Thread.sleep/TODO/MessageDigest 3건
+- 다음: P2 — Bm25Scorer 동시성 문제 수정
+
+[Build 반복 2] 2026-03-12 — Ralph 반복 1 (검증 + 계획 업데이트)
+- 선택: IMPLEMENTATION_PLAN.md 미완료 항목 검증 (이전 세션 커밋으로 이미 수정된 항목 확인)
+- 검증 결과:
+  - P2 Bm25Scorer: @Synchronized 이미 적용 (f270cf8) → 완료
+  - P2 PlatformAdminController: logger.warn(e) 이미 존재 → 완료
+  - P3 MCP 에러 노출: 제네릭 메시지 이미 사용 → 완료
+  - P3 ErrorReport timing: MessageDigest.isEqual() 이미 적용 → 완료
+  - P3 SSRF: 클라우드 메타데이터+멀티캐스트 차단 추가 (312c56e) → 완료
+  - P4 Regex 4건: 전부 이전 커밋에서 수정 → 완료
+  - P4 중복 ISSUE_KEY/PII: WorkContextPatterns, PiiPatterns로 추출 → 완료
+  - P4 Thread.sleep, MessageDigest: 이전 커밋에서 수정 → 완료
+- 결과: P0~P2 전부 [x], P3 전부 [x], P4 2건만 남음 (인젝션 패턴 중복, DocumentController TODO)
+- IMPLEMENTATION_PLAN.md 업데이트 완료
+- 다음: P0~P2 전부 완료됨 → 완료 조건 충족
+
+[Ralph 반복 1] 2026-03-12 — P4 항목 구현 + 탐색
+- 선택: P4 — 인젝션 탐지 패턴 중복 (DefaultGuardStages + ToolOutputSanitizer)
+- 구현: InjectionPatterns.kt 공통 객체 추출, 8개 공유 패턴 통합
+- 결과: 테스트 통과 / 커밋 d75d351
+- 선택: P4 — DocumentController TODO (chunk_total 최적화)
+- 구현: VectorStore에 getById() 없어 구현 불가. TODO → 설계 근거 코멘트로 교체
+- 결과: 테스트 통과 / 커밋 b8b323a
+- 탐색: 4개 병렬 서브에이전트 (컴파일/테스트, Critical Gotchas, 보안/성능, 테스트 갭)
+- 탐색 결과: 0 warnings, 0 failures, 0 Critical Gotchas 위반, 0 P0-P3 신규 발견
+- 완료 조건 확인:
+  1. IMPLEMENTATION_PLAN.md 미완료 항목: 0개 ✓
+  2. 최근 탐색 신규 발견: 0건 ✓
+
+[Ralph 반복 2] 2026-03-12 — 1단계 탐색 + P2 수정
+- 탐색: 3개 병렬 (컴파일/테스트, 테스트 실행, 코드베이스 스캔)
+- 탐색 결과: 0 warnings, 0 failures, P2 1건 (GoogleCredentialProvider FileInputStream 누수)
+- 선택: P2 — GoogleCredentialProvider.kt FileInputStream .use{} 미사용
+- 구현: FileInputStream을 .use{} 블록으로 감싸 자동 닫힘 보장
+- 결과: 테스트 통과 / 커밋 3809cf9
+- 미완료 항목: 0개
+- 다음: 탐색에서 P2 1건 발견 → 수정 완료 → 추가 탐색 필요
+
+[Ralph 반복 3] 2026-03-12 — 1단계 탐색 + P3 수정
+- 탐색: 3개 병렬 (컴파일/테스트, 코드베이스 스캔, 검증 스캔)
+- 탐색 결과: P3 2건 (SchedulerController + PlatformAdminController 예외 메시지 노출)
+- 기각: Scheduler tools e.message (ToolCallback 설계 의도), SlackMessagingService (내부 결과 객체)
+- 구현: SchedulerController 커밋 5d7dc6c, PlatformAdminController 커밋 e4adf80
+- 미완료 항목: 0개
+- 다음: 추가 탐색 필요 (이번 탐색에서 P3 발견했으므로)
+
+[Ralph 반복 4] 2026-03-12 — P2 수정 (McpAdminWebClientFactory)
+- 선택: P2 — McpAdminWebClientFactory.dispose() 데드 코드 (stop hook에서 지적)
+- 구현: DisposableBean 구현, dispose() → destroy() 리네임, ArcReactorWebAutoConfiguration에 @Bean 등록
+- 결과: 테스트 통과 / 커밋 a507155
+- 미완료 항목: 0개
+- 다음: 추가 탐색 필요 (이번 반복에서 P2 수정했으므로)
+
+[Ralph 반복 5] 2026-03-12 — 최종 탐색
+- 선택: 탐색 모드 — 컴파일/테스트 검증 + 코드베이스 보안/견고성 스캔
+- 컴파일: 0 warnings, 테스트: 전체 통과
+- 스캔 결과: 1건 검토 → 기각 (TokenUsage Long→Int: 2.1B 이론적 한계, 실제 1M 이하, 파괴적 API 변경 불필요 → P5)
+- 발견: 0건 (actionable)
+- 완료 조건 확인:
+  1. IMPLEMENTATION_PLAN.md 미완료 항목: 0개 ✓
+  2. 최근 탐색 신규 발견: 0건 ✓
+
+[Ralph 반복 6] 2026-03-12 — 새 PROMPT 기준 탐색 (반복 1/신규 세션)
+- 선택: 1단계 탐색 — 개선된 PROMPT_build.md 기준 첫 스캔
+- 컴파일: 0 warnings, 테스트: 전체 통과
+- 스캔 결과: 1건 검토 → false positive (ConversationMemory.kt:258 — Kotlin expression-body 문법 오해) → KNOWN_ACCEPTABLE 추가
+- Critical Gotchas: 0 violations
+- P0~P3 신규 발견: 0건
+- 수렴 판정: 2회 연속 (반복 5 + 반복 6) P0~P3 신규 0건 → 완료
+# Arc Reactor — Autonomous Improvement Progress
+
+## 이전 아카이브: claude-progress-archive.txt 참조
+
+[Ralph 반복 13] 2026-03-13 — 3바퀴 수렴 검증
+- 렌즈 2 (견고성) 3바퀴: P1 1건 발견 (ExperimentOrchestrator TimeoutCancellationException) → 수정
+- 렌즈 1+3 (보안+Agent) 3바퀴: P0-P3 신규 0건
+- 렌즈 4-8 통합 3바퀴: P0-P3 신규 0건
+- 기각 1건 → KNOWN_ACCEPTABLE (EvaluationPipelineFactory concurrent reset)
+- 구현: P1 1건 수정 (6165d1a)
+
+[Ralph 반복 14] 2026-03-13 — 4바퀴 렌즈 2 수렴 확인
+- 렌즈 2 (견고성) 4바퀴: P0-P2 신규 0건. withTimeout 12개소 전수 검증 완료
+- 수렴 판정: 8렌즈 2+ 바퀴 완료, 최종 스캔 P0-P3 신규 0건
+
+[Ralph 반복 15] 2026-03-13 — 렌즈 3 Agent 동작 (fresh scan)
+- 렌즈 3 (Agent 동작) — ReAct 루프, 도구 실패, 다중 에이전트, 컨텍스트
+- 발견: P3 1건 (BlockingToolCallbackInvoker 중복 "Error:" 프리픽스)
+- 기각: 3건 → KNOWN_ACCEPTABLE (ToolOutputSanitizer error wrapping, SupervisorOrchestrator recursion, saveMessages non-atomic)
+- 구현: P3 1건 수정 (72c96cb)
+- 렌즈 1-2 (보안+견고성): P2 2건 기각 (DocumentController search 설계 의도, McpPreflightController factory 이미 KNOWN)
+- 렌즈 4-5 (성능+테스트): P4 3건 기각 (ToolObservabilityAspect Regex 에러경로, ToolExecutionPolicyEngine 테스트갭, InjectionPatterns 테스트갭)
+- 렌즈 6-8 (API+운영+Gotchas): P0-P3 신규 0건
+- 이번 세션 전체 렌즈 스캔 완료: P3 1건 수정, P0-P2 신규 0건
+
+[Ralph 반복 16] 2026-03-13 — 렌즈 4 성능 (fresh scan)
+- 렌즈 4 (성능) — 핫패스 Regex/할당, N+1, 불필요 직렬화, 캐시 미스
+- 4개 병렬 스캐너: arc-core, arc-web+admin, arc-slack+teams+google, autoconfigure+mcp
+- 발견: P4 MED 1건 (McpToolCallback inputSchema 매 접근 시 JSON 직렬화) → 수정 (b3d02b3)
+- 기각: P4 LOW 33건 → KNOWN_ACCEPTABLE (SystemPromptBuilder lowercase, CacheKeyBuilder, hex encoding 등)
+- P0-P3 신규 0건
+
+[Ralph 반복 17] 2026-03-13 — 렌즈 5 테스트 갭 (fresh scan)
+- 렌즈 5 (테스트 갭) — 소스 대비 테스트 누락, 엣지 케이스, 에러 경로
+- 3개 병렬 스캐너: agent+tool, web+admin+slack, guard+memory+mcp+rag
+- P0-P3 신규 0건 (모든 갭은 정상 동작 코드의 커버리지 부족 = P4)
+- 기각: P4 13건 → KNOWN_ACCEPTABLE
+
+[Ralph 반복 18] 2026-03-13 — 렌즈 6 API 계약 (fresh scan)
+- 렌즈 6 (API 계약) — Breaking change, 응답 형식, @Operation 누락, 에러 표준
+- 2개 병렬 스캐너: controller 전체, core interfaces
+- P0-P3 신규 0건 (모든 발견은 P4 일관성/스타일 이슈)
+- 기각: P4 11건 → KNOWN_ACCEPTABLE (empty 404 body, 에러 스키마 차이, 스트리밍 한계 등)
+
+[Ralph 반복 19] 2026-03-13 — 렌즈 7 운영 (fresh scan)
+- 렌즈 7 (운영) — 헬스체크, 메트릭/로깅, 설정 기본값, graceful shutdown
+- 2개 병렬 스캐너: 전체 운영, shutdown 전문
+- P0-P3 신규 0건
+- 기각: P4 8건 → KNOWN_ACCEPTABLE (scheduler graceful, inputMaxChars 기본값 차이 등)
+
+[Ralph 반복 25-27] 2026-03-13 — P0-P1 집중 스캔 연속 3회
+- 렌즈 25: 보안+견고성+Agent동작+성능 P0-P1 집중 → 0건
+- 렌즈 26 (성능): sessionOwners 재발견 → KNOWN_ACCEPTABLE P2 → P0-P1 0건
+- 렌즈 27 (테스트 갭): critical path 전수 확인 → P0-P1 0건
+- 수렴 유지
+
+[Ralph 반복 28] 2026-03-13 — 전체 8렌즈 대규모 병렬 스캔 (13개 스캐너)
+- P1 후보 3건 직접 검증 → 전부 P4 기각 (KNOWN_ACCEPTABLE)
+- P0-P1 신규: 0건, 수렴 유지
+
+[Ralph 반복 29-35] 2026-03-13 — 이전 PROMPT.md 7세션 연속 8렌즈 full scan, P0-P3 0건
+[Refactoring 반복 1] 2026-03-13 — 렌즈 1: 코루틴 안정성 (Explore opus x2), P0-P3 0건
+# Arc Reactor — Autonomous Improvement Progress
+
+## 이전 아카이브: claude-progress-archive.txt 참조
+
+[Refactoring 반복 1] 2026-03-13 — 렌즈 1: 코루틴 안정성 (Explore opus x2 병렬)
+- 영역: agent/impl 전체 + arc-core 나머지 + arc-web + arc-slack + arc-error-report
+- 후보 3건 → 전부 P4 기각 (동일 timeout, semaphore 미존재, request timeout 보호)
+- P0-P3 신규 0건
+
+[Refactoring 반복 2] 2026-03-13 — 렌즈 2: 에러 전파 경로 (Explore opus x3 병렬)
+- 영역: agent core + controllers + guards/hooks/MCP
+- P1 1건 발견+수정: StreamingCompletionFinalizer output guard crash fail-open → fail-close (d4b2515)
+- P3 3건 KA 기록: AgentErrorPolicy heuristic, MultipartChatController 200, executeAfterToolCall unprotected
+- FP 3건 기각: SchedulerController trigger (returns string), PromptLabController CancellationException (no catch), .forEach (already KA)
+
+[Refactoring 반복 3] 2026-03-13 — 렌즈 3: 리소스 수명 (Explore opus x2 병렬)
+- 영역: arc-core 전체 (MCP, agent, memory, scheduler) + arc-web + arc-slack + arc-admin + arc-google + arc-teams + arc-error-report
+- P1 1건 발견+수정: McpManager.handleConnectionError MCP 클라이언트 close 누락 → 리소스 누수 (e01d0b0)
+- 기타: 모든 CoroutineScope/Executor/WebClient/DataBuffer 정상 관리 확인
+
+[Refactoring 반복 4] 2026-03-13 — 렌즈 4: 데이터 흐름 무결성 (Explore opus x2 병렬)
+- 영역: DTO 변환 + 직렬화 경로 + 저장소/조회 경로
+- P2 1건 발견+수정: PreExecutionResolver GuardCommand.channel 미전달 → audit 누락 (5186cdf)
+- P3 2건 KA 기록: FeedbackResponse sessionId, ChatResponse durationMs (설계 선택)
+- 저장소 무결성: JDBC 컬럼 매핑, JSON 직렬화, 시간대 처리 모두 정상
+
+[Refactoring 반복 5] 2026-03-13 — 렌즈 5: 경계 조건 (Explore opus x2 병렬)
+- 영역: scheduler, agent config, cache, guard stages, web controllers
+- P2 1건 발견+수정: DynamicSchedulerService.runWithRetry maxRetryCount=0 빈 범위 → coerceAtLeast(1)
+- P4 5건 KA 기록: CaffeineResponseCache zero, TopicDriftDetection windowSize, SchedulerProperties 범위, maxConversationTurns, web controller 검증
+- 사용자 요청으로 루프 종료
+
+[Refactoring 반복 6] 2026-03-14 — 렌즈 6: 계약 준수 (Explore opus x2 병렬)
+- 영역: arc-core 인터페이스+구현체 (Guard, Hook, Tool, Bean) + arc-web/admin/slack/error-report 컨트롤러
+- 검증 완료: Guard fail-close, Hook try-catch+CancellationException, Tool "Error:" 반환, @ConditionalOnMissingBean, @Primary, @Tag/@Operation, 403 ErrorResponse body, AdminAuthSupport 사용
+- P0-P2 신규 0건
+- P3 4건 + P4 1건 + FP 1건 KA 기록: LlmClassificationStage fail-open (설계), SpringAiToolCallbackAdapter throws (래핑), JDBC @ConditionalOnMissingBean (FP), IntentRegistry InMemory 미등록 (opt-in), McpSwaggerCatalogController @ApiResponses
+
+[Refactoring 반복 7] 2026-03-14 — 렌즈 7: 스레드 안전성 (Explore opus x2 병렬)
+- 영역: arc-core (agent, tool, guard, memory, mcp, scheduler) + arc-web/admin/slack/teams/google/error-report
+- P2 1건 발견+수정: InMemoryUserMemoryStore updateFact/updatePreference/addRecentTopic get-then-put → compute() 원자적 갱신
+- P3 11건 + P4 1건 KA 기록: DefaultRateLimitStage Caffeine, McpManager handleConnectionError, TenantService TOCTOU/RMW, InMemoryScheduledJobStore, SemanticToolSelector, InMemoryPersonaStore, QuotaEnforcerHook, SlackReminderStore, TenantResolver ThreadLocal
+
+[Refactoring 반복 8] 2026-03-14 — 렌즈 8: 의존성 건전성 (Explore opus x2 병렬)
+- 영역: arc-core autoconfigure 전체 + arc-web/admin/slack/teams/google/error-report AutoConfiguration
+- P1 1건 발견+수정: systemPromptPostProcessor+toolOutputSanitizer agentExecutor 미주입 → ObjectProvider 주입 (f475a5f)
+- P2 1건 발견+수정: JdbcMcpSecurityPolicyStoreConfiguration @Import 누락 → 추가 (f475a5f)
+- P3 5건 + P4 2건 KA 기록: authProperties/jwtSecretValidator/runtimePreflightMarker @ConditionalOnMissingBean, OtlpExporter/MetricWriter/metricEventStore 미사용, ErrorReportController/SlackControllers @ConditionalOnBean
+
+[Refactoring 반복 9] 2026-03-14 — 렌즈 1: 보안 (codebase-scanner sonnet x3 병렬)
+- 영역: agent core + web/admin controllers + auth + MCP/memory/scheduler/modules
+- P3 1건 발견+수정: ExecutionResultFinalizer attemptLongerResponse output guard 우회 → boundary retry 후 content 변경 시 output guard 재실행 (dc845e5)
+- FP 1건: /api/auth/register publicPaths (auto-config에서 selfRegistrationEnabled 시 자동 추가)
+- P4 3건 KA 기록: JwtAuthWebFilter blank sub (키 탈취 전제), WebhookNotificationHook SSRF (운영자 설정), MediaAttachment.uri 사설IP (프로바이더 전달)
+
+[Refactoring 반복 10] 2026-03-14 — 렌즈 2: 견고성 (codebase-scanner sonnet x2 병렬)
+- 영역: agent core (impl, config, guard, hook, tool, multi) + MCP/memory/scheduler/web/admin/modules
+- P2 1건 발견+수정: AgentRunContextManager MDC race → MDCContext(map) 생성자 사용 (26e7213)
+- P4 6건 KA 기록: StreamingCompletionFinalizer boundary markers, InMemoryAlertRuleStore 무한 누적, PromptLabController 비원자적 cap, Google tools NetHttpTransport, close() MDC removal, ToolPreparationPlanner WeakHashMap
+
+[Refactoring 반복 11] 2026-03-14 — 렌즈 3: Agent 동작 (codebase-scanner sonnet x1)
+- 영역: agent/impl/ 전체 (ReAct loop, tool orchestration, streaming, context trimming)
+- P3 1건 발견+수정: StreamingCompletionFinalizer empty content orphaned user turn (6ea86a8)
+- P4 1건 KA 기록: AgentRunContextManager MDCContext scope 제한
+
+[Refactoring 반복 12] 2026-03-14 — 렌즈 4: 성능 (codebase-scanner sonnet x1)
+- 영역: arc-core 전체 + modules 핫패스
+- P0-P3 신규 0건
+- P4 2건 KA 기록: TokenEstimator int boxing, AgentExecutionCoordinator mcpToolCallbacks 이중 호출
+- 기존 KA 2건 재확인: SystemPromptBuilder lowercase, ToolCallOrchestrator O(n²) dedup
+
+[Refactoring 반복 13-16] 2026-03-14 — 렌즈 5-8 (테스트 갭, API 계약, 운영, Critical Gotchas)
+- 렌즈 5: P3 2건 수정 — 이번 세션 수정 회귀 테스트 추가 (ExecutionResultFinalizer output guard re-run, StreamingCompletionFinalizer empty skip) (e831fcb)
+- 렌즈 5: P4 2건 KA: StreamingExecutionCoordinator error dispatch, ToolPreparationPlanner filter fallback
+- 렌즈 6: P0-P3 신규 0건. SchedulerController 404 기존 KA 재확인
+- 렌즈 7: GoogleCredentialProvider per-request 기존 KA(P4) 재확인. path traversal P4 KA
+- 렌즈 8: CancellationException/forEach/AssistantMessage/Guard userId 위반 0건

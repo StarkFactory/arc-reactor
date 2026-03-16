@@ -137,4 +137,55 @@ class StreamingReActLoopExecutorTest {
             toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
+
+    @Test
+    fun `should start with tools disabled when maxToolCalls is zero`() = runBlocking {
+        val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
+        val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
+        every { requestSpec.stream() } returns streamResponseSpec
+        every { streamResponseSpec.chatResponse() } returns Flux.just(
+            AgentTestFixture.toolCallChunk(listOf(toolCall), "tool-free")
+        )
+
+        val toolOrchestrator = mockk<ToolCallOrchestrator>()
+        val optionsUsed = mutableListOf<Boolean>()
+        val emitted = mutableListOf<String>()
+        val loopExecutor = StreamingReActLoopExecutor(
+            messageTrimmer = ConversationMessageTrimmer(
+                maxContextWindowTokens = 10_000,
+                outputReserveTokens = 100,
+                tokenEstimator = TokenEstimator { it.length }
+            ),
+            toolCallOrchestrator = toolOrchestrator,
+            buildRequestSpec = { _, _, _, _, _ -> requestSpec },
+            callWithRetry = { block -> block() },
+            buildChatOptions = { _, hasTools ->
+                optionsUsed.add(hasTools)
+                ChatOptions.builder().build()
+            }
+        )
+
+        val result = loopExecutor.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", maxToolCalls = 0),
+            activeChatClient = mockk(relaxed = true),
+            systemPrompt = "sys",
+            initialTools = listOf(mockk<Any>(relaxed = true)),
+            conversationHistory = emptyList(),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            allowedTools = null,
+            maxToolCalls = 0,
+            emit = { emitted.add(it) }
+        )
+
+        assertTrue(result.success, "Streaming loop should finish without executing tools")
+        assertEquals("tool-free", result.collectedContent)
+        assertEquals("tool-free", result.lastIterationContent)
+        assertEquals(listOf("tool-free"), emitted)
+        assertEquals(listOf(false), optionsUsed)
+        coVerify(exactly = 0) {
+            toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
 }

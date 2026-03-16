@@ -1,6 +1,7 @@
 package com.arc.reactor.scheduler
 
 import com.arc.reactor.agent.AgentExecutor
+import com.arc.reactor.agent.config.SchedulerProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
@@ -19,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
+import org.springframework.beans.factory.DisposableBean
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.scheduling.TaskScheduler
@@ -58,8 +60,9 @@ class DynamicSchedulerService(
     private val agentExecutorProvider: (() -> AgentExecutor?)? = null,
     private val personaStore: PersonaStore? = null,
     private val promptTemplateStore: PromptTemplateStore? = null,
-    private val executionStore: ScheduledJobExecutionStore? = null
-) {
+    private val executionStore: ScheduledJobExecutionStore? = null,
+    private val schedulerProperties: SchedulerProperties = SchedulerProperties()
+) : DisposableBean {
 
     companion object {
         private const val SCHEDULER_ACTOR = "scheduler"
@@ -77,6 +80,13 @@ class DynamicSchedulerService(
         for (job in jobs) {
             registerJob(job)
         }
+    }
+
+    override fun destroy() {
+        val count = scheduledFutures.size
+        logger.info { "Dynamic Scheduler: cancelling $count scheduled jobs" }
+        scheduledFutures.values.forEach { it.cancel(false) }
+        scheduledFutures.clear()
     }
 
     fun create(job: ScheduledJob): ScheduledJob {
@@ -207,21 +217,18 @@ class DynamicSchedulerService(
 
     private fun runJobWithRetryAndTimeout(job: ScheduledJob): String = runBlocking {
         val timeoutMs = job.executionTimeoutMs
-        if (timeoutMs != null) {
-            try {
-                withTimeout(timeoutMs) { runWithRetry(job) }
-            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                throw IllegalStateException("Job '${job.name}' timed out after ${timeoutMs}ms")
-            }
-        } else {
-            runWithRetry(job)
+            ?: schedulerProperties.defaultExecutionTimeoutMs
+        try {
+            withTimeout(timeoutMs) { runWithRetry(job) }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            throw IllegalStateException("Job '${job.name}' timed out after ${timeoutMs}ms")
         }
     }
 
     private suspend fun runWithRetry(job: ScheduledJob): String {
         if (!job.retryOnFailure) return executeJobContent(job)
         var lastException: Exception? = null
-        for (attempt in 1..job.maxRetryCount) {
+        for (attempt in 1..job.maxRetryCount.coerceAtLeast(1)) {
             try {
                 return executeJobContent(job)
             } catch (e: Exception) {
@@ -242,10 +249,6 @@ class DynamicSchedulerService(
     }
 
     // -- MCP_TOOL mode ----------------------------------------------------------
-
-    private fun executeMcpToolJob(job: ScheduledJob): String = runBlocking {
-        executeMcpToolJobSuspend(job)
-    }
 
     private suspend fun executeMcpToolJobSuspend(job: ScheduledJob): String {
         val serverName = job.mcpServerName
@@ -358,10 +361,6 @@ class DynamicSchedulerService(
     }
 
     // -- AGENT mode -------------------------------------------------------------
-
-    private fun executeAgentJob(job: ScheduledJob): String = runBlocking {
-        executeAgentJobSuspend(job)
-    }
 
     private suspend fun executeAgentJobSuspend(job: ScheduledJob): String {
         val executor = agentExecutor

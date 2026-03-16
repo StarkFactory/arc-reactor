@@ -35,8 +35,7 @@ class TopicDriftDetectionStage(
         if (history.isEmpty()) return GuardResult.Allowed.DEFAULT
 
         // Take last N turns + current message
-        val window = (history.takeLast(windowSize - 1) + command.text)
-            .map { it.lowercase() }
+        val window = history.takeLast(windowSize - 1) + command.text
 
         val score = calculateDriftScore(window)
 

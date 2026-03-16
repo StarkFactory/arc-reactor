@@ -67,6 +67,7 @@ class SchedulerConfiguration {
         scheduledJobStore: ScheduledJobStore,
         schedulerTaskScheduler: TaskScheduler,
         mcpManager: McpManager,
+        properties: AgentProperties,
         slackMessageSender: ObjectProvider<SlackMessageSender>,
         teamsMessageSenderProvider: ObjectProvider<TeamsMessageSender>,
         hookExecutorProvider: ObjectProvider<HookExecutor>,
@@ -88,7 +89,8 @@ class SchedulerConfiguration {
         agentExecutorProvider = { agentExecutorProvider.ifAvailable },
         personaStore = personaStoreProvider.ifAvailable,
         promptTemplateStore = promptTemplateStoreProvider.ifAvailable,
-        executionStore = executionStoreProvider.ifAvailable
+        executionStore = executionStoreProvider.ifAvailable,
+        schedulerProperties = properties.scheduler
     )
 
     @Bean

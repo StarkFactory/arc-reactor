@@ -44,7 +44,8 @@ class StreamingExecutionCoordinatorTest {
                 enabled = false,
                 topK = 4,
                 rerankEnabled = false,
-                ragPipeline = null
+                ragPipeline = null,
+                retrievalTimeoutMs = 5000
             ),
             systemPromptBuilder = SystemPromptBuilder(),
             toolPreparationPlanner = ToolPreparationPlanner(

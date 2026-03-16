@@ -256,6 +256,51 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
+    fun `should skip tool selection when effective maxToolCalls is zero`() = runBlocking {
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        var selectCalled = false
+        var capturedTools: List<Any>? = null
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = null,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            maxToolCallsLimit = 0,
+            fallbackStrategy = null,
+            agentMetrics = metrics,
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { listOf(testTool("mcp")) },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = {
+                selectCalled = true
+                listOf("selected-tool")
+            },
+            retrieveRagContext = { null },
+            executeWithTools = { _, tools, _, _, _, _ ->
+                capturedTools = tools
+                AgentResult.success(content = "raw")
+            },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command.copy(maxToolCalls = 5) }
+        )
+
+        val hookContext = HookContext(runId = "run-2", userId = "u", userPrompt = "hi")
+        val result = coordinator.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", maxToolCalls = 10),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        assertTrue(result.success, "Coordinator should succeed when tools are disabled by zero budget")
+        assertFalse(selectCalled, "Tool selection should be skipped when effective maxToolCalls is zero")
+        assertEquals(emptyList<Any>(), capturedTools, "No tools should be prepared when the tool budget is zero")
+        assertTrue(readStageTimings(hookContext).containsKey("tool_selection")) {
+            "tool_selection timing should still be recorded even when skipped"
+        }
+    }
+
+    @Test
     fun `should include finalizer stage timing in result metadata`() = runBlocking {
         val coordinator = AgentExecutionCoordinator(
             responseCache = null,

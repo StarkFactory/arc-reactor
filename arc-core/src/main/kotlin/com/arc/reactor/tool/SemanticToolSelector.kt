@@ -1,8 +1,12 @@
 package com.arc.reactor.tool
 
+import com.arc.reactor.support.WorkContextPatterns
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
@@ -43,11 +47,18 @@ private val logger = KotlinLogging.logger {}
 class SemanticToolSelector(
     private val embeddingModel: EmbeddingModel,
     private val similarityThreshold: Double = 0.3,
-    private val maxResults: Int = 10
+    private val maxResults: Int = 10,
+    selectionCacheMaxSize: Long = 512,
+    selectionCacheTtlMinutes: Long = 10
 ) : ToolSelector {
 
     /** Cache: tool name → embedding vector. Invalidated when tool list changes. */
     private val embeddingCache = ConcurrentHashMap<String, FloatArray>()
+    private val refreshLock = Any()
+    private val semanticSelectionCache: Cache<SemanticSelectionCacheKey, List<String>> = Caffeine.newBuilder()
+        .maximumSize(selectionCacheMaxSize)
+        .expireAfterWrite(selectionCacheTtlMinutes, TimeUnit.MINUTES)
+        .build()
 
     /** Fingerprint of the last tool list (to detect changes). */
     @Volatile
@@ -55,6 +66,10 @@ class SemanticToolSelector(
 
     override fun select(prompt: String, availableTools: List<ToolCallback>): List<ToolCallback> {
         if (availableTools.isEmpty()) return emptyList()
+        selectDeterministicallyIfPossible(prompt, availableTools)?.let { fastPath ->
+            logger.debug { "Deterministic tool selection fast-path selected ${fastPath.size}/${availableTools.size} tools" }
+            return fastPath
+        }
         if (availableTools.size <= maxResults) {
             return applyDeterministicRouting(prompt, availableTools, availableTools)
         }
@@ -67,9 +82,23 @@ class SemanticToolSelector(
         }
     }
 
+    fun prewarm(availableTools: List<ToolCallback>) {
+        if (availableTools.isEmpty()) return
+        refreshEmbeddingsIfNeeded(availableTools)
+    }
+
     private fun selectSemantically(prompt: String, availableTools: List<ToolCallback>): List<ToolCallback> {
         // 1. Refresh cached embeddings if tool list changed
-        refreshEmbeddingsIfNeeded(availableTools)
+        val fingerprint = toolFingerprint(availableTools)
+        refreshEmbeddingsIfNeeded(availableTools, fingerprint)
+
+        val cacheKey = SemanticSelectionCacheKey(
+            prompt = prompt,
+            toolFingerprint = fingerprint,
+            similarityThreshold = similarityThreshold,
+            maxResults = maxResults
+        )
+        resolveCachedSelection(cacheKey, availableTools)?.let { return it }
 
         // 2. Embed the user prompt
         val promptEmbedding = embed(prompt)
@@ -103,7 +132,115 @@ class SemanticToolSelector(
             "Semantic tool selection: top scores = [$names], selected ${baseSelection.size}/${availableTools.size}"
         }
 
-        return applyDeterministicRouting(prompt, baseSelection, availableTools)
+        val resolvedSelection = applyDeterministicRouting(prompt, baseSelection, availableTools)
+        semanticSelectionCache.put(cacheKey, resolvedSelection.map(ToolCallback::name))
+        return resolvedSelection
+    }
+
+    private fun resolveCachedSelection(
+        cacheKey: SemanticSelectionCacheKey,
+        availableTools: List<ToolCallback>
+    ): List<ToolCallback>? {
+        val cachedToolNames = semanticSelectionCache.getIfPresent(cacheKey) ?: return null
+        val availableByName = availableTools.associateBy { it.name }
+        val resolved = cachedToolNames.mapNotNull(availableByName::get)
+        if (resolved.size != cachedToolNames.size) {
+            semanticSelectionCache.invalidate(cacheKey)
+            logger.debug { "Invalidated stale semantic selection cache entry due to tool mismatch" }
+            return null
+        }
+        logger.debug {
+            "Semantic tool selection exact cache hit selected ${resolved.size}/${availableTools.size} tools"
+        }
+        return resolved
+    }
+
+    private fun selectDeterministicallyIfPossible(
+        prompt: String,
+        availableTools: List<ToolCallback>
+    ): List<ToolCallback>? {
+        val availableByName = availableTools.associateBy { it.name }
+
+        if (WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(prompt)) {
+            return preferredReadOnlyMutationEvidenceTools(prompt, availableByName)
+        }
+
+        if (looksLikeWorkItemContextPrompt(prompt)) {
+            return PREFERRED_WORK_ITEM_CONTEXT_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkServiceContextPrompt(prompt)) {
+            return PREFERRED_WORK_SERVICE_CONTEXT_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkReleaseReadinessPrompt(prompt)) {
+            return PREFERRED_WORK_RELEASE_READINESS_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkReleaseRiskPrompt(prompt) || looksLikeHybridPriorityPrompt(prompt)) {
+            return PREFERRED_WORK_RELEASE_RISK_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkStandupPrompt(prompt)) {
+            return PREFERRED_WORK_STANDUP_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkBriefingProfilePrompt(prompt)) {
+            return PREFERRED_WORK_BRIEFING_PROFILE_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkOwnerPrompt(prompt)) {
+            return PREFERRED_WORK_OWNER_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeWorkBriefingPrompt(prompt)) {
+            return PREFERRED_WORK_BRIEFING_TOOLS.mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeJiraPrompt(prompt)) {
+            return preferredJiraTools(prompt, availableByName).takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeBitbucketPrompt(prompt)) {
+            return preferredBitbucketTools(prompt, availableByName).takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeSwaggerPrompt(prompt)) {
+            return preferredSwaggerTools(prompt, availableByName).takeIf { it.isNotEmpty() }
+        }
+
+        if (!looksLikeConfluenceKnowledgePrompt(prompt)) return null
+
+        if (looksLikeConfluenceDiscoveryPrompt(prompt)) {
+            return listOf("confluence_search_by_text", "confluence_search")
+                .mapNotNull(availableByName::get)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        if (looksLikeConfluencePageBodyPrompt(prompt)) {
+            return listOf("confluence_get_page_content", "confluence_answer_question", "confluence_search_by_text")
+                .mapNotNull(availableByName::get)
+                .take(maxResults)
+                .takeIf { it.isNotEmpty() }
+        }
+
+        val preferredKnowledgeTools = PREFERRED_CONFLUENCE_KNOWLEDGE_TOOLS
+            .mapNotNull(availableByName::get)
+        if (preferredKnowledgeTools.isEmpty()) return null
+
+        if (looksLikeConfluenceAnswerPrompt(prompt)) {
+            return preferredKnowledgeTools.take(maxResults)
+        }
+
+        return null
     }
 
     private fun applyDeterministicRouting(
@@ -207,6 +344,7 @@ class SemanticToolSelector(
         filtered.forEach { ordered.putIfAbsent(it.name, it) }
         return ordered.values.take(maxResults)
     }
+
 
     private fun looksLikeConfluenceKnowledgePrompt(prompt: String): Boolean {
         val normalized = prompt.lowercase()
@@ -446,16 +584,19 @@ class SemanticToolSelector(
         return orderedNames.mapNotNull(availableByName::get).take(maxResults)
     }
 
-    private fun refreshEmbeddingsIfNeeded(tools: List<ToolCallback>) {
-        val fingerprint = tools.map { it.name }.sorted().hashCode()
-        if (fingerprint != lastToolFingerprint) {
+    private fun refreshEmbeddingsIfNeeded(
+        tools: List<ToolCallback>,
+        fingerprint: Int = toolFingerprint(tools)
+    ) {
+        if (fingerprint == lastToolFingerprint) return
+        synchronized(refreshLock) {
+            if (fingerprint == lastToolFingerprint) return
+            val refreshedEmbeddings = embedBatch(tools.map(::buildToolText))
+                .mapIndexed { index, embedding -> tools[index].name to embedding }
+                .toMap(LinkedHashMap())
             embeddingCache.clear()
-            // Batch-embed all tool descriptions at once
-            val texts = tools.map { buildToolText(it) }
-            val embeddings = embedBatch(texts)
-            tools.forEachIndexed { index, tool ->
-                embeddingCache[tool.name] = embeddings[index]
-            }
+            embeddingCache.putAll(refreshedEmbeddings)
+            semanticSelectionCache.invalidateAll()
             lastToolFingerprint = fingerprint
             logger.info { "Refreshed semantic embeddings for ${tools.size} tools" }
         }
@@ -463,6 +604,10 @@ class SemanticToolSelector(
 
     private fun buildToolText(tool: ToolCallback): String {
         return "${tool.name}: ${tool.description}"
+    }
+
+    private fun toolFingerprint(tools: List<ToolCallback>): Int {
+        return tools.map(::buildToolText).sorted().hashCode()
     }
 
     private fun embed(text: String): FloatArray {
@@ -474,6 +619,13 @@ class SemanticToolSelector(
         val response = embeddingModel.embed(texts)
         return response
     }
+
+    private data class SemanticSelectionCacheKey(
+        val prompt: String,
+        val toolFingerprint: Int,
+        val similarityThreshold: Double,
+        val maxResults: Int
+    )
 
     companion object {
         private val PREFERRED_CONFLUENCE_KNOWLEDGE_TOOLS = listOf(
@@ -534,7 +686,7 @@ class SemanticToolSelector(
             "서비스 상황", "서비스 현황", "service context", "service summary", "현재 상황", "현재 현황",
             "최근 jira", "최근 jira 이슈", "열린 pr", "오픈 pr", "관련 문서", "한 번에 요약", "요약해줘", "기준으로"
         )
-        private val ISSUE_KEY_REGEX = Regex("\\b[A-Z][A-Z0-9_]+-[1-9][0-9]*\\b")
+        private val ISSUE_KEY_REGEX = WorkContextPatterns.ISSUE_KEY_REGEX
         private val WORK_BRIEFING_HINTS = setOf(
             "morning briefing", "daily briefing", "briefing", "work summary", "daily digest",
             "브리핑", "요약 브리핑", "아침 브리핑", "데일리 브리핑"
@@ -599,7 +751,7 @@ class SemanticToolSelector(
         private val LOADED_HINTS = setOf("loaded", "로드된", "현재 로드된")
         private val REMOVE_HINTS = setOf("remove", "삭제")
         private val WRONG_ENDPOINT_HINTS = setOf("wrong endpoint", "invalid endpoint", "잘못된 endpoint", "없는 endpoint")
-        private val OPENAPI_URL_REGEX = Regex("https?://\\S+(?:openapi|swagger)\\S*", RegexOption.IGNORE_CASE)
+        private val OPENAPI_URL_REGEX = WorkContextPatterns.OPENAPI_URL_REGEX
 
         /**
          * Compute cosine similarity between two vectors.

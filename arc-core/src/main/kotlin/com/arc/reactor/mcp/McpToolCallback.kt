@@ -39,14 +39,13 @@ class McpToolCallback(
     private val onConnectionError: (() -> Unit)? = null
 ) : ToolCallback {
 
-    override val inputSchema: String
-        get() = mcpInputSchema?.let {
-            try {
-                objectMapper.writeValueAsString(it)
-            } catch (e: Exception) {
-                """{"type":"object","properties":{}}"""
-            }
-        } ?: """{"type":"object","properties":{}}"""
+    override val inputSchema: String = mcpInputSchema?.let {
+        try {
+            objectMapper.writeValueAsString(it)
+        } catch (_: Exception) {
+            """{"type":"object","properties":{}}"""
+        }
+    } ?: """{"type":"object","properties":{}}"""
 
     override suspend fun call(arguments: Map<String, Any?>): Any? {
         return try {

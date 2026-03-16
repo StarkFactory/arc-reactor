@@ -5,6 +5,7 @@ import com.arc.reactor.agent.config.OutputMinViolationMode
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.StreamEventMarker
+import com.arc.reactor.guard.output.OutputGuardPipeline
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
@@ -128,6 +129,67 @@ class StreamingCompletionFinalizerTest {
         val parsed = StreamEventMarker.parse(emitted.first())
         assertEquals("error", parsed?.first)
         assertTrue(parsed?.second?.contains("Boundary violation [output_too_short]") == true, "Error marker should describe output_too_short boundary violation")
+    }
+
+    @Test
+    fun `should not save history when output guard pipeline throws (fail-close)`() = runBlocking {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val outputGuardPipeline = mockk<OutputGuardPipeline>()
+        coEvery { outputGuardPipeline.check(any(), any()) } throws RuntimeException("moderation API down")
+        val finalizer = StreamingCompletionFinalizer(
+            boundaries = BoundaryProperties(),
+            conversationManager = conversationManager,
+            hookExecutor = null,
+            agentMetrics = mockk(relaxed = true),
+            outputGuardPipeline = outputGuardPipeline
+        )
+
+        val emitted = mutableListOf<String>()
+        finalizer.finalize(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            streamStarted = true,
+            streamSuccess = true,
+            collectedContent = "unsafe content",
+            lastIterationContent = "unsafe content",
+            streamErrorMessage = null,
+            streamErrorCode = null,
+            toolsUsed = emptyList(),
+            startTime = 1_000L,
+            emit = { emitted.add(it) }
+        )
+
+        coVerify(exactly = 0) { conversationManager.saveStreamingHistory(any(), any()) }
+        assertTrue(emitted.any { it.contains("Output guard check failed") },
+            "Should emit error marker when output guard crashes")
+    }
+
+    @Test
+    fun `should not save history when streaming LLM returns empty content`() = runBlocking {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val hookExecutor = mockk<HookExecutor>(relaxed = true)
+        val finalizer = StreamingCompletionFinalizer(
+            boundaries = BoundaryProperties(),
+            conversationManager = conversationManager,
+            hookExecutor = hookExecutor,
+            agentMetrics = mockk(relaxed = true)
+        )
+
+        finalizer.finalize(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            streamStarted = true,
+            streamSuccess = true,
+            collectedContent = "",
+            lastIterationContent = "",
+            streamErrorMessage = null,
+            streamErrorCode = null,
+            toolsUsed = emptyList(),
+            startTime = 1_000L,
+            emit = {}
+        )
+
+        coVerify(exactly = 0) { conversationManager.saveStreamingHistory(any(), any()) }
     }
 
     @Test

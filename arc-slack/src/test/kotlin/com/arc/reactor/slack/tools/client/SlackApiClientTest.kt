@@ -66,7 +66,7 @@ class SlackApiClientTest {
 
         val result = client.postMessage("C123", "hello")
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Chat.postMessage should succeed with valid channel and text")
         assertEquals("1234.5678", result.ts)
         assertEquals("C123", result.channel)
         assertNull(result.error)
@@ -81,7 +81,7 @@ class SlackApiClientTest {
 
         val result = client.addReaction("C123", "1234.5678", "thumbsup")
 
-        assertFalse(result.ok)
+        assertFalse(result.ok, "Reactions.add should fail when already_reacted")
         assertEquals("already_reacted", result.error)
     }
 
@@ -107,7 +107,7 @@ class SlackApiClientTest {
 
         val result = client.conversationsList(limit = 20, cursor = "cursor")
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Conversations.list should succeed with valid parameters")
         assertEquals(1, result.channels.size)
         assertEquals("C123", result.channels.first().id)
         assertEquals("general", result.channels.first().name)
@@ -136,7 +136,7 @@ class SlackApiClientTest {
 
         val result = client.conversationHistory("C123", 10)
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Conversations.history should succeed for valid channel")
         assertEquals(1, result.messages.size)
         assertEquals("U123", result.messages.first().user)
         assertEquals("hello world", result.messages.first().text)
@@ -160,7 +160,7 @@ class SlackApiClientTest {
 
         val result = client.threadReplies("C123", "1234.5678", 15)
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Conversations.replies should succeed for valid thread")
         assertEquals(1, result.messages.size)
         assertEquals("thread reply", result.messages.first().text)
         assertEquals("C123", requestSlot.captured.channel)
@@ -191,7 +191,7 @@ class SlackApiClientTest {
 
         val result = client.threadReplies("C123", "1234.5678", 10)
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Conversations.replies should succeed when parent is excluded")
         assertEquals(1, result.messages.size)
         assertEquals("reply", result.messages.first().text)
     }
@@ -213,11 +213,11 @@ class SlackApiClientTest {
 
         val result = client.getUserInfo("U123")
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Users.info should succeed for valid user ID")
         assertEquals("U123", result.user?.id)
         assertEquals("john", result.user?.name)
         assertEquals("John Doe", result.user?.realName)
-        assertFalse(result.user?.isBot ?: true)
+        assertFalse(result.user?.isBot ?: true, "User should not be flagged as a bot")
     }
 
     @Test
@@ -226,8 +226,8 @@ class SlackApiClientTest {
 
         val result = client.postMessage("C123", "hello")
 
-        assertFalse(result.ok)
-        assertNotNull(result.error)
+        assertFalse(result.ok, "Chat.postMessage should fail when SDK throws RuntimeException")
+        assertNotNull(result.error, "Error field should be populated on SDK exception")
     }
 
     @Test
@@ -236,9 +236,9 @@ class SlackApiClientTest {
 
         val result = client.conversationsList()
 
-        assertFalse(result.ok)
-        assertNotNull(result.error)
-        assertTrue(result.channels.isEmpty())
+        assertFalse(result.ok, "Conversations.list should fail when SDK throws RuntimeException")
+        assertNotNull(result.error, "Error field should be populated on SDK exception")
+        assertTrue(result.channels.isEmpty(), "Channels list should be empty on error")
     }
 
     @Test
@@ -248,10 +248,10 @@ class SlackApiClientTest {
 
         val result = client.postMessage("C123", "hello")
 
-        assertFalse(result.ok)
+        assertFalse(result.ok, "Chat.postMessage should fail on 429 rate limit")
         assertEquals("rate_limited", result.error)
         assertEquals("rate_limited", result.errorDetails?.code)
-        assertTrue(result.errorDetails?.retryable == true)
+        assertTrue(result.errorDetails?.retryable == true, "Rate-limited error should be marked retryable")
         assertEquals(0L, result.errorDetails?.retryAfterSeconds)
     }
 
@@ -261,9 +261,12 @@ class SlackApiClientTest {
 
         val result = client.conversationHistory("C123", 10)
 
-        assertFalse(result.ok)
+        assertFalse(result.ok, "Conversations.history should fail on IOException")
         assertEquals("io_error", result.error)
-        assertTrue(result.errorDetails?.retryable == true)
+        assertTrue(
+            result.errorDetails?.retryable == true,
+            "IO error should be marked retryable"
+        )
     }
 
     @Test
@@ -272,9 +275,12 @@ class SlackApiClientTest {
 
         val result = client.threadReplies("C123", "1234.5678", 10)
 
-        assertFalse(result.ok)
+        assertFalse(result.ok, "Conversations.replies should fail on IOException")
         assertEquals("io_error", result.error)
-        assertTrue(result.errorDetails?.retryable == true)
+        assertTrue(
+            result.errorDetails?.retryable == true,
+            "IO error on thread replies should be marked retryable"
+        )
     }
 
     @Test
@@ -321,7 +327,7 @@ class SlackApiClientTest {
 
         val result = client.findChannelsByName("gen", exactMatch = false, limit = 10)
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "findChannelsByName should succeed with partial query across pages")
         assertEquals(2, result.channels.size)
         assertEquals("general", result.channels[0].name)
         assertEquals("gen-ai", result.channels[1].name)
@@ -353,7 +359,7 @@ class SlackApiClientTest {
 
         val result = client.findChannelsByName("general", exactMatch = true, limit = 1)
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "findChannelsByName should succeed with exact match and limit")
         assertEquals(1, result.channels.size)
         assertEquals("general", result.channels.first().name)
     }
@@ -369,7 +375,7 @@ class SlackApiClientTest {
 
         val result = client.findChannelsByName("gen", exactMatch = false, limit = 10)
 
-        assertFalse(result.ok)
+        assertFalse(result.ok, "findChannelsByName should propagate upstream auth error")
         assertEquals("not_authed", result.error)
     }
 
@@ -394,7 +400,7 @@ class SlackApiClientTest {
 
         val result = client.conversationHistory("C123", 5, "cursor-1")
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Conversations.history should succeed with cursor pagination")
         assertEquals("next-history", result.nextCursor)
         assertEquals("cursor-1", requestSlot.captured.cursor)
         assertEquals(5, requestSlot.captured.limit)
@@ -421,7 +427,7 @@ class SlackApiClientTest {
 
         val result = client.threadReplies("C123", "1234.5678", 5, "cursor-2")
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Conversations.replies should succeed with cursor pagination")
         assertEquals("next-replies", result.nextCursor)
         assertEquals("cursor-2", requestSlot.captured.cursor)
         assertEquals(5, requestSlot.captured.limit)
@@ -444,7 +450,7 @@ class SlackApiClientTest {
 
         val result = client.postMessage("C123", "hello")
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Chat.postMessage should succeed after retrying transient IO errors")
         assertEquals(3, attempt)
         verify(exactly = 3) { methodsClient.chatPostMessage(any<ChatPostMessageRequest>()) }
     }
@@ -456,7 +462,7 @@ class SlackApiClientTest {
 
         val result = client.postMessage("C123", "hello")
 
-        assertFalse(result.ok)
+        assertFalse(result.ok, "Chat.postMessage should not retry on non-retryable auth error")
         assertEquals("invalid_auth", result.error)
         verify(exactly = 1) { methodsClient.chatPostMessage(any<ChatPostMessageRequest>()) }
     }
@@ -484,10 +490,10 @@ class SlackApiClientTest {
 
         val result = timeoutClient.conversationHistory("C123", 10)
 
-        assertFalse(result.ok)
+        assertFalse(result.ok, "Conversations.history should fail when API call exceeds timeout")
         assertEquals("timeout", result.error)
         assertEquals("timeout", result.errorDetails?.code)
-        assertTrue(result.errorDetails?.retryable == true)
+        assertTrue(result.errorDetails?.retryable == true, "Timeout error should be marked retryable")
         verify(exactly = 3) { methodsClient.conversationsHistory(any<ConversationsHistoryRequest>()) }
     }
 
@@ -509,12 +515,15 @@ class SlackApiClientTest {
         val second = breakerClient.postMessage("C123", "hello")
         val third = breakerClient.postMessage("C123", "hello")
 
-        assertFalse(first.ok)
-        assertFalse(second.ok)
-        assertFalse(third.ok)
+        assertFalse(first.ok, "First call should fail with server error")
+        assertFalse(second.ok, "Second call should fail with server error")
+        assertFalse(third.ok, "Third call should be rejected by open circuit breaker")
         assertEquals("circuit_open", third.error)
         assertEquals("circuit_open", third.errorDetails?.code)
-        assertTrue((third.errorDetails?.retryAfterSeconds ?: 0) > 0)
+        assertTrue(
+            (third.errorDetails?.retryAfterSeconds ?: 0) > 0,
+            "Circuit breaker should provide a positive retry-after duration"
+        )
         verify(exactly = 6) { methodsClient.chatPostMessage(any<ChatPostMessageRequest>()) }
     }
 
@@ -535,8 +544,8 @@ class SlackApiClientTest {
         val first = breakerClient.postMessage("C123", "hello")
         val second = breakerClient.postMessage("C123", "hello")
 
-        assertFalse(first.ok)
-        assertFalse(second.ok)
+        assertFalse(first.ok, "First rate-limited call should fail")
+        assertFalse(second.ok, "Second call should still reach Slack, not be blocked by circuit breaker")
         assertEquals("rate_limited", first.error)
         assertEquals("rate_limited", second.error)
         verify(exactly = 6) { methodsClient.chatPostMessage(any<ChatPostMessageRequest>()) }
@@ -562,7 +571,7 @@ class SlackApiClientTest {
 
         val result = metricClient.postMessage("C123", "hello")
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Chat.postMessage should succeed after retries with metrics recorded")
         assertEquals(
             2.0,
             meterRegistry.counter(
@@ -596,7 +605,7 @@ class SlackApiClientTest {
 
         val result = metricClient.postMessage("C123", "hello")
 
-        assertFalse(result.ok)
+        assertFalse(result.ok, "Chat.postMessage should fail on rate limit with error metrics recorded")
         assertEquals(
             1.0,
             meterRegistry.counter(
@@ -663,7 +672,7 @@ class SlackApiClientTest {
 
         val result = client.findUsersByName("john", exactMatch = false, limit = 10)
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "findUsersByName should succeed with partial query across pages")
         assertEquals(2, result.users.size)
         assertEquals("john", result.users[0].name)
         assertEquals("johnny", result.users[1].name)
@@ -700,7 +709,7 @@ class SlackApiClientTest {
 
         val result = client.searchMessages("deploy", count = 10, page = 2)
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Search.messages should succeed and map pagination metadata")
         assertEquals(30, result.total)
         assertEquals(2, result.page)
         assertEquals(4, result.pageCount)
@@ -734,7 +743,7 @@ class SlackApiClientTest {
             threadTs = "1234.5678"
         )
 
-        assertTrue(result.ok)
+        assertTrue(result.ok, "Files.uploadV2 should succeed with valid file content")
         assertEquals("F123", result.fileId)
         assertEquals("report.txt", result.fileName)
         assertEquals("Report", result.title)

@@ -25,7 +25,7 @@ class FeedbackAnalyzer(
     private val chatModelProvider: ChatModelProvider
 ) {
 
-    private val mapper = jacksonObjectMapper()
+    private val objectMapper = jacksonObjectMapper()
 
     /**
      * Analyze negative feedback for a template and identify weaknesses.
@@ -117,7 +117,7 @@ class FeedbackAnalyzer(
         if (response.isBlank()) return emptyList()
         return try {
             val cleaned = response.replace(CODE_FENCE_REGEX, "").trim()
-            val tree = mapper.readTree(cleaned)
+            val tree = objectMapper.readTree(cleaned)
             val weaknesses = tree["weaknesses"] ?: return emptyList()
             weaknesses.map { node ->
                 PromptWeakness(

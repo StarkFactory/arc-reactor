@@ -76,9 +76,15 @@ class AuthController(
 
         val passwordHash = when (authProvider) {
             is DefaultAuthProvider -> authProvider.hashPassword(request.password)
-            else -> throw UnsupportedOperationException(
-                "Custom AuthProvider does not support registration via this endpoint"
-            )
+            else -> {
+                return ResponseEntity.badRequest().body(
+                    AuthResponse(
+                        token = "",
+                        user = null,
+                        error = "Self-registration is not supported with the configured AuthProvider."
+                    )
+                )
+            }
         }
 
         val user = User(

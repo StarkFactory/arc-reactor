@@ -20,7 +20,7 @@ class PromptCandidateGenerator(
     private val promptTemplateStore: PromptTemplateStore
 ) {
 
-    private val mapper = jacksonObjectMapper()
+    private val objectMapper = jacksonObjectMapper()
 
     /**
      * Generate candidate prompt versions addressing identified weaknesses.
@@ -102,7 +102,7 @@ class PromptCandidateGenerator(
         return try {
             val cleaned = response
                 .replace(CODE_FENCE_REGEX, "").trim()
-            val tree = mapper.readTree(cleaned)
+            val tree = objectMapper.readTree(cleaned)
             if (!tree.isArray) return emptyList()
             tree.map { it.asText() }
                 .filter { it.isNotBlank() }

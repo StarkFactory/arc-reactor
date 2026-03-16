@@ -1,7 +1,9 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import io.swagger.v3.oas.annotations.Operation
+import mu.KotlinLogging
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -19,6 +21,8 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.ResponseStatusException
 import java.time.Instant
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * Session Management and Model API Controller
@@ -40,6 +44,7 @@ import java.time.Instant
 class SessionController(
     private val memoryStore: MemoryStore,
     private val chatModelProvider: ChatModelProvider,
+    private val adminAuditStore: AdminAuditStore,
     summaryStoreProvider: ObjectProvider<ConversationSummaryStore>,
     conversationManagerProvider: ObjectProvider<ConversationManager>
 ) {
@@ -81,7 +86,7 @@ class SessionController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         val userId = authenticatedUserId(exchange) ?: return unauthorizedResponse()
-        if (!isSessionOwner(sessionId, userId)) {
+        if (!isSessionOwner(sessionId, userId, exchange)) {
             return sessionForbidden()
         }
 
@@ -114,7 +119,7 @@ class SessionController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         val userId = authenticatedUserId(exchange) ?: return unauthorizedResponse()
-        if (!isSessionOwner(sessionId, userId)) {
+        if (!isSessionOwner(sessionId, userId, exchange)) {
             return sessionForbidden()
         }
 
@@ -131,8 +136,9 @@ class SessionController(
                     sb.appendLine(msg.content)
                     sb.appendLine()
                 }
+                val safeId = sanitizeFilename(sessionId)
                 ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$sessionId.md\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$safeId.md\"")
                     .contentType(MediaType.TEXT_MARKDOWN)
                     .body(sb.toString())
             }
@@ -148,8 +154,9 @@ class SessionController(
                         )
                     }
                 )
+                val safeId = sanitizeFilename(sessionId)
                 ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$sessionId.json\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$safeId.json\"")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(export)
             }
@@ -172,9 +179,19 @@ class SessionController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         val userId = authenticatedUserId(exchange) ?: return unauthorizedResponse()
-        if (!isSessionOwner(sessionId, userId)) {
+        if (!isSessionOwner(sessionId, userId, exchange)) {
             return sessionForbidden()
         }
+
+        logger.info { "audit category=session action=DELETE actor=$userId resourceId=$sessionId" }
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "session",
+            action = "DELETE",
+            actor = userId,
+            resourceType = "session",
+            resourceId = sessionId
+        )
 
         conversationManager?.cancelActiveSummarization(sessionId)
         memoryStore.remove(sessionId)
@@ -182,14 +199,28 @@ class SessionController(
         return ResponseEntity.noContent().build()
     }
 
-    private fun isSessionOwner(sessionId: String, userId: String): Boolean {
+    private fun isSessionOwner(
+        sessionId: String,
+        userId: String,
+        exchange: ServerWebExchange
+    ): Boolean {
+        if (isAdmin(exchange)) return true
         val owner = memoryStore.getSessionOwner(sessionId)
-        // No owner recorded (legacy data or InMemory without userId) — allow access
-        return owner == null || owner == userId
+        // Deny-by-default: owner must be recorded and must match userId
+        return owner != null && owner == userId
     }
 
     private fun authenticatedUserId(exchange: ServerWebExchange): String? {
         return exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
+    }
+
+    private fun sanitizeFilename(name: String): String {
+        return name.replace(UNSAFE_FILENAME_CHARS, "_").take(MAX_FILENAME_LENGTH)
+    }
+
+    companion object {
+        private val UNSAFE_FILENAME_CHARS = Regex("[^a-zA-Z0-9._-]")
+        private const val MAX_FILENAME_LENGTH = 100
     }
 
     private fun unauthorizedResponse(): ResponseEntity<Any> {

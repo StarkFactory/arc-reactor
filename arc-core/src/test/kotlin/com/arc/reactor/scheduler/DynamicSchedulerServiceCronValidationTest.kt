@@ -5,10 +5,12 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.scheduling.TaskScheduler
 
+@Tag("safety")
 class DynamicSchedulerServiceCronValidationTest {
 
     private val store = mockk<ScheduledJobStore>()

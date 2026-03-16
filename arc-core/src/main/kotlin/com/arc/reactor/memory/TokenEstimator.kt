@@ -1,5 +1,8 @@
 package com.arc.reactor.memory
 
+import com.github.benmanes.caffeine.cache.Caffeine
+import java.util.concurrent.TimeUnit
+
 /**
  * Token estimation strategy for conversation memory management.
  *
@@ -25,7 +28,9 @@ fun interface TokenEstimator {
 }
 
 /**
- * Default token estimator using character-type-aware heuristics.
+ * Default token estimator using character-type-aware heuristics with
+ * Caffeine-backed caching (10,000 entries, 5-minute TTL) to avoid
+ * repeated codePoints() traversals for the same content.
  *
  * Uses different ratios for different character sets:
  * - Latin/ASCII: ~4 characters per token
@@ -33,9 +38,18 @@ fun interface TokenEstimator {
  * - Other: ~3 characters per token
  */
 class DefaultTokenEstimator : TokenEstimator {
+
+    private val cache = Caffeine.newBuilder()
+        .maximumSize(10_000)
+        .expireAfterAccess(5, TimeUnit.MINUTES)
+        .build<String, Int>()
+
     override fun estimate(text: String): Int {
         if (text.isEmpty()) return 0
+        return cache.get(text) { computeTokens(it) }
+    }
 
+    private fun computeTokens(text: String): Int {
         var latinChars = 0
         var cjkChars = 0
         var emojiChars = 0
@@ -44,13 +58,13 @@ class DefaultTokenEstimator : TokenEstimator {
         text.codePoints().forEach { cp ->
             when {
                 cp in 0x1F300..0x1FAFF ||  // Emoticons, symbols, pictographs
-                cp in 0x2600..0x27BF ||    // Miscellaneous symbols, dingbats
-                cp in 0xFE00..0xFE0F       // Variation selectors
+                    cp in 0x2600..0x27BF || // Miscellaneous symbols, dingbats
+                    cp in 0xFE00..0xFE0F   // Variation selectors
                     -> emojiChars++
                 cp in 0x4E00..0x9FFF ||    // CJK Unified Ideographs
-                cp in 0xAC00..0xD7AF ||    // Hangul Syllables
-                cp in 0x3040..0x309F ||    // Hiragana
-                cp in 0x30A0..0x30FF       // Katakana
+                    cp in 0xAC00..0xD7AF || // Hangul Syllables
+                    cp in 0x3040..0x309F || // Hiragana
+                    cp in 0x30A0..0x30FF   // Katakana
                     -> cjkChars++
                 cp <= 0x7F -> latinChars++
                 else -> otherChars++

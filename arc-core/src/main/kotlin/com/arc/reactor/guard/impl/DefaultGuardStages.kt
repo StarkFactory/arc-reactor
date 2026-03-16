@@ -2,6 +2,7 @@ package com.arc.reactor.guard.impl
 
 import com.arc.reactor.agent.config.TenantRateLimit
 import com.arc.reactor.guard.InjectionDetectionStage
+import com.arc.reactor.guard.InjectionPatterns
 import com.arc.reactor.guard.InputValidationStage
 import com.arc.reactor.guard.RateLimitStage
 import com.arc.reactor.guard.model.GuardCommand
@@ -167,60 +168,49 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage {
     }
 
     companion object {
-        private val SUSPICIOUS_PATTERNS = listOf(
-            // Role change attempts
-            Regex("(?i)(ignore|forget|disregard).*(previous|above|prior|all).*instructions?"),
-            Regex("(?i)you are now"),
-            Regex("(?i)\\bact as (a |an )?(unrestricted|unfiltered|different|new|evil|hacker|jailbroken)"),
-            Regex("(?i)pretend (to be|you're|you are)"),
-            Regex("(?i)new (role|persona|character|identity)"),
+        private val SUSPICIOUS_PATTERNS: List<Regex> =
+            InjectionPatterns.SHARED.map { it.regex } + listOf(
+                // Role change (input-only)
+                Regex("(?i)pretend (to be|you're|you are)"),
+                Regex("(?i)new (role|persona|character|identity)"),
 
-            // System prompt extraction attempts
-            Regex("(?i)(show|reveal|print|display|output).*(system|initial|original).*(prompt|instruction)"),
-            Regex("(?i)what (are|were) your (instructions|rules)"),
+                // System prompt extraction
+                Regex("(?i)(show|reveal|print|display|output).*(system|initial|original).*(prompt|instruction)"),
+                Regex("(?i)what (are|were) your (instructions|rules)"),
 
-            // Output manipulation
-            Regex("(?i)(always|only|must).*(respond|reply|say|output)"),
-            Regex("(?i)from now on"),
+                // Output manipulation
+                Regex("(?i)(always|only|must).*(respond|reply|say|output)"),
 
-            // Encoding/obfuscation attempts
-            Regex("(?i)(decode|convert|translate).*base64.*(this|the|my|following)"),
-            Regex("(?i)\\\\x[0-9a-f]{2}"),
+                // Encoding/obfuscation
+                Regex("(?i)(decode|convert|translate).*base64.*(this|the|my|following)"),
+                Regex("(?i)\\\\x[0-9a-f]{2}"),
 
-            // Delimiter injection
-            Regex("```system"),
-            Regex("\\[SYSTEM\\]"),
-            Regex("<\\|im_start\\|>"),
-            Regex("<\\|endoftext\\|>"),
+                // Delimiter injection (input-only)
+                Regex("```system"),
+                Regex("<\\|endoftext\\|>"),
+                Regex("<\\|user\\|>"),
 
-            // --- 2025 vectors ---
+                // Llama/Gemma format injection
+                Regex("\\[INST\\]"),
+                Regex("\\[/INST\\]"),
+                Regex("<start_of_turn>"),
+                Regex("<end_of_turn>"),
 
-            // ChatML token smuggling
-            Regex("<\\|im_end\\|>"),
-            Regex("<\\|assistant\\|>"),
-            Regex("<\\|user\\|>"),
+                // Authority escalation
+                Regex("(?i)(developer|system)\\s*(mode|override|prompt)"),
 
-            // Llama/Gemma format injection
-            Regex("\\[INST\\]"),
-            Regex("\\[/INST\\]"),
-            Regex("<start_of_turn>"),
-            Regex("<end_of_turn>"),
+                // Safety override
+                Regex("(?i)override\\s+(safety|content|security)\\s+(filter|policy)"),
 
-            // Instruction hierarchy / authority escalation
-            Regex("(?i)(developer|system)\\s*(mode|override|prompt)"),
+                // Context separator injection
+                Regex("-{20,}"),
+                Regex("={20,}"),
 
-            // Safety override attempts
-            Regex("(?i)override\\s+(safety|content|security)\\s+(filter|policy)"),
+                // Many-shot jailbreak
+                Regex("(?is)example\\s*\\d+.*example\\s*\\d+.*example\\s*\\d+"),
 
-            // Context separator injection (20+ consecutive dashes or equals)
-            Regex("-{20,}"),
-            Regex("={20,}"),
-
-            // Many-shot jailbreak (3+ numbered examples in a single message)
-            Regex("(?is)example\\s*\\d+.*example\\s*\\d+.*example\\s*\\d+"),
-
-            // Encoding bypass (rot13, deobfuscate)
-            Regex("(?i)(rot13|deobfuscate).*this.*(text|message)")
-        )
+                // Encoding bypass
+                Regex("(?i)(rot13|deobfuscate).*this.*(text|message)")
+            )
     }
 }

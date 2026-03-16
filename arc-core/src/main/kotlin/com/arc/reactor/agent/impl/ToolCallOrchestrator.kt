@@ -39,7 +39,9 @@ internal class ToolCallOrchestrator(
     private val pendingApprovalStore: PendingApprovalStore?,
     private val agentMetrics: AgentMetrics,
     private val parseToolArguments: (String?) -> Map<String, Any?> = ::parseToolArguments,
-    private val toolOutputSanitizer: ToolOutputSanitizer? = null
+    private val toolOutputSanitizer: ToolOutputSanitizer? = null,
+    private val maxToolOutputLength: Int = DEFAULT_MAX_TOOL_OUTPUT_LENGTH,
+    private val requesterAwareToolNames: Set<String> = emptySet()
 ) {
     private val springToolCallbackCache =
         ConcurrentHashMap<ToolCallbackCacheKey, Map<String, org.springframework.ai.tool.ToolCallback>>()
@@ -99,7 +101,7 @@ internal class ToolCallOrchestrator(
         var toolOutput = invocation.output
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
-        if (toolOutputSanitizer != null && invocation.success) {
+        if (toolOutputSanitizer != null) {
             val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
             toolOutput = sanitized.content
         }
@@ -157,19 +159,6 @@ internal class ToolCallOrchestrator(
         allowedTools: Set<String>?,
         normalizeToolResponseToJson: Boolean
     ): ParallelToolExecution {
-        val currentCount = totalToolCallsCounter.getAndIncrement()
-        if (currentCount >= maxToolCalls) {
-            logger.warn { "maxToolCalls ($maxToolCalls) reached, stopping tool execution" }
-            return ParallelToolExecution(
-                response = buildToolResponse(
-                    toolCall = toolCall,
-                    toolName = toolCall.name(),
-                    output = "Error: Maximum tool call limit ($maxToolCalls) reached",
-                    normalizeToolResponseToJson = normalizeToolResponseToJson
-                )
-            )
-        }
-
         val toolName = toolCall.name()
         if (allowedTools != null && toolName !in allowedTools) {
             val msg = "Error: Tool '$toolName' is not allowed for this request"
@@ -197,7 +186,7 @@ internal class ToolCallOrchestrator(
             agentContext = hookContext,
             toolName = toolName,
             toolParams = effectiveToolParams,
-            callIndex = currentCount
+            callIndex = totalToolCallsCounter.get()
         )
 
         checkBeforeToolCallHook(toolCallContext)?.let { rejection ->
@@ -225,6 +214,31 @@ internal class ToolCallOrchestrator(
             )
         }
 
+        val toolExists = findToolAdapter(toolName, tools) != null || springCallbacksByName.containsKey(toolName)
+        if (!toolExists) {
+            logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
+            return ParallelToolExecution(
+                response = buildToolResponse(
+                    toolCall = toolCall,
+                    toolName = toolName,
+                    output = "Error: Tool '$toolName' not found",
+                    normalizeToolResponseToJson = normalizeToolResponseToJson
+                )
+            )
+        }
+
+        if (reserveToolExecutionSlot(totalToolCallsCounter, maxToolCalls) == null) {
+            logger.warn { "maxToolCalls ($maxToolCalls) reached, stopping tool execution" }
+            return ParallelToolExecution(
+                response = buildToolResponse(
+                    toolCall = toolCall,
+                    toolName = toolCall.name(),
+                    output = "Error: Maximum tool call limit ($maxToolCalls) reached",
+                    normalizeToolResponseToJson = normalizeToolResponseToJson
+                )
+            )
+        }
+
         val toolStartTime = System.currentTimeMillis()
         val invocation = invokeToolAdapter(
             toolName = toolName,
@@ -237,7 +251,7 @@ internal class ToolCallOrchestrator(
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
         // Sanitize tool output for indirect injection defense
-        if (toolOutputSanitizer != null && invocation.success) {
+        if (toolOutputSanitizer != null) {
             val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
             toolOutput = sanitized.content
         }
@@ -263,6 +277,18 @@ internal class ToolCallOrchestrator(
             usedToolName = toolName.takeIf { invocation.trackAsUsed },
             capture = capture
         )
+    }
+
+    private fun reserveToolExecutionSlot(counter: AtomicInteger, maxToolCalls: Int): Int? {
+        while (true) {
+            val current = counter.get()
+            if (current >= maxToolCalls) {
+                return null
+            }
+            if (counter.compareAndSet(current, current + 1)) {
+                return current
+            }
+        }
     }
 
     private fun extractToolCapture(
@@ -361,9 +387,8 @@ internal class ToolCallOrchestrator(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            val reason = "Approval check failed for tool '$toolName': ${e.message ?: "unknown error"}"
-            logger.error(e) { reason }
-            "Tool call blocked: $reason"
+            logger.error(e) { "Approval check failed for tool '$toolName': ${e.message ?: "unknown error"}" }
+            "Tool call blocked: Approval check failed for tool '$toolName'"
         }
     }
 
@@ -394,6 +419,22 @@ internal class ToolCallOrchestrator(
         tools: List<Any>,
         springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>
     ): ToolInvocationOutcome {
+        val raw = invokeToolAdapterRaw(toolName, toolInput, tools, springCallbacksByName)
+        if (maxToolOutputLength > 0 && raw.output.length > maxToolOutputLength) {
+            logger.warn { "Tool '$toolName' output truncated: ${raw.output.length} -> $maxToolOutputLength chars" }
+            return raw.copy(
+                output = raw.output.take(maxToolOutputLength) + "\n[TRUNCATED: output exceeded $maxToolOutputLength characters]"
+            )
+        }
+        return raw
+    }
+
+    private suspend fun invokeToolAdapterRaw(
+        toolName: String,
+        toolInput: String,
+        tools: List<Any>,
+        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>
+    ): ToolInvocationOutcome {
         val adapter = findToolAdapter(toolName, tools)
         if (adapter != null) {
             return try {
@@ -401,7 +442,8 @@ internal class ToolCallOrchestrator(
                 val output = withTimeout(timeoutMs) {
                     adapter.call(toolInput)
                 }
-                ToolInvocationOutcome(output = output, success = true, trackAsUsed = true)
+                val success = !output.startsWith("Error:")
+                ToolInvocationOutcome(output = output, success = success, trackAsUsed = true)
             } catch (e: TimeoutCancellationException) {
                 val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
                 logger.error { "Tool $toolName timed out after ${timeoutMs}ms" }
@@ -414,7 +456,7 @@ internal class ToolCallOrchestrator(
                 e.throwIfCancellation()
                 logger.error(e) { "Tool $toolName execution failed" }
                 ToolInvocationOutcome(
-                    output = "Error: ${e.message}",
+                    output = "Error: ${e.message ?: "Unknown error"}",
                     success = false,
                     trackAsUsed = true
                 )
@@ -445,7 +487,7 @@ internal class ToolCallOrchestrator(
                 e.throwIfCancellation()
                 logger.error(e) { "Tool $toolName execution failed" }
                 ToolInvocationOutcome(
-                    output = "Error: ${e.message}",
+                    output = "Error: ${e.message ?: "Unknown error"}",
                     success = false,
                     trackAsUsed = true
                 )
@@ -538,7 +580,7 @@ internal class ToolCallOrchestrator(
     }
 
     private fun normalizeSpringToolOutput(output: String): String {
-        return runCatching { springToolOutputMapper.readValue(output, String::class.java) }
+        return runCatching { objectMapper.readValue(output, String::class.java) }
             .getOrElse { output }
     }
 
@@ -576,7 +618,7 @@ internal class ToolCallOrchestrator(
             return rawInput.orEmpty().ifBlank { "{}" }
         }
         return runCatching {
-            springToolOutputMapper.writeValueAsString(toolParams)
+            objectMapper.writeValueAsString(toolParams)
         }.getOrElse {
             rawInput.orEmpty().ifBlank { "{}" }
         }
@@ -584,23 +626,8 @@ internal class ToolCallOrchestrator(
 
     companion object {
         const val TOOL_SIGNALS_METADATA_KEY = "toolSignals"
-        private val springToolOutputMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
-        private val requesterAwareToolNames = setOf(
-            "jira_my_open_issues",
-            "jira_due_soon_issues",
-            "jira_blocker_digest",
-            "jira_daily_briefing",
-            "jira_search_my_issues_by_text",
-            "bitbucket_review_queue",
-            "bitbucket_review_sla_alerts",
-            "bitbucket_my_authored_prs",
-            "work_personal_focus_plan",
-            "work_personal_learning_digest",
-            "work_personal_interrupt_guard",
-            "work_personal_end_of_day_wrapup",
-            "work_prepare_standup_update",
-            "work_personal_document_search"
-        )
+        const val DEFAULT_MAX_TOOL_OUTPUT_LENGTH = 50_000
+        private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
         private val requesterAccountIdMetadataKeys = listOf("requesterAccountId", "accountId")
         private val requesterEmailMetadataKeys = listOf("requesterEmail", "userEmail", "slackUserEmail")
     }

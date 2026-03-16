@@ -117,7 +117,8 @@ class SpringAiAgentExecutor(
         enabled = properties.rag.enabled,
         topK = properties.rag.topK,
         rerankEnabled = properties.rag.rerankEnabled,
-        ragPipeline = ragPipeline
+        ragPipeline = ragPipeline,
+        retrievalTimeoutMs = properties.rag.retrievalTimeoutMs
     )
     private val agentErrorPolicy = AgentErrorPolicy(transientErrorClassifier)
     private val structuredResponseRepairer = StructuredResponseRepairer(
@@ -150,7 +151,8 @@ class SpringAiAgentExecutor(
         toolApprovalPolicy = toolApprovalPolicy,
         pendingApprovalStore = pendingApprovalStore,
         agentMetrics = agentMetrics,
-        toolOutputSanitizer = toolOutputSanitizer
+        toolOutputSanitizer = toolOutputSanitizer,
+        requesterAwareToolNames = properties.toolEnrichment.requesterAwareToolNames
     )
     private val retryExecutor = RetryExecutor(
         retry = properties.retry,
@@ -174,7 +176,13 @@ class SpringAiAgentExecutor(
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::createChatOptions,
         recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) },
-        agentMetrics = agentMetrics
+        agentMetrics = agentMetrics,
+        retryProperties = properties.retry,
+        isTransientError = { throwable ->
+            val effective = if (throwable is Exception) throwable
+                else Exception(throwable.message, throwable)
+            agentErrorPolicy.isTransient(effective)
+        }
     )
     private val streamingCompletionFinalizer = StreamingCompletionFinalizer(
         boundaries = properties.boundaries,
@@ -230,6 +238,7 @@ class SpringAiAgentExecutor(
         responseCache = responseCache,
         cacheableTemperature = cacheableTemperature,
         defaultTemperature = properties.llm.temperature,
+        maxToolCallsLimit = properties.maxToolCalls,
         fallbackStrategy = fallbackStrategy,
         agentMetrics = agentMetrics,
         toolCallbacks = toolCallbacks,
@@ -445,17 +454,23 @@ class SpringAiAgentExecutor(
         ragContext: String? = null
     ): AgentResult {
         try {
-            val maxToolCalls = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(1)
+            val maxToolCalls = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(0)
             val allowedTools = resolveIntentAllowedTools(command)
-            val forcedToolContext = maybeExecuteForcedWorkspaceTool(
-                command = command,
-                hookContext = hookContext,
-                toolsUsed = toolsUsed,
-                allowedTools = allowedTools
-            )
+            val forcedToolContext = if (maxToolCalls > 0) {
+                maybeExecuteForcedWorkspaceTool(
+                    command = command,
+                    hookContext = hookContext,
+                    toolsUsed = toolsUsed,
+                    allowedTools = allowedTools
+                )
+            } else {
+                null
+            }
             if (forcedToolContext != null && !forcedToolContext.success) {
                 return AgentResult.failure(
-                    errorMessage = forcedToolContext.errorMessage ?: forcedToolContext.output ?: AgentErrorCode.TOOL_ERROR.defaultMessage,
+                    errorMessage = forcedToolContext.errorMessage
+                        ?: forcedToolContext.output
+                        ?: AgentErrorCode.TOOL_ERROR.defaultMessage,
                     errorCode = AgentErrorCode.TOOL_ERROR
                 )
             }
@@ -520,7 +535,10 @@ class SpringAiAgentExecutor(
     }
 
     private fun mergeRagContext(primary: String?, secondary: String?): String? {
-        val parts = listOfNotNull(primary?.trim()?.takeIf { it.isNotEmpty() }, secondary?.trim()?.takeIf { it.isNotEmpty() })
+        val parts = listOfNotNull(
+            primary?.trim()?.takeIf { it.isNotEmpty() },
+            secondary?.trim()?.takeIf { it.isNotEmpty() }
+        )
         if (parts.isEmpty()) return null
         return parts.joinToString("\n\n")
     }

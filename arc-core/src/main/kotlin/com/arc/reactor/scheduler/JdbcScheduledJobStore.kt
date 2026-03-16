@@ -14,7 +14,7 @@ class JdbcScheduledJobStore(
     private val jdbcTemplate: JdbcTemplate
 ) : ScheduledJobStore {
 
-    private val mapper = jacksonObjectMapper()
+    private val objectMapper = jacksonObjectMapper()
 
     private val rowMapper = RowMapper<ScheduledJob> { rs, _ ->
         val argsJson = rs.getString("tool_arguments")
@@ -28,7 +28,7 @@ class JdbcScheduledJobStore(
             jobType = if (jobTypeStr != null) ScheduledJobType.valueOf(jobTypeStr) else ScheduledJobType.MCP_TOOL,
             mcpServerName = rs.getString("mcp_server_name"),
             toolName = rs.getString("tool_name"),
-            toolArguments = if (argsJson.isNullOrBlank()) emptyMap() else mapper.readValue(argsJson),
+            toolArguments = if (argsJson.isNullOrBlank()) emptyMap() else objectMapper.readValue(argsJson),
             agentPrompt = rs.getString("agent_prompt"),
             personaId = rs.getString("persona_id"),
             agentSystemPrompt = rs.getString("agent_system_prompt"),
@@ -72,7 +72,7 @@ class JdbcScheduledJobStore(
                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             saved.id, saved.name, saved.description, saved.cronExpression, saved.timezone,
             saved.jobType.name,
-            saved.mcpServerName, saved.toolName, mapper.writeValueAsString(saved.toolArguments),
+            saved.mcpServerName, saved.toolName, objectMapper.writeValueAsString(saved.toolArguments),
             saved.agentPrompt, saved.personaId, saved.agentSystemPrompt,
             saved.agentModel, saved.agentMaxToolCalls,
             saved.slackChannelId, saved.teamsWebhookUrl,
@@ -96,7 +96,7 @@ class JdbcScheduledJobStore(
                 enabled = ?, updated_at = ?
                WHERE id = ?""",
             job.name, job.description, job.cronExpression, job.timezone, job.jobType.name,
-            job.mcpServerName, job.toolName, mapper.writeValueAsString(job.toolArguments),
+            job.mcpServerName, job.toolName, objectMapper.writeValueAsString(job.toolArguments),
             job.agentPrompt, job.personaId, job.agentSystemPrompt,
             job.agentModel, job.agentMaxToolCalls,
             job.slackChannelId, job.teamsWebhookUrl,

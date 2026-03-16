@@ -70,8 +70,19 @@ data class ClassificationContext(
     val userId: String? = null,
     val conversationHistory: List<Message> = emptyList(),
     val channel: String? = null,
-    val metadata: Map<String, Any> = emptyMap()
+    val metadata: Map<String, Any> = emptyMap(),
+    val conversationHistoryLoader: (() -> List<Message>)? = null
 ) {
+    private val resolvedConversationHistory by lazy(LazyThreadSafetyMode.NONE) {
+        if (conversationHistory.isNotEmpty()) {
+            conversationHistory
+        } else {
+            conversationHistoryLoader?.invoke().orEmpty()
+        }
+    }
+
+    fun resolveConversationHistory(): List<Message> = resolvedConversationHistory
+
     companion object {
         val EMPTY = ClassificationContext()
     }

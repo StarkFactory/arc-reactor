@@ -26,6 +26,9 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
@@ -58,6 +61,8 @@ class SlackCrossToolAndProactiveE2ETest {
         }
     }
 
+    private val testScope = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
+
     private fun buildPipeline(
         properties: SlackProperties = SlackProperties(enabled = true, maxConcurrentRequests = 5),
         mcpManager: McpManager? = this.mcpManager
@@ -76,7 +81,8 @@ class SlackCrossToolAndProactiveE2ETest {
             metricsRecorder = metricsRecorder,
             properties = properties,
             threadTracker = threadTracker,
-            proactiveChannelStore = proactiveStore
+            proactiveChannelStore = proactiveStore,
+            scope = testScope
         )
         return SlackEventController(objectMapper, eventProcessor)
     }
@@ -266,8 +272,7 @@ class SlackCrossToolAndProactiveE2ETest {
         val response = buildPipeline(properties).handleEvent(payload)
         response.statusCode shouldBe HttpStatus.OK
 
-        // Wait for async processing, then verify no message was sent
-        Thread.sleep(2_000)
+        // Unconfined scope makes processing synchronous — no sleep needed
         coVerify(exactly = 0) { messagingService.sendMessage(any(), any(), any()) }
         threadTracker.isTracked("C_WATCH", "5000.0001") shouldBe false
     }
@@ -298,7 +303,6 @@ class SlackCrossToolAndProactiveE2ETest {
         val response = buildPipeline(properties).handleEvent(payload)
         response.statusCode shouldBe HttpStatus.OK
 
-        Thread.sleep(1_000)
         coVerify(exactly = 0) { agentExecutor.execute(any<AgentCommand>()) }
     }
 

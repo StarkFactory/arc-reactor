@@ -3,6 +3,7 @@ package com.arc.reactor.controller
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.MediaAttachment
 import com.arc.reactor.agent.model.ResponseFormat
@@ -26,7 +27,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.reactor.asFlux
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.util.MimeType
 import org.springframework.web.bind.annotation.PostMapping
@@ -86,13 +89,16 @@ class ChatController(
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Chat response"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
-        ApiResponse(responseCode = "500", description = "Server or LLM error")
+        ApiResponse(responseCode = "429", description = "Rate limit exceeded"),
+        ApiResponse(responseCode = "500", description = "Server or LLM error"),
+        ApiResponse(responseCode = "503", description = "Service unavailable (circuit breaker open)"),
+        ApiResponse(responseCode = "504", description = "Request timed out")
     ])
     @PostMapping
     suspend fun chat(
         @Valid @RequestBody request: ChatRequest,
         exchange: ServerWebExchange
-    ): ChatResponse {
+    ): ResponseEntity<ChatResponse> {
         var command = AgentCommand(
             systemPrompt = resolveSystemPrompt(request),
             userPrompt = request.message,
@@ -107,7 +113,9 @@ class ChatController(
         command = applyIntentProfile(command, request)
 
         val result = agentExecutor.execute(command)
-        return result.toChatResponse(command.model)
+        val response = result.toChatResponse(command.model)
+        val status = if (result.success) HttpStatus.OK else mapErrorCodeToStatus(result.errorCode)
+        return ResponseEntity.status(status).body(response)
     }
 
     /**
@@ -205,9 +213,19 @@ class ChatController(
     private suspend fun applyIntentProfile(command: AgentCommand, request: ChatRequest): AgentCommand {
         if (intentResolver == null) return command
 
+        val startTime = System.currentTimeMillis()
         val context = buildClassificationContext(command, request)
-        val resolved = intentResolver.resolve(command.userPrompt, context) ?: return command
-        return intentResolver.applyProfile(command, resolved)
+        val resolved = intentResolver.resolve(command.userPrompt, context)
+        val durationMs = System.currentTimeMillis() - startTime
+        val metadata = mapOf(
+            IntentResolver.METADATA_INTENT_RESOLUTION_ATTEMPTED to true,
+            IntentResolver.METADATA_INTENT_RESOLUTION_DURATION_MS to durationMs
+        )
+        if (resolved == null) {
+            return command.copy(metadata = command.metadata + metadata)
+        }
+        val applied = intentResolver.applyProfile(command, resolved)
+        return applied.copy(metadata = applied.metadata + metadata)
     }
 
     /**
@@ -215,19 +233,21 @@ class ChatController(
      */
     private fun buildClassificationContext(command: AgentCommand, request: ChatRequest): ClassificationContext {
         val sessionId = request.metadata?.get("sessionId") as? String
-        val history = if (sessionId != null && memoryStore != null) {
-            memoryStore.get(sessionId)
-                ?.getHistory()
-                ?.takeLast(4)
-                ?: emptyList()
+        val historyLoader = if (sessionId != null && memoryStore != null) {
+            {
+                memoryStore.get(sessionId)
+                    ?.getHistory()
+                    ?.takeLast(4)
+                    ?: emptyList()
+            }
         } else {
-            emptyList()
+            null
         }
 
         return ClassificationContext(
             userId = command.userId,
-            conversationHistory = history,
-            metadata = request.metadata ?: emptyMap()
+            metadata = request.metadata ?: emptyMap(),
+            conversationHistoryLoader = historyLoader
         )
     }
 
@@ -364,6 +384,18 @@ class ChatController(
         return uri
     }
 
+}
+
+internal fun mapErrorCodeToStatus(errorCode: AgentErrorCode?): HttpStatus {
+    return when (errorCode) {
+        AgentErrorCode.RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS
+        AgentErrorCode.GUARD_REJECTED, AgentErrorCode.HOOK_REJECTED -> HttpStatus.FORBIDDEN
+        AgentErrorCode.TIMEOUT -> HttpStatus.GATEWAY_TIMEOUT
+        AgentErrorCode.CIRCUIT_BREAKER_OPEN -> HttpStatus.SERVICE_UNAVAILABLE
+        AgentErrorCode.CONTEXT_TOO_LONG -> HttpStatus.BAD_REQUEST
+        AgentErrorCode.OUTPUT_GUARD_REJECTED, AgentErrorCode.OUTPUT_TOO_SHORT -> HttpStatus.OK
+        else -> HttpStatus.INTERNAL_SERVER_ERROR
+    }
 }
 
 /**

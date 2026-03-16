@@ -159,7 +159,10 @@ data class RagProperties(
     val hybrid: RagHybridProperties = RagHybridProperties(),
 
     /** Document chunking configuration */
-    val chunking: RagChunkingProperties = RagChunkingProperties()
+    val chunking: RagChunkingProperties = RagChunkingProperties(),
+
+    /** Retrieval timeout in milliseconds. Prevents thread-pool exhaustion when vector DB is unresponsive. */
+    val retrievalTimeoutMs: Long = 5000
 )
 
 /**
@@ -450,6 +453,7 @@ data class IntentProperties(
  *     scheduler:
  *       enabled: true
  *       thread-pool-size: 5
+ *       default-execution-timeout-ms: 300000
  * ```
  */
 data class SchedulerProperties(
@@ -460,7 +464,10 @@ data class SchedulerProperties(
     val threadPoolSize: Int = 5,
 
     /** Default timezone for scheduled jobs when not specified by the user. */
-    val defaultTimezone: String = java.time.ZoneId.systemDefault().id
+    val defaultTimezone: String = java.time.ZoneId.systemDefault().id,
+
+    /** Default execution timeout for jobs without an explicit timeout (milliseconds). */
+    val defaultExecutionTimeoutMs: Long = 300_000
 )
 
 /**
@@ -500,6 +507,27 @@ data class BoundaryProperties(
 
     /** Policy when output is below outputMinChars. */
     val outputMinViolationMode: OutputMinViolationMode = OutputMinViolationMode.WARN
+)
+
+/**
+ * Tool parameter enrichment configuration.
+ *
+ * Tools listed in [requesterAwareToolNames] automatically receive the caller's
+ * identity (account ID or email) from request metadata when the LLM omits it.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     tool-enrichment:
+ *       requester-aware-tool-names:
+ *         - jira_my_open_issues
+ *         - bitbucket_review_queue
+ * ```
+ */
+data class ToolEnrichmentProperties(
+    /** Tool names that should be enriched with the requester's identity. */
+    val requesterAwareToolNames: Set<String> = emptySet()
 )
 
 /**

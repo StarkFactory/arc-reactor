@@ -37,6 +37,12 @@ subprojects {
     }
 
     tasks.withType<Test> {
+        maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+        jvmArgs(
+            "-XX:+UseParallelGC",
+            "-XX:+TieredCompilation",
+            "-XX:TieredStopAtLevel=1"
+        )
         useJUnitPlatform {
             // Keep integration tests opt-in across all modules.
             // Run with: ./gradlew test -PincludeIntegration
@@ -53,6 +59,18 @@ subprojects {
             if (!project.hasProperty("includeExternalIntegration")) {
                 excludeTags("external")
             }
+            // Run ONLY safety-tagged tests (used by CI safety gate).
+            // Run with: ./gradlew test -PincludeSafety
+            if (project.hasProperty("includeSafety")) {
+                includeTags("safety")
+            }
+        }
+        testLogging {
+            events("failed")
+            showExceptions = true
+            showCauses = true
+            showStackTraces = true
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
         }
     }
 

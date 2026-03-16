@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.scheduler.DynamicSchedulerService
+import mu.KotlinLogging
 import com.arc.reactor.scheduler.ScheduledJob
 import com.arc.reactor.scheduler.ScheduledJobExecution
 import com.arc.reactor.scheduler.ScheduledJobType
@@ -39,6 +40,8 @@ import java.time.Instant
  * - POST   /api/scheduler/jobs/{id}/dry-run      : Dry-run (execute without side effects)
  * - GET    /api/scheduler/jobs/{id}/executions   : Execution history
  */
+private val logger = KotlinLogging.logger {}
+
 @Tag(name = "Scheduler", description = "Dynamic scheduled job execution (ADMIN only)")
 @RestController
 @RequestMapping("/api/scheduler/jobs")
@@ -74,8 +77,9 @@ class SchedulerController(
         val job = try {
             schedulerService.create(request.toScheduledJob())
         } catch (e: IllegalArgumentException) {
+            logger.warn(e) { "Invalid create job request" }
             return ResponseEntity.badRequest()
-                .body(ErrorResponse(error = e.message ?: "Invalid request", timestamp = Instant.now().toString()))
+                .body(ErrorResponse(error = "Invalid request", timestamp = Instant.now().toString()))
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(job.toResponse())
     }
@@ -111,8 +115,9 @@ class SchedulerController(
         val updated = try {
             schedulerService.update(id, request.toScheduledJob()) ?: return jobNotFound(id)
         } catch (e: IllegalArgumentException) {
+            logger.warn(e) { "Invalid update job request: $id" }
             return ResponseEntity.badRequest()
-                .body(ErrorResponse(error = e.message ?: "Invalid request", timestamp = Instant.now().toString()))
+                .body(ErrorResponse(error = "Invalid request", timestamp = Instant.now().toString()))
         }
         return ResponseEntity.ok(updated.toResponse())
     }

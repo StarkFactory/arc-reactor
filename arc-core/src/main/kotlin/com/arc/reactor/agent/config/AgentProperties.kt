@@ -84,7 +84,10 @@ data class AgentProperties(
     val promptLab: PromptLabProperties = PromptLabProperties(),
 
     /** Tracing configuration */
-    val tracing: TracingProperties = TracingProperties()
+    val tracing: TracingProperties = TracingProperties(),
+
+    /** Tool parameter enrichment configuration */
+    val toolEnrichment: ToolEnrichmentProperties = ToolEnrichmentProperties()
 )
 
 data class LlmProperties(
@@ -284,7 +287,11 @@ data class McpConfigProperties(
     val connectionTimeoutMs: Long = 30_000,
 
     /** Auto-reconnection settings */
-    val reconnection: McpReconnectionProperties = McpReconnectionProperties()
+    val reconnection: McpReconnectionProperties = McpReconnectionProperties(),
+
+    /** Allow connections to private/reserved IP addresses (loopback, site-local, link-local).
+     *  Enable only for local development where MCP servers run on localhost. */
+    val allowPrivateAddresses: Boolean = false
 )
 
 data class McpSecurityProperties(
@@ -292,8 +299,18 @@ data class McpSecurityProperties(
     val allowedServerNames: Set<String> = emptySet(),
 
     /** Maximum tool output length in characters */
-    val maxToolOutputLength: Int = 50_000
-)
+    val maxToolOutputLength: Int = 50_000,
+
+    /** Allowed STDIO command executables. Only these base commands are permitted. */
+    val allowedStdioCommands: Set<String> = DEFAULT_ALLOWED_STDIO_COMMANDS
+) {
+    companion object {
+        /** Default set of known-safe STDIO executables for MCP servers. */
+        val DEFAULT_ALLOWED_STDIO_COMMANDS: Set<String> = setOf(
+            "npx", "node", "python", "python3", "uvx", "uv", "docker", "deno", "bun"
+        )
+    }
+}
 
 /**
  * MCP auto-reconnection configuration.

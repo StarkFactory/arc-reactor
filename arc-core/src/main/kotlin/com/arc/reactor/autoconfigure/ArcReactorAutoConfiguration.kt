@@ -27,6 +27,7 @@ import org.springframework.context.annotation.Import
     JdbcMemoryStoreConfiguration::class,
     JdbcToolPolicyStoreConfiguration::class,
     JdbcRagIngestionPolicyStoreConfiguration::class,
+    JdbcMcpSecurityPolicyStoreConfiguration::class,
     GuardConfiguration::class,
     OutputGuardConfiguration::class,
     RagConfiguration::class,
@@ -40,6 +41,9 @@ import org.springframework.context.annotation.Import
     UserMemoryConfiguration::class,
     JdbcUserMemoryStoreConfiguration::class,
     PromptLabConfiguration::class,
-    PromptCachingConfiguration::class
+    PromptCachingConfiguration::class,
+    HealthIndicatorConfiguration::class,
+    CanaryConfiguration::class,
+    ToolSanitizerConfiguration::class
 )
 class ArcReactorAutoConfiguration

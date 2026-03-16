@@ -1,6 +1,7 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.model.ResponseFormat
+import com.arc.reactor.support.WorkContextPatterns
 import com.arc.reactor.guard.canary.SystemPromptPostProcessor
 import com.arc.reactor.tool.WorkspaceMutationIntentDetector
 
@@ -650,7 +651,7 @@ class SystemPromptBuilder(
             "서비스 상황", "서비스 현황", "service context", "service summary", "현재 상황", "현재 현황",
             "최근 jira", "최근 jira 이슈", "열린 pr", "오픈 pr", "관련 문서", "한 번에 요약", "요약해줘", "기준으로"
         )
-        private val ISSUE_KEY_REGEX = Regex("\\b[A-Z][A-Z0-9_]+-[1-9][0-9]*\\b")
+        private val ISSUE_KEY_REGEX = WorkContextPatterns.ISSUE_KEY_REGEX
         private val JIRA_HINTS = setOf(
             "jira", "이슈", "프로젝트", "jql", "ticket", "티켓", "blocker", "마감", "due", "transition", "전이"
         )
@@ -660,7 +661,7 @@ class SystemPromptBuilder(
         private val SWAGGER_HINTS = setOf(
             "swagger", "openapi", "spec", "schema", "endpoint", "api spec", "스펙", "엔드포인트", "스키마"
         )
-        private val OPENAPI_URL_REGEX = Regex("https?://\\S+(?:openapi|swagger)\\S*", RegexOption.IGNORE_CASE)
+        private val OPENAPI_URL_REGEX = WorkContextPatterns.OPENAPI_URL_REGEX
         private val PROJECT_LIST_HINTS = setOf("project list", "projects", "프로젝트 목록", "프로젝트 리스트")
         private val DUE_SOON_HINTS = setOf("due soon", "마감", "임박", "due")
         private val BLOCKER_HINTS = setOf("blocker", "차단", "막힌")

@@ -16,6 +16,16 @@ springBoot {
     mainClass.set("com.arc.reactor.ArcReactorApplicationKt")
 }
 
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    dependsOn(
+        ":arc-core:jar",
+        ":arc-web:jar",
+        ":arc-slack:jar",
+        ":arc-error-report:jar",
+        ":arc-admin:jar"
+    )
+}
+
 tasks.jar {
     enabled = false
 }

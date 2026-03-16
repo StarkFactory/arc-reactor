@@ -4,10 +4,12 @@ import com.arc.reactor.agent.config.McpReconnectionProperties
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.mcp.model.McpTransportType
+import com.arc.reactor.tool.ToolCallback
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
+import java.util.concurrent.ConcurrentHashMap
 
 class McpManagerTest {
 
@@ -104,6 +106,47 @@ class McpManagerTest {
 
         val callbacks = manager.getAllToolCallbacks()
         assertTrue(callbacks.isEmpty()) { "Expected no callbacks when no servers connected, got: ${callbacks.size}" }
+    }
+
+    @Test
+    fun `should reuse aggregated callback snapshot until cache changes`() {
+        val manager = manager()
+        manager.seedToolCallbacks(
+            "cached-server",
+            listOf(testCallback("tool-a"), testCallback("tool-b"))
+        )
+
+        val first = manager.getAllToolCallbacks()
+        val second = manager.getAllToolCallbacks()
+
+        assertSame(first, second, "Expected getAllToolCallbacks to reuse the cached snapshot instance")
+        assertEquals(listOf("tool-a", "tool-b"), second.map { it.name }) {
+            "Expected cached snapshot to preserve callback order"
+        }
+    }
+
+    @Test
+    fun `disconnect should invalidate aggregated callback snapshot`() = runBlocking {
+        val manager = manager()
+        manager.register(
+            McpServer(
+                name = "disconnect-server",
+                transportType = McpTransportType.STDIO,
+                config = mapOf("command" to "echo")
+            )
+        )
+        manager.seedToolCallbacks("disconnect-server", listOf(testCallback("disconnect-tool")))
+
+        val beforeDisconnect = manager.getAllToolCallbacks()
+        manager.disconnect("disconnect-server")
+        val afterDisconnect = manager.getAllToolCallbacks()
+
+        assertEquals(listOf("disconnect-tool"), beforeDisconnect.map { it.name }) {
+            "Expected snapshot warm-up to include seeded callback before disconnect"
+        }
+        assertTrue(afterDisconnect.isEmpty()) {
+            "Expected aggregated callback snapshot to be invalidated after disconnect"
+        }
     }
 
     @Test
@@ -453,6 +496,22 @@ class McpManagerTest {
             assertEquals(10_000, config.maxToolOutputLength) {
                 "Should store custom max output length"
             }
+        }
+    }
+
+    private fun DefaultMcpManager.seedToolCallbacks(serverName: String, callbacks: List<ToolCallback>) {
+        val field = DefaultMcpManager::class.java.getDeclaredField("toolCallbacksCache")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val cache = field.get(this) as ConcurrentHashMap<String, List<ToolCallback>>
+        cache[serverName] = callbacks
+    }
+
+    private fun testCallback(name: String): ToolCallback {
+        return object : ToolCallback {
+            override val name: String = name
+            override val description: String = "test-$name"
+            override suspend fun call(arguments: Map<String, Any?>): Any? = "ok"
         }
     }
 }

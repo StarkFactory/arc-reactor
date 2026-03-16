@@ -88,7 +88,7 @@ class FeedbackControllerTest {
                 response = "AI is artificial intelligence.",
                 comment = "Great!"
             )
-            val response = controller.submitFeedback(request)
+            val response = controller.submitFeedback(request, noAuthExchange())
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should return 201 Created" }
             val body = response.body!!
@@ -101,7 +101,7 @@ class FeedbackControllerTest {
         fun `should return 400 for invalid rating`() = runTest {
             val request = SubmitFeedbackRequest(rating = "invalid_rating")
             val exception = assertThrows(ServerWebInputException::class.java) {
-                controller.submitFeedback(request)
+                controller.submitFeedback(request, noAuthExchange())
             }
             assertTrue(exception.reason?.contains("Invalid rating") == true) {
                 "Invalid rating should produce ServerWebInputException with clear reason"
@@ -129,7 +129,7 @@ class FeedbackControllerTest {
                 runId = "run-42",
                 comment = "Wrong answer"
             )
-            val response = controller.submitFeedback(request)
+            val response = controller.submitFeedback(request, noAuthExchange())
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should return 201" }
             val saved = slot.captured
@@ -138,7 +138,7 @@ class FeedbackControllerTest {
             assertEquals(listOf("calculator", "search"), saved.toolsUsed) { "toolsUsed should be auto-enriched" }
             assertEquals(1500L, saved.durationMs) { "durationMs should be auto-enriched" }
             assertEquals("cached-session", saved.sessionId) { "sessionId should be auto-enriched from metadata" }
-            assertNull(saved.userId) { "userId should not be stored in feedback records" }
+            assertNull(saved.userId) { "userId should be null when no authenticated user" }
         }
 
         @Test
@@ -166,7 +166,7 @@ class FeedbackControllerTest {
                 durationMs = 100,
                 sessionId = "explicit-session"
             )
-            controller.submitFeedback(request)
+            controller.submitFeedback(request, noAuthExchange())
 
             val saved = slot.captured
             assertEquals("My explicit query", saved.query) { "Explicit query should take precedence" }
@@ -174,7 +174,7 @@ class FeedbackControllerTest {
             assertEquals(listOf("explicit-tool"), saved.toolsUsed) { "Explicit toolsUsed should take precedence" }
             assertEquals(100L, saved.durationMs) { "Explicit durationMs should take precedence" }
             assertEquals("explicit-session", saved.sessionId) { "Explicit sessionId should take precedence" }
-            assertNull(saved.userId) { "userId should not be stored in feedback records" }
+            assertNull(saved.userId) { "userId should be null when no authenticated user" }
         }
 
         @Test
@@ -188,7 +188,7 @@ class FeedbackControllerTest {
                 query = "test",
                 response = "test"
             )
-            val response = controller.submitFeedback(request)
+            val response = controller.submitFeedback(request, noAuthExchange())
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should accept uppercase rating" }
             assertEquals(FeedbackRating.THUMBS_DOWN, slot.captured.rating) { "Should parse uppercase rating" }
@@ -205,7 +205,7 @@ class FeedbackControllerTest {
                 query = "test",
                 response = "test"
             )
-            val response = controller.submitFeedback(request)
+            val response = controller.submitFeedback(request, noAuthExchange())
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should accept trimmed rating input" }
             assertEquals(FeedbackRating.THUMBS_UP, slot.captured.rating) {
@@ -498,7 +498,7 @@ class FeedbackControllerTest {
                 runId = "expired-run",
                 comment = "Bad answer"
             )
-            val response = controller.submitFeedback(request)
+            val response = controller.submitFeedback(request, noAuthExchange())
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should still create feedback" }
             assertEquals("", slot.captured.query) { "Query should be empty when no metadata and no explicit value" }
@@ -515,7 +515,7 @@ class FeedbackControllerTest {
                 query = "Direct query",
                 response = "Direct response"
             )
-            val response = controller.submitFeedback(request)
+            val response = controller.submitFeedback(request, noAuthExchange())
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should create feedback without runId" }
             assertEquals("Direct query", slot.captured.query) { "Query should come from request" }

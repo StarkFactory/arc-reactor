@@ -9,7 +9,9 @@ import com.arc.reactor.slack.service.SlackMessagingService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import org.springframework.beans.factory.DisposableBean
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -19,7 +21,7 @@ class SlackCommandProcessor(
     private val messagingService: SlackMessagingService,
     private val metricsRecorder: SlackMetricsRecorder,
     properties: SlackProperties
-) {
+) : DisposableBean {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val backpressureLimiter = SlackBackpressureLimiter(
         maxConcurrentRequests = properties.maxConcurrentRequests,
@@ -91,6 +93,10 @@ class SlackCommandProcessor(
             }
         }
         return true
+    }
+
+    override fun destroy() {
+        scope.cancel()
     }
 
     companion object {

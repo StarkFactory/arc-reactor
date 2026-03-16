@@ -1,6 +1,8 @@
 package com.arc.reactor.resilience
 
 import com.arc.reactor.resilience.impl.DefaultCircuitBreaker
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -339,6 +341,56 @@ class DefaultCircuitBreakerTest {
             assertTrue(closedIdx >= 0) { "Should have a transition to CLOSED" }
             assertEquals(CircuitBreakerState.HALF_OPEN, transitionFromStates[closedIdx]) {
                 "Recovery transition should be FROM HALF_OPEN"
+            }
+        }
+
+        @Test
+        fun `should record HALF_OPEN to CLOSED only once with concurrent successes`() = runTest {
+            val concurrentCb = DefaultCircuitBreaker(
+                failureThreshold = 3,
+                resetTimeoutMs = 5000,
+                halfOpenMaxCalls = 4,
+                name = "metrics-test",
+                clock = { clock.get() },
+                agentMetrics = trackingMetrics
+            )
+
+            // Trip the breaker
+            repeat(3) {
+                runCatching { concurrentCb.execute { throw RuntimeException("fail") } }
+            }
+            transitionNames.clear()
+            transitionFromStates.clear()
+            transitionToStates.clear()
+
+            // Move to HALF_OPEN
+            clock.addAndGet(5000)
+            concurrentCb.state()
+            transitionNames.clear()
+            transitionFromStates.clear()
+            transitionToStates.clear()
+
+            // Execute multiple concurrent successes in HALF_OPEN
+            val results = (1..4).map { i ->
+                async { runCatching { concurrentCb.execute { "success-$i" } } }
+            }.awaitAll()
+
+            // At least one should succeed
+            assertTrue(results.any { it.isSuccess }) {
+                "At least one concurrent call should succeed"
+            }
+
+            // CAS ensures exactly one HALF_OPEN → CLOSED transition
+            val closedTransitions = transitionToStates.indices.count {
+                transitionFromStates[it] == CircuitBreakerState.HALF_OPEN &&
+                    transitionToStates[it] == CircuitBreakerState.CLOSED
+            }
+            assertEquals(1, closedTransitions) {
+                "Should have exactly 1 HALF_OPEN → CLOSED transition, but got $closedTransitions"
+            }
+
+            assertEquals(CircuitBreakerState.CLOSED, concurrentCb.state()) {
+                "Final state should be CLOSED"
             }
         }
 

@@ -14,8 +14,10 @@ import com.fasterxml.jackson.databind.JsonNode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import org.springframework.beans.factory.DisposableBean
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -27,9 +29,10 @@ class SlackEventProcessor(
     properties: SlackProperties,
     private val threadTracker: SlackThreadTracker? = null,
     private val proactiveChannelStore: ProactiveChannelStore? = null,
-    private val botResponseTracker: SlackBotResponseTracker? = null
-) {
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val botResponseTracker: SlackBotResponseTracker? = null,
+    scope: CoroutineScope? = null
+) : DisposableBean {
+    private val scope = scope ?: CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val backpressureLimiter = SlackBackpressureLimiter(
         maxConcurrentRequests = properties.maxConcurrentRequests,
         requestTimeoutMs = properties.requestTimeoutMs,
@@ -268,6 +271,10 @@ class SlackEventProcessor(
                 logger.warn(e) { "Failed to handle reaction event: channel=$channelId" }
             }
         }
+    }
+
+    override fun destroy() {
+        scope.cancel()
     }
 
     companion object {

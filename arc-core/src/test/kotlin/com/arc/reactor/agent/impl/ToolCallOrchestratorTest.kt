@@ -289,7 +289,7 @@ class ToolCallOrchestratorTest {
             toolsUsed = toolsUsed
         )
 
-        assertTrue(result.success)
+        assertTrue(result.success, "Direct tool call should succeed for registered tool")
         assertEquals("owner=PAY-123", result.output)
         assertEquals(listOf("work_owner_lookup"), toolsUsed)
     }
@@ -302,7 +302,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { emptyMap() }
+            parseToolArguments = { emptyMap() },
+            requesterAwareToolNames = setOf("work_personal_focus_plan")
         )
         val toolsUsed = mutableListOf<String>()
         val context = HookContext(
@@ -517,7 +518,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("project" to "DEV") }
+            parseToolArguments = { mapOf("project" to "DEV") },
+            requesterAwareToolNames = setOf("jira_my_open_issues")
         )
         val context = HookContext(
             runId = "run-1",
@@ -554,7 +556,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("assigneeAccountId" to "acct-1") }
+            parseToolArguments = { mapOf("assigneeAccountId" to "acct-1") },
+            requesterAwareToolNames = setOf("jira_daily_briefing")
         )
         val context = HookContext(
             runId = "run-1",
@@ -599,7 +602,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("jiraProject" to "DEV") }
+            parseToolArguments = { mapOf("jiraProject" to "DEV") },
+            requesterAwareToolNames = setOf("work_personal_focus_plan")
         )
         val context = HookContext(
             runId = "run-1",
@@ -636,7 +640,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("jiraProject" to "DEV") }
+            parseToolArguments = { mapOf("jiraProject" to "DEV") },
+            requesterAwareToolNames = setOf("work_personal_focus_plan")
         )
         val context = HookContext(
             runId = "run-1",
@@ -677,7 +682,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("jiraProject" to "DEV") }
+            parseToolArguments = { mapOf("jiraProject" to "DEV") },
+            requesterAwareToolNames = setOf("work_personal_focus_plan")
         )
         val context = HookContext(
             runId = "run-1",
@@ -719,7 +725,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { mapOf("repo" to "dev") }
+            parseToolArguments = { mapOf("repo" to "dev") },
+            requesterAwareToolNames = setOf("bitbucket_review_queue")
         )
         val context = HookContext(
             runId = "run-1",
@@ -756,7 +763,8 @@ class ToolCallOrchestratorTest {
             toolApprovalPolicy = null,
             pendingApprovalStore = null,
             agentMetrics = NoOpAgentMetrics(),
-            parseToolArguments = { emptyMap() }
+            parseToolArguments = { emptyMap() },
+            requesterAwareToolNames = setOf("bitbucket_my_authored_prs")
         )
         val context = HookContext(
             runId = "run-1",
@@ -960,10 +968,15 @@ class ToolCallOrchestratorTest {
             parseToolArguments = { emptyMap() }
         )
         val toolCall = toolCall(id = "id-1", name = "search")
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = "ok"
+        }
 
         val responses = orchestrator.executeInParallel(
             toolCalls = listOf(toolCall),
-            tools = emptyList(),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
             hookContext = hookContext,
             toolsUsed = mutableListOf(),
             totalToolCallsCounter = AtomicInteger(1),
@@ -975,6 +988,82 @@ class ToolCallOrchestratorTest {
         assertTrue(responses[0].responseData().contains("Maximum tool call limit")) {
             "Response should indicate max tool call limit was reached"
         }
+    }
+
+    @Test
+    fun `should not consume budget for allowlist-blocked tool calls`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = "ok"
+        }
+        val counter = AtomicInteger(0)
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(
+                toolCall(id = "id-1", name = "blocked"),
+                toolCall(id = "id-2", name = "search")
+            ),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = counter,
+            maxToolCalls = 1,
+            allowedTools = setOf("search")
+        )
+
+        assertEquals(2, responses.size)
+        assertTrue(responses[0].responseData().contains("not allowed")) {
+            "First response should explain allowlist rejection"
+        }
+        assertEquals("ok", responses[1].responseData())
+        assertEquals(1, counter.get()) { "Only the executed tool should consume budget" }
+    }
+
+    @Test
+    fun `should not consume budget for hallucinated missing tools`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val callback = object : ToolCallback {
+            override val name: String = "search"
+            override val description: String = "Search tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any = "ok"
+        }
+        val counter = AtomicInteger(0)
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(
+                toolCall(id = "id-1", name = "missing"),
+                toolCall(id = "id-2", name = "search")
+            ),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = counter,
+            maxToolCalls = 1,
+            allowedTools = null
+        )
+
+        assertEquals(2, responses.size)
+        assertTrue(responses[0].responseData().contains("not found")) {
+            "Missing tool response should explain that the tool does not exist"
+        }
+        assertEquals("ok", responses[1].responseData())
+        assertEquals(1, counter.get()) { "Only the real tool execution should consume budget" }
     }
 
     @Test
@@ -1041,6 +1130,43 @@ class ToolCallOrchestratorTest {
         @Suppress("UNCHECKED_CAST")
         val payload = objectMapper.readValue(responses[0].responseData(), Map::class.java) as Map<String, Any?>
         assertEquals("ok", payload["status"])
+    }
+
+    @Test
+    fun `should sanitize failed tool error output when sanitizer is enabled`() = runBlocking {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() },
+            toolOutputSanitizer = ToolOutputSanitizer()
+        )
+        val toolCall = toolCall(id = "id-1", name = "jira_search")
+        val callback = object : ToolCallback {
+            override val name: String = "jira_search"
+            override val description: String = "Search"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                throw RuntimeException("Connection failed at /internal/path/secret.conf")
+            }
+        }
+
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(callback)),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size)
+        assertTrue(
+            responses[0].responseData().contains("--- BEGIN TOOL DATA (jira_search) ---"),
+            "Failed tool output should be wrapped with data markers when sanitizer is enabled"
+        )
     }
 
     private fun toolCall(id: String, name: String, arguments: String = "{}"): AssistantMessage.ToolCall {

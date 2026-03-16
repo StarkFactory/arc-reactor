@@ -29,6 +29,10 @@ class SlackSignatureVerifier(
      * @return VerificationResult indicating success or failure with reason
      */
     fun verify(timestamp: String?, signature: String?, body: String): VerificationResult {
+        if (signingSecret.isBlank()) {
+            logger.error { "Slack signing secret is not configured — rejecting request (fail-close)" }
+            return VerificationResult.failure("Signing secret not configured")
+        }
         if (timestamp.isNullOrBlank()) {
             return VerificationResult.failure("Missing X-Slack-Request-Timestamp header")
         }

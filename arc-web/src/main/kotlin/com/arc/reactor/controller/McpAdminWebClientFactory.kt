@@ -1,19 +1,23 @@
 package com.arc.reactor.controller
 
 import io.netty.channel.ChannelOption
+import mu.KotlinLogging
 import org.springframework.http.client.reactive.ReactorClientHttpConnector
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.netty.http.client.HttpClient
 import reactor.netty.resources.ConnectionProvider
+import org.springframework.beans.factory.DisposableBean
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * Caches WebClient instances for MCP admin proxy calls to avoid rebuilding connectors per request.
  */
 class McpAdminWebClientFactory(
     private val maxCacheEntries: Int = DEFAULT_CACHE_ENTRIES
-) {
+) : DisposableBean {
     private val clients = ConcurrentHashMap<CacheKey, WebClient>()
 
     fun getClient(
@@ -50,6 +54,12 @@ class McpAdminWebClientFactory(
         val connectTimeoutMs: Int,
         val responseTimeoutMs: Long
     )
+
+    override fun destroy() {
+        clients.clear()
+        sharedConnectionProvider.dispose()
+        logger.info { "McpAdminWebClientFactory: connection provider disposed" }
+    }
 
     companion object {
         private const val DEFAULT_CACHE_ENTRIES = 256

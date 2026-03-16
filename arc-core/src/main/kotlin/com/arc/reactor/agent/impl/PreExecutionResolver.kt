@@ -39,6 +39,7 @@ internal class PreExecutionResolver(
             GuardCommand(
                 userId = userId,
                 text = command.userPrompt,
+                channel = command.metadata["channel"]?.toString(),
                 systemPrompt = command.systemPrompt,
                 metadata = command.metadata
             )
@@ -111,6 +112,15 @@ internal class PreExecutionResolver(
      */
     suspend fun resolveIntent(command: AgentCommand, hookContext: HookContext): AgentCommand {
         if (intentResolver == null) return command
+        if (intentResolutionAlreadyAttempted(command)) {
+            val durationMs = resolvePriorIntentResolutionDuration(command)
+            recordResolvedIntentDuration(command, hookContext, durationMs)
+            val resolvedIntentName = command.metadata[IntentResolver.METADATA_INTENT_NAME]?.toString()
+            if (resolvedIntentName != null && blockedIntents.contains(resolvedIntentName)) {
+                throw BlockedIntentException(resolvedIntentName)
+            }
+            return command
+        }
         val intentStartTime = nowMs()
         try {
             val context = ClassificationContext(
@@ -119,14 +129,14 @@ internal class PreExecutionResolver(
             )
             val resolved = intentResolver.resolve(command.userPrompt, context)
                 ?: return command.also {
-                    recordIntentResolutionDuration(command, hookContext, intentStartTime)
+                    recordMeasuredIntentResolutionDuration(command, hookContext, intentStartTime)
                 }
             if (blockedIntents.contains(resolved.intentName)) {
-                recordIntentResolutionDuration(command, hookContext, intentStartTime)
+                recordMeasuredIntentResolutionDuration(command, hookContext, intentStartTime)
                 throw BlockedIntentException(resolved.intentName)
             }
             return intentResolver.applyProfile(command, resolved).also {
-                recordIntentResolutionDuration(command, hookContext, intentStartTime)
+                recordMeasuredIntentResolutionDuration(command, hookContext, intentStartTime)
             }
         } catch (e: BlockedIntentException) {
             throw e
@@ -134,14 +144,40 @@ internal class PreExecutionResolver(
             e.throwIfCancellation()
             logger.error(e) { "Intent resolution failed, using original command" }
             return command.also {
-                recordIntentResolutionDuration(command, hookContext, intentStartTime)
+                recordMeasuredIntentResolutionDuration(command, hookContext, intentStartTime)
             }
         }
     }
 
-    private fun recordIntentResolutionDuration(command: AgentCommand, hookContext: HookContext, intentStartTime: Long) {
+    private fun recordMeasuredIntentResolutionDuration(
+        command: AgentCommand,
+        hookContext: HookContext,
+        intentStartTime: Long
+    ) {
         val durationMs = nowMs() - intentStartTime
+        recordResolvedIntentDuration(command, hookContext, durationMs)
+    }
+
+    private fun recordResolvedIntentDuration(command: AgentCommand, hookContext: HookContext, durationMs: Long) {
         recordStageTiming(hookContext, "intent_resolution", durationMs)
         agentMetrics.recordStageLatency("intent_resolution", durationMs, command.metadata)
+    }
+
+    private fun intentResolutionAlreadyAttempted(command: AgentCommand): Boolean {
+        val raw = command.metadata[IntentResolver.METADATA_INTENT_RESOLUTION_ATTEMPTED] ?: return false
+        return when (raw) {
+            is Boolean -> raw
+            is String -> raw.equals("true", ignoreCase = true)
+            else -> false
+        }
+    }
+
+    private fun resolvePriorIntentResolutionDuration(command: AgentCommand): Long {
+        val raw = command.metadata[IntentResolver.METADATA_INTENT_RESOLUTION_DURATION_MS] ?: return 0L
+        return when (raw) {
+            is Number -> raw.toLong()
+            is String -> raw.toLongOrNull() ?: 0L
+            else -> 0L
+        }
     }
 }

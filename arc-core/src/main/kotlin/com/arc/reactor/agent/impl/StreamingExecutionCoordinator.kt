@@ -11,12 +11,13 @@ import com.arc.reactor.hook.impl.UserMemoryInjectionHook
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.support.throwIfCancellation
-import mu.KotlinLogging
-import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.chat.messages.Message
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
+import mu.KotlinLogging
+import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.messages.Message
 
 private val logger = KotlinLogging.logger {}
 
@@ -55,6 +56,8 @@ internal class StreamingExecutionCoordinator(
             handleBlockedIntent(e, state, emit)
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             handleTimeout(e, state, emit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             handleUnexpectedFailure(e, state, emit)
         }
@@ -176,8 +179,9 @@ internal class StreamingExecutionCoordinator(
             command.responseSchema,
             command.userPrompt
         )
+        val effectiveMaxToolCalls = minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(0)
         val toolSelectionStart = System.nanoTime()
-        val selectedTools = if (command.mode == AgentMode.STANDARD) {
+        val selectedTools = if (command.mode == AgentMode.STANDARD || effectiveMaxToolCalls == 0) {
             emptyList()
         } else {
             toolPreparationPlanner.prepareForPrompt(command.userPrompt)
@@ -192,7 +196,7 @@ internal class StreamingExecutionCoordinator(
             initialTools = selectedTools,
             conversationHistory = conversationHistory,
             allowedTools = resolveIntentAllowedTools(command),
-            maxToolCallLimit = minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(1)
+            maxToolCallLimit = effectiveMaxToolCalls
         )
     }
 
@@ -252,10 +256,14 @@ internal class StreamingExecutionCoordinator(
         emit: suspend (String) -> Unit
     ) {
         exception.throwIfCancellation()
-        logger.error(exception) { "Streaming execution failed" }
-        val errorCode = agentErrorPolicy.classify(exception)
+        val unwrapped = unwrapReactorException(exception)
+        val effectiveException = if (unwrapped is Exception) unwrapped else exception
+        logger.error(effectiveException) { "Streaming execution failed" }
+        val errorCode = agentErrorPolicy.classify(effectiveException)
         state.streamErrorCode = errorCode
-        state.streamErrorMessage = errorMessageResolver.resolve(errorCode, exception.message)
+        state.streamErrorMessage = errorMessageResolver.resolve(
+            errorCode, effectiveException.message
+        )
         emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
     }
 

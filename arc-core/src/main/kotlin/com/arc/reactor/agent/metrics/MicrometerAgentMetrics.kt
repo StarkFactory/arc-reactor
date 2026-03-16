@@ -10,6 +10,7 @@ import io.micrometer.core.instrument.Timer
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.TimeUnit
 
@@ -32,6 +33,11 @@ class MicrometerAgentMetrics(
     private val toolFamilyCounts = ConcurrentHashMap<String, AtomicLong>()
     private val laneSummaries = ConcurrentHashMap<String, ResponseLaneAggregate>()
     private val missingQueryCounts = ConcurrentHashMap<String, MissingQueryAggregate>()
+    private val activeRequestCount = AtomicInteger(0)
+
+    init {
+        registry.gauge(METRIC_ACTIVE_REQUESTS, activeRequestCount)
+    }
 
     override fun recordExecution(result: AgentResult) {
         Counter.builder(METRIC_EXECUTIONS)
@@ -218,13 +224,44 @@ class MicrometerAgentMetrics(
         val blocked = metadata["blockReason"]?.toString()?.isNotBlank() == true
         observedResponses.incrementAndGet()
         if (grounded) groundedResponses.incrementAndGet()
-        if (metadata["deliveryMode"] == "scheduled") scheduledResponses.incrementAndGet() else interactiveResponses.incrementAndGet()
+        if (metadata["deliveryMode"] == "scheduled") {
+            scheduledResponses.incrementAndGet()
+        } else {
+            interactiveResponses.incrementAndGet()
+        }
         if (blocked) blockedResponses.incrementAndGet()
         incrementBucket(answerModeCounts, answerMode, "unknown")
         incrementBucket(channelCounts, metadata["channel"]?.toString(), "unknown")
         incrementBucket(toolFamilyCounts, metadata["toolFamily"]?.toString(), "none")
         trackLaneSummary(answerMode, grounded, blocked)
         trackMissingQuery(metadata)
+    }
+
+    override fun recordLlmLatency(model: String, durationMs: Long) {
+        Timer.builder(METRIC_LLM_LATENCY)
+            .tag("model", model)
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .register(registry)
+            .record(durationMs.coerceAtLeast(0), TimeUnit.MILLISECONDS)
+    }
+
+    override fun recordToolOutputSize(toolName: String, sizeBytes: Int, truncated: Boolean) {
+        DistributionSummary.builder(METRIC_TOOL_OUTPUT_SIZE)
+            .baseUnit("bytes")
+            .tag("tool", toolName)
+            .register(registry)
+            .record(sizeBytes.coerceAtLeast(0).toDouble())
+
+        if (truncated) {
+            Counter.builder(METRIC_TOOL_OUTPUT_TRUNCATED)
+                .tag("tool", toolName)
+                .register(registry)
+                .increment()
+        }
+    }
+
+    override fun recordActiveRequests(count: Int) {
+        activeRequestCount.set(count)
     }
 
     override fun recordStageLatency(stage: String, durationMs: Long, metadata: Map<String, Any>) {
@@ -256,7 +293,10 @@ class MicrometerAgentMetrics(
 
     override fun topMissingQueries(limit: Int): List<MissingQueryInsight> {
         return missingQueryCounts.values
-            .sortedWith(compareByDescending<MissingQueryAggregate> { it.count.get() }.thenByDescending { it.lastOccurredAt })
+            .sortedWith(
+                compareByDescending<MissingQueryAggregate> { it.count.get() }
+                    .thenByDescending { it.lastOccurredAt }
+            )
             .take(limit)
             .map {
                 MissingQueryInsight(
@@ -344,5 +384,9 @@ class MicrometerAgentMetrics(
         private const val METRIC_BOUNDARY_VIOLATIONS = "arc.agent.boundary.violations"
         private const val METRIC_UNVERIFIED_RESPONSES = "arc.agent.responses.unverified"
         private const val METRIC_STAGE_DURATION = "arc.agent.stage.duration"
+        private const val METRIC_LLM_LATENCY = "arc.agent.llm.latency"
+        private const val METRIC_TOOL_OUTPUT_SIZE = "arc.agent.tool.output.size"
+        private const val METRIC_TOOL_OUTPUT_TRUNCATED = "arc.agent.tool.output.truncated"
+        private const val METRIC_ACTIVE_REQUESTS = "arc.agent.active_requests"
     }
 }

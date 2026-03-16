@@ -3,6 +3,7 @@ package com.arc.reactor.approval
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder
@@ -10,6 +11,7 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 import java.sql.Timestamp
 import java.time.Instant
 
+@Tag("safety")
 class JdbcPendingApprovalStoreCleanupTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate

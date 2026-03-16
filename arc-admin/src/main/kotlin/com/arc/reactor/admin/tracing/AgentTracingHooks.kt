@@ -34,7 +34,8 @@ class AgentTracingHooks(
     private val tracer: Tracer,
     private val storeUserIdentifiers: Boolean = false,
     private val storeSessionIdentifiers: Boolean = false
-) : BeforeAgentStartHook, AfterAgentCompleteHook, BeforeToolCallHook, AfterToolCallHook {
+) : BeforeAgentStartHook, AfterAgentCompleteHook, BeforeToolCallHook, AfterToolCallHook,
+    org.springframework.beans.factory.DisposableBean {
 
     override val order: Int = 199
     override val failOnError: Boolean = false
@@ -161,6 +162,17 @@ class AgentTracingHooks(
         } catch (e: Exception) {
             logger.warn(e) { "Failed to end tool span for ${context.toolName}" }
         }
+    }
+
+    override fun destroy() {
+        agentSpans.values.forEach { span ->
+            runCatching { span.tag("cancelled", "true"); span.end() }
+        }
+        agentSpans.clear()
+        toolSpanEntries.values.forEach { entry ->
+            runCatching { entry.span.tag("cancelled", "true"); entry.span.end() }
+        }
+        toolSpanEntries.clear()
     }
 
     private fun toolSpanKey(context: ToolCallContext): String =

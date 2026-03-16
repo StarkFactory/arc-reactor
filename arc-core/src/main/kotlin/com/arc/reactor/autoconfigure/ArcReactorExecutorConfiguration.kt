@@ -11,7 +11,9 @@ import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.guard.RequestGuard
+import com.arc.reactor.guard.canary.SystemPromptPostProcessor
 import com.arc.reactor.guard.output.OutputGuardPipeline
+import com.arc.reactor.guard.tool.ToolOutputSanitizer
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.mcp.McpManager
@@ -74,7 +76,9 @@ class ArcReactorExecutorConfiguration {
         fallbackStrategyProvider: ObjectProvider<FallbackStrategy>,
         outputGuardPipelineProvider: ObjectProvider<OutputGuardPipeline>,
         intentResolverProvider: ObjectProvider<IntentResolver>,
-        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>
+        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>,
+        systemPromptPostProcessorProvider: ObjectProvider<SystemPromptPostProcessor>,
+        toolOutputSanitizerProvider: ObjectProvider<ToolOutputSanitizer>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -103,6 +107,8 @@ class ArcReactorExecutorConfiguration {
         intentResolver = intentResolverProvider.ifAvailable,
         blockedIntents = properties.intent.blockedIntents,
         transientErrorClassifier = ::defaultTransientErrorClassifier,
-        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() }
+        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() },
+        systemPromptPostProcessor = systemPromptPostProcessorProvider.ifAvailable,
+        toolOutputSanitizer = toolOutputSanitizerProvider.ifAvailable
     )
 }

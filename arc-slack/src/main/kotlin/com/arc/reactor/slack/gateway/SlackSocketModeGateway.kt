@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
@@ -40,8 +41,12 @@ class SlackSocketModeGateway(
     @Volatile
     private var startRequested: Boolean = false
 
+    @Volatile
     private var startupJob: Job? = null
+    @Volatile
     private var slack: Slack? = null
+
+    @Volatile
     private var socketModeClient: SocketModeClient? = null
 
     override fun start() {
@@ -73,6 +78,7 @@ class SlackSocketModeGateway(
 
         socketModeClient = null
         slack = null
+        scope.cancel()
     }
 
     override fun stop(callback: Runnable) {

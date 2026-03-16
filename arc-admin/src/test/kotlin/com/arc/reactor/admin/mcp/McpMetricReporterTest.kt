@@ -2,12 +2,16 @@ package com.arc.reactor.admin.mcp
 
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import org.awaitility.kotlin.atMost
+import org.awaitility.kotlin.await
+import org.awaitility.kotlin.untilAsserted
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
+import java.time.Duration
 import java.util.concurrent.CopyOnWriteArrayList
 
 class McpMetricReporterTest {
@@ -74,11 +78,10 @@ class McpMetricReporterTest {
                 runId = "run-xyz"
             )
 
-            // Wait for flush
-            Thread.sleep(300)
+            await atMost Duration.ofSeconds(2) untilAsserted {
+                receivedRequests.any { it.path == "/api/admin/metrics/ingest/tool-call" } shouldBe true
+            }
             reporter.stop()
-
-            receivedRequests.any { it.path == "/api/admin/metrics/ingest/tool-call" } shouldBe true
 
             val toolCallReq = receivedRequests.first { it.path.endsWith("/tool-call") }
             toolCallReq.contentType shouldBe "application/json"
@@ -103,7 +106,9 @@ class McpMetricReporterTest {
                 errorMessage = "Connection timed out"
             )
 
-            Thread.sleep(300)
+            await atMost Duration.ofSeconds(2) untilAsserted {
+                receivedRequests.any { it.path.endsWith("/tool-call") } shouldBe true
+            }
             reporter.stop()
 
             val req = receivedRequests.first { it.path.endsWith("/tool-call") }
@@ -123,7 +128,9 @@ class McpMetricReporterTest {
                 success = true
             )
 
-            Thread.sleep(300)
+            await atMost Duration.ofSeconds(2) untilAsserted {
+                receivedRequests.any { it.path.endsWith("/tool-call") } shouldBe true
+            }
             reporter.stop()
 
             val req = receivedRequests.first { it.path.endsWith("/tool-call") }
@@ -148,10 +155,10 @@ class McpMetricReporterTest {
                 toolCount = 5
             )
 
-            Thread.sleep(300)
+            await atMost Duration.ofSeconds(2) untilAsserted {
+                receivedRequests.any { it.path == "/api/admin/metrics/ingest/mcp-health" } shouldBe true
+            }
             reporter.stop()
-
-            receivedRequests.any { it.path == "/api/admin/metrics/ingest/mcp-health" } shouldBe true
 
             val healthReq = receivedRequests.first { it.path.endsWith("/mcp-health") }
             healthReq.body shouldContain "\"serverName\":\"test-mcp\""
@@ -171,7 +178,9 @@ class McpMetricReporterTest {
                 errorMessage = "Connection refused"
             )
 
-            Thread.sleep(300)
+            await atMost Duration.ofSeconds(2) untilAsserted {
+                receivedRequests.any { it.path.endsWith("/mcp-health") } shouldBe true
+            }
             reporter.stop()
 
             val req = receivedRequests.first { it.path.endsWith("/mcp-health") }
@@ -257,7 +266,9 @@ class McpMetricReporterTest {
                 errorMessage = "Line1\nLine2\tTabbed\\Backslash"
             )
 
-            Thread.sleep(300)
+            await atMost Duration.ofSeconds(2) untilAsserted {
+                receivedRequests.any { it.path.endsWith("/tool-call") } shouldBe true
+            }
             reporter.stop()
 
             val req = receivedRequests.first { it.path.endsWith("/tool-call") }
@@ -282,7 +293,9 @@ class McpMetricReporterTest {
                 errorMessage = longMessage
             )
 
-            Thread.sleep(300)
+            await atMost Duration.ofSeconds(2) untilAsserted {
+                receivedRequests.any { it.path.endsWith("/tool-call") } shouldBe true
+            }
             reporter.stop()
 
             val req = receivedRequests.first { it.path.endsWith("/tool-call") }

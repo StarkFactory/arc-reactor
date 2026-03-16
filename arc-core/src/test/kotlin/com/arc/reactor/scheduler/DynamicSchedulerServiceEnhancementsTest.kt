@@ -1,15 +1,13 @@
 package com.arc.reactor.scheduler
 
+import com.arc.reactor.agent.config.SchedulerProperties
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.tool.ToolCallback
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -190,6 +188,32 @@ class DynamicSchedulerServiceEnhancementsTest {
         }
 
         @Test
+        fun `maxRetryCount=0 with retryOnFailure=true executes at least once`() {
+            val job = mcpJob(retryOnFailure = true, maxRetryCount = 0)
+            val store = RecordingStore(job)
+            val tool = mockk<ToolCallback>()
+            val mcpManager = mockk<McpManager>()
+            var callCount = 0
+
+            every { tool.name } returns "test_tool"
+            coEvery { tool.call(any()) } answers {
+                callCount++
+                "success on attempt $callCount"
+            }
+            coEvery { mcpManager.ensureConnected(any()) } returns true
+            every { mcpManager.getToolCallbacks(any()) } returns listOf(tool)
+
+            val result = buildService(store, mcpManager = mcpManager).trigger(job.id)
+
+            assertEquals(1, callCount,
+                "Tool should be called at least once even when maxRetryCount=0")
+            assertEquals(JobExecutionStatus.SUCCESS, store.lastStatus,
+                "Job should succeed when maxRetryCount=0 and first attempt works")
+            assertTrue(result.contains("success"),
+                "Result should reflect successful execution")
+        }
+
+        @Test
         fun `no retry when retryOnFailure=false`() {
             val job = mcpJob(retryOnFailure = false)
             val store = RecordingStore(job)
@@ -223,23 +247,45 @@ class DynamicSchedulerServiceEnhancementsTest {
         fun `timeout causes job to fail with timeout message`() {
             val job = mcpJob(executionTimeoutMs = 100)
             val store = RecordingStore(job)
-            val tool = mockk<ToolCallback>()
-            val mcpManager = mockk<McpManager>()
 
-            every { tool.name } returns "test_tool"
-            coEvery { tool.call(any()) } coAnswers {
-                delay(500)
-                "should not reach here"
-            }
-            coEvery { mcpManager.ensureConnected(any()) } returns true
-            every { mcpManager.getToolCallbacks(any()) } returns listOf(tool)
-
-            val result = buildService(store, mcpManager = mcpManager).trigger(job.id)
+            val result = buildService(store, mcpManager = mockSlowMcpManager()).trigger(job.id)
 
             assertEquals(JobExecutionStatus.FAILED, store.lastStatus,
                 "Job status should be FAILED on timeout")
             assertTrue(result.contains("timed out", ignoreCase = true),
                 "Failure message should mention timeout")
+        }
+
+        @Test
+        fun `default timeout applies when job has no explicit timeout`() {
+            val job = mcpJob(executionTimeoutMs = null)
+            val store = RecordingStore(job)
+            val props = SchedulerProperties(defaultExecutionTimeoutMs = 100)
+
+            val result = buildService(
+                store, mcpManager = mockSlowMcpManager(), schedulerProperties = props
+            ).trigger(job.id)
+
+            assertEquals(JobExecutionStatus.FAILED, store.lastStatus,
+                "Job status should be FAILED when default timeout is exceeded")
+            assertTrue(result.contains("timed out", ignoreCase = true),
+                "Failure message should mention timeout from default property")
+        }
+
+        @Test
+        fun `job explicit timeout overrides default timeout`() {
+            val job = mcpJob(executionTimeoutMs = 100)
+            val store = RecordingStore(job)
+            val props = SchedulerProperties(defaultExecutionTimeoutMs = 60_000)
+
+            val result = buildService(
+                store, mcpManager = mockSlowMcpManager(), schedulerProperties = props
+            ).trigger(job.id)
+
+            assertEquals(JobExecutionStatus.FAILED, store.lastStatus,
+                "Job should fail from its own 100ms timeout, not the 60s default")
+            assertTrue(result.contains("timed out after 100ms", ignoreCase = true),
+                "Timeout message should reflect the job-level 100ms timeout")
         }
     }
 
@@ -265,6 +311,19 @@ class DynamicSchedulerServiceEnhancementsTest {
         enabled = true
     )
 
+    private fun mockSlowMcpManager(delayMs: Long = 500): McpManager {
+        val mcpManager = mockk<McpManager>()
+        val tool = mockk<ToolCallback>()
+        every { tool.name } returns "test_tool"
+        coEvery { tool.call(any()) } coAnswers {
+            delay(delayMs)
+            "should not reach here"
+        }
+        coEvery { mcpManager.ensureConnected(any()) } returns true
+        every { mcpManager.getToolCallbacks(any()) } returns listOf(tool)
+        return mcpManager
+    }
+
     private fun mockMcpManager(job: ScheduledJob, returnValue: String): McpManager {
         val mcpManager = mockk<McpManager>()
         val tool = mockk<ToolCallback>()
@@ -279,13 +338,15 @@ class DynamicSchedulerServiceEnhancementsTest {
         store: ScheduledJobStore,
         mcpManager: McpManager = mockk(relaxed = true),
         slackSender: SlackMessageSender? = null,
-        executionStore: ScheduledJobExecutionStore? = null
+        executionStore: ScheduledJobExecutionStore? = null,
+        schedulerProperties: SchedulerProperties = SchedulerProperties()
     ) = DynamicSchedulerService(
         store = store,
         taskScheduler = mockk(relaxed = true),
         mcpManager = mcpManager,
         slackMessageSender = slackSender,
-        executionStore = executionStore
+        executionStore = executionStore,
+        schedulerProperties = schedulerProperties
     )
 
     private class RecordingStore(private val job: ScheduledJob) : ScheduledJobStore {

@@ -1,9 +1,14 @@
 package com.arc.reactor.guard.output.policy
 
+import java.util.concurrent.ConcurrentHashMap
+
 /**
  * Shared evaluator for regex-based output guard policies.
  */
 class OutputGuardRuleEvaluator {
+
+    private val regexCache = ConcurrentHashMap<String, Regex>()
+    private val invalidPatterns: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     fun evaluate(content: String, rules: List<OutputGuardRule>): OutputGuardEvaluation {
         if (rules.isEmpty()) return OutputGuardEvaluation.allowed(content)
@@ -13,15 +18,28 @@ class OutputGuardRuleEvaluator {
         val invalid = mutableListOf<InvalidOutputGuardRule>()
 
         for (rule in rules) {
-            val regex = runCatching { Regex(rule.pattern) }.getOrElse {
+            if (rule.pattern in invalidPatterns) {
                 invalid.add(
                     InvalidOutputGuardRule(
                         ruleId = rule.id,
                         ruleName = rule.name,
-                        reason = it.message ?: "invalid regex"
+                        reason = "invalid regex"
                     )
                 )
                 continue
+            }
+            val regex = regexCache.getOrPut(rule.pattern) {
+                runCatching { Regex(rule.pattern) }.getOrElse {
+                    invalidPatterns.add(rule.pattern)
+                    invalid.add(
+                        InvalidOutputGuardRule(
+                            ruleId = rule.id,
+                            ruleName = rule.name,
+                            reason = it.message ?: "invalid regex"
+                        )
+                    )
+                    continue
+                }
             }
 
             if (!regex.containsMatchIn(maskedContent)) continue

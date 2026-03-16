@@ -81,7 +81,25 @@ def http_json_request(
     return status, body, parsed
 
 
+def login_with_credentials(base_url: str, email: str, password: str) -> tuple[int, str, Any]:
+    login_payload = {"email": email, "password": password}
+    return http_json_request(
+        method="POST",
+        url=f"{base_url}/api/auth/login",
+        headers={},
+        json_body=login_payload,
+        timeout_sec=20,
+    )
+
+
 def register_or_login(base_url: str, email: str, password: str, name: str) -> str:
+    login_code, login_body, login_json = login_with_credentials(base_url, email, password)
+    if login_code == 200:
+        token = str((login_json or {}).get("token", "")).strip()
+        if token:
+            return token
+        raise RuntimeError(f"login succeeded but token missing: {login_body}")
+
     register_payload = {"email": email, "password": password, "name": name}
     register_code, register_body, register_json = http_json_request(
         method="POST",
@@ -95,19 +113,23 @@ def register_or_login(base_url: str, email: str, password: str, name: str) -> st
         if token:
             return token
         raise RuntimeError(f"register succeeded but token missing: {register_body}")
-    if register_code != 409:
-        raise RuntimeError(f"register failed status={register_code} body={register_body}")
+    if register_code == 409:
+        login_code, login_body, login_json = login_with_credentials(base_url, email, password)
+        if login_code != 200:
+            raise RuntimeError(f"register returned 409 and login failed status={login_code} body={login_body}")
+        token = str((login_json or {}).get("token", "")).strip()
+        if not token:
+            raise RuntimeError(f"login succeeded but token missing: {login_body}")
+        return token
+    if login_code == 401 and register_code in {401, 403}:
+        raise RuntimeError("login failed and self-registration is unavailable")
+    raise RuntimeError(f"register failed status={register_code} body={register_body}")
 
-    login_payload = {"email": email, "password": password}
-    login_code, login_body, login_json = http_json_request(
-        method="POST",
-        url=f"{base_url}/api/auth/login",
-        headers={},
-        json_body=login_payload,
-        timeout_sec=20,
-    )
+
+def login_only(base_url: str, email: str, password: str) -> str:
+    login_code, login_body, login_json = login_with_credentials(base_url, email, password)
     if login_code != 200:
-        raise RuntimeError(f"login failed status={login_code} body={login_body}")
+        raise RuntimeError(f"admin login failed status={login_code} body={login_body}")
     token = str((login_json or {}).get("token", "")).strip()
     if not token:
         raise RuntimeError(f"login succeeded but token missing: {login_body}")
@@ -117,11 +139,10 @@ def register_or_login(base_url: str, email: str, password: str, name: str) -> st
 def resolve_admin_token(args: argparse.Namespace) -> str:
     if args.admin_token:
         return args.admin_token
-    return register_or_login(
+    return login_only(
         base_url=args.base_url,
         email=args.admin_email,
         password=args.admin_password,
-        name="Skill Routing Admin",
     )
 
 

@@ -58,7 +58,7 @@ internal class ManualReActLoopExecutor(
     ): AgentResult {
         var totalToolCalls = 0
         var llmCallIndex = 0
-        var activeTools = initialTools
+        var activeTools = if (maxToolCalls > 0) initialTools else emptyList()
         var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
         var totalTokenUsage: TokenUsage? = null
         var totalLlmDurationMs = 0L
@@ -71,7 +71,7 @@ internal class ManualReActLoopExecutor(
         messages.add(MediaConverter.buildUserMessage(command.userPrompt, command.media))
 
         while (true) {
-            messageTrimmer.trim(messages, systemPrompt)
+            messageTrimmer.trim(messages, systemPrompt, activeTools.size * TOKENS_PER_TOOL_DEFINITION)
 
             val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
             val llmStart = System.nanoTime()
@@ -166,6 +166,13 @@ internal class ManualReActLoopExecutor(
                 logger.info { "maxToolCalls reached ($totalToolCalls/$maxToolCalls), final answer" }
                 activeTools = emptyList()
                 chatOptions = buildChatOptions(command, false)
+                messages.add(
+                    org.springframework.ai.chat.messages.SystemMessage(
+                        "Tool call limit reached ($totalToolCalls/$maxToolCalls). " +
+                            "Summarize the results you have so far and provide your best answer. " +
+                            "Do not request additional tool calls."
+                    )
+                )
             }
         }
     }
@@ -191,5 +198,10 @@ internal class ManualReActLoopExecutor(
 
     private fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean {
         return chatOptions is GoogleGenAiChatOptions
+    }
+
+    companion object {
+        /** Conservative per-tool token estimate (name + description + JSON schema). */
+        private const val TOKENS_PER_TOOL_DEFINITION = 200
     }
 }

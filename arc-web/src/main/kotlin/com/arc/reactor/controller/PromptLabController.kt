@@ -25,6 +25,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
@@ -60,7 +61,7 @@ class PromptLabController(
     private val feedbackAnalyzer: FeedbackAnalyzer,
     private val promptTemplateStore: PromptTemplateStore,
     private val properties: PromptLabProperties
-) {
+) : org.springframework.beans.factory.DisposableBean {
     private val exceptionHandler = CoroutineExceptionHandler { _, t ->
         logger.error(t) { "Async experiment execution failed" }
     }
@@ -303,6 +304,14 @@ class PromptLabController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        if (runningJobs.size >= properties.maxConcurrentExperiments) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                ErrorResponse(
+                    error = "Max concurrent experiments reached: ${properties.maxConcurrentExperiments}",
+                    timestamp = Instant.now().toString()
+                )
+            )
+        }
         val jobId = "auto-${request.templateId}-${System.currentTimeMillis()}"
         val job = scope.launch {
             try {
@@ -409,6 +418,10 @@ class PromptLabController(
         return ResponseEntity.badRequest().body(
             ErrorResponse(error = msg, timestamp = Instant.now().toString())
         )
+    }
+
+    override fun destroy() {
+        scope.cancel()
     }
 }
 

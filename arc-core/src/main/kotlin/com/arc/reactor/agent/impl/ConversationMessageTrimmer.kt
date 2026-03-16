@@ -7,8 +7,6 @@ import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
-import java.util.Collections
-import java.util.WeakHashMap
 
 private val logger = KotlinLogging.logger {}
 
@@ -21,11 +19,9 @@ class ConversationMessageTrimmer(
     private val outputReserveTokens: Int,
     private val tokenEstimator: TokenEstimator
 ) {
-    private val messageTokenCache = Collections.synchronizedMap(WeakHashMap<Message, Int>())
-
-    fun trim(messages: MutableList<Message>, systemPrompt: String) {
+    fun trim(messages: MutableList<Message>, systemPrompt: String, toolTokenReserve: Int = 0) {
         val systemTokens = tokenEstimator.estimate(systemPrompt)
-        val budget = maxContextWindowTokens - systemTokens - outputReserveTokens
+        val budget = maxContextWindowTokens - systemTokens - outputReserveTokens - toolTokenReserve
 
         if (budget <= 0) {
             logger.warn {
@@ -41,9 +37,10 @@ class ConversationMessageTrimmer(
             return
         }
 
-        val messageTokens = messages.mapTo(ArrayList(messages.size)) { estimateCachedMessageTokens(it) }
+        val messageTokens = messages.mapTo(ArrayList(messages.size)) { estimateMessageTokens(it) }
         var totalTokens = messageTokens.sum()
         totalTokens = trimOldHistory(messages, messageTokens, totalTokens, budget)
+        totalTokens = trimLeadingSystemMessagesForFreshToolHistory(messages, messageTokens, totalTokens, budget)
         trimToolHistory(messages, messageTokens, totalTokens, budget)
     }
 
@@ -111,6 +108,32 @@ class ConversationMessageTrimmer(
     }
 
     /**
+     * When the latest tool observations would otherwise be trimmed, prefer dropping
+     * leading memory SystemMessages first so the next LLM call can still see the
+     * freshest tool-call/tool-response context.
+     */
+    private fun trimLeadingSystemMessagesForFreshToolHistory(
+        messages: MutableList<Message>,
+        messageTokens: MutableList<Int>,
+        currentTokens: Int,
+        budget: Int
+    ): Int {
+        var totalTokens = currentTokens
+        while (totalTokens > budget && messages.size > 1) {
+            val lastUserIdx = messages.indexOfLast { it is UserMessage }
+            if (lastUserIdx < 0 || lastUserIdx >= messages.lastIndex) break
+            if (messages.firstOrNull() !is SystemMessage) break
+
+            totalTokens -= messageTokens.removeAt(0)
+            messages.removeAt(0)
+            logger.debug {
+                "Trimmed 1 message (leading system for fresh tool history). Remaining tokens: $totalTokens/$budget"
+            }
+        }
+        return totalTokens
+    }
+
+    /**
      * Calculate how many messages from the front should be removed as a group.
      *
      * If the first message is an AssistantMessage with tool calls, the following
@@ -131,12 +154,6 @@ class ConversationMessageTrimmer(
 
         // Regular UserMessage or AssistantMessage -> remove single
         return 1
-    }
-
-    private fun estimateCachedMessageTokens(message: Message): Int {
-        return messageTokenCache[message] ?: estimateMessageTokens(message).also {
-            messageTokenCache[message] = it
-        }
     }
 
     private fun estimateMessageTokens(message: Message): Int {

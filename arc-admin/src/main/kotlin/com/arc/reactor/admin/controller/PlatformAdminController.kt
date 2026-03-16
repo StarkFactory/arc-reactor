@@ -207,7 +207,8 @@ class PlatformAdminController(
             )
             ResponseEntity.status(201).body(tenant)
         } catch (e: IllegalArgumentException) {
-            ResponseEntity.badRequest().body(AdminErrorResponse(error = e.message ?: "Invalid request"))
+            logger.warn(e) { "Invalid create tenant request" }
+            ResponseEntity.badRequest().body(AdminErrorResponse(error = "Invalid request"))
         }
     }
 
@@ -279,7 +280,8 @@ class PlatformAdminController(
         val summaries = tenants.map { tenant ->
             val usage = try {
                 queryService.getCurrentMonthUsage(tenant.id)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                logger.warn(e) { "Failed to fetch usage for tenant=${tenant.id}" }
                 null
             }
             TenantAnalyticsSummary(

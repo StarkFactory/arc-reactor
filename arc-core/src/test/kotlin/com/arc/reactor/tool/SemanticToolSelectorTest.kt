@@ -373,6 +373,52 @@ class SemanticToolSelectorTest {
         }
 
         @Test
+        fun `should bypass embeddings for deterministic jira routing when tool count exceeds maxResults`() {
+            val jiraTools = listOf(
+                createTool("jira_search_issues", "Search Jira issues"),
+                createTool("jira_list_projects", "List Jira projects"),
+                createTool("jira_search_by_text", "Search Jira by text"),
+                createTool("confluence_search", "Search Confluence"),
+                createTool("bitbucket_list_repositories", "List repos"),
+                createTool("bitbucket_list_prs", "List PRs")
+            )
+
+            val selector = SemanticToolSelector(embeddingModel, maxResults = 3)
+            val result = selector.select("내가 접근 가능한 Jira 프로젝트 목록을 보여줘.", jiraTools)
+
+            assertEquals(listOf("jira_list_projects"), result.map { it.name }) {
+                "Strong Jira inventory prompts should use deterministic routing without semantic embedding work"
+            }
+            verify(exactly = 0) { embeddingModel.embed(any<List<String>>()) }
+            verify(exactly = 0) { embeddingModel.embed(any<String>()) }
+        }
+
+        @Test
+        fun `should reuse prewarmed embeddings on first semantic selection`() {
+            val promptEmbedding = floatArrayOf(0.85f, 0.15f, 0.0f)
+            every { embeddingModel.embed(any<List<String>>()) } returns listOf(
+                floatArrayOf(0.1f, 0.9f, 0.0f),
+                floatArrayOf(0.9f, 0.1f, 0.0f),
+                floatArrayOf(0.0f, 0.1f, 0.9f),
+                floatArrayOf(0.2f, 0.3f, 0.5f),
+                floatArrayOf(0.3f, 0.3f, 0.3f),
+                floatArrayOf(0.1f, 0.5f, 0.4f)
+            )
+            every { embeddingModel.embed(any<String>()) } returns promptEmbedding
+
+            val selector = SemanticToolSelector(embeddingModel, similarityThreshold = 0.5, maxResults = 3)
+            selector.prewarm(tools)
+
+            val result = selector.select("I want to refund my order", tools)
+
+            assertEquals("process_refund", result.first().name) {
+                "Prewarmed semantic selection should still rank the closest tool first"
+            }
+            verify(exactly = 1) { embeddingModel.embed(any<List<String>>()) }
+            verify(exactly = 1) { embeddingModel.embed(any<String>()) }
+        }
+
+        @Test
         fun `should force jira search tool for recent project summary prompts`() {
             val jiraTools = listOf(
                 createTool("jira_search_issues", "Search Jira issues"),
@@ -594,6 +640,36 @@ class SemanticToolSelectorTest {
         }
 
         @Test
+        fun `should cache semantic selection for repeated prompt and tool fingerprint`() {
+            val toolEmbeddings = listOf(
+                floatArrayOf(0.1f, 0.9f, 0.0f),
+                floatArrayOf(0.9f, 0.1f, 0.0f),
+                floatArrayOf(0.0f, 0.1f, 0.9f),
+                floatArrayOf(0.2f, 0.3f, 0.5f),
+                floatArrayOf(0.3f, 0.3f, 0.3f),
+                floatArrayOf(0.1f, 0.5f, 0.4f)
+            )
+            val promptEmbedding = floatArrayOf(0.85f, 0.15f, 0.0f)
+            every { embeddingModel.embed(any<List<String>>()) } returns toolEmbeddings
+            every { embeddingModel.embed(any<String>()) } returns promptEmbedding
+
+            val selector = SemanticToolSelector(
+                embeddingModel = embeddingModel,
+                similarityThreshold = 0.5,
+                maxResults = 3
+            )
+
+            val first = selector.select("I want to refund my order", tools)
+            val second = selector.select("I want to refund my order", tools)
+
+            assertEquals(first.map { it.name }, second.map { it.name }) {
+                "Repeated semantic selection should preserve cached tool order"
+            }
+            verify(exactly = 1) { embeddingModel.embed(any<List<String>>()) }
+            verify(exactly = 1) { embeddingModel.embed(any<String>()) }
+        }
+
+        @Test
         fun `should refresh cache when tool list changes`() {
             val toolsA = tools  // 6 tools
             val toolsB = tools.drop(1)  // 5 tools (different list)
@@ -617,6 +693,39 @@ class SemanticToolSelectorTest {
             // Batch embed called twice (different tool lists)
             verify(exactly = 2) { embeddingModel.embed(any<List<String>>()) }
         }
+
+        @Test
+        fun `should refresh cache when tool description changes`() {
+            val originalTools = listOf(
+                createTool("search_orders", "Search and retrieve customer orders by ID or date range"),
+                createTool("process_refund", "Process refund for a customer order"),
+                createTool("track_shipping", "Track shipping status and delivery estimates"),
+                createTool("send_email", "Send email notifications to customers")
+            )
+            val updatedTools = listOf(
+                createTool("search_orders", "Search and retrieve customer orders by ID or date range"),
+                createTool("process_refund", "Process refund and exchange workflows for a customer order"),
+                createTool("track_shipping", "Track shipping status and delivery estimates"),
+                createTool("send_email", "Send email notifications to customers")
+            )
+            val embeddingsA = originalTools.map { floatArrayOf(0.5f, 0.5f) }
+            val embeddingsB = updatedTools.map { floatArrayOf(0.6f, 0.4f) }
+
+            every { embeddingModel.embed(any<List<String>>()) } returnsMany listOf(embeddingsA, embeddingsB)
+            every { embeddingModel.embed(any<String>()) } returns floatArrayOf(0.5f, 0.5f)
+
+            val selector = SemanticToolSelector(
+                embeddingModel = embeddingModel,
+                similarityThreshold = 0.0,
+                maxResults = 3
+            )
+
+            selector.select("refund workflow", originalTools)
+            selector.select("refund workflow", updatedTools)
+
+            verify(exactly = 2) { embeddingModel.embed(any<List<String>>()) }
+        }
+
     }
 
     @Nested

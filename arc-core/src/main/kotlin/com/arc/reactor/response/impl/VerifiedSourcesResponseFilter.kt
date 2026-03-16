@@ -125,7 +125,17 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
     }
 
     private fun looksLikeInformationRequest(userPrompt: String): Boolean {
-        if (VERIFICATION_KEYWORDS.any { keyword -> userPrompt.contains(keyword, ignoreCase = true) }) return true
+        val hasWorkspaceKeyword = VERIFICATION_KEYWORDS.any { keyword ->
+            userPrompt.contains(keyword, ignoreCase = true)
+        }
+        if (hasWorkspaceKeyword) return true
+        if (!hasQuestionOrInfoPattern(userPrompt)) return false
+        return WORKSPACE_CONTEXT_HINTS.any { hint ->
+            userPrompt.contains(hint, ignoreCase = true)
+        }
+    }
+
+    private fun hasQuestionOrInfoPattern(userPrompt: String): Boolean {
         if (userPrompt.contains('?')) return true
         return INFORMATION_REQUEST_PATTERNS.any { pattern ->
             userPrompt.contains(pattern, ignoreCase = true)
@@ -159,11 +169,26 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
             "list", "show", "find", "search", "lookup", "알려", "설명", "요약", "정리", "보여", "찾아",
             "조회", "무엇", "왜", "어떻게", "누구", "언제", "어디", "몇"
         )
-        private val CASUAL_PROMPTS = setOf(
-            "hi", "hello", "hey", "thanks", "thank you", "ok", "okay", "안녕", "고마워", "감사해",
-            "감사합니다", "오케이", "ㅇㅋ", "ㅎㅇ"
+        private val WORKSPACE_CONTEXT_HINTS = setOf(
+            "jira", "confluence", "bitbucket", "slack",
+            "이슈", "티켓", "프로젝트", "스프린트", "보드",
+            "페이지", "스페이스", "위키",
+            "pr", "pull request", "브랜치", "리포",
+            "배포", "릴리즈", "릴리스", "장애", "인시던트",
+            "팀", "담당자", "담당", "할당"
         )
-        private val CASUAL_PREFIXES = setOf("thanks ", "thank you ", "고마워 ", "감사해 ", "감사합니다 ")
+        private val CASUAL_PROMPTS = setOf(
+            "hi", "hello", "hey", "thanks", "thank you", "ok", "okay",
+            "안녕", "안녕하세요", "안녕하세요!", "안녕!", "반갑습니다",
+            "고마워", "고마워요", "고맙습니다", "감사해", "감사합니다",
+            "네", "아니요", "아니오", "응", "좋아", "알겠어", "알겠습니다",
+            "오케이", "ㅇㅋ", "ㅎㅇ", "ㅎㅎ", "ㄳ", "ㄱㅅ"
+        )
+        private val CASUAL_PREFIXES = setOf(
+            "thanks ", "thank you ", "hi ", "hello ",
+            "고마워 ", "감사해 ", "감사합니다 ",
+            "안녕 ", "안녕하세요 ", "네 ", "좋아 "
+        )
         private val UNVERIFIED_PATTERNS = listOf(
             "cannot verify",
             "couldn't verify",

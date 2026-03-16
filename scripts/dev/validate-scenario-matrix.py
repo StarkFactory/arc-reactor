@@ -135,12 +135,30 @@ def http_json_request(
     return status, body, parsed
 
 
+def login_with_credentials(base_url: str, email: str, password: str) -> tuple[int, str, Any]:
+    login_payload = {"email": email, "password": password}
+    return http_json_request(
+        method="POST",
+        url=f"{base_url}/api/auth/login",
+        headers={},
+        json_body=login_payload,
+        timeout_sec=20,
+    )
+
+
 def register_or_login(
     base_url: str,
     email: str,
     password: str,
     name: str,
 ) -> str:
+    login_status, login_body, login_json = login_with_credentials(base_url, email, password)
+    if login_status == 200:
+        token = str((login_json or {}).get("token", "")).strip()
+        if not token:
+            raise RuntimeError(f"login succeeded but token missing: {login_body}")
+        return token
+
     register_payload = {"email": email, "password": password, "name": name}
     register_status, register_body, register_json = http_json_request(
         method="POST",
@@ -154,19 +172,23 @@ def register_or_login(
         if not token:
             raise RuntimeError(f"register succeeded but token missing: {register_body}")
         return token
-    if register_status != 409:
-        raise RuntimeError(f"register failed status={register_status} body={register_body}")
+    if register_status == 409:
+        login_status, login_body, login_json = login_with_credentials(base_url, email, password)
+        if login_status != 200:
+            raise RuntimeError(f"register returned 409 and login failed status={login_status} body={login_body}")
+        token = str((login_json or {}).get("token", "")).strip()
+        if not token:
+            raise RuntimeError(f"login succeeded but token missing: {login_body}")
+        return token
+    if login_status == 401 and register_status in {401, 403}:
+        raise RuntimeError("login failed and self-registration is unavailable")
+    raise RuntimeError(f"register failed status={register_status} body={register_body}")
 
-    login_payload = {"email": email, "password": password}
-    login_status, login_body, login_json = http_json_request(
-        method="POST",
-        url=f"{base_url}/api/auth/login",
-        headers={},
-        json_body=login_payload,
-        timeout_sec=20,
-    )
+
+def login_only(base_url: str, email: str, password: str) -> str:
+    login_status, login_body, login_json = login_with_credentials(base_url, email, password)
     if login_status != 200:
-        raise RuntimeError(f"login failed status={login_status} body={login_body}")
+        raise RuntimeError(f"admin login failed status={login_status} body={login_body}")
     token = str((login_json or {}).get("token", "")).strip()
     if not token:
         raise RuntimeError(f"login succeeded but token missing: {login_body}")
@@ -495,11 +517,10 @@ def main() -> int:
     admin_token = args.admin_token
     if not admin_token and args.admin_email and args.admin_password:
         try:
-            admin_token = register_or_login(
+            admin_token = login_only(
                 base_url=args.base_url,
                 email=args.admin_email,
                 password=args.admin_password,
-                name="Scenario Matrix Admin",
             )
         except Exception as exc:
             print(f"Warning: admin login failed ({exc})", file=sys.stderr)

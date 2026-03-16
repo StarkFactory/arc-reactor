@@ -1,0 +1,43 @@
+# Arc Reactor — Autonomous Improvement Progress
+
+## 이전 아카이브: claude-progress-archive.txt 참조
+
+[Refactoring 반복 9] 2026-03-14 — 렌즈 1: 보안 (codebase-scanner sonnet x3 병렬)
+- P3 1건 발견+수정: ExecutionResultFinalizer attemptLongerResponse output guard 우회 (dc845e5)
+
+[Refactoring 반복 10] 2026-03-14 — 렌즈 2: 견고성 (codebase-scanner sonnet x2 병렬)
+- P2 1건 발견+수정: AgentRunContextManager MDC race → MDCContext(map) (26e7213)
+
+[Refactoring 반복 11] 2026-03-14 — 렌즈 3: Agent 동작 (codebase-scanner sonnet x1)
+- P3 1건 발견+수정: StreamingCompletionFinalizer empty content orphaned user turn (6ea86a8)
+
+[Refactoring 반복 12] 2026-03-14 — 렌즈 4: 성능 — P0-P3 신규 0건
+
+[Refactoring 반복 13-16] 2026-03-14 — 렌즈 5-8
+- 렌즈 5: P3 2건 수정 — 회귀 테스트 추가 (e831fcb)
+- 렌즈 6-8: P0-P3 신규 0건
+
+[수렴 검증] 2026-03-14 — 렌즈 1-8 전체 재스캔 (codebase-scanner sonnet x2 병렬)
+- 렌즈 1-4: P0-P3 신규 0건. 3건 수정 검증 완료 (정확성 확인)
+- 렌즈 5-8: P0-P3 신규 0건. MDCContext scope 기존 KA 재확인
+- 수렴 완료: 8렌즈 전체 사이클 P0-P3 0건
+
+[신규 세션 수렴 검증] 2026-03-14 — 렌즈 1-8 (codebase-scanner sonnet x4 병렬)
+- 렌즈 1 (보안): P0-P3 0건
+- 렌즈 2 (견고성): P0-P3 0건
+- 렌즈 3-4 (Agent/성능): P0-P3 0건. StreamingCompletionFinalizer:91 Modified 기존 KA 재확인
+- 렌즈 5-8 (테스트/계약/운영/Gotchas): P0-P3 0건. hook 검증 P4 KA
+- 수렴 재확인: 전체 사이클 P0-P3 0건
+
+[세션 3 수렴] 2026-03-14 — 렌즈 1-8 전체 (codebase-scanner sonnet x1)
+- P0-P3 신규 0건. MDCContext scope 기존 KA(P4) 4회째 재확인
+- 수렴 확정
+
+[세션 4] 2026-03-14 — 렌즈 1 (보안 guard/hook/autoconfigure) P0-P3 0건
+[세션 4] 2026-03-14 — 렌즈 2 (견고성 scheduler/MCP/tool)
+- P2 2건 발견+수정: McpConnectionSupport STDIO/SSE initialize() 실패 시 client 미정리 (27a2216)
+
+[세션 4] 2026-03-14 — 렌즈 3 (Agent 동작 orchestrators/memory)
+- P0-P3 신규 0건 (4건 모두 KA: WorkerAgentTool sessionId 설계 선택, JdbcUserMemoryStore RMW/tableInitialized, ConversationManager summarizedUpToIndex)
+
+[세션 4] 2026-03-14 — 렌즈 4-8: P0-P3 신규 0건. McpConnectionSupport cleanup 테스트 갭 P4 KA

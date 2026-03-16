@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -46,7 +47,7 @@ private val logger = KotlinLogging.logger {}
 class ErrorReportController(
     private val handler: ErrorReportHandler,
     private val properties: ErrorReportProperties
-) {
+) : org.springframework.beans.factory.DisposableBean {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val effectiveMaxConcurrentRequests = properties.maxConcurrentRequests.coerceAtLeast(1)
     private val effectiveMaxStackTraceLength = properties.maxStackTraceLength.coerceAtLeast(1)
@@ -121,9 +122,17 @@ class ErrorReportController(
         }
     }
 
+    override fun destroy() {
+        scope.cancel()
+    }
+
     private fun validateApiKey(headerKey: String?): Boolean {
         if (properties.apiKey.isBlank()) return true
-        return headerKey == properties.apiKey
+        if (headerKey == null) return false
+        return java.security.MessageDigest.isEqual(
+            headerKey.toByteArray(Charsets.UTF_8),
+            properties.apiKey.toByteArray(Charsets.UTF_8)
+        )
     }
 }
 

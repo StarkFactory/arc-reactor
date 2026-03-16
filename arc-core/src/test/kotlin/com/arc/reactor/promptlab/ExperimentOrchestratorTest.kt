@@ -24,6 +24,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -141,6 +142,43 @@ class ExperimentOrchestratorTest {
             val cmd = commandSlot.captured
             assertTrue(cmd.metadata.containsKey("promptlab.experimentId")) {
                 "Command should contain experimentId metadata"
+            }
+        }
+
+        @Test
+        fun `should mark experiment as FAILED on timeout`() = runTest {
+            val shortTimeoutProps = PromptLabProperties(enabled = true, experimentTimeoutMs = 50)
+            val timeoutOrchestrator = ExperimentOrchestrator(
+                agentExecutor = agentExecutor,
+                promptTemplateStore = promptTemplateStore,
+                experimentStore = experimentStore,
+                evaluationPipelineFactory = evaluationPipelineFactory,
+                reportGenerator = reportGenerator,
+                feedbackAnalyzer = feedbackAnalyzer,
+                candidateGenerator = candidateGenerator,
+                properties = shortTimeoutProps
+            )
+
+            val experiment = buildPendingExperiment()
+            every { experimentStore.get("exp-1") } returns experiment
+            mockVersionLookup("baseline-v", 1, "Baseline prompt")
+            mockVersionLookup("candidate-v", 2, "Candidate prompt")
+            coEvery { agentExecutor.execute(any<AgentCommand>()) } coAnswers {
+                delay(5000)
+                AgentResult.success("Should not reach")
+            }
+            every { evaluationPipelineFactory.create(any()) } returns mockPipeline
+
+            val savedExperiments = mutableListOf<Experiment>()
+            every { experimentStore.save(capture(savedExperiments)) } answers { firstArg() }
+
+            val result = timeoutOrchestrator.execute("exp-1")
+
+            assertEquals(ExperimentStatus.FAILED, result.status) {
+                "Should be FAILED after timeout"
+            }
+            assertTrue(result.errorMessage.orEmpty().contains("timed out")) {
+                "Error message should mention timeout: ${result.errorMessage}"
             }
         }
 

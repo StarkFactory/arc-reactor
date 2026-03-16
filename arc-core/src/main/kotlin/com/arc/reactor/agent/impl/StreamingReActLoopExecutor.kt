@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.config.RetryProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
@@ -15,10 +16,27 @@ import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import reactor.core.publisher.Flux
+import reactor.util.retry.Retry
+import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.reactive.asFlow
 
 private val logger = KotlinLogging.logger {}
+
+/**
+ * Unwraps Reactor-wrapped exceptions to expose the original cause
+ * for accurate error classification by [AgentErrorPolicy].
+ *
+ * Reactor's `Exceptions.propagate()` wraps checked exceptions in
+ * a RuntimeException. This function returns the original cause.
+ */
+internal fun unwrapReactorException(throwable: Throwable): Throwable {
+    val cause = throwable.cause
+    if (throwable is RuntimeException && cause != null && cause !== throwable) {
+        return cause
+    }
+    return throwable
+}
 
 internal data class StreamingLoopResult(
     val success: Boolean,
@@ -41,8 +59,12 @@ internal class StreamingReActLoopExecutor(
     ) -> Flux<org.springframework.ai.chat.model.ChatResponse>,
     private val buildChatOptions: (AgentCommand, Boolean) -> ChatOptions,
     private val recordTokenUsage: (TokenUsage, Map<String, Any>) -> Unit = { _, _ -> },
-    private val agentMetrics: AgentMetrics = NoOpAgentMetrics()
+    private val agentMetrics: AgentMetrics = NoOpAgentMetrics(),
+    private val retryProperties: RetryProperties = RetryProperties(),
+    private val isTransientError: (Throwable) -> Boolean = { false }
 ) {
+
+    private val streamingRetry: Retry by lazy { buildStreamingRetry() }
 
     suspend fun execute(
         command: AgentCommand,
@@ -56,7 +78,7 @@ internal class StreamingReActLoopExecutor(
         maxToolCalls: Int,
         emit: suspend (String) -> Unit
     ): StreamingLoopResult {
-        var activeTools = initialTools
+        var activeTools = if (maxToolCalls > 0) initialTools else emptyList()
         var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
         var totalToolCalls = 0
         var lastIterationContent = ""
@@ -72,7 +94,7 @@ internal class StreamingReActLoopExecutor(
 
         while (true) {
             val currentIterationContent = StringBuilder()
-            messageTrimmer.trim(messages, systemPrompt)
+            messageTrimmer.trim(messages, systemPrompt, activeTools.size * TOKENS_PER_TOOL_DEFINITION)
 
             val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
             val llmStart = System.nanoTime()
@@ -81,15 +103,16 @@ internal class StreamingReActLoopExecutor(
             val currentChunkText = StringBuilder()
             var lastChunkMeta: org.springframework.ai.chat.metadata.ChatResponseMetadata? = null
 
-            flux.asFlow().collect { chunk ->
-                val text = chunk.result.output.text
+            flux.retryWhen(streamingRetry).asFlow().collect { chunk ->
+                val generation = chunk.result ?: return@collect
+                val text = generation.output.text
                 if (!text.isNullOrEmpty()) {
                     emit(text)
                     currentChunkText.append(text)
                     collectedContent.append(text)
                     currentIterationContent.append(text)
                 }
-                val chunkToolCalls = chunk.result.output.toolCalls
+                val chunkToolCalls = generation.output.toolCalls
                 if (!chunkToolCalls.isNullOrEmpty()) {
                     pendingToolCalls = chunkToolCalls
                 }
@@ -172,11 +195,38 @@ internal class StreamingReActLoopExecutor(
                 logger.info { "maxToolCalls reached in streaming ($totalToolCalls/$maxToolCalls), final answer" }
                 activeTools = emptyList()
                 chatOptions = buildChatOptions(command, false)
+                messages.add(
+                    org.springframework.ai.chat.messages.SystemMessage(
+                        "Tool call limit reached ($totalToolCalls/$maxToolCalls). " +
+                            "Summarize the results you have so far and provide your best answer. " +
+                            "Do not request additional tool calls."
+                    )
+                )
             }
         }
     }
 
+    private fun buildStreamingRetry(): Retry {
+        val maxAttempts = retryProperties.maxAttempts.coerceAtLeast(1).toLong() - 1
+        if (maxAttempts <= 0) return Retry.max(0)
+        return Retry
+            .backoff(maxAttempts, Duration.ofMillis(retryProperties.initialDelayMs))
+            .maxBackoff(Duration.ofMillis(retryProperties.maxDelayMs))
+            .jitter(0.25)
+            .filter { throwable -> isTransientError(unwrapReactorException(throwable)) }
+            .doBeforeRetry { signal ->
+                logger.warn {
+                    "Transient streaming error (attempt ${signal.totalRetries() + 1}), " +
+                        "retrying: ${signal.failure().message}"
+                }
+            }
+    }
+
     private fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean {
         return chatOptions is GoogleGenAiChatOptions
+    }
+
+    companion object {
+        private const val TOKENS_PER_TOOL_DEFINITION = 200
     }
 }
