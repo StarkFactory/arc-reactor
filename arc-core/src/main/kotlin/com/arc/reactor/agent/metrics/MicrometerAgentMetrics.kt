@@ -48,6 +48,7 @@ class MicrometerAgentMetrics(
 
         Timer.builder(METRIC_EXECUTION_DURATION)
             .tag("success", result.success.toString())
+            .publishPercentiles(0.5, 0.95, 0.99)
             .register(registry)
             .record(result.durationMs, TimeUnit.MILLISECONDS)
 
@@ -264,6 +265,20 @@ class MicrometerAgentMetrics(
         activeRequestCount.set(count)
     }
 
+    override fun recordToolResultCacheHit(toolName: String, cacheKey: String) {
+        Counter.builder(METRIC_TOOL_RESULT_CACHE_HITS)
+            .tag("tool", toolName)
+            .register(registry)
+            .increment()
+    }
+
+    override fun recordToolResultCacheMiss(toolName: String, cacheKey: String) {
+        Counter.builder(METRIC_TOOL_RESULT_CACHE_MISSES)
+            .tag("tool", toolName)
+            .register(registry)
+            .increment()
+    }
+
     override fun recordRagRetrieval(status: String, durationMs: Long) {
         Counter.builder(METRIC_RAG_RETRIEVALS)
             .tag("status", status)
@@ -388,7 +403,7 @@ class MicrometerAgentMetrics(
         private const val METRIC_GUARD_REJECTIONS = "arc.agent.guard.rejections"
         private const val METRIC_CACHE_HITS = "arc.agent.cache.hits"
         private const val METRIC_CACHE_MISSES = "arc.agent.cache.misses"
-        private const val METRIC_CIRCUIT_BREAKER_TRANSITIONS = "arc.agent.circuit_breaker.transitions"
+        private const val METRIC_CIRCUIT_BREAKER_TRANSITIONS = "arc.agent.circuitbreaker.transitions"
         private const val METRIC_FALLBACK_ATTEMPTS = "arc.agent.fallback.attempts"
         private const val METRIC_TOKENS_TOTAL = "arc.agent.tokens.total"
         private const val METRIC_STREAMING_EXECUTIONS = "arc.agent.streaming.executions"
@@ -399,6 +414,8 @@ class MicrometerAgentMetrics(
         private const val METRIC_LLM_LATENCY = "arc.agent.llm.latency"
         private const val METRIC_TOOL_OUTPUT_SIZE = "arc.agent.tool.output.size"
         private const val METRIC_TOOL_OUTPUT_TRUNCATED = "arc.agent.tool.output.truncated"
+        private const val METRIC_TOOL_RESULT_CACHE_HITS = "arc.agent.tool.result.cache.hits"
+        private const val METRIC_TOOL_RESULT_CACHE_MISSES = "arc.agent.tool.result.cache.misses"
         private const val METRIC_RAG_RETRIEVALS = "arc.agent.rag.retrievals"
         private const val METRIC_RAG_RETRIEVAL_DURATION = "arc.agent.rag.retrieval.duration"
         private const val METRIC_ACTIVE_REQUESTS = "arc.agent.active_requests"
