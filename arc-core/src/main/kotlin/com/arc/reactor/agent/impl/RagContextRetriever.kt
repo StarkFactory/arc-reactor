@@ -3,6 +3,8 @@ package com.arc.reactor.agent.impl
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.rag.QueryComplexity
+import com.arc.reactor.rag.QueryRouter
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.rag.model.RagQuery
 import com.arc.reactor.support.throwIfCancellation
@@ -18,7 +20,12 @@ internal class RagContextRetriever(
     private val rerankEnabled: Boolean,
     private val ragPipeline: RagPipeline?,
     private val retrievalTimeoutMs: Long = 5000,
+<<<<<<< HEAD
     private val metrics: AgentMetrics = NoOpAgentMetrics()
+=======
+    private val queryRouter: QueryRouter? = null,
+    private val complexTopK: Int = 15
+>>>>>>> c25c928 (feat(rag): Add Adaptive Query Router based on Adaptive-RAG (Jeong et al., 2024))
 ) {
 
     suspend fun retrieve(command: AgentCommand): String? {
@@ -27,12 +34,14 @@ internal class RagContextRetriever(
         val startTime = System.currentTimeMillis()
         return try {
             withTimeout(retrievalTimeoutMs) {
+                val effectiveTopK = resolveTopK(command.userPrompt)
+                    ?: return@withTimeout null
                 val ragFilters = extractRagFilters(command.metadata)
                 val ragResult = ragPipeline.retrieve(
                     RagQuery(
                         query = command.userPrompt,
                         filters = ragFilters,
-                        topK = topK,
+                        topK = effectiveTopK,
                         rerank = rerankEnabled
                     )
                 )
@@ -58,6 +67,29 @@ internal class RagContextRetriever(
             logger.error(e) { "RAG retrieval failed after ${durationMs}ms, continuing without context" }
             metrics.recordRagRetrieval("error", durationMs)
             null
+        }
+    }
+
+    /**
+     * Resolve the effective topK based on adaptive routing.
+     * Returns null when routing determines NO_RETRIEVAL.
+     */
+    private suspend fun resolveTopK(query: String): Int? {
+        if (queryRouter == null) return topK
+
+        return when (queryRouter.route(query)) {
+            QueryComplexity.NO_RETRIEVAL -> {
+                logger.debug { "Adaptive routing: NO_RETRIEVAL, skipping RAG" }
+                null
+            }
+            QueryComplexity.SIMPLE -> {
+                logger.debug { "Adaptive routing: SIMPLE, topK=$topK" }
+                topK
+            }
+            QueryComplexity.COMPLEX -> {
+                logger.debug { "Adaptive routing: COMPLEX, topK=$complexTopK" }
+                complexTopK
+            }
         }
     }
 
