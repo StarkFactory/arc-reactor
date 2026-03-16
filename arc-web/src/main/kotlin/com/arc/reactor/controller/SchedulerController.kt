@@ -52,13 +52,18 @@ class SchedulerController(
 
     @Operation(summary = "List all scheduled jobs")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "List of scheduled jobs"),
+        ApiResponse(responseCode = "200", description = "Paginated list of scheduled jobs"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping
-    fun listJobs(exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun listJobs(
+        @RequestParam(defaultValue = "0") offset: Int,
+        @RequestParam(defaultValue = "50") limit: Int,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return ResponseEntity.ok(schedulerService.list().map { it.toResponse() })
+        val clamped = clampLimit(limit)
+        return ResponseEntity.ok(schedulerService.list().map { it.toResponse() }.paginate(offset, clamped))
     }
 
     @Operation(summary = "Create a new scheduled job (ADMIN)")
@@ -168,7 +173,7 @@ class SchedulerController(
 
     @Operation(summary = "Get execution history for a scheduled job (ADMIN)")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "Execution history"),
+        ApiResponse(responseCode = "200", description = "Paginated execution history"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
         ApiResponse(responseCode = "404", description = "Scheduled job not found")
     ])
@@ -176,12 +181,15 @@ class SchedulerController(
     fun getExecutions(
         @PathVariable id: String,
         @RequestParam(defaultValue = "20") limit: Int,
+        @RequestParam(defaultValue = "0") offset: Int,
+        @RequestParam(defaultValue = "50") pageLimit: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         schedulerService.findById(id) ?: return jobNotFound(id)
         val executions = schedulerService.getExecutions(id, limit.coerceIn(1, 100))
-        return ResponseEntity.ok(executions.map { it.toResponse() })
+        val clamped = clampLimit(pageLimit)
+        return ResponseEntity.ok(executions.map { it.toResponse() }.paginate(offset, clamped))
     }
 
     private fun jobNotFound(id: String): ResponseEntity<Any> =

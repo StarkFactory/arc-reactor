@@ -229,13 +229,15 @@ class FeedbackControllerTest {
             val response = controller.listFeedback(
                 rating = null, from = null, to = null,
                 intent = null, sessionId = null, templateId = null,
+                offset = 0, limit = 50,
                 exchange = adminExchange()
             )
 
             assertEquals(HttpStatus.OK, response.statusCode) { "Should return 200" }
             @Suppress("UNCHECKED_CAST")
-            val body = response.body as List<FeedbackResponse>
-            assertEquals(1, body.size) { "Should have 1 entry" }
+            val body = response.body as PaginatedResponse<FeedbackResponse>
+            assertEquals(1, body.items.size) { "Should have 1 entry" }
+            assertEquals(1, body.total) { "Total should be 1" }
         }
 
         @Test
@@ -243,6 +245,7 @@ class FeedbackControllerTest {
             val response = controller.listFeedback(
                 rating = null, from = null, to = null,
                 intent = null, sessionId = null, templateId = null,
+                offset = 0, limit = 50,
                 exchange = userExchange()
             )
 
@@ -269,6 +272,7 @@ class FeedbackControllerTest {
                 intent = "refund",
                 sessionId = "s-42",
                 templateId = null,
+                offset = 0, limit = 50,
                 exchange = adminExchange()
             )
 
@@ -305,6 +309,7 @@ class FeedbackControllerTest {
                 intent = null,
                 sessionId = null,
                 templateId = null,
+                offset = 0, limit = 50,
                 exchange = adminExchange()
             )
 
@@ -333,6 +338,7 @@ class FeedbackControllerTest {
             val response = controller.listFeedback(
                 rating = null, from = null, to = null,
                 intent = null, sessionId = null, templateId = null,
+                offset = 0, limit = 50,
                 exchange = noAuthExchange()
             )
 
@@ -438,6 +444,7 @@ class FeedbackControllerTest {
                     intent = null,
                     sessionId = null,
                     templateId = null,
+                    offset = 0, limit = 50,
                     exchange = adminExchange()
                 )
             }
@@ -456,6 +463,7 @@ class FeedbackControllerTest {
                     intent = null,
                     sessionId = null,
                     templateId = null,
+                    offset = 0, limit = 50,
                     exchange = adminExchange()
                 )
             }
@@ -474,6 +482,7 @@ class FeedbackControllerTest {
                     intent = null,
                     sessionId = null,
                     templateId = null,
+                    offset = 0, limit = 50,
                     exchange = adminExchange()
                 )
             }
