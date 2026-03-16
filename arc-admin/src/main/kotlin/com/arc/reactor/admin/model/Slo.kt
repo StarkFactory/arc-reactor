@@ -2,6 +2,7 @@ package com.arc.reactor.admin.model
 
 import java.time.LocalDate
 
+/** SLO error budget 상태. 소진율(burn rate)과 예상 고갈일을 포함한다. */
 data class ErrorBudget(
     val sloTarget: Double,
     val windowDays: Int = 30,
@@ -15,12 +16,14 @@ data class ErrorBudget(
     val projectedExhaustionDate: LocalDate? = null
 )
 
+/** SLO 상태. 가용성 SLI, 지연 SLI, error budget을 통합한다. */
 data class SloStatus(
     val availability: SliMetric,
     val latency: SliMetric,
     val errorBudget: ErrorBudget
 )
 
+/** 단일 SLI(Service Level Indicator) 메트릭. 목표 대비 현재값과 건강 상태를 포함한다. */
 data class SliMetric(
     val name: String,
     val target: Double,
@@ -28,6 +31,7 @@ data class SliMetric(
     val isHealthy: Boolean = current >= target
 )
 
+/** APDEX(Application Performance Index) 점수. satisfied/tolerating/frustrated 분류를 포함한다. */
 data class ApdexScore(
     val score: Double,
     val satisfied: Long = 0,

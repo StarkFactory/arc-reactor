@@ -15,17 +15,17 @@ import java.util.concurrent.atomic.AtomicBoolean
 private val logger = KotlinLogging.logger {}
 
 /**
- * Lightweight metric reporter for MCP servers.
+ * MCP 서버용 경량 메트릭 리포터.
  *
- * MCP servers add this as a dependency and call [reportToolCall] / [reportHealth]
- * to push metrics to the arc-admin metric ingestion endpoint.
+ * MCP 서버가 의존성으로 추가한 뒤 [reportToolCall] / [reportHealth]를 호출하여
+ * arc-admin 메트릭 수집 엔드포인트로 메트릭을 푸시한다.
  *
- * Features:
- * - Async: events are buffered and flushed in batch to avoid blocking MCP tool execution
- * - Resilient: failures are logged, not thrown — never disrupts MCP server operation
- * - Configurable: endpoint URL, flush interval, batch size
+ * 특징:
+ * - 비동기: 이벤트를 버퍼링하고 배치로 flush하여 MCP 도구 실행을 블로킹하지 않음
+ * - 탄력적: 실패는 로깅만 하고 예외를 던지지 않음 — MCP 서버 운영에 영향 없음
+ * - 설정 가능: 엔드포인트 URL, flush 주기, 배치 크기
  *
- * Usage:
+ * 사용 예:
  * ```kotlin
  * val reporter = McpMetricReporter(
  *     endpoint = "http://localhost:8080/api/admin/metrics/ingest",
@@ -34,12 +34,14 @@ private val logger = KotlinLogging.logger {}
  * )
  * reporter.start()
  *
- * // In tool handler:
+ * // 도구 핸들러에서:
  * reporter.reportToolCall("analyze_error", durationMs = 250, success = true, runId = "run-xyz")
  *
- * // On shutdown:
+ * // 종료 시:
  * reporter.stop()
  * ```
+ *
+ * @see MetricIngestionController 메트릭 수집 API
  */
 class McpMetricReporter(
     private val endpoint: String,
@@ -85,9 +87,7 @@ class McpMetricReporter(
         logger.info { "McpMetricReporter stopped for $serverName" }
     }
 
-    /**
-     * Report a tool call execution from this MCP server.
-     */
+    /** 이 MCP 서버에서의 도구 호출 실행을 보고한다. */
     fun reportToolCall(
         toolName: String,
         durationMs: Long,
@@ -114,9 +114,7 @@ class McpMetricReporter(
         )
     }
 
-    /**
-     * Report this MCP server's health status.
-     */
+    /** 이 MCP 서버의 상태를 보고한다. */
     fun reportHealth(
         status: String = "CONNECTED",
         responseTimeMs: Long = 0,
@@ -158,7 +156,7 @@ class McpMetricReporter(
         }
         if (batch.isEmpty()) return
 
-        // Group by type and send
+        // ── 단계: 타입별 그룹화 후 전송 ──
         val toolCalls = batch.filter { it.type == "tool_call" }
         val healthEvents = batch.filter { it.type == "mcp_health" }
 
@@ -191,10 +189,7 @@ class McpMetricReporter(
         }
     }
 
-    /**
-     * Minimal JSON serialization without Jackson dependency.
-     * MCP servers may not have Jackson on classpath.
-     */
+    /** Jackson 의존성 없는 최소한의 JSON 직렬화. MCP 서버는 classpath에 Jackson이 없을 수 있다. */
     private fun toJson(map: Map<String, Any?>): String {
         val entries = map.entries.joinToString(",") { (k, v) ->
             "\"${escapeJson(k)}\":${valueToJson(v)}"
@@ -217,6 +212,7 @@ class McpMetricReporter(
             .replace("\t", "\\t")
 }
 
+/** 메트릭 페이로드. 타입(tool_call, mcp_health)과 데이터를 포함한다. */
 private data class MetricPayload(
     val type: String,
     val data: Map<String, Any?>

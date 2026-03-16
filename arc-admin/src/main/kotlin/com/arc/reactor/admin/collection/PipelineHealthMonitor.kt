@@ -3,7 +3,10 @@ package com.arc.reactor.admin.collection
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Tracks pipeline health meta-metrics.
+ * 메트릭 파이프라인 상태를 추적하는 모니터.
+ *
+ * 쓰기 지연, 오류 수, 이벤트 drop 수, 캐시 히트/미스 등 메타 메트릭을 관리한다.
+ * [snapshot]으로 현재 상태의 불변 스냅샷을 얻을 수 있다.
  */
 class PipelineHealthMonitor {
     val writeLatencyMs = AtomicLong(0)
@@ -58,6 +61,7 @@ class PipelineHealthMonitor {
     )
 }
 
+/** 파이프라인 상태의 불변 스냅샷. */
 data class PipelineHealthSnapshot(
     val bufferUsagePercent: Double = 0.0,
     val droppedTotal: Long = 0,

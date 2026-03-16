@@ -10,6 +10,14 @@ import java.sql.ResultSet
 import java.sql.Timestamp
 import java.time.Instant
 
+/**
+ * [AlertRuleStore]의 JDBC/PostgreSQL 구현체.
+ *
+ * alert_rules 및 alert_instances 테이블에 대한 CRUD를 수행한다.
+ * 규칙 저장 시 `ON CONFLICT` upsert를 지원한다.
+ *
+ * @see InMemoryAlertRuleStore DataSource 없을 때 사용되는 인메모리 구현
+ */
 class JdbcAlertRuleStore(
     private val jdbcTemplate: JdbcTemplate
 ) : AlertRuleStore {

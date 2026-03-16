@@ -10,16 +10,16 @@ import kotlin.coroutines.cancellation.CancellationException
 private val logger = KotlinLogging.logger {}
 
 /**
- * Captures Human-in-the-Loop (HITL) approval/rejection events from tool calls.
+ * 도구 호출에서 HITL(Human-in-the-Loop) 승인/거부 이벤트를 수집하는 Hook.
  *
- * Reads HITL metadata set by ToolCallOrchestrator:
- * - hitlWaitMs_{toolName}_{callIndex}: how long the tool waited for human approval
- * - hitlApproved_{toolName}_{callIndex}: whether the human approved the tool call
- * - hitlRejectionReason_{toolName}_{callIndex}: reason for rejection (if rejected)
+ * ToolCallOrchestrator가 설정한 HITL 메타데이터를 읽는다:
+ * - `hitlWaitMs_{toolName}_{callIndex}`: 사람 승인 대기 시간 (ms)
+ * - `hitlApproved_{toolName}_{callIndex}`: 사람이 승인했는지 여부
+ * - `hitlRejectionReason_{toolName}_{callIndex}`: 거부 사유 (거부 시)
  *
- * For backward compatibility, this hook also accepts legacy keys without callIndex suffix.
+ * 하위 호환성을 위해 callIndex 접미사 없는 레거시 키도 지원한다.
  *
- * Order 201: runs after MetricCollectionHook (200).
+ * Order 201: [MetricCollectionHook] (200) 이후에 실행된다.
  */
 class HitlEventHook(
     private val ringBuffer: MetricRingBuffer,

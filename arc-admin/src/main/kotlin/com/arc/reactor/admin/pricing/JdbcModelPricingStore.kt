@@ -5,6 +5,14 @@ import java.sql.ResultSet
 import java.sql.Timestamp
 import java.time.Instant
 
+/**
+ * [ModelPricingStore]의 JDBC/PostgreSQL 구현체.
+ *
+ * model_pricing 테이블에 대한 CRUD를 수행하며, `ON CONFLICT` upsert를 지원한다.
+ * effective_from/effective_to 기간으로 시점별 유효 가격을 조회할 수 있다.
+ *
+ * @see InMemoryModelPricingStore DataSource 없을 때 사용되는 인메모리 구현
+ */
 class JdbcModelPricingStore(
     private val jdbcTemplate: JdbcTemplate
 ) : ModelPricingStore {
