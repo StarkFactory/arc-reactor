@@ -57,8 +57,8 @@ class DocumentController(
         ApiResponse(responseCode = "201", description = "Document added to vector store"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
-ApiResponse(responseCode = "500", description = "Embedding or storage failure")
-ApiResponse(responseCode = "409", description = "Document with identical content already exists")
+        ApiResponse(responseCode = "409", description = "Document with identical content already exists"),
+        ApiResponse(responseCode = "500", description = "Embedding or storage failure")
     ])
     @PostMapping
     fun addDocument(
@@ -116,8 +116,8 @@ ApiResponse(responseCode = "409", description = "Document with identical content
         ApiResponse(responseCode = "201", description = "Documents added to vector store"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
-ApiResponse(responseCode = "500", description = "Embedding or storage failure")
-ApiResponse(responseCode = "409", description = "Document with identical content already exists")
+        ApiResponse(responseCode = "409", description = "Document with identical content already exists"),
+        ApiResponse(responseCode = "500", description = "Embedding or storage failure")
     ])
     @PostMapping("/batch")
     fun addDocuments(
