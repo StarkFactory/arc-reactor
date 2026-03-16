@@ -242,6 +242,36 @@ interface AgentMetrics {
      * Default implementation is a no-op to preserve backward compatibility.
      */
     fun recordStageLatency(stage: String, durationMs: Long, metadata: Map<String, Any>) {}
+
+    /**
+     * Record LLM call latency for SLA tracking (P50/P95/P99).
+     *
+     * Default implementation is a no-op to preserve backward compatibility.
+     *
+     * @param model The LLM model name
+     * @param durationMs Duration of the LLM call in milliseconds
+     */
+    fun recordLlmLatency(model: String, durationMs: Long) {}
+
+    /**
+     * Record tool output size for monitoring and truncation tracking.
+     *
+     * Default implementation is a no-op to preserve backward compatibility.
+     *
+     * @param toolName Name of the tool
+     * @param sizeBytes Size of the tool output in bytes
+     * @param truncated Whether the output was truncated
+     */
+    fun recordToolOutputSize(toolName: String, sizeBytes: Int, truncated: Boolean) {}
+
+    /**
+     * Record the current number of active (in-flight) agent requests.
+     *
+     * Default implementation is a no-op to preserve backward compatibility.
+     *
+     * @param count Current active request count
+     */
+    fun recordActiveRequests(count: Int) {}
 }
 
 /**
