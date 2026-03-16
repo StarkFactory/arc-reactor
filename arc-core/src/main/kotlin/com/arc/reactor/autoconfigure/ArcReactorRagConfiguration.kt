@@ -19,6 +19,7 @@ import com.arc.reactor.rag.impl.DefaultRagPipeline
 import com.arc.reactor.rag.impl.HybridRagPipeline
 import com.arc.reactor.rag.impl.HyDEQueryTransformer
 import com.arc.reactor.rag.impl.LlmContextualCompressor
+import com.arc.reactor.rag.impl.ParentDocumentRetriever
 import com.arc.reactor.rag.impl.PassthroughQueryTransformer
 import com.arc.reactor.rag.impl.SimpleScoreReranker
 import com.arc.reactor.rag.impl.SpringAiVectorStoreRetriever
@@ -63,11 +64,19 @@ class RagConfiguration {
             )
         }
         ragLogger.info { "RAG: Using SpringAiVectorStoreRetriever (VectorStore found)" }
-        return SpringAiVectorStoreRetriever(
+        val base: DocumentRetriever = SpringAiVectorStoreRetriever(
             vectorStore = vectorStore,
             defaultSimilarityThreshold = properties.rag.similarityThreshold,
             timeoutMs = properties.rag.retrievalTimeoutMs
         )
+        val parentConfig = properties.rag.parentRetrieval
+        if (parentConfig.enabled) {
+            ragLogger.info {
+                "RAG: Wrapping retriever with ParentDocumentRetriever (windowSize=${parentConfig.windowSize})"
+            }
+            return ParentDocumentRetriever(delegate = base, windowSize = parentConfig.windowSize)
+        }
+        return base
     }
 
     /**

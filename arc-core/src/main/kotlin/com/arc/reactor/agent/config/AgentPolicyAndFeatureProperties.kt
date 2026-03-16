@@ -161,6 +161,9 @@ data class RagProperties(
     /** Document chunking configuration */
     val chunking: RagChunkingProperties = RagChunkingProperties(),
 
+    /** Parent document retrieval configuration */
+    val parentRetrieval: RagParentRetrievalProperties = RagParentRetrievalProperties(),
+
     /** Retrieval timeout in milliseconds. Prevents thread-pool exhaustion when vector DB is unresponsive. */
     val retrievalTimeoutMs: Long = 5000,
 
@@ -231,6 +234,30 @@ data class RagHybridProperties(
 
     /** BM25 length normalization parameter */
     val bm25B: Double = 0.75
+)
+
+/**
+ * Parent document retrieval configuration.
+ *
+ * When enabled, chunked search results are expanded with adjacent chunks
+ * from the same parent document to provide richer context.
+ *
+ * ## Example
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     rag:
+ *       parent-retrieval:
+ *         enabled: true
+ *         window-size: 1
+ * ```
+ */
+data class RagParentRetrievalProperties(
+    /** Enable parent document retrieval. Requires arc.reactor.rag.enabled=true. */
+    val enabled: Boolean = false,
+
+    /** Number of adjacent chunks to include before and after each hit (1 = +/- 1 chunk). */
+    val windowSize: Int = 1
 )
 
 data class RagIngestionProperties(
