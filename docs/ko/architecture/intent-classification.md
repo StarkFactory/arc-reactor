@@ -72,6 +72,88 @@
 ```
 
 **핵심 설계 원칙**: 인텐트 시스템은 **절대 요청을 차단하지 않습니다**. 분류 실패나 낮은 신뢰도 = 기본 파이프라인이 평소대로 실행됩니다.
+- 인텐트 해석은 **안전 우선**: 예외 시 원본 command로 폴백합니다 (`BlockedIntentException` 제외).
+- 차단된 인텐트는 `GUARD_REJECTED` 에러 코드를 반환합니다.
+
+---
+
+## 고급 규칙 기반 분류
+
+규칙 기반 분류기는 단순 키워드 매칭 외에 세 가지 고급 기능을 지원합니다:
+
+### 동의어 (Synonyms)
+
+각 키워드를 대체 형태로 매핑합니다. 동의어 매칭은 원본 키워드의 매칭으로 처리됩니다 (이중 카운팅 없음).
+
+```kotlin
+IntentDefinition(
+    name = "refund",
+    keywords = listOf("refund", "cancel"),
+    synonyms = mapOf(
+        "refund" to listOf("리펀드", "돌려줘"),
+        "cancel" to listOf("캔슬", "취소")
+    )
+)
+```
+
+입력 `"리펀드 해주세요"`는 동의어를 통해 `"refund"` 키워드에 매칭됩니다.
+
+### 키워드 가중치 (Keyword Weights)
+
+더 구별력 있는 키워드에 높은 가중치를 부여합니다. 기본 가중치는 `1.0`입니다.
+
+```kotlin
+IntentDefinition(
+    name = "refund",
+    keywords = listOf("refund", "order"),
+    keywordWeights = mapOf("refund" to 3.0)
+    // "refund" weight=3.0, "order" weight=1.0 (기본값)
+)
+```
+
+`"refund"`만 매칭될 경우: confidence = 3.0 / 4.0 = **0.75** (동일 가중치면 0.5).
+
+### 부정 키워드 (Negative Keywords)
+
+매칭 시 해당 인텐트를 즉시 제외하는 구문입니다. 유사한 인텐트를 구별하는 데 유용합니다.
+
+```kotlin
+IntentDefinition(
+    name = "refund",
+    keywords = listOf("refund"),
+    negativeKeywords = listOf("refund policy")
+)
+```
+
+입력 `"Tell me about refund policy"`는 refund 인텐트에서 제외되어 FAQ 인텐트가 대신 매칭됩니다.
+
+### 스코어링 알고리즘
+
+```
+scoreIntent(intent, text):
+  1. negativeKeyword가 텍스트에 매칭? → 제외 (null 반환)
+  2. 각 키워드에 대해:
+     - variants = [keyword] + synonyms[keyword]
+     - weight = keywordWeights[keyword] ?: 1.0
+     - variant 중 하나라도 매칭? → matchedWeight += weight
+     - totalWeight += weight
+  3. confidence = matchedWeight / totalWeight (최대 1.0)
+```
+
+---
+
+## 차단된 인텐트 (Blocked Intents)
+
+특정 인텐트를 실행기 수준에서 차단할 수 있습니다. 차단된 인텐트는 `GUARD_REJECTED` 에러 코드를 반환합니다.
+
+```yaml
+arc:
+  reactor:
+    intent:
+      blocked-intents: refund, data_analysis
+```
+
+정의를 제거하지 않고 특정 인텐트 경로를 일시적으로 비활성화하는 데 유용합니다.
 
 ---
 
