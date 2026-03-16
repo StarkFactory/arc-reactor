@@ -272,6 +272,16 @@ interface AgentMetrics {
      * @param count Current active request count
      */
     fun recordActiveRequests(count: Int) {}
+
+    /**
+     * Record a RAG retrieval outcome for observability.
+     *
+     * Default implementation is a no-op to preserve backward compatibility.
+     *
+     * @param status The retrieval status: "success", "empty", "timeout", or "error"
+     * @param durationMs Duration of the retrieval in milliseconds
+     */
+    fun recordRagRetrieval(status: String, durationMs: Long) {}
 }
 
 /**

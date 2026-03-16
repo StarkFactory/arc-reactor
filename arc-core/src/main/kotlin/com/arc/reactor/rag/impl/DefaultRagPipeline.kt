@@ -40,11 +40,13 @@ class DefaultRagPipeline(
 
         // 2. Retrieve
         val documents = retriever.retrieve(transformedQueries, query.topK, query.filters)
-        logger.debug { "Retrieved ${documents.size} documents" }
 
         if (documents.isEmpty()) {
+            logger.info { "RAG retrieval returned empty results for query: ${query.query}" }
             return RagContext.EMPTY
         }
+
+        logger.debug { "Retrieved ${documents.size} documents" }
 
         // 3. Rerank
         val rerankedDocs = if (query.rerank && reranker != null) {

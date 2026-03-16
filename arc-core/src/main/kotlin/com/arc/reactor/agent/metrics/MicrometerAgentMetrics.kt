@@ -264,6 +264,18 @@ class MicrometerAgentMetrics(
         activeRequestCount.set(count)
     }
 
+    override fun recordRagRetrieval(status: String, durationMs: Long) {
+        Counter.builder(METRIC_RAG_RETRIEVALS)
+            .tag("status", status)
+            .register(registry)
+            .increment()
+
+        Timer.builder(METRIC_RAG_RETRIEVAL_DURATION)
+            .tag("status", status)
+            .register(registry)
+            .record(durationMs.coerceAtLeast(0), TimeUnit.MILLISECONDS)
+    }
+
     override fun recordStageLatency(stage: String, durationMs: Long, metadata: Map<String, Any>) {
         Timer.builder(METRIC_STAGE_DURATION)
             .tag("stage", stage)
@@ -387,6 +399,8 @@ class MicrometerAgentMetrics(
         private const val METRIC_LLM_LATENCY = "arc.agent.llm.latency"
         private const val METRIC_TOOL_OUTPUT_SIZE = "arc.agent.tool.output.size"
         private const val METRIC_TOOL_OUTPUT_TRUNCATED = "arc.agent.tool.output.truncated"
+        private const val METRIC_RAG_RETRIEVALS = "arc.agent.rag.retrievals"
+        private const val METRIC_RAG_RETRIEVAL_DURATION = "arc.agent.rag.retrieval.duration"
         private const val METRIC_ACTIVE_REQUESTS = "arc.agent.active_requests"
     }
 }
