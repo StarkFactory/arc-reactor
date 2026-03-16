@@ -3,11 +3,18 @@ package com.arc.reactor.admin.model
 import java.math.BigDecimal
 import java.time.Instant
 
+/**
+ * 메트릭 이벤트의 sealed 기본 클래스.
+ *
+ * 모든 하위 타입은 [time]과 [tenantId]를 공통으로 가진다.
+ * [MetricRingBuffer]에 publish된 뒤 [MetricWriter]가 drain하여 DB에 적재한다.
+ */
 sealed class MetricEvent {
     abstract val time: Instant
     abstract val tenantId: String
 }
 
+/** 에이전트 실행 완료 이벤트. 지연 분해(LLM/도구/가드)와 성공 여부를 포함한다. */
 data class AgentExecutionEvent(
     override val time: Instant = Instant.now(),
     override val tenantId: String,
@@ -35,6 +42,7 @@ data class AgentExecutionEvent(
     val fallbackUsed: Boolean = false
 ) : MetricEvent()
 
+/** 도구 호출 이벤트. local 도구 또는 MCP 원격 도구 호출 결과를 기록한다. */
 data class ToolCallEvent(
     override val time: Instant = Instant.now(),
     override val tenantId: String,
@@ -49,6 +57,7 @@ data class ToolCallEvent(
     val errorMessage: String? = null
 ) : MetricEvent()
 
+/** 토큰 사용량 이벤트. 모델/provider별 prompt, completion, reasoning 토큰 수와 추정 비용을 포함한다. */
 data class TokenUsageEvent(
     override val time: Instant = Instant.now(),
     override val tenantId: String,
@@ -64,6 +73,7 @@ data class TokenUsageEvent(
     val estimatedCostUsd: BigDecimal = BigDecimal.ZERO
 ) : MetricEvent()
 
+/** 세션 이벤트. 대화 세션의 턴 수, 총 지연, 토큰, 비용, 결과를 기록한다. */
 data class SessionEvent(
     override val time: Instant = Instant.now(),
     override val tenantId: String,
@@ -80,6 +90,7 @@ data class SessionEvent(
     val endedAt: Instant = time
 ) : MetricEvent()
 
+/** 가드 이벤트. 입력/출력 가드의 허용 또는 거부 결과를 기록한다. */
 data class GuardEvent(
     override val time: Instant = Instant.now(),
     override val tenantId: String,
@@ -98,6 +109,7 @@ data class GuardEvent(
     val stageLatencyMs: Long = 0
 ) : MetricEvent()
 
+/** MCP 서버 상태 이벤트. 연결 상태, 응답 시간, 도구 수를 기록한다. */
 data class McpHealthEvent(
     override val time: Instant = Instant.now(),
     override val tenantId: String,
@@ -109,6 +121,7 @@ data class McpHealthEvent(
     val toolCount: Int = 0
 ) : MetricEvent()
 
+/** 평가(Eval) 결과 이벤트. 테스트 케이스별 pass/fail, 점수, 지연, 비용을 기록한다. */
 data class EvalResultEvent(
     override val time: Instant = Instant.now(),
     override val tenantId: String,
@@ -125,6 +138,7 @@ data class EvalResultEvent(
     val tags: List<String> = emptyList()
 ) : MetricEvent()
 
+/** 쿼터 이벤트. 쿼터 초과 거부, 90% 경고 등 쿼터 관련 액션을 기록한다. */
 data class QuotaEvent(
     override val time: Instant = Instant.now(),
     override val tenantId: String,
@@ -135,6 +149,7 @@ data class QuotaEvent(
     val reason: String? = null
 ) : MetricEvent()
 
+/** HITL(Human-in-the-Loop) 이벤트. 사람의 도구 호출 승인/거부와 대기 시간을 기록한다. */
 data class HitlEvent(
     override val time: Instant = Instant.now(),
     override val tenantId: String,

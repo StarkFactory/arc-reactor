@@ -10,6 +10,14 @@ import org.springframework.jdbc.core.JdbcTemplate
 import java.sql.ResultSet
 import java.sql.Timestamp
 
+/**
+ * [TenantStore]의 JDBC/PostgreSQL 구현체.
+ *
+ * `tenants` 테이블에 대한 CRUD를 수행하며, `ON CONFLICT` upsert를 지원한다.
+ * metadata 컬럼은 JSONB로 저장된다.
+ *
+ * @see InMemoryTenantStore DataSource 없을 때 사용되는 인메모리 구현
+ */
 class JdbcTenantStore(
     private val jdbcTemplate: JdbcTemplate
 ) : TenantStore {

@@ -11,11 +11,20 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 
+/**
+ * SLO(Service Level Objective) 상태와 error budget을 계산하는 서비스.
+ *
+ * 가용성 SLI, 지연 P99 SLI, error budget, APDEX 점수를 제공한다.
+ *
+ * @see DashboardService 개요 대시보드에서 SLO 상태 조회
+ * @see AlertEvaluator error budget burn rate 알림 평가
+ */
 class SloService(
     private val jdbcTemplate: JdbcTemplate,
     private val queryService: MetricQueryService
 ) {
 
+    /** 테넌트의 SLO 상태(가용성, 지연, error budget)를 계산한다. */
     fun getSloStatus(tenantId: String, sloAvailability: Double, sloLatencyP99Ms: Long): SloStatus {
         val now = Instant.now()
         val thirtyDaysAgo = now.minus(30, ChronoUnit.DAYS)
@@ -46,6 +55,7 @@ class SloService(
         )
     }
 
+    /** 지정 기간의 error budget을 계산한다. burn rate과 예상 고갈일을 포함한다. */
     fun calculateErrorBudget(
         tenantId: String,
         sloTarget: Double,
@@ -101,6 +111,7 @@ class SloService(
         )
     }
 
+    /** 지정 기간의 APDEX 점수를 계산한다 (5s satisfied, 20s tolerating 임계값). */
     fun getApdex(tenantId: String, from: Instant, to: Instant): ApdexScore {
         val result = jdbcTemplate.queryForMap(
             """SELECT

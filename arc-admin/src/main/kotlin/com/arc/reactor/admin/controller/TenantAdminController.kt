@@ -26,6 +26,15 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import javax.sql.DataSource
 
+/**
+ * 테넌트 범위 메트릭 대시보드 및 관리 REST API 컨트롤러.
+ *
+ * 개요(overview), 사용량(usage), 품질(quality), 도구(tools), 비용(cost),
+ * SLO, 알림, 쿼터, CSV 내보내기 등 테넌트별 분석 엔드포인트를 제공한다.
+ *
+ * @see PlatformAdminController 플랫폼 전역 관리 API
+ * @see DashboardService 대시보드 데이터 조합 서비스
+ */
 @Tag(name = "Tenant Admin", description = "Tenant-scoped metric dashboards and management")
 @RestController
 @ConditionalOnProperty(
@@ -44,6 +53,7 @@ class TenantAdminController(
     private val exportService: ExportService
 ) {
 
+    /** 테넌트 개요 대시보드를 반환한다 (요청 수, 성공률, APDEX, SLO, 비용). */
     @Operation(summary = "Get tenant overview dashboard")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant overview dashboard"),
@@ -59,6 +69,7 @@ class TenantAdminController(
         return ResponseEntity.ok(overview)
     }
 
+    /** 테넌트 사용량 대시보드를 반환한다 (시계열, 채널 분포, 상위 사용자). */
     @Operation(summary = "Get tenant usage dashboard")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant usage dashboard"),
@@ -76,6 +87,7 @@ class TenantAdminController(
         return ResponseEntity.ok(dashboardService.getUsage(tenantId, from, to))
     }
 
+    /** 테넌트 품질 대시보드를 반환한다 (지연 백분위, 오류 분포). */
     @Operation(summary = "Get tenant quality dashboard")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant quality dashboard"),
@@ -93,6 +105,7 @@ class TenantAdminController(
         return ResponseEntity.ok(dashboardService.getQuality(tenantId, from, to))
     }
 
+    /** 테넌트 도구 대시보드를 반환한다 (도구 랭킹, 가장 느린 도구). */
     @Operation(summary = "Get tenant tools dashboard")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant tools dashboard"),
@@ -110,6 +123,7 @@ class TenantAdminController(
         return ResponseEntity.ok(dashboardService.getTools(tenantId, from, to))
     }
 
+    /** 테넌트 비용 대시보드를 반환한다 (월 비용, 모델별 비용). */
     @Operation(summary = "Get tenant cost dashboard")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant cost dashboard"),
@@ -127,6 +141,7 @@ class TenantAdminController(
         return ResponseEntity.ok(dashboardService.getCost(tenantId, from, to))
     }
 
+    /** 테넌트 SLO(가용성, 지연, error budget) 상태를 반환한다. */
     @Operation(summary = "Get tenant SLO status")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant SLO status"),
@@ -148,6 +163,7 @@ class TenantAdminController(
         )
     }
 
+    /** 해당 테넌트의 활성 알림 목록을 반환한다. */
     @Operation(summary = "List active alerts for tenant")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of active alerts for the tenant"),
@@ -160,6 +176,7 @@ class TenantAdminController(
         return ResponseEntity.ok(alertStore.findActiveAlerts(tenantId))
     }
 
+    /** 테넌트의 당월 쿼터 사용량과 제한을 반환한다. */
     @Operation(summary = "Get tenant current month quota usage")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant quota and current month usage"),
@@ -185,6 +202,7 @@ class TenantAdminController(
         )
     }
 
+    /** 실행 이력을 CSV 파일로 내보낸다. */
     @Operation(summary = "Export executions as CSV")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "CSV file of executions"),
@@ -207,6 +225,7 @@ class TenantAdminController(
             .body(writer.toString())
     }
 
+    /** 도구 호출 이력을 CSV 파일로 내보낸다. */
     @Operation(summary = "Export tool calls as CSV")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "CSV file of tool calls"),
@@ -229,6 +248,7 @@ class TenantAdminController(
             .body(writer.toString())
     }
 
+    /** 시간 범위를 파싱한다. 미지정 시 기본값: 현재 ~ 30일 전. */
     private fun resolveTimeRange(fromMs: Long?, toMs: Long?): Pair<Instant, Instant> {
         val to = if (toMs != null) Instant.ofEpochMilli(toMs) else Instant.now()
         val from = if (fromMs != null) Instant.ofEpochMilli(fromMs) else to.minus(30, ChronoUnit.DAYS)

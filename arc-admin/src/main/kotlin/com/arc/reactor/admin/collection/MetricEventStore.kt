@@ -15,10 +15,25 @@ import org.springframework.jdbc.core.JdbcTemplate
 import java.sql.PreparedStatement
 import java.sql.Timestamp
 
+/**
+ * 메트릭 이벤트를 영구 저장소에 일괄 삽입하는 인터페이스.
+ *
+ * @see JdbcMetricEventStore JDBC 기반 구현
+ * @see MetricWriter 링 버퍼에서 drain하여 이 스토어로 쓰는 writer
+ */
 interface MetricEventStore {
+    /** [MetricEvent] 목록을 일괄 삽입한다. */
     fun batchInsert(events: List<MetricEvent>)
 }
 
+/**
+ * [MetricEventStore]의 JDBC 구현체.
+ *
+ * 이벤트 타입별로 분류한 뒤 각 테이블에 batch insert를 수행한다.
+ * [MetricWriter]가 주기적으로 호출한다.
+ *
+ * @see MetricRingBuffer 이벤트가 버퍼링되는 링 버퍼
+ */
 class JdbcMetricEventStore(
     private val jdbcTemplate: JdbcTemplate
 ) : MetricEventStore {
@@ -26,6 +41,7 @@ class JdbcMetricEventStore(
     override fun batchInsert(events: List<MetricEvent>) {
         if (events.isEmpty()) return
 
+        // ── 단계: 이벤트 타입별 분류 ──
         val executions = mutableListOf<AgentExecutionEvent>()
         val toolCalls = mutableListOf<ToolCallEvent>()
         val tokenUsages = mutableListOf<TokenUsageEvent>()
@@ -50,6 +66,7 @@ class JdbcMetricEventStore(
             }
         }
 
+        // ── 단계: 비어 있지 않은 타입만 batch insert ──
         if (executions.isNotEmpty()) insertExecutions(executions)
         if (toolCalls.isNotEmpty()) insertToolCalls(toolCalls)
         if (tokenUsages.isNotEmpty()) insertTokenUsages(tokenUsages)
@@ -61,6 +78,7 @@ class JdbcMetricEventStore(
         if (hitlEvents.isNotEmpty()) insertHitlEvents(hitlEvents)
     }
 
+    /** 에이전트 실행 이벤트를 metric_agent_executions 테이블에 삽입한다. */
     private fun insertExecutions(events: List<AgentExecutionEvent>) {
         jdbcTemplate.batchUpdate(
             """INSERT INTO metric_agent_executions
@@ -103,6 +121,7 @@ class JdbcMetricEventStore(
         )
     }
 
+    /** 도구 호출 이벤트를 metric_tool_calls 테이블에 삽입한다. */
     private fun insertToolCalls(events: List<ToolCallEvent>) {
         jdbcTemplate.batchUpdate(
             """INSERT INTO metric_tool_calls
@@ -129,6 +148,7 @@ class JdbcMetricEventStore(
         )
     }
 
+    /** 토큰 사용량 이벤트를 metric_token_usage 테이블에 삽입한다. */
     private fun insertTokenUsages(events: List<TokenUsageEvent>) {
         jdbcTemplate.batchUpdate(
             """INSERT INTO metric_token_usage
@@ -157,6 +177,7 @@ class JdbcMetricEventStore(
         )
     }
 
+    /** 세션 이벤트를 metric_sessions 테이블에 삽입한다. */
     private fun insertSessions(events: List<SessionEvent>) {
         jdbcTemplate.batchUpdate(
             """INSERT INTO metric_sessions
@@ -186,6 +207,7 @@ class JdbcMetricEventStore(
         )
     }
 
+    /** 가드 이벤트를 metric_guard_events 테이블에 삽입한다. */
     private fun insertGuardEvents(events: List<GuardEvent>) {
         jdbcTemplate.batchUpdate(
             """INSERT INTO metric_guard_events
@@ -211,6 +233,7 @@ class JdbcMetricEventStore(
         )
     }
 
+    /** MCP 서버 상태 이벤트를 metric_mcp_health 테이블에 삽입한다. */
     private fun insertMcpHealths(events: List<McpHealthEvent>) {
         jdbcTemplate.batchUpdate(
             """INSERT INTO metric_mcp_health
@@ -234,6 +257,7 @@ class JdbcMetricEventStore(
         )
     }
 
+    /** 평가 결과 이벤트를 metric_eval_results 테이블에 삽입한다. */
     private fun insertEvalResults(events: List<EvalResultEvent>) {
         jdbcTemplate.batchUpdate(
             """INSERT INTO metric_eval_results
@@ -263,6 +287,7 @@ class JdbcMetricEventStore(
         )
     }
 
+    /** 쿼터 이벤트를 metric_quota_events 테이블에 삽입한다. */
     private fun insertQuotaEvents(events: List<QuotaEvent>) {
         jdbcTemplate.batchUpdate(
             """INSERT INTO metric_quota_events
@@ -284,6 +309,7 @@ class JdbcMetricEventStore(
         )
     }
 
+    /** HITL(Human-in-the-Loop) 이벤트를 metric_hitl_events 테이블에 삽입한다. */
     private fun insertHitlEvents(events: List<HitlEvent>) {
         jdbcTemplate.batchUpdate(
             """INSERT INTO metric_hitl_events

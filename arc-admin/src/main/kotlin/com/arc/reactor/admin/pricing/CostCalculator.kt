@@ -9,6 +9,15 @@ import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * 모델 가격 테이블 기반 토큰 비용 계산기.
+ *
+ * Caffeine 캐시(5분 TTL)로 가격 조회를 최적화한다.
+ * uncached prompt, cached input, completion, reasoning 토큰을 구분하여 비용을 산출한다.
+ *
+ * @see ModelPricingStore 가격 정보 저장소
+ * @see MetricWriter writer 스레드에서 TokenUsageEvent 비용 보강 시 사용
+ */
 class CostCalculator(private val pricingStore: ModelPricingStore) {
 
     private val pricingCache = Caffeine.newBuilder()
@@ -16,6 +25,7 @@ class CostCalculator(private val pricingStore: ModelPricingStore) {
         .expireAfterWrite(Duration.ofMinutes(5))
         .build<String, ModelPricing>()
 
+    /** 지정된 토큰 수에 대한 추정 비용(USD)을 계산한다. 가격 정보가 없으면 0을 반환한다. */
     fun calculate(
         provider: String,
         model: String,

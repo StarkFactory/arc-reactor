@@ -33,6 +33,15 @@ private val logger = KotlinLogging.logger {}
     prefix = "arc.reactor.admin", name = ["enabled"],
     havingValue = "true", matchIfMissing = false
 )
+/**
+ * arc-admin 모듈의 기본 자동 설정 클래스.
+ *
+ * DataSource 없이도 동작하는 인메모리 기본 bean(TenantStore, ModelPricingStore 등)을 등록한다.
+ * DataSource가 존재하면 [AdminJdbcConfiguration]이 JDBC 구현체로 대체한다.
+ *
+ * @see AdminJdbcConfiguration JDBC 기반 bean 설정
+ * @see AdminProperties 설정 프로퍼티
+ */
 class AdminAutoConfiguration {
 
     @Bean

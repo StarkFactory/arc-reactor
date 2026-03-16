@@ -5,8 +5,14 @@ import java.io.Writer
 import java.sql.Timestamp
 import java.time.Instant
 
+/**
+ * 메트릭 데이터를 CSV 형식으로 내보내는 서비스.
+ *
+ * @see TenantAdminController CSV 내보내기 엔드포인트
+ */
 class ExportService(private val jdbcTemplate: JdbcTemplate) {
 
+    /** 에이전트 실행 이력을 CSV로 내보낸다. */
     fun exportExecutionsCsv(tenantId: String, from: Instant, to: Instant, writer: Writer) {
         writer.write("time,run_id,success,duration_ms,error_code,tool_count\n")
 
@@ -29,6 +35,7 @@ class ExportService(private val jdbcTemplate: JdbcTemplate) {
         )
     }
 
+    /** 도구 호출 이력을 CSV로 내보낸다. */
     fun exportToolCallsCsv(tenantId: String, from: Instant, to: Instant, writer: Writer) {
         writer.write("time,run_id,tool_name,success,duration_ms,error_class\n")
 
@@ -52,10 +59,7 @@ class ExportService(private val jdbcTemplate: JdbcTemplate) {
     }
 
     companion object {
-        /**
-         * RFC 4180 CSV escaping: if value contains comma, quote, or newline,
-         * wrap in double quotes and escape internal quotes.
-         */
+        /** RFC 4180 CSV 이스케이프: 쉼표, 따옴표, 줄바꿈 포함 시 큰따옴표로 감싸고 내부 따옴표를 이스케이프한다. */
         fun escapeCsv(value: String?): String {
             if (value == null) return ""
             return if (value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r')) {

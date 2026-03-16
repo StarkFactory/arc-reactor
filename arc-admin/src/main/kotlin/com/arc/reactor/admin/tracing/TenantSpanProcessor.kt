@@ -9,10 +9,10 @@ import io.opentelemetry.sdk.trace.ReadableSpan
 import io.opentelemetry.sdk.trace.SpanProcessor
 
 /**
- * Injects tenant_id into every span automatically.
+ * 모든 span에 tenant_id를 자동으로 주입하는 SpanProcessor.
  *
- * Reads tenant from OTel [Context] first (reliable across thread hops),
- * falls back to [TenantResolver] ThreadLocal for backward compatibility.
+ * OTel [Context]에서 우선 조회하고 (스레드 전환에도 안정적),
+ * [TenantResolver]의 ThreadLocal로 폴백한다 (하위 호환성).
  */
 class TenantSpanProcessor(
     private val tenantResolver: TenantResolver

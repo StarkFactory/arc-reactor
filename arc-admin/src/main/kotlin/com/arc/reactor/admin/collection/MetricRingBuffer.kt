@@ -5,11 +5,13 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReferenceArray
 
 /**
- * Lock-free ring buffer for metric events (Disruptor-inspired).
+ * 메트릭 이벤트용 Lock-free 링 버퍼 (Disruptor에서 영감).
  *
- * Producers (agent threads) never block. If the buffer is full,
- * events are dropped and the drop counter is incremented.
- * Thread-safe via CAS on the write sequence.
+ * Producer(에이전트 스레드)는 절대 블로킹하지 않는다. 버퍼가 꽉 차면
+ * 이벤트를 삭제하고 drop 카운터를 증가시킨다.
+ * write sequence의 CAS를 통해 스레드 안전성을 보장한다.
+ *
+ * @see MetricWriter 이 버퍼에서 drain하여 DB에 기록하는 writer
  */
 class MetricRingBuffer(size: Int = 8192) {
 
@@ -22,6 +24,7 @@ class MetricRingBuffer(size: Int = 8192) {
 
     val droppedCount = AtomicLong(0)
 
+    /** 이벤트를 버퍼에 발행한다. 버퍼가 꽉 차면 false를 반환한다. */
     fun publish(event: MetricEvent): Boolean {
         while (true) {
             val currentWrite = writeSequence.get()
@@ -37,18 +40,17 @@ class MetricRingBuffer(size: Int = 8192) {
                 buffer.set(index, event)
                 return true
             }
-            // CAS failed, another thread won — retry
+            // CAS 실패, 다른 스레드가 선점 — 재시도
         }
     }
 
     /**
-     * Drain up to [maxBatch] events.
+     * 최대 [maxBatch]개의 이벤트를 꺼낸다.
      *
-     * **IMPORTANT: Single-consumer only.** This method is NOT safe for concurrent
-     * invocation. Multiple threads calling drain() simultaneously will cause
-     * duplicate reads and data loss due to non-atomic read-then-advance of
-     * [readSequence]. Ensure only one thread calls drain() at a time
-     * (e.g., MetricWriter with writerThreads=1).
+     * **중요: 단일 Consumer 전용.** 이 메서드는 동시 호출에 안전하지 않다.
+     * 여러 스레드가 동시에 drain()을 호출하면 [readSequence]의
+     * 비원자적 read-then-advance로 인해 중복 읽기 및 데이터 손실이 발생한다.
+     * 반드시 한 스레드만 호출해야 한다 (예: MetricWriter writerThreads=1).
      */
     fun drain(maxBatch: Int): List<MetricEvent> {
         val currentRead = readSequence.get()

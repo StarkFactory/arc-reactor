@@ -14,10 +14,12 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * AgentMetrics implementation that publishes events to MetricRingBuffer.
+ * [MetricRingBuffer]에 이벤트를 발행하는 [AgentMetrics] 구현체.
  *
- * Replaces NoOpAgentMetrics as @Primary when arc-admin is enabled.
- * All methods are non-blocking (ring buffer publish is lock-free).
+ * arc-admin 활성화 시 `@Primary`로 NoOpAgentMetrics를 대체한다.
+ * 모든 메서드는 논블로킹이다 (링 버퍼 publish는 lock-free).
+ *
+ * @see MetricCollectionHook 더 풍부한 컨텍스트(지연 분해, sessionId 등)를 제공하는 Hook
  */
 class MetricCollectorAgentMetrics(
     private val ringBuffer: MetricRingBuffer,
@@ -25,13 +27,13 @@ class MetricCollectorAgentMetrics(
     private val costCalculator: CostCalculator
 ) : AgentMetrics {
 
-    // Execution events are handled by MetricCollectionHook (richer data: latency breakdown, sessionId, etc.)
+    // 실행 이벤트는 MetricCollectionHook이 처리 (지연 분해, sessionId 등 더 풍부한 데이터)
     override fun recordExecution(result: AgentResult) {}
 
-    // Tool call events are handled by MetricCollectionHook (richer data: runId, toolSource, mcpServerName)
+    // 도구 호출 이벤트는 MetricCollectionHook이 처리 (runId, toolSource, mcpServerName 등)
     override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {}
 
-    // Legacy no-metadata overloads — kept for backward compatibility but use "default" tenantId
+    // 레거시 메타데이터 없는 오버로드 — 하위 호환성 유지, "default" tenantId 사용
     override fun recordGuardRejection(stage: String, reason: String) {
         recordGuardRejection(stage, reason, emptyMap())
     }
@@ -78,7 +80,7 @@ class MetricCollectorAgentMetrics(
         publish(event)
     }
 
-    // Streaming execution events are handled by MetricCollectionHook
+    // 스트리밍 실행 이벤트는 MetricCollectionHook이 처리
     override fun recordStreamingExecution(result: AgentResult) {}
 
     override fun recordOutputGuardAction(stage: String, action: String, reason: String) {
