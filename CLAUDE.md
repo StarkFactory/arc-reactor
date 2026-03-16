@@ -31,7 +31,7 @@ Spring AI-based AI Agent framework (Kotlin/Spring Boot). Fork and attach tools t
 | `llm.max-context-window-tokens` | 128000 | `guard.rate-limit-per-hour` | 100 |
 | `boundaries.input-max-chars` | 10000 | `tool-result-cache.enabled` | false |
 | `tool-result-cache.ttl-seconds` | 60 | `citation.enabled` | false |
-| `rag.adaptive-routing.enabled` | false | `rag.compression.enabled` | false |
+| `rag.adaptive-routing.enabled` | true | `rag.compression.enabled` | false |
 | `rag.grading.enabled` | false | `scheduler.max-executions-per-job` | 100 |
 | `user-memory.inject-into-prompt` | false | | |
 
