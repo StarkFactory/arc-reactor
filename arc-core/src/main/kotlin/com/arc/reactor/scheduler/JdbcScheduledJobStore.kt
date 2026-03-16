@@ -116,7 +116,7 @@ class JdbcScheduledJobStore(
         val now = Instant.now()
         jdbcTemplate.update(
             "UPDATE scheduled_jobs SET last_run_at = ?, last_status = ?, last_result = ?, updated_at = ? WHERE id = ?",
-            java.sql.Timestamp.from(now), status.name, result?.take(5000), java.sql.Timestamp.from(now), id
+            java.sql.Timestamp.from(now), status.name, result?.take(ScheduledJobStore.RESULT_TRUNCATION_LIMIT), java.sql.Timestamp.from(now), id
         )
     }
 

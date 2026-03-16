@@ -49,6 +49,7 @@ class JwtSecretValidator(secret: String) {
 class AuthConfiguration {
 
     @Bean
+    @ConditionalOnMissingBean
     fun authProperties(environment: Environment): AuthProperties {
         val publicPathsCsv = environment.getProperty("arc.reactor.auth.public-paths")
         val selfRegistrationEnabled = environment.getProperty(
@@ -97,6 +98,7 @@ class AuthConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
     fun jwtSecretValidator(authProperties: AuthProperties): JwtSecretValidator =
         JwtSecretValidator(authProperties.jwtSecret)
 
@@ -164,6 +166,7 @@ class JdbcAuthConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcUserStore"])
     fun jdbcUserStore(
         jdbcTemplate: JdbcTemplate
     ): UserStore = JdbcUserStore(jdbcTemplate)

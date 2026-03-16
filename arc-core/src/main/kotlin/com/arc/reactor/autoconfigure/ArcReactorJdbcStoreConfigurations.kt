@@ -35,6 +35,7 @@ import com.arc.reactor.scheduler.ScheduledJobStore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -52,6 +53,7 @@ class JdbcMemoryStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcMemoryStore"])
     fun jdbcMemoryStore(
         jdbcTemplate: JdbcTemplate,
         tokenEstimator: TokenEstimator
@@ -59,6 +61,7 @@ class JdbcMemoryStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcPersonaStore"])
     fun jdbcPersonaStore(
         jdbcTemplate: JdbcTemplate,
         transactionTemplate: TransactionTemplate
@@ -66,36 +69,42 @@ class JdbcMemoryStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcPromptTemplateStore"])
     fun jdbcPromptTemplateStore(
         jdbcTemplate: JdbcTemplate
     ): PromptTemplateStore = JdbcPromptTemplateStore(jdbcTemplate = jdbcTemplate)
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcMcpServerStore"])
     fun jdbcMcpServerStore(
         jdbcTemplate: JdbcTemplate
     ): McpServerStore = JdbcMcpServerStore(jdbcTemplate = jdbcTemplate)
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcOutputGuardRuleStore"])
     fun jdbcOutputGuardRuleStore(
         jdbcTemplate: JdbcTemplate
     ): OutputGuardRuleStore = JdbcOutputGuardRuleStore(jdbcTemplate = jdbcTemplate)
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcOutputGuardRuleAuditStore"])
     fun jdbcOutputGuardRuleAuditStore(
         jdbcTemplate: JdbcTemplate
     ): OutputGuardRuleAuditStore = JdbcOutputGuardRuleAuditStore(jdbcTemplate = jdbcTemplate)
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcAdminAuditStore"])
     fun jdbcAdminAuditStore(
         jdbcTemplate: JdbcTemplate
     ): AdminAuditStore = JdbcAdminAuditStore(jdbcTemplate = jdbcTemplate)
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcScheduledJobStore"])
     @ConditionalOnProperty(
         prefix = "arc.reactor.scheduler", name = ["enabled"],
         havingValue = "true", matchIfMissing = false
@@ -106,6 +115,7 @@ class JdbcMemoryStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcPendingApprovalStore"])
     @ConditionalOnProperty(
         prefix = "arc.reactor.approval", name = ["enabled"],
         havingValue = "true", matchIfMissing = false
@@ -121,6 +131,7 @@ class JdbcMemoryStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcFeedbackStore"])
     @ConditionalOnProperty(
         prefix = "arc.reactor.feedback", name = ["enabled"],
         havingValue = "true", matchIfMissing = false
@@ -131,6 +142,7 @@ class JdbcMemoryStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcExperimentStore"])
     @ConditionalOnProperty(
         prefix = "arc.reactor.prompt-lab", name = ["enabled"],
         havingValue = "true", matchIfMissing = false
@@ -145,6 +157,7 @@ class JdbcMemoryStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcRagIngestionCandidateStore"])
     @ConditionalOnProperty(
         prefix = "arc.reactor.rag.ingestion", name = ["enabled"],
         havingValue = "true", matchIfMissing = false
@@ -168,6 +181,7 @@ class JdbcToolPolicyStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcToolPolicyStore"])
     fun jdbcToolPolicyStore(
         jdbcTemplate: JdbcTemplate,
         transactionTemplate: TransactionTemplate
@@ -188,6 +202,7 @@ class JdbcMcpSecurityPolicyStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcMcpSecurityPolicyStore"])
     fun jdbcMcpSecurityPolicyStore(
         jdbcTemplate: JdbcTemplate,
         transactionTemplate: TransactionTemplate
@@ -207,6 +222,7 @@ class JdbcRagIngestionPolicyStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcRagIngestionPolicyStore"])
     fun jdbcRagIngestionPolicyStore(
         jdbcTemplate: JdbcTemplate,
         transactionTemplate: TransactionTemplate

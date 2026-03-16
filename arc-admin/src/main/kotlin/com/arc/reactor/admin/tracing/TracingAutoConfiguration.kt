@@ -18,6 +18,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.SpanProcessor
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor
 import io.opentelemetry.sdk.trace.export.SpanExporter
+import io.opentelemetry.sdk.trace.samplers.Sampler
 import mu.KotlinLogging
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
@@ -56,7 +57,17 @@ class TracingAutoConfiguration {
                 .build()
         )
 
-        val builder = SdkTracerProvider.builder().setResource(resource)
+        val samplingRate = properties.tracing.samplingRate
+        val sampler = if (samplingRate >= 1.0) {
+            Sampler.alwaysOn()
+        } else {
+            Sampler.traceIdRatioBased(samplingRate)
+        }
+
+        val builder = SdkTracerProvider.builder()
+            .setResource(resource)
+            .setSampler(sampler)
+        logger.info { "Tracing sampler: ${sampler.description} (sampling-rate=$samplingRate)" }
 
         // Register all SpanProcessors (e.g., TenantSpanProcessor)
         spanProcessors.orderedStream().forEach { processor ->

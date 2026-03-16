@@ -195,9 +195,9 @@ class ClassificationStageTest {
         }
 
         @Test
-        fun `order is 6`() {
+        fun `order is 10`() {
             val stage = TopicDriftDetectionStage()
-            assertEquals(6, stage.order, "TopicDriftDetection should have order 6")
+            assertEquals(10, stage.order, "TopicDriftDetection should have order 10")
         }
 
         @Test

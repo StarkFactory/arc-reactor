@@ -80,6 +80,7 @@ class JdbcIntentRegistryConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcIntentRegistry"])
     @ConditionalOnProperty(
         prefix = "arc.reactor.intent", name = ["enabled"],
         havingValue = "true", matchIfMissing = false

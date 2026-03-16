@@ -3,6 +3,7 @@ package com.arc.reactor.admin.tracing
 import com.arc.reactor.admin.config.AdminProperties
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.samplers.Sampler
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Tag
@@ -89,6 +90,33 @@ class TracingAutoConfigurationConditionTest {
                         .withFailMessage(
                             "OpenTelemetry must be registered when arc.reactor.admin.enabled=true"
                         )
+                }
+        }
+
+        @Test
+        fun `should use AlwaysOnSampler by default`() {
+            runner
+                .withPropertyValues("arc.reactor.admin.enabled=true")
+                .run { context ->
+                    val provider = context.getBean(SdkTracerProvider::class.java)
+                    assertThat(provider.sampler.description)
+                        .`as`("Default sampler should be AlwaysOnSampler")
+                        .isEqualTo(Sampler.alwaysOn().description)
+                }
+        }
+
+        @Test
+        fun `should use TraceIdRatioBased sampler when sampling-rate is below 1`() {
+            runner
+                .withPropertyValues(
+                    "arc.reactor.admin.enabled=true",
+                    "arc.reactor.admin.tracing.sampling-rate=0.1"
+                )
+                .run { context ->
+                    val provider = context.getBean(SdkTracerProvider::class.java)
+                    assertThat(provider.sampler.description)
+                        .`as`("Sampler should be ratio-based when sampling-rate < 1.0")
+                        .isEqualTo(Sampler.traceIdRatioBased(0.1).description)
                 }
         }
     }

@@ -174,8 +174,8 @@ class UnicodeNormalizationStageTest {
         }
 
         @Test
-        fun `order is 0`() {
-            assertEquals(0, stage.order, "UnicodeNormalization should execute first (order=0)")
+        fun `order is 1`() {
+            assertEquals(1, stage.order, "UnicodeNormalization should execute first (order=1)")
         }
 
         @Test

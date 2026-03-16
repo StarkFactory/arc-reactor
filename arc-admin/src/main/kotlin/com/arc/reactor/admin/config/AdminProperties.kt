@@ -18,6 +18,8 @@ data class AdminProperties(
 data class TracingProperties(
     val enabled: Boolean = true,
     val timescaleExport: Boolean = true,
+    /** Sampling rate for traces: 1.0 = 100%, 0.1 = 10%. Reduce in production to lower overhead. */
+    val samplingRate: Double = 1.0,
     val otlp: OtlpProperties = OtlpProperties()
 )
 

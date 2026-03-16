@@ -187,6 +187,10 @@ arc:
           pattern: "(?i)https?://[^\\s]*\\b(jira|confluence|bitbucket|atlassian)\\b[^\\s]*/rest/api/"
           action: REJECT
 
+    admin:
+      tracing:
+        sampling-rate: ${ARC_REACTOR_TRACING_SAMPLING_RATE:1.0}
+
     mcp:
       security:
         allowed-server-names: ${ARC_REACTOR_MCP_ALLOWED_SERVER_NAMES:atlassian}

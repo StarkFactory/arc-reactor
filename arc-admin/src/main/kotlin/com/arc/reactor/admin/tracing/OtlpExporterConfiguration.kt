@@ -8,6 +8,7 @@ import io.opentelemetry.sdk.trace.SpanProcessor
 import io.opentelemetry.sdk.trace.export.SpanExporter
 import mu.KotlinLogging
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -28,12 +29,14 @@ private val logger = KotlinLogging.logger {}
 class OtlpExporterConfiguration {
 
     @Bean
+    @ConditionalOnMissingBean
     fun tenantSpanProcessor(tenantResolver: TenantResolver): SpanProcessor {
         logger.info { "TenantSpanProcessor registered" }
         return TenantSpanProcessor(tenantResolver)
     }
 
     @Bean
+    @ConditionalOnMissingBean(name = ["timescaleSpanExporter"])
     @ConditionalOnProperty(
         prefix = "arc.reactor.admin.tracing", name = ["timescale-export"],
         havingValue = "true", matchIfMissing = true
@@ -45,6 +48,7 @@ class OtlpExporterConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(name = ["otlpSpanExporter"])
     @ConditionalOnProperty(
         prefix = "arc.reactor.admin.tracing.otlp", name = ["enabled"],
         havingValue = "true", matchIfMissing = false
