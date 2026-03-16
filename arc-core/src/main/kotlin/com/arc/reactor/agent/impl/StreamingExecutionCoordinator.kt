@@ -10,6 +10,8 @@ import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.hook.impl.UserMemoryInjectionHook
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
+import com.arc.reactor.rag.model.RagContext
+import com.arc.reactor.response.VerifiedSource
 import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Semaphore
@@ -160,10 +162,12 @@ internal class StreamingExecutionCoordinator(
         agentMetrics.recordStageLatency("history_load", historyLoadDurationMs, command.metadata)
 
         val ragStart = System.nanoTime()
-        val ragContext = ragContextRetriever.retrieve(command)
+        val ragResult = ragContextRetriever.retrieve(command)
         val ragDurationMs = (System.nanoTime() - ragStart) / 1_000_000
         recordStageTiming(hookContext, "rag_retrieval", ragDurationMs)
         agentMetrics.recordStageLatency("rag_retrieval", ragDurationMs, command.metadata)
+        registerRagVerifiedSources(ragResult, hookContext)
+        val ragContext = ragResult?.context
 
         val userMemoryContext =
             hookContext.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
@@ -265,6 +269,21 @@ internal class StreamingExecutionCoordinator(
             errorCode, effectiveException.message
         )
         emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
+    }
+
+    private fun registerRagVerifiedSources(ragResult: RagContext?, hookContext: HookContext) {
+        if (ragResult == null || !ragResult.hasDocuments) return
+        for (doc in ragResult.documents) {
+            val source = doc.source?.takeIf { it.isNotBlank() } ?: continue
+            hookContext.verifiedSources.add(
+                VerifiedSource(
+                    title = doc.metadata["title"]?.toString()
+                        ?: doc.id,
+                    url = source,
+                    toolName = "rag"
+                )
+            )
+        }
     }
 
     private fun recordLoopStageLatency(hookContext: HookContext, metadata: Map<String, Any>, stage: String) {
