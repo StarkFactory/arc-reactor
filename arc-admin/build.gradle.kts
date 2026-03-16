@@ -52,8 +52,8 @@ dependencies {
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("io.kotest:kotest-runner-junit5:5.9.1")
-    testImplementation("io.kotest:kotest-assertions-core:5.9.1")
+    testImplementation("io.kotest:kotest-runner-junit5:6.1.7")
+    testImplementation("io.kotest:kotest-assertions-core:6.1.7")
     testImplementation("io.mockk:mockk:1.14.9")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("org.awaitility:awaitility-kotlin:4.3.0")
