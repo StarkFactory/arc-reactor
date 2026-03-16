@@ -25,6 +25,28 @@ import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * 실행 결과 최종화기 — Output Guard, 응답 필터, Citation 부착, 대화 저장을 처리합니다.
+ *
+ * [AgentExecutionCoordinator]에서 ReAct 루프 완료 후 이 클래스로 위임됩니다.
+ * 최종화 파이프라인:
+ *
+ * 1. Output Guard 파이프라인 실행 (fail-close: 실패 시 거부)
+ * 2. 출력 길이 경계 검사 (너무 짧으면 더 긴 응답 재시도)
+ * 3. 내용 변경 시 Output Guard 재실행 (새로운 LLM 출력 보호)
+ * 4. 응답 필터 체인 적용 (미검증 출처 차단 등)
+ * 5. Citation(출처 인용) 부착
+ * 6. 차단된 응답의 사용자 가시 메시지 생성
+ * 7. 응답 메타데이터 풍부화 (grounded, answerMode, verifiedSources 등)
+ * 8. 대화 히스토리 저장
+ * 9. AfterAgentComplete Hook 실행
+ * 10. 최종 메트릭 기록 및 실행 시간 설정
+ *
+ * @see AgentExecutionCoordinator 이 최종화기를 호출하는 조율기
+ * @see OutputGuardPipeline 출력 가드 파이프라인 (fail-close)
+ * @see ResponseFilterChain 응답 필터 체인
+ * @see OutputBoundaryEnforcer 출력 길이 경계 검사
+ */
 internal class ExecutionResultFinalizer(
     private val outputGuardPipeline: OutputGuardPipeline?,
     private val responseFilterChain: ResponseFilterChain?,
@@ -39,6 +61,19 @@ internal class ExecutionResultFinalizer(
     private val nowMs: () -> Long = System::currentTimeMillis
 ) {
 
+    /**
+     * 에이전트 실행 결과를 최종화하여 사용자에게 반환할 결과를 생성합니다.
+     *
+     * @param result ReAct 루프에서 반환된 원시 결과
+     * @param command 에이전트 실행 명령
+     * @param hookContext Hook/메트릭용 실행 컨텍스트
+     * @param toolsUsed 실행에 사용된 도구 이름 목록
+     * @param startTime 실행 시작 타임스탬프 (밀리초)
+     * @param attemptLongerResponse 응답이 너무 짧을 때 더 긴 응답을 시도하는 함수
+     * @return 최종화된 에이전트 결과
+     * @see OutputGuardPipeline
+     * @see OutputBoundaryEnforcer
+     */
     suspend fun finalize(
         result: AgentResult,
         command: AgentCommand,
@@ -47,6 +82,7 @@ internal class ExecutionResultFinalizer(
         startTime: Long,
         attemptLongerResponse: suspend (String, Int, AgentCommand) -> String?
     ): AgentResult {
+        // ── 단계 1: Output Guard 파이프라인 실행 (fail-close) ──
         val guarded = enrichResponseMetadata(
             applyOutputGuardPipeline(result, command, hookContext, toolsUsed, startTime),
             hookContext
@@ -57,6 +93,7 @@ internal class ExecutionResultFinalizer(
             return guarded
         }
 
+        // ── 단계 2: 출력 길이 경계 검사 (너무 짧으면 더 긴 응답 재시도) ──
         val bounded = enrichResponseMetadata(
             applyOutputBoundaryRule(guarded, command, hookContext, toolsUsed, startTime, attemptLongerResponse),
             hookContext
@@ -67,8 +104,8 @@ internal class ExecutionResultFinalizer(
             return bounded
         }
 
-        // Re-run output guard when boundary enforcement changed the content
-        // (e.g. attemptLongerResponse produced new unguarded LLM output)
+        // ── 단계 3: 경계 검사로 내용이 변경되었으면 Output Guard 재실행 ──
+        // (attemptLongerResponse가 새로운 미검증 LLM 출력을 생성했을 수 있음)
         val reguarded = if (bounded.content != guarded.content) {
             val rg = enrichResponseMetadata(
                 applyOutputGuardPipeline(bounded, command, hookContext, toolsUsed, startTime),
@@ -84,18 +121,26 @@ internal class ExecutionResultFinalizer(
             bounded
         }
 
+        // ── 단계 4~6: 응답 필터 -> Citation 부착 -> 차단 응답 가시화 ──
         val filtered = applyResponseFilters(reguarded, command, hookContext, toolsUsed, startTime)
         val cited = appendCitations(filtered, hookContext)
         val completed = enrichResponseMetadata(
             ensureVisibleBlockedResponse(cited, command, hookContext),
             hookContext
         )
+        // ── 단계 7~10: 관측 -> 대화 저장 -> AfterComplete Hook -> 메트릭 기록 ──
         observeResponse(completed, command, hookContext, toolsUsed)
         conversationManager.saveHistory(command, completed)
         runAfterCompletionHook(hookContext, completed, toolsUsed, startTime)
         return recordFinalExecution(completed, startTime)
     }
 
+    /**
+     * Output Guard 파이프라인을 실행합니다 (fail-close 정책).
+     *
+     * 결과: Allowed(통과) / Modified(수정) / Rejected(거부)
+     * 예외 발생 시에도 거부 처리하여 안전성을 보장합니다.
+     */
     private suspend fun applyOutputGuardPipeline(
         result: AgentResult,
         command: AgentCommand,
@@ -149,6 +194,12 @@ internal class ExecutionResultFinalizer(
         }
     }
 
+    /**
+     * 출력 길이 경계 규칙을 적용합니다.
+     *
+     * Tool 사용이 없고 검증된 출처도 없는 경우에만 더 긴 응답 재시도를 허용합니다.
+     * @see OutputBoundaryEnforcer
+     */
     private suspend fun applyOutputBoundaryRule(
         result: AgentResult,
         command: AgentCommand,
@@ -168,6 +219,12 @@ internal class ExecutionResultFinalizer(
             ?: outputTooShortFailure(hookContext, startTime)
     }
 
+    /**
+     * 더 긴 응답 재시도 가능 여부를 판단합니다.
+     *
+     * Tool 사용, 검증된 출처, Tool 신호, grounded 상태 중 하나라도 있으면
+     * 이미 근거 기반 응답이므로 재시도하지 않습니다.
+     */
     private fun shouldAttemptLongerResponse(
         result: AgentResult,
         hookContext: HookContext,
@@ -180,6 +237,7 @@ internal class ExecutionResultFinalizer(
         return true
     }
 
+    /** 응답 필터 체인을 적용합니다. 실패 시 원본 내용을 유지합니다 (fail-open). */
     private suspend fun applyResponseFilters(
         result: AgentResult,
         command: AgentCommand,
@@ -215,6 +273,7 @@ internal class ExecutionResultFinalizer(
         }
     }
 
+    /** Citation(출처 인용) 섹션을 응답 끝에 부착합니다. citation.enabled 설정 기반. */
     private fun appendCitations(result: AgentResult, hookContext: HookContext): AgentResult {
         if (!citationProperties.enabled) return result
         if (!result.success || result.content == null) return result
@@ -231,6 +290,7 @@ internal class ExecutionResultFinalizer(
         return sb.toString()
     }
 
+    /** 메트릭/관측용 신뢰 이벤트 메타데이터를 구성합니다. */
     private fun trustEventMetadata(command: AgentCommand, hookContext: HookContext): Map<String, Any> {
         val metadata = linkedMapOf<String, Any>()
         metadata.putAll(command.metadata)
@@ -273,6 +333,7 @@ internal class ExecutionResultFinalizer(
         return metadata
     }
 
+    /** AfterAgentComplete Hook을 실행합니다. CancellationException만 재throw합니다 (fail-open). */
     private suspend fun runAfterCompletionHook(
         hookContext: HookContext,
         result: AgentResult,
@@ -297,6 +358,7 @@ internal class ExecutionResultFinalizer(
         }
     }
 
+    /** 최종 실행 결과에 총 소요 시간을 설정하고 메트릭에 기록합니다. */
     private fun recordFinalExecution(result: AgentResult, startTime: Long): AgentResult {
         val finalResult = result.copy(durationMs = nowMs() - startTime)
         agentMetrics.recordExecution(finalResult)
@@ -348,6 +410,12 @@ internal class ExecutionResultFinalizer(
         return false
     }
 
+    /**
+     * 차단된 응답에 사용자에게 보여줄 메시지를 설정합니다.
+     *
+     * blockReason에 따라 한글/영어 메시지를 자동 선택합니다.
+     * Slack 전송 성공 시 전달 확인 메시지로 대체합니다.
+     */
     private fun ensureVisibleBlockedResponse(
         result: AgentResult,
         command: AgentCommand,
@@ -387,6 +455,7 @@ internal class ExecutionResultFinalizer(
         return null
     }
 
+    /** blockReason별 차단 응답 메시지를 생성합니다. 프롬프트 언어에 따라 한글/영어 선택 */
     private fun buildBlockedResponse(userPrompt: String, blockReason: String): String {
         val hangul = userPrompt.any { ch -> ch in '\uAC00'..'\uD7A3' }
         return when (blockReason) {
@@ -454,6 +523,12 @@ internal class ExecutionResultFinalizer(
         }
     }
 
+    /**
+     * 응답 메타데이터를 풍부화합니다.
+     *
+     * grounded 여부, answerMode, verifiedSources, freshness,
+     * Tool 신호, Output Guard 결과, 단계별 소요 시간 등을 추가합니다.
+     */
     private fun enrichResponseMetadata(result: AgentResult, hookContext: HookContext): AgentResult {
         val toolSignals = readToolSignals(hookContext)
         val verifiedSources = hookContext.verifiedSources.toList()
@@ -536,6 +611,7 @@ internal class ExecutionResultFinalizer(
             ?: "unknown"
     }
 
+    /** 사용된 도구들에서 Tool 패밀리(confluence, jira, mcp 등)를 도출합니다. */
     private fun deriveToolFamily(toolsUsed: List<String>): String {
         if (toolsUsed.isEmpty()) return "none"
         val families = toolsUsed.map(::toolFamily).toSet()
