@@ -425,8 +425,19 @@ class DynamicSchedulerService(
         )
         try {
             execStore.save(execution)
+            cleanupOldExecutions(execStore, job.id)
         } catch (e: Exception) {
             logger.warn(e) { "Failed to record execution history for job: ${job.name}" }
+        }
+    }
+
+    private fun cleanupOldExecutions(execStore: ScheduledJobExecutionStore, jobId: String) {
+        val maxPerJob = schedulerProperties.maxExecutionsPerJob
+        if (maxPerJob <= 0) return
+        try {
+            execStore.deleteOldestExecutions(jobId, maxPerJob)
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to cleanup old executions for job: $jobId" }
         }
     }
 
