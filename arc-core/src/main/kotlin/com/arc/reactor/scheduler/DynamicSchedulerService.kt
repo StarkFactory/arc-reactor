@@ -427,8 +427,18 @@ class DynamicSchedulerService(
             ?: throw IllegalStateException("agentPrompt is required for AGENT job '${job.name}'")
 
         val resolvedPrompt = resolveTemplateVariables(prompt, job)
+        val command = buildAgentCommand(job, resolvedPrompt)
 
-        val command = AgentCommand(
+        val result = executor.execute(command)
+        return if (result.success) {
+            result.content ?: "Agent completed with no content"
+        } else {
+            throw IllegalStateException("Agent execution failed: ${result.errorMessage}")
+        }
+    }
+
+    private fun buildAgentCommand(job: ScheduledJob, resolvedPrompt: String): AgentCommand =
+        AgentCommand(
             systemPrompt = resolveSystemPrompt(job),
             userPrompt = resolvedPrompt,
             model = job.agentModel,
@@ -440,14 +450,6 @@ class DynamicSchedulerService(
                 "channel" to SCHEDULER_CHANNEL
             )
         )
-
-        val result = executor.execute(command)
-        return if (result.success) {
-            result.content ?: "Agent completed with no content"
-        } else {
-            throw IllegalStateException("Agent execution failed: ${result.errorMessage}")
-        }
-    }
 
     private fun resolveSystemPrompt(job: ScheduledJob): String {
         job.agentSystemPrompt?.let { if (it.isNotBlank()) return it }
@@ -480,17 +482,7 @@ class DynamicSchedulerService(
         startedAt: Instant
     ) {
         val execStore = executionStore ?: return
-        val execution = ScheduledJobExecution(
-            id = "exec-${job.id}-${System.currentTimeMillis()}",
-            jobId = job.id,
-            jobName = job.name,
-            status = status,
-            result = result,
-            durationMs = durationMs,
-            dryRun = dryRun,
-            startedAt = startedAt,
-            completedAt = Instant.now()
-        )
+        val execution = buildExecutionRecord(job, status, result, durationMs, dryRun, startedAt)
         try {
             execStore.save(execution)
             cleanupOldExecutions(execStore, job.id)
@@ -498,6 +490,25 @@ class DynamicSchedulerService(
             logger.warn(e) { "Failed to record execution history for job: ${job.name}" }
         }
     }
+
+    private fun buildExecutionRecord(
+        job: ScheduledJob,
+        status: JobExecutionStatus,
+        result: String?,
+        durationMs: Long,
+        dryRun: Boolean,
+        startedAt: Instant
+    ): ScheduledJobExecution = ScheduledJobExecution(
+        id = "exec-${job.id}-${System.currentTimeMillis()}",
+        jobId = job.id,
+        jobName = job.name,
+        status = status,
+        result = result,
+        durationMs = durationMs,
+        dryRun = dryRun,
+        startedAt = startedAt,
+        completedAt = Instant.now()
+    )
 
     private fun cleanupOldExecutions(execStore: ScheduledJobExecutionStore, jobId: String) {
         val maxPerJob = schedulerProperties.maxExecutionsPerJob
