@@ -1,7 +1,9 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import io.swagger.v3.oas.annotations.Operation
+import mu.KotlinLogging
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -19,6 +21,8 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.ResponseStatusException
 import java.time.Instant
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * Session Management and Model API Controller
@@ -40,6 +44,7 @@ import java.time.Instant
 class SessionController(
     private val memoryStore: MemoryStore,
     private val chatModelProvider: ChatModelProvider,
+    private val adminAuditStore: AdminAuditStore,
     summaryStoreProvider: ObjectProvider<ConversationSummaryStore>,
     conversationManagerProvider: ObjectProvider<ConversationManager>
 ) {
@@ -175,6 +180,16 @@ class SessionController(
         if (!isSessionOwner(sessionId, userId)) {
             return sessionForbidden()
         }
+
+        logger.info { "audit category=session action=DELETE actor=$userId resourceId=$sessionId" }
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "session",
+            action = "DELETE",
+            actor = userId,
+            resourceType = "session",
+            resourceId = sessionId
+        )
 
         conversationManager?.cancelActiveSummarization(sessionId)
         memoryStore.remove(sessionId)
