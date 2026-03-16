@@ -10,7 +10,7 @@ import java.text.Normalizer
 private val logger = KotlinLogging.logger {}
 
 /**
- * Unicode Normalization Stage (Layer 0, order=0)
+ * Unicode Normalization Stage (Layer 0, order=1)
  *
  * Defends against Unicode-based prompt injection evasion:
  * - NFKC normalization (fullwidth Latin → ASCII, compatibility decomposition)
@@ -25,7 +25,7 @@ class UnicodeNormalizationStage(
 ) : GuardStage {
 
     override val stageName = "UnicodeNormalization"
-    override val order = 0
+    override val order = 1
 
     override suspend fun check(command: GuardCommand): GuardResult {
         val text = command.text

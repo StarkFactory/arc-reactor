@@ -10,7 +10,7 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Topic Drift Detection Stage (order=6)
+ * Topic Drift Detection Stage (order=10)
  *
  * Defends against Crescendo attacks — multi-turn progressive jailbreaks
  * where each turn gradually escalates sensitivity.
@@ -28,7 +28,7 @@ class TopicDriftDetectionStage(
 ) : GuardStage {
 
     override val stageName = "TopicDriftDetection"
-    override val order = 6
+    override val order = 10
 
     override suspend fun check(command: GuardCommand): GuardResult {
         val history = loadConversationHistory(command)
