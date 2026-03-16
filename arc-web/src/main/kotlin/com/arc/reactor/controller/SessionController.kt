@@ -58,15 +58,20 @@ class SessionController(
      */
     @Operation(summary = "List all conversation sessions")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "List of sessions"),
+        ApiResponse(responseCode = "200", description = "Paginated list of sessions"),
         ApiResponse(responseCode = "401", description = "Missing authenticated user context")
     ])
     @GetMapping("/sessions")
-    fun listSessions(exchange: ServerWebExchange): List<SessionResponse> {
+    fun listSessions(
+        @RequestParam(defaultValue = "0") offset: Int,
+        @RequestParam(defaultValue = "50") limit: Int,
+        exchange: ServerWebExchange
+    ): PaginatedResponse<SessionResponse> {
         val userId = authenticatedUserId(exchange)
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing authenticated user context")
         val sessions = memoryStore.listSessionsByUserId(userId)
-        return sessions.map { it.toResponse() }
+        val clamped = clampLimit(limit)
+        return sessions.map { it.toResponse() }.paginate(offset, clamped)
     }
 
     /**

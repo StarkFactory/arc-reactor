@@ -92,7 +92,7 @@ class FeedbackController(
      */
     @Operation(summary = "List feedback with filters (Admin)")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "List of feedback entries"),
+        ApiResponse(responseCode = "200", description = "Paginated list of feedback entries"),
         ApiResponse(responseCode = "400", description = "Invalid filter parameters"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
@@ -104,6 +104,8 @@ class FeedbackController(
         @RequestParam(required = false) intent: String?,
         @RequestParam(required = false) sessionId: String?,
         @RequestParam(required = false) templateId: String?,
+        @RequestParam(defaultValue = "0") offset: Int,
+        @RequestParam(defaultValue = "50") limit: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -120,7 +122,8 @@ class FeedbackController(
             sessionId = sessionId,
             templateId = templateId
         )
-        return ResponseEntity.ok(results.map { it.toResponse() })
+        val clamped = clampLimit(limit)
+        return ResponseEntity.ok(results.map { it.toResponse() }.paginate(offset, clamped))
     }
 
     /**
