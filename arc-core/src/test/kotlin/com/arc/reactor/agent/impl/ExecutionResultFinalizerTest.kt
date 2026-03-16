@@ -1,6 +1,7 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.config.BoundaryProperties
+import com.arc.reactor.agent.config.CitationProperties
 import com.arc.reactor.agent.config.OutputMinViolationMode
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
@@ -617,5 +618,155 @@ class ExecutionResultFinalizerTest {
 
         assertEquals("read_only_mutation", result.metadata["blockReason"], "Mutation prompts should expose a read-only block reason")
         assertTrue(result.content!!.contains("읽기 전용"), "Mutation refusals should be visible to the end user")
+    }
+
+    @Test
+    fun `should append citation section when citation is enabled and verified sources exist`() = runBlocking {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            citationProperties = CitationProperties(enabled = true, format = "markdown"),
+            nowMs = { 1_000L }
+        )
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
+            verifiedSources += VerifiedSource(title = "Policy Doc", url = "https://example.com/policy", toolName = "confluence")
+            verifiedSources += VerifiedSource(title = "Guide", url = "https://example.com/guide", toolName = "confluence")
+        }
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "Here is the answer."),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = hookContext,
+            toolsUsed = listOf("confluence"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertTrue(result.success, "Result should succeed when citations are appended")
+        val content = result.content.orEmpty()
+        assertTrue(
+            content.contains("\n\n---\nSources:"),
+            "Response should contain citation header"
+        )
+        assertTrue(
+            content.contains("[1] Policy Doc (https://example.com/policy)"),
+            "First citation should be formatted correctly"
+        )
+        assertTrue(
+            content.contains("[2] Guide (https://example.com/guide)"),
+            "Second citation should be formatted correctly"
+        )
+    }
+
+    @Test
+    fun `should not append citations when citation is disabled`() = runBlocking {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            citationProperties = CitationProperties(enabled = false),
+            nowMs = { 1_000L }
+        )
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
+            verifiedSources += VerifiedSource(title = "Doc", url = "https://example.com/doc")
+        }
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "Answer."),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = hookContext,
+            toolsUsed = listOf("search"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertTrue(result.success, "Result should succeed without citations")
+        assertFalse(
+            result.content.orEmpty().contains("Sources:"),
+            "Citation section should not be appended when disabled"
+        )
+    }
+
+    @Test
+    fun `should deduplicate sources by url in citations`() = runBlocking {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            citationProperties = CitationProperties(enabled = true),
+            nowMs = { 1_000L }
+        )
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
+            verifiedSources += VerifiedSource(title = "Doc A", url = "https://example.com/same")
+            verifiedSources += VerifiedSource(title = "Doc B", url = "https://example.com/same")
+            verifiedSources += VerifiedSource(title = "Doc C", url = "https://example.com/other")
+        }
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "Answer."),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = hookContext,
+            toolsUsed = listOf("search"),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertTrue(result.success, "Result should succeed with deduplicated citations")
+        val content = result.content.orEmpty()
+        assertTrue(
+            content.contains("[1] Doc A (https://example.com/same)"),
+            "First occurrence of duplicate URL should be kept"
+        )
+        assertFalse(
+            content.contains("[2] Doc B"),
+            "Duplicate URL source should be removed"
+        )
+        assertTrue(
+            content.contains("[2] Doc C (https://example.com/other)"),
+            "Unique URL source should be numbered correctly after dedup"
+        )
+    }
+
+    @Test
+    fun `should not append citations when no verified sources exist`() = runBlocking {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            citationProperties = CitationProperties(enabled = true),
+            nowMs = { 1_000L }
+        )
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "Answer without sources."),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            toolsUsed = emptyList(),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertTrue(result.success, "Result should succeed without sources")
+        assertFalse(
+            result.content.orEmpty().contains("Sources:"),
+            "Citation section should not be appended when no verified sources exist"
+        )
     }
 }

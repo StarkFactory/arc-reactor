@@ -209,7 +209,8 @@ class SpringAiAgentExecutor(
         conversationManager = conversationManager,
         hookExecutor = hookExecutor,
         errorMessageResolver = errorMessageResolver,
-        agentMetrics = agentMetrics
+        agentMetrics = agentMetrics,
+        citationProperties = properties.citation
     )
     private val preExecutionResolver = PreExecutionResolver(
         guard = guard,
