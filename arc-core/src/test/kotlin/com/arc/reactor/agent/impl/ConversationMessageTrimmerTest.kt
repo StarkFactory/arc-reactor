@@ -165,8 +165,9 @@ class ConversationMessageTrimmerTest {
             AssistantMessage("final")
         )
 
+        // Budget must fit UserMessage("keep") + AssistantMessage("final") including per-message overhead
         val trimmer = ConversationMessageTrimmer(
-            maxContextWindowTokens = 10,
+            maxContextWindowTokens = 50,
             outputReserveTokens = 0,
             tokenEstimator = tokenEstimator
         )
@@ -196,8 +197,9 @@ class ConversationMessageTrimmerTest {
                 .build()
         )
 
+        // Budget must fit UserMessage + AssistantMessage(toolCall) + ToolResponseMessage including per-message overhead
         val trimmer = ConversationMessageTrimmer(
-            maxContextWindowTokens = 22,
+            maxContextWindowTokens = 102,
             outputReserveTokens = 0,
             tokenEstimator = tokenEstimator
         )
