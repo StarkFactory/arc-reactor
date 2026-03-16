@@ -14,6 +14,7 @@ import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import com.arc.reactor.auth.JwtAuthWebFilter
+import com.arc.reactor.auth.UserRole
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -48,7 +49,7 @@ class SessionControllerTest {
         )
         exchange = mockk()
         every { exchange.attributes } returns mutableMapOf(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
-        every { memoryStore.getSessionOwner(any()) } returns null
+        every { memoryStore.getSessionOwner(any()) } returns "user-1"
     }
 
     @Nested
@@ -335,17 +336,16 @@ class SessionControllerTest {
         }
 
         @Test
-        fun `should allow access when session has no owner`() = runTest {
+        fun `should deny access when session has no owner`() = runTest {
             val attrs = mutableMapOf<String, Any>(JwtAuthWebFilter.USER_ID_ATTRIBUTE to "user-1")
             every { exchange.attributes } returns attrs
             every { memoryStore.getSessionOwner("session-1") } returns null
-            val memory = mockk<ConversationMemory>()
-            every { memoryStore.get("session-1") } returns memory
-            every { memory.getHistory() } returns emptyList()
 
             val response = controller.getSession("session-1", exchange)
 
-            assertEquals(HttpStatus.OK, response.statusCode) { "Should allow access when no owner recorded" }
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "Deny-by-default: unowned sessions should not be accessible"
+            }
         }
 
         @Test
@@ -381,6 +381,44 @@ class SessionControllerTest {
 
             assertEquals(HttpStatus.UNAUTHORIZED, response.statusCode) {
                 "Missing user context should fail-close with 401"
+            }
+        }
+
+        @Test
+        fun `admin should access any session regardless of ownership`() = runTest {
+            val attrs = mutableMapOf<String, Any>(
+                JwtAuthWebFilter.USER_ID_ATTRIBUTE to "admin-1",
+                JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.ADMIN
+            )
+            every { exchange.attributes } returns attrs
+            every { memoryStore.getSessionOwner("session-1") } returns "user-2"
+            val memory = mockk<ConversationMemory>()
+            every { memoryStore.get("session-1") } returns memory
+            every { memory.getHistory() } returns emptyList()
+
+            val response = controller.getSession("session-1", exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "Admin should bypass ownership check"
+            }
+        }
+
+        @Test
+        fun `admin should access unowned session`() = runTest {
+            val attrs = mutableMapOf<String, Any>(
+                JwtAuthWebFilter.USER_ID_ATTRIBUTE to "admin-1",
+                JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.ADMIN
+            )
+            every { exchange.attributes } returns attrs
+            every { memoryStore.getSessionOwner("session-1") } returns null
+            val memory = mockk<ConversationMemory>()
+            every { memoryStore.get("session-1") } returns memory
+            every { memory.getHistory() } returns emptyList()
+
+            val response = controller.getSession("session-1", exchange)
+
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "Admin should access sessions even without owner"
             }
         }
     }

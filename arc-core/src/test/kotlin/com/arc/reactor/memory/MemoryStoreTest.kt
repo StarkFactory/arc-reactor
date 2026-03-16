@@ -79,6 +79,59 @@ class MemoryStoreTest {
     }
 
     @Test
+    fun `should clean up sessionOwners when session is evicted`() {
+        val store = InMemoryMemoryStore(maxSessions = 2)
+
+        store.addMessage("session-1", "user", "Hello", "owner-1")
+        store.addMessage("session-2", "user", "Hello", "owner-2")
+        store.addMessage("session-3", "user", "Hello", "owner-3")
+
+        // Force Caffeine cleanup so RemovalListener fires
+        Thread.sleep(50)
+        store.getOrCreate("session-3") // triggers cleanUp()
+
+        // session-3 should survive; evicted session owner should be cleaned up
+        assertNotNull(store.get("session-3"), "Most recently added session should survive")
+        assertEquals("owner-3", store.getSessionOwner("session-3"),
+            "Surviving session owner should remain")
+
+        // At least one of session-1/session-2 was evicted — its owner should be gone
+        val evictedOwners = listOf("session-1", "session-2")
+            .count { store.get(it) == null && store.getSessionOwner(it) == null }
+        assertTrue(evictedOwners >= 1,
+            "Evicted sessions should have their owners cleaned up")
+    }
+
+    @Test
+    fun `should clean up sessionOwners on remove`() {
+        val store = InMemoryMemoryStore()
+
+        store.addMessage("session-1", "user", "Hello", "owner-1")
+        assertEquals("owner-1", store.getSessionOwner("session-1"),
+            "Owner should be set after addMessage with userId")
+
+        store.remove("session-1")
+
+        assertNull(store.getSessionOwner("session-1"),
+            "Owner should be removed after session removal")
+    }
+
+    @Test
+    fun `should clean up sessionOwners on clear`() {
+        val store = InMemoryMemoryStore()
+
+        store.addMessage("session-1", "user", "Hello", "owner-1")
+        store.addMessage("session-2", "user", "Hello", "owner-2")
+
+        store.clear()
+
+        assertNull(store.getSessionOwner("session-1"),
+            "Owner should be removed after clear")
+        assertNull(store.getSessionOwner("session-2"),
+            "Owner should be removed after clear")
+    }
+
+    @Test
     fun `should add message via helper method`() {
         val store = InMemoryMemoryStore()
 

@@ -81,7 +81,7 @@ class SessionController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         val userId = authenticatedUserId(exchange) ?: return unauthorizedResponse()
-        if (!isSessionOwner(sessionId, userId)) {
+        if (!isSessionOwner(sessionId, userId, exchange)) {
             return sessionForbidden()
         }
 
@@ -114,7 +114,7 @@ class SessionController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         val userId = authenticatedUserId(exchange) ?: return unauthorizedResponse()
-        if (!isSessionOwner(sessionId, userId)) {
+        if (!isSessionOwner(sessionId, userId, exchange)) {
             return sessionForbidden()
         }
 
@@ -174,7 +174,7 @@ class SessionController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         val userId = authenticatedUserId(exchange) ?: return unauthorizedResponse()
-        if (!isSessionOwner(sessionId, userId)) {
+        if (!isSessionOwner(sessionId, userId, exchange)) {
             return sessionForbidden()
         }
 
@@ -184,10 +184,15 @@ class SessionController(
         return ResponseEntity.noContent().build()
     }
 
-    private fun isSessionOwner(sessionId: String, userId: String): Boolean {
+    private fun isSessionOwner(
+        sessionId: String,
+        userId: String,
+        exchange: ServerWebExchange
+    ): Boolean {
+        if (isAdmin(exchange)) return true
         val owner = memoryStore.getSessionOwner(sessionId)
-        // No owner recorded (legacy data or InMemory without userId) — allow access
-        return owner == null || owner == userId
+        // Deny-by-default: owner must be recorded and must match userId
+        return owner != null && owner == userId
     }
 
     private fun authenticatedUserId(exchange: ServerWebExchange): String? {
