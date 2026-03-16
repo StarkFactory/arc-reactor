@@ -117,8 +117,15 @@ HTTP transport NOT supported in MCP SDK 0.17.2. Output truncated at 50,000 chars
 - Patch/minor dep upgrades: merge after green CI. Major: migration notes + rollback plan required
 - Spring Boot major upgrades blocked without explicit maintainer approval
 
+## Reference Policy
+
+- When implementing features based on external papers/techniques, document them under `docs/en/reference/`
+- Include: paper title, authors, year, link, and where it is applied in the project
+- All references are recorded transparently as acknowledgment of the original work
+
 ## Docs
 
 - `docs/en/architecture/` — detailed architecture
 - `docs/en/reference/tools.md` — tools reference
+- `docs/en/reference/rag-papers.md` — RAG academic references
 - `docs/en/engineering/testing-and-performance.md` — test patterns and examples
