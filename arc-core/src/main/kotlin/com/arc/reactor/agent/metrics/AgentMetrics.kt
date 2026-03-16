@@ -254,6 +254,22 @@ interface AgentMetrics {
     fun recordLlmLatency(model: String, durationMs: Long) {}
 
     /**
+     * Record a tool result cache hit (same tool + same args reused from cache).
+     *
+     * @param toolName Name of the tool whose cached result was reused
+     * @param cacheKey The cache key that was hit
+     */
+    fun recordToolResultCacheHit(toolName: String, cacheKey: String) {}
+
+    /**
+     * Record a tool result cache miss (tool executed and result stored in cache).
+     *
+     * @param toolName Name of the tool that was executed
+     * @param cacheKey The cache key that was missed
+     */
+    fun recordToolResultCacheMiss(toolName: String, cacheKey: String) {}
+
+    /**
      * Record tool output size for monitoring and truncation tracking.
      *
      * Default implementation is a no-op to preserve backward compatibility.

@@ -157,7 +157,8 @@ class SpringAiAgentExecutor(
         pendingApprovalStore = pendingApprovalStore,
         agentMetrics = agentMetrics,
         toolOutputSanitizer = toolOutputSanitizer,
-        requesterAwareToolNames = properties.toolEnrichment.requesterAwareToolNames
+        requesterAwareToolNames = properties.toolEnrichment.requesterAwareToolNames,
+        toolResultCacheProperties = properties.toolResultCache
     )
     private val retryExecutor = RetryExecutor(
         retry = properties.retry,
