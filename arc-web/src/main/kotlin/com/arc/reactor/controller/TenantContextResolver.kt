@@ -8,16 +8,16 @@ private const val TENANT_ID_INVALID_MSG =
     "Invalid tenant ID format. Only alphanumeric characters, hyphens, and underscores are allowed (max 64 chars)"
 
 /**
- * Resolves tenant context for chat and multipart chat endpoints.
+ * 채팅 및 멀티파트 채팅 엔드포인트를 위한 테넌트 컨텍스트 리졸버.
  *
- * Resolution order:
- * 1) `resolvedTenantId` exchange attribute (authoritative tenant from JWT filter)
- * 2) legacy `tenantId` exchange attribute (compatibility)
- * 3) `X-Tenant-Id` request header (validated format)
+ * 해석 우선순위:
+ * 1) `resolvedTenantId` exchange 속성 (JWT 필터에서 설정한 정식 테넌트)
+ * 2) 레거시 `tenantId` exchange 속성 (호환성)
+ * 3) `X-Tenant-Id` 요청 헤더 (형식 검증 포함)
  *
- * Fail-close behavior:
- * - If authoritative context and header both exist but mismatch -> 400
- * - If no tenant context is available -> 400
+ * Fail-close 동작:
+ * - 정식 컨텍스트와 헤더가 모두 존재하지만 불일치하면 400 반환
+ * - 테넌트 컨텍스트를 확인할 수 없으면 400 반환
  */
 internal object TenantContextResolver {
     private const val TENANT_HEADER_NAME = "X-Tenant-Id"

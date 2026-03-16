@@ -5,6 +5,11 @@ import java.security.MessageDigest
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+/**
+ * MCP admin API HMAC 인증 설정.
+ *
+ * MCP 서버 config에서 HMAC 필수 여부, 비밀 키, 유효 시간 윈도우를 추출합니다.
+ */
 internal data class McpAdminHmacSettings(
     val required: Boolean,
     val secret: String?,
@@ -29,11 +34,17 @@ internal data class McpAdminHmacSettings(
     }
 }
 
+/** HMAC 서명 결과로 생성되는 timestamp와 signature 헤더 값. */
 internal data class McpAdminSignedHeaders(
     val timestamp: String,
     val signature: String
 )
 
+/**
+ * MCP admin API 요청 서명 유틸리티.
+ *
+ * HTTP 메서드, 경로, 쿼리, 본문을 정규화(canonical)한 뒤 HMAC-SHA256으로 서명합니다.
+ */
 internal object McpAdminRequestSigner {
     fun sign(
         method: String,

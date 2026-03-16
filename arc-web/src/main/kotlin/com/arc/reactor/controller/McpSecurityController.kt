@@ -23,6 +23,16 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * MCP Security Policy 동적 관리 컨트롤러.
+ *
+ * MCP 서버 허용 목록(allowlist)과 도구 출력 최대 길이 등 보안 정책을
+ * 런타임에 관리합니다. 정책 변경 시 즉시 MCP 매니저에 재적용됩니다.
+ *
+ * @see McpSecurityPolicyStore
+ * @see McpSecurityPolicyProvider
+ * @see McpManager
+ */
 @Tag(name = "MCP Security", description = "Dynamic MCP allowlist and security policy (ADMIN)")
 @RestController
 @RequestMapping("/api/mcp/security")
@@ -34,7 +44,8 @@ class McpSecurityController(
     private val adminAuditStore: AdminAuditStore
 ) {
 
-    @Operation(summary = "Get MCP security policy state (effective + stored) (ADMIN)")
+    /** 현재 적용 중인 보안 정책과 저장된 정책, 설정 기본값을 조회한다. */
+    @Operation(summary = "MCP Security Policy 상태 조회 (적용 중 + 저장 + 기본값) (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Current MCP security policy state"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -54,7 +65,8 @@ class McpSecurityController(
         )
     }
 
-    @Operation(summary = "Update MCP security policy (ADMIN)")
+    /** MCP Security Policy를 수정하고 즉시 재적용한다. */
+    @Operation(summary = "MCP Security Policy 수정 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "MCP security policy updated"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -81,7 +93,8 @@ class McpSecurityController(
         return ResponseEntity.ok(saved.toResponse())
     }
 
-    @Operation(summary = "Delete stored MCP security policy (reset to config defaults) (ADMIN)")
+    /** 저장된 MCP Security Policy를 삭제하고 설정 기본값으로 복원한다. */
+    @Operation(summary = "저장된 MCP Security Policy 삭제 (설정 기본값 복원) (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Policy deleted, reset to config defaults"),
         ApiResponse(responseCode = "403", description = "Admin access required")

@@ -28,6 +28,15 @@ import java.util.concurrent.TimeoutException
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * MCP Preflight 컨트롤러.
+ *
+ * MCP 서버의 admin API에 프록시 요청을 보내 준비 상태(readiness)를 점검합니다.
+ * 관리 콘솔에서 서버 배포 전 사전 검증 용도로 사용됩니다.
+ *
+ * @see com.arc.reactor.mcp.McpServerStore
+ * @see McpAdminWebClientFactory
+ */
 @Tag(name = "MCP Preflight", description = "Proxy MCP readiness checks for admin consoles (ADMIN)")
 @RestController
 @RequestMapping("/api/mcp/servers/{name}/preflight")
@@ -37,7 +46,8 @@ class McpPreflightController(
     private val meterRegistry: MeterRegistry? = null,
     private val adminWebClientFactory: McpAdminWebClientFactory = McpAdminWebClientFactory()
 ) {
-    @Operation(summary = "Run MCP server admin preflight via proxy")
+    /** MCP 서버 admin API를 프록시하여 preflight 점검을 실행한다. */
+    @Operation(summary = "MCP 서버 admin preflight 점검 실행 (프록시)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Preflight result"),
         ApiResponse(responseCode = "400", description = "Invalid MCP server configuration"),

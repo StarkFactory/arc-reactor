@@ -23,6 +23,14 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * 프로액티브 채널 관리 컨트롤러.
+ *
+ * Slack 프로액티브 모니터링 대상 채널을 추가/제거합니다.
+ * Slack 통합이 활성화되고 [ProactiveChannelStore] Bean이 존재할 때만 등록됩니다.
+ *
+ * @see ProactiveChannelStore
+ */
 @Tag(name = "Proactive Channels", description = "Manage proactive monitoring channels (ADMIN)")
 @RestController
 @RequestMapping("/api/proactive-channels")
@@ -36,7 +44,8 @@ class ProactiveChannelController(
     private val adminAuditStore: AdminAuditStore
 ) {
 
-    @Operation(summary = "List all proactive channels (ADMIN)")
+    /** 등록된 프로액티브 채널 전체 목록을 조회한다. */
+    @Operation(summary = "프로액티브 채널 목록 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of proactive channels"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -47,7 +56,8 @@ class ProactiveChannelController(
         return ResponseEntity.ok(store.list().map { it.toResponse() })
     }
 
-    @Operation(summary = "Add a channel to proactive monitoring (ADMIN)")
+    /** 프로액티브 모니터링 대상에 채널을 추가한다. */
+    @Operation(summary = "프로액티브 모니터링 채널 추가 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Channel added"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -78,7 +88,8 @@ class ProactiveChannelController(
         return ResponseEntity.status(HttpStatus.CREATED).body(channel.toResponse())
     }
 
-    @Operation(summary = "Remove a channel from proactive monitoring (ADMIN)")
+    /** 프로액티브 모니터링 대상에서 채널을 제거한다. */
+    @Operation(summary = "프로액티브 모니터링 채널 제거 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Channel removed"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
