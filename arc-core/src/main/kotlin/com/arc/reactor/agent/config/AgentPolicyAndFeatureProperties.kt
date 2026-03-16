@@ -168,27 +168,16 @@ data class RagProperties(
     val retrievalTimeoutMs: Long = 5000,
 
     /** Contextual compression configuration */
-    val compression: RagCompressionProperties = RagCompressionProperties()
+    val compression: RagCompressionProperties = RagCompressionProperties(),
+
+    /** Adaptive query routing configuration (Adaptive-RAG) */
+    val adaptiveRouting: AdaptiveRoutingProperties = AdaptiveRoutingProperties()
 )
 
 /**
  * Contextual compression configuration.
  *
- * When enabled, retrieved documents are compressed by an LLM to extract
- * only query-relevant content before context building. This reduces
- * token usage and improves answer quality by removing noise.
- *
  * Based on RECOMP (Xu et al., 2024, arXiv:2310.04408).
- *
- * ## Example
- * ```yaml
- * arc:
- *   reactor:
- *     rag:
- *       compression:
- *         enabled: true
- *         min-content-length: 200
- * ```
  */
 data class RagCompressionProperties(
     /** Enable contextual compression. Disabled by default. */
@@ -196,6 +185,22 @@ data class RagCompressionProperties(
 
     /** Documents shorter than this (in chars) skip compression. */
     val minContentLength: Int = 200
+)
+
+/**
+ * Adaptive query routing configuration.
+ *
+ * @see <a href="https://arxiv.org/abs/2403.14403">Adaptive-RAG (Jeong et al., 2024)</a>
+ */
+data class AdaptiveRoutingProperties(
+    /** Enable adaptive query routing. Disabled by default (opt-in). */
+    val enabled: Boolean = false,
+
+    /** Classification timeout in milliseconds. */
+    val timeoutMs: Long = 3000,
+
+    /** topK override for COMPLEX queries. */
+    val complexTopK: Int = 15
 )
 
 /**

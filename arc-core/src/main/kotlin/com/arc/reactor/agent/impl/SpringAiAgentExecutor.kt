@@ -29,6 +29,7 @@ import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.MemoryStore
+import com.arc.reactor.rag.QueryRouter
 import com.arc.reactor.rag.RagPipeline
 import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.TokenEstimator
@@ -99,7 +100,8 @@ class SpringAiAgentExecutor(
     private val blockedIntents: Set<String> = emptySet(),
     private val systemPromptPostProcessor: SystemPromptPostProcessor? = null,
     private val toolOutputSanitizer: ToolOutputSanitizer? = null,
-    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer(),
+    private val queryRouter: QueryRouter? = null
 ) : AgentExecutor {
 
     init {
@@ -119,7 +121,9 @@ class SpringAiAgentExecutor(
         rerankEnabled = properties.rag.rerankEnabled,
         ragPipeline = ragPipeline,
         retrievalTimeoutMs = properties.rag.retrievalTimeoutMs,
-        metrics = agentMetrics
+        metrics = agentMetrics,
+        queryRouter = queryRouter,
+        complexTopK = properties.rag.adaptiveRouting.complexTopK
     )
     private val agentErrorPolicy = AgentErrorPolicy(transientErrorClassifier)
     private val structuredResponseRepairer = StructuredResponseRepairer(

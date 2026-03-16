@@ -5,8 +5,11 @@ import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.rag.ContextCompressor
 import com.arc.reactor.rag.DocumentReranker
 import com.arc.reactor.rag.DocumentRetriever
+import com.arc.reactor.rag.QueryRouter
 import com.arc.reactor.rag.QueryTransformer
 import com.arc.reactor.rag.RagPipeline
+import com.arc.reactor.rag.QueryComplexity
+import com.arc.reactor.rag.impl.AdaptiveQueryRouter
 import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.rag.chunking.DocumentChunker
@@ -36,6 +39,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
+
+/** Fallback router that always returns SIMPLE — used when no LLM provider is available. */
+private val SIMPLE_FALLBACK_ROUTER = object : QueryRouter {
+    override suspend fun route(query: String) = QueryComplexity.SIMPLE
+}
 
 /**
  * RAG Configuration
@@ -254,6 +262,45 @@ class RagConfiguration {
         hybridRagPipeline: HybridRagPipeline,
         vectorStore: ObjectProvider<VectorStore>
     ): Bm25WarmUpRunner = Bm25WarmUpRunner(hybridRagPipeline, vectorStore)
+
+    /**
+     * Adaptive Query Router — classifies query complexity before retrieval.
+     * Only created when both rag and adaptive-routing are enabled.
+     */
+    @Bean
+    @ConditionalOnMissingBean(QueryRouter::class)
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.rag.adaptive-routing", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun queryRouter(
+        chatModelProvider: ObjectProvider<ChatModelProvider>,
+        properties: AgentProperties
+    ): QueryRouter {
+        val provider = chatModelProvider.ifAvailable
+        if (provider == null) {
+            ragLogger.warn {
+                "Adaptive routing enabled but ChatModelProvider unavailable, " +
+                    "routing will default to SIMPLE"
+            }
+            return SIMPLE_FALLBACK_ROUTER
+        }
+        val selectedProvider = provider.availableProviders()
+            .firstOrNull { it == provider.defaultProvider() }
+            ?: provider.availableProviders().firstOrNull()
+        if (selectedProvider == null) {
+            ragLogger.warn {
+                "Adaptive routing enabled but no chat providers available, " +
+                    "routing will default to SIMPLE"
+            }
+            return SIMPLE_FALLBACK_ROUTER
+        }
+        ragLogger.info { "RAG: Using AdaptiveQueryRouter (provider=$selectedProvider)" }
+        return AdaptiveQueryRouter(
+            chatClient = provider.getChatClient(selectedProvider),
+            timeoutMs = properties.rag.adaptiveRouting.timeoutMs
+        )
+    }
 
     /**
      * Document Chunker — splits long documents into smaller chunks for better embedding quality.
