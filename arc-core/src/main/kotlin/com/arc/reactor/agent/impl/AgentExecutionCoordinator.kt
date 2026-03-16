@@ -21,6 +21,30 @@ import org.springframework.ai.chat.messages.Message
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * 에이전트 실행 조율기 — 캐시, 폴백, 단계별 실행을 조율합니다.
+ *
+ * [SpringAiAgentExecutor.execute]에서 Guard/Hook 통과 후 이 클래스로 위임되며,
+ * 다음 단계를 순서대로 실행합니다:
+ *
+ * 1. Guard + Hook 사전 검증 ([PreExecutionResolver])
+ * 2. Intent 해석 (선택적)
+ * 3. 응답 캐시 조회 (정확 매칭 / 시맨틱 매칭)
+ * 4. 대화 히스토리 로드
+ * 5. RAG 컨텍스트 검색
+ * 6. Tool 선택 및 준비
+ * 7. ReAct 루프 실행 ([ManualReActLoopExecutor])
+ * 8. 폴백 전략 적용 (실패 시)
+ * 9. 실행 결과 최종화 ([ExecutionResultFinalizer])
+ * 10. 성공 시 응답 캐시 저장
+ *
+ * 각 단계의 소요 시간을 HookContext에 기록하여 관측성을 제공합니다.
+ *
+ * @see SpringAiAgentExecutor 이 조율기를 생성하고 호출하는 상위 클래스
+ * @see ExecutionResultFinalizer 출력 가드 및 최종화 위임 대상
+ * @see ResponseCache 응답 캐시 (정확/시맨틱)
+ * @see FallbackStrategy 실패 시 폴백 전략
+ */
 internal class AgentExecutionCoordinator(
     private val responseCache: ResponseCache?,
     private val cacheableTemperature: Double,
@@ -53,16 +77,31 @@ internal class AgentExecutionCoordinator(
     private val nowMs: () -> Long = System::currentTimeMillis
 ) {
 
+    /**
+     * 에이전트 실행의 핵심 조율 메서드.
+     *
+     * Guard/Hook 검증 -> 캐시 조회 -> 히스토리 로드 -> RAG 검색 ->
+     * Tool 선택 -> ReAct 루프 실행 -> 폴백 -> 최종화 -> 캐시 저장의 전체 흐름을 조율합니다.
+     *
+     * @param command 에이전트 실행 명령
+     * @param hookContext Hook/메트릭용 실행 컨텍스트
+     * @param toolsUsed 실행된 도구 이름을 누적하는 리스트
+     * @param startTime 실행 시작 타임스탬프 (밀리초)
+     * @return 에이전트 실행 결과
+     */
     suspend fun execute(
         command: AgentCommand,
         hookContext: HookContext,
         toolsUsed: MutableList<String>,
         startTime: Long
     ): AgentResult {
+        // ── 단계 1: Guard + Hook 사전 검증 (실패 시 즉시 반환) ──
         checkGuardAndHooks(command, hookContext, startTime)?.let { return it }
+        // ── 단계 2: Intent 해석 ──
         val effectiveCommand = resolveIntent(command, hookContext)
         effectiveCommand.metadata["intentCategory"]?.let { hookContext.metadata["intentCategory"] = it }
 
+        // ── 단계 3: 응답 캐시 조회 (정확 매칭 / 시맨틱 매칭) ──
         val cacheLookupStart = nowMs()
         val cacheLookup = resolveCache(effectiveCommand, startTime)
         recordStageTiming(hookContext, "cache_lookup", nowMs() - cacheLookupStart)
@@ -71,11 +110,13 @@ internal class AgentExecutionCoordinator(
         val resolvedCacheKey = cacheLookup.cacheKey
         val cacheToolNames = cacheLookup.toolNames
 
+        // ── 단계 4: 대화 히스토리 로드 ──
         val historyLoadStart = nowMs()
         val conversationHistory = conversationManager.loadHistory(effectiveCommand)
         recordStageTiming(hookContext, "history_load", nowMs() - historyLoadStart)
         agentMetrics.recordStageLatency("history_load", nowMs() - historyLoadStart, effectiveCommand.metadata)
 
+        // ── 단계 5: RAG 컨텍스트 검색 ──
         val ragStart = nowMs()
         val ragResult = retrieveRagContext(effectiveCommand)
         recordStageTiming(hookContext, "rag_retrieval", nowMs() - ragStart)
@@ -83,6 +124,7 @@ internal class AgentExecutionCoordinator(
         registerRagVerifiedSources(ragResult, hookContext)
         val ragContext = ragResult?.context
 
+        // ── 단계 6: Tool 선택 및 준비 ──
         val toolSelectionStart = nowMs()
         val selectedTools = if (shouldSkipToolSelection(effectiveCommand)) {
             emptyList()
@@ -93,6 +135,7 @@ internal class AgentExecutionCoordinator(
         agentMetrics.recordStageLatency("tool_selection", nowMs() - toolSelectionStart, effectiveCommand.metadata)
         logger.debug { "Selected ${selectedTools.size} tools for execution (mode=${effectiveCommand.mode})" }
 
+        // ── 단계 7: ReAct 루프 실행 ──
         val agentLoopStart = nowMs()
         var result = executeWithTools(
             effectiveCommand,
@@ -107,6 +150,7 @@ internal class AgentExecutionCoordinator(
         recordLoopStageLatency(hookContext, effectiveCommand.metadata, "llm_calls")
         recordLoopStageLatency(hookContext, effectiveCommand.metadata, "tool_execution")
 
+        // ── 단계 8: 실패 시 폴백 전략 적용 ──
         if (!result.success && fallbackStrategy != null) {
             val fallbackStart = nowMs()
             val fallbackResult = attemptFallback(effectiveCommand, result)
@@ -118,6 +162,7 @@ internal class AgentExecutionCoordinator(
             result = fallbackResult
         }
 
+        // ── 단계 9: 실행 결과 최종화 (Output Guard, 응답 필터, Citation) ──
         val finalizerStart = nowMs()
         val finalResult = finalizeExecution(
             result,
@@ -131,6 +176,7 @@ internal class AgentExecutionCoordinator(
         agentMetrics.recordStageLatency("finalizer", finalizerDurationMs, effectiveCommand.metadata)
         val enrichedFinalResult = withStageTimingsMetadata(finalResult, hookContext)
 
+        // ── 단계 10: 성공 시 응답 캐시 저장 ──
         if (resolvedCacheKey != null && enrichedFinalResult.success && enrichedFinalResult.content != null) {
             try {
                 val cacheEntry = CachedResponse(
@@ -156,6 +202,12 @@ internal class AgentExecutionCoordinator(
         return enrichedFinalResult
     }
 
+    /**
+     * 응답 캐시를 조회합니다.
+     *
+     * 정확 매칭을 먼저 시도하고, [SemanticResponseCache]인 경우 시맨틱 매칭도 수행합니다.
+     * 캐시 적중 시 AgentResult로 변환하여 즉시 반환합니다.
+     */
     private suspend fun resolveCache(command: AgentCommand, startTime: Long): CacheLookupResult {
         if (responseCache == null || !isCacheable(command)) {
             return CacheLookupResult(cacheKey = null, cachedResult = null, toolNames = emptyList())
@@ -214,6 +266,7 @@ internal class AgentExecutionCoordinator(
         )
     }
 
+    /** 폴백 전략을 실행합니다. 폴백도 실패하면 원본 에러 결과를 그대로 반환합니다. */
     private suspend fun attemptFallback(command: AgentCommand, originalResult: AgentResult): AgentResult {
         return runSuspendCatchingNonCancellation {
             val error = Exception(originalResult.errorMessage ?: "Agent execution failed")
@@ -245,10 +298,12 @@ internal class AgentExecutionCoordinator(
         return result.copy(metadata = metadata)
     }
 
+    /** temperature가 캐시 임계값 이하인 경우에만 캐시 가능으로 판단합니다. */
     private fun isCacheable(command: AgentCommand): Boolean {
         return (command.temperature ?: defaultTemperature) <= cacheableTemperature
     }
 
+    /** STANDARD 모드이거나 maxToolCalls가 0이면 Tool 선택을 건너뜁니다. */
     private fun shouldSkipToolSelection(command: AgentCommand): Boolean {
         if (command.mode == AgentMode.STANDARD) return true
         return effectiveMaxToolCalls(command) == 0
@@ -258,6 +313,7 @@ internal class AgentExecutionCoordinator(
         return minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(0)
     }
 
+    /** RAG 검색 결과의 문서 출처를 HookContext의 verifiedSources에 등록합니다. */
     private fun registerRagVerifiedSources(ragResult: RagContext?, hookContext: HookContext) {
         if (ragResult == null || !ragResult.hasDocuments) return
         for (doc in ragResult.documents) {

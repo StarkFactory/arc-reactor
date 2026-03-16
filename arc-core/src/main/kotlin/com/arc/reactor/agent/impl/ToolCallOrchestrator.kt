@@ -35,6 +35,22 @@ import java.util.concurrent.atomic.AtomicInteger
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * 병렬 도구 실행 오케스트레이터 — Tool Call의 전체 라이프사이클을 관리합니다.
+ *
+ * 주요 책임:
+ * - Tool Call 병렬 실행 ([executeInParallel]) 및 단건 직접 실행 ([executeDirectToolCall])
+ * - BeforeToolCallHook / AfterToolCallHook 실행
+ * - Human-in-the-Loop 승인 대기 ([ToolApprovalPolicy])
+ * - Tool 출력 새니타이징 ([ToolOutputSanitizer])
+ * - Tool 결과 캐시 (Caffeine 기반, 설정으로 활성화)
+ * - maxToolCalls 제한 슬롯 예약 (CAS 기반 원자적 카운터)
+ * - Tool 응답 신호(VerifiedSource, ToolResponseSignal) 추출 및 HookContext 병합
+ *
+ * @see ManualReActLoopExecutor 이 오케스트레이터를 호출하는 ReAct 루프
+ * @see SpringAiAgentExecutor 이 오케스트레이터를 생성하는 상위 클래스
+ * @see ArcToolCallbackAdapter Arc 프레임워크의 Tool 어댑터
+ */
 internal class ToolCallOrchestrator(
     private val toolCallTimeoutMs: Long,
     private val hookExecutor: HookExecutor?,
@@ -47,9 +63,11 @@ internal class ToolCallOrchestrator(
     private val requesterAwareToolNames: Set<String> = emptySet(),
     private val toolResultCacheProperties: ToolResultCacheProperties = ToolResultCacheProperties()
 ) {
+    // Spring AI ToolCallback 해석 결과 캐시 — MethodToolCallbackProvider 호출 비용 절감
     private val springToolCallbackCache =
         ConcurrentHashMap<ToolCallbackCacheKey, Map<String, org.springframework.ai.tool.ToolCallback>>()
 
+    // Tool 결과 캐시 (Caffeine) — 동일 입력에 대한 중복 Tool 호출 방지
     private val toolResultCache: Cache<String, String>? = if (toolResultCacheProperties.enabled) {
         Caffeine.newBuilder()
             .maximumSize(toolResultCacheProperties.maxSize)
@@ -61,6 +79,20 @@ internal class ToolCallOrchestrator(
         null
     }
 
+    /**
+     * 단건 도구를 직접 실행합니다. 강제 Workspace Tool 등에 사용됩니다.
+     *
+     * allowedTools 확인 -> BeforeToolCallHook -> 승인 검사 -> Tool 실행 ->
+     * 출력 새니타이징 -> AfterToolCallHook -> 메트릭 기록의 전체 흐름을 처리합니다.
+     *
+     * @param toolName 실행할 Tool 이름
+     * @param toolParams Tool에 전달할 파라미터
+     * @param tools 등록된 Tool 목록
+     * @param hookContext Hook/메트릭용 실행 컨텍스트
+     * @param toolsUsed 실행된 도구 이름을 누적하는 리스트
+     * @param allowedTools Intent 기반 Tool 허용 목록 (null이면 전체 허용)
+     * @return Tool 실행 결과
+     */
     suspend fun executeDirectToolCall(
         toolName: String,
         toolParams: Map<String, Any?>,
@@ -132,6 +164,22 @@ internal class ToolCallOrchestrator(
         return result
     }
 
+    /**
+     * LLM이 요청한 Tool Call 목록을 코루틴으로 병렬 실행합니다.
+     *
+     * 각 Tool Call은 [executeSingleToolCall]로 위임되며, 모든 결과를 수집한 후
+     * toolsUsed 누적과 ToolCapture(VerifiedSource, Signal) 병합을 수행합니다.
+     *
+     * @param toolCalls LLM이 요청한 Tool Call 목록
+     * @param tools 등록된 Tool 목록
+     * @param hookContext Hook/메트릭용 실행 컨텍스트
+     * @param toolsUsed 실행된 도구 이름을 누적하는 리스트
+     * @param totalToolCallsCounter 전체 Tool 호출 횟수 (원자적 카운터)
+     * @param maxToolCalls 최대 Tool 호출 횟수
+     * @param allowedTools Intent 기반 Tool 허용 목록 (null이면 전체 허용)
+     * @param normalizeToolResponseToJson Google GenAI 등 JSON 응답 필수 프로바이더 여부
+     * @return Tool 응답 메시지 목록 (ToolResponseMessage 조립용)
+     */
     suspend fun executeInParallel(
         toolCalls: List<AssistantMessage.ToolCall>,
         tools: List<Any>,
@@ -164,6 +212,12 @@ internal class ToolCallOrchestrator(
         executions.map(ParallelToolExecution::response)
     }
 
+    /**
+     * 단일 Tool Call을 실행합니다.
+     *
+     * 실행 순서: allowedTools 확인 -> Hook -> 승인 검사 -> Tool 존재 확인 ->
+     * 슬롯 예약(CAS) -> Tool 실행 -> 출력 새니타이징 -> AfterToolCallHook -> 메트릭 기록
+     */
     private suspend fun executeSingleToolCall(
         toolCall: AssistantMessage.ToolCall,
         tools: List<Any>,
@@ -216,7 +270,7 @@ internal class ToolCallOrchestrator(
             )
         }
 
-        // Human-in-the-Loop: check if tool call requires approval
+        // Human-in-the-Loop: 승인이 필요한 Tool 호출인지 확인
         checkToolApproval(toolName, toolCallContext, hookContext)?.let { rejection ->
             publishBlockedToolCallResult(toolCallContext, toolName, rejection)
             return ParallelToolExecution(
@@ -265,7 +319,7 @@ internal class ToolCallOrchestrator(
         var toolOutput = invocation.output
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
-        // Sanitize tool output for indirect injection defense
+        // 간접 프롬프트 주입 방어를 위한 Tool 출력 새니타이징
         if (toolOutputSanitizer != null) {
             val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
             toolOutput = sanitized.content
@@ -294,6 +348,12 @@ internal class ToolCallOrchestrator(
         )
     }
 
+    /**
+     * CAS(Compare-And-Set) 기반 Tool 실행 슬롯 예약.
+     *
+     * 병렬 실행 시 maxToolCalls를 초과하지 않도록 원자적으로 카운터를 증가시킵니다.
+     * @return 예약된 슬롯 인덱스, 초과 시 null
+     */
     private fun reserveToolExecutionSlot(counter: AtomicInteger, maxToolCalls: Int): Int? {
         while (true) {
             val current = counter.get()
@@ -306,6 +366,7 @@ internal class ToolCallOrchestrator(
         }
     }
 
+    /** Tool 출력에서 VerifiedSource와 ToolResponseSignal을 추출합니다. */
     private fun extractToolCapture(
         toolName: String,
         toolOutput: String,
@@ -318,6 +379,7 @@ internal class ToolCallOrchestrator(
         )
     }
 
+    /** 추출된 ToolCapture를 HookContext에 병합합니다 (중복 URL 제거). */
     private fun mergeToolCapture(
         hookContext: HookContext,
         capture: ToolCapture
@@ -352,15 +414,20 @@ internal class ToolCallOrchestrator(
         } as MutableList<ToolResponseSignal>
     }
 
+    /** BeforeToolCallHook을 실행하여 Tool 호출 거부 여부를 확인합니다. */
     private suspend fun checkBeforeToolCallHook(context: ToolCallContext): HookResult.Reject? {
         if (hookExecutor == null) return null
         return hookExecutor.executeBeforeToolCall(context) as? HookResult.Reject
     }
 
     /**
-     * Human-in-the-Loop: Check if tool call requires approval and wait for it.
+     * Human-in-the-Loop: Tool 호출에 대한 사람 승인이 필요한지 확인하고 대기합니다.
      *
-     * @return Rejection message if rejected or timed out, null if approved or no policy
+     * [ToolApprovalPolicy]로 승인 필요 여부를 판단하고, 필요하면 [PendingApprovalStore]에
+     * 승인을 요청한 뒤 응답을 대기합니다.
+     * 승인/거부/타임아웃 결과를 메타데이터에 기록합니다.
+     *
+     * @return 거부 또는 타임아웃 시 거부 메시지, 승인 또는 정책 없음 시 null
      */
     private suspend fun checkToolApproval(
         toolName: String,
@@ -407,6 +474,7 @@ internal class ToolCallOrchestrator(
         }
     }
 
+    /** 차단된 Tool 호출 결과를 AfterToolCallHook으로 알리고 메트릭에 기록합니다. */
     private suspend fun publishBlockedToolCallResult(
         context: ToolCallContext,
         toolName: String,
@@ -428,6 +496,11 @@ internal class ToolCallOrchestrator(
         return "${context.toolName}_${context.callIndex}"
     }
 
+    /**
+     * Tool 어댑터를 호출합니다. 캐시 확인 -> 실행 -> 출력 길이 제한을 적용합니다.
+     *
+     * @see invokeToolAdapterRaw 실제 Tool 호출 수행
+     */
     private suspend fun invokeToolAdapter(
         toolName: String,
         toolInput: String,
@@ -451,6 +524,12 @@ internal class ToolCallOrchestrator(
         return raw
     }
 
+    /**
+     * Tool 어댑터를 실제로 호출합니다.
+     *
+     * 우선순위: ArcToolCallbackAdapter -> Spring AI ToolCallback -> 미발견 에러
+     * 각 호출은 개별 타임아웃이 적용되며, CancellationException은 반드시 재throw합니다.
+     */
     private suspend fun invokeToolAdapterRaw(
         toolName: String,
         toolInput: String,
@@ -524,13 +603,12 @@ internal class ToolCallOrchestrator(
         )
     }
 
-    /**
-     * Find a tool adapter by name from the registered tools.
-     */
+    /** 등록된 Tool 목록에서 이름으로 ArcToolCallbackAdapter를 찾습니다. */
     private fun findToolAdapter(toolName: String, tools: List<Any>): ArcToolCallbackAdapter? {
         return tools.firstNotNullOfOrNull { (it as? ArcToolCallbackAdapter)?.takeIf { a -> a.arcCallback.name == toolName } }
     }
 
+    /** LocalTool과 명시적 콜백에서 Spring AI ToolCallback 맵을 해석합니다 (캐시 적용). */
     private fun resolveSpringToolCallbacksByName(
         tools: List<Any>
     ): Map<String, org.springframework.ai.tool.ToolCallback> {
@@ -580,6 +658,7 @@ internal class ToolCallOrchestrator(
         return byName
     }
 
+    /** Spring AOP 프록시를 언래핑하여 원본 객체를 반환합니다. */
     private fun unwrapAopProxy(bean: Any): Any {
         if (bean !is Advised) return bean
         return runCatching { bean.targetSource.target }
@@ -587,6 +666,7 @@ internal class ToolCallOrchestrator(
             ?: bean
     }
 
+    /** Tool 실행 결과를 ToolResponseMessage.ToolResponse로 변환합니다. */
     private fun buildToolResponse(
         toolCall: AssistantMessage.ToolCall,
         toolName: String,
@@ -606,6 +686,12 @@ internal class ToolCallOrchestrator(
             .getOrElse { output }
     }
 
+    /**
+     * 요청자 인식 Tool에 assigneeAccountId 또는 requesterEmail을 자동 주입합니다.
+     *
+     * Tool 파라미터에 이미 해당 값이 있으면 건너뛰고,
+     * 없으면 메타데이터에서 추출하여 추가합니다.
+     */
     private fun enrichToolParamsForRequesterAwareTools(
         toolName: String,
         toolParams: Map<String, Any?>,

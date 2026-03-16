@@ -22,6 +22,24 @@ import java.util.concurrent.atomic.AtomicInteger
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * 수동 ReAct 루프 실행기 — LLM 호출과 Tool 실행을 반복하는 핵심 루프 본체.
+ *
+ * Spring AI의 내장 Tool 실행 루프를 사용하지 않고 직접 루프를 관리합니다.
+ * 이를 통해 maxToolCalls 제한, Hook 실행, 메트릭 기록 등을 세밀하게 제어합니다.
+ *
+ * 루프 흐름:
+ * 1. 메시지 트리밍 (컨텍스트 윈도우 초과 방지)
+ * 2. LLM 호출 (재시도 포함)
+ * 3. Tool Call 감지 -> 있으면 [ToolCallOrchestrator]로 병렬 실행
+ * 4. 결과 메시지(AssistantMessage + ToolResponseMessage) 추가
+ * 5. maxToolCalls 도달 시 Tool 비활성화 후 최종 답변 요청
+ * 6. Tool Call이 없으면 응답 검증 후 반환
+ *
+ * @see SpringAiAgentExecutor 이 실행기를 생성하고 호출하는 상위 클래스
+ * @see ToolCallOrchestrator 병렬 도구 실행 위임 대상
+ * @see ConversationMessageTrimmer 컨텍스트 윈도우 내 메시지 트리밍
+ */
 internal class ManualReActLoopExecutor(
     private val messageTrimmer: ConversationMessageTrimmer,
     private val toolCallOrchestrator: ToolCallOrchestrator,
@@ -47,6 +65,21 @@ internal class ManualReActLoopExecutor(
     private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
 ) {
 
+    /**
+     * ReAct 루프를 실행하여 에이전트 결과를 반환합니다.
+     *
+     * @param command 에이전트 실행 명령
+     * @param activeChatClient 사용할 ChatClient (모델별 분기 적용 완료)
+     * @param systemPrompt RAG 컨텍스트와 응답 형식이 포함된 시스템 프롬프트
+     * @param initialTools 선택된 Tool 목록 (maxToolCalls=0이면 비활성화됨)
+     * @param conversationHistory 기존 대화 히스토리
+     * @param hookContext Hook/메트릭용 실행 컨텍스트
+     * @param toolsUsed 실행된 도구 이름을 누적하는 리스트
+     * @param allowedTools Intent 기반 Tool 허용 목록 (null이면 전체 허용)
+     * @param maxToolCalls 최대 Tool 호출 횟수
+     * @return 에이전트 실행 결과
+     * @see ToolCallOrchestrator.executeInParallel
+     */
     suspend fun execute(
         command: AgentCommand,
         activeChatClient: ChatClient,
@@ -58,6 +91,7 @@ internal class ManualReActLoopExecutor(
         allowedTools: Set<String>?,
         maxToolCalls: Int
     ): AgentResult {
+        // ── 루프 상태 초기화 ──
         var totalToolCalls = 0
         var llmCallIndex = 0
         var activeTools = if (maxToolCalls > 0) initialTools else emptyList()
@@ -66,15 +100,19 @@ internal class ManualReActLoopExecutor(
         var totalLlmDurationMs = 0L
         var totalToolDurationMs = 0L
 
+        // ── 대화 히스토리 + 현재 사용자 메시지 조합 ──
         val messages = mutableListOf<Message>()
         if (conversationHistory.isNotEmpty()) {
             messages.addAll(conversationHistory)
         }
         messages.add(MediaConverter.buildUserMessage(command.userPrompt, command.media))
 
+        // ── ReAct 루프 시작 — Tool Call이 없을 때까지 반복 ──
         while (true) {
+            // 단계 A: 컨텍스트 윈도우 초과 방지를 위한 메시지 트리밍
             messageTrimmer.trim(messages, systemPrompt, activeTools.size * TOKENS_PER_TOOL_DEFINITION)
 
+            // 단계 B: LLM 호출 (재시도 포함)
             val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
             val llmStart = System.nanoTime()
             val llmSpan = tracer.startSpan(
@@ -109,6 +147,7 @@ internal class ManualReActLoopExecutor(
                 )
             }
 
+            // 단계 C: Tool Call 존재 여부 확인 — 없으면 루프 종료
             val assistantOutput = chatResponse?.results?.firstOrNull()?.output
             val pendingToolCalls = assistantOutput?.toolCalls.orEmpty()
             if (pendingToolCalls.isEmpty() || activeTools.isEmpty()) {
@@ -133,6 +172,7 @@ internal class ManualReActLoopExecutor(
                 )
             }
 
+            // 단계 D: Tool 병렬 실행 — ToolCallOrchestrator에 위임
             val totalToolCallsCounter = AtomicInteger(totalToolCalls)
             val toolStart = System.nanoTime()
             val toolSpans = pendingToolCalls.mapIndexed { idx, tc ->
@@ -166,7 +206,7 @@ internal class ManualReActLoopExecutor(
             totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
             totalToolCalls = totalToolCallsCounter.get()
 
-            // Add AssistantMessage + ToolResponseMessage together (pair integrity)
+            // 단계 E: AssistantMessage + ToolResponseMessage 쌍으로 추가 (메시지 쌍 무결성 필수)
             messages.add(assistantOutput)
             messages.add(
                 ToolResponseMessage.builder()
@@ -174,6 +214,7 @@ internal class ManualReActLoopExecutor(
                     .build()
             )
 
+            // 단계 F: maxToolCalls 도달 시 Tool 비활성화 — 무한 루프 방지 필수
             if (totalToolCalls >= maxToolCalls) {
                 logger.info { "maxToolCalls reached ($totalToolCalls/$maxToolCalls), final answer" }
                 activeTools = emptyList()
@@ -189,6 +230,7 @@ internal class ManualReActLoopExecutor(
         }
     }
 
+    /** 여러 LLM 호출의 Token 사용량을 누적합니다. */
     private fun accumulateTokenUsage(
         chatResponse: org.springframework.ai.chat.model.ChatResponse?,
         previous: TokenUsage?
@@ -208,6 +250,7 @@ internal class ManualReActLoopExecutor(
         } ?: current
     }
 
+    /** Google GenAI 프로바이더일 때 Tool 응답을 JSON으로 정규화해야 하는지 판단합니다. */
     private fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean {
         return chatOptions is GoogleGenAiChatOptions
     }
