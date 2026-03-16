@@ -1,6 +1,6 @@
 # Arc Reactor 기능 인벤토리 & 데이터 아키텍처
 
-> 마지막 업데이트: 2026-03-01
+> 마지막 업데이트: 2026-03-16
 
 ---
 
@@ -20,7 +20,7 @@
 | **Hook 시스템** | 내부 (API 없음) | 활성 | BeforeAgentStart → BeforeToolCall → AfterToolCall → AfterAgentComplete |
 | **도구 실행** | 내부 (API 없음) | 활성 | 로컬 도구 + MCP 도구 자동 발견 |
 | **RAG 파이프라인** | 내부 (API 없음) | 비활성 (설정 가능) | VectorStore 연결 시 자동 활성화. HyDE·대화문맥 쿼리 변환·메타데이터 필터링 지원 |
-| **멀티에이전트** | `POST /api/multi/*` | **비활성** | @RestController 주석 처리됨 |
+| **멀티에이전트** | `POST /api/multi/*` | 예제 (활성화 가능) | Supervisor/Sequential/Parallel 오케스트레이션; @RestController 주석 해제로 활성화 |
 | **세션 목록 조회** | `GET /api/sessions` | 활성 | 세션 요약 목록 (messageCount, lastActivity, preview) |
 | **대화 이력 조회** | `GET /api/sessions/{id}` | 활성 | 특정 세션의 전체 메시지 이력 |
 | **세션 삭제** | `DELETE /api/sessions/{id}` | 활성 | 서버 측 세션 데이터 삭제 |
@@ -35,6 +35,17 @@
 | **스트리밍 에러 이벤트** | SSE `error` 이벤트 | 활성 | StreamEventMarker를 통한 스트리밍 중 에러 이벤트 |
 | **관측성 메트릭** | 내부 (API 없음) | 활성 | 9개 메트릭 포인트: 실행, 도구, Guard, 캐시, CB, 폴백, 토큰 |
 | **MCP 자동 재연결** | 내부 (API 없음) | 활성 | 지수 백오프 + 지터, 서버별 Mutex |
+| **사용자 메모리** | `GET/PUT/DELETE /api/user-memory/{userId}` | **opt-in** | 사용자별 장기 사실·선호도·최근 주제; 활성화 시 시스템 프롬프트에 자동 주입 |
+| **프로액티브 채널** | `GET/POST/DELETE /api/proactive-channels` | **opt-in** | Slack 프로액티브 모니터링 채널 관리 (관리자); `arc.reactor.slack.enabled=true` 필요 |
+| **MCP Swagger 카탈로그** | `GET/POST/PUT /api/mcp/servers/{name}/swagger/sources` | 활성 | MCP 서버의 Swagger 스펙 소스 라이프사이클 프록시 (목록, 생성, 갱신, 동기화, diff, 게시) (관리자) |
+| **MCP 프리플라이트 검증** | `GET /api/mcp/servers/{name}/preflight` | 활성 | MCP 서버 관리자 준비 상태 확인 프록시 (관리자) |
+| **MCP 접근 정책** | `GET/PUT/DELETE /api/mcp/servers/{name}/access-policy` | 활성 | MCP 서버 접근 정책 관리 프록시 (관리자) |
+| **관리자 기능 목록** | `GET /api/admin/capabilities` | 활성 | 관리자 콘솔용 등록된 API 경로 매니페스트 반환 |
+| **도구 결과 캐싱** | 내부 (API 없음) | **opt-in** | ReAct 루프 내 Caffeine 캐시로 동일 도구명 + 인자 중복 호출 방지 |
+| **인용 자동 포맷** | 내부 (API 없음) | **opt-in** | 검증된 소스가 있을 때 응답에 중복 제거된 출처 인용 추가 |
+| **프롬프트 캐싱 (Anthropic)** | 내부 (API 없음) | **opt-in** | 시스템 프롬프트와 도구 정의에 `cache_control`을 마킹하여 Anthropic 프롬프트 캐싱 지원 |
+| **도구 보강** | 내부 (API 없음) | 활성 (설정 기반) | 지정된 도구의 파라미터에 요청자 정보를 자동 주입 |
+| **웹훅 알림** | 내부 (API 없음) | **opt-in** | 에이전트 실행 결과를 설정된 웹훅 URL로 POST 전송 |
 
 ### 1.2 프론트엔드 (arc-reactor-web)
 
@@ -419,16 +430,23 @@ arc:
       max-output-tokens: 4096       # 최대 응답 길이
       max-conversation-turns: 10    # 대화 이력 최대 턴 수
       max-context-window-tokens: 128000  # 컨텍스트 윈도우 토큰 한도
+      prompt-caching:
+        enabled: false              # Anthropic 프롬프트 캐싱 (opt-in)
+        provider: anthropic
+        cache-system-prompt: true
+        cache-tools: true
+        min-cacheable-tokens: 1024
 
     retry:
       max-attempts: 3               # LLM 재시도 횟수
-      initial-delay-ms: 1000        # 초기 지연 (ms)
+      initial-delay-ms: 200         # 초기 지연 (ms)
       multiplier: 2.0               # 지수 백오프 배수
       max-delay-ms: 10000           # 최대 지연 (ms)
 
     concurrency:
       max-concurrent-requests: 20   # 최대 동시 요청
       request-timeout-ms: 30000     # 요청 타임아웃 (30초)
+      tool-call-timeout-ms: 15000   # 도구별 호출 타임아웃 (ms)
 
     guard:
       enabled: true                 # Guard 활성화
@@ -460,6 +478,15 @@ arc:
         max-entries-per-scope: 1000
         key-prefix: arc:cache
 
+    tool-result-cache:
+      enabled: false                # 도구 결과 캐싱 활성화 (opt-in)
+      ttl-seconds: 60               # 캐시 TTL (초)
+      max-size: 200                 # 캐시 항목 최대 수
+
+    citation:
+      enabled: false                # 인용 자동 포맷 활성화 (opt-in)
+      format: markdown              # 인용 형식
+
     circuit-breaker:
       enabled: false                # 서킷 브레이커 활성화 (opt-in)
       failure-threshold: 5          # OPEN 전 실패 횟수
@@ -470,6 +497,27 @@ arc:
       enabled: false                # 우아한 성능 저하 활성화 (opt-in)
       models: []                    # 폴백 모델 우선순위 순서
 
+    webhook:
+      enabled: false                # 웹훅 알림 활성화 (opt-in)
+      url: ""                       # POST 대상 URL
+      timeout-ms: 5000              # HTTP 타임아웃 (ms)
+      include-conversation: false   # 페이로드에 전체 대화 포함 여부
+
+    tool-enrichment:
+      requester-aware-tool-names: []  # 요청자 정보를 주입받는 도구 목록
+
+    memory:
+      summary:
+        enabled: false              # 계층적 메모리 요약 (opt-in)
+        trigger-message-count: 20
+        recent-message-count: 10
+        max-narrative-tokens: 500
+      user:
+        enabled: false              # 사용자별 장기 메모리 (opt-in)
+        inject-into-prompt: false   # 시스템 프롬프트에 자동 주입
+        max-prompt-injection-chars: 1000
+        max-recent-topics: 10
+
     api-version:
       enabled: true                 # API 버전 계약 필터 활성화
       current: v1                   # 현재 API 버전
@@ -477,10 +525,21 @@ arc:
 
     rag:
       enabled: false                # RAG 파이프라인 활성화
-      similarity-threshold: 0.7     # 유사도 임계값
-      top-k: 10                     # 검색 문서 수
-      rerank-enabled: true          # Re-ranking 활성화
+      similarity-threshold: 0.65    # 유사도 임계값
+      top-k: 5                      # 검색 문서 수
+      rerank-enabled: false         # Re-ranking 활성화
       max-context-tokens: 4000      # RAG 컨텍스트 최대 토큰
+      retrieval-timeout-ms: 3000    # 검색 타임아웃 (ms)
+      adaptive-routing:
+        enabled: true               # 단순 쿼리 시 RAG 건너뛰기
+      compression:
+        enabled: false              # 문맥 압축 (opt-in)
+
+    scheduler:
+      enabled: false                # 동적 스케줄러 (opt-in)
+      thread-pool-size: 5
+      default-execution-timeout-ms: 300000
+      max-executions-per-job: 100
 ```
 
 ---
@@ -500,8 +559,8 @@ arc:
 
 | 현황 | 영향 | 심각도 |
 |------|------|--------|
-| Sliding Window만 사용 (최근 10턴) | 오래된 대화 맥락 유실 | 낮음 |
-| Summarization 미구현 | 장기 대화 시 초기 맥락 소실 | 낮음 (10턴 이내 대부분 충분) |
+| 기본적으로 Sliding Window만 사용 (최근 10턴) | 요약 없이 오래된 대화 맥락 유실 | 낮음 |
+| ~~Summarization 미구현~~ | **해결** — opt-in 계층적 메모리 요약 (`memory.summary.enabled: true`) | — |
 
 > 상세: [memory-rag.md — 토큰 관리 전략](../architecture/memory-rag.md#토큰-관리-전략--매번-전체-이력을-보내면-낭비-아닌가)
 
@@ -538,19 +597,35 @@ arc:
 | `McpManager` | `DefaultMcpManager` | 항상 | `@Bean` 등록 |
 | `ChatModelProvider` | 자동 발견 | ChatModel 빈 있을 때 | `@Bean` 등록 |
 | `AgentExecutor` | `SpringAiAgentExecutor` | 항상 | `@Bean` 등록 |
-| `AgentMetrics` | `NoOpAgentMetrics` | 항상 | `@Bean` 등록 |
+| `AgentMetrics` | `NoOpAgentMetrics` (MeterRegistry 존재 시 `MicrometerAgentMetrics`) | 항상 | `@Bean` 등록 |
 | `ResponseFilterChain` | `ResponseFilterChain` | 항상 | `@Component` ResponseFilter 추가 |
 | `ResponseCache` | `CaffeineResponseCache` (기본), `RedisSemanticResponseCache` (semantic 활성 + 의존성 존재 시 primary) | cache.enabled=true | `@Bean` 등록 |
-| `CircuitBreaker` | `DefaultCircuitBreaker` | circuit-breaker.enabled=true | `@Bean` 등록 |
+| `CircuitBreakerRegistry` | `CircuitBreakerRegistry` | circuit-breaker.enabled=true | `@Bean` 등록 |
 | `FallbackStrategy` | `ModelFallbackStrategy` | fallback.enabled=true | `@Bean` 등록 |
 | `ErrorMessageResolver` | `DefaultErrorMessageResolver` | 항상 | `@Bean` 등록 |
-| `PersonaStore` | `InMemoryPersonaStore` | PersonaStore 없을 때 | `@Bean` 등록 |
+| `PersonaStore` | `InMemoryPersonaStore` | DataSource 없을 때 | `@Bean` 등록 |
 | `PersonaStore` | `JdbcPersonaStore` | DataSource + JdbcTemplate 있을 때 | `@Bean` 등록 |
+| `PromptTemplateStore` | `InMemoryPromptTemplateStore` | 항상 | `@Bean` 등록 |
 | `AuthProvider` | `DefaultAuthProvider` | 항상 | `@Bean` 등록 |
 | `UserStore` | `InMemoryUserStore` | DataSource 없을 때 | `@Bean` 등록 |
 | `UserStore` | `JdbcUserStore` | DataSource 있을 때 | `@Bean` 등록 |
 | `JwtTokenProvider` | — | 항상 | — |
 | `JwtAuthWebFilter` | — | 항상 | — |
+| `McpServerStore` | `InMemoryMcpServerStore` | 항상 | `@Bean` 등록 |
+| `McpSecurityPolicyStore` | `InMemoryMcpSecurityPolicyStore` | 항상 | `@Bean` 등록 |
+| `AdminAuditStore` | `InMemoryAdminAuditStore` | 항상 | `@Bean` 등록 |
+| `ToolPolicyStore` | `InMemoryToolPolicyStore` | 항상 | `@Bean` 등록 |
+| `ToolExecutionPolicyEngine` | `ToolExecutionPolicyEngine` | 항상 | `@Bean` 등록 |
+| `RagIngestionPolicyStore` | `InMemoryRagIngestionPolicyStore` | 항상 | `@Bean` 등록 |
+| `OutputGuardRuleStore` | `InMemoryOutputGuardRuleStore` | 항상 | `@Bean` 등록 |
+| `OutputGuardRuleAuditStore` | `InMemoryOutputGuardRuleAuditStore` | 항상 | `@Bean` 등록 |
+| `UserMemoryStore` | `InMemoryUserMemoryStore` (DataSource 있을 때 `JdbcUserMemoryStore`) | memory.user.enabled=true | `@Bean` 등록 |
+| `UserMemoryManager` | `UserMemoryManager` | memory.user.enabled=true | `@Bean` 등록 |
+| `ConversationSummaryStore` | `InMemoryConversationSummaryStore` (DataSource 있을 때 `JdbcConversationSummaryStore`) | memory.summary.enabled=true | `@Bean` 등록 |
+| `ConversationSummaryService` | `LlmConversationSummaryService` | memory.summary.enabled=true | `@Bean` 등록 |
+| `PromptCachingService` | `AnthropicPromptCachingService` | llm.prompt-caching.enabled=true + Anthropic 클래스패스 | `@Bean` 등록 |
+| `ToolApprovalPolicy` | `DynamicToolApprovalPolicy` 또는 `AlwaysApprovePolicy` | approval.enabled=true | `@Bean` 등록 |
+| `PendingApprovalStore` | `InMemoryPendingApprovalStore` | approval.enabled=true + DataSource 없을 때 | `@Bean` 등록 |
 
 ---
 

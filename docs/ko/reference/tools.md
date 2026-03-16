@@ -90,6 +90,11 @@ class CalculatorTool : ToolCallback {
         }
     """.trimIndent()
 
+    // 도구별 타임아웃 오버라이드 (선택).
+    // 이 도구에 한해 글로벌 arc.reactor.concurrency.tool-call-timeout-ms를 오버라이드합니다.
+    // null(기본값)이면 글로벌 타임아웃을 사용합니다.
+    override val timeoutMs: Long? = 60_000L  // 느린 계산을 위한 60초
+
     override suspend fun call(arguments: Map<String, Any?>): Any {
         val expression = arguments["expression"] as? String
             ?: return "Error: expression is required"
@@ -102,6 +107,7 @@ class CalculatorTool : ToolCallback {
 **특징:**
 - 스키마를 직접 제어 (세밀한 설정 가능)
 - `suspend fun` — 비동기 실행 가능
+- `timeoutMs`를 통한 도구별 타임아웃 오버라이드 (글로벌 `tool-call-timeout-ms` 오버라이드)
 - Spring DI 없이도 사용 가능 (단위 테스트 쉬움)
 - `@Component` 붙이면 자동 등록, 안 붙이면 수동 등록
 
@@ -109,6 +115,7 @@ class CalculatorTool : ToolCallback {
 - 스키마를 세밀하게 제어하고 싶을 때
 - suspend 함수가 필요할 때 (외부 API 비동기 호출)
 - 프레임워크 독립적인 도구를 만들 때
+- 특정 도구가 글로벌 기본값과 다른 타임아웃이 필요할 때
 
 > 예시 코드: [`CalculatorTool.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/example/CalculatorTool.kt), [`DateTimeTool.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/example/DateTimeTool.kt)
 
@@ -158,6 +165,7 @@ curl -X POST http://localhost:8080/api/mcp/servers \
 | **스키마 생성** | 자동 (`@Tool` 어노테이션) | 수동 (JSON 작성) | 자동 (서버가 제공) |
 | **Spring DI** | 가능 | 가능 | 해당 없음 |
 | **비동기** | 불가 (Spring AI 제약) | 가능 (`suspend fun`) | 가능 |
+| **도구별 타임아웃** | 미지원 | 지원 (`timeoutMs`) | 미지원 |
 | **등록 방법** | `@Component` | `@Component` 또는 수동 | `mcpManager.connect()` |
 | **사용 시점** | 대부분의 경우 | 세밀한 제어 필요 시 | 외부 서비스 연결 시 |
 
