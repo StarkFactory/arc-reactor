@@ -57,9 +57,11 @@ class SchedulerController(
     ])
     @GetMapping
     fun listJobs(
-        @RequestParam(defaultValue = "0") offset: Int,
+@RequestParam(defaultValue = "0") offset: Int,
         @RequestParam(defaultValue = "50") limit: Int,
         @RequestParam(required = false) tag: String? = null,
+@RequestParam(required = false) tag: String? = null,
+        @RequestParam(defaultValue = "0") offset: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
