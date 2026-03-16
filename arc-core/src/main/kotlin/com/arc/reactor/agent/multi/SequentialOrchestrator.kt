@@ -46,7 +46,7 @@ class SequentialOrchestrator : MultiAgentOrchestrator {
         val nodeResults = mutableListOf<NodeResult>()
         var currentInput = command.userPrompt
 
-        for (node in nodes) {
+        for ((index, node) in nodes.withIndex()) {
             logger.info { "Sequential: executing node '${node.name}' with input length=${currentInput.length}" }
             val nodeStart = System.currentTimeMillis()
 
@@ -62,12 +62,22 @@ class SequentialOrchestrator : MultiAgentOrchestrator {
             nodeResults.add(NodeResult(node.name, result, nodeDuration))
 
             if (!result.success) {
-                logger.warn { "Sequential: node '${node.name}' failed: ${result.errorMessage}" }
+                val failedInfo = FailedNodeInfo(
+                    nodeName = node.name,
+                    index = index,
+                    errorCode = result.errorCode,
+                    errorMessage = result.errorMessage
+                )
+                logger.error {
+                    "Sequential: node '${node.name}' (index=$index) failed — " +
+                        "errorCode=${result.errorCode}, errorMessage=${result.errorMessage}"
+                }
                 return MultiAgentResult(
                     success = false,
                     finalResult = result,
                     nodeResults = nodeResults,
-                    totalDurationMs = System.currentTimeMillis() - startTime
+                    totalDurationMs = System.currentTimeMillis() - startTime,
+                    failedNodes = listOf(failedInfo)
                 )
             }
 
