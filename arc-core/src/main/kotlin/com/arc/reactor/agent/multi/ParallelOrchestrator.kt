@@ -4,9 +4,11 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.support.throwIfCancellation
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -56,6 +58,8 @@ class ParallelOrchestrator(
 
         val startTime = System.currentTimeMillis()
 
+        val defaultTimeout = WorkerAgentTool.DEFAULT_WORKER_TIMEOUT_MS
+
         logger.info { "Parallel: executing ${nodes.size} nodes concurrently" }
 
         val nodeResults = coroutineScope {
@@ -70,8 +74,14 @@ class ParallelOrchestrator(
                         userPrompt = command.userPrompt
                     )
 
+                    val timeout = node.timeoutMs ?: defaultTimeout
                     val result = try {
-                        agent.execute(nodeCommand)
+                        withTimeout(timeout) {
+                            agent.execute(nodeCommand)
+                        }
+                    } catch (e: TimeoutCancellationException) {
+                        logger.warn { "Parallel: node '${node.name}' timed out after ${timeout}ms" }
+                        AgentResult.failure("Node '${node.name}' timed out after ${timeout}ms")
                     } catch (e: Exception) {
                         e.throwIfCancellation()
                         logger.error(e) { "Parallel: node '${node.name}' threw exception" }

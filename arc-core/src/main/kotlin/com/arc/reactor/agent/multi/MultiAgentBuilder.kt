@@ -98,6 +98,7 @@ object MultiAgent {
         var tools: List<ToolCallback> = emptyList()
         var localTools: List<LocalTool> = emptyList()
         var maxToolCalls: Int = 10
+        var timeoutMs: Long? = null
 
         internal fun build() = AgentNode(
             name = name,
@@ -105,7 +106,8 @@ object MultiAgent {
             description = description,
             tools = tools,
             localTools = localTools,
-            maxToolCalls = maxToolCalls
+            maxToolCalls = maxToolCalls,
+            timeoutMs = timeoutMs
         )
     }
 
