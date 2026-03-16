@@ -849,6 +849,96 @@ Publish a specific Swagger source revision.
 
 ---
 
+## MCP Preflight
+
+Base path: `/api/mcp/servers/{name}/preflight`
+
+Proxy controller for running readiness checks against an MCP server's `/admin/preflight` endpoint. Requires the MCP server's `config` to contain `adminToken` and either `adminUrl` or `url`. If the upstream requires admin HMAC, also include `adminHmacRequired=true` and `adminHmacSecret`.
+
+### GET /api/mcp/servers/{name}/preflight
+
+Run a preflight readiness check against the MCP server's admin API. The response is forwarded from the upstream server.
+
+**Auth**: Admin required
+
+**Response `200 OK`**: The preflight result object returned by the upstream MCP server admin API (forwarded as-is). Typical fields include `ok`, `readyForProduction`, `policySource`, `summary`, and `checks`.
+
+**Response codes**: `200` success | `400` invalid server config (missing `adminUrl`, `adminToken`, or HMAC secret) | `403` admin required | `404` server not found | `502` upstream connection failure | `504` upstream timeout
+
+---
+
+## MCP Security
+
+Base path: `/api/mcp/security`
+
+Dynamic MCP allowlist and security policy management. Controls which MCP servers are allowed to register and the maximum tool output length. The effective policy merges stored (database) values with config-file defaults.
+
+### GET /api/mcp/security
+
+Get the current MCP security policy state including the effective (in-use) policy, the stored (database) policy, and the config-file defaults.
+
+**Auth**: Admin required
+
+**Response `200 OK`**:
+```json
+{
+  "effective": {
+    "allowedServerNames": ["jira-server", "confluence-server"],
+    "maxToolOutputLength": 50000,
+    "createdAt": 1700000000000,
+    "updatedAt": 1700000000000
+  },
+  "stored": null,
+  "configDefault": {
+    "allowedServerNames": [],
+    "maxToolOutputLength": 50000,
+    "createdAt": 1700000000000,
+    "updatedAt": 1700000000000
+  }
+}
+```
+
+**Response codes**: `200` success | `403` admin required
+
+---
+
+### PUT /api/mcp/security
+
+Update the stored MCP security policy. Takes effect immediately and reapplies the security policy to all registered MCP servers.
+
+**Auth**: Admin required
+
+**Request body**:
+```json
+{
+  "allowedServerNames": ["jira-server", "confluence-server"],
+  "maxToolOutputLength": 50000
+}
+```
+
+| Field | Type | Required | Default | Constraints |
+|-------|------|----------|---------|-------------|
+| `allowedServerNames` | set of string | No | `[]` | Max 500 entries. Blank entries are trimmed/removed |
+| `maxToolOutputLength` | integer | No | `50000` | Min 1024, max 500000 |
+
+**Response `200 OK`**: `McpSecurityPolicyResponse` object (the saved policy)
+
+**Response codes**: `200` success | `400` validation error | `403` admin required
+
+---
+
+### DELETE /api/mcp/security
+
+Delete the stored MCP security policy, reverting to config-file defaults. Reapplies the security policy to all registered MCP servers.
+
+**Auth**: Admin required
+
+**Response**: `204 No Content`
+
+**Response codes**: `204` deleted | `403` admin required
+
+---
+
 ## Tool Policy
 
 Base path: `/api/tool-policy`
@@ -2128,7 +2218,7 @@ List admin audit logs.
 ]
 ```
 
-**Known categories**: `mcp_server`, `mcp_access_policy`, `tool_policy`, `rag_ingestion_policy`, `rag_ingestion_candidate`, `output_guard_rule`
+**Known categories**: `mcp_server`, `mcp_access_policy`, `mcp_preflight`, `mcp_swagger_catalog`, `mcp_security`, `proactive_channel`, `tool_policy`, `rag_ingestion_policy`, `rag_ingestion_candidate`, `output_guard_rule`
 
 **Response codes**: `200` success | `403` admin required
 
@@ -2323,6 +2413,209 @@ Delete a feedback entry.
 **Response**: `204 No Content`
 
 **Response codes**: `204` deleted | `403` admin required
+
+---
+
+## User Memory
+
+Base path: `/api/user-memory`
+
+> **Condition**: Only registered when a `UserMemoryManager` bean is present.
+
+Per-user long-term memory management. Each user can access only their own memory. The caller's identity (from JWT) must match the `userId` path parameter.
+
+### GET /api/user-memory/{userId}
+
+Retrieve the full memory record for a user.
+
+**Auth**: Authenticated (owner only — caller must match `userId`)
+
+**Response `200 OK`**:
+```json
+{
+  "facts": {
+    "name": "Jane Smith",
+    "role": "Engineering Manager"
+  },
+  "preferences": {
+    "language": "English",
+    "timezone": "America/New_York"
+  },
+  "recentTopics": ["project-alpha", "quarterly-review"],
+  "updatedAt": "2026-03-15T10:30:00Z"
+}
+```
+
+**Response codes**: `200` success | `403` caller does not match `userId` | `404` no memory found for `userId`
+
+---
+
+### PUT /api/user-memory/{userId}/facts
+
+Update a single fact entry for the user. Creates the memory record if it does not exist.
+
+**Auth**: Authenticated (owner only — caller must match `userId`)
+
+**Request body**:
+```json
+{
+  "key": "role",
+  "value": "Engineering Manager"
+}
+```
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| `key` | string | Yes | Non-blank |
+| `value` | string | Yes | Non-blank |
+
+**Response `200 OK`**:
+```json
+{
+  "updated": true
+}
+```
+
+**Response codes**: `200` success | `400` validation error | `403` caller does not match `userId`
+
+---
+
+### PUT /api/user-memory/{userId}/preferences
+
+Update a single preference entry for the user. Creates the memory record if it does not exist.
+
+**Auth**: Authenticated (owner only — caller must match `userId`)
+
+**Request body**:
+```json
+{
+  "key": "timezone",
+  "value": "America/New_York"
+}
+```
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| `key` | string | Yes | Non-blank |
+| `value` | string | Yes | Non-blank |
+
+**Response `200 OK`**:
+```json
+{
+  "updated": true
+}
+```
+
+**Response codes**: `200` success | `400` validation error | `403` caller does not match `userId`
+
+---
+
+### DELETE /api/user-memory/{userId}
+
+Delete all stored memory for a user. Idempotent.
+
+**Auth**: Authenticated (owner only — caller must match `userId`)
+
+**Response**: `204 No Content`
+
+**Response codes**: `204` deleted | `403` caller does not match `userId`
+
+---
+
+## Proactive Channels
+
+Base path: `/api/proactive-channels`
+
+> **Condition**: Only registered when `arc.reactor.slack.enabled=true` and a `ProactiveChannelStore` bean is present.
+
+Manage Slack channels that are monitored for proactive agent responses.
+
+### GET /api/proactive-channels
+
+List all proactive monitoring channels.
+
+**Auth**: Admin required
+
+**Response `200 OK`**:
+```json
+[
+  {
+    "channelId": "C0123456789",
+    "channelName": "engineering-support",
+    "addedAt": 1700000000000
+  }
+]
+```
+
+**Response codes**: `200` success | `403` admin required
+
+---
+
+### POST /api/proactive-channels
+
+Add a channel to proactive monitoring.
+
+**Auth**: Admin required
+
+**Request body**:
+```json
+{
+  "channelId": "C0123456789",
+  "channelName": "engineering-support"
+}
+```
+
+| Field | Type | Required | Default | Constraints |
+|-------|------|----------|---------|-------------|
+| `channelId` | string | Yes | — | Non-blank, max 50 chars |
+| `channelName` | string | No | `null` | Max 200 chars |
+
+**Response `201 Created`**: `ProactiveChannelResponse` object
+
+**Response codes**: `201` added | `400` validation error | `403` admin required | `409` channel already in proactive list
+
+---
+
+### DELETE /api/proactive-channels/{channelId}
+
+Remove a channel from proactive monitoring.
+
+**Auth**: Admin required
+
+**Response**: `204 No Content`
+
+**Response codes**: `204` removed | `403` admin required | `404` channel not found
+
+---
+
+## Admin Capabilities
+
+Base path: `/api/admin/capabilities`
+
+Returns a manifest of all registered API paths in the application. Useful for admin consoles to discover which features are available at runtime.
+
+### GET /api/admin/capabilities
+
+Get the admin capability manifest. Returns all registered `/api/` paths sorted alphabetically.
+
+**Auth**: Admin required
+
+**Response `200 OK`**:
+```json
+{
+  "generatedAt": 1700000000000,
+  "source": "request-mappings",
+  "paths": [
+    "/api/admin/audits",
+    "/api/admin/capabilities",
+    "/api/auth/login",
+    "/api/chat",
+    "/api/mcp/servers"
+  ]
+}
+```
+
+**Response codes**: `200` success | `403` admin required
 
 ---
 
