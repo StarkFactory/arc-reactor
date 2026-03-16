@@ -106,7 +106,7 @@ class McpServerControllerTest {
             val request = RegisterMcpServerRequest(
                 name = "my-server",
                 transportType = "SSE",
-                config = mapOf("url" to "http://localhost:9090/sse"),
+                config = mapOf("url" to "http://example.com:9090/sse"),
                 autoConnect = false
             )
 
@@ -130,7 +130,7 @@ class McpServerControllerTest {
             val request = RegisterMcpServerRequest(
                 name = "duplicate",
                 transportType = "SSE",
-                config = mapOf("url" to "http://localhost:8081/sse"),
+                config = mapOf("url" to "http://example.com:8081/sse"),
                 autoConnect = false
             )
 
@@ -189,6 +189,7 @@ class McpServerControllerTest {
             val request = RegisterMcpServerRequest(
                 name = "trimmed-transport",
                 transportType = "  sSe  ",
+                config = mapOf("url" to "http://example.com:8081/sse"),
                 autoConnect = false
             )
 
@@ -235,6 +236,111 @@ class McpServerControllerTest {
                 saved.config["args"]
             ) {
                 "STDIO args should be preserved in persisted config"
+            }
+        }
+
+        @Test
+        fun `should reject SSE server with private IP url`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "ssrf-private",
+                transportType = "SSE",
+                config = mapOf("url" to "http://10.0.0.1:8080/sse"),
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "SSE URL pointing to private IP should be rejected with 400"
+            }
+        }
+
+        @Test
+        fun `should reject SSE server with cloud metadata url`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "ssrf-metadata",
+                transportType = "SSE",
+                config = mapOf("url" to "http://169.254.169.254/latest/meta-data/"),
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "SSE URL pointing to link-local metadata should be rejected with 400"
+            }
+        }
+
+        @Test
+        fun `should reject SSE server with localhost url`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "ssrf-localhost",
+                transportType = "SSE",
+                config = mapOf("url" to "http://127.0.0.1:8080/sse"),
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "SSE URL pointing to localhost should be rejected with 400"
+            }
+        }
+
+        @Test
+        fun `should reject SSE server with file scheme url`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "ssrf-file",
+                transportType = "SSE",
+                config = mapOf("url" to "file:///etc/passwd"),
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "SSE URL with file:// scheme should be rejected with 400"
+            }
+        }
+
+        @Test
+        fun `should skip SSRF validation for STDIO transport`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "stdio-no-ssrf",
+                transportType = "STDIO",
+                config = mapOf("command" to "npx", "args" to listOf("-y", "server")),
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.CREATED, response.statusCode) {
+                "STDIO transport should not be subject to SSRF validation"
+            }
+        }
+
+        @Test
+        fun `should reject SSE server with 192_168 private url`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "ssrf-192",
+                transportType = "SSE",
+                config = mapOf("url" to "http://192.168.1.1:8080/sse"),
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "SSE URL pointing to 192.168.x.x should be rejected with 400"
+            }
+        }
+
+        @Test
+        fun `should reject SSE server with 172_16 private url`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "ssrf-172",
+                transportType = "SSE",
+                config = mapOf("url" to "http://172.16.0.1:8080/sse"),
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "SSE URL pointing to 172.16.x.x should be rejected with 400"
             }
         }
     }
@@ -328,13 +434,13 @@ class McpServerControllerTest {
             manager.register(McpServer(
                 name = "update-me",
                 transportType = McpTransportType.SSE,
-                config = mapOf("url" to "http://old:8080/sse"),
+                config = mapOf("url" to "http://example.com:8080/sse"),
                 autoConnect = false
             ))
 
             val updateReq = UpdateMcpServerRequest(
                 description = "Updated description",
-                config = mapOf("url" to "http://new:9090/sse")
+                config = mapOf("url" to "http://example.org:9090/sse")
             )
 
             val response = controller.updateServer("update-me", updateReq, adminExchange())
@@ -344,7 +450,7 @@ class McpServerControllerTest {
 
             val updated = store.findByName("update-me")!!
             assertEquals("Updated description", updated.description)
-            assertEquals("http://new:9090/sse", updated.config["url"])
+            assertEquals("http://example.org:9090/sse", updated.config["url"])
         }
 
         @Test
@@ -466,6 +572,25 @@ class McpServerControllerTest {
         }
 
         @Test
+        fun `should reject update with SSRF url on SSE transport`() = runTest {
+            manager.register(McpServer(
+                name = "ssrf-update",
+                transportType = McpTransportType.SSE,
+                config = mapOf("url" to "http://example.com:8081/sse"),
+                autoConnect = false
+            ))
+
+            val response = controller.updateServer(
+                "ssrf-update",
+                UpdateMcpServerRequest(config = mapOf("url" to "http://169.254.169.254/latest/meta-data/")),
+                adminExchange()
+            )
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "Update with SSRF URL should return 400 BAD_REQUEST"
+            }
+        }
+
+        @Test
         fun `should sync runtime manager state when store and manager are decoupled`() = runTest {
             val runtimeManager = DefaultMcpManager()
             val persistentStore = InMemoryMcpServerStore()
@@ -475,7 +600,7 @@ class McpServerControllerTest {
                 name = "sync-runtime",
                 description = "old-description",
                 transportType = McpTransportType.SSE,
-                config = mapOf("url" to "http://localhost:8081/sse"),
+                config = mapOf("url" to "http://example.com:8081/sse"),
                 autoConnect = false
             )
             runtimeManager.register(original)
@@ -505,7 +630,7 @@ class McpServerControllerTest {
             val original = McpServer(
                 name = "reconnect-me",
                 transportType = McpTransportType.SSE,
-                config = mapOf("url" to "http://old:8080/sse"),
+                config = mapOf("url" to "http://example.com:8080/sse"),
                 autoConnect = true
             )
             persistentStore.save(original)
@@ -517,7 +642,7 @@ class McpServerControllerTest {
 
             val response = localController.updateServer(
                 "reconnect-me",
-                UpdateMcpServerRequest(config = mapOf("url" to "http://new:9090/sse")),
+                UpdateMcpServerRequest(config = mapOf("url" to "http://example.org:9090/sse")),
                 adminExchange()
             )
 
@@ -538,7 +663,7 @@ class McpServerControllerTest {
                     name = "desc-only",
                     description = "before",
                     transportType = McpTransportType.SSE,
-                    config = mapOf("url" to "http://stable:8080/sse"),
+                    config = mapOf("url" to "http://example.com:8080/sse"),
                     autoConnect = true
                 )
             )
@@ -567,7 +692,7 @@ class McpServerControllerTest {
                 McpServer(
                     name = "auto-connect-me",
                     transportType = McpTransportType.SSE,
-                    config = mapOf("url" to "http://localhost:8080/sse"),
+                    config = mapOf("url" to "http://example.com:8080/sse"),
                     autoConnect = false
                 )
             )
@@ -694,7 +819,7 @@ class McpServerControllerTest {
                 name = "lifecycle-server",
                 description = "Initial",
                 transportType = "SSE",
-                config = mapOf("url" to "http://localhost:8081/sse"),
+                config = mapOf("url" to "http://example.com:8081/sse"),
                 autoConnect = false
             )
             val created = controller.registerServer(registerReq, exchange)
@@ -751,6 +876,7 @@ class McpServerControllerTest {
             val trustedReq = RegisterMcpServerRequest(
                 name = "trusted",
                 transportType = "SSE",
+                config = mapOf("url" to "http://example.com:8081/sse"),
                 autoConnect = false
             )
             val trustedResp = secureController.registerServer(trustedReq, adminExchange())
@@ -778,6 +904,7 @@ class McpServerControllerTest {
             val blockedReq = RegisterMcpServerRequest(
                 name = "untrusted",
                 transportType = "SSE",
+                config = mapOf("url" to "http://example.com:8081/sse"),
                 autoConnect = false
             )
 
@@ -800,7 +927,7 @@ class McpServerControllerTest {
             val request = RegisterMcpServerRequest(
                 name = "decoupled-register",
                 transportType = "SSE",
-                config = mapOf("url" to "http://localhost:8081/sse"),
+                config = mapOf("url" to "http://example.com:8081/sse"),
                 autoConnect = false
             )
 
