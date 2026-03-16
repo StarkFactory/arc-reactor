@@ -15,6 +15,11 @@ import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
 import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * ApiVersionContractWebFilter에 대한 테스트.
+ *
+ * API 버전 계약 웹 필터의 동작을 검증합니다.
+ */
 class ApiVersionContractWebFilterTest {
 
     private val filter = ApiVersionContractWebFilter(

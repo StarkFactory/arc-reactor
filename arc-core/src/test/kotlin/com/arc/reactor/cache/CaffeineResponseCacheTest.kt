@@ -75,7 +75,7 @@ class CaffeineResponseCacheTest {
                 cache.put("key-$i", CachedResponse(content = "response-$i"))
             }
 
-            // Caffeine eviction is async — force cleanup before asserting
+            // Caffeine 축출은 비동기 — 검증 전에 강제 정리
             cache.cleanUp()
 
             var hitCount = 0

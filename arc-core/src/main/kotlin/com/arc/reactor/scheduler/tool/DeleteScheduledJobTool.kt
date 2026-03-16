@@ -9,7 +9,10 @@ import org.springframework.ai.tool.annotation.ToolParam
 private val logger = KotlinLogging.logger {}
 
 /**
- * Agent tool for deleting a scheduled job by ID or name.
+ * ID 또는 이름으로 스케줄 작업을 삭제하는 에이전트 도구.
+ *
+ * @param schedulerService 스케줄러 서비스
+ * @see DynamicSchedulerService 스케줄러 서비스
  */
 class DeleteScheduledJobTool(
     private val schedulerService: DynamicSchedulerService
@@ -25,11 +28,13 @@ class DeleteScheduledJobTool(
         val trimmedId = jobId?.trim()?.ifBlank { null }
         val trimmedName = jobName?.trim()?.ifBlank { null }
 
+        // jobId 또는 jobName 중 하나는 필수
         if (trimmedId == null && trimmedName == null) {
             return errorJson("Either jobId or jobName is required")
         }
 
         return try {
+            // ID 우선, 없으면 이름으로 작업을 찾는다
             val job = when {
                 trimmedId != null -> schedulerService.findById(trimmedId)
                     ?: return errorJson("Job not found with id: $trimmedId")
@@ -40,7 +45,7 @@ class DeleteScheduledJobTool(
             schedulerService.delete(job.id)
             toJson(mapOf("status" to "deleted", "id" to job.id, "name" to job.name))
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to delete scheduled job: ${trimmedId ?: trimmedName}" }
+            logger.warn(e) { "스케줄 작업 삭제 실패: ${trimmedId ?: trimmedName}" }
             errorJson(e.message ?: "Failed to delete scheduled job")
         }
     }

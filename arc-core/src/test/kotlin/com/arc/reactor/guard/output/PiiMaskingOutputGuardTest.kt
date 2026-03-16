@@ -8,6 +8,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * PII 마스킹 출력 가드에 대한 테스트.
+ *
+ * 개인정보 마스킹 동작을 검증합니다.
+ */
 class PiiMaskingOutputGuardTest {
 
     private lateinit var guard: PiiMaskingOutputGuard

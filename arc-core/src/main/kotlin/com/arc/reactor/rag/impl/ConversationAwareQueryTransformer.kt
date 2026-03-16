@@ -10,29 +10,29 @@ import org.springframework.ai.chat.client.ChatClient
 private val logger = KotlinLogging.logger {}
 
 /**
- * Conversation-Aware Query Transformer
+ * 대화 맥락 인식 쿼리 변환기.
  *
- * Rewrites the user's query by incorporating conversation context,
- * resolving pronouns and references to produce a standalone search query.
+ * 대화 맥락을 반영하여 사용자 쿼리를 재작성한다.
+ * 대명사와 참조를 해소하여 독립적인(standalone) 검색 쿼리를 생성한다.
  *
- * ## How It Works
+ * ## 동작 원리
  * ```
- * Conversation:
- *   User: "Tell me about the return policy"
- *   AI: "Items can be returned within 30 days..."
- *   User: "What about electronics?"        ← ambiguous without context
+ * 대화 이력:
+ *   사용자: "반품 정책에 대해 알려줘"
+ *   AI: "구매 후 30일 이내에 반품 가능합니다..."
+ *   사용자: "전자제품은?"        ← 맥락 없이는 모호함
  *
- * → LLM rewrites to: "What is the return policy for electronics?"
- * → This standalone query retrieves better documents
+ * → LLM이 재작성: "전자제품의 반품 정책은 무엇인가요?"
+ * → 이 독립적인 쿼리로 더 정확한 문서를 검색한다
  * ```
  *
- * ## Why It Works
- * In multi-turn conversations, users naturally use pronouns ("it", "that")
- * and implicit references. These make poor search queries. By rewriting the query
- * to be self-contained, retrieval accuracy improves significantly.
+ * ## 왜 이것이 효과적인가
+ * 멀티턴 대화에서 사용자는 자연스럽게 대명사("그것", "거기")와
+ * 암시적 참조를 사용한다. 이런 표현은 검색 쿼리로는 부적합하다.
+ * 쿼리를 자기 완결적으로 재작성하면 검색 정확도가 크게 향상된다.
  *
- * @param chatClient Spring AI ChatClient for query rewriting
- * @param maxHistoryTurns Maximum conversation turns to include (default: 5)
+ * @param chatClient 쿼리 재작성에 사용하는 Spring AI ChatClient
+ * @param maxHistoryTurns 포함할 최대 대화 턴 수 (기본값: 5)
  */
 class ConversationAwareQueryTransformer(
     private val chatClient: ChatClient,
@@ -40,8 +40,8 @@ class ConversationAwareQueryTransformer(
 ) : QueryTransformer {
 
     /**
-     * Transform query using conversation history for context-aware rewriting.
-     * Falls back to the original query if history is empty or rewriting fails.
+     * 대화 이력을 사용하여 맥락 인식 쿼리 재작성을 수행한다.
+     * 이력이 비어있거나 재작성에 실패하면 원본 쿼리로 폴백한다.
      */
     suspend fun transformWithHistory(query: String, history: List<String>): List<String> {
         if (history.isEmpty()) return listOf(query)
@@ -56,9 +56,10 @@ class ConversationAwareQueryTransformer(
         }
     }
 
-    /** Returns the original query unchanged when called without conversation history. */
+    /** 대화 이력 없이 호출되면 원본 쿼리를 그대로 반환한다. */
     override suspend fun transform(query: String): List<String> = listOf(query)
 
+    /** LLM을 호출하여 대화 맥락 기반 쿼리 재작성을 수행한다. */
     private suspend fun rewriteQuery(query: String, history: List<String>): String? {
         val historyText = history.joinToString("\n")
         val userMessage = "Conversation history:\n$historyText\n\nCurrent query: $query"
@@ -73,6 +74,7 @@ class ConversationAwareQueryTransformer(
     }
 
     companion object {
+        /** LLM에 전달하는 쿼리 재작성 시스템 프롬프트 */
         internal const val SYSTEM_PROMPT =
             "You are a query rewriter. Given a conversation history and a current query, " +
                 "rewrite the query to be a standalone search query that doesn't need conversation context. " +

@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
+/**
+ * GoogleCredentialProvider에 대한 테스트.
+ *
+ * Google 인증 정보 제공자의 동작을 검증합니다.
+ */
 class GoogleCredentialProviderTest {
 
     @Test

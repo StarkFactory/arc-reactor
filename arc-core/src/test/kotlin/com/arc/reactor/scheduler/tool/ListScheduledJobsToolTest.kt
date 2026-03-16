@@ -14,6 +14,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * ListScheduledJobsTool에 대한 테스트.
+ *
+ * 스케줄된 작업 목록 조회 도구의 동작을 검증합니다.
+ */
 class ListScheduledJobsToolTest {
 
     private val objectMapper = jacksonObjectMapper()

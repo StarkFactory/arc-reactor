@@ -3,15 +3,14 @@ package com.arc.reactor.memory.summary
 import java.time.Instant
 
 /**
- * A structured fact extracted from conversation history.
+ * 대화 이력에서 추출된 구조화된 팩트.
  *
- * Facts preserve precise information (numbers, conditions, decisions)
- * that might be lost in a narrative summary.
+ * 서술형 요약에서 손실될 수 있는 정확한 정보(숫자, 조건, 결정)를 보존한다.
  *
- * @param key Fact identifier (e.g., "order_number", "agreed_price")
- * @param value Exact value (e.g., "#1234", "50,000 KRW")
- * @param category Semantic category for grouping
- * @param extractedAt When this fact was extracted
+ * @param key 팩트 식별자 (예: "order_number", "agreed_price")
+ * @param value 정확한 값 (예: "#1234", "50,000 KRW")
+ * @param category 그룹핑을 위한 의미 카테고리
+ * @param extractedAt 이 팩트가 추출된 시각
  */
 data class StructuredFact(
     val key: String,
@@ -21,40 +20,39 @@ data class StructuredFact(
 )
 
 /**
- * Semantic categories for structured facts.
+ * 구조화된 팩트의 의미 카테고리.
  */
 enum class FactCategory {
-    /** Named entities (person, organization, product) */
+    /** 명명된 엔티티 (인물, 조직, 제품) */
     ENTITY,
 
-    /** Decisions made during conversation */
+    /** 대화 중 내린 결정 */
     DECISION,
 
-    /** Conditions or constraints agreed upon */
+    /** 합의된 조건이나 제약 */
     CONDITION,
 
-    /** Current state or status */
+    /** 현재 상태 */
     STATE,
 
-    /** Numeric values (prices, quantities, dates) */
+    /** 수치 값 (가격, 수량, 날짜) */
     NUMERIC,
 
-    /** Uncategorized facts */
+    /** 분류되지 않은 일반 팩트 */
     GENERAL
 }
 
 /**
- * Persisted conversation summary for a session.
+ * 세션에 대해 영구 저장되는 대화 요약.
  *
- * Combines a narrative summary (capturing flow and tone) with
- * structured facts (preserving precise data points).
+ * 서술형 요약(흐름과 톤 캡처)과 구조화된 팩트(정확한 데이터 포인트 보존)를 결합한다.
  *
- * @param sessionId Session this summary belongs to
- * @param narrative Free-text summary of the conversation flow
- * @param facts List of extracted structured facts
- * @param summarizedUpToIndex Number of messages summarized (exclusive upper bound)
- * @param createdAt When this summary was first created
- * @param updatedAt When this summary was last updated
+ * @param sessionId 이 요약이 속하는 세션 ID
+ * @param narrative 대화 흐름의 자유 텍스트 요약
+ * @param facts 추출된 구조화 팩트 목록
+ * @param summarizedUpToIndex 요약된 메시지 수 (배타적 상한)
+ * @param createdAt 이 요약이 처음 생성된 시각
+ * @param updatedAt 이 요약이 마지막으로 갱신된 시각
  */
 data class ConversationSummary(
     val sessionId: String,
@@ -66,11 +64,11 @@ data class ConversationSummary(
 )
 
 /**
- * Result of a summarization operation.
+ * 요약 작업의 결과.
  *
- * @param narrative Free-text summary
- * @param facts Extracted structured facts
- * @param tokenCost Approximate token usage for the summarization call
+ * @param narrative 자유 텍스트 요약
+ * @param facts 추출된 구조화 팩트
+ * @param tokenCost 요약 호출에 사용된 대략적 토큰 수
  */
 data class SummarizationResult(
     val narrative: String,

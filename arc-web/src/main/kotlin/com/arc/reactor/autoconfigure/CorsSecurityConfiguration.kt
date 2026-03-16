@@ -10,16 +10,16 @@ import org.springframework.web.cors.reactive.CorsWebFilter
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource
 
 /**
- * CORS Configuration for Arc Reactor API.
+ * Arc Reactor API CORS 설정.
  *
- * Opt-in: set `arc.reactor.cors.enabled=true` to activate.
+ * 옵트인: `arc.reactor.cors.enabled=true`로 활성화합니다.
  *
- * Configurable via `arc.reactor.cors.*` properties:
- * - `allowed-origins` : Allowed origins (default: `http://localhost:3000`)
- * - `allowed-methods` : Allowed HTTP methods (default: GET, POST, PUT, DELETE, OPTIONS)
- * - `allowed-headers` : Allowed headers (default: `*`)
- * - `allow-credentials` : Allow credentials (default: false)
- * - `max-age` : Preflight cache duration in seconds (default: 3600)
+ * `arc.reactor.cors.*` 프로퍼티로 구성 가능:
+ * - `allowed-origins` : 허용 오리진 (기본값: `http://localhost:3000`)
+ * - `allowed-methods` : 허용 HTTP 메서드 (기본값: GET, POST, PUT, DELETE, OPTIONS)
+ * - `allowed-headers` : 허용 헤더 (기본값: `*`)
+ * - `allow-credentials` : 자격 증명 허용 (기본값: false)
+ * - `max-age` : Preflight 캐시 지속 시간(초) (기본값: 3600)
  */
 @Configuration
 @ConditionalOnProperty(

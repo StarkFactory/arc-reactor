@@ -14,10 +14,13 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * ToolCallback that searches Gmail messages.
+ * Gmail 메시지를 검색하는 ToolCallback.
  *
- * Uses Gmail API v1 with Service Account + Domain-Wide Delegation.
- * Returns a JSON list of matching message metadata. Returns errors as strings and never throws from [call].
+ * Gmail API v1을 Service Account + Domain-Wide Delegation으로 사용한다.
+ * 일치하는 메시지 메타데이터를 JSON 리스트로 반환한다.
+ * [call]에서 예외를 던지지 않고 에러를 문자열로 반환한다.
+ *
+ * @see GoogleCredentialProvider 자격 증명 생성
  */
 class GoogleGmailTool(
     private val credentialProvider: GoogleCredentialProvider
@@ -59,6 +62,12 @@ class GoogleGmailTool(
         }
     }
 
+    /**
+     * Gmail API로 메시지를 검색하여 메타데이터(From, Subject, Date, snippet)를 반환한다.
+     *
+     * 2단계 조회: 먼저 메시지 ID 리스트를 가져온 뒤, 각 ID에 대해 메타데이터를 조회한다.
+     * 이는 Gmail API가 목록 조회에서 전체 메시지 본문을 반환하지 않기 때문이다.
+     */
     private fun searchMessages(query: String, maxResults: Int): List<Map<String, Any?>> {
         val credentials = credentialProvider.getCredentials(listOf(GmailScopes.GMAIL_READONLY))
         val transport = GoogleNetHttpTransport.newTrustedTransport()

@@ -31,6 +31,11 @@ import org.springframework.ai.tool.annotation.Tool
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.system.measureTimeMillis
 
+/**
+ * ToolCallOrchestrator에 대한 테스트.
+ *
+ * 도구 호출 오케스트레이션 로직을 검증합니다.
+ */
 class ToolCallOrchestratorTest {
 
     private val objectMapper = jacksonObjectMapper()

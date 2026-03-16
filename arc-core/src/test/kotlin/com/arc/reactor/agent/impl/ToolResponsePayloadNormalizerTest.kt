@@ -5,6 +5,11 @@ import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * ToolResponsePayloadNormalizer에 대한 테스트.
+ *
+ * 도구 응답 페이로드 정규화 로직을 검증합니다.
+ */
 class ToolResponsePayloadNormalizerTest {
 
     @Nested

@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Test
 import org.slf4j.MDC
 import java.util.concurrent.CopyOnWriteArrayList
 
+/**
+ * AgentRunContextManager에 대한 테스트.
+ *
+ * 에이전트 실행 컨텍스트 관리를 검증합니다.
+ */
 class AgentRunContextManagerTest {
 
     @AfterEach

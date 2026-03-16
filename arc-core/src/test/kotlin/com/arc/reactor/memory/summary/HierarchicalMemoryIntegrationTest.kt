@@ -34,6 +34,12 @@ import org.springframework.ai.chat.messages.UserMessage
  * with a mock ConversationSummaryService (no real LLM calls).
  */
 @Tag("integration")
+/**
+ * 계층적 메모리의 통합 테스트.
+ *
+ * 요약과 최근 메시지를 결합하는 계층적 메모리
+ * 전략의 동작을 검증합니다.
+ */
 class HierarchicalMemoryIntegrationTest {
 
     private val sessionId = "cs-session-refund-001"
@@ -235,7 +241,7 @@ class HierarchicalMemoryIntegrationTest {
 
             val history = manager.loadHistory(createCommand())
 
-            // The last 10 messages in the conversation (turns 12-16)
+            // 대화에서 마지막 10개 메시지 (턴 12-16)
             val recentMessages = history.subList(2, history.size)
             assertEquals(10, recentMessages.size,
                 "Should have exactly 10 recent messages (recentMessageCount=10)")
@@ -291,12 +297,12 @@ class HierarchicalMemoryIntegrationTest {
                 memoryStore, agentProperties, summaryStore, summaryService
             )
 
-            // First call: triggers summarization
+            // 첫 번째 호출: 요약을 트리거
             val firstHistory = manager.loadHistory(createCommand())
             assertEquals(12, firstHistory.size,
                 "First call should return hierarchical history")
 
-            // Second call: same session, same message count ->은(는) use cache해야 합니다
+            // 두 번째 호출: 동일한 세션, 동일한 메시지 수 -> 캐시를 사용해야 합니다
             val secondHistory = manager.loadHistory(createCommand())
             assertEquals(12, secondHistory.size,
                 "Second call should also return hierarchical history")
@@ -337,7 +343,7 @@ class HierarchicalMemoryIntegrationTest {
                 memoryStore, agentProperties, summaryStore, summaryService
             )
 
-            // First call: triggers initial summarization
+            // 첫 번째 호출: 초기 요약을 트리거
             manager.loadHistory(createCommand())
             coVerify(exactly = 1) { summaryService.summarize(any(), any()) }
 
@@ -345,7 +351,7 @@ class HierarchicalMemoryIntegrationTest {
             memoryStore.addMessage(sessionId, "user", "Actually, can I change the refund to store credit?", "user-minjun")
             memoryStore.addMessage(sessionId, "assistant", "Of course! I've changed your refund to store credit of 89,000 KRW.", "user-minjun")
 
-            // Prepare updated summary for the refresh call
+            // 갱신 호출을 위한 업데이트된 요약 준비
             val updatedFacts = realisticFacts + StructuredFact(
                 key = "refund_method_updated",
                 value = "Store credit",
@@ -357,10 +363,10 @@ class HierarchicalMemoryIntegrationTest {
                 tokenCost = 400
             )
 
-            // Second call: conversation grew, so splitIndex changed → triggers re-summarization
+            // 두 번째 호출: 대화가 성장하여 splitIndex가 변경됨 → 재요약을 트리거
             val refreshedHistory = manager.loadHistory(createCommand())
 
-            // Now 34 messages, recentMessageCount=10, splitIndex=24
+            // 현재 34개 메시지, recentMessageCount=10, splitIndex=24
             // Previous summarizedUpToIndex was 22 (from 32-10), now needs 24
             coVerify(exactly = 2) { summaryService.summarize(any(), any()) }
 
@@ -409,7 +415,7 @@ class HierarchicalMemoryIntegrationTest {
 
             val history = manager.loadHistory(createCommand())
 
-            // The last message은(는) still be the closing assistant message해야 합니다
+            // 마지막 메시지는 여전히 종료 어시스턴트 메시지여야 합니다
             val lastMessage = history.last()
             assertTrue(lastMessage is AssistantMessage,
                 "Last message in fallback should be AssistantMessage but was ${lastMessage::class.simpleName}")

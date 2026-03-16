@@ -4,44 +4,53 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Feedback Store Interface
+ * 피드백 저장소 인터페이스
  *
- * Manages CRUD operations for user feedback on agent responses.
+ * 에이전트 응답에 대한 사용자 피드백의 CRUD 작업을 관리한다.
  *
- * @see InMemoryFeedbackStore for default implementation
+ * WHY: 인터페이스를 분리하여 인메모리(기본)/JDBC(운영) 구현을 교체할 수 있게 한다.
+ * `@ConditionalOnMissingBean`으로 등록되므로 사용자가 커스텀 구현으로 대체 가능하다.
+ *
+ * @see InMemoryFeedbackStore 기본 인메모리 구현
+ * @see JdbcFeedbackStore JDBC 기반 영속 구현
+ * @see com.arc.reactor.promptlab.analysis.FeedbackAnalyzer 피드백 분석기
  */
 interface FeedbackStore {
 
     /**
-     * Save a new feedback entry.
+     * 새 피드백 항목을 저장한다.
      *
-     * @return The saved feedback
+     * @param feedback 저장할 피드백
+     * @return 저장된 피드백
      */
     fun save(feedback: Feedback): Feedback
 
     /**
-     * Get a feedback entry by ID.
+     * ID로 피드백 항목을 조회한다.
      *
-     * @return Feedback if found, null otherwise
+     * @param feedbackId 피드백 고유 ID
+     * @return 피드백이 존재하면 반환, 없으면 null
      */
     fun get(feedbackId: String): Feedback?
 
     /**
-     * List all feedback entries, ordered by timestamp descending.
+     * 모든 피드백 항목을 타임스탬프 내림차순으로 조회한다.
+     *
+     * @return 전체 피드백 목록
      */
     fun list(): List<Feedback>
 
     /**
-     * List feedback entries with optional filters.
-     * All filters are AND-combined. Null means "no filter on this field".
+     * 선택적 필터를 적용하여 피드백 항목을 조회한다.
+     * 모든 필터는 AND 조합으로 적용된다. null은 해당 필드에 대한 필터 없음을 의미한다.
      *
-     * @param rating Filter by rating
-     * @param from Filter by timestamp >= from
-     * @param to Filter by timestamp <= to
-     * @param intent Filter by intent (exact match)
-     * @param sessionId Filter by session ID (exact match)
-     * @param templateId Filter by prompt template ID (exact match)
-     * @return Filtered list, ordered by timestamp descending
+     * @param rating 평점 필터
+     * @param from 타임스탬프 >= from 필터
+     * @param to 타임스탬프 <= to 필터
+     * @param intent 인텐트 필터 (정확 일치)
+     * @param sessionId 세션 ID 필터 (정확 일치)
+     * @param templateId 프롬프트 템플릿 ID 필터 (정확 일치)
+     * @return 필터링된 목록 (타임스탬프 내림차순)
      */
     fun list(
         rating: FeedbackRating? = null,
@@ -53,24 +62,34 @@ interface FeedbackStore {
     ): List<Feedback>
 
     /**
-     * Delete a feedback entry by ID. Idempotent — no error if not found.
+     * ID로 피드백 항목을 삭제한다. 멱등성 — 존재하지 않아도 에러 없음.
+     *
+     * @param feedbackId 삭제할 피드백 ID
      */
     fun delete(feedbackId: String)
 
     /**
-     * Count total feedback entries.
+     * 전체 피드백 항목 수를 반환한다.
+     *
+     * @return 피드백 총 개수
      */
     fun count(): Long
 }
 
 /**
- * In-Memory Feedback Store
+ * 인메모리 피드백 저장소
  *
- * Thread-safe implementation using [ConcurrentHashMap].
- * Not persistent — data is lost on server restart.
+ * [ConcurrentHashMap]을 사용한 스레드 안전 구현.
+ * 영속적이지 않음 — 서버 재시작 시 데이터가 소실된다.
+ *
+ * WHY: 데이터베이스 없이도 기본 동작을 보장하기 위한 기본 구현.
+ * 개발/테스트 환경에서 유용하며, 운영 환경에서는 JdbcFeedbackStore로 대체한다.
+ *
+ * @see JdbcFeedbackStore 운영 환경용 JDBC 구현
  */
 class InMemoryFeedbackStore : FeedbackStore {
 
+    /** 피드백 ID를 키로 하는 동시성 안전 맵 */
     private val entries = ConcurrentHashMap<String, Feedback>()
 
     override fun save(feedback: Feedback): Feedback {
@@ -84,6 +103,10 @@ class InMemoryFeedbackStore : FeedbackStore {
         return entries.values.toList().sortedByDescending { it.timestamp }
     }
 
+    /**
+     * 필터 조건을 시퀀스 체이닝으로 적용한다.
+     * WHY: 시퀀스를 사용하여 불필요한 중간 리스트 생성을 방지하고 메모리 효율을 높인다.
+     */
     override fun list(
         rating: FeedbackRating?,
         from: Instant?,

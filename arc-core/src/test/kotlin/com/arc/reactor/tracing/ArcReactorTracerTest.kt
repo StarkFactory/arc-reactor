@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * ArcReactorTracer에 대한 테스트.
+ *
+ * 트레이싱 인터페이스의 기본 동작을 검증합니다.
+ */
 class ArcReactorTracerTest {
 
     @Nested

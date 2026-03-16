@@ -3,66 +3,71 @@ package com.arc.reactor.auth
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * User Store Interface
+ * 사용자 저장소 인터페이스
  *
- * Manages CRUD operations for user accounts.
- * Implementations must enforce email uniqueness.
+ * 사용자 계정의 CRUD 작업을 관리한다.
+ * 구현체는 이메일 고유성을 보장해야 한다.
  *
- * @see InMemoryUserStore for default implementation
+ * @see InMemoryUserStore 메모리 기반 기본 구현체
+ * @see JdbcUserStore JDBC 기반 영구 저장 구현체
  */
 interface UserStore {
 
     /**
-     * Find a user by email address.
+     * 이메일 주소로 사용자를 찾는다.
      *
-     * @return [User] if found, null otherwise
+     * @return 찾은 경우 [User], 아니면 null
      */
     fun findByEmail(email: String): User?
 
     /**
-     * Find a user by ID.
+     * ID로 사용자를 찾는다.
      *
-     * @return [User] if found, null otherwise
+     * @return 찾은 경우 [User], 아니면 null
      */
     fun findById(id: String): User?
 
     /**
-     * Save a new user. Implementations should reject duplicate emails.
+     * 새 사용자를 저장한다. 구현체는 이메일 중복을 거부해야 한다.
      *
-     * @return The saved user
-     * @throws IllegalArgumentException if a user with the same email already exists
+     * @return 저장된 사용자
+     * @throws IllegalArgumentException 같은 이메일의 사용자가 이미 존재하는 경우
      */
     fun save(user: User): User
 
     /**
-     * Check if a user with the given email already exists.
+     * 주어진 이메일의 사용자가 이미 존재하는지 확인한다.
      */
     fun existsByEmail(email: String): Boolean
 
     /**
-     * Update an existing user.
-     * Default implementation delegates to save for backward compatibility.
+     * 기존 사용자를 업데이트한다.
+     * 하위 호환성을 위해 기본 구현은 save에 위임한다.
      *
-     * @return The updated user
+     * @return 업데이트된 사용자
      */
     fun update(user: User): User = save(user)
 
     /**
-     * Count total number of registered users.
-     * Used for first-user-ADMIN policy during registration.
+     * 등록된 전체 사용자 수를 반환한다.
+     * 회원가입 시 첫 번째 사용자를 ADMIN으로 자동 설정하는 정책에 사용된다.
      */
     fun count(): Long
 }
 
 /**
- * In-Memory User Store
+ * 메모리 기반 사용자 저장소
  *
- * Thread-safe implementation using [ConcurrentHashMap].
- * Not persistent — data is lost on server restart.
+ * [ConcurrentHashMap]을 사용한 스레드 안전 구현체이다.
+ * 영구적이지 않다 — 서버 재시작 시 데이터가 유실된다.
+ *
+ * @see JdbcUserStore 영구 저장이 필요한 프로덕션 환경용
  */
 class InMemoryUserStore : UserStore {
 
+    /** ID → User 매핑 */
     private val usersById = ConcurrentHashMap<String, User>()
+    /** email → User 매핑 (이메일 고유성 보장) */
     private val usersByEmail = ConcurrentHashMap<String, User>()
 
     override fun findByEmail(email: String): User? = usersByEmail[email]

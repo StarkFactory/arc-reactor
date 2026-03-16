@@ -16,7 +16,15 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * Generates comparison reports from experiment trial data.
+ * 실험 트라이얼 데이터로부터 비교 보고서를 생성한다.
+ *
+ * 보고서에는 버전별 통계 요약, 쿼리별 비교, 추천 결과가 포함된다.
+ *
+ * WHY: 실험 결과를 구조화된 보고서로 정리하여
+ * 운영자가 데이터 기반으로 프롬프트 변경 의사결정을 할 수 있게 한다.
+ *
+ * @see com.arc.reactor.promptlab.model.ExperimentReport 보고서 모델
+ * @see ExperimentOrchestrator 보고서 생성 호출처
  */
 class ReportGenerator {
 

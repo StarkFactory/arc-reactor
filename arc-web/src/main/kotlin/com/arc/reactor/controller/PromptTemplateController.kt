@@ -43,7 +43,7 @@ class PromptTemplateController(
     private val promptTemplateStore: PromptTemplateStore
 ) {
 
-    // ---- Template Endpoints ----
+    // ---- 템플릿 엔드포인트 ----
 
     /** 전체 프롬프트 템플릿 목록을 조회한다. */
     @Operation(summary = "전체 프롬프트 템플릿 목록 조회")
@@ -131,7 +131,7 @@ class PromptTemplateController(
         return ResponseEntity.noContent().build()
     }
 
-    // ---- Version Endpoints ----
+    // ---- 버전 엔드포인트 ----
 
     /** 템플릿에 새 버전을 생성한다. DRAFT 상태로 시작된다. ADMIN 권한이 필요하다. */
     @Operation(summary = "템플릿 새 버전 생성 (관리자)")
@@ -195,7 +195,7 @@ class PromptTemplateController(
     }
 }
 
-// --- Request DTOs ---
+// --- 요청 DTO ---
 
 data class CreateTemplateRequest(
     @field:NotBlank(message = "name must not be blank")
@@ -220,7 +220,7 @@ data class CreateVersionRequest(
     val changeLog: String = ""
 )
 
-// --- Response DTOs ---
+// --- 응답 DTO ---
 
 data class TemplateResponse(
     val id: String,
@@ -250,7 +250,7 @@ data class VersionResponse(
     val createdAt: Long
 )
 
-// --- Mapping extensions ---
+// --- 매핑 확장 ---
 
 private fun PromptTemplate.toResponse() = TemplateResponse(
     id = id,

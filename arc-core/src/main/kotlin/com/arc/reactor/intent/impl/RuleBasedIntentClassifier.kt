@@ -11,17 +11,23 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Rule-Based Intent Classifier
+ * 규칙 기반 인텐트 분류기
  *
- * Matches user input against intent keywords using case-insensitive containment.
- * Zero token cost — no LLM calls. Suitable for high-confidence patterns only.
+ * 대소문자 무관 포함 매칭으로 사용자 입력과 인텐트 키워드를 비교한다.
+ * 토큰 비용 없음 — LLM 호출 없음. 높은 신뢰도 패턴에만 적합하다.
  *
- * ## Enhanced Features
- * - **Synonyms**: Each keyword can have synonyms; matching any synonym counts as one match
- * - **Weights**: Keywords can have custom weights (default 1.0) affecting confidence
- * - **Negative keywords**: If any negative keyword matches, the intent is excluded
+ * ## 향상된 기능
+ * - **동의어**: 각 키워드에 동의어를 설정할 수 있다. 어떤 동의어가 매칭되어도 하나의 매칭으로 계산
+ * - **가중치**: 키워드별 커스텀 가중치 설정 가능 (기본값 1.0), 신뢰도에 영향
+ * - **부정 키워드**: 부정 키워드가 매칭되면 해당 인텐트를 즉시 제외
  *
- * @param registry Source of intent definitions with keywords
+ * WHY: LLM 호출 없이 확실한 키워드 패턴을 빠르게 분류한다.
+ * 운영 트래픽의 10-20%를 비용 없이 처리하여 전체 비용을 절감한다.
+ * 모호한 입력은 CompositeIntentClassifier를 통해 LLM으로 폴백된다.
+ *
+ * @param registry 키워드가 포함된 인텐트 정의의 소스
+ * @see CompositeIntentClassifier 캐스케이딩 전략에서의 활용
+ * @see LlmIntentClassifier LLM 기반 대안
  */
 class RuleBasedIntentClassifier(
     private val registry: IntentRegistry
@@ -32,6 +38,7 @@ class RuleBasedIntentClassifier(
         val normalizedText = text.lowercase().trim()
         val matches = mutableListOf<ClassifiedIntent>()
 
+        // 활성화된 모든 인텐트에 대해 키워드 매칭을 수행한다
         for (intent in registry.listEnabled()) {
             if (intent.keywords.isEmpty()) continue
             val scored = scoreIntent(intent, normalizedText) ?: continue
@@ -41,10 +48,11 @@ class RuleBasedIntentClassifier(
         val latencyMs = (System.nanoTime() - startTime) / 1_000_000
 
         if (matches.isEmpty()) {
-            logger.debug { "Rule-based: no keyword match for input (length=${text.length})" }
+            logger.debug { "규칙기반: 키워드 매칭 없음 (입력길이=${text.length})" }
             return IntentResult.unknown(classifiedBy = CLASSIFIER_NAME, latencyMs = latencyMs)
         }
 
+        // 신뢰도 내림차순으로 정렬 — 가장 높은 신뢰도가 주요 인텐트
         val sorted = matches.sortedByDescending { it.confidence }
         val result = IntentResult(
             primary = sorted.first(),
@@ -55,30 +63,35 @@ class RuleBasedIntentClassifier(
         )
 
         logger.debug {
-            "Rule-based: matched intent=${result.primary?.intentName} " +
-                "confidence=${result.primary?.confidence} alternatives=${sorted.size - 1}"
+            "규칙기반: 매칭 인텐트=${result.primary?.intentName} " +
+                "신뢰도=${result.primary?.confidence} 대안수=${sorted.size - 1}"
         }
         return result
     }
 
     /**
-     * Score a single intent against the normalized input text.
+     * 정규화된 입력 텍스트에 대해 단일 인텐트의 점수를 매긴다.
      *
-     * @return ClassifiedIntent if at least one keyword matches, null if excluded or no match
+     * 점수 계산 과정:
+     * 1. 부정 키워드 매칭 확인 — 매칭되면 즉시 제외 (null 반환)
+     * 2. 각 키워드(+ 동의어)의 가중치를 합산하여 신뢰도 계산
+     *
+     * @return 키워드가 하나 이상 매칭되면 ClassifiedIntent, 제외되거나 매칭 없으면 null
      */
     private fun scoreIntent(intent: IntentDefinition, normalizedText: String): ClassifiedIntent? {
-        // 1. Negative keywords — any match excludes this intent immediately
+        // 1. 부정 키워드 — 하나라도 매칭되면 이 인텐트를 즉시 제외
         for (neg in intent.negativeKeywords) {
             if (normalizedText.contains(neg.lowercase())) return null
         }
 
-        // 2. Score each keyword (with synonyms and weights)
+        // 2. 각 키워드를 점수화 (동의어와 가중치 적용)
         var matchedWeight = 0.0
         var totalWeight = 0.0
 
         for (keyword in intent.keywords) {
             val weight = intent.keywordWeights[keyword] ?: 1.0
             totalWeight += weight
+            // 원래 키워드 + 동의어를 모두 포함하는 유효 키워드 목록 생성
             val variants = buildEffectiveKeywords(keyword, intent.synonyms)
             if (variants.any { normalizedText.contains(it.lowercase()) }) {
                 matchedWeight += weight
@@ -86,12 +99,17 @@ class RuleBasedIntentClassifier(
         }
 
         if (matchedWeight <= 0.0) return null
+        // 신뢰도 = 매칭된 가중치 / 전체 가중치 (최대 1.0)
         val confidence = (matchedWeight / totalWeight).coerceAtMost(1.0)
         return ClassifiedIntent(intentName = intent.name, confidence = confidence)
     }
 
     /**
-     * Build the set of effective keywords: the original keyword + its synonyms.
+     * 유효 키워드 집합을 구성한다: 원래 키워드 + 동의어.
+     *
+     * @param keyword 원래 키워드
+     * @param synonyms 동의어 맵
+     * @return 원래 키워드와 동의어를 포함하는 리스트
      */
     private fun buildEffectiveKeywords(
         keyword: String,
@@ -102,6 +120,7 @@ class RuleBasedIntentClassifier(
     }
 
     companion object {
+        /** 분류기 식별 이름 */
         const val CLASSIFIER_NAME = "rule"
     }
 }

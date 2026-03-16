@@ -6,6 +6,11 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import java.time.Instant
 
+/**
+ * InMemoryConversationSummaryStore에 대한 테스트.
+ *
+ * 인메모리 대화 요약 저장소의 동작을 검증합니다.
+ */
 class InMemoryConversationSummaryStoreTest {
 
     private val store = InMemoryConversationSummaryStore()

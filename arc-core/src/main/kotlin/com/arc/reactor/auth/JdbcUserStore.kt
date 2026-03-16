@@ -7,14 +7,19 @@ import java.sql.ResultSet
 private val logger = KotlinLogging.logger {}
 
 /**
- * JDBC-based User Store for persistent user storage.
+ * JDBC 기반 사용자 저장소
  *
- * Stores users in the `users` table — see Flyway migration V3.
+ * `users` 테이블에 사용자 정보를 영구 저장한다 (Flyway 마이그레이션 V3 참조).
  *
- * ## Features
- * - Persistent across server restarts
- * - Email uniqueness enforced by database constraint
- * - Thread-safe via database transactions
+ * ## 특징
+ * - 서버 재시작에도 데이터 유지
+ * - 이메일 고유성은 데이터베이스 제약 조건으로 보장
+ * - 데이터베이스 트랜잭션을 통한 스레드 안전성
+ *
+ * @param jdbcTemplate Spring JdbcTemplate
+ *
+ * @see UserStore 사용자 저장소 인터페이스
+ * @see InMemoryUserStore 메모리 기반 대안
  */
 class JdbcUserStore(
     private val jdbcTemplate: JdbcTemplate
@@ -81,6 +86,7 @@ class JdbcUserStore(
     }
 
     companion object {
+        /** ResultSet → User 매핑 함수 */
         private val ROW_MAPPER = { rs: ResultSet, _: Int ->
             User(
                 id = rs.getString("id"),

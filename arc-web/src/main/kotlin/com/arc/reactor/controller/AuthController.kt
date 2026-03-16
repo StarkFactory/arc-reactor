@@ -157,7 +157,7 @@ class AuthController(
         val user = authProvider.getUserById(userId)
             ?: return notFoundResponse("User not found")
 
-        // Verify current password
+        // WHY: 현재 비밀번호를 먼저 검증하여 비인가 비밀번호 변경을 방지한다
         if (authProvider.authenticate(user.email, request.currentPassword) == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(
@@ -208,7 +208,7 @@ class AuthController(
     }
 }
 
-// --- Request DTOs ---
+// --- 요청 DTO ---
 
 data class RegisterRequest(
     @field:Email(message = "Invalid email format")
@@ -240,7 +240,7 @@ data class ChangePasswordRequest(
     val newPassword: String
 )
 
-// --- Response DTOs ---
+// --- 응답 DTO ---
 
 data class AuthResponse(
     val token: String,
@@ -256,7 +256,7 @@ data class UserResponse(
     val adminScope: String?
 )
 
-// --- Mapping ---
+// --- 매핑 ---
 
 private fun User.toResponse() = UserResponse(
     id = id,

@@ -14,17 +14,18 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * JDBC-based [ConversationSummaryStore] for persistent summary storage.
+ * JDBC 기반 [ConversationSummaryStore]. 요약을 영구 저장한다.
  *
- * Uses UPSERT semantics (MERGE for H2, ON CONFLICT for PostgreSQL-compatible syntax).
- * Facts are serialized as JSON text.
+ * UPSERT 시맨틱을 사용한다 (H2용 MERGE, PostgreSQL 호환).
+ * Facts는 JSON 텍스트로 직렬화된다.
  *
- * Requires the `conversation_summaries` table — see Flyway migration V20.
+ * `conversation_summaries` 테이블이 필요하다 — Flyway 마이그레이션 V20 참고.
  */
 class JdbcConversationSummaryStore(
     private val jdbcTemplate: JdbcTemplate
 ) : ConversationSummaryStore {
 
+    /** JavaTimeModule 등록으로 Instant 등 시간 타입의 올바른 직렬화/역직렬화를 보장 */
     private val objectMapper = jacksonObjectMapper()
         .registerModule(JavaTimeModule())
         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -43,6 +44,7 @@ class JdbcConversationSummaryStore(
         val factsJson = objectMapper.writeValueAsString(summary.facts)
         val now = Timestamp.from(Instant.now())
 
+        // H2 MERGE 문으로 INSERT 또는 UPDATE를 원자적으로 수행
         jdbcTemplate.update(
             """
             MERGE INTO conversation_summaries cs
@@ -68,6 +70,7 @@ class JdbcConversationSummaryStore(
         jdbcTemplate.update("DELETE FROM conversation_summaries WHERE session_id = ?", sessionId)
     }
 
+    /** ResultSet을 ConversationSummary로 매핑한다. facts JSON 파싱 실패 시 빈 목록. */
     private fun mapRow(rs: ResultSet): ConversationSummary {
         val factsJson = rs.getString("facts_json")
         val facts: List<StructuredFact> = try {

@@ -10,13 +10,13 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * Auto-configuration for Anthropic prompt caching.
+ * Anthropic 프롬프트 캐싱 자동 설정.
  *
  * Registers [AnthropicPromptCachingService] when:
  * - `arc.reactor.llm.prompt-caching.enabled=true`
  * - `spring-ai-anthropic` is on the classpath (`AnthropicChatOptions` class present)
  *
- * If the condition is not met (e.g., different provider or dependency missing),
+ * 조건이 충족되지 않으면 (예: 다른 프로바이더 또는 의존성 누락),
  * no [PromptCachingService] bean is registered, and callers fall back gracefully.
  */
 @Configuration

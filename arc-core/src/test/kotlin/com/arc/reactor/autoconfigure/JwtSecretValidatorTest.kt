@@ -7,6 +7,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 
+/**
+ * JwtSecretValidator에 대한 테스트.
+ *
+ * JWT 비밀 키 유효성 검사를 검증합니다.
+ */
 class JwtSecretValidatorTest {
 
     @Nested

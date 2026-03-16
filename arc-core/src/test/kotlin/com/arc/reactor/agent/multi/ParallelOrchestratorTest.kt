@@ -14,6 +14,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * ParallelOrchestrator에 대한 테스트.
+ *
+ * 병렬 멀티 에이전트 오케스트레이션을 검증합니다.
+ */
 class ParallelOrchestratorTest {
 
     private val baseCommand = AgentCommand(systemPrompt = "", userPrompt = "analyze this")

@@ -25,11 +25,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * TDD tests for Tier 1 core features:
- * 1-1: ToolSelector + ToolCallback integration
- * 1-2: AgentMetrics integration
- * 1-3: RAG → Agent integration
- * 1-4: ReAct loop controls (unused config properties)
+ * Tier 1 핵심 기능에 대한 TDD 테스트:
+ * 1-1: ToolSelector + ToolCallback 통합
+ * 1-2: AgentMetrics 통합
+ * 1-3: RAG → Agent 통합
+ * 1-4: ReAct 루프 제어 (미사용 설정 속성)
  */
 class Tier1FeatureTest {
 
@@ -206,7 +206,7 @@ class Tier1FeatureTest {
 
         @Test
         fun `NoOpAgentMetrics by default로 work해야 한다`() = runBlocking {
-            // No agentMetrics parameter →은(는) use NoOpAgentMetrics해야 합니다
+            // agentMetrics 매개변수 없음 → NoOpAgentMetrics를 사용해야 합니다
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
                 properties = properties
@@ -339,7 +339,7 @@ class Tier1FeatureTest {
                 ragPipeline = ragPipeline
             )
 
-            // Should still execute successfully (RAG failure은(는) not block agent)해야 합니다
+            // 여전히 성공적으로 실행되어야 합니다 (RAG 실패가 에이전트를 차단하지 않아야 합니다)
             val result = executor.execute(AgentCommand(systemPrompt = "Test", userPrompt = "Hello"))
             result.assertSuccess()
         }

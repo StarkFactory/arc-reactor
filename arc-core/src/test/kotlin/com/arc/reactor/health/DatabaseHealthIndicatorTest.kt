@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.boot.actuate.health.Status
 import org.springframework.jdbc.core.JdbcTemplate
 
+/**
+ * DatabaseHealthIndicator에 대한 테스트.
+ *
+ * 데이터베이스 헬스 체크 로직을 검증합니다.
+ */
 class DatabaseHealthIndicatorTest {
 
     private val jdbcTemplate = mockk<JdbcTemplate>()

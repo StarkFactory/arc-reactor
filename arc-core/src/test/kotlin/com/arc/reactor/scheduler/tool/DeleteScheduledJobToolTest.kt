@@ -16,6 +16,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * DeleteScheduledJobTool에 대한 테스트.
+ *
+ * 스케줄된 작업 삭제 도구의 동작을 검증합니다.
+ */
 class DeleteScheduledJobToolTest {
 
     private val objectMapper = jacksonObjectMapper()

@@ -8,6 +8,11 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * PersonaStore에 대한 테스트.
+ *
+ * 페르소나 저장소의 CRUD 동작을 검증합니다.
+ */
 class PersonaStoreTest {
 
     private lateinit var store: InMemoryPersonaStore

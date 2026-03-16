@@ -18,25 +18,31 @@ import org.springframework.ai.chat.model.ChatResponse
 private val logger = KotlinLogging.logger {}
 
 /**
- * LLM-Based Intent Classifier
+ * LLM 기반 인텐트 분류기
  *
- * Uses a small/fast LLM to classify user input into registered intents.
- * Optimized for minimal token consumption (~200-500 tokens per classification).
+ * 소형/빠른 LLM을 사용하여 사용자 입력을 등록된 인텐트로 분류한다.
+ * 최소 토큰 소비에 최적화 (분류당 약 200-500 토큰).
  *
- * ## Token Optimization Strategy
- * - Compact system prompt (no verbose instructions)
- * - Intent descriptions only (no full system prompts)
- * - Max 3 examples per intent in the classification prompt
- * - Recent 2 conversation turns for context (4 messages max)
- * - JSON-only response format for minimal output tokens
+ * ## 토큰 최적화 전략
+ * - 간결한 시스템 프롬프트 (장황한 지시 없음)
+ * - 인텐트 설명만 포함 (전체 시스템 프롬프트 미포함)
+ * - 인텐트당 최대 3개 예시를 분류 프롬프트에 포함
+ * - 컨텍스트용 최근 2턴 대화 이력 (최대 4개 메시지)
+ * - 최소 출력 토큰을 위한 JSON 전용 응답 형식
  *
- * ## Error Handling
- * Returns [IntentResult.unknown] on any LLM error — never blocks the main pipeline.
+ * ## 오류 처리
+ * 모든 LLM 오류 시 [IntentResult.unknown]을 반환 — 메인 파이프라인을 절대 차단하지 않음.
  *
- * @param chatClient ChatClient for the classification LLM
- * @param registry Source of intent definitions
- * @param maxExamplesPerIntent Maximum few-shot examples per intent in prompt
- * @param maxConversationTurns Maximum conversation turns to include for context
+ * WHY: 규칙 기반으로 분류할 수 없는 모호한 입력을 시맨틱 이해로 분류한다.
+ * 토큰 비용을 최소화하기 위해 프롬프트를 극도로 간결하게 유지하고,
+ * JSON 전용 응답으로 파싱을 단순화한다.
+ *
+ * @param chatClient 분류 LLM용 ChatClient
+ * @param registry 인텐트 정의의 소스
+ * @param maxExamplesPerIntent 프롬프트 내 인텐트당 최대 퓨샷 예시 수
+ * @param maxConversationTurns 컨텍스트에 포함할 최대 대화 턴 수
+ * @see CompositeIntentClassifier 캐스케이딩 전략에서의 활용
+ * @see RuleBasedIntentClassifier 규칙 기반 대안
  */
 class LlmIntentClassifier(
     private val chatClient: ChatClient,
@@ -50,11 +56,12 @@ class LlmIntentClassifier(
         val enabledIntents = registry.listEnabled()
 
         if (enabledIntents.isEmpty()) {
-            logger.debug { "LLM classifier: no enabled intents registered" }
+            logger.debug { "LLM 분류기: 활성화된 인텐트 없음" }
             return IntentResult.unknown(classifiedBy = CLASSIFIER_NAME)
         }
 
         try {
+            // 분류 프롬프트를 구성하고 LLM에 전달한다
             val prompt = buildClassificationPrompt(text, enabledIntents, context)
             val response = callLlm(prompt)
             val parsed = parseResponse(response)
@@ -62,7 +69,7 @@ class LlmIntentClassifier(
             val tokenCost = estimateTokenCost(prompt, response)
 
             if (parsed == null) {
-                logger.warn { "LLM classifier: failed to parse response: $response" }
+                logger.warn { "LLM 분류기: 응답 파싱 실패: $response" }
                 return IntentResult.unknown(
                     classifiedBy = CLASSIFIER_NAME,
                     tokenCost = tokenCost,
@@ -82,8 +89,8 @@ class LlmIntentClassifier(
             val secondary = parsed.intents.drop(1)
 
             logger.debug {
-                "LLM classifier: intent=${primary.intentName} " +
-                    "confidence=${primary.confidence} tokenCost=$tokenCost latencyMs=$latencyMs"
+                "LLM 분류기: 인텐트=${primary.intentName} " +
+                    "신뢰도=${primary.confidence} 토큰비용=$tokenCost 지연=${latencyMs}ms"
             }
 
             return IntentResult(
@@ -94,9 +101,10 @@ class LlmIntentClassifier(
                 latencyMs = latencyMs
             )
         } catch (e: Exception) {
+            // CancellationException은 반드시 재전파
             e.throwIfCancellation()
             val latencyMs = (System.nanoTime() - startTime) / 1_000_000
-            logger.error(e) { "LLM classifier: classification failed, returning unknown" }
+            logger.error(e) { "LLM 분류기: 분류 실패, unknown 반환" }
             return IntentResult.unknown(
                 classifiedBy = CLASSIFIER_NAME,
                 latencyMs = latencyMs
@@ -104,11 +112,23 @@ class LlmIntentClassifier(
         }
     }
 
+    /**
+     * 분류 프롬프트를 구성한다.
+     *
+     * 인텐트 설명, 예시, 대화 컨텍스트를 포함하되
+     * 토큰 소비를 최소화하기 위해 간결하게 유지한다.
+     *
+     * @param text 사용자 입력
+     * @param intents 활성화된 인텐트 목록
+     * @param context 분류 컨텍스트
+     * @return 구성된 프롬프트 문자열
+     */
     internal fun buildClassificationPrompt(
         text: String,
         intents: List<IntentDefinition>,
         context: ClassificationContext
     ): String {
+        // 각 인텐트의 설명과 예시를 간결하게 포매팅한다
         val intentDescriptions = intents.joinToString("\n") { intent ->
             val examples = intent.examples.take(maxExamplesPerIntent)
             val exampleLines = if (examples.isNotEmpty()) {
@@ -117,6 +137,7 @@ class LlmIntentClassifier(
             "- ${intent.name}: ${intent.description}$exampleLines"
         }
 
+        // 최근 대화 컨텍스트를 구성한다 (최대 턴 수 제한)
         val conversationContext = buildConversationContext(context)
         val intentNames = intents.joinToString(", ") { "\"${it.name}\"" }
 
@@ -138,6 +159,11 @@ class LlmIntentClassifier(
         }
     }
 
+    /**
+     * 대화 컨텍스트를 구성한다.
+     * 최근 N턴(N * 2 메시지)만 포함하여 토큰을 절약한다.
+     * 각 메시지 내용은 200자로 잘라 프롬프트 크기를 제한한다.
+     */
     private fun buildConversationContext(context: ClassificationContext): String {
         val history = context.resolveConversationHistory()
         if (history.isEmpty()) return ""
@@ -148,6 +174,11 @@ class LlmIntentClassifier(
         }
     }
 
+    /**
+     * LLM을 호출하여 분류 결과를 받아온다.
+     * WHY: runInterruptible(Dispatchers.IO)로 감싸는 이유는 ChatClient.call()이
+     * 블로킹 호출이기 때문이다. 코루틴 컨텍스트에서 IO 디스패처로 오프로딩한다.
+     */
     private suspend fun callLlm(prompt: String): String {
         val response: ChatResponse? = runInterruptible(Dispatchers.IO) {
             chatClient
@@ -160,6 +191,14 @@ class LlmIntentClassifier(
         return response?.result?.output?.text.orEmpty()
     }
 
+    /**
+     * LLM 응답을 파싱하여 분류된 인텐트 목록을 추출한다.
+     * 코드 펜스(```)를 제거하고 JSON을 파싱한다.
+     * "unknown"이거나 신뢰도가 0인 인텐트는 필터링한다.
+     *
+     * @param response LLM 응답 문자열
+     * @return 파싱된 결과, 또는 파싱 실패 시 null
+     */
     internal fun parseResponse(response: String): ParsedClassificationResponse? {
         return try {
             val cleaned = response
@@ -174,33 +213,44 @@ class LlmIntentClassifier(
 
             ParsedClassificationResponse(validIntents)
         } catch (e: Exception) {
-            logger.debug(e) { "Failed to parse LLM classification response" }
+            logger.debug(e) { "LLM 분류 응답 파싱 실패" }
             null
         }
     }
 
+    /**
+     * 프롬프트와 응답 길이 기반으로 토큰 비용을 추정한다.
+     * WHY: 정확한 토큰 카운팅보다 빠른 추정이 분류기에서는 충분하다.
+     * 문자 4개당 토큰 1개로 대략 추정한다.
+     */
     private fun estimateTokenCost(prompt: String, response: String): Int {
         return (prompt.length + response.length) / 4
     }
 
+    /** LLM 응답 JSON 구조 */
     private data class LlmClassificationResponse(
         val intents: List<LlmClassifiedIntent> = emptyList()
     )
 
+    /** LLM이 반환하는 단일 분류 항목 */
     private data class LlmClassifiedIntent(
         val name: String,
         val confidence: Double
     )
 
+    /** 파싱된 분류 응답 */
     internal data class ParsedClassificationResponse(
         val intents: List<ClassifiedIntent>
     )
 
     companion object {
+        /** 분류기 식별 이름 */
         const val CLASSIFIER_NAME = "llm"
 
+        /** JSON 코드 펜스 제거용 정규식 */
         private val CODE_FENCE_REGEX = Regex("```(?:json)?\\s*|```")
 
+        /** 시스템 지시문 — 최소 토큰을 위해 간결하게 유지 */
         private const val SYSTEM_INSTRUCTION =
             "Classify the user's intent. Return JSON only, no explanation."
 

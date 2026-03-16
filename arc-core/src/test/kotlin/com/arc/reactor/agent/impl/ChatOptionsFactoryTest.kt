@@ -12,6 +12,11 @@ import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 
+/**
+ * ChatOptionsFactory에 대한 테스트.
+ *
+ * ChatOptions 생성 및 설정 적용을 검증합니다.
+ */
 class ChatOptionsFactoryTest {
 
     private val factory = ChatOptionsFactory(

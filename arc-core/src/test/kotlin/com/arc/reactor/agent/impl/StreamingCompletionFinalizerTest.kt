@@ -20,6 +20,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
+/**
+ * StreamingCompletionFinalizer에 대한 테스트.
+ *
+ * 스트리밍 완료 최종 처리 로직을 검증합니다.
+ */
 class StreamingCompletionFinalizerTest {
 
     @Test

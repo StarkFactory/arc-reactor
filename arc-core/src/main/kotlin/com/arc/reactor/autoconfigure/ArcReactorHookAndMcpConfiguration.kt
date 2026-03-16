@@ -57,7 +57,7 @@ class ArcReactorHookAndMcpConfiguration {
     /**
      * MCP Startup Initializer
      *
-     * Restores persisted servers from store and auto-connects on startup.
+     * 저장소에서 영속된 서버를 복원하고 시작 시 자동 연결한다.
      */
     @Bean
     @ConditionalOnMissingBean(name = ["mcpStartupInitializer"])

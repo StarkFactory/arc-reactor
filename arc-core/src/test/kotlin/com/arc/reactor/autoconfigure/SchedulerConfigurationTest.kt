@@ -21,6 +21,11 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
+/**
+ * 스케줄러 설정에 대한 테스트.
+ *
+ * 스케줄러 빈 등록과 설정 적용을 검증합니다.
+ */
 class SchedulerConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()

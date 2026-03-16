@@ -20,23 +20,25 @@ import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 /**
- * Dynamic Scheduler API Controller
+ * 동적 스케줄러 API 컨트롤러.
  *
- * Provides REST APIs for managing scheduled jobs. All operations require ADMIN role.
+ * 예약된 작업을 관리하는 REST API를 제공합니다. 모든 작업은 ADMIN 권한이 필요합니다.
  *
- * ## Job Types
- * - **MCP_TOOL** (default): Invokes a single MCP tool on a schedule.
- * - **AGENT**: Runs the full ReAct agent loop and produces a natural-language result.
+ * ## 작업 유형
+ * - **MCP_TOOL** (기본값): 스케줄에 따라 단일 MCP 도구를 호출한다.
+ * - **AGENT**: 전체 ReAct 에이전트 루프를 실행하고 자연어 결과를 생성한다.
  *
- * ## Endpoints
- * - GET    /api/scheduler/jobs                   : List all scheduled jobs
- * - POST   /api/scheduler/jobs                   : Create a new scheduled job
- * - GET    /api/scheduler/jobs/{id}              : Get job details
- * - PUT    /api/scheduler/jobs/{id}              : Update a job
- * - DELETE /api/scheduler/jobs/{id}              : Delete a job
- * - POST   /api/scheduler/jobs/{id}/trigger      : Trigger immediate execution
- * - POST   /api/scheduler/jobs/{id}/dry-run      : Dry-run (execute without side effects)
- * - GET    /api/scheduler/jobs/{id}/executions   : Execution history
+ * ## 엔드포인트
+ * - GET    /api/scheduler/jobs                   : 전체 예약 작업 목록 조회
+ * - POST   /api/scheduler/jobs                   : 새 예약 작업 생성
+ * - GET    /api/scheduler/jobs/{id}              : 작업 상세 조회
+ * - PUT    /api/scheduler/jobs/{id}              : 작업 수정
+ * - DELETE /api/scheduler/jobs/{id}              : 작업 삭제
+ * - POST   /api/scheduler/jobs/{id}/trigger      : 즉시 실행 트리거
+ * - POST   /api/scheduler/jobs/{id}/dry-run      : 드라이런 (부작용 없는 실행)
+ * - GET    /api/scheduler/jobs/{id}/executions   : 실행 이력 조회
+ *
+ * @see DynamicSchedulerService
  */
 private val logger = KotlinLogging.logger {}
 
@@ -48,7 +50,8 @@ class SchedulerController(
     private val schedulerService: DynamicSchedulerService
 ) {
 
-    @Operation(summary = "List all scheduled jobs, optionally filtered by tag")
+    /** 전체 예약 작업 목록을 조회한다. 선택적으로 태그로 필터링한다. */
+    @Operation(summary = "전체 예약 작업 목록 조회 (태그 필터 선택)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Paginated list of scheduled jobs"),
         ApiResponse(responseCode = "403", description = "Admin access required")
@@ -67,7 +70,8 @@ class SchedulerController(
         return ResponseEntity.ok(filtered.map { it.toResponse() }.paginate(offset, clamped))
     }
 
-    @Operation(summary = "Create a new scheduled job (ADMIN)")
+    /** 새 예약 작업을 생성한다. MCP_TOOL이면 서버명/도구명 필수, AGENT면 프롬프트 필수. */
+    @Operation(summary = "새 예약 작업 생성 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Scheduled job created"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -89,7 +93,8 @@ class SchedulerController(
         return ResponseEntity.status(HttpStatus.CREATED).body(job.toResponse())
     }
 
-    @Operation(summary = "Get scheduled job details")
+    /** 예약 작업 상세 정보를 조회한다. */
+    @Operation(summary = "예약 작업 상세 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Scheduled job details"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -102,7 +107,8 @@ class SchedulerController(
         return ResponseEntity.ok(job.toResponse())
     }
 
-    @Operation(summary = "Update a scheduled job (ADMIN)")
+    /** 예약 작업을 수정한다. */
+    @Operation(summary = "예약 작업 수정 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Scheduled job updated"),
         ApiResponse(responseCode = "400", description = "Invalid request"),
@@ -126,7 +132,8 @@ class SchedulerController(
         return ResponseEntity.ok(updated.toResponse())
     }
 
-    @Operation(summary = "Delete a scheduled job (ADMIN)")
+    /** 예약 작업을 삭제한다. */
+    @Operation(summary = "예약 작업 삭제 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Scheduled job deleted"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -140,7 +147,8 @@ class SchedulerController(
         return ResponseEntity.noContent().build()
     }
 
-    @Operation(summary = "Trigger immediate execution of a scheduled job (ADMIN)")
+    /** 예약 작업을 즉시 실행한다. */
+    @Operation(summary = "예약 작업 즉시 실행 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Job triggered"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -155,7 +163,8 @@ class SchedulerController(
         }.subscribeOn(Schedulers.boundedElastic())
     }
 
-    @Operation(summary = "Dry-run a scheduled job without recording status or sending notifications (ADMIN)")
+    /** 상태 기록이나 알림 전송 없이 예약 작업을 드라이런한다. */
+    @Operation(summary = "예약 작업 드라이런 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Dry-run result"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -170,7 +179,8 @@ class SchedulerController(
         }.subscribeOn(Schedulers.boundedElastic())
     }
 
-    @Operation(summary = "Get execution history for a scheduled job (ADMIN)")
+    /** 예약 작업의 실행 이력을 조회한다. */
+    @Operation(summary = "예약 작업 실행 이력 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Paginated execution history"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
@@ -246,15 +256,15 @@ data class CreateScheduledJobRequest(
     val cronExpression: String,
     val timezone: String = "Asia/Seoul",
 
-    /** MCP_TOOL (default) or AGENT */
+    /** MCP_TOOL (기본값) 또는 AGENT */
     val jobType: String = "MCP_TOOL",
 
-    // MCP_TOOL mode
+    // MCP_TOOL 모드
     val mcpServerName: String? = null,
     val toolName: String? = null,
     val toolArguments: Map<String, Any> = emptyMap(),
 
-    // AGENT mode
+    // AGENT 모드
     val agentPrompt: String? = null,
     val personaId: String? = null,
     val agentSystemPrompt: String? = null,
@@ -319,12 +329,12 @@ data class UpdateScheduledJobRequest(
 
     val jobType: String = "MCP_TOOL",
 
-    // MCP_TOOL mode
+    // MCP_TOOL 모드
     val mcpServerName: String? = null,
     val toolName: String? = null,
     val toolArguments: Map<String, Any> = emptyMap(),
 
-    // AGENT mode
+    // AGENT 모드
     val agentPrompt: String? = null,
     val personaId: String? = null,
     val agentSystemPrompt: String? = null,

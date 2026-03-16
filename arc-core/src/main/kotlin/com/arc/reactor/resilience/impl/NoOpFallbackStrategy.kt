@@ -5,9 +5,9 @@ import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.resilience.FallbackStrategy
 
 /**
- * No-op fallback strategy that never recovers from failures.
+ * 실패에서 복구하지 않는 No-op 폴백 전략.
  *
- * Used as the default when no fallback is configured.
+ * 폴백이 설정되지 않았을 때 기본값으로 사용된다.
  */
 class NoOpFallbackStrategy : FallbackStrategy {
 

@@ -7,6 +7,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * OutputGuardPipeline에 대한 테스트.
+ *
+ * 출력 가드 파이프라인의 동작을 검증합니다.
+ */
 class OutputGuardPipelineTest {
 
     private val defaultContext = OutputGuardContext(

@@ -28,12 +28,12 @@ import org.springframework.scheduling.TaskScheduler
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler
 
 /**
- * Dynamic Scheduler Configuration (only when arc.reactor.scheduler.enabled=true)
+ * 동적 스케줄러 설정 (arc.reactor.scheduler.enabled=true일 때만)
  *
- * Provides cron-based job execution with dynamic job management.
- * Supports two execution modes:
- * - **MCP_TOOL**: Directly invokes a single MCP tool.
- * - **AGENT**: Runs the full ReAct agent loop for multi-source briefing.
+ * cron 기반 작업 실행과 동적 작업 관리를 제공한다.
+ * 두 가지 실행 모드를 지원한다:
+ * - **MCP_TOOL**: 단일 MCP 도구를 직접 호출.
+ * - **AGENT**: 다중 소스 브리핑을 위한 전체 ReAct 에이전트 루프 실행.
  */
 @Configuration
 @ConditionalOnProperty(

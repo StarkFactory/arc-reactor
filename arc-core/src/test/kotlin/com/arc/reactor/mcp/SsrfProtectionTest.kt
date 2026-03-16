@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 
+/**
+ * SSRF 보호에 대한 테스트.
+ *
+ * MCP SSE URL에 대한 SSRF 방지 로직을 검증합니다.
+ */
 class SsrfProtectionTest {
 
     @ParameterizedTest(name = "should block private address: {0}")

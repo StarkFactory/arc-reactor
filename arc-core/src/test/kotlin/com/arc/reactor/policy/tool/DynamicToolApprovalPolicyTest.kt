@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * DynamicToolApprovalPolicy에 대한 테스트.
+ *
+ * 동적 도구 승인 정책의 동작을 검증합니다.
+ */
 class DynamicToolApprovalPolicyTest {
 
     @Test

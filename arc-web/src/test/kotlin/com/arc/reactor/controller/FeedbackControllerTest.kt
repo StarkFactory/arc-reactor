@@ -18,6 +18,11 @@ import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.ServerWebInputException
 import java.time.Instant
 
+/**
+ * FeedbackController에 대한 테스트.
+ *
+ * 피드백 REST API의 동작을 검증합니다.
+ */
 class FeedbackControllerTest {
 
     private lateinit var feedbackStore: FeedbackStore

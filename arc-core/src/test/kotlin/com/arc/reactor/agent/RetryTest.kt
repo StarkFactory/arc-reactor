@@ -11,6 +11,12 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * 재시도 로직에 대한 테스트.
+ *
+ * 일시적/비일시적 오류 구분, 지수 백오프,
+ * maxAttempts 경계 조건, CancellationException 전파를 검증합니다.
+ */
 class RetryTest {
 
     private lateinit var fixture: AgentTestFixture

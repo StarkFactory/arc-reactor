@@ -44,7 +44,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.support.TransactionTemplate
 
 /**
- * JDBC Memory Store Configuration (only loaded when JDBC is on classpath)
+ * JDBC 메모리 저장소 설정 (JDBC가 클래스패스에 있을 때만 로드)
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
@@ -172,7 +172,7 @@ class JdbcMemoryStoreConfiguration {
 }
 
 /**
- * JDBC Tool Policy Store (dynamic tool policy only).
+ * JDBC 도구 정책 저장소 (동적 도구 정책에만 사용).
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
@@ -192,7 +192,7 @@ class JdbcToolPolicyStoreConfiguration {
 }
 
 /**
- * JDBC MCP security policy store (dynamic MCP allowlist only).
+ * JDBC MCP 보안 정책 저장소 (동적 MCP 허용 목록에만 사용).
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
@@ -213,7 +213,7 @@ class JdbcMcpSecurityPolicyStoreConfiguration {
 }
 
 /**
- * JDBC RAG ingestion policy store (dynamic policy only).
+ * JDBC RAG 수집 정책 저장소 (동적 정책에만 사용).
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])

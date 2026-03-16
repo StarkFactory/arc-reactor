@@ -12,6 +12,12 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
 import java.util.concurrent.CancellationException
 
+/**
+ * JdbcUserMemoryStore의 취소 처리에 대한 테스트.
+ *
+ * JDBC 사용자 메모리 저장소에서 코루틴 취소 시
+ * 안전한 동작을 검증합니다.
+ */
 class JdbcUserMemoryStoreCancellationTest {
 
     @Test

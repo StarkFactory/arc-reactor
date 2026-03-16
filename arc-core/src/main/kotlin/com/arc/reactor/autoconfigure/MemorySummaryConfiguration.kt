@@ -17,10 +17,10 @@ import org.springframework.context.annotation.Primary
 import org.springframework.jdbc.core.JdbcTemplate
 
 /**
- * Conversation memory summary configuration.
+ * 대화 메모리 요약 설정.
  *
- * Only activated when `arc.reactor.memory.summary.enabled=true`.
- * Registers the summary store, summary service, and LLM-based summarizer.
+ * `arc.reactor.memory.summary.enabled=true`일 때만 활성화된다.
+ * 요약 저장소, 요약 서비스, LLM 기반 요약기를 등록한다.
  */
 @Configuration
 @ConditionalOnProperty(

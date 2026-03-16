@@ -10,25 +10,23 @@ import org.springframework.core.env.Environment
 import org.springframework.web.server.WebFilter
 
 /**
- * Arc Reactor Web Auto Configuration
+ * Arc Reactor 웹 자동 구성.
  *
- * Configures HTTP/REST layer beans: security headers, CORS, OpenAPI.
- * Separated from core auto-configuration to support modular gateway architecture.
+ * HTTP/REST 계층 빈(보안 헤더, CORS, OpenAPI)을 구성합니다.
+ * 모듈형 게이트웨이 아키텍처를 지원하기 위해 코어 자동 구성과 분리되어 있습니다.
  */
 @AutoConfiguration
 class ArcReactorWebAutoConfiguration {
 
     /**
-     * Shared WebClient factory for MCP admin proxy controllers.
-     * Implements DisposableBean to dispose the Netty ConnectionProvider on shutdown.
+     * MCP admin 프록시 컨트롤러용 공유 WebClient 팩토리.
+     * DisposableBean을 구현하여 종료 시 Netty ConnectionProvider를 해제한다.
      */
     @Bean
     @ConditionalOnMissingBean
     fun mcpAdminWebClientFactory(): McpAdminWebClientFactory = McpAdminWebClientFactory()
 
-    /**
-     * Security Headers WebFilter (default: enabled)
-     */
+    /** 보안 헤더 WebFilter (기본값: 활성화). */
     @Bean
     @ConditionalOnMissingBean(name = ["securityHeadersWebFilter"])
     @ConditionalOnProperty(
@@ -37,9 +35,7 @@ class ArcReactorWebAutoConfiguration {
     )
     fun securityHeadersWebFilter(): WebFilter = SecurityHeadersWebFilter()
 
-    /**
-     * Request Correlation WebFilter (default: enabled)
-     */
+    /** 요청 상관 ID WebFilter (기본값: 활성화). */
     @Bean
     @ConditionalOnMissingBean(name = ["requestCorrelationFilter"])
     @ConditionalOnProperty(
@@ -48,9 +44,7 @@ class ArcReactorWebAutoConfiguration {
     )
     fun requestCorrelationFilter(): WebFilter = RequestCorrelationFilter()
 
-    /**
-     * API version contract WebFilter (default: enabled)
-     */
+    /** API 버전 계약 WebFilter (기본값: 활성화). */
     @Bean
     @ConditionalOnMissingBean(name = ["apiVersionContractWebFilter"])
     @ConditionalOnProperty(

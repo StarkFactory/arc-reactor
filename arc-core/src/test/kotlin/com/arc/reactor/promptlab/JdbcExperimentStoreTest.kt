@@ -17,6 +17,11 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Instant
 
+/**
+ * JdbcExperimentStore에 대한 테스트.
+ *
+ * JDBC 기반 실험 저장소의 동작을 검증합니다.
+ */
 class JdbcExperimentStoreTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate

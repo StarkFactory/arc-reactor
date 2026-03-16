@@ -8,7 +8,10 @@ import org.springframework.ai.tool.annotation.Tool
 private val logger = KotlinLogging.logger {}
 
 /**
- * Agent tool for listing all scheduled jobs.
+ * 모든 스케줄 작업을 조회하는 에이전트 도구.
+ *
+ * @param schedulerService 스케줄러 서비스
+ * @see DynamicSchedulerService 스케줄러 서비스
  */
 class ListScheduledJobsTool(
     private val schedulerService: DynamicSchedulerService
@@ -33,7 +36,7 @@ class ListScheduledJobsTool(
             }
             toJson(mapOf("jobs" to summary, "total" to jobs.size))
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to list scheduled jobs" }
+            logger.warn(e) { "스케줄 작업 목록 조회 실패" }
             errorJson(e.message ?: "Failed to list scheduled jobs")
         }
     }

@@ -35,12 +35,12 @@ import java.lang.reflect.Method
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * 에 대한 단위 테스트. [SlackSocketModeGateway] covering lifecycle, envelope dispatch, and error handling.
+ * [SlackSocketModeGateway]에 대한 단위 테스트. 라이프사이클, 엔벨로프 디스패치, 오류 처리를 검증합니다.
  *
- * Because [SlackSocketModeGateway] is a final Kotlin class and [connectOnce] is private, tests use
- * two strategies:
- *  - Reflection to invoke [registerListeners] with a mock [SocketModeClient], capturing listeners.
- *  - Public API / field-injection via reflection to test lifecycle and retry behaviors.
+ * [SlackSocketModeGateway]는 final Kotlin 클래스이고 [connectOnce]는 private이므로
+ * 두 가지 전략을 사용합니다:
+ *  - 리플렉션으로 [registerListeners]를 모킹된 [SocketModeClient]와 함께 호출하여 리스너를 캡처합니다.
+ *  - Public API / 리플렉션을 통한 필드 주입으로 라이프사이클과 재시도 동작을 테스트합니다.
  */
 class SlackSocketModeGatewayTest {
 
@@ -61,7 +61,7 @@ class SlackSocketModeGatewayTest {
     )
 
     // -------------------------------------------------------------------------
-    // Reflection helpers
+    // 리플렉션 헬퍼
     // -------------------------------------------------------------------------
 
     private fun buildGateway(properties: SlackProperties = defaultProperties): SlackSocketModeGateway =
@@ -69,7 +69,7 @@ class SlackSocketModeGatewayTest {
             properties, objectMapper, commandProcessor, eventProcessor, messagingService, metricsRecorder
         )
 
-    /** Invokes the private [SlackSocketModeGateway.registerListeners] via reflection. */
+    /** 리플렉션을 통해 private [SlackSocketModeGateway.registerListeners]를 호출합니다. */
     private fun registerListenersOn(gateway: SlackSocketModeGateway, client: SocketModeClient) {
         val method: Method = SlackSocketModeGateway::class.java.getDeclaredMethod(
             "registerListeners", SocketModeClient::class.java
@@ -95,12 +95,12 @@ class SlackSocketModeGatewayTest {
     }
 
     // -------------------------------------------------------------------------
-    // Capturing mock client
+    // 캡처용 모킹 클라이언트
     // -------------------------------------------------------------------------
 
     /**
-     * A mock [SocketModeClient] that captures all listeners added to it, so tests can
-     * invoke registered callbacks directly without opening a real WebSocket.
+     * 추가된 모든 리스너를 캡처하는 모킹된 [SocketModeClient].
+     * 실제 WebSocket을 열지 않고 등록된 콜백을 직접 호출할 수 있습니다.
      */
     private fun buildCapturingMockClient(): CapturingMockClient {
         val eventsListeners = CopyOnWriteArrayList<EnvelopeListener<EventsApiEnvelope>>()
@@ -644,7 +644,7 @@ class SlackSocketModeGatewayTest {
     }
 
     // =========================================================================
-    // WebSocket error and close listeners
+    // WebSocket 에러 및 종료 리스너
     // =========================================================================
 
     @Nested
@@ -698,22 +698,22 @@ class SlackSocketModeGatewayTest {
     inner class RetryAndReconnect {
 
         /**
-         * Tests the retry loop by calling [start] (which internally launches [connectWithRetry]).
-         * [connectOnce] will call [Slack.getInstance] which throws in a test environment,
-         * so the retry loop fires and we observe [metricsRecorder.recordDropped] side-effects.
+         * [start] 호출로 재시도 루프를 테스트합니다 (내부적으로 [connectWithRetry]를 시작).
+         * [connectOnce]는 테스트 환경에서 예외를 던지는 [Slack.getInstance]를 호출하므로,
+         * 재시도 루프가 실행되고 [metricsRecorder.recordDropped] 부수 효과를 관찰합니다.
          */
 
         @Test
         fun `start initiates connection and gateway은(는) not immediately running before connection succeeds이다`() {
-            // that start() does not set running=true synchronously. 확인
-            // The gateway only becomes running after connectOnce() succeeds, which requires a real Slack
-            // connection (unavailable in test env). Therefore, isRunning remains false immediately after start().
+            // start()가 동기적으로 running=true를 설정하지 않는지 확인합니다.
+            // 게이트웨이는 connectOnce()가 성공해야 실행 상태가 되며, 이는 실제 Slack 연결이 필요합니다
+            // (테스트 환경에서 불가). 따라서 start() 직후 isRunning은 false로 유지됩니다.
             val gateway = buildGateway()
 
             gateway.start()
 
             // isRunning is set only AFTER connectOnce() completes successfully.
-            // In the test environment, the SDK will fail, so the gateway retries but never becomes running.
+            // 테스트 환경에서 SDK는 실패하므로, 게이트웨이는 재시도하지만 실행 상태가 되지 않습니다.
             assertTrue(!gateway.isRunning) {
                 "Gateway should not be running synchronously immediately after start(); " +
                     "isRunning is only set true inside the retry loop after a successful connectOnce()"

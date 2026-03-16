@@ -15,15 +15,15 @@ import org.springframework.context.annotation.Bean
 private val logger = KotlinLogging.logger {}
 
 /**
- * Auto-configuration for Arc Reactor core tracing.
+ * Arc Reactor 핵심 추적 자동 설정.
  *
- * Bean resolution order (first match wins via [@ConditionalOnMissingBean]):
+ * 빈 해석 순서 ([@ConditionalOnMissingBean]을 통한 선착순):
  * 1. [arcReactorOtelTracer] — created when OTel API is present, an [io.opentelemetry.api.OpenTelemetry]
  *    bean exists in the context, and `arc.reactor.tracing.enabled=true` (the default).
  * 2. [noOpTracer] — created as a fallback when [arcReactorOtelTracer] was not registered.
  *
- * Users can override either bean by providing their own [ArcReactorTracer] bean.
- * This configuration is completely independent of the admin module and does NOT
+ * 사용자는 자체 [ArcReactorTracer] 빈을 제공하여 두 빈 중 하나를 재정의할 수 있다.
+ * 이 설정은 admin 모듈과 완전히 독립적이며
  * require `arc.reactor.admin.enabled=true`.
  */
 class TracingConfiguration {
@@ -31,7 +31,7 @@ class TracingConfiguration {
     /**
      * OTel-backed tracer.
      *
-     * All conditions must be true for this bean to be registered:
+     * 이 빈이 등록되려면 모든 조건이 참이어야 한다:
      * - `arc.reactor.tracing.enabled=true` (default)
      * - `io.opentelemetry.api.OpenTelemetry` class is on the classpath
      * - An `io.opentelemetry.api.OpenTelemetry` bean is available in the Spring context
@@ -60,9 +60,9 @@ class TracingConfiguration {
     /**
      * No-op fallback tracer.
      *
-     * Registered when no other [ArcReactorTracer] bean was created — i.e., when the
+     * 다른 [ArcReactorTracer] 빈이 생성되지 않았을 때 등록된다 — 즉,
      * OTel API is absent, tracing is disabled, or no `OpenTelemetry` bean is available.
-     * All operations are empty and allocation-free.
+     * 모든 연산이 비어 있으며 할당이 없다.
      */
     @Bean
     @ConditionalOnMissingBean(ArcReactorTracer::class)

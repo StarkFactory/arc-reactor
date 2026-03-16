@@ -13,6 +13,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * IntentResolver에 대한 테스트.
+ *
+ * 인텐트 해석 및 프로파일 적용을 검증합니다.
+ */
 class IntentResolverTest {
 
     private lateinit var classifier: IntentClassifier

@@ -16,6 +16,11 @@ import org.springframework.web.server.MethodNotAllowedException
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.server.ServerWebInputException
 
+/**
+ * GlobalExceptionHandler에 대한 테스트.
+ *
+ * 전역 예외 처리기의 동작을 검증합니다.
+ */
 class GlobalExceptionHandlerTest {
 
     private lateinit var handler: GlobalExceptionHandler

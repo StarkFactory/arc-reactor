@@ -243,7 +243,7 @@ class RagContextInjectionTest {
         fun `numbered references은(는) respect maxTokens limit해야 한다`() {
             val builder = SimpleContextBuilder()
 
-            // Each document: "[N]\n" + "A".repeat(400) = ~100 tokens
+            // 각 문서: "[N]\n" + "A".repeat(400) = ~100 토큰
             val docs = (1..10).map { i ->
                 RetrievedDocument(id = "$i", content = "A".repeat(400), score = 0.9)
             }

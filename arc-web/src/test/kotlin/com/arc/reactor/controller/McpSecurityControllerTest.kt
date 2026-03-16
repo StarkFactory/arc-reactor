@@ -20,6 +20,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * McpSecurityController에 대한 테스트.
+ *
+ * MCP 보안 설정 REST API의 동작을 검증합니다.
+ */
 class McpSecurityControllerTest {
 
     private lateinit var store: InMemoryMcpSecurityPolicyStore

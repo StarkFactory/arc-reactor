@@ -13,21 +13,22 @@ import org.springframework.ai.chat.client.ChatClient
 private val logger = KotlinLogging.logger {}
 
 /**
- * LLM-based Contextual Compressor
+ * LLM 기반 문맥 압축기.
  *
- * Uses an LLM to extract only query-relevant information from each document.
- * Documents with no relevant content are removed entirely.
+ * LLM을 사용하여 각 문서에서 쿼리와 관련된 정보만 추출한다.
+ * 관련 내용이 없는 문서는 완전히 제거된다.
  *
- * Based on RECOMP (Xu et al., 2024): selective augmentation via extractive compression.
+ * RECOMP (Xu et al., 2024) 기반: 추출적 압축을 통한 선택적 보강.
  *
- * ## Behavior
- * - Short documents (< [minContentLength] chars) are passed through without LLM call
- * - Each document is compressed in parallel via coroutines
- * - If LLM responds with "IRRELEVANT", the document is removed
- * - On LLM failure, the original document is preserved (graceful degradation)
+ * ## 동작 방식
+ * - 짧은 문서 (< [minContentLength]자)는 LLM 호출 없이 그대로 통과
+ *   → 왜: 짧은 문서는 이미 충분히 집중되어 있어 압축 효과가 미미하며 LLM 비용만 낭비
+ * - 각 문서를 코루틴으로 병렬 압축
+ * - LLM이 "IRRELEVANT"로 응답하면 해당 문서를 제거
+ * - LLM 호출 실패 시 원본 문서를 보존 (우아한 성능 저하)
  *
- * @param chatClient Spring AI ChatClient for compression calls
- * @param minContentLength Documents shorter than this are skipped (default: 200 chars)
+ * @param chatClient 압축 호출에 사용하는 Spring AI ChatClient
+ * @param minContentLength 이 길이 미만의 문서는 압축을 건너뛴다 (기본값: 200자)
  */
 class LlmContextualCompressor(
     private val chatClient: ChatClient,
@@ -42,6 +43,7 @@ class LlmContextualCompressor(
 
         logger.debug { "Compressing ${documents.size} documents for query: $query" }
 
+        // coroutineScope로 모든 문서를 병렬 압축. 하나가 실패해도 다른 것에 영향 없음.
         val compressed = coroutineScope {
             documents.map { doc ->
                 async { compressDocument(query, doc) }
@@ -54,10 +56,17 @@ class LlmContextualCompressor(
         return compressed
     }
 
+    /**
+     * 단일 문서를 압축한다.
+     * 짧은 문서는 그대로 반환, LLM 실패 시 원본 보존.
+     *
+     * @return 압축된 문서, 관련 없으면 null
+     */
     private suspend fun compressDocument(
         query: String,
         document: RetrievedDocument
     ): RetrievedDocument? {
+        // 짧은 문서는 압축 효과가 미미하므로 그대로 통과
         if (document.content.length < minContentLength) {
             return document
         }
@@ -65,16 +74,17 @@ class LlmContextualCompressor(
         return try {
             val extracted = callLlm(query, document.content)
             when {
-                extracted == null -> document
+                extracted == null -> document  // LLM 응답 없음 → 원본 유지
                 IRRELEVANT_PATTERN.matches(extracted.trim()) -> {
                     logger.debug { "Document ${document.id} irrelevant to query" }
-                    null
+                    null  // 관련 없음 → 제거
                 }
-                extracted.isBlank() -> document
-                else -> document.copy(content = extracted.trim())
+                extracted.isBlank() -> document  // 빈 응답 → 원본 유지
+                else -> document.copy(content = extracted.trim())  // 압축된 내용으로 교체
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
+            // 압축 실패 시 원본을 보존하여 정보 손실을 방지
             logger.warn(e) {
                 "Compression failed for document ${document.id}, keeping original"
             }
@@ -82,6 +92,7 @@ class LlmContextualCompressor(
         }
     }
 
+    /** LLM을 호출하여 쿼리 관련 내용을 추출한다. */
     private suspend fun callLlm(query: String, content: String): String? {
         return withContext(Dispatchers.IO) {
             val userPrompt = EXTRACTION_PROMPT
@@ -100,16 +111,20 @@ class LlmContextualCompressor(
     }
 
     companion object {
+        /** 압축을 건너뛰는 최소 문서 길이 (자 수) */
         internal const val DEFAULT_MIN_CONTENT_LENGTH = 200
 
+        /** "IRRELEVANT" 응답을 매칭하는 정규식 (대소문자 무시) */
         private val IRRELEVANT_PATTERN = Regex("(?i)irrelevant[.!]?")
 
+        /** 압축 시스템 프롬프트 */
         internal const val SYSTEM_PROMPT =
             "You are a document compression assistant. " +
                 "Extract only the information relevant to the user's query. " +
                 "Remove all irrelevant content. " +
                 "If nothing is relevant, respond with exactly \"IRRELEVANT\"."
 
+        /** 추출 요청 프롬프트 템플릿 */
         internal const val EXTRACTION_PROMPT =
             "Query: {query}\n\nDocument:\n{content}\n\nRelevant extract:"
     }

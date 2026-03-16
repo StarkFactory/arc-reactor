@@ -17,6 +17,11 @@ import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 
+/**
+ * FallbackStrategy에 대한 테스트.
+ *
+ * 폴백 전략 인터페이스의 동작을 검증합니다.
+ */
 class FallbackStrategyTest {
 
     private val command = AgentCommand(

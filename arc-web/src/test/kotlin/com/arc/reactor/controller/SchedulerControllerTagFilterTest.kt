@@ -14,6 +14,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * SchedulerController 태그 필터에 대한 테스트.
+ *
+ * 스케줄러 컨트롤러의 태그 기반 필터링을 검증합니다.
+ */
 class SchedulerControllerTagFilterTest {
 
     private val schedulerService = mockk<DynamicSchedulerService>()

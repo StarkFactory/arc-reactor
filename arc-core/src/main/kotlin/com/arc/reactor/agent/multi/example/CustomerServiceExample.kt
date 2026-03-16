@@ -10,22 +10,22 @@ import com.arc.reactor.agent.multi.MultiAgentResult
 import org.springframework.ai.chat.client.ChatClient
 
 /**
- * Multi-agent usage example -- Customer Service Center (Supervisor pattern)
+ * 멀티 에이전트 사용 예시 -- 고객 서비스 센터 (Supervisor 패턴)
  *
- * ## What This Example Demonstrates
- * 1. Where to define nodes
- * 2. How to create an agentFactory
- * 3. How to connect with a ChatController
+ * ## 이 예시가 보여주는 것
+ * 1. 노드를 어디에 정의하는지
+ * 2. agentFactory를 어떻게 만드는지
+ * 3. ChatController와 어떻게 연결하는지
  *
- * ## Usage
+ * ## 사용법
  * ```kotlin
- * // Register as a bean in Spring @Configuration
+ * // Spring @Configuration에서 빈으로 등록
  * @Bean
  * fun customerService(chatClient: ChatClient, properties: AgentProperties): CustomerServiceExample {
  *     return CustomerServiceExample(chatClient, properties)
  * }
  *
- * // Use in a Controller
+ * // 컨트롤러에서 사용
  * @PostMapping("/api/support")
  * suspend fun support(@RequestBody request: ChatRequest): ChatResponse {
  *     val result = customerService.handle(request.message, request.userId)
@@ -33,31 +33,31 @@ import org.springframework.ai.chat.client.ChatClient
  * }
  * ```
  *
- * @see com.arc.reactor.agent.multi.MultiAgent DSL builder
- * @see com.arc.reactor.agent.multi.WorkerAgentTool Adapter that wraps an agent as a tool
- * @see com.arc.reactor.agent.multi.SupervisorOrchestrator Supervisor orchestrator
+ * @see com.arc.reactor.agent.multi.MultiAgent DSL 빌더
+ * @see com.arc.reactor.agent.multi.WorkerAgentTool 에이전트를 도구로 래핑하는 어댑터
+ * @see com.arc.reactor.agent.multi.SupervisorOrchestrator Supervisor 오케스트레이터
  */
-// @Component  <- Uncomment to auto-register
+// @Component  <- 자동 등록하려면 주석 해제
 class CustomerServiceExample(
     private val chatClient: ChatClient,
     private val properties: AgentProperties
 ) {
 
     /**
-     * Handles a customer request.
+     * 고객 요청을 처리한다.
      *
-     * The Supervisor analyzes the request and delegates to the appropriate worker agent.
+     * Supervisor가 요청을 분석하고 적절한 워커 에이전트에 위임한다.
      */
     suspend fun handle(message: String, userId: String? = null): MultiAgentResult {
         return MultiAgent.supervisor()
-            // -- Worker node definitions --
-            // Each node() defines one worker agent.
-            // description is important: the Supervisor's LLM reads this description
-            // to decide which worker to delegate to.
+            // -- 워커 노드 정의 --
+            // 각 node()가 하나의 워커 에이전트를 정의한다.
+            // description이 중요: Supervisor의 LLM이 이 설명을 읽고
+            // 어떤 워커에 위임할지 결정한다.
             .node("order") {
                 systemPrompt = "You are an order specialist. Handle order inquiries, modifications, and cancellations."
                 description = "Order lookup, modification, cancellation"
-                // tools = listOf(orderLookupTool, orderCancelTool)  <- Connect actual tools here
+                // tools = listOf(orderLookupTool, orderCancelTool)  <- 여기에 실제 도구 연결
                 maxToolCalls = 5
             }
             .node("refund") {
@@ -72,9 +72,9 @@ class CustomerServiceExample(
                 // tools = listOf(trackingTool, addressChangeTool)
                 maxToolCalls = 5
             }
-            // -- Execution --
-            // agentFactory: function that creates an actual AgentExecutor from each node
-            // This function is called once per worker and once for the Supervisor.
+            // -- 실행 --
+            // agentFactory: 각 노드에서 실제 AgentExecutor를 생성하는 함수
+            // 이 함수는 워커마다 한 번, Supervisor에 한 번 호출된다.
             .execute(
                 command = AgentCommand(
                     systemPrompt = "You are a customer service supervisor.",
@@ -86,18 +86,18 @@ class CustomerServiceExample(
     }
 
     /**
-     * Creates a SpringAiAgentExecutor from an AgentNode.
+     * AgentNode에서 SpringAiAgentExecutor를 생성한다.
      *
-     * All agents (Supervisor + Workers) are created through this factory.
-     * Common settings (chatClient, properties) are shared,
-     * while per-node settings (systemPrompt, tools, maxToolCalls) differ for each.
+     * 모든 에이전트(Supervisor + 워커)가 이 팩토리를 통해 생성된다.
+     * 공통 설정(chatClient, properties)은 공유되고,
+     * 노드별 설정(systemPrompt, tools, maxToolCalls)은 각각 다르다.
      */
     private fun createAgent(node: AgentNode): AgentExecutor {
         return SpringAiAgentExecutor(
             chatClient = chatClient,
             properties = properties,
-            // node.tools: tools defined for this node
-            // For the Supervisor node, WorkerAgentTools are automatically included
+            // node.tools: 이 노드에 정의된 도구
+            // Supervisor 노드의 경우 WorkerAgentTool이 자동으로 포함됨
             toolCallbacks = node.tools,
             localTools = node.localTools
         )

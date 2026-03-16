@@ -15,6 +15,11 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 
+/**
+ * LLM 컨텍스트 압축기에 대한 테스트.
+ *
+ * LLM 기반 컨텍스트 압축 동작을 검증합니다.
+ */
 class LlmContextualCompressorTest {
 
     private lateinit var chatClient: ChatClient

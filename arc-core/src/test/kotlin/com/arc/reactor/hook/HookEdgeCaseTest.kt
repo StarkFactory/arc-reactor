@@ -12,6 +12,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
+/**
+ * 훅 엣지 케이스에 대한 테스트.
+ *
+ * 훅 실행 시 발생할 수 있는 예외 상황을 검증합니다.
+ */
 class HookEdgeCaseTest {
 
     private fun createContext() = HookContext(

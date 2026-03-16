@@ -10,18 +10,19 @@ import java.util.concurrent.TimeUnit
 private val logger = KotlinLogging.logger {}
 
 /**
- * Caffeine-based response cache implementation.
+ * Caffeine 기반 응답 캐시 구현체.
  *
- * Uses Caffeine's high-performance cache with configurable TTL and max size.
+ * 설정 가능한 TTL과 최대 크기를 가진 Caffeine 고성능 캐시를 사용한다.
  *
- * @param maxSize Maximum number of entries in the cache
- * @param ttlMinutes Time-to-live for cache entries in minutes
+ * @param maxSize 캐시의 최대 항목 수
+ * @param ttlMinutes 캐시 항목의 TTL(분)
  */
 class CaffeineResponseCache(
     maxSize: Long = 1000,
     ttlMinutes: Long = 60
 ) : ResponseCache {
 
+    /** Caffeine 캐시 인스턴스. 통계 기록 활성화. */
     private val cache: Cache<String, CachedResponse> = Caffeine.newBuilder()
         .maximumSize(maxSize)
         .expireAfterWrite(ttlMinutes, TimeUnit.MINUTES)
@@ -48,8 +49,8 @@ class CaffeineResponseCache(
     }
 
     /**
-     * Forces pending evictions to run immediately.
-     * Useful for testing since Caffeine eviction is asynchronous.
+     * 대기 중인 퇴거를 즉시 실행한다.
+     * Caffeine의 퇴거가 비동기이므로 테스트에서 유용하다.
      */
     fun cleanUp() {
         cache.cleanUp()

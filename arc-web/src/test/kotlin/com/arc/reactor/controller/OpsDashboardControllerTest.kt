@@ -34,6 +34,11 @@ import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
+/**
+ * OpsDashboardController에 대한 테스트.
+ *
+ * 운영 대시보드 REST API의 동작을 검증합니다.
+ */
 class OpsDashboardControllerTest {
 
     private fun exchange(role: UserRole): ServerWebExchange {

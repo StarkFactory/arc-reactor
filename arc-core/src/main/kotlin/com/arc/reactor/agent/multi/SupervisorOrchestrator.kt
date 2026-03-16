@@ -8,14 +8,14 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * Supervisor orchestrator.
+ * Supervisor 오케스트레이터.
  *
- * A manager agent delegates tasks to worker agents.
+ * 관리자 에이전트가 워커 에이전트에 작업을 위임한다.
  *
- * ## Core Design Principle
- * Does not modify the existing SpringAiAgentExecutor at all!
- * Each worker agent is wrapped with [WorkerAgentTool] and registered in the Supervisor's tool list.
- * The Supervisor's ReAct loop naturally calls workers "as tools."
+ * ## 핵심 설계 원칙
+ * 기존 SpringAiAgentExecutor를 전혀 수정하지 않는다!
+ * 각 워커 에이전트를 [WorkerAgentTool]로 래핑하여 Supervisor의 도구 목록에 등록한다.
+ * Supervisor의 ReAct 루프가 자연스럽게 워커를 "도구로서" 호출한다.
  *
  * ## How It Works
  * ```
@@ -36,7 +36,7 @@ private val logger = KotlinLogging.logger {}
  *   -> Receives the result and generates the final response
  * ```
  *
- * @param supervisorSystemPrompt System prompt for the Supervisor agent (customizable)
+ * @param supervisorSystemPrompt Supervisor 에이전트의 시스템 프롬프트 (커스터마이징 가능)
  *
  * @see MultiAgentOrchestrator for the interface contract
  */
@@ -59,7 +59,7 @@ class SupervisorOrchestrator(
 
         val startTime = System.currentTimeMillis()
 
-        // 1. Convert each worker node to a WorkerAgentTool (propagate parent metadata)
+        // 1. 각 워커 노드를 WorkerAgentTool로 변환 (부모 메타데이터 전파)
         val workerTools = nodes.map { node ->
             val workerAgent = agentFactory(node)
             WorkerAgentTool(
@@ -72,10 +72,10 @@ class SupervisorOrchestrator(
 
         logger.info { "Supervisor: created ${workerTools.size} worker tools: ${workerTools.map { it.name }}" }
 
-        // 2. Generate system prompt for the Supervisor
+        // 2. Supervisor용 시스템 프롬프트 생성
         val systemPrompt = supervisorSystemPrompt ?: buildDefaultSupervisorPrompt(nodes)
 
-        // 3. Create the Supervisor agent node (equipped with worker tools)
+        // 3. Supervisor 에이전트 노드 생성 (워커 도구 장착)
         val supervisorNode = AgentNode(
             name = "supervisor",
             systemPrompt = systemPrompt,
@@ -83,7 +83,7 @@ class SupervisorOrchestrator(
             maxToolCalls = nodes.size * 2 // 2x number of workers (allows for retries)
         )
 
-        // 4. Execute the Supervisor agent (using existing SpringAiAgentExecutor as-is)
+        // 4. Supervisor 에이전트 실행 (기존 SpringAiAgentExecutor를 그대로 사용)
         val supervisorAgent = agentFactory(supervisorNode)
         val result = supervisorAgent.execute(
             command.copy(

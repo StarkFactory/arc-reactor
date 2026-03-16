@@ -9,15 +9,15 @@ import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Agent metrics interface for observability.
+ * 에이전트 메트릭 인터페이스 — 관측성(observability)을 위한 추상화.
  *
- * Provides a framework-agnostic abstraction for recording agent execution metrics.
- * Users can implement this with Micrometer, Prometheus, or any metrics backend.
+ * 에이전트 실행 메트릭을 기록하기 위한 프레임워크 비종속 추상화를 제공한다.
+ * Micrometer, Prometheus, 또는 기타 메트릭 백엔드로 구현할 수 있다.
  *
- * All new methods (added in 2.7.0) have default empty implementations to preserve
- * backward compatibility with existing user implementations.
+ * 2.7.0에서 추가된 모든 새 메서드는 기존 사용자 구현과의 하위 호환성을 위해
+ * 기본 빈 구현을 가진다.
  *
- * ## Micrometer Example
+ * ## Micrometer 구현 예시
  * ```kotlin
  * class MicrometerAgentMetrics(private val registry: MeterRegistry) : AgentMetrics {
  *     private val executionCounter = registry.counter("arc.agent.executions")
@@ -45,170 +45,171 @@ import java.util.concurrent.atomic.AtomicLong
  * }
  * ```
  *
- * @see NoOpAgentMetrics for the default no-op implementation
+ * @see NoOpAgentMetrics 기본 no-op 구현체
+ * @see MicrometerAgentMetrics Micrometer 기반 구현체
  */
 interface AgentMetrics {
     /**
-     * Record an agent execution result.
+     * 에이전트 실행 결과를 기록한다.
      *
-     * @param result The agent execution result
+     * @param result 에이전트 실행 결과
      */
     fun recordExecution(result: AgentResult)
 
     /**
-     * Record a tool call.
+     * 도구 호출을 기록한다.
      *
-     * @param toolName Name of the tool called
-     * @param durationMs Duration of the tool call in milliseconds
-     * @param success Whether the tool call succeeded
+     * @param toolName 호출된 도구 이름
+     * @param durationMs 도구 호출 소요 시간 (밀리초)
+     * @param success 도구 호출 성공 여부
      */
     fun recordToolCall(toolName: String, durationMs: Long, success: Boolean)
 
     /**
-     * Record a guard rejection.
+     * Guard 거부를 기록한다.
      *
-     * @param stage The guard stage that rejected the request
-     * @param reason The rejection reason
+     * @param stage 요청을 거부한 Guard 단계
+     * @param reason 거부 사유
      */
     fun recordGuardRejection(stage: String, reason: String)
 
     /**
-     * Record a guard rejection with request metadata for tenant-aware metrics.
+     * 테넌트 인식 메트릭을 위해 요청 메타데이터와 함께 Guard 거부를 기록한다.
      *
-     * Default implementation delegates to [recordGuardRejection] without metadata
-     * to preserve backward compatibility with existing implementations.
+     * 기존 구현과의 하위 호환성을 위해 기본 구현은 메타데이터 없이
+     * [recordGuardRejection]에 위임한다.
      *
-     * @param stage The guard stage that rejected the request
-     * @param reason The rejection reason
-     * @param metadata Request metadata (typically contains "tenantId")
+     * @param stage 요청을 거부한 Guard 단계
+     * @param reason 거부 사유
+     * @param metadata 요청 메타데이터 (일반적으로 "tenantId" 포함)
      */
     fun recordGuardRejection(stage: String, reason: String, metadata: Map<String, Any>) {
         recordGuardRejection(stage, reason)
     }
 
     /**
-     * Record a response cache hit.
+     * 응답 캐시 히트를 기록한다.
      *
-     * @param cacheKey The cache key that was hit
+     * @param cacheKey 히트된 캐시 키
      */
     fun recordCacheHit(cacheKey: String) {}
 
     /**
-     * Record an exact response cache hit (byte-identical request key match).
+     * 정확한 응답 캐시 히트(바이트 동일 요청 키 매칭)를 기록한다.
      *
-     * Default implementation delegates to [recordCacheHit] for backward compatibility.
+     * 하위 호환성을 위해 기본 구현은 [recordCacheHit]에 위임한다.
      *
-     * @param cacheKey The cache key that was hit
+     * @param cacheKey 히트된 캐시 키
      */
     fun recordExactCacheHit(cacheKey: String) {
         recordCacheHit(cacheKey)
     }
 
     /**
-     * Record a semantic response cache hit (similar prompt match).
+     * 시맨틱 응답 캐시 히트(유사 프롬프트 매칭)를 기록한다.
      *
-     * Default implementation delegates to [recordCacheHit] for backward compatibility.
+     * 하위 호환성을 위해 기본 구현은 [recordCacheHit]에 위임한다.
      *
-     * @param cacheKey The exact cache key derived from the current request
+     * @param cacheKey 현재 요청에서 파생된 정확한 캐시 키
      */
     fun recordSemanticCacheHit(cacheKey: String) {
         recordCacheHit(cacheKey)
     }
 
     /**
-     * Record a response cache miss.
+     * 응답 캐시 미스를 기록한다.
      *
-     * @param cacheKey The cache key that was missed
+     * @param cacheKey 미스된 캐시 키
      */
     fun recordCacheMiss(cacheKey: String) {}
 
     /**
-     * Record a circuit breaker state transition.
+     * 서킷 브레이커 상태 전환을 기록한다.
      *
-     * @param name The circuit breaker name
-     * @param from Previous state
-     * @param to New state
+     * @param name 서킷 브레이커 이름
+     * @param from 이전 상태
+     * @param to 새 상태
      */
     fun recordCircuitBreakerStateChange(name: String, from: CircuitBreakerState, to: CircuitBreakerState) {}
 
     /**
-     * Record a model fallback attempt.
+     * 모델 폴백 시도를 기록한다.
      *
-     * @param model The model that was attempted
-     * @param success Whether the attempt succeeded
+     * @param model 시도된 모델
+     * @param success 시도 성공 여부
      */
     fun recordFallbackAttempt(model: String, success: Boolean) {}
 
     /**
-     * Record LLM token usage from a single request.
+     * 단일 요청의 LLM 토큰 사용량을 기록한다.
      *
-     * Called after each LLM call with the token counts from the response metadata.
+     * 각 LLM 호출 후 응답 메타데이터의 토큰 수로 호출된다.
      *
-     * @param usage The token usage from the LLM response
+     * @param usage LLM 응답의 토큰 사용량
      */
     fun recordTokenUsage(usage: TokenUsage) {}
 
     /**
-     * Record LLM token usage with request metadata for tenant-aware metrics.
+     * 테넌트 인식 메트릭을 위해 요청 메타데이터와 함께 LLM 토큰 사용량을 기록한다.
      *
-     * Default implementation delegates to [recordTokenUsage] without metadata
-     * to preserve backward compatibility with existing implementations.
+     * 기존 구현과의 하위 호환성을 위해 기본 구현은 메타데이터 없이
+     * [recordTokenUsage]에 위임한다.
      *
-     * @param usage The token usage from the LLM response
-     * @param metadata Request metadata (typically contains "tenantId")
+     * @param usage LLM 응답의 토큰 사용량
+     * @param metadata 요청 메타데이터 (일반적으로 "tenantId" 포함)
      */
     fun recordTokenUsage(usage: TokenUsage, metadata: Map<String, Any>) {
         recordTokenUsage(usage)
     }
 
     /**
-     * Record a streaming execution result.
+     * 스트리밍 실행 결과를 기록한다.
      *
-     * Separate from [recordExecution] to allow distinguishing streaming vs non-streaming metrics.
+     * 스트리밍과 비스트리밍 메트릭을 구분하기 위해 [recordExecution]과 분리됨.
      *
-     * @param result The streaming execution result
+     * @param result 스트리밍 실행 결과
      */
     fun recordStreamingExecution(result: AgentResult) {}
 
     /**
-     * Record an output guard action.
+     * 출력 가드 동작을 기록한다.
      *
-     * @param stage The output guard stage name
-     * @param action The action taken: "allowed", "modified", or "rejected"
-     * @param reason The reason for the action
+     * @param stage 출력 가드 단계 이름
+     * @param action 수행된 동작: "allowed", "modified", 또는 "rejected"
+     * @param reason 동작 사유
      */
     fun recordOutputGuardAction(stage: String, action: String, reason: String) {}
 
     /**
-     * Record an output guard action with request metadata for tenant-aware metrics.
+     * 테넌트 인식 메트릭을 위해 요청 메타데이터와 함께 출력 가드 동작을 기록한다.
      *
-     * Default implementation delegates to [recordOutputGuardAction] without metadata
-     * to preserve backward compatibility with existing implementations.
+     * 기존 구현과의 하위 호환성을 위해 기본 구현은 메타데이터 없이
+     * [recordOutputGuardAction]에 위임한다.
      *
-     * @param stage The output guard stage name
-     * @param action The action taken: "allowed", "modified", or "rejected"
-     * @param reason The reason for the action
-     * @param metadata Request metadata (typically contains "tenantId")
+     * @param stage 출력 가드 단계 이름
+     * @param action 수행된 동작: "allowed", "modified", 또는 "rejected"
+     * @param reason 동작 사유
+     * @param metadata 요청 메타데이터 (일반적으로 "tenantId" 포함)
      */
     fun recordOutputGuardAction(stage: String, action: String, reason: String, metadata: Map<String, Any>) {
         recordOutputGuardAction(stage, action, reason)
     }
 
     /**
-     * Record a boundary policy violation.
+     * 경계값 정책 위반을 기록한다.
      *
-     * @param violation The violation type (e.g., "output_too_short", "output_too_long")
-     * @param policy The policy action taken (e.g., "warn", "retry_once", "fail", "truncate")
-     * @param limit The configured limit value
-     * @param actual The actual measured value
+     * @param violation 위반 유형 (예: "output_too_short", "output_too_long")
+     * @param policy 수행된 정책 동작 (예: "warn", "retry_once", "fail", "truncate")
+     * @param limit 설정된 제한값
+     * @param actual 실제 측정값
      */
     fun recordBoundaryViolation(violation: String, policy: String, limit: Int, actual: Int) {}
 
     /**
-     * Record a boundary policy violation with request metadata for drill-down.
+     * 상세 분석을 위해 요청 메타데이터와 함께 경계값 정책 위반을 기록한다.
      *
-     * Default implementation delegates to [recordBoundaryViolation] to preserve
-     * backward compatibility with existing implementations.
+     * 기존 구현과의 하위 호환성을 위해 기본 구현은
+     * [recordBoundaryViolation]에 위임한다.
      */
     fun recordBoundaryViolation(
         violation: String,
@@ -221,89 +222,89 @@ interface AgentMetrics {
     }
 
     /**
-     * Record a response that could not be verified from approved sources.
+     * 승인된 출처에서 검증할 수 없는 응답을 기록한다.
      *
-     * Default implementation is a no-op to preserve backward compatibility.
+     * 하위 호환성을 위해 기본 구현은 no-op.
      *
-     * @param metadata Request metadata (typically contains tenant/channel info)
+     * @param metadata 요청 메타데이터 (일반적으로 테넌트/채널 정보 포함)
      */
     fun recordUnverifiedResponse(metadata: Map<String, Any>) {}
 
     /**
-     * Record a final response observation for product-value insights.
+     * 제품 가치 인사이트를 위한 최종 응답 관측을 기록한다.
      *
-     * Default implementation is a no-op to preserve backward compatibility.
+     * 하위 호환성을 위해 기본 구현은 no-op.
      */
     fun recordResponseObservation(metadata: Map<String, Any>) {}
 
     /**
-     * Record a stage-level latency for request execution analysis.
+     * 요청 실행 분석을 위한 단계별 지연 시간을 기록한다.
      *
-     * Default implementation is a no-op to preserve backward compatibility.
+     * 하위 호환성을 위해 기본 구현은 no-op.
      */
     fun recordStageLatency(stage: String, durationMs: Long, metadata: Map<String, Any>) {}
 
     /**
-     * Record LLM call latency for SLA tracking (P50/P95/P99).
+     * SLA 추적(P50/P95/P99)을 위한 LLM 호출 지연 시간을 기록한다.
      *
-     * Default implementation is a no-op to preserve backward compatibility.
+     * 하위 호환성을 위해 기본 구현은 no-op.
      *
-     * @param model The LLM model name
-     * @param durationMs Duration of the LLM call in milliseconds
+     * @param model LLM 모델 이름
+     * @param durationMs LLM 호출 소요 시간 (밀리초)
      */
     fun recordLlmLatency(model: String, durationMs: Long) {}
 
     /**
-     * Record a tool result cache hit (same tool + same args reused from cache).
+     * 도구 결과 캐시 히트(같은 도구 + 같은 인자가 캐시에서 재사용)를 기록한다.
      *
-     * @param toolName Name of the tool whose cached result was reused
-     * @param cacheKey The cache key that was hit
+     * @param toolName 캐시된 결과가 재사용된 도구 이름
+     * @param cacheKey 히트된 캐시 키
      */
     fun recordToolResultCacheHit(toolName: String, cacheKey: String) {}
 
     /**
-     * Record a tool result cache miss (tool executed and result stored in cache).
+     * 도구 결과 캐시 미스(도구가 실행되고 결과가 캐시에 저장)를 기록한다.
      *
-     * @param toolName Name of the tool that was executed
-     * @param cacheKey The cache key that was missed
+     * @param toolName 실행된 도구 이름
+     * @param cacheKey 미스된 캐시 키
      */
     fun recordToolResultCacheMiss(toolName: String, cacheKey: String) {}
 
     /**
-     * Record tool output size for monitoring and truncation tracking.
+     * 모니터링 및 잘림 추적을 위한 도구 출력 크기를 기록한다.
      *
-     * Default implementation is a no-op to preserve backward compatibility.
+     * 하위 호환성을 위해 기본 구현은 no-op.
      *
-     * @param toolName Name of the tool
-     * @param sizeBytes Size of the tool output in bytes
-     * @param truncated Whether the output was truncated
+     * @param toolName 도구 이름
+     * @param sizeBytes 도구 출력 크기 (바이트)
+     * @param truncated 출력이 잘렸는지 여부
      */
     fun recordToolOutputSize(toolName: String, sizeBytes: Int, truncated: Boolean) {}
 
     /**
-     * Record the current number of active (in-flight) agent requests.
+     * 현재 활성(진행 중) 에이전트 요청 수를 기록한다.
      *
-     * Default implementation is a no-op to preserve backward compatibility.
+     * 하위 호환성을 위해 기본 구현은 no-op.
      *
-     * @param count Current active request count
+     * @param count 현재 활성 요청 수
      */
     fun recordActiveRequests(count: Int) {}
 
     /**
-     * Record a RAG retrieval outcome for observability.
+     * 관측성을 위한 RAG 검색 결과를 기록한다.
      *
-     * Default implementation is a no-op to preserve backward compatibility.
+     * 하위 호환성을 위해 기본 구현은 no-op.
      *
-     * @param status The retrieval status: "success", "empty", "timeout", or "error"
-     * @param durationMs Duration of the retrieval in milliseconds
+     * @param status 검색 상태: "success", "empty", "timeout", 또는 "error"
+     * @param durationMs 검색 소요 시간 (밀리초)
      */
     fun recordRagRetrieval(status: String, durationMs: Long) {}
 }
 
 /**
- * No-op metrics implementation (default).
+ * No-op 메트릭 구현체 (기본값).
  *
- * Used when no metrics backend is configured. All methods are no-ops.
+ * 메트릭 백엔드가 설정되지 않은 경우 사용된다. 모든 메서드가 no-op.
  */
 class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
     private val trustEvents = ConcurrentLinkedDeque<RecentTrustEvent>()

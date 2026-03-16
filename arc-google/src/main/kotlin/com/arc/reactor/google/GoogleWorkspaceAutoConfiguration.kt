@@ -12,15 +12,18 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * Auto-configuration for the Google Workspace integration module.
+ * Google Workspace 통합 모듈 자동 설정.
  *
- * Activated when `arc.reactor.google.enabled=true`.
- * All beans use @ConditionalOnMissingBean — override with custom implementations.
+ * `arc.reactor.google.enabled=true`일 때 활성화된다.
+ * 모든 빈은 `@ConditionalOnMissingBean`으로 선언되어 사용자 정의 구현으로 교체 가능하다.
  *
- * Authentication requires a Service Account JSON key with Domain-Wide Delegation.
- * Configure via:
+ * 인증에는 Domain-Wide Delegation이 활성화된 Service Account JSON 키가 필요하다.
+ * 설정 프로퍼티:
  * - `arc.reactor.google.service-account-key-path`
  * - `arc.reactor.google.impersonate-user`
+ *
+ * @see GoogleWorkspaceProperties
+ * @see GoogleCredentialProvider
  */
 @Configuration
 @ConditionalOnProperty(

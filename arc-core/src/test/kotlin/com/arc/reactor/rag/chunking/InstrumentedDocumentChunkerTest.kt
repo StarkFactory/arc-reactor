@@ -6,6 +6,11 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.springframework.ai.document.Document
 
+/**
+ * InstrumentedDocumentChunker에 대한 테스트.
+ *
+ * 계측된 문서 청킹 동작을 검증합니다.
+ */
 class InstrumentedDocumentChunkerTest {
 
     private val registry = SimpleMeterRegistry()

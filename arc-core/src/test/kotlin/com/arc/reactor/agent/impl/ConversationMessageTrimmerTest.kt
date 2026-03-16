@@ -13,6 +13,11 @@ import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
 
+/**
+ * ConversationMessageTrimmer에 대한 테스트.
+ *
+ * 대화 메시지 트리밍 로직과 쌍 무결성 보존을 검증합니다.
+ */
 class ConversationMessageTrimmerTest {
 
     private val tokenEstimator = TokenEstimator { text -> text.length }
@@ -120,7 +125,7 @@ class ConversationMessageTrimmerTest {
         trimmer.trim(messages, systemPrompt = "")
 
         // With budget=1, the zero-budget path triggers and keeps only last UserMessage
-        // This is acceptable: extreme starvation overrides everything
+        // 이것은 허용됩니다: 극단적인 예산 부족은 모든 것을 무시합니다
         val userMessages = messages.filterIsInstance<UserMessage>()
         assertTrue(userMessages.isNotEmpty()) { "At least the last UserMessage must survive" }
         assertEquals("recent question", userMessages.last().text) {
@@ -255,7 +260,7 @@ class ConversationMessageTrimmerTest {
         trimmer.trim(messages, systemPrompt = "sys")
 
         // Caching is now the TokenEstimator's responsibility (e.g. DefaultTokenEstimator uses Caffeine).
-        // The trimmer delegates every call, so a plain lambda estimator is invoked each time.
+        // 트리머는 매 호출을 위임하므로 일반 람다 추정기가 매번 호출됩니다.
         assertEquals(2, estimatorCalls["user-1"], "User message should be estimated once per trim call")
         assertEquals(2, estimatorCalls["assistant-1"], "Assistant message should be estimated once per trim call")
         assertEquals(2, estimatorCalls["user-2"], "Most recent user message should be estimated once per trim call")

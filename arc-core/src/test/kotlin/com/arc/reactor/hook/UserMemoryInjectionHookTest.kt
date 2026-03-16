@@ -13,6 +13,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * UserMemoryInjectionHook에 대한 테스트.
+ *
+ * 사용자 메모리 프롬프트 주입 훅의 동작을 검증합니다.
+ */
 class UserMemoryInjectionHookTest {
 
     private val store = InMemoryUserMemoryStore()

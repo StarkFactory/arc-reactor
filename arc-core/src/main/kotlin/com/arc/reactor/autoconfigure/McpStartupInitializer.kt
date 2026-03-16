@@ -8,11 +8,11 @@ import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 
 /**
- * Initializes MCP servers on application startup.
+ * 애플리케이션 시작 시 MCP 서버를 초기화한다.
  *
- * MCP server registration is managed via REST API and persisted in
- * [com.arc.reactor.mcp.McpServerStore]. On startup, this initializer restores
- * and auto-connects servers already present in the store.
+ * MCP 서버 등록은 REST API를 통해 관리되며
+ * [com.arc.reactor.mcp.McpServerStore]에 영속된다. 시작 시 이 초기화기가
+ * 저장소에 이미 있는 서버를 복원하고 자동 연결한다.
  */
 class McpStartupInitializer(
     private val mcpManager: McpManager,

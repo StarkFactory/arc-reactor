@@ -12,15 +12,17 @@ import org.springframework.ai.chat.client.ChatClient
 private val logger = KotlinLogging.logger {}
 
 /**
- * LLM-based adaptive query router.
+ * LLM 기반 적응형 쿼리 라우터.
  *
- * Uses a ChatModel to classify query complexity into one of three levels:
- * [QueryComplexity.NO_RETRIEVAL], [QueryComplexity.SIMPLE], or [QueryComplexity.COMPLEX].
+ * ChatModel을 사용하여 쿼리 복잡도를 세 레벨 중 하나로 분류한다:
+ * [QueryComplexity.NO_RETRIEVAL], [QueryComplexity.SIMPLE], [QueryComplexity.COMPLEX].
  *
- * Falls back to [QueryComplexity.SIMPLE] on LLM failure or timeout (graceful degradation).
+ * LLM 호출 실패 또는 타임아웃 시 [QueryComplexity.SIMPLE]로 폴백한다 (우아한 성능 저하).
+ * 왜 SIMPLE로 폴백하는가: 검색을 아예 건너뛰는 것(NO_RETRIEVAL)보다는
+ * 안전하게 기본 검색을 수행하는 것이 더 나은 사용자 경험을 제공한다.
  *
- * @param chatClient Spring AI ChatClient for classification
- * @param timeoutMs Maximum time for classification call (default 3000ms)
+ * @param chatClient 분류에 사용하는 Spring AI ChatClient
+ * @param timeoutMs 분류 호출의 최대 허용 시간 (기본값 3000ms)
  * @see <a href="https://arxiv.org/abs/2403.14403">Adaptive-RAG (Jeong et al., 2024)</a>
  */
 class AdaptiveQueryRouter(
@@ -42,6 +44,10 @@ class AdaptiveQueryRouter(
         }
     }
 
+    /**
+     * LLM을 호출하여 쿼리 복잡도를 분류한다.
+     * Dispatchers.IO로 블로킹 HTTP 호출을 오프로드한다.
+     */
     private suspend fun classify(query: String): QueryComplexity {
         val response = withContext(Dispatchers.IO) {
             chatClient.prompt()
@@ -63,6 +69,7 @@ class AdaptiveQueryRouter(
     companion object {
         internal const val DEFAULT_TIMEOUT_MS = 3000L
 
+        /** LLM에 전달하는 분류 시스템 프롬프트 */
         internal const val CLASSIFICATION_PROMPT =
             "Classify this query's complexity for retrieval: " +
                 "NO_RETRIEVAL (greetings, chitchat), " +
@@ -71,6 +78,10 @@ class AdaptiveQueryRouter(
                 "Query: {query}. " +
                 "Respond with only the classification."
 
+        /**
+         * LLM 응답을 파싱하여 QueryComplexity로 변환한다.
+         * 인식할 수 없는 응답이면 SIMPLE로 안전하게 폴백한다.
+         */
         internal fun parseComplexity(response: String): QueryComplexity {
             val cleaned = response.trim().uppercase()
             return when {

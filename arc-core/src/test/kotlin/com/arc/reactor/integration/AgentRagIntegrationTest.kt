@@ -33,6 +33,12 @@ import reactor.core.publisher.Flux
  * 에이전트가 RAG 파이프라인 실패를 우아하게 처리하는지 검증합니다.
  */
 @Tag("integration")
+/**
+ * 에이전트 RAG 통합 테스트.
+ *
+ * RAG 파이프라인이 에이전트 실행에 올바르게
+ * 통합되는지 검증합니다.
+ */
 class AgentRagIntegrationTest {
 
     private lateinit var fixture: AgentTestFixture

@@ -12,14 +12,14 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * P0 Edge Case 에 대한 테스트. Supervisor pattern.
+ * P0 감독자 패턴 엣지 케이스에 대한 테스트.
  *
- * Covers scenarios:
- * - Worker agent throwing unexpected exception
- * - Worker returning success with null content
- * - Multiple workers where some fail
- * - Very long instruction forwarding
- * - Supervisor system prompt generation with special characters
+ * 다루는 시나리오:
+ * - 작업자 에이전트가 예상치 못한 예외를 던지는 경우
+ * - 작업자가 null 콘텐츠로 성공을 반환하는 경우
+ * - 일부가 실패하는 다수 작업자
+ * - 매우 긴 지시사항 전달
+ * - 특수 문자가 포함된 감독자 시스템 프롬프트 생성
  */
 class SupervisorEdgeCaseTest {
 
@@ -75,7 +75,7 @@ class SupervisorEdgeCaseTest {
 
             val result = tool.call(mapOf("instruction" to "do something"))
 
-            // Should not throw NPE,은(는) return fallback message해야 합니다
+            // NPE를 던지지 않고 폴백 메시지를 반환해야 합니다
             assertNotNull(result, "Result should not be null")
             assertTrue((result as String).isNotEmpty(),
                 "Result should have some content even when worker returns null")
@@ -111,7 +111,7 @@ class SupervisorEdgeCaseTest {
                 agent
             }
 
-            // The supervisor orchestrator only cares about the supervisor agent's result
+            // 감독자 오케스트레이터는 감독자 에이전트의 결과만 신경씁니다
             assertTrue(result.success, "Supervisor result should match supervisor agent's success")
         }
 
@@ -244,8 +244,8 @@ class SupervisorEdgeCaseTest {
                 agent
             }
 
-            // The supervisor node should have maxToolCalls = nodes.size * 2 = 10
-            // This is verified through the AgentCommand's maxToolCalls
+            // 감독자 노드의 maxToolCalls = nodes.size * 2 = 10이어야 합니다
+            // 이것은 AgentCommand의 maxToolCalls를 통해 검증됩니다
             val supervisorCommand = commandSlot.captured
             assertNotNull(supervisorCommand, "Supervisor should have been called")
         }

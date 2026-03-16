@@ -18,10 +18,10 @@ import org.junit.jupiter.api.Test
 import io.mockk.verify
 
 /**
- * Integration test — verifies IntentResolver integration in SpringAiAgentExecutor.
+ * IntentResolver와 SpringAiAgentExecutor의 통합 테스트.
  *
- * Tests that intent resolution is applied to the command before LLM execution,
- * and that blocked intents are properly rejected.
+ * 인텐트 해석이 LLM 실행 전에 커맨드에 적용되는지,
+ * 차단된 인텐트가 적절히 거부되는지 검증합니다.
  */
 class IntentExecutorIntegrationTest {
 
@@ -86,7 +86,7 @@ class IntentExecutorIntegrationTest {
 
             val result = executor.execute(command)
             assertTrue(result.success) { "Execution should succeed" }
-            // The profile overrides are applied internally; we verify by checking
+            // 프로파일 오버라이드는 내부적으로 적용됩니다; 확인을 통해 검증합니다
             // that execution completed (model/maxToolCalls overrides don't break)
         }
 

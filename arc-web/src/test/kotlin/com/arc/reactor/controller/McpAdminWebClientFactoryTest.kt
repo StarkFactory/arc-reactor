@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Assertions.assertNotSame
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 
+/**
+ * McpAdminWebClientFactory에 대한 테스트.
+ *
+ * MCP 관리자 WebClient 팩토리의 동작을 검증합니다.
+ */
 class McpAdminWebClientFactoryTest {
 
     @Test

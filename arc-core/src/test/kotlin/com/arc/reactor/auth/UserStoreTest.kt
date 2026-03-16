@@ -5,6 +5,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * UserStore에 대한 테스트.
+ *
+ * 사용자 저장소 인터페이스의 동작을 검증합니다.
+ */
 class UserStoreTest {
 
     private lateinit var store: InMemoryUserStore

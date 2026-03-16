@@ -10,10 +10,20 @@ import kotlin.coroutines.cancellation.CancellationException
 private val logger = KotlinLogging.logger {}
 
 /**
- * Default error report handler that delegates to AgentExecutor.
+ * AgentExecutor에 위임하는 기본 오류 리포트 핸들러.
  *
- * The LLM autonomously orchestrates the analysis flow using registered tools
- * (MCP servers and/or local tools) guided by the system prompt.
+ * LLM이 시스템 프롬프트의 안내에 따라 등록된 도구(MCP 서버 및/또는 로컬 도구)를 사용하여
+ * 분석 흐름을 자율적으로 오케스트레이션한다.
+ *
+ * 분석 과정:
+ * 1. 리포지토리 접근 및 코드 인덱싱
+ * 2. 스택 트레이스 분석 및 관련 코드 조사
+ * 3. Jira 관련 이슈 검색 및 담당 개발자 식별
+ * 4. Confluence 런북/문서 확인
+ * 5. Slack 채널에 분석 결과 리포트 전송
+ *
+ * @see ErrorReportHandler
+ * @see ErrorReportController
  */
 class DefaultErrorReportHandler(
     private val agentExecutor: AgentExecutor,
@@ -57,6 +67,7 @@ class DefaultErrorReportHandler(
         }
     }
 
+    /** 오류 리포트 요청을 에이전트용 사용자 프롬프트로 변환한다. */
     private fun buildUserPrompt(request: ErrorReportRequest): String = buildString {
         appendLine("Analyze this production error and send a report to Slack.")
         appendLine()
@@ -74,6 +85,12 @@ class DefaultErrorReportHandler(
     }
 
     companion object {
+        /**
+         * 오류 분석 에이전트 시스템 프롬프트.
+         *
+         * 에이전트가 리포지토리 분석, 이슈 추적, 문서 참조, 메시징 도구를 자율적으로 활용하여
+         * 프로덕션 오류를 분석하고 Slack으로 리포트를 전송하도록 안내한다.
+         */
         internal const val ERROR_REPORT_SYSTEM_PROMPT = """
 You are an autonomous error analysis agent for production incident response.
 You have access to registered tools for repository analysis, issue tracking, documentation, and messaging.

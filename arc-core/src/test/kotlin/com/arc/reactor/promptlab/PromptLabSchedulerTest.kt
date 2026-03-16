@@ -18,6 +18,11 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+/**
+ * PromptLab 스케줄러에 대한 테스트.
+ *
+ * 프롬프트 실험 스케줄링 동작을 검증합니다.
+ */
 class PromptLabSchedulerTest {
 
     private val orchestrator: ExperimentOrchestrator = mockk()
@@ -168,20 +173,20 @@ class PromptLabSchedulerTest {
 
             val executor = Executors.newFixedThreadPool(2)
             try {
-                // First run blocks on latch
+                // 첫 번째 실행이 래치에서 블록됨
                 executor.submit { scheduler.runScheduled() }
                 started.await(5, TimeUnit.SECONDS)
 
-                // Second run은(는) skip (already running)해야 합니다
+                // 두 번째 실행은 건너뛰어야 합니다 (이미 실행 중)
                 scheduler.isRunning() shouldBe true  // "First run은(는) be in progress"해야 합니다
-                scheduler.runScheduled()  // This은(는) return immediately해야 합니다
+                scheduler.runScheduled()  // 이것은 즉시 반환되어야 합니다
 
                 // first run를 해제합니다
                 latch.countDown()
                 executor.shutdown()
                 executor.awaitTermination(5, TimeUnit.SECONDS)
 
-                // Only 1 call to tmpl-1 (second run skipped entirely)
+                // tmpl-1에 대한 호출 1회만 (두 번째 실행은 완전히 건너뜀)
                 coVerify(exactly = 1) { orchestrator.runAutoPipeline("tmpl-1", null) }
             } finally {
                 latch.countDown()

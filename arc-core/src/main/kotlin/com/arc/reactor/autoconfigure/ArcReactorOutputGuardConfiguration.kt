@@ -19,7 +19,7 @@ import org.springframework.context.annotation.Configuration
  * Output Guard Configuration (opt-in)
  *
  * Post-execution response validation: PII masking, pattern blocking.
- * Only active when `arc.reactor.output-guard.enabled=true`.
+ * `arc.reactor.output-guard.enabled=true`일 때만 활성화된다.
  */
 @Configuration
 @ConditionalOnProperty(

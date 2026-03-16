@@ -4,18 +4,23 @@ import com.arc.reactor.rag.DocumentRetriever
 import com.arc.reactor.rag.model.RetrievedDocument
 
 /**
- * Parent Document Retriever (Decorator).
+ * 부모 문서 검색기 (데코레이터 패턴).
  *
- * Wraps a [DocumentRetriever] delegate to expand chunked search results with
- * neighboring chunks from the same parent document. Non-chunked documents are
- * returned unchanged.
+ * [DocumentRetriever] 위임체를 감싸서, 청크 단위 검색 결과를
+ * 같은 부모 문서의 인접 청크들로 확장한다.
+ * 청크가 아닌 문서는 그대로 반환한다.
  *
- * Based on Chen et al., 2024, "Mixture-of-Granularity: Optimize the Chunking
- * Granularity for RAG" (arXiv:2406.00456): retrieve with small chunks for
- * precision, then return the surrounding window for richer context.
+ * ## 왜 청크 확장이 필요한가?
+ * 작은 청크로 검색하면 정밀도(precision)가 높지만,
+ * LLM에게 전달되는 컨텍스트가 너무 좁아 맥락을 놓칠 수 있다.
+ * 주변 청크를 포함하면 더 풍부한 컨텍스트를 제공한다.
  *
- * @param delegate   underlying retriever (e.g. [SpringAiVectorStoreRetriever])
- * @param windowSize number of adjacent chunks to include before and after each hit
+ * Chen et al., 2024, "Mixture-of-Granularity: Optimize the Chunking
+ * Granularity for RAG" (arXiv:2406.00456) 기반:
+ * 작은 청크로 정밀 검색 후, 주변 윈도우를 포함하여 풍부한 컨텍스트를 반환.
+ *
+ * @param delegate   기저 검색기 (예: [SpringAiVectorStoreRetriever])
+ * @param windowSize 각 히트 전후에 포함할 인접 청크 수
  */
 class ParentDocumentRetriever(
     private val delegate: DocumentRetriever,
@@ -30,6 +35,7 @@ class ParentDocumentRetriever(
         val results = delegate.retrieve(queries, topK, filters)
         if (results.isEmpty()) return results
 
+        // 청크된 문서와 일반 문서를 분리한다
         val (chunked, nonChunked) = results.partition { isChunked(it) }
         if (chunked.isEmpty()) return results
 
@@ -38,8 +44,8 @@ class ParentDocumentRetriever(
     }
 
     /**
-     * Group chunked results by parent document and merge each group
-     * into a single document with chunks ordered by index.
+     * 청크된 결과를 부모 문서별로 그룹화하고,
+     * 각 그룹을 청크 인덱스 순서대로 병합하여 하나의 문서로 만든다.
      */
     private fun expandChunkedResults(
         chunked: List<RetrievedDocument>
@@ -51,8 +57,8 @@ class ParentDocumentRetriever(
     }
 
     /**
-     * Build a single merged document from ordered chunk hits belonging
-     * to the same parent.
+     * 같은 부모에 속하는 순서 정렬된 청크들로부터
+     * 하나의 병합 문서를 빌드한다.
      */
     private fun buildMergedDocument(
         parentId: String,
@@ -82,6 +88,10 @@ class ParentDocumentRetriever(
         return listOf(merged)
     }
 
+    /**
+     * 확장된 문서와 비청크 문서를 합치고 점수 내림차순 정렬 후
+     * ID 중복 제거, topK 제한을 적용한다.
+     */
     private fun mergeAndSort(
         expanded: List<RetrievedDocument>,
         nonChunked: List<RetrievedDocument>,
@@ -93,12 +103,15 @@ class ParentDocumentRetriever(
             .take(topK)
     }
 
+    /** 메타데이터의 "chunked" 플래그로 청크 여부를 판단한다. */
     private fun isChunked(doc: RetrievedDocument): Boolean =
         doc.metadata["chunked"] == true
 
+    /** 메타데이터에서 부모 문서 ID를 추출한다. 없으면 자기 자신의 ID를 사용. */
     private fun parentId(doc: RetrievedDocument): String =
         doc.metadata["parent_document_id"]?.toString() ?: doc.id
 
+    /** 메타데이터에서 청크 인덱스를 추출한다. */
     private fun chunkIndex(doc: RetrievedDocument): Int? =
         doc.metadata["chunk_index"]?.toString()?.toIntOrNull()
 }

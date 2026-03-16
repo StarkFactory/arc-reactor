@@ -59,6 +59,11 @@ import kotlin.math.min
 )
 @AutoConfigureWebTestClient
 @Tag("integration")
+/**
+ * 문서 청킹 통합 테스트.
+ *
+ * 문서 청킹 파이프라인의 E2E 동작을 검증합니다.
+ */
 class DocumentChunkingIntegrationTest {
 
     @Autowired

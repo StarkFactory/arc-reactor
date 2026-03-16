@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * McpAdminUrlResolver에 대한 테스트.
+ *
+ * MCP 관리자 URL 해석 로직을 검증합니다.
+ */
 class McpAdminUrlResolverTest {
 
     @Nested

@@ -8,6 +8,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 규칙 기반 IntentClassifier에 대한 테스트.
+ *
+ * 키워드 기반 인텐트 분류를 검증합니다.
+ */
 class RuleBasedIntentClassifierTest {
 
     private lateinit var registry: InMemoryIntentRegistry

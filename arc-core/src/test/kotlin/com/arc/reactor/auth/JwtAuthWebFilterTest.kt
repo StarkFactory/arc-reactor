@@ -17,6 +17,11 @@ import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
 import java.net.URI
 
+/**
+ * JwtAuthWebFilter에 대한 테스트.
+ *
+ * JWT 인증 웹 필터의 동작을 검증합니다.
+ */
 class JwtAuthWebFilterTest {
 
     private lateinit var jwtTokenProvider: JwtTokenProvider

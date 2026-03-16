@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * CancellationSupport에 대한 테스트.
+ *
+ * 코루틴 취소 지원 유틸리티를 검증합니다.
+ */
 class CancellationSupportTest {
 
     @Test

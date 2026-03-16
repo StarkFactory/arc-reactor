@@ -40,7 +40,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 
-/** Fallback router that always returns SIMPLE — used when no LLM provider is available. */
+/** 항상 SIMPLE을 반환하는 폴백 라우터 — LLM 프로바이더가 없을 때 사용. */
 private val SIMPLE_FALLBACK_ROUTER = object : QueryRouter {
     override suspend fun route(query: String) = QueryComplexity.SIMPLE
 }
@@ -95,7 +95,7 @@ class RagConfiguration {
     fun documentReranker(): DocumentReranker = SimpleScoreReranker()
 
     /**
-     * Query transformer strategy.
+     * 쿼리 변환 전략.
      * - passthrough (default): no rewrite
      * - hyde: hypothetical document generation for better retrieval
      * - decomposition: break complex queries into simpler sub-queries
@@ -146,7 +146,7 @@ class RagConfiguration {
 
     /**
      * Contextual Compressor — LLM-based document compression.
-     * Only created when compression is explicitly enabled.
+     * 압축이 명시적으로 활성화된 경우에만 생성된다.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -181,7 +181,7 @@ class RagConfiguration {
 
     /**
      * BM25 Scorer — only created when hybrid search is enabled.
-     * Users can override with a custom [Bm25Scorer] bean.
+     * 사용자는 커스텀 [Bm25Scorer] 빈으로 재정의할 수 있다.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -198,8 +198,8 @@ class RagConfiguration {
     /**
      * Hybrid RAG Pipeline (BM25 + Vector + RRF).
      *
-     * Registered as @Primary so it takes precedence over [DefaultRagPipeline] when hybrid search is active.
-     * Only created when both arc.reactor.rag.enabled=true and arc.reactor.rag.hybrid.enabled=true.
+     * @Primary로 등록하여 하이브리드 검색 활성 시 [DefaultRagPipeline]보다 우선한다.
+     * arc.reactor.rag.enabled=true와 arc.reactor.rag.hybrid.enabled=true가 모두 설정된 경우에만 생성된다.
      * [DefaultRagPipeline] is suppressed by @ConditionalOnMissingBean(RagPipeline::class) on the fallback bean.
      */
     @Bean
@@ -253,8 +253,8 @@ class RagConfiguration {
     )
 
     /**
-     * BM25 warm-up runner — re-indexes the BM25 scorer from VectorStore on startup.
-     * Only registered when [HybridRagPipeline] is active (i.e., hybrid search is enabled).
+     * BM25 워밍업 러너 — 시작 시 VectorStore에서 BM25 스코어러를 재인덱싱한다.
+     * [HybridRagPipeline]이 활성 상태일 때만 등록된다 (즉, 하이브리드 검색이 활성화된 경우).
      */
     @Bean
     @ConditionalOnMissingBean
@@ -266,7 +266,7 @@ class RagConfiguration {
 
     /**
      * Adaptive Query Router — classifies query complexity before retrieval.
-     * Only created when both rag and adaptive-routing are enabled.
+     * RAG와 적응형 라우팅이 모두 활성화된 경우에만 생성된다.
      */
     @Bean
     @ConditionalOnMissingBean(QueryRouter::class)
@@ -305,7 +305,7 @@ class RagConfiguration {
 
     /**
      * Document Chunker — splits long documents into smaller chunks for better embedding quality.
-     * Returns NoOpDocumentChunker when chunking is disabled.
+     * 청킹이 비활성화된 경우 NoOpDocumentChunker를 반환한다.
      * Wraps with [InstrumentedDocumentChunker] when MeterRegistry is available.
      */
     @Bean

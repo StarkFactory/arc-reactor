@@ -13,6 +13,11 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * OutputBoundaryEnforcer에 대한 테스트.
+ *
+ * 출력 경계 적용 로직을 검증합니다.
+ */
 class OutputBoundaryEnforcerTest {
 
     @Test

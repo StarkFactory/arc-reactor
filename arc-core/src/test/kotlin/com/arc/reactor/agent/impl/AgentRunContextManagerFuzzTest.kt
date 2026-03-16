@@ -12,6 +12,11 @@ import org.junit.jupiter.api.Test
 import org.slf4j.MDC
 
 @Tag("matrix")
+/**
+ * AgentRunContextManager의 퍼즈 테스트.
+ *
+ * 비정상적인 입력에 대한 컨텍스트 관리 안정성을 검증합니다.
+ */
 class AgentRunContextManagerFuzzTest {
 
     @AfterEach

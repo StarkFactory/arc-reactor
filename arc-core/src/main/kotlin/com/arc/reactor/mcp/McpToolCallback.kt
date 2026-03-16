@@ -11,24 +11,33 @@ private val logger = KotlinLogging.logger {}
 private val objectMapper = jacksonObjectMapper()
 
 /**
- * MCP Tool Callback Wrapper
+ * MCP 도구 콜백 래퍼
  *
- * Wraps an MCP tool as an Arc Reactor ToolCallback for unified tool handling.
+ * MCP 도구를 Arc Reactor의 ToolCallback으로 래핑하여 통합 도구 처리를 가능하게 한다.
  *
- * ## How It Works
- * 1. Receives tool call arguments as a Map
- * 2. Converts to MCP CallToolRequest
- * 3. Invokes tool via MCP client
- * 4. Extracts and returns text content
+ * ## 동작 방식
+ * 1. 도구 호출 인자를 Map으로 받는다
+ * 2. MCP CallToolRequest로 변환한다
+ * 3. MCP 클라이언트를 통해 도구를 호출한다
+ * 4. 텍스트 콘텐츠를 추출하여 반환한다
  *
- * When [callTool] fails with a connection-level error, [onConnectionError] is invoked so
- * the caller (e.g. [DefaultMcpManager]) can mark the server as FAILED and trigger reconnection.
+ * [callTool]이 연결 수준 오류로 실패하면 [onConnectionError]가 호출되어
+ * 호출자(예: [DefaultMcpManager])가 서버를 FAILED로 표시하고 재연결을 트리거한다.
  *
- * @param client The MCP client connection
- * @param name Tool identifier
- * @param description Tool description for LLM
- * @param mcpInputSchema JSON Schema for tool parameters (optional)
- * @param onConnectionError Called when the underlying MCP call fails (not due to cancellation)
+ * WHY: MCP 프로토콜의 도구를 에이전트가 내부 도구와 동일한 인터페이스로
+ * 호출할 수 있게 하기 위함. ToolCallback 인터페이스를 구현하여
+ * 에이전트가 MCP 도구인지 로컬 도구인지 구분할 필요 없게 한다.
+ *
+ * CLAUDE.md 규칙: ToolCallback은 throw하지 않고 "Error: ..." 문자열을 반환해야 한다.
+ *
+ * @param client MCP 클라이언트 연결
+ * @param name 도구 식별자
+ * @param description LLM을 위한 도구 설명
+ * @param mcpInputSchema 도구 파라미터의 JSON 스키마 (선택)
+ * @param maxOutputLength 출력 최대 문자 수 (초과 시 잘라냄)
+ * @param onConnectionError 하위 MCP 호출 실패 시 호출됨 (취소가 아닌 경우)
+ * @see DefaultMcpManager 도구 콜백 관리
+ * @see com.arc.reactor.tool.ToolCallback 도구 콜백 인터페이스
  */
 class McpToolCallback(
     private val client: McpSyncClient,
@@ -39,6 +48,7 @@ class McpToolCallback(
     private val onConnectionError: (() -> Unit)? = null
 ) : ToolCallback {
 
+    /** 입력 스키마를 JSON 문자열로 직렬화한다. 실패 시 기본 빈 스키마를 사용한다. */
     override val inputSchema: String = mcpInputSchema?.let {
         try {
             objectMapper.writeValueAsString(it)
@@ -47,6 +57,15 @@ class McpToolCallback(
         }
     } ?: """{"type":"object","properties":{}}"""
 
+    /**
+     * MCP 도구를 호출하고 결과를 반환한다.
+     *
+     * 출력이 [maxOutputLength]를 초과하면 잘라내고 경고 로그를 남긴다.
+     * 연결 오류 시 [onConnectionError]를 호출하여 재연결을 트리거한다.
+     *
+     * @param arguments 도구 호출 인자 맵
+     * @return 도구 실행 결과 문자열, 또는 오류 시 "Error: ..." 문자열
+     */
     override suspend fun call(arguments: Map<String, Any?>): Any? {
         return try {
             val request = McpSchema.CallToolRequest(name, arguments)
@@ -54,21 +73,36 @@ class McpToolCallback(
 
             val output = extractOutput(result)
 
+            // 출력이 최대 길이를 초과하면 잘라낸다
             if (output.length > maxOutputLength) {
-                logger.warn { "MCP tool '$name' output truncated: ${output.length} -> $maxOutputLength chars" }
+                logger.warn { "MCP 도구 '$name' 출력 잘림: ${output.length} -> $maxOutputLength 문자" }
                 output.take(maxOutputLength) + "\n[TRUNCATED: output exceeded $maxOutputLength characters]"
             } else {
                 output
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Failed to call MCP tool: $name" }
+            logger.error(e) { "MCP 도구 호출 실패: $name" }
+            // 연결 오류 콜백을 호출하여 재연결을 트리거한다
             onConnectionError?.invoke()
             "Error: ${e.message}"
         }
     }
 
+    /**
+     * MCP CallToolResult에서 텍스트 출력을 추출한다.
+     *
+     * 출력 선택 우선순위:
+     * 1. structuredContent가 JSON이고 textContent가 JSON이 아닌 경우 → structuredContent
+     * 2. textContent가 비어있지 않은 경우 → textContent
+     * 3. structuredContent가 있는 경우 → structuredContent
+     * 4. 모두 비어있으면 빈 문자열
+     *
+     * WHY: MCP 서버마다 텍스트/구조화 콘텐츠 중 다른 것을 주로 사용한다.
+     * JSON 페이로드는 구조화 콘텐츠에서, 비JSON은 텍스트에서 가져오는 것이 올바르다.
+     */
     private fun extractOutput(result: McpSchema.CallToolResult): String {
+        // 텍스트 콘텐츠 추출 (여러 콘텐츠 항목을 개행으로 연결)
         val textOutput = result.content().joinToString("\n") { content ->
             when (content) {
                 is McpSchema.TextContent -> content.text()
@@ -78,6 +112,7 @@ class McpToolCallback(
             }
         }.trim()
 
+        // 구조화 콘텐츠 직렬화
         val structuredOutput = serializeStructuredContent(result.structuredContent())
 
         return when {
@@ -89,6 +124,7 @@ class McpToolCallback(
         }
     }
 
+    /** 구조화 콘텐츠를 JSON 문자열로 직렬화한다. null/빈값이면 null 반환. */
     private fun serializeStructuredContent(structuredContent: Any?): String? {
         if (structuredContent == null) return null
         return runCatching { objectMapper.writeValueAsString(structuredContent) }
@@ -97,6 +133,7 @@ class McpToolCallback(
             ?.takeIf { it.isNotBlank() && it != "null" && it != "{}" && it != "[]" }
     }
 
+    /** 문자열이 JSON 페이로드처럼 보이는지 확인한다 ({}나 []로 시작/끝). */
     private fun looksLikeJsonPayload(value: String): Boolean {
         val trimmed = value.trim()
         if (trimmed.isBlank()) return false

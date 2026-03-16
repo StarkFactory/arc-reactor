@@ -77,8 +77,8 @@ class TenantResolverTest {
 
             filter.filter(exchange, chain).block()
 
-            // After doFinally, the tenant is cleared. We verify the chain was called.
-            // The filter sets tenant before chain.filter and clears after.
+            // doFinally 후 테넌트가 초기화됩니다. 체인이 호출되었는지 검증합니다.
+            // 필터는 chain.filter 전에 테넌트를 설정하고 이후에 초기화합니다.
         }
 
         @Test

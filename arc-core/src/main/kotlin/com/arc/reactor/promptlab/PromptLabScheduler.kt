@@ -13,10 +13,15 @@ import java.util.concurrent.atomic.AtomicReference
 private val logger = KotlinLogging.logger {}
 
 /**
- * Cron-based scheduler for automatic prompt optimization.
+ * 자동 프롬프트 최적화를 위한 크론 기반 스케줄러.
  *
- * Periodically analyzes negative feedback and runs auto-optimization
- * experiments for configured template IDs.
+ * 설정된 템플릿 ID에 대해 주기적으로 부정 피드백을 분석하고
+ * 자동 최적화 실험을 실행한다.
+ *
+ * WHY: PromptLab의 자동 최적화 파이프라인을 크론으로 정기 실행하여
+ * 수동 개입 없이 프롬프트를 지속적으로 개선한다.
+ *
+ * @see ExperimentOrchestrator 실험 실행 엔진
  */
 class PromptLabScheduler(
     private val orchestrator: ExperimentOrchestrator,

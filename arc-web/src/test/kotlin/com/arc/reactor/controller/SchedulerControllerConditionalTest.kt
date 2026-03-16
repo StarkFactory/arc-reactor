@@ -11,6 +11,11 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
+/**
+ * SchedulerController 조건부 등록에 대한 테스트.
+ *
+ * 스케줄러 컨트롤러의 조건부 활성화를 검증합니다.
+ */
 class SchedulerControllerConditionalTest {
 
     private val contextRunner = ApplicationContextRunner()

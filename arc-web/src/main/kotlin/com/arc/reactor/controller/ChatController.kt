@@ -45,20 +45,23 @@ import java.net.URISyntaxException
 private val logger = KotlinLogging.logger {}
 
 /**
- * Chat API Controller
+ * 채팅 API 컨트롤러.
  *
- * Provides REST APIs for conversing with the AI agent.
+ * AI 에이전트와의 대화를 위한 REST API를 제공합니다.
  *
- * ## Endpoints
- * - POST /api/chat        : Standard response (full response at once)
- * - POST /api/chat/stream  : Streaming response (SSE, real-time token-by-token)
+ * ## 엔드포인트
+ * - POST /api/chat        : 표준 응답 (전체 응답을 한 번에 반환)
+ * - POST /api/chat/stream  : 스트리밍 응답 (SSE, 실시간 토큰 단위 전송)
  *
- * ## SSE Event Types (streaming)
- * - `message` : Text token chunk
- * - `tool_start` : Tool execution started (data = tool name)
- * - `tool_end` : Tool execution completed (data = tool name)
- * - `error` : Error occurred (data = error message)
- * - `done` : Stream complete
+ * ## SSE 이벤트 타입 (스트리밍)
+ * - `message` : LLM 텍스트 토큰 청크
+ * - `tool_start` : 도구 실행 시작 (data = 도구 이름)
+ * - `tool_end` : 도구 실행 완료 (data = 도구 이름)
+ * - `error` : 오류 발생 (data = 오류 메시지)
+ * - `done` : 스트림 완료
+ *
+ * @see AgentExecutor
+ * @see IntentResolver
  */
 @Tag(name = "Chat", description = "AI agent chat endpoints")
 @RestController
@@ -77,7 +80,10 @@ class ChatController(
     )
 
     /**
-     * Standard chat - returns the full response at once
+     * 표준 채팅 -- 전체 응답을 한 번에 반환한다.
+     *
+     * 요청 흐름: Guard -> Hook(BeforeStart) -> ReAct Loop(LLM <-> Tool) -> Hook(AfterComplete) -> 응답.
+     * 인텐트 분류가 활성화되어 있으면 사용자 메시지를 분류한 뒤 프로필을 적용한다.
      *
      * ```bash
      * curl -X POST http://localhost:8080/api/chat \
@@ -85,15 +91,15 @@ class ChatController(
      *   -d '{"message": "What is 3 + 5?"}'
      * ```
      */
-    @Operation(summary = "Send a message and receive a complete response")
+    @Operation(summary = "메시지를 전송하고 전체 응답을 수신")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "Chat response"),
-        ApiResponse(responseCode = "400", description = "Invalid request"),
-        ApiResponse(responseCode = "429", description = "Rate limit exceeded"),
-        ApiResponse(responseCode = "500", description = "Server or LLM error"),
-        ApiResponse(responseCode = "503", description = "Service unavailable (circuit breaker open)"),
-        ApiResponse(responseCode = "422", description = "Output rejected by output guard or too short"),
-        ApiResponse(responseCode = "504", description = "Request timed out")
+        ApiResponse(responseCode = "200", description = "채팅 응답"),
+        ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        ApiResponse(responseCode = "429", description = "요청 빈도 제한 초과"),
+        ApiResponse(responseCode = "500", description = "서버 또는 LLM 오류"),
+        ApiResponse(responseCode = "503", description = "서비스 이용 불가 (서킷 브레이커 열림)"),
+        ApiResponse(responseCode = "422", description = "출력 가드에 의해 거부되었거나 응답이 너무 짧음"),
+        ApiResponse(responseCode = "504", description = "요청 시간 초과")
     ])
     @PostMapping
     suspend fun chat(
@@ -120,13 +126,13 @@ class ChatController(
     }
 
     /**
-     * Streaming chat - real-time response via typed SSE events
+     * 스트리밍 채팅 -- 타입이 지정된 SSE 이벤트를 통한 실시간 응답.
      *
-     * SSE event types:
-     * - `event: message` + `data: <text>` - LLM text token
-     * - `event: tool_start` + `data: <tool_name>` - Tool execution started
-     * - `event: tool_end` + `data: <tool_name>` - Tool execution completed
-     * - `event: done` + `data:` - Stream complete
+     * SSE 이벤트 타입:
+     * - `event: message` + `data: <텍스트>` - LLM 텍스트 토큰
+     * - `event: tool_start` + `data: <도구_이름>` - 도구 실행 시작
+     * - `event: tool_end` + `data: <도구_이름>` - 도구 실행 완료
+     * - `event: done` + `data:` - 스트림 완료
      *
      * ```bash
      * curl -X POST http://localhost:8080/api/chat/stream \
@@ -136,14 +142,14 @@ class ChatController(
      * ```
      */
     @Operation(
-        summary = "Streaming chat (SSE)",
-        description = "Real-time streaming response via Server-Sent Events.\n\n" +
-            "SSE event types:\n" +
-            "- `message` : LLM text token chunk\n" +
-            "- `tool_start` : Tool execution started (data = tool name)\n" +
-            "- `tool_end` : Tool execution completed (data = tool name)\n" +
-            "- `error` : Error occurred (data = error message)\n" +
-            "- `done` : Stream complete",
+        summary = "스트리밍 채팅 (SSE)",
+        description = "Server-Sent Events를 통한 실시간 스트리밍 응답.\n\n" +
+            "SSE 이벤트 타입:\n" +
+            "- `message` : LLM 텍스트 토큰 청크\n" +
+            "- `tool_start` : 도구 실행 시작 (data = 도구 이름)\n" +
+            "- `tool_end` : 도구 실행 완료 (data = 도구 이름)\n" +
+            "- `error` : 오류 발생 (data = 오류 메시지)\n" +
+            "- `done` : 스트림 완료",
         responses = [
             ApiResponse(
                 responseCode = "200",
@@ -153,8 +159,8 @@ class ChatController(
         ]
     )
     @ApiResponses(value = [
-        ApiResponse(responseCode = "400", description = "Invalid request"),
-        ApiResponse(responseCode = "500", description = "Server or LLM error")
+        ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        ApiResponse(responseCode = "500", description = "서버 또는 LLM 오류")
     ])
     @PostMapping("/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     suspend fun chatStream(
@@ -192,6 +198,7 @@ class ChatController(
             .doOnCancel { logger.debug { "SSE stream cancelled by client (userId=$userId)" } }
     }
 
+    /** 청크 문자열을 파싱하여 적절한 SSE 이벤트 타입(message, tool_start 등)으로 변환한다. */
     private fun toServerSentEvent(chunk: String): ServerSentEvent<String> {
         val parsed = StreamEventMarker.parse(chunk)
         return if (parsed != null) {
@@ -208,8 +215,8 @@ class ChatController(
     }
 
     /**
-     * Apply intent profile to the command if intent classification is enabled.
-     * Returns the original command if intent is disabled or no confident match.
+     * 인텐트 분류가 활성화되어 있으면 커맨드에 인텐트 프로필을 적용한다.
+     * 인텐트 기능이 비활성화되었거나 확신 있는 매칭이 없으면 원래 커맨드를 그대로 반환한다.
      */
     private suspend fun applyIntentProfile(command: AgentCommand, request: ChatRequest): AgentCommand {
         if (intentResolver == null) return command
@@ -230,7 +237,8 @@ class ChatController(
     }
 
     /**
-     * Build classification context from request and conversation history.
+     * 요청 정보와 대화 이력으로부터 인텐트 분류 컨텍스트를 생성한다.
+     * sessionId가 있고 memoryStore가 존재하면 최근 4건의 대화 이력을 로드한다.
      */
     private fun buildClassificationContext(command: AgentCommand, request: ChatRequest): ClassificationContext {
         val sessionId = request.metadata?.get("sessionId") as? String
@@ -253,12 +261,12 @@ class ChatController(
     }
 
     /**
-     * Resolve the system prompt with priority:
-     * 1. personaId
-     * 2. promptTemplateId
-     * 3. request.systemPrompt
-     * 4. default persona
-     * 5. hardcoded fallback
+     * 시스템 프롬프트를 우선순위에 따라 해석한다:
+     * 1. personaId (페르소나에 연결된 프롬프트)
+     * 2. promptTemplateId (프롬프트 템플릿의 활성 버전)
+     * 3. request.systemPrompt (요청에 직접 지정한 프롬프트)
+     * 4. 기본 페르소나 (isDefault=true)
+     * 5. 하드코딩된 폴백 프롬프트
      */
     private fun resolveSystemPrompt(request: ChatRequest): String {
         return systemPromptResolver.resolve(
@@ -269,8 +277,12 @@ class ChatController(
     }
 
     /**
-     * Build metadata enriched with prompt version info when a template is used.
-     * Includes tenantId from exchange for coroutine-safe propagation to hooks.
+     * 프롬프트 템플릿 사용 시 버전 정보를 포함하여 메타데이터를 구성한다.
+     * 코루틴 안전한 전파를 위해 exchange에서 tenantId를 추출하여 포함한다.
+     *
+     * 메타데이터 보강 순서: channel -> requesterIdentity -> tenantId -> promptVersion.
+     * WHY: Hook이 코루틴 내에서 실행되므로 ThreadLocal 기반 컨텍스트 대신
+     * 메타데이터 맵을 통해 tenantId를 전파해야 한다.
      */
     private fun resolveMetadata(request: ChatRequest, exchange: ServerWebExchange): Map<String, Any> {
         val base = request.metadata ?: emptyMap()
@@ -308,6 +320,7 @@ class ChatController(
         )
     }
 
+    /** 요청 메타데이터에 요청자 신원 정보가 이미 포함되어 있는지 확인한다. Slack 등 외부 채널에서 이미 설정된 경우 덮어쓰지 않기 위함. */
     private fun containsRequesterIdentity(metadata: Map<String, Any>): Boolean {
         return metadata.containsKey("requesterEmail") ||
             metadata.containsKey("userEmail") ||
@@ -316,18 +329,21 @@ class ChatController(
             metadata.containsKey("accountId")
     }
 
+    /** JWT 인증 필터가 설정한 사용자 이메일을 exchange 속성에서 추출한다. */
     private fun resolveRequesterEmailFromExchange(exchange: ServerWebExchange): String? {
         return (exchange.attributes[JwtAuthWebFilter.USER_EMAIL_ATTRIBUTE] as? String)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
     }
 
+    /** JWT 인증 필터가 설정한 사용자 계정 ID를 exchange 속성에서 추출한다. */
     private fun resolveRequesterAccountIdFromExchange(exchange: ServerWebExchange): String? {
         return (exchange.attributes[JwtAuthWebFilter.USER_ACCOUNT_ID_ATTRIBUTE] as? String)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
     }
 
+    /** 유효한 프롬프트 템플릿 ID를 결정한다. 페르소나에 연결된 템플릿 > 요청에 직접 지정한 템플릿 순으로 해석한다. */
     private fun resolveEffectivePromptTemplateId(request: ChatRequest): String? {
         val linkedTemplateId = request.personaId
             ?.let { personaId ->
@@ -342,8 +358,8 @@ class ChatController(
     }
 
     /**
-     * Convert [MediaUrlRequest] list to [MediaAttachment] list for URI-based media.
-     * Returns empty list when multimodal is disabled.
+     * [MediaUrlRequest] 목록을 URI 기반 [MediaAttachment] 목록으로 변환한다.
+     * 멀티모달이 비활성화되어 있으면 빈 목록을 반환한다.
      */
     private fun resolveMediaUrls(mediaUrls: List<MediaUrlRequest>?): List<MediaAttachment> {
         if (!properties.multimodal.enabled) return emptyList()
@@ -356,6 +372,7 @@ class ChatController(
         }
     }
 
+    /** MIME 타입 문자열을 파싱한다. 유효하지 않으면 400 Bad Request 예외를 발생시킨다. */
     private fun parseMimeType(raw: String): MimeType {
         val normalized = raw.trim()
         return try {
@@ -365,6 +382,10 @@ class ChatController(
         }
     }
 
+    /**
+     * 미디어 URL 문자열을 URI로 파싱하고 안전성을 검증한다.
+     * WHY: SSRF 방지를 위해 절대 URL, http/https 스킴, 유효한 호스트만 허용한다.
+     */
     private fun parseMediaUri(raw: String): URI {
         val normalized = raw.trim()
         val uri = try {
@@ -387,6 +408,11 @@ class ChatController(
 
 }
 
+/**
+ * 에이전트 오류 코드를 HTTP 상태 코드로 매핑한다.
+ * WHY: 오류 유형에 따라 클라이언트가 적절한 재시도/백오프 전략을 결정할 수 있도록
+ * 의미 있는 HTTP 상태를 반환해야 한다.
+ */
 internal fun mapErrorCodeToStatus(errorCode: AgentErrorCode?): HttpStatus {
     return when (errorCode) {
         AgentErrorCode.RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS
@@ -399,9 +425,7 @@ internal fun mapErrorCodeToStatus(errorCode: AgentErrorCode?): HttpStatus {
     }
 }
 
-/**
- * Chat request
- */
+/** 채팅 요청 DTO. */
 data class ChatRequest(
     @field:NotBlank(message = "message must not be blank")
     @field:Size(max = 50000, message = "message must not exceed 50000 characters")
@@ -421,7 +445,7 @@ data class ChatRequest(
 )
 
 /**
- * Media URL reference for JSON-based multimodal requests.
+ * JSON 기반 멀티모달 요청을 위한 미디어 URL 참조.
  *
  * ```json
  * {
@@ -437,9 +461,7 @@ data class MediaUrlRequest(
     val mimeType: String
 )
 
-/**
- * Chat response
- */
+/** 채팅 응답 DTO. */
 data class ChatResponse(
     val content: String?,
     val success: Boolean,
@@ -452,6 +474,7 @@ data class ChatResponse(
     val metadata: Map<String, Any> = emptyMap()
 )
 
+/** [AgentResult]를 [ChatResponse]로 변환한다. grounded/verifiedSourceCount 등 신뢰도 정보를 포함한다. */
 internal fun AgentResult.toChatResponse(model: String?): ChatResponse {
     return ChatResponse(
         content = content,

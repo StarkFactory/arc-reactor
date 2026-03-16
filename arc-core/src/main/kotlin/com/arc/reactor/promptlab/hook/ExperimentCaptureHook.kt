@@ -13,7 +13,9 @@ import java.util.concurrent.atomic.AtomicReference
 private val logger = KotlinLogging.logger {}
 
 /**
- * Captured experiment execution data for observability.
+ * 관찰성(observability)을 위한 캡처된 실험 실행 데이터.
+ *
+ * @see ExperimentCaptureHook 캡처 훅
  */
 data class CapturedExperimentData(
     val runId: String,
@@ -27,16 +29,22 @@ data class CapturedExperimentData(
 )
 
 /**
- * Experiment Capture Hook
+ * 실험 캡처 훅
  *
- * AfterAgentCompleteHook that captures experiment execution data when
- * the agent command contains `promptlab.experimentId` metadata.
+ * 에이전트 커맨드에 `promptlab.experimentId` 메타데이터가 포함된 경우
+ * 실험 실행 데이터를 캡처하는 AfterAgentCompleteHook.
  *
- * ## Behavior
- * - Order 270: After FeedbackCapture(250) and RagCapture(260)
- * - Fail-open: Never blocks agent response
- * - TTL: 1 hour, max 10,000 entries
- * - Only activates when metadata contains experiment identifiers
+ * ## 동작
+ * - 순서 270: FeedbackCapture(250)와 RagCapture(260) 이후
+ * - Fail-open: 에이전트 응답을 절대 차단하지 않음
+ * - TTL: 1시간, 최대 10,000건
+ * - 메타데이터에 실험 식별자가 포함된 경우에만 활성화
+ *
+ * WHY: 실험 실행 중 에이전트 응답 데이터를 캡처하여
+ * 실험 결과 분석에 활용한다. Fail-open으로 실험 코드의 오류가
+ * 일반 에이전트 동작에 영향을 미치지 않게 한다.
+ *
+ * @see com.arc.reactor.promptlab.ExperimentOrchestrator 실험 실행 엔진
  */
 class ExperimentCaptureHook(
     private val clock: Clock = Clock.systemUTC()
@@ -77,7 +85,7 @@ class ExperimentCaptureHook(
         }
     }
 
-    /** Retrieve cached data by runId */
+    /** runId로 캐시된 데이터를 조회한다 */
     fun get(runId: String): CapturedExperimentData? {
         val entry = cache[runId] ?: return null
         val cutoff = Instant.now(clock).minusSeconds(TTL_SECONDS)

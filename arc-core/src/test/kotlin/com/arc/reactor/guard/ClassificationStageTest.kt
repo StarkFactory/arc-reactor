@@ -21,6 +21,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
 
+/**
+ * 분류 단계에 대한 테스트.
+ *
+ * 입력 분류 가드 단계의 동작을 검증합니다.
+ */
 class ClassificationStageTest {
 
     @Nested

@@ -24,6 +24,11 @@ import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
+/**
+ * AuthController에 대한 테스트.
+ *
+ * 인증 REST API의 동작을 검증합니다.
+ */
 class AuthControllerTest {
 
     private lateinit var authProvider: DefaultAuthProvider

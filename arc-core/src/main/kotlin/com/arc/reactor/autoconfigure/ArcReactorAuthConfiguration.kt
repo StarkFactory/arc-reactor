@@ -25,7 +25,7 @@ import org.springframework.web.server.WebFilter
 private const val JWT_SECRET_MIN_BYTES = 32
 
 /**
- * Validates JWT secret at application startup.
+ * 애플리케이션 시작 시 JWT 시크릿을 검증한다.
  *
  * Fails fast with a clear, actionable error message so misconfiguration
  * is caught before the context fully initialises rather than at the first

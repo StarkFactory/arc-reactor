@@ -8,6 +8,11 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 
+/**
+ * JdbcPromptTemplateStore에 대한 테스트.
+ *
+ * JDBC 기반 프롬프트 템플릿 저장소의 동작을 검증합니다.
+ */
 class JdbcPromptTemplateStoreTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate

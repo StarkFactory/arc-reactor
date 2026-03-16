@@ -17,6 +17,11 @@ import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
 import java.time.Instant
 
+/**
+ * WebhookNotificationHook에 대한 테스트.
+ *
+ * 웹훅 알림 훅의 동작을 검증합니다.
+ */
 class WebhookNotificationHookTest {
 
     private lateinit var webClient: WebClient

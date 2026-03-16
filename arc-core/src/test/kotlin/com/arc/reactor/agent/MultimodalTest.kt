@@ -16,6 +16,12 @@ import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.util.MimeTypeUtils
 import java.net.URI
 
+/**
+ * 멀티모달(이미지 첨부) 기능에 대한 테스트.
+ *
+ * MediaAttachment 모델, MediaConverter, 에이전트 실행 시
+ * 미디어 포함 UserMessage 전달을 검증합니다.
+ */
 class MultimodalTest {
 
     private lateinit var fixture: AgentTestFixture

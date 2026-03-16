@@ -20,6 +20,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * RagIngestionPolicyController 인증에 대한 테스트.
+ *
+ * RAG 인제스트 정책 컨트롤러의 인증/인가를 검증합니다.
+ */
 class RagIngestionPolicyControllerAuthTest {
 
     private lateinit var properties: AgentProperties

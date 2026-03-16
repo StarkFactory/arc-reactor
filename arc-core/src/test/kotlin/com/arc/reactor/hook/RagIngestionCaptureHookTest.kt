@@ -17,6 +17,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.vectorstore.VectorStore
 
+/**
+ * RagIngestionCaptureHook에 대한 테스트.
+ *
+ * RAG 인제스트 캡처 훅의 동작을 검증합니다.
+ */
 class RagIngestionCaptureHookTest {
 
     @Test

@@ -14,6 +14,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.scheduling.TaskScheduler
 import java.util.concurrent.CopyOnWriteArrayList
 
+/**
+ * DynamicSchedulerService 개선사항에 대한 테스트.
+ *
+ * 스케줄러 서비스의 향상된 기능을 검증합니다.
+ */
 class DynamicSchedulerServiceEnhancementsTest {
 
     // ── Execution history ─────────────────────────────────────────────────────

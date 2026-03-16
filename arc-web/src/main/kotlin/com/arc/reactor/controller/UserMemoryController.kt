@@ -112,7 +112,7 @@ class UserMemoryController(
     }
 }
 
-// --- Request / Response DTOs ---
+// --- 요청 / 응답 DTO ---
 
 data class KeyValueRequest(
     @field:NotBlank(message = "key must not be blank")

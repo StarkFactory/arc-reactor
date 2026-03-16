@@ -9,6 +9,11 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 import java.time.Instant
 
+/**
+ * JdbcUserStore에 대한 테스트.
+ *
+ * JDBC 기반 사용자 저장소의 동작을 검증합니다.
+ */
 class JdbcUserStoreTest {
 
     private lateinit var jdbcTemplate: JdbcTemplate

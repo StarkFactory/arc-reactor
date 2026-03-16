@@ -40,6 +40,11 @@ import javax.sql.DataSource
 )
 @AutoConfigureWebTestClient
 @Tag("integration")
+/**
+ * IntentController JDBC 통합 테스트.
+ *
+ * JDBC 기반 인텐트 관리의 E2E 동작을 검증합니다.
+ */
 class IntentControllerJdbcIntegrationTest {
 
     @Autowired
@@ -76,7 +81,7 @@ class IntentControllerJdbcIntegrationTest {
 
     @Test
     fun `intent CRUD persists to DB and은(는) reflected in APIs이다`() {
-        // Create
+        // 생성
         adminClient.post()
             .uri("/api/intents")
             .bodyValue(

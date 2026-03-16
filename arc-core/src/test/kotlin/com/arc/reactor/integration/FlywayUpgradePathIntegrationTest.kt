@@ -15,6 +15,11 @@ import java.util.UUID
 import kotlin.io.path.writeText
 
 @Tag("integration")
+/**
+ * Flyway 마이그레이션 업그레이드 경로 통합 테스트.
+ *
+ * 데이터베이스 마이그레이션 순서와 호환성을 검증합니다.
+ */
 class FlywayUpgradePathIntegrationTest {
 
     @Test

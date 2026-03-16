@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 
+/**
+ * ToolResponseSignalExtractor에 대한 테스트.
+ *
+ * 도구 응답에서 신호를 추출하는 로직을 검증합니다.
+ */
 class ToolResponseSignalExtractorTest {
 
     @Test

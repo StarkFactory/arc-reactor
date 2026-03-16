@@ -13,6 +13,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.scheduling.TaskScheduler
 
+/**
+ * DynamicSchedulerService의 Teams 알림에 대한 테스트.
+ *
+ * 스케줄러 실행 결과의 Teams 알림 발송을 검증합니다.
+ */
 class DynamicSchedulerServiceTeamsNotificationTest {
 
     // ── Teams notification tests ──────────────────────────────────────────────

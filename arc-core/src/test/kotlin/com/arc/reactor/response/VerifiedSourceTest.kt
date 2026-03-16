@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * VerifiedSource 모델에 대한 테스트.
+ *
+ * 검증된 출처 데이터 모델의 동작을 검증합니다.
+ */
 class VerifiedSourceTest {
 
     @Test

@@ -83,13 +83,13 @@ class McpStdioCommandValidationTest {
 
         @Test
         fun `absolute은(는) path command uses basename for allowlist check`() {
-            // The path check will also verify the file exists,
+            // 경로 검사는 파일 존재 여부도 확인합니다,
             // but the allowlist check on basename comes first
             val support = support(allowedCommands = setOf("sh"))
 
             // /usr/bin/sh does not pass the path-exists check on all
             // platforms, but the base name "sh" is in the allowlist.
-            // We cannot guarantee the file exists, so we only test
+            // 파일 존재를 보장할 수 없으므로 다음만 테스트합니다
             // the rejection case for a command not in allowlist.
             assertFalse(
                 support.validateStdioCommand("/usr/bin/bash", "test-server")
@@ -180,7 +180,7 @@ class McpStdioCommandValidationTest {
         fun `args with control characters은(는) rejected이다`() {
             val support = support()
 
-            // Test various control characters (bell, backspace, escape)
+            // 다양한 제어 문자 테스트 (벨, 백스페이스, 이스케이프)
             val controlChars = listOf("\u0007", "\u0008", "\u001B")
             for (ch in controlChars) {
                 assertFalse(

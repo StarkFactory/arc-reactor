@@ -34,6 +34,9 @@ import java.time.ZoneId
  * @param startHour 업무 시작 시간 (0-23, 기본값 9)
  * @param endHour 업무 종료 시간 (0-23, 기본값 18)
  * @param timezone 타임존 (기본값 Asia/Seoul)
+ *
+ * @see com.arc.reactor.guard.GuardStage Guard 단계 인터페이스
+ * @see com.arc.reactor.guard.impl.GuardPipeline Guard 파이프라인
  */
 // @Component  ← 자동 등록하려면 주석 해제
 class BusinessHoursGuard(

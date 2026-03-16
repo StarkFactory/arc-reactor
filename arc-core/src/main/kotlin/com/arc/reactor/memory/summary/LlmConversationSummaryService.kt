@@ -12,14 +12,17 @@ import org.springframework.ai.chat.client.ChatClient
 private val logger = KotlinLogging.logger {}
 
 /**
- * LLM-based conversation summarization service.
+ * LLM 기반 대화 요약 서비스.
  *
- * Extracts structured facts and a narrative summary from conversation
- * messages in a single LLM call. Always summarizes from original messages
- * (no summary-of-summary).
+ * 단일 LLM 호출로 대화 메시지에서 구조화된 팩트와 서술형 요약을 추출한다.
+ * 항상 원본 메시지에서 요약한다 (요약의 요약은 하지 않음).
  *
- * @param chatClient ChatClient configured for the summarization model
- * @param maxNarrativeTokens Approximate token budget for the narrative
+ * ## 왜 단일 호출인가?
+ * Facts와 Narrative를 별도 호출로 추출하면 비용이 2배가 된다.
+ * 단일 호출로 JSON 응답을 받아 파싱하는 것이 비용 효율적이다.
+ *
+ * @param chatClient 요약 모델용으로 설정된 ChatClient
+ * @param maxNarrativeTokens 서술 요약의 대략적 토큰 예산
  */
 class LlmConversationSummaryService(
     private val chatClient: ChatClient,
@@ -44,18 +47,21 @@ class LlmConversationSummaryService(
         return parseResponse(responseText)
     }
 
+    /** 메시지 목록을 "[역할]: 내용" 형식의 텍스트로 포맷팅한다. */
     private fun formatMessages(messages: List<Message>): String {
         return messages.joinToString("\n") { msg ->
             "[${msg.role.name}]: ${msg.content}"
         }
     }
 
+    /** 기존 팩트를 LLM에 전달할 텍스트로 포맷팅한다. 병합/갱신 지시를 포함. */
     private fun formatExistingFacts(facts: List<StructuredFact>): String {
         if (facts.isEmpty()) return ""
         return "\n\nPreviously extracted facts (merge and update as needed):\n" +
             facts.joinToString("\n") { "- ${it.key}: ${it.value} [${it.category}]" }
     }
 
+    /** 대화 텍스트와 기존 팩트를 합쳐 사용자 프롬프트를 빌드한다. */
     private fun buildUserPrompt(conversationText: String, existingFactsText: String): String {
         return """
             |$conversationText
@@ -63,6 +69,7 @@ class LlmConversationSummaryService(
         """.trimMargin().trim()
     }
 
+    /** LLM을 호출하여 요약 텍스트를 가져온다. Dispatchers.IO로 블로킹 호출을 오프로드. */
     private suspend fun callLlm(userPrompt: String): String {
         val response = runInterruptible(Dispatchers.IO) {
             chatClient.prompt()
@@ -74,6 +81,10 @@ class LlmConversationSummaryService(
         return response?.result?.output?.text.orEmpty()
     }
 
+    /**
+     * LLM 응답을 파싱하여 SummarizationResult로 변환한다.
+     * JSON 파싱에 실패하면 원본 텍스트를 narrative로 사용한다 (우아한 성능 저하).
+     */
     internal fun parseResponse(responseText: String): SummarizationResult {
         val cleaned = stripCodeFences(responseText)
         return try {
@@ -90,6 +101,7 @@ class LlmConversationSummaryService(
     }
 
     companion object {
+        /** LLM에 전달하는 요약 시스템 프롬프트 */
         internal val SYSTEM_PROMPT = """
             You are a conversation summarizer. Analyze the conversation and produce a JSON response with two fields:
 
@@ -118,8 +130,10 @@ class LlmConversationSummaryService(
             }
         """.trimIndent()
 
+        /** 코드 펜스(```json ... ```)를 제거하는 정규식 */
         private val CODE_FENCE_PATTERN = Regex("""^```(?:json)?\s*\n?(.*?)\n?\s*```$""", RegexOption.DOT_MATCHES_ALL)
 
+        /** LLM 응답에서 코드 펜스를 제거한다. LLM이 종종 JSON을 코드 블록으로 감싼다. */
         internal fun stripCodeFences(text: String): String {
             val trimmed = text.trim()
             val match = CODE_FENCE_PATTERN.find(trimmed)
@@ -128,16 +142,19 @@ class LlmConversationSummaryService(
     }
 }
 
+/** LLM 응답의 JSON 구조에 매핑되는 내부 데이터 클래스 */
 internal data class SummaryJsonResponse(
     val narrative: String? = null,
     val facts: List<FactJson>? = null
 )
 
+/** 개별 팩트의 JSON 표현. StructuredFact로 변환 가능. */
 internal data class FactJson(
     val key: String = "",
     val value: String = "",
     val category: String = "GENERAL"
 ) {
+    /** FactCategory 열거형으로 변환. 알 수 없는 카테고리는 GENERAL로 폴백. */
     fun toStructuredFact(): StructuredFact = StructuredFact(
         key = key,
         value = value,

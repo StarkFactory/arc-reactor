@@ -15,10 +15,16 @@ import kotlin.coroutines.cancellation.CancellationException
 private val logger = KotlinLogging.logger {}
 
 /**
- * Analyzes negative user feedback to identify prompt weaknesses.
+ * 부정 사용자 피드백을 분석하여 프롬프트 약점을 식별한다.
  *
- * Uses LLM to classify weakness patterns from thumbs-down feedback,
- * producing a [FeedbackAnalysis] that drives candidate prompt generation.
+ * LLM을 사용하여 싫어요(thumbs-down) 피드백에서 약점 패턴을 분류하고,
+ * 후보 프롬프트 생성을 구동하는 [FeedbackAnalysis]를 생성한다.
+ *
+ * WHY: 부정 피드백의 패턴을 자동으로 분류하여
+ * PromptCandidateGenerator가 약점을 보완하는 프롬프트를 생성할 수 있게 한다.
+ *
+ * @see com.arc.reactor.promptlab.analysis.PromptCandidateGenerator 후보 생성기
+ * @see ExperimentOrchestrator 자동 파이프라인
  */
 class FeedbackAnalyzer(
     private val feedbackStore: FeedbackStore,

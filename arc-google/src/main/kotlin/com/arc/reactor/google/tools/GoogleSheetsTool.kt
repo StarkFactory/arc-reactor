@@ -13,10 +13,13 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * ToolCallback that reads a range from a Google Spreadsheet.
+ * Google Spreadsheet에서 셀 범위를 읽는 ToolCallback.
  *
- * Uses Google Sheets API v4 with Service Account + Domain-Wide Delegation.
- * Returns tab-separated values. Returns errors as strings and never throws from [call].
+ * Google Sheets API v4를 Service Account + Domain-Wide Delegation으로 사용한다.
+ * 탭 구분(tab-separated) 텍스트를 반환한다.
+ * [call]에서 예외를 던지지 않고 에러를 문자열로 반환한다.
+ *
+ * @see GoogleCredentialProvider 자격 증명 생성
  */
 class GoogleSheetsTool(
     private val credentialProvider: GoogleCredentialProvider
@@ -58,6 +61,7 @@ class GoogleSheetsTool(
         }
     }
 
+    /** Sheets API로 지정 범위의 데이터를 조회하여 탭 구분 텍스트로 변환한다. */
     private fun fetchRange(spreadsheetId: String, range: String): String {
         val credentials = credentialProvider.getCredentials(listOf(SheetsScopes.SPREADSHEETS_READONLY))
         val transport = GoogleNetHttpTransport.newTrustedTransport()

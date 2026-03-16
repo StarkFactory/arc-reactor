@@ -18,6 +18,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
+/**
+ * UserMemoryController에 대한 테스트.
+ *
+ * 사용자 메모리 REST API의 동작을 검증합니다.
+ */
 class UserMemoryControllerTest {
 
     private lateinit var userMemoryManager: UserMemoryManager

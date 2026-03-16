@@ -12,10 +12,17 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * JDBC-based MCP server store for persistent storage.
+ * JDBC 기반 MCP 서버 저장소 — 영속적 스토리지.
  *
- * Stores MCP server configurations in the `mcp_servers` table — see Flyway migration V7.
- * The `config` field (Map) is serialized as JSON text.
+ * MCP 서버 설정을 `mcp_servers` 테이블에 저장한다 — Flyway 마이그레이션 V7 참조.
+ * `config` 필드(Map)는 JSON 텍스트로 직렬화된다.
+ *
+ * WHY: 운영 환경에서 MCP 서버 설정을 서버 재시작 이후에도 유지하기 위해
+ * PostgreSQL에 영속 저장한다. REST API로 등록된 서버가 재시작 시 자동 복원된다.
+ *
+ * @param jdbcTemplate Spring JDBC 템플릿
+ * @see McpServerStore 인터페이스 정의
+ * @see InMemoryMcpServerStore 인메모리 대안
  */
 class JdbcMcpServerStore(
     private val jdbcTemplate: JdbcTemplate
@@ -94,6 +101,7 @@ class JdbcMcpServerStore(
     companion object {
         private val objectMapper = jacksonObjectMapper()
 
+        /** ResultSet 행을 McpServer로 변환하는 RowMapper */
         private val ROW_MAPPER = { rs: ResultSet, _: Int ->
             McpServer(
                 id = rs.getString("id"),
@@ -108,12 +116,13 @@ class JdbcMcpServerStore(
             )
         }
 
+        /** JSON 문자열을 설정 맵으로 파싱한다. 실패 시 빈 맵을 반환한다. */
         private fun parseConfig(json: String?): Map<String, Any> {
             if (json.isNullOrBlank()) return emptyMap()
             return try {
                 objectMapper.readValue(json)
             } catch (e: Exception) {
-                logger.warn(e) { "Failed to parse MCP server config JSON, returning empty map" }
+                logger.warn(e) { "MCP 서버 설정 JSON 파싱 실패, 빈 맵 반환" }
                 emptyMap()
             }
         }

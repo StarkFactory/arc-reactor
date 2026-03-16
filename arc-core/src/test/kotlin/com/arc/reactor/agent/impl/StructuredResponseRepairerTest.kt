@@ -19,6 +19,11 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.ChatClient.CallResponseSpec
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec
 
+/**
+ * StructuredResponseRepairer에 대한 테스트.
+ *
+ * 구조화된 응답 복구 로직을 검증합니다.
+ */
 class StructuredResponseRepairerTest {
 
     @Test

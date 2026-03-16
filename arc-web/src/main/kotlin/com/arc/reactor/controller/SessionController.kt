@@ -25,18 +25,23 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * Session Management and Model API Controller
+ * 세션 관리 및 모델 API 컨트롤러.
  *
- * Provides REST APIs for managing conversation sessions
- * and querying available LLM providers.
+ * 대화 세션 관리와 사용 가능한 LLM 프로바이더 조회를 위한 REST API를 제공합니다.
  *
- * ## Endpoints
- * - GET /api/sessions                          : List all sessions
- * - GET /api/sessions/{id}                     : Get messages for a session
- * - GET /api/sessions/{id}/export?format=json  : Export as JSON
- * - GET /api/sessions/{id}/export?format=markdown : Export as Markdown
- * - DELETE /api/sessions/{id}                  : Delete a session
- * - GET /api/models                            : List available LLM providers
+ * ## 엔드포인트
+ * - GET /api/sessions                          : 전체 세션 목록 조회
+ * - GET /api/sessions/{id}                     : 세션 메시지 조회
+ * - GET /api/sessions/{id}/export?format=json  : JSON으로 내보내기
+ * - GET /api/sessions/{id}/export?format=markdown : Markdown으로 내보내기
+ * - DELETE /api/sessions/{id}                  : 세션 삭제
+ * - GET /api/models                            : 사용 가능한 LLM 프로바이더 목록
+ *
+ * WHY: 세션 소유권 검증은 deny-by-default 원칙을 따른다.
+ * owner가 기록되어 있고 요청자와 일치해야만 접근을 허용한다.
+ *
+ * @see MemoryStore
+ * @see ChatModelProvider
  */
 @Tag(name = "Sessions", description = "Conversation session and LLM provider management")
 @RestController
@@ -53,10 +58,10 @@ class SessionController(
     private val conversationManager: ConversationManager? = conversationManagerProvider.ifAvailable
 
     /**
-     * List all sessions with summary metadata.
-     * Sessions are filtered by the authenticated userId.
+     * 요약 메타데이터와 함께 전체 세션 목록을 조회한다.
+     * 인증된 userId로 필터링된다.
      */
-    @Operation(summary = "List all conversation sessions")
+    @Operation(summary = "전체 대화 세션 목록 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Paginated list of sessions"),
         ApiResponse(responseCode = "401", description = "Missing authenticated user context")
@@ -75,10 +80,10 @@ class SessionController(
     }
 
     /**
-     * Get all messages for a specific session.
-     * Verifies session ownership.
+     * 특정 세션의 모든 메시지를 조회한다.
+     * 세션 소유권을 검증한다.
      */
-    @Operation(summary = "Get messages for a specific session")
+    @Operation(summary = "특정 세션의 메시지 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Session messages"),
         ApiResponse(responseCode = "401", description = "Missing authenticated user context"),
@@ -107,10 +112,8 @@ class SessionController(
         return ResponseEntity.ok(SessionDetailResponse(sessionId = sessionId, messages = messages))
     }
 
-    /**
-     * Export a conversation session as JSON or Markdown.
-     */
-    @Operation(summary = "Export a session as JSON or Markdown")
+    /** 대화 세션을 JSON 또는 Markdown으로 내보낸다. */
+    @Operation(summary = "세션을 JSON 또는 Markdown으로 내보내기")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Exported session data"),
         ApiResponse(responseCode = "401", description = "Missing authenticated user context"),
@@ -169,10 +172,10 @@ class SessionController(
     }
 
     /**
-     * Delete a session and all its messages.
-     * Verifies session ownership.
+     * 세션과 모든 메시지를 삭제한다.
+     * 세션 소유권을 검증한다. 진행 중인 요약 작업도 취소한다.
      */
-    @Operation(summary = "Delete a session and all its messages")
+    @Operation(summary = "세션 및 모든 메시지 삭제")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Session deleted"),
         ApiResponse(responseCode = "401", description = "Missing authenticated user context"),
@@ -204,6 +207,11 @@ class SessionController(
         return ResponseEntity.noContent().build()
     }
 
+    /**
+     * 세션 소유자인지 확인한다.
+     * WHY: deny-by-default -- owner가 기록되어 있고 userId와 일치해야만 true.
+     * 관리자는 모든 세션에 접근 가능하다.
+     */
     private fun isSessionOwner(
         sessionId: String,
         userId: String,
@@ -211,7 +219,7 @@ class SessionController(
     ): Boolean {
         if (isAdmin(exchange)) return true
         val owner = memoryStore.getSessionOwner(sessionId)
-        // Deny-by-default: owner must be recorded and must match userId
+        // deny-by-default: owner가 기록되어 있고 userId와 일치해야 한다
         return owner != null && owner == userId
     }
 
@@ -238,10 +246,8 @@ class SessionController(
             .body(ErrorResponse(error = "Access denied", timestamp = Instant.now().toString()))
     }
 
-    /**
-     * List available LLM providers.
-     */
-    @Operation(summary = "List available LLM providers")
+    /** 사용 가능한 LLM 프로바이더 목록을 조회한다. */
+    @Operation(summary = "사용 가능한 LLM 프로바이더 목록 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of available LLM providers")
     ])
@@ -255,7 +261,7 @@ class SessionController(
     }
 }
 
-// --- Response DTOs ---
+// --- 응답 DTO ---
 
 data class SessionResponse(
     val sessionId: String,
@@ -285,7 +291,7 @@ data class ModelInfo(
     val isDefault: Boolean
 )
 
-// --- Mapping extensions ---
+// --- 매핑 확장 ---
 
 private fun SessionSummary.toResponse() = SessionResponse(
     sessionId = sessionId,

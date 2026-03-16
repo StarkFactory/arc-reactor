@@ -38,16 +38,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 
 /**
- * AgentExecutor bean, conditional on ChatClient availability.
+ * ChatClient 가용성에 조건적인 AgentExecutor 빈.
  *
- * NOT annotated with @Configuration to prevent component-scan from picking it up
- * before auto-configuration ordering (@AutoConfigureAfter) takes effect.
- * Processed exclusively via @Import from ArcReactorAutoConfiguration.
+ * 컴포넌트 스캔이 자동 설정 순서(@AutoConfigureAfter) 적용 전에
+ * 이 클래스를 가져가는 것을 방지하기 위해 @Configuration을 붙이지 않는다.
+ * ArcReactorAutoConfiguration의 @Import를 통해서만 처리된다.
  */
 class ArcReactorExecutorConfiguration {
 
     /**
-     * Agent Executor
+     * 에이전트 실행기 빈.
      */
     @Bean
     @ConditionalOnMissingBean

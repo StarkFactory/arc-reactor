@@ -8,6 +8,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 규칙 기반 평가기에 대한 테스트.
+ *
+ * 규칙 기반 프롬프트 평가를 검증합니다.
+ */
 class RuleBasedEvaluatorTest {
 
     private lateinit var evaluator: RuleBasedEvaluator

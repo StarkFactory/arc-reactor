@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Instant
 
+/**
+ * TokenRevocationStore에 대한 테스트.
+ *
+ * 토큰 폐기 저장소 인터페이스의 동작을 검증합니다.
+ */
 class TokenRevocationStoreTest {
 
     @Test

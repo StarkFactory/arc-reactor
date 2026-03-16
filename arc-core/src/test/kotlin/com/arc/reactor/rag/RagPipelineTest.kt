@@ -12,6 +12,11 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 
+/**
+ * RAG 파이프라인에 대한 테스트.
+ *
+ * 조회-재순위-압축 파이프라인의 동작을 검증합니다.
+ */
 class RagPipelineTest {
 
     @Test
@@ -76,7 +81,7 @@ class RagPipelineTest {
         ))
 
         assertTrue(result.documents.isNotEmpty(), "Reranker should return documents")
-        // After reranking,은(는) be sorted by score (highest first)해야 합니다
+        // 재순위 후 점수 순으로 정렬되어야 합니다 (높은 순)
         assertTrue(result.documents.size > 1, "Should return multiple documents for score ordering check")
         assertTrue(result.documents[0].score >= result.documents[1].score,
             "Documents should be sorted by score: first=${result.documents[0].score}, second=${result.documents[1].score}")

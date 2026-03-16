@@ -15,6 +15,11 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.ChatClient.CallResponseSpec
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec
 
+/**
+ * LLM 심판 평가기에 대한 테스트.
+ *
+ * LLM 기반 프롬프트 평가를 검증합니다.
+ */
 class LlmJudgeEvaluatorTest {
 
     private val chatModelProvider: ChatModelProvider = mockk()
@@ -126,10 +131,10 @@ class LlmJudgeEvaluatorTest {
 
         @Test
         fun `budget already exceeded일 때 not call LLM해야 한다`() = runTest {
-            // Exhaust budget by making many calls first
+            // 먼저 많은 호출을 하여 예산을 소진
             every { callResponseSpec.content() } returns
                 """{"pass": true, "score": 0.8, "reason": "OK"}"""
-            // Call until budget is exceeded
+            // 예산이 초과될 때까지 호출
             val config = EvaluationConfig(llmJudgeBudgetTokens = 1)
             evaluator.evaluate("Response", defaultQuery, EvaluationConfig())
 

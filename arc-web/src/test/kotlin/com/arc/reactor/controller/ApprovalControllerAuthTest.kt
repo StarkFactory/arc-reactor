@@ -18,6 +18,11 @@ import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
 @Tag("safety")
+/**
+ * ApprovalController 인증에 대한 테스트.
+ *
+ * 승인 컨트롤러의 인증/인가 동작을 검증합니다.
+ */
 class ApprovalControllerAuthTest {
 
     private val store = mockk<PendingApprovalStore>()

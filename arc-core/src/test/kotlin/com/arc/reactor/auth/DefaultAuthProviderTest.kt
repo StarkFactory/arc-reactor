@@ -6,6 +6,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 
+/**
+ * DefaultAuthProvider에 대한 테스트.
+ *
+ * 기본 인증 제공자의 동작을 검증합니다.
+ */
 class DefaultAuthProviderTest {
 
     private lateinit var userStore: InMemoryUserStore

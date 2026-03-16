@@ -12,6 +12,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * CompositeIntentClassifier에 대한 테스트.
+ *
+ * 복합 인텐트 분류기의 동작을 검증합니다.
+ */
 class CompositeIntentClassifierTest {
 
     private lateinit var ruleClassifier: IntentClassifier

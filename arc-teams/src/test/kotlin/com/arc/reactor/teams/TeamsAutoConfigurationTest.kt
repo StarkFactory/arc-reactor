@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 
+/**
+ * Teams 자동 설정에 대한 테스트.
+ *
+ * Microsoft Teams 통합의 조건부 빈 등록을 검증합니다.
+ */
 class TeamsAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()

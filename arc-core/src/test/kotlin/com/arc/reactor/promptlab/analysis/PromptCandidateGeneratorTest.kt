@@ -20,6 +20,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
 
+/**
+ * PromptCandidateGenerator에 대한 테스트.
+ *
+ * 프롬프트 후보 생성 로직을 검증합니다.
+ */
 class PromptCandidateGeneratorTest {
 
     private val chatModelProvider: ChatModelProvider = mockk()

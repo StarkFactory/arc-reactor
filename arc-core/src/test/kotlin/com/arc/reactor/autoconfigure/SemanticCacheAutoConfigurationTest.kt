@@ -15,6 +15,11 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.redis.core.StringRedisTemplate
 
+/**
+ * 의미론적 캐시 자동 설정에 대한 테스트.
+ *
+ * 의미론적 캐시의 조건부 빈 등록을 검증합니다.
+ */
 class SemanticCacheAutoConfigurationTest {
 
     private val baseRunner = ApplicationContextRunner()

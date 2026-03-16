@@ -7,7 +7,7 @@ import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 
 /**
- * Minimal AgentExecutor stub for web integration tests that do not verify chat execution.
+ * 채팅 실행을 검증하지 않는 웹 통합 테스트를 위한 최소한의 AgentExecutor 스텁.
  */
 @TestConfiguration
 class IntegrationTestAgentExecutorConfig {

@@ -7,6 +7,11 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * RAG 인제스트 정책 제공자에 대한 테스트.
+ *
+ * RAG 데이터 수집 정책 동작을 검증합니다.
+ */
 class RagIngestionPolicyProviderTest {
 
     @Test

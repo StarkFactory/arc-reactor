@@ -13,6 +13,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.ai.embedding.EmbeddingModel
 
+/**
+ * McpStartupInitializer에 대한 테스트.
+ *
+ * MCP 서버 시작 시 초기화 로직을 검증합니다.
+ */
 class McpStartupInitializerTest {
 
     private lateinit var mcpManager: McpManager

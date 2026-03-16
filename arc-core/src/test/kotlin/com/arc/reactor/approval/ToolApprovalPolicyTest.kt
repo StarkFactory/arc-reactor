@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * ToolApprovalPolicy에 대한 테스트.
+ *
+ * 도구 승인 정책의 동작을 검증합니다.
+ */
 class ToolApprovalPolicyTest {
 
     @Nested

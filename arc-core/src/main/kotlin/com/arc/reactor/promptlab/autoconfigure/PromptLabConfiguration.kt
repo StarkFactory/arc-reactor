@@ -26,9 +26,15 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.EnableScheduling
 
 /**
- * Prompt Lab auto-configuration.
+ * Prompt Lab 자동 설정.
  *
- * Registers all Prompt Lab beans when `arc.reactor.prompt-lab.enabled=true`.
+ * `arc.reactor.prompt-lab.enabled=true`일 때 모든 Prompt Lab 빈을 등록한다.
+ *
+ * WHY: Prompt Lab은 선택적 기능이므로 설정으로 활성화해야만 빈이 등록된다.
+ * 비활성화 시 불필요한 빈 생성과 LLM 호출 비용을 방지한다.
+ * 모든 빈에 @ConditionalOnMissingBean을 적용하여 사용자 커스텀 구현으로 교체 가능하다.
+ *
+ * @see PromptLabProperties 설정 프로퍼티
  */
 @Configuration
 @ConditionalOnProperty(

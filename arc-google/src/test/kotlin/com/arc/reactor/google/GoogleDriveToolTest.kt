@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
+/**
+ * GoogleDriveTool에 대한 테스트.
+ *
+ * Google 드라이브 도구의 파일 검색/조회 동작을 검증합니다.
+ */
 class GoogleDriveToolTest {
 
     private val credentialProvider = mockk<GoogleCredentialProvider>()

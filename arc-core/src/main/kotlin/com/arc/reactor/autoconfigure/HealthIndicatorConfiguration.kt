@@ -12,7 +12,7 @@ import org.springframework.core.env.Environment
 import org.springframework.jdbc.core.JdbcTemplate
 
 /**
- * Auto-configuration for Arc Reactor health indicators.
+ * Arc Reactor 헬스 인디케이터 자동 설정.
  */
 @ConditionalOnClass(name = ["org.springframework.boot.actuate.health.HealthIndicator"])
 class HealthIndicatorConfiguration {

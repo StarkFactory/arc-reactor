@@ -10,15 +10,27 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * JDBC-based Feedback Store for persistent feedback storage.
+ * JDBC 기반 피드백 저장소 — 영속적 피드백 스토리지.
  *
- * Stores feedback in the `feedback` table — see Flyway migration V17.
- * List fields (toolsUsed, tags) are stored as JSON TEXT columns.
+ * 피드백을 `feedback` 테이블에 저장한다 — Flyway 마이그레이션 V17 참조.
+ * 리스트 필드(toolsUsed, tags)는 JSON TEXT 컬럼으로 저장된다.
+ *
+ * WHY: 운영 환경에서 피드백 데이터를 서버 재시작 이후에도 유지하기 위해
+ * PostgreSQL에 영속 저장한다. PromptLab 자동 최적화 파이프라인이
+ * 이 데이터를 분석하여 프롬프트 개선 후보를 생성한다.
+ *
+ * @param jdbcTemplate Spring JDBC 템플릿
+ * @see FeedbackStore 인터페이스 정의
+ * @see InMemoryFeedbackStore 인메모리 대안 구현
  */
 class JdbcFeedbackStore(
     private val jdbcTemplate: JdbcTemplate
 ) : FeedbackStore {
 
+    /**
+     * 피드백을 데이터베이스에 삽입한다.
+     * toolsUsed, tags 등 리스트 필드는 JSON 문자열로 직렬화하여 저장한다.
+     */
     override fun save(feedback: Feedback): Feedback {
         jdbcTemplate.update(
             """INSERT INTO feedback (
@@ -63,6 +75,11 @@ class JdbcFeedbackStore(
         )
     }
 
+    /**
+     * 동적 WHERE 절을 구성하여 필터링된 피드백을 조회한다.
+     * WHY: 선택적 필터를 동적으로 조합해야 하므로 조건절과 파라미터를
+     * 리스트로 구성한 뒤 한 번에 쿼리를 실행한다.
+     */
     override fun list(
         rating: FeedbackRating?,
         from: Instant?,
@@ -116,16 +133,27 @@ class JdbcFeedbackStore(
     companion object {
         private val objectMapper = jacksonObjectMapper()
 
+        /**
+         * JSON 문자열을 문자열 리스트로 파싱한다.
+         * 파싱 실패 시 경고 로그 후 null을 반환한다.
+         *
+         * @param json JSON 배열 문자열
+         * @return 파싱된 리스트 또는 null
+         */
         private fun parseJsonList(json: String?): List<String>? {
             if (json == null) return null
             return try {
                 objectMapper.readValue<List<String>>(json)
             } catch (e: Exception) {
-                logger.warn { "Failed to parse JSON list: $json" }
+                logger.warn { "JSON 리스트 파싱 실패: $json" }
                 null
             }
         }
 
+        /**
+         * ResultSet 행을 Feedback 객체로 변환하는 RowMapper.
+         * prompt_version, duration_ms 등 nullable 필드는 getObject로 안전하게 읽는다.
+         */
         private val ROW_MAPPER = { rs: ResultSet, _: Int ->
             Feedback(
                 feedbackId = rs.getString("feedback_id"),

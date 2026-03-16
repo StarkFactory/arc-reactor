@@ -3,9 +3,9 @@ package com.arc.reactor.agent.config
 import com.arc.reactor.guard.output.impl.OutputBlockPattern
 
 /**
- * Human-in-the-Loop approval configuration.
+ * Human-in-the-Loop 승인 설정.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -16,30 +16,33 @@ import com.arc.reactor.guard.output.impl.OutputBlockPattern
  *         - delete_order
  *         - process_refund
  * ```
+ *
+ * @see com.arc.reactor.approval.ToolApprovalPolicy 승인 정책 인터페이스
+ * @see com.arc.reactor.approval.PendingApprovalStore 승인 대기 저장소
  */
 data class ApprovalProperties(
-    /** Enable Human-in-the-Loop approval */
+    /** Human-in-the-Loop 승인 활성화 */
     val enabled: Boolean = false,
 
-    /** Default approval timeout in milliseconds (0 = 5 minutes) */
+    /** 기본 승인 타임아웃 (밀리초, 0이면 5분) */
     val timeoutMs: Long = 300_000,
 
-    /** Retention in milliseconds for resolved approvals before cleanup */
+    /** 완료된 승인 항목의 정리 전 보존 기간 (밀리초) */
     val resolvedRetentionMs: Long = 7 * 24 * 60 * 60 * 1000L,
 
-    /** Tool names that require approval (empty = use custom ToolApprovalPolicy) */
+    /** 승인이 필요한 도구 이름 목록 (빈 집합 = 커스텀 ToolApprovalPolicy 사용) */
     val toolNames: Set<String> = emptySet()
 )
 
 /**
- * Tool policy configuration.
+ * 도구 정책 설정.
  *
- * Primarily used to safely handle "write" (side-effecting) tools in enterprise environments.
- * Typical strategy:
- * - Web: require HITL approval for write tools
- * - Slack: deny write tools (chat-first UX + risk)
+ * 주로 기업 환경에서 "쓰기"(부작용이 있는) 도구를 안전하게 처리하기 위해 사용한다.
+ * 일반적인 전략:
+ * - 웹: 쓰기 도구에 HITL 승인 필요
+ * - Slack: 쓰기 도구 거부 (채팅 우선 UX + 위험)
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -51,40 +54,42 @@ data class ApprovalProperties(
  *       deny-write-channels:
  *         - slack
  * ```
+ *
+ * @see com.arc.reactor.agent.impl.ToolCallOrchestrator 도구 실행 시 정책 적용
  */
 data class ToolPolicyProperties(
-    /** Enable tool policy enforcement (opt-in). */
+    /** 도구 정책 적용 활성화 (opt-in). */
     val enabled: Boolean = false,
 
     /**
-     * Dynamic tool policy configuration (admin-managed).
+     * 동적 도구 정책 설정 (관리자 관리).
      *
-     * When enabled, Arc Reactor can load and update tool policy values at runtime via DB/API,
-     * allowing enterprises to change write-tool rules without redeploying.
+     * 활성화하면 Arc Reactor가 런타임에 DB/API를 통해 도구 정책 값을 로드하고 갱신할 수 있어,
+     * 기업이 재배포 없이 쓰기 도구 규칙을 변경할 수 있다.
      */
     val dynamic: ToolPolicyDynamicProperties = ToolPolicyDynamicProperties(),
 
-    /** Tool names considered "write" (side-effecting). */
+    /** "쓰기"(부작용이 있는) 도구 이름 목록. */
     val writeToolNames: Set<String> = emptySet(),
 
-    /** Channels where write tools are denied (fail-closed). */
+    /** 쓰기 도구가 거부되는 채널 (fail-closed). */
     val denyWriteChannels: Set<String> = setOf("slack"),
 
     /**
-     * Exception list: write tool names that are allowed even in [denyWriteChannels].
+     * [denyWriteChannels]에서도 허용되는 쓰기 도구 이름의 예외 목록.
      *
-     * This is useful when you want a strict default (deny on chat channels), but still
-     * allow a small subset of safe write operations (e.g., create a Jira issue) in Slack.
+     * 엄격한 기본값(채팅 채널에서 거부)을 유지하면서도
+     * 안전한 쓰기 작업의 소수 부분집합(예: Jira 이슈 생성)을 Slack에서 허용할 때 유용하다.
      */
     val allowWriteToolNamesInDenyChannels: Set<String> = emptySet(),
 
     /**
-     * Channel-scoped allowlist for deny channels.
+     * 거부 채널별 쓰기 도구 허용 목록.
      *
-     * If a channel is in [denyWriteChannels], write tools are blocked by default. This map can then
-     * allow specific write tools for specific channels.
+     * [denyWriteChannels]에 있는 채널에서는 기본적으로 쓰기 도구가 차단된다.
+     * 이 맵으로 특정 채널에서 특정 쓰기 도구를 허용할 수 있다.
      *
-     * Example:
+     * 설정 예시:
      * ```yaml
      * arc:
      *   reactor:
@@ -97,119 +102,128 @@ data class ToolPolicyProperties(
      */
     val allowWriteToolNamesByChannel: Map<String, Set<String>> = emptyMap(),
 
-    /** Error message returned when a tool call is denied by policy. */
+    /** 정책에 의해 도구 호출이 거부될 때 반환되는 에러 메시지. */
     val denyWriteMessage: String = "Error: This tool is not allowed in this channel"
 )
 
+/**
+ * 동적 도구 정책 설정.
+ */
 data class ToolPolicyDynamicProperties(
-    /** Enable DB-backed tool policy (admin API updates + periodic refresh). */
+    /** DB 기반 도구 정책 활성화 (관리자 API 업데이트 + 주기적 갱신). */
     val enabled: Boolean = false,
 
-    /** Cache refresh interval in milliseconds when dynamic policy is enabled. */
+    /** 동적 정책 활성화 시 캐시 갱신 간격 (밀리초). */
     val refreshMs: Long = 10_000
 )
 
 /**
- * Multimodal (file upload / media URL) configuration.
+ * 멀티모달 (파일 업로드 / 미디어 URL) 설정.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
  *     multimodal:
- *       enabled: false              # disable file uploads and media URL processing
- *       max-file-size-bytes: 10485760  # 10MB per file
+ *       enabled: false              # 파일 업로드 및 미디어 URL 처리 비활성화
+ *       max-file-size-bytes: 10485760  # 파일당 10MB
  *       max-files-per-request: 5
  * ```
  */
 data class MultimodalProperties(
-    /** Enable multimodal support (file uploads via /api/chat/multipart and mediaUrls in JSON requests) */
+    /** 멀티모달 지원 활성화 (/api/chat/multipart 파일 업로드 및 JSON 요청의 mediaUrls) */
     val enabled: Boolean = true,
 
-    /** Maximum allowed size per uploaded file in bytes. Default 10MB. */
+    /** 업로드 파일당 최대 허용 크기 (바이트). 기본 10MB. */
     val maxFileSizeBytes: Long = 10 * 1024 * 1024,
 
-    /** Maximum number of files allowed per multipart request. Default 5. */
+    /** 멀티파트 요청당 최대 파일 수. 기본 5. */
     val maxFilesPerRequest: Int = 5
 )
 
+/**
+ * RAG(검색 증강 생성) 설정.
+ *
+ * @see com.arc.reactor.agent.impl.RagContextRetriever RAG 컨텍스트 검색
+ * @see com.arc.reactor.rag.RagPipeline RAG 파이프라인 (벡터 검색 + rerank)
+ */
 data class RagProperties(
-    /** RAG enabled */
+    /** RAG 활성화 여부 */
     val enabled: Boolean = false,
 
-    /** Search similarity threshold */
+    /** 검색 유사도 임계값 */
     val similarityThreshold: Double = 0.65,
 
-    /** Number of search results */
+    /** 검색 결과 수 */
     val topK: Int = 5,
 
-    /** Enable re-ranking */
+    /** 재순위 활성화 여부 */
     val rerankEnabled: Boolean = false,
 
-    /** Query transformer mode: passthrough|hyde|decomposition */
+    /** 쿼리 변환 모드: passthrough|hyde|decomposition */
     val queryTransformer: String = "passthrough",
 
-    /** RAG ingestion policy (Q&A -> candidate queue -> reviewed vector ingestion) */
+    /** RAG 수집 정책 (Q&A -> 후보 큐 -> 검토된 벡터 수집) */
     val ingestion: RagIngestionProperties = RagIngestionProperties(),
 
-    /** Maximum context tokens */
+    /** 최대 컨텍스트 토큰 수 */
     val maxContextTokens: Int = 4000,
 
-    /** Hybrid search configuration (BM25 + Vector) */
+    /** 하이브리드 검색 설정 (BM25 + 벡터) */
     val hybrid: RagHybridProperties = RagHybridProperties(),
 
-    /** Document chunking configuration */
+    /** 문서 청킹 설정 */
     val chunking: RagChunkingProperties = RagChunkingProperties(),
 
-    /** Parent document retrieval configuration */
+    /** 부모 문서 검색 설정 */
     val parentRetrieval: RagParentRetrievalProperties = RagParentRetrievalProperties(),
 
-    /** Retrieval timeout in milliseconds. Prevents thread-pool exhaustion when vector DB is unresponsive. */
+    /** 검색 타임아웃 (밀리초). 벡터 DB 무응답 시 스레드 풀 고갈을 방지한다. */
     val retrievalTimeoutMs: Long = 3000,
 
-    /** Contextual compression configuration */
+    /** 컨텍스트 압축 설정 */
     val compression: RagCompressionProperties = RagCompressionProperties(),
 
-    /** Adaptive query routing configuration (Adaptive-RAG) */
+    /** 적응형 쿼리 라우팅 설정 (Adaptive-RAG) */
     val adaptiveRouting: AdaptiveRoutingProperties = AdaptiveRoutingProperties()
 )
 
 /**
- * Contextual compression configuration.
+ * 컨텍스트 압축 설정.
  *
- * Based on RECOMP (Xu et al., 2024, arXiv:2310.04408).
+ * RECOMP (Xu et al., 2024, arXiv:2310.04408) 기반.
  */
 data class RagCompressionProperties(
-    /** Enable contextual compression. Disabled by default. */
+    /** 컨텍스트 압축 활성화. 기본 비활성. */
     val enabled: Boolean = false,
 
-    /** Documents shorter than this (in chars) skip compression. */
+    /** 이 길이(문자 수) 미만의 문서는 압축을 건너뛴다. */
     val minContentLength: Int = 200
 )
 
 /**
- * Adaptive query routing configuration.
+ * 적응형 쿼리 라우팅 설정.
  *
  * @see <a href="https://arxiv.org/abs/2403.14403">Adaptive-RAG (Jeong et al., 2024)</a>
  */
 data class AdaptiveRoutingProperties(
-    /** Enable adaptive query routing. Enabled by default to skip RAG for simple queries. */
+    /** 적응형 쿼리 라우팅 활성화. 간단한 쿼리에서 RAG를 건너뛰기 위해 기본 활성. */
     val enabled: Boolean = true,
 
-    /** Classification timeout in milliseconds. */
+    /** 분류 타임아웃 (밀리초). */
     val timeoutMs: Long = 3000,
 
-    /** topK override for COMPLEX queries. */
+    /** COMPLEX 쿼리에 대한 topK 재정의. */
     val complexTopK: Int = 15
 )
 
 /**
- * Hybrid search (BM25 + vector) configuration.
+ * 하이브리드 검색 (BM25 + 벡터) 설정.
  *
- * When enabled, BM25 keyword scores are fused with vector similarity scores
- * via Reciprocal Rank Fusion (RRF) to improve retrieval of proper nouns.
+ * 활성화하면 BM25 키워드 점수가 벡터 유사도 점수와
+ * Reciprocal Rank Fusion(RRF)을 통해 융합되어 고유 명사 검색이 개선된다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -222,32 +236,32 @@ data class AdaptiveRoutingProperties(
  * ```
  */
 data class RagHybridProperties(
-    /** Enable hybrid BM25 + vector search. Requires arc.reactor.rag.enabled=true. */
+    /** 하이브리드 BM25 + 벡터 검색 활성화. arc.reactor.rag.enabled=true 필요. */
     val enabled: Boolean = false,
 
-    /** RRF weight for BM25 ranks (0.0–1.0) */
+    /** BM25 순위에 대한 RRF 가중치 (0.0-1.0) */
     val bm25Weight: Double = 0.5,
 
-    /** RRF weight for vector search ranks (0.0–1.0) */
+    /** 벡터 검색 순위에 대한 RRF 가중치 (0.0-1.0) */
     val vectorWeight: Double = 0.5,
 
-    /** RRF smoothing constant K — higher value reduces rank-position sensitivity */
+    /** RRF 스무딩 상수 K — 값이 클수록 순위 위치 민감도가 감소한다 */
     val rrfK: Double = 60.0,
 
-    /** BM25 term-frequency saturation parameter */
+    /** BM25 용어 빈도 포화 파라미터 */
     val bm25K1: Double = 1.5,
 
-    /** BM25 length normalization parameter */
+    /** BM25 길이 정규화 파라미터 */
     val bm25B: Double = 0.75
 )
 
 /**
- * Parent document retrieval configuration.
+ * 부모 문서 검색 설정.
  *
- * When enabled, chunked search results are expanded with adjacent chunks
- * from the same parent document to provide richer context.
+ * 활성화하면 청킹된 검색 결과가 동일 부모 문서의 인접 청크로 확장되어
+ * 더 풍부한 컨텍스트를 제공한다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -258,48 +272,54 @@ data class RagHybridProperties(
  * ```
  */
 data class RagParentRetrievalProperties(
-    /** Enable parent document retrieval. Requires arc.reactor.rag.enabled=true. */
+    /** 부모 문서 검색 활성화. arc.reactor.rag.enabled=true 필요. */
     val enabled: Boolean = false,
 
-    /** Number of adjacent chunks to include before and after each hit (1 = +/- 1 chunk). */
+    /** 각 히트 전후에 포함할 인접 청크 수 (1 = 앞뒤 1개씩). */
     val windowSize: Int = 1
 )
 
+/**
+ * RAG 수집 설정.
+ */
 data class RagIngestionProperties(
-    /** Master switch for ingestion candidate capture. */
+    /** 수집 후보 캡처 마스터 스위치. */
     val enabled: Boolean = false,
 
-    /** Runtime DB-backed policy management switch. */
+    /** 런타임 DB 기반 정책 관리 스위치. */
     val dynamic: RagIngestionDynamicProperties = RagIngestionDynamicProperties(),
 
-    /** Whether admin review is required before vector ingestion. */
+    /** 벡터 수집 전 관리자 검토 필요 여부. */
     val requireReview: Boolean = true,
 
-    /** Allowed channels for auto-capture. Empty = capture from all channels. */
+    /** 자동 캡처가 허용되는 채널. 빈 집합 = 모든 채널에서 캡처. */
     val allowedChannels: Set<String> = emptySet(),
 
-    /** Minimum query length to be considered knowledge-worthy. */
+    /** 지식 가치가 있다고 판단할 최소 쿼리 길이. */
     val minQueryChars: Int = 10,
 
-    /** Minimum response length to be considered knowledge-worthy. */
+    /** 지식 가치가 있다고 판단할 최소 응답 길이. */
     val minResponseChars: Int = 20,
 
-    /** Regex patterns that block capture when matched on query or response. */
+    /** 쿼리 또는 응답에 매칭 시 캡처를 차단하는 정규식 패턴. */
     val blockedPatterns: Set<String> = emptySet()
 )
 
+/**
+ * RAG 수집 동적 정책 설정.
+ */
 data class RagIngestionDynamicProperties(
-    /** Enable DB policy override through admin APIs. */
+    /** 관리자 API를 통한 DB 정책 재정의 활성화. */
     val enabled: Boolean = false,
 
-    /** Provider cache refresh interval for dynamic policy. */
+    /** 동적 정책의 프로바이더 캐시 갱신 간격 (밀리초). */
     val refreshMs: Long = 10_000
 )
 
 /**
- * Response post-processing configuration.
+ * 응답 후처리 설정.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -309,20 +329,20 @@ data class RagIngestionDynamicProperties(
  * ```
  */
 data class ResponseProperties(
-    /** Maximum response length in characters. 0 = unlimited (default). */
+    /** 최대 응답 길이 (문자 수). 0 = 무제한 (기본). */
     val maxLength: Int = 0,
 
-    /** Enable response filter chain processing. */
+    /** 응답 필터 체인 처리 활성화. */
     val filtersEnabled: Boolean = true
 )
 
 /**
- * Circuit breaker configuration for LLM and MCP calls.
+ * LLM 및 MCP 호출을 위한 서킷 브레이커 설정.
  *
- * When enabled, tracks consecutive failures and short-circuits calls
- * when the failure rate exceeds the threshold.
+ * 활성화하면 연속 실패를 추적하고,
+ * 실패율이 임계값을 초과하면 호출을 단축시킨다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -332,29 +352,31 @@ data class ResponseProperties(
  *       reset-timeout-ms: 30000
  *       half-open-max-calls: 1
  * ```
+ *
+ * @see com.arc.reactor.resilience.CircuitBreaker 서킷 브레이커 구현
  */
 data class CircuitBreakerProperties(
-    /** Enable circuit breaker. Disabled by default (opt-in). */
+    /** 서킷 브레이커 활성화. 기본 비활성 (opt-in). */
     val enabled: Boolean = false,
 
-    /** Number of consecutive failures before opening the circuit. */
+    /** 회로 개방 전 연속 실패 횟수. */
     val failureThreshold: Int = 5,
 
-    /** Time in ms to wait before transitioning from OPEN to HALF_OPEN. */
+    /** OPEN에서 HALF_OPEN으로 전환하기 전 대기 시간 (밀리초). */
     val resetTimeoutMs: Long = 30_000,
 
-    /** Number of trial calls allowed in HALF_OPEN state. */
+    /** HALF_OPEN 상태에서 허용되는 시험 호출 수. */
     val halfOpenMaxCalls: Int = 1
 )
 
 /**
- * Response caching configuration.
+ * 응답 캐시 설정.
  *
- * When enabled, identical requests return cached responses to avoid
- * redundant LLM calls. Only deterministic responses (temperature at
- * or below [cacheableTemperature]) are cached.
+ * 활성화하면 동일한 요청에 대해 캐시된 응답을 반환하여
+ * 중복 LLM 호출을 방지한다. temperature가 [cacheableTemperature] 이하인
+ * 결정적 응답만 캐시된다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -364,54 +386,57 @@ data class CircuitBreakerProperties(
  *       ttl-minutes: 60
  *       cacheable-temperature: 0.0
  * ```
+ *
+ * @see com.arc.reactor.cache.ResponseCache 응답 캐시 인터페이스
  */
 data class CacheProperties(
-    /** Enable response caching. Disabled by default (opt-in). */
+    /** 응답 캐시 활성화. 기본 비활성 (opt-in). */
     val enabled: Boolean = false,
 
-    /** Maximum number of cached entries. */
+    /** 최대 캐시 항목 수. */
     val maxSize: Long = 1000,
 
-    /** Time-to-live for cache entries in minutes. */
+    /** 캐시 항목 유효 시간 (분). */
     val ttlMinutes: Long = 60,
 
-    /** Only cache responses when temperature is at or below this value. */
+    /** 이 값 이하의 temperature인 응답만 캐시한다. */
     val cacheableTemperature: Double = 0.0,
 
-    /** Optional semantic cache configuration (Redis-backed). */
+    /** 선택적 시맨틱 캐시 설정 (Redis 기반). */
     val semantic: SemanticCacheProperties = SemanticCacheProperties()
 )
 
 /**
- * Semantic cache configuration.
+ * 시맨틱 캐시 설정.
  *
- * When enabled and Redis + embedding dependencies are available, Arc Reactor adds a semantic cache
- * layer that can reuse responses for similar prompts within the same request scope.
+ * 활성화되고 Redis + 임베딩 의존성이 사용 가능하면, Arc Reactor가
+ * 동일 요청 범위 내에서 유사한 프롬프트에 대해 응답을 재사용할 수 있는
+ * 시맨틱 캐시 레이어를 추가한다.
  */
 data class SemanticCacheProperties(
-    /** Enable semantic response cache. Disabled by default (opt-in). */
+    /** 시맨틱 응답 캐시 활성화. 기본 비활성 (opt-in). */
     val enabled: Boolean = false,
 
-    /** Minimum cosine similarity required for semantic cache hit. */
+    /** 시맨틱 캐시 히트에 필요한 최소 코사인 유사도. */
     val similarityThreshold: Double = 0.92,
 
-    /** Maximum number of recent semantic candidates to evaluate per lookup. */
+    /** 조회당 평가할 최대 시맨틱 후보 수. */
     val maxCandidates: Int = 50,
 
-    /** Maximum semantic cache entries per scope fingerprint. */
+    /** 스코프 핑거프린트당 최대 시맨틱 캐시 항목 수. */
     val maxEntriesPerScope: Long = 1000,
 
-    /** Redis key prefix for semantic cache records and indexes. */
+    /** 시맨틱 캐시 레코드 및 인덱스의 Redis 키 접두사. */
     val keyPrefix: String = "arc:cache"
 )
 
 /**
- * Graceful degradation / fallback configuration.
+ * 장애 완화 / 폴백 설정.
  *
- * When enabled, agent execution failures trigger fallback to alternative
- * LLM models. Models are tried in order until one succeeds.
+ * 활성화하면 에이전트 실행 실패 시 대체 LLM 모델로 폴백한다.
+ * 모델은 하나가 성공할 때까지 순서대로 시도된다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -421,22 +446,24 @@ data class SemanticCacheProperties(
  *         - openai
  *         - anthropic
  * ```
+ *
+ * @see com.arc.reactor.resilience.FallbackStrategy 폴백 전략 인터페이스
  */
 data class FallbackProperties(
-    /** Enable graceful degradation. Disabled by default (opt-in). */
+    /** 장애 완화 활성화. 기본 비활성 (opt-in). */
     val enabled: Boolean = false,
 
-    /** Fallback model names in priority order. */
+    /** 우선순위순 폴백 모델 이름 목록. */
     val models: List<String> = emptyList()
 )
 
 /**
- * Output guard configuration for post-execution response validation.
+ * 실행 후 응답 검증을 위한 출력 가드 설정.
  *
- * When enabled, LLM responses are checked for PII, policy violations,
- * and custom regex patterns before being returned to the caller.
+ * 활성화하면 LLM 응답이 호출자에게 반환되기 전에
+ * PII, 정책 위반, 커스텀 정규식 패턴을 검사한다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -448,28 +475,30 @@ data class FallbackProperties(
  *           action: REJECT
  *           name: "Internal Document"
  * ```
+ *
+ * @see com.arc.reactor.guard.output.OutputGuardPipeline 출력 가드 파이프라인
  */
 data class OutputGuardProperties(
-    /** Enable output guard. Disabled by default (opt-in). */
+    /** 출력 가드 활성화. 기본 비활성 (opt-in). */
     val enabled: Boolean = false,
 
-    /** Enable built-in PII masking stage. */
+    /** 내장 PII 마스킹 단계 활성화. */
     val piiMaskingEnabled: Boolean = true,
 
-    /** Enable dynamic runtime-managed regex rules (admin-managed). */
+    /** 동적 런타임 관리 정규식 규칙 활성화 (관리자 관리). */
     val dynamicRulesEnabled: Boolean = true,
 
-    /** Refresh interval for dynamic rules cache (milliseconds). */
+    /** 동적 규칙 캐시 갱신 간격 (밀리초). */
     val dynamicRulesRefreshMs: Long = 3000,
 
-    /** Custom regex patterns for blocking or masking. */
+    /** 차단 또는 마스킹을 위한 커스텀 정규식 패턴 목록. */
     val customPatterns: List<OutputBlockPattern> = emptyList()
 )
 
 /**
- * Intent classification configuration.
+ * 인텐트 분류 설정.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -479,36 +508,38 @@ data class OutputGuardProperties(
  *       llm-model: gemini
  *       rule-confidence-threshold: 0.8
  * ```
+ *
+ * @see com.arc.reactor.intent.IntentResolver 인텐트 해석기
  */
 data class IntentProperties(
-    /** Intent classification enabled (opt-in) */
+    /** 인텐트 분류 활성화 (opt-in) */
     val enabled: Boolean = false,
 
-    /** Minimum confidence to apply an intent profile */
+    /** 인텐트 프로필을 적용하기 위한 최소 신뢰도 */
     val confidenceThreshold: Double = 0.6,
 
-    /** LLM provider for classification (null = use default provider) */
+    /** 분류에 사용할 LLM 프로바이더 (null = 기본 프로바이더 사용) */
     val llmModel: String? = null,
 
-    /** Minimum rule-based confidence to skip LLM fallback */
+    /** LLM 폴백을 건너뛰기 위한 최소 규칙 기반 신뢰도 */
     val ruleConfidenceThreshold: Double = 0.8,
 
-    /** Maximum few-shot examples per intent in LLM prompt */
+    /** LLM 프롬프트에서 인텐트당 최대 few-shot 예시 수 */
     val maxExamplesPerIntent: Int = 3,
 
-    /** Maximum conversation turns to include for context-aware classification */
+    /** 컨텍스트 인식 분류에 포함할 최대 대화 턴 수 */
     val maxConversationTurns: Int = 2,
 
-    /** Intent names to block — requests classified as these intents are rejected */
+    /** 차단할 인텐트 이름 — 이 인텐트로 분류된 요청은 거부됨 */
     val blockedIntents: Set<String> = emptySet()
 )
 
 /**
- * Dynamic scheduler configuration.
+ * 동적 스케줄러 설정.
  *
- * When enabled, allows cron-scheduled MCP tool execution managed via REST API.
+ * 활성화하면 REST API를 통해 관리되는 cron 스케줄 MCP 도구 실행을 허용한다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -519,29 +550,29 @@ data class IntentProperties(
  * ```
  */
 data class SchedulerProperties(
-    /** Enable dynamic scheduler. Disabled by default (opt-in). */
+    /** 동적 스케줄러 활성화. 기본 비활성 (opt-in). */
     val enabled: Boolean = false,
 
-    /** Thread pool size for scheduled task execution. */
+    /** 스케줄된 작업 실행을 위한 스레드 풀 크기. */
     val threadPoolSize: Int = 5,
 
-    /** Default timezone for scheduled jobs when not specified by the user. */
+    /** 사용자가 지정하지 않은 경우의 기본 타임존. */
     val defaultTimezone: String = java.time.ZoneId.systemDefault().id,
 
-    /** Default execution timeout for jobs without an explicit timeout (milliseconds). */
+    /** 명시적 타임아웃이 없는 작업의 기본 실행 타임아웃 (밀리초). */
     val defaultExecutionTimeoutMs: Long = 300_000,
 
-    /** Maximum execution history entries to retain per job. 0 = unlimited. */
+    /** 작업당 유지할 최대 실행 히스토리 항목 수. 0 = 무제한. */
     val maxExecutionsPerJob: Int = 100
 )
 
 /**
- * Input/output boundary policy configuration.
+ * 입출력 경계값 정책 설정.
  *
- * Provides a single config group for all length-based boundary checks:
- * input min/max, system prompt max, output min/max.
+ * 모든 길이 기반 경계값 검사를 하나의 설정 그룹으로 제공한다:
+ * 입력 최소/최대, 시스템 프롬프트 최대, 출력 최소/최대.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -553,34 +584,36 @@ data class SchedulerProperties(
  *       output-max-chars: 0
  *       output-min-violation-mode: warn
  * ```
+ *
+ * @see com.arc.reactor.agent.impl.OutputBoundaryEnforcer 출력 경계값 적용
  */
 data class BoundaryProperties(
-    /** Minimum input length in characters. */
+    /** 최소 입력 길이 (문자 수). */
     val inputMinChars: Int = 1,
 
-    /** Maximum input length in characters. */
+    /** 최대 입력 길이 (문자 수). */
     val inputMaxChars: Int = 10000,
 
-    /** Maximum system prompt length in characters. 0 = disabled. */
+    /** 최대 시스템 프롬프트 길이 (문자 수). 0 = 비활성. */
     val systemPromptMaxChars: Int = 50000,
 
-    /** Minimum output length in characters. 0 = disabled. */
+    /** 최소 출력 길이 (문자 수). 0 = 비활성. */
     val outputMinChars: Int = 0,
 
-    /** Maximum output length in characters. 0 = disabled. */
+    /** 최대 출력 길이 (문자 수). 0 = 비활성. */
     val outputMaxChars: Int = 0,
 
-    /** Policy when output is below outputMinChars. */
+    /** 출력이 outputMinChars 미만일 때의 정책. */
     val outputMinViolationMode: OutputMinViolationMode = OutputMinViolationMode.WARN
 )
 
 /**
- * Tool parameter enrichment configuration.
+ * 도구 파라미터 보강 설정.
  *
- * Tools listed in [requesterAwareToolNames] automatically receive the caller's
- * identity (account ID or email) from request metadata when the LLM omits it.
+ * [requesterAwareToolNames]에 나열된 도구는 LLM이 생략한 경우
+ * 요청 메타데이터에서 호출자의 ID(계정 ID 또는 이메일)를 자동으로 받는다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -589,19 +622,21 @@ data class BoundaryProperties(
  *         - jira_my_open_issues
  *         - bitbucket_review_queue
  * ```
+ *
+ * @see com.arc.reactor.agent.impl.ToolCallOrchestrator 도구 실행 시 파라미터 보강
  */
 data class ToolEnrichmentProperties(
-    /** Tool names that should be enriched with the requester's identity. */
+    /** 요청자 ID로 보강되어야 하는 도구 이름 목록. */
     val requesterAwareToolNames: Set<String> = emptySet()
 )
 
 /**
- * Citation auto-formatting configuration.
+ * Citation(출처 인용) 자동 포맷 설정.
  *
- * When enabled and verified sources exist in the response, a citation section
- * is automatically appended to the response content. Duplicate sources are removed.
+ * 활성화되고 응답에 검증된 출처가 존재하면,
+ * 응답 내용 끝에 Citation 섹션이 자동으로 추가된다. 중복 출처는 제거된다.
  *
- * ## Example
+ * ## 설정 예시
  * ```yaml
  * arc:
  *   reactor:
@@ -611,23 +646,25 @@ data class ToolEnrichmentProperties(
  * ```
  */
 data class CitationProperties(
-    /** Enable citation auto-formatting. Disabled by default (opt-in). */
+    /** Citation 자동 포맷 활성화. 기본 비활성 (opt-in). */
     val enabled: Boolean = false,
 
-    /** Citation format. Currently only "markdown" is supported. */
+    /** Citation 형식. 현재 "markdown"만 지원. */
     val format: String = "markdown"
 )
 
 /**
- * Policy for handling output minimum length violations.
+ * 출력 최소 길이 위반 처리 정책.
+ *
+ * @see com.arc.reactor.agent.impl.OutputBoundaryEnforcer 위반 모드에 따른 정책 적용
  */
 enum class OutputMinViolationMode {
-    /** Log a warning and pass the short response through. */
+    /** 경고 로그를 기록하고 짧은 응답을 그대로 전달한다. */
     WARN,
 
-    /** Make one additional LLM call requesting a longer response. Falls back to WARN if still short. */
+    /** 더 긴 응답을 요청하는 추가 LLM 호출을 한 번 시도한다. 여전히 짧으면 WARN으로 폴백한다. */
     RETRY_ONCE,
 
-    /** Fail with OUTPUT_TOO_SHORT error code. */
+    /** OUTPUT_TOO_SHORT 에러 코드로 실패한다. */
     FAIL
 }

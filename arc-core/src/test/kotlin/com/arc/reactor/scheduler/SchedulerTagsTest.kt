@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 스케줄러 태그에 대한 테스트.
+ *
+ * 스케줄된 작업의 태그 기능을 검증합니다.
+ */
 class SchedulerTagsTest {
 
     @Nested

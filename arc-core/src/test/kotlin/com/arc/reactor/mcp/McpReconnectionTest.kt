@@ -11,17 +11,17 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * MCP auto-reconnection tests.
+ * MCP 자동 재연결에 대한 테스트.
  *
- * 대상: reconnection scheduling, ensureConnected on-demand reconnection,
- * disabled reconnection, close lifecycle with reconnection scope.
+ * 재연결 스케줄링, ensureConnected 온디맨드 재연결,
+ * 비활성화된 재연결, 재연결 스코프가 포함된 종료 라이프사이클을 검증합니다.
  *
- * Uses STDIO servers with missing command config for instant failure
- * (avoids 10-20s STDIO process timeout).
+ * 즉시 실패를 위해 커맨드 설정이 누락된 STDIO 서버를 사용합니다
+ * (10-20초 STDIO 프로세스 타임아웃을 회피).
  */
 class McpReconnectionTest {
 
-    /** STDIO server with missing command — fails instantly in connectStdio(). */
+    /** 커맨드가 누락된 STDIO 서버 — connectStdio()에서 즉시 실패합니다. */
     private fun fastFailServer(name: String) = McpServer(
         name = name,
         transportType = McpTransportType.STDIO,
@@ -43,18 +43,18 @@ class McpReconnectionTest {
             val manager = DefaultMcpManager(reconnectionProperties = props)
             manager.register(fastFailServer("recon-server"))
 
-            // First connect fails instantly (missing command)
+            // 첫 번째 연결이 즉시 실패합니다 (커맨드 누락)
             val connected = manager.connect("recon-server")
             assertFalse(connected) { "Connection should fail for server with missing command" }
             assertEquals(McpServerStatus.FAILED, manager.getStatus("recon-server")) {
                 "Status should be FAILED after failed connection"
             }
 
-            // Background reconnection is scheduled but will also fail.
-            // long enough for 2 attempts with small backoff.를 기다립니다
+            // 백그라운드 재연결이 스케줄되었지만 역시 실패할 것입니다.
+            // 짧은 백오프로 2회 시도하기에 충분한 시간을 기다립니다
             delay(500)
 
-            // After exhausted attempts, status은(는) still be FAILED해야 합니다
+            // 재시도가 소진된 후에도 상태는 여전히 FAILED여야 합니다
             assertEquals(McpServerStatus.FAILED, manager.getStatus("recon-server")) {
                 "Status should remain FAILED after exhausted reconnection attempts"
             }
@@ -127,7 +127,7 @@ class McpReconnectionTest {
                 "Status should be FAILED"
             }
 
-            // No background task scheduled — state은(는) remain stable해야 합니다
+            // 백그라운드 작업이 스케줄되지 않음 — 상태가 안정적으로 유지되어야 합니다
             delay(50)
             assertEquals(McpServerStatus.FAILED, manager.getStatus("no-recon")) {
                 "Status should remain FAILED with reconnection disabled"

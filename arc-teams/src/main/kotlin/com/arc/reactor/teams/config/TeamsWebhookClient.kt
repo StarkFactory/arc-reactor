@@ -11,9 +11,17 @@ private val logger = KotlinLogging.logger {}
 private const val MAX_MESSAGE_LENGTH = 3000
 
 /**
- * Sends notifications to Microsoft Teams via Incoming Webhook using the MessageCard format.
+ * Microsoft Teams Incoming Webhook을 통해 MessageCard 형식으로 알림을 전송한다.
  *
- * On HTTP errors, logs a warning and does not rethrow — consistent with SlackMessageSender error policy.
+ * HTTP 오류 발생 시 경고를 로깅하고 예외를 재전파하지 않는다 --
+ * [SlackMessageSender]의 에러 정책과 일관성을 유지한다.
+ *
+ * SSRF 방지: 기본적으로 프라이빗/예약 IP 주소로의 webhook 전송을 차단한다.
+ * 메시지가 [MAX_MESSAGE_LENGTH]를 초과하면 잘라서 전송한다.
+ *
+ * @param properties Teams 설정 프로퍼티
+ * @param ssrfProtectionEnabled SSRF 보호 활성화 여부 (기본: true)
+ * @see TeamsAutoConfiguration 이 클라이언트를 빈으로 등록하는 자동 설정
  */
 class TeamsWebhookClient(
     private val properties: TeamsProperties,
@@ -23,6 +31,7 @@ class TeamsWebhookClient(
     private val webClient = WebClient.builder().build()
 
     override fun sendMessage(webhookUrl: String, text: String) {
+        // SSRF 방지: 프라이빗/예약 IP 주소로의 요청을 차단한다
         if (ssrfProtectionEnabled) {
             val host = try { URI(webhookUrl).host } catch (_: Exception) { null }
             if (isPrivateOrReservedAddress(host)) {
@@ -46,6 +55,7 @@ class TeamsWebhookClient(
         }
     }
 
+    /** Teams MessageCard JSON 페이로드를 생성한다. */
     private fun buildMessageCard(text: String): String {
         val escaped = text
             .replace("\\", "\\\\")

@@ -42,12 +42,12 @@ class ResponseCacheIntegrationTest {
                 temperature = 0.0
             )
 
-            // First call — cache miss, calls LLM
+            // 첫 번째 호출 — 캐시 미스, LLM 호출
             val result1 = executor.execute(command)
             assertTrue(result1.success) { "First call should succeed" }
             assertEquals("Cached response", result1.content) { "First call content should match" }
 
-            // Second call — cache hit, no LLM call
+            // 두 번째 호출 — 캐시 히트, LLM 호출 없음
             val result2 = executor.execute(command)
             assertTrue(result2.success) { "Second call should succeed (cached)" }
             assertEquals("Cached response", result2.content) { "Cached content should match" }

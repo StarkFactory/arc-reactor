@@ -15,6 +15,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import reactor.core.publisher.Flux
 
+/**
+ * 스트리밍 경계 조건에 대한 테스트.
+ *
+ * 스트리밍 모드에서의 경계 상황을 검증합니다.
+ */
 class StreamingBoundaryTest {
 
     private lateinit var fixture: AgentTestFixture

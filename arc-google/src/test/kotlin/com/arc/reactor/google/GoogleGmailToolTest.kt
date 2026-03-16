@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
+/**
+ * GoogleGmailTool에 대한 테스트.
+ *
+ * Gmail 도구의 이메일 조회/발송 동작을 검증합니다.
+ */
 class GoogleGmailToolTest {
 
     private val credentialProvider = mockk<GoogleCredentialProvider>()

@@ -10,10 +10,17 @@ import kotlin.coroutines.cancellation.CancellationException
 private val logger = KotlinLogging.logger {}
 
 /**
- * Generates candidate prompt improvements based on feedback analysis.
+ * 피드백 분석 기반으로 후보 프롬프트 개선안을 생성한다.
  *
- * Uses LLM to produce diverse prompt variations that address
- * identified weaknesses while preserving existing strengths.
+ * LLM을 사용하여 기존 강점을 유지하면서 식별된 약점을
+ * 보완하는 다양한 프롬프트 변형을 생성한다.
+ *
+ * WHY: 수동으로 프롬프트를 수정하는 대신, LLM의 메타 프롬프팅 능력을 활용하여
+ * 약점을 체계적으로 보완하는 여러 후보를 자동 생성한다.
+ * 생성된 후보는 A/B 테스트를 통해 기준 버전과 비교된다.
+ *
+ * @see FeedbackAnalyzer 약점 분석 제공
+ * @see com.arc.reactor.promptlab.ExperimentOrchestrator 후보를 실험에 활용
  */
 class PromptCandidateGenerator(
     private val chatModelProvider: ChatModelProvider,

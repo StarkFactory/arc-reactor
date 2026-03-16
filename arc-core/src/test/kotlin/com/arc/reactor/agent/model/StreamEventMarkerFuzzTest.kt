@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 @Tag("matrix")
+/**
+ * StreamEventMarker의 퍼즈 테스트.
+ *
+ * 비정상적인 입력에 대한 이벤트 마커의 안정성을 검증합니다.
+ */
 class StreamEventMarkerFuzzTest {
 
     private val alphabet = (

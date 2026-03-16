@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
+/**
+ * SchedulerExecutionViewSupport에 대한 테스트.
+ *
+ * 스케줄러 실행 뷰 지원 유틸리티를 검증합니다.
+ */
 class SchedulerExecutionViewSupportTest {
 
     @Test

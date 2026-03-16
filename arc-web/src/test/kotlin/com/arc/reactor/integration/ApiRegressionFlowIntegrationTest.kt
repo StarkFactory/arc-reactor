@@ -62,6 +62,11 @@ import kotlin.math.min
 )
 @AutoConfigureWebTestClient
 @Tag("integration")
+/**
+ * API 회귀 흐름 통합 테스트.
+ *
+ * 주요 API 흐름의 회귀 방지를 검증합니다.
+ */
 class ApiRegressionFlowIntegrationTest {
 
     @Autowired

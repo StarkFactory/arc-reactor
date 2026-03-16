@@ -29,55 +29,61 @@ import java.util.concurrent.locks.ReentrantLock
 private val logger = KotlinLogging.logger {}
 
 /**
- * Manages the conversation history lifecycle.
+ * 대화 이력의 생명주기를 관리하는 인터페이스.
  *
- * - Loads conversation history from MemoryStore
- * - Saves conversation history after agent execution
- * - Converts messages between Arc Reactor and Spring AI formats
- * - Optionally applies hierarchical memory (facts + narrative + recent window)
+ * - MemoryStore에서 대화 이력을 로드한다
+ * - 에이전트 실행 후 대화 이력을 저장한다
+ * - Arc Reactor 메시지와 Spring AI 메시지 간 변환을 수행한다
+ * - 선택적으로 계층적 메모리(facts + narrative + 최근 윈도우)를 적용한다
  */
 interface ConversationManager {
 
     /**
-     * Loads the command's conversation history as a list of Spring AI messages.
-     * If conversationHistory is directly provided, it takes priority;
-     * otherwise, retrieves from MemoryStore using the sessionId.
+     * 커맨드의 대화 이력을 Spring AI 메시지 목록으로 로드한다.
      *
-     * When hierarchical memory is enabled and the conversation exceeds
-     * the trigger threshold, returns [Facts SystemMessage] + [Narrative SystemMessage]
-     * + [recent N messages] instead of a simple takeLast.
+     * conversationHistory가 직접 제공되면 우선 사용하고,
+     * 그렇지 않으면 sessionId를 사용하여 MemoryStore에서 조회한다.
+     *
+     * 계층적 메모리가 활성화되어 있고 대화가 트리거 임계값을 초과하면,
+     * 단순 takeLast 대신 [Facts SystemMessage] + [Narrative SystemMessage] + [최근 N개 메시지]를 반환한다.
      */
     suspend fun loadHistory(command: AgentCommand): List<Message>
 
     /**
-     * Saves a successful agent execution result to the MemoryStore.
-     * Failed results are not saved.
+     * 에이전트 실행 결과를 MemoryStore에 저장한다.
+     * 실패한 결과는 저장하지 않는다.
      *
-     * When hierarchical memory is enabled, triggers async summarization
-     * if the conversation exceeds the trigger threshold.
+     * 계층적 메모리가 활성화되어 있으면 대화가 트리거 임계값을 초과할 때
+     * 비동기 요약을 트리거한다.
      */
     suspend fun saveHistory(command: AgentCommand, result: AgentResult)
 
     /**
-     * Saves streaming results to the MemoryStore.
+     * 스트리밍 결과를 MemoryStore에 저장한다.
      */
     suspend fun saveStreamingHistory(command: AgentCommand, content: String)
 
     /**
-     * Cancels any active async summarization for the given session.
-     * Called during session deletion to prevent orphan summaries.
+     * 주어진 세션의 활성 비동기 요약 작업을 취소한다.
+     * 세션 삭제 시 고아 요약(orphan summary)을 방지하기 위해 호출된다.
      */
     fun cancelActiveSummarization(sessionId: String) {
-        // Default no-op for implementations without async summarization
+        // 비동기 요약이 없는 구현체를 위한 기본 no-op
     }
 }
 
 /**
- * Default implementation based on MemoryStore with optional hierarchical memory.
+ * MemoryStore 기반의 기본 ConversationManager 구현체.
+ * 선택적 계층적 메모리를 지원한다.
  *
- * When [summaryStore] and [summaryService] are both provided and summary is
- * enabled in [properties], old messages are compressed into structured facts
- * and a narrative summary while recent messages are preserved verbatim.
+ * [summaryStore]와 [summaryService]가 모두 제공되고 요약이 활성화되면,
+ * 오래된 메시지를 구조화된 facts와 narrative 요약으로 압축하고
+ * 최근 메시지는 원문 그대로 보존한다.
+ *
+ * ## 계층적 메모리의 장점
+ * - 전체 대화 이력을 LLM에 보내지 않아도 맥락을 유지할 수 있다
+ * - Facts는 정확한 수치/결정 사항을, Narrative는 대화 흐름을 보존한다
+ * - 토큰 비용을 크게 절감하면서도 대화 품질을 유지한다
  */
 class DefaultConversationManager(
     private val memoryStore: MemoryStore?,
@@ -86,19 +92,23 @@ class DefaultConversationManager(
     private val summaryService: ConversationSummaryService? = null
 ) : ConversationManager, DisposableBean {
 
+    /** 요약 관련 설정 프로퍼티 바로가기 */
     private val summaryProps get() = properties.memory.summary
 
+    /** 비동기 요약 작업을 위한 코루틴 스코프. SupervisorJob으로 개별 작업 실패가 전파되지 않는다. */
     private val asyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /** 세션별 활성 요약 작업을 추적하여 중복 실행을 방지한다. */
     private val activeSummarizations = ConcurrentHashMap<String, Job>()
 
     /**
-     * Per-session locks to ensure user+assistant message pair is written atomically.
-     * Without this, two concurrent requests on the same session could interleave:
-     * user1, user2, assistant2, assistant1 — corrupting conversation order.
+     * 세션별 저장 락. user+assistant 메시지 쌍이 원자적으로 기록되도록 보장한다.
+     * 이 락이 없으면 같은 세션에 대한 두 동시 요청이 다음과 같이 인터리빙될 수 있다:
+     * user1, user2, assistant2, assistant1 — 대화 순서가 깨진다.
      */
     private val sessionSaveLocks = ConcurrentHashMap<String, ReentrantLock>()
 
     override suspend fun loadHistory(command: AgentCommand): List<Message> {
+        // 직접 제공된 대화 이력이 있으면 우선 사용한다
         if (command.conversationHistory.isNotEmpty()) {
             return command.conversationHistory.map { toSpringAiMessage(it) }
         }
@@ -107,11 +117,13 @@ class DefaultConversationManager(
         val memory = memoryStore?.get(sessionId) ?: return emptyList()
         val allMessages = memory.getHistory()
 
+        // 요약이 비활성이거나 메시지 수가 트리거 임계값 이하이면 단순 takeLast 사용
         if (!isSummaryEnabled() || allMessages.size <= summaryProps.triggerMessageCount) {
             return allMessages.takeLast(properties.llm.maxConversationTurns * 2)
                 .map { toSpringAiMessage(it) }
         }
 
+        // 계층적 메모리 빌드 시도. 실패하면 안전하게 takeLast로 폴백한다.
         return try {
             buildHierarchicalHistory(sessionId, allMessages)
         } catch (e: Exception) {
@@ -133,16 +145,28 @@ class DefaultConversationManager(
         triggerAsyncSummarization(command.metadata)
     }
 
+    /**
+     * 전체 메시지에서 "요약할 구간"과 "최근 윈도우"를 나누는 분할 인덱스를 계산한다.
+     * (전체 메시지 수 - 최근 유지할 메시지 수)로 산출하며, 최소 0을 보장한다.
+     */
     private fun calculateSplitIndex(totalSize: Int): Int =
         (totalSize - summaryProps.recentMessageCount).coerceAtLeast(0)
 
+    /**
+     * 계층적 대화 이력을 빌드한다.
+     *
+     * 1) 메시지를 "요약할 구간"과 "최근 윈도우"로 분할
+     * 2) 요약 구간에 대해 기존 요약이 있으면 재사용, 없으면 LLM으로 새로 생성
+     * 3) [Facts SystemMessage] + [Narrative SystemMessage] + [최근 메시지]를 합쳐 반환
+     * 4) 요약이 비어있으면(facts, narrative 모두 없음) takeLast로 안전하게 폴백
+     */
     private suspend fun buildHierarchicalHistory(
         sessionId: String,
         allMessages: List<com.arc.reactor.agent.model.Message>
     ): List<Message> {
         val splitIndex = calculateSplitIndex(allMessages.size)
 
-        // Nothing to summarize — all messages fit in the recent window
+        // 분할 인덱스가 0이면 모든 메시지가 최근 윈도우에 포함 — 요약 불필요
         if (splitIndex == 0) {
             return allMessages.map { toSpringAiMessage(it) }
         }
@@ -152,6 +176,7 @@ class DefaultConversationManager(
 
         val existingSummary = summaryStore?.get(sessionId)
 
+        // 기존 요약이 분할 인덱스 이상까지 커버하면 재사용, 아니면 새로 생성
         val summary = if (existingSummary != null && existingSummary.summarizedUpToIndex >= splitIndex) {
             existingSummary
         } else {
@@ -160,16 +185,18 @@ class DefaultConversationManager(
 
         val result = mutableListOf<Message>()
 
+        // Facts: 정확한 수치, 결정 사항, 조건 등 구조화된 정보
         if (summary.facts.isNotEmpty()) {
             val factsText = summary.facts.joinToString("\n") { "- ${it.key}: ${it.value}" }
             result.add(SystemMessage("Conversation Facts:\n$factsText"))
         }
 
+        // Narrative: 대화 흐름, 톤, 미해결 사항 등 서술형 요약
         if (summary.narrative.isNotBlank()) {
             result.add(SystemMessage("Conversation Summary:\n${summary.narrative}"))
         }
 
-        // Empty summary — fall back to takeLast to avoid silent context loss
+        // 요약이 비어있으면 맥락이 손실되므로 안전하게 takeLast로 폴백한다
         if (result.isEmpty()) {
             logger.warn {
                 "Summary empty: facts=${summary.facts.size}, " +
@@ -179,6 +206,7 @@ class DefaultConversationManager(
                 .map { toSpringAiMessage(it) }
         }
 
+        // 최근 메시지들은 원문 그대로 추가
         for (msg in recentMessages) {
             result.add(toSpringAiMessage(msg))
         }
@@ -186,6 +214,9 @@ class DefaultConversationManager(
         return result
     }
 
+    /**
+     * LLM으로 요약을 생성하고 저장소에 저장한다.
+     */
     private suspend fun summarizeAndStore(
         sessionId: String,
         messages: List<com.arc.reactor.agent.model.Message>,
@@ -211,6 +242,13 @@ class DefaultConversationManager(
         activeSummarizations.remove(sessionId)?.cancel()
     }
 
+    /**
+     * 비동기로 요약을 트리거한다.
+     *
+     * 대화가 트리거 임계값을 초과하면 백그라운드에서 요약을 생성한다.
+     * 같은 세션에 대한 이전 요약 작업이 있으면 취소하고 새로 시작한다.
+     * 실패해도 다음 loadHistory 호출 시 재시도되므로 로깅만 한다.
+     */
     private suspend fun triggerAsyncSummarization(metadata: Map<String, Any>) {
         if (!isSummaryEnabled()) return
         val sessionId = metadata["sessionId"]?.toString() ?: return
@@ -222,6 +260,7 @@ class DefaultConversationManager(
         val splitIndex = calculateSplitIndex(allMessages.size)
         if (splitIndex == 0) return
 
+        // 이전 요약 작업이 있으면 취소한다
         activeSummarizations[sessionId]?.cancel()
 
         val job = asyncScope.launch {
@@ -236,16 +275,25 @@ class DefaultConversationManager(
             }
         }
         activeSummarizations[sessionId] = job
+        // 작업 완료 시 추적 맵에서 자동 제거
         job.invokeOnCompletion { activeSummarizations.remove(sessionId, job) }
     }
 
+    /** 요약 기능이 활성화되었는지 확인한다. 세 가지 조건이 모두 충족되어야 한다. */
     private fun isSummaryEnabled(): Boolean =
         summaryProps.enabled && summaryStore != null && summaryService != null
 
+    /** 빈 소멸 시 비동기 스코프를 정리한다. */
     override fun destroy() {
         asyncScope.cancel()
     }
 
+    /**
+     * user + assistant 메시지 쌍을 MemoryStore에 원자적으로 저장한다.
+     *
+     * 세션별 ReentrantLock으로 동시 요청 간 메시지 인터리빙을 방지한다.
+     * computeIfAbsent로 세션별 락을 지연 생성한다.
+     */
     private fun saveMessages(
         metadata: Map<String, Any>,
         userId: String?,
@@ -256,8 +304,6 @@ class DefaultConversationManager(
         if (memoryStore == null) return
         val resolvedUserId = userId ?: "anonymous"
 
-        // Per-session lock ensures user+assistant pair is written atomically.
-        // Without this, concurrent requests on the same session could interleave messages.
         val lock = sessionSaveLocks.computeIfAbsent(sessionId) { ReentrantLock() }
         lock.lock()
         try {
@@ -279,6 +325,10 @@ class DefaultConversationManager(
     }
 
     companion object {
+        /**
+         * Arc Reactor 메시지를 Spring AI 메시지로 변환한다.
+         * MessageRole에 따라 적절한 Spring AI 메시지 타입으로 매핑한다.
+         */
         fun toSpringAiMessage(msg: com.arc.reactor.agent.model.Message): Message {
             return when (msg.role) {
                 MessageRole.USER -> MediaConverter.buildUserMessage(msg.content, msg.media)

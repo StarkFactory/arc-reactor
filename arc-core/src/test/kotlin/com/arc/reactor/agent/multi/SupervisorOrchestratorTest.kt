@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * SupervisorOrchestrator에 대한 테스트.
+ *
+ * 감독자 패턴 멀티 에이전트 오케스트레이션을 검증합니다.
+ */
 class SupervisorOrchestratorTest {
 
     private val baseCommand = AgentCommand(systemPrompt = "", userPrompt = "주문 환불해주세요")

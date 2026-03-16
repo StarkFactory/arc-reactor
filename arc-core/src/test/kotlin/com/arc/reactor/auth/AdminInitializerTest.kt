@@ -6,6 +6,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * AdminInitializer에 대한 테스트.
+ *
+ * 관리자 초기화 로직을 검증합니다.
+ */
 class AdminInitializerTest {
 
     private lateinit var userStore: UserStore

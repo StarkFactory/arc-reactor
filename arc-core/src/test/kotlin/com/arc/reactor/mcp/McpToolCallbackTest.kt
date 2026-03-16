@@ -10,6 +10,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * MCP 도구 콜백에 대한 테스트.
+ *
+ * MCP 도구 콜백의 기본 동작을 검증합니다.
+ */
 class McpToolCallbackTest {
 
     @Test

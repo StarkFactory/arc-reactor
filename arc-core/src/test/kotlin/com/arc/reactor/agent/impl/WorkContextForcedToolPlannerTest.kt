@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
+/**
+ * WorkContextForcedToolPlanner에 대한 테스트.
+ *
+ * 작업 컨텍스트에서 강제 도구 계획 수립을 검증합니다.
+ */
 class WorkContextForcedToolPlannerTest {
 
     @Test

@@ -9,10 +9,16 @@ import org.springframework.ai.tool.annotation.ToolParam
 private val logger = KotlinLogging.logger {}
 
 /**
- * Agent tool for updating an existing scheduled job.
+ * 기존 스케줄 작업을 갱신하는 에이전트 도구.
  *
- * Supports partial updates — only specified fields are changed,
- * unspecified fields retain their current values.
+ * 부분 갱신을 지원한다 — 지정된 필드만 변경되고,
+ * 미지정 필드는 현재 값을 유지한다.
+ *
+ * WHY: 사용자가 자연어로 "크론을 9시에서 10시로 바꿔줘" 같은
+ * 부분 수정 요청을 할 수 있게 한다.
+ *
+ * @param schedulerService 스케줄러 서비스
+ * @see DynamicSchedulerService 스케줄러 서비스
  */
 class UpdateScheduledJobTool(
     private val schedulerService: DynamicSchedulerService
@@ -43,11 +49,13 @@ NOTE: Changing agentPrompt alters what the job executes on every future run. Con
         val trimmedId = jobId?.trim()?.ifBlank { null }
         val trimmedName = jobName?.trim()?.ifBlank { null }
 
+        // jobId 또는 jobName 중 하나는 필수
         if (trimmedId == null && trimmedName == null) {
             return errorJson("Either jobId or jobName is required")
         }
 
         return try {
+            // 기존 작업을 찾는다
             val existing = when {
                 trimmedId != null -> schedulerService.findById(trimmedId)
                     ?: return errorJson("Job not found with id: $trimmedId")
@@ -55,6 +63,7 @@ NOTE: Changing agentPrompt alters what the job executes on every future run. Con
                     ?: return errorJson("Job not found with name: $trimmedName")
             }
 
+            // 지정된 필드만 갱신하고 나머지는 기존 값 유지
             val updated = existing.copy(
                 cronExpression = cronExpression?.trim() ?: existing.cronExpression,
                 agentPrompt = agentPrompt?.trim() ?: existing.agentPrompt,
@@ -78,7 +87,7 @@ NOTE: Changing agentPrompt alters what the job executes on every future run. Con
                 )
             )
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to update scheduled job: ${trimmedId ?: trimmedName}" }
+            logger.warn(e) { "스케줄 작업 갱신 실패: ${trimmedId ?: trimmedName}" }
             errorJson(e.message ?: "Failed to update scheduled job")
         }
     }

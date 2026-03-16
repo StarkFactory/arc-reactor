@@ -7,6 +7,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * Micrometer 기반 AgentMetrics에 대한 테스트.
+ *
+ * Micrometer 메트릭 기록 동작을 검증합니다.
+ */
 class MicrometerAgentMetricsTest {
 
     @Test

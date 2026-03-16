@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * SystemPromptBuilder에 대한 테스트.
+ *
+ * 시스템 프롬프트 구성 로직을 검증합니다.
+ */
 class SystemPromptBuilderTest {
 
     private val builder = SystemPromptBuilder()

@@ -8,6 +8,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 
+/**
+ * RetryExecutor에 대한 테스트.
+ *
+ * 재시도 실행기의 기본 동작을 검증합니다.
+ */
 class RetryExecutorTest {
 
     @Test

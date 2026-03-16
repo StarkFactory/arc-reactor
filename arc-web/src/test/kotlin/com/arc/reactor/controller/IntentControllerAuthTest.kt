@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * IntentController 인증에 대한 테스트.
+ *
+ * 인텐트 컨트롤러의 인증/인가 동작을 검증합니다.
+ */
 class IntentControllerAuthTest {
 
     private lateinit var registry: IntentRegistry

@@ -18,6 +18,12 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * 병렬 도구 실행에 대한 테스트.
+ *
+ * 동시 실행 검증, 결과 순서 보존, 훅 통합,
+ * 실패 격리, maxToolCalls 준수를 검증합니다.
+ */
 class ParallelToolExecutionTest {
 
     private lateinit var fixture: AgentTestFixture

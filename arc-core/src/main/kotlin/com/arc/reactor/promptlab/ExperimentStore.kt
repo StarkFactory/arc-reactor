@@ -8,51 +8,55 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * Experiment Store Interface
+ * 실험 저장소 인터페이스
  *
- * Manages CRUD operations for prompt lab experiments, trials, and reports.
+ * 프롬프트 실험실(Prompt Lab)의 실험, 트라이얼, 보고서에 대한 CRUD 작업을 관리한다.
  *
- * @see InMemoryExperimentStore for default implementation
+ * @see InMemoryExperimentStore 기본 인메모리 구현
+ * @see JdbcExperimentStore JDBC 영속 구현
  */
 interface ExperimentStore {
 
-    /** Save or update an experiment. */
+    /** 실험을 저장하거나 갱신한다. */
     fun save(experiment: Experiment): Experiment
 
-    /** Get an experiment by ID. Returns null if not found. */
+    /** ID로 실험을 조회한다. 존재하지 않으면 null 반환. */
     fun get(id: String): Experiment?
 
     /**
-     * List experiments with optional filters.
-     * All filters are AND-combined. Null means "no filter on this field".
+     * 선택적 필터를 적용하여 실험 목록을 조회한다.
+     * 모든 필터는 AND 조합. null은 해당 필드 필터 없음을 의미한다.
      */
     fun list(
         status: ExperimentStatus? = null,
         templateId: String? = null
     ): List<Experiment>
 
-    /** Delete an experiment by ID. Idempotent — no error if not found. */
+    /** ID로 실험을 삭제한다. 멱등성 — 존재하지 않아도 에러 없음. */
     fun delete(id: String)
 
-    /** Save trials for an experiment. Appends to existing trials. */
+    /** 실험의 트라이얼을 저장한다. 기존 트라이얼에 추가된다. */
     fun saveTrials(experimentId: String, trials: List<Trial>)
 
-    /** Get all trials for an experiment. */
+    /** 실험의 모든 트라이얼을 조회한다. */
     fun getTrials(experimentId: String): List<Trial>
 
-    /** Save a report for an experiment. Overwrites any existing report. */
+    /** 실험 보고서를 저장한다. 기존 보고서를 덮어쓴다. */
     fun saveReport(experimentId: String, report: ExperimentReport)
 
-    /** Get the report for an experiment. Returns null if not found. */
+    /** 실험 보고서를 조회한다. 존재하지 않으면 null 반환. */
     fun getReport(experimentId: String): ExperimentReport?
 }
 
 /**
- * In-Memory Experiment Store
+ * 인메모리 실험 저장소
  *
- * Thread-safe implementation using [ConcurrentHashMap].
- * Not persistent — data is lost on server restart.
- * Automatically evicts oldest completed experiments when capacity is exceeded.
+ * [ConcurrentHashMap]을 사용한 스레드 안전 구현.
+ * 영속적이지 않음 — 서버 재시작 시 데이터가 소실된다.
+ * 용량 초과 시 가장 오래된 완료된 실험을 자동 퇴출한다.
+ *
+ * WHY: DB 없이도 PromptLab 기본 동작을 보장하기 위한 기본 구현.
+ * 완료/실패 상태의 오래된 실험을 자동 퇴출하여 메모리 사용을 제한한다.
  */
 class InMemoryExperimentStore(
     private val maxEntries: Int = DEFAULT_MAX_ENTRIES
@@ -118,7 +122,7 @@ class InMemoryExperimentStore(
         return reports[experimentId]
     }
 
-    /** Must be called within synchronized(evictionLock). */
+    /** synchronized(evictionLock) 내에서 호출되어야 한다. */
     private fun evictIfNeeded() {
         if (experiments.size <= maxEntries) return
         val completedIds = experiments.values

@@ -12,6 +12,11 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 
+/**
+ * GoogleWorkspace 자동 설정에 대한 테스트.
+ *
+ * Google Workspace 도구의 조건부 빈 등록을 검증합니다.
+ */
 class GoogleWorkspaceAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()

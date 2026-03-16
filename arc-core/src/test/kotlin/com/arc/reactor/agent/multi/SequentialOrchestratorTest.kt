@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * SequentialOrchestrator에 대한 테스트.
+ *
+ * 순차 멀티 에이전트 오케스트레이션을 검증합니다.
+ */
 class SequentialOrchestratorTest {
 
     private val orchestrator = SequentialOrchestrator()

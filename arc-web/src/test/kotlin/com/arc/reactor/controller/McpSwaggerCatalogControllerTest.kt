@@ -27,6 +27,11 @@ import java.security.MessageDigest
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+/**
+ * McpSwaggerCatalogController에 대한 테스트.
+ *
+ * MCP Swagger 카탈로그 REST API의 동작을 검증합니다.
+ */
 class McpSwaggerCatalogControllerTest {
 
     private lateinit var store: McpServerStore

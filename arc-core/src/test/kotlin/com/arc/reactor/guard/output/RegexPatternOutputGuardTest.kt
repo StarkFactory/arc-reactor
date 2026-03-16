@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 정규식 패턴 출력 가드에 대한 테스트.
+ *
+ * 정규식 기반 출력 필터링을 검증합니다.
+ */
 class RegexPatternOutputGuardTest {
 
     private val defaultContext = OutputGuardContext(

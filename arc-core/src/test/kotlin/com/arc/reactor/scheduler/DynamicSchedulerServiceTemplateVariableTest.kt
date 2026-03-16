@@ -19,6 +19,11 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
+/**
+ * DynamicSchedulerService의 템플릿 변수에 대한 테스트.
+ *
+ * 스케줄러 프롬프트 템플릿 변수 치환을 검증합니다.
+ */
 class DynamicSchedulerServiceTemplateVariableTest {
 
     @Nested

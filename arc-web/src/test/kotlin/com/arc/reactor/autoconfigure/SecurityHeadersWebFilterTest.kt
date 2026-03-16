@@ -9,6 +9,11 @@ import org.springframework.mock.web.server.MockServerWebExchange
 import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
 
+/**
+ * SecurityHeadersWebFilter에 대한 테스트.
+ *
+ * 보안 헤더 웹 필터의 동작을 검증합니다.
+ */
 class SecurityHeadersWebFilterTest {
 
     private val filter = SecurityHeadersWebFilter()

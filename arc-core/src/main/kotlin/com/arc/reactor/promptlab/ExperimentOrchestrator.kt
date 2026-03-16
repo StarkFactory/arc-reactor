@@ -24,10 +24,29 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 /**
- * Experiment execution engine.
+ * 실험 실행 엔진.
  *
- * Runs prompt experiments by executing each version against test queries,
- * evaluating results through the 3-tier pipeline, and generating reports.
+ * 각 프롬프트 버전을 테스트 쿼리에 대해 실행하고,
+ * 결과를 3계층 파이프라인으로 평가하여 보고서를 생성한다.
+ *
+ * ## A/B 테스트 실험 실행 흐름
+ * 1. 실험을 RUNNING 상태로 변경
+ * 2. 모든 버전(기준 + 후보) x 쿼리 x 반복에 대해 트라이얼 실행
+ * 3. 각 트라이얼: 에이전트 실행 -> 3계층 평가 -> 결과 저장
+ * 4. 트라이얼 결과로 비교 보고서 생성
+ * 5. 실험을 COMPLETED 상태로 변경
+ *
+ * ## 자동 최적화 파이프라인 (runAutoPipeline)
+ * 1. FeedbackAnalyzer로 부정 피드백 분석 -> 약점 식별
+ * 2. PromptCandidateGenerator로 약점을 보완하는 후보 프롬프트 생성
+ * 3. 기준 vs 후보 실험 실행 -> 보고서 생성
+ *
+ * WHY: 프롬프트 변경의 효과를 정량적으로 측정하여
+ * 감에 의한 프롬프트 수정 대신 데이터 기반 의사결정을 지원한다.
+ *
+ * @see com.arc.reactor.promptlab.analysis.FeedbackAnalyzer 피드백 분석기
+ * @see com.arc.reactor.promptlab.analysis.PromptCandidateGenerator 후보 프롬프트 생성기
+ * @see ReportGenerator 보고서 생성기
  */
 class ExperimentOrchestrator(
     private val agentExecutor: AgentExecutor,
@@ -41,7 +60,11 @@ class ExperimentOrchestrator(
 ) {
 
     /**
-     * Execute an experiment: run all version x query x repetition trials.
+     * 실험을 실행한다: 모든 버전 x 쿼리 x 반복 트라이얼을 수행한다.
+     *
+     * @param experimentId 실행할 실험 ID
+     * @return 완료된 실험 (상태: COMPLETED 또는 FAILED)
+     * @throws IllegalArgumentException 실험이 존재하지 않는 경우
      */
     suspend fun execute(experimentId: String): Experiment {
         val experiment = experimentStore.get(experimentId)
@@ -96,9 +119,13 @@ class ExperimentOrchestrator(
     }
 
     /**
-     * Full automation pipeline: analyze feedback -> generate candidates -> run experiment.
+     * 완전 자동화 파이프라인: 피드백 분석 -> 후보 생성 -> 실험 실행.
      *
-     * @return Completed experiment, or null if insufficient negative feedback
+     * @param templateId 최적화 대상 프롬프트 템플릿 ID
+     * @param since 이 시각 이후의 피드백만 분석 (null=전체)
+     * @param candidateCount 생성할 후보 수 (null=설정 기본값)
+     * @param judgeModel LLM 심판 모델 (null=설정 기본값)
+     * @return 완료된 실험, 또는 부정 피드백이 불충분하면 null
      */
     suspend fun runAutoPipeline(
         templateId: String,

@@ -11,6 +11,11 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.scheduling.TaskScheduler
 
 @Tag("safety")
+/**
+ * DynamicSchedulerService의 유효성 검사에 대한 테스트.
+ *
+ * 스케줄된 작업 등록/수정 시 유효성 검사를 검증합니다.
+ */
 class DynamicSchedulerServiceValidationTest {
 
     private val store = mockk<ScheduledJobStore>()

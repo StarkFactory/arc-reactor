@@ -3,6 +3,11 @@ package com.arc.reactor.guard.output.policy
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
+/**
+ * 출력 가드 규칙 저장소에 대한 테스트.
+ *
+ * 규칙 저장소의 CRUD 동작을 검증합니다.
+ */
 class OutputGuardRuleStoreTest {
 
     @Test

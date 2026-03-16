@@ -10,6 +10,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 기본 가드 단계들에 대한 테스트.
+ *
+ * 기본 제공 가드 단계들의 동작을 검증합니다.
+ */
 class DefaultGuardStagesTest {
 
     @Nested
@@ -422,7 +427,7 @@ class DefaultGuardStagesTest {
             assertInstanceOf(GuardResult.Rejected::class.java, stage.check(tenantACommand),
                 "tenant-a:user-1 should be rate limited")
 
-            // Same user in tenant-b은(는) be independent해야 합니다
+            // tenant-b의 동일 사용자는 독립적이어야 합니다
             val tenantBCommand = GuardCommand(
                 userId = "user-1", text = "hello",
                 metadata = mapOf("tenantId" to "tenant-b")

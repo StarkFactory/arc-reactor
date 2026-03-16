@@ -14,12 +14,15 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * Global exception handler for standardized error responses.
+ * 표준화된 오류 응답을 위한 전역 예외 핸들러.
  *
- * Provides consistent error format across all controllers:
- * - Validation errors (400) with field-level detail
- * - Bad request errors (400) for malformed input
- * - Generic errors (500) with masked messages (no stack traces)
+ * 모든 컨트롤러에 걸쳐 일관된 오류 형식을 제공합니다:
+ * - 유효성 검사 오류 (400) -- 필드 수준 상세 정보 포함
+ * - 잘못된 요청 오류 (400) -- 형식 오류 입력
+ * - 일반 오류 (500) -- 마스킹된 메시지 (스택 트레이스 미포함)
+ *
+ * WHY: 보안을 위해 500 에러의 상세 메시지는 클라이언트에 노출하지 않는다.
+ * 내부 오류 정보는 서버 로그에만 기록된다.
  */
 @RestControllerAdvice
 class GlobalExceptionHandler {
@@ -112,9 +115,7 @@ class GlobalExceptionHandler {
     }
 }
 
-/**
- * Standardized error response DTO.
- */
+/** 표준화된 오류 응답 DTO. */
 data class ErrorResponse(
     val error: String,
     val details: Map<String, String>? = null,

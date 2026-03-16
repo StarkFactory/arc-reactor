@@ -12,12 +12,15 @@ import reactor.core.publisher.Mono
 import java.time.Instant
 
 /**
- * API version contract filter.
+ * API 버전 계약 필터.
  *
- * - Requests may specify `X-Arc-Api-Version`.
- * - If omitted, server default is applied.
- * - If provided with an unsupported version, request is rejected with 400.
- * - Response always includes current and supported API version headers.
+ * - 요청에 `X-Arc-Api-Version` 헤더를 지정할 수 있다.
+ * - 생략하면 서버 기본 버전이 적용된다.
+ * - 미지원 버전이 지정되면 400 Bad Request로 거부한다.
+ * - 응답에 항상 현재 버전과 지원 버전 목록 헤더를 포함한다.
+ *
+ * WHY: API 버전 불일치로 인한 호환성 문제를 요청 단계에서 조기 차단하여
+ * 클라이언트가 업그레이드가 필요한지 즉시 파악할 수 있도록 한다.
  */
 class ApiVersionContractWebFilter(
     private val objectMapper: ObjectMapper,

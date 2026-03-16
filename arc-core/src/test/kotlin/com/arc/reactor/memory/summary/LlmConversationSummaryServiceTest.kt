@@ -14,6 +14,11 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 
+/**
+ * LlmConversationSummaryService에 대한 테스트.
+ *
+ * LLM 기반 대화 요약 서비스의 동작을 검증합니다.
+ */
 class LlmConversationSummaryServiceTest {
 
     @Nested

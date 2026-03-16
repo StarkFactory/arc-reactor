@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * SystemPromptResolver에 대한 테스트.
+ *
+ * 시스템 프롬프트 해석 로직을 검증합니다.
+ */
 class SystemPromptResolverTest {
 
     private val personaStore: PersonaStore = mockk()

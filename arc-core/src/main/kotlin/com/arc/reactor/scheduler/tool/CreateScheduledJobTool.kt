@@ -12,10 +12,17 @@ import org.springframework.ai.tool.annotation.ToolParam
 private val logger = KotlinLogging.logger {}
 
 /**
- * Agent tool for creating scheduled jobs via natural language.
+ * 자연어를 통한 스케줄 작업 생성 에이전트 도구.
  *
- * The LLM converts user requests like "매일 9시에 요약해줘" into
- * a cron expression and appropriate parameters.
+ * LLM이 사용자 요청(예: "매일 9시에 요약해줘")을
+ * 크론 표현식과 적절한 파라미터로 변환한다.
+ *
+ * WHY: 사용자가 크론 문법을 모르더라도 자연어로 스케줄을 설정할 수 있게 한다.
+ * LLM이 자연어를 해석하여 이 도구를 적절한 인자로 호출한다.
+ *
+ * @param schedulerService 스케줄러 서비스
+ * @param defaultTimezone 기본 시간대 (사용자 미지정 시)
+ * @see DynamicSchedulerService 스케줄러 서비스
  */
 class CreateScheduledJobTool(
     private val schedulerService: DynamicSchedulerService,
@@ -38,10 +45,12 @@ IMPORTANT: AGENT mode schedules invoke the LLM on each execution, which incurs A
         @ToolParam(description = "Timezone for the schedule (e.g. 'Asia/Seoul', 'UTC', 'America/New_York'). Uses server default if not specified.", required = false)
         timezone: String? = null
     ): String {
+        // 필수 필드 유효성 검사
         if (name.isBlank()) return errorJson("name is required")
         if (cronExpression.isBlank()) return errorJson("cronExpression is required")
         if (agentPrompt.isBlank()) return errorJson("agentPrompt is required")
 
+        // 이름 중복 확인
         val trimmedName = name.trim()
         val existing = schedulerService.findByName(trimmedName)
         if (existing != null) {
@@ -70,7 +79,7 @@ IMPORTANT: AGENT mode schedules invoke the LLM on each execution, which incurs A
                 )
             )
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to create scheduled job: $trimmedName" }
+            logger.warn(e) { "스케줄 작업 생성 실패: $trimmedName" }
             errorJson(e.message ?: "Failed to create scheduled job")
         }
     }

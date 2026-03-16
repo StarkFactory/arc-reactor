@@ -26,11 +26,14 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 /**
- * Proxy controller for MCP-server-specific admin access-policy APIs.
+ * MCP 서버별 admin 접근 정책 API 프록시 컨트롤러.
  *
- * Supports the shared admin UI contract used by Atlassian MCP and Swagger MCP:
- * upstream servers may ignore fields they do not implement, but Arc Reactor keeps
- * one stable API surface for access policy management.
+ * Atlassian MCP와 Swagger MCP가 공유하는 admin UI 계약을 지원합니다.
+ * 업스트림 서버는 구현하지 않는 필드를 무시할 수 있지만, Arc Reactor는
+ * 접근 정책 관리를 위한 하나의 안정적인 API 표면을 유지합니다.
+ *
+ * @see McpServerStore
+ * @see McpAdminWebClientFactory
  */
 @Tag(name = "MCP Access Policy", description = "Proxy access-policy management for MCP servers (ADMIN)")
 @RestController
@@ -41,7 +44,8 @@ class McpAccessPolicyController(
     private val meterRegistry: MeterRegistry? = null,
     private val adminWebClientFactory: McpAdminWebClientFactory = McpAdminWebClientFactory()
 ) {
-    @Operation(summary = "Get access policy from MCP server admin API")
+    /** MCP 서버 admin API에서 현재 접근 정책을 조회한다. */
+    @Operation(summary = "MCP 서버 admin API에서 접근 정책 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Current access policy"),
         ApiResponse(responseCode = "400", description = "Invalid MCP server configuration"),
@@ -74,7 +78,8 @@ class McpAccessPolicyController(
         return response
     }
 
-    @Operation(summary = "Update access policy on MCP server admin API")
+    /** MCP 서버 admin API의 접근 정책을 수정한다. 요청 검증 후 프록시한다. */
+    @Operation(summary = "MCP 서버 admin API 접근 정책 수정")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Access policy updated"),
         ApiResponse(responseCode = "400", description = "Invalid policy or MCP server configuration"),
@@ -122,7 +127,8 @@ class McpAccessPolicyController(
         return response
     }
 
-    @Operation(summary = "Clear dynamic policy on MCP server admin API")
+    /** MCP 서버 admin API의 동적 정책을 초기화하여 환경 기본값으로 복원한다. */
+    @Operation(summary = "MCP 서버 admin API 동적 정책 초기화")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Access policy cleared"),
         ApiResponse(responseCode = "400", description = "Invalid MCP server configuration"),

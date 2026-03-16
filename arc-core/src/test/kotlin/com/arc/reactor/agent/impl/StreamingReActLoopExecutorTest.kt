@@ -23,6 +23,11 @@ import org.springframework.ai.chat.prompt.ChatOptions
 import reactor.core.publisher.Flux
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * StreamingReActLoopExecutor에 대한 테스트.
+ *
+ * 스트리밍 ReAct 루프 실행기의 동작을 검증합니다.
+ */
 class StreamingReActLoopExecutorTest {
 
     @Test

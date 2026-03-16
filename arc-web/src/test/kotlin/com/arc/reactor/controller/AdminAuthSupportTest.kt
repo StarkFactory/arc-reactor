@@ -12,6 +12,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 
+/**
+ * AdminAuthSupport에 대한 테스트.
+ *
+ * 관리자 인증 지원 유틸리티의 동작을 검증합니다.
+ */
 class AdminAuthSupportTest {
 
     private fun exchangeWithRole(role: UserRole?): ServerWebExchange {

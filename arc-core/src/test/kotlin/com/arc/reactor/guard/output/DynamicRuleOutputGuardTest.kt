@@ -10,6 +10,11 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
+/**
+ * 동적 규칙 출력 가드에 대한 테스트.
+ *
+ * 동적 규칙 기반 출력 필터링을 검증합니다.
+ */
 class DynamicRuleOutputGuardTest {
 
     private val context = OutputGuardContext(
@@ -140,14 +145,14 @@ class DynamicRuleOutputGuardTest {
                 action = OutputGuardRuleAction.MASK
             )
         )
-        // Long refresh interval — cache will NOT reload after store changes
+        // 긴 갱신 간격 — 저장소 변경 후 캐시가 다시 로드되지 않음
         val guard = DynamicRuleOutputGuard(store, refreshIntervalMs = 60_000)
 
-        // First call loads cache
+        // 첫 번째 호출이 캐시를 로드
         val first = guard.check("SECRET data", context)
         (first is OutputGuardResult.Modified) shouldBe true
 
-        // Delete rule from store — but cache won't reload due to long interval
+        // 저장소에서 규칙 삭제 — 하지만 긴 간격 때문에 캐시가 다시 로드되지 않음
         store.delete(saved.id)
 
         // still match because cache is stale (within refresh interval)해야 합니다

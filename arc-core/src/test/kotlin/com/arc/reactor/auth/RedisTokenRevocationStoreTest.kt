@@ -10,6 +10,11 @@ import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.data.redis.core.ValueOperations
 import java.time.Instant
 
+/**
+ * Redis 기반 TokenRevocationStore에 대한 테스트.
+ *
+ * Redis를 활용한 토큰 폐기 저장소의 동작을 검증합니다.
+ */
 class RedisTokenRevocationStoreTest {
 
     @Test

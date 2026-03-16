@@ -12,6 +12,11 @@ import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration
 import org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
 import org.springframework.core.env.StandardEnvironment
 
+/**
+ * ArcReactorApplication에 대한 테스트.
+ *
+ * 데이터소스 자동 설정 제외 로직을 검증합니다.
+ */
 class ArcReactorApplicationTest {
 
     @Test

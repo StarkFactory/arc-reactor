@@ -13,6 +13,11 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+/**
+ * ConversationMemory의 동시성에 대한 테스트.
+ *
+ * 동시 접근 시 메모리 일관성과 스레드 안전성을 검증합니다.
+ */
 class ConversationMemoryConcurrencyTest {
 
     @Test
@@ -134,13 +139,13 @@ class MemoryStoreConcurrencyTest {
 
             val results = futures.map { it.get(10, TimeUnit.SECONDS) }
 
-            // Every future은(는) have returned a non-null memory해야 합니다
+            // 모든 future는 null이 아닌 메모리를 반환해야 합니다
             assertEquals(threadCount, results.size) { "All futures should return results" }
             results.forEachIndexed { index, it ->
                 assertNotNull(it, "Session memory at index $index should not be null")
             }
 
-            // Every session ID은(는) be retrievable from the store해야 합니다
+            // 모든 세션 ID는 저장소에서 조회 가능해야 합니다
             for (i in 1..threadCount) {
                 assertNotNull(
                     store.get("session-$i"),
@@ -175,7 +180,7 @@ class MemoryStoreConcurrencyTest {
 
             val results = futures.map { it.get(10, TimeUnit.SECONDS) }
 
-            // All threads은(는) receive the exact same ConversationMemory instance해야 합니다
+            // 모든 스레드가 정확히 동일한 ConversationMemory 인스턴스를 수신해야 합니다
             val firstMemory = results[0]
             results.forEach { memory ->
                 assertSame(firstMemory, memory, "All threads must get the same memory instance")
@@ -289,7 +294,7 @@ class MemoryStoreConcurrencyTest {
 
         val readers = (1..readerCount).map {
             async(Dispatchers.Default) {
-                // Iteration over CopyOnWriteArrayList은(는) not throw해야 합니다
+                // CopyOnWriteArrayList 반복은 예외를 던지지 않아야 합니다
                 // 동시 쓰기 중에도 ConcurrentModificationException 없음
                 context.toolsUsed.toList()
             }
@@ -298,7 +303,7 @@ class MemoryStoreConcurrencyTest {
         writers.awaitAll()
         val snapshots = readers.awaitAll()
 
-        // All snapshots은(는) be valid lists (no exceptions thrown)해야 합니다
+        // 모든 스냅샷은 유효한 리스트여야 합니다 (예외 없음)
         snapshots.forEach { snapshot ->
             assertNotNull(snapshot) { "Snapshot from concurrent toolsUsed read should not be null" }
             assertTrue(snapshot.isNotEmpty(), "Snapshots should contain at least initial tools")
@@ -373,7 +378,7 @@ class MemoryStoreConcurrencyTest {
         writers.awaitAll()
         val snapshots = readers.awaitAll()
 
-        // All reader snapshots은(는) be valid maps (no exceptions thrown)해야 합니다
+        // 모든 리더 스냅샷은 유효한 맵이어야 합니다 (예외 없음)
         snapshots.forEach { snapshot ->
             assertNotNull(snapshot) { "Snapshot from concurrent metadata read should not be null" }
             assertTrue(snapshot.isNotEmpty(), "Snapshots should contain at least pre-populated entries")

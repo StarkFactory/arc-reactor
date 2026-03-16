@@ -8,6 +8,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * UserMemoryStore에 대한 테스트.
+ *
+ * 사용자별 메모리 저장소의 CRUD 동작을 검증합니다.
+ */
 class UserMemoryStoreTest {
 
     @Nested

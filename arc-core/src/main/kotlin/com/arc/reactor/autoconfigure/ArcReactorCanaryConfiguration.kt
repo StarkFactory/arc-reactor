@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration
 /**
  * Canary Token Configuration
  *
- * Enables system prompt leakage detection via canary tokens.
+ * 카나리 토큰을 통한 시스템 프롬프트 유출 탐지를 활성화한다.
  */
 @Configuration
 @ConditionalOnProperty(

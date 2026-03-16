@@ -3,27 +3,30 @@ package com.arc.reactor.errorreport.config
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
- * Configuration properties for the error report module.
+ * 오류 리포트 모듈 설정 프로퍼티.
  *
- * Prefix: `arc.reactor.error-report`
+ * 프리픽스: `arc.reactor.error-report`
+ *
+ * @see ErrorReportAutoConfiguration 자동 설정
+ * @see ErrorReportController REST 엔드포인트
  */
 @ConfigurationProperties(prefix = "arc.reactor.error-report")
 data class ErrorReportProperties(
-    /** Enable error report endpoint. Default: false (opt-in) */
+    /** 오류 리포트 엔드포인트 활성화 여부. 기본값: false (명시적 opt-in 필요) */
     val enabled: Boolean = false,
 
-    /** API key for authenticating incoming error reports. Blank = no auth required. */
+    /** 수신 오류 리포트 인증용 API 키. 빈 문자열이면 인증 불필요. */
     val apiKey: String = "",
 
-    /** Maximum concurrent error report processing */
+    /** 최대 동시 오류 리포트 처리 수 */
     val maxConcurrentRequests: Int = 3,
 
-    /** Agent execution timeout for error analysis (ms). Default: 120s */
+    /** 오류 분석 에이전트 실행 타임아웃 (밀리초). 기본값: 120초 */
     val requestTimeoutMs: Long = 120_000,
 
-    /** Maximum tool calls for the error analysis agent. Default: 25 */
+    /** 오류 분석 에이전트의 최대 도구 호출 수. 기본값: 25 */
     val maxToolCalls: Int = 25,
 
-    /** Maximum stack trace length (chars). Truncated if exceeded. */
+    /** 최대 스택 트레이스 길이 (문자 수). 초과 시 잘린다. */
     val maxStackTraceLength: Int = 30_000
 )

@@ -34,11 +34,18 @@ import kotlin.coroutines.cancellation.CancellationException
 private val logger = KotlinLogging.logger {}
 
 /**
- * Receives error reports from production servers and triggers autonomous AI analysis.
+ * 프로덕션 서버로부터 오류 리포트를 수신하여 AI 자율 분석을 트리거하는 컨트롤러.
  *
- * Processing is asynchronous -- the endpoint returns 200 immediately.
- * The AI agent analyzes the error using registered tools (MCP and/or local tools)
- * and sends the report to Slack.
+ * 처리는 비동기로 수행된다 -- 엔드포인트는 즉시 200을 반환한다.
+ * AI 에이전트가 등록된 도구(MCP 및/또는 로컬 도구)를 사용하여 오류를 분석하고
+ * 결과 리포트를 Slack으로 전송한다.
+ *
+ * 동시성 제어: [Semaphore]로 최대 동시 처리 수를 제한한다.
+ * 스택 트레이스 보호: 설정된 최대 길이를 초과하면 잘라서 처리한다.
+ * API 키 인증: 설정된 경우 상수 시간 비교로 검증한다 (타이밍 공격 방지).
+ *
+ * @see ErrorReportHandler 오류 리포트 처리 인터페이스
+ * @see ErrorReportProperties 설정 프로퍼티
  */
 @RestController
 @RequestMapping("/api/error-report")
@@ -68,6 +75,7 @@ class ErrorReportController(
         }
     }
 
+    /** 프로덕션 오류 리포트를 접수하고 비동기 AI 분석을 시작한다. */
     @PostMapping
     @Operation(summary = "Submit a production error report for AI-powered analysis")
     @ApiResponses(value = [
@@ -91,6 +99,7 @@ class ErrorReportController(
 
         val requestId = UUID.randomUUID().toString()
 
+        // 스택 트레이스가 최대 길이를 초과하면 잘라서 처리한다
         val truncatedRequest = if (request.stackTrace.length > effectiveMaxStackTraceLength) {
             request.copy(stackTrace = request.stackTrace.take(effectiveMaxStackTraceLength) + "\n... [truncated]")
         } else {
@@ -102,6 +111,7 @@ class ErrorReportController(
         return ResponseEntity.ok(ErrorReportResponse(accepted = true, requestId = requestId))
     }
 
+    /** 코루틴으로 비동기 처리를 시작한다. 세마포어로 동시성을 제한한다. */
     private fun processAsync(requestId: String, request: ErrorReportRequest) {
         scope.launch {
             semaphore.withPermit {
@@ -126,6 +136,7 @@ class ErrorReportController(
         scope.cancel()
     }
 
+    /** API 키를 상수 시간 비교로 검증한다. 키가 미설정이면 인증을 건너뛴다. */
     private fun validateApiKey(headerKey: String?): Boolean {
         if (properties.apiKey.isBlank()) return true
         if (headerKey == null) return false
@@ -136,6 +147,7 @@ class ErrorReportController(
     }
 }
 
+/** 오류 리포트 API 에러 응답 DTO. */
 private data class ErrorReportErrorResponse(
     val error: String,
     val timestamp: String

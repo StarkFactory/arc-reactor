@@ -14,6 +14,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
 
+/**
+ * Human-in-the-Loop 승인 흐름에 대한 테스트.
+ *
+ * 도구 실행 전 일시 중지/승인/거부/타임아웃 시나리오를 검증합니다.
+ */
 class HumanInTheLoopTest {
 
     private lateinit var fixture: AgentTestFixture

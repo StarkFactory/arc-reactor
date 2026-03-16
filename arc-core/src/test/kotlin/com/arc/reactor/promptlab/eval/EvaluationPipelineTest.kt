@@ -16,6 +16,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 평가 파이프라인에 대한 테스트.
+ *
+ * 프롬프트 평가 파이프라인의 동작을 검증합니다.
+ */
 class EvaluationPipelineTest {
 
     private val structural: StructuralEvaluator = mockk()

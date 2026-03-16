@@ -13,6 +13,11 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 
+/**
+ * 대화 컨텍스트 인식 쿼리 변환기에 대한 테스트.
+ *
+ * 대화 기록을 활용한 쿼리 변환을 검증합니다.
+ */
 class ConversationAwareQueryTransformerTest {
 
     private lateinit var chatClient: ChatClient
@@ -80,7 +85,7 @@ class ConversationAwareQueryTransformerTest {
             val transformer = ConversationAwareQueryTransformer(chatClient, maxHistoryTurns = 2)
             transformer.transformWithHistory("query", listOf("Turn 1", "Turn 2", "Turn 3", "Turn 4"))
 
-            // Only last 2 turns은(는) be included해야 합니다
+            // 마지막 2턴만 포함되어야 합니다
             assertFalse(historySlot.captured.contains("Turn 1")) {
                 "Old history turns should be trimmed"
             }
@@ -194,13 +199,13 @@ class ConversationAwareQueryTransformerTest {
                 ChatResponse(listOf(Generation(AssistantMessage(rewritten))))
             }
 
-            // First request with dogs history
+            // 첫 번째 요청 (개 관련 기록)
             val result1 = transformer.transformWithHistory(
                 "What about the return policy?",
                 listOf("User: Tell me about dogs")
             )
 
-            // Second request with cats history — completely independent
+            // 두 번째 요청 (고양이 관련 기록 — 완전히 독립적)
             val result2 = transformer.transformWithHistory(
                 "What about the return policy?",
                 listOf("User: Tell me about cats")
@@ -221,7 +226,7 @@ class ConversationAwareQueryTransformerTest {
             val transformer = ConversationAwareQueryTransformer(chatClient)
             transformer.transformWithHistory("query", listOf("some history"))
 
-            // Subsequent call with no history은(는) skip LLM entirely해야 합니다
+            // 기록이 없는 후속 호출은 LLM을 완전히 건너뛰어야 합니다
             val result = transformer.transformWithHistory("another query", emptyList())
 
             assertEquals(listOf("another query"), result) {

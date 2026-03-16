@@ -8,6 +8,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * PendingApprovalStore에 대한 테스트.
+ *
+ * 대기 중 승인 저장소의 CRUD 동작을 검증합니다.
+ */
 class PendingApprovalStoreTest {
 
     private lateinit var store: InMemoryPendingApprovalStore
@@ -32,7 +37,7 @@ class PendingApprovalStoreTest {
             // for the request to register를 기다립니다
             delay(100)
 
-            // List and approve
+            // 목록 조회 및 승인
             val pending = store.listPending()
             assertEquals(1, pending.size) { "Expected 1 pending approval" }
             assertEquals("delete_order", pending[0].toolName) { "Tool name mismatch" }
@@ -115,7 +120,7 @@ class PendingApprovalStoreTest {
                 toolName = "slow_tool", arguments = emptyMap()
             )
 
-            // After timeout, pending list은(는) be empty해야 합니다
+            // 타임아웃 후 대기 목록은 비어 있어야 합니다
             val pending = shortTimeoutStore.listPending()
             assertTrue(pending.isEmpty()) { "Pending list should be empty after timeout" }
         }

@@ -28,6 +28,11 @@ import java.security.MessageDigest
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+/**
+ * McpAccessPolicyController에 대한 테스트.
+ *
+ * MCP 접근 정책 REST API의 동작을 검증합니다.
+ */
 class McpAccessPolicyControllerTest {
 
     private lateinit var store: McpServerStore

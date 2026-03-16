@@ -11,6 +11,11 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.scheduling.TaskScheduler
 
 @Tag("safety")
+/**
+ * DynamicSchedulerService의 Cron 유효성 검사에 대한 테스트.
+ *
+ * Cron 표현식 검증 로직을 검증합니다.
+ */
 class DynamicSchedulerServiceCronValidationTest {
 
     private val store = mockk<ScheduledJobStore>()

@@ -21,6 +21,11 @@ import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.prompt.ChatOptions
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * ManualReActLoopExecutor에 대한 테스트.
+ *
+ * 수동 ReAct 루프 실행기의 동작을 검증합니다.
+ */
 class ManualReActLoopExecutorTest {
 
     @Test

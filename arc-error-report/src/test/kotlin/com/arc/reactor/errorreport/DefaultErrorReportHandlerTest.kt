@@ -17,6 +17,11 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * DefaultErrorReportHandler에 대한 테스트.
+ *
+ * 기본 에러 리포트 핸들러의 동작을 검증합니다.
+ */
 class DefaultErrorReportHandlerTest {
 
     private val agentExecutor = mockk<AgentExecutor>()

@@ -17,6 +17,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
 import java.time.Instant
 
+/**
+ * FeedbackAnalyzer에 대한 테스트.
+ *
+ * 피드백 분석 로직을 검증합니다.
+ */
 class FeedbackAnalyzerTest {
 
     private val feedbackStore: FeedbackStore = mockk()

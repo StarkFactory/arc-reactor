@@ -7,6 +7,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.boot.actuate.health.Status
 import org.springframework.core.env.Environment
 
+/**
+ * LlmProviderHealthIndicator에 대한 테스트.
+ *
+ * LLM 제공자 헬스 체크 로직을 검증합니다.
+ */
 class LlmProviderHealthIndicatorTest {
 
     private val environment = mockk<Environment>(relaxed = true)

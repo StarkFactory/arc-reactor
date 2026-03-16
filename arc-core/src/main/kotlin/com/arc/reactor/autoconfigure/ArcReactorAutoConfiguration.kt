@@ -9,10 +9,10 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Import
 
 /**
- * Arc Reactor Auto Configuration
+ * Arc Reactor 자동 설정
  *
- * Spring Boot auto-configuration entrypoint for Arc Reactor components.
- * Runs after Spring AI provider auto-configurations to ensure ChatModel beans are available.
+ * Arc Reactor 컴포넌트를 위한 Spring Boot 자동 설정 진입점.
+ * ChatModel 빈이 사용 가능하도록 Spring AI 프로바이더 자동 설정 이후에 실행된다.
  */
 @AutoConfiguration(after = [GoogleGenAiChatAutoConfiguration::class, ChatClientAutoConfiguration::class])
 @EnableConfigurationProperties(AgentProperties::class)

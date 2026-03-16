@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * McpManager에 대한 테스트.
+ *
+ * MCP 서버 등록/연결/해제 관리를 검증합니다.
+ */
 class McpManagerTest {
 
     private fun manager(

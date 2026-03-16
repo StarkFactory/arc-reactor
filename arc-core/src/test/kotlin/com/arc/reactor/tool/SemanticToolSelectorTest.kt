@@ -9,6 +9,12 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.embedding.EmbeddingModel
 
+/**
+ * SemanticToolSelector에 대한 테스트.
+ *
+ * 임베딩 기반 의미론적 도구 선택, 코사인 유사도 계산,
+ * 결정론적 라우팅 규칙, 임베딩 캐싱 동작을 검증합니다.
+ */
 class SemanticToolSelectorTest {
 
     private lateinit var embeddingModel: EmbeddingModel
@@ -59,12 +65,12 @@ class SemanticToolSelectorTest {
             val reportToolEmbedding = floatArrayOf(0.1f, 0.5f, 0.4f)
             val promptEmbedding = floatArrayOf(0.85f, 0.15f, 0.0f)  // to refund 닫기
 
-            // Mock batch embedding (for tool descriptions)
+            // 배치 임베딩 모킹 (도구 설명용)
             every { embeddingModel.embed(any<List<String>>()) } returns listOf(
                 searchToolEmbedding, refundToolEmbedding, shippingToolEmbedding,
                 emailToolEmbedding, taxToolEmbedding, reportToolEmbedding
             )
-            // Mock single embedding (for prompt)
+            // 단일 임베딩 모킹 (프롬프트용)
             every { embeddingModel.embed(any<String>()) } returns promptEmbedding
 
             val selector = SemanticToolSelector(
@@ -629,12 +635,12 @@ class SemanticToolSelectorTest {
                 maxResults = 3
             )
 
-            // First call:은(는) embed tools해야 합니다
+            // 첫 번째 호출: 도구 임베딩을 수행해야 합니다
             selector.select("prompt 1", tools)
-            // Second call with same tools:은(는) NOT re-embed tools해야 합니다
+            // 두 번째 호출 (동일한 도구 목록): 도구를 다시 임베딩하지 않아야 합니다
             selector.select("prompt 2", tools)
 
-            // Batch embed은(는) be called only once (for tools), embed(String) called twice (for prompts)해야 합니다
+            // 배치 임베딩은 1회만 호출 (도구용), embed(String)은 2회 호출 (프롬프트용)되어야 합니다
             verify(exactly = 1) { embeddingModel.embed(any<List<String>>()) }
             verify(exactly = 2) { embeddingModel.embed(any<String>()) }
         }
@@ -685,12 +691,12 @@ class SemanticToolSelectorTest {
                 maxResults = 3  // Below both list sizes to trigger semantic selection
             )
 
-            // First call with full tool list
+            // 첫 번째 호출 (전체 도구 목록)
             selector.select("prompt", toolsA)
-            // Second call with different tool list
+            // 두 번째 호출 (다른 도구 목록)
             selector.select("prompt", toolsB)
 
-            // Batch embed called twice (different tool lists)
+            // 배치 임베딩이 2회 호출됨 (도구 목록이 다르므로)
             verify(exactly = 2) { embeddingModel.embed(any<List<String>>()) }
         }
 

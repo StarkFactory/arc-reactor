@@ -11,6 +11,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 
+/**
+ * 에러 리포트 자동 설정에 대한 테스트.
+ *
+ * 에러 리포트 모듈의 조건부 빈 등록을 검증합니다.
+ */
 class ErrorReportAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()

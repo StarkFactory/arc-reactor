@@ -14,6 +14,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * 출력 경계(최소/최대 길이) 기능에 대한 테스트.
+ *
+ * WARN, RETRY_ONCE, FAIL 모드와 최대 길이 잘림 동작을 검증합니다.
+ */
 class OutputBoundaryTest {
 
     private lateinit var fixture: AgentTestFixture

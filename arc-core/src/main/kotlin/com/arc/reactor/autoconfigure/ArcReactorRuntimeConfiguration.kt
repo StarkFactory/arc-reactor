@@ -21,11 +21,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 
 /**
- * Runtime beans that depend on ChatModel from provider auto-configurations.
+ * 프로바이더 자동 설정의 ChatModel에 의존하는 런타임 빈.
  *
- * NOT annotated with @Configuration to prevent component-scan from picking it up
- * before auto-configuration ordering (@AutoConfigureAfter) takes effect.
- * Processed exclusively via @Import from ArcReactorAutoConfiguration.
+ * 컴포넌트 스캔이 자동 설정 순서(@AutoConfigureAfter) 적용 전에
+ * 이 클래스를 가져가는 것을 방지하기 위해 @Configuration을 붙이지 않는다.
+ * ArcReactorAutoConfiguration의 @Import를 통해서만 처리된다.
  */
 class ArcReactorRuntimeConfiguration {
 
@@ -34,9 +34,9 @@ class ArcReactorRuntimeConfiguration {
     fun verifiedSourcesResponseFilter(): ResponseFilter = VerifiedSourcesResponseFilter()
 
     /**
-     * ChatClient — resolves multi-ChatModel ambiguity by selecting the default provider.
-     * Registered in auto-configuration context so @ConditionalOnBean(ChatClient) works
-     * for downstream beans like agentExecutor.
+     * ChatClient — 기본 프로바이더를 선택하여 다중 ChatModel 모호성을 해소한다.
+     * 자동 설정 컨텍스트에 등록하여 @ConditionalOnBean(ChatClient)이
+     * agentExecutor 같은 하위 빈에서 동작하도록 한다.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -58,7 +58,7 @@ class ArcReactorRuntimeConfiguration {
     }
 
     /**
-     * Chat Model Provider (multi-LLM runtime selection)
+     * Chat Model Provider (멀티 LLM 런타임 선택)
      */
     @Bean
     @ConditionalOnMissingBean
@@ -73,10 +73,10 @@ class ArcReactorRuntimeConfiguration {
     }
 
     /**
-     * Response Filter Chain — applies post-processing filters to agent responses.
+     * 응답 필터 체인 — 에이전트 응답에 후처리 필터를 적용한다.
      *
-     * Collects all [ResponseFilter] beans and chains them by order.
-     * Automatically includes [MaxLengthResponseFilter] if `response.max-length > 0`.
+     * 모든 [ResponseFilter] 빈을 수집하여 순서대로 체인한다.
+     * `response.max-length > 0`이면 [MaxLengthResponseFilter]를 자동 포함한다.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -99,9 +99,9 @@ class ArcReactorRuntimeConfiguration {
     }
 
     /**
-     * Response Cache — caches agent responses for identical requests.
+     * 응답 캐시 — 동일한 요청에 대해 에이전트 응답을 캐시한다.
      *
-     * Only created when `arc.reactor.cache.enabled=true`.
+     * `arc.reactor.cache.enabled=true`일 때만 생성된다.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -115,9 +115,9 @@ class ArcReactorRuntimeConfiguration {
     }
 
     /**
-     * Fallback Strategy — graceful degradation to alternative LLM models on failure.
+     * 폴백 전략 — 실패 시 대체 LLM 모델로 장애 완화한다.
      *
-     * Only created when `arc.reactor.fallback.enabled=true`.
+     * `arc.reactor.fallback.enabled=true`일 때만 생성된다.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -135,9 +135,9 @@ class ArcReactorRuntimeConfiguration {
     }
 
     /**
-     * Circuit Breaker Registry — manages named circuit breakers for LLM and MCP calls.
+     * 서킷 브레이커 레지스트리 — LLM 및 MCP 호출을 위한 명명된 서킷 브레이커를 관리한다.
      *
-     * Only created when `arc.reactor.circuit-breaker.enabled=true`.
+     * `arc.reactor.circuit-breaker.enabled=true`일 때만 생성된다.
      */
     @Bean
     @ConditionalOnMissingBean

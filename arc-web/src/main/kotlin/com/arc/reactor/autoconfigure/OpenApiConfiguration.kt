@@ -13,13 +13,13 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * OpenAPI / Swagger UI configuration for Arc Reactor API.
+ * Arc Reactor API OpenAPI / Swagger UI 설정.
  *
- * Auto-configures when SpringDoc is on the classpath.
+ * SpringDoc이 클래스패스에 있으면 자동 구성됩니다.
  * - Swagger UI: `/swagger-ui.html`
- * - OpenAPI spec: `/v3/api-docs`
+ * - OpenAPI 스펙: `/v3/api-docs`
  *
- * Disable in production via:
+ * 프로덕션에서 비활성화:
  * ```yaml
  * springdoc:
  *   api-docs.enabled: false
