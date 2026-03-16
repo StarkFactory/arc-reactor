@@ -257,6 +257,7 @@ class RagConfiguration {
      * Only registered when [HybridRagPipeline] is active (i.e., hybrid search is enabled).
      */
     @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnBean(HybridRagPipeline::class)
     fun bm25WarmUpRunner(
         hybridRagPipeline: HybridRagPipeline,

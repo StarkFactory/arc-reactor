@@ -68,6 +68,7 @@ class JdbcUserMemoryStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcUserMemoryStore"])
     @ConditionalOnProperty(
         prefix = "arc.reactor.memory.user", name = ["enabled"],
         havingValue = "true", matchIfMissing = false

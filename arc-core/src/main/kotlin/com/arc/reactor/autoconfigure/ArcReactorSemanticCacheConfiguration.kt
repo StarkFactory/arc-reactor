@@ -9,6 +9,7 @@ import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -38,6 +39,7 @@ class ArcReactorSemanticCacheConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["redisSemanticResponseCache"])
     fun redisSemanticResponseCache(
         properties: AgentProperties,
         redisTemplate: StringRedisTemplate,

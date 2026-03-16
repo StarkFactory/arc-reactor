@@ -58,6 +58,7 @@ class JdbcConversationSummaryStoreConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnMissingBean(name = ["jdbcConversationSummaryStore"])
     @ConditionalOnProperty(
         prefix = "arc.reactor.memory.summary", name = ["enabled"],
         havingValue = "true", matchIfMissing = false

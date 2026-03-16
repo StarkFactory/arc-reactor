@@ -7,6 +7,7 @@ import io.swagger.v3.oas.models.info.License
 import io.swagger.v3.oas.models.security.SecurityRequirement
 import io.swagger.v3.oas.models.security.SecurityScheme
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -32,6 +33,7 @@ class OpenApiConfiguration(
 ) {
 
     @Bean
+    @ConditionalOnMissingBean
     fun arcReactorOpenAPI(): OpenAPI {
         return OpenAPI()
             .info(
