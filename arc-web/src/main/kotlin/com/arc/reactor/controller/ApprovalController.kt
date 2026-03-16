@@ -1,8 +1,10 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.approval.PendingApprovalStore
+import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import io.swagger.v3.oas.annotations.Operation
+import mu.KotlinLogging
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -15,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * Human-in-the-Loop Approval API
@@ -36,7 +40,8 @@ import org.springframework.web.server.ServerWebExchange
     havingValue = "true", matchIfMissing = false
 )
 class ApprovalController(
-    private val pendingApprovalStore: PendingApprovalStore
+    private val pendingApprovalStore: PendingApprovalStore,
+    private val adminAuditStore: AdminAuditStore
 ) {
 
     @Operation(summary = "List pending approval requests")
@@ -69,6 +74,21 @@ class ApprovalController(
         if (!isAdmin(exchange)) {
             return forbiddenResponse()
         }
+        val actor = currentActor(exchange)
+        val modifiedArgs = request?.modifiedArguments
+        val detail = modifiedArgs?.let { "modifiedArguments=$it" }
+        logger.info {
+            "audit category=approval action=APPROVE actor=$actor resourceId=$id modifiedArgs=${modifiedArgs != null}"
+        }
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "approval",
+            action = "APPROVE",
+            actor = actor,
+            resourceType = "approval",
+            resourceId = id,
+            detail = detail
+        )
         val success = pendingApprovalStore.approve(id, request?.modifiedArguments)
         return ResponseEntity.ok(
             ApprovalActionResponse(
@@ -92,6 +112,20 @@ class ApprovalController(
         if (!isAdmin(exchange)) {
             return forbiddenResponse()
         }
+        val actor = currentActor(exchange)
+        val detail = request?.reason?.let { "reason=$it" }
+        logger.info {
+            "audit category=approval action=REJECT actor=$actor resourceId=$id reason=${request?.reason}"
+        }
+        recordAdminAudit(
+            store = adminAuditStore,
+            category = "approval",
+            action = "REJECT",
+            actor = actor,
+            resourceType = "approval",
+            resourceId = id,
+            detail = detail
+        )
         val success = pendingApprovalStore.reject(id, request?.reason)
         return ResponseEntity.ok(
             ApprovalActionResponse(

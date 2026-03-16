@@ -3,6 +3,7 @@ package com.arc.reactor.controller
 import com.arc.reactor.approval.ApprovalStatus
 import com.arc.reactor.approval.ApprovalSummary
 import com.arc.reactor.approval.PendingApprovalStore
+import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import com.arc.reactor.auth.UserRole
 import io.mockk.every
@@ -20,7 +21,8 @@ import java.time.Instant
 class ApprovalControllerAuthTest {
 
     private val store = mockk<PendingApprovalStore>()
-    private val controller = ApprovalController(store)
+    private val adminAuditStore = mockk<AdminAuditStore>(relaxed = true)
+    private val controller = ApprovalController(store, adminAuditStore)
 
     @Test
     fun `listPending rejects anonymous request`() {
