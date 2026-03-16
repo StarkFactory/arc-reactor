@@ -24,6 +24,7 @@ import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.beans.factory.DisposableBean
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
 
 private val logger = KotlinLogging.logger {}
 
@@ -89,6 +90,13 @@ class DefaultConversationManager(
 
     private val asyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val activeSummarizations = ConcurrentHashMap<String, Job>()
+
+    /**
+     * Per-session locks to ensure user+assistant message pair is written atomically.
+     * Without this, two concurrent requests on the same session could interleave:
+     * user1, user2, assistant2, assistant1 — corrupting conversation order.
+     */
+    private val sessionSaveLocks = ConcurrentHashMap<String, ReentrantLock>()
 
     override suspend fun loadHistory(command: AgentCommand): List<Message> {
         if (command.conversationHistory.isNotEmpty()) {
@@ -248,6 +256,10 @@ class DefaultConversationManager(
         if (memoryStore == null) return
         val resolvedUserId = userId ?: "anonymous"
 
+        // Per-session lock ensures user+assistant pair is written atomically.
+        // Without this, concurrent requests on the same session could interleave messages.
+        val lock = sessionSaveLocks.computeIfAbsent(sessionId) { ReentrantLock() }
+        lock.lock()
         try {
             memoryStore.addMessage(
                 sessionId = sessionId, role = "user",
@@ -261,6 +273,8 @@ class DefaultConversationManager(
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to save conversation history for session $sessionId" }
+        } finally {
+            lock.unlock()
         }
     }
 

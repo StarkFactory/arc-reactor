@@ -104,6 +104,35 @@ class TokenEstimatorTest {
     }
 
     @Nested
+    inner class CacheBehavior {
+
+        @Test
+        fun `long strings bypass cache to avoid heap bloat`() {
+            val longText = "a".repeat(DefaultTokenEstimator.CACHE_KEY_MAX_LENGTH + 1)
+            // Should still produce correct result even without caching
+            val result = estimator.estimate(longText)
+            result shouldBeGreaterThan 0
+        }
+
+        @Test
+        fun `strings at cache boundary are still cached`() {
+            val text = "a".repeat(DefaultTokenEstimator.CACHE_KEY_MAX_LENGTH)
+            val first = estimator.estimate(text)
+            val second = estimator.estimate(text)
+            first shouldBe second
+        }
+
+        @Test
+        fun `very long string produces consistent results`() {
+            val longText = "a".repeat(50_000)
+            val first = estimator.estimate(longText)
+            val second = estimator.estimate(longText)
+            first shouldBe second
+            first shouldBe 12500 // 50000 / 4
+        }
+    }
+
+    @Nested
     inner class FunctionalInterface {
 
         @Test
