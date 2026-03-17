@@ -183,6 +183,7 @@ class SlackApiClient(
         }
 
         val matches = mutableListOf<SlackChannel>()
+        val seenIds = mutableSetOf<String>()
         var cursor: String? = null
         var scannedPages = 0
 
@@ -202,14 +203,15 @@ class SlackApiClient(
                 )
             }
 
-            pageResult.channels
-                .filter { channelNameMatches(it.name, normalizedQuery, exactMatch) }
-                .forEach { candidate ->
-                    if (matches.size >= limit) return@forEach
-                    if (matches.none { it.id == candidate.id }) {
-                        matches.add(candidate)
-                    }
+            // Set 기반 중복 체크로 O(1) 룩업 (기존 matches.none{} O(n) 제거)
+            for (candidate in pageResult.channels) {
+                if (matches.size >= limit) break
+                if (channelNameMatches(candidate.name, normalizedQuery, exactMatch) &&
+                    seenIds.add(candidate.id)
+                ) {
+                    matches.add(candidate)
                 }
+            }
 
             cursor = pageResult.nextCursor
             if (cursor.isNullOrBlank()) break
@@ -354,6 +356,7 @@ class SlackApiClient(
         }
 
         val matches = mutableListOf<SlackUser>()
+        val seenIds = mutableSetOf<String>()
         var cursor: String? = null
         var scannedPages = 0
 
@@ -373,14 +376,15 @@ class SlackApiClient(
                 )
             }
 
-            page.users
-                .filter { userNameMatches(it, normalizedQuery, exactMatch) }
-                .forEach { candidate ->
-                    if (matches.size >= limit) return@forEach
-                    if (matches.none { it.id == candidate.id }) {
-                        matches.add(candidate)
-                    }
+            // Set 기반 중복 체크로 O(1) 룩업 (기존 matches.none{} O(n) 제거)
+            for (candidate in page.users) {
+                if (matches.size >= limit) break
+                if (userNameMatches(candidate, normalizedQuery, exactMatch) &&
+                    seenIds.add(candidate.id)
+                ) {
+                    matches.add(candidate)
                 }
+            }
 
             cursor = page.nextCursor
             if (cursor.isNullOrBlank()) break

@@ -33,27 +33,20 @@ class AlertEvaluator(
     private val healthMonitor: PipelineHealthMonitor? = null
 ) {
 
-    /** 전체 테넌트 + 플랫폼 규칙을 순회하며 평가한다. 개별 규칙 실패는 경고 로깅 후 건너뛴다. */
+    /**
+     * 전체 규칙을 배치 로드 후 순회하며 평가한다.
+     * 테넌트별 개별 쿼리(N+1) 대신 findAllRules() 단일 쿼리로 전체를 가져온다.
+     * 개별 규칙 실패는 경고 로깅 후 건너뛴다.
+     */
     fun evaluateAll() {
-        val tenants = tenantStore.findAll()
-        for (tenant in tenants) {
-            val rules = alertStore.findRulesForTenant(tenant.id)
-            for (rule in rules) {
-                try {
-                    evaluate(rule)
-                } catch (e: Exception) {
-                    logger.warn(e) { "Failed to evaluate alert rule ${rule.id} for tenant ${tenant.id}" }
-                }
-            }
-        }
+        // 단일 쿼리로 전체 규칙 로드 (N+1 방지)
+        val allRules = alertStore.findAllRules().filter { it.enabled }
 
-        // ── 단계: 플랫폼 전역 규칙 평가 ──
-        val platformRules = alertStore.findPlatformRules()
-        for (rule in platformRules) {
+        for (rule in allRules) {
             try {
                 evaluate(rule)
             } catch (e: Exception) {
-                logger.warn(e) { "Failed to evaluate platform alert rule ${rule.id}" }
+                logger.warn(e) { "알림 규칙 평가 실패: ruleId=${rule.id}, tenant=${rule.tenantId ?: "platform"}" }
             }
         }
     }

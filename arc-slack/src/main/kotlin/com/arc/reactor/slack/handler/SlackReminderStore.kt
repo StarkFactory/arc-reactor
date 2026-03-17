@@ -81,10 +81,11 @@ class SlackReminderStore(
 
         for ((userId, reminders) in remindersByUser) {
             val due = reminders.filter { it.dueAt != null && !it.dueAt.isAfter(now) }
+            if (due.isEmpty()) continue
+            // CopyOnWriteArrayList.removeAll은 내부 배열을 한 번만 복사한다 (개별 remove N회 대비 효율적)
+            reminders.removeAll(due.toSet())
             for (reminder in due) {
-                if (reminders.remove(reminder)) {
-                    result.add(userId to reminder)
-                }
+                result.add(userId to reminder)
             }
         }
         return result
