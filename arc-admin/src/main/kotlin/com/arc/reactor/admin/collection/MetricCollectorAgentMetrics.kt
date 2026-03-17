@@ -1,5 +1,6 @@
 package com.arc.reactor.admin.collection
 
+import com.arc.reactor.admin.AdminClassifiers
 import com.arc.reactor.admin.model.GuardEvent
 import com.arc.reactor.admin.model.TokenUsageEvent
 import com.arc.reactor.admin.pricing.CostCalculator
@@ -42,7 +43,7 @@ class MetricCollectorAgentMetrics(
         val event = GuardEvent(
             tenantId = resolveTenantId(metadata),
             stage = stage,
-            category = classifyGuardRejection(stage, reason),
+            category = AdminClassifiers.classifyGuardStage(stage),
             reasonDetail = reason.take(500)
         )
         publish(event)
@@ -54,7 +55,7 @@ class MetricCollectorAgentMetrics(
 
     override fun recordTokenUsage(usage: TokenUsage, metadata: Map<String, Any>) {
         val model = metadata["model"]?.toString() ?: "unknown"
-        val provider = metadata["provider"]?.toString() ?: deriveProvider(model)
+        val provider = metadata["provider"]?.toString() ?: AdminClassifiers.deriveProvider(model)
         val cost = try {
             costCalculator.calculate(
                 provider = provider,
@@ -129,26 +130,4 @@ class MetricCollectorAgentMetrics(
         }
     }
 
-    private fun deriveProvider(model: String): String {
-        return when {
-            model.startsWith("gpt-") || model.startsWith("o1") || model.startsWith("o3") -> "openai"
-            model.startsWith("claude-") -> "anthropic"
-            model.startsWith("gemini-") -> "google"
-            model.startsWith("mistral") || model.startsWith("codestral") -> "mistral"
-            model.startsWith("command") -> "cohere"
-            model.contains("llama") -> "meta"
-            else -> "unknown"
-        }
-    }
-
-    private fun classifyGuardRejection(stage: String, reason: String): String {
-        return when {
-            stage.contains("RateLimit", ignoreCase = true) -> "rate_limit"
-            stage.contains("Injection", ignoreCase = true) -> "prompt_injection"
-            stage.contains("Classification", ignoreCase = true) -> "classification"
-            stage.contains("Permission", ignoreCase = true) -> "permission"
-            stage.contains("InputValidation", ignoreCase = true) -> "input_validation"
-            else -> "other"
-        }
-    }
 }

@@ -30,31 +30,14 @@ class DashboardService(
     fun getOverview(tenantId: String): OverviewDashboard? {
         val now = Instant.now()
         val thirtyDaysAgo = now.minus(30, ChronoUnit.DAYS)
-
         val tenant = tenantStore.findById(tenantId) ?: return null
-        val successRate = queryService.getSuccessRate(tenantId, thirtyDaysAgo, now)
-        val apdex = sloService.getApdex(tenantId, thirtyDaysAgo, now)
-        val sloStatus = sloService.getSloStatus(
-            tenantId,
-            tenant.sloAvailability,
-            tenant.sloLatencyP99Ms
-        )
-
         val usage = queryService.getCurrentMonthUsage(tenantId)
-
-        val avgResponseTime = jdbcTemplate.queryForObject(
-            """SELECT COALESCE(AVG(duration_ms), 0)::BIGINT
-               FROM metric_agent_executions
-               WHERE tenant_id = ? AND time >= ? AND time < ?""",
-            Long::class.java,
-            tenantId, Timestamp.from(thirtyDaysAgo), Timestamp.from(now)
-        ) ?: 0
-
+        val sloStatus = sloService.getSloStatus(tenantId, tenant.sloAvailability, tenant.sloLatencyP99Ms)
         return OverviewDashboard(
             totalRequests = usage.requests,
-            successRate = successRate,
-            avgResponseTimeMs = avgResponseTime,
-            apdexScore = apdex.score,
+            successRate = queryService.getSuccessRate(tenantId, thirtyDaysAgo, now),
+            avgResponseTimeMs = queryAvgResponseTime(tenantId, thirtyDaysAgo, now),
+            apdexScore = sloService.getApdex(tenantId, thirtyDaysAgo, now).score,
             sloAvailability = sloStatus.availability.current,
             errorBudgetRemaining = sloStatus.errorBudget.budgetRemaining,
             monthlyCost = usage.costUsd
@@ -63,10 +46,55 @@ class DashboardService(
 
     /** 테넌트 사용량 대시보드를 생성한다. */
     fun getUsage(tenantId: String, from: Instant, to: Instant): UsageDashboard {
-        val timeSeries = queryService.getRequestTimeSeries(tenantId, from, to)
-        val topUsers = queryService.getTopUsers(tenantId, from, to)
+        return UsageDashboard(
+            timeSeries = queryService.getRequestTimeSeries(tenantId, from, to),
+            channelDistribution = queryChannelDistribution(tenantId, from, to),
+            topUsers = queryService.getTopUsers(tenantId, from, to)
+        )
+    }
 
-        val channelDist = jdbcTemplate.query(
+    /** 테넌트 품질 대시보드를 생성한다. */
+    fun getQuality(tenantId: String, from: Instant, to: Instant): QualityDashboard {
+        val percentiles = queryService.getLatencyPercentiles(tenantId, from, to)
+        return QualityDashboard(
+            latencyP50 = percentiles["p50"] ?: 0,
+            latencyP95 = percentiles["p95"] ?: 0,
+            latencyP99 = percentiles["p99"] ?: 0,
+            errorDistribution = queryService.getErrorDistribution(tenantId, from, to)
+        )
+    }
+
+    /** 테넌트 도구 대시보드를 생성한다. */
+    fun getTools(tenantId: String, from: Instant, to: Instant): ToolDashboard {
+        val ranking = queryService.getToolRanking(tenantId, from, to)
+        return ToolDashboard(
+            toolRanking = ranking,
+            slowestTools = ranking.sortedByDescending { it.p95DurationMs }.take(5)
+        )
+    }
+
+    /** 테넌트 비용 대시보드를 생성한다. */
+    fun getCost(tenantId: String, from: Instant, to: Instant): CostDashboard {
+        return CostDashboard(
+            monthlyCost = queryService.getCurrentMonthUsage(tenantId).costUsd,
+            costByModel = queryCostByModel(tenantId, from, to)
+        )
+    }
+
+    /** 평균 응답 시간(ms)을 조회한다. */
+    private fun queryAvgResponseTime(tenantId: String, from: Instant, to: Instant): Long {
+        return jdbcTemplate.queryForObject(
+            """SELECT COALESCE(AVG(duration_ms), 0)::BIGINT
+               FROM metric_agent_executions
+               WHERE tenant_id = ? AND time >= ? AND time < ?""",
+            Long::class.java,
+            tenantId, Timestamp.from(from), Timestamp.from(to)
+        ) ?: 0
+    }
+
+    /** 채널별 요청 분포를 조회한다. */
+    private fun queryChannelDistribution(tenantId: String, from: Instant, to: Instant): Map<String, Long> {
+        return jdbcTemplate.query(
             """SELECT COALESCE(channel, 'unknown') AS channel, COUNT(*) AS count
                FROM metric_agent_executions
                WHERE tenant_id = ? AND time >= ? AND time < ?
@@ -74,43 +102,11 @@ class DashboardService(
             { rs, _ -> rs.getString("channel") to rs.getLong("count") },
             tenantId, Timestamp.from(from), Timestamp.from(to)
         ).toMap()
-
-        return UsageDashboard(
-            timeSeries = timeSeries,
-            channelDistribution = channelDist,
-            topUsers = topUsers
-        )
     }
 
-    /** 테넌트 품질 대시보드를 생성한다. */
-    fun getQuality(tenantId: String, from: Instant, to: Instant): QualityDashboard {
-        val percentiles = queryService.getLatencyPercentiles(tenantId, from, to)
-        val errorDist = queryService.getErrorDistribution(tenantId, from, to)
-
-        return QualityDashboard(
-            latencyP50 = percentiles["p50"] ?: 0,
-            latencyP95 = percentiles["p95"] ?: 0,
-            latencyP99 = percentiles["p99"] ?: 0,
-            errorDistribution = errorDist
-        )
-    }
-
-    /** 테넌트 도구 대시보드를 생성한다. */
-    fun getTools(tenantId: String, from: Instant, to: Instant): ToolDashboard {
-        val ranking = queryService.getToolRanking(tenantId, from, to)
-        val slowest = ranking.sortedByDescending { it.p95DurationMs }.take(5)
-
-        return ToolDashboard(
-            toolRanking = ranking,
-            slowestTools = slowest
-        )
-    }
-
-    /** 테넌트 비용 대시보드를 생성한다. */
-    fun getCost(tenantId: String, from: Instant, to: Instant): CostDashboard {
-        val usage = queryService.getCurrentMonthUsage(tenantId)
-
-        val costByModel = jdbcTemplate.query(
+    /** 모델별 비용 합계를 조회한다. */
+    private fun queryCostByModel(tenantId: String, from: Instant, to: Instant): Map<String, java.math.BigDecimal> {
+        return jdbcTemplate.query(
             """SELECT model, SUM(estimated_cost_usd) AS cost
                FROM metric_token_usage
                WHERE tenant_id = ? AND time >= ? AND time < ?
@@ -118,10 +114,5 @@ class DashboardService(
             { rs, _ -> rs.getString("model") to rs.getBigDecimal("cost") },
             tenantId, Timestamp.from(from), Timestamp.from(to)
         ).toMap()
-
-        return CostDashboard(
-            monthlyCost = usage.costUsd,
-            costByModel = costByModel
-        )
     }
 }

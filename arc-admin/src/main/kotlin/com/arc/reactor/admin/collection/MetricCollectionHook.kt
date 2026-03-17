@@ -1,5 +1,6 @@
 package com.arc.reactor.admin.collection
 
+import com.arc.reactor.admin.AdminClassifiers
 import com.arc.reactor.admin.model.AgentExecutionEvent
 import com.arc.reactor.admin.model.GuardEvent
 import com.arc.reactor.admin.model.McpHealthEvent
@@ -83,7 +84,7 @@ class MetricCollectionHook(
                 callIndex = context.callIndex,
                 success = result.success,
                 durationMs = result.durationMs,
-                errorClass = if (!result.success) classifyToolError(result.errorMessage) else null,
+                errorClass = if (!result.success) AdminClassifiers.classifyToolError(result.errorMessage) else null,
                 errorMessage = result.errorMessage?.take(500)
             )
             if (!ringBuffer.publish(event)) {
@@ -147,17 +148,6 @@ class MetricCollectionHook(
         )
         if (!ringBuffer.publish(mcpEvent)) {
             healthMonitor.recordDrop(1)
-        }
-    }
-
-    private fun classifyToolError(errorMessage: String?): String? {
-        if (errorMessage == null) return null
-        return when {
-            errorMessage.contains("timeout", ignoreCase = true) -> "timeout"
-            errorMessage.contains("connection", ignoreCase = true) -> "connection_error"
-            errorMessage.contains("permission", ignoreCase = true) -> "permission_denied"
-            errorMessage.contains("not found", ignoreCase = true) -> "not_found"
-            else -> "unknown"
         }
     }
 

@@ -1,5 +1,6 @@
 package com.arc.reactor.admin.collection
 
+import com.arc.reactor.admin.AdminClassifiers
 import com.arc.reactor.admin.model.GuardEvent
 import com.arc.reactor.guard.audit.GuardAuditPublisher
 import com.arc.reactor.guard.model.GuardCommand
@@ -30,13 +31,14 @@ class MetricGuardAuditPublisher(
         stageLatencyMs: Long,
         pipelineLatencyMs: Long
     ) {
+        val resolvedCategory = category ?: AdminClassifiers.classifyGuardStage(stage)
         val event = GuardEvent(
             tenantId = command.metadata["tenantId"]?.toString() ?: "default",
             userId = command.userId,
             channel = command.channel,
             stage = stage,
-            category = category ?: classifyReason(stage),
-            reasonClass = if (result == "rejected") category ?: classifyReason(stage) else null,
+            category = resolvedCategory,
+            reasonClass = if (result == "rejected") resolvedCategory else null,
             reasonDetail = reason?.take(500),
             action = result,
             inputHash = sha256(command.text),
@@ -56,19 +58,6 @@ class MetricGuardAuditPublisher(
         private fun sha256(text: String): String {
             val digest = MessageDigest.getInstance("SHA-256")
             return digest.digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
-        }
-
-        private fun classifyReason(stage: String): String {
-            return when {
-                stage.contains("RateLimit", ignoreCase = true) -> "rate_limit"
-                stage.contains("Injection", ignoreCase = true) -> "prompt_injection"
-                stage.contains("Classification", ignoreCase = true) -> "classification"
-                stage.contains("Permission", ignoreCase = true) -> "permission"
-                stage.contains("InputValidation", ignoreCase = true) -> "input_validation"
-                stage.contains("Unicode", ignoreCase = true) -> "unicode_normalization"
-                stage.contains("TopicDrift", ignoreCase = true) -> "topic_drift"
-                else -> "other"
-            }
         }
     }
 }

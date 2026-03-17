@@ -3,7 +3,10 @@ package com.arc.reactor.admin.alert
 import com.arc.reactor.admin.collection.MetricRingBuffer
 import com.arc.reactor.admin.collection.PipelineHealthMonitor
 import com.arc.reactor.admin.model.QuotaEvent
+import com.arc.reactor.admin.model.Tenant
+import com.arc.reactor.admin.model.TenantQuota
 import com.arc.reactor.admin.model.TenantStatus
+import com.arc.reactor.admin.model.TenantUsage
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.tenant.TenantStore
 import com.arc.reactor.hook.BeforeAgentStartHook
@@ -56,7 +59,7 @@ class QuotaEnforcerHook(
     private val usageCache = Caffeine.newBuilder()
         .maximumSize(1000)
         .expireAfterWrite(Duration.ofSeconds(60))
-        .build<String, com.arc.reactor.admin.model.TenantUsage>()
+        .build<String, TenantUsage>()
 
     // 중복 방지: 테넌트당 월 1회만 90% 경고 발행
     private val warnedTenants = ConcurrentHashMap.newKeySet<String>()
@@ -67,26 +70,37 @@ class QuotaEnforcerHook(
 
         resetLocalCountersIfNewMonth()
 
-        // ── 1계층: 로컬 카운터 (항상 성공, ~0ns) ──
         val localCount = localCounters
             .computeIfAbsent(tenantId) { AtomicLong(0) }
             .incrementAndGet()
 
         val tenant = tenantStore.findById(tenantId) ?: return HookResult.Continue
-        if (tenant.status != TenantStatus.ACTIVE) {
-            publishQuotaEvent(tenantId, "rejected_suspended", 0, 0, "Tenant account is ${tenant.status}")
-            return HookResult.Reject("Tenant account is ${tenant.status}")
-        }
-
-        val quota = tenant.quota
+        val rejection = checkTenantStatus(tenant)
+        if (rejection != null) return rejection
 
         // 빠른 경로: 로컬 카운트 < 쿼터의 90%이면 즉시 통과
-        if (localCount < quota.maxRequestsPerMonth * 0.9) {
+        if (localCount < tenant.quota.maxRequestsPerMonth * 0.9) {
             return HookResult.Continue
         }
 
-        // ── 2+3계층: 캐시 또는 DB (circuit breaker 보호) ──
-        val usage = try {
+        val usage = fetchUsageFailOpen(tenantId) ?: return HookResult.Continue
+        localCounters[tenantId]?.set(usage.requests)
+        return enforceQuotaLimits(tenantId, tenant.quota, usage)
+    }
+
+    /** 테넌트 상태를 검증한다. 비활성 시 거부 결과를 반환한다. */
+    private fun checkTenantStatus(tenant: Tenant): HookResult? {
+        if (tenant.status == TenantStatus.ACTIVE) return null
+        publishQuotaEvent(
+            tenant.id, "rejected_suspended", 0, 0,
+            "Tenant account is ${tenant.status}"
+        )
+        return HookResult.Reject("Tenant account is ${tenant.status}")
+    }
+
+    /** 캐시 또는 DB에서 사용량을 조회한다. 실패 시 null을 반환 (fail-open). */
+    private suspend fun fetchUsageFailOpen(tenantId: String): TenantUsage? {
+        return try {
             circuitBreaker.execute {
                 usageCache.getIfPresent(tenantId)
                     ?: queryService.getCurrentMonthUsage(tenantId)
@@ -94,42 +108,29 @@ class QuotaEnforcerHook(
             }
         } catch (e: CircuitBreakerOpenException) {
             logger.warn { "Quota check circuit breaker OPEN for tenant=$tenantId, allowing request" }
-            return HookResult.Continue
+            null
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             logger.warn(e) { "Quota check failed for tenant=$tenantId, allowing request (fail-open)" }
-            return HookResult.Continue
+            null
         }
+    }
 
-        // DB 실제값으로 로컬 카운터를 보정
-        localCounters[tenantId]?.set(usage.requests)
-
+    /** 쿼터 한도를 검사하고 초과 시 거부, 90% 도달 시 경고를 발행한다. */
+    private fun enforceQuotaLimits(tenantId: String, quota: TenantQuota, usage: TenantUsage): HookResult {
         if (usage.requests >= quota.maxRequestsPerMonth) {
-            publishQuotaEvent(
-                tenantId, "rejected_requests", usage.requests, quota.maxRequestsPerMonth,
-                "Monthly request quota exceeded (${usage.requests}/${quota.maxRequestsPerMonth})"
-            )
-            return HookResult.Reject(
-                "Monthly request quota exceeded (${usage.requests}/${quota.maxRequestsPerMonth})"
-            )
+            val msg = "Monthly request quota exceeded (${usage.requests}/${quota.maxRequestsPerMonth})"
+            publishQuotaEvent(tenantId, "rejected_requests", usage.requests, quota.maxRequestsPerMonth, msg)
+            return HookResult.Reject(msg)
         }
         if (usage.tokens >= quota.maxTokensPerMonth) {
-            publishQuotaEvent(
-                tenantId, "rejected_tokens", usage.tokens, quota.maxTokensPerMonth,
-                "Monthly token quota exceeded"
-            )
+            publishQuotaEvent(tenantId, "rejected_tokens", usage.tokens, quota.maxTokensPerMonth, "Monthly token quota exceeded")
             return HookResult.Reject("Monthly token quota exceeded")
         }
-
-        // 90% 사용량 경고 — 테넌트당 월 1회 (중복 방지)
         if (usage.requests >= quota.maxRequestsPerMonth * 0.9 && warnedTenants.add(tenantId)) {
-            publishQuotaEvent(
-                tenantId, "warning", usage.requests, quota.maxRequestsPerMonth,
-                "90% quota used"
-            )
+            publishQuotaEvent(tenantId, "warning", usage.requests, quota.maxRequestsPerMonth, "90% quota used")
         }
-
         return HookResult.Continue
     }
 
