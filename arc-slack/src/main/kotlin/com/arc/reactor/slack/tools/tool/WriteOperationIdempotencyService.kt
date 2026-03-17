@@ -2,7 +2,6 @@ package com.arc.reactor.slack.tools.tool
 
 import com.arc.reactor.slack.tools.config.SlackToolsProperties
 import mu.KotlinLogging
-import java.security.MessageDigest
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutionException
@@ -118,12 +117,7 @@ class InMemoryWriteOperationIdempotencyService(
             val normalized = keyParts.joinToString(separator = "\u001F") { it.trim() }
             "$toolName|payload|$normalized"
         }
-        return sha256Hex(canonical)
-    }
-
-    private fun sha256Hex(value: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { byte -> "%02x".format(byte) }
+        return ToolInputValidation.sha256Hex(canonical)
     }
 
     private data class CachedResult(
