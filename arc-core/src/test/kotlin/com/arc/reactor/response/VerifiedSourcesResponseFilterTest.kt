@@ -401,4 +401,127 @@ class VerifiedSourcesResponseFilterTest {
             "Internal read tools without linkable sources should not get an empty footer"
         }
     }
+
+    @Test
+    fun `allow general knowledge answer without blocking해야 한다`() = runTest {
+        val result = filter.filter(
+            content = "프랑스의 수도는 파리입니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "프랑스의 수도는 어디야?"
+                ),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 50
+            )
+        )
+
+        assertFalse(result.contains("검증 가능한 출처를 찾지 못해")) {
+            "General knowledge questions should not be blocked by the verified sources filter"
+        }
+        assertTrue(result.contains("프랑스의 수도는 파리입니다.")) {
+            "General knowledge answers should be preserved"
+        }
+    }
+
+    @Test
+    fun `allow simple math answer without blocking해야 한다`() = runTest {
+        val result = filter.filter(
+            content = "1+1은 2입니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "1+1은?"
+                ),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 30
+            )
+        )
+
+        assertFalse(result.contains("검증 가능한 출처를 찾지 못해")) {
+            "Simple math questions should not be blocked"
+        }
+    }
+
+    @Test
+    fun `block workspace question without tool even with broad keyword해야 한다`() = runTest {
+        val result = filter.filter(
+            content = "Jira 이슈 목록입니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "Jira 이슈 보여줘"
+                ),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 60
+            )
+        )
+
+        assertTrue(result.contains("검증 가능한 출처를 찾지 못해")) {
+            "Workspace questions with strict workspace keywords should still be blocked when no tool was called"
+        }
+    }
+
+    @Test
+    fun `allow general question containing broad verification keyword해야 한다`() = runTest {
+        val result = filter.filter(
+            content = "REST API는 Representational State Transfer의 약자입니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "REST API가 뭐야?"
+                ),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 50
+            )
+        )
+
+        assertFalse(result.contains("검증 가능한 출처를 찾지 못해")) {
+            "General questions about broad topics like 'API' should not be blocked when no workspace tool was called"
+        }
+    }
+
+    @Test
+    fun `allow general document writing question해야 한다`() = runTest {
+        val result = filter.filter(
+            content = "문서 작성 시 목차를 먼저 구성하는 것이 좋습니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "문서 작성법 알려줘"
+                ),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 50
+            )
+        )
+
+        assertFalse(result.contains("검증 가능한 출처를 찾지 못해")) {
+            "General questions about document writing should not be blocked"
+        }
+    }
+
+    @Test
+    fun `allow onboarding guide search when tool was called해야 한다`() = runTest {
+        val result = filter.filter(
+            content = "온보딩 가이드를 찾았습니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "온보딩 가이드 찾아줘"
+                ),
+                toolsUsed = listOf("confluence_answer_question"),
+                verifiedSources = emptyList(),
+                durationMs = 80
+            )
+        )
+
+        assertFalse(result.contains("검증 가능한 출처를 찾지 못해")) {
+            "When a tool was called and returned content, the response should not be blocked"
+        }
+    }
 }
