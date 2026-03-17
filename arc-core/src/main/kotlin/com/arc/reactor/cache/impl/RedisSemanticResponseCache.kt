@@ -47,6 +47,10 @@ class RedisSemanticResponseCache(
     }
 
     override suspend fun put(key: String, response: CachedResponse) {
+        if (response.content.isBlank()) {
+            logger.debug { "Skipping cache for blank response: ${key.take(16)}..." }
+            return
+        }
         val record = StoredEntry(
             key = key,
             scopeFingerprint = "",
@@ -103,6 +107,10 @@ class RedisSemanticResponseCache(
         exactKey: String,
         response: CachedResponse
     ) {
+        if (response.content.isBlank()) {
+            logger.debug { "Skipping semantic cache for blank response: ${exactKey.take(16)}..." }
+            return
+        }
         val scope = CacheKeyBuilder.buildScopeFingerprint(command, toolNames)
         val promptEmbedding = safeEmbed(command.userPrompt)
         if (promptEmbedding == null) {

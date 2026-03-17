@@ -182,8 +182,11 @@ internal class AgentExecutionCoordinator(
         agentMetrics.recordStageLatency("finalizer", finalizerDurationMs, effectiveCommand.metadata)
         val enrichedFinalResult = withStageTimingsMetadata(finalResult, hookContext)
 
-        // ── 단계 10: 성공 시 응답 캐시 저장 ──
-        if (resolvedCacheKey != null && enrichedFinalResult.success && enrichedFinalResult.content != null) {
+        // ── 단계 10: 성공 시 응답 캐시 저장 (빈 응답/차단 응답은 캐시 오염 방지를 위해 제외) ──
+        if (resolvedCacheKey != null && enrichedFinalResult.success
+            && !enrichedFinalResult.content.isNullOrBlank()
+            && enrichedFinalResult.metadata["blockReason"] == null
+        ) {
             try {
                 val cacheEntry = CachedResponse(
                     content = enrichedFinalResult.content,

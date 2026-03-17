@@ -122,6 +122,47 @@ class ResponseCacheIntegrationTest {
     }
 
     @Nested
+    inner class EmptyResponsePoisoningPrevention {
+
+        @Test
+        fun `empty LLM response should not be cached`() = runTest {
+            val fixture = AgentTestFixture()
+            every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
+
+            // First call returns empty, second returns valid
+            val emptyCallSpec = fixture.mockFinalResponse("")
+            val validCallSpec = fixture.mockFinalResponse("Valid answer")
+            every { fixture.requestSpec.call() } returnsMany listOf(emptyCallSpec, validCallSpec)
+
+            val cache = CaffeineResponseCache()
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = AgentTestFixture.defaultProperties(),
+                responseCache = cache,
+                cacheableTemperature = 0.5
+            )
+
+            val command = AgentCommand(
+                systemPrompt = "sys",
+                userPrompt = "15 곱하기 23은 얼마야?",
+                mode = AgentMode.STANDARD,
+                temperature = 0.0
+            )
+
+            // First call — empty response, should NOT be cached
+            val result1 = executor.execute(command)
+            assertTrue(result1.content.isNullOrBlank()) { "First call should return empty content" }
+
+            // Second call — should hit LLM again (not cached empty)
+            val result2 = executor.execute(command)
+            assertEquals("Valid answer", result2.content) { "Second call should get valid response, not cached empty" }
+
+            // LLM was called twice (empty response was not cached)
+            verify(exactly = 2) { fixture.requestSpec.call() }
+        }
+    }
+
+    @Nested
     inner class CacheDisabled {
 
         @Test
