@@ -163,6 +163,26 @@ Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete)
 - 모든 assertion에 실패 메시지 필수
 - suspend mock: `coEvery`/`coVerify`. `runTest` > `runBlocking`
 
+### 강화 테스트 (Hardening Tests)
+
+일반 단위 테스트는 "구현이 맞는지" 확인하지만, **강화 테스트는 "구현이 충분한지" 확인한다.** 새 기능 구현 후 반드시 강화 테스트를 함께 작성할 것.
+
+| 카테고리 | 검증 대상 | 위치 |
+|----------|----------|------|
+| **프롬프트 인젝션** | 직접 인젝션, 역할 탈취, 유니코드 난독화, 컨텍스트 전환 | `hardening/PromptInjectionHardeningTest.kt` |
+| **입력 경계값** | 빈 입력, 초대형 입력, 특수문자 (널 바이트, 이모지) | `hardening/ReActLoopHardeningTest.kt` |
+| **도구 출력 정제** | 간접 인젝션 via 도구 응답, 출력 크기 제한 | `hardening/ToolOutputSanitizationHardeningTest.kt` |
+| **출력 가드** | PII 유출 방지, 카나리 토큰 누출, false positive 방지 | `hardening/OutputGuardHardeningTest.kt` |
+
+```bash
+./gradlew :arc-core:test --tests "com.arc.reactor.hardening.*"  # 강화 테스트만 실행
+```
+
+**강화 테스트 작성 원칙:**
+- `@Tag("hardening")` 태그 필수
+- 적대적 입력(공격 벡터)과 안전한 입력(false positive 방지)을 반드시 쌍으로 테스트
+- Guard 인젝션 패턴 추가 시 `InjectionPatterns.kt`에 정규식 추가 + 강화 테스트 동시 추가
+
 ## 기본 설정
 
 | Property | Default | Property | Default |
