@@ -5,6 +5,11 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
+/**
+ * [SlackReminderStore]의 리마인더 저장소 CRUD 테스트.
+ *
+ * 리마인더 추가/완료/전체삭제 동작과 사용자별 최대 개수 제한을 검증한다.
+ */
 class SlackReminderStoreTest {
 
     @Test

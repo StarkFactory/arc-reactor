@@ -18,6 +18,12 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+/**
+ * [SlackEventProcessor]의 사전 대응(proactive) 메시지 처리 테스트.
+ *
+ * 허용 목록 채널 라우팅, 비허용 채널 무시, 기능 비활성화 시 동작,
+ * DM 채널 필터링, 동시성 제한, 메트릭 기록을 검증한다.
+ */
 class SlackEventProcessorProactiveTest {
 
     private val objectMapper = jacksonObjectMapper()

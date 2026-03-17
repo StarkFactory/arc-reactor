@@ -7,6 +7,12 @@ import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
+/**
+ * [SlackResponseTextFormatter]의 응답 텍스트 포매팅 테스트.
+ *
+ * 성공/실패 결과에 따른 텍스트 변환, 빈 콘텐츠 폴백,
+ * 그리고 일반적 거절 응답의 재작성 로직을 검증한다.
+ */
 class SlackResponseTextFormatterTest {
 
     @Test

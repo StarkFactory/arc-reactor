@@ -21,10 +21,10 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * 에 대한 단위 테스트. [SlackEventProcessor].
+ * [SlackEventProcessor]의 이벤트 처리 테스트.
  *
- * Covers event routing, deduplication, backpressure (fail-fast and queue modes),
- * bot/subtype filtering, notification-on-drop, and error isolation.
+ * 이벤트 라우팅, 중복 제거, 백프레셔(fail-fast 및 큐 모드),
+ * 봇/서브타입 필터링, 드롭 시 알림, 오류 격리를 검증한다.
  */
 class SlackEventProcessorTest {
 
@@ -126,7 +126,7 @@ class SlackEventProcessorTest {
     )
 
     // =========================================================================
-    // Event routing
+    // 이벤트 라우팅
     // =========================================================================
 
     @Nested
@@ -243,7 +243,7 @@ class SlackEventProcessorTest {
     }
 
     // =========================================================================
-    // Inbound metrics
+    // 인바운드 메트릭
     // =========================================================================
 
     @Nested
@@ -269,7 +269,7 @@ class SlackEventProcessorTest {
             processor.submitEventCallback(payload, "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // recordHandler call to be dispatched after handler completes 허용
+            Thread.sleep(200)  // 핸들러 완료 후 recordHandler 호출 디스패치 대기
             coVerify {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
@@ -345,7 +345,7 @@ class SlackEventProcessorTest {
     }
 
     // =========================================================================
-    // Deduplication
+    // 중복 제거
     // =========================================================================
 
     @Nested
@@ -398,7 +398,7 @@ class SlackEventProcessorTest {
     }
 
     // =========================================================================
-    // metadata forwarding 재시도
+    // 재시도 메타데이터 전달
     // =========================================================================
 
     @Nested
@@ -447,14 +447,14 @@ class SlackEventProcessorTest {
             processor.submitEventCallback(p1, "events_api")
             acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true
 
-            // Subsequent events must be dropped
+            // 이후 이벤트는 삭제되어야 한다
             repeat(3) { i ->
                 val (p, _, _) = mentionPayload(user = "U${i + 2}")
                 processor.submitEventCallback(p, "events_api")
             }
 
             holdLatch.countDown()
-            Thread.sleep(500) // let processing settle
+            Thread.sleep(500) // 처리 완료 대기
 
             processedCount.get() shouldBe 1
         }
@@ -610,7 +610,7 @@ class SlackEventProcessorTest {
                 val (p2, _, _) = mentionPayload(user = "U2")
                 processor.submitEventCallback(p2, "events_api")
             }
-            Thread.sleep(800)  // for 200ms timeout + Dispatchers.Default scheduling margin를 기다립니다
+            Thread.sleep(800)  // 200ms 타임아웃 + Dispatchers.Default 스케줄링 마진 대기
             holdLatch.countDown()
 
             verify {
@@ -666,7 +666,7 @@ class SlackEventProcessorTest {
             val (p1, _, _) = mentionPayload(user = "U1")
             processor.submitEventCallback(p1, "events_api")
             firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // semaphore release in finally block 허용
+            Thread.sleep(200)  // finally 블록에서 세마포어 해제 대기
 
             // 세마포어가 해제되지 않았다면 이 두 번째 이벤트는 타임아웃됩니다
             val processedSecond = AtomicInteger(0)

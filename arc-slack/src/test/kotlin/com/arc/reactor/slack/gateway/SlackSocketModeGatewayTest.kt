@@ -148,7 +148,7 @@ class SlackSocketModeGatewayTest {
     )
 
     // -------------------------------------------------------------------------
-    // Envelope builders
+    // 엔벨로프 빌더
     // -------------------------------------------------------------------------
 
     private fun eventsEnvelope(
@@ -193,7 +193,7 @@ class SlackSocketModeGatewayTest {
     """.trimIndent()
 
     // =========================================================================
-    // Lifecycle
+    // 라이프사이클
     // =========================================================================
 
     @Nested
@@ -236,7 +236,7 @@ class SlackSocketModeGatewayTest {
             val gateway = buildGateway()
             setBoolean(gateway, "running", true)
 
-            gateway.start()  // guard: running=true, so은(는) return immediately해야 합니다
+            gateway.start()  // 가드: running=true이므로 즉시 반환해야 한다
 
             // Still running (the flag was set by us; stop was never called)
             assertTrue(gateway.isRunning) {
@@ -249,7 +249,7 @@ class SlackSocketModeGatewayTest {
             val gateway = buildGateway()
             setBoolean(gateway, "startRequested", true)
 
-            gateway.start()  // guard: startRequested=true → returns immediately, no second job
+            gateway.start()  // 가드: startRequested=true → 즉시 반환, 두 번째 작업 생성 없음
 
             // startRequested stays true, isRunning unchanged
             assertTrue(!gateway.isRunning) {
@@ -284,7 +284,7 @@ class SlackSocketModeGatewayTest {
         fun `stop은(는) safe on a never-started gateway이다`() {
             val gateway = buildGateway()
 
-            gateway.stop()  // not throw when no client exists해야 합니다
+            gateway.stop()  // 클라이언트가 없어도 예외를 던지지 않아야 한다
 
             assertTrue(!gateway.isRunning) {
                 "Gateway should not be running after stop() on a never-started instance"
@@ -323,7 +323,7 @@ class SlackSocketModeGatewayTest {
     }
 
     // =========================================================================
-    // Listener registration
+    // 리스너 등록
     // =========================================================================
 
     @Nested
@@ -355,7 +355,7 @@ class SlackSocketModeGatewayTest {
     }
 
     // =========================================================================
-    // events_api envelope handling
+    // events_api 엔벨로프 처리
     // =========================================================================
 
     @Nested
@@ -471,7 +471,7 @@ class SlackSocketModeGatewayTest {
     }
 
     // =========================================================================
-    // slash_commands envelope handling
+    // slash_commands 엔벨로프 처리
     // =========================================================================
 
     @Nested
@@ -567,8 +567,8 @@ class SlackSocketModeGatewayTest {
 
         @Test
         fun `slash은(는) command invalid payload with response_url notifies the url`() = runTest {
-            // Missing user_id and channel_id → parseSlashCommand returns null → invalid_payload
-            // But response_url is present → notifyResponseUrlIfPresent sends a message
+            // user_id와 channel_id 누락 → parseSlashCommand가 null 반환 → invalid_payload
+            // 하지만 response_url이 존재 → notifyResponseUrlIfPresent가 메시지를 전송
             val payloadWithResponseUrl =
                 """{"command": "/test", "response_url": "https://hooks.slack.com/commands/partial"}"""
             coEvery { messagingService.sendResponseUrl(any(), any(), any()) } returns true
@@ -587,7 +587,7 @@ class SlackSocketModeGatewayTest {
     }
 
     // =========================================================================
-    // interactive envelope handling
+    // interactive 엔벨로프 처리
     // =========================================================================
 
     @Nested
@@ -691,7 +691,7 @@ class SlackSocketModeGatewayTest {
     }
 
     // =========================================================================
-    // / reconnect logic 재시도
+    // 재시도 및 재연결 로직
     // =========================================================================
 
     @Nested
@@ -712,8 +712,8 @@ class SlackSocketModeGatewayTest {
 
             gateway.start()
 
-            // isRunning is set only AFTER connectOnce() completes successfully.
-            // 테스트 환경에서 SDK는 실패하므로, 게이트웨이는 재시도하지만 실행 상태가 되지 않습니다.
+            // isRunning은 connectOnce() 성공 후에만 설정됨.
+            // 테스트 환경에서 SDK는 실패하므로, 게이트웨이는 재시도하지만 실행 상태가 되지 않는다.
             assertTrue(!gateway.isRunning) {
                 "Gateway should not be running synchronously immediately after start(); " +
                     "isRunning is only set true inside the retry loop after a successful connectOnce()"
@@ -758,7 +758,7 @@ class SlackSocketModeGatewayTest {
             )
             val gateway = buildGateway(properties)
 
-            gateway.start()  // not hang or throw even with zero delays해야 합니다
+            gateway.start()  // 지연 시간이 0이어도 중단되거나 예외를 던지지 않아야 한다
             Thread.sleep(300)
             gateway.stop()
 
@@ -774,10 +774,10 @@ class SlackSocketModeGatewayTest {
             )
 
             gateway.start()
-            gateway.start() // second call: startRequested=true guard prevents re-entry
+            gateway.start() // 두 번째 호출: startRequested=true 가드가 재진입을 방지
             Thread.sleep(200)
 
-            // exception; gateway eventually settles in retry loop 없음
+            // 예외 없이 게이트웨이가 재시도 루프에서 안정화됨
             gateway.stop()
             assertTrue(!gateway.isRunning) {
                 "Gateway should not be running after stop() even with duplicate start() calls"
@@ -839,7 +839,7 @@ class SlackSocketModeGatewayTest {
     }
 
     // =========================================================================
-    // Malformed JSON handling
+    // 잘못된 JSON 처리
     // =========================================================================
 
     @Nested
@@ -862,8 +862,8 @@ class SlackSocketModeGatewayTest {
 
         @Test
         fun `slash은(는) command envelope with unparseable JSON string records invalid_payload drop`() {
-            // JsonPrimitive("not-json") → toString() = "\"not-json\"" which Jackson parses as
-            // a string, not an object. path("command") returns MissingNode → parseSlashCommand returns null
+            // JsonPrimitive("not-json") → toString() = "\"not-json\""이므로 Jackson이 객체가 아닌
+            // 문자열로 파싱. path("command")가 MissingNode 반환 → parseSlashCommand가 null 반환
             val envelope = SlashCommandsEnvelope().also { e ->
                 e.envelopeId = "env-malformed-slash"
                 e.payload = com.google.gson.JsonPrimitive("not-json")

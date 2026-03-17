@@ -24,6 +24,12 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * [DefaultSlackEventHandler]의 리액션 피드백, 봇 응답 추적, 사용자 메모리 주입 테스트.
+ *
+ * 리액션(thumbsup/thumbsdown)을 통한 피드백 저장, 봇 응답 세션 추적,
+ * 그리고 사용자 메모리를 시스템 프롬프트에 주입하는 기능을 검증한다.
+ */
 class DefaultSlackEventHandlerReactionFeedbackTest {
 
     private val agentExecutor = mockk<AgentExecutor>()
@@ -104,7 +110,7 @@ class DefaultSlackEventHandlerReactionFeedbackTest {
                 userId = "U1", channelId = "C1", messageTs = "1.0",
                 reaction = "thumbsup", sessionId = "s1", userPrompt = "hi"
             )
-            // exception, no store to check 없음
+            // feedbackStore가 null이면 예외 없이 무시되어야 한다
         }
     }
 
@@ -173,7 +179,7 @@ class DefaultSlackEventHandlerReactionFeedbackTest {
                 SlackEventCommand("app_mention", "U1", "C1", "<@BOT> hi", "1.0", null)
             )
 
-            // not contain "User context:" since no memory manager해야 합니다
+            // 메모리 매니저가 없으므로 "User context:" 섹션이 포함되지 않아야 한다
             commandSlot.captured.systemPrompt.contains("User context:") shouldBe false
         }
     }
