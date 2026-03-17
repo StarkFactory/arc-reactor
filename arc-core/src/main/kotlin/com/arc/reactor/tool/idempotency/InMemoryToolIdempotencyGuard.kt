@@ -58,9 +58,12 @@ class InMemoryToolIdempotencyGuard(
                 .sortedBy { it.key }
                 .joinToString(",") { "${it.key}=${it.value}" }
             val raw = "$toolName:$sortedArgs"
-            val digest = MessageDigest.getInstance("SHA-256")
+            // MessageDigest는 스레드 안전하지 않으므로 매 호출마다 새 인스턴스 생성
+            val digest = MessageDigest.getInstance(HASH_ALGORITHM)
             val hash = digest.digest(raw.toByteArray(Charsets.UTF_8))
             return hash.joinToString("") { "%02x".format(it) }
         }
+
+        private const val HASH_ALGORITHM = "SHA-256"
     }
 }

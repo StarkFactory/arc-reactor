@@ -1,7 +1,7 @@
 # Arc Reactor
 
 [![CI](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml/badge.svg)](https://github.com/StarkFactory/arc-reactor/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-5.8.2-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v5.8.2)
+[![Version](https://img.shields.io/badge/version-5.12.0-blue.svg)](https://github.com/StarkFactory/arc-reactor/releases/tag/v5.12.0)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.10-purple.svg)](https://kotlinlang.org)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-green.svg)](https://spring.io/projects/spring-boot)
@@ -59,6 +59,12 @@ before they execute, and integrating chat into Slack alongside the web API.
   server allowlist
 - **Kubernetes-ready** — production Helm chart with HPA, ingress, secret management, liveness and
   readiness probes, graceful shutdown
+- **Cost-aware model routing** — automatically select optimal LLM model based on query complexity and cost constraints
+- **Step-level token budgeting** — track and enforce per-step token consumption with soft/hard limits
+- **Tool idempotency** — prevent duplicate tool executions via SHA-256 argument hashing with TTL cache
+- **Execution checkpoints** — save intermediate ReAct loop state for crash recovery and debugging
+- **Context-aware tool filtering** — dynamically filter available tools by intent, channel, and user role
+- **A2A Agent Card** — expose agent capabilities at `/.well-known/agent-card.json` per A2A protocol
 
 ## Quick Start
 
@@ -202,7 +208,7 @@ Arc Reactor separates concerns into three planes:
 
 1. **Control Plane** — Admin APIs for policy, governance, and state management
 2. **Execution Plane** — ReAct runtime (LLM + tool loop + safety pipelines)
-3. **Channel Plane** — Delivery gateways (REST, Slack, Discord, LINE)
+3. **Channel Plane** — Delivery gateways (REST, Slack)
 
 Request flow:
 
@@ -247,7 +253,6 @@ Response + Audit Log + Metrics
 | `arc-web` | REST controllers, OpenAPI spec, security headers, CORS | Always — HTTP API |
 | `arc-admin` | Admin module: metrics, tracing, ops dashboard | Optional — enable with `arc.reactor.admin.enabled=true` |
 | `arc-slack` | Slack gateway (Socket Mode and HTTP Events) | When integrating with Slack |
-| `arc-error-report` | Error-reporting extension (dedicated agent for error analysis) | Optional feature module |
 
 ## Configuration
 
@@ -337,6 +342,12 @@ arc:
 | Circuit breaker | OFF | `arc.reactor.circuit-breaker.enabled` |
 | Output guard | OFF | `arc.reactor.output-guard.enabled` |
 | Admin module | OFF | `arc.reactor.admin.enabled` |
+| Model routing | OFF | `arc.reactor.model-routing.enabled` |
+| Token budget | OFF | `arc.reactor.budget.enabled` |
+| Tool idempotency | OFF | `arc.reactor.tool-idempotency.enabled` |
+| Checkpoints | OFF | `arc.reactor.checkpoint.enabled` |
+| Tool filtering | OFF | `arc.reactor.tool-filter.enabled` |
+| A2A Agent Card | OFF | `arc.reactor.a2a.enabled` |
 
 ## Deployment Options
 
@@ -380,17 +391,17 @@ If Redis is not available, Arc Reactor keeps running with in-memory defaults.
 Images are published automatically on every version tag:
 
 ```bash
-docker pull ghcr.io/starkfactory/arc-reactor:4.8.0
+docker pull ghcr.io/starkfactory/arc-reactor:5.12.0
 docker run -p 8080:8080 \
   -e GEMINI_API_KEY=your-key \
   -e ARC_REACTOR_AUTH_JWT_SECRET=replace-with-32-byte-secret \
   -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/arcreactor \
   -e SPRING_DATASOURCE_USERNAME=arc \
   -e SPRING_DATASOURCE_PASSWORD=arc \
-  ghcr.io/starkfactory/arc-reactor:4.8.0
+  ghcr.io/starkfactory/arc-reactor:5.12.0
 ```
 
-Available tags: exact version (e.g. `4.8.0`), minor stream (e.g. `4.8`), short SHA (`sha-<commit>`).
+Available tags: exact version (e.g. `5.12.0`), minor stream (e.g. `5.12`), short SHA (`sha-<commit>`).
 
 For local non-production experiments without PostgreSQL, add
 `-e ARC_REACTOR_POSTGRES_REQUIRED=false` (not recommended for production).
@@ -433,6 +444,7 @@ for the full reference.
 | RAG ingestion governance | `/api/rag-ingestion/policy`, `/api/rag-ingestion/candidates` | `arc.reactor.rag.ingestion.dynamic.enabled=true` |
 | Scheduler (cron MCP) | `/api/scheduler/jobs` | `arc.reactor.scheduler.enabled=true` |
 | Feedback | `/api/feedback` | `arc.reactor.feedback.enabled=true` |
+| A2A Agent Card | `/.well-known/agent-card.json` | `arc.reactor.a2a.enabled=true` |
 
 Notes:
 

@@ -176,4 +176,106 @@ class StepBudgetTrackerTest {
 
         assertEquals(BudgetStatus.EXHAUSTED, status, "정확히 100%일 때 EXHAUSTED여야 한다")
     }
+
+    // --- 엣지 케이스: 소프트 리밋 정확한 경계 ---
+
+    @Test
+    fun `소프트 리밋 바로 한 토큰 미만이면 OK를 반환해야 한다`() {
+        val tracker = StepBudgetTracker(maxTokens = 100, softLimitPercent = 80)
+
+        // 79 토큰 = 79% → OK
+        val status = tracker.record("just-below", inputTokens = 79, outputTokens = 0)
+
+        assertEquals(BudgetStatus.OK, status, "소프트 리밋(80) 미만 79 토큰이면 OK여야 한다")
+    }
+
+    @Test
+    fun `소프트 리밋 바로 한 토큰 초과이면 SOFT_LIMIT을 반환해야 한다`() {
+        val tracker = StepBudgetTracker(maxTokens = 100, softLimitPercent = 80)
+
+        // 81 토큰 = 81% → SOFT_LIMIT
+        val status = tracker.record("just-above", inputTokens = 81, outputTokens = 0)
+
+        assertEquals(BudgetStatus.SOFT_LIMIT, status, "소프트 리밋(80) 초과 81 토큰이면 SOFT_LIMIT이어야 한다")
+    }
+
+    // --- 엣지 케이스: 동시 접근 (스레드 안전하지 않지만 단일 스레드에서 누적 정확성) ---
+
+    @Test
+    fun `0 토큰 기록은 상태에 영향을 주지 않아야 한다`() {
+        val tracker = StepBudgetTracker(maxTokens = 100, softLimitPercent = 80)
+
+        val status = tracker.record("zero-cost-tool", inputTokens = 0, outputTokens = 0)
+
+        assertEquals(BudgetStatus.OK, status, "0 토큰 기록은 OK 상태여야 한다")
+        assertEquals(0, tracker.totalConsumed(), "0 토큰 기록 후 소비량은 0이어야 한다")
+    }
+
+    @Test
+    fun `여러 번 EXHAUSTED 이후에도 상태가 EXHAUSTED로 유지되어야 한다`() {
+        val tracker = StepBudgetTracker(maxTokens = 100, softLimitPercent = 80)
+
+        tracker.record("step-1", inputTokens = 100, outputTokens = 0) // EXHAUSTED
+        val status = tracker.record("step-2", inputTokens = 10, outputTokens = 0) // 여전히 EXHAUSTED
+
+        assertEquals(BudgetStatus.EXHAUSTED, status, "예산 소진 이후 추가 기록도 EXHAUSTED여야 한다")
+        assertTrue(tracker.isExhausted(), "isExhausted()는 계속 true여야 한다")
+    }
+
+    @Test
+    fun `단계 이름이 빈 문자열이어도 기록되어야 한다`() {
+        val tracker = StepBudgetTracker(maxTokens = 1000)
+
+        val status = tracker.record("", inputTokens = 100, outputTokens = 50)
+
+        assertEquals(BudgetStatus.OK, status, "빈 단계 이름도 기록되어야 한다")
+        val history = tracker.history()
+        assertEquals(1, history.size, "빈 이름이어도 히스토리에 1개 기록되어야 한다")
+        assertEquals("", history[0].step, "단계 이름이 빈 문자열로 저장되어야 한다")
+    }
+
+    @Test
+    fun `히스토리의 StepRecord에 상태가 정확히 기록되어야 한다`() {
+        val tracker = StepBudgetTracker(maxTokens = 100, softLimitPercent = 80)
+
+        tracker.record("ok-step", inputTokens = 50, outputTokens = 20)       // 70 → OK
+        tracker.record("soft-step", inputTokens = 10, outputTokens = 5)      // 85 → SOFT_LIMIT
+        tracker.record("exhausted-step", inputTokens = 10, outputTokens = 10) // 105 → EXHAUSTED
+
+        val history = tracker.history()
+        assertEquals(3, history.size, "3개 단계가 기록되어야 한다")
+        assertEquals(BudgetStatus.OK, history[0].status, "첫 번째 단계는 OK여야 한다")
+        assertEquals(BudgetStatus.SOFT_LIMIT, history[1].status, "두 번째 단계는 SOFT_LIMIT이어야 한다")
+        assertEquals(BudgetStatus.EXHAUSTED, history[2].status, "세 번째 단계는 EXHAUSTED여야 한다")
+    }
+
+    @Test
+    fun `maxTokens가 음수이면 예외를 던져야 한다`() {
+        val ex = assertThrows<IllegalArgumentException>("maxTokens=-1은 예외여야 한다") {
+            StepBudgetTracker(maxTokens = -1)
+        }
+        assertTrue(ex.message!!.contains("양수"), "에러 메시지에 '양수'가 포함되어야 한다")
+    }
+
+    @Test
+    fun `softLimitPercent=1은 허용되어야 한다`() {
+        // maxTokens=1000, softLimitPercent=1 → softLimitTokens = 10
+        val trackerBelow = StepBudgetTracker(maxTokens = 1000, softLimitPercent = 1)
+        val trackerAt = StepBudgetTracker(maxTokens = 1000, softLimitPercent = 1)
+
+        val statusBelow = trackerBelow.record("below", inputTokens = 9, outputTokens = 0)
+        val statusAt = trackerAt.record("at", inputTokens = 10, outputTokens = 0)
+
+        assertEquals(BudgetStatus.OK, statusBelow, "softLimitPercent=1에서 9토큰(임계값 미만)이면 OK여야 한다")
+        assertEquals(BudgetStatus.SOFT_LIMIT, statusAt, "softLimitPercent=1에서 10토큰(임계값 정확)이면 SOFT_LIMIT이어야 한다")
+    }
+
+    @Test
+    fun `softLimitPercent=99는 허용되어야 한다`() {
+        val tracker = StepBudgetTracker(maxTokens = 100, softLimitPercent = 99)
+
+        val status = tracker.record("step", inputTokens = 98, outputTokens = 0)
+
+        assertEquals(BudgetStatus.OK, status, "softLimitPercent=99에서 98토큰이면 OK여야 한다")
+    }
 }

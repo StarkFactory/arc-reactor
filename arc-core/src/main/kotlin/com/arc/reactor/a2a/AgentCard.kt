@@ -124,35 +124,7 @@ class DefaultAgentCardProvider(
 ) : AgentCardProvider {
 
     override fun generate(): AgentCard {
-        val capabilities = mutableListOf<AgentCapability>()
-
-        // 도구에서 능력 수집
-        for (tool in tools) {
-            capabilities.add(
-                AgentCapability(
-                    name = tool.name,
-                    description = tool.description,
-                    inputSchema = tool.inputSchema
-                )
-            )
-        }
-
-        // 페르소나에서 능력 수집
-        try {
-            val personas = personaStore.list()
-            for (persona in personas) {
-                if (!persona.isActive) continue
-                capabilities.add(
-                    AgentCapability(
-                        name = "persona:${persona.name}",
-                        description = persona.description ?: persona.name
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            logger.warn(e) { "A2A: 페르소나 조회 실패, 도구 기반 카드만 생성" }
-        }
-
+        val capabilities = toolCapabilities() + personaCapabilities()
         return AgentCard(
             name = properties.agentName,
             version = properties.agentVersion,
@@ -160,4 +132,34 @@ class DefaultAgentCardProvider(
             capabilities = capabilities
         )
     }
+
+    /** 등록된 도구 목록에서 [AgentCapability] 목록을 생성한다. */
+    private fun toolCapabilities(): List<AgentCapability> =
+        tools.map { tool ->
+            AgentCapability(
+                name = tool.name,
+                description = tool.description,
+                inputSchema = tool.inputSchema
+            )
+        }
+
+    /**
+     * 활성 페르소나 목록에서 [AgentCapability] 목록을 생성한다.
+     *
+     * 페르소나 조회 실패 시 빈 목록을 반환한다 (fail-open).
+     */
+    private fun personaCapabilities(): List<AgentCapability> =
+        try {
+            personaStore.list()
+                .filter { it.isActive }
+                .map { persona ->
+                    AgentCapability(
+                        name = "persona:${persona.name}",
+                        description = persona.description ?: persona.name
+                    )
+                }
+        } catch (e: Exception) {
+            logger.warn(e) { "A2A: 페르소나 조회 실패, 도구 기반 카드만 생성" }
+            emptyList()
+        }
 }

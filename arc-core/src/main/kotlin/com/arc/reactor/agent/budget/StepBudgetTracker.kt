@@ -103,21 +103,17 @@ class StepBudgetTracker(
         )
 
         when (status) {
-            BudgetStatus.SOFT_LIMIT -> {
-                if (!softLimitWarned) {
-                    softLimitWarned = true
-                    logger.warn {
-                        "토큰 예산 소프트 리밋 도달: consumed=$consumed, " +
-                            "softLimit=$softLimitTokens, maxTokens=$maxTokens, step=$step"
-                    }
-                }
-            }
-            BudgetStatus.EXHAUSTED -> {
+            BudgetStatus.SOFT_LIMIT -> if (!softLimitWarned) {
+                softLimitWarned = true
                 logger.warn {
-                    "토큰 예산 소진: consumed=$consumed, maxTokens=$maxTokens, step=$step"
+                    "토큰 예산 소프트 리밋 도달: consumed=$consumed, " +
+                        "softLimit=$softLimitTokens, maxTokens=$maxTokens, step=$step"
                 }
             }
-            BudgetStatus.OK -> { /* 정상 */ }
+            BudgetStatus.EXHAUSTED -> logger.warn {
+                "토큰 예산 소진: consumed=$consumed, maxTokens=$maxTokens, step=$step"
+            }
+            BudgetStatus.OK -> Unit
         }
 
         return status

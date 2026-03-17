@@ -173,4 +173,166 @@ class CostAwareModelRouterTest {
 
         assertTrue(complexity in 0.0..1.0, "복잡도는 0.0~1.0 범위여야 한다: $complexity")
     }
+
+    // --- 엣지 케이스: 빈/null 입력 ---
+
+    @Test
+    fun `빈 systemPrompt와 userPrompt는 낮은 복잡도여야 한다`() {
+        val command = AgentCommand(
+            systemPrompt = "",
+            userPrompt = "",
+            mode = AgentMode.STANDARD,
+            maxToolCalls = 0
+        )
+
+        val complexity = router().analyzeComplexity(command)
+
+        assertTrue(complexity < 0.3, "빈 입력의 복잡도는 0.3 미만이어야 한다: $complexity")
+        assertTrue(complexity in 0.0..1.0, "빈 입력도 복잡도는 0.0~1.0 범위여야 한다: $complexity")
+    }
+
+    @Test
+    fun `빈 모델 문자열은 사용자 지정으로 처리되지 않아야 한다`() {
+        val command = AgentCommand(
+            systemPrompt = "Help",
+            userPrompt = "Hi",
+            model = ""
+        )
+
+        val selection = router().route(command)
+
+        assertEquals("gemini-2.0-flash", selection.modelId, "빈 model은 무시되고 기본 모델이어야 한다")
+    }
+
+    @Test
+    fun `공백만 있는 모델 문자열은 사용자 지정으로 처리되지 않아야 한다`() {
+        val command = AgentCommand(
+            systemPrompt = "Help",
+            userPrompt = "Hi",
+            model = "   "
+        )
+
+        val selection = router().route(command)
+
+        assertEquals("gemini-2.0-flash", selection.modelId, "공백 model은 무시되고 기본 모델이어야 한다")
+    }
+
+    // --- 엣지 케이스: 극단적인 토큰 수 ---
+
+    @Test
+    fun `매우 긴 입력(100만 자)도 복잡도 상한 1_0을 초과하지 않아야 한다`() {
+        val command = AgentCommand(
+            systemPrompt = "s".repeat(500_000),
+            userPrompt = "u".repeat(500_000),
+            mode = AgentMode.REACT,
+            maxToolCalls = 999
+        )
+
+        val complexity = router().analyzeComplexity(command)
+
+        assertTrue(complexity <= 1.0, "극단적 입력의 복잡도는 1.0을 초과하면 안 된다: $complexity")
+    }
+
+    @Test
+    fun `maxToolCalls=1이면 ReAct 모드여도 도구 복잡도가 추가되지 않아야 한다`() {
+        val commandWith1Tool = AgentCommand(
+            systemPrompt = "Help",
+            userPrompt = "Hi",
+            mode = AgentMode.REACT,
+            maxToolCalls = 1
+        )
+        val commandWithNoTool = AgentCommand(
+            systemPrompt = "Help",
+            userPrompt = "Hi",
+            mode = AgentMode.STANDARD,
+            maxToolCalls = 0
+        )
+
+        val complexityWith1Tool = router().analyzeComplexity(commandWith1Tool)
+        val complexityWithNoTool = router().analyzeComplexity(commandWithNoTool)
+
+        assertEquals(
+            complexityWithNoTool,
+            complexityWith1Tool,
+            "maxToolCalls=1이면 도구 복잡도 가산 없이 동일해야 한다"
+        )
+    }
+
+    // --- 엣지 케이스: 세 전략 동작 완전 검증 ---
+
+    @Test
+    fun `cost-optimized 전략에서 복잡도 0_7 이상이면 고급 모델을 선택해야 한다`() {
+        val props = defaultProps.copy(routingStrategy = "cost-optimized")
+        // 0.7 이상 복잡도: 긴 입력 + ReAct + 많은 도구
+        val longInput = "x".repeat(2000)
+        val command = AgentCommand(
+            systemPrompt = longInput,
+            userPrompt = longInput,
+            mode = AgentMode.REACT,
+            maxToolCalls = 10,
+            responseFormat = ResponseFormat.JSON
+        )
+
+        val selection = router(props).route(command)
+
+        assertEquals(
+            "gemini-2.5-pro",
+            selection.modelId,
+            "cost-optimized에서 복잡도 0.7 이상이면 고급 모델이어야 한다"
+        )
+    }
+
+    @Test
+    fun `quality-first 전략에서 빈 입력은 기본 모델을 선택해야 한다`() {
+        val props = defaultProps.copy(routingStrategy = "quality-first")
+        val command = AgentCommand(
+            systemPrompt = "",
+            userPrompt = "",
+            mode = AgentMode.STANDARD,
+            maxToolCalls = 0
+        )
+
+        val selection = router(props).route(command)
+
+        assertEquals(
+            "gemini-2.0-flash",
+            selection.modelId,
+            "quality-first에서 복잡도 0.2 이하(빈 입력)는 기본 모델이어야 한다"
+        )
+    }
+
+    @Test
+    fun `알 수 없는 전략은 balanced로 폴백해야 한다`() {
+        val props = defaultProps.copy(routingStrategy = "unknown-strategy")
+        val command = AgentCommand(
+            systemPrompt = "Help",
+            userPrompt = "What is 1+1?",
+            mode = AgentMode.STANDARD,
+            maxToolCalls = 0
+        )
+
+        val selection = router(props).route(command)
+
+        // balanced 전략과 동일하게 단순 요청 → 기본 모델
+        assertEquals("gemini-2.0-flash", selection.modelId, "알 수 없는 전략은 balanced로 폴백해야 한다")
+    }
+
+    @Test
+    fun `라우팅 전략 이름은 대소문자 구분 없이 동작해야 한다`() {
+        val propsCostUpper = defaultProps.copy(routingStrategy = "COST-OPTIMIZED")
+        val command = AgentCommand(
+            systemPrompt = "Help",
+            userPrompt = "Simple question",
+            mode = AgentMode.STANDARD,
+            maxToolCalls = 0
+        )
+
+        val selection = router(propsCostUpper).route(command)
+
+        assertEquals(
+            "gemini-2.0-flash",
+            selection.modelId,
+            "대문자 전략 이름도 동일하게 처리되어야 한다"
+        )
+    }
 }

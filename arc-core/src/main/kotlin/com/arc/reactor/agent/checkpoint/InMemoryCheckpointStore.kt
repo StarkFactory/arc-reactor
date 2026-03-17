@@ -17,15 +17,15 @@ class InMemoryCheckpointStore(
     private val maxCheckpointsPerRun: Int = DEFAULT_MAX_CHECKPOINTS_PER_RUN
 ) : CheckpointStore {
 
-    private val store = ConcurrentHashMap<String, MutableList<ExecutionCheckpoint>>()
+    private val store = ConcurrentHashMap<String, ArrayDeque<ExecutionCheckpoint>>()
 
     override suspend fun save(checkpoint: ExecutionCheckpoint) {
-        val checkpoints = store.computeIfAbsent(checkpoint.runId) { mutableListOf() }
+        val checkpoints = store.computeIfAbsent(checkpoint.runId) { ArrayDeque() }
         synchronized(checkpoints) {
-            checkpoints.add(checkpoint)
-            // 최대 체크포인트 수 초과 시 가장 오래된 항목 제거
+            checkpoints.addLast(checkpoint)
+            // 최대 체크포인트 수 초과 시 가장 오래된 항목 제거 (O(1))
             if (checkpoints.size > maxCheckpointsPerRun) {
-                val removed = checkpoints.removeAt(0)
+                val removed = checkpoints.removeFirst()
                 logger.debug {
                     "체크포인트 제한 초과로 가장 오래된 항목 제거: runId=${checkpoint.runId}, removedStep=${removed.step}"
                 }
@@ -37,7 +37,7 @@ class InMemoryCheckpointStore(
     override suspend fun findByRunId(runId: String): List<ExecutionCheckpoint> {
         val checkpoints = store[runId] ?: return emptyList()
         synchronized(checkpoints) {
-            return checkpoints.sortedBy { it.step }.toList()
+            return checkpoints.sortedBy { it.step }
         }
     }
 
