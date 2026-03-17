@@ -316,6 +316,211 @@ class ManualReActLoopExecutorTest {
             )
         }
 
+    @Test
+    fun `tool error시 retry hint UserMessage가 주입되어야 한다`() = runBlocking {
+        val toolCall = AssistantMessage.ToolCall("tc-1", "call", "jql_search", "{}")
+        // 첫 번째 응답: tool call 포함 -> 도구 에러 반환
+        val firstResponse = AgentTestFixture.simpleChatResponse("").mutateWithToolCalls(listOf(toolCall))
+        // 두 번째 응답: tool call 포함 (재시도) -> 성공
+        val retryToolCall = AssistantMessage.ToolCall("tc-2", "call", "jql_search", "{}")
+        val secondResponse = AgentTestFixture.simpleChatResponse("").mutateWithToolCalls(listOf(retryToolCall))
+        // 세 번째 응답: 최종 텍스트 답변
+        val thirdResponse = AgentTestFixture.simpleChatResponse("final answer")
+
+        val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
+        io.mockk.every { requestSpec.call() } returns callResponseSpec
+        io.mockk.every { callResponseSpec.chatResponse() } returnsMany
+            listOf(firstResponse, secondResponse, thirdResponse)
+
+        var toolCallCount = 0
+        val toolOrchestrator = mockk<ToolCallOrchestrator>()
+        coEvery {
+            toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
+        } coAnswers {
+            toolCallCount++
+            (it.invocation.args[4] as AtomicInteger).incrementAndGet()
+            if (toolCallCount == 1) {
+                // 첫 번째 호출: 에러 반환
+                listOf(ToolResponseMessage.ToolResponse("tc-1", "jql_search", "Error: JQL syntax error"))
+            } else {
+                // 두 번째 호출: 성공
+                listOf(ToolResponseMessage.ToolResponse("tc-2", "jql_search", "results: [...]"))
+            }
+        }
+
+        val capturedMessages = mutableListOf<List<String>>()
+        val loopExecutor = ManualReActLoopExecutor(
+            messageTrimmer = ConversationMessageTrimmer(
+                maxContextWindowTokens = 100_000,
+                outputReserveTokens = 100,
+                tokenEstimator = TokenEstimator { it.length }
+            ),
+            toolCallOrchestrator = toolOrchestrator,
+            buildRequestSpec = { _, _, msgs, _, _ ->
+                capturedMessages.add(msgs.map { it.javaClass.simpleName })
+                requestSpec
+            },
+            callWithRetry = { block -> block() },
+            buildChatOptions = { _, _ -> ChatOptions.builder().build() },
+            validateAndRepairResponse = { rawContent, _, _, _, _ ->
+                AgentResult.success(content = rawContent)
+            },
+            recordTokenUsage = { _, _ -> }
+        )
+
+        val result = loopExecutor.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "search issues"),
+            activeChatClient = mockk(relaxed = true),
+            systemPrompt = "sys",
+            initialTools = listOf(mockk<Any>(relaxed = true)),
+            conversationHistory = emptyList(),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "search issues"),
+            toolsUsed = mutableListOf(),
+            allowedTools = null,
+            maxToolCalls = 5
+        )
+
+        assertTrue(result.success, "Loop should complete successfully after tool error retry")
+        assertEquals("final answer", result.content, "Should return the final text response")
+
+        // 두 번째 LLM 호출 메시지에 UserMessage(retry hint)가 포함되어야 함
+        assertTrue(
+            capturedMessages.size >= 2,
+            "Should have at least 2 LLM calls (initial + retry after error)"
+        )
+        val secondCallMessages = capturedMessages[1]
+        assertTrue(
+            secondCallMessages.count { it == "UserMessage" } >= 2,
+            "Second LLM call should contain original UserMessage + retry hint UserMessage, " +
+                "but got: $secondCallMessages"
+        )
+
+        // 세 번째 LLM 호출 메시지에는 추가 retry hint가 없어야 함 (성공한 tool response 이후)
+        if (capturedMessages.size >= 3) {
+            val thirdCallMessages = capturedMessages[2]
+            // 성공 응답 후에는 retry hint가 추가되지 않으므로 UserMessage는 원래 1개 + 에러 힌트 1개만
+            val userMsgCount = thirdCallMessages.count { it == "UserMessage" }
+            assertTrue(
+                userMsgCount == 2,
+                "Third LLM call should have exactly 2 UserMessages (original + previous hint), " +
+                    "no new hint after successful tool call, but got $userMsgCount"
+            )
+        }
+    }
+
+    @Test
+    fun `tool success시 retry hint가 주입되지 않아야 한다`() = runBlocking {
+        val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
+        val firstResponse = AgentTestFixture.simpleChatResponse("").mutateWithToolCalls(listOf(toolCall))
+        val secondResponse = AgentTestFixture.simpleChatResponse("done")
+
+        val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
+        io.mockk.every { requestSpec.call() } returns callResponseSpec
+        io.mockk.every { callResponseSpec.chatResponse() } returnsMany listOf(firstResponse, secondResponse)
+
+        val toolOrchestrator = mockk<ToolCallOrchestrator>()
+        coEvery {
+            toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
+        } coAnswers {
+            (it.invocation.args[4] as AtomicInteger).incrementAndGet()
+            listOf(ToolResponseMessage.ToolResponse("tc-1", "search", "success: results"))
+        }
+
+        val capturedMessages = mutableListOf<List<String>>()
+        val loopExecutor = ManualReActLoopExecutor(
+            messageTrimmer = ConversationMessageTrimmer(
+                maxContextWindowTokens = 100_000,
+                outputReserveTokens = 100,
+                tokenEstimator = TokenEstimator { it.length }
+            ),
+            toolCallOrchestrator = toolOrchestrator,
+            buildRequestSpec = { _, _, msgs, _, _ ->
+                capturedMessages.add(msgs.map { it.javaClass.simpleName })
+                requestSpec
+            },
+            callWithRetry = { block -> block() },
+            buildChatOptions = { _, _ -> ChatOptions.builder().build() },
+            validateAndRepairResponse = { rawContent, _, _, _, _ ->
+                AgentResult.success(content = rawContent)
+            },
+            recordTokenUsage = { _, _ -> }
+        )
+
+        val result = loopExecutor.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "search"),
+            activeChatClient = mockk(relaxed = true),
+            systemPrompt = "sys",
+            initialTools = listOf(mockk<Any>(relaxed = true)),
+            conversationHistory = emptyList(),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "search"),
+            toolsUsed = mutableListOf(),
+            allowedTools = null,
+            maxToolCalls = 5
+        )
+
+        assertTrue(result.success, "Should succeed with successful tool call")
+        assertEquals("done", result.content)
+
+        // 두 번째 호출 시 UserMessage는 원래 것 1개만 있어야 함 (retry hint 없음)
+        if (capturedMessages.size >= 2) {
+            val secondCallMessages = capturedMessages[1]
+            val userMsgCount = secondCallMessages.count { it == "UserMessage" }
+            assertEquals(
+                1, userMsgCount,
+                "No retry hint should be injected after successful tool call, " +
+                    "but got $userMsgCount UserMessages: $secondCallMessages"
+            )
+        }
+    }
+
+    @Test
+    fun `injectToolErrorRetryHint unit test - error response면 hint를 추가해야 한다`() {
+        val messages = mutableListOf<org.springframework.ai.chat.messages.Message>()
+        val toolResponses = listOf(
+            ToolResponseMessage.ToolResponse("tc-1", "search", "Error: JQL syntax error")
+        )
+
+        ManualReActLoopExecutor.injectToolErrorRetryHint(toolResponses, messages)
+
+        assertEquals(1, messages.size, "Should add exactly one retry hint message")
+        assertTrue(
+            messages[0] is org.springframework.ai.chat.messages.UserMessage,
+            "Injected message should be a UserMessage"
+        )
+        assertEquals(
+            ManualReActLoopExecutor.TOOL_ERROR_RETRY_HINT,
+            (messages[0] as org.springframework.ai.chat.messages.UserMessage).text,
+            "Hint content should match"
+        )
+    }
+
+    @Test
+    fun `injectToolErrorRetryHint unit test - success response면 hint를 추가하지 않아야 한다`() {
+        val messages = mutableListOf<org.springframework.ai.chat.messages.Message>()
+        val toolResponses = listOf(
+            ToolResponseMessage.ToolResponse("tc-1", "search", "results: [item1, item2]")
+        )
+
+        ManualReActLoopExecutor.injectToolErrorRetryHint(toolResponses, messages)
+
+        assertEquals(0, messages.size, "Should not add any message for successful tool response")
+    }
+
+    @Test
+    fun `injectToolErrorRetryHint unit test - mixed responses에서 하나라도 error면 hint를 추가해야 한다`() {
+        val messages = mutableListOf<org.springframework.ai.chat.messages.Message>()
+        val toolResponses = listOf(
+            ToolResponseMessage.ToolResponse("tc-1", "search", "results: ok"),
+            ToolResponseMessage.ToolResponse("tc-2", "update", "Error: Permission denied")
+        )
+
+        ManualReActLoopExecutor.injectToolErrorRetryHint(toolResponses, messages)
+
+        assertEquals(1, messages.size, "Should add retry hint when any tool response has an error")
+    }
+
     private fun org.springframework.ai.chat.model.ChatResponse.mutateWithToolCalls(
         toolCalls: List<AssistantMessage.ToolCall>
     ): org.springframework.ai.chat.model.ChatResponse {
