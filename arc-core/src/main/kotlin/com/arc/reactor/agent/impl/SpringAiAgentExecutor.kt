@@ -183,7 +183,9 @@ class SpringAiAgentExecutor(
         agentMetrics = agentMetrics,
         toolOutputSanitizer = toolOutputSanitizer,
         requesterAwareToolNames = properties.toolEnrichment.requesterAwareToolNames,
-        toolResultCacheProperties = properties.toolResultCache
+        toolResultCacheProperties = properties.toolResultCache,
+        tokenEstimator = tokenEstimator,
+        maxContextWindowTokens = properties.llm.maxContextWindowTokens
     )
     // LLM 호출 재시도 실행기 — CircuitBreaker 연동
     private val retryExecutor = RetryExecutor(

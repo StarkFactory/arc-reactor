@@ -2,6 +2,7 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.config.ToolResultCacheProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.guard.tool.ToolOutputSanitizer
@@ -61,7 +62,9 @@ internal class ToolCallOrchestrator(
     private val toolOutputSanitizer: ToolOutputSanitizer? = null,
     private val maxToolOutputLength: Int = DEFAULT_MAX_TOOL_OUTPUT_LENGTH,
     private val requesterAwareToolNames: Set<String> = emptySet(),
-    private val toolResultCacheProperties: ToolResultCacheProperties = ToolResultCacheProperties()
+    private val toolResultCacheProperties: ToolResultCacheProperties = ToolResultCacheProperties(),
+    private val tokenEstimator: TokenEstimator? = null,
+    private val maxContextWindowTokens: Int = DEFAULT_MAX_CONTEXT_WINDOW_TOKENS
 ) {
     /** Spring AI ToolCallback 해석 결과 캐시 — MethodToolCallbackProvider 호출 비용 절감 */
     private val springToolCallbackCache =
@@ -319,6 +322,7 @@ internal class ToolCallOrchestrator(
         captureToolSignals(hookContext, toolName, invocation.output, invocation.success)
 
         val toolOutput = sanitizeOutput(toolName, invocation.output)
+        estimateAndWarnToolOutputTokens(toolName, toolOutput, hookContext)
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
         val result = ToolCallResult(
             success = invocation.success,
@@ -346,6 +350,7 @@ internal class ToolCallOrchestrator(
         val invocation = invokeToolAdapter(toolName, toolInput, tools, springCallbacksByName)
         val capture = extractToolCapture(toolName, invocation.output, invocation.success)
         val toolOutput = sanitizeOutput(toolName, invocation.output)
+        estimateAndWarnToolOutputTokens(toolName, toolOutput, hookContext)
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
         hookExecutor?.executeAfterToolCall(
@@ -610,6 +615,41 @@ internal class ToolCallOrchestrator(
             output = outcome.output.take(maxToolOutputLength) +
                 "\n[TRUNCATED: output exceeded $maxToolOutputLength characters]"
         )
+    }
+
+    /**
+     * 도구 출력의 토큰 수를 추정하고, 컨텍스트 윈도우의 30%를 초과하면 경고합니다.
+     *
+     * 추정된 토큰 수는 hookContext 메타데이터에 저장되어 응답 메타데이터에서 확인할 수 있습니다.
+     *
+     * @return 추정된 토큰 수. TokenEstimator가 없으면 null.
+     */
+    private fun estimateAndWarnToolOutputTokens(
+        toolName: String,
+        output: String,
+        hookContext: HookContext
+    ): Int? {
+        val estimator = tokenEstimator ?: return null
+        val estimatedTokens = estimator.estimate(output)
+        val threshold = (maxContextWindowTokens * TOOL_OUTPUT_TOKEN_WARNING_RATIO).toInt()
+        val percentage = if (maxContextWindowTokens > 0) {
+            estimatedTokens * 100 / maxContextWindowTokens
+        } else {
+            0
+        }
+
+        if (estimatedTokens > threshold) {
+            logger.warn {
+                "도구 출력 토큰 경고: tool=$toolName, " +
+                    "estimatedTokens=$estimatedTokens, " +
+                    "threshold=$threshold " +
+                    "(${(TOOL_OUTPUT_TOKEN_WARNING_RATIO * 100).toInt()}% of $maxContextWindowTokens), " +
+                    "usage=${percentage}%"
+            }
+        }
+
+        hookContext.metadata["toolOutputTokenEstimate_$toolName"] = estimatedTokens
+        return estimatedTokens
     }
 
     /**
@@ -896,6 +936,8 @@ internal class ToolCallOrchestrator(
     companion object {
         const val TOOL_SIGNALS_METADATA_KEY = "toolSignals"
         const val DEFAULT_MAX_TOOL_OUTPUT_LENGTH = 50_000
+        const val DEFAULT_MAX_CONTEXT_WINDOW_TOKENS = 128_000
+        const val TOOL_OUTPUT_TOKEN_WARNING_RATIO = 0.3
         private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
         private val requesterAccountIdMetadataKeys = listOf("requesterAccountId", "accountId")
         private val requesterEmailMetadataKeys = listOf("requesterEmail", "userEmail", "slackUserEmail")

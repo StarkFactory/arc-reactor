@@ -12,6 +12,7 @@ import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.response.ToolResponseSignal
+import com.arc.reactor.memory.DefaultTokenEstimator
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -1534,6 +1535,153 @@ class ToolCallOrchestratorTest {
 
         assertEquals("result-2", secondResponses[0].responseData(), "Second call after TTL expiry should return fresh result")
         assertEquals(2, callCount, "Tool should be invoked twice because cache entry expired after TTL")
+    }
+
+    // ──────────────────────────────────────────────
+    // 도구 출력 토큰 추정 + 경고 테스트
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `도구 출력 토큰이 임계값 미만이면 메타데이터에 추정값만 기록해야 한다`() = runBlocking {
+        val tool = mockk<ToolCallback>()
+        every { tool.name } returns "search"
+        every { tool.description } returns "search tool"
+        every { tool.inputSchema } returns """{"type":"object","properties":{}}"""
+        coEvery { tool.call(any()) } returns "short result"
+
+        val estimator = DefaultTokenEstimator()
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 5000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() },
+            tokenEstimator = estimator,
+            maxContextWindowTokens = 128_000
+        )
+        val ctx = HookContext(runId = "run-1", userId = "user-1", userPrompt = "prompt")
+        val toolCall = toolCall(id = "id-1", name = "search")
+
+        orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(tool)),
+            hookContext = ctx,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        val estimate = ctx.metadata["toolOutputTokenEstimate_search"]
+        assertTrue(estimate != null, "도구 출력 토큰 추정값이 메타데이터에 존재해야 한다")
+        assertTrue(estimate is Int, "추정값은 Int 타입이어야 한다")
+        assertTrue((estimate as Int) > 0, "추정값은 양수여야 한다")
+    }
+
+    @Test
+    fun `TokenEstimator가 null이면 메타데이터에 추정값을 기록하지 않아야 한다`() = runBlocking {
+        val tool = mockk<ToolCallback>()
+        every { tool.name } returns "search"
+        every { tool.description } returns "search tool"
+        every { tool.inputSchema } returns """{"type":"object","properties":{}}"""
+        coEvery { tool.call(any()) } returns "short result"
+
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 5000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() },
+            tokenEstimator = null
+        )
+        val ctx = HookContext(runId = "run-1", userId = "user-1", userPrompt = "prompt")
+        val toolCall = toolCall(id = "id-1", name = "search")
+
+        orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(tool)),
+            hookContext = ctx,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        val estimate = ctx.metadata["toolOutputTokenEstimate_search"]
+        assertTrue(estimate == null, "TokenEstimator가 null이면 메타데이터에 추정값이 없어야 한다")
+    }
+
+    @Test
+    fun `대규모 도구 출력은 토큰 추정값이 메타데이터에 기록되어야 한다`() = runBlocking {
+        val largeOutput = "a".repeat(200_000)
+        val tool = mockk<ToolCallback>()
+        every { tool.name } returns "large_tool"
+        every { tool.description } returns "large output tool"
+        every { tool.inputSchema } returns """{"type":"object","properties":{}}"""
+        coEvery { tool.call(any()) } returns largeOutput
+
+        val estimator = DefaultTokenEstimator()
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 5000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() },
+            tokenEstimator = estimator,
+            maxContextWindowTokens = 128_000
+        )
+        val ctx = HookContext(runId = "run-1", userId = "user-1", userPrompt = "prompt")
+        val toolCall = toolCall(id = "id-1", name = "large_tool")
+
+        orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = listOf(ArcToolCallbackAdapter(tool)),
+            hookContext = ctx,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        val estimate = ctx.metadata["toolOutputTokenEstimate_large_tool"]
+        assertTrue(estimate != null, "대규모 출력도 토큰 추정값이 기록되어야 한다")
+        assertTrue((estimate as Int) > 0, "추정값은 양수여야 한다")
+    }
+
+    @Test
+    fun `직접 실행 경로에서도 토큰 추정값이 메타데이터에 기록되어야 한다`() = runBlocking {
+        val tool = mockk<ToolCallback>()
+        every { tool.name } returns "direct_tool"
+        every { tool.description } returns "direct tool"
+        every { tool.inputSchema } returns """{"type":"object","properties":{}}"""
+        coEvery { tool.call(any()) } returns "direct result"
+
+        val estimator = DefaultTokenEstimator()
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 5000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            tokenEstimator = estimator,
+            maxContextWindowTokens = 128_000
+        )
+        val ctx = HookContext(runId = "run-1", userId = "user-1", userPrompt = "prompt")
+
+        orchestrator.executeDirectToolCall(
+            toolName = "direct_tool",
+            toolParams = emptyMap(),
+            tools = listOf(ArcToolCallbackAdapter(tool)),
+            hookContext = ctx,
+            toolsUsed = mutableListOf()
+        )
+
+        val estimate = ctx.metadata["toolOutputTokenEstimate_direct_tool"]
+        assertTrue(estimate != null, "직접 실행 경로에서도 토큰 추정값이 기록되어야 한다")
+        assertTrue((estimate as Int) > 0, "추정값은 양수여야 한다")
     }
 
     private fun toolCall(id: String, name: String, arguments: String = "{}"): AssistantMessage.ToolCall {
