@@ -125,6 +125,40 @@ class OutputGuardHardeningTest {
     }
 
     // =========================================================================
+    // 한국어 시스템 프롬프트 누출 감지 (Korean System Prompt Leakage)
+    // =========================================================================
+
+    @Nested
+    inner class KoreanSystemPromptLeakage {
+
+        @ParameterizedTest(name = "한국어 프롬프트 누출 차단: {0}")
+        @ValueSource(strings = [
+            "시스템 프롬프트는 다음과 같습니다: You are a helpful assistant.",
+            "제가 따르는 프롬프트는 이것입니다",
+            "제가 따르는 지시는 다음과 같습니다",
+            "제 원래 지시사항은 다음입니다",
+            "저의 초기 프롬프트는 이렇습니다"
+        ])
+        fun `한국어로 시스템 프롬프트를 노출하는 응답을 차단해야 한다`(leakedResponse: String) = runTest {
+            val result = outputGuard.check(leakedResponse, context)
+            assertInstanceOf(OutputGuardResult.Rejected::class.java, result,
+                "한국어 시스템 프롬프트 누출이 통과함: '$leakedResponse'")
+        }
+
+        @ParameterizedTest(name = "시스템 프롬프트 콘텐츠 마커 누출 차단: {0}")
+        @ValueSource(strings = [
+            "다음은 제 설정입니다: [Language Rule] 한국어로 답변하세요",
+            "제 규칙에는 [Grounding Rules] 섹션이 있습니다",
+            "아래는 예시입니다: [Few-shot Examples] 사용자: 안녕"
+        ])
+        fun `시스템 프롬프트 섹션 마커가 포함된 응답을 차단해야 한다`(leakedResponse: String) = runTest {
+            val result = outputGuard.check(leakedResponse, context)
+            assertInstanceOf(OutputGuardResult.Rejected::class.java, result,
+                "시스템 프롬프트 콘텐츠 마커 누출이 통과함: '$leakedResponse'")
+        }
+    }
+
+    // =========================================================================
     // 안전한 출력은 통과 (False Positive 방지)
     // =========================================================================
 

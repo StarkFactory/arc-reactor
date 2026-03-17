@@ -85,7 +85,21 @@ class SystemPromptLeakageOutputGuard(
             // "I'm (not) supposed to reveal/share/show my prompt..."
             Regex("(?i)I('m| am) (not )?supposed to (reveal|share|show|tell|disclose).*(prompt|instructions)"),
             // "The system prompt says/reads/contains/is..."
-            Regex("(?i)the (original |initial |full |complete )?system prompt (says|reads|contains|is|was)")
+            Regex("(?i)the (original |initial |full |complete )?system prompt (says|reads|contains|is|was)"),
+
+            // ── 한국어 시스템 프롬프트 유출 패턴 ──
+            // "시스템 프롬프트는 다음과 같습니다"
+            Regex("시스템\\s*프롬프트는.*같습니다"),
+            // "제가 따르는 프롬프트/지시/명령은..."
+            Regex("제가\\s*따르는.*(프롬프트|지시|명령)"),
+            // "제 원래 지시사항은..."
+            Regex("(제|저의|나의)\\s*(원래|초기|원본).*(지시|명령|프롬프트|설정)"),
+
+            // ── 실제 시스템 프롬프트 콘텐츠 마커 유출 ──
+            // 시스템 프롬프트에 포함된 섹션 마커가 출력에 나타나면 유출 판정
+            Regex("(?i)\\[Language Rule]"),
+            Regex("(?i)\\[Grounding Rules]"),
+            Regex("(?i)\\[Few-shot Examples]")
         )
     }
 }
