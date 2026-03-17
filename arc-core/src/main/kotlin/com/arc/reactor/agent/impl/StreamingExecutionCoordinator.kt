@@ -167,7 +167,13 @@ internal class StreamingExecutionCoordinator(
         agentMetrics.recordStageLatency("history_load", historyLoadDurationMs, command.metadata)
 
         val ragStart = System.nanoTime()
-        val ragResult = ragContextRetriever.retrieve(command)
+        val shouldRetrieveRag = RagRelevanceClassifier.shouldRetrieveRag(command)
+        val ragResult = if (shouldRetrieveRag) {
+            ragContextRetriever.retrieve(command)
+        } else {
+            logger.debug { "RAG retrieval skipped: prompt not classified as knowledge query" }
+            null
+        }
         val ragDurationMs = (System.nanoTime() - ragStart) / 1_000_000
         recordStageTiming(hookContext, "rag_retrieval", ragDurationMs)
         agentMetrics.recordStageLatency("rag_retrieval", ragDurationMs, command.metadata)

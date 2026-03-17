@@ -116,9 +116,15 @@ internal class AgentExecutionCoordinator(
         recordStageTiming(hookContext, "history_load", nowMs() - historyLoadStart)
         agentMetrics.recordStageLatency("history_load", nowMs() - historyLoadStart, effectiveCommand.metadata)
 
-        // ── 단계 5: RAG 컨텍스트 검색 ──
+        // ── 단계 5: RAG 컨텍스트 검색 (키워드 사전 필터링으로 불필요한 검색 생략) ──
         val ragStart = nowMs()
-        val ragResult = retrieveRagContext(effectiveCommand)
+        val shouldRetrieveRag = RagRelevanceClassifier.shouldRetrieveRag(effectiveCommand)
+        val ragResult = if (shouldRetrieveRag) {
+            retrieveRagContext(effectiveCommand)
+        } else {
+            logger.debug { "RAG retrieval skipped: prompt not classified as knowledge query" }
+            null
+        }
         recordStageTiming(hookContext, "rag_retrieval", nowMs() - ragStart)
         agentMetrics.recordStageLatency("rag_retrieval", nowMs() - ragStart, effectiveCommand.metadata)
         registerRagVerifiedSources(ragResult, hookContext)

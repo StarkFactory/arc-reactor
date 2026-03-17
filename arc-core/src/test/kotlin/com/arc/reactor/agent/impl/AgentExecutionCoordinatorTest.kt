@@ -401,6 +401,72 @@ class AgentExecutionCoordinatorTest {
         assertEquals("https://docs.example.com/returns", sources[1].url, "URL should come from document source")
     }
 
+    @Test
+    fun `simple math prompt일 때 skip RAG retrieval해야 한다`() = runBlocking {
+        var ragCalled = false
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = null,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = mockk(relaxed = true),
+            toolCallbacks = emptyList(),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = {
+                ragCalled = true
+                null
+            },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success(content = "2") },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command }
+        )
+
+        coordinator.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "1+1은?"),
+            hookContext = HookContext(runId = "run-rag-skip", userId = "u", userPrompt = "1+1은?"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        assertFalse(ragCalled, "RAG retrieval should be skipped for simple math prompt")
+    }
+
+    @Test
+    fun `knowledge query prompt일 때 execute RAG retrieval해야 한다`() = runBlocking {
+        var ragCalled = false
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = null,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = mockk(relaxed = true),
+            toolCallbacks = emptyList(),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = {
+                ragCalled = true
+                null
+            },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success(content = "answer") },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command }
+        )
+
+        coordinator.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "Guard 파이프라인 문서 알려줘"),
+            hookContext = HookContext(runId = "run-rag-run", userId = "u", userPrompt = "Guard 파이프라인 문서 알려줘"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        assertTrue(ragCalled, "RAG retrieval should run for knowledge query with '문서' keyword")
+    }
+
     private fun testTool(name: String): ToolCallback = object : ToolCallback {
         override val name: String = name
         override val description: String = "test-$name"
