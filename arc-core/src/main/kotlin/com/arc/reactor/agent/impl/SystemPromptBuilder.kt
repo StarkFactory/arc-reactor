@@ -92,14 +92,20 @@ class SystemPromptBuilder(
         append("[Grounding Rules]\n")
         append("Use only facts supported by the retrieved context or tool results.\n")
         append("If you cannot verify a fact, say you cannot verify it instead of guessing.\n")
-        append("For Jira, Confluence, Bitbucket, Swagger/OpenAPI, policy, documentation, or internal knowledge requests, ")
-        append("call the relevant workspace tool before answering.\n")
+        append("For ANY question about Jira issues, Confluence pages, Bitbucket repos, Swagger/OpenAPI specs, ")
+        append("projects, sprints, backlogs, team tasks, or work-related data: ")
+        append("you MUST call the relevant workspace tool FIRST, then answer based on the tool results.\n")
+        append("NEVER answer work-related questions from your own knowledge. ALWAYS use tools to retrieve real data.\n")
+        append("NEVER ask clarifying questions for work-related queries. Instead, make your best guess and call the tool immediately.\n")
+        append("Example: if user says 'show me backlog issues', call jira_search_issues right away — do NOT ask 'which project?'\n")
         if (workspaceToolAlreadyCalled) {
             append("A required workspace tool has already been executed for this request.\n")
             append("Answer directly from the retrieved tool results.\n")
             append("Do not emit planning syntax such as ```tool_code``` or raw tool JSON.\n")
         } else {
-            append("If a rule below says you MUST call a tool, your next assistant action must be a tool call, not prose.\n")
+            append("Your FIRST action for work-related queries must be a tool call, not prose or a clarifying question.\n")
+            append("If the user mentions a project (e.g. JAR), use it. If not, search across all allowed projects.\n")
+            append("Default tools: jira_search_issues for Jira queries, confluence_search for Confluence, work_morning_briefing for general status.\n")
         }
         append("If a Jira, Confluence, Bitbucket, or work-management request asks to create, update, assign, reassign, ")
         append("comment, approve, transition, convert, or delete something, refuse it as not allowed in read-only mode.\n")
