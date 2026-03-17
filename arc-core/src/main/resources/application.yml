@@ -152,7 +152,7 @@ arc:
         min-content-length: ${ARC_REACTOR_RAG_COMPRESSION_MIN_CONTENT_LENGTH:200}
 
     tool-result-cache:
-      enabled: ${ARC_REACTOR_TOOL_RESULT_CACHE_ENABLED:false}
+      enabled: ${ARC_REACTOR_TOOL_RESULT_CACHE_ENABLED:true}
       ttl-seconds: ${ARC_REACTOR_TOOL_RESULT_CACHE_TTL_SECONDS:60}
       max-size: ${ARC_REACTOR_TOOL_RESULT_CACHE_MAX_SIZE:200}
 
