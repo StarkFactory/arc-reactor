@@ -12,6 +12,12 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.web.reactive.function.client.WebClient
 
+/**
+ * [SlackMessagingService]의 Slack API 메시징 테스트.
+ *
+ * MockWebServer를 사용하여 메시지 전송, 스레드 답장, API 에러 처리,
+ * 429/5xx 재시도, 리액션 추가, response_url 콜백 등을 검증한다.
+ */
 class SlackMessagingServiceTest {
 
     private val objectMapper = jacksonObjectMapper()

@@ -8,6 +8,12 @@ import org.junit.jupiter.api.Test
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+/**
+ * [SlackSignatureVerifier]의 서명 검증 테스트.
+ *
+ * HMAC-SHA256 기반 유효한 서명 통과, 누락/만료/변조된 서명 거부,
+ * 빈 signing secret의 fail-close 동작, 타임스탬프 허용 범위 등을 검증한다.
+ */
 class SlackSignatureVerifierTest {
 
     private val signingSecret = "test-signing-secret-12345"

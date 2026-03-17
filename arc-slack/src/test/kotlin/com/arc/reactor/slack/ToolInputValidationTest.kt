@@ -7,6 +7,12 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * [ToolInputValidation]의 입력 정규화 및 검증 테스트.
+ *
+ * 채널 ID, 사용자 ID, 스레드 타임스탬프, 이모지, 파일명 등의
+ * 정규화 로직과 유효하지 않은 입력 거부를 검증한다.
+ */
 class ToolInputValidationTest {
 
     @Nested

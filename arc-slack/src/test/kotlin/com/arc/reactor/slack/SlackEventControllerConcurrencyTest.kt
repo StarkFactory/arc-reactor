@@ -20,6 +20,12 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * [SlackEventController]의 동시성 제어 테스트.
+ *
+ * 세마포어 기반 동시 처리 제한, 오류 격리(한 이벤트 실패가 다른 이벤트에 영향 없음),
+ * fail-fast 모드에서의 이벤트 드롭 등을 검증한다.
+ */
 class SlackEventControllerConcurrencyTest {
 
     private val objectMapper = jacksonObjectMapper()

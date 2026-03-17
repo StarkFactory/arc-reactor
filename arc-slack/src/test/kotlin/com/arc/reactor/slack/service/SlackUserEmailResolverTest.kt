@@ -9,6 +9,12 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.web.reactive.function.client.WebClient
 
+/**
+ * [SlackUserEmailResolver]의 사용자 이메일 조회 테스트.
+ *
+ * MockWebServer를 사용하여 users.info API 호출, 에러 응답 처리,
+ * 캐시를 통한 중복 조회 방지 등을 검증한다.
+ */
 class SlackUserEmailResolverTest {
 
     private lateinit var mockServer: MockWebServer

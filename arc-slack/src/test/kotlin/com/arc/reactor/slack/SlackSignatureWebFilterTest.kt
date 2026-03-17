@@ -19,6 +19,12 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+/**
+ * [SlackSignatureWebFilter]의 웹 필터 서명 검증 테스트.
+ *
+ * 비-Slack 경로 통과, 유효/무효 서명 검증, 403 응답 본문 구조,
+ * 검증 후 요청 본문 재생(body replay) 및 폼 파라미터 바인딩 등을 검증한다.
+ */
 class SlackSignatureWebFilterTest {
 
     private val signingSecret = "test-signing-secret-12345"

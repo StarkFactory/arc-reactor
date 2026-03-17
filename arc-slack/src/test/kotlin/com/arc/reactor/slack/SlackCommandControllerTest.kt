@@ -16,6 +16,12 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 
+/**
+ * [SlackCommandController]의 슬래시 커맨드 컨트롤러 테스트.
+ *
+ * 즉시 200 응답, 비동기 핸들러 디스패치, fail-fast 포화 모드,
+ * 큐 모드 타임아웃 시 busy 알림 등을 검증한다.
+ */
 class SlackCommandControllerTest {
 
     private val commandHandler = mockk<SlackCommandHandler>(relaxed = true)

@@ -15,6 +15,12 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.WebTestClient
 
+/**
+ * [SlackCommandController]의 웹 바인딩 테스트.
+ *
+ * form-urlencoded 요청 본문이 올바르게 바인딩되고,
+ * 메트릭이 기록되며, 핸들러가 호출되는지 검증한다.
+ */
 class SlackCommandControllerWebBindingTest {
 
     private val commandHandler = mockk<SlackCommandHandler>(relaxed = true)
