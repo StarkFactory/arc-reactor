@@ -1,5 +1,7 @@
 package com.arc.reactor.tool
 
+import com.arc.reactor.agent.config.ToolRoutingConfig
+
 /**
  * Tool Selection Strategy Interface
  *
@@ -49,18 +51,10 @@ interface ToolSelector {
  * 2. If matches found: return tools in matched categories + uncategorized tools
  * 3. If no matches: return all tools (safe fallback)
  *
- * ## Example
+ * ## Config-driven construction
  * ```kotlin
- * val selector = KeywordBasedToolSelector(mapOf(
- *     "search_company" to ToolCategory.SEARCH,
- *     "send_email" to ToolCategory.EMAIL
- * ))
- *
- * // Prompt contains "search" → returns SEARCH tools
- * selector.select("Search for Samsung", tools)
- *
- * // Prompt contains no keywords → returns all tools
- * selector.select("Hello", tools)
+ * // Build from tool-routing.yml — each route category becomes a ToolCategory
+ * val selector = KeywordBasedToolSelector.fromRoutingConfig()
  * ```
  *
  * @param toolCategoryMap Mapping of tool names to their categories
@@ -74,20 +68,69 @@ class KeywordBasedToolSelector(
             return availableTools
         }
 
-        // Extract categories matching keywords in the prompt
         val matchedCategories = toolCategoryMap.values
             .filter { it.matches(prompt) }
             .toSet()
 
-        // No matches → return all tools (safe fallback)
         if (matchedCategories.isEmpty()) {
             return availableTools
         }
 
-        // Return tools in matched categories + uncategorized tools
         return availableTools.filter { callback ->
             val category = toolCategoryMap[callback.name]
             category == null || category in matchedCategories
+        }
+    }
+
+    companion object {
+        /**
+         * Build a KeywordBasedToolSelector from the unified tool-routing.yml config.
+         *
+         * Each route with non-empty preferredTools generates entries
+         * in the toolCategoryMap: tool name -> ToolCategory (derived from route category + keywords).
+         *
+         * @param config The routing config (defaults to classpath-loaded)
+         * @return A KeywordBasedToolSelector with category mappings from config
+         */
+        fun fromRoutingConfig(
+            config: ToolRoutingConfig = ToolRoutingConfig.loadFromClasspath()
+        ): KeywordBasedToolSelector {
+            val categoryObjects = buildCategoryMap(config)
+            val toolCategoryMap = mutableMapOf<String, ToolCategory>()
+
+            for (route in config.routes) {
+                if (route.preferredTools.isEmpty()) continue
+                val category = categoryObjects[route.category] ?: continue
+                for (toolName in route.preferredTools) {
+                    toolCategoryMap.putIfAbsent(toolName, category)
+                }
+            }
+
+            return KeywordBasedToolSelector(toolCategoryMap)
+        }
+
+        /**
+         * Aggregate all keywords from routes sharing the same category
+         * into a single ToolCategory per category name.
+         */
+        private fun buildCategoryMap(
+            config: ToolRoutingConfig
+        ): Map<String, ToolCategory> {
+            val keywordsByCategory = mutableMapOf<String, MutableSet<String>>()
+            for (route in config.routes) {
+                val keywords = keywordsByCategory.getOrPut(route.category) {
+                    mutableSetOf()
+                }
+                keywords.addAll(route.keywords)
+                keywords.addAll(route.requiredKeywords)
+            }
+
+            return keywordsByCategory.map { (name, keywords) ->
+                name to object : ToolCategory {
+                    override val name = name
+                    override val keywords = keywords.toSet()
+                }
+            }.toMap()
         }
     }
 }

@@ -1,0 +1,978 @@
+# 도구 라우팅 설정
+#
+# SystemPromptBuilder가 사용자 프롬프트를 분석할 때 참조하며,
+# ToolSelector(SemanticToolSelector, KeywordBasedToolSelector)도
+# preferredTools 필드를 사용하여 LLM에 전달할 도구를 필터링한다.
+#
+# 매칭 규칙:
+#   keywords: ANY match (하나라도 포함되면 매칭)
+#   requiredKeywords: AND 조건으로 추가 매칭 (keywords + requiredKeywords 모두 필요)
+#   excludeKeywords: 이 키워드가 포함되면 매칭 제외
+#   regexPatternRef: WorkContextPatterns의 정규식 참조 (ISSUE_KEY, OPENAPI_URL)
+#   parentRoute: 부모 라우트의 keywords도 함께 매칭해야 함
+#   excludeRoutes: 먼저 매칭된 라우트가 있으면 현재 라우트 제외
+#   requiresNoUrl: true이면 OpenAPI URL이 없을 때만 매칭
+#   multiKeywordGroups: 여러 키워드 그룹의 AND 조합
+#   preferredTools: ToolSelector가 이 라우트 매칭 시 반환할 도구 이름 목록
+
+routes:
+  # ── Confluence ──
+
+  - id: confluence_discovery
+    category: confluence
+    keywords:
+      - confluence
+      - wiki
+      - page
+      - document
+      - policy
+      - policies
+      - guideline
+      - guidelines
+      - runbook
+      - knowledge
+      - internal
+      - service
+      - space
+      - 컨플루언스
+      - 위키
+      - 페이지
+      - 문서
+      - 정책
+      - 규정
+      - 가이드
+      - 런북
+      - 사내
+      - 서비스
+      - 스페이스
+    requiredKeywords:
+      - search
+      - find
+      - look up
+      - keyword
+      - list
+      - recent
+      - latest
+      - 찾아
+      - 검색
+      - 키워드
+      - 목록
+      - 어떤 문서
+      - 최근
+      - 보여줘
+      - 조회
+    promptInstruction: >-
+      For this request, you MUST call `confluence_search_by_text` or `confluence_search` before answering.
+      If the user asks for a list of matching pages, respond from search results and include the returned links.
+      If the user mentions a specific space (e.g. MFS), use it as the space parameter.
+    preferredTools:
+      - confluence_search_by_text
+      - confluence_search
+    priority: 5
+
+  - id: confluence_page_body
+    category: confluence
+    keywords:
+      - confluence
+      - wiki
+      - page
+      - document
+      - policy
+      - policies
+      - guideline
+      - guidelines
+      - runbook
+      - knowledge
+      - internal
+      - service
+      - space
+      - 컨플루언스
+      - 위키
+      - 페이지
+      - 문서
+      - 정책
+      - 규정
+      - 가이드
+      - 런북
+      - 사내
+      - 서비스
+      - 스페이스
+    requiredKeywords:
+      - 본문
+      - body
+      - content
+      - read
+      - 읽고
+      - 읽어
+      - 내용
+      - 핵심만
+    promptInstruction: >-
+      For this request, you MUST call `confluence_get_page_content` or `confluence_answer_question` before answering.
+      Use the page title or obvious keyword from the user message and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - confluence_get_page_content
+      - confluence_answer_question
+      - confluence_search_by_text
+    priority: 8
+
+  - id: confluence_answer
+    category: confluence
+    keywords:
+      - confluence
+      - wiki
+      - page
+      - document
+      - policy
+      - policies
+      - guideline
+      - guidelines
+      - runbook
+      - knowledge
+      - internal
+      - service
+      - space
+      - 컨플루언스
+      - 위키
+      - 페이지
+      - 문서
+      - 정책
+      - 규정
+      - 가이드
+      - 런북
+      - 사내
+      - 서비스
+      - 스페이스
+    requiredKeywords:
+      - what
+      - who
+      - why
+      - how
+      - describe
+      - explain
+      - summary
+      - summarize
+      - tell me
+      - 알려
+      - 설명
+      - 요약
+      - 정리
+      - 무엇
+      - 왜
+      - 어떻게
+      - 누구
+      - 본문
+      - body
+      - read
+      - 읽
+    excludeRoutes:
+      - confluence_discovery
+    promptInstruction: >-
+      For this request, you MUST call `confluence_answer_question` before answering.
+      Do not reply directly from general knowledge or prior context.
+    preferredTools:
+      - confluence_answer_question
+      - confluence_get_page_content
+      - confluence_get_page
+    priority: 10
+
+  # ── Work 도구 ──
+
+  - id: work_briefing
+    category: work
+    keywords:
+      - morning briefing
+      - daily briefing
+      - briefing
+      - work summary
+      - daily digest
+      - 브리핑
+      - 요약 브리핑
+      - 아침 브리핑
+      - 데일리 브리핑
+    promptInstruction: >-
+      For this request, you MUST call `work_morning_briefing` before answering.
+      Do not assemble the briefing manually.
+      The tool accepts optional inputs and will use default profile settings when details are omitted.
+      Infer obvious project/repository hints from the user message, but do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - work_morning_briefing
+    priority: 10
+
+  - id: work_standup
+    category: work
+    keywords:
+      - standup
+      - 스탠드업
+      - daily update
+      - 업데이트 초안
+      - standup update
+    promptInstruction: >-
+      For this request, you MUST call `work_prepare_standup_update` before answering.
+      Use default profile settings when optional parameters are omitted and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - work_prepare_standup_update
+    priority: 20
+
+  - id: work_hybrid_priority
+    category: work
+    multiKeywordGroups:
+      - - priority
+        - priorities
+        - 우선순위
+        - 오늘 우선
+        - today priority
+      - - blocker
+        - 차단
+        - 막힌
+      - - queue
+        - 대기열
+        - 리뷰가 필요한
+        - 검토가 필요한
+        - review needed
+        - sla
+        - 응답 지연
+        - 리뷰 sla
+    promptInstruction: >-
+      For this request, you MUST call `work_release_risk_digest` before answering.
+      Combine blocker and review-queue signals through the digest instead of answering from general knowledge.
+    preferredTools:
+      - work_release_risk_digest
+    priority: 25
+
+  - id: work_release_risk
+    category: work
+    keywords:
+      - release risk
+      - risk digest
+      - 릴리즈 위험
+      - 출시 위험
+      - release digest
+    promptInstruction: >-
+      For this request, you MUST call `work_release_risk_digest` before answering.
+      Use obvious release/project/repository hints from the user message and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - work_release_risk_digest
+    priority: 30
+
+  - id: work_release_readiness
+    category: work
+    keywords:
+      - release readiness
+      - readiness pack
+      - 릴리즈 준비
+      - 출시 준비
+      - readiness
+    promptInstruction: >-
+      For this request, you MUST call `work_release_readiness_pack` before answering.
+      Use the provided defaults where possible and do not assemble the pack manually.
+      Use preview mode in read-only workspaces and do not refuse unless the user explicitly asks to write data.
+    preferredTools:
+      - work_release_readiness_pack
+    priority: 40
+
+  - id: work_personal_focus
+    category: work
+    keywords:
+      - focus plan
+      - personal focus plan
+      - 개인 focus plan
+      - 개인 집중 계획
+      - 오늘 집중 계획
+    promptInstruction: >-
+      For this request, you MUST call `work_personal_focus_plan` before answering.
+      Use the default profile and defaults when optional parameters are omitted.
+      Do not ask follow-up questions before the first tool call.
+    priority: 50
+
+  - id: work_personal_learning
+    category: work
+    keywords:
+      - learning digest
+      - personal learning digest
+      - 학습 digest
+      - 학습 다이제스트
+    promptInstruction: >-
+      For this request, you MUST call `work_personal_learning_digest` before answering.
+      Use the default profile and defaults when optional parameters are omitted.
+      Do not ask follow-up questions before the first tool call.
+    priority: 60
+
+  - id: work_personal_interrupt
+    category: work
+    keywords:
+      - interrupt guard
+      - personal interrupt guard
+      - interrupt plan
+      - 인터럽트 가드
+      - 집중 방해
+    promptInstruction: >-
+      For this request, you MUST call `work_personal_interrupt_guard` before answering.
+      Use the default profile and defaults when optional parameters are omitted.
+      Do not ask follow-up questions before the first tool call.
+    priority: 70
+
+  - id: work_personal_wrapup
+    category: work
+    keywords:
+      - end of day wrapup
+      - end-of-day wrapup
+      - eod wrapup
+      - wrapup
+      - wrap-up
+      - 마감 정리
+      - 하루 마감
+    promptInstruction: >-
+      For this request, you MUST call `work_personal_end_of_day_wrapup` before answering.
+      Use the default profile and defaults when optional parameters are omitted.
+      Do not ask follow-up questions before the first tool call.
+    priority: 80
+
+  - id: work_briefing_profile
+    category: work
+    keywords:
+      - briefing profile
+      - profile list
+      - profiles
+      - 브리핑 프로필
+      - 프로필 목록
+    promptInstruction: >-
+      For this request, you MUST call `work_list_briefing_profiles` before answering.
+    preferredTools:
+      - work_list_briefing_profiles
+    priority: 8
+
+  - id: work_owner
+    category: work
+    keywords:
+      - owner
+      - 담당자
+      - 담당 팀
+      - 누구 팀
+      - 책임자
+      - 누가 담당
+      - 담당 서비스
+    excludeKeywords:
+      - 담당자가 없는
+      - 담당자 없는
+      - 미할당
+      - unassigned
+      - assignee 없는
+    promptInstruction: >-
+      For this request, you MUST call `work_owner_lookup` before answering.
+      Do not guess ownership from prior context.
+    preferredTools:
+      - work_owner_lookup
+    priority: 100
+
+  # ── Work Context 도구 ──
+
+  - id: work_item_context
+    category: workContext
+    regexPatternRef: ISSUE_KEY
+    requiredKeywords:
+      - 전체 맥락
+      - 맥락
+      - context
+      - 관련 문서
+      - 관련 pr
+      - 열린 pr
+      - 오픈 pr
+      - 다음 액션
+      - next action
+    promptInstruction: >-
+      For this request, you MUST call `work_item_context` before answering.
+      Do not summarize Jira, Confluence, or Bitbucket context manually.
+    preferredTools:
+      - work_item_context
+    priority: 10
+
+  - id: work_service_context
+    category: workContext
+    keywords:
+      - service
+      - 서비스
+    requiredKeywords:
+      - 서비스 상황
+      - 서비스 현황
+      - service context
+      - service summary
+      - 현재 상황
+      - 현재 현황
+      - 최근 jira
+      - 최근 jira 이슈
+      - 열린 pr
+      - 오픈 pr
+      - 관련 문서
+      - 한 번에 요약
+      - 요약해줘
+      - 기준으로
+    promptInstruction: >-
+      For this request, you MUST call `work_service_context` before answering.
+      Do not summarize service state from general knowledge or prior context.
+    preferredTools:
+      - work_service_context
+    priority: 20
+
+  # ── Jira (when 분기 — priority 순서가 when 분기 순서) ──
+
+  - id: jira_project_list
+    category: jira
+    parentRoute: jira_generic
+    requiredKeywords:
+      - project list
+      - projects
+      - 프로젝트 목록
+      - 프로젝트 리스트
+    promptInstruction: >-
+      For this request, you MUST call `jira_list_projects` before answering.
+      Do not answer from prior knowledge.
+    preferredTools:
+      - jira_list_projects
+    priority: 10
+
+  - id: jira_issue_transition
+    category: jira
+    regexPatternRef: ISSUE_KEY
+    requiredKeywords:
+      - transition
+      - 상태 전이
+      - 전이
+      - possible states
+    promptInstruction: >-
+      For this request, you MUST call `jira_get_transitions` before answering.
+      Do not guess the available states.
+    preferredTools:
+      - jira_get_transitions
+      - jira_get_issue
+    priority: 20
+
+  - id: jira_issue
+    category: jira
+    regexPatternRef: ISSUE_KEY
+    promptInstruction: >-
+      For this request, you MUST call `jira_get_issue` before answering.
+      Do not answer from prior knowledge.
+    preferredTools:
+      - jira_get_issue
+      - jira_search_issues
+    priority: 30
+
+  - id: jira_due_soon
+    category: jira
+    parentRoute: jira_generic
+    requiredKeywords:
+      - due soon
+      - 마감
+      - 임박
+      - due
+    promptInstruction: >-
+      For this request, you MUST call `jira_due_soon_issues` before answering.
+      Infer the Jira project key from the user message and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - jira_due_soon_issues
+    priority: 40
+
+  - id: jira_blocker
+    category: jira
+    parentRoute: jira_generic
+    requiredKeywords:
+      - blocker
+      - 차단
+      - 막힌
+    promptInstruction: >-
+      For this request, you MUST call `jira_blocker_digest` before answering.
+      Infer the Jira project key from the user message and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - jira_blocker_digest
+      - jira_search_issues
+    priority: 50
+
+  - id: jira_daily_briefing
+    category: jira
+    parentRoute: jira_generic
+    requiredKeywords:
+      - daily briefing
+      - 아침 브리핑
+      - 데일리 브리핑
+      - daily digest
+      - 오늘의 jira 브리핑
+      - 오늘 jira 브리핑
+    promptInstruction: >-
+      For this request, you MUST call `jira_daily_briefing` before answering.
+      Infer the Jira project key from the user message and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - jira_daily_briefing
+      - jira_search_issues
+    priority: 60
+
+  - id: jira_project_summary
+    category: jira
+    parentRoute: jira_generic
+    requiredKeywords:
+      - recent
+      - latest
+      - summary
+      - summarize
+      - 최근
+      - 요약
+      - 정리
+      - 브리핑
+    excludeRoutes:
+      - jira_due_soon
+      - jira_blocker
+      - jira_daily_briefing
+      - jira_search
+      - jira_project_list
+    promptInstruction: >-
+      For this request, you MUST call `jira_search_issues` before answering.
+      Use the obvious project key from the user message and summarize the returned issues with source links.
+    preferredTools:
+      - jira_search_issues
+      - jira_search_by_text
+    priority: 70
+
+  - id: jira_my_open
+    category: jira
+    parentRoute: jira_generic
+    requiredKeywords:
+      - my open
+      - assigned to me
+      - 내 이슈
+      - 내가 담당
+      - 내 오픈
+    promptInstruction: >-
+      For this request, you MUST call `jira_my_open_issues` before answering.
+    preferredTools:
+      - jira_my_open_issues
+      - jira_search_issues
+    priority: 75
+
+  - id: jira_search
+    category: jira
+    parentRoute: jira_generic
+    requiredKeywords:
+      - search
+      - 찾아
+      - 검색
+      - look up
+      - find
+    promptInstruction: >-
+      For this request, you MUST call `jira_search_by_text` or `jira_search_issues` before answering.
+      Prefer `jira_search_by_text` when the user gives a keyword, and `jira_search_issues` for project-scoped searches.
+    preferredTools:
+      - jira_search_by_text
+      - jira_search_issues
+    priority: 80
+
+  - id: jira_agile_workflow
+    category: jira
+    keywords:
+      - 백로그
+      - backlog
+      - 스프린트 계획
+      - sprint plan
+      - 스프린트 플래닝
+      - sprint planning
+      - 회고
+      - retrospective
+      - retro
+      - 칸반
+      - kanban
+      - 칸반 카드
+      - kanban card
+      - 스프린트 회고
+      - sprint retro
+    promptInstruction: >-
+      For this request, you MUST call `jira_search_issues` before answering.
+      This is a READ-ONLY analysis task (backlog analysis, sprint planning, retrospective, kanban).
+      Search issues first, then analyze and recommend based on the results.
+    priority: 90
+
+  - id: jira_generic
+    category: jira
+    keywords:
+      - jira
+      - 이슈
+      - issues
+      - 프로젝트
+      - project
+      - jql
+      - ticket
+      - 티켓
+      - blocker
+      - 마감
+      - due
+      - transition
+      - 전이
+      - 백로그
+      - backlog
+      - 스프린트
+      - sprint
+      - 회고
+      - retrospective
+      - retro
+      - 칸반
+      - kanban
+      - 할 일
+      - todo
+      - 업무
+      - 작업
+    promptInstruction: >-
+      For this request, you MUST call one or more Jira tools before answering.
+      Prefer `jira_search_issues` for project-scoped status questions.
+    preferredTools:
+      - jira_search_issues
+      - jira_search_by_text
+      - jira_list_projects
+    priority: 999
+
+  # ── Bitbucket (when 분기) ──
+
+  - id: bitbucket_review_sla
+    category: bitbucket
+    parentRoute: bitbucket_generic
+    requiredKeywords:
+      - sla
+      - 응답 지연
+      - 리뷰 sla
+    promptInstruction: >-
+      For this request, you MUST call `bitbucket_review_sla_alerts` before answering.
+      Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - bitbucket_review_sla_alerts
+      - bitbucket_list_prs
+    priority: 10
+
+  - id: bitbucket_review_risk
+    category: bitbucket
+    parentRoute: bitbucket_generic
+    requiredKeywords:
+      - review risk
+      - 리뷰 리스크
+      - 코드 리뷰 리스크
+    promptInstruction: >-
+      For this request, you MUST call `bitbucket_review_sla_alerts` or `bitbucket_review_queue` before answering.
+      Prefer `bitbucket_review_sla_alerts` for risk summaries and `bitbucket_review_queue` for reviewer backlog.
+    preferredTools:
+      - bitbucket_review_sla_alerts
+      - bitbucket_review_queue
+      - bitbucket_list_prs
+    priority: 20
+
+  - id: bitbucket_needs_review
+    category: bitbucket
+    parentRoute: bitbucket_generic
+    requiredKeywords:
+      - 내가 검토
+      - 검토해야
+      - review for me
+      - needs review
+      - 리뷰가 필요한
+      - 검토가 필요한
+    promptInstruction: >-
+      For this request, you MUST call `bitbucket_review_queue` before answering.
+      Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - bitbucket_review_queue
+      - bitbucket_list_prs
+    priority: 30
+
+  - id: bitbucket_review_queue
+    category: bitbucket
+    parentRoute: bitbucket_generic
+    requiredKeywords:
+      - queue
+      - 대기열
+      - 리뷰가 필요한
+      - 검토가 필요한
+      - review needed
+    promptInstruction: >-
+      For this request, you MUST call `bitbucket_review_queue` before answering.
+      Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - bitbucket_review_queue
+      - bitbucket_list_prs
+    priority: 40
+
+  - id: bitbucket_stale
+    category: bitbucket
+    parentRoute: bitbucket_generic
+    requiredKeywords:
+      - stale
+      - 오래된
+      - 방치된
+    promptInstruction: >-
+      For this request, you MUST call `bitbucket_stale_prs` before answering.
+      Use the default stale threshold when the user omits it and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - bitbucket_stale_prs
+      - bitbucket_list_prs
+    priority: 50
+
+  - id: bitbucket_branch
+    category: bitbucket
+    parentRoute: bitbucket_generic
+    requiredKeywords:
+      - branch
+      - 브랜치
+    promptInstruction: >-
+      For this request, you MUST call `bitbucket_list_branches` before answering.
+      Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - bitbucket_list_branches
+    priority: 60
+
+  - id: bitbucket_pr
+    category: bitbucket
+    parentRoute: bitbucket_generic
+    requiredKeywords:
+      - pull request
+      - pr
+      - 리뷰
+    excludeRoutes:
+      - bitbucket_review_sla
+      - bitbucket_review_risk
+      - bitbucket_needs_review
+      - bitbucket_review_queue
+    promptInstruction: >-
+      For this request, you MUST call `bitbucket_list_prs` or `bitbucket_get_pr` before answering.
+      Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - bitbucket_list_prs
+      - bitbucket_get_pr
+    priority: 65
+
+  - id: bitbucket_repository
+    category: bitbucket
+    parentRoute: bitbucket_generic
+    requiredKeywords:
+      - repository
+      - repo
+      - 저장소
+    promptInstruction: >-
+      For this request, you MUST call `bitbucket_list_repositories` before answering.
+      Use the accessible workspace defaults and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - bitbucket_list_repositories
+    priority: 70
+
+  - id: bitbucket_generic
+    category: bitbucket
+    keywords:
+      - bitbucket
+      - repository
+      - repo
+      - pull request
+      - pr
+      - branch
+      - 브랜치
+      - 저장소
+      - 리뷰
+      - sla
+    promptInstruction: >-
+      For this request, you MUST call `bitbucket_list_prs` or `bitbucket_get_pr` before answering.
+      Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - bitbucket_list_repositories
+      - bitbucket_list_prs
+    priority: 999
+
+  # ── Swagger/OpenAPI (when 분기) ──
+
+  - id: swagger_loaded_summary
+    category: swagger
+    parentRoute: swagger_generic
+    requiredKeywords:
+      - summary
+      - summarize
+      - 요약
+      - 정리
+    requiresNoUrl: true
+    multiKeywordGroups:
+      - - loaded
+        - 로드된
+        - 현재 로드된
+    promptInstruction: >-
+      For this request, you MUST call `spec_list` and then `spec_summary` before answering.
+      Do not answer from `spec_list` alone.
+    preferredTools:
+      - spec_list
+      - spec_summary
+    priority: 10
+
+  - id: swagger_wrong_endpoint
+    category: swagger
+    parentRoute: swagger_generic
+    requiredKeywords:
+      - wrong endpoint
+      - invalid endpoint
+      - 잘못된 endpoint
+      - 없는 endpoint
+    promptInstruction: >-
+      For this request, you MUST call `spec_search` before answering.
+      Use the endpoint fragment from the user request and explain the no-match result if nothing is found.
+    preferredTools:
+      - spec_list
+      - spec_search
+    priority: 15
+
+  - id: swagger_list
+    category: swagger
+    parentRoute: swagger_generic
+    requiredKeywords:
+      - loaded specs
+      - list specs
+      - 목록
+      - list
+    promptInstruction: >-
+      For this request, you MUST call `spec_list` before answering.
+    preferredTools:
+      - spec_list
+    priority: 20
+
+  - id: swagger_validate
+    category: swagger
+    parentRoute: swagger_generic
+    requiredKeywords:
+      - validate
+      - 검증
+      - 유효성
+    promptInstruction: >-
+      For this request, you MUST call `spec_validate` before answering.
+    preferredTools:
+      - spec_validate
+      - spec_load
+    priority: 25
+
+  - id: swagger_loaded_schema
+    category: swagger
+    parentRoute: swagger_generic
+    requiresNoUrl: true
+    requiredKeywords:
+      - schema
+      - 스키마
+      - model
+      - dto
+    promptInstruction: >-
+      For this request, you MUST call `spec_list` and then `spec_schema` before answering.
+      Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.
+    preferredTools:
+      - spec_list
+      - spec_schema
+    priority: 30
+
+  - id: swagger_loaded_detail
+    category: swagger
+    parentRoute: swagger_generic
+    requiresNoUrl: true
+    requiredKeywords:
+      - detail
+      - 상세
+      - parameter
+      - response
+      - security
+    promptInstruction: >-
+      For this request, you MUST call `spec_list` and then `spec_detail` before answering.
+      Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.
+    preferredTools:
+      - spec_list
+      - spec_detail
+    priority: 35
+
+  - id: swagger_loaded_search
+    category: swagger
+    parentRoute: swagger_generic
+    requiresNoUrl: true
+    requiredKeywords:
+      - search
+      - 찾아
+      - 검색
+      - look up
+      - find
+    promptInstruction: >-
+      For this request, you MUST call `spec_list` and then `spec_search` before answering.
+      Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.
+    preferredTools:
+      - spec_list
+      - spec_search
+    priority: 40
+
+  - id: swagger_schema
+    category: swagger
+    parentRoute: swagger_generic
+    requiredKeywords:
+      - schema
+      - 스키마
+      - model
+      - dto
+    promptInstruction: >-
+      For this request, you MUST call `spec_load` and then `spec_schema` before answering.
+    preferredTools:
+      - spec_load
+      - spec_schema
+    priority: 45
+
+  - id: swagger_detail
+    category: swagger
+    parentRoute: swagger_generic
+    requiredKeywords:
+      - detail
+      - 상세
+      - parameter
+      - response
+      - security
+    promptInstruction: >-
+      For this request, you MUST call `spec_load` and then `spec_detail` before answering.
+    preferredTools:
+      - spec_load
+      - spec_detail
+    priority: 50
+
+  - id: swagger_search
+    category: swagger
+    parentRoute: swagger_generic
+    requiredKeywords:
+      - search
+      - 찾아
+      - 검색
+      - look up
+      - find
+    promptInstruction: >-
+      For this request, you MUST call `spec_load` and then `spec_search` before answering.
+    preferredTools:
+      - spec_load
+      - spec_search
+    priority: 55
+
+  - id: swagger_remove
+    category: swagger
+    parentRoute: swagger_generic
+    requiredKeywords:
+      - remove
+      - 삭제
+    promptInstruction: >-
+      For this request, you MUST call `spec_remove` before answering.
+    preferredTools:
+      - spec_remove
+      - spec_list
+    priority: 60
+
+  - id: swagger_generic
+    category: swagger
+    keywords:
+      - swagger
+      - openapi
+      - spec
+      - schema
+      - endpoint
+      - api spec
+      - 스펙
+      - 엔드포인트
+      - 스키마
+    promptInstruction: >-
+      For this request, you MUST call a Swagger/OpenAPI tool before answering.
+    preferredTools:
+      - spec_list
+      - spec_summary
+      - spec_search
+    priority: 999
