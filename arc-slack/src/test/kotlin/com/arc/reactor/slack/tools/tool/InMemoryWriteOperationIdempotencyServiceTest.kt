@@ -6,6 +6,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * [InMemoryWriteOperationIdempotencyService]의 단위 테스트.
+ *
+ * 쓰기 작업 멱등성 서비스의 캐시 재생, TTL 만료, 비활성화 모드를 검증한다.
+ */
 class InMemoryWriteOperationIdempotencyServiceTest {
 
     @Test

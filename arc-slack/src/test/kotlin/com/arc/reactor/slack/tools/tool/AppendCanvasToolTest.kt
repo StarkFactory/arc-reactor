@@ -8,6 +8,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [AppendCanvasTool]의 단위 테스트.
+ *
+ * 캔버스 내용 추가 도구의 소유권 정책 검증 및 마크다운 추가 위임을 검증한다.
+ */
 class AppendCanvasToolTest {
 
     private val appendCanvasUseCase = mockk<AppendCanvasUseCase>()

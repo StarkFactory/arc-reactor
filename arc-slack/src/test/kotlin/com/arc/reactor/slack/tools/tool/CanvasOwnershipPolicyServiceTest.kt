@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * [CanvasOwnershipPolicyService]의 단위 테스트.
+ *
+ * 캔버스 소유권 허용 목록 정책의 등록/차단 로직을 검증한다.
+ */
 class CanvasOwnershipPolicyServiceTest {
 
     @Test

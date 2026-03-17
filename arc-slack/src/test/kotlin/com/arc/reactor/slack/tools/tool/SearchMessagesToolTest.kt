@@ -9,6 +9,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [SearchMessagesTool]의 단위 테스트.
+ *
+ * 메시지 검색 도구의 쿼리 검증, 페이지네이션 파라미터 처리를 테스트한다.
+ */
 class SearchMessagesToolTest {
 
     private val searchMessagesUseCase = mockk<SearchMessagesUseCase>()
