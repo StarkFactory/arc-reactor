@@ -40,6 +40,7 @@ class JdbcUserMemoryStore(
 ) : UserMemoryStore {
 
     private val objectMapper = jacksonObjectMapper()
+    @Volatile
     private var tableInitialized = false
 
     init {
