@@ -51,9 +51,13 @@ internal object RagRelevanceClassifier {
         "문서", "가이드", "규정", "런북", "사내", "지식",
         "나와 있", "나와있", "에 따르면", "에 의하면",
         "참고", "매뉴얼", "절차", "프로세스",
+        // 기술 아키텍처 관련 (한국어) — 인제스트한 기술 문서 검색용
+        "파이프라인", "아키텍처", "단계", "구조", "설계",
+        "패턴", "메커니즘", "동작 원리", "작동 방식",
         // 문서/지식 관련 (영어)
         "knowledge", "document", "guideline", "runbook", "manual",
         "internal doc", "policy", "procedure", "reference",
+        "architecture", "pipeline", "mechanism", "how does",
         // Confluence/Wiki 관련
         "confluence", "wiki", "컨플루언스", "위키",
         // 명시적 RAG 트리거
