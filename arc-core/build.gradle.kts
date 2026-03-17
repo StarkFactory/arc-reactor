@@ -45,7 +45,12 @@ dependencies {
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 
     // Optional: Redis semantic cache backend
-    compileOnly("org.springframework.boot:spring-boot-starter-data-redis")
+    // Pass -Predis=true to include in runtime classpath (e.g., Docker builds with semantic cache)
+    if (project.hasProperty("redis")) {
+        implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    } else {
+        compileOnly("org.springframework.boot:spring-boot-starter-data-redis")
+    }
 
     // Optional: OpenTelemetry API (users provide the SDK at runtime)
     compileOnly(platform("io.opentelemetry:opentelemetry-bom:1.59.0"))
