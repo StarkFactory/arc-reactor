@@ -63,6 +63,8 @@ class SystemPromptBuilder(
         return postProcessor?.process(result) ?: result
     }
 
+    // ── Grounding 규칙 조합 ──
+
     /**
      * Grounding 규칙 지시문을 구성한다.
      *
@@ -74,6 +76,19 @@ class SystemPromptBuilder(
         userPrompt: String?,
         workspaceToolAlreadyCalled: Boolean
     ): String = buildString {
+        appendGroundingPreamble(workspaceToolAlreadyCalled)
+        appendMutationRefusal(userPrompt)
+        appendConfluenceToolForcing(userPrompt, workspaceToolAlreadyCalled)
+        appendWorkToolForcing(userPrompt, workspaceToolAlreadyCalled)
+        appendWorkContextToolForcing(userPrompt, workspaceToolAlreadyCalled)
+        appendJiraToolForcing(userPrompt, workspaceToolAlreadyCalled)
+        appendBitbucketToolForcing(userPrompt, workspaceToolAlreadyCalled)
+        appendSwaggerToolForcing(userPrompt, workspaceToolAlreadyCalled)
+        appendSourcesInstruction(responseFormat, userPrompt)
+    }
+
+    /** Grounding 기본 규칙 (사실 기반 응답, 읽기 전용 정책, Confluence 우선 규칙). */
+    private fun StringBuilder.appendGroundingPreamble(workspaceToolAlreadyCalled: Boolean) {
         append("[Grounding Rules]\n")
         append("Use only facts supported by the retrieved context or tool results.\n")
         append("If you cannot verify a fact, say you cannot verify it instead of guessing.\n")
@@ -94,6 +109,10 @@ class SystemPromptBuilder(
         append("Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.")
         append("\nDo not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; ")
         append("use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.")
+    }
+
+    /** 변경(mutation) 요청 감지 시 거부 지시를 추가한다. */
+    private fun StringBuilder.appendMutationRefusal(userPrompt: String?) {
         if (WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(userPrompt)) {
             append("\nFor this request, you MUST refuse the action.")
             append(" State that the workspace is read-only and the requested mutation is not allowed.")
@@ -101,106 +120,169 @@ class SystemPromptBuilder(
             append(" You may call a single read-only lookup tool only to cite the current item,")
             append(" but you MUST still refuse the mutation itself.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeConfluenceAnswerPrompt(userPrompt)) {
+    }
+
+    /** Confluence 도구 강제 호출 지시를 추가한다 (answer, discovery, page body). */
+    private fun StringBuilder.appendConfluenceToolForcing(
+        userPrompt: String?,
+        workspaceToolAlreadyCalled: Boolean
+    ) {
+        if (workspaceToolAlreadyCalled) return
+        if (looksLikeConfluenceAnswerPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `confluence_answer_question` before answering.")
             append(" Do not reply directly from general knowledge or prior context.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeConfluenceDiscoveryPrompt(userPrompt)) {
+        if (looksLikeConfluenceDiscoveryPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `confluence_search_by_text` before answering.")
             append(" If the user asks for a list of matching pages, respond from search results and include the returned links.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeConfluencePageBodyPrompt(userPrompt)) {
+        if (looksLikeConfluencePageBodyPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `confluence_get_page_content` or `confluence_answer_question` before answering.")
             append(" Use the page title or obvious keyword from the user message and do not ask follow-up questions before the first tool call.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkBriefingPrompt(userPrompt)) {
+    }
+
+    /** work_* 시리즈 도구 강제 호출 지시를 추가한다. */
+    private fun StringBuilder.appendWorkToolForcing(
+        userPrompt: String?,
+        workspaceToolAlreadyCalled: Boolean
+    ) {
+        if (workspaceToolAlreadyCalled) return
+        appendWorkBriefingForcing(userPrompt)
+        appendWorkStandupForcing(userPrompt)
+        appendWorkReleaseRiskForcing(userPrompt)
+        appendWorkHybridPriorityForcing(userPrompt)
+        appendWorkReleaseReadinessForcing(userPrompt)
+        appendWorkPersonalToolForcing(userPrompt)
+        appendWorkProfileAndOwnerForcing(userPrompt)
+    }
+
+    /** 브리핑 도구 강제 호출 지시. */
+    private fun StringBuilder.appendWorkBriefingForcing(userPrompt: String?) {
+        if (looksLikeWorkBriefingPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_morning_briefing` before answering.")
             append(" Do not assemble the briefing manually.")
             append(" The tool accepts optional inputs and will use default profile settings when details are omitted.")
             append(" Infer obvious project/repository hints from the user message, but do not ask follow-up questions before the first tool call.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkStandupPrompt(userPrompt)) {
+    }
+
+    /** 스탠드업 도구 강제 호출 지시. */
+    private fun StringBuilder.appendWorkStandupForcing(userPrompt: String?) {
+        if (looksLikeWorkStandupPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_prepare_standup_update` before answering.")
             append(" Use default profile settings when optional parameters are omitted and do not ask follow-up questions before the first tool call.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkReleaseRiskPrompt(userPrompt)) {
+    }
+
+    /** 릴리즈 위험 도구 강제 호출 지시. */
+    private fun StringBuilder.appendWorkReleaseRiskForcing(userPrompt: String?) {
+        if (looksLikeWorkReleaseRiskPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_release_risk_digest` before answering.")
             append(" Use obvious release/project/repository hints from the user message and do not ask follow-up questions before the first tool call.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeHybridPriorityPrompt(userPrompt)) {
+    }
+
+    /** 혼합 우선순위 도구 강제 호출 지시. */
+    private fun StringBuilder.appendWorkHybridPriorityForcing(userPrompt: String?) {
+        if (looksLikeHybridPriorityPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_release_risk_digest` before answering.")
             append(" Combine blocker and review-queue signals through the digest instead of answering from general knowledge.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkReleaseReadinessPrompt(userPrompt)) {
+    }
+
+    /** 릴리즈 준비 도구 강제 호출 지시. */
+    private fun StringBuilder.appendWorkReleaseReadinessForcing(userPrompt: String?) {
+        if (looksLikeWorkReleaseReadinessPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_release_readiness_pack` before answering.")
             append(" Use the provided defaults where possible and do not assemble the pack manually.")
             append(" Use preview mode in read-only workspaces and do not refuse unless the user explicitly asks to write data.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkPersonalFocusPrompt(userPrompt)) {
+    }
+
+    /** 개인 생산성 도구 (focus, learning, interrupt, wrapup) 강제 호출 지시. */
+    private fun StringBuilder.appendWorkPersonalToolForcing(userPrompt: String?) {
+        if (looksLikeWorkPersonalFocusPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_personal_focus_plan` before answering.")
             append(" Use the default profile and defaults when optional parameters are omitted.")
             append(" Do not ask follow-up questions before the first tool call.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkPersonalLearningPrompt(userPrompt)) {
+        if (looksLikeWorkPersonalLearningPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_personal_learning_digest` before answering.")
             append(" Use the default profile and defaults when optional parameters are omitted.")
             append(" Do not ask follow-up questions before the first tool call.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkPersonalInterruptPrompt(userPrompt)) {
+        if (looksLikeWorkPersonalInterruptPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_personal_interrupt_guard` before answering.")
             append(" Use the default profile and defaults when optional parameters are omitted.")
             append(" Do not ask follow-up questions before the first tool call.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkPersonalWrapupPrompt(userPrompt)) {
+        if (looksLikeWorkPersonalWrapupPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_personal_end_of_day_wrapup` before answering.")
             append(" Use the default profile and defaults when optional parameters are omitted.")
             append(" Do not ask follow-up questions before the first tool call.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkBriefingProfilePrompt(userPrompt)) {
+    }
+
+    /** 프로필 목록 및 소유자 조회 도구 강제 호출 지시. */
+    private fun StringBuilder.appendWorkProfileAndOwnerForcing(userPrompt: String?) {
+        if (looksLikeWorkBriefingProfilePrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_list_briefing_profiles` before answering.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkOwnerPrompt(userPrompt)) {
+        if (looksLikeWorkOwnerPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_owner_lookup` before answering.")
             append(" Do not guess ownership from prior context.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkItemContextPrompt(userPrompt)) {
+    }
+
+    /** 작업 항목 컨텍스트 및 서비스 컨텍스트 도구 강제 호출 지시. */
+    private fun StringBuilder.appendWorkContextToolForcing(
+        userPrompt: String?,
+        workspaceToolAlreadyCalled: Boolean
+    ) {
+        if (workspaceToolAlreadyCalled) return
+        if (looksLikeWorkItemContextPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_item_context` before answering.")
             append(" Do not summarize Jira, Confluence, or Bitbucket context manually.")
         }
-        if (!workspaceToolAlreadyCalled && looksLikeWorkServiceContextPrompt(userPrompt)) {
+        if (looksLikeWorkServiceContextPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `work_service_context` before answering.")
             append(" Do not summarize service state from general knowledge or prior context.")
         }
+    }
+
+    /** Jira 도구 강제 호출 지시 (when 분기). */
+    private fun StringBuilder.appendJiraToolForcing(
+        userPrompt: String?,
+        workspaceToolAlreadyCalled: Boolean
+    ) {
         when {
             workspaceToolAlreadyCalled -> Unit
-            looksLikeJiraProjectListPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `jira_list_projects` before answering.")
-                append(" Do not answer from prior knowledge.")
-            }
-            looksLikeJiraIssueTransitionPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `jira_get_transitions` before answering.")
-                append(" Do not guess the available states.")
-            }
-            looksLikeJiraIssuePrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `jira_get_issue` before answering.")
-                append(" Do not answer from prior knowledge.")
-            }
-            looksLikeJiraDueSoonPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `jira_due_soon_issues` before answering.")
-                append(" Infer the Jira project key from the user message and do not ask follow-up questions before the first tool call.")
-            }
-            looksLikeJiraBlockerPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `jira_blocker_digest` before answering.")
-                append(" Infer the Jira project key from the user message and do not ask follow-up questions before the first tool call.")
-            }
-            looksLikeJiraDailyBriefingPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `jira_daily_briefing` before answering.")
-                append(" Infer the Jira project key from the user message and do not ask follow-up questions before the first tool call.")
-            }
-            looksLikeJiraProjectSummaryPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `jira_search_issues` before answering.")
-                append(" Use the obvious project key from the user message and summarize the returned issues with source links.")
-            }
+            looksLikeJiraProjectListPrompt(userPrompt) -> appendToolForcing(
+                "`jira_list_projects`", " Do not answer from prior knowledge."
+            )
+            looksLikeJiraIssueTransitionPrompt(userPrompt) -> appendToolForcing(
+                "`jira_get_transitions`", " Do not guess the available states."
+            )
+            looksLikeJiraIssuePrompt(userPrompt) -> appendToolForcing(
+                "`jira_get_issue`", " Do not answer from prior knowledge."
+            )
+            looksLikeJiraDueSoonPrompt(userPrompt) -> appendToolForcing(
+                "`jira_due_soon_issues`",
+                " Infer the Jira project key from the user message and do not ask follow-up questions before the first tool call."
+            )
+            looksLikeJiraBlockerPrompt(userPrompt) -> appendToolForcing(
+                "`jira_blocker_digest`",
+                " Infer the Jira project key from the user message and do not ask follow-up questions before the first tool call."
+            )
+            looksLikeJiraDailyBriefingPrompt(userPrompt) -> appendToolForcing(
+                "`jira_daily_briefing`",
+                " Infer the Jira project key from the user message and do not ask follow-up questions before the first tool call."
+            )
+            looksLikeJiraProjectSummaryPrompt(userPrompt) -> appendToolForcing(
+                "`jira_search_issues`",
+                " Use the obvious project key from the user message and summarize the returned issues with source links."
+            )
             looksLikeJiraSearchPrompt(userPrompt) -> {
                 append("\nFor this request, you MUST call `jira_search_by_text` or `jira_search_issues` before answering.")
                 append(" Prefer `jira_search_by_text` when the user gives a keyword, and `jira_search_issues` for project-scoped searches.")
@@ -210,95 +292,114 @@ class SystemPromptBuilder(
                 append(" Prefer `jira_search_issues` for project-scoped status questions.")
             }
         }
+    }
+
+    /** Bitbucket 도구 강제 호출 지시 (when 분기). */
+    private fun StringBuilder.appendBitbucketToolForcing(
+        userPrompt: String?,
+        workspaceToolAlreadyCalled: Boolean
+    ) {
         when {
             workspaceToolAlreadyCalled -> Unit
-            looksLikeBitbucketReviewSlaPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `bitbucket_review_sla_alerts` before answering.")
-                append(" Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.")
-            }
+            looksLikeBitbucketReviewSlaPrompt(userPrompt) -> appendToolForcing(
+                "`bitbucket_review_sla_alerts`",
+                " Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call."
+            )
             looksLikeBitbucketReviewRiskPrompt(userPrompt) -> {
                 append("\nFor this request, you MUST call `bitbucket_review_sla_alerts` or `bitbucket_review_queue` before answering.")
                 append(" Prefer `bitbucket_review_sla_alerts` for risk summaries and `bitbucket_review_queue` for reviewer backlog.")
             }
-            looksLikeBitbucketNeedsReviewPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `bitbucket_review_queue` before answering.")
-                append(" Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.")
-            }
-            looksLikeBitbucketReviewQueuePrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `bitbucket_review_queue` before answering.")
-                append(" Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.")
-            }
-            looksLikeBitbucketStalePrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `bitbucket_stale_prs` before answering.")
-                append(" Use the default stale threshold when the user omits it and do not ask follow-up questions before the first tool call.")
-            }
-            looksLikeBitbucketBranchPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `bitbucket_list_branches` before answering.")
-                append(" Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.")
-            }
-            looksLikeBitbucketRepositoryPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `bitbucket_list_repositories` before answering.")
-                append(" Use the accessible workspace defaults and do not ask follow-up questions before the first tool call.")
-            }
-            looksLikeBitbucketPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `bitbucket_list_prs` or `bitbucket_get_pr` before answering.")
-                append(" Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.")
-            }
+            looksLikeBitbucketNeedsReviewPrompt(userPrompt) -> appendToolForcing(
+                "`bitbucket_review_queue`",
+                " Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call."
+            )
+            looksLikeBitbucketReviewQueuePrompt(userPrompt) -> appendToolForcing(
+                "`bitbucket_review_queue`",
+                " Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call."
+            )
+            looksLikeBitbucketStalePrompt(userPrompt) -> appendToolForcing(
+                "`bitbucket_stale_prs`",
+                " Use the default stale threshold when the user omits it and do not ask follow-up questions before the first tool call."
+            )
+            looksLikeBitbucketBranchPrompt(userPrompt) -> appendToolForcing(
+                "`bitbucket_list_branches`",
+                " Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call."
+            )
+            looksLikeBitbucketRepositoryPrompt(userPrompt) -> appendToolForcing(
+                "`bitbucket_list_repositories`",
+                " Use the accessible workspace defaults and do not ask follow-up questions before the first tool call."
+            )
+            looksLikeBitbucketPrompt(userPrompt) -> appendToolForcing(
+                "`bitbucket_list_prs` or `bitbucket_get_pr`",
+                " Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call."
+            )
         }
+    }
+
+    /** Swagger/OpenAPI 도구 강제 호출 지시 (when 분기). */
+    private fun StringBuilder.appendSwaggerToolForcing(
+        userPrompt: String?,
+        workspaceToolAlreadyCalled: Boolean
+    ) {
         when {
             workspaceToolAlreadyCalled -> Unit
-            looksLikeSwaggerLoadedSummaryPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_list` and then `spec_summary` before answering.")
-                append(" Do not answer from `spec_list` alone.")
-            }
-            looksLikeSwaggerWrongEndpointPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_search` before answering.")
-                append(" Use the endpoint fragment from the user request and explain the no-match result if nothing is found.")
-            }
-            looksLikeSwaggerListPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_list` before answering.")
-            }
-            looksLikeSwaggerValidatePrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_validate` before answering.")
-            }
-            looksLikeSwaggerLoadedSchemaPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_list` and then `spec_schema` before answering.")
-                append(" Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.")
-            }
-            looksLikeSwaggerLoadedDetailPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_list` and then `spec_detail` before answering.")
-                append(" Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.")
-            }
-            looksLikeSwaggerLoadedSearchPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_list` and then `spec_search` before answering.")
-                append(" Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.")
-            }
-            looksLikeSwaggerSchemaPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_load` and then `spec_schema` before answering.")
-            }
-            looksLikeSwaggerDetailPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_load` and then `spec_detail` before answering.")
-            }
-            looksLikeSwaggerSearchPrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_load` and then `spec_search` before answering.")
-            }
-            looksLikeSwaggerRemovePrompt(userPrompt) -> {
-                append("\nFor this request, you MUST call `spec_remove` before answering.")
-            }
-            looksLikeSwaggerPrompt(userPrompt) -> {
-                if (hasSwaggerUrl(userPrompt)) {
-                    append("\nFor this request, you MUST call `spec_load` and then `spec_summary` before answering.")
-                } else {
-                    append("\nFor this request, you MUST call `spec_list` and then `spec_summary` before answering.")
-                    append(" Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.")
-                    append(" Do not answer from `spec_list` alone.")
-                }
-            }
+            looksLikeSwaggerLoadedSummaryPrompt(userPrompt) -> appendToolChainForcing(
+                "`spec_list`", "`spec_summary`", " Do not answer from `spec_list` alone."
+            )
+            looksLikeSwaggerWrongEndpointPrompt(userPrompt) -> appendToolForcing(
+                "`spec_search`",
+                " Use the endpoint fragment from the user request and explain the no-match result if nothing is found."
+            )
+            looksLikeSwaggerListPrompt(userPrompt) -> appendToolForcing("`spec_list`", "")
+            looksLikeSwaggerValidatePrompt(userPrompt) -> appendToolForcing("`spec_validate`", "")
+            looksLikeSwaggerLoadedSchemaPrompt(userPrompt) -> appendLoadedSpecForcing("`spec_schema`")
+            looksLikeSwaggerLoadedDetailPrompt(userPrompt) -> appendLoadedSpecForcing("`spec_detail`")
+            looksLikeSwaggerLoadedSearchPrompt(userPrompt) -> appendLoadedSpecForcing("`spec_search`")
+            looksLikeSwaggerSchemaPrompt(userPrompt) -> appendToolChainForcing("`spec_load`", "`spec_schema`", "")
+            looksLikeSwaggerDetailPrompt(userPrompt) -> appendToolChainForcing("`spec_load`", "`spec_detail`", "")
+            looksLikeSwaggerSearchPrompt(userPrompt) -> appendToolChainForcing("`spec_load`", "`spec_search`", "")
+            looksLikeSwaggerRemovePrompt(userPrompt) -> appendToolForcing("`spec_remove`", "")
+            looksLikeSwaggerPrompt(userPrompt) -> appendSwaggerFallbackForcing(userPrompt)
         }
+    }
+
+    /** 단일 도구 강제 호출 지시를 추가하는 헬퍼. */
+    private fun StringBuilder.appendToolForcing(toolName: String, suffix: String) {
+        append("\nFor this request, you MUST call $toolName before answering.")
+        append(suffix)
+    }
+
+    /** 두 도구를 순서대로 호출하는 강제 지시를 추가하는 헬퍼. */
+    private fun StringBuilder.appendToolChainForcing(first: String, second: String, suffix: String) {
+        append("\nFor this request, you MUST call $first and then $second before answering.")
+        append(suffix)
+    }
+
+    /** 로드된 스펙 기반 도구 강제 호출 지시 (spec_list 선행 + spec_load 제한). */
+    private fun StringBuilder.appendLoadedSpecForcing(toolName: String) {
+        append("\nFor this request, you MUST call `spec_list` and then $toolName before answering.")
+        append(" Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.")
+    }
+
+    /** Swagger 프롬프트이지만 세부 분류에 해당하지 않을 때의 폴백 지시. */
+    private fun StringBuilder.appendSwaggerFallbackForcing(userPrompt: String?) {
+        if (hasSwaggerUrl(userPrompt)) {
+            append("\nFor this request, you MUST call `spec_load` and then `spec_summary` before answering.")
+        } else {
+            append("\nFor this request, you MUST call `spec_list` and then `spec_summary` before answering.")
+            append(" Only call `spec_load` when the user explicitly provides a spec URL or raw spec content.")
+            append(" Do not answer from `spec_list` alone.")
+        }
+    }
+
+    /** TEXT 형식 + workspace 요청 시 Sources 섹션 지시를 추가한다. */
+    private fun StringBuilder.appendSourcesInstruction(responseFormat: ResponseFormat, userPrompt: String?) {
         if (responseFormat == ResponseFormat.TEXT && looksLikeWorkspacePrompt(userPrompt)) {
             append("\nEnd the response with a 'Sources' section that lists the supporting links.")
         }
     }
+
+    // ── 응답 형식 및 RAG 지시문 ──
 
     /** JSON 형식 응답 지시문을 구성한다. */
     private fun buildJsonInstruction(responseSchema: String?): String = buildString {
@@ -336,6 +437,8 @@ class SystemPromptBuilder(
         append(ragContext)
     }
 
+    // ── 프롬프트 분류 함수 (Confluence) ──
+
     private fun looksLikeConfluenceAnswerPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
         val normalized = prompt.lowercase()
@@ -358,22 +461,21 @@ class SystemPromptBuilder(
             CONFLUENCE_PAGE_BODY_HINTS.any { normalized.contains(it) }
     }
 
+    // ── 프롬프트 분류 함수 (Work 도구) ──
+
     private fun looksLikeWorkBriefingPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return WORK_BRIEFING_HINTS.any { normalized.contains(it) }
+        return WORK_BRIEFING_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeWorkStandupPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return WORK_STANDUP_HINTS.any { normalized.contains(it) }
+        return WORK_STANDUP_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeWorkReleaseRiskPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return WORK_RELEASE_RISK_HINTS.any { normalized.contains(it) }
+        return WORK_RELEASE_RISK_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeHybridPriorityPrompt(prompt: String?): Boolean {
@@ -386,38 +488,32 @@ class SystemPromptBuilder(
 
     private fun looksLikeWorkReleaseReadinessPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return WORK_RELEASE_READINESS_HINTS.any { normalized.contains(it) }
+        return WORK_RELEASE_READINESS_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeWorkPersonalFocusPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return WORK_PERSONAL_FOCUS_HINTS.any { normalized.contains(it) }
+        return WORK_PERSONAL_FOCUS_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeWorkPersonalLearningPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return WORK_PERSONAL_LEARNING_HINTS.any { normalized.contains(it) }
+        return WORK_PERSONAL_LEARNING_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeWorkPersonalInterruptPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return WORK_PERSONAL_INTERRUPT_HINTS.any { normalized.contains(it) }
+        return WORK_PERSONAL_INTERRUPT_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeWorkPersonalWrapupPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return WORK_PERSONAL_WRAPUP_HINTS.any { normalized.contains(it) }
+        return WORK_PERSONAL_WRAPUP_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeWorkBriefingProfilePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return WORK_BRIEFING_PROFILE_HINTS.any { normalized.contains(it) }
+        return WORK_BRIEFING_PROFILE_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeWorkOwnerPrompt(prompt: String?): Boolean {
@@ -441,28 +537,16 @@ class SystemPromptBuilder(
         return hasServiceMention && WORK_SERVICE_CONTEXT_HINTS.any { normalized.contains(it) }
     }
 
+    // ── 프롬프트 분류 함수 (Jira) ──
+
     private fun looksLikeJiraPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return JIRA_HINTS.any { normalized.contains(it) }
-    }
-
-    private fun looksLikeBitbucketPrompt(prompt: String?): Boolean {
-        if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return BITBUCKET_HINTS.any { normalized.contains(it) }
-    }
-
-    private fun looksLikeSwaggerPrompt(prompt: String?): Boolean {
-        if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return OPENAPI_URL_REGEX.containsMatchIn(prompt) || SWAGGER_HINTS.any { normalized.contains(it) }
+        return JIRA_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeJiraProjectListPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeJiraPrompt(prompt) && PROJECT_LIST_HINTS.any { normalized.contains(it) }
+        return looksLikeJiraPrompt(prompt) && PROJECT_LIST_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeJiraIssueTransitionPrompt(prompt: String?): Boolean {
@@ -478,20 +562,17 @@ class SystemPromptBuilder(
 
     private fun looksLikeJiraDueSoonPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeJiraPrompt(prompt) && DUE_SOON_HINTS.any { normalized.contains(it) }
+        return looksLikeJiraPrompt(prompt) && DUE_SOON_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeJiraBlockerPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeJiraPrompt(prompt) && BLOCKER_HINTS.any { normalized.contains(it) }
+        return looksLikeJiraPrompt(prompt) && BLOCKER_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeJiraDailyBriefingPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeJiraPrompt(prompt) && DAILY_BRIEFING_HINTS.any { normalized.contains(it) }
+        return looksLikeJiraPrompt(prompt) && DAILY_BRIEFING_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeJiraProjectSummaryPrompt(prompt: String?): Boolean {
@@ -508,56 +589,61 @@ class SystemPromptBuilder(
 
     private fun looksLikeJiraSearchPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeJiraPrompt(prompt) && SEARCH_HINTS.any { normalized.contains(it) }
+        return looksLikeJiraPrompt(prompt) && SEARCH_HINTS.any { prompt.lowercase().contains(it) }
+    }
+
+    // ── 프롬프트 분류 함수 (Bitbucket) ──
+
+    private fun looksLikeBitbucketPrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        return BITBUCKET_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeBitbucketRepositoryPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeBitbucketPrompt(prompt) && REPOSITORY_HINTS.any { normalized.contains(it) }
+        return looksLikeBitbucketPrompt(prompt) && REPOSITORY_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeBitbucketBranchPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeBitbucketPrompt(prompt) && BRANCH_HINTS.any { normalized.contains(it) }
+        return looksLikeBitbucketPrompt(prompt) && BRANCH_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeBitbucketStalePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeBitbucketPrompt(prompt) && STALE_HINTS.any { normalized.contains(it) }
+        return looksLikeBitbucketPrompt(prompt) && STALE_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeBitbucketReviewQueuePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeBitbucketPrompt(prompt) && REVIEW_QUEUE_HINTS.any { normalized.contains(it) }
+        return looksLikeBitbucketPrompt(prompt) && REVIEW_QUEUE_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeBitbucketReviewRiskPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeBitbucketPrompt(prompt) && REVIEW_RISK_HINTS.any { normalized.contains(it) }
+        return looksLikeBitbucketPrompt(prompt) && REVIEW_RISK_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeBitbucketNeedsReviewPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeBitbucketPrompt(prompt) && MY_REVIEW_HINTS.any { normalized.contains(it) }
+        return looksLikeBitbucketPrompt(prompt) && MY_REVIEW_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeBitbucketReviewSlaPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeBitbucketPrompt(prompt) && REVIEW_SLA_HINTS.any { normalized.contains(it) }
+        return looksLikeBitbucketPrompt(prompt) && REVIEW_SLA_HINTS.any { prompt.lowercase().contains(it) }
+    }
+
+    // ── 프롬프트 분류 함수 (Swagger/OpenAPI) ──
+
+    private fun looksLikeSwaggerPrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        return OPENAPI_URL_REGEX.containsMatchIn(prompt) || SWAGGER_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeSwaggerListPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeSwaggerPrompt(prompt) && LIST_HINTS.any { normalized.contains(it) }
+        return looksLikeSwaggerPrompt(prompt) && LIST_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeSwaggerLoadedSummaryPrompt(prompt: String?): Boolean {
@@ -571,68 +657,61 @@ class SystemPromptBuilder(
 
     private fun looksLikeSwaggerLoadedSchemaPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
         return looksLikeSwaggerPrompt(prompt) &&
             !hasSwaggerUrl(prompt) &&
-            SCHEMA_HINTS.any { normalized.contains(it) }
+            SCHEMA_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeSwaggerLoadedDetailPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
         return looksLikeSwaggerPrompt(prompt) &&
             !hasSwaggerUrl(prompt) &&
-            DETAIL_HINTS.any { normalized.contains(it) }
+            DETAIL_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeSwaggerLoadedSearchPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
         return looksLikeSwaggerPrompt(prompt) &&
             !hasSwaggerUrl(prompt) &&
-            SEARCH_HINTS.any { normalized.contains(it) }
+            SEARCH_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeSwaggerWrongEndpointPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeSwaggerPrompt(prompt) && WRONG_ENDPOINT_HINTS.any { normalized.contains(it) }
+        return looksLikeSwaggerPrompt(prompt) && WRONG_ENDPOINT_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeSwaggerValidatePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeSwaggerPrompt(prompt) && VALIDATE_HINTS.any { normalized.contains(it) }
+        return looksLikeSwaggerPrompt(prompt) && VALIDATE_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeSwaggerSchemaPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeSwaggerPrompt(prompt) && SCHEMA_HINTS.any { normalized.contains(it) }
+        return looksLikeSwaggerPrompt(prompt) && SCHEMA_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeSwaggerDetailPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeSwaggerPrompt(prompt) && DETAIL_HINTS.any { normalized.contains(it) }
+        return looksLikeSwaggerPrompt(prompt) && DETAIL_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeSwaggerSearchPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeSwaggerPrompt(prompt) && SEARCH_HINTS.any { normalized.contains(it) }
+        return looksLikeSwaggerPrompt(prompt) && SEARCH_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun looksLikeSwaggerRemovePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        val normalized = prompt.lowercase()
-        return looksLikeSwaggerPrompt(prompt) && REMOVE_HINTS.any { normalized.contains(it) }
+        return looksLikeSwaggerPrompt(prompt) && REMOVE_HINTS.any { prompt.lowercase().contains(it) }
     }
 
     private fun hasSwaggerUrl(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
         return OPENAPI_URL_REGEX.containsMatchIn(prompt)
     }
+
+    // ── 프롬프트 분류 함수 (Workspace 통합) ──
 
     private fun looksLikeWorkspacePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
