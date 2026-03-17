@@ -37,8 +37,6 @@ CI merge gate: `build`, `integration`, `docker` checks must all be green.
 | `arc-core` | Core framework: agent executor, guard, hooks, tools, RAG, scheduler, personas |
 | `arc-web` | REST controllers, WebFlux, auth, multimodal upload |
 | `arc-slack` | Slack integration (Events API + Socket Mode) |
-| `arc-teams` | MS Teams Incoming Webhook adapter |
-| `arc-google` | Google Workspace tools (Calendar, Sheets, Drive, Gmail) |
 
 All features are opt-in via `@ConditionalOnMissingBean` — override any bean with your own implementation.
 

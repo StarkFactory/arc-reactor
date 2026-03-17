@@ -9,9 +9,6 @@ From `settings.gradle.kts`:
 - `arc-core`: core agent engine, policies, memory/RAG, MCP manager, shared domain logic
 - `arc-web`: REST API controllers and web-layer integration
 - `arc-slack`: Slack channel gateway
-- `arc-discord`: Discord channel gateway
-- `arc-line`: LINE channel gateway
-- `arc-error-report`: error reporting extension module
 - `arc-admin`: admin dashboard metrics pipeline, alerting, and tenant-scoped observability
 - `arc-app`: executable assembly module (runtime composition)
 

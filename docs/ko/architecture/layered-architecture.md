@@ -26,9 +26,6 @@
 - `arc-core`
 - `arc-web`
 - `arc-slack`
-- `arc-discord`
-- `arc-line`
-- `arc-error-report`
 - `arc-admin`
 - `arc-app`
 
@@ -39,9 +36,6 @@
 | `arc-core` | 에이전트 엔진, Guard/Hook, Memory/RAG/Intent, MCP, 스토어, 오토컨피그 | 필수 코어 |
 | `arc-web` | HTTP/SSE API 컨트롤러, 웹 필터(Security Headers/API Version/CORS), OpenAPI | 런타임 포함 시 API 제공 |
 | `arc-slack` | Slack Events API / Slash Command 처리 | `arc.reactor.slack.enabled=true` |
-| `arc-discord` | Discord Gateway 리스너 기반 메시지 처리 | `arc.reactor.discord.enabled=true` |
-| `arc-line` | LINE Webhook 처리 | `arc.reactor.line.enabled=true` |
-| `arc-error-report` | 운영 오류 리포트 수집/비동기 분석 | `arc.reactor.error-report.enabled=true` |
 | `arc-admin` | 테넌트/플랫폼 운영 API, 메트릭 수집/가격정책/알림 | `arc.reactor.admin.enabled=true` |
 | `arc-app` | 실행 조립 모듈(bootstrap) | `runtimeOnly`로 web/channel/admin 결합 |
 
@@ -59,7 +53,7 @@
 
 | 레이어 | 역할 | 대표 클래스/모듈 |
 |---|---|---|
-| L7 Interface | 외부 진입점 | `arc-web` 컨트롤러, Slack/LINE/Discord 입력 어댑터 |
+| L7 Interface | 외부 진입점 | `arc-web` 컨트롤러, Slack 입력 어댑터 |
 | L6 Orchestration | 요청 실행 오케스트레이션 | `SpringAiAgentExecutor`, `AgentExecutionCoordinator`, `StreamingExecutionCoordinator` |
 | L5 Policy & Safety | 정책/보안/거버넌스 | `GuardPipeline`, `HookExecutor`, `OutputGuardPipeline`, ToolPolicy/HITL |
 | L4 Reasoning & Tooling | ReAct 루프 + 도구 실행 | `ManualReActLoopExecutor`, `StreamingReActLoopExecutor`, `ToolCallOrchestrator` |
@@ -109,12 +103,6 @@
 
 - Slack Events API: `POST /api/slack/events`
 - Slack Slash Command: `POST /api/slack/commands`
-- LINE Webhook: `POST /api/line/webhook`
-- Discord: HTTP 엔드포인트가 아니라 Gateway 이벤트 리스너(`ApplicationReadyEvent` 이후 subscribe)
-
-## 4.3 운영 오류 수집
-
-- Error Report: `POST /api/error-report` (API Key 검사 후 비동기 처리)
 
 ---
 
@@ -303,9 +291,6 @@ JDBC 전환 조건:
 | Memory Summary | OFF | `arc.reactor.memory.summary.enabled` |
 | Admin 모듈 | OFF | `arc.reactor.admin.enabled` |
 | Slack 모듈 | OFF | `arc.reactor.slack.enabled` |
-| Discord 모듈 | OFF | `arc.reactor.discord.enabled` |
-| LINE 모듈 | OFF | `arc.reactor.line.enabled` |
-| Error Report 모듈 | OFF | `arc.reactor.error-report.enabled` |
 
 ---
 

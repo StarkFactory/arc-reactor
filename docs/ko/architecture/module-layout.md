@@ -9,9 +9,6 @@
 - `arc-core`: 에이전트 엔진, 정책, Memory/RAG, MCP 매니저, 공통 도메인
 - `arc-web`: REST API 컨트롤러 및 웹 계층 통합
 - `arc-slack`: Slack 채널 게이트웨이
-- `arc-discord`: Discord 채널 게이트웨이
-- `arc-line`: LINE 채널 게이트웨이
-- `arc-error-report`: 에러 리포팅 확장 모듈
 - `arc-admin`: 관리 대시보드 메트릭 파이프라인, 알림, 테넌트 범위 관측성
 - `arc-app`: 실행 조립(assembly) 모듈
 
