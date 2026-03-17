@@ -340,11 +340,15 @@ class ArcReactorCoreBeansConfiguration {
 
     /**
      * Tool Routing Config Validator (validates tool-routing.yml on startup)
+     *
+     * 등록된 도구 목록을 주입받아 preferredTools 크로스체크도 수행한다.
      */
     @Bean
     @ConditionalOnMissingBean
-    fun toolRoutingValidationInitializer(): ToolRoutingValidationInitializer =
-        ToolRoutingValidationInitializer()
+    fun toolRoutingValidationInitializer(
+        toolCallbacks: ObjectProvider<List<com.arc.reactor.tool.ToolCallback>>
+    ): ToolRoutingValidationInitializer =
+        ToolRoutingValidationInitializer(toolCallbacks)
 
     /**
      * Error Message Resolver (default: English messages)

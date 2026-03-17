@@ -471,6 +471,42 @@ class SystemPromptBuilderTest {
     }
 
     @Test
+    fun `include conversation history instruction in grounding preamble해야 한다`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT
+        )
+
+        assertTrue(prompt.contains("[Conversation History]")) {
+            "Prompt should contain Conversation History section"
+        }
+        assertTrue(prompt.contains("conversation history from this session")) {
+            "Prompt should instruct the model to use conversation history"
+        }
+        assertTrue(prompt.contains("Do NOT say \"I cannot remember\"")) {
+            "Prompt should explicitly forbid denying memory within the session"
+        }
+        assertTrue(prompt.contains("not personal data collection")) {
+            "Prompt should clarify that session context is not personal data collection"
+        }
+    }
+
+    @Test
+    fun `include conversation history instruction even when workspaceToolAlreadyCalled해야 한다`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            workspaceToolAlreadyCalled = true
+        )
+
+        assertTrue(prompt.contains("[Conversation History]")) {
+            "Prompt should contain Conversation History section even after workspace tool call"
+        }
+    }
+
+    @Test
     fun `not treat release readiness pack prompt as mutation refusal해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",

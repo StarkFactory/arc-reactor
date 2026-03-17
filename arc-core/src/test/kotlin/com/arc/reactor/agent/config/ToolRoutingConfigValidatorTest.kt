@@ -129,6 +129,92 @@ class ToolRoutingConfigValidatorTest {
         }
     }
 
+    // ── preferredTools 레지스트리 크로스체크 테스트 ──
+
+    @Test
+    fun `registry check should pass when all preferredTools exist`() {
+        val config = ToolRoutingConfig(
+            routes = listOf(
+                ToolRoute(
+                    id = "test_route",
+                    category = "jira",
+                    keywords = setOf("issue"),
+                    promptInstruction = "Search",
+                    preferredTools = listOf("jira_search_issues", "jira_get_issue")
+                )
+            )
+        )
+        assertDoesNotThrow("All preferredTools exist in registry") {
+            ToolRoutingConfigValidator.validatePreferredToolsAgainstRegistry(
+                config,
+                listOf("jira_search_issues", "jira_get_issue", "confluence_search")
+            )
+        }
+    }
+
+    @Test
+    fun `registry check should warn for unregistered preferredTools`() {
+        val config = ToolRoutingConfig(
+            routes = listOf(
+                ToolRoute(
+                    id = "test_route",
+                    category = "jira",
+                    keywords = setOf("issue"),
+                    promptInstruction = "Search",
+                    preferredTools = listOf("jira_search_issues", "typo_tool_name")
+                )
+            )
+        )
+        // warn-only, no exception expected
+        assertDoesNotThrow("Unregistered preferredTools should warn but not throw") {
+            ToolRoutingConfigValidator.validatePreferredToolsAgainstRegistry(
+                config,
+                listOf("jira_search_issues", "confluence_search")
+            )
+        }
+    }
+
+    @Test
+    fun `registry check should handle empty tool registry`() {
+        val config = ToolRoutingConfig(
+            routes = listOf(
+                ToolRoute(
+                    id = "test_route",
+                    category = "jira",
+                    keywords = setOf("issue"),
+                    promptInstruction = "Search",
+                    preferredTools = listOf("jira_search_issues")
+                )
+            )
+        )
+        assertDoesNotThrow("Empty registry should skip check") {
+            ToolRoutingConfigValidator.validatePreferredToolsAgainstRegistry(
+                config,
+                emptyList()
+            )
+        }
+    }
+
+    @Test
+    fun `registry check should handle routes with no preferredTools`() {
+        val config = ToolRoutingConfig(
+            routes = listOf(
+                ToolRoute(
+                    id = "no_tools_route",
+                    category = "work",
+                    keywords = setOf("briefing"),
+                    promptInstruction = "Brief"
+                )
+            )
+        )
+        assertDoesNotThrow("Routes without preferredTools should pass") {
+            ToolRoutingConfigValidator.validatePreferredToolsAgainstRegistry(
+                config,
+                listOf("jira_search_issues")
+            )
+        }
+    }
+
     @Test
     fun `multiple errors should report count`() {
         val config = ToolRoutingConfig(
