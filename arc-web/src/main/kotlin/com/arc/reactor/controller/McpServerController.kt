@@ -1,5 +1,6 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.mcp.McpServerStore
@@ -19,7 +20,14 @@ import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
@@ -50,7 +58,7 @@ class McpServerController(
     private val mcpManager: McpManager,
     private val mcpServerStore: McpServerStore,
     private val adminAuditStore: AdminAuditStore,
-    private val agentProperties: com.arc.reactor.agent.config.AgentProperties
+    private val agentProperties: AgentProperties
 ) {
 
     /** 등록된 모든 MCP 서버와 연결 상태를 조회한다. */
