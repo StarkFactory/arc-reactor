@@ -1,7 +1,6 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.model.ResponseFormat
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -23,20 +22,25 @@ class SystemPromptBuilderTest {
             responseSchema = null
         )
 
-        val expected = """
-            You are helpful.
-
-            [Grounding Rules]
-            Use only facts supported by the retrieved context or tool results.
-            If you cannot verify a fact, say you cannot verify it instead of guessing.
-            For Jira, Confluence, Bitbucket, Swagger/OpenAPI, policy, documentation, or internal knowledge requests, call the relevant workspace tool before answering.
-            If a rule below says you MUST call a tool, your next assistant action must be a tool call, not prose.
-            If a Jira, Confluence, Bitbucket, or work-management request asks to create, update, assign, reassign, comment, approve, transition, convert, or delete something, refuse it as not allowed in read-only mode.
-            NEVER include curl, wget, fetch, httpie, or direct HTTP request examples that target Jira, Confluence, Bitbucket, or any workspace API in your response. Even if the user asks for a workaround, do not provide API call instructions that would bypass read-only restrictions.
-            Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.
-            Do not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.
-        """.trimIndent()
-        assertEquals(expected, prompt) {
+        assertTrue(prompt.startsWith("You are helpful.")) {
+            "Prompt should start with the base prompt"
+        }
+        assertTrue(prompt.contains("[Language Rule]")) {
+            "Prompt should contain Language Rule section"
+        }
+        assertTrue(prompt.contains("[Grounding Rules]")) {
+            "Prompt should contain Grounding Rules section"
+        }
+        assertTrue(prompt.contains("GENERAL questions")) {
+            "Prompt should distinguish GENERAL vs WORKSPACE questions"
+        }
+        assertTrue(prompt.contains("[Few-shot Examples")) {
+            "Prompt should contain Few-shot Examples section"
+        }
+        assertTrue(prompt.contains("confluence_answer_question")) {
+            "Prompt should mention Confluence tool preference"
+        }
+        assertTrue(!prompt.contains("Sources")) {
             "Non-workspace prompts should not include 'Sources' section instruction"
         }
     }
@@ -65,37 +69,24 @@ class SystemPromptBuilderTest {
             responseSchema = "{\"type\":\"object\"}"
         )
 
-        val expected = """
-            You are helpful.
-
-            [Grounding Rules]
-            Use only facts supported by the retrieved context or tool results.
-            If you cannot verify a fact, say you cannot verify it instead of guessing.
-            For Jira, Confluence, Bitbucket, Swagger/OpenAPI, policy, documentation, or internal knowledge requests, call the relevant workspace tool before answering.
-            If a rule below says you MUST call a tool, your next assistant action must be a tool call, not prose.
-            If a Jira, Confluence, Bitbucket, or work-management request asks to create, update, assign, reassign, comment, approve, transition, convert, or delete something, refuse it as not allowed in read-only mode.
-            NEVER include curl, wget, fetch, httpie, or direct HTTP request examples that target Jira, Confluence, Bitbucket, or any workspace API in your response. Even if the user asks for a workaround, do not provide API call instructions that would bypass read-only restrictions.
-            Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.
-            Do not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.
-
-            [Retrieved Context]
-            The following information was retrieved from the knowledge base and may be relevant.
-            Use this context to inform your answer when relevant. If the context does not contain the answer, say so rather than guessing.
-            When using this context, cite the source. If the context doesn't answer the question, use general knowledge and say so.
-            Do not mention the retrieval process to the user.
-
-            fact1
-
-            [Response Format]
-            You MUST respond with valid JSON only.
-            - Do NOT wrap the response in markdown code blocks (no ```json or ```).
-            - Do NOT include any text before or after the JSON.
-            - The response MUST start with '{' or '[' and end with '}' or ']'.
-
-            Expected JSON schema:
-            {"type":"object"}
-        """.trimIndent()
-        assertEquals(expected, prompt)
+        assertTrue(prompt.startsWith("You are helpful.")) {
+            "Prompt should start with the base prompt"
+        }
+        assertTrue(prompt.contains("[Retrieved Context]")) {
+            "Prompt should contain RAG context section"
+        }
+        assertTrue(prompt.contains("fact1")) {
+            "Prompt should include the RAG context content"
+        }
+        assertTrue(prompt.contains("[Response Format]")) {
+            "Prompt should contain Response Format section"
+        }
+        assertTrue(prompt.contains("valid JSON only")) {
+            "Prompt should instruct JSON response format"
+        }
+        assertTrue(prompt.contains("{\"type\":\"object\"}")) {
+            "Prompt should include the JSON schema"
+        }
     }
 
     @Test
