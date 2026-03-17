@@ -104,7 +104,7 @@ class ArcReactorRuntimeConfiguration {
      * `arc.reactor.cache.enabled=true`일 때만 생성된다.
      */
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(ResponseCache::class)
     @ConditionalOnProperty(prefix = "arc.reactor.cache", name = ["enabled"], havingValue = "true")
     fun responseCache(properties: AgentProperties): ResponseCache {
         val cacheProps = properties.cache

@@ -31,9 +31,9 @@ import org.springframework.data.redis.core.StringRedisTemplate
         "org.springframework.ai.embedding.EmbeddingModel"
     ]
 )
-@ConditionalOnBean(StringRedisTemplate::class, EmbeddingModel::class)
-@ConditionalOnProperty(prefix = "arc.reactor.cache", name = ["enabled"], havingValue = "true")
-@ConditionalOnProperty(prefix = "arc.reactor.cache.semantic", name = ["enabled"], havingValue = "true")
+@ConditionalOnProperty(
+    prefix = "arc.reactor.cache.semantic", name = ["enabled"], havingValue = "true"
+)
 class ArcReactorSemanticCacheConfiguration {
     private val logger = KotlinLogging.logger {}
 
@@ -46,6 +46,7 @@ class ArcReactorSemanticCacheConfiguration {
         embeddingModel: EmbeddingModel,
         objectMapper: ObjectMapper
     ): ResponseCache {
+        logger.info { "Semantic cache bean creation initiated" }
         val cacheProps = properties.cache
         val semanticProps = cacheProps.semantic
         if (!isRedisAvailable(redisTemplate)) {
