@@ -1,6 +1,8 @@
 package com.arc.reactor.agent.config
 
+import com.arc.reactor.a2a.A2aProperties
 import com.arc.reactor.promptlab.PromptLabProperties
+import com.arc.reactor.tool.filter.ToolFilterProperties
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
@@ -99,7 +101,25 @@ data class AgentProperties(
     val toolResultCache: ToolResultCacheProperties = ToolResultCacheProperties(),
 
     /** Citation(출처 인용) 자동 포맷 설정 */
-    val citation: CitationProperties = CitationProperties()
+    val citation: CitationProperties = CitationProperties(),
+
+    /** 도구 멱등성 보호 설정 */
+    val toolIdempotency: ToolIdempotencyProperties = ToolIdempotencyProperties(),
+
+    /** 실행 체크포인트 설정 */
+    val checkpoint: CheckpointProperties = CheckpointProperties(),
+
+    /** 동적 모델 라우팅 설정 */
+    val modelRouting: ModelRoutingProperties = ModelRoutingProperties(),
+
+    /** 단계별 토큰 예산 추적 설정 */
+    val budget: BudgetProperties = BudgetProperties(),
+
+    /** 동적 도구 필터 설정 */
+    val toolFilter: ToolFilterProperties = ToolFilterProperties(),
+
+    /** A2A 에이전트 카드 설정 */
+    val a2a: A2aProperties = A2aProperties()
 )
 
 /**
@@ -491,4 +511,53 @@ data class ToolResultCacheProperties(
 
     /** 최대 캐시 항목 수. */
     val maxSize: Long = 200
+)
+
+/**
+ * 도구 멱등성 보호 설정.
+ *
+ * 동일한 도구 호출(도구명 + 인수 해시)이 중복 실행되는 것을 방지한다.
+ * TTL 기반 캐시로 중복 호출을 감지하고 이전 결과를 반환한다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     tool-idempotency:
+ *       enabled: true
+ *       ttl-seconds: 60
+ *       max-size: 1000
+ * ```
+ */
+data class ToolIdempotencyProperties(
+    /** 도구 멱등성 보호 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false,
+
+    /** 멱등성 캐시 항목의 유효 시간(TTL, 초). */
+    val ttlSeconds: Long = 60,
+
+    /** 최대 캐시 항목 수. */
+    val maxSize: Long = 1000
+)
+
+/**
+ * 실행 체크포인트 설정.
+ *
+ * ReAct 루프 중간 상태를 저장하여 장애 복구 또는 디버깅에 활용한다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     checkpoint:
+ *       enabled: true
+ *       max-checkpoints-per-run: 50
+ * ```
+ */
+data class CheckpointProperties(
+    /** 실행 체크포인트 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false,
+
+    /** 실행당 최대 체크포인트 수. */
+    val maxCheckpointsPerRun: Int = 50
 )

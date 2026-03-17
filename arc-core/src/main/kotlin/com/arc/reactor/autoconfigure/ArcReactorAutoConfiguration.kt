@@ -44,6 +44,10 @@ import org.springframework.context.annotation.Import
     PromptCachingConfiguration::class,
     HealthIndicatorConfiguration::class,
     CanaryConfiguration::class,
-    ToolSanitizerConfiguration::class
+    ToolSanitizerConfiguration::class,
+    ToolIdempotencyConfiguration::class,
+    CheckpointConfiguration::class,
+    ModelRoutingConfiguration::class,
+    BudgetConfiguration::class
 )
 class ArcReactorAutoConfiguration
