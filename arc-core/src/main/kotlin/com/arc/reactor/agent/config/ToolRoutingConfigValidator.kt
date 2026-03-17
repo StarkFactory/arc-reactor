@@ -15,6 +15,7 @@ private val logger = KotlinLogging.logger {}
  * - `promptInstruction`이 비어있으면 경고한다.
  * - `category`가 알려진 카테고리 목록에 없으면 경고한다.
  * - `preferredTools`가 비어있으면 정보 로그를 남긴다.
+ * - `preferredTools`에 실제 레지스트리에 없는 도구명이 있으면 경고한다.
  */
 object ToolRoutingConfigValidator {
 
@@ -91,6 +92,50 @@ object ToolRoutingConfigValidator {
         logger.info {
             "tool-routing.yml: validated ${routes.size} routes " +
                 "($warnCount warning(s))"
+        }
+    }
+
+    /**
+     * preferredTools에 등록된 도구명이 실제 도구 레지스트리에 존재하는지 크로스체크한다.
+     *
+     * 오타나 삭제된 도구를 조기에 발견하여 LLM이 존재하지 않는 도구를
+     * 호출하려다 실패하는 상황을 방지한다.
+     *
+     * @param config 검증할 라우팅 설정
+     * @param registeredToolNames 실제 등록된 도구 이름 목록 (ToolCallback + MCP)
+     */
+    fun validatePreferredToolsAgainstRegistry(
+        config: ToolRoutingConfig,
+        registeredToolNames: List<String>
+    ) {
+        val registeredSet = registeredToolNames.toSet()
+        if (registeredSet.isEmpty()) {
+            logger.info { "tool-routing registry check: no tools registered, skipping" }
+            return
+        }
+
+        var mismatchCount = 0
+        for (route in config.routes) {
+            for (toolName in route.preferredTools) {
+                if (toolName !in registeredSet) {
+                    logger.warn {
+                        "route '${route.id}': preferredTool '$toolName' " +
+                            "not found in registered tools"
+                    }
+                    mismatchCount++
+                }
+            }
+        }
+
+        if (mismatchCount > 0) {
+            logger.warn {
+                "tool-routing registry check: $mismatchCount preferredTool(s) " +
+                    "not found in registered tools"
+            }
+        } else {
+            logger.info {
+                "tool-routing registry check: all preferredTools match registered tools"
+            }
         }
     }
 }

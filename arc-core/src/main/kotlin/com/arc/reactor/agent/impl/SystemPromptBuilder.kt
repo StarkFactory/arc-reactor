@@ -128,6 +128,13 @@ class SystemPromptBuilder(
         append("Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.")
         append("\nDo not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; ")
         append("use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.")
+        append("\n\n[Conversation History]\n")
+        append("You have access to the conversation history from this session.\n")
+        append("When the user refers to something mentioned earlier (name, preference, prior question), ")
+        append("use the conversation history to answer.\n")
+        append("Do NOT say \"I cannot remember\" or \"I don't collect personal information\" — ")
+        append("the user explicitly provided this information in the current session.\n")
+        append("The conversation history is part of the current session context, not personal data collection.")
     }
 
     /**
