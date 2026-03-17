@@ -39,6 +39,7 @@ class ArcReactorSemanticCacheConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnBean(StringRedisTemplate::class, EmbeddingModel::class)
     @ConditionalOnMissingBean(name = ["redisSemanticResponseCache"])
     fun redisSemanticResponseCache(
         properties: AgentProperties,
