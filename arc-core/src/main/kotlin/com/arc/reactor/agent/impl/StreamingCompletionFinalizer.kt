@@ -69,13 +69,15 @@ internal class StreamingCompletionFinalizer(
         emit: suspend (String) -> Unit
     ) {
         if (streamSuccess) {
-            // ── 단계 1: 출력 가드 검사 — 가드 통과 시에만 히스토리 저장 (fail-close) ──
+            // ── 단계 1: 출력 가드 검사 — 가드 통과 시 어시스턴트 응답 포함 저장 ──
             val guardPassed = applyStreamingOutputGuard(command, collectedContent, toolsUsed, startTime, emit)
-            if (guardPassed && lastIterationContent.isNotEmpty()) {
-                conversationManager.saveStreamingHistory(command, lastIterationContent)
-            }
+            val effectiveContent = if (guardPassed) lastIterationContent else ""
+            conversationManager.saveStreamingHistory(command, effectiveContent)
             // ── 단계 2: 출력 길이 경계값 위반 시 SSE 마커 발행 ──
             emitBoundaryMarkers(collectedContent, emit)
+        } else if (streamStarted) {
+            // ── 스트리밍 실패 시에도 사용자 메시지는 기록한다 ──
+            conversationManager.saveStreamingHistory(command, "")
         }
 
         // ── 단계 3: AfterAgentComplete 훅 실행 (fail-open) ──

@@ -145,11 +145,8 @@ class DefaultConversationManager(
     }
 
     override suspend fun saveHistory(command: AgentCommand, result: AgentResult) {
-        if (!result.success) {
-            logger.debug { "Skipping history save: result not successful" }
-            return
-        }
-        saveMessages(command.metadata, command.userId, command.userPrompt, result.content)
+        val assistantContent = if (result.success) result.content else null
+        saveMessages(command.metadata, command.userId, command.userPrompt, assistantContent)
         triggerAsyncSummarization(command.metadata)
     }
 
@@ -313,8 +310,16 @@ class DefaultConversationManager(
         userPrompt: String,
         assistantContent: String?
     ) {
-        val sessionId = metadata["sessionId"]?.toString() ?: return
-        val store = memoryStore ?: return
+        val sessionId = metadata["sessionId"]?.toString()
+        if (sessionId == null) {
+            logger.debug { "Skipping save: no sessionId in metadata" }
+            return
+        }
+        val store = memoryStore
+        if (store == null) {
+            logger.debug { "Skipping save: memoryStore is null" }
+            return
+        }
         val resolvedUserId = userId ?: "anonymous"
 
         val lock = sessionSaveLocks.computeIfAbsent(sessionId) { ReentrantLock() }
