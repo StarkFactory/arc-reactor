@@ -9,3 +9,4 @@ API and feature-level technical references.
 - [Tools](tools.md)
 - [Multimodal](multimodal.md)
 - [Semantic Tool Discovery](semantic-tool-discovery.md)
+- [AI Agent Papers](agent-papers.md)
