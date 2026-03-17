@@ -3,9 +3,7 @@ package com.arc.reactor.controller
 import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.mcp.McpServerStore
 import com.arc.reactor.support.throwIfCancellation
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.core.instrument.Timer
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -13,7 +11,6 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
-import org.springframework.http.HttpStatusCode
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -24,10 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.time.Duration
-import java.time.Instant
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
@@ -50,6 +44,8 @@ class McpAccessPolicyController(
     private val meterRegistry: MeterRegistry? = null,
     private val adminWebClientFactory: McpAdminWebClientFactory = McpAdminWebClientFactory()
 ) {
+    private val proxy = McpAdminProxySupport
+
     /** MCP 서버 admin API에서 현재 접근 정책을 조회한다. */
     @Operation(summary = "MCP 서버 admin API에서 접근 정책 조회")
     @ApiResponses(value = [
@@ -65,22 +61,8 @@ class McpAccessPolicyController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val actor = currentActor(exchange)
-        val response = proxy(
-            name = name,
-            method = HttpMethod.GET,
-            body = null,
-            actor = actor,
-            requestId = resolveRequestId(exchange)
-        )
-        recordAdminAudit(
-            store = adminAuditStore,
-            category = "mcp_access_policy",
-            action = "READ",
-            actor = actor,
-            resourceType = "mcp_server",
-            resourceId = name,
-            detail = "status=${response.statusCode.value()}"
-        )
+        val response = proxyRequest(name, HttpMethod.GET, null, actor, proxy.resolveRequestId(exchange))
+        recordAudit(name, actor, "READ", response.statusCode.value())
         return response
     }
 
@@ -102,34 +84,12 @@ class McpAccessPolicyController(
         val actor = currentActor(exchange)
         val validationError = validatePolicyRequest(request)
         if (validationError != null) {
-            val response = errorResponse(HttpStatus.BAD_REQUEST, validationError)
-            recordAdminAudit(
-                store = adminAuditStore,
-                category = "mcp_access_policy",
-                action = "UPDATE",
-                actor = actor,
-                resourceType = "mcp_server",
-                resourceId = name,
-                detail = buildAuditDetail(response.statusCode.value(), request, validationError)
-            )
+            val response = proxy.errorResponse(HttpStatus.BAD_REQUEST, validationError)
+            recordAudit(name, actor, "UPDATE", response.statusCode.value(), request, validationError)
             return response
         }
-        val response = proxy(
-            name = name,
-            method = HttpMethod.PUT,
-            body = request,
-            actor = actor,
-            requestId = resolveRequestId(exchange)
-        )
-        recordAdminAudit(
-            store = adminAuditStore,
-            category = "mcp_access_policy",
-            action = "UPDATE",
-            actor = actor,
-            resourceType = "mcp_server",
-            resourceId = name,
-            detail = buildAuditDetail(response.statusCode.value(), request)
-        )
+        val response = proxyRequest(name, HttpMethod.PUT, request, actor, proxy.resolveRequestId(exchange))
+        recordAudit(name, actor, "UPDATE", response.statusCode.value(), request)
         return response
     }
 
@@ -148,13 +108,7 @@ class McpAccessPolicyController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val actor = currentActor(exchange)
-        val response = proxy(
-            name = name,
-            method = HttpMethod.DELETE,
-            body = null,
-            actor = actor,
-            requestId = resolveRequestId(exchange)
-        )
+        val response = proxyRequest(name, HttpMethod.DELETE, null, actor, proxy.resolveRequestId(exchange))
         recordAdminAudit(
             store = adminAuditStore,
             category = "mcp_access_policy",
@@ -167,7 +121,7 @@ class McpAccessPolicyController(
         return response
     }
 
-    private suspend fun proxy(
+    private suspend fun proxyRequest(
         name: String,
         method: HttpMethod,
         body: Any?,
@@ -176,167 +130,165 @@ class McpAccessPolicyController(
     ): ResponseEntity<Any> {
         val startedAtNanos = System.nanoTime()
         val server = mcpServerStore.findByName(name)
-            ?: return errorResponse(
-                status = HttpStatus.NOT_FOUND,
-                message = "MCP server '$name' not found"
-            ).also { observeProxyCall(name, method, it.statusCode.value(), startedAtNanos) }
+            ?: return proxy.errorResponse(HttpStatus.NOT_FOUND, "MCP server '$name' not found")
+                .also { observeCall(name, method, it.statusCode.value(), startedAtNanos) }
 
         val config = server.config
         val baseUrl = McpAdminUrlResolver.resolve(config)
-            ?: return errorResponse(
-                status = HttpStatus.BAD_REQUEST,
-                message = "MCP server '$name' has invalid admin URL. " +
-                    "Set absolute config.adminUrl or config.url(/sse) with http/https"
-            )
-                .also { observeProxyCall(name, method, it.statusCode.value(), startedAtNanos) }
+            ?: return proxy.errorResponse(HttpStatus.BAD_REQUEST,
+                "MCP server '$name' has invalid admin URL. " +
+                    "Set absolute config.adminUrl or config.url(/sse) with http/https")
+                .also { observeCall(name, method, it.statusCode.value(), startedAtNanos) }
         val token = config["adminToken"]?.toString()?.takeIf { it.isNotBlank() }
-            ?: return errorResponse(
-                status = HttpStatus.BAD_REQUEST,
-                message = "MCP server '$name' has no admin token. Set config.adminToken"
-            )
-                .also { observeProxyCall(name, method, it.statusCode.value(), startedAtNanos) }
+            ?: return proxy.errorResponse(HttpStatus.BAD_REQUEST,
+                "MCP server '$name' has no admin token. Set config.adminToken")
+                .also { observeCall(name, method, it.statusCode.value(), startedAtNanos) }
         val hmacSettings = McpAdminHmacSettings.from(config)
         if (hmacSettings.required && !hmacSettings.isEnabled()) {
-            return errorResponse(
-                status = HttpStatus.BAD_REQUEST,
-                message = "MCP server '$name' requires HMAC but config.adminHmacSecret is missing"
-            ).also { observeProxyCall(name, method, it.statusCode.value(), startedAtNanos) }
+            return proxy.errorResponse(HttpStatus.BAD_REQUEST,
+                "MCP server '$name' requires HMAC but config.adminHmacSecret is missing")
+                .also { observeCall(name, method, it.statusCode.value(), startedAtNanos) }
         }
-        val timeoutMs = resolveAdminTimeoutMs(config)
-        val connectTimeoutMs = resolveAdminConnectTimeoutMs(config, timeoutMs)
+        val timeoutMs = proxy.resolveAdminTimeoutMs(config)
+        val connectTimeoutMs = proxy.resolveAdminConnectTimeoutMs(config, timeoutMs)
 
-        val response: ResponseEntity<Any> = try {
-            val client = adminWebClientFactory.getClient(baseUrl, connectTimeoutMs, timeoutMs)
-            when (method) {
-                HttpMethod.GET -> client.get()
-                    .uri("/admin/access-policy")
-                    .header("X-Admin-Token", token)
-                    .header("X-Admin-Actor", actor)
-                    .header("X-Request-Id", requestId)
-                    .headers { headers ->
-                        applyHmacHeaders(
-                            headers = headers,
-                            settings = hmacSettings,
-                            method = "GET",
-                            path = ADMIN_ACCESS_POLICY_PATH,
-                            query = "",
-                            body = ""
-                        )
-                    }
-                    .exchangeToMono { response ->
-                        response.bodyToMono(String::class.java)
-                            .defaultIfEmpty("")
-                            .map { responseBody -> toResponseEntity(response.statusCode(), responseBody) }
-                    }
-                    .timeout(Duration.ofMillis(timeoutMs))
-                    .awaitSingleOrNull()
-                HttpMethod.PUT -> client.put()
-                    .uri("/admin/access-policy")
-                    .header("X-Admin-Token", token)
-                    .header("X-Admin-Actor", actor)
-                    .header("X-Request-Id", requestId)
-                    .let { requestSpec ->
-                        val payloadJson = objectMapper.writeValueAsString(body ?: emptyMap<String, Any>())
-                        requestSpec
-                            .header("Content-Type", "application/json")
-                            .headers { headers ->
-                                applyHmacHeaders(
-                                    headers = headers,
-                                    settings = hmacSettings,
-                                    method = "PUT",
-                                    path = ADMIN_ACCESS_POLICY_PATH,
-                                    query = "",
-                                    body = payloadJson
-                                )
-                            }
-                            .bodyValue(payloadJson)
-                    }
-                    .exchangeToMono { response ->
-                        response.bodyToMono(String::class.java)
-                            .defaultIfEmpty("")
-                            .map { responseBody -> toResponseEntity(response.statusCode(), responseBody) }
-                    }
-                    .timeout(Duration.ofMillis(timeoutMs))
-                    .awaitSingleOrNull()
-                HttpMethod.DELETE -> client.delete()
-                    .uri("/admin/access-policy")
-                    .header("X-Admin-Token", token)
-                    .header("X-Admin-Actor", actor)
-                    .header("X-Request-Id", requestId)
-                    .headers { headers ->
-                        applyHmacHeaders(
-                            headers = headers,
-                            settings = hmacSettings,
-                            method = "DELETE",
-                            path = ADMIN_ACCESS_POLICY_PATH,
-                            query = "",
-                            body = ""
-                        )
-                    }
-                    .exchangeToMono { response ->
-                        response.bodyToMono(String::class.java)
-                            .defaultIfEmpty("")
-                            .map { responseBody -> toResponseEntity(response.statusCode(), responseBody) }
-                    }
-                    .timeout(Duration.ofMillis(timeoutMs))
-                    .awaitSingleOrNull()
-            }
-                ?: errorResponse(
-                    status = HttpStatus.BAD_GATEWAY,
-                    message = "MCP admin API returned no response"
-                )
-        } catch (_: TimeoutException) {
-            errorResponse(
-                status = HttpStatus.GATEWAY_TIMEOUT,
-                message = "MCP admin API timed out after ${timeoutMs}ms"
-            )
-        } catch (e: Exception) {
-            e.throwIfCancellation()
-            logger.warn(e) { "Failed to proxy access-policy request to MCP server '$name'" }
-            errorResponse(
-                status = HttpStatus.BAD_GATEWAY,
-                message = "Failed to call MCP admin API"
-            )
-        }
-        observeProxyCall(name, method, response.statusCode.value(), startedAtNanos)
+        val response = executeProxyCall(
+            method, baseUrl, connectTimeoutMs, timeoutMs,
+            token, actor, requestId, hmacSettings, body, name
+        )
+        observeCall(name, method, response.statusCode.value(), startedAtNanos)
         return response
     }
 
+    private suspend fun executeProxyCall(
+        method: HttpMethod, baseUrl: String,
+        connectTimeoutMs: Int, timeoutMs: Long,
+        token: String, actor: String, requestId: String,
+        hmacSettings: McpAdminHmacSettings, body: Any?, serverName: String
+    ): ResponseEntity<Any> {
+        return try {
+            val client = adminWebClientFactory.getClient(baseUrl, connectTimeoutMs, timeoutMs)
+            when (method) {
+                HttpMethod.GET -> proxyGet(client, token, actor, requestId, hmacSettings, timeoutMs)
+                HttpMethod.PUT -> proxyPut(client, token, actor, requestId, hmacSettings, body, timeoutMs)
+                HttpMethod.DELETE -> proxyDelete(client, token, actor, requestId, hmacSettings, timeoutMs)
+            } ?: proxy.errorResponse(HttpStatus.BAD_GATEWAY, "MCP admin API returned no response")
+        } catch (_: TimeoutException) {
+            proxy.errorResponse(HttpStatus.GATEWAY_TIMEOUT, "MCP admin API timed out after ${timeoutMs}ms")
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "Failed to proxy access-policy request to MCP server '$serverName'" }
+            proxy.errorResponse(HttpStatus.BAD_GATEWAY, "Failed to call MCP admin API")
+        }
+    }
+
+    private suspend fun proxyGet(
+        client: org.springframework.web.reactive.function.client.WebClient,
+        token: String, actor: String, requestId: String,
+        hmac: McpAdminHmacSettings, timeoutMs: Long
+    ): ResponseEntity<Any>? {
+        return client.get()
+            .uri(ADMIN_ACCESS_POLICY_PATH)
+            .header("X-Admin-Token", token)
+            .header("X-Admin-Actor", actor)
+            .header("X-Request-Id", requestId)
+            .headers { h -> proxy.applyHmacHeaders(h, hmac, "GET", ADMIN_ACCESS_POLICY_PATH, "", "") }
+            .exchangeToMono { r ->
+                r.bodyToMono(String::class.java).defaultIfEmpty("")
+                    .map { body -> proxy.toResponseEntity(r.statusCode(), body) }
+            }
+            .timeout(Duration.ofMillis(timeoutMs))
+            .awaitSingleOrNull()
+    }
+
+    private suspend fun proxyPut(
+        client: org.springframework.web.reactive.function.client.WebClient,
+        token: String, actor: String, requestId: String,
+        hmac: McpAdminHmacSettings, body: Any?, timeoutMs: Long
+    ): ResponseEntity<Any>? {
+        val json = proxy.serializeBody(body)
+        return client.put()
+            .uri(ADMIN_ACCESS_POLICY_PATH)
+            .header("X-Admin-Token", token)
+            .header("X-Admin-Actor", actor)
+            .header("X-Request-Id", requestId)
+            .header("Content-Type", "application/json")
+            .headers { h -> proxy.applyHmacHeaders(h, hmac, "PUT", ADMIN_ACCESS_POLICY_PATH, "", json) }
+            .bodyValue(json)
+            .exchangeToMono { r ->
+                r.bodyToMono(String::class.java).defaultIfEmpty("")
+                    .map { responseBody -> proxy.toResponseEntity(r.statusCode(), responseBody) }
+            }
+            .timeout(Duration.ofMillis(timeoutMs))
+            .awaitSingleOrNull()
+    }
+
+    private suspend fun proxyDelete(
+        client: org.springframework.web.reactive.function.client.WebClient,
+        token: String, actor: String, requestId: String,
+        hmac: McpAdminHmacSettings, timeoutMs: Long
+    ): ResponseEntity<Any>? {
+        return client.delete()
+            .uri(ADMIN_ACCESS_POLICY_PATH)
+            .header("X-Admin-Token", token)
+            .header("X-Admin-Actor", actor)
+            .header("X-Request-Id", requestId)
+            .headers { h -> proxy.applyHmacHeaders(h, hmac, "DELETE", ADMIN_ACCESS_POLICY_PATH, "", "") }
+            .exchangeToMono { r ->
+                r.bodyToMono(String::class.java).defaultIfEmpty("")
+                    .map { responseBody -> proxy.toResponseEntity(r.statusCode(), responseBody) }
+            }
+            .timeout(Duration.ofMillis(timeoutMs))
+            .awaitSingleOrNull()
+    }
+
+    // ── 검증 ──
+
     private fun validatePolicyRequest(request: UpdateMcpAccessPolicyRequest): String? {
-        validatePolicyKeys(
-            fieldName = "allowedJiraProjectKeys",
-            keys = request.allowedJiraProjectKeys,
-            maxItems = MAX_PROJECT_KEYS,
-            maxLength = MAX_JIRA_KEY_LENGTH,
-            pattern = JIRA_PROJECT_KEY_PATTERN
-        )?.let { return it }
-        validatePolicyKeys(
-            fieldName = "allowedConfluenceSpaceKeys",
-            keys = request.allowedConfluenceSpaceKeys,
-            maxItems = MAX_SPACE_KEYS,
-            maxLength = MAX_SPACE_KEY_LENGTH,
-            pattern = CONFLUENCE_SPACE_KEY_PATTERN
-        )?.let { return it }
-        validatePolicyKeys(
-            fieldName = "allowedBitbucketRepositories",
-            keys = request.allowedBitbucketRepositories,
-            maxItems = MAX_BITBUCKET_REPOS,
-            maxLength = MAX_BITBUCKET_REPO_LENGTH,
-            pattern = BITBUCKET_REPO_PATTERN
-        )?.let { return it }
-        validatePolicyKeys(
-            fieldName = "allowedSourceNames",
-            keys = request.allowedSourceNames,
-            maxItems = MAX_SOURCE_NAMES,
-            maxLength = MAX_SOURCE_NAME_LENGTH,
-            pattern = SOURCE_NAME_PATTERN
-        )?.let { return it }
+        validateKeys("allowedJiraProjectKeys", request.allowedJiraProjectKeys,
+            MAX_PROJECT_KEYS, MAX_JIRA_KEY_LENGTH, JIRA_PROJECT_KEY_PATTERN)?.let { return it }
+        validateKeys("allowedConfluenceSpaceKeys", request.allowedConfluenceSpaceKeys,
+            MAX_SPACE_KEYS, MAX_SPACE_KEY_LENGTH, CONFLUENCE_SPACE_KEY_PATTERN)?.let { return it }
+        validateKeys("allowedBitbucketRepositories", request.allowedBitbucketRepositories,
+            MAX_BITBUCKET_REPOS, MAX_BITBUCKET_REPO_LENGTH, BITBUCKET_REPO_PATTERN)?.let { return it }
+        validateKeys("allowedSourceNames", request.allowedSourceNames,
+            MAX_SOURCE_NAMES, MAX_SOURCE_NAME_LENGTH, SOURCE_NAME_PATTERN)?.let { return it }
         return null
     }
 
+    private fun validateKeys(
+        fieldName: String, keys: List<String>,
+        maxItems: Int, maxLength: Int, pattern: Regex
+    ): String? {
+        if (keys.size > maxItems) return "$fieldName must not exceed $maxItems items"
+        for ((index, rawKey) in keys.withIndex()) {
+            val key = rawKey.trim()
+            if (key.isEmpty()) return "$fieldName[$index] must not be blank"
+            if (rawKey != key) return "$fieldName[$index] must not contain leading or trailing whitespace"
+            if (key.length > maxLength) return "$fieldName[$index] must not exceed $maxLength characters"
+            if (!pattern.matches(key)) return "$fieldName[$index] has invalid format"
+        }
+        return null
+    }
+
+    // ── 감사 ──
+
+    private fun recordAudit(
+        name: String, actor: String, action: String,
+        statusCode: Int, request: UpdateMcpAccessPolicyRequest? = null,
+        validationError: String? = null
+    ) {
+        val detail = if (request != null) buildAuditDetail(statusCode, request, validationError)
+        else "status=$statusCode"
+        recordAdminAudit(
+            store = adminAuditStore, category = "mcp_access_policy",
+            action = action, actor = actor,
+            resourceType = "mcp_server", resourceId = name, detail = detail
+        )
+    }
+
     private fun buildAuditDetail(
-        statusCode: Int,
-        request: UpdateMcpAccessPolicyRequest,
+        statusCode: Int, request: UpdateMcpAccessPolicyRequest,
         validationError: String? = null
     ): String {
         val parts = mutableListOf(
@@ -356,159 +308,21 @@ class McpAccessPolicyController(
         return parts.joinToString(", ")
     }
 
-    private fun applyHmacHeaders(
-        headers: org.springframework.http.HttpHeaders,
-        settings: McpAdminHmacSettings,
-        method: String,
-        path: String,
-        query: String,
-        body: String
+    private fun observeCall(
+        serverName: String, method: HttpMethod,
+        statusCode: Int, startedAtNanos: Long
     ) {
-        val secret = settings.secret ?: return
-        val signed = McpAdminRequestSigner.sign(
-            method = method,
-            path = path,
-            query = query,
-            body = body,
-            secret = secret
+        proxy.observeProxyCall(
+            meterRegistry, METRIC_PREFIX, "MCP access-policy proxy",
+            serverName, statusCode, startedAtNanos,
+            extraTags = arrayOf("method", method.name)
         )
-        headers.set("X-Admin-Timestamp", signed.timestamp)
-        headers.set("X-Admin-Signature", signed.signature)
-    }
-
-    private fun validatePolicyKeys(
-        fieldName: String,
-        keys: List<String>,
-        maxItems: Int,
-        maxLength: Int,
-        pattern: Regex
-    ): String? {
-        if (keys.size > maxItems) {
-            return "$fieldName must not exceed $maxItems items"
-        }
-
-        for ((index, rawKey) in keys.withIndex()) {
-            val key = rawKey.trim()
-            if (key.isEmpty()) {
-                return "$fieldName[$index] must not be blank"
-            }
-            if (rawKey != key) {
-                return "$fieldName[$index] must not contain leading or trailing whitespace"
-            }
-            if (key.length > maxLength) {
-                return "$fieldName[$index] must not exceed $maxLength characters"
-            }
-            if (!pattern.matches(key)) {
-                return "$fieldName[$index] has invalid format"
-            }
-        }
-        return null
-    }
-
-    private fun toResponseEntity(statusCode: HttpStatusCode, body: String): ResponseEntity<Any> {
-        if (statusCode == HttpStatus.NO_CONTENT) {
-            return noBodyResponse(statusCode)
-        }
-        if (body.isBlank()) {
-            return noBodyResponse(statusCode)
-        }
-        return bodyResponse(statusCode, parseJsonOrString(body))
-    }
-
-    private fun resolveAdminTimeoutMs(config: Map<String, Any>): Long {
-        val configured = when (val raw = config["adminTimeoutMs"]) {
-            is Number -> raw.toLong()
-            is String -> raw.trim().toLongOrNull()
-            else -> null
-        } ?: DEFAULT_ADMIN_TIMEOUT_MS
-        return configured.coerceIn(MIN_ADMIN_TIMEOUT_MS, MAX_ADMIN_TIMEOUT_MS)
-    }
-
-    private fun resolveAdminConnectTimeoutMs(config: Map<String, Any>, requestTimeoutMs: Long): Int {
-        val configured = when (val raw = config["adminConnectTimeoutMs"]) {
-            is Number -> raw.toLong()
-            is String -> raw.trim().toLongOrNull()
-            else -> null
-        } ?: DEFAULT_ADMIN_CONNECT_TIMEOUT_MS
-
-        val upperBound = minOf(requestTimeoutMs, MAX_ADMIN_CONNECT_TIMEOUT_MS.toLong())
-        return configured.coerceIn(MIN_ADMIN_CONNECT_TIMEOUT_MS.toLong(), upperBound).toInt()
-    }
-
-    private fun parseJsonOrString(body: String): Any {
-        if (body.isBlank()) return emptyMap<String, Any>()
-        return try {
-            objectMapper.readValue(body, Any::class.java)
-        } catch (_: Exception) {
-            mapOf("raw" to body)
-        }
-    }
-
-    private fun resolveRequestId(exchange: ServerWebExchange): String {
-        val requestId = exchange.request.headers.getFirst("X-Request-Id")?.trim().orEmpty()
-        if (requestId.isNotBlank()) return requestId
-        val correlationId = exchange.request.headers.getFirst("X-Correlation-Id")?.trim().orEmpty()
-        if (correlationId.isNotBlank()) return correlationId
-        return "arc-${UUID.randomUUID()}"
-    }
-
-    private fun errorResponse(status: HttpStatus, message: String): ResponseEntity<Any> {
-        return ResponseEntity.status(status)
-            .body(ErrorResponse(error = message, timestamp = Instant.now().toString()))
-    }
-
-    private fun noBodyResponse(statusCode: HttpStatusCode): ResponseEntity<Any> {
-        return ResponseEntity.status(statusCode).build<Any>()
-    }
-
-    private fun bodyResponse(statusCode: HttpStatusCode, body: Any): ResponseEntity<Any> {
-        return ResponseEntity.status(statusCode).body(body)
-    }
-
-    private fun observeProxyCall(
-        serverName: String,
-        method: HttpMethod,
-        statusCode: Int,
-        startedAtNanos: Long
-    ) {
-        val durationNanos = (System.nanoTime() - startedAtNanos).coerceAtLeast(0)
-        val outcome = when {
-            statusCode in 200..299 -> "success"
-            statusCode in 400..499 -> "client_error"
-            else -> "server_error"
-        }
-        val tags = arrayOf(
-            "method", method.name,
-            "status", statusCode.toString(),
-            "outcome", outcome
-        )
-        meterRegistry?.counter(METRIC_PROXY_REQUESTS, *tags)?.increment()
-        meterRegistry?.let { registry ->
-            Timer.builder(METRIC_PROXY_DURATION)
-                .tags(*tags)
-                .register(registry)
-                .record(durationNanos, TimeUnit.NANOSECONDS)
-        }
-
-        val durationMs = TimeUnit.NANOSECONDS.toMillis(durationNanos)
-        if (statusCode >= 400) {
-            logger.warn {
-                "MCP access-policy proxy failed: server=$serverName method=${method.name} " +
-                    "status=$statusCode durationMs=$durationMs"
-            }
-        } else {
-            logger.debug {
-                "MCP access-policy proxy succeeded: server=$serverName method=${method.name} " +
-                    "status=$statusCode durationMs=$durationMs"
-            }
-        }
     }
 
     private enum class HttpMethod { GET, PUT, DELETE }
 
     companion object {
-        private const val METRIC_PROXY_REQUESTS = "arc.reactor.mcp.access_policy.proxy.requests"
-        private const val METRIC_PROXY_DURATION = "arc.reactor.mcp.access_policy.proxy.duration"
+        private const val METRIC_PREFIX = "arc.reactor.mcp.access_policy"
         private const val MAX_PROJECT_KEYS = 200
         private const val MAX_SPACE_KEYS = 200
         private const val MAX_BITBUCKET_REPOS = 200
@@ -517,18 +331,11 @@ class McpAccessPolicyController(
         private const val MAX_SPACE_KEY_LENGTH = 64
         private const val MAX_BITBUCKET_REPO_LENGTH = 120
         private const val MAX_SOURCE_NAME_LENGTH = 200
-        private const val DEFAULT_ADMIN_TIMEOUT_MS = 10_000L
-        private const val MIN_ADMIN_TIMEOUT_MS = 100L
-        private const val MAX_ADMIN_TIMEOUT_MS = 120_000L
-        private const val DEFAULT_ADMIN_CONNECT_TIMEOUT_MS = 3_000L
-        private const val MIN_ADMIN_CONNECT_TIMEOUT_MS = 100
-        private const val MAX_ADMIN_CONNECT_TIMEOUT_MS = 30_000
         private const val ADMIN_ACCESS_POLICY_PATH = "/admin/access-policy"
         private val JIRA_PROJECT_KEY_PATTERN = Regex("^[A-Z][A-Z0-9_]*$")
         private val CONFLUENCE_SPACE_KEY_PATTERN = Regex("^[A-Za-z0-9][A-Za-z0-9_-]*$")
         private val BITBUCKET_REPO_PATTERN = Regex("^[A-Za-z0-9][A-Za-z0-9._-]*$")
         private val SOURCE_NAME_PATTERN = Regex("^[A-Za-z0-9][A-Za-z0-9._:-]*$")
-        private val objectMapper = jacksonObjectMapper()
     }
 }
 

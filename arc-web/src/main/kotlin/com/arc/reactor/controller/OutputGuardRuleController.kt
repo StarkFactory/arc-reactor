@@ -112,25 +112,9 @@ class OutputGuardRuleController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val action = parseAction(request.action)
-            ?: return ResponseEntity.badRequest()
-                .body(ErrorResponse(error = "Invalid action: ${request.action}", timestamp = Instant.now().toString()))
-        val trimmedPattern = request.pattern.trim()
-        if (trimmedPattern.isEmpty()) {
-            return ResponseEntity.badRequest()
-                .body(ErrorResponse(
-                    error = "Invalid pattern: pattern must not be blank after trimming",
-                    timestamp = Instant.now().toString()
-                ))
-        }
-        val regexError = validateRegex(trimmedPattern)
-        if (regexError != null) {
-            return ResponseEntity.badRequest()
-                .body(ErrorResponse(
-                    error = "Invalid pattern: $regexError",
-                    timestamp = Instant.now().toString()
-                ))
-        }
+        val action = parseAction(request.action) ?: return badRequestResponse("Invalid action: ${request.action}")
+        val patternError = validatePattern(request.pattern)
+        if (patternError != null) return badRequestResponse(patternError)
 
         val now = Instant.now()
         val saved = store.save(
@@ -150,7 +134,7 @@ class OutputGuardRuleController(
             action = OutputGuardRuleAuditAction.CREATE,
             actor = actor(exchange),
             ruleId = saved.id,
-            detail = "name=${saved.name}, action=${saved.action}, priority=${saved.priority}, enabled=${saved.enabled}"
+            detail = ruleDetail(saved)
         )
         return ResponseEntity.status(HttpStatus.CREATED).body(saved.toResponse())
     }
@@ -171,33 +155,13 @@ class OutputGuardRuleController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val action = request.action?.let { parseAction(it) }
-        if (request.action != null && action == null) {
-            return ResponseEntity.badRequest()
-                .body(ErrorResponse(error = "Invalid action: ${request.action}", timestamp = Instant.now().toString()))
-        }
+        if (request.action != null && action == null) return badRequestResponse("Invalid action: ${request.action}")
         if (request.pattern != null) {
-            val trimmedPattern = request.pattern.trim()
-            if (trimmedPattern.isEmpty()) {
-                return ResponseEntity.badRequest()
-                    .body(ErrorResponse(
-                        error = "Invalid pattern: pattern must not be blank after trimming",
-                        timestamp = Instant.now().toString()
-                    ))
-            }
-            val regexError = validateRegex(trimmedPattern)
-            if (regexError != null) {
-                return ResponseEntity.badRequest()
-                    .body(ErrorResponse(
-                        error = "Invalid pattern: $regexError",
-                        timestamp = Instant.now().toString()
-                    ))
-            }
+            val patternError = validatePattern(request.pattern)
+            if (patternError != null) return badRequestResponse(patternError)
         }
 
-        val existing = store.findById(id)
-            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse(error = "Output guard rule '$id' not found", timestamp = Instant.now().toString()))
-
+        val existing = store.findById(id) ?: return ruleNotFound(id)
         val updated = store.update(
             id = id,
             rule = existing.copy(
@@ -207,16 +171,14 @@ class OutputGuardRuleController(
                 priority = request.priority ?: existing.priority,
                 enabled = request.enabled ?: existing.enabled
             )
-        ) ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body(ErrorResponse(error = "Output guard rule '$id' not found", timestamp = Instant.now().toString()))
+        ) ?: return ruleNotFound(id)
 
         invalidationBus.touch()
         recordAudit(
             action = OutputGuardRuleAuditAction.UPDATE,
             actor = actor(exchange),
             ruleId = updated.id,
-            detail = "name=${updated.name}, action=${updated.action}, " +
-                "priority=${updated.priority}, enabled=${updated.enabled}"
+            detail = ruleDetail(updated)
         )
         return ResponseEntity.ok(updated.toResponse())
     }
@@ -234,9 +196,7 @@ class OutputGuardRuleController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val existing = store.findById(id)
-            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse(error = "Output guard rule '$id' not found", timestamp = Instant.now().toString()))
+        val existing = store.findById(id) ?: return ruleNotFound(id)
         store.delete(id)
         invalidationBus.touch()
         recordAudit(
@@ -263,39 +223,13 @@ class OutputGuardRuleController(
         if (!isAdmin(exchange)) return forbiddenResponse()
         val rules = store.list().filter { request.includeDisabled || it.enabled }
         val evaluation = evaluator.evaluate(content = request.content, rules = rules)
-
         recordAudit(
             action = OutputGuardRuleAuditAction.SIMULATE,
             actor = actor(exchange),
             detail = "blocked=${evaluation.blocked}, matched=${evaluation.matchedRules.size}, " +
                 "includeDisabled=${request.includeDisabled}"
         )
-
-        return ResponseEntity.ok(
-            OutputGuardSimulationResponse(
-                originalContent = request.content,
-                resultContent = evaluation.content,
-                blocked = evaluation.blocked,
-                modified = evaluation.modified,
-                blockedByRuleId = evaluation.blockedBy?.ruleId,
-                blockedByRuleName = evaluation.blockedBy?.ruleName,
-                matchedRules = evaluation.matchedRules.map {
-                    OutputGuardSimulationMatchResponse(
-                        ruleId = it.ruleId,
-                        ruleName = it.ruleName,
-                        action = it.action.name,
-                        priority = it.priority
-                    )
-                },
-                invalidRules = evaluation.invalidRules.map {
-                    OutputGuardSimulationInvalidRuleResponse(
-                        ruleId = it.ruleId,
-                        ruleName = it.ruleName,
-                        reason = it.reason
-                    )
-                }
-            )
-        )
+        return ResponseEntity.ok(evaluation.toSimulationResponse(request.content))
     }
 
     private fun actor(exchange: ServerWebExchange): String {
@@ -323,6 +257,23 @@ class OutputGuardRuleController(
             logger.warn(e) { "Failed to persist output guard audit log: action=$action, ruleId=$ruleId" }
         }
     }
+
+    /** 패턴 문자열을 검증하고, 문제가 있으면 오류 메시지를 반환한다. */
+    private fun validatePattern(pattern: String): String? {
+        val trimmed = pattern.trim()
+        if (trimmed.isEmpty()) return "Invalid pattern: pattern must not be blank after trimming"
+        val regexError = validateRegex(trimmed)
+        if (regexError != null) return "Invalid pattern: $regexError"
+        return null
+    }
+
+    /** 규칙 변경 감사 로그 상세 문자열을 생성한다. */
+    private fun ruleDetail(rule: OutputGuardRule): String {
+        return "name=${rule.name}, action=${rule.action}, priority=${rule.priority}, enabled=${rule.enabled}"
+    }
+
+    /** 규칙 미발견 404 응답. */
+    private fun ruleNotFound(id: String): ResponseEntity<Any> = notFoundResponse("Output guard rule '$id' not found")
 }
 
 data class CreateOutputGuardRuleRequest(
@@ -435,3 +386,21 @@ private fun validateRegex(pattern: String): String? {
         null
     }.getOrElse { it.message ?: "invalid regex" }
 }
+
+/** 평가 결과를 시뮬레이션 응답 DTO로 변환한다. */
+private fun com.arc.reactor.guard.output.policy.OutputGuardEvaluation.toSimulationResponse(
+    originalContent: String
+) = OutputGuardSimulationResponse(
+    originalContent = originalContent,
+    resultContent = content,
+    blocked = blocked,
+    modified = modified,
+    blockedByRuleId = blockedBy?.ruleId,
+    blockedByRuleName = blockedBy?.ruleName,
+    matchedRules = matchedRules.map {
+        OutputGuardSimulationMatchResponse(it.ruleId, it.ruleName, it.action.name, it.priority)
+    },
+    invalidRules = invalidRules.map {
+        OutputGuardSimulationInvalidRuleResponse(it.ruleId, it.ruleName, it.reason)
+    }
+)

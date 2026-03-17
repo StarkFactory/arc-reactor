@@ -106,19 +106,7 @@ class ChatController(
         @Valid @RequestBody request: ChatRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<ChatResponse> {
-        var command = AgentCommand(
-            systemPrompt = resolveSystemPrompt(request),
-            userPrompt = request.message,
-            model = request.model,
-            userId = resolveUserId(exchange, request.userId),
-            metadata = resolveMetadata(request, exchange),
-            responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
-            responseSchema = request.responseSchema,
-            media = resolveMediaUrls(request.mediaUrls)
-        )
-
-        command = applyIntentProfile(command, request)
-
+        val command = buildCommand(request, exchange)
         val result = agentExecutor.execute(command)
         val response = result.toChatResponse(command.model)
         val status = if (result.success) HttpStatus.OK else mapErrorCodeToStatus(result.errorCode)
@@ -167,19 +155,7 @@ class ChatController(
         @Valid @RequestBody request: ChatRequest,
         exchange: ServerWebExchange
     ): Flux<ServerSentEvent<String>> {
-        var command = AgentCommand(
-            systemPrompt = resolveSystemPrompt(request),
-            userPrompt = request.message,
-            model = request.model,
-            userId = resolveUserId(exchange, request.userId),
-            metadata = resolveMetadata(request, exchange),
-            responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
-            responseSchema = request.responseSchema,
-            media = resolveMediaUrls(request.mediaUrls)
-        )
-
-        command = applyIntentProfile(command, request)
-
+        val command = buildCommand(request, exchange)
         val flow: Flow<String> = agentExecutor.executeStream(command)
 
         val eventFlow: Flow<ServerSentEvent<String>> = flow
@@ -196,6 +172,24 @@ class ChatController(
         val userId = resolveUserId(exchange, request.userId)
         return eventFlow.asFlux()
             .doOnCancel { logger.debug { "SSE stream cancelled by client (userId=$userId)" } }
+    }
+
+    /** 요청과 exchange로부터 AgentCommand를 생성한다. 인텐트 프로필도 적용한다. */
+    private suspend fun buildCommand(
+        request: ChatRequest,
+        exchange: ServerWebExchange
+    ): AgentCommand {
+        val base = AgentCommand(
+            systemPrompt = resolveSystemPrompt(request),
+            userPrompt = request.message,
+            model = request.model,
+            userId = resolveUserId(exchange, request.userId),
+            metadata = resolveMetadata(request, exchange),
+            responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
+            responseSchema = request.responseSchema,
+            media = resolveMediaUrls(request.mediaUrls)
+        )
+        return applyIntentProfile(base, request)
     }
 
     /** 청크 문자열을 파싱하여 적절한 SSE 이벤트 타입(message, tool_start 등)으로 변환한다. */
@@ -287,34 +281,35 @@ class ChatController(
     private fun resolveMetadata(request: ChatRequest, exchange: ServerWebExchange): Map<String, Any> {
         val base = request.metadata ?: emptyMap()
         val withChannel = if (base.containsKey("channel")) base else (base + mapOf("channel" to "web"))
-        val withRequesterIdentity = if (containsRequesterIdentity(base)) {
-            base
-        } else {
-            val requesterEmail = resolveRequesterEmailFromExchange(exchange)
-            val requesterAccountId = resolveRequesterAccountIdFromExchange(exchange)
-            val metadataWithAccount = if (requesterAccountId == null) base else base + mapOf(
-                "requesterAccountId" to requesterAccountId,
-                "accountId" to requesterAccountId
-            )
-            requesterEmail?.let { email ->
-                metadataWithAccount + mapOf("requesterEmail" to email, "userEmail" to email)
-            } ?: metadataWithAccount
-        }
-
+        val withIdentity = resolveRequesterIdentity(base, exchange)
         val tenantId = TenantContextResolver.resolveTenantId(exchange)
-        val withTenant = (withChannel + withRequesterIdentity) + ("tenantId" to tenantId)
+        val withTenant = (withChannel + withIdentity) + ("tenantId" to tenantId)
+        return enrichWithPromptVersion(withTenant, request)
+    }
 
-        val effectivePromptTemplateId = resolveEffectivePromptTemplateId(request) ?: return withTenant
-        if (promptTemplateStore == null) return withTenant
+    /** exchange에서 요청자 신원 정보를 추출하여 메타데이터에 추가한다. 이미 존재하면 덮어쓰지 않는다. */
+    private fun resolveRequesterIdentity(base: Map<String, Any>, exchange: ServerWebExchange): Map<String, Any> {
+        if (containsRequesterIdentity(base)) return base
+        val email = resolveRequesterEmailFromExchange(exchange)
+        val accountId = resolveRequesterAccountIdFromExchange(exchange)
+        val withAccount = if (accountId == null) base else base + mapOf(
+            "requesterAccountId" to accountId, "accountId" to accountId
+        )
+        return email?.let { withAccount + mapOf("requesterEmail" to it, "userEmail" to it) } ?: withAccount
+    }
 
+    /** 프롬프트 템플릿 버전 정보로 메타데이터를 보강한다. */
+    private fun enrichWithPromptVersion(metadata: Map<String, Any>, request: ChatRequest): Map<String, Any> {
+        val templateId = resolveEffectivePromptTemplateId(request) ?: return metadata
+        if (promptTemplateStore == null) return metadata
         val activeVersion = try {
-            promptTemplateStore.getActiveVersion(effectivePromptTemplateId)
+            promptTemplateStore.getActiveVersion(templateId)
         } catch (e: Exception) {
-            logger.warn(e) { "Prompt template metadata lookup failed for id='$effectivePromptTemplateId'" }
+            logger.warn(e) { "Prompt template metadata lookup failed for id='$templateId'" }
             null
-        } ?: return withTenant
-        return withTenant + mapOf(
-            "promptTemplateId" to effectivePromptTemplateId,
+        } ?: return metadata
+        return metadata + mapOf(
+            "promptTemplateId" to templateId,
             "promptVersionId" to activeVersion.id,
             "promptVersion" to activeVersion.version
         )
