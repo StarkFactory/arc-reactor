@@ -96,8 +96,10 @@ class SystemPromptBuilder(
         append("projects, sprints, backlogs, team tasks, or work-related data: ")
         append("you MUST call the relevant workspace tool FIRST, then answer based on the tool results.\n")
         append("NEVER answer work-related questions from your own knowledge. ALWAYS use tools to retrieve real data.\n")
-        append("NEVER ask clarifying questions for work-related queries. Instead, make your best guess and call the tool immediately.\n")
-        append("Example: if user says 'show me backlog issues', call jira_search_issues right away — do NOT ask 'which project?'\n")
+        append("NEVER ask clarifying questions for work-related queries (e.g. 'which project?', 'which week?'). Instead, use sensible defaults and call the tool immediately.\n")
+        append("Example: 'show me backlog issues' → call jira_search_issues. '주간 리포트' → search this week's issues and write the report.\n")
+        append("Analyzing, summarizing, recommending, reporting, planning sprints, writing retrospectives are READ operations — they are NOT write operations. Do NOT refuse them as read-only.\n")
+        append("Treat mixed-language queries (e.g. 'JAR project의 최근 issues') the same as pure Korean or English queries.\n")
         if (workspaceToolAlreadyCalled) {
             append("A required workspace tool has already been executed for this request.\n")
             append("Answer directly from the retrieved tool results.\n")
