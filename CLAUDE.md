@@ -173,15 +173,18 @@ Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete)
 | **입력 경계값** | 빈 입력, 초대형 입력, 특수문자 (널 바이트, 이모지) | `hardening/ReActLoopHardeningTest.kt` |
 | **도구 출력 정제** | 간접 인젝션 via 도구 응답, 출력 크기 제한 | `hardening/ToolOutputSanitizationHardeningTest.kt` |
 | **출력 가드** | PII 유출 방지, 카나리 토큰 누출, false positive 방지 | `hardening/OutputGuardHardeningTest.kt` |
+| **적대적 강화** | LLM 공격자 vs Guard 방어자 제로섬 게임 (ARLAS 논문 기반) | `hardening/AdversarialRedTeamTest.kt` |
 
 ```bash
-./gradlew :arc-core:test --tests "com.arc.reactor.hardening.*"  # 강화 테스트만 실행
+./gradlew :arc-core:test --tests "com.arc.reactor.hardening.*"  # 정적 강화 테스트
+GEMINI_API_KEY=... ./gradlew :arc-core:test --tests "*.AdversarialRedTeamTest" -PincludeIntegration  # LLM 동적 강화
 ```
 
 **강화 테스트 작성 원칙:**
-- `@Tag("hardening")` 태그 필수
+- `@Tag("hardening")` 태그 필수 (LLM 필요 시 `@Tag("integration")` 추가)
 - 적대적 입력(공격 벡터)과 안전한 입력(false positive 방지)을 반드시 쌍으로 테스트
 - Guard 인젝션 패턴 추가 시 `InjectionPatterns.kt`에 정규식 추가 + 강화 테스트 동시 추가
+- **적대적 강화 루프**: 공격 성공(Guard 우회) → `InjectionPatterns.kt` 보강 → 테스트 재실행 → 우회율 감소 확인
 
 ## 기본 설정
 
