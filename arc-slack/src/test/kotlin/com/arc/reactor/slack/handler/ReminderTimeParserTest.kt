@@ -7,6 +7,12 @@ import org.junit.jupiter.api.Test
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
+/**
+ * [ReminderTimeParser]의 시간 파싱 테스트.
+ *
+ * 영문(at HH:mm) 및 한글(N시 N분) 시간 형식 파싱,
+ * 유효하지 않은 시간 처리, 과거 시간의 익일 변환을 검증한다.
+ */
 class ReminderTimeParserTest {
 
     private val tz = ZoneId.of("Asia/Seoul")

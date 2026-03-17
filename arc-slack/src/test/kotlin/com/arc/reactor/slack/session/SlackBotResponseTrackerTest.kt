@@ -5,6 +5,12 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
+/**
+ * [SlackBotResponseTracker]의 봇 응답 추적 테스트.
+ *
+ * 응답 추적/조회, TTL 만료, 빈 입력 무시,
+ * 최대 항목 초과 시 오래된 항목 제거를 검증한다.
+ */
 class SlackBotResponseTrackerTest {
 
     @Test

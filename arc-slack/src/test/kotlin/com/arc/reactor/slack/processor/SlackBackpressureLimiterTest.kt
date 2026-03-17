@@ -11,10 +11,10 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * 에 대한 단위 테스트. [SlackBackpressureLimiter].
+ * [SlackBackpressureLimiter]의 백프레셔 제한기 테스트.
  *
- * Tests cover fail-fast (saturation) mode, queue mode, concurrent permit counting,
- * and semaphore release semantics.
+ * fail-fast(포화) 모드, 큐 모드, 동시 퍼밋 카운팅,
+ * 세마포어 해제 의미론을 검증한다.
  */
 class SlackBackpressureLimiterTest {
 
@@ -69,7 +69,7 @@ class SlackBackpressureLimiterTest {
                 requestTimeoutMs = 0,
                 failFastOnSaturation = true
             )
-            // Exhaust the permit via tryAcquire (rejectImmediatelyIfConfigured itself)
+            // tryAcquire(rejectImmediatelyIfConfigured 자체)를 통해 퍼밋 소진
             val firstReject = limiter.rejectImmediatelyIfConfigured()
             firstReject shouldBe false // permit was free and got acquired by tryAcquire
 
@@ -77,7 +77,7 @@ class SlackBackpressureLimiterTest {
             val saturated = limiter.rejectImmediatelyIfConfigured()
             saturated shouldBe true
 
-            // → the semaphore is free again를 해제합니다
+            // 해제하면 세마포어가 다시 사용 가능해진다
             limiter.release()
             val afterRelease = limiter.rejectImmediatelyIfConfigured()
             afterRelease shouldBe false
@@ -117,7 +117,7 @@ class SlackBackpressureLimiterTest {
             )
             val result = limiter.acquireForQueuedMode()
             result shouldBe true
-            // Semaphore is untouched — a subsequent tryAcquire은(는) still succeed해야 합니다
+            // 세마포어가 변경되지 않았으므로 후속 tryAcquire는 여전히 성공해야 한다
             val notRejected = !limiter.rejectImmediatelyIfConfigured()
             notRejected shouldBe true
         }
@@ -158,14 +158,14 @@ class SlackBackpressureLimiterTest {
             // first permit를 획득합니다
             limiter.acquireForQueuedMode()
 
-            // Launch a coroutine that will wait and then release
+            // 대기 후 해제할 코루틴 실행
             val acquired = AtomicInteger(0)
             val job = launch(Dispatchers.Default) {
                 val result = limiter.acquireForQueuedMode()
                 if (result) acquired.incrementAndGet()
             }
-            delay(100) // give the waiting coroutine time to suspend
-            limiter.release()   // unblock the waiting coroutine
+            delay(100) // 대기 중인 코루틴이 suspend될 시간 확보
+            limiter.release()   // 대기 중인 코루틴 차단 해제
             job.join()
 
             acquired.get() shouldBe 1
@@ -183,7 +183,7 @@ class SlackBackpressureLimiterTest {
                 val acquired = limiter.acquireForQueuedMode()
                 acquired shouldBe true
             }
-            // Semaphore fully drained — timed acquire은(는) fail quickly해야 합니다
+            // 세마포어 완전 소진 — 타임아웃 acquire는 빠르게 실패해야 한다
             val timedOutLimiter = SlackBackpressureLimiter(
                 maxConcurrentRequests = max,
                 requestTimeoutMs = 50,
@@ -195,7 +195,7 @@ class SlackBackpressureLimiterTest {
     }
 
     // =========================================================================
-    // release
+    // 해제
     // =========================================================================
 
     @Nested
@@ -232,7 +232,7 @@ class SlackBackpressureLimiterTest {
                     requestTimeoutMs = 50,
                     failFastOnSaturation = false
                 )
-                // Use a fresh limiter per round to keep the test self-contained
+                // 테스트 독립성을 위해 라운드마다 새 리미터 사용
                 if (timedLimiter.acquireForQueuedMode()) successCount++
             }
             successCount shouldBe max
@@ -240,7 +240,7 @@ class SlackBackpressureLimiterTest {
     }
 
     // =========================================================================
-    // Concurrency
+    // 동시성
     // =========================================================================
 
     @Nested
@@ -283,7 +283,7 @@ class SlackBackpressureLimiterTest {
                 requestTimeoutMs = 0,
                 failFastOnSaturation = true
             )
-            // Hold the only permit
+            // 유일한 퍼밋을 점유
             val holdJob = launch(Dispatchers.Default) {
                 limiter.acquireForQueuedMode()
                 delay(300)
