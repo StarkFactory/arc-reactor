@@ -1,5 +1,7 @@
 package com.arc.reactor.guard
 
+import java.text.Normalizer
+
 /**
  * Prompt Injection 탐지 패턴 공유 객체
  *
@@ -16,6 +18,71 @@ package com.arc.reactor.guard
  * @see com.arc.reactor.guard.tool.ToolOutputSanitizer 도구 출력 새니타이저에서의 사용
  */
 object InjectionPatterns {
+
+    /**
+     * 제거 대상 제로 너비 문자 코드포인트 집합.
+     *
+     * 이 문자들은 화면에 보이지 않지만 정규식 패턴 매칭을 방해할 수 있다.
+     * [com.arc.reactor.guard.impl.UnicodeNormalizationStage]에서도 이 집합을 사용한다.
+     */
+    val ZERO_WIDTH_CODEPOINTS: Set<Int> = setOf(
+        0x200B, 0x200C, 0x200D, 0x200E, 0x200F,
+        0xFEFF, 0x00AD, 0x2060, 0x2061, 0x2062,
+        0x2063, 0x2064, 0x180E,
+        0x2028, 0x2029, 0x202A, 0x202B, 0x202C,
+        0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069
+    )
+
+    /**
+     * 키릴 문자 -> 라틴 문자 호모글리프 매핑.
+     */
+    private val HOMOGLYPH_MAP = mapOf(
+        '\u0430' to 'a', '\u0435' to 'e', '\u043E' to 'o',
+        '\u0440' to 'p', '\u0441' to 'c', '\u0443' to 'y',
+        '\u0445' to 'x', '\u0410' to 'A', '\u0412' to 'B',
+        '\u0415' to 'E', '\u041A' to 'K', '\u041C' to 'M',
+        '\u041D' to 'H', '\u041E' to 'O', '\u0420' to 'P',
+        '\u0421' to 'C', '\u0422' to 'T', '\u0425' to 'X'
+    )
+
+    /**
+     * 텍스트를 정규화하여 Injection 패턴 매칭 전 전처리한다.
+     *
+     * 1. 제로 너비 문자 제거 (U+200B, U+FEFF, U+00AD 등)
+     * 2. NFKC 정규화 (전각 -> ASCII 등)
+     * 3. 호모글리프 치환 (키릴 -> 라틴)
+     *
+     * 입력 Guard 경로에서는 [UnicodeNormalizationStage]가 이 역할을 하지만,
+     * [ToolOutputSanitizer] 등 Guard 파이프라인 밖에서 패턴 매칭할 때
+     * 이 함수를 사용하여 동일한 정규화를 적용한다.
+     */
+    fun normalize(text: String): String {
+        if (text.isEmpty()) return text
+        val stripped = stripZeroWidthChars(text)
+        val nfkc = Normalizer.normalize(stripped, Normalizer.Form.NFKC)
+        return replaceHomoglyphs(nfkc)
+    }
+
+    private fun stripZeroWidthChars(text: String): String {
+        val sb = StringBuilder(text.length)
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
+            if (cp !in ZERO_WIDTH_CODEPOINTS && cp !in 0xE0000..0xE007F) {
+                sb.appendCodePoint(cp)
+            }
+            i += Character.charCount(cp)
+        }
+        return sb.toString()
+    }
+
+    private fun replaceHomoglyphs(text: String): String {
+        val sb = StringBuilder(text.length)
+        for (char in text) {
+            sb.append(HOMOGLYPH_MAP[char] ?: char)
+        }
+        return sb.toString()
+    }
 
     /**
      * Injection 패턴 데이터 클래스

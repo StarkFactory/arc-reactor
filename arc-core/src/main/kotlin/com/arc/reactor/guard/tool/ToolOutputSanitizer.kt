@@ -50,8 +50,15 @@ class ToolOutputSanitizer(
             output
         }
 
-        // ── 단계 2: Injection 패턴 탐지 및 치환 ──
-        // 발견된 패턴을 "[SANITIZED]"로 교체하여 무력화한다
+        // ── 단계 2: Unicode 정규화 후 Injection 패턴 탐지 및 치환 ──
+        // 제로 너비 문자(U+200B 등)를 삽입하여 패턴을 우회하는 공격을 방어하기 위해
+        // 정규화된 텍스트로 패턴 매칭을 수행한다.
+        // 원본 텍스트에서도 제로 너비 문자를 제거하여 LLM에 전달되는 텍스트를 정리한다.
+        val normalized = InjectionPatterns.normalize(sanitized)
+        if (normalized != sanitized) {
+            warnings.add("Zero-width or homoglyph characters removed from tool output")
+            sanitized = normalized
+        }
         for ((pattern, name) in INJECTION_PATTERNS) {
             if (pattern.containsMatchIn(sanitized)) {
                 warnings.add("Injection pattern detected in tool output: $name")
