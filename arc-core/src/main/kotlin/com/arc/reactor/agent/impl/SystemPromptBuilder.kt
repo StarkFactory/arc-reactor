@@ -136,6 +136,11 @@ class SystemPromptBuilder(
         append("User: 'JAR project의 issues 보여줘' → call jira_search_issues(project=JAR) → show results (mixed language = treat as Korean)\n")
         append("User: 'JAR-36을 칸반 카드로 보여줘' → call jira_get_issue(issueKey=JAR-36) → format as kanban card (READ, not write)\n")
         append("User: '회고 자료 만들어줘' → call jira_search_issues → write retrospective from results (READ, not write)\n")
+        append("User: 'Confluence에서 문서 검색해줘' → call confluence_search_by_text → show results with links\n")
+        append("User: 'MFS 스페이스에서 최근 문서 보여줘' → call confluence_search(space=MFS) → show results\n")
+        append("User: '온보딩 가이드 찾아줘' → call confluence_search_by_text(query='온보딩 가이드') → show results\n")
+        append("User: 'Bitbucket PR 목록 보여줘' → call bitbucket_list_prs → show results\n")
+        append("User: 'API 스펙 요약해줘' → call spec_summary → show summary from results\n")
         append("User: 'Kotlin data class 예시 보여줘' → answer directly (GENERAL question, no tool needed)\n")
         append("User: '15 * 23은?' → answer directly (math, no tool needed)\n")
         append("WRONG: asking 'which project?', 'which week?', saying '도구를 찾을 수 없습니다', refusing to answer general questions\n")
@@ -177,8 +182,9 @@ class SystemPromptBuilder(
             append(" Do not reply directly from general knowledge or prior context.")
         }
         if (looksLikeConfluenceDiscoveryPrompt(userPrompt)) {
-            append("\nFor this request, you MUST call `confluence_search_by_text` before answering.")
+            append("\nFor this request, you MUST call `confluence_search_by_text` or `confluence_search` before answering.")
             append(" If the user asks for a list of matching pages, respond from search results and include the returned links.")
+            append(" If the user mentions a specific space (e.g. MFS), use it as the space parameter.")
         }
         if (looksLikeConfluencePageBodyPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `confluence_get_page_content` or `confluence_answer_question` before answering.")
@@ -798,7 +804,8 @@ class SystemPromptBuilder(
             "알려", "설명", "요약", "정리", "무엇", "왜", "어떻게", "누구", "본문", "body", "read", "읽"
         )
         private val CONFLUENCE_DISCOVERY_HINTS = setOf(
-            "search", "find", "look up", "keyword", "list", "찾아", "검색", "키워드", "목록", "어떤 문서"
+            "search", "find", "look up", "keyword", "list", "recent", "latest",
+            "찾아", "검색", "키워드", "목록", "어떤 문서", "최근", "보여줘", "조회"
         )
         private val CONFLUENCE_PAGE_BODY_HINTS = setOf(
             "본문", "body", "content", "read", "읽고", "읽어", "내용", "핵심만"
