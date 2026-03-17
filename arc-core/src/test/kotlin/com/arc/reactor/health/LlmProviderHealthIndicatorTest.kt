@@ -45,7 +45,7 @@ class LlmProviderHealthIndicatorTest {
 
         health.status shouldBe Status.DOWN
         health.details["configuredCount"] shouldBe 0
-        health.details["reason"] shouldBe "No LLM provider API key is configured"
+        health.details["reason"] shouldBe "LLM 프로바이더 API 키가 설정되지 않음"
     }
 
     @Test

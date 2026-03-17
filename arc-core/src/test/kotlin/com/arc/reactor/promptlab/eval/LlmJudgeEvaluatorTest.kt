@@ -124,7 +124,7 @@ class LlmJudgeEvaluatorTest {
 
             assertFalse(result.passed) { "Budget exhausted should not pass" }
             assertEquals(0.0, result.score) { "Score should be 0.0" }
-            assertTrue(result.reason.contains("Budget exhausted")) {
+            assertTrue(result.reason.contains("예산 소진")) {
                 "Reason should mention budget exhaustion"
             }
         }

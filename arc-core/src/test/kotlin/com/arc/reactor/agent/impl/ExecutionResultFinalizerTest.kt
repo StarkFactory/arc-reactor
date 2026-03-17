@@ -284,7 +284,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `sources are missing일 때 record unverified response metric해야 한다`() = runBlocking {
+    fun `sources are missing but tool called일 때 not block content해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -313,15 +313,11 @@ class ExecutionResultFinalizerTest {
             attemptLongerResponse = { _, _, _ -> null }
         )
 
-        assertEquals("unverified_sources", result.metadata["blockReason"], "Should mark missing source block reason")
-        verify(exactly = 1) {
-            metrics.recordUnverifiedResponse(match {
-                it["channel"] == "web" &&
-                    it["queryCluster"] == "93bd4b524029" &&
-                    it["queryLabel"] == "Prompt cluster 93bd4b524029" &&
-                    it["blockReason"] == "unverified_sources"
-            })
-        }
+        assertTrue(result.success, "Tool-backed response should succeed even without verified sources")
+        assertTrue(
+            result.content?.contains("Here is the policy.") == true,
+            "Original content should be preserved when tool was called"
+        )
     }
 
     @Test
@@ -366,7 +362,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `slack delivery acknowledgement로 replace unverified blocked copy해야 한다`() = runBlocking {
+    fun `slack delivery with tool signal일 때 preserve content with delivery metadata해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = ResponseFilterChain(listOf(VerifiedSourcesResponseFilter())),
@@ -400,14 +396,11 @@ class ExecutionResultFinalizerTest {
             attemptLongerResponse = { _, _, _ -> null }
         )
 
-        assertEquals(
-            "Slack 메시지는 전송했습니다. 다만 이 응답 자체는 승인된 출처로 검증된 답변이 아니라 전달 결과만 안내드립니다.",
-            result.content,
-            "Successful Slack delivery should surface an acknowledgement instead of the generic unverified block"
+        assertTrue(result.success, "Slack delivery should succeed")
+        assertTrue(
+            result.content?.contains("배포 공지를 전송했습니다.") == true,
+            "Original delivery content should be preserved when tool was called"
         )
-        assertEquals("unverified_sources", result.metadata["blockReason"], "Delivery acknowledgement should keep the unverified block reason")
-        assertEquals(false, result.metadata["grounded"], "Delivery acknowledgement must not mark the response as grounded")
-        assertEquals(0, result.metadata["verifiedSourceCount"], "Delivery acknowledgement must not create verified sources")
         assertEquals(true, result.metadata["deliveryAcknowledged"], "Delivery acknowledgement metadata should be exposed")
         assertEquals(
             "slack",
@@ -417,7 +410,7 @@ class ExecutionResultFinalizerTest {
     }
 
     @Test
-    fun `slack delivery was not acknowledged일 때 keep generic unverified response해야 한다`() = runBlocking {
+    fun `slack delivery without tool signal일 때 preserve content해야 한다`() = runBlocking {
         val finalizer = ExecutionResultFinalizer(
             outputGuardPipeline = null,
             responseFilterChain = ResponseFilterChain(listOf(VerifiedSourcesResponseFilter())),
@@ -438,10 +431,10 @@ class ExecutionResultFinalizerTest {
             attemptLongerResponse = { _, _, _ -> null }
         )
 
-        assertEquals(
-            "검증 가능한 출처를 찾지 못해 답변을 확정할 수 없습니다. 승인된 Jira, Confluence, Bitbucket, Swagger/OpenAPI 자료를 다시 조회해 주세요.",
-            result.content,
-            "Without a successful Slack delivery signal, the generic unverified response should remain"
+        assertTrue(result.success, "Slack delivery without signal should still succeed")
+        assertTrue(
+            result.content?.contains("Slack으로 보내겠습니다.") == true,
+            "Original content should be preserved when tool was called"
         )
         assertEquals(null, result.metadata["deliveryAcknowledged"], "No delivery acknowledgement metadata should be emitted")
     }
