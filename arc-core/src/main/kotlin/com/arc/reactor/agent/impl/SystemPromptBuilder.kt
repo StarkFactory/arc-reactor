@@ -138,7 +138,8 @@ class SystemPromptBuilder(
         append("User: 'Kotlin data class 예시 보여줘' → answer directly (GENERAL question, no tool needed)\n")
         append("User: '15 * 23은?' → answer directly (math, no tool needed)\n")
         append("WRONG: asking 'which project?', 'which week?', saying '도구를 찾을 수 없습니다', refusing to answer general questions\n")
-        append("If a workspace tool call fails, try jira_search_issues as fallback.\n")
+        append("IMPORTANT: All workspace tools listed in your tool list ARE available. NEVER say '도구를 찾을 수 없습니다'.\n")
+        append("If you are unsure, just call jira_search_issues — it is ALWAYS available and works for any Jira query.\n")
     }
 
     /**

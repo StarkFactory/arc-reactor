@@ -71,6 +71,8 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         if (sources.isNotEmpty()) return false
         if (!requiresVerifiedSources(context)) return false
         if (usesOnlyInternalReadTools(context)) return false
+        // 도구가 호출되었고 콘텐츠가 있으면 차단하지 않는다 (도구가 출처 URL을 반환하지 않는 경우)
+        if (context.toolsUsed.isNotEmpty() && content.isNotBlank()) return false
         if (allowsReadOnlyMutationRefusal(context, content)) return false
         if (allowsIdentityResolutionRefusal(content)) return false
         return !alreadyDeclinesVerification(content)
