@@ -281,11 +281,11 @@ class DefaultMcpManager(
             try {
                 logger.info { "MCP 서버 연결 중: $serverName" }
 
-                // 리소스 누수 방지를 위해 기존 클라이언트를 먼저 닫는다
+                // 리소스 누수 방지를 위해 기존 클라이언트를 먼저 닫는다.
+                // toolCallbacksCache는 유지 — 새 연결 성공까지 stale 도구를 제공하여 간헐적 불가용 방지.
                 clients.remove(serverName)?.let { oldClient ->
                     connectionSupport.close(serverName, oldClient)
                 }
-                toolCallbacksCache.remove(serverName)
 
                 statuses[serverName] = McpServerStatus.CONNECTING
 
@@ -346,8 +346,10 @@ class DefaultMcpManager(
         clients.remove(serverName)?.let { client ->
             connectionSupport.close(serverName, client)
         }
-        toolCallbacksCache.remove(serverName)
-        invalidateAllToolCallbacksSnapshot()
+        // WHY: 재연결이 완료될 때까지 마지막으로 알려진 도구 목록을 유지한다.
+        // 도구 콜백을 즉시 제거하면 재연결 사이 윈도우에서 도구가 간헐적으로
+        // 사라지는 불안정 현상이 발생한다. 개별 도구 호출은 이미 "Error: ..." 문자열을
+        // 반환하므로 stale 콜백이 남아 있어도 안전하다.
         statuses[serverName] = McpServerStatus.FAILED
         reconnectionCoordinator.schedule(serverName)
     }

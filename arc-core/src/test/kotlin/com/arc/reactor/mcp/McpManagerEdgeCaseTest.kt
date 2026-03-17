@@ -424,7 +424,7 @@ class McpManagerEdgeCaseTest {
     inner class ConnectionErrorHandling {
 
         @Test
-        fun `handleConnectionError은(는) mark server FAILED and clear caches해야 한다`() {
+        fun `handleConnectionError은(는) mark server FAILED and preserve stale tools해야 한다`() {
             val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
             manager.register(stdioServer("error-server"))
             manager.seedToolCallbacks("error-server", listOf(testCallback("error-tool")))
@@ -438,14 +438,14 @@ class McpManagerEdgeCaseTest {
             assertEquals(McpServerStatus.FAILED, manager.getStatus("error-server")) {
                 "Status should be FAILED after connection error"
             }
-            assertTrue(manager.getToolCallbacks("error-server").isEmpty()) {
-                "Tool callbacks should be cleared after connection error"
+            assertEquals(listOf("error-tool"), manager.getToolCallbacks("error-server").map { it.name }) {
+                "Tool callbacks should be preserved as stale during reconnection"
             }
             assertEquals(listOf("error-tool"), beforeError.map { it.name }) {
                 "Expected snapshot warm-up to include seeded callback before connection error"
             }
-            assertTrue(manager.getAllToolCallbacks().isEmpty()) {
-                "Expected aggregated callback snapshot to be invalidated after connection error"
+            assertEquals(listOf("error-tool"), manager.getAllToolCallbacks().map { it.name }) {
+                "Stale tool callbacks should remain available during reconnection"
             }
         }
 
