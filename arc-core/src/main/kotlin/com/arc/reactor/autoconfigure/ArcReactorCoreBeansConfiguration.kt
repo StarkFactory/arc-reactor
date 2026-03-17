@@ -339,6 +339,14 @@ class ArcReactorCoreBeansConfiguration {
     ): StartupInfoLogger = StartupInfoLogger(environment, chatModelProvider, authProperties)
 
     /**
+     * Tool Routing Config Validator (validates tool-routing.yml on startup)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun toolRoutingValidationInitializer(): ToolRoutingValidationInitializer =
+        ToolRoutingValidationInitializer()
+
+    /**
      * Error Message Resolver (default: English messages)
      */
     @Bean
