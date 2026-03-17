@@ -9,6 +9,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [FindChannelTool]의 단위 테스트.
+ *
+ * 채널 검색 도구의 부분 이름 검색, 정확한 일치, limit 검증을 테스트한다.
+ */
 class FindChannelToolTest {
 
     private val findChannelUseCase = mockk<FindChannelUseCase>()

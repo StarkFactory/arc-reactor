@@ -9,6 +9,11 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
 
+/**
+ * [GetUserInfoTool]의 단위 테스트.
+ *
+ * 사용자 정보 조회 도구의 정상 응답, 봇 사용자 처리, 입력 검증을 테스트한다.
+ */
 class GetUserInfoToolTest {
 
     private val getUserInfoUseCase = mockk<GetUserInfoUseCase>()

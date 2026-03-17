@@ -10,6 +10,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [SendMessageTool]의 단위 테스트.
+ *
+ * 메시지 전송 도구의 입력 검증, 정규화, 멱등성 키 중복 제거를 검증한다.
+ */
 class SendMessageToolTest {
 
     private val sendMessageUseCase = mockk<SendMessageUseCase>()

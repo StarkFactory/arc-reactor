@@ -8,6 +8,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [CreateCanvasTool]의 단위 테스트.
+ *
+ * 캔버스 생성 도구의 입력 검증, 소유권 등록, API 호출 위임을 검증한다.
+ */
 class CreateCanvasToolTest {
 
     private val createCanvasUseCase = mockk<CreateCanvasUseCase>()

@@ -9,6 +9,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [ListChannelsTool]의 단위 테스트.
+ *
+ * 채널 목록 조회 도구의 페이지네이션, limit 검증, 커서 처리를 테스트한다.
+ */
 class ListChannelsToolTest {
 
     private val listChannelsUseCase = mockk<ListChannelsUseCase>()
