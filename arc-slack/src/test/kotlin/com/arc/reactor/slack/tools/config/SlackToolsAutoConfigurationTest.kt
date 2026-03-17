@@ -12,6 +12,12 @@ import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 
+/**
+ * [SlackToolsAutoConfiguration]의 자동 구성 테스트.
+ *
+ * 활성화/비활성화 속성에 따른 빈 등록 여부, MeterRegistry 존재 시 관측성 빈 생성,
+ * 캔버스 기능 활성화 시 추가 도구 등록 등을 검증한다.
+ */
 class SlackToolsAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()

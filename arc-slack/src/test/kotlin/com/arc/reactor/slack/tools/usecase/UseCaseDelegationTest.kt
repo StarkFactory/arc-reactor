@@ -18,6 +18,12 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
+/**
+ * 각 UseCase 클래스의 [SlackApiClient] 위임 동작 테스트.
+ *
+ * 모든 UseCase가 비즈니스 로직 없이 SlackApiClient에 올바르게 위임하고,
+ * 정확히 한 번만 호출되는지 검증한다.
+ */
 class UseCaseDelegationTest {
 
     private val slackClient = mockk<SlackApiClient>()

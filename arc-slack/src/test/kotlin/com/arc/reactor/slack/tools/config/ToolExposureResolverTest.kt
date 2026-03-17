@@ -5,6 +5,12 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
+/**
+ * [ToolExposureResolver]의 도구 노출 결정 로직 테스트.
+ *
+ * scope-aware 모드 활성화/비활성화, fail-open 정책, requiredAnyScopes 매칭 등
+ * 다양한 시나리오에서 올바른 도구 목록이 반환되는지 검증한다.
+ */
 class ToolExposureResolverTest {
 
     @Test
@@ -40,6 +46,7 @@ class ToolExposureResolverTest {
         assertEquals(listOf("send"), resolved)
     }
 
+    // 스코프 해석 실패 시 fail-open 정책에 따라 모든 도구를 허용
     @Test
     fun `fail-open is enabled일 때 all tools on scope resolution error를 반환한다`() {
         val scopeProvider = mockk<SlackScopeProvider>()
@@ -100,6 +107,7 @@ class ToolExposureResolverTest {
         assertEquals(emptyList<String>(), resolved)
     }
 
+    // requiredAnyScopes 중 하나라도 부여되면 도구를 허용
     @Test
     fun `required any scopes allow tool when one scope은(는) granted이다`() {
         val scopeProvider = mockk<SlackScopeProvider>()

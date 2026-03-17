@@ -9,6 +9,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 
+/**
+ * [ToolObservabilityAspect]의 도구 호출 메트릭 기록 테스트.
+ *
+ * 성공/실패/예외 시나리오에서 Micrometer 카운터가 올바른 태그와 함께
+ * 기록되는지 검증한다.
+ */
 class ToolObservabilityAspectTest {
 
     private val meterRegistry = SimpleMeterRegistry()
@@ -57,6 +63,7 @@ class ToolObservabilityAspectTest {
         )
     }
 
+    // 도구 호출 중 예외 발생 시 예외 메트릭을 기록하고 예외를 재전파
     @Test
     fun `exception metric when tool throws를 기록한다`() {
         val signature = mockk<MethodSignature>()

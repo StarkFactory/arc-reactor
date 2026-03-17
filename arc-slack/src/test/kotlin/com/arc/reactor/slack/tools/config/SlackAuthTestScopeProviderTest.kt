@@ -9,6 +9,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 
+/**
+ * [SlackAuthTestScopeProvider]의 OAuth 스코프 파싱 테스트.
+ *
+ * auth.test 응답 헤더에서 부여된 스코프를 올바르게 추출하고,
+ * 인증 실패 및 헤더 누락 시의 예외/빈 결과 처리를 검증한다.
+ */
 class SlackAuthTestScopeProviderTest {
 
     private val methodsClient = mockk<MethodsClient>()
