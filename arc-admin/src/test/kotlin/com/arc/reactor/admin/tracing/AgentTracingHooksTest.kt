@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.cancellation.CancellationException
 
+/** [AgentTracingHooks]의 에이전트/도구 스팬 라이프사이클 및 태깅 테스트 */
 class AgentTracingHooksTest {
 
     private val tracer = mockk<Tracer>()
@@ -75,7 +76,7 @@ class AgentTracingHooksTest {
 
     @BeforeEach
     fun setUp() {
-        // Default: every call to nextSpan() returns agentSpan
+        // 기본값: nextSpan() 호출 시 항상 agentSpan을 반환
         every { agentSpan.name(any()) } returns agentSpan
         every { agentSpan.tag(any<String>(), any<String>()) } returns agentSpan
         every { agentSpan.error(any()) } returns agentSpan
@@ -142,7 +143,7 @@ class AgentTracingHooksTest {
     )
 
     // ─────────────────────────────────────────────────────────────────────
-    // Hook properties
+    // 훅 속성
     // ─────────────────────────────────────────────────────────────────────
 
     @Nested
@@ -301,7 +302,7 @@ class AgentTracingHooksTest {
 
             val ctx = hookContext()
             hooks.beforeAgentStart(ctx)
-            // not propagate — hook is fail-open (failOnError = false)해야 합니다
+            // 전파하면 안 됨 — 훅은 fail-open (failOnError = false)
             hooks.afterAgentComplete(ctx, successAgentResponse())
         }
 
@@ -340,7 +341,7 @@ class AgentTracingHooksTest {
         @BeforeEach
         fun setUpToolSpan() {
             toolSpan = stubSpan()
-            // tracer to return toolSpan for all tool-only tests in this nested class 오버라이드
+            // 이 중첩 클래스 내 모든 도구 전용 테스트에서 toolSpan을 반환하도록 tracer 오버라이드
             every { tracer.nextSpan() } returns toolSpan
         }
 
@@ -426,7 +427,7 @@ class AgentTracingHooksTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Error classification
+    // 에러 분류
     // ─────────────────────────────────────────────────────────────────────
 
     @Nested
@@ -488,7 +489,7 @@ class AgentTracingHooksTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // HITL detection
+    // HITL(사람 개입) 감지
     // ─────────────────────────────────────────────────────────────────────
 
     @Nested
@@ -507,7 +508,7 @@ class AgentTracingHooksTest {
         fun `no HITL tag when total elapsed은(는) within 100ms of tool duration이다`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
-            // durationMs ~= totalElapsed → hitlWaitMs ≈ 0, below threshold
+            // durationMs ~= 총 경과 시간 → hitlWaitMs ~ 0, 임계값 미만
             hooks.afterToolCall(ctx, successToolResult(durationMs = 500))
 
             taggedValues.keys.any { it.startsWith("gen_ai.tool.hitl") } shouldBe false
@@ -517,7 +518,7 @@ class AgentTracingHooksTest {
         fun `elapsed significantly exceeds tool duration일 때 HITL wait은(는) tagged이다`() = runTest {
             val ctx = toolCallContext()
             hooks.beforeToolCall(ctx)
-            // HITL wait: tool reports durationMs = 0 but real wall time > 100ms를 시뮬레이션합니다
+            // HITL 대기 시뮬레이션: 도구는 durationMs=0이지만 실제 경과 시간 > 100ms
             withContext(Dispatchers.IO) { delay(150) }
             hooks.afterToolCall(ctx, successToolResult(durationMs = 0))
 
@@ -574,13 +575,13 @@ class AgentTracingHooksTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // CancellationException propagation
+    // CancellationException 전파
     //
-    // 참고: kotlin.coroutines.cancellation.CancellationException은 typealias입니다
-    // for java.util.concurrent.CancellationException on JVM. When thrown inside
-    // runTest {}, it cancels the coroutine scope before a try/catch can intercept it.
-    // 따라서 이 테스트들은 runBlocking을 통해 suspend 함수를 호출하며, 이것은 전파합니다
-    // the exception to the JUnit test method where assertThrows captures it.
+    // 참고: kotlin.coroutines.cancellation.CancellationException은 JVM에서
+    // java.util.concurrent.CancellationException의 typealias입니다.
+    // runTest {} 내부에서 던져지면 try/catch가 가로채기 전에 코루틴 스코프가 취소됩니다.
+    // 따라서 이 테스트들은 runBlocking을 통해 suspend 함수를 호출하며,
+    // 예외가 assertThrows로 캡처되는 JUnit 테스트 메서드까지 전파됩니다.
     // ─────────────────────────────────────────────────────────────────────
 
     @Nested
@@ -597,8 +598,8 @@ class AgentTracingHooksTest {
 
         @Test
         fun `afterAgentComplete은(는) rethrows CancellationException`() {
-            // Phase 1: beforeAgentStart must succeed (normal span)
-            // Phase 2: afterAgentComplete must rethrow CancellationException from tag()
+            // 1단계: beforeAgentStart는 정상 스팬으로 성공해야 함
+            // 2단계: afterAgentComplete는 tag()에서 발생한 CancellationException을 재전파해야 함
             var started = false
             val cancellableSpan = mockk<Span>(relaxed = true)
             every { cancellableSpan.name(any()) } returns cancellableSpan
@@ -632,8 +633,8 @@ class AgentTracingHooksTest {
 
         @Test
         fun `afterToolCall은(는) rethrows CancellationException`() {
-            // Phase 1: beforeToolCall must succeed to store the span entry
-            // Phase 2: afterToolCall must rethrow CancellationException from tag()
+            // 1단계: beforeToolCall이 성공하여 스팬 항목을 저장해야 함
+            // 2단계: afterToolCall은 tag()에서 발생한 CancellationException을 재전파해야 함
             var started = false
             val cancellableToolSpan = mockk<Span>(relaxed = true)
             every { cancellableToolSpan.name(any()) } returns cancellableToolSpan
@@ -723,7 +724,7 @@ class AgentTracingHooksTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Orphaned spans — tool start without matching end
+    // 고아 스팬 — 종료 없이 시작된 도구 스팬
     // ─────────────────────────────────────────────────────────────────────
 
     @Nested
@@ -739,7 +740,7 @@ class AgentTracingHooksTest {
 
             hooks.beforeAgentStart(agentCtx)
             hooks.beforeToolCall(toolCtx)
-            // afterToolCall never called — simulates abrupt cancellation
+            // afterToolCall이 호출되지 않음 — 갑작스러운 취소를 시뮬레이션
             hooks.afterAgentComplete(agentCtx, successAgentResponse())
 
             // 에이전트 스팬은 종료되지만 고아 도구 스팬은 종료되지 않습니다
@@ -763,7 +764,7 @@ class AgentTracingHooksTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Concurrency — ConcurrentHashMap race condition validation
+    // 동시성 — ConcurrentHashMap 경합 조건 검증
     // ─────────────────────────────────────────────────────────────────────
 
     @Nested
@@ -833,7 +834,7 @@ class AgentTracingHooksTest {
                             }
                             successCount.incrementAndGet()
                         } catch (e: Exception) {
-                            // fail-open: count it as success (hook swallows non-cancellation errors)
+                            // fail-open: 훅이 CancellationException이 아닌 에러를 무시하므로 성공으로 카운트
                             successCount.incrementAndGet()
                         }
                     }

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/** [HitlEventHook]의 사람 개입(HITL) 승인/거부 이벤트 발행 테스트 */
 class HitlEventHookTest {
 
     private lateinit var ringBuffer: MetricRingBuffer

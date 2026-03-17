@@ -9,6 +9,7 @@ import io.mockk.verify
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/** [AlertNotificationService]의 다중 알림자 디스패치 및 장애 격리 테스트 */
 class AlertNotificationServiceTest {
 
     private val testAlert = AlertInstance(

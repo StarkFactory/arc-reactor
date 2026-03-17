@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 
+/** [MetricCollectorAgentMetrics]의 가드 거부, 토큰 사용량, 출력 가드 이벤트 발행 테스트 */
 class MetricCollectorAgentMetricsTest {
 
     private lateinit var ringBuffer: MetricRingBuffer

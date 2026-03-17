@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/** [AlertScheduler]의 라이프사이클 관리 및 알림 평가 디스패치 테스트 */
 class AlertSchedulerTest {
 
     private val alertStore = InMemoryAlertRuleStore()
@@ -93,10 +94,10 @@ class AlertSchedulerTest {
             )
             alertStore.saveRule(rule)
 
-            // error rate = 0.20 > 0.10
+            // 에러율 = 0.20 > 0.10
             every { queryService.getSuccessRate(any(), any(), any()) } returns 0.80
 
-            // evaluation manually (same logic as scheduler's runEvaluation)를 트리거합니다
+            // 수동으로 평가 트리거 (스케줄러의 runEvaluation과 동일한 로직)
             val beforeCount = alertStore.findActiveAlerts().size
             evaluator.evaluateAll()
             val afterCount = alertStore.findActiveAlerts().size
@@ -104,7 +105,7 @@ class AlertSchedulerTest {
 
             newAlerts shouldBe 1
 
-            // what scheduler does with new alerts를 시뮬레이션합니다
+            // 새로운 알림에 대한 스케줄러 동작을 시뮬레이션
             if (newAlerts > 0) {
                 val active = alertStore.findActiveAlerts()
                 val newest = active.sortedByDescending { it.firedAt }.take(newAlerts)
@@ -129,7 +130,7 @@ class AlertSchedulerTest {
                 )
             )
 
-            // error rate = 0.02 < 0.10
+            // 에러율 = 0.02 < 0.10
             every { queryService.getSuccessRate(any(), any(), any()) } returns 0.98
 
             val beforeCount = alertStore.findActiveAlerts().size
@@ -197,7 +198,7 @@ class AlertSchedulerTest {
                 )
             )
 
-            // 두 tenants have high error rate
+            // 두 테넌트 모두 높은 에러율
             every { queryService.getSuccessRate(any(), any(), any()) } returns 0.80
 
             evaluator.evaluateAll()

@@ -4,6 +4,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/** [ExportService]의 CSV 이스케이프 처리 테스트 */
 class ExportServiceTest {
 
     @Nested

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 import java.time.Instant
 
+/** [CostCalculator]의 토큰 비용 계산, 캐시 할인, 추론 토큰, 엣지 케이스 테스트 */
 class CostCalculatorTest {
 
     private lateinit var store: InMemoryModelPricingStore
@@ -18,7 +19,7 @@ class CostCalculatorTest {
         store = InMemoryModelPricingStore()
         calculator = CostCalculator(store)
 
-        // GPT-4o pricing
+        // GPT-4o 가격 설정
         store.save(
             ModelPricing(
                 provider = "openai",
@@ -30,7 +31,7 @@ class CostCalculatorTest {
             )
         )
 
-        // Gemini Flash pricing
+        // Gemini Flash 가격 설정
         store.save(
             ModelPricing(
                 provider = "google",
@@ -56,7 +57,7 @@ class CostCalculatorTest {
                 completionTokens = 500
             )
 
-            // 1000 * 0.005/1000 + 500 * 0.015/1000 = 0.005 + 0.0075 = 0.0125
+            // 프롬프트: 1000 * 0.005/1000 + 완성: 500 * 0.015/1000 = 0.005 + 0.0075 = 0.0125
             cost shouldBe BigDecimal("0.01250000")
         }
 

@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/** [MetricGuardAuditPublisher]의 가드 감사 이벤트 발행 및 입력 해싱 테스트 */
 class MetricGuardAuditPublisherTest {
 
     private fun createPublisher(bufferSize: Int = 64): Triple<MetricGuardAuditPublisher, MetricRingBuffer, PipelineHealthMonitor> {
@@ -206,7 +207,7 @@ class MetricGuardAuditPublisherTest {
         fun `drop recorded when ring buffer은(는) full이다`() {
             val (publisher, _, healthMonitor) = createPublisher(bufferSize = 64)
 
-            // the buffer completely를 채웁니다
+            // 버퍼를 완전히 채움
             repeat(70) { i ->
                 publisher.publish(
                     command = GuardCommand(userId = "user-$i", text = "test-$i"),

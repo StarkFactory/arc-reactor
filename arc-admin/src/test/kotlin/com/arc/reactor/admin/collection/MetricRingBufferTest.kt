@@ -9,6 +9,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
+/** [MetricRingBuffer]의 발행, 드레인, 용량 초과, 동시성 안전 테스트 */
 class MetricRingBufferTest {
 
     private lateinit var buffer: MetricRingBuffer
@@ -60,7 +61,7 @@ class MetricRingBufferTest {
 
         @Test
         fun `full일 때 drop events해야 한다`() {
-            // to capacity (64 = next power of 2)를 채웁니다
+            // 용량까지 채움 (64 = 2의 거듭제곱)
             repeat(64) { buffer.publish(testEvent("run-$it")) }
 
             // 이것은 삭제되어야 합니다
@@ -87,8 +88,7 @@ class MetricRingBufferTest {
 
         @Test
         fun `single-consumer drain은(는) not lose events해야 한다`() {
-            // 단일 스레드에서 호출된 drain()이 모든 이벤트를 보존하는지 검증합니다.
-            // 이것은 단일 소비자 계약을 문서화합니다: 동시 drain()은 안전하지 않습니다.
+            // 단일 소비자 drain()이 모든 이벤트를 보존하는지 검증 (동시 drain()은 미지원)
             val largeBuffer = MetricRingBuffer(8192)
             val totalEvents = 4000
             repeat(totalEvents) { largeBuffer.publish(testEvent("run-$it")) }
@@ -134,10 +134,10 @@ class MetricRingBufferTest {
             val published = publishedCount.get()
             val dropped = largeBuffer.droppedCount.get()
 
-            // CAS-based: published + dropped must equal total
+            // CAS 기반: 발행 + 드롭 = 전체 이벤트 수
             (published + dropped).toInt() shouldBe total
 
-            // Drain all
+            // 전체 드레인
             val drained = mutableListOf<com.arc.reactor.admin.model.MetricEvent>()
             while (true) {
                 val batch = largeBuffer.drain(1000)

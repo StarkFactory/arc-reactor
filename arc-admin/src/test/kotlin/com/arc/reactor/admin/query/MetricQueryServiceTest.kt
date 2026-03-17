@@ -14,6 +14,7 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+/** [MetricQueryService]의 사용량, 성공률, 지연시간, 도구 랭킹, 시계열 조회 테스트 */
 class MetricQueryServiceTest {
 
     private val jdbcTemplate = mockk<JdbcTemplate>()
