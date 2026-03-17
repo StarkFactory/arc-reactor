@@ -1,5 +1,6 @@
 package com.arc.reactor.admin.mcp
 
+import com.arc.reactor.admin.JsonEscaper
 import mu.KotlinLogging
 import java.io.IOException
 import java.net.URI
@@ -170,7 +171,7 @@ class McpMetricReporter(
 
     private fun sendPost(url: String, body: Map<String, Any?>) {
         try {
-            val json = toJson(body)
+            val json = JsonEscaper.mapToJson(body)
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofMillis(requestTimeoutMs))
@@ -189,27 +190,6 @@ class McpMetricReporter(
         }
     }
 
-    /** Jackson 의존성 없는 최소한의 JSON 직렬화. MCP 서버는 classpath에 Jackson이 없을 수 있다. */
-    private fun toJson(map: Map<String, Any?>): String {
-        val entries = map.entries.joinToString(",") { (k, v) ->
-            "\"${escapeJson(k)}\":${valueToJson(v)}"
-        }
-        return "{$entries}"
-    }
-
-    private fun valueToJson(value: Any?): String = when (value) {
-        null -> "null"
-        is String -> "\"${escapeJson(value)}\""
-        is Boolean, is Number -> value.toString()
-        else -> "\"${escapeJson(value.toString())}\""
-    }
-
-    private fun escapeJson(s: String): String =
-        s.replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
 }
 
 /** 메트릭 페이로드. 타입(tool_call, mcp_health)과 데이터를 포함한다. */

@@ -111,28 +111,32 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
     }
 
     fun getTopUsers(tenantId: String, from: Instant, to: Instant, limit: Int = 10): List<UserUsageSummary> {
-        val rows = jdbcTemplate.query(
+        val users = queryTopUsersByUserId(tenantId, from, to, limit)
+        if (users.isNotEmpty()) return users
+        return queryTopUsersByChannel(tenantId, from, to, limit)
+    }
+
+    /** user_id 기준으로 상위 사용자를 조회한다. */
+    private fun queryTopUsersByUserId(
+        tenantId: String, from: Instant, to: Instant, limit: Int
+    ): List<UserUsageSummary> {
+        return jdbcTemplate.query(
             """SELECT user_id, COUNT(*) AS requests, MAX(time) AS last_activity
                FROM metric_agent_executions
                WHERE tenant_id = ? AND time >= ? AND time < ? AND user_id IS NOT NULL
                GROUP BY user_id ORDER BY requests DESC LIMIT ?""",
-            { rs, _ ->
-                rs.getLong("requests") to rs.getTimestamp("last_activity")?.toInstant()
-            },
+            { rs, _ -> rs.getLong("requests") to rs.getTimestamp("last_activity")?.toInstant() },
             tenantId, Timestamp.from(from), Timestamp.from(to), limit
-        )
-
-        if (rows.isNotEmpty()) {
-            return rows.mapIndexed { index, (requests, lastActivity) ->
-                UserUsageSummary(
-                    userLabel = "User-${index + 1}",
-                    requests = requests,
-                    lastActivity = lastActivity
-                )
-            }
+        ).mapIndexed { index, (requests, lastActivity) ->
+            UserUsageSummary(userLabel = "User-${index + 1}", requests = requests, lastActivity = lastActivity)
         }
+    }
 
-        val channelFallback = jdbcTemplate.query(
+    /** user_id가 없을 때 채널 기준으로 상위 사용자를 조회한다. */
+    private fun queryTopUsersByChannel(
+        tenantId: String, from: Instant, to: Instant, limit: Int
+    ): List<UserUsageSummary> {
+        return jdbcTemplate.query(
             """SELECT COALESCE(channel, 'unknown') AS channel, COUNT(*) AS requests, MAX(time) AS last_activity
                FROM metric_agent_executions
                WHERE tenant_id = ? AND time >= ? AND time < ?
@@ -141,14 +145,8 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
                 Triple(rs.getString("channel"), rs.getLong("requests"), rs.getTimestamp("last_activity")?.toInstant())
             },
             tenantId, Timestamp.from(from), Timestamp.from(to), limit
-        )
-
-        return channelFallback.map { (channel, requests, lastActivity) ->
-            UserUsageSummary(
-                userLabel = "Channel:${channel}",
-                requests = requests,
-                lastActivity = lastActivity
-            )
+        ).map { (channel, requests, lastActivity) ->
+            UserUsageSummary(userLabel = "Channel:$channel", requests = requests, lastActivity = lastActivity)
         }
     }
 

@@ -28,30 +28,17 @@ class SloService(
     fun getSloStatus(tenantId: String, sloAvailability: Double, sloLatencyP99Ms: Long): SloStatus {
         val now = Instant.now()
         val thirtyDaysAgo = now.minus(30, ChronoUnit.DAYS)
-
         val successRate = queryService.getSuccessRate(tenantId, thirtyDaysAgo, now)
-        val percentiles = queryService.getLatencyPercentiles(tenantId, thirtyDaysAgo, now)
-        val p99 = percentiles["p99"] ?: 0
-
-        val availability = SliMetric(
-            name = "Availability",
-            target = sloAvailability,
-            current = successRate
-        )
-
-        val latency = SliMetric(
-            name = "Latency P99",
-            target = sloLatencyP99Ms.toDouble(),
-            current = p99.toDouble(),
-            isHealthy = p99 <= sloLatencyP99Ms
-        )
-
-        val errorBudget = calculateErrorBudget(tenantId, sloAvailability, thirtyDaysAgo, now)
-
+        val p99 = queryService.getLatencyPercentiles(tenantId, thirtyDaysAgo, now)["p99"] ?: 0
         return SloStatus(
-            availability = availability,
-            latency = latency,
-            errorBudget = errorBudget
+            availability = SliMetric(name = "Availability", target = sloAvailability, current = successRate),
+            latency = SliMetric(
+                name = "Latency P99",
+                target = sloLatencyP99Ms.toDouble(),
+                current = p99.toDouble(),
+                isHealthy = p99 <= sloLatencyP99Ms
+            ),
+            errorBudget = calculateErrorBudget(tenantId, sloAvailability, thirtyDaysAgo, now)
         )
     }
 
@@ -62,52 +49,28 @@ class SloService(
         from: Instant,
         to: Instant
     ): ErrorBudget {
-        val result = jdbcTemplate.queryForMap(
-            """SELECT
-                COUNT(*) AS total,
-                COUNT(*) FILTER (WHERE success = FALSE) AS failed
-               FROM metric_agent_executions
-               WHERE tenant_id = ? AND time >= ? AND time < ?""",
-            tenantId, Timestamp.from(from), Timestamp.from(to)
-        )
-
-        val total = (result["total"] as Number).toLong()
-        val failed = (result["failed"] as Number).toLong()
+        val (total, failed) = queryFailureCounts(tenantId, from, to)
+        val windowDays = ChronoUnit.DAYS.between(from, to).toInt().coerceAtLeast(1)
 
         if (total == 0L) {
-            return ErrorBudget(
-                sloTarget = sloTarget,
-                windowDays = ChronoUnit.DAYS.between(from, to).toInt()
-            )
+            return ErrorBudget(sloTarget = sloTarget, windowDays = windowDays)
         }
 
-        val currentAvailability = (total - failed).toDouble() / total
         val budgetTotal = (total * (1 - sloTarget)).toLong().coerceAtLeast(1)
-        val budgetConsumed = failed
-        val budgetRemaining = ((budgetTotal - budgetConsumed).toDouble() / budgetTotal).coerceIn(0.0, 1.0)
-
-        val windowDays = ChronoUnit.DAYS.between(from, to).toInt().coerceAtLeast(1)
-        val elapsedDays = windowDays
-        val burnRate = if (budgetTotal > 0 && elapsedDays > 0) {
-            (budgetConsumed.toDouble() / budgetTotal) / (elapsedDays.toDouble() / windowDays)
-        } else 0.0
-
-        val projectedExhaustion = if (burnRate > 1.0 && budgetRemaining > 0) {
-            val daysLeft = (budgetRemaining * windowDays / burnRate).toLong()
-            LocalDate.now(ZoneOffset.UTC).plusDays(daysLeft)
-        } else null
+        val budgetRemaining = ((budgetTotal - failed).toDouble() / budgetTotal).coerceIn(0.0, 1.0)
+        val burnRate = computeBurnRate(failed, budgetTotal, windowDays)
 
         return ErrorBudget(
             sloTarget = sloTarget,
             windowDays = windowDays,
             totalRequests = total,
             failedRequests = failed,
-            currentAvailability = currentAvailability,
+            currentAvailability = (total - failed).toDouble() / total,
             budgetTotal = budgetTotal,
-            budgetConsumed = budgetConsumed,
+            budgetConsumed = failed,
             budgetRemaining = budgetRemaining,
             burnRate = burnRate,
-            projectedExhaustionDate = projectedExhaustion
+            projectedExhaustionDate = projectExhaustion(burnRate, budgetRemaining, windowDays)
         )
     }
 
@@ -122,11 +85,36 @@ class SloService(
                WHERE tenant_id = ? AND time >= ? AND time < ?""",
             tenantId, Timestamp.from(from), Timestamp.from(to)
         )
-
         return ApdexScore.calculate(
             satisfied = (result["satisfied"] as Number).toLong(),
             tolerating = (result["tolerating"] as Number).toLong(),
             frustrated = (result["frustrated"] as Number).toLong()
         )
+    }
+
+    /** 지정 기간의 전체 요청 수와 실패 수를 조회한다. */
+    private fun queryFailureCounts(tenantId: String, from: Instant, to: Instant): Pair<Long, Long> {
+        val result = jdbcTemplate.queryForMap(
+            """SELECT
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE success = FALSE) AS failed
+               FROM metric_agent_executions
+               WHERE tenant_id = ? AND time >= ? AND time < ?""",
+            tenantId, Timestamp.from(from), Timestamp.from(to)
+        )
+        return (result["total"] as Number).toLong() to (result["failed"] as Number).toLong()
+    }
+
+    /** burn rate을 계산한다. budgetTotal 또는 windowDays가 0이면 0을 반환한다. */
+    private fun computeBurnRate(consumed: Long, budgetTotal: Long, windowDays: Int): Double {
+        if (budgetTotal <= 0 || windowDays <= 0) return 0.0
+        return (consumed.toDouble() / budgetTotal) / (windowDays.toDouble() / windowDays)
+    }
+
+    /** burn rate > 1 이고 잔여 budget이 있으면 예상 고갈일을 계산한다. */
+    private fun projectExhaustion(burnRate: Double, budgetRemaining: Double, windowDays: Int): LocalDate? {
+        if (burnRate <= 1.0 || budgetRemaining <= 0) return null
+        val daysLeft = (budgetRemaining * windowDays / burnRate).toLong()
+        return LocalDate.now(ZoneOffset.UTC).plusDays(daysLeft)
     }
 }
