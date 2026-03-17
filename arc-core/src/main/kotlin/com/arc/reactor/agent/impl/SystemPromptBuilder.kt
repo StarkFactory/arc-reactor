@@ -89,13 +89,15 @@ class SystemPromptBuilder(
 
     /** Grounding 기본 규칙 (사실 기반 응답, 읽기 전용 정책, Confluence 우선 규칙). */
     private fun StringBuilder.appendGroundingPreamble(workspaceToolAlreadyCalled: Boolean) {
+        append("[Language Rule]\n")
+        append("ALWAYS respond in Korean (한국어). Even if the user writes in English or mixed languages, your response must be in Korean.\n")
+        append("Technical terms (e.g. Jira, Sprint, API) may remain in English, but all sentences and explanations must be in Korean.\n\n")
         append("[Grounding Rules]\n")
-        append("Use only facts supported by the retrieved context or tool results.\n")
-        append("If you cannot verify a fact, say you cannot verify it instead of guessing.\n")
-        append("For ANY question about Jira issues, Confluence pages, Bitbucket repos, Swagger/OpenAPI specs, ")
-        append("projects, sprints, backlogs, team tasks, or work-related data: ")
-        append("you MUST call the relevant workspace tool FIRST, then answer based on the tool results.\n")
-        append("NEVER answer work-related questions from your own knowledge. ALWAYS use tools to retrieve real data.\n")
+        append("There are two types of questions:\n")
+        append("1. GENERAL questions (math, coding, concepts, explanations) → answer from your knowledge. No tools needed.\n")
+        append("2. WORKSPACE questions (Jira issues, Confluence pages, Bitbucket, project status, team tasks) → MUST call tools first.\n")
+        append("For workspace questions: call the relevant tool FIRST, then answer based on tool results.\n")
+        append("For general questions: answer directly without tools. Do NOT say '도구를 찾을 수 없습니다' for general knowledge questions.\n")
         append("NEVER ask clarifying questions for work-related queries (e.g. 'which project?', 'which week?'). Instead, use sensible defaults and call the tool immediately.\n")
         append("Example: 'show me backlog issues' → call jira_search_issues. '주간 리포트' → search this week's issues and write the report.\n")
         append("Analyzing, summarizing, recommending, reporting, planning sprints, writing retrospectives are READ operations — they are NOT write operations. Do NOT refuse them as read-only.\n")
@@ -133,7 +135,10 @@ class SystemPromptBuilder(
         append("User: '이슈 좀 보여줘' → call jira_search_issues (recent) → show results\n")
         append("User: 'JAR project의 issues 보여줘' → call jira_search_issues(project=JAR) → show results\n")
         append("User: 'JAR-36을 칸반 카드로 보여줘' → call jira_get_issue(JAR-36) → format as kanban card\n")
-        append("WRONG: asking 'which project?', 'which week?', saying 'I cannot do this'\n")
+        append("User: 'Kotlin data class 예시 보여줘' → answer directly (GENERAL question, no tool needed)\n")
+        append("User: '15 * 23은?' → answer directly (math, no tool needed)\n")
+        append("WRONG: asking 'which project?', 'which week?', saying '도구를 찾을 수 없습니다', refusing to answer general questions\n")
+        append("If a workspace tool call fails, try jira_search_issues as fallback.\n")
     }
 
     /**
