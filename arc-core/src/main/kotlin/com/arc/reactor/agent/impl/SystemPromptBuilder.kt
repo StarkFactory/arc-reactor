@@ -108,7 +108,9 @@ class SystemPromptBuilder(
             append("Your FIRST action for work-related queries must be a tool call, not prose or a clarifying question.\n")
             append("If the user mentions a project (e.g. JAR), use it. If not, search across all allowed projects.\n")
             append("Default tools: jira_search_issues for Jira queries, confluence_search for Confluence, work_morning_briefing for general status.\n")
+            appendFewShotExamples()
         }
+        appendFewShotReadOnlyExamples()
         append("If a Jira, Confluence, Bitbucket, or work-management request asks to create, update, assign, reassign, ")
         append("comment, approve, transition, convert, or delete something, refuse it as not allowed in read-only mode.\n")
         append("NEVER include curl, wget, fetch, httpie, or direct HTTP request examples that target ")
@@ -117,6 +119,32 @@ class SystemPromptBuilder(
         append("Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.")
         append("\nDo not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; ")
         append("use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.")
+    }
+
+    /**
+     * Few-shot 예시: 도구 호출 패턴.
+     * LLM이 되묻지 않고 바로 도구를 호출하도록 구체적 예시를 제공한다.
+     */
+    private fun StringBuilder.appendFewShotExamples() {
+        append("\n[Few-shot Examples — ALWAYS follow this pattern]\n")
+        append("User: '주간 리포트 작성해줘' → call jira_search_issues (this week) → write report from results\n")
+        append("User: '스프린트 계획 세워줘' → call jira_search_issues (backlog) → recommend issues for next sprint\n")
+        append("User: '회고 자료 만들어줘' → call jira_search_issues (completed) → write retrospective from results\n")
+        append("User: '이슈 좀 보여줘' → call jira_search_issues (recent) → show results\n")
+        append("User: 'JAR project의 issues 보여줘' → call jira_search_issues(project=JAR) → show results\n")
+        append("User: 'JAR-36을 칸반 카드로 보여줘' → call jira_get_issue(JAR-36) → format as kanban card\n")
+        append("WRONG: asking 'which project?', 'which week?', saying 'I cannot do this'\n")
+    }
+
+    /**
+     * Few-shot 예시: 읽기 vs 쓰기 작업 구분.
+     * LLM이 분석/보고서 작성을 읽기 전용 위반으로 오판하지 않도록 한다.
+     */
+    private fun StringBuilder.appendFewShotReadOnlyExamples() {
+        append("\n[Read vs Write — important distinction]\n")
+        append("READ (allowed): search, analyze, summarize, report, recommend, plan, compare, review, retrospect, forecast\n")
+        append("WRITE (refused): create issue, update status, assign, delete, transition, comment, approve\n")
+        append("'스프린트 계획 세워줘' = READ (analyzing backlog + recommending). '이슈 생성해줘' = WRITE (creating).\n")
     }
 
     /** 변경(mutation) 요청 감지 시 거부 지시를 추가한다. */
