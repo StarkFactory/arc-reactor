@@ -403,4 +403,43 @@ class ArcReactorCoreBeansConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun outputGuardRuleAuditStore(): OutputGuardRuleAuditStore = InMemoryOutputGuardRuleAuditStore()
+
+    /**
+     * 컨텍스트 인식 도구 필터 — 인텐트, 채널, 역할 기반 도구 필터링.
+     * 사용자는 커스텀 [com.arc.reactor.tool.filter.ToolFilter] 빈으로 재정의할 수 있다.
+     */
+    @Bean
+    @ConditionalOnMissingBean(com.arc.reactor.tool.filter.ToolFilter::class)
+    fun toolFilter(properties: AgentProperties): com.arc.reactor.tool.filter.ToolFilter {
+        return if (properties.toolFilter.enabled) {
+            logger.info { "ContextAwareToolFilter 활성화" }
+            com.arc.reactor.tool.filter.ContextAwareToolFilter(properties.toolFilter)
+        } else {
+            com.arc.reactor.tool.filter.NoOpToolFilter()
+        }
+    }
+
+    /**
+     * A2A 에이전트 카드 프로바이더 — 등록된 도구와 페르소나에서 카드를 자동 생성.
+     * 사용자는 커스텀 [com.arc.reactor.a2a.AgentCardProvider] 빈으로 재정의할 수 있다.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.a2a", name = ["enabled"],
+        havingValue = "true", matchIfMissing = false
+    )
+    fun agentCardProvider(
+        properties: AgentProperties,
+        personaStore: PersonaStore,
+        tools: ObjectProvider<List<com.arc.reactor.tool.ToolCallback>>
+    ): com.arc.reactor.a2a.AgentCardProvider {
+        val toolList = tools.ifAvailable ?: emptyList()
+        logger.info { "A2A AgentCardProvider 활성화 (tools=${toolList.size})" }
+        return com.arc.reactor.a2a.DefaultAgentCardProvider(
+            properties = properties.a2a,
+            tools = toolList,
+            personaStore = personaStore
+        )
+    }
 }

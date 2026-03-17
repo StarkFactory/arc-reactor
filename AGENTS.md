@@ -107,4 +107,8 @@ Claude Code 사용자는 동일 내용이 CLAUDE.md에 통합되어 있으므로
 | `llm.temperature` | 0.1 | `guard.rate-limit-per-minute` | 20 |
 | `llm.max-context-window-tokens` | 128000 | `guard.rate-limit-per-hour` | 200 |
 
+| `model-routing.enabled` | false | `tool-idempotency.enabled` | false |
+| `checkpoint.enabled` | false | `tool-filter.enabled` | false |
+| `a2a.enabled` | false | `budget.max-tokens-per-request` | 0 (무제한) |
+
 모든 기능 기본 비활성(opt-in). 검증: `./gradlew compileKotlin compileTestKotlin` (0 warnings) + `./gradlew test`.

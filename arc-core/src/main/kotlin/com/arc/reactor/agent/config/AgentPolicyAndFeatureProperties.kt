@@ -654,6 +654,73 @@ data class CitationProperties(
 )
 
 /**
+ * 동적 모델 라우팅 설정.
+ *
+ * 비용/품질 기반으로 요청을 적절한 LLM 모델로 자동 라우팅한다.
+ * 단순 질문은 저렴한 모델(flash/haiku)로, 복잡한 추론은 비싼 모델(pro/opus)로 전달한다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     model-routing:
+ *       enabled: true
+ *       default-model: gemini-2.0-flash
+ *       high-complexity-model: gemini-2.5-pro
+ *       routing-strategy: balanced
+ *       complexity-threshold-chars: 500
+ * ```
+ *
+ * @see com.arc.reactor.agent.routing.ModelRouter 라우팅 인터페이스
+ * @see com.arc.reactor.agent.routing.CostAwareModelRouter 기본 구현
+ */
+data class ModelRoutingProperties(
+    /** 동적 모델 라우팅 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false,
+
+    /** 단순 요청에 사용할 기본(저비용) 모델 ID. */
+    val defaultModel: String = "gemini-2.0-flash",
+
+    /** 복잡한 요청에 사용할 고급(고비용) 모델 ID. */
+    val highComplexityModel: String = "gemini-2.5-pro",
+
+    /** 라우팅 전략: "cost-optimized", "quality-first", "balanced". */
+    val routingStrategy: String = "balanced",
+
+    /** 복잡도 판단을 위한 입력 길이 임계값 (문자 수). */
+    val complexityThresholdChars: Int = 500
+)
+
+/**
+ * 단계별 토큰 예산 추적 설정.
+ *
+ * ReAct 루프의 각 단계(LLM 호출, 도구 실행)별 토큰 소비를 추적하고
+ * 예산 초과 시 경고 또는 중단을 유도한다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     budget:
+ *       enabled: true
+ *       max-tokens-per-request: 50000
+ *       soft-limit-percent: 80
+ * ```
+ *
+ * @see com.arc.reactor.agent.budget.StepBudgetTracker 예산 추적기
+ */
+data class BudgetProperties(
+    /** 토큰 예산 추적 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false,
+
+    /** 요청당 최대 토큰 예산. */
+    val maxTokensPerRequest: Int = 50000,
+
+    /** 소프트 리밋 비율 (1-99). 이 비율 도달 시 경고 로그를 기록한다. */
+    val softLimitPercent: Int = 80
+)
+
+/**
  * 출력 최소 길이 위반 처리 정책.
  *
  * @see com.arc.reactor.agent.impl.OutputBoundaryEnforcer 위반 모드에 따른 정책 적용
