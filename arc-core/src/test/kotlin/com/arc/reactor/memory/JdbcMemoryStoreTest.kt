@@ -35,6 +35,7 @@ class JdbcMemoryStoreTest {
                 role        VARCHAR(20)   NOT NULL,
                 content     TEXT          NOT NULL,
                 timestamp   BIGINT        NOT NULL,
+                user_id     VARCHAR(36)   NOT NULL DEFAULT 'anonymous',
                 created_at  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
             )
         """.trimIndent())
@@ -117,6 +118,38 @@ class JdbcMemoryStoreTest {
             assertEquals(com.arc.reactor.agent.model.MessageRole.ASSISTANT, history[1].role)
             assertEquals(com.arc.reactor.agent.model.MessageRole.SYSTEM, history[2].role)
             assertEquals(com.arc.reactor.agent.model.MessageRole.TOOL, history[3].role)
+        }
+
+        @Test
+        fun `store and retrieve messages with userId해야 한다`() {
+            store.addMessage("session-uid", "user", "Hello!", "user-42")
+            store.addMessage("session-uid", "assistant", "Hi!", "user-42")
+
+            val memory = store.get("session-uid")
+            assertNotNull(memory) { "Memory should exist for session with userId" }
+            val history = memory!!.getHistory()
+            assertEquals(2, history.size) { "Should have 2 messages" }
+            assertEquals("Hello!", history[0].content)
+            assertEquals("Hi!", history[1].content)
+        }
+
+        @Test
+        fun `save then load simulates multi-turn conversation해야 한다`() {
+            // 턴 1: 사용자 메시지 + 어시스턴트 응답 저장
+            store.addMessage("multi-turn", "user", "내 이름은 테스터야", "user-1")
+            store.addMessage("multi-turn", "assistant", "안녕하세요, 테스터님!", "user-1")
+
+            // 턴 2: 이력 확인 후 추가 메시지 저장
+            val memory = store.get("multi-turn")
+            assertNotNull(memory) { "Memory should exist after first turn" }
+            assertEquals(2, memory!!.getHistory().size) { "Should have 2 messages from first turn" }
+
+            store.addMessage("multi-turn", "user", "내 이름이 뭐야?", "user-1")
+            store.addMessage("multi-turn", "assistant", "테스터님이시죠!", "user-1")
+
+            val reloaded = store.get("multi-turn")
+            assertNotNull(reloaded) { "Memory should exist after second turn" }
+            assertEquals(4, reloaded!!.getHistory().size) { "Should have 4 messages after two turns" }
         }
     }
 

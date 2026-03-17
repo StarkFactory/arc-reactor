@@ -234,6 +234,73 @@ class ConversationManagerTest {
     }
 
     @Nested
+    inner class SessionMemoryPersistence {
+
+        @Test
+        fun `save and load일 때 history is available in next request해야 한다`() = runTest {
+            val memoryStore = InMemoryMemoryStore()
+            val manager = DefaultConversationManager(memoryStore, properties)
+            val sessionId = "test-session"
+
+            // 요청 1: 사용자가 자기소개
+            val command1 = AgentCommand(
+                systemPrompt = "You are a helpful assistant",
+                userPrompt = "내 이름은 테스터야",
+                metadata = mapOf("sessionId" to sessionId)
+            )
+            val result1 = AgentResult.success("안녕하세요, 테스터님! 무엇을 도와드릴까요?")
+            manager.saveHistory(command1, result1)
+
+            // 요청 2: 같은 세션으로 이름을 물어봄
+            val command2 = AgentCommand(
+                systemPrompt = "You are a helpful assistant",
+                userPrompt = "내 이름이 뭐야?",
+                metadata = mapOf("sessionId" to sessionId)
+            )
+            val history = manager.loadHistory(command2)
+
+            assertTrue(history.isNotEmpty()) {
+                "History should not be empty for second request with same sessionId"
+            }
+            assertEquals(2, history.size) {
+                "History should contain user + assistant messages from first request"
+            }
+        }
+
+        @Test
+        fun `multiple turns에서 accumulate history해야 한다`() = runTest {
+            val memoryStore = InMemoryMemoryStore()
+            val manager = DefaultConversationManager(memoryStore, properties)
+            val sessionId = "multi-turn-session"
+
+            // 턴 1
+            val cmd1 = AgentCommand(
+                systemPrompt = "", userPrompt = "Hello",
+                metadata = mapOf("sessionId" to sessionId)
+            )
+            manager.saveHistory(cmd1, AgentResult.success("Hi there!"))
+
+            // 턴 2
+            val cmd2 = AgentCommand(
+                systemPrompt = "", userPrompt = "What is 1+1?",
+                metadata = mapOf("sessionId" to sessionId)
+            )
+            manager.saveHistory(cmd2, AgentResult.success("2"))
+
+            // 턴 3: 이력 확인
+            val cmd3 = AgentCommand(
+                systemPrompt = "", userPrompt = "Thanks!",
+                metadata = mapOf("sessionId" to sessionId)
+            )
+            val history = manager.loadHistory(cmd3)
+
+            assertEquals(4, history.size) {
+                "History should contain 4 messages (2 user + 2 assistant) from previous turns"
+            }
+        }
+    }
+
+    @Nested
     inner class MessagePairIntegrity {
 
         @Test
