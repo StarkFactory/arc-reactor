@@ -15,6 +15,13 @@ import org.junit.jupiter.api.Test
 import org.springframework.boot.actuate.health.SimpleStatusAggregator
 import org.springframework.boot.actuate.health.Status
 
+/**
+ * [SlackApiHealthIndicator]의 헬스 체크 테스트.
+ *
+ * auth.test 성공/실패, 필수 스코프 누락, 네트워크 예외 등 시나리오에서
+ * 헬스 상태(UP/UNKNOWN)와 세부 정보가 올바르게 보고되는지 검증한다.
+ * Slack API 장애가 전체 애플리케이션 헬스를 DOWN으로 만들지 않음을 확인한다.
+ */
 class SlackApiHealthIndicatorTest {
 
     private val methodsClient = mockk<MethodsClient>()
@@ -139,6 +146,7 @@ class SlackApiHealthIndicatorTest {
         assertEquals("missing_scopes", health.details["error"], "Health details should expose missing canvas scope")
     }
 
+    // Slack API UNKNOWN 상태가 전체 집계 헬스를 DOWN으로 만들지 않음을 검증
     @Test
     fun `unknown slack api health keeps aggregate status up when core health은(는) up이다`() {
         val indicator = SlackApiHealthIndicator(

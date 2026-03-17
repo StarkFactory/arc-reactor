@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * [SlackToolsReadinessHealthIndicator]의 준비 상태 헬스 체크 테스트.
+ *
+ * 등록된 로컬 도구 유무에 따라 UP/DOWN 상태를 올바르게 보고하는지 검증한다.
+ */
 class SlackToolsReadinessHealthIndicatorTest {
 
     private class SendMessageToolStub : LocalTool

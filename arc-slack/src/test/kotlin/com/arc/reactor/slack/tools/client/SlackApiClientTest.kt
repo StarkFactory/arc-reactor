@@ -50,6 +50,12 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.IOException
 
+/**
+ * [SlackApiClient]의 Slack API 호출 및 응답 매핑 테스트.
+ *
+ * 메시지 전송, 채널/사용자 조회, 스레드 답글, 파일 업로드 등 각 API 메서드의
+ * 정상 응답 매핑과 오류 처리(재시도, 타임아웃, 서킷 브레이커, 메트릭 기록)를 검증한다.
+ */
 class SlackApiClientTest {
 
     private val methodsClient = mockk<MethodsClient>()
@@ -168,6 +174,7 @@ class SlackApiClientTest {
         assertEquals(15, requestSlot.captured.limit)
     }
 
+    // 스레드 답글 조회 시 부모 메시지는 제외
     @Test
     fun `threadReplies은(는) excludes parent message`() {
         val parent = mockk<Message>()
@@ -283,6 +290,7 @@ class SlackApiClientTest {
         )
     }
 
+    // 여러 페이지를 순회하며 부분 일치 채널을 검색
     @Test
     fun `findChannelsByName은(는) paginates and filters by partial query`() {
         val general = mockk<Conversation>()
@@ -433,6 +441,7 @@ class SlackApiClientTest {
         assertEquals(5, requestSlot.captured.limit)
     }
 
+    // IO 오류 발생 시 최대 3회까지 재시도 후 성공하는 시나리오
     @Test
     fun `postMessage은(는) retries on transient io errors`() {
         val response = mockk<ChatPostMessageResponse>()
@@ -467,6 +476,7 @@ class SlackApiClientTest {
         verify(exactly = 1) { methodsClient.chatPostMessage(any<ChatPostMessageRequest>()) }
     }
 
+    // 설정된 타임아웃을 초과하면 재시도 후 타임아웃 오류를 반환
     @Test
     fun `Slack API call exceeds configured timeout일 때 conversationHistory returns timeout error`() {
         val timeoutClient = slackApiClient(
@@ -497,6 +507,7 @@ class SlackApiClientTest {
         verify(exactly = 3) { methodsClient.conversationsHistory(any<ConversationsHistoryRequest>()) }
     }
 
+    // 연속 서버 오류 시 서킷 브레이커가 열리고 이후 요청을 즉시 차단
     @Test
     fun `consecutive server errors후 postMessage opens circuit breaker`() {
         val breakerClient = slackApiClient(
@@ -527,6 +538,7 @@ class SlackApiClientTest {
         verify(exactly = 6) { methodsClient.chatPostMessage(any<ChatPostMessageRequest>()) }
     }
 
+    // 429 속도 제한 오류는 서킷 브레이커 카운트에 포함되지 않음
     @Test
     fun `postMessage은(는) rate-limited failures do not open circuit breaker`() {
         val breakerClient = slackApiClient(
@@ -551,6 +563,7 @@ class SlackApiClientTest {
         verify(exactly = 6) { methodsClient.chatPostMessage(any<ChatPostMessageRequest>()) }
     }
 
+    // 재시도 횟수와 최종 성공이 Micrometer 메트릭에 기록됨
     @Test
     fun `postMessage은(는) records retry and success metrics`() {
         val meterRegistry = SimpleMeterRegistry()
@@ -625,6 +638,7 @@ class SlackApiClientTest {
         )
     }
 
+    // 여러 페이지를 순회하며 부분 일치 사용자를 검색
     @Test
     fun `findUsersByName은(는) paginates and filters by partial query`() {
         val john = mockk<User>()

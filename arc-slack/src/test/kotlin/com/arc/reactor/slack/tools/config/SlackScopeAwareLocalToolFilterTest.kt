@@ -11,6 +11,12 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
+/**
+ * [SlackScopeAwareLocalToolFilter]의 스코프 기반 도구 필터링 테스트.
+ *
+ * 부여된 OAuth 스코프에 따라 Slack 도구를 선별하고, 비-Slack 도구는 항상 유지하며,
+ * 비공개 채널 모드 및 캔버스 스코프 누락 시의 필터링 동작을 검증한다.
+ */
 class SlackScopeAwareLocalToolFilterTest {
 
     private class NonSlackTool : LocalTool
