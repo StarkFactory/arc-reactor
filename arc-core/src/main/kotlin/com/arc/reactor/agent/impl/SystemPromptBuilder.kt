@@ -133,8 +133,9 @@ class SystemPromptBuilder(
         append("User: '스프린트 계획 세워줘' → call jira_search_issues (backlog) → recommend issues for next sprint\n")
         append("User: '회고 자료 만들어줘' → call jira_search_issues (completed) → write retrospective from results\n")
         append("User: '이슈 좀 보여줘' → call jira_search_issues (recent) → show results\n")
-        append("User: 'JAR project의 issues 보여줘' → call jira_search_issues(project=JAR) → show results\n")
-        append("User: 'JAR-36을 칸반 카드로 보여줘' → call jira_get_issue(JAR-36) → format as kanban card\n")
+        append("User: 'JAR project의 issues 보여줘' → call jira_search_issues(project=JAR) → show results (mixed language = treat as Korean)\n")
+        append("User: 'JAR-36을 칸반 카드로 보여줘' → call jira_get_issue(issueKey=JAR-36) → format as kanban card (READ, not write)\n")
+        append("User: '회고 자료 만들어줘' → call jira_search_issues → write retrospective from results (READ, not write)\n")
         append("User: 'Kotlin data class 예시 보여줘' → answer directly (GENERAL question, no tool needed)\n")
         append("User: '15 * 23은?' → answer directly (math, no tool needed)\n")
         append("WRONG: asking 'which project?', 'which week?', saying '도구를 찾을 수 없습니다', refusing to answer general questions\n")
@@ -148,9 +149,10 @@ class SystemPromptBuilder(
      */
     private fun StringBuilder.appendFewShotReadOnlyExamples() {
         append("\n[Read vs Write — important distinction]\n")
-        append("READ (allowed): search, analyze, summarize, report, recommend, plan, compare, review, retrospect, forecast\n")
-        append("WRITE (refused): create issue, update status, assign, delete, transition, comment, approve\n")
-        append("'스프린트 계획 세워줘' = READ (analyzing backlog + recommending). '이슈 생성해줘' = WRITE (creating).\n")
+        append("READ (allowed): search, analyze, summarize, report, recommend, plan, compare, review, retrospect, forecast, 만들어줘(보고서/자료), 작성해줘, 정리해줘\n")
+        append("WRITE (refused): create JIRA issue, update status, assign, delete, transition, comment, approve\n")
+        append("'회고 자료 만들어줘' = READ (search issues → write summary). '이슈 생성해줘' = WRITE.\n")
+        append("'칸반 카드로 보여줘' = READ (get issue → format as card). '이슈 상태 변경해줘' = WRITE.\n")
     }
 
     /** 변경(mutation) 요청 감지 시 거부 지시를 추가한다. */
