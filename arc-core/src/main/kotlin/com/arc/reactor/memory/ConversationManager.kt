@@ -108,34 +108,47 @@ class DefaultConversationManager(
     private val sessionSaveLocks = ConcurrentHashMap<String, ReentrantLock>()
 
     override suspend fun loadHistory(command: AgentCommand): List<Message> {
-        // 직접 제공된 대화 이력이 있으면 우선 사용한다
         if (command.conversationHistory.isNotEmpty()) {
             return command.conversationHistory.map { toSpringAiMessage(it) }
         }
+        val sessionId = command.metadata["sessionId"]?.toString()
+        if (sessionId == null) {
+            logger.debug { "No sessionId in metadata" }
+            return emptyList()
+        }
+        val allMessages = memoryStore?.get(sessionId)?.getHistory()
+        if (allMessages == null) {
+            logger.debug { "No memory found for session $sessionId" }
+            return emptyList()
+        }
+        logger.debug { "Loaded ${allMessages.size} messages for session $sessionId" }
+        return loadFromHistory(sessionId, allMessages)
+    }
 
-        val sessionId = command.metadata["sessionId"]?.toString() ?: return emptyList()
-        val memory = memoryStore?.get(sessionId) ?: return emptyList()
-        val allMessages = memory.getHistory()
-
-        // 요약이 비활성이거나 메시지 수가 트리거 임계값 이하이면 단순 takeLast 사용
+    /** 로드된 메시지에 요약 또는 takeLast를 적용하여 반환한다. */
+    private suspend fun loadFromHistory(
+        sessionId: String,
+        allMessages: List<com.arc.reactor.agent.model.Message>
+    ): List<Message> {
         if (!isSummaryEnabled() || allMessages.size <= summaryProps.triggerMessageCount) {
             return allMessages.takeLast(properties.llm.maxConversationTurns * 2)
                 .map { toSpringAiMessage(it) }
         }
-
-        // 계층적 메모리 빌드 시도. 실패하면 안전하게 takeLast로 폴백한다.
         return try {
             buildHierarchicalHistory(sessionId, allMessages)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Hierarchical memory failed for session $sessionId, falling back to takeLast" }
+            logger.warn(e) { "Hierarchical memory failed for session $sessionId, falling back" }
             allMessages.takeLast(properties.llm.maxConversationTurns * 2)
                 .map { toSpringAiMessage(it) }
         }
     }
 
     override suspend fun saveHistory(command: AgentCommand, result: AgentResult) {
-        if (!result.success) return
+        if (!result.success) {
+            logger.debug { "Skipping history save: result not successful" }
+            return
+        }
         saveMessages(command.metadata, command.userId, command.userPrompt, result.content)
         triggerAsyncSummarization(command.metadata)
     }
@@ -301,22 +314,17 @@ class DefaultConversationManager(
         assistantContent: String?
     ) {
         val sessionId = metadata["sessionId"]?.toString() ?: return
-        if (memoryStore == null) return
+        val store = memoryStore ?: return
         val resolvedUserId = userId ?: "anonymous"
 
         val lock = sessionSaveLocks.computeIfAbsent(sessionId) { ReentrantLock() }
         lock.lock()
         try {
-            memoryStore.addMessage(
-                sessionId = sessionId, role = "user",
-                content = userPrompt, userId = resolvedUserId
-            )
+            store.addMessage(sessionId, "user", userPrompt, resolvedUserId)
             if (assistantContent != null) {
-                memoryStore.addMessage(
-                    sessionId = sessionId, role = "assistant",
-                    content = assistantContent, userId = resolvedUserId
-                )
+                store.addMessage(sessionId, "assistant", assistantContent, resolvedUserId)
             }
+            logger.debug { "Saved conversation for session $sessionId" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to save conversation history for session $sessionId" }
         } finally {

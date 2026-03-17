@@ -123,6 +123,23 @@ class ChatControllerTest {
         }
 
         @Test
+        fun `preserve sessionId in metadata해야 한다`() = runTest {
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            val request = ChatRequest(
+                message = "내 이름은 테스터야",
+                metadata = mapOf("sessionId" to "test-session-123")
+            )
+            controller.chat(request, exchange)
+
+            val captured = commandSlot.captured
+            assertEquals("test-session-123", captured.metadata["sessionId"]) {
+                "sessionId from request metadata must be preserved in AgentCommand metadata"
+            }
+        }
+
+        @Test
         fun `not provided일 때 use default system prompt해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
