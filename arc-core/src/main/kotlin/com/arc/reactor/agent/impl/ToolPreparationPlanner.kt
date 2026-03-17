@@ -59,7 +59,17 @@ internal class ToolPreparationPlanner(
             allCallbacks
         }
         val wrappedCallbacks = selectedCallbacks.map(::resolveAdapter)
-        return (localToolInstances + wrappedCallbacks).take(maxToolsPerRequest)
+        val combined = localToolInstances + wrappedCallbacks
+        if (combined.size > maxToolsPerRequest) {
+            logger.warn {
+                val dropped = combined.drop(maxToolsPerRequest)
+                    .filterIsInstance<ArcToolCallbackAdapter>()
+                    .map { it.arcCallback.name }
+                "maxToolsPerRequest ($maxToolsPerRequest) exceeded; " +
+                    "dropped ${dropped.size} callback tools: $dropped"
+            }
+        }
+        return combined.take(maxToolsPerRequest)
     }
 
     /** 도구 이름 기준으로 중복을 제거한다. 같은 이름의 콜백이 여러 개면 첫 번째를 유지한다. */
