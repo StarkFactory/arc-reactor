@@ -329,6 +329,11 @@ class SystemPromptBuilder(
                 append("\nFor this request, you MUST call `jira_search_by_text` or `jira_search_issues` before answering.")
                 append(" Prefer `jira_search_by_text` when the user gives a keyword, and `jira_search_issues` for project-scoped searches.")
             }
+            looksLikeAgileWorkflowPrompt(userPrompt) -> {
+                append("\nFor this request, you MUST call `jira_search_issues` before answering.")
+                append(" This is a READ-ONLY analysis task (backlog analysis, sprint planning, retrospective, kanban).")
+                append(" Search issues first, then analyze and recommend based on the results.")
+            }
             looksLikeJiraPrompt(userPrompt) -> {
                 append("\nFor this request, you MUST call one or more Jira tools before answering.")
                 append(" Prefer `jira_search_issues` for project-scoped status questions.")
@@ -581,6 +586,13 @@ class SystemPromptBuilder(
 
     // ── 프롬프트 분류 함수 (Jira) ──
 
+    /** 백로그/스프린트/회고/칸반 등 애자일 워크플로우 분석 요청인지 판단한다. */
+    private fun looksLikeAgileWorkflowPrompt(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
+        return AGILE_WORKFLOW_HINTS.any { normalized.contains(it) }
+    }
+
     private fun looksLikeJiraPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
         return JIRA_HINTS.any { prompt.lowercase().contains(it) }
@@ -831,8 +843,16 @@ class SystemPromptBuilder(
             "최근 jira", "최근 jira 이슈", "열린 pr", "오픈 pr", "관련 문서", "한 번에 요약", "요약해줘", "기준으로"
         )
         private val ISSUE_KEY_REGEX = WorkContextPatterns.ISSUE_KEY_REGEX
+        private val AGILE_WORKFLOW_HINTS = setOf(
+            "백로그", "backlog", "스프린트 계획", "sprint plan", "스프린트 플래닝", "sprint planning",
+            "회고", "retrospective", "retro", "칸반", "kanban", "칸반 카드", "kanban card",
+            "스프린트 회고", "sprint retro"
+        )
         private val JIRA_HINTS = setOf(
-            "jira", "이슈", "프로젝트", "jql", "ticket", "티켓", "blocker", "마감", "due", "transition", "전이"
+            "jira", "이슈", "issues", "프로젝트", "project", "jql", "ticket", "티켓",
+            "blocker", "마감", "due", "transition", "전이",
+            "백로그", "backlog", "스프린트", "sprint", "회고", "retrospective", "retro",
+            "칸반", "kanban", "할 일", "todo", "업무", "작업"
         )
         private val BITBUCKET_HINTS = setOf(
             "bitbucket", "repository", "repo", "pull request", "pr", "branch", "브랜치", "저장소", "리뷰", "sla"
