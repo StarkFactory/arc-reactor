@@ -191,6 +191,11 @@ internal class StreamingReActLoopExecutor(
                     .build()
             )
 
+            // 도구 에러 시 재시도 힌트 주입 — LLM이 텍스트 대신 tool_call을 생성하도록 유도
+            if (totalToolCalls < maxToolCalls) {
+                ManualReActLoopExecutor.injectToolErrorRetryHint(toolResponses, messages)
+            }
+
             if (totalToolCalls >= maxToolCalls) {
                 logger.info { "maxToolCalls reached in streaming ($totalToolCalls/$maxToolCalls), final answer" }
                 activeTools = emptyList()
