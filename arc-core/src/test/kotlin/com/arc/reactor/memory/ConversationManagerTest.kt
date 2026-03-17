@@ -164,7 +164,7 @@ class ConversationManagerTest {
         }
 
         @Test
-        fun `not save on failure해야 한다`() = runTest {
+        fun `save user message but not assistant on failure해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
             val manager = DefaultConversationManager(memoryStore, properties)
             val command = AgentCommand(
@@ -176,7 +176,8 @@ class ConversationManagerTest {
 
             manager.saveHistory(command, result)
 
-            verify(exactly = 0) { memoryStore.addMessage(any(), any(), any(), any()) }
+            verify(exactly = 1) { memoryStore.addMessage("s1", "user", "hello", "anonymous") }
+            verify(exactly = 0) { memoryStore.addMessage("s1", "assistant", any(), any()) }
         }
 
         @Test

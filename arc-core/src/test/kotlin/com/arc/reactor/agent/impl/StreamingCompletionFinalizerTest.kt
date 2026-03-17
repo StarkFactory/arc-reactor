@@ -137,7 +137,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `output guard pipeline throws (fail-close)일 때 not save history해야 한다`() = runBlocking {
+    fun `output guard pipeline throws (fail-close)일 때 save user message only해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val outputGuardPipeline = mockk<OutputGuardPipeline>()
         coEvery { outputGuardPipeline.check(any(), any()) } throws RuntimeException("moderation API down")
@@ -150,8 +150,9 @@ class StreamingCompletionFinalizerTest {
         )
 
         val emitted = mutableListOf<String>()
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi")
         finalizer.finalize(
-            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            command = command,
             hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
             streamStarted = true,
             streamSuccess = true,
@@ -164,13 +165,13 @@ class StreamingCompletionFinalizerTest {
             emit = { emitted.add(it) }
         )
 
-        coVerify(exactly = 0) { conversationManager.saveStreamingHistory(any(), any()) }
+        coVerify(exactly = 1) { conversationManager.saveStreamingHistory(command, "") }
         assertTrue(emitted.any { it.contains("Output guard check failed") },
             "Should emit error marker when output guard crashes")
     }
 
     @Test
-    fun `streaming LLM returns empty content일 때 not save history해야 한다`() = runBlocking {
+    fun `streaming LLM returns empty content일 때 save user message only해야 한다`() = runBlocking {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val finalizer = StreamingCompletionFinalizer(
@@ -180,8 +181,9 @@ class StreamingCompletionFinalizerTest {
             agentMetrics = mockk(relaxed = true)
         )
 
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi")
         finalizer.finalize(
-            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            command = command,
             hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
             streamStarted = true,
             streamSuccess = true,
@@ -194,7 +196,7 @@ class StreamingCompletionFinalizerTest {
             emit = {}
         )
 
-        coVerify(exactly = 0) { conversationManager.saveStreamingHistory(any(), any()) }
+        coVerify(exactly = 1) { conversationManager.saveStreamingHistory(command, "") }
     }
 
     @Test

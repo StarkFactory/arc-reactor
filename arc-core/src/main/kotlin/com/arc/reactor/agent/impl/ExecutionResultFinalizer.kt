@@ -88,9 +88,7 @@ internal class ExecutionResultFinalizer(
             hookContext
         )
         if (!guarded.success && guarded.errorCode == AgentErrorCode.OUTPUT_GUARD_REJECTED) {
-            observeResponse(guarded, command, hookContext, toolsUsed)
-            runAfterCompletionHook(hookContext, guarded, toolsUsed, startTime)
-            return guarded
+            return finalizeEarlyReturn(guarded, command, hookContext, toolsUsed, startTime)
         }
 
         // ── 단계 2: 출력 길이 경계 검사 (너무 짧으면 더 긴 응답 재시도) ──
@@ -99,9 +97,7 @@ internal class ExecutionResultFinalizer(
             hookContext
         )
         if (!bounded.success && bounded.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT) {
-            observeResponse(bounded, command, hookContext, toolsUsed)
-            runAfterCompletionHook(hookContext, bounded, toolsUsed, startTime)
-            return bounded
+            return finalizeEarlyReturn(bounded, command, hookContext, toolsUsed, startTime)
         }
 
         // ── 단계 3: 경계 검사로 내용이 변경되었으면 Output Guard 재실행 ──
@@ -112,9 +108,7 @@ internal class ExecutionResultFinalizer(
                 hookContext
             )
             if (!rg.success && rg.errorCode == AgentErrorCode.OUTPUT_GUARD_REJECTED) {
-                observeResponse(rg, command, hookContext, toolsUsed)
-                runAfterCompletionHook(hookContext, rg, toolsUsed, startTime)
-                return rg
+                return finalizeEarlyReturn(rg, command, hookContext, toolsUsed, startTime)
             }
             rg
         } else {
@@ -133,6 +127,23 @@ internal class ExecutionResultFinalizer(
         conversationManager.saveHistory(command, completed)
         runAfterCompletionHook(hookContext, completed, toolsUsed, startTime)
         return recordFinalExecution(completed, startTime)
+    }
+
+    /**
+     * 가드/경계 거부 시 관측·대화 저장·Hook 실행을 수행하고 결과를 반환합니다.
+     * 사용자 메시지는 실패 결과에서도 저장됩니다 (세션 연속성 보장).
+     */
+    private suspend fun finalizeEarlyReturn(
+        result: AgentResult,
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: List<String>,
+        startTime: Long
+    ): AgentResult {
+        observeResponse(result, command, hookContext, toolsUsed)
+        conversationManager.saveHistory(command, result)
+        runAfterCompletionHook(hookContext, result, toolsUsed, startTime)
+        return result
     }
 
     /**

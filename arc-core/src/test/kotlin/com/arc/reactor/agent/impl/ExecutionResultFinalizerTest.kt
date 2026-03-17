@@ -138,7 +138,7 @@ class ExecutionResultFinalizerTest {
         assertFalse(result.success, "Result should fail when output guard rejects the response")
         assertEquals(AgentErrorCode.OUTPUT_GUARD_REJECTED, result.errorCode)
         assertEquals("blocked", result.metadata["blockReason"], "Block reason should be captured in metadata")
-        coVerify(exactly = 0) { conversationManager.saveHistory(command, match { true }) }
+        coVerify(exactly = 1) { conversationManager.saveHistory(command, match { !it.success }) }
         coVerify(exactly = 1) {
             hookExecutor.executeAfterAgentComplete(
                 hookContext,
@@ -480,7 +480,7 @@ class ExecutionResultFinalizerTest {
         assertFalse(result.success, "Guard should reject the boundary-retried content")
         assertEquals(AgentErrorCode.OUTPUT_GUARD_REJECTED, result.errorCode,
             "Error code should be OUTPUT_GUARD_REJECTED when re-run guard blocks retried content")
-        coVerify(exactly = 0) { conversationManager.saveHistory(any(), any()) }
+        coVerify(exactly = 1) { conversationManager.saveHistory(any(), match { !it.success }) }
         coVerify(exactly = 1) {
             hookExecutor.executeAfterAgentComplete(
                 any(),
