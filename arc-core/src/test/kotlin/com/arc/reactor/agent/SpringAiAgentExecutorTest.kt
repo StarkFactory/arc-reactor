@@ -522,7 +522,8 @@ class SpringAiAgentExecutorTest {
                     executor.execute(
                         AgentCommand(
                             systemPrompt = "You are helpful.",
-                            userPrompt = "Hello!"
+                            userPrompt = "사내 문서에서 찾아줘",
+                            metadata = mapOf("ragRequired" to true)
                         )
                     )
                 }

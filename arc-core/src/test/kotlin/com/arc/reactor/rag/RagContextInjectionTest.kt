@@ -179,16 +179,17 @@ class RagContextInjectionTest {
                 ragPipeline = ragPipeline
             )
 
+            val searchPrompt = "Search knowledge base document"
             executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
-                    userPrompt = "Search query"
+                    userPrompt = searchPrompt
                 )
             )
 
             assertTrue(ragQuerySlot.isCaptured) { "RAG pipeline should be called" }
             assertEquals(7, ragQuerySlot.captured.topK) { "topK should match properties.rag.topK" }
-            assertEquals("Search query", ragQuerySlot.captured.query) { "Query should be the user prompt" }
+            assertEquals(searchPrompt, ragQuerySlot.captured.query) { "Query should be the user prompt" }
         }
     }
 
