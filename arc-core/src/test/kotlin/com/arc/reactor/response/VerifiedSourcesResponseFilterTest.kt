@@ -5,6 +5,7 @@ import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.response.impl.VerifiedSourcesResponseFilter
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -40,7 +41,7 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
-    fun `block unverified workspace answer해야 한다`() = runTest {
+    fun `allow workspace answer when tool was called and content exists해야 한다`() = runTest {
         val result = filter.filter(
             content = "배포 정책은 매주 수요일입니다.",
             context = ResponseFilterContext(
@@ -51,8 +52,28 @@ class VerifiedSourcesResponseFilterTest {
             )
         )
 
+        assertFalse(result.contains("검증 가능한 출처를 찾지 못해")) {
+            "When a tool was called and returned content, the response should not be blocked"
+        }
+        assertTrue(result.contains("배포 정책은 매주 수요일입니다.")) {
+            "Original content should be preserved when a tool was called"
+        }
+    }
+
+    @Test
+    fun `block unverified workspace answer when no tool called해야 한다`() = runTest {
+        val result = filter.filter(
+            content = "배포 정책은 매주 수요일입니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "배포 정책 알려줘"),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 90
+            )
+        )
+
         assertTrue(result.contains("검증 가능한 출처를 찾지 못해")) {
-            "Unverified workspace answers should be replaced with a verification failure message"
+            "Unverified workspace answers without tool calls should be replaced with a verification failure message"
         }
         assertTrue(result.endsWith("출처\n- 검증된 출처를 찾지 못했습니다.")) {
             "Blocked answer should still include the required sources footer"
