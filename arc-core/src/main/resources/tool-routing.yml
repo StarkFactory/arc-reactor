@@ -559,6 +559,7 @@ routes:
     promptInstruction: >-
       For this request, you MUST call `jira_search_by_text` or `jira_search_issues` before answering.
       Prefer `jira_search_by_text` when the user gives a keyword, and `jira_search_issues` for project-scoped searches.
+      JQL tips: use relative dates ('>= -7d') instead of functions like startOfWeek(). If the query fails, simplify and retry.
     preferredTools:
       - jira_search_by_text
       - jira_search_issues
@@ -586,6 +587,7 @@ routes:
       For this request, you MUST call `jira_search_issues` before answering.
       This is a READ-ONLY analysis task (backlog analysis, sprint planning, retrospective, kanban).
       Search issues first, then analyze and recommend based on the results.
+      JQL tips: use relative dates ('>= -7d') instead of functions like startOfWeek(). If the query fails, simplify and retry.
     priority: 90
 
   - id: jira_generic
@@ -620,6 +622,8 @@ routes:
     promptInstruction: >-
       For this request, you MUST call one or more Jira tools before answering.
       Prefer `jira_search_issues` for project-scoped status questions.
+      JQL tips: avoid startOfWeek(), startOfMonth(), endOfWeek(), endOfMonth() — use relative dates like '>= -7d' or '>= -30d' instead.
+      If a JQL query fails, simplify it and retry — do NOT report the error to the user.
     preferredTools:
       - jira_search_issues
       - jira_search_by_text
