@@ -9,6 +9,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [ReadMessagesTool]의 단위 테스트.
+ *
+ * 메시지 읽기 도구의 채널 히스토리 조회, limit 검증, 커서 전달을 테스트한다.
+ */
 class ReadMessagesToolTest {
 
     private val readMessagesUseCase = mockk<ReadMessagesUseCase>()

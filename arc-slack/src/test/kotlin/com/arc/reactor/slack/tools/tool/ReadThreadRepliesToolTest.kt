@@ -9,6 +9,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [ReadThreadRepliesTool]의 단위 테스트.
+ *
+ * 스레드 답글 읽기 도구의 답글 조회, 입력 검증, 커서 전달을 테스트한다.
+ */
 class ReadThreadRepliesToolTest {
 
     private val readThreadRepliesUseCase = mockk<ReadThreadRepliesUseCase>()

@@ -8,6 +8,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [UploadFileTool]의 단위 테스트.
+ *
+ * 파일 업로드 도구의 채널 ID, 파일명, 타임스탬프 검증 및 입력 정규화를 테스트한다.
+ */
 class UploadFileToolTest {
 
     private val uploadFileUseCase = mockk<UploadFileUseCase>()

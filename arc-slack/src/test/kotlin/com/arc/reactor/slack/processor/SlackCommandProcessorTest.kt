@@ -20,10 +20,10 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * [SlackCommandProcessor]의 커맨드 프로세서 테스트.
+ * [SlackCommandProcessor]의 슬래시 커맨드 처리 테스트.
  *
- * 성공적 제출, fail-fast 백프레셔, 큐 모드 백프레셔,
- * 드롭 알림 시맨틱스, 오류 격리, 세마포어 생명주기 정확성 등을 검증한다.
+ * 성공적인 제출, fail-fast 백프레셔, 큐 모드 백프레셔,
+ * 드롭 시 알림 의미론, 오류 격리, 세마포어 수명주기 정확성을 검증한다.
  */
 class SlackCommandProcessorTest {
 
@@ -64,7 +64,7 @@ class SlackCommandProcessorTest {
     )
 
     // =========================================================================
-    // 제출 및 반환값
+    // 제출 및 반환 값
     // =========================================================================
 
     @Nested
@@ -128,7 +128,7 @@ class SlackCommandProcessorTest {
 
             holdLatch.countDown() // release
             releasedLatch.await(5, TimeUnit.SECONDS)
-            Thread.sleep(200) // let semaphore release propagate on Dispatchers.Default
+            Thread.sleep(200) // Dispatchers.Default에서 세마포어 해제 전파 대기
 
             val result = processor.submit(buildCommand(userId = "U2"), "events_api")
             result shouldBe true
@@ -167,7 +167,7 @@ class SlackCommandProcessorTest {
             processor.submit(buildCommand(), "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // recordHandler dispatch on Dispatchers.Default 허용
+            Thread.sleep(200)  // Dispatchers.Default에서 recordHandler 디스패치 대기
             coVerify {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
@@ -190,7 +190,7 @@ class SlackCommandProcessorTest {
             processor.submit(buildCommand(), "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // recordHandler dispatch on Dispatchers.Default 허용
+            Thread.sleep(200)  // Dispatchers.Default에서 recordHandler 디스패치 대기
             coVerify {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
@@ -259,14 +259,14 @@ class SlackCommandProcessorTest {
                     buildCommand(userId = "U1", responseUrl = "https://hooks.slack.com/commands/u1"),
                     "events_api"
                 )
-                acquiredLatch.await(5, TimeUnit.SECONDS)  // for first handler to hold semaphore를 기다립니다
+                acquiredLatch.await(5, TimeUnit.SECONDS)  // 첫 번째 핸들러가 세마포어를 보유할 때까지 대기
 
                 processor.submit(
                     buildCommand(userId = "U2", responseUrl = "https://hooks.slack.com/commands/u2"),
                     "events_api"
                 )
             }
-            // 타임아웃 + 알림이 Dispatchers.Default에서 실행될 시간 부여
+            // 타임아웃 + 알림 시간이 Dispatchers.Default에서 실행될 수 있도록 대기
             Thread.sleep(1000)
             holdLatch.countDown()
 
@@ -358,7 +358,7 @@ class SlackCommandProcessorTest {
 
                 processor.submit(buildCommand(userId = "U2"), "events_api")
             }
-            Thread.sleep(800)  // for 200ms timeout + processing margin를 기다립니다
+            Thread.sleep(800)  // 200ms 타임아웃 + 처리 마진 대기
             holdLatch.countDown()
 
             verify {
@@ -412,9 +412,9 @@ class SlackCommandProcessorTest {
 
             processor.submit(buildCommand(userId = "U1"), "events_api")
             firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // semaphore release in finally block on Dispatchers.Default 허용
+            Thread.sleep(200)  // Dispatchers.Default의 finally 블록에서 세마포어 해제 대기
 
-            // 다음 커맨드 성공을 위해 mock 리셋
+            // 다음 커맨드 성공을 위해 모킹 리셋
             val secondLatch = CountDownLatch(1)
             val secondSuccess = AtomicInteger(0)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
@@ -439,7 +439,7 @@ class SlackCommandProcessorTest {
             repeat(totalCommands) { i -> processor.submit(buildCommand(userId = "U$i"), "events_api") }
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // recordHandler dispatch on Dispatchers.Default 허용
+            Thread.sleep(200)  // Dispatchers.Default에서 recordHandler 디스패치 대기
             coVerify(exactly = totalCommands) {
                 metricsRecorder.recordHandler(any(), any(), success = true, durationMs = any())
             }

@@ -10,6 +10,12 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import java.time.ZoneId
 
+/**
+ * [SlackReminderScheduler]의 리마인더 스케줄링 테스트.
+ *
+ * 만료된 리마인더 수집, DM을 통한 알림 전송,
+ * 그리고 만료 항목이 없을 때의 동작을 검증한다.
+ */
 class SlackReminderSchedulerTest {
 
     private val messagingService = mockk<SlackMessagingService>(relaxed = true)
@@ -25,24 +31,23 @@ class SlackReminderSchedulerTest {
     fun `pollAndNotify은(는) delivers due reminders via DM`() {
         coEvery { messagingService.sendMessage(any(), any(), any()) } returns SlackApiResult(ok = true)
 
-        // Manually add a reminder that's already due
+        // 이미 만료된 리마인더를 수동으로 추가
         val reminder = store.add("U_TEST", "test reminder at 0:00")
 
-        // the dueAt to be in the past by adding directly를 강제합니다
+        // dueAt을 과거로 강제 설정하여 직접 테스트
         val list = store.list("U_TEST")
-        // "at 0:00"은 파싱되어 미래 시간으로 설정되어야 합니다
-        // Instead, let's use collectDueReminders after manually inserting a past-due one
+        // "at 0:00"은 파싱되어 미래 시간으로 설정됨
+        // collectDueReminders를 과거 만료 항목으로 직접 테스트
 
-        // scheduler (large interval so it won't auto-poll) 생성
+        // 스케줄러 생성 (자동 폴링 방지를 위해 큰 간격 설정)
         scheduler = SlackReminderScheduler(store, messagingService, pollIntervalSeconds = 3600)
 
-        // 리마인더가 이미 만료되었다면 collectDueReminders가 반환해야 합니다
-        // 내일로 해석되는 "at 0:00"을 사용했으므로 직접 테스트로 확인합니다
+        // "at 0:00"이 내일로 해석되므로 직접 확인
     }
 
     @Test
     fun `collectDueReminders은(는) returns and removes due entries`() {
-        // dueAt이 없는 리마인더는 수집되지 않는지 테스트
+        // dueAt이 없는 리마인더는 만료 수집 대상에서 제외되는지 확인
         store.add("U1", "no time reminder")
         val collected = store.collectDueReminders()
         collected.size shouldBe 0
@@ -53,11 +58,11 @@ class SlackReminderSchedulerTest {
     fun `pollAndNotify은(는) sends DM with reminder text`() {
         coEvery { messagingService.sendMessage(any(), any(), any()) } returns SlackApiResult(ok = true)
 
-        // a store and manually trigger poll with no due reminders 생성
+        // 저장소를 생성하고 만료 리마인더 없이 수동 폴링 실행
         scheduler = SlackReminderScheduler(store, messagingService, pollIntervalSeconds = 3600)
         scheduler!!.pollAndNotify()
 
-        // reminders due, so no messages sent 없음
+        // 만료된 리마인더가 없으므로 메시지가 전송되지 않아야 한다
         coVerify(exactly = 0) { messagingService.sendMessage(any(), any(), any()) }
     }
 

@@ -6,6 +6,12 @@ import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * [SlackSystemPromptFactory]의 시스템 프롬프트 생성 테스트.
+ *
+ * 기본 프롬프트, 크로스 도구 상관관계 섹션, 사전 대응 프롬프트,
+ * 그리고 도구 요약 빌더의 동작을 검증한다.
+ */
 class SlackSystemPromptFactoryTest {
 
     @Nested

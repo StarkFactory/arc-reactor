@@ -8,6 +8,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [ReplyToThreadTool]의 단위 테스트.
+ *
+ * 스레드 답글 전송 도구의 입력 검증, 정규화, API 호출 위임을 검증한다.
+ */
 class ReplyToThreadToolTest {
 
     private val replyToThreadUseCase = mockk<ReplyToThreadUseCase>()

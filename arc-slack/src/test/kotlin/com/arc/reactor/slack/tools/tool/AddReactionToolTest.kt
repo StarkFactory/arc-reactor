@@ -8,6 +8,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [AddReactionTool]의 단위 테스트.
+ *
+ * 이모지 리액션 추가 도구의 입력 검증, 정규화, API 호출 위임을 검증한다.
+ */
 class AddReactionToolTest {
 
     private val addReactionUseCase = mockk<AddReactionUseCase>()

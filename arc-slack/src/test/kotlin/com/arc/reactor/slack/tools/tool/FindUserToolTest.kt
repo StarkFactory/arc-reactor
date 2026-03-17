@@ -9,6 +9,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
+/**
+ * [FindUserTool]의 단위 테스트.
+ *
+ * 사용자 검색 도구의 부분 이름 검색, limit 검증, 입력 트리밍을 테스트한다.
+ */
 class FindUserToolTest {
 
     private val findUserUseCase = mockk<FindUserUseCase>()

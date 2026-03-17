@@ -4,6 +4,12 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 
+/**
+ * [SlackSlashIntentParser]의 도움말 인텐트 파싱 테스트.
+ *
+ * help, HELP, 도움말, commands 등 다양한 도움말 키워드를 인식하고,
+ * "help me with deployment" 같은 일반 문장은 에이전트 인텐트로 분류하는지 검증한다.
+ */
 class SlackSlashIntentParserHelpTest {
 
     @Test

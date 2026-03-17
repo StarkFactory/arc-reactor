@@ -7,12 +7,20 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import com.arc.reactor.prompt.PromptTemplate
 import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.prompt.PromptVersion
+import com.arc.reactor.prompt.VersionStatus
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.util.UUID
 
@@ -66,7 +74,7 @@ class PromptTemplateController(
         val template = promptTemplateStore.getTemplate(templateId)
             ?: return notFoundResponse("Prompt template not found: $templateId")
         val versions = promptTemplateStore.listVersions(templateId)
-        val activeVersion = versions.firstOrNull { it.status == com.arc.reactor.prompt.VersionStatus.ACTIVE }
+        val activeVersion = versions.firstOrNull { it.status == VersionStatus.ACTIVE }
         return ResponseEntity.ok(template.toDetailResponse(versions, activeVersion))
     }
 

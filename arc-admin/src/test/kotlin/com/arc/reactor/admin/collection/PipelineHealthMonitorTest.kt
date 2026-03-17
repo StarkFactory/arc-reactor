@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/** [PipelineHealthMonitor]의 쓰기 횟수, 드롭, 에러, 버퍼 사용량 기록 테스트 */
 class PipelineHealthMonitorTest {
 
     private lateinit var monitor: PipelineHealthMonitor

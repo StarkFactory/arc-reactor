@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.math.BigDecimal
 
+/** [MetricIngestionController]의 MCP 헬스, 도구 호출, 평가 결과 수집 엔드포인트 테스트 */
 class MetricIngestionControllerTest {
 
     private lateinit var ringBuffer: MetricRingBuffer
@@ -413,14 +414,14 @@ class MetricIngestionControllerTest {
             val tinyBuffer = MetricRingBuffer(64) // capacity = 64
             val ctrl = MetricIngestionController(tinyBuffer)
 
-            // the buffer를 채웁니다
+            // 버퍼를 채움
             repeat(64) {
                 ctrl.ingestMcpHealth(McpHealthRequest(
                     tenantId = "t1", serverName = "s$it"
                 ), adminExchange)
             }
 
-            // Next은(는) be rejected해야 합니다
+            // 다음 이벤트는 거부되어야 합니다
             val response = ctrl.ingestMcpHealth(McpHealthRequest(
                 tenantId = "t1", serverName = "overflow"
             ), adminExchange)
@@ -432,12 +433,12 @@ class MetricIngestionControllerTest {
             val tinyBuffer = MetricRingBuffer(64)
             val ctrl = MetricIngestionController(tinyBuffer)
 
-            // most of the buffer를 채웁니다
+            // 버퍼 대부분을 채움
             repeat(60) {
                 ctrl.ingestMcpHealth(McpHealthRequest(tenantId = "t1", serverName = "s$it"), adminExchange)
             }
 
-            // Batch of 10 — some은(는) be accepted, some dropped해야 합니다
+            // 10개 배치 — 일부는 수락되고 일부는 드롭됨
             val requests = (0 until 10).map {
                 McpHealthRequest(tenantId = "t1", serverName = "batch-$it")
             }
@@ -450,7 +451,7 @@ class MetricIngestionControllerTest {
             val accepted = body["accepted"] as Int
             val dropped = body["dropped"] as Int
             (accepted + dropped) shouldBe 10
-            (accepted <= 4) shouldBe true // only ~4 slots remaining
+            (accepted <= 4) shouldBe true // 남은 슬롯 약 4개
             (dropped >= 6) shouldBe true
         }
     }

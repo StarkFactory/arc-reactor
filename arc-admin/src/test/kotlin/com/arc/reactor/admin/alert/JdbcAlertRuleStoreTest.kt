@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
 
+/** [JdbcAlertRuleStore]의 알림 규칙 CRUD 및 알림 인스턴스 조회/저장 테스트 */
 class JdbcAlertRuleStoreTest {
 
     private val jdbcTemplate = mockk<JdbcTemplate>(relaxed = true)

@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/** [QuotaEnforcerHook]의 쿼타 초과 거부, 테넌트 상태 확인, 경고 이벤트 발행 테스트 */
 class QuotaEnforcerHookTest {
 
     private val tenantStore = InMemoryTenantStore()
@@ -87,7 +88,7 @@ class QuotaEnforcerHookTest {
 
         @Test
         fun `첫 번째 request passes immediately via local counter fast path`() = runTest {
-            // Local count = 1, quota = 100, 90% threshold = 90 → fast path
+            // 로컬 카운트 = 1, 쿼타 = 100, 90% 임계값 = 90 → 빠른 경로
             hook.beforeAgentStart(context) shouldBe HookResult.Continue
         }
     }
@@ -200,13 +201,13 @@ class QuotaEnforcerHookTest {
 
         @Test
         fun `warning QuotaEvent when usage reaches 90 percent를 발행한다`() = runTest {
-            // quota=10, fast path threshold: localCount < 9. Warm up local counter to 9.
+            // 쿼타=10, 빠른 경로 임계값: localCount < 9. 로컬 카운터를 9까지 웜업.
             tenantStore.save(testTenant.copy(quota = TenantQuota(maxRequestsPerMonth = 10, maxTokensPerMonth = 100000)))
 
-            // 8 calls pass fast path (localCount 1..8, all < 9)
+            // 8회 호출은 빠른 경로 통과 (localCount 1..8, 모두 < 9)
             repeat(8) { hook.beforeAgentStart(newContext()) }
 
-            // 9th call: localCount=9, not < 9 → DB query. usage.requests=9 → 90% warning
+            // 9번째 호출: localCount=9, < 9 아님 → DB 쿼리. usage.requests=9 → 90% 경고
             val usage = TenantUsage(tenantId = "tenant-1", requests = 9, tokens = 50)
             coEvery { circuitBreaker.execute<TenantUsage>(any()) } returns usage
 
@@ -231,11 +232,11 @@ class QuotaEnforcerHookTest {
             // 로컬 카운터를 90% 임계값 이상으로 웜업 (8회 빠른 경로 호출)
             repeat(8) { hook.beforeAgentStart(newContext()) }
 
-            // 9th call → warning emitted
+            // 9번째 호출 → 경고 발행
             hook.beforeAgentStart(newContext())
             ringBuffer.drain(10).filterIsInstance<QuotaEvent>().size shouldBe 1
 
-            // 10th call → no duplicate warning (deduped)
+            // 10번째 호출 → 중복 경고 없음 (중복 제거)
             hook.beforeAgentStart(newContext())
             ringBuffer.drain(10).filterIsInstance<QuotaEvent>().size shouldBe 0
         }

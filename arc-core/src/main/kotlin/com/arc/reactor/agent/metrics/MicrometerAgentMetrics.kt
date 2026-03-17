@@ -14,15 +14,32 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.TimeUnit
 
+/**
+ * Micrometer 기반 [AgentMetrics] 및 [RecentTrustEventReader] 구현체.
+ *
+ * 에이전트 실행, 도구 호출, 가드 거부, 캐시, 서킷 브레이커, 토큰 사용량 등
+ * 모든 관측 지표를 [MeterRegistry]에 기록한다.
+ * 신뢰 이벤트(output guard, boundary violation, 미검증 응답)는 최근 [MAX_TRUST_EVENTS]건까지
+ * 인메모리 덱(deque)에 보관하여 대시보드 조회를 지원한다.
+ *
+ * @param registry Micrometer 메트릭 레지스트리
+ * @see AgentMetrics 메트릭 인터페이스
+ * @see RecentTrustEventReader 신뢰 이벤트 읽기 인터페이스
+ */
 class MicrometerAgentMetrics(
     private val registry: MeterRegistry
 ) : AgentMetrics, RecentTrustEventReader {
 
+    // -- 신뢰 이벤트 인메모리 저장소 --
     private val trustEvents = ConcurrentLinkedDeque<RecentTrustEvent>()
+
+    // -- 카운터: 신뢰 관련 누적 수치 --
     private val unverifiedResponses = AtomicLong()
     private val outputGuardRejected = AtomicLong()
     private val outputGuardModified = AtomicLong()
     private val boundaryFailures = AtomicLong()
+
+    // -- 응답 가치 분석용 카운터 --
     private val observedResponses = AtomicLong()
     private val groundedResponses = AtomicLong()
     private val blockedResponses = AtomicLong()
@@ -33,12 +50,17 @@ class MicrometerAgentMetrics(
     private val toolFamilyCounts = ConcurrentHashMap<String, AtomicLong>()
     private val laneSummaries = ConcurrentHashMap<String, ResponseLaneAggregate>()
     private val missingQueryCounts = ConcurrentHashMap<String, MissingQueryAggregate>()
+
+    // -- 현재 활성 요청 수 게이지 --
     private val activeRequestCount = AtomicInteger(0)
 
     init {
         registry.gauge(METRIC_ACTIVE_REQUESTS, activeRequestCount)
     }
 
+    // ── 실행 메트릭 ──
+
+    /** 에이전트 실행 결과를 카운터와 타이머에 기록한다. */
     override fun recordExecution(result: AgentResult) {
         Counter.builder(METRIC_EXECUTIONS)
             .tag("success", result.success.toString())
@@ -60,6 +82,9 @@ class MicrometerAgentMetrics(
         }
     }
 
+    // ── 도구 메트릭 ──
+
+    /** 개별 도구 호출의 성공/실패 및 소요 시간을 기록한다. */
     override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {
         Counter.builder(METRIC_TOOL_CALLS)
             .tag("tool", toolName)
@@ -74,6 +99,9 @@ class MicrometerAgentMetrics(
             .record(durationMs, TimeUnit.MILLISECONDS)
     }
 
+    // ── 가드 메트릭 ──
+
+    /** 입력 가드 거부를 단계별로 기록한다. */
     override fun recordGuardRejection(stage: String, reason: String) {
         Counter.builder(METRIC_GUARD_REJECTIONS)
             .tag("stage", stage)
@@ -81,6 +109,9 @@ class MicrometerAgentMetrics(
             .increment()
     }
 
+    // ── 캐시 메트릭 ──
+
+    /** 정확 일치 캐시 히트를 기록한다. */
     override fun recordExactCacheHit(cacheKey: String) {
         Counter.builder(METRIC_CACHE_HITS)
             .tag("mode", "exact")
@@ -88,6 +119,7 @@ class MicrometerAgentMetrics(
             .increment()
     }
 
+    /** 시맨틱 캐시 히트를 기록한다. */
     override fun recordSemanticCacheHit(cacheKey: String) {
         Counter.builder(METRIC_CACHE_HITS)
             .tag("mode", "semantic")
@@ -95,12 +127,16 @@ class MicrometerAgentMetrics(
             .increment()
     }
 
+    /** 캐시 미스를 기록한다. */
     override fun recordCacheMiss(cacheKey: String) {
         Counter.builder(METRIC_CACHE_MISSES)
             .register(registry)
             .increment()
     }
 
+    // ── 서킷 브레이커 / 폴백 메트릭 ──
+
+    /** 서킷 브레이커 상태 전환을 기록한다. */
     override fun recordCircuitBreakerStateChange(name: String, from: CircuitBreakerState, to: CircuitBreakerState) {
         Counter.builder(METRIC_CIRCUIT_BREAKER_TRANSITIONS)
             .tag("name", name)
@@ -110,6 +146,7 @@ class MicrometerAgentMetrics(
             .increment()
     }
 
+    /** 모델 폴백 시도를 기록한다. */
     override fun recordFallbackAttempt(model: String, success: Boolean) {
         Counter.builder(METRIC_FALLBACK_ATTEMPTS)
             .tag("model", model)
@@ -118,6 +155,9 @@ class MicrometerAgentMetrics(
             .increment()
     }
 
+    // ── 토큰 / 스트리밍 메트릭 ──
+
+    /** 토큰 사용량을 분포 요약 지표로 기록한다. */
     override fun recordTokenUsage(usage: TokenUsage) {
         DistributionSummary.builder(METRIC_TOKENS_TOTAL)
             .baseUnit("tokens")
@@ -125,6 +165,7 @@ class MicrometerAgentMetrics(
             .record(usage.totalTokens.toDouble())
     }
 
+    /** 스트리밍 실행 결과를 기록한다. */
     override fun recordStreamingExecution(result: AgentResult) {
         Counter.builder(METRIC_STREAMING_EXECUTIONS)
             .tag("success", result.success.toString())
@@ -132,10 +173,21 @@ class MicrometerAgentMetrics(
             .increment()
     }
 
+    // ── 출력 가드 메트릭 ──
+
+    /** 출력 가드 액션을 기록한다 (메타데이터 없는 오버로드). */
     override fun recordOutputGuardAction(stage: String, action: String, reason: String) {
         recordOutputGuardAction(stage, action, reason, emptyMap())
     }
 
+    /**
+     * 출력 가드 액션을 기록하고, 거부/수정 시 신뢰 이벤트를 추가한다.
+     *
+     * @param stage 가드 단계 이름
+     * @param action 수행된 액션 (allowed, rejected, modified)
+     * @param reason 거부/수정 사유
+     * @param metadata 채널, 쿼리 클러스터 등 부가 정보
+     */
     override fun recordOutputGuardAction(stage: String, action: String, reason: String, metadata: Map<String, Any>) {
         Counter.builder(METRIC_OUTPUT_GUARD_ACTIONS)
             .tag("stage", stage)
@@ -143,6 +195,7 @@ class MicrometerAgentMetrics(
             .register(registry)
             .increment()
 
+        // allowed가 아닌 경우에만 신뢰 이벤트 기록
         if (!action.equals("allowed", ignoreCase = true)) {
             if (action.equals("rejected", ignoreCase = true)) {
                 outputGuardRejected.incrementAndGet()
@@ -165,10 +218,22 @@ class MicrometerAgentMetrics(
         }
     }
 
+    // ── 경계 위반 메트릭 ──
+
+    /** 경계 위반을 기록한다 (메타데이터 없는 오버로드). */
     override fun recordBoundaryViolation(violation: String, policy: String, limit: Int, actual: Int) {
         recordBoundaryViolation(violation, policy, limit, actual, emptyMap())
     }
 
+    /**
+     * 경계 위반을 기록하고 신뢰 이벤트를 추가한다.
+     *
+     * @param violation 위반 유형
+     * @param policy 적용된 정책 (fail, warn 등)
+     * @param limit 허용 한도
+     * @param actual 실제 값
+     * @param metadata 부가 정보
+     */
     override fun recordBoundaryViolation(
         violation: String,
         policy: String,
@@ -199,6 +264,9 @@ class MicrometerAgentMetrics(
         )
     }
 
+    // ── 미검증 응답 메트릭 ──
+
+    /** 미검증 응답을 기록하고 신뢰 이벤트를 추가한다. */
     override fun recordUnverifiedResponse(metadata: Map<String, Any>) {
         unverifiedResponses.incrementAndGet()
         Counter.builder(METRIC_UNVERIFIED_RESPONSES)
@@ -219,6 +287,13 @@ class MicrometerAgentMetrics(
         )
     }
 
+    // ── 응답 관측 메트릭 ──
+
+    /**
+     * 응답을 관측하여 응답 가치 분석에 필요한 집계 데이터를 갱신한다.
+     *
+     * 응답 모드, 근거 여부, 차단 여부, 전달 방식(인터랙티브/스케줄), 채널, 도구 계열 등을 분류한다.
+     */
     override fun recordResponseObservation(metadata: Map<String, Any>) {
         val answerMode = metadata["answerMode"]?.toString()?.trim()?.ifBlank { "unknown" } ?: "unknown"
         val grounded = metadata["grounded"] == true
@@ -231,6 +306,8 @@ class MicrometerAgentMetrics(
             interactiveResponses.incrementAndGet()
         }
         if (blocked) blockedResponses.incrementAndGet()
+
+        // 버킷별 카운트 갱신
         incrementBucket(answerModeCounts, answerMode, "unknown")
         incrementBucket(channelCounts, metadata["channel"]?.toString(), "unknown")
         incrementBucket(toolFamilyCounts, metadata["toolFamily"]?.toString(), "none")
@@ -238,6 +315,9 @@ class MicrometerAgentMetrics(
         trackMissingQuery(metadata)
     }
 
+    // ── LLM 지연시간 메트릭 ──
+
+    /** 모델별 LLM 호출 지연시간을 기록한다. */
     override fun recordLlmLatency(model: String, durationMs: Long) {
         Timer.builder(METRIC_LLM_LATENCY)
             .tag("model", model)
@@ -246,6 +326,9 @@ class MicrometerAgentMetrics(
             .record(durationMs.coerceAtLeast(0), TimeUnit.MILLISECONDS)
     }
 
+    // ── 도구 출력 크기 메트릭 ──
+
+    /** 도구 출력 크기를 기록하고, 잘림(truncation) 발생 시 별도 카운터를 증가시킨다. */
     override fun recordToolOutputSize(toolName: String, sizeBytes: Int, truncated: Boolean) {
         DistributionSummary.builder(METRIC_TOOL_OUTPUT_SIZE)
             .baseUnit("bytes")
@@ -261,10 +344,14 @@ class MicrometerAgentMetrics(
         }
     }
 
+    /** 현재 활성 요청 수를 갱신한다. */
     override fun recordActiveRequests(count: Int) {
         activeRequestCount.set(count)
     }
 
+    // ── 도구 결과 캐시 메트릭 ──
+
+    /** 도구 결과 캐시 히트를 기록한다. */
     override fun recordToolResultCacheHit(toolName: String, cacheKey: String) {
         Counter.builder(METRIC_TOOL_RESULT_CACHE_HITS)
             .tag("tool", toolName)
@@ -272,6 +359,7 @@ class MicrometerAgentMetrics(
             .increment()
     }
 
+    /** 도구 결과 캐시 미스를 기록한다. */
     override fun recordToolResultCacheMiss(toolName: String, cacheKey: String) {
         Counter.builder(METRIC_TOOL_RESULT_CACHE_MISSES)
             .tag("tool", toolName)
@@ -279,6 +367,9 @@ class MicrometerAgentMetrics(
             .increment()
     }
 
+    // ── RAG 검색 메트릭 ──
+
+    /** RAG 검색 결과 및 소요 시간을 기록한다. */
     override fun recordRagRetrieval(status: String, durationMs: Long) {
         Counter.builder(METRIC_RAG_RETRIEVALS)
             .tag("status", status)
@@ -291,6 +382,9 @@ class MicrometerAgentMetrics(
             .record(durationMs.coerceAtLeast(0), TimeUnit.MILLISECONDS)
     }
 
+    // ── 단계별 지연시간 메트릭 ──
+
+    /** 파이프라인 단계별 지연시간을 채널 태그와 함께 기록한다. */
     override fun recordStageLatency(stage: String, durationMs: Long, metadata: Map<String, Any>) {
         Timer.builder(METRIC_STAGE_DURATION)
             .tag("stage", stage)
@@ -299,11 +393,15 @@ class MicrometerAgentMetrics(
             .record(durationMs.coerceAtLeast(0), TimeUnit.MILLISECONDS)
     }
 
+    // ── RecentTrustEventReader 구현 ──
+
     override fun recentTrustEvents(limit: Int): List<RecentTrustEvent> = trustEvents.take(limit)
     override fun unverifiedResponsesCount(): Long = unverifiedResponses.get()
     override fun outputGuardRejectedCount(): Long = outputGuardRejected.get()
     override fun outputGuardModifiedCount(): Long = outputGuardModified.get()
     override fun boundaryFailuresCount(): Long = boundaryFailures.get()
+
+    /** 응답 가치 요약 스냅샷을 반환한다. */
     override fun responseValueSummary(): ResponseValueSummary {
         return ResponseValueSummary(
             observedResponses = observedResponses.get(),
@@ -318,6 +416,7 @@ class MicrometerAgentMetrics(
         )
     }
 
+    /** 누락 쿼리 상위 [limit]건을 빈도 내림차순으로 반환한다. */
     override fun topMissingQueries(limit: Int): List<MissingQueryInsight> {
         return missingQueryCounts.values
             .sortedWith(
@@ -336,6 +435,9 @@ class MicrometerAgentMetrics(
             }
     }
 
+    // ── 내부 유틸리티 ──
+
+    /** 신뢰 이벤트를 덱 앞에 추가하고 최대 크기를 유지한다. */
     private fun appendTrustEvent(event: RecentTrustEvent) {
         trustEvents.addFirst(event)
         while (trustEvents.size > MAX_TRUST_EVENTS) {
@@ -343,6 +445,7 @@ class MicrometerAgentMetrics(
         }
     }
 
+    /** 차단된 쿼리의 클러스터별 집계를 갱신한다. */
     private fun trackMissingQuery(metadata: Map<String, Any>) {
         val blockReason = metadataValue(metadata, "blockReason") ?: return
         val queryCluster = metadataValue(metadata, "queryCluster") ?: return
@@ -354,6 +457,7 @@ class MicrometerAgentMetrics(
         aggregate.lastOccurredAt = Instant.now()
     }
 
+    /** 동시성 안전한 버킷 카운터를 1 증가시킨다. */
     private fun incrementBucket(
         counts: ConcurrentHashMap<String, AtomicLong>,
         rawKey: String?,
@@ -363,12 +467,14 @@ class MicrometerAgentMetrics(
         counts.computeIfAbsent(key) { AtomicLong() }.incrementAndGet()
     }
 
+    /** 버킷 카운터의 현재 스냅샷을 빈도 내림차순 맵으로 반환한다. */
     private fun snapshotCounts(counts: ConcurrentHashMap<String, AtomicLong>): Map<String, Long> {
         return counts.entries
             .sortedByDescending { it.value.get() }
             .associate { it.key to it.value.get() }
     }
 
+    /** 응답 모드별 레인 집계를 갱신한다. */
     private fun trackLaneSummary(answerMode: String, grounded: Boolean, blocked: Boolean) {
         val aggregate = laneSummaries.computeIfAbsent(answerMode) { ResponseLaneAggregate() }
         aggregate.observedResponses.incrementAndGet()
@@ -376,6 +482,7 @@ class MicrometerAgentMetrics(
         if (blocked) aggregate.blockedResponses.incrementAndGet()
     }
 
+    /** 레인 집계의 현재 스냅샷을 관측 수 내림차순 리스트로 반환한다. */
     private fun snapshotLaneSummaries(): List<ResponseLaneSummary> {
         return laneSummaries.entries
             .sortedByDescending { it.value.observedResponses.get() }
@@ -389,6 +496,7 @@ class MicrometerAgentMetrics(
             }
     }
 
+    /** 메타데이터에서 문자열 값을 추출한다. 공백이면 `null` 반환. */
     private fun metadataValue(metadata: Map<String, Any>, key: String): String? {
         return metadata[key]?.toString()?.trim()?.takeIf { it.isNotBlank() }
     }

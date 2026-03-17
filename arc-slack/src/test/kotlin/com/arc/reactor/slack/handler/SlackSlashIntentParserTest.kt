@@ -4,6 +4,12 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 
+/**
+ * [SlackSlashIntentParser]의 슬래시 커맨드 인텐트 파싱 테스트.
+ *
+ * 일반 프롬프트, brief, my-work, 리마인더(목록/삭제/완료/추가) 등
+ * 다양한 입력에 대한 인텐트 분류를 검증한다.
+ */
 class SlackSlashIntentParserTest {
 
     @Test

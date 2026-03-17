@@ -27,6 +27,7 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+/** [DashboardService]의 개요, 사용량, 품질, 도구, 비용 대시보드 조합 테스트 */
 class DashboardServiceTest {
 
     private val jdbcTemplate = mockk<JdbcTemplate>()
