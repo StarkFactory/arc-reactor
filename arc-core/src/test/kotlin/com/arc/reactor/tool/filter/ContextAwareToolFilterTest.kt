@@ -285,4 +285,203 @@ class ContextAwareToolFilterTest {
             assertEquals(allTools, result) { "NoOpToolFilter는 원본 리스트를 그대로 반환해야 한다" }
         }
     }
+
+    @Nested
+    inner class EmptyToolListTest {
+
+        @Test
+        fun `빈 도구 목록은 모든 필터 조합에서 빈 목록을 반환해야 한다`() {
+            val filter = ContextAwareToolFilter(
+                ToolFilterProperties(
+                    enabled = true,
+                    intentAllowedTools = mapOf("order_inquiry" to setOf("search_order")),
+                    channelRestrictions = mapOf("slack" to setOf("delete_order")),
+                    roleAllowedTools = mapOf("user" to setOf("search_order"))
+                )
+            )
+            val context = ToolFilterContext(
+                userId = "user-1",
+                intent = "order_inquiry",
+                channel = "slack",
+                userRole = "user"
+            )
+
+            val result = filter.filter(emptyList(), context)
+
+            assertEquals(0, result.size) { "빈 도구 목록은 빈 목록을 반환해야 한다" }
+        }
+
+        @Test
+        fun `비활성화된 필터에서 빈 도구 목록은 빈 목록을 반환해야 한다`() {
+            val filter = ContextAwareToolFilter(ToolFilterProperties(enabled = false))
+            val context = ToolFilterContext(userId = "user-1")
+
+            val result = filter.filter(emptyList(), context)
+
+            assertEquals(0, result.size) { "비활성화 필터에서도 빈 도구 목록은 빈 목록이어야 한다" }
+        }
+
+        @Test
+        fun `NoOpToolFilter도 빈 도구 목록에서 빈 목록을 반환해야 한다`() {
+            val filter = NoOpToolFilter()
+            val context = ToolFilterContext(userId = "user-1")
+
+            val result = filter.filter(emptyList(), context)
+
+            assertEquals(0, result.size) { "NoOpToolFilter의 빈 도구 목록은 빈 목록이어야 한다" }
+        }
+    }
+
+    @Nested
+    inner class AllContextNullTest {
+
+        @Test
+        fun `모든 컨텍스트가 null이면 활성화된 필터도 전체 도구를 반환해야 한다`() {
+            val filter = ContextAwareToolFilter(
+                ToolFilterProperties(
+                    enabled = true,
+                    intentAllowedTools = mapOf("order_inquiry" to setOf("search_order")),
+                    channelRestrictions = mapOf("slack" to setOf("delete_order")),
+                    roleAllowedTools = mapOf("user" to setOf("search_order"))
+                )
+            )
+            val context = ToolFilterContext(
+                userId = "user-1",
+                intent = null,
+                channel = null,
+                userRole = null
+            )
+
+            val result = filter.filter(allTools, context)
+
+            assertEquals(allTools.size, result.size) {
+                "intent/channel/userRole이 모두 null이면 모든 도구를 반환해야 한다"
+            }
+        }
+
+        @Test
+        fun `설정된 필터 규칙이 없으면 모든 컨텍스트 조합에서 전체 도구를 반환해야 한다`() {
+            val filter = ContextAwareToolFilter(
+                ToolFilterProperties(enabled = true)
+                // 빈 규칙
+            )
+            val context = ToolFilterContext(
+                userId = "user-1",
+                intent = "some_intent",
+                channel = "slack",
+                userRole = "user"
+            )
+
+            val result = filter.filter(allTools, context)
+
+            assertEquals(allTools.size, result.size) {
+                "설정된 규칙이 없으면 전체 도구를 반환해야 한다, 실제: ${result.size}"
+            }
+        }
+    }
+
+    @Nested
+    inner class OverlappingRestrictionsTest {
+
+        @Test
+        fun `인텐트 허용 목록과 채널 제한이 겹치면 교집합만 반환해야 한다`() {
+            // 인텐트가 허용하는 도구 = search_order, delete_order
+            // 채널이 차단하는 도구 = delete_order
+            // 결과: search_order만 남아야 함
+            val filter = ContextAwareToolFilter(
+                ToolFilterProperties(
+                    enabled = true,
+                    intentAllowedTools = mapOf(
+                        "order_management" to setOf("search_order", "delete_order")
+                    ),
+                    channelRestrictions = mapOf(
+                        "slack" to setOf("delete_order", "drop_database")
+                    )
+                )
+            )
+            val context = ToolFilterContext(
+                userId = "user-1",
+                intent = "order_management",
+                channel = "slack"
+            )
+
+            val result = filter.filter(allTools, context)
+
+            assertEquals(1, result.size) {
+                "인텐트 허용 + 채널 제한 교집합은 1개여야 한다, 실제: ${result.map { it.name }}"
+            }
+            assertEquals("search_order", result[0].name) {
+                "교집합 결과는 search_order이어야 한다"
+            }
+        }
+
+        @Test
+        fun `역할 허용 목록이 인텐트 허용 목록보다 좁으면 역할 기준으로 최종 필터링된다`() {
+            // 인텐트 허용: search_order, delete_order, check_status
+            // 역할 허용: search_order만
+            val filter = ContextAwareToolFilter(
+                ToolFilterProperties(
+                    enabled = true,
+                    intentAllowedTools = mapOf(
+                        "order_inquiry" to setOf("search_order", "delete_order", "check_status")
+                    ),
+                    roleAllowedTools = mapOf(
+                        "readonly" to setOf("search_order")
+                    )
+                )
+            )
+            val context = ToolFilterContext(
+                userId = "user-1",
+                intent = "order_inquiry",
+                userRole = "readonly"
+            )
+
+            val result = filter.filter(allTools, context)
+
+            assertEquals(1, result.size) {
+                "역할 허용 목록이 더 좁으면 역할 기준으로 필터링되어야 한다, 실제: ${result.map { it.name }}"
+            }
+            assertEquals("search_order", result[0].name) {
+                "최종 결과는 search_order이어야 한다"
+            }
+        }
+
+        @Test
+        fun `인텐트 허용 목록이 빈 집합이면 모든 도구를 반환해야 한다`() {
+            val filter = ContextAwareToolFilter(
+                ToolFilterProperties(
+                    enabled = true,
+                    intentAllowedTools = mapOf(
+                        "empty_intent" to emptySet()
+                    )
+                )
+            )
+            val context = ToolFilterContext(userId = "user-1", intent = "empty_intent")
+
+            val result = filter.filter(allTools, context)
+
+            assertEquals(allTools.size, result.size) {
+                "인텐트 허용 목록이 비어있으면 모든 도구를 반환해야 한다"
+            }
+        }
+
+        @Test
+        fun `채널 제한 집합이 빈 집합이면 도구가 차단되지 않아야 한다`() {
+            val filter = ContextAwareToolFilter(
+                ToolFilterProperties(
+                    enabled = true,
+                    channelRestrictions = mapOf(
+                        "web" to emptySet()
+                    )
+                )
+            )
+            val context = ToolFilterContext(userId = "user-1", channel = "web")
+
+            val result = filter.filter(allTools, context)
+
+            assertEquals(allTools.size, result.size) {
+                "채널 제한 집합이 비어있으면 모든 도구를 반환해야 한다"
+            }
+        }
+    }
 }

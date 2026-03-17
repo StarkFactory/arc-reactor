@@ -211,4 +211,155 @@ class AgentCardTest {
             }
         }
     }
+
+    /**
+     * 빈 페르소나 저장소 — list()가 빈 목록을 반환하는 최소 구현.
+     * InMemoryPersonaStore는 기본 페르소나를 자동으로 등록하므로
+     * 페르소나가 전혀 없는 시나리오를 테스트할 때 사용한다.
+     */
+    private fun emptyPersonaStore(): com.arc.reactor.persona.PersonaStore =
+        object : com.arc.reactor.persona.PersonaStore {
+            override fun list(): List<Persona> = emptyList()
+            override fun get(personaId: String): Persona? = null
+            override fun getDefault(): Persona? = null
+            override fun save(persona: Persona): Persona = persona
+            override fun update(
+                personaId: String,
+                name: String?,
+                systemPrompt: String?,
+                isDefault: Boolean?,
+                description: String?,
+                responseGuideline: String?,
+                welcomeMessage: String?,
+                icon: String?,
+                promptTemplateId: String?,
+                isActive: Boolean?
+            ): Persona? = null
+            override fun delete(personaId: String) {}
+        }
+
+    @Nested
+    inner class NoToolsTest {
+
+        @Test
+        fun `도구가 없고 페르소나도 없으면 능력 목록이 비어야 한다`() {
+            val provider = DefaultAgentCardProvider(
+                properties = defaultProperties,
+                tools = emptyList(),
+                personaStore = emptyPersonaStore()
+            )
+
+            val card = provider.generate()
+
+            assertEquals(0, card.capabilities.size) {
+                "도구와 페르소나가 모두 없으면 능력 목록이 비어야 한다, 실제: ${card.capabilities.size}"
+            }
+        }
+
+        @Test
+        fun `도구가 없어도 카드의 기본 필드는 정상이어야 한다`() {
+            val provider = DefaultAgentCardProvider(
+                properties = defaultProperties,
+                tools = emptyList(),
+                personaStore = InMemoryPersonaStore()
+            )
+
+            val card = provider.generate()
+
+            assertEquals("test-agent", card.name) { "도구가 없어도 에이전트 이름이 일치해야 한다" }
+            assertEquals("2.0.0", card.version) { "도구가 없어도 에이전트 버전이 일치해야 한다" }
+            assertTrue(card.supportedInputFormats.isNotEmpty()) {
+                "도구가 없어도 지원 입력 형식이 있어야 한다"
+            }
+        }
+    }
+
+    @Nested
+    inner class NoPersonasTest {
+
+        @Test
+        fun `저장된 페르소나가 없으면 도구 능력만 포함되어야 한다`() {
+            val tools = listOf(tool("my_tool", "내 도구"))
+
+            val provider = DefaultAgentCardProvider(
+                properties = defaultProperties,
+                tools = tools,
+                personaStore = emptyPersonaStore()
+            )
+
+            val card = provider.generate()
+
+            val toolCaps = card.capabilities.filter { !it.name.startsWith("persona:") }
+            val personaCaps = card.capabilities.filter { it.name.startsWith("persona:") }
+            assertEquals(1, toolCaps.size) { "도구 능력이 1개여야 한다" }
+            assertEquals(0, personaCaps.size) { "페르소나가 없으면 페르소나 능력이 0개여야 한다" }
+        }
+    }
+
+    @Nested
+    inner class ToolDescriptionEdgeCasesTest {
+
+        @Test
+        fun `description이 빈 문자열인 도구도 능력에 포함되어야 한다`() {
+            val tools = listOf(tool("no_desc_tool", description = ""))
+            val provider = DefaultAgentCardProvider(
+                properties = defaultProperties,
+                tools = tools,
+                personaStore = InMemoryPersonaStore()
+            )
+
+            val card = provider.generate()
+
+            val toolCaps = card.capabilities.filter { !it.name.startsWith("persona:") }
+            assertEquals(1, toolCaps.size) { "빈 설명을 가진 도구도 능력에 포함되어야 한다" }
+            assertEquals("no_desc_tool", toolCaps[0].name) { "도구 이름이 일치해야 한다" }
+            assertEquals("", toolCaps[0].description) { "빈 설명이 그대로 저장되어야 한다" }
+        }
+
+        @Test
+        fun `inputSchema를 가진 도구는 능력에 스키마가 포함되어야 한다`() {
+            val schema = """{"type":"object","properties":{"q":{"type":"string"}}}"""
+            val tools = listOf(tool("schema_tool", description = "스키마 도구", schema = schema))
+
+            val provider = DefaultAgentCardProvider(
+                properties = defaultProperties,
+                tools = tools,
+                personaStore = InMemoryPersonaStore()
+            )
+
+            val card = provider.generate()
+
+            val toolCaps = card.capabilities.filter { !it.name.startsWith("persona:") }
+            assertEquals(1, toolCaps.size) { "도구가 1개여야 한다" }
+            assertEquals(schema, toolCaps[0].inputSchema) { "inputSchema가 그대로 저장되어야 한다" }
+        }
+
+        @Test
+        fun `description이 없는 페르소나는 이름을 대신 설명으로 사용해야 한다`() {
+            val store = InMemoryPersonaStore()
+            store.save(
+                Persona(
+                    id = "no-desc",
+                    name = "NoDescPersona",
+                    systemPrompt = "system",
+                    description = null, // description 없음
+                    isActive = true
+                )
+            )
+
+            val provider = DefaultAgentCardProvider(
+                properties = defaultProperties,
+                tools = emptyList(),
+                personaStore = store
+            )
+
+            val card = provider.generate()
+
+            val personaCap = card.capabilities.firstOrNull { it.name == "persona:NoDescPersona" }
+            assertTrue(personaCap != null) { "description 없는 페르소나도 능력에 포함되어야 한다" }
+            assertEquals("NoDescPersona", personaCap!!.description) {
+                "description이 null이면 페르소나 이름이 설명으로 사용되어야 한다"
+            }
+        }
+    }
 }

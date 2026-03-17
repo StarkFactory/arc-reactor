@@ -3,6 +3,7 @@ package com.arc.reactor.agent.routing
 import com.arc.reactor.agent.config.ModelRoutingProperties
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentMode
+import com.arc.reactor.agent.model.ResponseFormat
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -49,7 +50,12 @@ class CostAwareModelRouter(
 
         val complexity = analyzeComplexity(command)
 
-        return when (properties.routingStrategy.lowercase()) {
+        val strategy = properties.routingStrategy.lowercase()
+        if (strategy !in KNOWN_STRATEGIES) {
+            logger.warn { "알 수 없는 라우팅 전략: '$strategy' — balanced 전략으로 폴백" }
+        }
+
+        return when (strategy) {
             "cost-optimized" -> routeCostOptimized(complexity)
             "quality-first" -> routeQualityFirst(complexity)
             else -> routeBalanced(complexity)
@@ -88,7 +94,7 @@ class CostAwareModelRouter(
         }
 
         // 구조화 출력 요구 (JSON/YAML = 정확한 형식 필요)
-        if (command.responseFormat != com.arc.reactor.agent.model.ResponseFormat.TEXT) {
+        if (command.responseFormat != ResponseFormat.TEXT) {
             score += 0.1
         }
 
@@ -157,5 +163,8 @@ class CostAwareModelRouter(
 
         /** 균형 전략에서 고급 모델로 전환하는 복잡도 임계값 */
         internal const val BALANCED_THRESHOLD = 0.5
+
+        /** 유효한 라우팅 전략 이름 집합 */
+        private val KNOWN_STRATEGIES = setOf("cost-optimized", "quality-first", "balanced")
     }
 }

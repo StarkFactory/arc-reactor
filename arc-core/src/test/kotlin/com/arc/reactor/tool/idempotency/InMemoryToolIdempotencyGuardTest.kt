@@ -4,6 +4,9 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
@@ -148,6 +151,129 @@ class InMemoryToolIdempotencyGuardTest {
             )
 
             key.shouldNotBeEmpty()
+        }
+
+        @Test
+        fun `매우 긴 인수도 충돌 없이 고유한 키를 생성한다`() {
+            val longValue = "v".repeat(100_000)
+            val key1 = InMemoryToolIdempotencyGuard.buildIdempotencyKey(
+                "tool", mapOf("key" to longValue)
+            )
+            val key2 = InMemoryToolIdempotencyGuard.buildIdempotencyKey(
+                "tool", mapOf("key" to longValue)
+            )
+            val keyDiff = InMemoryToolIdempotencyGuard.buildIdempotencyKey(
+                "tool", mapOf("key" to (longValue + "x"))
+            )
+
+            key1 shouldBe key2
+            (key1 != keyDiff) shouldBe true
+        }
+
+        @Test
+        fun `특수 문자가 포함된 도구명도 고유한 키를 생성한다`() {
+            val keyNormal = InMemoryToolIdempotencyGuard.buildIdempotencyKey(
+                "my-tool_v2.0", mapOf("a" to 1)
+            )
+            val keySpecial = InMemoryToolIdempotencyGuard.buildIdempotencyKey(
+                "my-tool_v2.0!", mapOf("a" to 1)
+            )
+
+            keyNormal.shouldNotBeEmpty()
+            keySpecial.shouldNotBeEmpty()
+            (keyNormal != keySpecial) shouldBe true
+        }
+
+        @Test
+        fun `유니코드 도구명과 인수도 올바르게 처리된다`() {
+            val key1 = InMemoryToolIdempotencyGuard.buildIdempotencyKey(
+                "검색도구", mapOf("쿼리" to "안녕하세요")
+            )
+            val key2 = InMemoryToolIdempotencyGuard.buildIdempotencyKey(
+                "검색도구", mapOf("쿼리" to "안녕하세요")
+            )
+            val keyDiff = InMemoryToolIdempotencyGuard.buildIdempotencyKey(
+                "검색도구", mapOf("쿼리" to "goodbye")
+            )
+
+            key1 shouldBe key2
+            (key1 != keyDiff) shouldBe true
+        }
+    }
+
+    @Nested
+    inner class EdgeCasesTest {
+
+        @Test
+        fun `매우 긴 인수 문자열도 저장하고 조회할 수 있다`() {
+            val guard = InMemoryToolIdempotencyGuard()
+            val longValue = "x".repeat(50_000)
+            val args = mapOf<String, Any?>("data" to longValue)
+
+            guard.store("bigTool", args, "big result")
+            val cached = guard.checkAndGet("bigTool", args)
+
+            cached.shouldNotBeNull()
+            cached.result shouldBe "big result"
+        }
+
+        @Test
+        fun `특수 문자(콜론, 쉼표, 등호)가 포함된 도구명도 정상 동작한다`() {
+            val guard = InMemoryToolIdempotencyGuard()
+            val args = mapOf<String, Any?>("k" to "v")
+
+            guard.store("tool:with=special,chars", args, "result")
+            val cached = guard.checkAndGet("tool:with=special,chars", args)
+
+            cached.shouldNotBeNull()
+            cached.result shouldBe "result"
+        }
+
+        @Test
+        fun `도구명이 빈 문자열이어도 저장하고 조회할 수 있다`() {
+            val guard = InMemoryToolIdempotencyGuard()
+            val args = mapOf<String, Any?>("k" to "v")
+
+            guard.store("", args, "empty-name result")
+            val cached = guard.checkAndGet("", args)
+
+            cached.shouldNotBeNull()
+            cached.result shouldBe "empty-name result"
+        }
+
+        @Test
+        fun `인수 값이 숫자, 불리언, 중첩 문자열 등 혼합 타입이어도 동일 키를 생성한다`() {
+            val guard = InMemoryToolIdempotencyGuard()
+            val args = mapOf<String, Any?>("count" to 42, "active" to true, "label" to "test")
+
+            guard.store("mixedTool", args, "mixed result")
+            val cached = guard.checkAndGet("mixedTool", args)
+
+            cached.shouldNotBeNull()
+            cached.result shouldBe "mixed result"
+        }
+
+        @Test
+        fun `동시 store와 checkAndGet은 데이터 손실 없이 처리되어야 한다`() = runTest {
+            val guard = InMemoryToolIdempotencyGuard()
+            val iterations = 100
+
+            // 동시에 여러 도구 저장
+            val jobs = (0 until iterations).map { i ->
+                launch(Dispatchers.Default) {
+                    val args = mapOf<String, Any?>("id" to i)
+                    guard.store("tool-$i", args, "result-$i")
+                }
+            }
+            jobs.forEach { it.join() }
+
+            // 저장된 결과 검증
+            for (i in 0 until iterations) {
+                val args = mapOf<String, Any?>("id" to i)
+                val cached = guard.checkAndGet("tool-$i", args)
+                cached.shouldNotBeNull()
+                cached.result shouldBe "result-$i"
+            }
         }
     }
 }

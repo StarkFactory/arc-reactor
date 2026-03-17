@@ -3,7 +3,11 @@ package com.arc.reactor.agent.checkpoint
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -165,6 +169,122 @@ class InMemoryCheckpointStoreTest {
             cp.toolCalls shouldBe listOf("searchTool", "calcTool")
             cp.tokensUsed shouldBe 500
             cp.createdAt shouldBe now
+        }
+    }
+
+    @Nested
+    inner class EdgeCaseSaveTest {
+
+        @Test
+        fun `step=0인 체크포인트도 저장하고 조회할 수 있다`() = runTest {
+            val store = InMemoryCheckpointStore()
+
+            store.save(checkpoint(runId = "run-zero", step = 0))
+
+            val result = store.findByRunId("run-zero")
+            result shouldHaveSize 1
+            result[0].step shouldBe 0
+        }
+
+        @Test
+        fun `messages가 빈 목록인 체크포인트도 저장되어야 한다`() = runTest {
+            val store = InMemoryCheckpointStore()
+
+            store.save(checkpoint(runId = "run-empty-msgs", step = 1, messages = emptyList()))
+
+            val result = store.findByRunId("run-empty-msgs")
+            result shouldHaveSize 1
+            result[0].messages.shouldBeEmpty()
+        }
+
+        @Test
+        fun `toolCalls가 빈 목록인 체크포인트도 저장되어야 한다`() = runTest {
+            val store = InMemoryCheckpointStore()
+
+            store.save(checkpoint(runId = "run-no-tools", step = 1, toolCalls = emptyList()))
+
+            val result = store.findByRunId("run-no-tools")
+            result shouldHaveSize 1
+            result[0].toolCalls.shouldBeEmpty()
+        }
+
+        @Test
+        fun `messages와 toolCalls가 모두 빈 체크포인트도 저장되어야 한다`() = runTest {
+            val store = InMemoryCheckpointStore()
+
+            store.save(
+                checkpoint(
+                    runId = "run-all-empty",
+                    step = 1,
+                    messages = emptyList(),
+                    toolCalls = emptyList()
+                )
+            )
+
+            val result = store.findByRunId("run-all-empty")
+            result shouldHaveSize 1
+            result[0].messages.shouldBeEmpty()
+            result[0].toolCalls.shouldBeEmpty()
+        }
+
+        @Test
+        fun `step이 같은 체크포인트를 두 번 저장하면 두 개 모두 보관된다`() = runTest {
+            val store = InMemoryCheckpointStore()
+
+            store.save(checkpoint(runId = "run-dup", step = 1, tokensUsed = 100))
+            store.save(checkpoint(runId = "run-dup", step = 1, tokensUsed = 200))
+
+            val result = store.findByRunId("run-dup")
+            result shouldHaveSize 2
+            assertEquals(2, result.count { it.step == 1 }) {
+                "동일 step 2개가 모두 저장되어야 한다"
+            }
+        }
+    }
+
+    @Nested
+    inner class ConcurrentSaveTest {
+
+        @Test
+        fun `동시에 여러 runId로 저장해도 각각의 체크포인트가 보존되어야 한다`() = runTest {
+            val store = InMemoryCheckpointStore()
+            val runCount = 20
+
+            val jobs = (1..runCount).map { runIndex ->
+                launch(Dispatchers.Default) {
+                    store.save(checkpoint(runId = "concurrent-run-$runIndex", step = runIndex))
+                }
+            }
+            jobs.forEach { it.join() }
+
+            for (runIndex in 1..runCount) {
+                val result = store.findByRunId("concurrent-run-$runIndex")
+                assertEquals(1, result.size) {
+                    "concurrent-run-${runIndex}에 1개의 체크포인트가 있어야 한다"
+                }
+                assertEquals(runIndex, result[0].step) {
+                    "concurrent-run-${runIndex}의 step이 ${runIndex}여야 한다"
+                }
+            }
+        }
+
+        @Test
+        fun `동일 runId에 동시 저장해도 최대 개수를 초과하지 않아야 한다`() = runTest {
+            val maxPerRun = 5
+            val store = InMemoryCheckpointStore(maxCheckpointsPerRun = maxPerRun)
+            val totalSaves = 20
+
+            val jobs = (1..totalSaves).map { i ->
+                launch(Dispatchers.Default) {
+                    store.save(checkpoint(runId = "shared-run", step = i))
+                }
+            }
+            jobs.forEach { it.join() }
+
+            val result = store.findByRunId("shared-run")
+            assertTrue(result.size <= maxPerRun) {
+                "동시 저장 후 체크포인트 수는 최대 $maxPerRun 이하여야 한다, 실제: ${result.size}"
+            }
         }
     }
 }
