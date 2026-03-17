@@ -78,6 +78,20 @@ class StepBudgetTracker(
     private var softLimitWarned: Boolean = false
 
     /**
+     * 도구 출력 토큰을 예산에 기록하고 상태를 반환한다.
+     *
+     * 도구 출력은 다음 LLM 호출의 입력 컨텍스트에 포함되므로
+     * 예산 소비에 반영해야 정확한 추적이 가능하다.
+     *
+     * @param step 단계 이름 (예: "tool-output-search")
+     * @param toolOutputTokens 도구 출력의 추정 토큰 수 (0 이상)
+     * @return 기록 후의 예산 상태
+     */
+    fun recordToolOutput(step: String, toolOutputTokens: Int): BudgetStatus {
+        return record(step, inputTokens = toolOutputTokens, outputTokens = 0)
+    }
+
+    /**
      * 단계별 토큰 소비를 기록하고 예산 상태를 반환한다.
      *
      * @param step 단계 이름 (예: "llm-call-1", "tool-exec-search")

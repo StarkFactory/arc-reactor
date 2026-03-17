@@ -278,4 +278,44 @@ class StepBudgetTrackerTest {
 
         assertEquals(BudgetStatus.OK, status, "softLimitPercent=99에서 98토큰이면 OK여야 한다")
     }
+
+    // --- recordToolOutput ---
+
+    @Test
+    fun `recordToolOutput은 입력 토큰으로 기록해야 한다`() {
+        val tracker = StepBudgetTracker(maxTokens = 1000, softLimitPercent = 80)
+
+        val status = tracker.recordToolOutput("tool-output-search", toolOutputTokens = 300)
+
+        assertEquals(BudgetStatus.OK, status, "300 토큰은 소프트 리밋(800) 미만이므로 OK여야 한다")
+        assertEquals(300, tracker.totalConsumed(), "도구 출력 토큰이 누적되어야 한다")
+
+        val history = tracker.history()
+        assertEquals(1, history.size, "히스토리에 1개 기록되어야 한다")
+        assertEquals(300, history[0].inputTokens, "도구 출력 토큰은 inputTokens로 기록되어야 한다")
+        assertEquals(0, history[0].outputTokens, "outputTokens는 0이어야 한다")
+    }
+
+    @Test
+    fun `recordToolOutput과 record가 함께 누적되어야 한다`() {
+        val tracker = StepBudgetTracker(maxTokens = 1000, softLimitPercent = 80)
+
+        tracker.record("llm-call-1", inputTokens = 200, outputTokens = 100) // 300
+        tracker.recordToolOutput("tool-output-search", toolOutputTokens = 400) // 700
+        val status = tracker.record("llm-call-2", inputTokens = 200, outputTokens = 50) // 950
+
+        assertEquals(BudgetStatus.SOFT_LIMIT, status, "950 토큰은 소프트 리밋(800) 이상이므로 SOFT_LIMIT이어야 한다")
+        assertEquals(950, tracker.totalConsumed(), "모든 토큰이 누적되어야 한다")
+    }
+
+    @Test
+    fun `recordToolOutput으로 예산 소진 시 EXHAUSTED를 반환해야 한다`() {
+        val tracker = StepBudgetTracker(maxTokens = 500, softLimitPercent = 80)
+
+        tracker.record("llm-call-1", inputTokens = 200, outputTokens = 100) // 300
+        val status = tracker.recordToolOutput("tool-output-large", toolOutputTokens = 300) // 600
+
+        assertEquals(BudgetStatus.EXHAUSTED, status, "600 > 500이므로 EXHAUSTED여야 한다")
+        assertTrue(tracker.isExhausted(), "예산이 소진되어야 한다")
+    }
 }
