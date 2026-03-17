@@ -10,7 +10,6 @@ arc-core        에이전트 런타임 (ReAct, guard/hook, tool 추상화, memor
 arc-web         REST/SSE API 레이어
 arc-admin       운영 컨트롤 플레인 기능 (metrics/tracing/tenant dashboard)
 arc-slack       Slack 채널 연동
-arc-error-report 선택형 에러 리포트 모듈
 ```
 
 ## 최소 로컬 실행

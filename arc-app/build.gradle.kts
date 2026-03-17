@@ -8,7 +8,6 @@ dependencies {
     runtimeOnly("org.springframework.boot:spring-boot-starter-data-redis")
     runtimeOnly(project(":arc-web"))
     runtimeOnly(project(":arc-slack"))
-    runtimeOnly(project(":arc-error-report"))
     runtimeOnly(project(":arc-admin"))
 }
 
@@ -21,7 +20,6 @@ tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
         ":arc-core:jar",
         ":arc-web:jar",
         ":arc-slack:jar",
-        ":arc-error-report:jar",
         ":arc-admin:jar"
     )
 }

@@ -10,7 +10,6 @@ arc-core        Agent runtime (ReAct loop, guard/hook, tool abstractions, memory
 arc-web         REST/SSE controllers and web API layer
 arc-admin       Admin control-plane features (metrics/tracing/tenant dashboards)
 arc-slack       Slack channel integration
-arc-error-report Optional error-reporting feature module
 ```
 
 ## Minimal local run
