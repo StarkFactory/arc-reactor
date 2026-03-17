@@ -165,7 +165,15 @@ Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete)
 
 ### 강화 테스트 (Hardening Tests)
 
-일반 단위 테스트는 "구현이 맞는지" 확인하지만, **강화 테스트는 "구현이 충분한지" 확인한다.** 새 기능 구현 후 반드시 강화 테스트를 함께 작성할 것.
+일반 단위 테스트는 "구현이 맞는지", 강화 테스트는 **"악의적 입력에도 버티는지"** 확인한다.
+
+**아래 영역을 수정하면 반드시 강화 테스트를 함께 추가/갱신할 것:**
+- Guard 파이프라인 (`InjectionPatterns.kt`, `DefaultGuardStages.kt`) 수정 시
+- Output Guard (PII 마스킹, 카나리 토큰) 수정 시
+- Tool Output Sanitizer 수정 시
+- ReAct 루프 경계 (maxToolCalls, 타임아웃, 컨텍스트 트리밍) 수정 시
+- 새 도구(ToolCallback) 추가 시 → 도구 출력 인젝션 테스트 추가
+- 일반 서비스/컨트롤러/데이터 로직은 강화 테스트 불필요 (단위 테스트만)
 
 | 카테고리 | 검증 대상 | 위치 |
 |----------|----------|------|
