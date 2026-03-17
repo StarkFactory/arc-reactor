@@ -21,10 +21,10 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * 에 대한 단위 테스트. [SlackEventProcessor].
+ * [SlackEventProcessor]의 이벤트 프로세서 테스트.
  *
- * Covers event routing, deduplication, backpressure (fail-fast and queue modes),
- * bot/subtype filtering, notification-on-drop, and error isolation.
+ * 이벤트 라우팅, 중복 제거, 백프레셔(fail-fast 및 큐 모드),
+ * 봇/서브타입 필터링, 드롭 알림, 오류 격리 등을 검증한다.
  */
 class SlackEventProcessorTest {
 
@@ -126,7 +126,7 @@ class SlackEventProcessorTest {
     )
 
     // =========================================================================
-    // Event routing
+    // 이벤트 라우팅
     // =========================================================================
 
     @Nested
@@ -243,7 +243,7 @@ class SlackEventProcessorTest {
     }
 
     // =========================================================================
-    // Inbound metrics
+    // 인바운드 메트릭
     // =========================================================================
 
     @Nested
@@ -345,7 +345,7 @@ class SlackEventProcessorTest {
     }
 
     // =========================================================================
-    // Deduplication
+    // 중복 제거
     // =========================================================================
 
     @Nested
@@ -398,7 +398,7 @@ class SlackEventProcessorTest {
     }
 
     // =========================================================================
-    // metadata forwarding 재시도
+    // 재시도 메타데이터 전달
     // =========================================================================
 
     @Nested
@@ -447,7 +447,7 @@ class SlackEventProcessorTest {
             processor.submitEventCallback(p1, "events_api")
             acquiredLatch.await(5, TimeUnit.SECONDS) shouldBe true
 
-            // Subsequent events must be dropped
+            // 이후 이벤트는 드롭되어야 합니다
             repeat(3) { i ->
                 val (p, _, _) = mentionPayload(user = "U${i + 2}")
                 processor.submitEventCallback(p, "events_api")

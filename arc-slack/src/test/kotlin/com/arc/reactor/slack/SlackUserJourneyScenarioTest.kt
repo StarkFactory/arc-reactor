@@ -24,6 +24,13 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 
+/**
+ * Slack 사용자 여정 시나리오 테스트.
+ *
+ * Events API app_mention의 가드 거부 표시, 스레드 메시지의 RAG+MCP 응답,
+ * 슬래시 커맨드 흐름(즉시 ACK + 가드 경고 스레드 게시) 등
+ * 전체 파이프라인을 통합 검증한다.
+ */
 class SlackUserJourneyScenarioTest {
 
     private val objectMapper = jacksonObjectMapper()

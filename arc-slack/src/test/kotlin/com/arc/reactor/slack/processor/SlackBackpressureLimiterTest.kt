@@ -11,15 +11,15 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * 에 대한 단위 테스트. [SlackBackpressureLimiter].
+ * [SlackBackpressureLimiter]의 백프레셔 제한기 테스트.
  *
- * Tests cover fail-fast (saturation) mode, queue mode, concurrent permit counting,
- * and semaphore release semantics.
+ * fail-fast(포화) 모드, 큐 모드, 동시 퍼밋 카운팅,
+ * 세마포어 해제 시맨틱스 등을 검증한다.
  */
 class SlackBackpressureLimiterTest {
 
     // =========================================================================
-    // rejectImmediatelyIfConfigured
+    // 즉시 거부 판단 (rejectImmediatelyIfConfigured)
     // =========================================================================
 
     @Nested
@@ -69,7 +69,7 @@ class SlackBackpressureLimiterTest {
                 requestTimeoutMs = 0,
                 failFastOnSaturation = true
             )
-            // Exhaust the permit via tryAcquire (rejectImmediatelyIfConfigured itself)
+            // tryAcquire(rejectImmediatelyIfConfigured)를 통해 퍼밋 소진
             val firstReject = limiter.rejectImmediatelyIfConfigured()
             firstReject shouldBe false // permit was free and got acquired by tryAcquire
 
@@ -102,7 +102,7 @@ class SlackBackpressureLimiterTest {
     }
 
     // =========================================================================
-    // acquireForQueuedMode
+    // 큐 모드 퍼밋 획득 (acquireForQueuedMode)
     // =========================================================================
 
     @Nested
@@ -117,7 +117,7 @@ class SlackBackpressureLimiterTest {
             )
             val result = limiter.acquireForQueuedMode()
             result shouldBe true
-            // Semaphore is untouched — a subsequent tryAcquire은(는) still succeed해야 합니다
+            // 세마포어 미사용 — 이후 tryAcquire도 성공해야 합니다
             val notRejected = !limiter.rejectImmediatelyIfConfigured()
             notRejected shouldBe true
         }
@@ -158,7 +158,7 @@ class SlackBackpressureLimiterTest {
             // first permit를 획득합니다
             limiter.acquireForQueuedMode()
 
-            // Launch a coroutine that will wait and then release
+            // 대기 후 해제할 코루틴 시작
             val acquired = AtomicInteger(0)
             val job = launch(Dispatchers.Default) {
                 val result = limiter.acquireForQueuedMode()
@@ -183,7 +183,7 @@ class SlackBackpressureLimiterTest {
                 val acquired = limiter.acquireForQueuedMode()
                 acquired shouldBe true
             }
-            // Semaphore fully drained — timed acquire은(는) fail quickly해야 합니다
+            // 세마포어 완전 소진 — 타임아웃 획득은 즉시 실패해야 합니다
             val timedOutLimiter = SlackBackpressureLimiter(
                 maxConcurrentRequests = max,
                 requestTimeoutMs = 50,
@@ -195,7 +195,7 @@ class SlackBackpressureLimiterTest {
     }
 
     // =========================================================================
-    // release
+    // 퍼밋 해제 (release)
     // =========================================================================
 
     @Nested
@@ -232,7 +232,7 @@ class SlackBackpressureLimiterTest {
                     requestTimeoutMs = 50,
                     failFastOnSaturation = false
                 )
-                // Use a fresh limiter per round to keep the test self-contained
+                // 각 라운드마다 새 리미터를 사용하여 테스트 독립성 유지
                 if (timedLimiter.acquireForQueuedMode()) successCount++
             }
             successCount shouldBe max
@@ -240,7 +240,7 @@ class SlackBackpressureLimiterTest {
     }
 
     // =========================================================================
-    // Concurrency
+    // 동시성 불변 조건
     // =========================================================================
 
     @Nested
@@ -283,7 +283,7 @@ class SlackBackpressureLimiterTest {
                 requestTimeoutMs = 0,
                 failFastOnSaturation = true
             )
-            // Hold the only permit
+            // 유일한 퍼밋을 보유
             val holdJob = launch(Dispatchers.Default) {
                 limiter.acquireForQueuedMode()
                 delay(300)

@@ -9,6 +9,12 @@ import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * [SlackMessageSenderAdapter]의 메시지 전송 어댑터 테스트.
+ *
+ * SlackMessagingService 위임 호출, 메시지 텍스트 무변경 전달,
+ * API 실패 시 비-예외 동작, 예외 전파 등을 검증한다.
+ */
 class SlackMessageSenderAdapterTest {
 
     private val messagingService = mockk<SlackMessagingService>()

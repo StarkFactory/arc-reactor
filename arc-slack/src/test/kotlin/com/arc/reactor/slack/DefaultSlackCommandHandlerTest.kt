@@ -23,6 +23,12 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * [DefaultSlackCommandHandler]의 슬래시 커맨드 처리 테스트.
+ *
+ * 유효성 검사, 라우팅(채널/response_url 폴백), 리마인더 커맨드,
+ * 에이전트 시나리오(가드 거부, 거절 응답 재작성, ReAct+MCP 응답) 등을 검증한다.
+ */
 class DefaultSlackCommandHandlerTest {
 
     private val agentExecutor = mockk<AgentExecutor>()

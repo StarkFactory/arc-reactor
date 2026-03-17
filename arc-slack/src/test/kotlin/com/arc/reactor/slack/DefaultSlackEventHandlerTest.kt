@@ -22,6 +22,12 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * [DefaultSlackEventHandler]의 이벤트 처리 테스트.
+ *
+ * 멘션 태그 제거, 세션 ID 매핑, 응답 처리(성공/실패/가드 거부),
+ * RAG+MCP 응답 전달, 메시지 핸들링 등을 검증한다.
+ */
 class DefaultSlackEventHandlerTest {
 
     private val agentExecutor = mockk<AgentExecutor>()

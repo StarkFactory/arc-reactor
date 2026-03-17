@@ -25,6 +25,12 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/**
+ * [DefaultSlackEventHandler]의 프로액티브 채널 메시지 처리 테스트.
+ *
+ * 프로액티브 응답 판단(NO_RESPONSE, 빈 응답, 실패), 스레드 추적,
+ * 시스템 프롬프트(프로액티브 모드), 크로스 도구 프롬프트 주입 등을 검증한다.
+ */
 class DefaultSlackEventHandlerProactiveTest {
 
     private val agentExecutor = mockk<AgentExecutor>()

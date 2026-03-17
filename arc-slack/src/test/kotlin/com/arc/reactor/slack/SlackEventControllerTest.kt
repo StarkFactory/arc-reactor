@@ -18,6 +18,12 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 
+/**
+ * [SlackEventController]의 이벤트 컨트롤러 테스트.
+ *
+ * URL 검증 챌린지, 이벤트 라우팅(app_mention/스레드 메시지),
+ * event_id 중복 제거, 봇 메시지 필터링 등을 검증한다.
+ */
 class SlackEventControllerTest {
 
     private val objectMapper: ObjectMapper = jacksonObjectMapper()

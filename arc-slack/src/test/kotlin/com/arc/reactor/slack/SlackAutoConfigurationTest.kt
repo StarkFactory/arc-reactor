@@ -22,6 +22,12 @@ import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 
+/**
+ * [SlackAutoConfiguration]의 자동 구성 테스트.
+ *
+ * 조건부 활성화, 빈 생성, SlackMessageSender 어댑터 연결,
+ * 서명 검증 토글 등을 검증한다.
+ */
 class SlackAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()

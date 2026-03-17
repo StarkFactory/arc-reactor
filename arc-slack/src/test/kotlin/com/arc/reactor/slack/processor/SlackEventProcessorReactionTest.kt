@@ -17,6 +17,12 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+/**
+ * [SlackEventProcessor]의 리액션 피드백 라우팅 테스트.
+ *
+ * 추적된 봇 메시지에 대한 thumbsup/thumbsdown 리액션 라우팅,
+ * 미추적 메시지 무시, 비-메시지 아이템 타입 무시, 메트릭 기록 등을 검증한다.
+ */
 class SlackEventProcessorReactionTest {
 
     private val objectMapper = jacksonObjectMapper()

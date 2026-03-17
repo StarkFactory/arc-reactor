@@ -88,7 +88,7 @@ class SlackCrossToolAndProactiveE2ETest {
     }
 
     // =========================================================================
-    // Cross-tool Correlation E2E
+    // 크로스 도구 상관관계 E2E
     // =========================================================================
 
     @Test
@@ -127,7 +127,7 @@ class SlackCrossToolAndProactiveE2ETest {
         val response = buildPipeline().handleEvent(payload)
         response.statusCode shouldBe HttpStatus.OK
 
-        // cross-tool prompt was injected 확인
+        // 크로스 도구 프롬프트가 주입되었는지 확인
         coVerify(timeout = 3_000) {
             agentExecutor.execute(match { cmd ->
                 cmd.systemPrompt.contains("[Cross-tool Correlation]") &&
@@ -136,7 +136,7 @@ class SlackCrossToolAndProactiveE2ETest {
             })
         }
 
-        // combined answer was sent back 확인
+        // 결합된 응답이 전송되었는지 확인
         coVerify(timeout = 3_000) {
             messagingService.sendMessage(
                 "C100",
@@ -180,7 +180,7 @@ class SlackCrossToolAndProactiveE2ETest {
     }
 
     // =========================================================================
-    // Proactive Agent E2E
+    // 프로액티브 에이전트 E2E
     // =========================================================================
 
     @Test
@@ -229,13 +229,13 @@ class SlackCrossToolAndProactiveE2ETest {
             )
         }
 
-        // proactive prompt was used 확인
+        // 프로액티브 프롬프트가 사용되었는지 확인
         commandSlot.captured.systemPrompt shouldContain "[Proactive Assistance Mode]"
         commandSlot.captured.systemPrompt shouldContain "[NO_RESPONSE]"
         commandSlot.captured.metadata["entrypoint"] shouldBe "proactive"
         commandSlot.captured.metadata["sessionId"] shouldBe "slack-proactive-C_WATCH-4000.0001"
 
-        // thread is tracked for follow-ups 확인
+        // 후속 응답을 위해 스레드가 추적되는지 확인
         threadTracker.isTracked("C_WATCH", "4000.0001") shouldBe true
     }
 

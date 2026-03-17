@@ -18,6 +18,12 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+/**
+ * [SlackEventProcessor]의 프로액티브 라우팅 테스트.
+ *
+ * 프로액티브 채널 디스패치, 허용 목록 미포함 채널 무시,
+ * DM 채널 필터링, 동시성 제한, 메트릭 기록 등을 검증한다.
+ */
 class SlackEventProcessorProactiveTest {
 
     private val objectMapper = jacksonObjectMapper()

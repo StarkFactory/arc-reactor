@@ -20,10 +20,10 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * 에 대한 단위 테스트. [SlackCommandProcessor].
+ * [SlackCommandProcessor]의 커맨드 프로세서 테스트.
  *
- * Covers successful submission, fail-fast backpressure, queue-mode backpressure,
- * notification-on-drop semantics, error isolation, and semaphore lifecycle correctness.
+ * 성공적 제출, fail-fast 백프레셔, 큐 모드 백프레셔,
+ * 드롭 알림 시맨틱스, 오류 격리, 세마포어 생명주기 정확성 등을 검증한다.
  */
 class SlackCommandProcessorTest {
 
@@ -64,7 +64,7 @@ class SlackCommandProcessorTest {
     )
 
     // =========================================================================
-    // Submission and return value
+    // 제출 및 반환값
     // =========================================================================
 
     @Nested
@@ -136,7 +136,7 @@ class SlackCommandProcessorTest {
     }
 
     // =========================================================================
-    // Handler dispatch
+    // 핸들러 디스패치
     // =========================================================================
 
     @Nested
@@ -266,7 +266,7 @@ class SlackCommandProcessorTest {
                     "events_api"
                 )
             }
-            // Give timeout + notify time to fire on Dispatchers.Default
+            // 타임아웃 + 알림이 Dispatchers.Default에서 실행될 시간 부여
             Thread.sleep(1000)
             holdLatch.countDown()
 
@@ -414,7 +414,7 @@ class SlackCommandProcessorTest {
             firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
             Thread.sleep(200)  // semaphore release in finally block on Dispatchers.Default 허용
 
-            // mock to succeed for next command 리셋
+            // 다음 커맨드 성공을 위해 mock 리셋
             val secondLatch = CountDownLatch(1)
             val secondSuccess = AtomicInteger(0)
             coEvery { commandHandler.handleSlashCommand(any()) } coAnswers {
@@ -447,7 +447,7 @@ class SlackCommandProcessorTest {
     }
 
     // =========================================================================
-    // Concurrency — permit counting
+    // 동시성 — 퍼밋 카운팅
     // =========================================================================
 
     @Nested
