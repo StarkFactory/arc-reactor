@@ -36,7 +36,7 @@ object InjectionPatterns {
         // 예: "Ignore all previous instructions and..."
         InjectionPattern(
             "role_override",
-            Regex("(?i)(ignore|forget|disregard).*(previous|above|prior|all).*instructions?")
+            Regex("(?i)(ignore|forget|disregard).*(previous|above|prior|all).*(instructions?|and)")
         ),
         // 예: "You are now a hacker"
         InjectionPattern("role_override", Regex("(?i)you are now")),
