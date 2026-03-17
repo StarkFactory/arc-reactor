@@ -76,81 +76,96 @@ class DefaultToolDescriptionEnricher(
 
     override fun analyze(tool: ToolCallback): ToolDescriptionQuality {
         val warnings = mutableListOf<String>()
-        var score = 0.0
-
         val description = tool.description.trim()
-        val descriptionLength = description.length
-
-        // 1. 설명 존재 여부 (0.3점)
-        if (description.isEmpty()) {
-            warnings.add("도구 설명이 비어있습니다. LLM이 도구의 목적을 파악할 수 없습니다.")
-        } else {
-            score += WEIGHT_DESCRIPTION_EXISTS
-        }
-
-        // 2. 설명 길이 적정성 (0.2점)
-        if (description.isNotEmpty() && descriptionLength < minDescriptionLength) {
-            warnings.add(
-                "도구 설명이 짧습니다 (${descriptionLength}자). " +
-                    "최소 ${minDescriptionLength}자 이상을 권장합니다."
-            )
-        } else if (descriptionLength >= goodDescriptionLength) {
-            score += WEIGHT_DESCRIPTION_LENGTH
-        } else if (descriptionLength >= minDescriptionLength) {
-            val ratio = (descriptionLength - minDescriptionLength).toDouble() /
-                (goodDescriptionLength - minDescriptionLength)
-            score += WEIGHT_DESCRIPTION_LENGTH * ratio
-        }
-
-        // 3. 입력 스키마 존재 여부 (0.2점)
         val hasInputSchema = hasRealInputSchema(tool.inputSchema)
-        if (hasInputSchema) {
-            score += WEIGHT_INPUT_SCHEMA
-        } else {
-            warnings.add("입력 스키마에 파라미터가 정의되지 않았습니다.")
-        }
 
-        // 4. 파라미터 설명 완전성 (0.2점)
-        if (hasInputSchema) {
-            val missingDescriptions = findMissingParameterDescriptions(tool.inputSchema)
-            if (missingDescriptions.isEmpty()) {
-                score += WEIGHT_PARAM_DESCRIPTIONS
-            } else {
-                val paramWarning = "다음 파라미터에 description이 누락되었습니다: ${missingDescriptions.joinToString(", ")}"
-                warnings.add(paramWarning)
-                // 일부 파라미터에 설명이 있으면 부분 점수
-                val totalParams = countProperties(tool.inputSchema)
-                if (totalParams > 0) {
-                    val describedRatio = (totalParams - missingDescriptions.size).toDouble() / totalParams
-                    score += WEIGHT_PARAM_DESCRIPTIONS * describedRatio
-                }
-            }
-        }
-
-        // 5. 도구 이름 규칙 준수 (0.1점)
-        if (isValidToolName(tool.name)) {
-            score += WEIGHT_TOOL_NAME
-        } else {
-            warnings.add(
-                "도구 이름 '${tool.name}'이 snake_case 또는 camelCase 규칙을 따르지 않습니다."
-            )
-        }
+        val score = scoreDescription(description, warnings) +
+            scoreInputSchema(hasInputSchema, tool.inputSchema, warnings) +
+            scoreToolName(tool.name, warnings)
 
         val clampedScore = score.coerceIn(0.0, 1.0)
-
-        if (warnings.isNotEmpty()) {
-            logger.warn { "도구 '${tool.name}' 설명 품질 점수: ${"%.2f".format(clampedScore)} — 경고: $warnings" }
-        } else {
-            logger.debug { "도구 '${tool.name}' 설명 품질 점수: ${"%.2f".format(clampedScore)}" }
-        }
+        logResult(tool.name, clampedScore, warnings)
 
         return ToolDescriptionQuality(
             toolName = tool.name,
             score = clampedScore,
             warnings = warnings,
             hasInputSchema = hasInputSchema,
-            descriptionLength = descriptionLength
+            descriptionLength = description.length
         )
+    }
+
+    /**
+     * 설명 존재 여부(0.3점) + 길이 적정성(0.2점)을 평가한다.
+     */
+    private fun scoreDescription(description: String, warnings: MutableList<String>): Double {
+        var score = 0.0
+        val length = description.length
+
+        if (description.isEmpty()) {
+            warnings.add("도구 설명이 비어있습니다. LLM이 도구의 목적을 파악할 수 없습니다.")
+            return score
+        }
+        score += WEIGHT_DESCRIPTION_EXISTS
+
+        if (length < minDescriptionLength) {
+            warnings.add(
+                "도구 설명이 짧습니다 (${length}자). " +
+                    "최소 ${minDescriptionLength}자 이상을 권장합니다."
+            )
+        } else if (length >= goodDescriptionLength) {
+            score += WEIGHT_DESCRIPTION_LENGTH
+        } else {
+            val ratio = (length - minDescriptionLength).toDouble() /
+                (goodDescriptionLength - minDescriptionLength)
+            score += WEIGHT_DESCRIPTION_LENGTH * ratio
+        }
+        return score
+    }
+
+    /**
+     * 입력 스키마 존재(0.2점) + 파라미터 설명 완전성(0.2점)을 평가한다.
+     */
+    private fun scoreInputSchema(
+        hasSchema: Boolean,
+        inputSchema: String,
+        warnings: MutableList<String>
+    ): Double {
+        if (!hasSchema) {
+            warnings.add("입력 스키마에 파라미터가 정의되지 않았습니다.")
+            return 0.0
+        }
+        var score = WEIGHT_INPUT_SCHEMA
+
+        val missing = findMissingParameterDescriptions(inputSchema)
+        if (missing.isEmpty()) {
+            score += WEIGHT_PARAM_DESCRIPTIONS
+        } else {
+            warnings.add("다음 파라미터에 description이 누락되었습니다: ${missing.joinToString(", ")}")
+            val total = countProperties(inputSchema)
+            if (total > 0) {
+                score += WEIGHT_PARAM_DESCRIPTIONS * ((total - missing.size).toDouble() / total)
+            }
+        }
+        return score
+    }
+
+    /**
+     * 도구 이름 규칙 준수 여부(0.1점)를 평가한다.
+     */
+    private fun scoreToolName(name: String, warnings: MutableList<String>): Double {
+        if (isValidToolName(name)) return WEIGHT_TOOL_NAME
+        warnings.add("도구 이름 '${name}'이 snake_case 또는 camelCase 규칙을 따르지 않습니다.")
+        return 0.0
+    }
+
+    /** 분석 결과를 로깅한다. */
+    private fun logResult(toolName: String, score: Double, warnings: List<String>) {
+        if (warnings.isNotEmpty()) {
+            logger.warn { "도구 '$toolName' 설명 품질 점수: ${"%.2f".format(score)} — 경고: $warnings" }
+        } else {
+            logger.debug { "도구 '$toolName' 설명 품질 점수: ${"%.2f".format(score)}" }
+        }
     }
 
     /**
