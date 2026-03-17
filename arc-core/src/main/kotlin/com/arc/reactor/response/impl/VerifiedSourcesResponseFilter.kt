@@ -62,6 +62,7 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
      *
      * 출처가 있거나, 검증이 불필요하거나, 내부 도구만 사용했거나,
      * 읽기 전용/신원 거부이거나, 이미 스스로 검증 불가를 선언한 경우 차단하지 않는다.
+     * 도구가 호출되지 않은 일반 지식 질문도 차단하지 않는다.
      */
     private fun shouldBlockUnverifiedAnswer(
         context: ResponseFilterContext,
@@ -73,6 +74,8 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         if (usesOnlyInternalReadTools(context)) return false
         // 도구가 호출되었고 콘텐츠가 있으면 차단하지 않는다 (도구가 출처 URL을 반환하지 않는 경우)
         if (context.toolsUsed.isNotEmpty() && content.isNotBlank()) return false
+        // 도구가 호출되지 않았고 워크스페이스 전용 질문이 아니면 일반 지식 답변으로 허용한다
+        if (context.toolsUsed.isEmpty() && !isStrictWorkspaceQuery(context.command.userPrompt)) return false
         if (allowsReadOnlyMutationRefusal(context, content)) return false
         if (allowsIdentityResolutionRefusal(content)) return false
         return !alreadyDeclinesVerification(content)
@@ -109,6 +112,21 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
     /** 워크스페이스 도구인지 접두사로 판단한다. */
     private fun isWorkspaceTool(toolName: String): Boolean {
         return WORKSPACE_TOOL_PREFIXES.any { prefix -> toolName.startsWith(prefix) }
+    }
+
+    /**
+     * 프롬프트가 워크스페이스 전용 질문인지 엄격하게 판단한다.
+     *
+     * [requiresVerifiedSources]의 [VERIFICATION_KEYWORDS]는 "문서", "서비스" 등
+     * 일반 지식 질문에서도 등장하는 넓은 키워드를 포함한다.
+     * 이 메서드는 도구가 호출되지 않은 상황에서 차단 여부를 결정할 때만 사용되며,
+     * Jira/Confluence/Bitbucket/Swagger 등 워크스페이스 도구와 직접 연관된
+     * 키워드가 포함된 경우에만 참을 반환한다.
+     */
+    private fun isStrictWorkspaceQuery(userPrompt: String): Boolean {
+        return STRICT_WORKSPACE_KEYWORDS.any { keyword ->
+            userPrompt.contains(keyword, ignoreCase = true)
+        }
     }
 
     /** 응답이 이미 검증 불가를 선언하는 문구를 포함하는지 확인한다. */
@@ -216,6 +234,22 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         /** 워크스페이스 도구 접두사 목록. */
         private val WORKSPACE_TOOL_PREFIXES =
             listOf("jira_", "confluence_", "bitbucket_", "work_", "mcp_", "spec_")
+
+        /**
+         * 도구가 호출되지 않은 상황에서 차단 여부를 결정하기 위한 엄격한 워크스페이스 키워드.
+         *
+         * [VERIFICATION_KEYWORDS]보다 좁은 범위로, 워크스페이스 도구(Jira, Confluence 등)와
+         * 직접 연관된 키워드만 포함한다. "문서", "서비스", "규칙" 등 일반 지식 질문에서도
+         * 빈번히 등장하는 넓은 키워드는 제외한다.
+         */
+        private val STRICT_WORKSPACE_KEYWORDS = setOf(
+            "jira", "confluence", "bitbucket", "swagger", "openapi",
+            "지라", "컨플루언스", "비트버킷", "스웨거", "오픈api",
+            "이슈", "티켓", "스프린트", "보드", "위키", "스페이스",
+            "pull request", "pr ", "브랜치", "리포",
+            "배포", "릴리즈", "릴리스", "인시던트", "장애",
+            "온보딩", "런북", "runbook"
+        )
 
         /** 링크 없는 내부 읽기 전용 도구 목록. */
         private val INTERNAL_READ_TOOLS_WITHOUT_LINKS = setOf(
