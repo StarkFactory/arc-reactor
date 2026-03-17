@@ -1,6 +1,17 @@
 package com.arc.reactor.slack.tools.usecase
 
-import com.arc.reactor.slack.tools.client.*
+import com.arc.reactor.slack.tools.client.CanvasCreateResult
+import com.arc.reactor.slack.tools.client.CanvasEditResult
+import com.arc.reactor.slack.tools.client.ConversationHistoryResult
+import com.arc.reactor.slack.tools.client.ConversationsListResult
+import com.arc.reactor.slack.tools.client.FindChannelsResult
+import com.arc.reactor.slack.tools.client.FindUsersResult
+import com.arc.reactor.slack.tools.client.PostMessageResult
+import com.arc.reactor.slack.tools.client.SearchMessagesResult
+import com.arc.reactor.slack.tools.client.SimpleResult
+import com.arc.reactor.slack.tools.client.SlackApiClient
+import com.arc.reactor.slack.tools.client.UploadFileResult
+import com.arc.reactor.slack.tools.client.UserInfoResult
 
 // ── Slack 도구 유스케이스 ──
 // 각 유스케이스는 [SlackApiClient]에 단순 위임하는 얇은 계층이다.
