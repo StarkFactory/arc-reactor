@@ -63,21 +63,16 @@ internal class ToolCallOrchestrator(
     private val requesterAwareToolNames: Set<String> = emptySet(),
     private val toolResultCacheProperties: ToolResultCacheProperties = ToolResultCacheProperties()
 ) {
-    // Spring AI ToolCallback 해석 결과 캐시 — MethodToolCallbackProvider 호출 비용 절감
+    /** Spring AI ToolCallback 해석 결과 캐시 — MethodToolCallbackProvider 호출 비용 절감 */
     private val springToolCallbackCache =
         ConcurrentHashMap<ToolCallbackCacheKey, Map<String, org.springframework.ai.tool.ToolCallback>>()
 
-    // Tool 결과 캐시 (Caffeine) — 동일 입력에 대한 중복 Tool 호출 방지
-    private val toolResultCache: Cache<String, String>? = if (toolResultCacheProperties.enabled) {
-        Caffeine.newBuilder()
-            .maximumSize(toolResultCacheProperties.maxSize)
-            .expireAfterWrite(
-                java.time.Duration.ofSeconds(toolResultCacheProperties.ttlSeconds)
-            )
-            .build()
-    } else {
-        null
-    }
+    /** Tool 결과 캐시 (Caffeine) — 동일 입력에 대한 중복 Tool 호출 방지 */
+    private val toolResultCache: Cache<String, String>? = buildToolResultCacheIfEnabled()
+
+    // ──────────────────────────────────────────────
+    // 공개 API: 단건 직접 실행 / 병렬 실행
+    // ──────────────────────────────────────────────
 
     /**
      * 단건 도구를 직접 실행합니다. 강제 Workspace Tool 등에 사용됩니다.
@@ -102,10 +97,7 @@ internal class ToolCallOrchestrator(
         allowedTools: Set<String>? = null
     ): ToolCallResult {
         if (allowedTools != null && toolName !in allowedTools) {
-            val message = "Error: Tool '$toolName' is not allowed for this request"
-            logger.info { "Direct tool call blocked by allowlist: tool=$toolName allowedTools=${allowedTools.size}" }
-            agentMetrics.recordToolCall(toolName, 0, false)
-            return ToolCallResult(success = false, output = message, errorMessage = message, durationMs = 0)
+            return rejectByAllowlist(toolName, allowedTools.size)
         }
 
         val effectiveToolParams = enrichToolParamsForRequesterAwareTools(
@@ -113,55 +105,24 @@ internal class ToolCallOrchestrator(
             toolParams = toolParams,
             metadata = hookContext.metadata
         )
-        val callIndex = toolsUsed.size
-        val toolCallContext = ToolCallContext(
-            agentContext = hookContext,
-            toolName = toolName,
-            toolParams = effectiveToolParams,
-            callIndex = callIndex
-        )
+        val toolCallContext = buildToolCallContext(hookContext, toolName, effectiveToolParams, toolsUsed.size)
 
         checkBeforeToolCallHook(toolCallContext)?.let { rejection ->
-            val message = "Tool call rejected: ${rejection.reason}"
-            logger.info { "Direct tool call $toolName rejected by hook: ${rejection.reason}" }
-            return ToolCallResult(success = false, output = message, errorMessage = message, durationMs = 0)
+            return rejectByHook(toolName, rejection.reason)
         }
-
         checkToolApproval(toolName, toolCallContext, hookContext)?.let { rejection ->
             publishBlockedToolCallResult(toolCallContext, toolName, rejection)
             return ToolCallResult(success = false, output = rejection, errorMessage = rejection, durationMs = 0)
         }
 
-        val toolStartTime = System.currentTimeMillis()
-        val springCallbacksByName = resolveSpringToolCallbacksByName(tools)
-        val toolInput = serializeToolInput(effectiveToolParams, null)
-        val invocation = invokeToolAdapter(
+        return invokeAndFinalizeDirect(
             toolName = toolName,
-            toolInput = toolInput,
+            effectiveToolParams = effectiveToolParams,
             tools = tools,
-            springCallbacksByName = springCallbacksByName
+            hookContext = hookContext,
+            toolCallContext = toolCallContext,
+            toolsUsed = toolsUsed
         )
-        if (invocation.trackAsUsed) {
-            toolsUsed.add(toolName)
-        }
-        captureToolSignals(hookContext, toolName, invocation.output, invocation.success)
-        var toolOutput = invocation.output
-        val toolDurationMs = System.currentTimeMillis() - toolStartTime
-
-        if (toolOutputSanitizer != null) {
-            val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
-            toolOutput = sanitized.content
-        }
-
-        val result = ToolCallResult(
-            success = invocation.success,
-            output = toolOutput,
-            errorMessage = if (!invocation.success) toolOutput else null,
-            durationMs = toolDurationMs
-        )
-        hookExecutor?.executeAfterToolCall(toolCallContext, result)
-        agentMetrics.recordToolCall(toolName, toolDurationMs, invocation.success)
-        return result
     }
 
     /**
@@ -205,12 +166,12 @@ internal class ToolCallOrchestrator(
                 )
             }
         }.awaitAll()
-        executions.forEach { execution ->
-            execution.usedToolName?.let(toolsUsed::add)
-            mergeToolCapture(hookContext, execution.capture)
-        }
-        executions.map(ParallelToolExecution::response)
+        collectParallelResults(executions, hookContext, toolsUsed)
     }
+
+    // ──────────────────────────────────────────────
+    // 단일 Tool Call 실행 (병렬 실행의 개별 단위)
+    // ──────────────────────────────────────────────
 
     /**
      * 단일 Tool Call을 실행합니다.
@@ -229,101 +190,163 @@ internal class ToolCallOrchestrator(
         normalizeToolResponseToJson: Boolean
     ): ParallelToolExecution {
         val toolName = toolCall.name()
-        if (allowedTools != null && toolName !in allowedTools) {
-            val msg = "Error: Tool '$toolName' is not allowed for this request"
-            logger.info { "Tool call blocked by allowlist: tool=$toolName allowedTools=${allowedTools.size}" }
-            agentMetrics.recordToolCall(toolName, 0, false)
-            return ParallelToolExecution(
-                response = buildToolResponse(
-                    toolCall = toolCall,
-                    toolName = toolName,
-                    output = msg,
-                    normalizeToolResponseToJson = normalizeToolResponseToJson
-                )
-            )
-        }
+
+        checkAllowlist(toolCall, toolName, allowedTools, normalizeToolResponseToJson)
+            ?.let { return it }
 
         val parsedToolParams = parseToolArguments(toolCall.arguments())
         val effectiveToolParams = enrichToolParamsForRequesterAwareTools(
-            toolName = toolName,
-            toolParams = parsedToolParams,
-            metadata = hookContext.metadata
+            toolName = toolName, toolParams = parsedToolParams, metadata = hookContext.metadata
         )
-        val toolInput = serializeToolInput(effectiveToolParams, toolCall.arguments())
-
-        val toolCallContext = ToolCallContext(
-            agentContext = hookContext,
-            toolName = toolName,
-            toolParams = effectiveToolParams,
-            callIndex = totalToolCallsCounter.get()
+        val toolCallContext = buildToolCallContext(
+            hookContext, toolName, effectiveToolParams, totalToolCallsCounter.get()
         )
 
+        checkHookAndApproval(
+            toolCall, toolName, toolCallContext, hookContext, normalizeToolResponseToJson
+        )?.let { return it }
+
+        checkToolExistsAndReserveSlot(
+            toolCall, toolName, tools, springCallbacksByName,
+            totalToolCallsCounter, maxToolCalls, normalizeToolResponseToJson
+        )?.let { return it }
+
+        return invokeAndFinalizeParallel(
+            toolCall = toolCall,
+            toolName = toolName,
+            toolInput = serializeToolInput(effectiveToolParams, toolCall.arguments()),
+            toolCallContext = toolCallContext,
+            tools = tools,
+            springCallbacksByName = springCallbacksByName,
+            hookContext = hookContext,
+            normalizeToolResponseToJson = normalizeToolResponseToJson
+        )
+    }
+
+    /** allowedTools 허용 목록을 확인합니다. 차단 시 [ParallelToolExecution] 반환. */
+    private fun checkAllowlist(
+        toolCall: AssistantMessage.ToolCall,
+        toolName: String,
+        allowedTools: Set<String>?,
+        normalizeToolResponseToJson: Boolean
+    ): ParallelToolExecution? {
+        if (allowedTools == null || toolName in allowedTools) return null
+        val msg = "Error: Tool '$toolName' is not allowed for this request"
+        logger.info { "Tool call blocked by allowlist: tool=$toolName allowedTools=${allowedTools.size}" }
+        agentMetrics.recordToolCall(toolName, 0, false)
+        return ParallelToolExecution(
+            response = buildToolResponse(toolCall, toolName, msg, normalizeToolResponseToJson)
+        )
+    }
+
+    /** BeforeToolCallHook과 승인 검사를 수행합니다. 거부 시 [ParallelToolExecution] 반환. */
+    private suspend fun checkHookAndApproval(
+        toolCall: AssistantMessage.ToolCall,
+        toolName: String,
+        toolCallContext: ToolCallContext,
+        hookContext: HookContext,
+        normalizeToolResponseToJson: Boolean
+    ): ParallelToolExecution? {
         checkBeforeToolCallHook(toolCallContext)?.let { rejection ->
             logger.info { "Tool call $toolName rejected by hook: ${rejection.reason}" }
             return ParallelToolExecution(
                 response = buildToolResponse(
-                    toolCall = toolCall,
-                    toolName = toolName,
-                    output = "Tool call rejected: ${rejection.reason}",
-                    normalizeToolResponseToJson = normalizeToolResponseToJson
+                    toolCall, toolName, "Tool call rejected: ${rejection.reason}", normalizeToolResponseToJson
                 )
             )
         }
-
-        // Human-in-the-Loop: 승인이 필요한 Tool 호출인지 확인
         checkToolApproval(toolName, toolCallContext, hookContext)?.let { rejection ->
             publishBlockedToolCallResult(toolCallContext, toolName, rejection)
             return ParallelToolExecution(
-                response = buildToolResponse(
-                    toolCall = toolCall,
-                    toolName = toolName,
-                    output = rejection,
-                    normalizeToolResponseToJson = normalizeToolResponseToJson
-                )
+                response = buildToolResponse(toolCall, toolName, rejection, normalizeToolResponseToJson)
             )
         }
+        return null
+    }
 
-        val toolExists = findToolAdapter(toolName, tools) != null || springCallbacksByName.containsKey(toolName)
+    /** Tool 존재 확인과 실행 슬롯 예약을 수행합니다. 실패 시 [ParallelToolExecution] 반환. */
+    private fun checkToolExistsAndReserveSlot(
+        toolCall: AssistantMessage.ToolCall,
+        toolName: String,
+        tools: List<Any>,
+        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
+        totalToolCallsCounter: AtomicInteger,
+        maxToolCalls: Int,
+        normalizeToolResponseToJson: Boolean
+    ): ParallelToolExecution? {
+        val toolExists = findToolAdapter(toolName, tools) != null ||
+            springCallbacksByName.containsKey(toolName)
         if (!toolExists) {
             logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
             return ParallelToolExecution(
                 response = buildToolResponse(
-                    toolCall = toolCall,
-                    toolName = toolName,
-                    output = "Error: Tool '$toolName' not found",
-                    normalizeToolResponseToJson = normalizeToolResponseToJson
+                    toolCall, toolName, "Error: Tool '$toolName' not found", normalizeToolResponseToJson
                 )
             )
         }
-
         if (reserveToolExecutionSlot(totalToolCallsCounter, maxToolCalls) == null) {
             logger.warn { "maxToolCalls ($maxToolCalls) reached, stopping tool execution" }
             return ParallelToolExecution(
                 response = buildToolResponse(
-                    toolCall = toolCall,
-                    toolName = toolCall.name(),
-                    output = "Error: Maximum tool call limit ($maxToolCalls) reached",
-                    normalizeToolResponseToJson = normalizeToolResponseToJson
+                    toolCall, toolCall.name(),
+                    "Error: Maximum tool call limit ($maxToolCalls) reached",
+                    normalizeToolResponseToJson
                 )
             )
         }
+        return null
+    }
 
+    // ──────────────────────────────────────────────
+    // Tool 실행 + 후처리 (직접 실행 / 병렬 실행)
+    // ──────────────────────────────────────────────
+
+    /** 직접 실행 경로: Tool 호출 -> 새니타이징 -> Hook -> 메트릭 기록 */
+    private suspend fun invokeAndFinalizeDirect(
+        toolName: String,
+        effectiveToolParams: Map<String, Any?>,
+        tools: List<Any>,
+        hookContext: HookContext,
+        toolCallContext: ToolCallContext,
+        toolsUsed: MutableList<String>
+    ): ToolCallResult {
         val toolStartTime = System.currentTimeMillis()
-        val invocation = invokeToolAdapter(
-            toolName = toolName,
-            toolInput = toolInput,
-            tools = tools,
-            springCallbacksByName = springCallbacksByName
-        )
-        val capture = extractToolCapture(toolName, invocation.output, invocation.success)
-        var toolOutput = invocation.output
-        val toolDurationMs = System.currentTimeMillis() - toolStartTime
+        val springCallbacksByName = resolveSpringToolCallbacksByName(tools)
+        val toolInput = serializeToolInput(effectiveToolParams, null)
+        val invocation = invokeToolAdapter(toolName, toolInput, tools, springCallbacksByName)
 
-        // 간접 프롬프트 주입 방어를 위한 Tool 출력 새니타이징
-        if (toolOutputSanitizer != null) {
-            val sanitized = toolOutputSanitizer.sanitize(toolName, toolOutput)
-            toolOutput = sanitized.content
-        }
+        if (invocation.trackAsUsed) toolsUsed.add(toolName)
+        captureToolSignals(hookContext, toolName, invocation.output, invocation.success)
+
+        val toolOutput = sanitizeOutput(toolName, invocation.output)
+        val toolDurationMs = System.currentTimeMillis() - toolStartTime
+        val result = ToolCallResult(
+            success = invocation.success,
+            output = toolOutput,
+            errorMessage = if (!invocation.success) toolOutput else null,
+            durationMs = toolDurationMs
+        )
+        hookExecutor?.executeAfterToolCall(toolCallContext, result)
+        agentMetrics.recordToolCall(toolName, toolDurationMs, invocation.success)
+        return result
+    }
+
+    /** 병렬 실행 경로: Tool 호출 -> 새니타이징 -> Hook -> 메트릭 기록 */
+    private suspend fun invokeAndFinalizeParallel(
+        toolCall: AssistantMessage.ToolCall,
+        toolName: String,
+        toolInput: String,
+        toolCallContext: ToolCallContext,
+        tools: List<Any>,
+        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
+        hookContext: HookContext,
+        normalizeToolResponseToJson: Boolean
+    ): ParallelToolExecution {
+        val toolStartTime = System.currentTimeMillis()
+        val invocation = invokeToolAdapter(toolName, toolInput, tools, springCallbacksByName)
+        val capture = extractToolCapture(toolName, invocation.output, invocation.success)
+        val toolOutput = sanitizeOutput(toolName, invocation.output)
+        val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
         hookExecutor?.executeAfterToolCall(
             context = toolCallContext,
@@ -334,19 +357,37 @@ internal class ToolCallOrchestrator(
                 durationMs = toolDurationMs
             )
         )
-
         agentMetrics.recordToolCall(toolName, toolDurationMs, invocation.success)
+
         return ParallelToolExecution(
-            response = buildToolResponse(
-                toolCall = toolCall,
-                toolName = toolName,
-                output = toolOutput,
-                normalizeToolResponseToJson = normalizeToolResponseToJson
-            ),
+            response = buildToolResponse(toolCall, toolName, toolOutput, normalizeToolResponseToJson),
             usedToolName = toolName.takeIf { invocation.trackAsUsed },
             capture = capture
         )
     }
+
+    // ──────────────────────────────────────────────
+    // 거부 응답 빌더
+    // ──────────────────────────────────────────────
+
+    /** allowedTools에 의해 차단된 직접 호출 결과를 생성합니다. */
+    private fun rejectByAllowlist(toolName: String, allowedToolsSize: Int): ToolCallResult {
+        val message = "Error: Tool '$toolName' is not allowed for this request"
+        logger.info { "Direct tool call blocked by allowlist: tool=$toolName allowedTools=$allowedToolsSize" }
+        agentMetrics.recordToolCall(toolName, 0, false)
+        return ToolCallResult(success = false, output = message, errorMessage = message, durationMs = 0)
+    }
+
+    /** Hook에 의해 거부된 직접 호출 결과를 생성합니다. */
+    private fun rejectByHook(toolName: String, reason: String): ToolCallResult {
+        val message = "Tool call rejected: $reason"
+        logger.info { "Direct tool call $toolName rejected by hook: $reason" }
+        return ToolCallResult(success = false, output = message, errorMessage = message, durationMs = 0)
+    }
+
+    // ──────────────────────────────────────────────
+    // 슬롯 예약 / 컨텍스트 빌더 / 출력 새니타이징
+    // ──────────────────────────────────────────────
 
     /**
      * CAS(Compare-And-Set) 기반 Tool 실행 슬롯 예약.
@@ -357,14 +398,35 @@ internal class ToolCallOrchestrator(
     private fun reserveToolExecutionSlot(counter: AtomicInteger, maxToolCalls: Int): Int? {
         while (true) {
             val current = counter.get()
-            if (current >= maxToolCalls) {
-                return null
-            }
-            if (counter.compareAndSet(current, current + 1)) {
-                return current
-            }
+            if (current >= maxToolCalls) return null
+            if (counter.compareAndSet(current, current + 1)) return current
         }
     }
+
+    /** ToolCallContext를 생성합니다. */
+    private fun buildToolCallContext(
+        hookContext: HookContext,
+        toolName: String,
+        toolParams: Map<String, Any?>,
+        callIndex: Int
+    ): ToolCallContext {
+        return ToolCallContext(
+            agentContext = hookContext,
+            toolName = toolName,
+            toolParams = toolParams,
+            callIndex = callIndex
+        )
+    }
+
+    /** Tool 출력에 새니타이저를 적용합니다. 새니타이저 미설정 시 원본 반환. */
+    private fun sanitizeOutput(toolName: String, output: String): String {
+        if (toolOutputSanitizer == null) return output
+        return toolOutputSanitizer.sanitize(toolName, output).content
+    }
+
+    // ──────────────────────────────────────────────
+    // Tool 응답 신호 추출 / 병합
+    // ──────────────────────────────────────────────
 
     /** Tool 출력에서 VerifiedSource와 ToolResponseSignal을 추출합니다. */
     private fun extractToolCapture(
@@ -380,22 +442,27 @@ internal class ToolCallOrchestrator(
     }
 
     /** 추출된 ToolCapture를 HookContext에 병합합니다 (중복 URL 제거). */
-    private fun mergeToolCapture(
-        hookContext: HookContext,
-        capture: ToolCapture
-    ) {
-        capture.verifiedSources
+    private fun mergeToolCapture(hookContext: HookContext, capture: ToolCapture) {
+        mergeVerifiedSources(hookContext, capture.verifiedSources)
+        capture.signal?.let { mergeSignalMetadata(hookContext, it) }
+    }
+
+    /** 중복 URL을 제거하며 VerifiedSource를 HookContext에 추가합니다. */
+    private fun mergeVerifiedSources(hookContext: HookContext, sources: List<VerifiedSource>) {
+        sources
             .filterNot { source -> hookContext.verifiedSources.any { it.url == source.url } }
             .forEach(hookContext.verifiedSources::add)
-        capture.signal?.let { signal ->
-            val signals = getOrCreateToolSignals(hookContext)
-            signals += signal
-            signal.answerMode?.let { hookContext.metadata["answerMode"] = it }
-            signal.grounded?.let { hookContext.metadata["grounded"] = it }
-            signal.freshness?.let { hookContext.metadata["freshness"] = it }
-            signal.retrievedAt?.let { hookContext.metadata["retrievedAt"] = it }
-            signal.blockReason?.let { hookContext.metadata["blockReason"] = it }
-        }
+    }
+
+    /** ToolResponseSignal 메타데이터를 HookContext에 병합합니다. */
+    private fun mergeSignalMetadata(hookContext: HookContext, signal: ToolResponseSignal) {
+        val signals = getOrCreateToolSignals(hookContext)
+        signals += signal
+        signal.answerMode?.let { hookContext.metadata["answerMode"] = it }
+        signal.grounded?.let { hookContext.metadata["grounded"] = it }
+        signal.freshness?.let { hookContext.metadata["freshness"] = it }
+        signal.retrievedAt?.let { hookContext.metadata["retrievedAt"] = it }
+        signal.blockReason?.let { hookContext.metadata["blockReason"] = it }
     }
 
     private fun captureToolSignals(
@@ -414,6 +481,10 @@ internal class ToolCallOrchestrator(
         } as MutableList<ToolResponseSignal>
     }
 
+    // ──────────────────────────────────────────────
+    // Hook / 승인 검사
+    // ──────────────────────────────────────────────
+
     /** BeforeToolCallHook을 실행하여 Tool 호출 거부 여부를 확인합니다. */
     private suspend fun checkBeforeToolCallHook(context: ToolCallContext): HookResult.Reject? {
         if (hookExecutor == null) return null
@@ -425,7 +496,6 @@ internal class ToolCallOrchestrator(
      *
      * [ToolApprovalPolicy]로 승인 필요 여부를 판단하고, 필요하면 [PendingApprovalStore]에
      * 승인을 요청한 뒤 응답을 대기합니다.
-     * 승인/거부/타임아웃 결과를 메타데이터에 기록합니다.
      *
      * @return 거부 또는 타임아웃 시 거부 메시지, 승인 또는 정책 없음 시 null
      */
@@ -438,15 +508,21 @@ internal class ToolCallOrchestrator(
         if (!toolApprovalPolicy.requiresApproval(toolName, toolCallContext.toolParams)) return null
 
         val approvalStore = pendingApprovalStore
-        if (approvalStore == null) {
-            val reason = "Approval store unavailable for required tool '$toolName'"
-            logger.error { reason }
-            return "Tool call blocked: $reason"
-        }
+            ?: return "Tool call blocked: Approval store unavailable for required tool '$toolName'"
+                .also { logger.error { it } }
 
         logger.info { "Tool '$toolName' requires human approval, suspending execution..." }
-        val hitlStartNanos = System.nanoTime()
+        return requestAndProcessApproval(approvalStore, toolName, toolCallContext, hookContext)
+    }
 
+    /** 승인을 요청하고 응답을 처리합니다. 승인 시 null, 거부/오류 시 메시지 반환. */
+    private suspend fun requestAndProcessApproval(
+        approvalStore: PendingApprovalStore,
+        toolName: String,
+        toolCallContext: ToolCallContext,
+        hookContext: HookContext
+    ): String? {
+        val hitlStartNanos = System.nanoTime()
         return try {
             val response = approvalStore.requestApproval(
                 runId = hookContext.runId,
@@ -454,24 +530,34 @@ internal class ToolCallOrchestrator(
                 toolName = toolName,
                 arguments = toolCallContext.toolParams
             )
-            val keySuffix = hitlMetadataSuffix(toolCallContext)
-            val hitlWaitMs = (System.nanoTime() - hitlStartNanos) / 1_000_000
-            hookContext.metadata["hitlWaitMs_$keySuffix"] = hitlWaitMs
-            hookContext.metadata["hitlApproved_$keySuffix"] = response.approved
-            if (response.approved) {
-                logger.info { "Tool '$toolName' approved by human (waited ${hitlWaitMs}ms)" }
-                null // Continue execution
-            } else {
-                val reason = response.reason ?: "Rejected by human"
-                logger.info { "Tool '$toolName' rejected by human: $reason (waited ${hitlWaitMs}ms)" }
-                hookContext.metadata["hitlRejectionReason_$keySuffix"] = reason
-                "Tool call rejected by human: $reason"
-            }
+            recordApprovalMetadata(hookContext, toolCallContext, toolName, hitlStartNanos, response)
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Approval check failed for tool '$toolName': ${e.message ?: "unknown error"}" }
             "Tool call blocked: Approval check failed for tool '$toolName'"
         }
+    }
+
+    /** 승인 응답 결과를 HookContext 메타데이터에 기록하고, 거부 시 메시지를 반환합니다. */
+    private fun recordApprovalMetadata(
+        hookContext: HookContext,
+        toolCallContext: ToolCallContext,
+        toolName: String,
+        hitlStartNanos: Long,
+        response: com.arc.reactor.approval.ToolApprovalResponse
+    ): String? {
+        val keySuffix = hitlMetadataSuffix(toolCallContext)
+        val hitlWaitMs = (System.nanoTime() - hitlStartNanos) / 1_000_000
+        hookContext.metadata["hitlWaitMs_$keySuffix"] = hitlWaitMs
+        hookContext.metadata["hitlApproved_$keySuffix"] = response.approved
+        if (response.approved) {
+            logger.info { "Tool '$toolName' approved by human (waited ${hitlWaitMs}ms)" }
+            return null
+        }
+        val reason = response.reason ?: "Rejected by human"
+        logger.info { "Tool '$toolName' rejected by human: $reason (waited ${hitlWaitMs}ms)" }
+        hookContext.metadata["hitlRejectionReason_$keySuffix"] = reason
+        return "Tool call rejected by human: $reason"
     }
 
     /** 차단된 Tool 호출 결과를 AfterToolCallHook으로 알리고 메트릭에 기록합니다. */
@@ -483,10 +569,7 @@ internal class ToolCallOrchestrator(
         hookExecutor?.executeAfterToolCall(
             context = context,
             result = ToolCallResult(
-                success = false,
-                output = message,
-                errorMessage = message,
-                durationMs = 0
+                success = false, output = message, errorMessage = message, durationMs = 0
             )
         )
         agentMetrics.recordToolCall(toolName, 0, false)
@@ -495,6 +578,10 @@ internal class ToolCallOrchestrator(
     private fun hitlMetadataSuffix(context: ToolCallContext): String {
         return "${context.toolName}_${context.callIndex}"
     }
+
+    // ──────────────────────────────────────────────
+    // Tool 어댑터 호출
+    // ──────────────────────────────────────────────
 
     /**
      * Tool 어댑터를 호출합니다. 캐시 확인 -> 실행 -> 출력 길이 제한을 적용합니다.
@@ -511,17 +598,18 @@ internal class ToolCallOrchestrator(
         if (cached != null) return cached
 
         val raw = invokeToolAdapterRaw(toolName, toolInput, tools, springCallbacksByName)
-        if (raw.success) {
-            storeToolResultCache(toolName, toolInput, raw.output)
-        }
-        if (maxToolOutputLength > 0 && raw.output.length > maxToolOutputLength) {
-            logger.warn { "Tool '$toolName' output truncated: ${raw.output.length} -> $maxToolOutputLength chars" }
-            return raw.copy(
-                output = raw.output.take(maxToolOutputLength) +
-                    "\n[TRUNCATED: output exceeded $maxToolOutputLength characters]"
-            )
-        }
-        return raw
+        if (raw.success) storeToolResultCache(toolName, toolInput, raw.output)
+        return truncateIfExceeded(toolName, raw)
+    }
+
+    /** 출력 길이 초과 시 잘라냅니다. */
+    private fun truncateIfExceeded(toolName: String, outcome: ToolInvocationOutcome): ToolInvocationOutcome {
+        if (maxToolOutputLength <= 0 || outcome.output.length <= maxToolOutputLength) return outcome
+        logger.warn { "Tool '$toolName' output truncated: ${outcome.output.length} -> $maxToolOutputLength chars" }
+        return outcome.copy(
+            output = outcome.output.take(maxToolOutputLength) +
+                "\n[TRUNCATED: output exceeded $maxToolOutputLength characters]"
+        )
     }
 
     /**
@@ -536,76 +624,86 @@ internal class ToolCallOrchestrator(
         tools: List<Any>,
         springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>
     ): ToolInvocationOutcome {
-        val adapter = findToolAdapter(toolName, tools)
-        if (adapter != null) {
-            return try {
-                val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
-                val output = withTimeout(timeoutMs) {
-                    adapter.call(toolInput)
-                }
-                val success = !output.startsWith("Error:")
-                ToolInvocationOutcome(output = output, success = success, trackAsUsed = true)
-            } catch (e: TimeoutCancellationException) {
-                val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
-                logger.error { "Tool $toolName timed out after ${timeoutMs}ms" }
-                ToolInvocationOutcome(
-                    output = "Error: Tool '$toolName' timed out after ${timeoutMs}ms",
-                    success = false,
-                    trackAsUsed = true
-                )
-            } catch (e: Exception) {
-                e.throwIfCancellation()
-                logger.error(e) { "Tool $toolName execution failed" }
-                ToolInvocationOutcome(
-                    output = "Error: ${e.message ?: "Unknown error"}",
-                    success = false,
-                    trackAsUsed = true
-                )
-            }
+        findToolAdapter(toolName, tools)?.let { adapter ->
+            return invokeArcAdapter(toolName, toolInput, adapter)
         }
-
-        val springCallback = springCallbacksByName[toolName]
-        if (springCallback != null) {
-            return try {
-                val output = withTimeout(toolCallTimeoutMs) {
-                    runInterruptible(Dispatchers.IO) {
-                        springCallback.call(toolInput)
-                    }
-                }
-                ToolInvocationOutcome(
-                    output = normalizeSpringToolOutput(output),
-                    success = true,
-                    trackAsUsed = true
-                )
-            } catch (e: TimeoutCancellationException) {
-                logger.error { "Tool $toolName timed out after ${toolCallTimeoutMs}ms" }
-                ToolInvocationOutcome(
-                    output = "Error: Tool '$toolName' timed out after ${toolCallTimeoutMs}ms",
-                    success = false,
-                    trackAsUsed = true
-                )
-            } catch (e: Exception) {
-                e.throwIfCancellation()
-                logger.error(e) { "Tool $toolName execution failed" }
-                ToolInvocationOutcome(
-                    output = "Error: ${e.message ?: "Unknown error"}",
-                    success = false,
-                    trackAsUsed = true
-                )
-            }
+        springCallbacksByName[toolName]?.let { callback ->
+            return invokeSpringCallback(toolName, toolInput, callback)
         }
-
         logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
+        return ToolInvocationOutcome(output = "Error: Tool '$toolName' not found", success = false, trackAsUsed = false)
+    }
+
+    /** ArcToolCallbackAdapter를 타임아웃 내에서 호출합니다. */
+    private suspend fun invokeArcAdapter(
+        toolName: String,
+        toolInput: String,
+        adapter: ArcToolCallbackAdapter
+    ): ToolInvocationOutcome {
+        return try {
+            val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
+            val output = withTimeout(timeoutMs) { adapter.call(toolInput) }
+            val success = !output.startsWith("Error:")
+            ToolInvocationOutcome(output = output, success = success, trackAsUsed = true)
+        } catch (e: TimeoutCancellationException) {
+            val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
+            logger.error { "Tool $toolName timed out after ${timeoutMs}ms" }
+            timeoutErrorOutcome(toolName, timeoutMs)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.error(e) { "Tool $toolName execution failed" }
+            executionErrorOutcome(e)
+        }
+    }
+
+    /** Spring AI ToolCallback을 IO 디스패처에서 타임아웃 내에 호출합니다. */
+    private suspend fun invokeSpringCallback(
+        toolName: String,
+        toolInput: String,
+        callback: org.springframework.ai.tool.ToolCallback
+    ): ToolInvocationOutcome {
+        return try {
+            val output = withTimeout(toolCallTimeoutMs) {
+                runInterruptible(Dispatchers.IO) { callback.call(toolInput) }
+            }
+            ToolInvocationOutcome(
+                output = normalizeSpringToolOutput(output), success = true, trackAsUsed = true
+            )
+        } catch (e: TimeoutCancellationException) {
+            logger.error { "Tool $toolName timed out after ${toolCallTimeoutMs}ms" }
+            timeoutErrorOutcome(toolName, toolCallTimeoutMs)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.error(e) { "Tool $toolName execution failed" }
+            executionErrorOutcome(e)
+        }
+    }
+
+    /** 타임아웃 에러 결과를 생성합니다. */
+    private fun timeoutErrorOutcome(toolName: String, timeoutMs: Long): ToolInvocationOutcome {
         return ToolInvocationOutcome(
-            output = "Error: Tool '$toolName' not found",
-            success = false,
-            trackAsUsed = false
+            output = "Error: Tool '$toolName' timed out after ${timeoutMs}ms",
+            success = false, trackAsUsed = true
         )
     }
 
+    /** 실행 에러 결과를 생성합니다. */
+    private fun executionErrorOutcome(e: Exception): ToolInvocationOutcome {
+        return ToolInvocationOutcome(
+            output = "Error: ${e.message ?: "Unknown error"}",
+            success = false, trackAsUsed = true
+        )
+    }
+
+    // ──────────────────────────────────────────────
+    // Spring AI ToolCallback 해석
+    // ──────────────────────────────────────────────
+
     /** 등록된 Tool 목록에서 이름으로 ArcToolCallbackAdapter를 찾습니다. */
     private fun findToolAdapter(toolName: String, tools: List<Any>): ArcToolCallbackAdapter? {
-        return tools.firstNotNullOfOrNull { (it as? ArcToolCallbackAdapter)?.takeIf { a -> a.arcCallback.name == toolName } }
+        return tools.firstNotNullOfOrNull {
+            (it as? ArcToolCallbackAdapter)?.takeIf { a -> a.arcCallback.name == toolName }
+        }
     }
 
     /** LocalTool과 명시적 콜백에서 Spring AI ToolCallback 맵을 해석합니다 (캐시 적용). */
@@ -633,37 +731,96 @@ internal class ToolCallOrchestrator(
         localTools: List<Any>,
         explicitCallbacks: List<org.springframework.ai.tool.ToolCallback>
     ): Map<String, org.springframework.ai.tool.ToolCallback> {
-        val reflectedCallbacks = if (localTools.isEmpty()) {
-            emptyList()
-        } else {
-            runCatching {
-                MethodToolCallbackProvider.builder()
-                    .toolObjects(*localTools.toTypedArray())
-                    .build()
-                    .toolCallbacks
-                    .toList()
-            }.getOrElse { ex ->
-                logger.warn(ex) { "Failed to resolve @Tool callbacks from LocalTool beans; skipping local tool callback map." }
-                emptyList()
-            }
-        }
-
+        val reflectedCallbacks = resolveReflectedCallbacks(localTools)
         val byName = LinkedHashMap<String, org.springframework.ai.tool.ToolCallback>()
-        (explicitCallbacks + reflectedCallbacks).forEach { callback ->
+        for (callback in explicitCallbacks + reflectedCallbacks) {
             val name = callback.toolDefinition.name()
-            if (name.isNotBlank()) {
-                byName.putIfAbsent(name, callback)
-            }
+            if (name.isNotBlank()) byName.putIfAbsent(name, callback)
         }
         return byName
+    }
+
+    /** LocalTool에서 @Tool 어노테이션 기반 콜백을 리플렉션으로 해석합니다. */
+    private fun resolveReflectedCallbacks(
+        localTools: List<Any>
+    ): List<org.springframework.ai.tool.ToolCallback> {
+        if (localTools.isEmpty()) return emptyList()
+        return runCatching {
+            MethodToolCallbackProvider.builder()
+                .toolObjects(*localTools.toTypedArray())
+                .build()
+                .toolCallbacks
+                .toList()
+        }.getOrElse { ex ->
+            logger.warn(ex) {
+                "Failed to resolve @Tool callbacks from LocalTool beans; skipping local tool callback map."
+            }
+            emptyList()
+        }
     }
 
     /** Spring AOP 프록시를 언래핑하여 원본 객체를 반환합니다. */
     private fun unwrapAopProxy(bean: Any): Any {
         if (bean !is Advised) return bean
-        return runCatching { bean.targetSource.target }
-            .getOrNull()
-            ?: bean
+        return runCatching { bean.targetSource.target }.getOrNull() ?: bean
+    }
+
+    // ──────────────────────────────────────────────
+    // 요청자 인식 Tool 파라미터 보강
+    // ──────────────────────────────────────────────
+
+    /**
+     * 요청자 인식 Tool에 assigneeAccountId 또는 requesterEmail을 자동 주입합니다.
+     *
+     * Tool 파라미터에 이미 해당 값이 있으면 건너뛰고,
+     * 없으면 메타데이터에서 추출하여 추가합니다.
+     */
+    private fun enrichToolParamsForRequesterAwareTools(
+        toolName: String,
+        toolParams: Map<String, Any?>,
+        metadata: Map<String, Any>
+    ): Map<String, Any?> {
+        if (toolName !in requesterAwareToolNames) return toolParams
+        if (hasExistingRequesterParam(toolParams)) return toolParams
+        return appendRequesterIdentifier(toolParams, metadata)
+    }
+
+    /** 이미 assigneeAccountId 또는 requesterEmail 파라미터가 있는지 확인합니다. */
+    private fun hasExistingRequesterParam(toolParams: Map<String, Any?>): Boolean {
+        val hasAssignee = toolParams["assigneeAccountId"]?.toString()?.isNotBlank() == true
+        val hasEmail = toolParams["requesterEmail"]?.toString()?.isNotBlank() == true
+        return hasAssignee || hasEmail
+    }
+
+    /** 메타데이터에서 요청자 식별자를 찾아 Tool 파라미터에 추가합니다. */
+    private fun appendRequesterIdentifier(
+        toolParams: Map<String, Any?>,
+        metadata: Map<String, Any>
+    ): Map<String, Any?> {
+        findMetadataValue(metadata, requesterAccountIdMetadataKeys)?.let {
+            return toolParams + ("assigneeAccountId" to it)
+        }
+        findMetadataValue(metadata, requesterEmailMetadataKeys)?.let {
+            return toolParams + ("requesterEmail" to it)
+        }
+        return toolParams
+    }
+
+    /** 지정된 키 목록에서 첫 번째 유효한 메타데이터 값을 찾습니다. */
+    private fun findMetadataValue(metadata: Map<String, Any>, keys: List<String>): String? {
+        return keys.asSequence()
+            .mapNotNull { key -> metadata[key]?.toString()?.trim()?.takeIf { it.isNotBlank() } }
+            .firstOrNull()
+    }
+
+    // ──────────────────────────────────────────────
+    // 유틸리티: 직렬화 / 응답 빌더 / 캐시
+    // ──────────────────────────────────────────────
+
+    private fun serializeToolInput(toolParams: Map<String, Any?>, rawInput: String?): String {
+        if (toolParams.isEmpty()) return rawInput.orEmpty().ifBlank { "{}" }
+        return runCatching { objectMapper.writeValueAsString(toolParams) }
+            .getOrElse { rawInput.orEmpty().ifBlank { "{}" } }
     }
 
     /** Tool 실행 결과를 ToolResponseMessage.ToolResponse로 변환합니다. */
@@ -686,60 +843,36 @@ internal class ToolCallOrchestrator(
             .getOrElse { output }
     }
 
-    /**
-     * 요청자 인식 Tool에 assigneeAccountId 또는 requesterEmail을 자동 주입합니다.
-     *
-     * Tool 파라미터에 이미 해당 값이 있으면 건너뛰고,
-     * 없으면 메타데이터에서 추출하여 추가합니다.
-     */
-    private fun enrichToolParamsForRequesterAwareTools(
-        toolName: String,
-        toolParams: Map<String, Any?>,
-        metadata: Map<String, Any>
-    ): Map<String, Any?> {
-        if (toolName !in requesterAwareToolNames) return toolParams
-
-        val hasAssignee = toolParams["assigneeAccountId"]?.toString()?.isNotBlank() == true
-        if (hasAssignee) return toolParams
-
-        val hasRequesterEmail = toolParams["requesterEmail"]?.toString()?.isNotBlank() == true
-        if (hasRequesterEmail) return toolParams
-
-        val assigneeAccountId = requesterAccountIdMetadataKeys.asSequence()
-            .mapNotNull { key -> metadata[key]?.toString()?.trim()?.takeIf { it.isNotBlank() } }
-            .firstOrNull()
-
-        if (!assigneeAccountId.isNullOrBlank()) {
-            return toolParams + ("assigneeAccountId" to assigneeAccountId)
+    /** 병렬 실행 결과를 수집하여 toolsUsed 누적과 ToolCapture 병합을 수행합니다. */
+    private fun collectParallelResults(
+        executions: List<ParallelToolExecution>,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>
+    ): List<ToolResponseMessage.ToolResponse> {
+        for (execution in executions) {
+            execution.usedToolName?.let(toolsUsed::add)
+            mergeToolCapture(hookContext, execution.capture)
         }
-
-        val requesterEmail = requesterEmailMetadataKeys.asSequence()
-            .mapNotNull { key -> metadata[key]?.toString()?.trim()?.takeIf { it.isNotBlank() } }
-            .firstOrNull()
-            ?: return toolParams
-
-        return toolParams + ("requesterEmail" to requesterEmail)
+        return executions.map(ParallelToolExecution::response)
     }
 
-    private fun serializeToolInput(toolParams: Map<String, Any?>, rawInput: String?): String {
-        if (toolParams.isEmpty()) {
-            return rawInput.orEmpty().ifBlank { "{}" }
-        }
-        return runCatching {
-            objectMapper.writeValueAsString(toolParams)
-        }.getOrElse {
-            rawInput.orEmpty().ifBlank { "{}" }
-        }
+    // ──────────────────────────────────────────────
+    // Tool 결과 캐시
+    // ──────────────────────────────────────────────
+
+    private fun buildToolResultCacheIfEnabled(): Cache<String, String>? {
+        if (!toolResultCacheProperties.enabled) return null
+        return Caffeine.newBuilder()
+            .maximumSize(toolResultCacheProperties.maxSize)
+            .expireAfterWrite(java.time.Duration.ofSeconds(toolResultCacheProperties.ttlSeconds))
+            .build()
     }
 
     private fun buildToolResultCacheKey(toolName: String, toolInput: String): String {
         return "$toolName:${toolInput.hashCode()}"
     }
 
-    private fun checkToolResultCache(
-        toolName: String,
-        toolInput: String
-    ): ToolInvocationOutcome? {
+    private fun checkToolResultCache(toolName: String, toolInput: String): ToolInvocationOutcome? {
         val cache = toolResultCache ?: return null
         val cacheKey = buildToolResultCacheKey(toolName, toolInput)
         val cachedOutput = cache.getIfPresent(cacheKey) ?: run {
@@ -748,22 +881,17 @@ internal class ToolCallOrchestrator(
         }
         logger.debug { "Tool result cache hit: tool=$toolName key=$cacheKey" }
         agentMetrics.recordToolResultCacheHit(toolName, cacheKey)
-        return ToolInvocationOutcome(
-            output = cachedOutput,
-            success = true,
-            trackAsUsed = true
-        )
+        return ToolInvocationOutcome(output = cachedOutput, success = true, trackAsUsed = true)
     }
 
-    private fun storeToolResultCache(
-        toolName: String,
-        toolInput: String,
-        output: String
-    ) {
+    private fun storeToolResultCache(toolName: String, toolInput: String, output: String) {
         val cache = toolResultCache ?: return
-        val cacheKey = buildToolResultCacheKey(toolName, toolInput)
-        cache.put(cacheKey, output)
+        cache.put(buildToolResultCacheKey(toolName, toolInput), output)
     }
+
+    // ──────────────────────────────────────────────
+    // 상수 / 내부 데이터 클래스
+    // ──────────────────────────────────────────────
 
     companion object {
         const val TOOL_SIGNALS_METADATA_KEY = "toolSignals"
