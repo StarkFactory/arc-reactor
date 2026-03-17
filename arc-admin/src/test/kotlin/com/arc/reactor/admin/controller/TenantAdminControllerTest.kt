@@ -29,6 +29,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.math.BigDecimal
 
+/** [TenantAdminController]의 테넌트별 대시보드, SLO, 쿼타, 내보내기 엔드포인트 테스트 */
 class TenantAdminControllerTest {
 
     private val tenantResolver = TenantResolver()

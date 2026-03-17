@@ -16,6 +16,7 @@ import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
 
+/** [TenantResolver]의 ThreadLocal 테넌트 관리 및 [TenantWebFilter]의 요청별 테넌트 해석 테스트 */
 class TenantResolverTest {
 
     private lateinit var resolver: TenantResolver
@@ -77,8 +78,7 @@ class TenantResolverTest {
 
             filter.filter(exchange, chain).block()
 
-            // doFinally 후 테넌트가 초기화됩니다. 체인이 호출되었는지 검증합니다.
-            // 필터는 chain.filter 전에 테넌트를 설정하고 이후에 초기화합니다.
+            // doFinally 후 테넌트가 초기화됨. 필터는 chain.filter 전에 테넌트를 설정하고 이후에 초기화
         }
 
         @Test

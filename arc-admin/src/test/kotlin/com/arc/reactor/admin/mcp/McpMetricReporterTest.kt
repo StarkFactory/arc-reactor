@@ -14,6 +14,7 @@ import java.net.InetSocketAddress
 import java.time.Duration
 import java.util.concurrent.CopyOnWriteArrayList
 
+/** [McpMetricReporter]의 도구 호출/헬스 이벤트 HTTP 전송, 라이프사이클, JSON 이스케이핑 테스트 */
 class McpMetricReporterTest {
 
     private lateinit var server: HttpServer
@@ -135,7 +136,7 @@ class McpMetricReporterTest {
 
             val req = receivedRequests.first { it.path.endsWith("/tool-call") }
             req.body shouldContain "\"success\":true"
-            // null fields은(는) be filtered out해야 합니다
+            // null 필드는 제외되어야 합니다
             (req.body.contains("errorClass") ) shouldBe false
             (req.body.contains("errorMessage")) shouldBe false
         }
@@ -237,16 +238,15 @@ class McpMetricReporterTest {
                 flushIntervalMs = 60000, // don't auto-flush
                 maxQueueSize = 5
             )
-            // Don't start — events won't flush, queue fills up
+            // 시작하지 않으면 이벤트가 플러시되지 않아 큐가 가득 참
             reporter.start()
 
-            // queue beyond capacity를 채웁니다
+            // 큐 용량을 초과하도록 채움
             repeat(10) { i ->
                 reporter.reportToolCall("tool-$i", durationMs = 1, success = true)
             }
 
-            // Queue은(는) be capped — some events dropped silently해야 합니다
-            // the reporter doesn't throw 확인
+            // 큐에 상한이 있어 일부 이벤트가 무시됨 — 리포터가 예외를 던지지 않는지 확인
             reporter.stop()
         }
     }

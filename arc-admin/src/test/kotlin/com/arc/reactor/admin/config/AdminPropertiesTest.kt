@@ -3,6 +3,7 @@ package com.arc.reactor.admin.config
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
+/** [AdminProperties]의 기본값 및 커스터마이징 테스트 */
 class AdminPropertiesTest {
 
     @Test

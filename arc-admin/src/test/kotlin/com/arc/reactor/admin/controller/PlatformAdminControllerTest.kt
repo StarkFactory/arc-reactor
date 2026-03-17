@@ -33,6 +33,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.math.BigDecimal
 
+/** [PlatformAdminController]의 인증, 테넌트/가격/알림/캐시 관리 엔드포인트 테스트 */
 class PlatformAdminControllerTest {
 
     private val tenantStore = InMemoryTenantStore()

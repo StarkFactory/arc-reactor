@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.jdbc.core.JdbcTemplate
 
+/** [BaselineCalculator]의 기준선 통계(평균/표준편차) 계산, 캐시, null 처리 테스트 */
 class BaselineCalculatorTest {
 
     private val jdbcTemplate = mockk<JdbcTemplate>()

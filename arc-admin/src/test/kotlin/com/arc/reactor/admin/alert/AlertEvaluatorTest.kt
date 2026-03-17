@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/** [AlertEvaluator]의 정적 임계값, 기준선 이상, 번레이트, 예산 알림 평가 테스트 */
 class AlertEvaluatorTest {
 
     private val alertStore = InMemoryAlertRuleStore()
@@ -66,7 +67,7 @@ class AlertEvaluatorTest {
                 windowMinutes = 15
             )
 
-            // success rate = 0.85, so error rate = 0.15 > 0.10
+            // 성공률 = 0.85, 에러율 = 0.15 > 0.10
             every { queryService.getSuccessRate("t1", any(), any()) } returns 0.85
 
             evaluator.evaluate(rule)
@@ -87,7 +88,7 @@ class AlertEvaluatorTest {
                 windowMinutes = 15
             )
 
-            // success rate = 0.95, error rate = 0.05 < 0.10
+            // 성공률 = 0.95, 에러율 = 0.05 < 0.10
             every { queryService.getSuccessRate("t1", any(), any()) } returns 0.95
 
             evaluator.evaluate(rule)
@@ -134,7 +135,7 @@ class AlertEvaluatorTest {
             every { baselineCalculator.getBaseline("t1", "hourly_cost") } returns
                 Baseline(mean = 10.0, stdDev = 2.0, sampleCount = 168)
 
-            // 높은 시간당 비용을 반환하도록 getHourlyCost 모킹 (25 > 10 + 3*2 = 16)
+            // 높은 시간당 비용 반환 모킹 (25 > 10 + 3*2 = 16)
             every { queryService.getHourlyCost("t1", any(), any()) } returns 25.0
 
             evaluator.evaluate(rule)

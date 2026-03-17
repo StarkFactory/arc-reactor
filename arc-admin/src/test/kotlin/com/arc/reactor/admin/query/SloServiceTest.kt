@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+/** [SloService]의 SLO 상태, 에러 예산 계산, APDEX 점수 산출 테스트 */
 class SloServiceTest {
 
     private val jdbcTemplate = mockk<JdbcTemplate>()
@@ -144,7 +145,7 @@ class SloServiceTest {
 
             val apdex = sloService.getApdex("t1", thirtyDaysAgo, now)
 
-            // (800 + 150/2) / 1000 = 0.875
+            // APDEX = (만족 + 허용/2) / 전체 = (800 + 150/2) / 1000 = 0.875
             apdex.score shouldBe 0.875
             apdex.satisfied shouldBe 800
             apdex.tolerating shouldBe 150

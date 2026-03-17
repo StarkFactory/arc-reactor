@@ -25,13 +25,14 @@ import org.springframework.jdbc.core.BatchPreparedStatementSetter
 import org.springframework.jdbc.core.JdbcTemplate
 import java.sql.PreparedStatement
 
+/** [TimescaleSpanExporter]의 OTel 스팬 → TimescaleDB 배치 삽입 테스트 */
 class TimescaleSpanExporterTest {
 
     private val jdbcTemplate = mockk<JdbcTemplate>(relaxed = true)
     private val exporter = TimescaleSpanExporter(jdbcTemplate)
 
     // -------------------------------------------------------------------------
-    // Helper builders
+    // 헬퍼 빌더
     // -------------------------------------------------------------------------
 
     private fun buildSpan(

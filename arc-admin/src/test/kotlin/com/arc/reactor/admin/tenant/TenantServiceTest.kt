@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/** [TenantService]의 테넌트 생성, 플랜 변경, 라이프사이클 관리 테스트 */
 class TenantServiceTest {
 
     private lateinit var store: InMemoryTenantStore

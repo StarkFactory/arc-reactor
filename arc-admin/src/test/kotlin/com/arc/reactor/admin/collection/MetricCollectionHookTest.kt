@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+/** [MetricCollectionHook]의 에이전트 실행, 도구 호출, 가드, 세션, MCP 헬스 이벤트 발행 테스트 */
 class MetricCollectionHookTest {
 
     private lateinit var ringBuffer: MetricRingBuffer
@@ -141,7 +142,7 @@ class MetricCollectionHookTest {
             val tinyBuffer = MetricRingBuffer(64)
             val tinyHook = MetricCollectionHook(tinyBuffer, healthMonitor)
 
-            // buffer to capacity를 채웁니다
+            // 버퍼를 용량까지 채움
             repeat(64) { tinyBuffer.publish(AgentExecutionEvent(tenantId = "t", runId = "r-$it", success = true)) }
 
             val dropsBefore = healthMonitor.droppedTotal.get()

@@ -18,6 +18,7 @@ import java.math.BigDecimal
 import java.time.Duration
 import java.util.concurrent.CopyOnWriteArrayList
 
+/** [MetricWriter]의 비용 보강, 헬스 추적, 플러시 직렬화, 라이프사이클 테스트 */
 class MetricWriterTest {
 
     private val ringBuffer = MetricRingBuffer(128)
@@ -111,7 +112,7 @@ class MetricWriterTest {
             val stored = storedEvents[0].shouldBeInstanceOf<TokenUsageEvent>()
             stored.estimatedCostUsd shouldBe existingCost
 
-            // CostCalculator은(는) not have been called해야 합니다
+            // CostCalculator가 호출되지 않아야 합니다
             verify(exactly = 0) { costCalculator.calculate(any(), any(), any(), any(), any(), any(), any()) }
         }
 
@@ -245,7 +246,7 @@ class MetricWriterTest {
                 costCalculator.calculate(any(), any(), any(), any(), any(), any(), any())
             } returns BigDecimal("0.001")
 
-            // 100 events 발행
+            // 100개 이벤트 발행
             repeat(100) { i ->
                 ringBuffer.publish(tokenEvent(model = "model-$i"))
             }
@@ -314,7 +315,7 @@ class MetricWriterTest {
                 costCalculator.calculate(any(), any(), any(), any(), any(), any(), any())
             } returns BigDecimal("0.001")
 
-            // events AFTER start so they're in buffer 발행
+            // start 이후에 이벤트를 발행하여 버퍼에 넣음
             writer.start()
             ringBuffer.publish(tokenEvent())
             ringBuffer.publish(executionEvent())
