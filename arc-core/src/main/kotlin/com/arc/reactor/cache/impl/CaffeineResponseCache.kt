@@ -38,6 +38,10 @@ class CaffeineResponseCache(
     }
 
     override suspend fun put(key: String, response: CachedResponse) {
+        if (response.content.isBlank()) {
+            logger.debug { "Skipping cache for blank response: ${key.take(16)}..." }
+            return
+        }
         cache.put(key, response)
         logger.debug { "Cached response for key: ${key.take(16)}..." }
     }

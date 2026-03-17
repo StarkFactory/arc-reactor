@@ -90,6 +90,41 @@ class CaffeineResponseCacheTest {
     }
 
     @Nested
+    inner class EmptyResponsePoisoningPrevention {
+
+        @Test
+        fun `put with empty content should not cache`() = runTest {
+            val cache = CaffeineResponseCache()
+
+            cache.put("key1", CachedResponse(content = ""))
+            val result = cache.get("key1")
+
+            assertNull(result) { "Empty content should not be cached" }
+        }
+
+        @Test
+        fun `put with blank content should not cache`() = runTest {
+            val cache = CaffeineResponseCache()
+
+            cache.put("key1", CachedResponse(content = "   "))
+            val result = cache.get("key1")
+
+            assertNull(result) { "Blank content should not be cached" }
+        }
+
+        @Test
+        fun `put with valid content should cache normally`() = runTest {
+            val cache = CaffeineResponseCache()
+
+            cache.put("key1", CachedResponse(content = "valid response"))
+            val result = cache.get("key1")
+
+            assertNotNull(result) { "Valid content should be cached" }
+            assertEquals("valid response", result!!.content) { "Cached content should match" }
+        }
+    }
+
+    @Nested
     inner class CachedResponseData {
 
         @Test
