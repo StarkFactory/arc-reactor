@@ -168,7 +168,7 @@ class DefaultSlackCommandHandler(
         intent: SlackSlashIntent.Agent,
         sessionId: String
     ): com.arc.reactor.agent.model.AgentResult {
-        val requesterEmail = resolveRequesterEmail(command.userId)
+        val requesterEmail = SlackHandlerSupport.resolveRequesterEmail(command.userId, userEmailResolver)
         val metadata = mutableMapOf<String, Any>(
             "sessionId" to sessionId,
             "source" to "slack",
@@ -183,9 +183,9 @@ class DefaultSlackCommandHandler(
             metadata["userEmail"] = requesterEmail
         }
 
-        val userContext = resolveUserContext(command.userId)
+        val userContext = SlackHandlerSupport.resolveUserContext(command.userId, userMemoryManager)
         val systemPrompt = buildString {
-            append(SlackSystemPromptFactory.build(defaultProvider, buildToolSummary()))
+            append(SlackSystemPromptFactory.build(defaultProvider, SlackHandlerSupport.buildToolSummary(mcpManager)))
             if (userContext.isNotBlank()) {
                 append("\n\n")
                 append(userContext)
@@ -200,28 +200,6 @@ class DefaultSlackCommandHandler(
                 metadata = metadata
             )
         )
-    }
-
-    private suspend fun resolveUserContext(userId: String): String {
-        val manager = userMemoryManager ?: return ""
-        return try {
-            manager.getContextPrompt(userId)
-        } catch (e: Exception) {
-            e.throwIfCancellation()
-            logger.warn(e) { "Failed to resolve user memory for userId=$userId" }
-            ""
-        }
-    }
-
-    private fun buildToolSummary(): String? {
-        val manager = mcpManager ?: return null
-        val toolsByServer = manager.listServers()
-            .filter { manager.getStatus(it.name)?.name == "CONNECTED" }
-            .associate { server ->
-                server.name to manager.getToolCallbacks(server.name).map { it.name }
-            }
-            .filter { it.value.isNotEmpty() }
-        return SlackSystemPromptFactory.buildToolSummary(toolsByServer)
     }
 
     private suspend fun handleReminderAdd(command: SlackSlashCommand, intent: SlackSlashIntent.ReminderAdd) {
@@ -294,17 +272,6 @@ class DefaultSlackCommandHandler(
             responseType = "ephemeral",
             text = "Reminder feature is temporarily unavailable. Please try again later."
         )
-    }
-
-    private suspend fun resolveRequesterEmail(userId: String): String? {
-        val resolver = userEmailResolver ?: return null
-        return try {
-            resolver.resolveEmail(userId)
-        } catch (e: Exception) {
-            e.throwIfCancellation()
-            logger.warn(e) { "Failed to resolve Slack requester email for userId=$userId" }
-            null
-        }
     }
 
     companion object {

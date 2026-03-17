@@ -712,61 +712,63 @@ class SlackApiClient(
     private fun <T> executeWithRetry(apiName: String, context: String, operation: () -> T): T {
         val startedAtNs = System.nanoTime()
         var attempts = 1
-
         try {
             ensureCircuitClosed(apiName)
-
-            var attempt = 1
-            var delayMs = INITIAL_RETRY_DELAY_MS
-
-            while (true) {
-                attempts = attempt
-                try {
-                    val result = executeWithTimeout(apiName, operation)
-                    recordSuccessfulCall(apiName)
-                    recordCallMetrics(
-                        apiName = apiName,
-                        outcome = "success",
-                        errorCode = null,
-                        durationNs = System.nanoTime() - startedAtNs,
-                        attempts = attempts
-                    )
-                    return result
-                } catch (e: Exception) {
-                    val errorDetails = exceptionErrorDetails(e)
-                    val shouldRetry = errorDetails.retryable && attempt < MAX_ATTEMPTS
-                    if (!shouldRetry) {
-                        recordFailedCall(apiName, e)
-                        throw e
-                    }
-
-                    meterRegistry?.counter(
-                        "slack_api_retries_total",
-                        "api", apiName,
-                        "reason", errorDetails.code
-                    )?.increment()
-
-                    val retryDelayMs = computeRetryDelayMs(errorDetails.retryAfterSeconds, delayMs)
-                    logger.warn {
-                        "$apiName failed (attempt=$attempt/$MAX_ATTEMPTS, context=$context, code=${errorDetails.code}), " +
-                            "retrying in ${retryDelayMs}ms"
-                    }
-                    sleepQuietly(retryDelayMs)
-                    delayMs = (delayMs * 2).coerceAtMost(MAX_RETRY_DELAY_MS)
-                    attempt += 1
-                }
-            }
+            val result = retryLoop(apiName, context, operation) { attempts = it }
+            recordCallMetrics(apiName, "success", null, System.nanoTime() - startedAtNs, attempts)
+            return result
         } catch (e: Exception) {
             val errorDetails = exceptionErrorDetails(e)
-            recordCallMetrics(
-                apiName = apiName,
-                outcome = "error",
-                errorCode = errorDetails.code,
-                durationNs = System.nanoTime() - startedAtNs,
-                attempts = attempts
-            )
+            recordCallMetrics(apiName, "error", errorDetails.code, System.nanoTime() - startedAtNs, attempts)
             throw e
         }
+    }
+
+    /** 재시도 루프 본체. 성공하면 결과를 반환하고, 재시도 불가하면 예외를 던진다. */
+    private fun <T> retryLoop(
+        apiName: String,
+        context: String,
+        operation: () -> T,
+        onAttempt: (Int) -> Unit
+    ): T {
+        var attempt = 1
+        var delayMs = INITIAL_RETRY_DELAY_MS
+        while (true) {
+            onAttempt(attempt)
+            try {
+                val result = executeWithTimeout(apiName, operation)
+                recordSuccessfulCall(apiName)
+                return result
+            } catch (e: Exception) {
+                handleRetryOrThrow(apiName, context, e, attempt, delayMs)
+                delayMs = (delayMs * 2).coerceAtMost(MAX_RETRY_DELAY_MS)
+                attempt += 1
+            }
+        }
+    }
+
+    /** 재시도 가능 여부를 판단하고 불가 시 예외를 던진다. */
+    private fun handleRetryOrThrow(
+        apiName: String,
+        context: String,
+        e: Exception,
+        attempt: Int,
+        delayMs: Long
+    ) {
+        val errorDetails = exceptionErrorDetails(e)
+        if (!errorDetails.retryable || attempt >= MAX_ATTEMPTS) {
+            recordFailedCall(apiName, e)
+            throw e
+        }
+        meterRegistry?.counter(
+            "slack_api_retries_total", "api", apiName, "reason", errorDetails.code
+        )?.increment()
+        val retryDelayMs = computeRetryDelayMs(errorDetails.retryAfterSeconds, delayMs)
+        logger.warn {
+            "$apiName failed (attempt=$attempt/$MAX_ATTEMPTS, context=$context, " +
+                "code=${errorDetails.code}), retrying in ${retryDelayMs}ms"
+        }
+        sleepQuietly(retryDelayMs)
     }
 
     private fun recordCallMetrics(

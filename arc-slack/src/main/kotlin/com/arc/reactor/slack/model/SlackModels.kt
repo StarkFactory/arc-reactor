@@ -9,33 +9,6 @@ import com.fasterxml.jackson.annotation.JsonProperty
 data class SlackChallengeResponse(val challenge: String)
 
 /**
- * Slack 이벤트 콜백 래퍼 (최상위 페이로드).
- */
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class SlackEventPayload(
-    val type: String? = null,
-    val challenge: String? = null,
-    val event: SlackEvent? = null
-)
-
-/**
- * Slack 이벤트 데이터.
- */
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class SlackEvent(
-    val type: String = "",
-    val user: String? = null,
-    val channel: String? = null,
-    val text: String? = null,
-    val ts: String? = null,
-    @param:JsonProperty("thread_ts")
-    val threadTs: String? = null,
-    @param:JsonProperty("bot_id")
-    val botId: String? = null,
-    val subtype: String? = null
-)
-
-/**
  * 이벤트 처리용 내부 커맨드 모델.
  */
 data class SlackEventCommand(

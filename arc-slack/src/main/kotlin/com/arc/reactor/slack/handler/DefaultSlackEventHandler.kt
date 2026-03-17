@@ -70,8 +70,8 @@ class DefaultSlackEventHandler(
 
         val threadTs = command.ts
         try {
-            val toolSummary = buildToolSummary()
-            val userContext = resolveUserContext(command.userId)
+            val toolSummary = SlackHandlerSupport.buildToolSummary(mcpManager)
+            val userContext = SlackHandlerSupport.resolveUserContext(command.userId, userMemoryManager)
             val basePrompt = SlackSystemPromptFactory.buildProactive(
                 defaultProvider, toolSummary
             )
@@ -147,8 +147,8 @@ class DefaultSlackEventHandler(
         try {
             val sessionId = "slack-$channelId-$threadTs"
             val metadata = buildMetadata(sessionId, channelId, userId)
-            val toolSummary = buildToolSummary()
-            val userContext = resolveUserContext(userId)
+            val toolSummary = SlackHandlerSupport.buildToolSummary(mcpManager)
+            val userContext = SlackHandlerSupport.resolveUserContext(userId, userMemoryManager)
 
             val systemPrompt = buildString {
                 append(SlackSystemPromptFactory.build(defaultProvider, toolSummary))
@@ -203,7 +203,7 @@ class DefaultSlackEventHandler(
         channelId: String,
         userId: String
     ): MutableMap<String, Any> {
-        val requesterEmail = resolveRequesterEmail(userId)
+        val requesterEmail = SlackHandlerSupport.resolveRequesterEmail(userId, userEmailResolver)
         val metadata = mutableMapOf<String, Any>(
             "sessionId" to sessionId,
             "source" to "slack",
@@ -216,39 +216,6 @@ class DefaultSlackEventHandler(
             metadata["userEmail"] = requesterEmail
         }
         return metadata
-    }
-
-    private fun buildToolSummary(): String? {
-        val manager = mcpManager ?: return null
-        val toolsByServer = manager.listServers()
-            .filter { manager.getStatus(it.name)?.name == "CONNECTED" }
-            .associate { server ->
-                server.name to manager.getToolCallbacks(server.name).map { it.name }
-            }
-            .filter { it.value.isNotEmpty() }
-        return SlackSystemPromptFactory.buildToolSummary(toolsByServer)
-    }
-
-    private suspend fun resolveRequesterEmail(userId: String): String? {
-        val resolver = userEmailResolver ?: return null
-        return try {
-            resolver.resolveEmail(userId)
-        } catch (e: Exception) {
-            e.throwIfCancellation()
-            logger.warn(e) { "Failed to resolve Slack requester email for userId=$userId" }
-            null
-        }
-    }
-
-    private suspend fun resolveUserContext(userId: String): String {
-        val manager = userMemoryManager ?: return ""
-        return try {
-            manager.getContextPrompt(userId)
-        } catch (e: Exception) {
-            e.throwIfCancellation()
-            logger.warn(e) { "Failed to resolve user memory for userId=$userId" }
-            ""
-        }
     }
 
     companion object {
