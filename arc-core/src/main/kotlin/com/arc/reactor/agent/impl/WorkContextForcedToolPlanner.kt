@@ -252,6 +252,7 @@ internal object WorkContextForcedToolPlanner {
         "wrong endpoint", "invalid endpoint", "잘못된 endpoint", "없는 endpoint"
     )
     private val swaggerSummaryHints = setOf("summary", "summarize", "요약", "정리")
+    private val swaggerValidateHints = setOf("validate", "검증", "유효성")
     private val swaggerDiscoveryHints = setOf(
         "endpoint", "엔드포인트", "schema", "스키마", "인증", "auth", "에러 응답",
         "error response", "파라미터", "parameter", "로드된 스펙", "load", "로드한 뒤"
@@ -274,6 +275,17 @@ internal object WorkContextForcedToolPlanner {
     /** 정규화된 문자열이 힌트 셋 중 하나라도 포함하면 true를 반환한다. */
     private fun String.matchesAny(hints: Set<String>): Boolean =
         hints.any { this.contains(it) }
+
+    /** 하위 핸들러(blocker, briefing, release risk, 교차 소스 등)가 처리할 힌트가 있으면 true. */
+    private val downstreamCrossSourceKeywords = setOf(
+        "문서", "지식", "confluence", "오늘", "이번 주", "현재",
+        "상태", "장애", "위험", "standup", "스탠드업", "swagger", "openapi"
+    )
+    private fun hasDownstreamProjectHints(n: String): Boolean =
+        n.matchesAny(jiraBlockerHints) || n.matchesAny(jiraBriefingHints) ||
+            n.matchesAny(hybridReleaseRiskHints) || n.matchesAny(hybridPriorityHints) ||
+            n.matchesAny(workReleaseReadinessHints) || n.matchesAny(preDeployReadinessHints) ||
+            n.matchesAny(downstreamCrossSourceKeywords)
 
     /** 미할당 힌트가 없고, 소유자/소유권 탐색 힌트가 있으면 true를 반환한다. */
     private fun hasOwnershipIntent(normalized: String): Boolean =
@@ -854,7 +866,17 @@ internal object WorkContextForcedToolPlanner {
                 )
             )
         }
-        return null
+        // 프로젝트 키가 명시적으로 추출되었으나 특정 힌트가 없는 경우 — 범용 검색 폴백.
+        // 단, 하위 핸들러가 처리할 힌트(blocker, briefing, release risk, 교차 소스 등)는 제외한다.
+        // 비존재 프로젝트도 Jira API에 위임하여 "프로젝트를 찾을 수 없습니다" 에러를 반환하게 한다.
+        if (hasDownstreamProjectHints(n)) return null
+        return ForcedToolCallPlan(
+            "jira_search_issues",
+            mapOf(
+                "jql" to """project = "$pk" ORDER BY updated DESC""",
+                "maxResults" to 10
+            )
+        )
     }
 
     /** 레포지토리 기반 Bitbucket 도구 계획. */
@@ -937,7 +959,7 @@ internal object WorkContextForcedToolPlanner {
         return null
     }
 
-    /** Swagger/OpenAPI 도구 계획 — 요약, 목록, 잘못된 엔드포인트. */
+    /** Swagger/OpenAPI 도구 계획 — 요약, 검증, 목록, 잘못된 엔드포인트. */
     private fun planSwagger(
         prompt: String,
         ctx: ParsedPrompt
@@ -946,6 +968,15 @@ internal object WorkContextForcedToolPlanner {
         val isSwaggerContext = n.contains("swagger") || n.contains("openapi") ||
             n.contains("spec") || n.contains("스펙")
 
+        if (isSwaggerContext && n.matchesAny(swaggerValidateHints)) {
+            return ForcedToolCallPlan(
+                "spec_validate",
+                buildMap {
+                    ctx.swaggerSpecName?.let { put("specName", it) }
+                    ctx.specUrl?.let { put("url", it) }
+                }
+            )
+        }
         if (ctx.specUrl == null && ctx.swaggerSpecName != null &&
             isSwaggerContext && n.matchesAny(swaggerSummaryHints) &&
             !n.contains("목록") && !n.contains("list")

@@ -676,4 +676,54 @@ class WorkContextForcedToolPlannerTest {
         assertEquals("spec_list", plan.toolName)
         assertEquals(emptyMap<String, Any?>(), plan.arguments)
     }
+
+    // ── Fix 1: 비존재 프로젝트 검색 시 도구 미호출 수정 ──
+
+    @Test
+    fun `plan jira search for nonexistent project해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("FAKE 프로젝트 이슈 보여줘")
+
+        requireNotNull(plan) { "비존재 프로젝트라도 Jira API에 위임해야 한다" }
+        assertEquals("jira_search_issues", plan.toolName, "범용 jira_search_issues 폴백이어야 한다")
+        val jql = plan.arguments["jql"] as String
+        assert(jql.contains("FAKE")) { "JQL에 프로젝트 키 FAKE가 포함되어야 한다" }
+    }
+
+    @Test
+    fun `plan jira search fallback for project with generic query해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("ABC 프로젝트 상황 알려줘")
+
+        requireNotNull(plan) { "프로젝트 키가 있으면 도구를 호출해야 한다" }
+        val validTools = setOf("jira_search_issues", "work_morning_briefing")
+        assert(plan.toolName in validTools) {
+            "Jira 또는 브리핑 도구가 호출되어야 한다. 실제: ${plan.toolName}"
+        }
+    }
+
+    // ── Fix 2: spec_validate 도구 라우팅 ──
+
+    @Test
+    fun `plan spec validate from korean prompt해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("Swagger 스펙 검증해줘")
+
+        requireNotNull(plan) { "검증 키워드가 있으면 spec_validate를 호출해야 한다" }
+        assertEquals("spec_validate", plan.toolName)
+    }
+
+    @Test
+    fun `plan spec validate from english prompt해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("validate the OpenAPI spec")
+
+        requireNotNull(plan) { "validate 키워드가 있으면 spec_validate를 호출해야 한다" }
+        assertEquals("spec_validate", plan.toolName)
+    }
+
+    @Test
+    fun `plan spec validate with spec name해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("pet-store 스펙 유효성 검증해줘")
+
+        requireNotNull(plan) { "유효성 키워드가 있으면 spec_validate를 호출해야 한다" }
+        assertEquals("spec_validate", plan.toolName)
+        assertEquals("pet-store", plan.arguments["specName"], "스펙 이름이 추출되어야 한다")
+    }
 }
