@@ -21,12 +21,16 @@ internal object ReActLoopUtils {
     /** 도구당 보수적 토큰 추정치 (이름 + 설명 + JSON 스키마). */
     const val TOKENS_PER_TOOL_DEFINITION = 200
 
-    /** 도구 에러 감지 시 LLM에게 tool_call 재시도를 유도하는 힌트 메시지. */
+    /** 도구 에러 감지 시 LLM에게 tool_call 재시도를 유도하는 힌트 메시지 (영/한 병기). */
     const val TOOL_ERROR_RETRY_HINT =
         "The previous tool call returned an error. " +
             "Analyze the error message, fix the parameters, " +
             "and retry with a corrected tool call. " +
-            "Do NOT respond with text."
+            "Do NOT respond with text.\n" +
+            "이전 도구 호출에서 에러가 발생했습니다. " +
+            "에러 메시지를 분석하고 파라미터를 수정한 후 " +
+            "올바른 도구 호출로 재시도하세요. " +
+            "텍스트로 응답하지 마세요."
 
     /**
      * 도구 응답 중 에러가 있으면 재시도 힌트 UserMessage를 주입합니다.
