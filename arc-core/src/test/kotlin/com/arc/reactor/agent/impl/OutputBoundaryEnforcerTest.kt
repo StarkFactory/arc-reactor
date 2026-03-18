@@ -28,7 +28,7 @@ class OutputBoundaryEnforcerTest {
             agentMetrics = metrics
         )
 
-        val result = enforcer.apply(
+        val result = enforcer.enforceOutputBoundaries(
             result = AgentResult.success(content = "1234567"),
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
             metadata = emptyMap(),
@@ -47,7 +47,7 @@ class OutputBoundaryEnforcerTest {
             agentMetrics = metrics
         )
 
-        val result = enforcer.apply(
+        val result = enforcer.enforceOutputBoundaries(
             result = AgentResult.success(content = "short"),
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
             metadata = emptyMap(),
@@ -66,7 +66,7 @@ class OutputBoundaryEnforcerTest {
             agentMetrics = metrics
         )
 
-        val result = enforcer.apply(
+        val result = enforcer.enforceOutputBoundaries(
             result = AgentResult.success(content = "short"),
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
             metadata = emptyMap(),
@@ -86,7 +86,7 @@ class OutputBoundaryEnforcerTest {
             agentMetrics = metrics
         )
 
-        val result = enforcer.apply(
+        val result = enforcer.enforceOutputBoundaries(
             result = AgentResult.success(content = "short"),
             command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
             metadata = emptyMap(),

@@ -46,7 +46,7 @@ class LlmClassificationStage(
 
     override val stageName = "LlmClassification"
 
-    override suspend fun check(command: GuardCommand): GuardResult {
+    override suspend fun enforce(command: GuardCommand): GuardResult {
         return try {
             // ── 단계 1: 입력 잘라내기 (비용 제어) ──
             val truncatedInput = command.text.take(500)

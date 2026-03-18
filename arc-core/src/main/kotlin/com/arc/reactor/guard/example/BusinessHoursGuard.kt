@@ -50,7 +50,7 @@ class BusinessHoursGuard(
     // InjectionDetection(3) 이후, Classification(4) 이전
     override val order = 35
 
-    override suspend fun check(command: GuardCommand): GuardResult {
+    override suspend fun enforce(command: GuardCommand): GuardResult {
         val now = LocalTime.now(timezone)
 
         if (now.hour < startHour || now.hour >= endHour) {

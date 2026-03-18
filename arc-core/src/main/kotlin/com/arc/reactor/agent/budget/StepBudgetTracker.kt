@@ -51,7 +51,7 @@ data class StepRecord(
  * ```kotlin
  * val tracker = StepBudgetTracker(maxTokens = 10000, softLimitPercent = 80)
  *
- * val status = tracker.record("llm-call-1", inputTokens = 500, outputTokens = 200)
+ * val status = tracker.trackStep("llm-call-1", inputTokens = 500, outputTokens = 200)
  * if (status == BudgetStatus.EXHAUSTED) {
  *     // 루프 종료
  * }
@@ -88,7 +88,7 @@ class StepBudgetTracker(
      * @return 기록 후의 예산 상태
      */
     fun recordToolOutput(step: String, toolOutputTokens: Int): BudgetStatus {
-        return record(step, inputTokens = toolOutputTokens, outputTokens = 0)
+        return trackStep(step, inputTokens = toolOutputTokens, outputTokens = 0)
     }
 
     /**
@@ -99,7 +99,7 @@ class StepBudgetTracker(
      * @param outputTokens 출력 토큰 수 (0 이상)
      * @return 기록 후의 예산 상태
      */
-    fun record(step: String, inputTokens: Int, outputTokens: Int): BudgetStatus {
+    fun trackStep(step: String, inputTokens: Int, outputTokens: Int): BudgetStatus {
         require(inputTokens >= 0) { "inputTokens는 음수일 수 없다: $inputTokens" }
         require(outputTokens >= 0) { "outputTokens는 음수일 수 없다: $outputTokens" }
 

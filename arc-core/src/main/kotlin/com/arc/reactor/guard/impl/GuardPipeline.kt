@@ -96,7 +96,7 @@ class GuardPipeline(
             val stageStartNanos = System.nanoTime()
             try {
                 logger.debug { "Executing guard stage: ${stage.stageName}" }
-                val result = stage.check(currentCommand)
+                val result = stage.enforce(currentCommand)
 
                 when (result) {
                     is GuardResult.Allowed -> {

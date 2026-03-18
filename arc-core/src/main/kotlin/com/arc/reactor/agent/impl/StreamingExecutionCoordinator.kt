@@ -157,7 +157,7 @@ internal class StreamingExecutionCoordinator(
         }
 
         val ragResult = measureStage("rag_retrieval", hookContext, command.metadata) {
-            val shouldRetrieveRag = RagRelevanceClassifier.shouldRetrieveRag(command)
+            val shouldRetrieveRag = RagRelevanceClassifier.isRagRequired(command)
             if (shouldRetrieveRag) {
                 ragContextRetriever.retrieve(command)
             } else {

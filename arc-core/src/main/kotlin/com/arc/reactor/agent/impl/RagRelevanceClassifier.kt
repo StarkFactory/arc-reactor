@@ -25,7 +25,7 @@ internal object RagRelevanceClassifier {
      * @param command 에이전트 실행 명령
      * @return RAG 검색이 필요하면 true, 생략해도 되면 false
      */
-    fun shouldRetrieveRag(command: AgentCommand): Boolean {
+    fun isRagRequired(command: AgentCommand): Boolean {
         if (command.metadata["ragRequired"] == true) return true
         if (hasExplicitRagFilters(command.metadata)) return true
 

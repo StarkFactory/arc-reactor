@@ -78,7 +78,7 @@ class GuardPipelineTest {
             val stage1 = object : GuardStage {
                 override val stageName = "stage1"
                 override val order = 1
-                override suspend fun check(command: GuardCommand): GuardResult {
+                override suspend fun enforce(command: GuardCommand): GuardResult {
                     executionOrder.add(1)
                     return GuardResult.Allowed.DEFAULT
                 }
@@ -86,7 +86,7 @@ class GuardPipelineTest {
             val stage2 = object : GuardStage {
                 override val stageName = "stage2"
                 override val order = 2
-                override suspend fun check(command: GuardCommand): GuardResult {
+                override suspend fun enforce(command: GuardCommand): GuardResult {
                     executionOrder.add(2)
                     return GuardResult.Allowed.DEFAULT
                 }
@@ -94,7 +94,7 @@ class GuardPipelineTest {
             val stage3 = object : GuardStage {
                 override val stageName = "stage3"
                 override val order = 3
-                override suspend fun check(command: GuardCommand): GuardResult {
+                override suspend fun enforce(command: GuardCommand): GuardResult {
                     executionOrder.add(3)
                     return GuardResult.Allowed.DEFAULT
                 }
@@ -114,7 +114,7 @@ class GuardPipelineTest {
             val stage1 = object : GuardStage {
                 override val stageName = "stage1"
                 override val order = 1
-                override suspend fun check(command: GuardCommand): GuardResult {
+                override suspend fun enforce(command: GuardCommand): GuardResult {
                     executionOrder.add(1)
                     return GuardResult.Allowed.DEFAULT
                 }
@@ -122,7 +122,7 @@ class GuardPipelineTest {
             val stage2 = object : GuardStage {
                 override val stageName = "stage2"
                 override val order = 2
-                override suspend fun check(command: GuardCommand): GuardResult {
+                override suspend fun enforce(command: GuardCommand): GuardResult {
                     executionOrder.add(2)
                     return GuardResult.Rejected("Rejected", RejectionCategory.UNAUTHORIZED, "stage2")
                 }
@@ -130,7 +130,7 @@ class GuardPipelineTest {
             val stage3 = object : GuardStage {
                 override val stageName = "stage3"
                 override val order = 3
-                override suspend fun check(command: GuardCommand): GuardResult {
+                override suspend fun enforce(command: GuardCommand): GuardResult {
                     executionOrder.add(3)
                     return GuardResult.Allowed.DEFAULT
                 }
@@ -148,7 +148,7 @@ class GuardPipelineTest {
             val cancellingStage = object : GuardStage {
                 override val stageName = "cancel-stage"
                 override val order = 1
-                override suspend fun check(command: GuardCommand): GuardResult {
+                override suspend fun enforce(command: GuardCommand): GuardResult {
                     throw CancellationException("cancel")
                 }
             }
@@ -181,7 +181,7 @@ class GuardPipelineTest {
             )
 
             injectionAttempts.forEach { attempt ->
-                val result = stage.check(GuardCommand(userId = "user-1", text = attempt))
+                val result = stage.enforce(GuardCommand(userId = "user-1", text = attempt))
                 assertInstanceOf(GuardResult.Rejected::class.java, result,
                     "Should reject injection attempt: '$attempt'")
             }
@@ -200,7 +200,7 @@ class GuardPipelineTest {
             )
 
             legitimateQuestions.forEach { question ->
-                val result = stage.check(GuardCommand(userId = "user-1", text = question))
+                val result = stage.enforce(GuardCommand(userId = "user-1", text = question))
                 assertInstanceOf(GuardResult.Allowed::class.java, result,
                     "Should allow legitimate question: '$question'")
             }

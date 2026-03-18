@@ -69,7 +69,7 @@ class ConversationMessageTrimmer(
         // Phase 1: 오래된 히스토리 제거 (선행 SystemMessage와 마지막 UserMessage 보호)
         totalTokens = trimOldHistory(messages, messageTokens, totalTokens, budget)
         // Phase 1.5: 최신 도구 컨텍스트 보존을 위해 선행 SystemMessage 우선 제거
-        totalTokens = trimLeadingSystemMessagesForFreshToolHistory(messages, messageTokens, totalTokens, budget)
+        totalTokens = trimLeadingMemoryMessages(messages, messageTokens, totalTokens, budget)
         // Phase 2: 마지막 UserMessage 이후의 도구 히스토리 쌍 제거
         trimToolHistory(messages, messageTokens, totalTokens, budget)
     }
@@ -143,7 +143,7 @@ class ConversationMessageTrimmer(
      * 최신 tool-call/tool-response 컨텍스트가 다음 LLM 호출에 보이도록
      * 선행 메모리 SystemMessage를 우선적으로 drop한다.
      */
-    private fun trimLeadingSystemMessagesForFreshToolHistory(
+    private fun trimLeadingMemoryMessages(
         messages: MutableList<Message>,
         messageTokens: MutableList<Int>,
         currentTokens: Int,

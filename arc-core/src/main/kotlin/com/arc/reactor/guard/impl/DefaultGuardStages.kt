@@ -63,7 +63,7 @@ class DefaultRateLimitStage(
         .expireAfterWrite(Duration.ofHours(1))
         .build()
 
-    override suspend fun check(command: GuardCommand): GuardResult {
+    override suspend fun enforce(command: GuardCommand): GuardResult {
         // ── 단계 1: 캐시 키 및 제한값 결정 ──
         val tenantId = command.metadata["tenantId"]?.toString()
         val userId = command.userId
@@ -128,7 +128,7 @@ class DefaultInputValidationStage(
     private val minLength: Int = 1,
     private val systemPromptMaxChars: Int = 0
 ) : InputValidationStage {
-    override suspend fun check(command: GuardCommand): GuardResult {
+    override suspend fun enforce(command: GuardCommand): GuardResult {
         val text = command.text.trim()
 
         // ── 최소 길이 검증 ──
@@ -174,7 +174,7 @@ class DefaultInputValidationStage(
  */
 class DefaultInjectionDetectionStage : InjectionDetectionStage {
 
-    override suspend fun check(command: GuardCommand): GuardResult {
+    override suspend fun enforce(command: GuardCommand): GuardResult {
         val text = command.text
 
         // 모든 패턴을 순회하며 매칭 여부 확인
