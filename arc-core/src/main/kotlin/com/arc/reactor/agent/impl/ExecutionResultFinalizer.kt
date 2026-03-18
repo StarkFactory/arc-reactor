@@ -170,29 +170,22 @@ internal class ExecutionResultFinalizer(
             )
             when (val guardResult = outputGuardPipeline.check(result.content, guardContext)) {
                 is OutputGuardResult.Allowed -> {
-                    recordOutputGuardMetadata(hookContext, "allowed", null, "")
-                    agentMetrics.recordOutputGuardAction("pipeline", "allowed", "", trustMetadata)
+                    recordGuardOutcome(hookContext, GUARD_ACTION_ALLOWED, null, "", trustMetadata)
                     result
                 }
 
                 is OutputGuardResult.Modified -> {
-                    recordOutputGuardMetadata(hookContext, "modified", guardResult.stage, guardResult.reason)
-                    agentMetrics.recordOutputGuardAction(
-                        guardResult.stage ?: "unknown",
-                        "modified",
-                        guardResult.reason,
-                        trustMetadata
+                    recordGuardOutcome(
+                        hookContext, GUARD_ACTION_MODIFIED,
+                        guardResult.stage, guardResult.reason, trustMetadata
                     )
                     result.copy(content = guardResult.content)
                 }
 
                 is OutputGuardResult.Rejected -> {
-                    recordOutputGuardMetadata(hookContext, "rejected", guardResult.stage, guardResult.reason)
-                    agentMetrics.recordOutputGuardAction(
-                        guardResult.stage ?: "unknown",
-                        "rejected",
-                        guardResult.reason,
-                        trustMetadata
+                    recordGuardOutcome(
+                        hookContext, GUARD_ACTION_REJECTED,
+                        guardResult.stage, guardResult.reason, trustMetadata
                     )
                     outputGuardFailure(reason = guardResult.reason, startTime = startTime)
                 }
@@ -200,7 +193,10 @@ internal class ExecutionResultFinalizer(
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Output guard pipeline failed, rejecting (fail-close)" }
-            recordOutputGuardMetadata(hookContext, "rejected", "pipeline", "Output guard check failed")
+            recordGuardOutcome(
+                hookContext, GUARD_ACTION_REJECTED, "pipeline",
+                "Output guard check failed", trustEventMetadata(command, hookContext)
+            )
             outputGuardFailure(reason = "Output guard check failed", startTime = startTime)
         }
     }
@@ -273,7 +269,8 @@ internal class ExecutionResultFinalizer(
             )
             if (blockedUnverified) {
                 agentMetrics.recordUnverifiedResponse(
-                    trustEventMetadata(command, hookContext) + mapOf("blockReason" to "unverified_sources")
+                    trustEventMetadata(command, hookContext) +
+                        mapOf(OutputGuardMetadataKeys.BLOCK_REASON to BlockReasonConstants.UNVERIFIED_SOURCES)
                 )
             }
             result.copy(content = filteredContent)
@@ -340,7 +337,7 @@ internal class ExecutionResultFinalizer(
         metadata["answerMode"] = resolveAnswerMode(result, hookContext)
         metadata["deliveryMode"] = if (hookContext.metadata["schedulerJobId"] != null) "scheduled" else "interactive"
         metadata["toolFamily"] = deriveToolFamily(toolsUsed)
-        resolveBlockReason(result, hookContext)?.let { metadata["blockReason"] = it }
+        resolveBlockReason(result, hookContext)?.let { metadata[OutputGuardMetadataKeys.BLOCK_REASON] = it }
         return metadata
     }
 
@@ -385,7 +382,7 @@ internal class ExecutionResultFinalizer(
     }
 
     private fun outputTooShortFailure(hookContext: HookContext, startTime: Long): AgentResult {
-        hookContext.metadata["blockReason"] = "output_too_short"
+        hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON] = BlockReasonConstants.OUTPUT_TOO_SHORT
         return AgentResult.failure(
             errorMessage = errorMessageResolver.resolve(AgentErrorCode.OUTPUT_TOO_SHORT, null),
             errorCode = AgentErrorCode.OUTPUT_TOO_SHORT,
@@ -393,18 +390,26 @@ internal class ExecutionResultFinalizer(
         ).also { agentMetrics.recordExecution(it) }
     }
 
-    private fun recordOutputGuardMetadata(
+    /**
+     * Output Guard 메타데이터 기록 + 메트릭 기록을 한 번에 수행하는 헬퍼.
+     * applyOutputGuardPipeline의 각 when 분기에서 호출.
+     */
+    private fun recordGuardOutcome(
         hookContext: HookContext,
         action: String,
         stage: String?,
-        reason: String
+        reason: String,
+        trustMetadata: Map<String, Any>
     ) {
-        hookContext.metadata["outputGuardAction"] = action
-        hookContext.metadata["outputGuardStage"] = stage ?: "pipeline"
+        hookContext.metadata[OutputGuardMetadataKeys.ACTION] = action
+        hookContext.metadata[OutputGuardMetadataKeys.STAGE] = stage ?: "pipeline"
         if (reason.isNotBlank()) {
-            hookContext.metadata["outputGuardReason"] = reason
-            hookContext.metadata["blockReason"] = reason
+            hookContext.metadata[OutputGuardMetadataKeys.REASON] = reason
+            hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON] = reason
         }
+        agentMetrics.recordOutputGuardAction(
+            stage ?: "pipeline", action, reason, trustMetadata
+        )
     }
 
     private fun captureVerificationBlockReason(
@@ -413,9 +418,9 @@ internal class ExecutionResultFinalizer(
         sources: List<VerifiedSource>
     ): Boolean {
         if (sources.isNotEmpty()) return false
-        if (hookContext.metadata["blockReason"]?.toString()?.isNotBlank() == true) return false
+        if (hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON]?.toString()?.isNotBlank() == true) return false
         if (UNVERIFIED_PATTERNS.any { filteredContent.contains(it, ignoreCase = true) }) {
-            hookContext.metadata["blockReason"] = "unverified_sources"
+            hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON] = BlockReasonConstants.UNVERIFIED_SOURCES
             return true
         }
         return false
@@ -452,16 +457,17 @@ internal class ExecutionResultFinalizer(
         blockReason: String,
         hookContext: HookContext
     ): String? {
-        if (blockReason != "unverified_sources") return null
+        if (blockReason != BlockReasonConstants.UNVERIFIED_SOURCES) return null
         val signal = latestDeliverySignal(readToolSignals(hookContext)) ?: return null
         return buildDeliveryAcknowledgement(userPrompt, signal.deliveryMode.orEmpty())
     }
 
     private fun resolveVisibleBlockReason(command: AgentCommand, hookContext: HookContext): String? {
-        hookContext.metadata["blockReason"]?.toString()?.takeIf { it.isNotBlank() }?.let { return it }
+        hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON]?.toString()
+            ?.takeIf { it.isNotBlank() }?.let { return it }
         if (WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(command.userPrompt)) {
-            hookContext.metadata["blockReason"] = "read_only_mutation"
-            return "read_only_mutation"
+            hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON] = BlockReasonConstants.READ_ONLY_MUTATION
+            return BlockReasonConstants.READ_ONLY_MUTATION
         }
         return null
     }
@@ -470,43 +476,43 @@ internal class ExecutionResultFinalizer(
     private fun buildBlockedResponse(userPrompt: String, blockReason: String): String {
         val hangul = userPrompt.any { ch -> ch in '\uAC00'..'\uD7A3' }
         return when (blockReason) {
-            "policy_denied" -> if (hangul) {
+            BlockReasonConstants.POLICY_DENIED -> if (hangul) {
                 "현재 접근 정책에 포함되지 않은 Jira, Confluence, Bitbucket, Swagger 범위라 조회할 수 없습니다."
             } else {
                 "This request targets Jira, Confluence, Bitbucket, or Swagger data outside the current access policy."
             }
 
-            "read_only_mutation" -> if (hangul) {
+            BlockReasonConstants.READ_ONLY_MUTATION -> if (hangul) {
                 "현재 workspace는 읽기 전용이라 변경 작업을 수행할 수 없습니다."
             } else {
                 "The current workspace is read-only, so I can't perform this mutation."
             }
 
-            "identity_unresolved" -> if (hangul) {
+            BlockReasonConstants.IDENTITY_UNRESOLVED -> if (hangul) {
                 "요청자 계정을 Jira 사용자로 확인할 수 없어 개인화 조회를 확정할 수 없습니다. requesterEmail과 Atlassian 사용자 매핑을 확인해 주세요."
             } else {
                 "I couldn't resolve the requesting user to a Jira identity, so I can't confirm this personalized result. Check the requesterEmail to Atlassian user mapping."
             }
 
-            "upstream_auth_failed" -> if (hangul) {
+            BlockReasonConstants.UPSTREAM_AUTH_FAILED -> if (hangul) {
                 "연결된 업무 도구 인증이 실패해 이 조회를 확정할 수 없습니다. 시스템 계정 토큰 설정을 확인해 주세요."
             } else {
                 "I couldn't confirm this result because the connected workspace tool authentication failed. Check the system account token."
             }
 
-            "upstream_permission_denied" -> if (hangul) {
+            BlockReasonConstants.UPSTREAM_PERMISSION_DENIED -> if (hangul) {
                 "연결된 업무 도구 계정에 필요한 권한이 없어 이 조회를 수행할 수 없습니다. 시스템 계정 권한을 확인해 주세요."
             } else {
                 "I couldn't complete this lookup because the connected workspace account is missing the required permission."
             }
 
-            "upstream_rate_limited" -> if (hangul) {
+            BlockReasonConstants.UPSTREAM_RATE_LIMITED -> if (hangul) {
                 "업무 도구 API rate limit에 걸려 지금은 이 조회를 확정할 수 없습니다. 잠시 후 다시 시도해 주세요."
             } else {
                 "I couldn't complete this lookup because the workspace API is currently rate limited. Please try again later."
             }
 
-            "unverified_sources" -> if (hangul) {
+            BlockReasonConstants.UNVERIFIED_SOURCES -> if (hangul) {
                 "검증 가능한 출처를 찾지 못해 답변을 확정할 수 없습니다. 승인된 Jira, Confluence, Bitbucket, Swagger/OpenAPI 자료를 다시 조회해 주세요."
             } else {
                 "I couldn't verify this answer from approved sources. Please re-run the query against approved Jira, Confluence, Bitbucket, or Swagger/OpenAPI data."
@@ -567,7 +573,7 @@ internal class ExecutionResultFinalizer(
             metadata["stageTimings"] = LinkedHashMap(stageTimings)
         }
         outputGuard?.let { metadata["outputGuard"] = it }
-        resolveBlockReason(result, hookContext)?.let { metadata["blockReason"] = it }
+        resolveBlockReason(result, hookContext)?.let { metadata[OutputGuardMetadataKeys.BLOCK_REASON] = it }
         if (toolSignals.isNotEmpty()) {
             metadata["toolSignals"] = toolSignals.map(::toToolSignalMap)
         }
@@ -595,19 +601,24 @@ internal class ExecutionResultFinalizer(
     }
 
     private fun buildOutputGuardMetadata(hookContext: HookContext): Map<String, Any?>? {
-        val action = hookContext.metadata["outputGuardAction"]?.toString()?.takeIf { it.isNotBlank() } ?: return null
+        val action = hookContext.metadata[OutputGuardMetadataKeys.ACTION]?.toString()
+            ?.takeIf { it.isNotBlank() } ?: return null
         val data = linkedMapOf<String, Any?>("action" to action)
-        hookContext.metadata["outputGuardStage"]?.toString()?.takeIf { it.isNotBlank() }?.let { data["stage"] = it }
-        hookContext.metadata["outputGuardReason"]?.toString()?.takeIf { it.isNotBlank() }?.let { data["reason"] = it }
+        hookContext.metadata[OutputGuardMetadataKeys.STAGE]?.toString()
+            ?.takeIf { it.isNotBlank() }?.let { data["stage"] = it }
+        hookContext.metadata[OutputGuardMetadataKeys.REASON]?.toString()
+            ?.takeIf { it.isNotBlank() }?.let { data["reason"] = it }
         return data
     }
 
     private fun resolveBlockReason(result: AgentResult, hookContext: HookContext): String? {
         if (!result.success) {
-            return hookContext.metadata["blockReason"]?.toString()?.takeIf { it.isNotBlank() }
+            return hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON]?.toString()
+                ?.takeIf { it.isNotBlank() }
                 ?: result.errorMessage?.takeIf { it.isNotBlank() }
         }
-        return hookContext.metadata["blockReason"]?.toString()?.takeIf { it.isNotBlank() }
+        return hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON]?.toString()
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun resolveGrounded(result: AgentResult, hookContext: HookContext): Boolean {
@@ -683,6 +694,10 @@ internal class ExecutionResultFinalizer(
     }
 
     companion object {
+        private const val GUARD_ACTION_ALLOWED = "allowed"
+        private const val GUARD_ACTION_MODIFIED = "modified"
+        private const val GUARD_ACTION_REJECTED = "rejected"
+
         private val UNVERIFIED_PATTERNS = listOf(
             "couldn't verify",
             "cannot verify",
