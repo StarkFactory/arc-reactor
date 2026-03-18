@@ -1,5 +1,6 @@
 package com.arc.reactor.response
 
+import com.arc.reactor.agent.impl.BlockReasonConstants
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
@@ -149,18 +150,25 @@ internal object ToolResponseSignalExtractor {
     private fun inferBlockReason(errorMessage: String?): String? {
         val normalized = errorMessage?.lowercase()?.trim()?.takeIf(String::isNotBlank) ?: return null
         return when {
-            "access denied" in normalized || "not allowed" in normalized -> "policy_denied"
-            "authentication failed" in normalized || "invalid api token" in normalized -> "upstream_auth_failed"
+            "access denied" in normalized || "not allowed" in normalized ->
+                BlockReasonConstants.POLICY_DENIED
+            "authentication failed" in normalized || "invalid api token" in normalized ->
+                BlockReasonConstants.UPSTREAM_AUTH_FAILED
             "permission denied" in normalized || "not permitted to use confluence" in normalized ||
                 "do not have permission to see it" in normalized ||
-                "cannot access confluence" in normalized -> "upstream_permission_denied"
-            "rate limit exceeded" in normalized || "too many requests" in normalized -> "upstream_rate_limited"
-            "read-only" in normalized || "readonly" in normalized || "mutating tool is disabled" in normalized ->
-                "read_only_mutation"
+                "cannot access confluence" in normalized ->
+                BlockReasonConstants.UPSTREAM_PERMISSION_DENIED
+            "rate limit exceeded" in normalized || "too many requests" in normalized ->
+                BlockReasonConstants.UPSTREAM_RATE_LIMITED
+            "read-only" in normalized || "readonly" in normalized ||
+                "mutating tool is disabled" in normalized ->
+                BlockReasonConstants.READ_ONLY_MUTATION
             "requester identity could not be resolved" in normalized ||
                 "requesteremail mapping failed" in normalized ||
-                "jira user found for supplied requesteremail" in normalized -> "identity_unresolved"
-            "approval policy blocked" in normalized -> "policy_denied"
+                "jira user found for supplied requesteremail" in normalized ->
+                BlockReasonConstants.IDENTITY_UNRESOLVED
+            "approval policy blocked" in normalized ->
+                BlockReasonConstants.POLICY_DENIED
             else -> null
         }
     }
