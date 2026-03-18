@@ -299,6 +299,17 @@ interface AgentMetrics {
      * @param durationMs 검색 소요 시간 (밀리초)
      */
     fun recordRagRetrieval(status: String, durationMs: Long) {}
+
+    /**
+     * 요청당 추정 비용(USD)을 기록한다.
+     *
+     * 하위 호환성을 위해 기본 구현은 no-op.
+     *
+     * @param costUsd 추정 비용 (USD)
+     * @param model 사용된 LLM 모델 이름
+     * @param metadata 요청 메타데이터 (일반적으로 "tenantId" 포함)
+     */
+    fun recordRequestCost(costUsd: Double, model: String, metadata: Map<String, Any> = emptyMap()) {}
 }
 
 /**
