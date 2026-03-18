@@ -133,23 +133,29 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 git push origin main
 ```
 
-## Phase 5: 자기 학습 + 프롬프트 강화
+## Phase 5: 프롬프트 진화 (META 규칙)
 
-**매 실행에서 겪은 오류/실패를 학습하여 다음 실행에서 반복하지 않도록 프롬프트를 개선한다.**
+이 프롬프트는 **글을 추가하는 게 아니라 규칙을 진화**시킨다.
 
-**반드시 기록할 것:**
-- 서버 시작/연결에서 막힌 점 → 트러블슈팅 테이블에 추가
-- API 호출에서 예상과 다른 응답 → 응답 파싱/판단 가이드 보강
-- 테스트 설계에서 실수한 점 → 테스트 설계 팁에 추가
-- 브랜치를 실수로 만들었다면 → 금지 규칙 더 강조
-- 감사 상세 결과(테스트 테이블 등)는 **AUDIT_CHECKLIST.md에만** 기록. 프롬프트에는 교훈만
+**진화 프로세스 (매 실행 후):**
+1. **실패 분석**: 이번 실행에서 뭐가 잘 안 됐는가?
+2. **패턴 추출**: 구체적 실패 → 일반 규칙으로 추상화
+   - Bad: "Confluence 도구가 안 불렸다"
+   - Good: "RAG 트리거 키워드와 도구 키워드가 겹치면 도구 선택이 무시될 수 있다"
+3. **규칙 적용**: 기존 규칙이 있으면 **개선**. 없으면 추가. 겹치면 **병합**.
+4. **삭제**: 3회 연속 해당 안 되는 트러블슈팅/팁은 **삭제**
 
-**300줄 이내 유지. 추가할 때 중복/불필요한 내용은 삭제.**
+**규칙 작성 원칙:**
+- 한 줄로. 설명이 필요하면 트러블슈팅 테이블에.
+- 측정 가능하게. "더 좋게" ❌ → "toolsUsed에 2개+ 포함" ✅
+- 행동 지향. "주의해라" ❌ → "stageTimings.rag_retrieval을 확인해라" ✅
+
+**프롬프트 전체 200줄 이내 유지. 추가하면 반드시 다른 곳을 줄인다.**
 
 ```bash
 git checkout main && git pull origin main
 git add -f .claude/prompts/background-audit.md
-git commit -m "audit: 프롬프트 강화 — {요약}
+git commit -m "audit: 프롬프트 진화 — {변경 1줄 요약}
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 git push origin main
