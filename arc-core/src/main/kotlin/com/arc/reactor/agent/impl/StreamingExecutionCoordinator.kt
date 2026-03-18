@@ -113,40 +113,32 @@ internal class StreamingExecutionCoordinator(
         state: StreamingExecutionState,
         emit: suspend (String) -> Unit
     ): AgentCommand? {
-        val guardStart = System.nanoTime()
-        preExecutionResolver.checkGuard(command)?.let { rejection ->
-            val guardDurationMs = (System.nanoTime() - guardStart) / 1_000_000
-            hookContext.metadata[HookMetadataKeys.GUARD_DURATION_MS] = guardDurationMs
-            recordStageTiming(hookContext, "guard", guardDurationMs)
-            agentMetrics.recordStageLatency("guard", guardDurationMs, command.metadata)
+        val guardRejection = measureStage("guard", hookContext, command.metadata) {
+            preExecutionResolver.checkGuard(command)
+        }
+        hookContext.metadata[HookMetadataKeys.GUARD_DURATION_MS] =
+            readStageTimings(hookContext)["guard"] ?: 0L
+        if (guardRejection != null) {
             agentMetrics.recordGuardRejection(
-                stage = rejection.stage ?: "unknown",
-                reason = rejection.reason,
+                stage = guardRejection.stage ?: "unknown",
+                reason = guardRejection.reason,
                 metadata = command.metadata
             )
             state.streamErrorCode = AgentErrorCode.GUARD_REJECTED
-            state.streamErrorMessage = rejection.reason
-            emit(StreamEventMarker.error(rejection.reason))
+            state.streamErrorMessage = guardRejection.reason
+            emit(StreamEventMarker.error(guardRejection.reason))
             return null
         }
-        val guardDurationMs = (System.nanoTime() - guardStart) / 1_000_000
-        hookContext.metadata[HookMetadataKeys.GUARD_DURATION_MS] = guardDurationMs
-        recordStageTiming(hookContext, "guard", guardDurationMs)
-        agentMetrics.recordStageLatency("guard", guardDurationMs, command.metadata)
 
-        val beforeHooksStartTime = System.nanoTime()
-        preExecutionResolver.checkBeforeHooks(hookContext)?.let { rejection ->
-            val beforeHooksDurationMs = (System.nanoTime() - beforeHooksStartTime) / 1_000_000
-            recordStageTiming(hookContext, "before_hooks", beforeHooksDurationMs)
-            agentMetrics.recordStageLatency("before_hooks", beforeHooksDurationMs, command.metadata)
+        val hookRejection = measureStage("before_hooks", hookContext, command.metadata) {
+            preExecutionResolver.checkBeforeHooks(hookContext)
+        }
+        if (hookRejection != null) {
             state.streamErrorCode = AgentErrorCode.HOOK_REJECTED
-            state.streamErrorMessage = rejection.reason
-            emit(StreamEventMarker.error(rejection.reason))
+            state.streamErrorMessage = hookRejection.reason
+            emit(StreamEventMarker.error(hookRejection.reason))
             return null
         }
-        val beforeHooksDurationMs = (System.nanoTime() - beforeHooksStartTime) / 1_000_000
-        recordStageTiming(hookContext, "before_hooks", beforeHooksDurationMs)
-        agentMetrics.recordStageLatency("before_hooks", beforeHooksDurationMs, command.metadata)
 
         val effectiveCommand = preExecutionResolver.resolveIntent(command, hookContext)
         if (effectiveCommand.responseFormat != ResponseFormat.TEXT) {
@@ -160,23 +152,19 @@ internal class StreamingExecutionCoordinator(
     }
 
     private suspend fun prepareLoopSetup(command: AgentCommand, hookContext: HookContext): StreamingLoopSetup {
-        val historyLoadStart = System.nanoTime()
-        val conversationHistory = conversationManager.loadHistory(command)
-        val historyLoadDurationMs = (System.nanoTime() - historyLoadStart) / 1_000_000
-        recordStageTiming(hookContext, "history_load", historyLoadDurationMs)
-        agentMetrics.recordStageLatency("history_load", historyLoadDurationMs, command.metadata)
-
-        val ragStart = System.nanoTime()
-        val shouldRetrieveRag = RagRelevanceClassifier.shouldRetrieveRag(command)
-        val ragResult = if (shouldRetrieveRag) {
-            ragContextRetriever.retrieve(command)
-        } else {
-            logger.debug { "RAG retrieval skipped: prompt not classified as knowledge query" }
-            null
+        val conversationHistory = measureStage("history_load", hookContext, command.metadata) {
+            conversationManager.loadHistory(command)
         }
-        val ragDurationMs = (System.nanoTime() - ragStart) / 1_000_000
-        recordStageTiming(hookContext, "rag_retrieval", ragDurationMs)
-        agentMetrics.recordStageLatency("rag_retrieval", ragDurationMs, command.metadata)
+
+        val ragResult = measureStage("rag_retrieval", hookContext, command.metadata) {
+            val shouldRetrieveRag = RagRelevanceClassifier.shouldRetrieveRag(command)
+            if (shouldRetrieveRag) {
+                ragContextRetriever.retrieve(command)
+            } else {
+                logger.debug { "RAG retrieval skipped: prompt not classified as knowledge query" }
+                null
+            }
+        }
         registerRagVerifiedSources(ragResult, hookContext)
         val ragContext = ragResult?.context
 
@@ -195,15 +183,13 @@ internal class StreamingExecutionCoordinator(
             command.userPrompt
         )
         val effectiveMaxToolCalls = minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(0)
-        val toolSelectionStart = System.nanoTime()
-        val selectedTools = if (command.mode == AgentMode.STANDARD || effectiveMaxToolCalls == 0) {
-            emptyList()
-        } else {
-            toolPreparationPlanner.prepareForPrompt(command.userPrompt)
+        val selectedTools = measureStage("tool_selection", hookContext, command.metadata) {
+            if (command.mode == AgentMode.STANDARD || effectiveMaxToolCalls == 0) {
+                emptyList()
+            } else {
+                toolPreparationPlanner.prepareForPrompt(command.userPrompt)
+            }
         }
-        val toolSelectionDurationMs = (System.nanoTime() - toolSelectionStart) / 1_000_000
-        recordStageTiming(hookContext, "tool_selection", toolSelectionDurationMs)
-        agentMetrics.recordStageLatency("tool_selection", toolSelectionDurationMs, command.metadata)
         logger.debug { "Streaming ReAct: ${selectedTools.size} tools selected (mode=${command.mode})" }
         return StreamingLoopSetup(
             activeChatClient = resolveChatClient(command),
@@ -222,22 +208,20 @@ internal class StreamingExecutionCoordinator(
         toolsUsed: MutableList<String>,
         emit: suspend (String) -> Unit
     ): StreamingLoopResult {
-        val agentLoopStart = System.nanoTime()
-        return streamingReActLoopExecutor.execute(
-            command = command,
-            activeChatClient = setup.activeChatClient,
-            systemPrompt = setup.systemPrompt,
-            initialTools = setup.initialTools,
-            conversationHistory = setup.conversationHistory,
-            hookContext = hookContext,
-            toolsUsed = toolsUsed,
-            allowedTools = setup.allowedTools,
-            maxToolCalls = setup.maxToolCallLimit,
-            emit = emit
-        ).also { loopResult ->
-            val agentLoopDurationMs = (System.nanoTime() - agentLoopStart) / 1_000_000
-            recordStageTiming(hookContext, "agent_loop", agentLoopDurationMs)
-            agentMetrics.recordStageLatency("agent_loop", agentLoopDurationMs, command.metadata)
+        return measureStage("agent_loop", hookContext, command.metadata) {
+            streamingReActLoopExecutor.execute(
+                command = command,
+                activeChatClient = setup.activeChatClient,
+                systemPrompt = setup.systemPrompt,
+                initialTools = setup.initialTools,
+                conversationHistory = setup.conversationHistory,
+                hookContext = hookContext,
+                toolsUsed = toolsUsed,
+                allowedTools = setup.allowedTools,
+                maxToolCalls = setup.maxToolCallLimit,
+                emit = emit
+            )
+        }.also {
             recordLoopStageLatency(hookContext, command.metadata, "llm_calls")
             recordLoopStageLatency(hookContext, command.metadata, "tool_execution")
         }
@@ -300,6 +284,21 @@ internal class StreamingExecutionCoordinator(
     private fun recordLoopStageLatency(hookContext: HookContext, metadata: Map<String, Any>, stage: String) {
         val durationMs = readStageTimings(hookContext)[stage] ?: return
         agentMetrics.recordStageLatency(stage, durationMs, metadata)
+    }
+
+    /** nanoTime 측정 + recordStageTiming + recordStageLatency 반복 패턴을 통합하는 래퍼 */
+    private suspend inline fun <T> measureStage(
+        stage: String,
+        hookContext: HookContext,
+        metadata: Map<String, Any>,
+        block: () -> T
+    ): T {
+        val start = System.nanoTime()
+        return block().also {
+            val durationMs = (System.nanoTime() - start) / 1_000_000
+            recordStageTiming(hookContext, stage, durationMs)
+            agentMetrics.recordStageLatency(stage, durationMs, metadata)
+        }
     }
 }
 

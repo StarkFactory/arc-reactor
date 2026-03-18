@@ -196,11 +196,18 @@ class DefaultMcpManager(
         return allowed.isEmpty() || serverName in allowed
     }
 
+    /**
+     * 보안 허용 목록 체크 + 거부 시 로깅을 통합한 헬퍼.
+     * @return true면 허용, false면 거부 (로깅 완료)
+     */
+    private fun requireSecurityApproval(serverName: String, operation: String): Boolean {
+        if (allowedBySecurity(serverName)) return true
+        logger.warn { "MCP $operation 이(가) 허용 목록에 의해 거부됨: $serverName" }
+        return false
+    }
+
     override fun register(server: McpServer) {
-        if (!allowedBySecurity(server.name)) {
-            logger.warn { "MCP 서버가 허용 목록에 의해 거부됨: ${server.name}" }
-            return
-        }
+        if (!requireSecurityApproval(server.name, "등록")) return
 
         logger.info { "MCP 서버 등록: ${server.name}" }
         servers[server.name] = server
@@ -209,10 +216,7 @@ class DefaultMcpManager(
     }
 
     override fun syncRuntimeServer(server: McpServer) {
-        if (!allowedBySecurity(server.name)) {
-            logger.warn { "MCP 런타임 동기화가 허용 목록에 의해 거부됨: ${server.name}" }
-            return
-        }
+        if (!requireSecurityApproval(server.name, "런타임 동기화")) return
 
         servers[server.name] = server
         statuses.putIfAbsent(server.name, McpServerStatus.PENDING)
@@ -242,10 +246,7 @@ class DefaultMcpManager(
 
         logger.info { "스토어에서 ${storeServers.size}개 MCP 서버 로딩" }
         for (server in storeServers) {
-            if (!allowedBySecurity(server.name)) {
-                logger.warn { "허용 목록에 의해 건너뛴 스토어 MCP 서버: ${server.name}" }
-                continue
-            }
+            if (!requireSecurityApproval(server.name, "스토어 로딩")) continue
             servers[server.name] = server
             statuses[server.name] = McpServerStatus.PENDING
 
