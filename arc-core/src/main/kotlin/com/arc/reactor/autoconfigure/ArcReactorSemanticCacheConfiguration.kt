@@ -1,12 +1,17 @@
 package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.cache.CacheMetricsRecorder
+import com.arc.reactor.cache.MicrometerCacheMetricsRecorder
+import com.arc.reactor.cache.NoOpCacheMetricsRecorder
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.cache.impl.CaffeineResponseCache
 import com.arc.reactor.cache.impl.RedisSemanticResponseCache
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.micrometer.core.instrument.MeterRegistry
 import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -69,6 +74,26 @@ class ArcReactorSemanticCacheConfiguration {
             maxEntriesPerScope = semanticProps.maxEntriesPerScope,
             keyPrefix = semanticProps.keyPrefix
         )
+    }
+
+    /**
+     * 캐시 메트릭 레코더 빈을 등록한다.
+     *
+     * [MeterRegistry]가 존재하면 [MicrometerCacheMetricsRecorder]를,
+     * 없으면 [NoOpCacheMetricsRecorder]를 반환한다.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun cacheMetricsRecorder(
+        meterRegistryProvider: ObjectProvider<MeterRegistry>
+    ): CacheMetricsRecorder {
+        val registry = meterRegistryProvider.ifAvailable
+        if (registry != null) {
+            logger.info { "CacheMetricsRecorder: Micrometer registry detected, enabling metrics" }
+            return MicrometerCacheMetricsRecorder(registry)
+        }
+        logger.info { "CacheMetricsRecorder: No Micrometer registry, using NoOp" }
+        return NoOpCacheMetricsRecorder()
     }
 
     private fun isRedisAvailable(redisTemplate: StringRedisTemplate): Boolean {
