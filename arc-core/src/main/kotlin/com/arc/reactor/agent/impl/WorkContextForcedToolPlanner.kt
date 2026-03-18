@@ -177,6 +177,11 @@ internal object WorkContextForcedToolPlanner {
     private val hybridPriorityHints = setOf(
         "우선순위", "priority", "priorities", "오늘 우선", "today priority"
     )
+    /** 명시적 브리핑 요청으로만 morning briefing 폴백을 트리거하는 키워드. */
+    private val explicitBriefingFallbackHints = setOf(
+        "브리핑", "briefing", "아침 요약", "오늘 현황", "daily digest",
+        "morning briefing", "현황 요약", "현황 정리", "상황 정리", "상황 요약"
+    )
     private val reviewQueueHints = setOf(
         "review queue", "리뷰 대기열", "review sla", "리뷰 sla", "code review"
     )
@@ -278,12 +283,12 @@ internal object WorkContextForcedToolPlanner {
 
     /** 하위 핸들러(blocker, briefing, release risk, 교차 소스 등)가 처리할 힌트가 있으면 true. */
     private val downstreamCrossSourceKeywords = setOf(
-        "문서", "지식", "confluence", "오늘", "이번 주", "현재",
-        "상태", "장애", "위험", "standup", "스탠드업", "swagger", "openapi"
+        "문서", "지식", "confluence",
+        "장애", "위험", "standup", "스탠드업", "swagger", "openapi"
     )
     private fun hasDownstreamProjectHints(n: String): Boolean =
         n.matchesAny(jiraBlockerHints) || n.matchesAny(jiraBriefingHints) ||
-            n.matchesAny(hybridReleaseRiskHints) || n.matchesAny(hybridPriorityHints) ||
+            n.matchesAny(hybridReleaseRiskHints) || n.matchesAny(explicitBriefingFallbackHints) ||
             n.matchesAny(workReleaseReadinessHints) || n.matchesAny(preDeployReadinessHints) ||
             n.matchesAny(downstreamCrossSourceKeywords)
 
@@ -1151,16 +1156,9 @@ internal object WorkContextForcedToolPlanner {
                 mapOf("project" to ipk, "dueSoonDays" to 3, "maxResults" to 30)
             )
         }
-        // Jira 이슈 검색 의도가 있으면 morning briefing 폴백 스킵
-        val jiraSearchIntent = n.contains("이슈") || n.contains("검색") ||
-            n.contains("찾아") || n.contains("필터") ||
-            n.contains("assignee") || n.contains("issue")
-        if (jiraSearchIntent) return null
-
-        if (n.contains("오늘") || n.contains("이번 주") || n.contains("현재") ||
-            n.contains("상태") || n.contains("장애") || n.contains("위험") ||
-            n.contains("우선순위") || n.matchesAny(workTeamStatusHints)
-        ) {
+        // 명시적 브리핑 키워드가 있을 때만 morning briefing 폴백.
+        // "상태", "우선순위", "오늘" 등 범용 키워드만으로는 브리핑을 선택하지 않는다.
+        if (n.matchesAny(explicitBriefingFallbackHints)) {
             val keyword = if (n.contains("장애") || n.contains("위험")) {
                 "risk"
             } else {

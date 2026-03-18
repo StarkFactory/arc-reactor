@@ -112,13 +112,20 @@ class WorkContextForcedToolPlannerTest {
     }
 
     @Test
-    fun `plan morning briefing from project shorthand status prompt해야 한다`() {
-        val plan = WorkContextForcedToolPlanner.plan("오늘 DEV 상태")
+    fun `plan morning briefing from explicit briefing shorthand prompt해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("오늘 DEV 현황 요약")
 
         requireNotNull(plan)
         assertEquals("work_morning_briefing", plan.toolName)
         assertEquals("DEV", plan.arguments["jiraProject"])
         assertEquals("status", plan.arguments["confluenceKeyword"])
+    }
+
+    @Test
+    fun `generic status prompt without briefing keyword는 morning briefing으로 폴백하지 않아야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("오늘 DEV 상태")
+
+        assertNull(plan, "범용 '상태' 키워드만으로는 morning briefing을 선택하면 안 된다")
     }
 
     @Test
@@ -694,10 +701,52 @@ class WorkContextForcedToolPlannerTest {
         val plan = WorkContextForcedToolPlanner.plan("ABC 프로젝트 상황 알려줘")
 
         requireNotNull(plan) { "프로젝트 키가 있으면 도구를 호출해야 한다" }
-        val validTools = setOf("jira_search_issues", "work_morning_briefing")
-        assert(plan.toolName in validTools) {
-            "Jira 또는 브리핑 도구가 호출되어야 한다. 실제: ${plan.toolName}"
-        }
+        assertEquals("jira_search_issues", plan.toolName, "범용 프로젝트 질문은 jira_search_issues여야 한다")
+    }
+
+    // ── Fix 3: morning briefing 과선택 축소 ──
+
+    @Test
+    fun `priority query는 morning briefing이 아닌 jira search로 라우팅해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("JAR 프로젝트 이슈 중 우선순위 높은 것 보여줘")
+
+        requireNotNull(plan) { "프로젝트+이슈 질문에 도구가 호출되어야 한다" }
+        assertEquals("jira_search_issues", plan.toolName, "우선순위 필터 질문은 jira_search_issues여야 한다")
+    }
+
+    @Test
+    fun `explicit briefing request는 morning briefing으로 라우팅해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("DEV 프로젝트 오늘 업무 브리핑 해줘")
+
+        requireNotNull(plan) { "명시적 브리핑 요청에 도구가 호출되어야 한다" }
+        assertEquals("work_morning_briefing", plan.toolName, "명시적 브리핑 키워드가 있으면 morning briefing이어야 한다")
+    }
+
+    @Test
+    fun `completed issues query는 morning briefing이 아닌 jira search로 라우팅해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("DEV 프로젝트 이번 주 완료된 이슈 정리")
+
+        requireNotNull(plan) { "프로젝트+이슈 질문에 도구가 호출되어야 한다" }
+        assertEquals("jira_search_issues", plan.toolName,
+            "이슈 정리 질문은 jira_search_issues여야 한다 (morning briefing이 아님)")
+    }
+
+    @Test
+    fun `project priority without issue keyword는 jira search로 라우팅해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("JAR 프로젝트 우선순위 보여줘")
+
+        requireNotNull(plan) { "프로젝트 키가 있으면 도구를 호출해야 한다" }
+        assertEquals("jira_search_issues", plan.toolName,
+            "우선순위 질문은 morning briefing이 아닌 jira_search_issues여야 한다")
+    }
+
+    @Test
+    fun `explicit briefing with project key는 morning briefing으로 라우팅해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("DEV 프로젝트 현황 정리해줘")
+
+        requireNotNull(plan) { "프로젝트+현황 정리 요청에 도구가 호출되어야 한다" }
+        assertEquals("work_morning_briefing", plan.toolName,
+            "현황 정리는 명시적 브리핑 키워드이므로 morning briefing이어야 한다")
     }
 
     // ── Fix 2: spec_validate 도구 라우팅 ──
