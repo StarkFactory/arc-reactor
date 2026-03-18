@@ -12,6 +12,10 @@ import com.arc.reactor.approval.InMemoryPendingApprovalStore
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.approval.ToolNameApprovalPolicy
+import com.arc.reactor.cache.CacheMetricsRecorder
+import com.arc.reactor.cache.NoOpCacheMetricsRecorder
+import com.arc.reactor.feedback.FeedbackStore
+import com.arc.reactor.feedback.InMemoryFeedbackStore
 import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.audit.InMemoryAdminAuditStore
 import com.arc.reactor.config.ChatModelProvider
@@ -462,4 +466,24 @@ class ArcReactorCoreBeansConfiguration {
             personaStore = personaStore
         )
     }
+
+    /**
+     * 캐시 메트릭 레코더 폴백 (기본: NoOp).
+     *
+     * SemanticCacheConfiguration이 비활성일 때(Redis/EmbeddingModel 없는 환경)
+     * CacheMetricsRecorder 빈이 등록되지 않아 NPE가 발생하는 것을 방지한다.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun cacheMetricsRecorder(): CacheMetricsRecorder = NoOpCacheMetricsRecorder()
+
+    /**
+     * 피드백 저장소 폴백 (기본: InMemory).
+     *
+     * JDBC가 없는 환경에서도 FeedbackStore 빈이 존재하도록 보장한다.
+     * 운영 환경에서는 JdbcFeedbackStore가 @Primary로 이 빈을 대체한다.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun feedbackStore(): FeedbackStore = InMemoryFeedbackStore()
 }
