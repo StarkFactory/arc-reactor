@@ -42,10 +42,12 @@ interface ResponseCache {
  *
  * @param content 에이전트의 응답 콘텐츠
  * @param toolsUsed 실행 중 사용된 도구 이름 목록
+ * @param metadata 응답 메타데이터 (grounded, verifiedSourceCount 등)
  * @param cachedAt 응답이 캐시된 시각(epoch ms)
  */
 data class CachedResponse(
     val content: String,
     val toolsUsed: List<String> = emptyList(),
+    val metadata: Map<String, Any> = emptyMap(),
     val cachedAt: Long = System.currentTimeMillis()
 )

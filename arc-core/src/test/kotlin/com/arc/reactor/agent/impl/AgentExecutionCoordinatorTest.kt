@@ -583,6 +583,115 @@ class AgentExecutionCoordinatorTest {
             "history_message_count should reflect loaded history size")
     }
 
+    @Test
+    fun `cache hit일 때 restore metadata with cacheHit flag해야 한다`() = runBlocking {
+        val responseCache = mockk<ResponseCache>()
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
+        val expectedKey = CacheKeyBuilder.buildKey(command, listOf("tool"))
+        val cachedMetadata = mapOf<String, Any>(
+            "grounded" to true,
+            "verifiedSourceCount" to 2,
+            "answerMode" to "tool_grounded"
+        )
+        coEvery { responseCache.get(expectedKey) } returns CachedResponse(
+            content = "cached-with-meta",
+            toolsUsed = listOf("tool"),
+            metadata = cachedMetadata
+        )
+
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = responseCache,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = metrics,
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success("live") },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command },
+            nowMs = { 1_500L }
+        )
+
+        val result = coordinator.execute(
+            command = command,
+            hookContext = HookContext(runId = "run-meta", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        assertTrue(result.success, "Cached response should produce a successful result")
+        assertEquals("cached-with-meta", result.content, "Content should be restored from cache")
+        assertEquals(true, result.metadata["grounded"], "grounded metadata should be restored from cache")
+        assertEquals(2, result.metadata["verifiedSourceCount"], "verifiedSourceCount should be restored from cache")
+        assertEquals("tool_grounded", result.metadata["answerMode"], "answerMode should be restored from cache")
+        assertEquals(true, result.metadata["cacheHit"], "cacheHit flag should be added to restored metadata")
+    }
+
+    @Test
+    fun `cache store일 때 include result metadata in CachedResponse해야 한다`() = runBlocking {
+        val responseCache = mockk<ResponseCache>()
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
+        val expectedKey = CacheKeyBuilder.buildKey(command, listOf("tool"))
+        coEvery { responseCache.get(expectedKey) } returns null
+        coEvery { responseCache.put(expectedKey, any()) } returns Unit
+
+        val resultMetadata = mapOf<String, Any>(
+            "grounded" to true,
+            "verifiedSourceCount" to 3,
+            "stageTimings" to mapOf("agent_loop" to 100L)
+        )
+
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = responseCache,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = metrics,
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success(content = "raw") },
+            finalizeExecution = { _, _, _, _, _ ->
+                AgentResult(
+                    success = true,
+                    content = "This is the final answer with enough content length",
+                    toolsUsed = listOf("tool"),
+                    metadata = resultMetadata
+                )
+            },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command }
+        )
+
+        coordinator.execute(
+            command = command,
+            hookContext = HookContext(runId = "run-store-meta", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        coVerify(exactly = 1) {
+            responseCache.put(
+                expectedKey,
+                match {
+                    it.content == "This is the final answer with enough content length" &&
+                        it.metadata["grounded"] == true &&
+                        it.metadata["verifiedSourceCount"] == 3 &&
+                        !it.metadata.containsKey("stageTimings")
+                }
+            )
+        }
+    }
+
     private fun testTool(name: String): ToolCallback = object : ToolCallback {
         override val name: String = name
         override val description: String = "test-$name"

@@ -204,7 +204,8 @@ internal class AgentExecutionCoordinator(
             try {
                 val cacheEntry = CachedResponse(
                     content = enrichedFinalResult.content,
-                    toolsUsed = enrichedFinalResult.toolsUsed
+                    toolsUsed = enrichedFinalResult.toolsUsed,
+                    metadata = filterCacheableMetadata(enrichedFinalResult.metadata)
                 )
                 when (val cache = responseCache) {
                     is SemanticResponseCache -> cache.putSemantic(
@@ -283,12 +284,16 @@ internal class AgentExecutionCoordinator(
         startTime: Long,
         toolNames: List<String>
     ): CacheLookupResult {
+        val restoredMetadata = LinkedHashMap(cached.metadata)
+        restoredMetadata["cacheHit"] = true
         return CacheLookupResult(
             cacheKey = cacheKey,
-            cachedResult = AgentResult.success(
+            cachedResult = AgentResult(
+                success = true,
                 content = cached.content,
                 toolsUsed = cached.toolsUsed,
-                durationMs = nowMs() - startTime
+                durationMs = nowMs() - startTime,
+                metadata = restoredMetadata
             ),
             toolNames = toolNames
         )
@@ -375,6 +380,11 @@ internal class AgentExecutionCoordinator(
         return FAILURE_PATTERNS.any { content.contains(it) }
     }
 
+    /** 캐시에 저장할 사용자 대면 메타데이터만 필터링한다. stageTimings, toolSignals 등 임시 운영 데이터는 제외. */
+    private fun filterCacheableMetadata(metadata: Map<String, Any>): Map<String, Any> {
+        return metadata.filterKeys { it in CACHEABLE_METADATA_KEYS }
+    }
+
     private data class CacheLookupResult(
         val cacheKey: String?,
         val cachedResult: AgentResult?,
@@ -393,6 +403,18 @@ internal class AgentExecutionCoordinator(
             "I cannot",
             "I don't know",
             "사용할 수 없습니다"
+        )
+
+        /** 캐시에 보존할 사용자 대면 메타데이터 키. 운영/디버깅 전용 키는 캐시하지 않는다. */
+        private val CACHEABLE_METADATA_KEYS = setOf(
+            "grounded",
+            "answerMode",
+            "verifiedSourceCount",
+            "verifiedSources",
+            "freshness",
+            "retrievedAt",
+            "deliveryAcknowledged",
+            "delivery"
         )
     }
 }

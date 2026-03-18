@@ -57,6 +57,7 @@ class RedisSemanticResponseCache(
             embedding = emptyList(),
             content = response.content,
             toolsUsed = response.toolsUsed,
+            metadata = response.metadata,
             cachedAt = response.cachedAt
         )
         writeEntry(key, record)
@@ -124,6 +125,7 @@ class RedisSemanticResponseCache(
             embedding = promptEmbedding.toList(),
             content = response.content,
             toolsUsed = response.toolsUsed,
+            metadata = response.metadata,
             cachedAt = response.cachedAt
         )
         writeEntry(exactKey, record)
@@ -206,12 +208,14 @@ class RedisSemanticResponseCache(
         val embedding: List<Float>,
         val content: String,
         val toolsUsed: List<String>,
+        val metadata: Map<String, Any> = emptyMap(),
         val cachedAt: Long
     ) {
         fun toCachedResponse(): CachedResponse {
             return CachedResponse(
                 content = content,
                 toolsUsed = toolsUsed,
+                metadata = metadata,
                 cachedAt = cachedAt
             )
         }
