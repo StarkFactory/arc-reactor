@@ -52,6 +52,45 @@ class OutputGuardRuleEvaluatorTest {
     }
 
     @Test
+    fun `custom replacement 문자열로 마스킹한다`() {
+        val result = evaluator.evaluate(
+            content = "my email is user@example.com ok",
+            rules = listOf(
+                OutputGuardRule(
+                    id = "r2",
+                    name = "mask email",
+                    pattern = "[\\w.+-]+@[\\w-]+\\.[\\w.]+",
+                    action = OutputGuardRuleAction.MASK,
+                    replacement = "[EMAIL_REMOVED]",
+                    priority = 10
+                )
+            )
+        )
+
+        result.blocked shouldBe false
+        result.modified shouldBe true
+        result.content shouldBe "my email is [EMAIL_REMOVED] ok"
+    }
+
+    @Test
+    fun `replacement 기본값은 REDACTED이다`() {
+        val result = evaluator.evaluate(
+            content = "secret: abc123",
+            rules = listOf(
+                OutputGuardRule(
+                    id = "r3",
+                    name = "mask secret",
+                    pattern = "secret:\\s*\\S+",
+                    action = OutputGuardRuleAction.MASK,
+                    priority = 10
+                )
+            )
+        )
+
+        result.content shouldBe "[REDACTED]"
+    }
+
+    @Test
     fun `collects은(는) invalid regex rules and continues evaluation`() {
         val result = evaluator.evaluate(
             content = "secret",

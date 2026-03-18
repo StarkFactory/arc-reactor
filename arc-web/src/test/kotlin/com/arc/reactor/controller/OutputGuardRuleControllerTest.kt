@@ -137,6 +137,7 @@ class OutputGuardRuleControllerTest {
             assertEquals(1, result.size)
             assertEquals("r1", result[0].id)
             assertEquals("MASK", result[0].action)
+            assertEquals("[REDACTED]", result[0].replacement)
             assertEquals(5, result[0].priority)
         }
 
