@@ -1,0 +1,200 @@
+groups:
+  - name: arc-reactor-agent
+    rules:
+      - alert: AgentSuccessRateLow
+        expr: >
+          (
+            rate(arc_agent_execution_total{result="failure"}[5m])
+            / clamp_min(rate(arc_agent_execution_total[5m]), 0.001)
+          ) > 0.15
+        for: 5m
+        labels:
+          severity: critical
+          team: ai-platform
+        annotations:
+          summary: "에이전트 성공률 85% 미만"
+          description: "최근 5분간 에이전트 실패율이 {{ $value | humanizePercentage }}입니다."
+          runbook: "docs/operations/alerts/README.md#agentsuccessratelow"
+
+      - alert: AgentResponseTimeSlow
+        expr: >
+          (
+            rate(arc_agent_execution_duration_seconds_sum[5m])
+            / clamp_min(rate(arc_agent_execution_duration_seconds_count[5m]), 0.001)
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: ai-platform
+        annotations:
+          summary: "에이전트 평균 응답 시간 30초 초과"
+          description: "평균 응답 시간: {{ $value | humanizeDuration }}"
+          runbook: "docs/operations/alerts/README.md#agentresponsetimeslow"
+
+      - alert: AgentResponseTimeCritical
+        expr: >
+          (
+            rate(arc_agent_execution_duration_seconds_sum[5m])
+            / clamp_min(rate(arc_agent_execution_duration_seconds_count[5m]), 0.001)
+          ) > 60
+        for: 3m
+        labels:
+          severity: critical
+          team: ai-platform
+        annotations:
+          summary: "에이전트 평균 응답 시간 60초 초과"
+          description: "평균 응답 시간: {{ $value | humanizeDuration }}. 즉시 조치 필요."
+          runbook: "docs/operations/alerts/README.md#agentresponsetimecritical"
+
+  - name: arc-reactor-cost
+    rules:
+      - alert: HighHourlyCost
+        expr: sum(rate(arc_agent_request_cost_sum[1h])) * 3600 > 50
+        for: 10m
+        labels:
+          severity: warning
+          team: ai-platform
+        annotations:
+          summary: "시간당 비용 $50 초과"
+          description: "현재 시간당 비용: ${{ $value | humanize }}"
+          runbook: "docs/operations/alerts/README.md#highourlycost"
+
+      - alert: HighDailyCost
+        expr: sum(increase(arc_agent_request_cost_sum[24h])) > 500
+        for: 30m
+        labels:
+          severity: critical
+          team: ai-platform
+        annotations:
+          summary: "일일 비용 $500 초과"
+          description: "24시간 누적 비용: ${{ $value | humanize }}. 비용 폭주 가능성."
+          runbook: "docs/operations/alerts/README.md#highdailycost"
+
+  - name: arc-reactor-tools
+    rules:
+      - alert: ToolFailureRateHigh
+        expr: >
+          (
+            sum by (tool) (rate(arc_agent_tool_calls_total{result="failure"}[5m]))
+            / clamp_min(sum by (tool) (rate(arc_agent_tool_calls_total[5m])), 0.001)
+          ) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          team: ai-platform
+        annotations:
+          summary: "도구 {{ $labels.tool }} 실패율 30% 초과"
+          description: "도구 실패율: {{ $value | humanizePercentage }}"
+          runbook: "docs/operations/alerts/README.md#toolfailureratehigh"
+
+      - alert: ToolTimeoutFrequent
+        expr: >
+          (
+            rate(arc_agent_tool_duration_seconds_sum[5m])
+            / clamp_min(rate(arc_agent_tool_duration_seconds_count[5m]), 0.001)
+          ) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: ai-platform
+        annotations:
+          summary: "도구 평균 응답 시간 10초 초과"
+          description: "도구 평균 지연: {{ $value | humanizeDuration }}"
+          runbook: "docs/operations/alerts/README.md#tooltimeoutfrequent"
+
+  - name: arc-reactor-guard
+    rules:
+      - alert: GuardRejectionSpike
+        expr: sum(rate(arc_agent_guard_rejections_total[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Guard 거부율 급증 (분당 60건 이상)"
+          description: "초당 거부율: {{ $value | humanize }}. 공격 시도 가능성."
+          runbook: "docs/operations/alerts/README.md#guardrejectionspike"
+
+      - alert: GuardRejectionCritical
+        expr: sum(rate(arc_agent_guard_rejections_total[5m])) > 5
+        for: 3m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Guard 거부율 임계치 초과 (분당 300건 이상)"
+          description: "초당 거부율: {{ $value | humanize }}. 즉시 보안 점검 필요."
+          runbook: "docs/operations/alerts/README.md#guardrejectioncritical"
+
+  - name: arc-reactor-infrastructure
+    rules:
+      - alert: HighHeapUsage
+        expr: >
+          jvm_memory_used_bytes{area="heap"}
+          / clamp_min(jvm_memory_max_bytes{area="heap"}, 1) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "JVM 힙 메모리 사용률 85% 초과"
+          description: "현재 힙 사용률: {{ $value | humanizePercentage }}"
+          runbook: "docs/operations/alerts/README.md#highheapusage"
+
+      - alert: HikariConnectionPoolExhausted
+        expr: >
+          hikaricp_connections_pending{pool="HikariPool-1"} > 5
+        for: 3m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "HikariCP 대기 커넥션 5개 초과"
+          description: "대기 중 커넥션: {{ $value }}개. DB 병목 가능성."
+          runbook: "docs/operations/alerts/README.md#hikariconnectionpoolexhausted"
+
+      - alert: HighHttpErrorRate
+        expr: >
+          (
+            sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 0.001)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "HTTP 5xx 에러율 5% 초과"
+          description: "현재 5xx 에러율: {{ $value | humanizePercentage }}"
+          runbook: "docs/operations/alerts/README.md#highhttperrorrate"
+
+      - alert: HighHttpLatency
+        expr: >
+          histogram_quantile(0.99,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (le)
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "HTTP p99 지연 5초 초과"
+          description: "p99 지연: {{ $value | humanizeDuration }}"
+          runbook: "docs/operations/alerts/README.md#highhttplatency"
+
+  - name: arc-reactor-cache
+    rules:
+      - alert: CacheHitRateLow
+        expr: >
+          (
+            rate(arc_cache_hits_total[5m])
+            / clamp_min(rate(arc_cache_hits_total[5m]) + rate(arc_cache_misses_total[5m]), 0.001)
+          ) < 0.3
+        for: 15m
+        labels:
+          severity: warning
+          team: ai-platform
+        annotations:
+          summary: "캐시 히트율 30% 미만"
+          description: "현재 캐시 히트율: {{ $value | humanizePercentage }}. 캐시 설정 점검 필요."
+          runbook: "docs/operations/alerts/README.md#cachehitratelow"
