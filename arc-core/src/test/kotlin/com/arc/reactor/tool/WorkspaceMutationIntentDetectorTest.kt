@@ -65,6 +65,39 @@ class WorkspaceMutationIntentDetectorTest {
     }
 
     @Test
+    fun `format conversion request를 mutation으로 감지하지 않는다`() {
+        assertFalse(
+            WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(
+                "JAR-36 이슈를 슬랙 메시지 형태로 작성해줘"
+            )
+        ) {
+            "Format conversion requests should not be treated as workspace mutations"
+        }
+    }
+
+    @Test
+    fun `actual workspace mutation은 여전히 감지한다`() {
+        assertTrue(
+            WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(
+                "JAR-36 이슈의 상태를 변경해줘"
+            )
+        ) {
+            "Actual workspace mutations should still be detected"
+        }
+    }
+
+    @Test
+    fun `Confluence page creation은 여전히 mutation으로 감지한다`() {
+        assertTrue(
+            WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(
+                "Confluence에 새 페이지 작성해줘"
+            )
+        ) {
+            "Confluence page creation should still be treated as a workspace mutation"
+        }
+    }
+
+    @Test
     fun `swagger catalog removals as mutations를 감지한다`() {
         assertTrue(
             WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(

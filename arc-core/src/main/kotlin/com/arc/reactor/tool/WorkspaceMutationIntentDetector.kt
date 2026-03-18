@@ -32,9 +32,11 @@ internal object WorkspaceMutationIntentDetector {
     /**
      * 변경 행위 힌트가 포함되어 있는지 확인.
      * "unassigned"/"미할당" 같은 읽기 전용 조회 예외를 먼저 체크한다.
+     * 포맷 변환 요청("슬랙 메시지 형태로 작성해줘")도 읽기 전용으로 간주한다.
      */
     private fun hasMutationHint(normalized: String): Boolean {
         if (READ_ONLY_LOOKUP_EXCEPTIONS.any(normalized::contains)) return false
+        if (FORMATTING_CONTEXT_KEYWORDS.any(normalized::contains)) return false
         return MUTATION_REGEXES.any { regex -> regex.containsMatchIn(normalized) } ||
             KOREAN_MUTATION_HINTS.any(normalized::contains)
     }
@@ -78,6 +80,12 @@ internal object WorkspaceMutationIntentDetector {
 
     /** 읽기 전용 조회 예외 — 이 키워드가 있으면 변경 의도로 판단하지 않음 */
     private val READ_ONLY_LOOKUP_EXCEPTIONS = setOf("unassigned", "미할당")
+
+    /** 포맷 변환 문맥 키워드 — 이 키워드가 있으면 "작성해" 등을 변경 의도가 아닌 포맷 요청으로 간주 */
+    private val FORMATTING_CONTEXT_KEYWORDS = setOf(
+        "형태로", "포맷으로", "슬랙 메시지", "마크다운으로", "이메일로",
+        "json으로", "테이블로", "양식으로", "서식으로"
+    )
 
     /** 변경 대상 개체 힌트 (영어 + 한국어) */
     private val MUTATION_TARGET_HINTS = setOf(
