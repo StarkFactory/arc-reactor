@@ -10,6 +10,7 @@ import com.arc.reactor.agent.metrics.SlaMetrics
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
+import com.arc.reactor.cache.CacheMetricsRecorder
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.guard.RequestGuard
@@ -86,7 +87,8 @@ class ArcReactorExecutorConfiguration {
         queryRouterProvider: ObjectProvider<QueryRouter>,
         mcpToolAvailabilityCheckerProvider: ObjectProvider<McpToolAvailabilityChecker>,
         slaMetricsProvider: ObjectProvider<SlaMetrics>,
-        costCalculatorProvider: ObjectProvider<CostCalculator>
+        costCalculatorProvider: ObjectProvider<CostCalculator>,
+        cacheMetricsRecorderProvider: ObjectProvider<CacheMetricsRecorder>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -121,6 +123,7 @@ class ArcReactorExecutorConfiguration {
         queryRouter = queryRouterProvider.ifAvailable,
         mcpToolAvailabilityChecker = mcpToolAvailabilityCheckerProvider.ifAvailable,
         slaMetrics = slaMetricsProvider.ifAvailable,
-        costCalculator = costCalculatorProvider.ifAvailable
+        costCalculator = costCalculatorProvider.ifAvailable,
+        cacheMetricsRecorder = cacheMetricsRecorderProvider.ifAvailable
     )
 }
