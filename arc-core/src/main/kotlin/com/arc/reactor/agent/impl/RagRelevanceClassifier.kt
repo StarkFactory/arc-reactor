@@ -33,7 +33,8 @@ internal object RagRelevanceClassifier {
         if (prompt.isBlank()) return false
 
         // 지식 쿼리 키워드가 있을 때만 RAG 실행. 그 외(단순 질문, 워크스페이스 도구 쿼리)는 생략.
-        return RAG_TRIGGER_KEYWORDS.any { prompt.lowercase().contains(it) }
+        val lowerPrompt = prompt.lowercase()
+        return RAG_TRIGGER_KEYWORDS.any { lowerPrompt.contains(it) }
     }
 
     /** 메타데이터에 명시적 RAG 필터가 포함되어 있는지 확인한다. */

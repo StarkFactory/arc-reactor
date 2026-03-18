@@ -14,7 +14,6 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.prompt.ChatOptions
-import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import reactor.core.publisher.Flux
 import reactor.util.retry.Retry
 import java.time.Duration
@@ -176,7 +175,7 @@ internal class StreamingReActLoopExecutor(
                 totalToolCallsCounter,
                 maxToolCalls,
                 allowedTools,
-                normalizeToolResponseToJson = shouldNormalizeToolResponses(chatOptions)
+                normalizeToolResponseToJson = ReActLoopUtils.shouldNormalizeToolResponses(chatOptions)
             )
             totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
             totalToolCalls = totalToolCallsCounter.get()
@@ -200,13 +199,7 @@ internal class StreamingReActLoopExecutor(
                 logger.info { "maxToolCalls reached in streaming ($totalToolCalls/$maxToolCalls), final answer" }
                 activeTools = emptyList()
                 chatOptions = buildChatOptions(command, false)
-                messages.add(
-                    org.springframework.ai.chat.messages.SystemMessage(
-                        "Tool call limit reached ($totalToolCalls/$maxToolCalls). " +
-                            "Summarize the results you have so far and provide your best answer. " +
-                            "Do not request additional tool calls."
-                    )
-                )
+                messages.add(ReActLoopUtils.buildMaxToolCallsMessage(totalToolCalls, maxToolCalls))
             }
         }
     }
@@ -227,7 +220,4 @@ internal class StreamingReActLoopExecutor(
             }
     }
 
-    private fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean {
-        return chatOptions is GoogleGenAiChatOptions
-    }
 }

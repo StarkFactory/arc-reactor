@@ -17,7 +17,6 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.prompt.ChatOptions
-import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import java.util.concurrent.atomic.AtomicInteger
 
 private val logger = KotlinLogging.logger {}
@@ -193,7 +192,7 @@ internal class ManualReActLoopExecutor(
                     totalToolCallsCounter,
                     maxToolCalls,
                     allowedTools,
-                    normalizeToolResponseToJson = shouldNormalizeToolResponses(chatOptions)
+                    normalizeToolResponseToJson = ReActLoopUtils.shouldNormalizeToolResponses(chatOptions)
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -224,13 +223,7 @@ internal class ManualReActLoopExecutor(
                 logger.info { "maxToolCalls reached ($totalToolCalls/$maxToolCalls), final answer" }
                 activeTools = emptyList()
                 chatOptions = buildChatOptions(command, false)
-                messages.add(
-                    org.springframework.ai.chat.messages.SystemMessage(
-                        "Tool call limit reached ($totalToolCalls/$maxToolCalls). " +
-                            "Summarize the results you have so far and provide your best answer. " +
-                            "Do not request additional tool calls."
-                    )
-                )
+                messages.add(ReActLoopUtils.buildMaxToolCallsMessage(totalToolCalls, maxToolCalls))
             }
         }
     }
@@ -253,10 +246,5 @@ internal class ManualReActLoopExecutor(
                 totalTokens = it.totalTokens + current.totalTokens
             )
         } ?: current
-    }
-
-    /** Google GenAI 프로바이더일 때 Tool 응답을 JSON으로 정규화해야 하는지 판단합니다. */
-    private fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean {
-        return chatOptions is GoogleGenAiChatOptions
     }
 }

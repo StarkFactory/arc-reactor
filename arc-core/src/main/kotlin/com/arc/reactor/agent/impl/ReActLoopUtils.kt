@@ -2,8 +2,11 @@ package com.arc.reactor.agent.impl
 
 import mu.KotlinLogging
 import org.springframework.ai.chat.messages.Message
+import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.prompt.ChatOptions
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 
 private val logger = KotlinLogging.logger {}
 
@@ -28,6 +31,18 @@ internal object ReActLoopUtils {
      * LLM이 도구 에러를 보고 텍스트 응답("다시 시도하겠습니다")을 생성하는 대신
      * 실제 tool_call을 생성하도록 유도합니다. 이전 iteration의 hint는 제거하여 누적을 방지합니다.
      */
+    /** Google GenAI 프로바이더일 때 Tool 응답을 JSON으로 정규화해야 하는지 판단합니다. */
+    fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean =
+        chatOptions is GoogleGenAiChatOptions
+
+    /** maxToolCalls 도달 시 LLM에게 최종 답변을 요청하는 SystemMessage를 생성합니다. */
+    fun buildMaxToolCallsMessage(totalToolCalls: Int, maxToolCalls: Int): SystemMessage =
+        SystemMessage(
+            "Tool call limit reached ($totalToolCalls/$maxToolCalls). " +
+                "Summarize the results you have so far and provide your best answer. " +
+                "Do not request additional tool calls."
+        )
+
     fun injectToolErrorRetryHint(
         toolResponses: List<ToolResponseMessage.ToolResponse>,
         messages: MutableList<Message>
