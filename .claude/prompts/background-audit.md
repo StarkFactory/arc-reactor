@@ -214,8 +214,16 @@ curl -X POST http://localhost:18081/api/mcp/servers/atlassian/connect -H "Author
 
 ### Phase 4: 커밋 + 푸시
 
+**!!! 절대 브랜치를 생성하지 마라 !!! main에 직접 커밋한다 !!!**
+
 ```bash
 cd /Users/jinan/ai/arc-reactor
+
+# 반드시 main 브랜치인지 확인!
+git checkout main
+git pull origin main
+
+# AUDIT_CHECKLIST.md만 커밋 (코드 수정 금지)
 git add AUDIT_CHECKLIST.md
 git commit -m "audit: 정기 감사 #N — P0 X건, P1 X건 발견
 
@@ -223,10 +231,12 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 git push origin main
 ```
 
-**주의사항:**
-- AUDIT_CHECKLIST.md **만** 커밋한다. 코드 수정은 하지 않는다.
-- 코드 수정은 사용자가 체크리스트를 확인한 후 별도로 진행한다.
-- 브랜치를 만들지 않는다. main에 직접 커밋한다.
+**절대 금지:**
+- `git checkout -b` 금지 — 브랜치 생성하지 않는다
+- `git branch` 로 새 브랜치 만들지 않는다
+- 항상 `git checkout main` 후 작업한다
+- AUDIT_CHECKLIST.md, .claude/prompts/background-audit.md **만** 커밋한다
+- 코드 수정은 사용자가 체크리스트를 확인한 후 별도로 진행한다
 
 ### Phase 5: 이 프롬프트 자체를 개선한다 (자기 강화)
 
@@ -246,10 +256,13 @@ git push origin main
 - 변경 시 하단 `## 프롬프트 개선 이력`에 날짜와 변경 내용을 기록한다.
 - 커밋 메시지: `audit: 감사 프롬프트 자기 강화 #N`
 - AUDIT_CHECKLIST.md와 별도로 커밋한다 (2개 커밋).
+- **!!! 절대 브랜치를 생성하지 마라 !!! main에 직접 커밋 !!!**
 
 ```bash
 cd /Users/jinan/ai/arc-reactor
-git add .claude/prompts/background-audit.md
+git checkout main          # 반드시 main!
+git pull origin main       # 최신 상태!
+git add -f .claude/prompts/background-audit.md   # -f 필수 (.gitignore 우회)
 git commit -m "audit: 감사 프롬프트 자기 강화 #N — {변경 요약}
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
