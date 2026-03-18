@@ -88,22 +88,20 @@ class DefaultRateLimitStage(
                 val h = hourCounters.hour.incrementAndGet()
 
                 if (m > perMinute) {
-                    // 롤백: 제한 초과한 요청은 카운트하지 않음
                     minuteCounters.minute.decrementAndGet()
                     hourCounters.hour.decrementAndGet()
-                    return GuardResult.Rejected(
-                        reason = "Rate limit exceeded: $perMinute requests per minute",
-                        category = RejectionCategory.RATE_LIMITED
+                    return buildRejection(
+                        "Rate limit exceeded: $perMinute requests per minute",
+                        RejectionCategory.RATE_LIMITED
                     )
                 }
 
                 if (h > perHour) {
-                    // 롤백: 제한 초과한 요청은 카운트하지 않음
                     minuteCounters.minute.decrementAndGet()
                     hourCounters.hour.decrementAndGet()
-                    return GuardResult.Rejected(
-                        reason = "Rate limit exceeded: $perHour requests per hour",
-                        category = RejectionCategory.RATE_LIMITED
+                    return buildRejection(
+                        "Rate limit exceeded: $perHour requests per hour",
+                        RejectionCategory.RATE_LIMITED
                     )
                 }
             }
@@ -135,22 +133,12 @@ class DefaultInputValidationStage(
 
         // ── 최소 길이 검증 ──
         if (text.length < minLength) {
-            val reason = formatBoundaryRuleViolation("input.min_chars", text.length, minLength)
-            logger.warn { reason }
-            return GuardResult.Rejected(
-                reason = reason,
-                category = RejectionCategory.INVALID_INPUT
-            )
+            return rejectBoundaryViolation("input.min_chars", text.length, minLength)
         }
 
         // ── 최대 길이 검증 ──
         if (text.length > maxLength) {
-            val reason = formatBoundaryRuleViolation("input.max_chars", text.length, maxLength)
-            logger.warn { reason }
-            return GuardResult.Rejected(
-                reason = reason,
-                category = RejectionCategory.INVALID_INPUT
-            )
+            return rejectBoundaryViolation("input.max_chars", text.length, maxLength)
         }
 
         // ── 시스템 프롬프트 길이 검증 ──
@@ -159,15 +147,8 @@ class DefaultInputValidationStage(
         if (systemPromptMaxChars > 0 && command.systemPrompt != null &&
             command.systemPrompt.length > systemPromptMaxChars
         ) {
-            val reason = formatBoundaryRuleViolation(
-                "system_prompt.max_chars",
-                command.systemPrompt.length,
-                systemPromptMaxChars
-            )
-            logger.warn { reason }
-            return GuardResult.Rejected(
-                reason = reason,
-                category = RejectionCategory.INVALID_INPUT
+            return rejectBoundaryViolation(
+                "system_prompt.max_chars", command.systemPrompt.length, systemPromptMaxChars
             )
         }
 
@@ -200,10 +181,7 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage {
         for (pattern in SUSPICIOUS_PATTERNS) {
             if (pattern.containsMatchIn(text)) {
                 logger.warn { "Injection pattern detected: ${pattern.pattern}" }
-                return GuardResult.Rejected(
-                    reason = "Suspicious pattern detected",
-                    category = RejectionCategory.PROMPT_INJECTION
-                )
+                return buildRejection("Suspicious pattern detected", RejectionCategory.PROMPT_INJECTION)
             }
         }
 
@@ -280,4 +258,15 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage {
                 Regex("(전체|원본|원래).*(프롬프트|지시사항|설정)(를|을)?.*(공유|복사|전달|출력)")
             )
     }
+}
+
+/** GuardResult.Rejected 생성 헬퍼 — 반복되는 생성 패턴을 단일 지점으로 통합 */
+private fun buildRejection(reason: String, category: RejectionCategory): GuardResult.Rejected =
+    GuardResult.Rejected(reason = reason, category = category)
+
+/** 경계값 위반 시 로깅 + Rejected 반환 헬퍼 */
+private fun rejectBoundaryViolation(rule: String, actual: Int, limit: Int): GuardResult.Rejected {
+    val reason = formatBoundaryRuleViolation(rule, actual, limit)
+    logger.warn { reason }
+    return buildRejection(reason, RejectionCategory.INVALID_INPUT)
 }

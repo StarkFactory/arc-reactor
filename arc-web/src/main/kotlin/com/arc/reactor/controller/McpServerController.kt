@@ -101,7 +101,7 @@ class McpServerController(
         val transportType = parseTransportType(request.transportType)
             ?: return badRequestResponse("Invalid transportType: ${request.transportType}")
         if (transportType == McpTransportType.HTTP) {
-            return badRequestResponse("HTTP transport is not supported. Use SSE or STDIO.")
+            return badRequestResponse(HTTP_TRANSPORT_NOT_SUPPORTED)
         }
 
         if (transportType == McpTransportType.SSE) {
@@ -203,7 +203,7 @@ class McpServerController(
                 ?: return badRequestResponse("Invalid transportType: $requested")
         }
         if (transportType == McpTransportType.HTTP) {
-            return badRequestResponse("HTTP transport is not supported. Use SSE or STDIO.")
+            return badRequestResponse(HTTP_TRANSPORT_NOT_SUPPORTED)
         }
 
         val effectiveConfig = request.config ?: existing.config
@@ -452,6 +452,7 @@ class McpServerController(
     )
 
     companion object {
+        private const val HTTP_TRANSPORT_NOT_SUPPORTED = "HTTP transport is not supported. Use SSE or STDIO."
         private const val MASKED_VALUE = "********"
         private val SENSITIVE_KEY_MARKERS = listOf(
             "token",

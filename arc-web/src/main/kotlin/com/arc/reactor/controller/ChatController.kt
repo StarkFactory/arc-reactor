@@ -280,11 +280,13 @@ class ChatController(
      */
     private fun resolveMetadata(request: ChatRequest, exchange: ServerWebExchange): Map<String, Any> {
         val base = request.metadata ?: emptyMap()
-        val withChannel = if (base.containsKey("channel")) base else (base + mapOf("channel" to "web"))
-        val withIdentity = resolveRequesterIdentity(base, exchange)
-        val tenantId = TenantContextResolver.resolveTenantId(exchange)
-        val withTenant = (withChannel + withIdentity) + ("tenantId" to tenantId)
-        return enrichWithPromptVersion(withTenant, request)
+        val merged = buildMap {
+            putAll(base)
+            if (!containsKey("channel")) put("channel", "web")
+            putAll(resolveRequesterIdentity(base, exchange))
+            put("tenantId", TenantContextResolver.resolveTenantId(exchange))
+        }
+        return enrichWithPromptVersion(merged, request)
     }
 
     /** exchange에서 요청자 신원 정보를 추출하여 메타데이터에 추가한다. 이미 존재하면 덮어쓰지 않는다. */

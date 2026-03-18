@@ -326,13 +326,11 @@ class DefaultConversationManager(
         userPrompt: String,
         assistantContent: String?
     ) {
-        val sessionId = metadata["sessionId"]?.toString()
-        if (sessionId == null) {
+        val sessionId = metadata["sessionId"]?.toString() ?: run {
             logger.debug { "Skipping save: no sessionId in metadata" }
             return
         }
-        val store = memoryStore
-        if (store == null) {
+        val store = memoryStore ?: run {
             logger.debug { "Skipping save: memoryStore is null" }
             return
         }
