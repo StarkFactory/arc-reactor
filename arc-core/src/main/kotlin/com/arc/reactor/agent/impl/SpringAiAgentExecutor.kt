@@ -15,8 +15,10 @@ import com.arc.reactor.resilience.FallbackStrategy
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
+import com.arc.reactor.agent.budget.CostCalculator
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
+import com.arc.reactor.agent.metrics.SlaMetrics
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.canary.SystemPromptPostProcessor
 import com.arc.reactor.guard.output.OutputGuardPipeline
@@ -112,7 +114,9 @@ class SpringAiAgentExecutor(
     private val toolOutputSanitizer: ToolOutputSanitizer? = null,
     private val tracer: ArcReactorTracer = NoOpArcReactorTracer(),
     private val queryRouter: QueryRouter? = null,
-    private val mcpToolAvailabilityChecker: McpToolAvailabilityChecker? = null
+    private val mcpToolAvailabilityChecker: McpToolAvailabilityChecker? = null,
+    private val slaMetrics: SlaMetrics? = null,
+    private val costCalculator: CostCalculator? = null
 ) : AgentExecutor {
 
     // ── 초기화: 컨텍스트 윈도우가 출력 토큰보다 커야 트리밍이 정상 동작한다 ──
@@ -288,6 +292,7 @@ class SpringAiAgentExecutor(
         maxToolCallsLimit = properties.maxToolCalls,
         fallbackStrategy = fallbackStrategy,
         agentMetrics = agentMetrics,
+        costCalculator = costCalculator,
         toolCallbacks = toolCallbacks,
         mcpToolCallbacks = mcpToolCallbacks,
         conversationManager = conversationManager,
@@ -372,6 +377,9 @@ class SpringAiAgentExecutor(
             requestSpan.setError(e)
             return executionFailureHandler.handle(agentErrorPolicy.classify(e), e, hookContext, startTime)
         } finally {
+            val durationMs = System.currentTimeMillis() - startTime
+            val channel = command.metadata["channel"]?.toString() ?: "unknown"
+            slaMetrics?.recordE2eLatency(durationMs, channel)
             requestSpan.close()
             runContextManager.close()
         }

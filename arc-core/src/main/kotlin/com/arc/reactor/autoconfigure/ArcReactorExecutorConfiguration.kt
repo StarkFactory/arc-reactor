@@ -1,10 +1,12 @@
 package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.AgentExecutor
+import com.arc.reactor.agent.budget.CostCalculator
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.impl.defaultTransientErrorClassifier
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.SlaMetrics
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
@@ -82,7 +84,9 @@ class ArcReactorExecutorConfiguration {
         systemPromptPostProcessorProvider: ObjectProvider<SystemPromptPostProcessor>,
         toolOutputSanitizerProvider: ObjectProvider<ToolOutputSanitizer>,
         queryRouterProvider: ObjectProvider<QueryRouter>,
-        mcpToolAvailabilityCheckerProvider: ObjectProvider<McpToolAvailabilityChecker>
+        mcpToolAvailabilityCheckerProvider: ObjectProvider<McpToolAvailabilityChecker>,
+        slaMetricsProvider: ObjectProvider<SlaMetrics>,
+        costCalculatorProvider: ObjectProvider<CostCalculator>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -115,6 +119,8 @@ class ArcReactorExecutorConfiguration {
         systemPromptPostProcessor = systemPromptPostProcessorProvider.ifAvailable,
         toolOutputSanitizer = toolOutputSanitizerProvider.ifAvailable,
         queryRouter = queryRouterProvider.ifAvailable,
-        mcpToolAvailabilityChecker = mcpToolAvailabilityCheckerProvider.ifAvailable
+        mcpToolAvailabilityChecker = mcpToolAvailabilityCheckerProvider.ifAvailable,
+        slaMetrics = slaMetricsProvider.ifAvailable,
+        costCalculator = costCalculatorProvider.ifAvailable
     )
 }
