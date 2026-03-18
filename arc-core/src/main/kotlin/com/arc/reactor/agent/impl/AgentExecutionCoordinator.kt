@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.budget.CostCalculator
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
@@ -52,6 +53,7 @@ internal class AgentExecutionCoordinator(
     private val maxToolCallsLimit: Int = Int.MAX_VALUE,
     private val fallbackStrategy: FallbackStrategy?,
     private val agentMetrics: AgentMetrics,
+    private val costCalculator: CostCalculator? = null,
     private val toolCallbacks: List<ToolCallback>,
     private val mcpToolCallbacks: () -> List<ToolCallback>,
     private val conversationManager: ConversationManager,
@@ -184,6 +186,9 @@ internal class AgentExecutionCoordinator(
         agentMetrics.recordStageLatency("finalizer", finalizerDurationMs, effectiveCommand.metadata)
         val enrichedFinalResult = withStageTimingsMetadata(finalResult, hookContext)
 
+        // ── 비용 기록: 토큰 사용량이 있으면 CostCalculator로 USD 비용 산출 후 메트릭에 기록 ──
+        recordCostIfAvailable(enrichedFinalResult, hookContext)
+
         // ── 단계 10: 성공 시 응답 캐시 저장 (빈 응답/차단 응답은 캐시 오염 방지를 위해 제외) ──
         if (resolvedCacheKey != null && enrichedFinalResult.success
             && !enrichedFinalResult.content.isNullOrBlank()
@@ -297,6 +302,17 @@ internal class AgentExecutionCoordinator(
     private fun recordLoopStageLatency(hookContext: HookContext, metadata: Map<String, Any>, stage: String) {
         val durationMs = readStageTimings(hookContext)[stage] ?: return
         agentMetrics.recordStageLatency(stage, durationMs, metadata)
+    }
+
+    /** 토큰 사용량과 모델 정보가 있으면 비용을 계산하여 메트릭에 기록한다. */
+    private fun recordCostIfAvailable(result: AgentResult, hookContext: HookContext) {
+        val calc = costCalculator ?: return
+        val usage = result.tokenUsage ?: return
+        val model = hookContext.metadata["model"]?.toString() ?: return
+        val cost = calc.calculateCost(model, usage.promptTokens, usage.completionTokens)
+        if (cost.estimatedCostUsd > 0.0) {
+            agentMetrics.recordRequestCost(cost.estimatedCostUsd, model, hookContext.metadata.toMap())
+        }
     }
 
     private fun withStageTimingsMetadata(result: AgentResult, hookContext: HookContext): AgentResult {

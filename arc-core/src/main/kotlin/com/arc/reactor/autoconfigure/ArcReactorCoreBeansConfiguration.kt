@@ -1,5 +1,6 @@
 package com.arc.reactor.autoconfigure
 
+import com.arc.reactor.agent.budget.CostCalculator
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.MicrometerAgentMetrics
@@ -375,6 +376,13 @@ class ArcReactorCoreBeansConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun agentMetrics(): AgentMetrics = NoOpAgentMetrics()
+
+    /**
+     * LLM 요청 비용 계산기 — 모델별 토큰 가격 기반 USD 비용 산출.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun costCalculator(): CostCalculator = CostCalculator()
 
     /**
      * Token Estimator (default: character-type-aware heuristic)

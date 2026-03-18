@@ -49,6 +49,7 @@ import org.springframework.context.annotation.Import
     CheckpointConfiguration::class,
     ModelRoutingConfiguration::class,
     BudgetConfiguration::class,
-    ToolDescriptionEnrichmentConfiguration::class
+    ToolDescriptionEnrichmentConfiguration::class,
+    SlaMetricsConfiguration::class
 )
 class ArcReactorAutoConfiguration
