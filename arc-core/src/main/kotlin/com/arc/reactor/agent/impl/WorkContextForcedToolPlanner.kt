@@ -117,7 +117,10 @@ internal object WorkContextForcedToolPlanner {
     private val confluenceSpaceListHints = setOf(
         "confluence 스페이스 목록", "컨플루언스 스페이스 목록",
         "접근 가능한 confluence 스페이스 목록", "confluence spaces",
-        "list confluence spaces", "space 목록"
+        "list confluence spaces", "space 목록",
+        "confluence에 어떤 스페이스", "컨플루언스에 어떤 스페이스",
+        "스페이스가 있어", "사용 가능한 confluence 스페이스",
+        "접근 가능한 스페이스", "스페이스 보여"
     )
     private val documentDiscoveryHints = setOf(
         "관련 문서", "문서가 있으면", "문서가 있는지", "관련 문서가 있으면", "없으면 없다고",
@@ -220,8 +223,15 @@ internal object WorkContextForcedToolPlanner {
     private val bitbucketReviewSlaHints = setOf(
         "review sla", "리뷰 sla", "sla 경고", "리뷰 sla 경고"
     )
+    private val bitbucketRepositoryListHints = setOf(
+        "저장소 목록", "repository list", "list repositories", "repo 목록",
+        "어떤 저장소", "사용 가능한 저장소", "접근 가능한 저장소",
+        "저장소를 보여", "저장소가 있어", "repositories",
+        "bitbucket 저장소", "bitbucket repo"
+    )
     private val bitbucketBranchListHints = setOf(
-        "branch 목록", "브랜치 목록", "list branches", "branches"
+        "branch 목록", "브랜치 목록", "list branches", "branches",
+        "어떤 브랜치", "사용 가능한 브랜치", "접근 가능한 브랜치"
     )
     private val swaggerWrongEndpointHints = setOf(
         "wrong endpoint", "invalid endpoint", "잘못된 endpoint", "없는 endpoint"
@@ -726,6 +736,9 @@ internal object WorkContextForcedToolPlanner {
         val n = ctx.normalized
         if (n.matchesAny(confluenceSpaceListHints)) {
             return ForcedToolCallPlan("confluence_list_spaces", emptyMap())
+        }
+        if (n.matchesAny(bitbucketRepositoryListHints)) {
+            return ForcedToolCallPlan("bitbucket_list_repositories", emptyMap())
         }
         if (n.matchesAny(jiraProjectListHints)) {
             return ForcedToolCallPlan("jira_list_projects", emptyMap())
