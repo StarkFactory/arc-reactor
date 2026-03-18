@@ -89,6 +89,11 @@ Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete)
 | `tool/idempotency/ToolIdempotencyGuard.kt` | 도구 중복 실행 방지 (멱등성) |
 | `tool/filter/ContextAwareToolFilter.kt` | 컨텍스트 기반 동적 도구 필터링 |
 | `a2a/AgentCard.kt` | A2A 에이전트 능력 광고 (`/.well-known/agent-card.json`) |
+| `agent/budget/CostCalculator.kt` | 모델별 비용 계산 |
+| `agent/metrics/SlaMetrics.kt` | SLA/SLO 메트릭 |
+| `cache/CacheMetricsRecorder.kt` | 캐시 히트율 메트릭 |
+| `mcp/McpHealthPinger.kt` | MCP 서버 헬스체크 |
+| `mcp/McpToolAvailabilityChecker.kt` | 도구 가용성 사전검사 |
 
 ---
 
@@ -215,7 +220,10 @@ GEMINI_API_KEY=... ./gradlew :arc-core:test --tests "*.AdversarialRedTeamTest" -
 | `model-routing.enabled` | false | `budget.max-tokens-per-request` | 0 (무제한) |
 | `tool-idempotency.enabled` | false | `tool-idempotency.ttl-seconds` | 60 |
 | `checkpoint.enabled` | false | `tool-filter.enabled` | false |
-| `a2a.enabled` | false | | |
+| `a2a.enabled` | false | `mcp.health.enabled` | false |
+| `mcp.health.ping-interval-seconds` | 60 | `slack.response-url-max-retries` | 3 |
+| `slack.response-url-initial-delay-ms` | 500 | `slack.user-rate-limit-enabled` | false |
+| `slack.user-rate-limit-max-per-minute` | 10 | | |
 
 **모든 기능은 기본 비활성(opt-in). API 키 하나로 안전하게 실행 가능.**
 
