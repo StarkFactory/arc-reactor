@@ -26,6 +26,7 @@ import com.arc.reactor.hook.impl.UserMemoryInjectionHook
 import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.ToolCallResult
+import com.arc.reactor.mcp.McpToolAvailabilityChecker
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.DefaultConversationManager
 import com.arc.reactor.memory.MemoryStore
@@ -110,7 +111,8 @@ class SpringAiAgentExecutor(
     private val systemPromptPostProcessor: SystemPromptPostProcessor? = null,
     private val toolOutputSanitizer: ToolOutputSanitizer? = null,
     private val tracer: ArcReactorTracer = NoOpArcReactorTracer(),
-    private val queryRouter: QueryRouter? = null
+    private val queryRouter: QueryRouter? = null,
+    private val mcpToolAvailabilityChecker: McpToolAvailabilityChecker? = null
 ) : AgentExecutor {
 
     // ── 초기화: 컨텍스트 윈도우가 출력 토큰보다 커야 트리밍이 정상 동작한다 ──
@@ -166,7 +168,8 @@ class SpringAiAgentExecutor(
         toolSelector = toolSelector,
         maxToolsPerRequest = properties.maxToolsPerRequest,
         fallbackToolTimeoutMs = properties.concurrency.toolCallTimeoutMs,
-        localToolFilters = localToolFilters
+        localToolFilters = localToolFilters,
+        mcpToolAvailabilityChecker = mcpToolAvailabilityChecker
     )
     // 대화 메시지 트리밍 — 컨텍스트 윈도우 초과 시 오래된 메시지 제거
     private val messageTrimmer = ConversationMessageTrimmer(
