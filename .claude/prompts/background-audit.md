@@ -98,7 +98,7 @@ curl -X POST http://localhost:18081/api/mcp/servers/atlassian/connect -H "Author
 4. **Jira 연동**: "JAR-36 보여줘" → jira_get_issue, grounded=true
 5. **Confluence 연동**: "Confluence에서 온보딩 가이드 찾아줘" → confluence 도구 호출
 6. **Bitbucket 연동**: "jarvis 레포 브랜치 목록" → bitbucket_list_branches
-7. **캐시**: 같은 질문 2회 → 2차 빠른지
+7. **시맨틱 캐시**: 3단계 검증 — (a) 동일 질문 2회→2차 즉시 반환 (b) 유사 질문("7*8은?" 후 "7곱하기8?")→캐시 히트 여부 (c) Redis 키 확인 `docker exec arc-reactor-redis-1 redis-cli dbsize`
 8. **MCP 상태**: 2/2 CONNECTED (atlassian + swagger)
 9. **세션 메모리**: 2턴 대화 → 이전 턴 기억
 
@@ -111,7 +111,7 @@ curl -X POST http://localhost:18081/api/mcp/servers/atlassian/connect -H "Author
 | **추론** | 도구 선택 정확도, 멀티스텝, 크로스 도구 체이닝 |
 | **엣지** | 비존재 리소스, 긴/짧은 질문, 이모지, 다국어 |
 | **보안 (강화 테스트)** | 새 인젝션 벡터, 간접 유출, 메타질문, 다국어 공격 |
-| **성능** | stageTimings 분석, RAG 스킵, 동시 요청, 캐시 품질 |
+| **성능 + 캐시** | stageTimings, RAG 스킵, 시맨틱 캐시 히트율·품질·Redis 상태 |
 | **기능** | 미테스트 도구, Admin API, 세션/메모리, 포맷 준수 |
 
 **실제 업무 시나리오 예시 (매번 다르게 조합):**
@@ -135,6 +135,7 @@ curl -X POST http://localhost:18081/api/mcp/servers/atlassian/connect -H "Author
 - `stageTimings.rag_retrieval`이 0이면 RAG 스킵 정상
 - `toolsUsed`에 같은 도구 2회+ = 재시도 성공
 - `grounded=true` + `verifiedSourceCount > 0` = 출처 검증 성공
+- **시맨틱 캐시 판단:** 1차 응답시간 vs 2차 비교. 2차가 <100ms면 exact hit. 2차가 100~500ms면 semantic hit. 2차가 1차와 비슷하면 캐시 미동작. Redis `dbsize` 증가 확인. 캐시된 응답 품질이 원본과 동일한지 content 비교.
 
 ## Phase 3: AUDIT_CHECKLIST.md 업데이트
 
