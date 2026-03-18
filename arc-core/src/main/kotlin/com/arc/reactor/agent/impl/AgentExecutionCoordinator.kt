@@ -240,35 +240,8 @@ internal class AgentExecutionCoordinator(
         val toolNames = (toolCallbacks + mcpToolCallbacks()).map { it.name }
         val key = CacheKeyBuilder.buildKey(command, toolNames)
         try {
-            when (val cache = responseCache) {
-                is SemanticResponseCache -> {
-                    val exact = cache.get(key)
-                    if (exact != null) {
-                        logger.debug { "Exact cache hit for request" }
-                        agentMetrics.recordExactCacheHit(key)
-                        cacheMetricsRecorder?.recordExactHit()
-                        return cacheHitResult(key, exact, startTime, toolNames)
-                    }
-
-                    val semantic = cache.getSemantic(command, toolNames, key)
-                    if (semantic != null) {
-                        logger.debug { "Semantic cache hit for request" }
-                        agentMetrics.recordSemanticCacheHit(key)
-                        // 유사도 점수는 SemanticResponseCache 내부에서만 계산되므로 임계값을 하한으로 사용
-                        cacheMetricsRecorder?.recordSemanticHit(semanticSimilarityThreshold)
-                        return cacheHitResult(key, semantic, startTime, toolNames)
-                    }
-                }
-                else -> {
-                    val exact = cache.get(key)
-                    if (exact != null) {
-                        logger.debug { "Exact cache hit for request" }
-                        agentMetrics.recordExactCacheHit(key)
-                        cacheMetricsRecorder?.recordExactHit()
-                        return cacheHitResult(key, exact, startTime, toolNames)
-                    }
-                }
-            }
+            val hit = lookupCacheEntry(responseCache, command, key, toolNames)
+            if (hit != null) return cacheHitResult(key, hit, startTime, toolNames)
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) { "Cache lookup failed, proceeding without cache" }
@@ -276,6 +249,43 @@ internal class AgentExecutionCoordinator(
         agentMetrics.recordCacheMiss(key)
         cacheMetricsRecorder?.recordMiss()
         return CacheLookupResult(cacheKey = key, cachedResult = null, toolNames = toolNames)
+    }
+
+    /**
+     * 정확 매칭과 시맨틱 매칭을 순서대로 시도하여 캐시 엔트리를 조회합니다.
+     *
+     * @return 캐시 적중 시 [CachedResponse], 미적중 시 null
+     */
+    private suspend fun lookupCacheEntry(
+        cache: ResponseCache,
+        command: AgentCommand,
+        key: String,
+        toolNames: List<String>
+    ): CachedResponse? {
+        val exact = cache.get(key)
+        if (exact != null) return handleCacheHit(key, exact, "Exact")
+
+        if (cache is SemanticResponseCache) {
+            val semantic = cache.getSemantic(command, toolNames, key)
+            if (semantic != null) return handleSemanticCacheHit(key, semantic)
+        }
+        return null
+    }
+
+    /** 정확 캐시 적중 시 메트릭을 기록하고 캐시 응답을 반환합니다. */
+    private fun handleCacheHit(key: String, cached: CachedResponse, label: String): CachedResponse {
+        logger.debug { "$label cache hit for request" }
+        agentMetrics.recordExactCacheHit(key)
+        cacheMetricsRecorder?.recordExactHit()
+        return cached
+    }
+
+    /** 시맨틱 캐시 적중 시 메트릭을 기록하고 캐시 응답을 반환합니다. */
+    private fun handleSemanticCacheHit(key: String, cached: CachedResponse): CachedResponse {
+        logger.debug { "Semantic cache hit for request" }
+        agentMetrics.recordSemanticCacheHit(key)
+        cacheMetricsRecorder?.recordSemanticHit(semanticSimilarityThreshold)
+        return cached
     }
 
     private fun cacheHitResult(

@@ -621,7 +621,6 @@ internal class ToolCallOrchestrator(
      * 도구 출력의 토큰 수를 추정하고, 컨텍스트 윈도우의 30%를 초과하면 경고합니다.
      *
      * 추정된 토큰 수는 hookContext 메타데이터에 저장되어 응답 메타데이터에서 확인할 수 있습니다.
-     *
      * @return 추정된 토큰 수. TokenEstimator가 없으면 null.
      */
     private fun estimateAndWarnToolOutputTokens(
@@ -632,24 +631,24 @@ internal class ToolCallOrchestrator(
         val estimator = tokenEstimator ?: return null
         val estimatedTokens = estimator.estimate(output)
         val threshold = (maxContextWindowTokens * TOOL_OUTPUT_TOKEN_WARNING_RATIO).toInt()
-        val percentage = if (maxContextWindowTokens > 0) {
-            estimatedTokens * 100 / maxContextWindowTokens
-        } else {
-            0
-        }
-
+        val percentage = calculateToolOutputPercentage(estimatedTokens)
         if (estimatedTokens > threshold) {
             logger.warn {
                 "도구 출력 토큰 경고: tool=$toolName, " +
                     "estimatedTokens=$estimatedTokens, " +
                     "threshold=$threshold " +
-                    "(${(TOOL_OUTPUT_TOKEN_WARNING_RATIO * 100).toInt()}% of $maxContextWindowTokens), " +
+                    "(${TOOL_OUTPUT_TOKEN_WARNING_RATIO_PERCENT}% of $maxContextWindowTokens), " +
                     "usage=${percentage}%"
             }
         }
-
         hookContext.metadata["toolOutputTokenEstimate_$toolName"] = estimatedTokens
         return estimatedTokens
+    }
+
+    /** 추정 토큰 수가 컨텍스트 윈도우에서 차지하는 비율(%)을 계산합니다. */
+    private fun calculateToolOutputPercentage(estimatedTokens: Int): Int {
+        if (maxContextWindowTokens <= 0) return 0
+        return estimatedTokens * 100 / maxContextWindowTokens
     }
 
     /**
@@ -828,7 +827,8 @@ internal class ToolCallOrchestrator(
     ): Map<String, Any?> {
         if (toolName !in requesterAwareToolNames) return toolParams
         if (hasExistingRequesterParam(toolParams)) return toolParams
-        return appendRequesterIdentifier(toolParams, metadata)
+        val identifier = findOrExtractRequesterIdentifier(metadata) ?: return toolParams
+        return toolParams + identifier
     }
 
     /** 이미 assigneeAccountId 또는 requesterEmail 파라미터가 있는지 확인합니다. */
@@ -838,18 +838,20 @@ internal class ToolCallOrchestrator(
         return hasAssignee || hasEmail
     }
 
-    /** 메타데이터에서 요청자 식별자를 찾아 Tool 파라미터에 추가합니다. */
-    private fun appendRequesterIdentifier(
-        toolParams: Map<String, Any?>,
-        metadata: Map<String, Any>
-    ): Map<String, Any?> {
+    /**
+     * 메타데이터에서 요청자 식별자(accountId 또는 email)를 통합 검색합니다.
+     *
+     * accountId 계열 키를 우선 탐색하고, 없으면 email 계열 키를 탐색합니다.
+     * @return 파라미터 이름과 값의 쌍. 식별자를 찾지 못하면 null.
+     */
+    private fun findOrExtractRequesterIdentifier(metadata: Map<String, Any>): Pair<String, String>? {
         findMetadataValue(metadata, requesterAccountIdMetadataKeys)?.let {
-            return toolParams + ("assigneeAccountId" to it)
+            return "assigneeAccountId" to it
         }
         findMetadataValue(metadata, requesterEmailMetadataKeys)?.let {
-            return toolParams + ("requesterEmail" to it)
+            return "requesterEmail" to it
         }
-        return toolParams
+        return null
     }
 
     /** 지정된 키 목록에서 첫 번째 유효한 메타데이터 값을 찾습니다. */
@@ -944,6 +946,8 @@ internal class ToolCallOrchestrator(
         const val DEFAULT_MAX_TOOL_OUTPUT_LENGTH = 50_000
         const val DEFAULT_MAX_CONTEXT_WINDOW_TOKENS = 128_000
         const val TOOL_OUTPUT_TOKEN_WARNING_RATIO = 0.3
+        private const val TOOL_OUTPUT_TOKEN_WARNING_RATIO_PERCENT =
+            (TOOL_OUTPUT_TOKEN_WARNING_RATIO * 100).toInt()
         private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
         private val requesterAccountIdMetadataKeys = listOf("requesterAccountId", "accountId")
         private val requesterEmailMetadataKeys = listOf("requesterEmail", "userEmail", "slackUserEmail")
