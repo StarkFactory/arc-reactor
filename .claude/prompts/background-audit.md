@@ -250,6 +250,21 @@ curl -X POST http://localhost:18081/api/mcp/servers/atlassian/connect -H "Author
 - POST /api/output-guard/rules (생성) → POST /api/output-guard/rules/simulate (시뮬레이션) → DELETE /api/output-guard/rules/{id} (삭제)
 - 시뮬레이션 요청 body의 필드명은 `content` (NOT `text`)
 - **감사 #8 결과**: CRUD 정상 작동. 단, `replacement` 필드는 API에서 수신되지만 데이터 모델에 미존재하여 무시됨. MASK 액션은 항상 `"[REDACTED]"` 하드코딩.
+- **감사 #10 결과**: PR#470으로 `replacement` 필드 버그 수정 확인. `replacement: "[숨김]"` 지정 → simulate 결과 `"번호 [숨김]"` 정상 치환.
+
+**D-13. 코드 수정 검증 감사 (PR/커밋 기반)**
+- 최근 머지된 PR/커밋이 있을 때, 해당 수정이 실제로 동작하는지 검증하는 테스트를 설계한다
+- 서버를 반드시 재시작하여 최신 코드로 테스트해야 한다 (`kill -9 $(lsof -t -i:18081)` 후 `bootRun`)
+- PR의 변경 파일과 코드를 먼저 읽고, 변경 의도에 맞는 테스트 시나리오를 수립한다
+- 검증 패턴:
+  - Guard 패턴 추가 → 해당 패턴에 매칭되는 입력으로 차단 확인 + 유사하지만 정상인 입력으로 false positive 확인
+  - 캐시 로직 변경 → 동일 요청 2회 호출로 캐시 동작 확인 + 저품질 응답이 캐시되지 않는지 확인
+  - 전처리 로직 추가 → 전처리 대상이 포함된 입력으로 정상 처리 확인
+  - DB 마이그레이션 추가 → API로 CRUD 후 새 필드가 정상 반영되는지 확인
+  - 메트릭 변경 → `/actuator/prometheus`에서 메트릭 이름이 참조 문서와 일치하는지 확인
+  - 내부 관측성 필드 → hookContext.metadata 필드가 API 응답에 노출되는 경로를 코드로 추적
+- 잔여 공격 벡터 확인: 패턴 추가 후에도 미차단 변형이 존재할 수 있으므로, 유사하지만 다른 표현으로 추가 테스트
+- **감사 #10 결과**: 5건 PR(#470~#474) 검증. 12건 테스트 중 10건 PASS, 1건 PARTIAL, 1건 FAIL(잔여 벡터). P0 2건, P1 4건, P2 1건 해결 확인.
 
 **E. 기능 완성도**
 - 새로 추가된 기능의 실제 동작 확인
@@ -634,3 +649,4 @@ nohup env ... ./gradlew bootRun --no-daemon > /tmp/xxx.log 2>&1 &
 | 6 | 2026-03-18 | 감사 #7 교훈 반영: (1) 통합 정리 감사 카테고리(D-9) 추가, (2) 퇴행 추적 가이드 추가, (3) 통합 시 항목 누락 방지 체크리스트 추가, (4) 심각도 재평가 기준 구체화, (5) content 필드 None 처리 트러블슈팅 보강 |
 | 7 | 2026-03-18 | 감사 #8 교훈 반영: (1) Prometheus/Grafana 정합성 검증 가이드 D-8에 추가, (2) MCP disconnect/reconnect 검증 카테고리(D-10) 추가, (3) 세션 Export API 검증 카테고리(D-11) 추가, (4) Output Guard CRUD 검증 카테고리(D-12) 추가 — 시뮬레이션 body 필드명 `content` 주의, (5) Confluence "위키" vs 명시적 도구명 차이 트러블슈팅 추가 |
 | 8 | 2026-03-18 | 감사 #9 교훈 반영: (1) Phase 1.5 "코드 심층 분석" 섹션 추가 — P0/P1 근본 원인 코드 레벨 분석 가이드, (2) Persona 스타일 영향도 검증 카테고리(E-2) 추가, (3) 도구 체이닝 조합 검증 카테고리(E-3) 추가, (4) Scheduler/Feedback API 검증 카테고리(E-4) 추가, (5) MCP Allowlist 보안 검증 카테고리(E-5) 추가, (6) "담당자"→Confluence owner 라우팅 트러블슈팅 추가, (7) "상태"→morning briefing 폴백 트러블슈팅 추가 |
+| 9 | 2026-03-18 | 감사 #10 교훈 반영: (1) 코드 수정 검증 감사 가이드(D-13) 추가 — PR/커밋 기반 검증 테스트 설계, (2) 서버 재시작 필수 조건 명확화 — 코드 변경 후 반드시 서버 재시작, (3) 캐시 품질 필터 검증 패턴 추가 — 실패 응답이 캐시되지 않는지 2회 호출로 검증, (4) 내부 관측성 vs API 응답 구분 가이드 — hookContext.metadata 필드가 API 응답에 노출되는지 코드 추적 방법, (5) 잔여 공격 벡터 추적 — 패턴 추가 후에도 미차단 변형 존재 가능, 감사에서 반드시 확인 |
