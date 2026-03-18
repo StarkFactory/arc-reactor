@@ -81,7 +81,7 @@ internal class StreamingExecutionCoordinator(
         val queueStart = System.nanoTime()
         concurrencySemaphore.withPermit {
             val queueWaitMs = (System.nanoTime() - queueStart) / 1_000_000
-            hookContext.metadata["queueWaitMs"] = queueWaitMs
+            hookContext.metadata[HookMetadataKeys.QUEUE_WAIT_MS] = queueWaitMs
             recordStageTiming(hookContext, "queue_wait", queueWaitMs)
             agentMetrics.recordStageLatency("queue_wait", queueWaitMs, command.metadata)
             executeWithRequestTimeout {
@@ -116,7 +116,7 @@ internal class StreamingExecutionCoordinator(
         val guardStart = System.nanoTime()
         preExecutionResolver.checkGuard(command)?.let { rejection ->
             val guardDurationMs = (System.nanoTime() - guardStart) / 1_000_000
-            hookContext.metadata["guardDurationMs"] = guardDurationMs
+            hookContext.metadata[HookMetadataKeys.GUARD_DURATION_MS] = guardDurationMs
             recordStageTiming(hookContext, "guard", guardDurationMs)
             agentMetrics.recordStageLatency("guard", guardDurationMs, command.metadata)
             agentMetrics.recordGuardRejection(
@@ -130,7 +130,7 @@ internal class StreamingExecutionCoordinator(
             return null
         }
         val guardDurationMs = (System.nanoTime() - guardStart) / 1_000_000
-        hookContext.metadata["guardDurationMs"] = guardDurationMs
+        hookContext.metadata[HookMetadataKeys.GUARD_DURATION_MS] = guardDurationMs
         recordStageTiming(hookContext, "guard", guardDurationMs)
         agentMetrics.recordStageLatency("guard", guardDurationMs, command.metadata)
 

@@ -170,12 +170,18 @@ internal class StreamingCompletionFinalizer(
         if (boundaries.outputMaxChars > 0 && contentLength > boundaries.outputMaxChars) {
             val policy = "warn"
             agentMetrics.recordBoundaryViolation(
-                "output_too_long", policy, boundaries.outputMaxChars, contentLength
+                OutputBoundaryEnforcer.VIOLATION_OUTPUT_TOO_LONG, policy, boundaries.outputMaxChars, contentLength
             )
-            logger.warn { formatBoundaryViolation("output_too_long", policy, boundaries.outputMaxChars, contentLength) }
+            logger.warn {
+                formatBoundaryViolation(
+                    OutputBoundaryEnforcer.VIOLATION_OUTPUT_TOO_LONG, policy, boundaries.outputMaxChars, contentLength
+                )
+            }
             try {
                 emit(StreamEventMarker.error(
-                    formatBoundaryViolation("output_too_long", policy, boundaries.outputMaxChars, contentLength)
+                    formatBoundaryViolation(
+                        OutputBoundaryEnforcer.VIOLATION_OUTPUT_TOO_LONG, policy, boundaries.outputMaxChars, contentLength
+                    )
                 ))
             } catch (e: Exception) {
                 e.throwIfCancellation()
@@ -190,11 +196,11 @@ internal class StreamingCompletionFinalizer(
                 else -> boundaries.outputMinViolationMode.name.lowercase()
             }
             agentMetrics.recordBoundaryViolation(
-                "output_too_short", policy, boundaries.outputMinChars, contentLength
+                OutputBoundaryEnforcer.VIOLATION_OUTPUT_TOO_SHORT, policy, boundaries.outputMinChars, contentLength
             )
             logger.warn {
                 formatBoundaryViolation(
-                    "output_too_short",
+                    OutputBoundaryEnforcer.VIOLATION_OUTPUT_TOO_SHORT,
                     policy,
                     boundaries.outputMinChars,
                     contentLength
@@ -202,7 +208,9 @@ internal class StreamingCompletionFinalizer(
             }
             try {
                 emit(StreamEventMarker.error(
-                    formatBoundaryViolation("output_too_short", policy, boundaries.outputMinChars, contentLength)
+                    formatBoundaryViolation(
+                        OutputBoundaryEnforcer.VIOLATION_OUTPUT_TOO_SHORT, policy, boundaries.outputMinChars, contentLength
+                    )
                 ))
             } catch (e: Exception) {
                 e.throwIfCancellation()

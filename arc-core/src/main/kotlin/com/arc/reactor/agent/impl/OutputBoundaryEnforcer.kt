@@ -29,6 +29,15 @@ internal class OutputBoundaryEnforcer(
     private val agentMetrics: AgentMetrics
 ) {
 
+    companion object {
+        /** 출력이 최소 길이보다 짧을 때의 위반 유형명 */
+        const val VIOLATION_OUTPUT_TOO_SHORT = "output_too_short"
+        /** 출력이 최대 길이를 초과할 때의 위반 유형명 */
+        const val VIOLATION_OUTPUT_TOO_LONG = "output_too_long"
+        /** 최대 길이 초과로 잘린 응답에 추가되는 접미사 */
+        const val TRUNCATION_SUFFIX = "\n\n[Response truncated]"
+    }
+
     /**
      * 출력 경계값 정책을 적용한다.
      *
@@ -51,10 +60,12 @@ internal class OutputBoundaryEnforcer(
         val afterMax = if (boundaries.outputMaxChars > 0 && len > boundaries.outputMaxChars) {
             val policy = "truncate"
             agentMetrics.recordBoundaryViolation(
-                "output_too_long", policy, boundaries.outputMaxChars, len, metadata
+                VIOLATION_OUTPUT_TOO_LONG, policy, boundaries.outputMaxChars, len, metadata
             )
-            logger.info { formatBoundaryViolation("output_too_long", policy, boundaries.outputMaxChars, len) }
-            result.copy(content = content.take(boundaries.outputMaxChars) + "\n\n[Response truncated]")
+            logger.info {
+                formatBoundaryViolation(VIOLATION_OUTPUT_TOO_LONG, policy, boundaries.outputMaxChars, len)
+            }
+            result.copy(content = content.take(boundaries.outputMaxChars) + TRUNCATION_SUFFIX)
         } else {
             result
         }
@@ -67,40 +78,18 @@ internal class OutputBoundaryEnforcer(
 
         return when (boundaries.outputMinViolationMode) {
             OutputMinViolationMode.WARN -> {
-                val policy = OutputMinViolationMode.WARN.name.lowercase()
-                agentMetrics.recordBoundaryViolation(
-                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length, metadata
-                )
-                logger.warn {
-                    formatBoundaryViolation(
-                        "output_too_short",
-                        policy,
-                        boundaries.outputMinChars,
-                        effectiveContent.length
-                    )
-                }
+                recordMinViolation(OutputMinViolationMode.WARN, effectiveContent.length, metadata)
                 afterMax
             }
 
             OutputMinViolationMode.RETRY_ONCE -> {
-                val policy = OutputMinViolationMode.RETRY_ONCE.name.lowercase()
-                agentMetrics.recordBoundaryViolation(
-                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length, metadata
-                )
-                logger.info {
-                    formatBoundaryViolation(
-                        "output_too_short",
-                        policy,
-                        boundaries.outputMinChars,
-                        effectiveContent.length
-                    )
-                }
+                recordMinViolation(OutputMinViolationMode.RETRY_ONCE, effectiveContent.length, metadata)
                 val retried = attemptLongerResponse(effectiveContent, boundaries.outputMinChars, command)
                 if (retried != null && retried.length >= boundaries.outputMinChars) {
                     afterMax.copy(content = retried)
                 } else {
                     logger.warn {
-                        "Boundary retry result: output_too_short still below limit " +
+                        "Boundary retry result: $VIOLATION_OUTPUT_TOO_SHORT still below limit " +
                             "(actual=${retried?.length ?: 0}, limit=${boundaries.outputMinChars})"
                     }
                     afterMax
@@ -108,20 +97,23 @@ internal class OutputBoundaryEnforcer(
             }
 
             OutputMinViolationMode.FAIL -> {
-                val policy = OutputMinViolationMode.FAIL.name.lowercase()
-                agentMetrics.recordBoundaryViolation(
-                    "output_too_short", policy, boundaries.outputMinChars, effectiveContent.length, metadata
-                )
-                logger.warn {
-                    formatBoundaryViolation(
-                        "output_too_short",
-                        policy,
-                        boundaries.outputMinChars,
-                        effectiveContent.length
-                    )
-                }
+                recordMinViolation(OutputMinViolationMode.FAIL, effectiveContent.length, metadata)
                 null
             }
         }
+    }
+
+    /** 최소 길이 위반을 메트릭과 로그에 기록한다. */
+    private fun recordMinViolation(
+        mode: OutputMinViolationMode,
+        contentLength: Int,
+        metadata: Map<String, Any>
+    ) {
+        val policy = mode.name.lowercase()
+        agentMetrics.recordBoundaryViolation(
+            VIOLATION_OUTPUT_TOO_SHORT, policy, boundaries.outputMinChars, contentLength, metadata
+        )
+        val msg = formatBoundaryViolation(VIOLATION_OUTPUT_TOO_SHORT, policy, boundaries.outputMinChars, contentLength)
+        if (mode == OutputMinViolationMode.RETRY_ONCE) logger.info { msg } else logger.warn { msg }
     }
 }

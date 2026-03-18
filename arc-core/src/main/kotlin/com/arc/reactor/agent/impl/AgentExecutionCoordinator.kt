@@ -99,7 +99,9 @@ internal class AgentExecutionCoordinator(
         checkGuardAndHooks(command, hookContext, startTime)?.let { return it }
         // ── 단계 2: Intent 해석 ──
         val effectiveCommand = resolveIntent(command, hookContext)
-        effectiveCommand.metadata["intentCategory"]?.let { hookContext.metadata["intentCategory"] = it }
+        effectiveCommand.metadata[HookMetadataKeys.INTENT_CATEGORY]?.let {
+            hookContext.metadata[HookMetadataKeys.INTENT_CATEGORY] = it
+        }
 
         // ── 단계 3: 응답 캐시 조회 (정확 매칭 / 시맨틱 매칭) ──
         val cacheLookupStart = nowMs()
@@ -163,7 +165,7 @@ internal class AgentExecutionCoordinator(
             recordStageTiming(hookContext, "fallback", nowMs() - fallbackStart)
             agentMetrics.recordStageLatency("fallback", nowMs() - fallbackStart, effectiveCommand.metadata)
             if (fallbackResult !== result) {
-                hookContext.metadata["fallbackUsed"] = true
+                hookContext.metadata[HookMetadataKeys.FALLBACK_USED] = true
             }
             result = fallbackResult
         }
