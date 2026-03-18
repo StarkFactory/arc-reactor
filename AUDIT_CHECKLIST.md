@@ -1,8 +1,8 @@
 # Arc Reactor 감사 체크리스트
 
-> 마지막 감사: 2026-03-18 16:00 | 감사 횟수: 7회
-> 상태: P0 2건 / P1 8건 / P2 5건 / 아이디어 2건
-> 감사 #7 정리: 중복 통합 4건, 심각도 조정 2건, 퇴행 재등록 1건
+> 마지막 감사: 2026-03-18 17:30 | 감사 횟수: 8회
+> 상태: P0 2건 / P1 9건 / P2 6건 / 아이디어 2건
+> 감사 #8: 미탐색 영역 12건 테스트 + 회귀 감시. 신규 P1 1건, P2 1건 발견.
 
 ## P0 -- 즉시 수정 필요
 
@@ -37,7 +37,8 @@
   - 증상: "위키에서 설계 문서 찾아줘", "Confluence에서 설계 문서 검색해줘", 심지어 "confluence_search_by_text 도구를 사용해서 설계 문서를 검색해줘"까지 도구명 직접 지정해도 도구 미호출. "검증 가능한 출처를 찾지 못해 답변을 확정할 수 없습니다"로 응답.
   - 감사 #2에서 해결 확인되었으나 감사 #3에서 부분 퇴행, 감사 #7에서 **완전 퇴행** 확인.
   - **개발 대응 (PR#466):** `WorkContextForcedToolPlanner`에 `confluenceSpaceListHints` 확장 (6개 패턴 추가: "confluence에 어떤 스페이스", "스페이스가 있어" 등). 스페이스 목록 쿼리는 개선될 수 있으나, "검색" 쿼리의 근본 원인(SemanticToolSelector 임계치 + 한국어 임베딩 매칭 실패)은 미해결.
-  - 제안: (1) confluence_search 관련 힌트 추가 확장 필요. (2) SemanticToolSelector 한국어 임베딩 품질 개선 또는 임계치 하향 검토.
+  - **감사 #8 재검증 (2026-03-18):** "confluence_search_by_text 도구로 MFS 스페이스에서 문서 검색해줘" → 여전히 도구 미호출(tool_selection=1ms, tool_execution=0). "위키에서 테스트 관련 페이지 찾아줘" → `confluence_search_by_text` 정상 호출(tool_execution=1767ms), "테스트 전략 #3101" 발견, grounded=true. **"위키" 키워드는 ForcedToolPlanner 힌트가 작동하지만, 명시적 도구명 지정은 여전히 실패.** 근본 원인은 SemanticToolSelector 한국어 매칭이 아닌 ForcedToolPlanner에 "검색" 관련 힌트 미등록.
+  - 제안: (1) `WorkContextForcedToolPlanner`에 `confluenceSearchHints` 추가 ("confluence에서 검색", "문서 검색해줘", "confluence_search", "스페이스에서 찾아줘" 등). (2) SemanticToolSelector 한국어 임베딩 품질 개선 또는 임계치 하향 검토.
 
 - [ ] **캐시 응답 품질 열화 + metadata 누락** (발견: 2026-03-18, **감사#7에서 P0→P1 하향, P2 "metadata 누락" 통합**)
   - 증상: 동일 질문 반복 시 열화된 응답이 캐시되어 반복 제공됨. 캐시된 응답의 metadata가 빈 객체(`{}`), stageTimings 없음.
@@ -69,6 +70,13 @@
   - 증상: "JAR 프로젝트 이슈들 보여줘" 질문에 이모지가 포함되면 JQL 오류 발생 후 복구 실패.
   - 제안: (1) JQL 생성 시 이모지 스트리핑 전처리 추가. (2) 도구 오류 후 재시도 루프에서 실제로 간략화된 쿼리로 재호출 보장.
 
+- [ ] **Grafana 대시보드/Prometheus 알림과 실제 메트릭 불일치 -- 대시보드 빈 패널** (발견: 2026-03-18 감사#8)
+  - 증상: PR#467에서 추가된 Grafana 대시보드 2개(agent-overview.json 16패널, resource-health.json)와 Prometheus 알림 14개가 `arc_agent_*`, `arc_cache_*` 메트릭을 참조하지만, 실제 `/actuator/prometheus` 엔드포인트에는 해당 커스텀 메트릭이 **전혀 존재하지 않음**. 표준 Spring/JVM 메트릭 80종(405라인)만 노출.
+  - 재현: `curl -s http://localhost:18081/actuator/prometheus -H "Authorization: Bearer $TOKEN" | grep "arc_agent"` → 0건
+  - 참조 메트릭 23종: `arc_agent_execution_total`, `arc_agent_execution_duration_seconds_*`, `arc_agent_tool_calls_total`, `arc_agent_tool_duration_seconds_*`, `arc_agent_request_cost_sum`, `arc_agent_execution_steps_*`, `arc_cache_hits_total`, `arc_cache_misses_total`, `arc_agent_guard_rejections_total`
+  - 영향: Grafana를 연결해도 모든 에이전트 관련 패널이 빈 상태. Prometheus 알림 14개 모두 절대 발화하지 않음.
+  - 제안: (1) `AgentMetrics`/`SlaMetrics`/`CostCalculator`에서 Micrometer `MeterRegistry`에 메트릭을 실제로 등록하고 기록하는 코드 추가. (2) `CacheMetricsRecorder` 이슈(아래 항목)와 통합하여 모든 커스텀 메트릭을 일괄 배선.
+
 - [ ] **CacheMetricsRecorder 빈 미활성화 -- 캐시 Micrometer 메트릭 미기록** (발견: 2026-03-18 감사#6, **부분 대응: PR#462**)
   - 증상: 82bf0972 커밋에서 `CacheMetricsRecorder`를 `AgentExecutionCoordinator`에 배선했지만, 실제 런타임에서 `arc.cache.hits`, `arc.cache.misses` 등 Micrometer 메트릭이 전혀 기록되지 않음.
   - 원인: `CacheMetricsRecorder` 빈이 `ArcReactorSemanticCacheConfiguration`에만 등록되어 있음. 이 설정 클래스는 `@ConditionalOnClass(StringRedisTemplate, EmbeddingModel)` + `@ConditionalOnProperty(arc.reactor.cache.semantic.enabled=true)` 조건부.
@@ -92,6 +100,11 @@
 - [ ] **Output Guard PII 마스킹 규칙 미설정 -- 기본 규칙 없음** (발견: 2026-03-18 감사#5)
   - 증상: GET /api/output-guard/rules 결과가 빈 배열. PII가 그대로 통과. 수동 규칙 추가 후 정상 마스킹 확인.
   - 제안: 한국 주민등록번호, 전화번호, 이메일 등 기본 PII 마스킹 규칙을 초기 설정으로 제공.
+
+- [ ] **Output Guard MASK 규칙의 replacement 필드 무시 -- 항상 "[REDACTED]" 고정** (발견: 2026-03-18 감사#8)
+  - 증상: Output Guard 규칙 생성 시 `replacement: "[MASKED]"`를 지정해도 실제 마스킹 결과는 항상 `"[REDACTED]"`. API가 `replacement` 필드를 JSON으로 수신하지만 데이터 모델(`OutputGuardRule`)에 해당 필드가 존재하지 않아 무시됨. `OutputGuardRuleEvaluator.kt:98`에서 `regex.replace(maskedContent, "[REDACTED]")`로 하드코딩.
+  - 재현: `POST /api/output-guard/rules {"name":"test","pattern":"\\d{6}-\\d{7}","action":"MASK","replacement":"[MASKED]"}` → `POST /api/output-guard/rules/simulate {"content":"950101-1234567"}` → `resultContent: "[REDACTED]"` (기대값: "[MASKED]")
+  - 제안: (1) `OutputGuardRule` 데이터 클래스에 `replacement: String = "[REDACTED]"` 필드 추가. (2) `OutputGuardRuleEvaluator.kt:98`에서 `rule.replacement`을 사용하도록 변경. (3) DB 마이그레이션으로 `replacement` 컬럼 추가.
 
 - [ ] **spec_validate 도구 접근 불가 -- LLM이 "사용할 수 없다"고 응답** (발견: 2026-03-18 감사#6)
   - 증상: "spec_validate 도구를 사용해서 Petstore 스펙을 검증해줘"에 대해 LLM이 "spec_validate 도구를 사용할 수 없습니다"라고 응답. 대신 `spec_load`가 사용됨.
@@ -148,6 +161,24 @@
 | 5 | 2026-03-18 | 16 | P0:1 (신규), P2:1 (신규) | 0 | 완전 새 영역 -- SSE(3), Admin API(4), 동시성(2), Rate Limit(1), Auth(2), 보안(4) |
 | 6 | 2026-03-18 | 15 | P0:1 (신규), P1:1 (신규), P2:2 (신규) | 0 | 신규 코드 검증 + 미탐색 영역 -- CacheMetrics(2), Swagger심층(3), Work심층(3), Persona/Template(3), 보안(3), 자기인식(1) |
 | 7 | 2026-03-18 | 8 | 퇴행:1 (Confluence) | 해결:3, 하향:2, 통합:4 | **통합 정리 감사** -- 중복 통합 4건, 심각도 하향 2건(P0→P1), 퇴행 재등록 1건, 해결 확인 3건. 총 미해결 21→16건으로 정리. |
+| 8 | 2026-03-18 | 12 | P1:1 (신규), P2:1 (신규) | 0 | **미탐색 영역 감사** -- Prometheus(2), 세션Export(1), MCP disconnect/reconnect(1), OutputGuard CRUD(3), 대형응답(1), Confluence 회귀(2), 레이턴시(2). 신규: Grafana메트릭 불일치(P1), MASK replacement 무시(P2) |
+
+### 감사 #8 테스트 상세
+
+| # | 카테고리 | 테스트 | 결과 | 레이턴시 | 도구 사용 | 비고 |
+|---|---------|--------|------|---------|----------|------|
+| A1 | Prometheus | /actuator/prometheus 메트릭 | WARN | <1s | - | 엔드포인트 200 OK (80 HELP, 405라인). `arc_agent_*`/`arc_cache_*` 메트릭 0건. 표준 Spring/JVM 메트릭만 존재. |
+| A2 | Grafana 파일 | docs/operations/grafana/ 확인 | WARN | - | - | 파일 2개 존재 (agent-overview.json 16패널, resource-health.json). Prometheus 알림 14개. 참조 메트릭 23종이 모두 실제 미존재. 빈 대시보드. |
+| B3 | 세션 Export | GET /sessions/{id}/export | PASS | <1s | - | 기존 세션 export 정상. sessionId, exportedAt, messages(role/content/timestamp) 반환. 신규 세션은 persistent store 미저장으로 404 |
+| C4 | MCP 관리 | disconnect→reconnect 사이클 | PASS | <1s | - | CONNECTED(11도구)→DISCONNECTED(0도구)→CONNECTED(11도구). PR#465 transport 누수 수정 효과 확인. 도구 수 완전 복원. |
+| D5 | OutputGuard | 규칙 생성 (MASK) | PASS | <1s | - | 201 Created. id, name, pattern, action, priority, enabled 반환. |
+| D6 | OutputGuard | 마스킹 시뮬레이션 | WARN | <1s | - | 마스킹 작동(950101-1234567→[REDACTED]). 단, `replacement:"[MASKED]"`가 무시되고 하드코딩 "[REDACTED]" 사용. P2 등록. |
+| D7 | OutputGuard | 규칙 삭제 | PASS | <1s | - | 204 No Content. 삭제 후 규칙 0건 확인. |
+| E8 | 대형 응답 | JAR 모든 이슈 상세 요청 | FAIL | ~2s | (없음) | tool_selection=0, tool_execution=0. `jira_search_issues` 미호출. "검증 가능한 출처를 찾지 못했습니다" 반환. 기존 P1 도구선택 문제 재확인. |
+| F9 | Confluence | 명시적 도구명 지정 | FAIL | ~2s | (없음) | "confluence_search_by_text 도구로 MFS 스페이스에서 문서 검색해줘" → 도구 미호출. rag_retrieval=1163ms, tool_selection=1ms. P1 퇴행 유지. |
+| F10 | Confluence | "위키" 키워드 | PASS | ~6s | confluence_search_by_text | 정상 호출. tool_execution=1767ms. "테스트 전략 #3101", "배포 프로세스 #8611" 발견. grounded=true. "위키" 힌트 작동 확인. |
+| G11 | 레이턴시 | "1+1은?" x3 | PASS | 1517/31/31ms | (없음) | Run1: rag=0 (스킵 정상), ts=587ms, llm=867ms. Run2,3: 캐시 히트 31ms. 감사#1(1838ms) 대비 개선. |
+| G12 | RAG 품질 | Guard 파이프라인 아키텍처 | PASS | ~3s | (없음) | rag_retrieval=1232ms, llm=1242ms. grounded=true. 5단계 설명 정확. 감사#2(1241ms) 대비 RAG 안정적(-9ms). |
 
 ### 감사 #7 테스트 상세
 
@@ -346,7 +377,9 @@
 |------|--------|------|
 | 시스템 프롬프트 간접 유출 | P0 | 미착수 — Output Guard 패턴 추가 필요 |
 | HTML 엔티티 Guard 우회 | P0 | 미착수 — HTML 엔티티 디코딩 전처리 필요 |
+| Grafana/Prometheus 메트릭 불일치 | P1 | **신규 (감사#8)** — 커스텀 메트릭 Micrometer 등록 필요 |
 | 대화 컨텍스트 기억 실패 (history_load=0) | P1 | 미착수 — ConversationManager 히스토리 로드 검증 필요 |
 | ReAct 재시도 미작동 | P1 | 미착수 — retry hint를 SystemMessage로 변경 검토 |
-| Confluence "검색" 쿼리 도구 선택 | P1 | 부분 대응 — SemanticToolSelector 한국어 매칭 근본 해결 필요 |
+| Confluence "검색" 쿼리 도구 선택 | P1 | 부분 대응 — ForcedToolPlanner에 검색 힌트 추가 필요 (감사#8: "위키" 키워드는 작동, 명시적 도구명은 여전히 실패) |
 | NoOp CacheMetricsRecorder 폴백 빈 | P1 | 부분 대응 — 메인 AutoConfig 등록 필요 |
+| Output Guard MASK replacement 필드 무시 | P2 | **신규 (감사#8)** — OutputGuardRule 데이터 모델에 replacement 필드 추가 필요 |
