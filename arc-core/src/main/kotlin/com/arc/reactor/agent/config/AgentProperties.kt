@@ -370,7 +370,10 @@ data class McpConfigProperties(
      * 사설/예약 IP 주소(루프백, 사이트-로컬, 링크-로컬) 연결 허용.
      * MCP 서버가 localhost에서 실행되는 로컬 개발 환경에서만 활성화할 것.
      */
-    val allowPrivateAddresses: Boolean = false
+    val allowPrivateAddresses: Boolean = false,
+
+    /** 주기적 헬스체크 설정 */
+    val health: McpHealthProperties = McpHealthProperties()
 )
 
 /**
@@ -428,6 +431,30 @@ data class McpReconnectionProperties(
 
     /** 재연결 시도 간 최대 지연 (밀리초). */
     val maxDelayMs: Long = 60_000
+)
+
+/**
+ * MCP 서버 주기적 헬스체크 설정.
+ *
+ * 활성화하면 CONNECTED 상태의 MCP 서버를 주기적으로 점검하여
+ * 조용히 끊어진 연결을 사전에 감지하고 재연결을 트리거한다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     mcp:
+ *       health:
+ *         enabled: true
+ *         ping-interval-seconds: 60
+ * ```
+ */
+data class McpHealthProperties(
+    /** MCP 헬스체크 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false,
+
+    /** 헬스체크 간격 (초). */
+    val pingIntervalSeconds: Long = 60
 )
 
 /**
