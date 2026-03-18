@@ -10,6 +10,8 @@ import com.arc.reactor.memory.summary.ConversationSummary
 import com.arc.reactor.memory.summary.ConversationSummaryService
 import com.arc.reactor.memory.summary.ConversationSummaryStore
 import com.arc.reactor.support.throwIfCancellation
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -23,7 +25,7 @@ import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.beans.factory.DisposableBean
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 
 private val logger = KotlinLogging.logger {}
@@ -97,15 +99,26 @@ class DefaultConversationManager(
 
     /** 비동기 요약 작업을 위한 코루틴 스코프. SupervisorJob으로 개별 작업 실패가 전파되지 않는다. */
     private val asyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    /** 세션별 활성 요약 작업을 추적하여 중복 실행을 방지한다. */
-    private val activeSummarizations = ConcurrentHashMap<String, Job>()
+    /** 세션별 활성 요약 작업을 추적하여 중복 실행을 방지한다. 완료/만료 시 자동 정리. */
+    private val activeSummarizations: Cache<String, Job> = Caffeine.newBuilder()
+        .maximumSize(5_000)
+        .expireAfterWrite(10, TimeUnit.MINUTES)
+        .removalListener<String, Job> { key, job, cause ->
+            job?.cancel()
+            logger.debug { "요약 작업 제거: session=$key, cause=$cause" }
+        }
+        .build()
 
     /**
      * 세션별 저장 락. user+assistant 메시지 쌍이 원자적으로 기록되도록 보장한다.
      * 이 락이 없으면 같은 세션에 대한 두 동시 요청이 다음과 같이 인터리빙될 수 있다:
      * user1, user2, assistant2, assistant1 — 대화 순서가 깨진다.
+     * 30분 미접근 시 자동 만료되어 메모리 누수를 방지한다.
      */
-    private val sessionSaveLocks = ConcurrentHashMap<String, ReentrantLock>()
+    private val sessionSaveLocks: Cache<String, ReentrantLock> = Caffeine.newBuilder()
+        .maximumSize(10_000)
+        .expireAfterAccess(30, TimeUnit.MINUTES)
+        .build()
 
     override suspend fun loadHistory(command: AgentCommand): List<Message> {
         if (command.conversationHistory.isNotEmpty()) {
@@ -249,7 +262,8 @@ class DefaultConversationManager(
     }
 
     override fun cancelActiveSummarization(sessionId: String) {
-        activeSummarizations.remove(sessionId)?.cancel()
+        activeSummarizations.getIfPresent(sessionId)?.cancel()
+        activeSummarizations.invalidate(sessionId)
     }
 
     /**
@@ -271,7 +285,7 @@ class DefaultConversationManager(
         if (splitIndex == 0) return
 
         // 이전 요약 작업이 있으면 취소한다
-        activeSummarizations[sessionId]?.cancel()
+        activeSummarizations.getIfPresent(sessionId)?.cancel()
 
         val job = asyncScope.launch {
             try {
@@ -284,18 +298,20 @@ class DefaultConversationManager(
                 logger.debug(e) { "Async summarization failed for session $sessionId (will retry on next load)" }
             }
         }
-        activeSummarizations[sessionId] = job
-        // 작업 완료 시 추적 맵에서 자동 제거
-        job.invokeOnCompletion { activeSummarizations.remove(sessionId, job) }
+        activeSummarizations.put(sessionId, job)
+        // 작업 완료 시 추적 캐시에서 자동 제거
+        job.invokeOnCompletion { activeSummarizations.invalidate(sessionId) }
     }
 
     /** 요약 기능이 활성화되었는지 확인한다. 세 가지 조건이 모두 충족되어야 한다. */
     private fun isSummaryEnabled(): Boolean =
         summaryProps.enabled && summaryStore != null && summaryService != null
 
-    /** 빈 소멸 시 비동기 스코프를 정리한다. */
+    /** 빈 소멸 시 비동기 스코프와 캐시를 정리한다. */
     override fun destroy() {
         asyncScope.cancel()
+        activeSummarizations.invalidateAll()
+        sessionSaveLocks.invalidateAll()
     }
 
     /**
@@ -322,7 +338,7 @@ class DefaultConversationManager(
         }
         val resolvedUserId = userId ?: "anonymous"
 
-        val lock = sessionSaveLocks.computeIfAbsent(sessionId) { ReentrantLock() }
+        val lock = sessionSaveLocks.get(sessionId) { ReentrantLock() }
         lock.lock()
         try {
             store.addMessage(sessionId, "user", userPrompt, resolvedUserId)
