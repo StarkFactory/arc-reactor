@@ -33,6 +33,12 @@ object InjectionPatterns {
         0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069
     )
 
+    /** HTML 수치 엔티티 패턴: &#73; 형식 (10진수) */
+    private val DECIMAL_ENTITY_REGEX = Regex("&#(\\d+);")
+
+    /** HTML 수치 엔티티 패턴: &#x49; 형식 (16진수) */
+    private val HEX_ENTITY_REGEX = Regex("&#x([0-9a-fA-F]+);")
+
     /**
      * 키릴 문자 -> 라틴 문자 호모글리프 매핑.
      */
@@ -50,7 +56,8 @@ object InjectionPatterns {
      *
      * 1. 제로 너비 문자 제거 (U+200B, U+FEFF, U+00AD 등)
      * 2. NFKC 정규화 (전각 -> ASCII 등)
-     * 3. 호모글리프 치환 (키릴 -> 라틴)
+     * 3. HTML 수치 엔티티 디코딩 (&#73; -> I, &#x49; -> I)
+     * 4. 호모글리프 치환 (키릴 -> 라틴)
      *
      * 입력 Guard 경로에서는 [UnicodeNormalizationStage]가 이 역할을 하지만,
      * [ToolOutputSanitizer] 등 Guard 파이프라인 밖에서 패턴 매칭할 때
@@ -60,7 +67,8 @@ object InjectionPatterns {
         if (text.isEmpty()) return text
         val stripped = stripZeroWidthChars(text)
         val nfkc = Normalizer.normalize(stripped, Normalizer.Form.NFKC)
-        return replaceHomoglyphs(nfkc)
+        val decoded = decodeHtmlEntities(nfkc)
+        return replaceHomoglyphs(decoded)
     }
 
     private fun stripZeroWidthChars(text: String): String {
@@ -74,6 +82,19 @@ object InjectionPatterns {
             i += Character.charCount(cp)
         }
         return sb.toString()
+    }
+
+    /** HTML 수치 엔티티(&#65; &#x41;)를 디코딩한다. */
+    private fun decodeHtmlEntities(text: String): String {
+        var result = DECIMAL_ENTITY_REGEX.replace(text) { mr ->
+            val cp = mr.groupValues[1].toIntOrNull() ?: return@replace mr.value
+            if (cp in 0..0x10FFFF) String(Character.toChars(cp)) else mr.value
+        }
+        result = HEX_ENTITY_REGEX.replace(result) { mr ->
+            val cp = mr.groupValues[1].toIntOrNull(16) ?: return@replace mr.value
+            if (cp in 0..0x10FFFF) String(Character.toChars(cp)) else mr.value
+        }
+        return result
     }
 
     private fun replaceHomoglyphs(text: String): String {
