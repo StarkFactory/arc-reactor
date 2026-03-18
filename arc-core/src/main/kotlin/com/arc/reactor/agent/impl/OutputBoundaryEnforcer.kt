@@ -113,8 +113,7 @@ internal class OutputBoundaryEnforcer(
         agentMetrics.recordBoundaryViolation(
             VIOLATION_OUTPUT_TOO_SHORT, policy, boundaries.outputMinChars, contentLength, metadata
         )
-        logger.warn {
-            formatBoundaryViolation(VIOLATION_OUTPUT_TOO_SHORT, policy, boundaries.outputMinChars, contentLength)
-        }
+        val msg = formatBoundaryViolation(VIOLATION_OUTPUT_TOO_SHORT, policy, boundaries.outputMinChars, contentLength)
+        if (mode == OutputMinViolationMode.RETRY_ONCE) logger.info { msg } else logger.warn { msg }
     }
 }

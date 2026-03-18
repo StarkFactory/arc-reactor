@@ -8,6 +8,4 @@ internal object HookMetadataKeys {
     const val QUEUE_WAIT_MS = "queueWaitMs"
     const val FALLBACK_USED = "fallbackUsed"
     const val INTENT_CATEGORY = "intentCategory"
-    const val LLM_DURATION_MS = "llmDurationMs"
-    const val TOOL_DURATION_MS = "toolDurationMs"
 }
