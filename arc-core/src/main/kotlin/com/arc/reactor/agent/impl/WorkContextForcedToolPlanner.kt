@@ -34,6 +34,13 @@ internal object WorkContextForcedToolPlanner {
 
     // ── 정규식 상수 ──
 
+    /** 이모지 및 기호 유니코드를 제거한다. JQL 파싱 오류 방지. */
+    private val emojiRegex = Regex(
+        "[\\x{1F000}-\\x{1FFFF}\\x{2600}-\\x{27BF}\\x{FE00}-\\x{FE0F}" +
+            "\\x{200D}\\x{20E3}\\x{E0020}-\\x{E007F}\\p{So}\\p{Cn}]"
+    )
+    private val multiSpaceRegex = Regex("\\s{2,}")
+
     private val specNameSanitizeRegex = Regex("[^a-z0-9._-]")
     private val issueKeyRegex = WorkContextPatterns.ISSUE_KEY_REGEX
     private val projectRegexes = listOf(
@@ -365,6 +372,10 @@ internal object WorkContextForcedToolPlanner {
         val isPersonal: Boolean
     )
 
+    /** 이모지 및 특수 유니코드 문자를 제거하여 정규식 매칭과 JQL 생성을 안전하게 한다. */
+    private fun stripEmoji(text: String): String =
+        emojiRegex.replace(text, "").replace(multiSpaceRegex, " ").trim()
+
     /** 원본 프롬프트에서 모든 엔티티를 일괄 추출한다. */
     private fun parsePrompt(prompt: String): ParsedPrompt {
         val normalized = prompt.lowercase()
@@ -397,23 +408,25 @@ internal object WorkContextForcedToolPlanner {
      */
     fun plan(prompt: String?): ForcedToolCallPlan? {
         if (prompt.isNullOrBlank()) return null
-        val ctx = parsePrompt(prompt)
+        val clean = stripEmoji(prompt)
+        if (clean.isBlank()) return null
+        val ctx = parsePrompt(clean)
 
-        return planOwnership(prompt, ctx)
+        return planOwnership(clean, ctx)
             ?: planWorkContext(ctx)
-            ?: planTeamBriefing(prompt, ctx)
-            ?: planReadinessAndRisk(prompt, ctx)
-            ?: planPersonalTools(prompt, ctx)
-            ?: planListAndSearch(prompt, ctx)
+            ?: planTeamBriefing(clean, ctx)
+            ?: planReadinessAndRisk(clean, ctx)
+            ?: planPersonalTools(clean, ctx)
+            ?: planListAndSearch(clean, ctx)
             ?: planJiraProjectScoped(ctx)
             ?: planBitbucketRepoScoped(ctx)
             ?: planBitbucketPersonal(ctx)
             ?: planMiscBitbucket(ctx)
             ?: planApiAndOwnerMisc(ctx)
-            ?: planSwagger(prompt, ctx)
-            ?: planHybridRiskAndDiscovery(prompt, ctx)
-            ?: planCrossSourceAndStandup(prompt, ctx)
-            ?: planPreDeployAndFallback(prompt, ctx)
+            ?: planSwagger(clean, ctx)
+            ?: planHybridRiskAndDiscovery(clean, ctx)
+            ?: planCrossSourceAndStandup(clean, ctx)
+            ?: planPreDeployAndFallback(clean, ctx)
     }
 
     // ── 카테고리별 계획 수립 메서드 ──

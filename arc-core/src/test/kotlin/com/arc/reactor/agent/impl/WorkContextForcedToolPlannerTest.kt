@@ -630,6 +630,42 @@ class WorkContextForcedToolPlannerTest {
         assertEquals(20, plan.arguments["jiraMaxResults"])
     }
 
+    // ── 이모지 스트리핑 테스트 ──
+
+    @Test
+    fun `emoji가 포함된 프로젝트 프롬프트에서 정상 파싱해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("🚀 BACKEND 프로젝트의 blocker 이슈를 소스와 함께 정리해줘.")
+
+        requireNotNull(plan) { "이모지가 포함된 프롬프트에서 plan이 null이면 안 된다" }
+        assertEquals("jira_blocker_digest", plan.toolName, "이모지 제거 후 도구가 정상 매칭되어야 한다")
+        assertEquals("BACKEND", plan.arguments["project"], "이모지 제거 후 프로젝트 키를 추출해야 한다")
+    }
+
+    @Test
+    fun `emoji가 포함된 이슈 키 프롬프트에서 정상 파싱해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("📋 PAY-456 이슈 전체 맥락을 정리해줘")
+
+        requireNotNull(plan) { "이모지가 포함된 이슈 키 프롬프트에서 plan이 null이면 안 된다" }
+        assertEquals("work_item_context", plan.toolName, "이모지 제거 후 work_item_context로 매칭해야 한다")
+        assertEquals("PAY-456", plan.arguments["issueKey"], "이모지 제거 후 이슈 키를 추출해야 한다")
+    }
+
+    @Test
+    fun `emoji만 있는 프롬프트에서 null을 반환해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("🚀🔥📋")
+
+        assertNull(plan, "이모지만 있는 프롬프트는 null을 반환해야 한다")
+    }
+
+    @Test
+    fun `이모지 없는 일반 텍스트는 변경 없이 정상 처리해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("BACKEND 프로젝트의 blocker 이슈를 소스와 함께 정리해줘.")
+
+        requireNotNull(plan) { "일반 텍스트 프롬프트에서 plan이 null이면 안 된다" }
+        assertEquals("jira_blocker_digest", plan.toolName, "이모지 없는 프롬프트는 기존과 동일하게 동작해야 한다")
+        assertEquals("BACKEND", plan.arguments["project"], "프로젝트 키가 정상 추출되어야 한다")
+    }
+
     @Test
     fun `plan swagger wrong endpoint prompt해야 한다`() {
         val plan = WorkContextForcedToolPlanner.plan(
