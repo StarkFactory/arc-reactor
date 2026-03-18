@@ -30,7 +30,7 @@ import javax.sql.DataSource
         "spring.datasource.password=",
         "spring.flyway.enabled=false",
         "spring.sql.init.mode=always",
-        "spring.sql.init.schema-locations=classpath:test-intent-schema.sql",
+        "spring.sql.init.schema-locations=classpath:test-schema.sql,classpath:test-intent-schema.sql",
         "spring.ai.google.genai.api-key=test-key",
         "spring.ai.google.genai.embedding.api-key=test-key",
         "arc.reactor.intent.enabled=true",
@@ -65,6 +65,17 @@ class IntentControllerJdbcIntegrationTest {
     fun cleanDb() {
         dataSource.connection.use { conn ->
             conn.prepareStatement("DELETE FROM intent_definitions").use { it.executeUpdate() }
+            conn.prepareStatement("DELETE FROM users").use { it.executeUpdate() }
+            conn.prepareStatement(
+                "INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+            ).use {
+                it.setString(1, "integration-admin")
+                it.setString(2, "integration-admin@arc.dev")
+                it.setString(3, "Integration Admin")
+                it.setString(4, "ignored")
+                it.setString(5, "ADMIN")
+                it.executeUpdate()
+            }
         }
         val token = jwtTokenProvider.createToken(adminUser())
         adminClient = webTestClient.mutate()

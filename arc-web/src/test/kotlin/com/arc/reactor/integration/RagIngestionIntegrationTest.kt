@@ -73,6 +73,15 @@ class RagIngestionIntegrationTest {
     fun reset() {
         jdbcTemplate.update("DELETE FROM rag_ingestion_policy")
         jdbcTemplate.update("DELETE FROM rag_ingestion_candidates")
+        jdbcTemplate.update("DELETE FROM users")
+        jdbcTemplate.update(
+            "INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+            "integration-admin",
+            "integration-admin@arc.dev",
+            "Integration Admin",
+            "ignored",
+            "ADMIN"
+        )
         val token = jwtTokenProvider.createToken(adminUser())
         adminClient = webTestClient.mutate()
             .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer $token")

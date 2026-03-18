@@ -22,9 +22,11 @@ import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWeb
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.reactive.server.WebTestClient
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
@@ -44,9 +46,7 @@ import kotlin.math.min
         "spring.datasource.password=",
         "spring.flyway.enabled=false",
         "spring.sql.init.mode=always",
-        "spring.sql.init.schema-locations=" +
-            "classpath:test-schema.sql,classpath:db/migration/V3__create_users.sql," +
-            "classpath:db/migration/V6__add_user_role.sql",
+        "spring.sql.init.schema-locations=classpath:test-schema.sql",
         "spring.ai.google.genai.api-key=test-key",
         "spring.ai.google.genai.embedding.api-key=test-key",
         "arc.reactor.rag.enabled=true",
@@ -58,6 +58,7 @@ import kotlin.math.min
     ]
 )
 @AutoConfigureWebTestClient
+@ActiveProfiles("document-chunking-test")
 @Tag("integration")
 /**
  * 문서 청킹 통합 테스트.
@@ -86,6 +87,14 @@ class DocumentChunkingIntegrationTest {
     @BeforeEach
     fun setUp() {
         jdbcTemplate.update("DELETE FROM users")
+        jdbcTemplate.update(
+            "INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+            "chunking-test-admin",
+            "chunking-admin@arc.dev",
+            "Chunking Test Admin",
+            "ignored",
+            "ADMIN"
+        )
         if (vectorStore is ChunkingVectorStore) {
             (vectorStore as ChunkingVectorStore).clear()
         }
@@ -264,7 +273,8 @@ class DocumentChunkingIntegrationTest {
         }.take(targetLength)
     }
 
-    @TestConfiguration
+    @TestConfiguration(proxyBeanMethods = false)
+    @Profile("document-chunking-test")
     class ChunkingTestConfig {
         @Bean
         fun chunkingVectorStore(): VectorStore = ChunkingVectorStore()

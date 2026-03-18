@@ -256,7 +256,7 @@ class ToolPolicyIntegrationTest {
     }
 
     @Test
-    fun `resets stored policy and hook no longer blocks를 삭제한다`() {
+    fun `deletes stored policy and falls back to config defaults`() {
         adminClient.put()
             .uri("/api/tool-policy")
             .bodyValue(
@@ -277,6 +277,20 @@ class ToolPolicyIntegrationTest {
 
         assertEquals(0, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM tool_policy", Int::class.java))
 
+        val state = adminClient.get()
+            .uri("/api/tool-policy")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody(Map::class.java)
+            .returnResult()
+            .responseBody!!
+
+        @Suppress("UNCHECKED_CAST")
+        val effective = state["effective"] as Map<String, Any>
+        assertEquals(null, state["stored"], "Stored policy should be cleared after DELETE")
+        assertTrue((effective["writeToolNames"] as Collection<*>).contains("jira_create_issue"))
+        assertTrue((effective["denyWriteChannels"] as Collection<*>).contains("slack"))
+
         val toolCtx = ToolCallContext(
             agentContext = HookContext(
                 runId = "r1",
@@ -289,11 +303,11 @@ class ToolPolicyIntegrationTest {
             callIndex = 0
         )
 
-        // With no stored policy, it falls back to config defaults (empty write-tool list) so it은(는) continue.해야 합니다
         val result = runBlocking { writeToolBlockHook.beforeToolCall(toolCtx) }
-        assertInstanceOf(HookResult.Continue::class.java, result) {
-            "Without stored policy, hook should continue with defaults"
+        val reject = assertInstanceOf(HookResult.Reject::class.java, result) {
+            "Without stored policy, hook should fall back to config defaults and block slack write tools"
         }
+        assertEquals(effective["denyWriteMessage"], reject.reason)
     }
 
     private fun adminUser() = User(

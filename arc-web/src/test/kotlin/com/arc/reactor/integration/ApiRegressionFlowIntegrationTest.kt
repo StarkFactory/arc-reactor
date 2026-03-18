@@ -27,9 +27,11 @@ import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWeb
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.reactive.server.WebTestClient
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -46,21 +48,22 @@ import kotlin.math.min
         "spring.datasource.password=",
         "spring.flyway.enabled=false",
         "spring.sql.init.mode=always",
-        "spring.sql.init.schema-locations=" +
-            "classpath:test-schema.sql,classpath:db/migration/V3__create_users.sql," +
-            "classpath:db/migration/V6__add_user_role.sql",
+        "spring.sql.init.schema-locations=classpath:test-schema.sql",
         "spring.ai.google.genai.api-key=test-key",
         "spring.ai.google.genai.embedding.api-key=test-key",
         "arc.reactor.rag.enabled=true",
         "arc.reactor.output-guard.enabled=true",
         "arc.reactor.output-guard.dynamic-rules-enabled=true",
         "arc.reactor.output-guard.dynamic-rules-refresh-ms=600000",
+        "arc.reactor.mcp.security.allowed-server-names=qa-mcp-server",
+        "arc.reactor.mcp.security.allowed-stdio-commands=node",
         "arc.reactor.auth.jwt-secret=integration-test-jwt-secret-32-bytes",
         "arc.reactor.auth.self-registration-enabled=true",
         "arc.reactor.postgres.required=false"
     ]
 )
 @AutoConfigureWebTestClient
+@ActiveProfiles("api-regression-test")
 @Tag("integration")
 /**
  * API 회귀 흐름 통합 테스트.
@@ -88,17 +91,27 @@ class ApiRegressionFlowIntegrationTest {
 
     @BeforeEach
     fun setUp() {
+        val admin = adminUser()
         jdbcTemplate.update("DELETE FROM output_guard_rule_audits")
         jdbcTemplate.update("DELETE FROM output_guard_rules")
         jdbcTemplate.update("DELETE FROM admin_audits")
         jdbcTemplate.update("DELETE FROM mcp_servers")
+        runCatching { jdbcTemplate.update("DELETE FROM mcp_security_policy") }
         jdbcTemplate.update("DELETE FROM users")
+        jdbcTemplate.update(
+            "INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+            admin.id,
+            admin.email,
+            admin.name,
+            admin.passwordHash,
+            admin.role.name
+        )
 
         if (vectorStore is RegressionVectorStore) {
             (vectorStore as RegressionVectorStore).clear()
         }
 
-        val adminToken = jwtTokenProvider.createToken(adminUser())
+        val adminToken = jwtTokenProvider.createToken(admin)
         adminClient = webTestClient.mutate()
             .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer $adminToken")
             .build()
@@ -201,14 +214,14 @@ class ApiRegressionFlowIntegrationTest {
                 .uri("/api/mcp/servers")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(
-                    mapOf(
-                        "name" to "qa-mcp-server",
-                        "transportType" to "STDIO",
-                        "config" to mapOf(
-                            "command" to "echo",
-                            "args" to listOf("ok")
-                        ),
-                        "autoConnect" to false
+                        mapOf(
+                            "name" to "qa-mcp-server",
+                            "transportType" to "STDIO",
+                            "config" to mapOf(
+                                "command" to "node",
+                                "args" to listOf("ok")
+                            ),
+                            "autoConnect" to false
                     )
                 ),
             expectedStatus = 201
@@ -309,7 +322,8 @@ class ApiRegressionFlowIntegrationTest {
         role = UserRole.ADMIN
     )
 
-    @TestConfiguration
+    @TestConfiguration(proxyBeanMethods = false)
+    @Profile("api-regression-test")
     class RegressionTestConfig {
         @Bean
         fun regressionAgentExecutor(): AgentExecutor = object : AgentExecutor {

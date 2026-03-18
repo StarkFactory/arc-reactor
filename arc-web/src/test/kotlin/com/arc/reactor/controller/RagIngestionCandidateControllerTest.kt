@@ -39,9 +39,9 @@ class RagIngestionCandidateControllerTest {
         adminAuditStore = InMemoryAdminAuditStore()
         vectorStore = mockk(relaxed = true)
         vectorStoreProvider = mockk()
-        every { vectorStoreProvider.ifAvailable } returns vectorStore
+        every { vectorStoreProvider.ifUnique } returns vectorStore
         noVectorStoreProvider = mockk()
-        every { noVectorStoreProvider.ifAvailable } returns null
+        every { noVectorStoreProvider.ifUnique } returns null
         documentChunkerProvider = mockk()
         every { documentChunkerProvider.ifAvailable } returns null
     }

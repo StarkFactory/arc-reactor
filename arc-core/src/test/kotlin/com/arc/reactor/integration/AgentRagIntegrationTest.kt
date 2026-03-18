@@ -169,7 +169,11 @@ class AgentRagIntegrationTest {
             )
 
             val result = executor.execute(
-                AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Find product 123")
+                AgentCommand(
+                    systemPrompt = "You are helpful.",
+                    userPrompt = "Find product 123",
+                    metadata = mapOf("ragRequired" to true)
+                )
             )
 
             result.assertSuccess()
@@ -195,9 +199,14 @@ class AgentRagIntegrationTest {
             )
 
             executor.execute(
-                AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Query")
+                AgentCommand(
+                    systemPrompt = "You are helpful.",
+                    userPrompt = "Query",
+                    metadata = mapOf("ragRequired" to true)
+                )
             )
 
+            assertTrue(ragQuerySlot.isCaptured) { "RAG pipeline should be called when ragRequired=true" }
             assertEquals(15, ragQuerySlot.captured.topK) { "topK should match properties" }
         }
     }
@@ -222,7 +231,11 @@ class AgentRagIntegrationTest {
             )
 
             val chunks = executor.executeStream(
-                AgentCommand(systemPrompt = "You are helpful.", userPrompt = "Stream query")
+                AgentCommand(
+                    systemPrompt = "You are helpful.",
+                    userPrompt = "Stream query",
+                    metadata = mapOf("ragRequired" to true)
+                )
             ).toList()
 
             assertTrue(chunks.isNotEmpty()) { "Stream should produce output" }

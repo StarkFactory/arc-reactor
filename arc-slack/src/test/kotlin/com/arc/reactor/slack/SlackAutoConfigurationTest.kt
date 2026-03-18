@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.core.env.StandardEnvironment
 
 /**
  * [SlackAutoConfiguration]의 자동 구성 테스트.
@@ -31,6 +32,10 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 class SlackAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()
+        .withInitializer { context ->
+            context.environment.propertySources.remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME)
+            context.environment.propertySources.remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME)
+        }
         .withConfiguration(AutoConfigurations.of(SlackAutoConfiguration::class.java))
 
     @Nested

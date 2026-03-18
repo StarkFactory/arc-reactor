@@ -42,6 +42,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.support.TransactionTemplate
+import javax.sql.DataSource
 
 /**
  * JDBC 메모리 저장소 설정 (JDBC가 클래스패스에 있을 때만 로드)
@@ -49,6 +50,7 @@ import org.springframework.transaction.support.TransactionTemplate
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
 @ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
+@ConditionalOnBean(DataSource::class)
 class JdbcMemoryStoreConfiguration {
 
     @Bean
@@ -177,6 +179,7 @@ class JdbcMemoryStoreConfiguration {
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
 @ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
+@ConditionalOnBean(DataSource::class)
 class JdbcToolPolicyStoreConfiguration {
 
     @Bean
@@ -197,7 +200,7 @@ class JdbcToolPolicyStoreConfiguration {
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
 @ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
-@ConditionalOnBean(JdbcTemplate::class)
+@ConditionalOnBean(DataSource::class)
 class JdbcMcpSecurityPolicyStoreConfiguration {
 
     @Bean
@@ -218,6 +221,7 @@ class JdbcMcpSecurityPolicyStoreConfiguration {
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
 @ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
+@ConditionalOnBean(DataSource::class)
 class JdbcRagIngestionPolicyStoreConfiguration {
 
     @Bean

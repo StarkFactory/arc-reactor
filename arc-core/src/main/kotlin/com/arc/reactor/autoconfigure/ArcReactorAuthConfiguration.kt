@@ -13,6 +13,7 @@ import com.arc.reactor.auth.TokenRevocationStoreType
 import com.arc.reactor.auth.TokenRevocationStore
 import com.arc.reactor.auth.UserStore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
@@ -20,6 +21,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 import org.springframework.core.env.Environment
 import org.springframework.jdbc.core.JdbcTemplate
+import javax.sql.DataSource
 import org.springframework.web.server.WebFilter
 
 private const val JWT_SECRET_MIN_BYTES = 32
@@ -162,6 +164,7 @@ private fun parseTokenRevocationStore(environment: Environment): TokenRevocation
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate", "io.jsonwebtoken.Jwts"])
 @ConditionalOnExpression("'\${spring.datasource.url:}'.trim().length() > 0")
+@ConditionalOnBean(DataSource::class)
 class JdbcAuthConfiguration {
 
     @Bean

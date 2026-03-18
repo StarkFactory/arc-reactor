@@ -6,8 +6,12 @@ import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
 import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration
+import org.springframework.boot.context.TypeExcludeFilter
 import org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
 import org.springframework.boot.runApplication
+import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter
+import org.springframework.context.annotation.ComponentScan
+import org.springframework.context.annotation.FilterType
 import org.springframework.core.env.ConfigurableEnvironment
 import org.springframework.core.env.SimpleCommandLinePropertySource
 import org.springframework.core.env.StandardEnvironment
@@ -19,6 +23,16 @@ import org.springframework.core.env.StandardEnvironment
  * JDBC/Flyway 관련 자동 구성을 동적으로 제외하여 DB 없이도 기동할 수 있다.
  */
 @SpringBootApplication
+@ComponentScan(
+    excludeFilters = [
+        ComponentScan.Filter(type = FilterType.CUSTOM, classes = [TypeExcludeFilter::class]),
+        ComponentScan.Filter(type = FilterType.CUSTOM, classes = [AutoConfigurationExcludeFilter::class]),
+        ComponentScan.Filter(
+            type = FilterType.REGEX,
+            pattern = ["com\\.arc\\.reactor(\\..+)?\\.autoconfigure\\..*"]
+        )
+    ]
+)
 class ArcReactorApplication
 
 /**

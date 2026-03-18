@@ -74,6 +74,7 @@ import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfigu
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.StandardEnvironment
 
 /**
  * ArcReactorAutoConfiguration에 대한 테스트.
@@ -83,6 +84,10 @@ import org.springframework.context.annotation.Configuration
 class ArcReactorAutoConfigurationTest {
 
     private val contextRunner = ApplicationContextRunner()
+        .withInitializer { context ->
+            context.environment.propertySources.remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME)
+            context.environment.propertySources.remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME)
+        }
         .withPropertyValues(
             "arc.reactor.postgres.required=false",
             "arc.reactor.auth.jwt-secret=test-secret-key-for-hmac-sha256-that-is-long-enough"

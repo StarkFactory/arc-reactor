@@ -5,7 +5,6 @@ import com.arc.reactor.rag.chunking.DocumentChunker
 import com.arc.reactor.rag.ingestion.RagIngestionCandidate
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStatus
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
-import com.arc.reactor.rag.ingestion.toDocuments
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -93,7 +92,7 @@ class RagIngestionCandidateController(
             return conflictResponse("Candidate is already reviewed")
         }
 
-        val vectorStore = vectorStoreProvider.ifAvailable
+        val vectorStore = vectorStoreProvider.ifUnique
             ?: return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
                 ErrorResponse(error = "VectorStore is not configured", timestamp = Instant.now().toString())
             )

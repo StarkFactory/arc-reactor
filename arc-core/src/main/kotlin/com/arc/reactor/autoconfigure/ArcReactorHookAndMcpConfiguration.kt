@@ -138,7 +138,7 @@ class ArcReactorHookAndMcpConfiguration {
     ): RagIngestionCaptureHook = RagIngestionCaptureHook(
         policyProvider = policyProvider,
         candidateStore = candidateStore,
-        vectorStore = vectorStoreProvider.ifAvailable,
+        vectorStore = vectorStoreProvider.ifUnique,
         documentChunker = documentChunkerProvider.ifAvailable
     )
 
