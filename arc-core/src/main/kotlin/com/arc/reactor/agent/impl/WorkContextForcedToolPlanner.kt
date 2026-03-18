@@ -179,8 +179,8 @@ internal object WorkContextForcedToolPlanner {
     )
     /** 명시적 브리핑 요청으로만 morning briefing 폴백을 트리거하는 키워드. */
     private val explicitBriefingFallbackHints = setOf(
-        "브리핑", "briefing", "아침 요약", "오늘 현황", "daily digest",
-        "morning briefing", "현황 요약", "현황 정리", "상황 정리", "상황 요약"
+        "브리핑", "briefing", "아침 요약", "오늘 현황",
+        "현황 요약", "현황 정리", "상황 정리", "상황 요약"
     )
     private val reviewQueueHints = setOf(
         "review queue", "리뷰 대기열", "review sla", "리뷰 sla", "code review"
