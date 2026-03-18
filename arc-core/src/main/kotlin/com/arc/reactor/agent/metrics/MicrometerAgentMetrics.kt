@@ -367,6 +367,32 @@ class MicrometerAgentMetrics(
             .increment()
     }
 
+    // ── 비용 메트릭 ──
+
+    /**
+     * 요청당 추정 비용(USD)을 모델별·테넌트별로 기록한다.
+     *
+     * - `arc.agent.request.cost`: 요청별 비용 분포 (model, tenantId 태그)
+     * - `arc.agent.cost.total.usd`: 누적 총 비용 카운터
+     */
+    override fun recordRequestCost(costUsd: Double, model: String, metadata: Map<String, Any>) {
+        val tenantId = metadata["tenantId"]?.toString()?.ifBlank { "unknown" } ?: "unknown"
+
+        DistributionSummary.builder(METRIC_REQUEST_COST)
+            .baseUnit("usd")
+            .tag("model", model)
+            .tag("tenantId", tenantId)
+            .register(registry)
+            .record(costUsd.coerceAtLeast(0.0))
+
+        Counter.builder(METRIC_COST_TOTAL)
+            .baseUnit("usd")
+            .tag("model", model)
+            .tag("tenantId", tenantId)
+            .register(registry)
+            .increment(costUsd.coerceAtLeast(0.0))
+    }
+
     // ── RAG 검색 메트릭 ──
 
     /** RAG 검색 결과 및 소요 시간을 기록한다. */
@@ -527,5 +553,7 @@ class MicrometerAgentMetrics(
         private const val METRIC_RAG_RETRIEVALS = "arc.agent.rag.retrievals"
         private const val METRIC_RAG_RETRIEVAL_DURATION = "arc.agent.rag.retrieval.duration"
         private const val METRIC_ACTIVE_REQUESTS = "arc.agent.active_requests"
+        private const val METRIC_REQUEST_COST = "arc.agent.request.cost"
+        private const val METRIC_COST_TOTAL = "arc.agent.cost.total.usd"
     }
 }

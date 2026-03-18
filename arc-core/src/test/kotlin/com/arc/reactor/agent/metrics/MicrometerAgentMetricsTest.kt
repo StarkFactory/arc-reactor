@@ -226,6 +226,49 @@ class MicrometerAgentMetricsTest {
     }
 
     @Test
+    fun `request cost를 모델별 테넌트별로 기록한다`() {
+        val registry = SimpleMeterRegistry()
+        val metrics = MicrometerAgentMetrics(registry)
+
+        metrics.recordRequestCost(0.025, "gpt-4o", mapOf("tenantId" to "tenant-a"))
+        metrics.recordRequestCost(0.010, "gpt-4o", mapOf("tenantId" to "tenant-a"))
+        metrics.recordRequestCost(0.005, "gemini-2.0-flash", mapOf("tenantId" to "tenant-b"))
+
+        val costSummary = registry.get("arc.agent.request.cost")
+            .tag("model", "gpt-4o")
+            .tag("tenantId", "tenant-a")
+            .summary()
+        assertEquals(2L, costSummary.count(), "비용 분포에 두 건이 기록되어야 한다")
+        assertEquals(0.035, costSummary.totalAmount(), 0.001, "비용 합계가 정확해야 한다")
+
+        val totalCounter = registry.get("arc.agent.cost.total.usd")
+            .tag("model", "gpt-4o")
+            .tag("tenantId", "tenant-a")
+            .counter()
+        assertEquals(0.035, totalCounter.count(), 0.001, "누적 비용 카운터가 정확해야 한다")
+
+        val flashTotal = registry.get("arc.agent.cost.total.usd")
+            .tag("model", "gemini-2.0-flash")
+            .tag("tenantId", "tenant-b")
+            .counter()
+        assertEquals(0.005, flashTotal.count(), 0.001, "다른 테넌트의 비용이 분리되어야 한다")
+    }
+
+    @Test
+    fun `request cost에서 tenantId 미제공 시 unknown으로 태깅한다`() {
+        val registry = SimpleMeterRegistry()
+        val metrics = MicrometerAgentMetrics(registry)
+
+        metrics.recordRequestCost(0.01, "gpt-4o")
+
+        val costSummary = registry.get("arc.agent.request.cost")
+            .tag("model", "gpt-4o")
+            .tag("tenantId", "unknown")
+            .summary()
+        assertEquals(1L, costSummary.count(), "메타데이터 없이도 기록되어야 한다")
+    }
+
+    @Test
     fun `active requests gauge를 추적한다`() {
         val registry = SimpleMeterRegistry()
         val metrics = MicrometerAgentMetrics(registry)
