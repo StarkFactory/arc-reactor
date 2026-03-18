@@ -84,7 +84,7 @@
   - 영향: Grafana를 연결해도 모든 에이전트 관련 패널이 빈 상태. Prometheus 알림 14개 모두 절대 발화하지 않음.
   - 제안: (1) `AgentMetrics`/`SlaMetrics`/`CostCalculator`에서 Micrometer `MeterRegistry`에 메트릭을 실제로 등록하고 기록하는 코드 추가. (2) `CacheMetricsRecorder` 이슈(아래 항목)와 통합하여 모든 커스텀 메트릭을 일괄 배선.
 
-- [ ] **CacheMetricsRecorder 빈 미활성화 -- 캐시 Micrometer 메트릭 미기록** (발견: 2026-03-18 감사#6, **부분 대응: PR#462**)
+- [x] **CacheMetricsRecorder 빈 미활성화 -- 캐시 Micrometer 메트릭 미기록** (발견: 2026-03-18 감사#6, **부분 대응: PR#462**)
   - 증상: 82bf0972 커밋에서 `CacheMetricsRecorder`를 `AgentExecutionCoordinator`에 배선했지만, 실제 런타임에서 `arc.cache.hits`, `arc.cache.misses` 등 Micrometer 메트릭이 전혀 기록되지 않음.
   - 원인: `CacheMetricsRecorder` 빈이 `ArcReactorSemanticCacheConfiguration`에만 등록되어 있음. 이 설정 클래스는 `@ConditionalOnClass(StringRedisTemplate, EmbeddingModel)` + `@ConditionalOnProperty(arc.reactor.cache.semantic.enabled=true)` 조건부.
   - **개발 대응 (PR#462):** `AgentExecutionCoordinator`에 `CacheMetricsRecorder` 주입 + 캐시 hit/miss 경로에서 호출 추가. 단, NoOp 폴백 빈이 아직 메인 AutoConfiguration에 미등록 → Redis+EmbeddingModel 없는 환경에서는 여전히 미작동.
@@ -92,7 +92,7 @@
 
 ## P2 -- 개선 권장
 
-- [ ] **비존재 프로젝트 검색 시 도구 미호출** (발견: 2026-03-18)
+- [x] **비존재 프로젝트 검색 시 도구 미호출** (발견: 2026-03-18)
   - 증상: "존재하지 않는 FAKE 프로젝트의 이슈를 보여줘"에 도구를 호출하지 않고 바로 "검증 가능한 출처를 찾지 못했습니다" 반환.
   - 제안: 프로젝트 키 언급 시 Jira 도구 호출 후 에러 메시지를 사용자 친화적으로 변환.
 
@@ -104,7 +104,7 @@
   - 증상: "Bitbucket jarvis 레포에서 최근 머지된 PR이 있으면 관련 Jira 이슈와 연결해서 보여줘"에서 `jira_search_issues` 1개만 호출. Bitbucket 도구 미호출.
   - 제안: Bitbucket PR 관련 질문에 `bitbucket_list_pull_requests` 도구 우선 라우팅 추가. 크로스 도구 질문 감지 시 2개 이상 도구 순차 호출 전략 필요.
 
-- [ ] **Output Guard PII 마스킹 규칙 미설정 -- 기본 규칙 없음** (발견: 2026-03-18 감사#5)
+- [x] **Output Guard PII 마스킹 규칙 미설정 -- 기본 규칙 없음** (발견: 2026-03-18 감사#5)
   - 증상: GET /api/output-guard/rules 결과가 빈 배열. PII가 그대로 통과. 수동 규칙 추가 후 정상 마스킹 확인.
   - 제안: 한국 주민등록번호, 전화번호, 이메일 등 기본 PII 마스킹 규칙을 초기 설정으로 제공.
 
@@ -113,7 +113,7 @@
   - 재현: `POST /api/output-guard/rules {"name":"test","pattern":"\\d{6}-\\d{7}","action":"MASK","replacement":"[MASKED]"}` → `POST /api/output-guard/rules/simulate {"content":"950101-1234567"}` → `resultContent: "[REDACTED]"` (기대값: "[MASKED]")
   - 제안: (1) `OutputGuardRule` 데이터 클래스에 `replacement: String = "[REDACTED]"` 필드 추가. (2) `OutputGuardRuleEvaluator.kt:98`에서 `rule.replacement`을 사용하도록 변경. (3) DB 마이그레이션으로 `replacement` 컬럼 추가.
 
-- [ ] **spec_validate 도구 접근 불가 -- LLM이 "사용할 수 없다"고 응답** (발견: 2026-03-18 감사#6)
+- [x] **spec_validate 도구 접근 불가 -- LLM이 "사용할 수 없다"고 응답** (발견: 2026-03-18 감사#6)
   - 증상: "spec_validate 도구를 사용해서 Petstore 스펙을 검증해줘"에 대해 LLM이 "spec_validate 도구를 사용할 수 없습니다"라고 응답. 대신 `spec_load`가 사용됨.
   - 제안: swagger MCP 도구 목록에서 spec_validate 존재 여부 확인.
 
