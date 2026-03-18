@@ -94,7 +94,7 @@ internal class StreamingReActLoopExecutor(
 
         while (true) {
             val currentIterationContent = StringBuilder()
-            messageTrimmer.trim(messages, systemPrompt, activeTools.size * TOKENS_PER_TOOL_DEFINITION)
+            messageTrimmer.trim(messages, systemPrompt, activeTools.size * ReActLoopUtils.TOKENS_PER_TOOL_DEFINITION)
 
             val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
             val llmStart = System.nanoTime()
@@ -193,7 +193,7 @@ internal class StreamingReActLoopExecutor(
 
             // 도구 에러 시 재시도 힌트 주입 — LLM이 텍스트 대신 tool_call을 생성하도록 유도
             if (totalToolCalls < maxToolCalls) {
-                ManualReActLoopExecutor.injectToolErrorRetryHint(toolResponses, messages)
+                ReActLoopUtils.injectToolErrorRetryHint(toolResponses, messages)
             }
 
             if (totalToolCalls >= maxToolCalls) {
@@ -229,9 +229,5 @@ internal class StreamingReActLoopExecutor(
 
     private fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean {
         return chatOptions is GoogleGenAiChatOptions
-    }
-
-    companion object {
-        private const val TOKENS_PER_TOOL_DEFINITION = 200
     }
 }

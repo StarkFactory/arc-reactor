@@ -16,7 +16,6 @@ import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.ToolResponseMessage
-import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import java.util.concurrent.atomic.AtomicInteger
@@ -111,7 +110,7 @@ internal class ManualReActLoopExecutor(
         // ── ReAct 루프 시작 — Tool Call이 없을 때까지 반복 ──
         while (true) {
             // 단계 A: 컨텍스트 윈도우 초과 방지를 위한 메시지 트리밍
-            messageTrimmer.trim(messages, systemPrompt, activeTools.size * TOKENS_PER_TOOL_DEFINITION)
+            messageTrimmer.trim(messages, systemPrompt, activeTools.size * ReActLoopUtils.TOKENS_PER_TOOL_DEFINITION)
 
             // 단계 B: LLM 호출 (재시도 포함)
             val requestSpec = buildRequestSpec(activeChatClient, systemPrompt, messages, chatOptions, activeTools)
@@ -217,7 +216,7 @@ internal class ManualReActLoopExecutor(
 
             // 단계 E-2: 도구 에러 시 재시도 힌트 주입 — LLM이 텍스트 대신 tool_call을 생성하도록 유도
             if (totalToolCalls < maxToolCalls) {
-                injectToolErrorRetryHint(toolResponses, messages)
+                ReActLoopUtils.injectToolErrorRetryHint(toolResponses, messages)
             }
 
             // 단계 F: maxToolCalls 도달 시 Tool 비활성화 — 무한 루프 방지 필수
@@ -259,34 +258,5 @@ internal class ManualReActLoopExecutor(
     /** Google GenAI 프로바이더일 때 Tool 응답을 JSON으로 정규화해야 하는지 판단합니다. */
     private fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean {
         return chatOptions is GoogleGenAiChatOptions
-    }
-
-    companion object {
-        /** 도구당 보수적 토큰 추정치 (이름 + 설명 + JSON 스키마). */
-        private const val TOKENS_PER_TOOL_DEFINITION = 200
-
-        /** 도구 에러 감지 시 LLM에게 tool_call 재시도를 유도하는 힌트 메시지. */
-        internal const val TOOL_ERROR_RETRY_HINT =
-            "The previous tool call returned an error. " +
-                "Analyze the error message, fix the parameters, " +
-                "and retry with a corrected tool call. " +
-                "Do NOT respond with text."
-
-        /**
-         * 도구 응답 중 에러가 있으면 재시도 힌트 UserMessage를 주입합니다.
-         *
-         * LLM이 도구 에러를 보고 텍스트 응답("다시 시도하겠습니다")을 생성하는 대신
-         * 실제 tool_call을 생성하도록 유도합니다.
-         */
-        internal fun injectToolErrorRetryHint(
-            toolResponses: List<ToolResponseMessage.ToolResponse>,
-            messages: MutableList<Message>
-        ) {
-            val hasError = toolResponses.any { it.responseData().startsWith("Error:") }
-            if (hasError) {
-                logger.debug { "Tool error detected, injecting retry hint" }
-                messages.add(UserMessage(TOOL_ERROR_RETRY_HINT))
-            }
-        }
     }
 }

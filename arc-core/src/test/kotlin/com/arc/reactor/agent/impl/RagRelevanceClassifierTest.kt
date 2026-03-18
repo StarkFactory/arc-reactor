@@ -204,6 +204,39 @@ class RagRelevanceClassifierTest {
         )
     }
 
+    @Test
+    fun `일반적 기술 질문에 자주 쓰이는 단어는 RAG를 트리거하지 않아야 한다`() {
+        val generalQuestions = listOf(
+            "다음 단계는 뭐야?",
+            "폴더 구조 알려줘",
+            "클래스 설계 도와줘",
+            "디자인 패턴이 뭐야?",
+        )
+        generalQuestions.forEach { prompt ->
+            assertFalse(
+                RagRelevanceClassifier.shouldRetrieveRag(command(prompt)),
+                "General question '$prompt' should NOT trigger RAG retrieval"
+            )
+        }
+    }
+
+    @Test
+    fun `기술 아키텍처 키워드가 포함되면 RAG를 실행해야 한다`() {
+        val architectureQueries = listOf(
+            "Guard 파이프라인은 몇 단계야?",
+            "시스템 아키텍처 설명해줘",
+            "ReAct 루프 동작 원리가 뭐야?",
+            "도구 실행 메커니즘 알려줘",
+            "에이전트 작동 방식 설명해줘",
+        )
+        architectureQueries.forEach { prompt ->
+            assertTrue(
+                RagRelevanceClassifier.shouldRetrieveRag(command(prompt)),
+                "Architecture query '$prompt' should trigger RAG retrieval"
+            )
+        }
+    }
+
     private fun command(userPrompt: String): AgentCommand =
         AgentCommand(systemPrompt = "sys", userPrompt = userPrompt)
 }

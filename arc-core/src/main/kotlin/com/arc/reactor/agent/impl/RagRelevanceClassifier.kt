@@ -52,8 +52,7 @@ internal object RagRelevanceClassifier {
         "나와 있", "나와있", "에 따르면", "에 의하면",
         "참고", "매뉴얼", "절차", "프로세스",
         // 기술 아키텍처 관련 (한국어) — 인제스트한 기술 문서 검색용
-        "파이프라인", "아키텍처", "단계", "구조", "설계",
-        "패턴", "메커니즘", "동작 원리", "작동 방식",
+        "파이프라인", "아키텍처", "메커니즘", "동작 원리", "작동 방식",
         // 문서/지식 관련 (영어)
         "knowledge", "document", "guideline", "runbook", "manual",
         "internal doc", "policy", "procedure", "reference",

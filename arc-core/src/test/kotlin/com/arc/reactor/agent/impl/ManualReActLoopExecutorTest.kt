@@ -396,15 +396,14 @@ class ManualReActLoopExecutorTest {
                 "but got: $secondCallMessages"
         )
 
-        // 세 번째 LLM 호출 메시지에는 추가 retry hint가 없어야 함 (성공한 tool response 이후)
+        // 세 번째 LLM 호출 — 성공 후 stale hint가 제거되어 원래 UserMessage 1개만 남아야 함
         if (capturedMessages.size >= 3) {
             val thirdCallMessages = capturedMessages[2]
-            // 성공 응답 후에는 retry hint가 추가되지 않으므로 UserMessage는 원래 1개 + 에러 힌트 1개만
             val userMsgCount = thirdCallMessages.count { it == "UserMessage" }
-            assertTrue(
-                userMsgCount == 2,
-                "Third LLM call should have exactly 2 UserMessages (original + previous hint), " +
-                    "no new hint after successful tool call, but got $userMsgCount"
+            assertEquals(
+                1, userMsgCount,
+                "Third LLM call should have exactly 1 UserMessage (original only), " +
+                    "stale retry hint should be cleaned up after successful tool call, but got $userMsgCount"
             )
         }
     }
@@ -482,7 +481,7 @@ class ManualReActLoopExecutorTest {
             ToolResponseMessage.ToolResponse("tc-1", "search", "Error: JQL syntax error")
         )
 
-        ManualReActLoopExecutor.injectToolErrorRetryHint(toolResponses, messages)
+        ReActLoopUtils.injectToolErrorRetryHint(toolResponses, messages)
 
         assertEquals(1, messages.size, "Should add exactly one retry hint message")
         assertTrue(
@@ -490,7 +489,7 @@ class ManualReActLoopExecutorTest {
             "Injected message should be a UserMessage"
         )
         assertEquals(
-            ManualReActLoopExecutor.TOOL_ERROR_RETRY_HINT,
+            ReActLoopUtils.TOOL_ERROR_RETRY_HINT,
             (messages[0] as org.springframework.ai.chat.messages.UserMessage).text,
             "Hint content should match"
         )
@@ -503,7 +502,7 @@ class ManualReActLoopExecutorTest {
             ToolResponseMessage.ToolResponse("tc-1", "search", "results: [item1, item2]")
         )
 
-        ManualReActLoopExecutor.injectToolErrorRetryHint(toolResponses, messages)
+        ReActLoopUtils.injectToolErrorRetryHint(toolResponses, messages)
 
         assertEquals(0, messages.size, "Should not add any message for successful tool response")
     }
@@ -516,9 +515,40 @@ class ManualReActLoopExecutorTest {
             ToolResponseMessage.ToolResponse("tc-2", "update", "Error: Permission denied")
         )
 
-        ManualReActLoopExecutor.injectToolErrorRetryHint(toolResponses, messages)
+        ReActLoopUtils.injectToolErrorRetryHint(toolResponses, messages)
 
         assertEquals(1, messages.size, "Should add retry hint when any tool response has an error")
+    }
+
+    @Test
+    fun `injectToolErrorRetryHint dedup - 연속 에러 호출 시 hint는 1개만 유지되어야 한다`() {
+        val messages = mutableListOf<org.springframework.ai.chat.messages.Message>()
+        val errorResponses = listOf(
+            ToolResponseMessage.ToolResponse("tc-1", "search", "Error: failed")
+        )
+
+        ReActLoopUtils.injectToolErrorRetryHint(errorResponses, messages)
+        assertEquals(1, messages.size, "First call should add one hint")
+
+        ReActLoopUtils.injectToolErrorRetryHint(errorResponses, messages)
+        assertEquals(1, messages.size, "Second call should still have only one hint (dedup)")
+    }
+
+    @Test
+    fun `injectToolErrorRetryHint cleanup - 성공 응답 시 이전 hint가 제거되어야 한다`() {
+        val messages = mutableListOf<org.springframework.ai.chat.messages.Message>()
+        val errorResponses = listOf(
+            ToolResponseMessage.ToolResponse("tc-1", "search", "Error: failed")
+        )
+        val successResponses = listOf(
+            ToolResponseMessage.ToolResponse("tc-2", "search", "results: ok")
+        )
+
+        ReActLoopUtils.injectToolErrorRetryHint(errorResponses, messages)
+        assertEquals(1, messages.size, "Error should add hint")
+
+        ReActLoopUtils.injectToolErrorRetryHint(successResponses, messages)
+        assertEquals(0, messages.size, "Success should clean up stale hint")
     }
 
     private fun org.springframework.ai.chat.model.ChatResponse.mutateWithToolCalls(
