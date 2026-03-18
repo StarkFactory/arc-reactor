@@ -101,7 +101,7 @@ internal class PreExecutionResolver(
             // ── 단계 1: Guard 검사 ──
             checkGuard(command)?.let { rejection ->
                 val guardDurationMs = nowMs() - guardStartTime
-                hookContext.metadata["guardDurationMs"] = guardDurationMs
+                hookContext.metadata[HookMetadataKeys.GUARD_DURATION_MS] = guardDurationMs
                 recordStageTiming(hookContext, "guard", guardDurationMs)
                 agentMetrics.recordStageLatency("guard", guardDurationMs, command.metadata)
                 guardSpan.setAttribute("guard.result", "rejected")
@@ -121,7 +121,7 @@ internal class PreExecutionResolver(
                 ).also { agentMetrics.recordExecution(it) }
             }
             val guardDurationMs = nowMs() - guardStartTime
-            hookContext.metadata["guardDurationMs"] = guardDurationMs
+            hookContext.metadata[HookMetadataKeys.GUARD_DURATION_MS] = guardDurationMs
             recordStageTiming(hookContext, "guard", guardDurationMs)
             agentMetrics.recordStageLatency("guard", guardDurationMs, command.metadata)
             guardSpan.setAttribute("guard.result", "passed")
