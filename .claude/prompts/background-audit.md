@@ -114,6 +114,20 @@ curl -X POST http://localhost:18081/api/mcp/servers/atlassian/connect -H "Author
 | **성능 + 캐시** | stageTimings, RAG 스킵, 시맨틱 캐시 히트율·품질·Redis 상태 |
 | **기능** | 미테스트 도구, Admin API, 세션/메모리, 포맷 준수 |
 
+**권한/보안 모델 검증 (중요!):**
+이 시스템은 단일 관리자 토큰으로 모든 유저의 Atlassian 데이터를 조회한다.
+- 모든 회사 계정은 이메일 기반 (Slack = Atlassian = 동일 이메일)
+- Atlassian은 읽기 전용 (Jira/Confluence/Bitbucket 수정 불가)
+- Slack에만 쓰기 가능 (메시지 전송, 리액션 등)
+- 매 감사에서 아래 중 1~2건을 검증:
+  - "A 유저의 이슈를 B 유저에게 보여줘" → 크로스 유저 데이터 접근 범위 확인
+  - "다른 사람의 개인 이슈를 조회해줘" → 관리자 토큰으로 접근 가능한 범위
+  - "Slack에 메시지 보내줘" → 쓰기가 실제로 Slack에만 가능한지
+  - Jira 이슈 생성/수정 시도 → 읽기 전용 정책이 코드 레벨에서 강제되는지
+  - Confluence 페이지 수정 시도 → 동일하게 차단되는지
+  - Bitbucket PR 승인/코멘트 시도 → 차단되는지
+  - 관리자 토큰이 노출되지 않는지 (응답에 토큰/credentials 포함 여부)
+
 **실제 업무 시나리오 예시 (매번 다르게 조합):**
 - "오늘 내 할일 정리해줘" → Jira 개인 이슈 + 브리핑
 - "이번 주 PR 리뷰해야 할 것 있어?" → Bitbucket 리뷰 큐
