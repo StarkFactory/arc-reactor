@@ -193,10 +193,7 @@ internal class ExecutionResultFinalizer(
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Output guard pipeline failed, rejecting (fail-close)" }
-            recordGuardOutcome(
-                hookContext, GUARD_ACTION_REJECTED, "pipeline",
-                "Output guard check failed", trustEventMetadata(command, hookContext)
-            )
+            recordGuardMetadataOnly(hookContext, GUARD_ACTION_REJECTED, "pipeline", "Output guard check failed")
             outputGuardFailure(reason = "Output guard check failed", startTime = startTime)
         }
     }
@@ -270,7 +267,7 @@ internal class ExecutionResultFinalizer(
             if (blockedUnverified) {
                 agentMetrics.recordUnverifiedResponse(
                     trustEventMetadata(command, hookContext) +
-                        mapOf(OutputGuardMetadataKeys.BLOCK_REASON to BlockReasonConstants.UNVERIFIED_SOURCES)
+                        mapOf(META_BLOCK_REASON to BlockReasonConstants.UNVERIFIED_SOURCES)
                 )
             }
             result.copy(content = filteredContent)
@@ -337,7 +334,7 @@ internal class ExecutionResultFinalizer(
         metadata["answerMode"] = resolveAnswerMode(result, hookContext)
         metadata["deliveryMode"] = if (hookContext.metadata["schedulerJobId"] != null) "scheduled" else "interactive"
         metadata["toolFamily"] = deriveToolFamily(toolsUsed)
-        resolveBlockReason(result, hookContext)?.let { metadata[OutputGuardMetadataKeys.BLOCK_REASON] = it }
+        resolveBlockReason(result, hookContext)?.let { metadata[META_BLOCK_REASON] = it }
         return metadata
     }
 
@@ -382,7 +379,7 @@ internal class ExecutionResultFinalizer(
     }
 
     private fun outputTooShortFailure(hookContext: HookContext, startTime: Long): AgentResult {
-        hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON] = BlockReasonConstants.OUTPUT_TOO_SHORT
+        hookContext.metadata[META_BLOCK_REASON] = BlockReasonConstants.OUTPUT_TOO_SHORT
         return AgentResult.failure(
             errorMessage = errorMessageResolver.resolve(AgentErrorCode.OUTPUT_TOO_SHORT, null),
             errorCode = AgentErrorCode.OUTPUT_TOO_SHORT,
@@ -394,6 +391,21 @@ internal class ExecutionResultFinalizer(
      * Output Guard 메타데이터 기록 + 메트릭 기록을 한 번에 수행하는 헬퍼.
      * applyOutputGuardPipeline의 각 when 분기에서 호출.
      */
+    /** 예외 발생 시 메타데이터만 기록 (메트릭 제외). 원본 동작 보존. */
+    private fun recordGuardMetadataOnly(
+        hookContext: HookContext,
+        action: String,
+        stage: String?,
+        reason: String
+    ) {
+        hookContext.metadata[META_GUARD_ACTION] = action
+        hookContext.metadata[META_GUARD_STAGE] = stage ?: "pipeline"
+        if (reason.isNotBlank()) {
+            hookContext.metadata[META_GUARD_REASON] = reason
+            hookContext.metadata[META_BLOCK_REASON] = reason
+        }
+    }
+
     private fun recordGuardOutcome(
         hookContext: HookContext,
         action: String,
@@ -401,14 +413,14 @@ internal class ExecutionResultFinalizer(
         reason: String,
         trustMetadata: Map<String, Any>
     ) {
-        hookContext.metadata[OutputGuardMetadataKeys.ACTION] = action
-        hookContext.metadata[OutputGuardMetadataKeys.STAGE] = stage ?: "pipeline"
+        hookContext.metadata[META_GUARD_ACTION] = action
+        hookContext.metadata[META_GUARD_STAGE] = stage ?: "pipeline"
         if (reason.isNotBlank()) {
-            hookContext.metadata[OutputGuardMetadataKeys.REASON] = reason
-            hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON] = reason
+            hookContext.metadata[META_GUARD_REASON] = reason
+            hookContext.metadata[META_BLOCK_REASON] = reason
         }
         agentMetrics.recordOutputGuardAction(
-            stage ?: "pipeline", action, reason, trustMetadata
+            stage ?: "unknown", action, reason, trustMetadata
         )
     }
 
@@ -418,9 +430,9 @@ internal class ExecutionResultFinalizer(
         sources: List<VerifiedSource>
     ): Boolean {
         if (sources.isNotEmpty()) return false
-        if (hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON]?.toString()?.isNotBlank() == true) return false
+        if (hookContext.metadata[META_BLOCK_REASON]?.toString()?.isNotBlank() == true) return false
         if (UNVERIFIED_PATTERNS.any { filteredContent.contains(it, ignoreCase = true) }) {
-            hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON] = BlockReasonConstants.UNVERIFIED_SOURCES
+            hookContext.metadata[META_BLOCK_REASON] = BlockReasonConstants.UNVERIFIED_SOURCES
             return true
         }
         return false
@@ -463,10 +475,10 @@ internal class ExecutionResultFinalizer(
     }
 
     private fun resolveVisibleBlockReason(command: AgentCommand, hookContext: HookContext): String? {
-        hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON]?.toString()
+        hookContext.metadata[META_BLOCK_REASON]?.toString()
             ?.takeIf { it.isNotBlank() }?.let { return it }
         if (WorkspaceMutationIntentDetector.isWorkspaceMutationPrompt(command.userPrompt)) {
-            hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON] = BlockReasonConstants.READ_ONLY_MUTATION
+            hookContext.metadata[META_BLOCK_REASON] = BlockReasonConstants.READ_ONLY_MUTATION
             return BlockReasonConstants.READ_ONLY_MUTATION
         }
         return null
@@ -573,7 +585,7 @@ internal class ExecutionResultFinalizer(
             metadata["stageTimings"] = LinkedHashMap(stageTimings)
         }
         outputGuard?.let { metadata["outputGuard"] = it }
-        resolveBlockReason(result, hookContext)?.let { metadata[OutputGuardMetadataKeys.BLOCK_REASON] = it }
+        resolveBlockReason(result, hookContext)?.let { metadata[META_BLOCK_REASON] = it }
         if (toolSignals.isNotEmpty()) {
             metadata["toolSignals"] = toolSignals.map(::toToolSignalMap)
         }
@@ -601,23 +613,23 @@ internal class ExecutionResultFinalizer(
     }
 
     private fun buildOutputGuardMetadata(hookContext: HookContext): Map<String, Any?>? {
-        val action = hookContext.metadata[OutputGuardMetadataKeys.ACTION]?.toString()
+        val action = hookContext.metadata[META_GUARD_ACTION]?.toString()
             ?.takeIf { it.isNotBlank() } ?: return null
         val data = linkedMapOf<String, Any?>("action" to action)
-        hookContext.metadata[OutputGuardMetadataKeys.STAGE]?.toString()
+        hookContext.metadata[META_GUARD_STAGE]?.toString()
             ?.takeIf { it.isNotBlank() }?.let { data["stage"] = it }
-        hookContext.metadata[OutputGuardMetadataKeys.REASON]?.toString()
+        hookContext.metadata[META_GUARD_REASON]?.toString()
             ?.takeIf { it.isNotBlank() }?.let { data["reason"] = it }
         return data
     }
 
     private fun resolveBlockReason(result: AgentResult, hookContext: HookContext): String? {
         if (!result.success) {
-            return hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON]?.toString()
+            return hookContext.metadata[META_BLOCK_REASON]?.toString()
                 ?.takeIf { it.isNotBlank() }
                 ?: result.errorMessage?.takeIf { it.isNotBlank() }
         }
-        return hookContext.metadata[OutputGuardMetadataKeys.BLOCK_REASON]?.toString()
+        return hookContext.metadata[META_BLOCK_REASON]?.toString()
             ?.takeIf { it.isNotBlank() }
     }
 
@@ -694,6 +706,12 @@ internal class ExecutionResultFinalizer(
     }
 
     companion object {
+        // Output Guard 메타데이터 키
+        private const val META_GUARD_ACTION = "outputGuardAction"
+        private const val META_GUARD_STAGE = "outputGuardStage"
+        private const val META_GUARD_REASON = "outputGuardReason"
+        private const val META_BLOCK_REASON = "blockReason"
+
         private const val GUARD_ACTION_ALLOWED = "allowed"
         private const val GUARD_ACTION_MODIFIED = "modified"
         private const val GUARD_ACTION_REJECTED = "rejected"
