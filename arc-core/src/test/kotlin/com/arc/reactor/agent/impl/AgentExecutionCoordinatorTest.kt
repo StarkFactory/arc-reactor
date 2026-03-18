@@ -144,7 +144,10 @@ class AgentExecutionCoordinatorTest {
             retrieveRagContext = { null },
             executeWithTools = { _, _, _, _, _, _ -> AgentResult.success(content = "raw") },
             finalizeExecution = { _, _, _, _, _ ->
-                AgentResult.success(content = "final", toolsUsed = listOf("tool"))
+                AgentResult.success(
+                    content = "This is the final answer with enough content length",
+                    toolsUsed = listOf("tool")
+                )
             },
             checkGuardAndHooks = { _, _, _ -> null },
             resolveIntent = { command, _ -> command }
@@ -158,12 +161,15 @@ class AgentExecutionCoordinatorTest {
         )
 
         assertTrue(result.success, "Finalized response should produce a successful result")
-        assertEquals("final", result.content)
+        assertEquals("This is the final answer with enough content length", result.content)
         verify(exactly = 1) { metrics.recordCacheMiss(expectedKey) }
         coVerify(exactly = 1) {
             responseCache.put(
                 expectedKey,
-                match { it.content == "final" && it.toolsUsed == listOf("tool") }
+                match {
+                    it.content == "This is the final answer with enough content length" &&
+                        it.toolsUsed == listOf("tool")
+                }
             )
         }
     }
@@ -465,6 +471,116 @@ class AgentExecutionCoordinatorTest {
         )
 
         assertTrue(ragCalled, "RAG retrieval should run for knowledge query with '문서' keyword")
+    }
+
+    @Test
+    fun `low quality response일 때 skip cache storage해야 한다`() = runBlocking {
+        val responseCache = mockk<ResponseCache>()
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
+        val expectedKey = CacheKeyBuilder.buildKey(command, listOf("tool"))
+        coEvery { responseCache.get(expectedKey) } returns null
+
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = responseCache,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = metrics,
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success(content = "raw") },
+            finalizeExecution = { _, _, _, _, _ ->
+                AgentResult.success(content = "검증 가능한 출처를 찾지 못해 답변을 드리기 어렵습니다.")
+            },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command }
+        )
+
+        coordinator.execute(
+            command = command,
+            hookContext = HookContext(runId = "run-lq", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        coVerify(exactly = 0) { responseCache.put(any(), any()) }
+    }
+
+    @Test
+    fun `too short response일 때 skip cache storage해야 한다`() = runBlocking {
+        val responseCache = mockk<ResponseCache>()
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
+        val expectedKey = CacheKeyBuilder.buildKey(command, listOf("tool"))
+        coEvery { responseCache.get(expectedKey) } returns null
+
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = responseCache,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = metrics,
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success(content = "raw") },
+            finalizeExecution = { _, _, _, _, _ ->
+                AgentResult.success(content = "short")
+            },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command }
+        )
+
+        coordinator.execute(
+            command = command,
+            hookContext = HookContext(runId = "run-short", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        coVerify(exactly = 0) { responseCache.put(any(), any()) }
+    }
+
+    @Test
+    fun `history message count is recorded in hookContext metadata`() = runBlocking {
+        val conversationManager = mockk<com.arc.reactor.memory.ConversationManager>(relaxed = true)
+        coEvery { conversationManager.loadHistory(any()) } returns listOf(
+            mockk(), mockk(), mockk()
+        )
+
+        val hookContext = HookContext(runId = "run-hist", userId = "u", userPrompt = "hi")
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = null,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = mockk(relaxed = true),
+            toolCallbacks = emptyList(),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = conversationManager,
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success(content = "answer") },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command }
+        )
+
+        coordinator.execute(
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        assertEquals(3, hookContext.metadata[HookMetadataKeys.HISTORY_MESSAGE_COUNT],
+            "history_message_count should reflect loaded history size")
     }
 
     private fun testTool(name: String): ToolCallback = object : ToolCallback {
