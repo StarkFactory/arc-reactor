@@ -24,7 +24,7 @@ class ResponseCacheIntegrationTest {
         @Test
         fun `second call with same input은(는) return cached response해야 한다`() = runTest {
             val fixture = AgentTestFixture()
-            fixture.mockCallResponse("Cached response")
+            fixture.mockCallResponse("The answer to your question is four (2+2=4).")
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
 
             val cache = CaffeineResponseCache()
@@ -45,12 +45,12 @@ class ResponseCacheIntegrationTest {
             // 첫 번째 호출 — 캐시 미스, LLM 호출
             val result1 = executor.execute(command)
             assertTrue(result1.success) { "First call should succeed" }
-            assertEquals("Cached response", result1.content) { "First call content should match" }
+            assertEquals("The answer to your question is four (2+2=4).", result1.content) { "First call content should match" }
 
             // 두 번째 호출 — 캐시 히트, LLM 호출 없음
             val result2 = executor.execute(command)
             assertTrue(result2.success) { "Second call should succeed (cached)" }
-            assertEquals("Cached response", result2.content) { "Cached content should match" }
+            assertEquals("The answer to your question is four (2+2=4).", result2.content) { "Cached content should match" }
 
             // LLM was called only once 확인
             verify(exactly = 1) { fixture.requestSpec.call() }
@@ -168,7 +168,7 @@ class ResponseCacheIntegrationTest {
         @Test
         fun `null cache은(는) skip caching entirely해야 한다`() = runTest {
             val fixture = AgentTestFixture()
-            fixture.mockCallResponse("No cache")
+            fixture.mockCallResponse("This response should not be cached at all.")
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
 
             val executor = SpringAiAgentExecutor(

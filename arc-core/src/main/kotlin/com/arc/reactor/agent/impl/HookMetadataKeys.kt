@@ -8,4 +8,5 @@ internal object HookMetadataKeys {
     const val QUEUE_WAIT_MS = "queueWaitMs"
     const val FALLBACK_USED = "fallbackUsed"
     const val INTENT_CATEGORY = "intentCategory"
+    const val HISTORY_MESSAGE_COUNT = "historyMessageCount"
 }

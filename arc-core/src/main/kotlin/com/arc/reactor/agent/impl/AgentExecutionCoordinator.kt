@@ -120,8 +120,11 @@ internal class AgentExecutionCoordinator(
         // ── 단계 4: 대화 히스토리 로드 ──
         val historyLoadStart = nowMs()
         val conversationHistory = conversationManager.loadHistory(effectiveCommand)
-        recordStageTiming(hookContext, "history_load", nowMs() - historyLoadStart)
-        agentMetrics.recordStageLatency("history_load", nowMs() - historyLoadStart, effectiveCommand.metadata)
+        val historyLoadDurationMs = nowMs() - historyLoadStart
+        recordStageTiming(hookContext, "history_load", historyLoadDurationMs)
+        agentMetrics.recordStageLatency("history_load", historyLoadDurationMs, effectiveCommand.metadata)
+        hookContext.metadata[HookMetadataKeys.HISTORY_MESSAGE_COUNT] = conversationHistory.size
+        logger.debug { "Loaded ${conversationHistory.size} history messages for session=${effectiveCommand.metadata["sessionId"]}" }
 
         // ── 단계 5: RAG 컨텍스트 검색 (키워드 사전 필터링으로 불필요한 검색 생략) ──
         val ragStart = nowMs()
@@ -192,10 +195,11 @@ internal class AgentExecutionCoordinator(
         // ── 비용 기록: 토큰 사용량이 있으면 CostCalculator로 USD 비용 산출 후 메트릭에 기록 ──
         recordCostIfAvailable(enrichedFinalResult, hookContext)
 
-        // ── 단계 10: 성공 시 응답 캐시 저장 (빈 응답/차단 응답은 캐시 오염 방지를 위해 제외) ──
+        // ── 단계 10: 성공 시 응답 캐시 저장 (빈/차단/저품질 응답은 캐시 오염 방지를 위해 제외) ──
         if (resolvedCacheKey != null && enrichedFinalResult.success
             && !enrichedFinalResult.content.isNullOrBlank()
             && enrichedFinalResult.metadata["blockReason"] == null
+            && !isLowQualityResponse(enrichedFinalResult)
         ) {
             try {
                 val cacheEntry = CachedResponse(
@@ -364,9 +368,31 @@ internal class AgentExecutionCoordinator(
         }
     }
 
+    /** 캐시 저장 전 응답 품질 검증. 저품질 응답은 캐시하지 않는다. */
+    private fun isLowQualityResponse(result: AgentResult): Boolean {
+        val content = result.content ?: return true
+        if (content.length < MIN_CACHEABLE_CONTENT_LENGTH) return true
+        return FAILURE_PATTERNS.any { content.contains(it) }
+    }
+
     private data class CacheLookupResult(
         val cacheKey: String?,
         val cachedResult: AgentResult?,
         val toolNames: List<String>
     )
+
+    companion object {
+        /** 캐시 저장 최소 응답 길이 (이하 = 저품질로 판단) */
+        private const val MIN_CACHEABLE_CONTENT_LENGTH = 30
+
+        /** 실패/불확실 응답 패턴. 이 문자열이 포함된 응답은 캐시하지 않는다. */
+        private val FAILURE_PATTERNS = listOf(
+            "검증 가능한 출처를 찾지 못해",
+            "확정할 수 없습니다",
+            "찾지 못했습니다",
+            "I cannot",
+            "I don't know",
+            "사용할 수 없습니다"
+        )
+    }
 }
