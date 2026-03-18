@@ -84,10 +84,9 @@ internal class ExecutionResultFinalizer(
     ): AgentResult {
         // ── 단계 1: Output Guard 파이프라인 실행 (fail-close) ──
         val guarded = enrichResponseMetadata(
-            applyOutputGuardPipeline(result, command, hookContext, toolsUsed, startTime),
-            hookContext
+            applyOutputGuardPipeline(result, command, hookContext, toolsUsed, startTime), hookContext
         )
-        if (!guarded.success && guarded.errorCode == AgentErrorCode.OUTPUT_GUARD_REJECTED) {
+        if (isGuardRejected(guarded)) {
             return finalizeEarlyReturn(guarded, command, hookContext, toolsUsed, startTime)
         }
 
@@ -96,37 +95,68 @@ internal class ExecutionResultFinalizer(
             applyOutputBoundaryRule(guarded, command, hookContext, toolsUsed, startTime, attemptLongerResponse),
             hookContext
         )
-        if (!bounded.success && bounded.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT) {
+        if (isBoundaryRejected(bounded)) {
             return finalizeEarlyReturn(bounded, command, hookContext, toolsUsed, startTime)
         }
 
-        // ── 단계 3: 경계 검사로 내용이 변경되었으면 Output Guard 재실행 ──
-        // (attemptLongerResponse가 새로운 미검증 LLM 출력을 생성했을 수 있음)
-        val reguarded = if (bounded.content != guarded.content) {
-            val rg = enrichResponseMetadata(
-                applyOutputGuardPipeline(bounded, command, hookContext, toolsUsed, startTime),
-                hookContext
-            )
-            if (!rg.success && rg.errorCode == AgentErrorCode.OUTPUT_GUARD_REJECTED) {
-                return finalizeEarlyReturn(rg, command, hookContext, toolsUsed, startTime)
-            }
-            rg
-        } else {
-            bounded
+        // ── 단계 3: 내용 변경 시 Output Guard 재실행 ──
+        val reguarded = reapplyOutputGuardIfContentChanged(
+            bounded, guarded, command, hookContext, toolsUsed, startTime
+        )
+        if (isGuardRejected(reguarded)) {
+            return finalizeEarlyReturn(reguarded, command, hookContext, toolsUsed, startTime)
         }
 
         // ── 단계 4~6: 응답 필터 -> Citation 부착 -> 차단 응답 가시화 ──
-        val filtered = applyResponseFilters(reguarded, command, hookContext, toolsUsed, startTime)
-        val cited = appendCitations(filtered, hookContext)
-        val completed = enrichResponseMetadata(
-            ensureVisibleBlockedResponse(cited, command, hookContext),
-            hookContext
-        )
+        val completed = enrichAndFinalizeContent(reguarded, command, hookContext, toolsUsed, startTime)
+
         // ── 단계 7~10: 관측 -> 대화 저장 -> AfterComplete Hook -> 메트릭 기록 ──
         observeResponse(completed, command, hookContext, toolsUsed)
         conversationManager.saveHistory(command, completed)
         runAfterCompletionHook(hookContext, completed, toolsUsed, startTime)
         return recordFinalExecution(completed, startTime)
+    }
+
+    private fun isGuardRejected(result: AgentResult): Boolean =
+        !result.success && result.errorCode == AgentErrorCode.OUTPUT_GUARD_REJECTED
+
+    private fun isBoundaryRejected(result: AgentResult): Boolean =
+        !result.success && result.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT
+
+    /**
+     * 경계 검사로 내용이 변경되었으면 Output Guard를 재실행합니다.
+     *
+     * attemptLongerResponse가 새로운 미검증 LLM 출력을 생성했을 수 있으므로
+     * 변경된 내용에 대해 Output Guard를 다시 적용합니다.
+     * @return 내용 미변경 시 bounded 그대로, 변경 시 재검사된 결과 (거부 포함)
+     */
+    private suspend fun reapplyOutputGuardIfContentChanged(
+        bounded: AgentResult,
+        guarded: AgentResult,
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: List<String>,
+        startTime: Long
+    ): AgentResult {
+        if (bounded.content == guarded.content) return bounded
+        return enrichResponseMetadata(
+            applyOutputGuardPipeline(bounded, command, hookContext, toolsUsed, startTime), hookContext
+        )
+    }
+
+    /** 응답 필터 적용 -> Citation 부착 -> 차단 응답 가시화를 수행합니다. */
+    private suspend fun enrichAndFinalizeContent(
+        result: AgentResult,
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: List<String>,
+        startTime: Long
+    ): AgentResult {
+        val filtered = applyResponseFilters(result, command, hookContext, toolsUsed, startTime)
+        val cited = appendCitations(filtered, hookContext)
+        return enrichResponseMetadata(
+            ensureVisibleBlockedResponse(cited, command, hookContext), hookContext
+        )
     }
 
     /**
@@ -288,7 +318,7 @@ internal class ExecutionResultFinalizer(
     }
 
     private fun formatCitationSection(sources: List<VerifiedSource>): String {
-        val sb = StringBuilder("\n\n---\nSources:")
+        val sb = StringBuilder(CITATION_HEADER)
         for ((index, source) in sources.withIndex()) {
             sb.append("\n- [${index + 1}] ${source.title} (${source.url})")
         }
@@ -561,17 +591,39 @@ internal class ExecutionResultFinalizer(
     private fun enrichResponseMetadata(result: AgentResult, hookContext: HookContext): AgentResult {
         val toolSignals = readToolSignals(hookContext)
         val verifiedSources = hookContext.verifiedSources.toList()
-        val latestSignal = toolSignals.lastOrNull()
-        val deliverySignal = latestDeliverySignal(toolSignals)
-        val freshness = latestSignal?.freshness ?: hookContext.metadata["freshness"] as? Map<*, *>
-        val outputGuard = buildOutputGuardMetadata(hookContext)
         val metadata = linkedMapOf<String, Any?>()
+        mergeVerifiedSourcesMetadata(metadata, toolSignals, verifiedSources, hookContext)
+        mergeToolSignalsMetadata(metadata, toolSignals, hookContext)
+        buildOutputGuardMetadata(hookContext)?.let { metadata["outputGuard"] = it }
+        resolveBlockReason(result, hookContext)?.let { metadata[META_BLOCK_REASON] = it }
+        return result.copy(metadata = result.metadata + stripEmptyValues(metadata))
+    }
+
+    /** 검증된 출처(VerifiedSource) 관련 메타데이터를 병합합니다. */
+    private fun mergeVerifiedSourcesMetadata(
+        metadata: LinkedHashMap<String, Any?>,
+        toolSignals: List<ToolResponseSignal>,
+        verifiedSources: List<VerifiedSource>,
+        hookContext: HookContext
+    ) {
+        val latestSignal = toolSignals.lastOrNull()
         metadata["grounded"] = latestSignal?.grounded ?: verifiedSources.isNotEmpty()
-        metadata["answerMode"] = latestSignal?.answerMode ?: hookContext.metadata["answerMode"]?.toString()
+        metadata["answerMode"] = latestSignal?.answerMode
+            ?: hookContext.metadata["answerMode"]?.toString()
         metadata["verifiedSourceCount"] = verifiedSources.size
         metadata["verifiedSources"] = verifiedSources.map(::toSourceMap)
+        val freshness = latestSignal?.freshness ?: hookContext.metadata["freshness"] as? Map<*, *>
         freshness?.let { metadata["freshness"] = sanitizeMap(it) }
         latestSignal?.retrievedAt?.let { metadata["retrievedAt"] = it }
+    }
+
+    /** Tool 신호(ToolResponseSignal), 전달 확인, 단계별 소요 시간 메타데이터를 병합합니다. */
+    private fun mergeToolSignalsMetadata(
+        metadata: LinkedHashMap<String, Any?>,
+        toolSignals: List<ToolResponseSignal>,
+        hookContext: HookContext
+    ) {
+        val deliverySignal = latestDeliverySignal(toolSignals)
         deliverySignal?.let {
             metadata["deliveryAcknowledged"] = true
             metadata["delivery"] = linkedMapOf(
@@ -584,26 +636,26 @@ internal class ExecutionResultFinalizer(
         if (stageTimings.isNotEmpty()) {
             metadata["stageTimings"] = LinkedHashMap(stageTimings)
         }
-        outputGuard?.let { metadata["outputGuard"] = it }
-        resolveBlockReason(result, hookContext)?.let { metadata[META_BLOCK_REASON] = it }
         if (toolSignals.isNotEmpty()) {
             metadata["toolSignals"] = toolSignals.map(::toToolSignalMap)
         }
+    }
 
+    /** null, 빈 문자열, 빈 컬렉션, 빈 맵을 제거합니다. */
+    private fun stripEmptyValues(metadata: Map<String, Any?>): Map<String, Any> {
         val sanitized = linkedMapOf<String, Any>()
         for ((key, value) in metadata) {
-            val shouldKeep = when (value) {
-                null -> false
-                is String -> value.isNotBlank()
-                is Collection<*> -> value.isNotEmpty()
-                is Map<*, *> -> value.isNotEmpty()
-                else -> true
-            }
-            if (shouldKeep && value != null) {
-                sanitized[key] = value
-            }
+            if (isNonEmptyValue(value)) sanitized[key] = value!!
         }
-        return result.copy(metadata = result.metadata + sanitized)
+        return sanitized
+    }
+
+    private fun isNonEmptyValue(value: Any?): Boolean = when (value) {
+        null -> false
+        is String -> value.isNotBlank()
+        is Collection<*> -> value.isNotEmpty()
+        is Map<*, *> -> value.isNotEmpty()
+        else -> true
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -715,6 +767,8 @@ internal class ExecutionResultFinalizer(
         private const val GUARD_ACTION_ALLOWED = "allowed"
         private const val GUARD_ACTION_MODIFIED = "modified"
         private const val GUARD_ACTION_REJECTED = "rejected"
+
+        private const val CITATION_HEADER = "\n\n---\nSources:"
 
         private val UNVERIFIED_PATTERNS = listOf(
             "couldn't verify",
