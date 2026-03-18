@@ -1,7 +1,7 @@
 # Arc Reactor 감사 체크리스트
 
 > 마지막 감사: 2026-03-18 16:00 | 감사 횟수: 7회
-> 상태: P0 2건 / P1 7건 / P2 5건 / 아이디어 2건
+> 상태: P0 2건 / P1 8건 / P2 5건 / 아이디어 2건
 > 감사 #7 정리: 중복 통합 4건, 심각도 조정 2건, 퇴행 재등록 1건
 
 ## P0 -- 즉시 수정 필요
@@ -63,6 +63,10 @@
     - `spec_detail` 실패 → "spec_list를 호출하겠습니다" 텍스트만 생성 (기존 P1, 통합)
   - Retry hint(`TOOL_ERROR_RETRY_HINT`)가 주입되지만 LLM이 텍스트 응답을 선택하여 루프 종료.
   - 제안: (1) Retry hint를 SystemMessage로 변경 (UserMessage보다 강한 지시). (2) 텍스트 응답 내 "호출하겠습니다"/"재시도" 패턴 감지 시 루프 계속. (3) JQL 필드명 정규화(`priority` → `Priority`) 전처리 추가.
+
+- [ ] **이모지 포함 질문에서 JQL 파싱 오류 + 복구 실패** (발견: 2026-03-18)
+  - 증상: "JAR 프로젝트 이슈들 보여줘" 질문에 이모지가 포함되면 JQL 오류 발생 후 복구 실패.
+  - 제안: (1) JQL 생성 시 이모지 스트리핑 전처리 추가. (2) 도구 오류 후 재시도 루프에서 실제로 간략화된 쿼리로 재호출 보장.
 
 - [ ] **CacheMetricsRecorder 빈 미활성화 -- 캐시 Micrometer 메트릭 미기록** (발견: 2026-03-18 감사#6)
   - 증상: 82bf0972 커밋에서 `CacheMetricsRecorder`를 `AgentExecutionCoordinator`에 배선했지만, 실제 런타임에서 `arc.cache.hits`, `arc.cache.misses` 등 Micrometer 메트릭이 전혀 기록되지 않음.
