@@ -122,6 +122,14 @@ internal object WorkContextForcedToolPlanner {
         "스페이스가 있어", "사용 가능한 confluence 스페이스",
         "접근 가능한 스페이스", "스페이스 보여"
     )
+    private val confluenceSearchHints = setOf(
+        "confluence에서 검색", "컨플루언스에서 검색",
+        "confluence에서 찾아", "컨플루언스에서 찾아",
+        "문서 검색해줘", "페이지 검색해줘",
+        "confluence 검색", "컨플루언스 검색",
+        "스페이스에서 검색", "스페이스에서 찾아",
+        "confluence에서 문서", "컨플루언스에서 문서"
+    )
     private val documentDiscoveryHints = setOf(
         "관련 문서", "문서가 있으면", "문서가 있는지", "관련 문서가 있으면", "없으면 없다고",
         "링크와 함께", "핵심만 요약", "키워드로 검색", "search and summarize",
@@ -428,7 +436,15 @@ internal object WorkContextForcedToolPlanner {
             )
         }
 
-        if (!n.matchesAny(missingAssigneeHints) && n.matchesAny(workOwnerHints)) {
+        // "담당자"가 Jira 이슈 검색 맥락에서 사용된 경우 소유자 조회 대신 Jira 검색으로 분기
+        // 단, 명시적 이슈 키(PAY-123 등)가 있으면 해당 이슈의 소유자 조회가 의도이므로 스킵하지 않는다
+        val jiraIssueContext = ctx.issueKey == null && (
+            n.contains("이슈") || n.contains("jira") || n.contains("프로젝트"))
+        val hasOwnership = !n.matchesAny(missingAssigneeHints) &&
+            n.matchesAny(workOwnerHints)
+        if (jiraIssueContext && hasOwnership) return null
+
+        if (hasOwnership) {
             val query = ctx.issueKey ?: extractServiceName(prompt)
             if (query != null) {
                 return ForcedToolCallPlan(
@@ -736,6 +752,17 @@ internal object WorkContextForcedToolPlanner {
         val n = ctx.normalized
         if (n.matchesAny(confluenceSpaceListHints)) {
             return ForcedToolCallPlan("confluence_list_spaces", emptyMap())
+        }
+        if (n.matchesAny(confluenceSearchHints)) {
+            val keyword = extractQuotedKeyword(prompt)
+                ?: extractSearchKeyword(prompt)
+            return ForcedToolCallPlan(
+                "confluence_search_by_text",
+                buildMap {
+                    keyword?.let { put("keyword", it) }
+                    put("limit", 10)
+                }
+            )
         }
         if (n.matchesAny(bitbucketRepositoryListHints)) {
             return ForcedToolCallPlan("bitbucket_list_repositories", emptyMap())
@@ -1080,6 +1107,12 @@ internal object WorkContextForcedToolPlanner {
                 mapOf("project" to ipk, "dueSoonDays" to 3, "maxResults" to 30)
             )
         }
+        // Jira 이슈 검색 의도가 있으면 morning briefing 폴백 스킵
+        val jiraSearchIntent = n.contains("이슈") || n.contains("검색") ||
+            n.contains("찾아") || n.contains("필터") ||
+            n.contains("assignee") || n.contains("issue")
+        if (jiraSearchIntent) return null
+
         if (n.contains("오늘") || n.contains("이번 주") || n.contains("현재") ||
             n.contains("상태") || n.contains("장애") || n.contains("위험") ||
             n.contains("우선순위") || n.matchesAny(workTeamStatusHints)
