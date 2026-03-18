@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.mcp.McpToolAvailabilityChecker
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.LocalToolFilter
 import com.arc.reactor.tool.ToolCallback
@@ -32,7 +33,8 @@ internal class ToolPreparationPlanner(
     private val toolSelector: ToolSelector?,
     private val maxToolsPerRequest: Int,
     private val fallbackToolTimeoutMs: Long,
-    private val localToolFilters: List<LocalToolFilter> = emptyList()
+    private val localToolFilters: List<LocalToolFilter> = emptyList(),
+    private val mcpToolAvailabilityChecker: McpToolAvailabilityChecker? = null
 ) {
     /** ToolCallback → ArcToolCallbackAdapter 캐시 (WeakHashMap으로 메모리 누수 방지) */
     private val callbackAdapterCache =
@@ -58,7 +60,8 @@ internal class ToolPreparationPlanner(
         } else {
             allCallbacks
         }
-        val wrappedCallbacks = selectedCallbacks.map(::resolveAdapter)
+        val availableCallbacks = filterUnavailableTools(selectedCallbacks)
+        val wrappedCallbacks = availableCallbacks.map(::resolveAdapter)
         val combined = localToolInstances + wrappedCallbacks
         if (combined.size > maxToolsPerRequest) {
             logger.warn {
@@ -70,6 +73,22 @@ internal class ToolPreparationPlanner(
             }
         }
         return combined.take(maxToolsPerRequest)
+    }
+
+    /** MCP 도구 가용성 검사기를 통해 불가용 도구를 제외한다. 검사기가 없으면 원본을 그대로 반환한다. */
+    private fun filterUnavailableTools(callbacks: List<ToolCallback>): List<ToolCallback> {
+        val checker = mcpToolAvailabilityChecker ?: return callbacks
+        if (callbacks.isEmpty()) return callbacks
+        return runCatching {
+            val result = checker.check(callbacks.map { it.name })
+            if (result.unavailable.isEmpty()) return callbacks
+            logger.warn { "MCP 불가용 도구 제외: ${result.unavailable}" }
+            val unavailableSet = result.unavailable.toSet()
+            callbacks.filter { it.name !in unavailableSet }
+        }.getOrElse { ex ->
+            logger.warn(ex) { "MCP 도구 가용성 검사 실패; 전체 도구 목록 유지" }
+            callbacks
+        }
     }
 
     /** 도구 이름 기준으로 중복을 제거한다. 같은 이름의 콜백이 여러 개면 첫 번째를 유지한다. */

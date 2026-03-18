@@ -17,6 +17,7 @@ import com.arc.reactor.guard.tool.ToolOutputSanitizer
 import com.arc.reactor.hook.HookExecutor
 import com.arc.reactor.intent.IntentResolver
 import com.arc.reactor.mcp.McpManager
+import com.arc.reactor.mcp.McpToolAvailabilityChecker
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.MemoryStore
 import com.arc.reactor.memory.TokenEstimator
@@ -80,7 +81,8 @@ class ArcReactorExecutorConfiguration {
         arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>,
         systemPromptPostProcessorProvider: ObjectProvider<SystemPromptPostProcessor>,
         toolOutputSanitizerProvider: ObjectProvider<ToolOutputSanitizer>,
-        queryRouterProvider: ObjectProvider<QueryRouter>
+        queryRouterProvider: ObjectProvider<QueryRouter>,
+        mcpToolAvailabilityCheckerProvider: ObjectProvider<McpToolAvailabilityChecker>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -112,6 +114,7 @@ class ArcReactorExecutorConfiguration {
         tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() },
         systemPromptPostProcessor = systemPromptPostProcessorProvider.ifAvailable,
         toolOutputSanitizer = toolOutputSanitizerProvider.ifAvailable,
-        queryRouter = queryRouterProvider.ifAvailable
+        queryRouter = queryRouterProvider.ifAvailable,
+        mcpToolAvailabilityChecker = mcpToolAvailabilityCheckerProvider.ifAvailable
     )
 }
