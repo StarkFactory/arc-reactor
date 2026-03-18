@@ -15,6 +15,9 @@ private val logger = KotlinLogging.logger {}
  */
 internal object ReActLoopUtils {
 
+    /** 도구 에러 응답의 표준 접두사. ToolCallback 규약: throw 대신 "Error: ..." 문자열 반환. */
+    const val TOOL_ERROR_PREFIX = "Error:"
+
     /** 도구당 보수적 토큰 추정치 (이름 + 설명 + JSON 스키마). */
     const val TOKENS_PER_TOOL_DEFINITION = 200
 
@@ -50,7 +53,7 @@ internal object ReActLoopUtils {
         // 이전 iteration의 retry hint는 항상 제거 — 성공 후에도 stale hint가 남지 않도록
         messages.removeAll { it is UserMessage && it.text == TOOL_ERROR_RETRY_HINT }
 
-        val hasError = toolResponses.any { it.responseData().startsWith("Error:") }
+        val hasError = toolResponses.any { it.responseData().startsWith(TOOL_ERROR_PREFIX) }
         if (hasError) {
             logger.debug { "Tool error detected, injecting retry hint" }
             messages.add(UserMessage(TOOL_ERROR_RETRY_HINT))

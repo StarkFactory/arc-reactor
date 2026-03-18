@@ -529,17 +529,20 @@ class SystemPromptBuilder(
 
     private fun looksLikeWorkBriefingPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return WORK_BRIEFING_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return WORK_BRIEFING_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeWorkStandupPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return WORK_STANDUP_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return WORK_STANDUP_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeWorkReleaseRiskPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return WORK_RELEASE_RISK_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return WORK_RELEASE_RISK_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeHybridPriorityPrompt(prompt: String?): Boolean {
@@ -552,32 +555,38 @@ class SystemPromptBuilder(
 
     private fun looksLikeWorkReleaseReadinessPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return WORK_RELEASE_READINESS_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return WORK_RELEASE_READINESS_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeWorkPersonalFocusPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return WORK_PERSONAL_FOCUS_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return WORK_PERSONAL_FOCUS_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeWorkPersonalLearningPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return WORK_PERSONAL_LEARNING_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return WORK_PERSONAL_LEARNING_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeWorkPersonalInterruptPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return WORK_PERSONAL_INTERRUPT_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return WORK_PERSONAL_INTERRUPT_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeWorkPersonalWrapupPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return WORK_PERSONAL_WRAPUP_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return WORK_PERSONAL_WRAPUP_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeWorkBriefingProfilePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return WORK_BRIEFING_PROFILE_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return WORK_BRIEFING_PROFILE_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeWorkOwnerPrompt(prompt: String?): Boolean {
@@ -612,12 +621,14 @@ class SystemPromptBuilder(
 
     private fun looksLikeJiraPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return JIRA_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return JIRA_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeJiraProjectListPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeJiraPrompt(prompt) && PROJECT_LIST_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeJiraPrompt(prompt) && PROJECT_LIST_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeJiraIssueTransitionPrompt(prompt: String?): Boolean {
@@ -633,17 +644,20 @@ class SystemPromptBuilder(
 
     private fun looksLikeJiraDueSoonPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeJiraPrompt(prompt) && DUE_SOON_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeJiraPrompt(prompt) && DUE_SOON_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeJiraBlockerPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeJiraPrompt(prompt) && BLOCKER_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeJiraPrompt(prompt) && BLOCKER_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeJiraDailyBriefingPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeJiraPrompt(prompt) && DAILY_BRIEFING_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeJiraPrompt(prompt) && DAILY_BRIEFING_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeJiraProjectSummaryPrompt(prompt: String?): Boolean {
@@ -660,61 +674,72 @@ class SystemPromptBuilder(
 
     private fun looksLikeJiraSearchPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeJiraPrompt(prompt) && SEARCH_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeJiraPrompt(prompt) && SEARCH_HINTS.any { normalized.contains(it) }
     }
 
     // ── 프롬프트 분류 함수 (Bitbucket) ──
 
     private fun looksLikeBitbucketPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return BITBUCKET_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return BITBUCKET_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeBitbucketRepositoryPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeBitbucketPrompt(prompt) && REPOSITORY_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeBitbucketPrompt(prompt) && REPOSITORY_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeBitbucketBranchPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeBitbucketPrompt(prompt) && BRANCH_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeBitbucketPrompt(prompt) && BRANCH_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeBitbucketStalePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeBitbucketPrompt(prompt) && STALE_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeBitbucketPrompt(prompt) && STALE_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeBitbucketReviewQueuePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeBitbucketPrompt(prompt) && REVIEW_QUEUE_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeBitbucketPrompt(prompt) && REVIEW_QUEUE_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeBitbucketReviewRiskPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeBitbucketPrompt(prompt) && REVIEW_RISK_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeBitbucketPrompt(prompt) && REVIEW_RISK_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeBitbucketNeedsReviewPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeBitbucketPrompt(prompt) && MY_REVIEW_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeBitbucketPrompt(prompt) && MY_REVIEW_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeBitbucketReviewSlaPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeBitbucketPrompt(prompt) && REVIEW_SLA_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeBitbucketPrompt(prompt) && REVIEW_SLA_HINTS.any { normalized.contains(it) }
     }
 
     // ── 프롬프트 분류 함수 (Swagger/OpenAPI) ──
 
     private fun looksLikeSwaggerPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return OPENAPI_URL_REGEX.containsMatchIn(prompt) || SWAGGER_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return OPENAPI_URL_REGEX.containsMatchIn(prompt) || SWAGGER_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeSwaggerListPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeSwaggerPrompt(prompt) && LIST_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeSwaggerPrompt(prompt) && LIST_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeSwaggerLoadedSummaryPrompt(prompt: String?): Boolean {
@@ -728,53 +753,62 @@ class SystemPromptBuilder(
 
     private fun looksLikeSwaggerLoadedSchemaPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
         return looksLikeSwaggerPrompt(prompt) &&
             !hasSwaggerUrl(prompt) &&
-            SCHEMA_HINTS.any { prompt.lowercase().contains(it) }
+            SCHEMA_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeSwaggerLoadedDetailPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
         return looksLikeSwaggerPrompt(prompt) &&
             !hasSwaggerUrl(prompt) &&
-            DETAIL_HINTS.any { prompt.lowercase().contains(it) }
+            DETAIL_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeSwaggerLoadedSearchPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
+        val normalized = prompt.lowercase()
         return looksLikeSwaggerPrompt(prompt) &&
             !hasSwaggerUrl(prompt) &&
-            SEARCH_HINTS.any { prompt.lowercase().contains(it) }
+            SEARCH_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeSwaggerWrongEndpointPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeSwaggerPrompt(prompt) && WRONG_ENDPOINT_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeSwaggerPrompt(prompt) && WRONG_ENDPOINT_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeSwaggerValidatePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeSwaggerPrompt(prompt) && VALIDATE_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeSwaggerPrompt(prompt) && VALIDATE_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeSwaggerSchemaPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeSwaggerPrompt(prompt) && SCHEMA_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeSwaggerPrompt(prompt) && SCHEMA_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeSwaggerDetailPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeSwaggerPrompt(prompt) && DETAIL_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeSwaggerPrompt(prompt) && DETAIL_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeSwaggerSearchPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeSwaggerPrompt(prompt) && SEARCH_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeSwaggerPrompt(prompt) && SEARCH_HINTS.any { normalized.contains(it) }
     }
 
     private fun looksLikeSwaggerRemovePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return looksLikeSwaggerPrompt(prompt) && REMOVE_HINTS.any { prompt.lowercase().contains(it) }
+        val normalized = prompt.lowercase()
+        return looksLikeSwaggerPrompt(prompt) && REMOVE_HINTS.any { normalized.contains(it) }
     }
 
     private fun hasSwaggerUrl(prompt: String?): Boolean {

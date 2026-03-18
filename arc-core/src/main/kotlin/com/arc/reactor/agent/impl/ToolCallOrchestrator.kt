@@ -234,7 +234,7 @@ internal class ToolCallOrchestrator(
         normalizeToolResponseToJson: Boolean
     ): ParallelToolExecution? {
         if (allowedTools == null || toolName in allowedTools) return null
-        val msg = "Error: Tool '$toolName' is not allowed for this request"
+        val msg = toolNotAllowedMessage(toolName)
         logger.info { "Tool call blocked by allowlist: tool=$toolName allowedTools=${allowedTools.size}" }
         agentMetrics.recordToolCall(toolName, 0, false)
         return ParallelToolExecution(
@@ -283,7 +283,7 @@ internal class ToolCallOrchestrator(
             logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
             return ParallelToolExecution(
                 response = buildToolResponse(
-                    toolCall, toolName, "Error: Tool '$toolName' not found", normalizeToolResponseToJson
+                    toolCall, toolName, toolNotFoundMessage(toolName), normalizeToolResponseToJson
                 )
             )
         }
@@ -377,7 +377,7 @@ internal class ToolCallOrchestrator(
 
     /** allowedTools에 의해 차단된 직접 호출 결과를 생성합니다. */
     private fun rejectByAllowlist(toolName: String, allowedToolsSize: Int): ToolCallResult {
-        val message = "Error: Tool '$toolName' is not allowed for this request"
+        val message = toolNotAllowedMessage(toolName)
         logger.info { "Direct tool call blocked by allowlist: tool=$toolName allowedTools=$allowedToolsSize" }
         agentMetrics.recordToolCall(toolName, 0, false)
         return ToolCallResult(success = false, output = message, errorMessage = message, durationMs = 0)
@@ -671,7 +671,7 @@ internal class ToolCallOrchestrator(
             return invokeSpringCallback(toolName, toolInput, callback)
         }
         logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
-        return ToolInvocationOutcome(output = "Error: Tool '$toolName' not found", success = false, trackAsUsed = false)
+        return ToolInvocationOutcome(output = toolNotFoundMessage(toolName), success = false, trackAsUsed = false)
     }
 
     /** ArcToolCallbackAdapter를 타임아웃 내에서 호출합니다. */
@@ -683,7 +683,7 @@ internal class ToolCallOrchestrator(
         return try {
             val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
             val output = withTimeout(timeoutMs) { adapter.call(toolInput) }
-            val success = !output.startsWith("Error:")
+            val success = !output.startsWith(ReActLoopUtils.TOOL_ERROR_PREFIX)
             ToolInvocationOutcome(output = output, success = success, trackAsUsed = true)
         } catch (e: TimeoutCancellationException) {
             val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
@@ -718,6 +718,12 @@ internal class ToolCallOrchestrator(
             executionErrorOutcome(e)
         }
     }
+
+    private fun toolNotAllowedMessage(toolName: String): String =
+        "Error: Tool '$toolName' is not allowed for this request"
+
+    private fun toolNotFoundMessage(toolName: String): String =
+        "Error: Tool '$toolName' not found"
 
     /** 타임아웃 에러 결과를 생성합니다. */
     private fun timeoutErrorOutcome(toolName: String, timeoutMs: Long): ToolInvocationOutcome {
