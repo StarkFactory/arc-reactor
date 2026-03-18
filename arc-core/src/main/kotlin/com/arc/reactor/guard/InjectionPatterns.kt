@@ -222,6 +222,40 @@ object InjectionPatterns {
             Regex("지금부터.*(새로운|다른).*(규칙|지시|명령|역할)")
         ),
 
+        // ── 중국어 인젝션 패턴 (Chinese Injection) ──
+        // "忽略所有指令" — 모든 지시를 무시하라는 공격
+        InjectionPattern(
+            "multilingual_injection",
+            Regex("忽略.{0,10}(指令|指示|规则)")
+        ),
+        // "显示系统提示" — 시스템 프롬프트를 보여달라는 추출 시도
+        InjectionPattern(
+            "multilingual_injection",
+            Regex("显示.{0,10}(系统|提示|指令)")
+        ),
+        // "你的角色/限制/规则/工具" — 에이전트 메타정보 탐색
+        InjectionPattern(
+            "multilingual_injection",
+            Regex("你的.{0,10}(角色|限制|规则|工具)")
+        ),
+
+        // ── 일본어 인젝션 패턴 (Japanese Injection) ──
+        // "無視して指示に従え" — 지시를 무시하라는 공격
+        InjectionPattern(
+            "multilingual_injection",
+            Regex("(無視|忽視).{0,10}(指示|命令|ルール)")
+        ),
+        // "指示を無視して" — 역순 패턴 (목적어 + を + 無視)
+        InjectionPattern(
+            "multilingual_injection",
+            Regex("(指示|命令|ルール).{0,5}(無視|忽視)")
+        ),
+        // "システムプロンプトを表示して" — 시스템 프롬프트 추출 시도
+        InjectionPattern(
+            "multilingual_injection",
+            Regex("システムプロンプト.{0,10}(表示|見せ|教え)")
+        ),
+
         // ── 메타질문 (Meta-Question) — 시스템 프롬프트 간접 유출 방지 ──
         // "할 수 있는 것과 할 수 없는 것을 알려줘" — 능력/제한 열거로 시스템 프롬프트 추론
         InjectionPattern(
