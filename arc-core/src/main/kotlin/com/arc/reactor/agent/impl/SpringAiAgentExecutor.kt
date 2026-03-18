@@ -9,6 +9,7 @@ import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
+import com.arc.reactor.cache.CacheMetricsRecorder
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.resilience.CircuitBreaker
 import com.arc.reactor.resilience.FallbackStrategy
@@ -116,7 +117,8 @@ class SpringAiAgentExecutor(
     private val queryRouter: QueryRouter? = null,
     private val mcpToolAvailabilityChecker: McpToolAvailabilityChecker? = null,
     private val slaMetrics: SlaMetrics? = null,
-    private val costCalculator: CostCalculator? = null
+    private val costCalculator: CostCalculator? = null,
+    private val cacheMetricsRecorder: CacheMetricsRecorder? = null
 ) : AgentExecutor {
 
     // ── 초기화: 컨텍스트 윈도우가 출력 토큰보다 커야 트리밍이 정상 동작한다 ──
@@ -293,6 +295,8 @@ class SpringAiAgentExecutor(
         fallbackStrategy = fallbackStrategy,
         agentMetrics = agentMetrics,
         costCalculator = costCalculator,
+        cacheMetricsRecorder = cacheMetricsRecorder,
+        semanticSimilarityThreshold = properties.cache.semantic.similarityThreshold,
         toolCallbacks = toolCallbacks,
         mcpToolCallbacks = mcpToolCallbacks,
         conversationManager = conversationManager,

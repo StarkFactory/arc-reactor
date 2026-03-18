@@ -7,6 +7,7 @@ import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.cache.CacheKeyBuilder
 import com.arc.reactor.cache.CachedResponse
+import com.arc.reactor.cache.CacheMetricsRecorder
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.cache.SemanticResponseCache
 import com.arc.reactor.hook.model.HookContext
@@ -54,6 +55,8 @@ internal class AgentExecutionCoordinator(
     private val fallbackStrategy: FallbackStrategy?,
     private val agentMetrics: AgentMetrics,
     private val costCalculator: CostCalculator? = null,
+    private val cacheMetricsRecorder: CacheMetricsRecorder? = null,
+    private val semanticSimilarityThreshold: Double = 0.92,
     private val toolCallbacks: List<ToolCallback>,
     private val mcpToolCallbacks: () -> List<ToolCallback>,
     private val conversationManager: ConversationManager,
@@ -238,6 +241,7 @@ internal class AgentExecutionCoordinator(
                     if (exact != null) {
                         logger.debug { "Exact cache hit for request" }
                         agentMetrics.recordExactCacheHit(key)
+                        cacheMetricsRecorder?.recordExactHit()
                         return cacheHitResult(key, exact, startTime, toolNames)
                     }
 
@@ -245,6 +249,8 @@ internal class AgentExecutionCoordinator(
                     if (semantic != null) {
                         logger.debug { "Semantic cache hit for request" }
                         agentMetrics.recordSemanticCacheHit(key)
+                        // 유사도 점수는 SemanticResponseCache 내부에서만 계산되므로 임계값을 하한으로 사용
+                        cacheMetricsRecorder?.recordSemanticHit(semanticSimilarityThreshold)
                         return cacheHitResult(key, semantic, startTime, toolNames)
                     }
                 }
@@ -253,6 +259,7 @@ internal class AgentExecutionCoordinator(
                     if (exact != null) {
                         logger.debug { "Exact cache hit for request" }
                         agentMetrics.recordExactCacheHit(key)
+                        cacheMetricsRecorder?.recordExactHit()
                         return cacheHitResult(key, exact, startTime, toolNames)
                     }
                 }
@@ -262,6 +269,7 @@ internal class AgentExecutionCoordinator(
             logger.warn(e) { "Cache lookup failed, proceeding without cache" }
         }
         agentMetrics.recordCacheMiss(key)
+        cacheMetricsRecorder?.recordMiss()
         return CacheLookupResult(cacheKey = key, cachedResult = null, toolNames = toolNames)
     }
 
