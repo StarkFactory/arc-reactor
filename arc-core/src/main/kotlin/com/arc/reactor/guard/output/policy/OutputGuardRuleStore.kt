@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
  * @property name 규칙 이름 (관리 및 로깅용)
  * @property pattern 정규식 패턴 문자열
  * @property action 매칭 시 수행할 동작 (MASK 또는 REJECT)
+ * @property replacement MASK 동작 시 치환 문자열 (기본값: "[REDACTED]")
  * @property priority 실행 우선순위 (낮은 값이 먼저 평가됨)
  * @property enabled 활성화 여부
  * @property createdAt 생성 시각
@@ -26,17 +27,23 @@ data class OutputGuardRule(
     val name: String,
     val pattern: String,
     val action: OutputGuardRuleAction = OutputGuardRuleAction.MASK,
+    val replacement: String = DEFAULT_REPLACEMENT,
     val priority: Int = 100,
     val enabled: Boolean = true,
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now()
-)
+) {
+    companion object {
+        /** MASK 동작의 기본 치환 문자열 */
+        const val DEFAULT_REPLACEMENT = "[REDACTED]"
+    }
+}
 
 /**
  * 출력 Guard 규칙 동작 열거형
  */
 enum class OutputGuardRuleAction {
-    /** 매칭된 텍스트를 "[REDACTED]"로 치환 */
+    /** 매칭된 텍스트를 규칙의 replacement 문자열로 치환 (기본값: "[REDACTED]") */
     MASK,
     /** 응답 전체를 차단 */
     REJECT

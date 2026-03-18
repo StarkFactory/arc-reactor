@@ -123,6 +123,7 @@ class OutputGuardRuleController(
                 name = request.name.trim(),
                 pattern = request.pattern.trim(),
                 action = action,
+                replacement = request.replacement,
                 priority = request.priority,
                 enabled = request.enabled,
                 createdAt = now,
@@ -168,6 +169,7 @@ class OutputGuardRuleController(
                 name = request.name?.trim() ?: existing.name,
                 pattern = request.pattern?.trim() ?: existing.pattern,
                 action = action ?: existing.action,
+                replacement = request.replacement ?: existing.replacement,
                 priority = request.priority ?: existing.priority,
                 enabled = request.enabled ?: existing.enabled
             )
@@ -288,6 +290,9 @@ data class CreateOutputGuardRuleRequest(
     @field:NotBlank(message = "action must not be blank")
     val action: String = "MASK",
 
+    @field:Size(max = 256, message = "replacement must not exceed 256 characters")
+    val replacement: String = OutputGuardRule.DEFAULT_REPLACEMENT,
+
     @field:Min(value = 1, message = "priority must be >= 1")
     @field:Max(value = 10000, message = "priority must be <= 10000")
     val priority: Int = 100,
@@ -299,6 +304,8 @@ data class UpdateOutputGuardRuleRequest(
     val name: String? = null,
     val pattern: String? = null,
     val action: String? = null,
+    @field:Size(max = 256, message = "replacement must not exceed 256 characters")
+    val replacement: String? = null,
     @field:Min(value = 1, message = "priority must be >= 1")
     @field:Max(value = 10000, message = "priority must be <= 10000")
     val priority: Int? = null,
@@ -317,6 +324,7 @@ data class OutputGuardRuleResponse(
     val name: String,
     val pattern: String,
     val action: String,
+    val replacement: String,
     val priority: Int,
     val enabled: Boolean,
     val createdAt: Long,
@@ -361,6 +369,7 @@ private fun OutputGuardRule.toResponse() = OutputGuardRuleResponse(
     name = name,
     pattern = pattern,
     action = action.name,
+    replacement = replacement,
     priority = priority,
     enabled = enabled,
     createdAt = createdAt.toEpochMilli(),

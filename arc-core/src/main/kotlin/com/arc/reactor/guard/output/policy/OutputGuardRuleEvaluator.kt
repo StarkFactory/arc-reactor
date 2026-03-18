@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
  * ## 평가 순서
  * 규칙은 전달된 순서대로 평가된다 (호출자가 priority 정렬 담당).
  * REJECT 규칙이 매칭되면 즉시 평가를 중단하고 결과를 반환한다.
- * MASK 규칙이 매칭되면 해당 부분을 "[REDACTED]"로 치환하고 계속 진행한다.
+ * MASK 규칙이 매칭되면 해당 부분을 규칙의 replacement 문자열로 치환하고 계속 진행한다.
  *
  * @see com.arc.reactor.guard.output.impl.DynamicRuleOutputGuard 이 엔진을 사용하는 Guard
  */
@@ -94,8 +94,8 @@ class OutputGuardRuleEvaluator {
                 }
 
                 OutputGuardRuleAction.MASK -> {
-                    // MASK: 매칭된 부분을 [REDACTED]로 치환하고 계속
-                    maskedContent = regex.replace(maskedContent, "[REDACTED]")
+                    // MASK: 매칭된 부분을 규칙의 replacement 문자열로 치환하고 계속
+                    maskedContent = regex.replace(maskedContent, rule.replacement)
                 }
             }
         }
