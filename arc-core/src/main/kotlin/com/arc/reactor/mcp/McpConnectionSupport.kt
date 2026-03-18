@@ -149,13 +149,14 @@ internal class McpConnectionSupport(
         // 보안 검증: 인자 내 제어 문자 검증
         if (!validateStdioArgs(args, server.name)) return null
 
+        var transport: StdioClientTransport? = null
         var client: McpSyncClient? = null
         return try {
             val params = ServerParameters.builder(command)
                 .args(*args.toTypedArray())
                 .build()
 
-            val transport = StdioClientTransport(params, JacksonMcpJsonMapper(ObjectMapper()))
+            transport = StdioClientTransport(params, JacksonMcpJsonMapper(ObjectMapper()))
 
             client = McpClient.sync(transport)
                 .requestTimeout(Duration.ofMillis(connectionTimeoutMs))
@@ -164,10 +165,15 @@ internal class McpConnectionSupport(
                 .build()
 
             client.initialize()
-            client
+            client  // 성공 시 transport는 client가 소유
         } catch (e: Exception) {
             logger.error(e) { "${server.name}의 STDIO 전송 생성 실패" }
+            // client와 transport 모두 정리 — 리소스 누수 방지
             try { client?.close() } catch (_: Exception) { /* 최선의 정리 시도 */ }
+            if (client == null) {
+                // client 생성 전 실패 시 transport 직접 정리
+                try { transport?.close() } catch (_: Exception) { /* 최선의 정리 시도 */ }
+            }
             null
         }
     }
@@ -266,9 +272,10 @@ internal class McpConnectionSupport(
             return null
         }
 
+        var transport: HttpClientSseClientTransport? = null
         var client: McpSyncClient? = null
         return try {
-            val transport = HttpClientSseClientTransport.builder(parsed.toString())
+            transport = HttpClientSseClientTransport.builder(parsed.toString())
                 .customizeClient { it.connectTimeout(Duration.ofMillis(connectionTimeoutMs)) }
                 .build()
 
@@ -279,10 +286,15 @@ internal class McpConnectionSupport(
                 .build()
 
             client.initialize()
-            client
+            client  // 성공 시 transport는 client가 소유
         } catch (e: Exception) {
             logger.error(e) { "${server.name}의 SSE 전송 생성 실패" }
+            // client와 transport 모두 정리 — 리소스 누수 방지
             try { client?.close() } catch (_: Exception) { /* 최선의 정리 시도 */ }
+            if (client == null) {
+                // client 생성 전 실패 시 transport 직접 정리
+                try { transport?.close() } catch (_: Exception) { /* 최선의 정리 시도 */ }
+            }
             null
         }
     }
