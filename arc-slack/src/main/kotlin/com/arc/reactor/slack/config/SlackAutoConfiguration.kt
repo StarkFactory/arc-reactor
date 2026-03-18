@@ -19,6 +19,8 @@ import com.arc.reactor.slack.proactive.InMemoryProactiveChannelStore
 import com.arc.reactor.slack.proactive.ProactiveChannelStore
 import com.arc.reactor.slack.processor.SlackCommandProcessor
 import com.arc.reactor.slack.processor.SlackEventProcessor
+import com.arc.reactor.slack.resilience.SlackResponseUrlRetrier
+import com.arc.reactor.slack.resilience.SlackUserRateLimiter
 import com.arc.reactor.slack.security.SlackSignatureVerifier
 import com.arc.reactor.slack.security.SlackSignatureWebFilter
 import com.arc.reactor.slack.session.SlackBotResponseTracker
@@ -286,5 +288,27 @@ class SlackAutoConfiguration {
         messagingService = messagingService,
         metricsRecorder = metricsRecorder
     )
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun slackResponseUrlRetrier(properties: SlackProperties): SlackResponseUrlRetrier =
+        SlackResponseUrlRetrier(
+            maxRetries = properties.responseUrlMaxRetries,
+            initialDelayMs = properties.responseUrlInitialDelayMs,
+            maxDelayMs = properties.responseUrlMaxDelayMs
+        )
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.slack",
+        name = ["user-rate-limit-enabled"],
+        havingValue = "true",
+        matchIfMissing = false
+    )
+    fun slackUserRateLimiter(properties: SlackProperties): SlackUserRateLimiter =
+        SlackUserRateLimiter(
+            maxRequestsPerMinute = properties.userRateLimitMaxPerMinute
+        )
 
 }

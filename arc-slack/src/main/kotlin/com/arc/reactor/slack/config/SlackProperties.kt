@@ -116,7 +116,26 @@ data class SlackProperties(
     val reactionFeedbackEnabled: Boolean = true,
 
     /** 사용자별 장기 기억(팀, 역할, 선호도)을 에이전트 시스템 프롬프트에 주입한다 */
-    val userMemoryEnabled: Boolean = true
+    val userMemoryEnabled: Boolean = true,
+
+    // ── response_url 재시도 ──
+
+    /** response_url 전송 실패 시 최대 재시도 횟수 */
+    val responseUrlMaxRetries: Int = 3,
+
+    /** response_url 재시도 초기 지연 (밀리초) */
+    val responseUrlInitialDelayMs: Long = 500,
+
+    /** response_url 재시도 최대 지연 (밀리초) */
+    val responseUrlMaxDelayMs: Long = 8000,
+
+    // ── 사용자별 레이트 리밋 ──
+
+    /** 사용자별 레이트 리밋 활성화 여부 (기본 비활성, opt-in) */
+    val userRateLimitEnabled: Boolean = false,
+
+    /** 사용자당 분당 최대 요청 수 */
+    val userRateLimitMaxPerMinute: Int = 10
 )
 
 enum class SlackTransportMode {
