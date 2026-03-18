@@ -59,7 +59,7 @@
       "type": "gauge",
       "targets": [
         {
-          "expr": "100 * (1 - (rate(arc_agent_execution_total{result=\"failure\"}[5m]) / clamp_min(rate(arc_agent_execution_total[5m]), 1)))",
+          "expr": "100 * (1 - (rate(arc_agent_executions_total{success=\"false\"}[5m]) / clamp_min(rate(arc_agent_executions_total[5m]), 1)))",
           "legendFormat": "Success Rate",
           "refId": "A"
         }
@@ -92,7 +92,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "rate(arc_agent_execution_total[5m]) * 3600",
+          "expr": "rate(arc_agent_executions_total[5m]) * 3600",
           "legendFormat": "Requests/h",
           "refId": "A"
         }
@@ -231,7 +231,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "100 * sum by (tool) (rate(arc_agent_tool_calls_total{result=\"failure\"}[5m])) / clamp_min(sum by (tool) (rate(arc_agent_tool_calls_total[5m])), 1)",
+          "expr": "100 * sum by (tool) (rate(arc_agent_tool_calls_total{success=\"false\"}[5m])) / clamp_min(sum by (tool) (rate(arc_agent_tool_calls_total[5m])), 1)",
           "legendFormat": "{{tool}}",
           "refId": "A"
         }
@@ -419,8 +419,8 @@
       "type": "piechart",
       "targets": [
         {
-          "expr": "sum by (reason) (increase(arc_agent_execution_total[1h]))",
-          "legendFormat": "{{reason}}",
+          "expr": "sum by (error_code) (increase(arc_agent_executions_total[1h]))",
+          "legendFormat": "{{error_code}}",
           "refId": "A"
         }
       ]
@@ -459,7 +459,7 @@
       "type": "gauge",
       "targets": [
         {
-          "expr": "100 * rate(arc_cache_hits_total[5m]) / clamp_min(rate(arc_cache_hits_total[5m]) + rate(arc_cache_misses_total[5m]), 1)",
+          "expr": "100 * rate(arc_agent_cache_hits_total[5m]) / clamp_min(rate(arc_agent_cache_hits_total[5m]) + rate(arc_agent_cache_misses_total[5m]), 1)",
           "legendFormat": "Hit Rate",
           "refId": "A"
         }

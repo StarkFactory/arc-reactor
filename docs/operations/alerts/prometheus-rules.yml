@@ -4,8 +4,8 @@ groups:
       - alert: AgentSuccessRateLow
         expr: >
           (
-            rate(arc_agent_execution_total{result="failure"}[5m])
-            / clamp_min(rate(arc_agent_execution_total[5m]), 0.001)
+            rate(arc_agent_executions_total{success="false"}[5m])
+            / clamp_min(rate(arc_agent_executions_total[5m]), 0.001)
           ) > 0.15
         for: 5m
         labels:
@@ -75,7 +75,7 @@ groups:
       - alert: ToolFailureRateHigh
         expr: >
           (
-            sum by (tool) (rate(arc_agent_tool_calls_total{result="failure"}[5m]))
+            sum by (tool) (rate(arc_agent_tool_calls_total{success="false"}[5m]))
             / clamp_min(sum by (tool) (rate(arc_agent_tool_calls_total[5m])), 0.001)
           ) > 0.3
         for: 5m
@@ -187,8 +187,8 @@ groups:
       - alert: CacheHitRateLow
         expr: >
           (
-            rate(arc_cache_hits_total[5m])
-            / clamp_min(rate(arc_cache_hits_total[5m]) + rate(arc_cache_misses_total[5m]), 0.001)
+            rate(arc_agent_cache_hits_total[5m])
+            / clamp_min(rate(arc_agent_cache_hits_total[5m]) + rate(arc_agent_cache_misses_total[5m]), 0.001)
           ) < 0.3
         for: 15m
         labels:
