@@ -106,6 +106,9 @@ class DiversityReranker(
 
         logger.debug { "MMR reranking ${documents.size} documents with lambda=$lambda" }
 
+        // O(n^2) 유사도 비교에서 반복되는 lowercase() 할당을 방지하기 위해 사전 캐싱
+        val wordSetCache = buildWordSetCache(documents)
+
         val selected = mutableListOf<RetrievedDocument>()
         val remaining = documents.toMutableList()
 
@@ -116,12 +119,19 @@ class DiversityReranker(
 
         // 이후 문서: MMR 공식으로 관련도와 다양성을 균형 잡아 선택
         while (selected.size < topK && remaining.isNotEmpty()) {
-            val nextDoc = selectNextMmrDocument(remaining, selected) ?: break
+            val nextDoc = selectNextMmrDocument(remaining, selected, wordSetCache) ?: break
             selected.add(nextDoc)
             remaining.remove(nextDoc)
         }
 
         return selected
+    }
+
+    /** 각 문서의 소문자 단어 집합을 사전 계산하여 캐시 맵을 생성한다. */
+    private fun buildWordSetCache(
+        documents: List<RetrievedDocument>
+    ): Map<String, Set<String>> {
+        return documents.associate { it.id to it.content.lowercase().split(" ").toSet() }
     }
 
     /**
@@ -130,12 +140,14 @@ class DiversityReranker(
      */
     private fun selectNextMmrDocument(
         remaining: List<RetrievedDocument>,
-        selected: List<RetrievedDocument>
+        selected: List<RetrievedDocument>,
+        wordSetCache: Map<String, Set<String>>
     ): RetrievedDocument? {
         return remaining.maxByOrNull { candidate ->
             val relevance = candidate.score
+            val candidateWords = wordSetCache[candidate.id] ?: emptySet()
             val maxSimilarity = selected.maxOfOrNull {
-                calculateSimilarity(candidate.content, it.content)
+                calculateSimilarity(candidateWords, wordSetCache[it.id] ?: emptySet())
             } ?: 0.0
             // MMR 공식: 관련도를 높이면서 이미 선택된 것과의 유사도를 낮추는 문서 선호
             lambda * relevance - (1 - lambda) * maxSimilarity
@@ -143,16 +155,13 @@ class DiversityReranker(
     }
 
     /**
-     * 단순 Jaccard 유사도를 계산한다.
+     * 사전 계산된 단어 집합으로 Jaccard 유사도를 계산한다.
      * 두 문서의 단어 집합 교집합 / 합집합.
      *
      * 왜 Jaccard인가: 임베딩 없이 텍스트만으로 유사도를 빠르게 근사할 수 있다.
      * 프로덕션에서는 임베딩 기반 코사인 유사도가 더 정확하다.
      */
-    private fun calculateSimilarity(content1: String, content2: String): Double {
-        val words1 = content1.lowercase().split(" ").toSet()
-        val words2 = content2.lowercase().split(" ").toSet()
-
+    private fun calculateSimilarity(words1: Set<String>, words2: Set<String>): Double {
         val intersection = words1.intersect(words2).size
         val union = words1.union(words2).size
 

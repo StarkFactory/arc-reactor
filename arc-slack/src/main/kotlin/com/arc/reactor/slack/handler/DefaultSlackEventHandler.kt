@@ -2,6 +2,7 @@ package com.arc.reactor.slack.handler
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.feedback.Feedback
 import com.arc.reactor.feedback.FeedbackRating
 import com.arc.reactor.feedback.FeedbackStore
@@ -146,55 +147,79 @@ class DefaultSlackEventHandler(
     ) {
         try {
             val sessionId = "slack-$channelId-$threadTs"
-            val metadata = buildMetadata(sessionId, channelId, userId)
-            val toolSummary = SlackHandlerSupport.buildToolSummary(mcpManager)
-            val userContext = SlackHandlerSupport.resolveUserContext(userId, userMemoryManager)
-
-            val systemPrompt = buildString {
-                append(SlackSystemPromptFactory.build(defaultProvider, toolSummary))
-                if (userContext.isNotBlank()) {
-                    append("\n\n")
-                    append(userContext)
-                }
-            }
-
-            val result = agentExecutor.execute(
-                AgentCommand(
-                    systemPrompt = systemPrompt,
-                    userPrompt = userPrompt,
-                    userId = userId,
-                    metadata = metadata
-                )
-            )
-
-            val responseText = SlackResponseTextFormatter.fromResult(result, userPrompt)
-            val sendResult = messagingService.sendMessage(
-                channelId = channelId,
-                text = responseText,
-                threadTs = threadTs
-            )
-            if (sendResult.ok && sendResult.ts != null) {
-                botResponseTracker?.track(channelId, sendResult.ts, sessionId, userPrompt)
-            }
-            if (!sendResult.ok) {
-                logger.warn {
-                    "Failed to send Slack event response: " +
-                        "channel=$channelId thread=$threadTs error=${sendResult.error}"
-                }
-            }
+            val command = buildAgentCommand(sessionId, channelId, userId, userPrompt)
+            val result = agentExecutor.execute(command)
+            sendAgentResponse(channelId, threadTs, result, sessionId, userPrompt)
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Failed to process Slack event for channel=$channelId, thread=$threadTs" }
-            try {
-                messagingService.sendMessage(
-                    channelId = channelId,
-                    text = ":x: An internal error occurred. Please try again later.",
-                    threadTs = threadTs
-                )
-            } catch (sendError: Exception) {
-                sendError.throwIfCancellation()
-                logger.error(sendError) { "Failed to send error message to Slack" }
+            sendErrorFallback(channelId, threadTs)
+        }
+    }
+
+    /** 세션·메타데이터·시스템 프롬프트를 조합하여 [AgentCommand]를 생성한다. */
+    private suspend fun buildAgentCommand(
+        sessionId: String,
+        channelId: String,
+        userId: String,
+        userPrompt: String
+    ): AgentCommand {
+        val metadata = buildMetadata(sessionId, channelId, userId)
+        val toolSummary = SlackHandlerSupport.buildToolSummary(mcpManager)
+        val userContext = SlackHandlerSupport.resolveUserContext(userId, userMemoryManager)
+
+        val systemPrompt = buildString {
+            append(SlackSystemPromptFactory.build(defaultProvider, toolSummary))
+            if (userContext.isNotBlank()) {
+                append("\n\n")
+                append(userContext)
             }
+        }
+
+        return AgentCommand(
+            systemPrompt = systemPrompt,
+            userPrompt = userPrompt,
+            userId = userId,
+            metadata = metadata
+        )
+    }
+
+    /** 에이전트 응답을 Slack 스레드에 전송하고 봇 응답을 추적한다. */
+    private suspend fun sendAgentResponse(
+        channelId: String,
+        threadTs: String,
+        result: AgentResult,
+        sessionId: String,
+        userPrompt: String
+    ) {
+        val responseText = SlackResponseTextFormatter.fromResult(result, userPrompt)
+        val sendResult = messagingService.sendMessage(
+            channelId = channelId,
+            text = responseText,
+            threadTs = threadTs
+        )
+        if (sendResult.ok && sendResult.ts != null) {
+            botResponseTracker?.track(channelId, sendResult.ts, sessionId, userPrompt)
+        }
+        if (!sendResult.ok) {
+            logger.warn {
+                "Failed to send Slack event response: " +
+                    "channel=$channelId thread=$threadTs error=${sendResult.error}"
+            }
+        }
+    }
+
+    /** 에이전트 실행 실패 시 사용자에게 오류 메시지를 전송한다. */
+    private suspend fun sendErrorFallback(channelId: String, threadTs: String) {
+        try {
+            messagingService.sendMessage(
+                channelId = channelId,
+                text = ":x: An internal error occurred. Please try again later.",
+                threadTs = threadTs
+            )
+        } catch (sendError: Exception) {
+            sendError.throwIfCancellation()
+            logger.error(sendError) { "Failed to send error message to Slack" }
         }
     }
 
