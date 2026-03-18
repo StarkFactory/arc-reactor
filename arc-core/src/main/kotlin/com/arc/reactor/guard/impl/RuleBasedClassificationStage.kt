@@ -39,7 +39,7 @@ class RuleBasedClassificationStage(
     /** 기본 규칙 + 사용자 정의 규칙을 합친 전체 규칙 목록 */
     private val allRules: List<ClassificationRule> = DEFAULT_RULES + customRules
 
-    override suspend fun check(command: GuardCommand): GuardResult {
+    override suspend fun enforce(command: GuardCommand): GuardResult {
         val text = command.text.lowercase()
 
         for (rule in allRules) {

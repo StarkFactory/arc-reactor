@@ -35,7 +35,7 @@ class OutputBoundaryEnforcerMatrixTest {
 
         var checked = 0
         for (len in 0..120) {
-            val result = enforcer.apply(
+            val result = enforcer.enforceOutputBoundaries(
                 result = AgentResult.success("x".repeat(len)),
                 command = command,
                 metadata = emptyMap(),
@@ -63,7 +63,7 @@ class OutputBoundaryEnforcerMatrixTest {
         var checked = 0
         for (len in 0..160) {
             val source = "a".repeat(len)
-            val result = enforcer.apply(
+            val result = enforcer.enforceOutputBoundaries(
                 result = AgentResult.success(source),
                 command = command,
                 metadata = emptyMap(),
@@ -96,7 +96,7 @@ class OutputBoundaryEnforcerMatrixTest {
         var checked = 0
         for (len in 0..100) {
             val source = "b".repeat(len)
-            val result = enforcer.apply(
+            val result = enforcer.enforceOutputBoundaries(
                 result = AgentResult.success(source),
                 command = command,
                 metadata = emptyMap(),
@@ -133,7 +133,7 @@ class OutputBoundaryEnforcerMatrixTest {
         var checked = 0
         for (len in 0..39) {
             val source = "z".repeat(len)
-            val result = enforcer.apply(
+            val result = enforcer.enforceOutputBoundaries(
                 result = AgentResult.success(source),
                 command = command,
                 metadata = emptyMap(),

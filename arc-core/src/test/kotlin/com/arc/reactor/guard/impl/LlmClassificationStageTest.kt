@@ -50,7 +50,7 @@ class LlmClassificationStageTest {
             val chatClient = mockChatClient("""{"label":"safe","confidence":0.95}""")
             val stage = LlmClassificationStage(chatClient)
 
-            val result = stage.check(GuardCommand(userId = "user-1", text = "Hello, how are you?"))
+            val result = stage.enforce(GuardCommand(userId = "user-1", text = "Hello, how are you?"))
             assertEquals(GuardResult.Allowed.DEFAULT, result,
                 "Safe classification should return Allowed")
         }
@@ -60,7 +60,7 @@ class LlmClassificationStageTest {
             val chatClient = mockChatClient("""{"label":"malicious","confidence":0.95}""")
             val stage = LlmClassificationStage(chatClient)
 
-            val result = stage.check(GuardCommand(userId = "user-1", text = "harmful input"))
+            val result = stage.enforce(GuardCommand(userId = "user-1", text = "harmful input"))
             val rejected = assertInstanceOf(GuardResult.Rejected::class.java, result,
                 "Malicious with high confidence should be rejected")
             assertEquals(RejectionCategory.OFF_TOPIC, rejected.category)
@@ -73,7 +73,7 @@ class LlmClassificationStageTest {
             val chatClient = mockChatClient("""{"label":"malicious","confidence":0.5}""")
             val stage = LlmClassificationStage(chatClient, confidenceThreshold = 0.7)
 
-            val result = stage.check(GuardCommand(userId = "user-1", text = "ambiguous input"))
+            val result = stage.enforce(GuardCommand(userId = "user-1", text = "ambiguous input"))
             assertEquals(GuardResult.Allowed.DEFAULT, result,
                 "Below-threshold confidence should return Allowed")
         }
@@ -83,7 +83,7 @@ class LlmClassificationStageTest {
             val chatClient = mockChatClient("""{"label":"harmful","confidence":0.85}""")
             val stage = LlmClassificationStage(chatClient)
 
-            val result = stage.check(GuardCommand(userId = "user-1", text = "violent content"))
+            val result = stage.enforce(GuardCommand(userId = "user-1", text = "violent content"))
             assertInstanceOf(GuardResult.Rejected::class.java, result,
                 "Harmful with high confidence should be rejected")
         }
@@ -93,7 +93,7 @@ class LlmClassificationStageTest {
             val chatClient = mockChatClient("I cannot classify this content properly")
             val stage = LlmClassificationStage(chatClient)
 
-            val result = stage.check(GuardCommand(userId = "user-1", text = "some text"))
+            val result = stage.enforce(GuardCommand(userId = "user-1", text = "some text"))
             assertEquals(GuardResult.Allowed.DEFAULT, result,
                 "Unparseable response should default to safe (label defaults to 'safe')")
         }
@@ -107,7 +107,7 @@ class LlmClassificationStageTest {
             val chatClient = mockChatClientThrows(RuntimeException("LLM API down"))
             val stage = LlmClassificationStage(chatClient)
 
-            val result = stage.check(GuardCommand(userId = "user-1", text = "any input"))
+            val result = stage.enforce(GuardCommand(userId = "user-1", text = "any input"))
             assertEquals(GuardResult.Allowed.DEFAULT, result,
                 "LLM failure should fail-open and return Allowed")
         }
@@ -124,7 +124,7 @@ class LlmClassificationStageTest {
             every { responseSpec.content() } returns null
             val stage = LlmClassificationStage(chatClient)
 
-            val result = stage.check(GuardCommand(userId = "user-1", text = "test"))
+            val result = stage.enforce(GuardCommand(userId = "user-1", text = "test"))
             assertEquals(GuardResult.Allowed.DEFAULT, result,
                 "Null content should be treated as safe")
         }
@@ -150,7 +150,7 @@ class LlmClassificationStageTest {
             every { responseSpec.content() } returns """{"label":"safe","confidence":0.9}"""
 
             val stage = LlmClassificationStage(chatClient)
-            stage.check(GuardCommand(userId = "user-1", text = longInput))
+            stage.enforce(GuardCommand(userId = "user-1", text = longInput))
 
             assertEquals(500, capturedUser.length,
                 "Input should be truncated to 500 chars")

@@ -128,7 +128,7 @@ internal class AgentExecutionCoordinator(
 
         // ── 단계 5: RAG 컨텍스트 검색 (키워드 사전 필터링으로 불필요한 검색 생략) ──
         val ragStart = nowMs()
-        val shouldRetrieveRag = RagRelevanceClassifier.shouldRetrieveRag(effectiveCommand)
+        val shouldRetrieveRag = RagRelevanceClassifier.isRagRequired(effectiveCommand)
         val ragResult = if (shouldRetrieveRag) {
             retrieveRagContext(effectiveCommand)
         } else {

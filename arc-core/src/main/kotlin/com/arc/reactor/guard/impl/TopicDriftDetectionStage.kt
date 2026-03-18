@@ -52,7 +52,7 @@ class TopicDriftDetectionStage(
     override val stageName = "TopicDriftDetection"
     override val order = 10
 
-    override suspend fun check(command: GuardCommand): GuardResult {
+    override suspend fun enforce(command: GuardCommand): GuardResult {
         // ── 단계 1: 대화 이력 로드 ──
         val history = loadConversationHistory(command)
         if (history.isEmpty()) return GuardResult.Allowed.DEFAULT

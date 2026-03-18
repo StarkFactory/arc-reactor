@@ -283,7 +283,7 @@ class AgentIntegrationTest {
                 override val stageName = "business-hours"
                 override val order = 5
 
-                override suspend fun check(command: GuardCommand): GuardResult {
+                override suspend fun enforce(command: GuardCommand): GuardResult {
                     if (command.text.contains("after-hours")) {
                         return GuardResult.Rejected(
                             reason = "Service unavailable outside business hours",

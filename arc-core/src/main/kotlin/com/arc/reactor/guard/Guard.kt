@@ -70,7 +70,7 @@ interface RequestGuard {
  *     override val stageName = "BusinessRule"
  *     override val order = 35  // InjectionDetection(3) 이후, Classification(4) 이전
  *
- *     override suspend fun check(command: GuardCommand): GuardResult {
+ *     override suspend fun enforce(command: GuardCommand): GuardResult {
  *         if (!isAllowedByBusinessRules(command.text)) {
  *             return GuardResult.Rejected(
  *                 reason = "Request violates business rules",
@@ -111,7 +111,7 @@ interface GuardStage {
      * @param command 검증할 요청 커맨드
      * @return 통과 시 [GuardResult.Allowed], 파이프라인 중단 시 [GuardResult.Rejected]
      */
-    suspend fun check(command: GuardCommand): GuardResult
+    suspend fun enforce(command: GuardCommand): GuardResult
 }
 
 /**

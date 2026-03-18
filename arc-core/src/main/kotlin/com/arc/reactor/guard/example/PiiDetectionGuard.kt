@@ -44,7 +44,7 @@ class PiiDetectionGuard : GuardStage {
     // InputValidation(2) 이후, InjectionDetection(3) 이전
     override val order = 25
 
-    override suspend fun check(command: GuardCommand): GuardResult {
+    override suspend fun enforce(command: GuardCommand): GuardResult {
         // 모든 PII 패턴을 순회하며 입력에 포함 여부 확인
         for (pattern in PiiPatterns.ALL) {
             if (pattern.regex.containsMatchIn(command.text)) {

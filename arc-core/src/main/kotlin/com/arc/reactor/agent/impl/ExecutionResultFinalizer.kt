@@ -249,7 +249,7 @@ internal class ExecutionResultFinalizer(
         } else {
             { _: String, _: Int, _: AgentCommand -> null }
         }
-        return outputBoundaryEnforcer.apply(result, command, trustEventMetadata(command, hookContext), effectiveRetry)
+        return outputBoundaryEnforcer.enforceOutputBoundaries(result, command, trustEventMetadata(command, hookContext), effectiveRetry)
             ?: outputTooShortFailure(hookContext, startTime)
     }
 

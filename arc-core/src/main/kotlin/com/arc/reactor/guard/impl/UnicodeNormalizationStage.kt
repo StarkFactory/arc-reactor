@@ -49,7 +49,7 @@ class UnicodeNormalizationStage(
     override val stageName = "UnicodeNormalization"
     override val order = 0
 
-    override suspend fun check(command: GuardCommand): GuardResult {
+    override suspend fun enforce(command: GuardCommand): GuardResult {
         val text = command.text
         if (text.isEmpty()) return GuardResult.Allowed.DEFAULT
 

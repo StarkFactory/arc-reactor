@@ -38,9 +38,9 @@ class CompositeClassificationStage(
 
     override val stageName = "Classification"
 
-    override suspend fun check(command: GuardCommand): GuardResult {
+    override suspend fun enforce(command: GuardCommand): GuardResult {
         // ── 단계 1: 규칙 기반 검사 (비용 0) ──
-        val ruleResult = ruleBasedStage.check(command)
+        val ruleResult = ruleBasedStage.enforce(command)
 
         if (ruleResult is GuardResult.Rejected) {
             logger.debug { "Rule-based classification rejected: ${ruleResult.reason}" }
@@ -50,7 +50,7 @@ class CompositeClassificationStage(
         // ── 단계 2: LLM 폴백 (규칙 통과 + LLM 활성화 시) ──
         if (llmStage != null) {
             logger.debug { "Rule-based passed, trying LLM classification fallback" }
-            return llmStage.check(command)
+            return llmStage.enforce(command)
         }
 
         return ruleResult

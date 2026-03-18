@@ -54,7 +54,7 @@ class GuardAuditPublisherTest {
             val rejectingStage = object : GuardStage {
                 override val stageName = "TestReject"
                 override val order = 1
-                override suspend fun check(command: GuardCommand): GuardResult =
+                override suspend fun enforce(command: GuardCommand): GuardResult =
                     GuardResult.Rejected("bad input", RejectionCategory.PROMPT_INJECTION)
             }
             val pipeline = GuardPipeline(listOf(rejectingStage), auditPublisher = publisher)
@@ -84,7 +84,7 @@ class GuardAuditPublisherTest {
             val passingStage = object : GuardStage {
                 override val stageName = "TestPass"
                 override val order = 1
-                override suspend fun check(command: GuardCommand) = GuardResult.Allowed.DEFAULT
+                override suspend fun enforce(command: GuardCommand) = GuardResult.Allowed.DEFAULT
             }
             val pipeline = GuardPipeline(listOf(passingStage), auditPublisher = publisher)
 
@@ -106,7 +106,7 @@ class GuardAuditPublisherTest {
             val errorStage = object : GuardStage {
                 override val stageName = "ErrorStage"
                 override val order = 1
-                override suspend fun check(command: GuardCommand): GuardResult =
+                override suspend fun enforce(command: GuardCommand): GuardResult =
                     throw RuntimeException("stage exploded")
             }
             val pipeline = GuardPipeline(listOf(errorStage), auditPublisher = publisher)
@@ -129,7 +129,7 @@ class GuardAuditPublisherTest {
             val slowStage = object : GuardStage {
                 override val stageName = "SlowStage"
                 override val order = 1
-                override suspend fun check(command: GuardCommand): GuardResult {
+                override suspend fun enforce(command: GuardCommand): GuardResult {
                     Thread.sleep(10)  // some work를 시뮬레이션합니다
                     return GuardResult.Allowed.DEFAULT
                 }
@@ -150,7 +150,7 @@ class GuardAuditPublisherTest {
             val stage1 = object : GuardStage {
                 override val stageName = "Stage1"
                 override val order = 1
-                override suspend fun check(command: GuardCommand): GuardResult {
+                override suspend fun enforce(command: GuardCommand): GuardResult {
                     Thread.sleep(5)
                     return GuardResult.Allowed.DEFAULT
                 }
@@ -158,7 +158,7 @@ class GuardAuditPublisherTest {
             val stage2 = object : GuardStage {
                 override val stageName = "Stage2"
                 override val order = 2
-                override suspend fun check(command: GuardCommand): GuardResult {
+                override suspend fun enforce(command: GuardCommand): GuardResult {
                     Thread.sleep(5)
                     return GuardResult.Allowed.DEFAULT
                 }
@@ -182,7 +182,7 @@ class GuardAuditPublisherTest {
             val passingStage = object : GuardStage {
                 override val stageName = "NoAudit"
                 override val order = 1
-                override suspend fun check(command: GuardCommand) = GuardResult.Allowed.DEFAULT
+                override suspend fun enforce(command: GuardCommand) = GuardResult.Allowed.DEFAULT
             }
             val pipeline = GuardPipeline(listOf(passingStage), auditPublisher = null)
 

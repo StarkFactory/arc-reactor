@@ -47,7 +47,7 @@ internal class OutputBoundaryEnforcer(
      * @param attemptLongerResponse RETRY_ONCE 모드에서 더 긴 응답을 시도하는 함수
      * @return 정책이 적용된 결과. FAIL 모드에서 최소 미달 시 null
      */
-    suspend fun apply(
+    suspend fun enforceOutputBoundaries(
         result: AgentResult,
         command: AgentCommand,
         metadata: Map<String, Any>,
