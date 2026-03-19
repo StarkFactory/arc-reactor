@@ -106,6 +106,7 @@ Claude Code 사용자는 동일 내용이 CLAUDE.md에 통합되어 있으므로
 | `max-tools-per-request` | 30 | `concurrency.tool-call-timeout-ms` | 15000 |
 | `llm.temperature` | 0.1 | `guard.rate-limit-per-minute` | 20 |
 | `llm.max-context-window-tokens` | 128000 | `guard.rate-limit-per-hour` | 200 |
+| `boundaries.input-max-chars` | 10000 | `llm.max-output-tokens` | 4096 |
 
 | `model-routing.enabled` | false | `tool-idempotency.enabled` | false |
 | `checkpoint.enabled` | false | `tool-filter.enabled` | false |
