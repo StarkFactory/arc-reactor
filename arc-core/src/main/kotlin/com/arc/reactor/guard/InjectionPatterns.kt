@@ -26,6 +26,7 @@ object InjectionPatterns {
      * [com.arc.reactor.guard.impl.UnicodeNormalizationStage]에서도 이 집합을 사용한다.
      */
     val ZERO_WIDTH_CODEPOINTS: Set<Int> = setOf(
+        0x0000, // 널바이트 — Guard 우회 벡터 방지
         0x200B, 0x200C, 0x200D, 0x200E, 0x200F,
         0xFEFF, 0x00AD, 0x2060, 0x2061, 0x2062,
         0x2063, 0x2064, 0x180E,
