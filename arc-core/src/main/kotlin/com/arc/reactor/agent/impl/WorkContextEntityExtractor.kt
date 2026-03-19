@@ -1,6 +1,6 @@
 package com.arc.reactor.agent.impl
 
-import com.arc.reactor.support.WorkContextPatterns
+// WorkContextPatterns는 같은 패키지 내 internal object — import 불필요
 
 /**
  * 사용자 프롬프트에서 엔티티(이슈 키, 프로젝트 키, 레포지토리, 서비스명 등)를 추출한다.

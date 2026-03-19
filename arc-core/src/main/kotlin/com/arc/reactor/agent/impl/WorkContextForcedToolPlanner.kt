@@ -40,27 +40,14 @@ internal object WorkContextForcedToolPlanner {
 
     // ── 힌트 키워드 셋 ──
 
-    private val workOwnerHints = setOf(
-        "owner", "담당자", "담당 팀", "누구 팀", "책임자", "누가 담당",
-        "담당 서비스"
-    )
+    private val workOwnerHints = WorkContextPatterns.WORK_OWNER_HINTS
     private val ownershipDiscoveryHints = setOf(
         "누가 관리", "누가 쓰는지", "누가 개발", "주로 관리", "owner 문서",
         "owner를 확인", "담당 팀이 적힌"
     )
-    private val missingAssigneeHints = setOf(
-        "담당자가 없는", "담당자 없는", "미할당", "unassigned",
-        "assignee is empty", "assignee 없는"
-    )
-    private val workItemContextHints = setOf(
-        "전체 맥락", "맥락", "context", "관련 문서", "관련 pr", "열린 pr",
-        "오픈 pr", "다음 액션", "next action"
-    )
-    private val workServiceContextHints = setOf(
-        "서비스 상황", "서비스 현황", "service context", "service summary",
-        "현재 상황", "현재 현황", "최근 jira", "최근 jira 이슈", "열린 pr",
-        "오픈 pr", "관련 문서", "한 번에 요약", "요약해줘", "기준으로"
-    )
+    private val missingAssigneeHints = WorkContextPatterns.MISSING_ASSIGNEE_HINTS
+    private val workItemContextHints = WorkContextPatterns.WORK_ITEM_CONTEXT_HINTS
+    private val workServiceContextHints = WorkContextPatterns.WORK_SERVICE_CONTEXT_HINTS
     private val workTeamStatusHints = setOf(
         "팀 상태", "team status", "주간 상태", "weekly status", "이번 주",
         "this week"
@@ -90,7 +77,7 @@ internal object WorkContextForcedToolPlanner {
         "없으면 없다고", "링크와 함께", "핵심만 요약", "키워드로 검색",
         "search and summarize", "document if exists"
     )
-    private val jiraBlockerHints = setOf("blocker", "차단", "막힌")
+    private val jiraBlockerHints = WorkContextPatterns.BLOCKER_HINTS
     private val jiraRecentIssueHints = setOf(
         "최근 jira 이슈", "최근 이슈", "최근 운영 이슈",
         "recent jira issue", "recent issues"
@@ -125,9 +112,7 @@ internal object WorkContextForcedToolPlanner {
         "위험 신호", "risk signal", "release risk", "릴리즈 리스크",
         "risk digest"
     )
-    private val hybridPriorityHints = setOf(
-        "우선순위", "priority", "priorities", "오늘 우선", "today priority"
-    )
+    private val hybridPriorityHints = WorkContextPatterns.HYBRID_PRIORITY_HINTS
     /** 명시적 브리핑 요청으로만 morning briefing 폴백을 트리거하는 키워드. */
     private val explicitBriefingFallbackHints = setOf(
         "브리핑", "briefing", "아침 요약", "오늘 현황",
@@ -137,14 +122,8 @@ internal object WorkContextForcedToolPlanner {
         "review queue", "리뷰 대기열", "review sla", "리뷰 sla",
         "code review"
     )
-    private val workReleaseReadinessHints = setOf(
-        "release readiness", "readiness pack", "릴리즈 준비", "출시 준비",
-        "readiness"
-    )
-    private val workPersonalFocusHints = setOf(
-        "focus plan", "personal focus plan", "개인 focus plan",
-        "개인 집중 계획", "오늘 집중 계획"
-    )
+    private val workReleaseReadinessHints = WorkContextPatterns.WORK_RELEASE_READINESS_HINTS
+    private val workPersonalFocusHints = WorkContextPatterns.WORK_PERSONAL_FOCUS_HINTS
     private val workPersonalFocusGeneralHints = setOf(
         "내가 지금 해야 할 작업", "지금 해야 할 작업", "오늘 집중해야",
         "오늘 해야 할 일", "내가 오늘 집중해야", "내가 오늘 해야 할",
@@ -154,10 +133,7 @@ internal object WorkContextForcedToolPlanner {
         "carry-over", "내일 아침 바로 봐야", "내 open issue",
         "오늘 브리핑", "morning briefing", "해야 할 일과 미뤄도 되는 일"
     )
-    private val workPersonalLearningHints = setOf(
-        "learning digest", "personal learning digest", "학습 digest",
-        "학습 다이제스트"
-    )
+    private val workPersonalLearningHints = WorkContextPatterns.WORK_PERSONAL_LEARNING_HINTS
     private val workPersonalLearningGeneralHints = setOf(
         "최근에 관여한 이슈와 문서", "최근 참여한 작업", "읽어야 할 runbook",
         "incident 문서", "최근에 본 문서", "이번 주 팀 변화",
@@ -165,17 +141,9 @@ internal object WorkContextForcedToolPlanner {
         "jira와 bitbucket 기준으로 묶어", "알아야 할 이번 주 팀 변화",
         "최근 참여한 작업을 jira와 bitbucket 기준으로"
     )
-    private val workPersonalInterruptHints = setOf(
-        "interrupt guard", "personal interrupt guard", "interrupt plan",
-        "인터럽트 가드", "집중 방해"
-    )
-    private val workPersonalWrapupHints = setOf(
-        "end of day wrapup", "end-of-day wrapup", "eod wrapup", "wrapup",
-        "wrap-up", "마감 정리", "하루 마감"
-    )
-    private val bitbucketReviewRiskHints = setOf(
-        "review risk", "리뷰 리스크", "코드 리뷰 리스크"
-    )
+    private val workPersonalInterruptHints = WorkContextPatterns.WORK_PERSONAL_INTERRUPT_HINTS
+    private val workPersonalWrapupHints = WorkContextPatterns.WORK_PERSONAL_WRAPUP_HINTS
+    private val bitbucketReviewRiskHints = WorkContextPatterns.REVIEW_RISK_HINTS
     private val bitbucketMyReviewHints = setOf(
         "내가 검토", "검토해야", "review for me", "needs review"
     )
@@ -194,13 +162,8 @@ internal object WorkContextForcedToolPlanner {
     private val bitbucketStalePrHints = setOf(
         "stale pr", "오래된 pr", "방치된 pr", "stale pull request"
     )
-    private val bitbucketReviewQueueHints = setOf(
-        "review queue", "리뷰 대기열", "검토 대기열", "리뷰가 필요한",
-        "검토가 필요한", "needs review", "review needed"
-    )
-    private val bitbucketReviewSlaHints = setOf(
-        "review sla", "리뷰 sla", "sla 경고", "리뷰 sla 경고"
-    )
+    private val bitbucketReviewQueueHints = WorkContextPatterns.REVIEW_QUEUE_HINTS
+    private val bitbucketReviewSlaHints = WorkContextPatterns.REVIEW_SLA_HINTS
     private val bitbucketRepositoryListHints = setOf(
         "저장소 목록", "repository list", "list repositories", "repo 목록",
         "어떤 저장소", "사용 가능한 저장소", "접근 가능한 저장소",
@@ -211,14 +174,9 @@ internal object WorkContextForcedToolPlanner {
         "branch 목록", "브랜치 목록", "list branches", "branches",
         "어떤 브랜치", "사용 가능한 브랜치", "접근 가능한 브랜치"
     )
-    private val swaggerWrongEndpointHints = setOf(
-        "wrong endpoint", "invalid endpoint", "잘못된 endpoint",
-        "없는 endpoint"
-    )
-    private val swaggerSummaryHints = setOf(
-        "summary", "summarize", "요약", "정리"
-    )
-    private val swaggerValidateHints = setOf("validate", "검증", "유효성")
+    private val swaggerWrongEndpointHints = WorkContextPatterns.WRONG_ENDPOINT_HINTS
+    private val swaggerSummaryHints = WorkContextPatterns.SUMMARY_HINTS
+    private val swaggerValidateHints = WorkContextPatterns.VALIDATE_HINTS
     private val swaggerDiscoveryHints = setOf(
         "endpoint", "엔드포인트", "schema", "스키마", "인증", "auth",
         "에러 응답", "error response", "파라미터", "parameter", "로드된 스펙",

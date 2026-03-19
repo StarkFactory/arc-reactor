@@ -17,7 +17,7 @@ private val objectMapper = jacksonObjectMapper()
  * @see StructuredResponseRepairer 검증 실패 시 LLM을 통한 복구 시도
  * @see ResponseFormat 응답 형식 열거형 (TEXT, JSON, YAML)
  */
-class StructuredOutputValidator {
+internal class StructuredOutputValidator {
 
     /**
      * 콘텐츠가 지정된 형식에 맞는지 검증한다.

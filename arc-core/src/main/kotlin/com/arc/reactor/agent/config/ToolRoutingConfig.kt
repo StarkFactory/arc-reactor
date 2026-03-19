@@ -1,6 +1,6 @@
 package com.arc.reactor.agent.config
 
-import com.arc.reactor.support.WorkContextPatterns
+import com.arc.reactor.agent.impl.WorkContextPatterns
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory

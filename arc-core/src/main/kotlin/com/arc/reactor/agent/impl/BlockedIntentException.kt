@@ -10,6 +10,6 @@ package com.arc.reactor.agent.impl
  * @see PreExecutionResolver 인텐트 해석 시 차단 여부 확인
  * @see SpringAiAgentExecutor 이 예외를 catch하여 에러 응답 생성
  */
-class BlockedIntentException(
+internal class BlockedIntentException(
     val intentName: String
 ) : Exception("Intent '$intentName' is blocked by policy")

@@ -1,7 +1,6 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.model.ResponseFormat
-import com.arc.reactor.support.WorkContextPatterns
 import com.arc.reactor.guard.canary.SystemPromptPostProcessor
 import com.arc.reactor.tool.WorkspaceMutationIntentDetector
 
@@ -23,7 +22,7 @@ import com.arc.reactor.tool.WorkspaceMutationIntentDetector
  * @see SystemPromptPostProcessor 카나리 토큰 등 후처리
  * @see WorkContextForcedToolPlanner 도구 호출 강제 계획 수립 (대응 역할)
  */
-class SystemPromptBuilder(
+internal class SystemPromptBuilder(
     private val postProcessor: SystemPromptPostProcessor? = null
 ) {
 
@@ -664,19 +663,7 @@ class SystemPromptBuilder(
     }
 
     // ── 프롬프트 분류를 위한 힌트 키워드 집합 (한국어/영어) ──
-    // TODO: 아래 힌트 셋 중 다수가 WorkContextForcedToolPlanner의 힌트 셋과 중복된다.
-    //  중복 대상: WORK_OWNER_HINTS↔workOwnerHints, MISSING_ASSIGNEE_HINTS↔missingAssigneeHints,
-    //  WORK_ITEM_CONTEXT_HINTS↔workItemContextHints, WORK_SERVICE_CONTEXT_HINTS↔workServiceContextHints,
-    //  BLOCKER_HINTS↔jiraBlockerHints, HYBRID_PRIORITY_HINTS↔hybridPriorityHints,
-    //  WORK_RELEASE_READINESS_HINTS↔workReleaseReadinessHints,
-    //  WORK_PERSONAL_FOCUS_HINTS↔workPersonalFocusHints,
-    //  WORK_PERSONAL_LEARNING_HINTS↔workPersonalLearningHints,
-    //  WORK_PERSONAL_INTERRUPT_HINTS↔workPersonalInterruptHints,
-    //  WORK_PERSONAL_WRAPUP_HINTS↔workPersonalWrapupHints,
-    //  REVIEW_QUEUE_HINTS↔bitbucketReviewQueueHints, REVIEW_SLA_HINTS↔bitbucketReviewSlaHints,
-    //  REVIEW_RISK_HINTS↔bitbucketReviewRiskHints, WRONG_ENDPOINT_HINTS↔swaggerWrongEndpointHints,
-    //  VALIDATE_HINTS↔swaggerValidateHints, SUMMARY_HINTS↔swaggerSummaryHints.
-    //  향후 WorkContextPatterns 등 공통 모듈로 통합 필요.
+    // 공유 힌트 셋은 WorkContextPatterns에서 참조, 이 클래스 전용 힌트만 companion에 정의
     companion object {
         private val CONFLUENCE_KNOWLEDGE_HINTS = setOf(
             "confluence", "wiki", "page", "document", "policy", "policies", "guideline", "guidelines",
@@ -709,36 +696,8 @@ class SystemPromptBuilder(
         private val WORK_RELEASE_RISK_HINTS = setOf(
             "release risk", "risk digest", "릴리즈 위험", "출시 위험", "release digest"
         )
-        private val HYBRID_PRIORITY_HINTS = setOf(
-            "priority", "priorities", "우선순위", "오늘 우선", "today priority"
-        )
-        private val WORK_RELEASE_READINESS_HINTS = setOf(
-            "release readiness", "readiness pack", "릴리즈 준비", "출시 준비", "readiness"
-        )
-        private val WORK_PERSONAL_FOCUS_HINTS = setOf(
-            "focus plan", "personal focus plan", "개인 focus plan", "개인 집중 계획", "오늘 집중 계획"
-        )
-        private val WORK_PERSONAL_LEARNING_HINTS = setOf(
-            "learning digest", "personal learning digest", "학습 digest", "학습 다이제스트"
-        )
-        private val WORK_PERSONAL_INTERRUPT_HINTS = setOf(
-            "interrupt guard", "personal interrupt guard", "interrupt plan", "인터럽트 가드", "집중 방해"
-        )
-        private val WORK_PERSONAL_WRAPUP_HINTS = setOf(
-            "end of day wrapup", "end-of-day wrapup", "eod wrapup", "wrapup", "wrap-up", "마감 정리", "하루 마감"
-        )
         private val WORK_BRIEFING_PROFILE_HINTS = setOf(
             "briefing profile", "profile list", "profiles", "브리핑 프로필", "프로필 목록"
-        )
-        private val WORK_OWNER_HINTS = setOf(
-            "owner", "담당자", "담당 팀", "누구 팀", "책임자", "누가 담당", "담당 서비스"
-        )
-        private val WORK_ITEM_CONTEXT_HINTS = setOf(
-            "전체 맥락", "맥락", "context", "관련 문서", "관련 pr", "열린 pr", "오픈 pr", "다음 액션", "next action"
-        )
-        private val WORK_SERVICE_CONTEXT_HINTS = setOf(
-            "서비스 상황", "서비스 현황", "service context", "service summary", "현재 상황", "현재 현황",
-            "최근 jira", "최근 jira 이슈", "열린 pr", "오픈 pr", "관련 문서", "한 번에 요약", "요약해줘", "기준으로"
         )
         private val ISSUE_KEY_REGEX = WorkContextPatterns.ISSUE_KEY_REGEX
         private val AGILE_WORKFLOW_HINTS = setOf(
@@ -761,9 +720,9 @@ class SystemPromptBuilder(
         private val OPENAPI_URL_REGEX = WorkContextPatterns.OPENAPI_URL_REGEX
         private val PROJECT_LIST_HINTS = setOf("project list", "projects", "프로젝트 목록", "프로젝트 리스트")
         private val DUE_SOON_HINTS = setOf("due soon", "마감", "임박", "due")
-        private val BLOCKER_HINTS = setOf("blocker", "차단", "막힌")
         private val DAILY_BRIEFING_HINTS = setOf(
-            "daily briefing", "아침 브리핑", "데일리 브리핑", "daily digest", "오늘의 jira 브리핑", "오늘 jira 브리핑"
+            "daily briefing", "아침 브리핑", "데일리 브리핑", "daily digest",
+            "오늘의 jira 브리핑", "오늘 jira 브리핑"
         )
         private val JIRA_PROJECT_SUMMARY_HINTS = setOf(
             "recent", "latest", "summary", "summarize", "최근", "요약", "정리", "브리핑"
@@ -773,25 +732,33 @@ class SystemPromptBuilder(
         private val REPOSITORY_HINTS = setOf("repository", "repo", "저장소")
         private val BRANCH_HINTS = setOf("branch", "브랜치")
         private val STALE_HINTS = setOf("stale", "오래된", "방치된")
-        private val REVIEW_QUEUE_HINTS = setOf("queue", "대기열", "리뷰가 필요한", "검토가 필요한", "review needed")
-        private val REVIEW_SLA_HINTS = setOf("sla", "응답 지연", "리뷰 sla")
-        private val REVIEW_RISK_HINTS = setOf("review risk", "리뷰 리스크", "코드 리뷰 리스크")
         private val MY_REVIEW_HINTS = setOf(
-            "내가 검토",
-            "검토해야",
-            "review for me",
-            "needs review",
-            "리뷰가 필요한",
-            "검토가 필요한"
+            "내가 검토", "검토해야", "review for me", "needs review",
+            "리뷰가 필요한", "검토가 필요한"
         )
-        private val MISSING_ASSIGNEE_HINTS = setOf("담당자가 없는", "담당자 없는", "미할당", "unassigned", "assignee 없는")
-        private val VALIDATE_HINTS = setOf("validate", "검증", "유효성")
         private val SCHEMA_HINTS = setOf("schema", "스키마", "model", "dto")
         private val DETAIL_HINTS = setOf("detail", "상세", "parameter", "response", "security")
-        private val SUMMARY_HINTS = setOf("summary", "summarize", "요약", "정리")
         private val LIST_HINTS = setOf("loaded specs", "list specs", "목록", "list")
         private val LOADED_HINTS = setOf("loaded", "로드된", "현재 로드된")
         private val REMOVE_HINTS = setOf("remove", "삭제")
-        private val WRONG_ENDPOINT_HINTS = setOf("wrong endpoint", "invalid endpoint", "잘못된 endpoint", "없는 endpoint")
+
+        // WorkContextPatterns 공유 힌트 참조 (17쌍)
+        private val BLOCKER_HINTS = WorkContextPatterns.BLOCKER_HINTS
+        private val REVIEW_QUEUE_HINTS = WorkContextPatterns.REVIEW_QUEUE_HINTS
+        private val REVIEW_SLA_HINTS = WorkContextPatterns.REVIEW_SLA_HINTS
+        private val REVIEW_RISK_HINTS = WorkContextPatterns.REVIEW_RISK_HINTS
+        private val HYBRID_PRIORITY_HINTS = WorkContextPatterns.HYBRID_PRIORITY_HINTS
+        private val WORK_RELEASE_READINESS_HINTS = WorkContextPatterns.WORK_RELEASE_READINESS_HINTS
+        private val WORK_PERSONAL_FOCUS_HINTS = WorkContextPatterns.WORK_PERSONAL_FOCUS_HINTS
+        private val WORK_PERSONAL_LEARNING_HINTS = WorkContextPatterns.WORK_PERSONAL_LEARNING_HINTS
+        private val WORK_PERSONAL_INTERRUPT_HINTS = WorkContextPatterns.WORK_PERSONAL_INTERRUPT_HINTS
+        private val WORK_PERSONAL_WRAPUP_HINTS = WorkContextPatterns.WORK_PERSONAL_WRAPUP_HINTS
+        private val WORK_OWNER_HINTS = WorkContextPatterns.WORK_OWNER_HINTS
+        private val MISSING_ASSIGNEE_HINTS = WorkContextPatterns.MISSING_ASSIGNEE_HINTS
+        private val WORK_ITEM_CONTEXT_HINTS = WorkContextPatterns.WORK_ITEM_CONTEXT_HINTS
+        private val WORK_SERVICE_CONTEXT_HINTS = WorkContextPatterns.WORK_SERVICE_CONTEXT_HINTS
+        private val VALIDATE_HINTS = WorkContextPatterns.VALIDATE_HINTS
+        private val SUMMARY_HINTS = WorkContextPatterns.SUMMARY_HINTS
+        private val WRONG_ENDPOINT_HINTS = WorkContextPatterns.WRONG_ENDPOINT_HINTS
     }
 }

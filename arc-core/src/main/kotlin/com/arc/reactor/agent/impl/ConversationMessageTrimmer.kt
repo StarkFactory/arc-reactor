@@ -28,7 +28,7 @@ private val logger = KotlinLogging.logger {}
  * @see ManualReActLoopExecutor 매 LLM 호출 전 메시지 트리밍 수행
  * @see StreamingReActLoopExecutor 스트리밍 모드에서도 동일하게 트리밍 수행
  */
-class ConversationMessageTrimmer(
+internal class ConversationMessageTrimmer(
     private val maxContextWindowTokens: Int,
     private val outputReserveTokens: Int,
     private val tokenEstimator: TokenEstimator
