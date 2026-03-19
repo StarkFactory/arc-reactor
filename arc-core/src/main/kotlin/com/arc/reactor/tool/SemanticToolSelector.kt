@@ -326,8 +326,9 @@ class SemanticToolSelector(
         return "${tool.name}: ${tool.description}"
     }
 
+    /** 도구 목록 변경 감지용 fingerprint — 순서 무관, O(N) 합산으로 할당 없음. */
     private fun toolFingerprint(tools: List<ToolCallback>): Int {
-        return tools.map(::buildToolText).sorted().hashCode()
+        return tools.sumOf { System.identityHashCode(it) }
     }
 
     private fun embed(text: String): FloatArray = embeddingModel.embed(text)

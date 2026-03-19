@@ -19,9 +19,9 @@ import com.arc.reactor.guard.model.RejectionCategory
  * - 이메일 주소
  *
  * ## Order가 25인 이유
- * InputValidation(2)과 InjectionDetection(3) 사이에 배치한다.
- * 입력 길이 검증은 통과했지만, Injection 탐지 전에 PII를 걸러내어
- * 개인정보가 이후 어떤 처리에도 노출되지 않도록 한다.
+ * InputValidation(2)과 InjectionDetection(3) 이후에 배치한다.
+ * 입력 길이 검증과 인젝션 탐지를 먼저 통과시킨 뒤 PII를 걸러내어,
+ * 보안 위협이 없는 요청에서만 개인정보 검사를 수행한다.
  *
  * ## 프로덕션 권장사항
  * 이 예제는 단순 정규식 기반이다. 프로덕션에서는:
@@ -41,7 +41,7 @@ class PiiDetectionGuard : GuardStage {
 
     override val stageName = "PiiDetection"
 
-    // InputValidation(2) 이후, InjectionDetection(3) 이전
+    // InputValidation(2), InjectionDetection(3) 이후
     override val order = 25
 
     override suspend fun enforce(command: GuardCommand): GuardResult {

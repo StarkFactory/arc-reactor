@@ -66,7 +66,7 @@ internal class ToolCallOrchestrator(
     private val maxContextWindowTokens: Int = DEFAULT_MAX_CONTEXT_WINDOW_TOKENS
 ) {
     /** Spring AI ToolCallback 해석 결과 캐시 — MethodToolCallbackProvider 호출 비용 절감. 크기 제한으로 메모리 누수 방지. */
-    private val springToolCallbackCache: Cache<ToolCallbackCacheKey, Map<String, org.springframework.ai.tool.ToolCallback>> =
+    private val springToolCallbackCache: Cache<Int, Map<String, org.springframework.ai.tool.ToolCallback>> =
         Caffeine.newBuilder()
             .maximumSize(100)
             .expireAfterWrite(java.time.Duration.ofMinutes(10))
@@ -768,10 +768,8 @@ internal class ToolCallOrchestrator(
         val explicitCallbacks = tools
             .filterIsInstance<org.springframework.ai.tool.ToolCallback>()
             .filterNot { it is ArcToolCallbackAdapter }
-        val cacheKey = ToolCallbackCacheKey(
-            localToolIds = localTools.map(System::identityHashCode),
-            explicitCallbackIds = explicitCallbacks.map(System::identityHashCode)
-        )
+        val cacheKey = localTools.sumOf { System.identityHashCode(it) } * 31 +
+            explicitCallbacks.sumOf { System.identityHashCode(it) }
         return springToolCallbackCache.get(cacheKey) {
             buildSpringToolCallbacksByName(localTools, explicitCallbacks)
         }
@@ -983,8 +981,4 @@ internal class ToolCallOrchestrator(
         val trackAsUsed: Boolean
     )
 
-    private data class ToolCallbackCacheKey(
-        val localToolIds: List<Int>,
-        val explicitCallbackIds: List<Int>
-    )
 }
