@@ -17,6 +17,8 @@ import com.arc.reactor.resilience.FallbackStrategy
 import com.arc.reactor.support.runSuspendCatchingNonCancellation
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import mu.KotlinLogging
 import org.springframework.ai.chat.messages.Message
 
@@ -107,11 +109,18 @@ internal class AgentExecutionCoordinator(
         }
         cacheLookup.cachedResult?.let { return it }
 
-        val history = measureStage("history_load", hookContext, cmd) {
-            loadConversationHistory(cmd, hookContext)
-        }
-        val ragCtx = measureStage("rag_retrieval", hookContext, cmd) {
-            retrieveRag(cmd, hookContext)
+        val (history, ragCtx) = coroutineScope {
+            val historyDeferred = async {
+                measureStage("history_load", hookContext, cmd) {
+                    loadConversationHistory(cmd, hookContext)
+                }
+            }
+            val ragDeferred = async {
+                measureStage("rag_retrieval", hookContext, cmd) {
+                    retrieveRag(cmd, hookContext)
+                }
+            }
+            Pair(historyDeferred.await(), ragDeferred.await())
         }
         val tools = measureStage("tool_selection", hookContext, cmd) {
             selectActiveTools(cmd)

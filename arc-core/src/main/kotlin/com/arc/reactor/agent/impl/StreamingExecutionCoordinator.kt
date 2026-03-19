@@ -13,6 +13,8 @@ import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.rag.model.RagContext
 import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
@@ -151,18 +153,26 @@ internal class StreamingExecutionCoordinator(
     }
 
     private suspend fun prepareLoopSetup(command: AgentCommand, hookContext: HookContext): StreamingLoopSetup {
-        val conversationHistory = measureStage("history_load", hookContext, command.metadata) {
-            conversationManager.loadHistory(command)
-        }
-
-        val ragResult = measureStage("rag_retrieval", hookContext, command.metadata) {
-            val shouldRetrieveRag = RagRelevanceClassifier.isRagRequired(command)
-            if (shouldRetrieveRag) {
-                ragContextRetriever.retrieve(command)
-            } else {
-                logger.debug { "RAG retrieval skipped: prompt not classified as knowledge query" }
-                null
+        val (conversationHistory, ragResult) = coroutineScope {
+            val historyDeferred = async {
+                measureStage("history_load", hookContext, command.metadata) {
+                    conversationManager.loadHistory(command)
+                }
             }
+            val ragDeferred = async {
+                measureStage("rag_retrieval", hookContext, command.metadata) {
+                    val shouldRetrieveRag = RagRelevanceClassifier.isRagRequired(command)
+                    if (shouldRetrieveRag) {
+                        ragContextRetriever.retrieve(command)
+                    } else {
+                        logger.debug {
+                            "RAG retrieval skipped: not a knowledge query"
+                        }
+                        null
+                    }
+                }
+            }
+            Pair(historyDeferred.await(), ragDeferred.await())
         }
         registerRagVerifiedSources(ragResult, hookContext)
         val ragContext = ragResult?.context
