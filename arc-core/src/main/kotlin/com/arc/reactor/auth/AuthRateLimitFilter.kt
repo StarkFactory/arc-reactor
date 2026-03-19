@@ -124,7 +124,7 @@ class AuthRateLimitFilter(
         exchange.response.statusCode = HttpStatus.TOO_MANY_REQUESTS
         exchange.response.headers.set("Retry-After", "60")
         exchange.response.headers.contentType = MediaType.APPLICATION_JSON
-        val body = """{"error":"Too many authentication attempts. Please try again later."}"""
+        val body = """{"error":"Too many authentication attempts. Please try again later.","details":null,"timestamp":"${java.time.Instant.now()}"}"""
         val buffer = exchange.response.bufferFactory().wrap(body.toByteArray())
         return exchange.response.writeWith(Mono.just(buffer))
     }
