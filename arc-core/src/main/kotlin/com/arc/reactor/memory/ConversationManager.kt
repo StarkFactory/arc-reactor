@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
@@ -131,7 +132,9 @@ class DefaultConversationManager(
             logger.debug { "No sessionId in metadata" }
             return emptyList()
         }
-        val allMessages = memoryStore?.get(sessionId)?.getHistory()
+        val allMessages = withContext(Dispatchers.IO) {
+            memoryStore?.get(sessionId)?.getHistory()
+        }
         if (allMessages == null) {
             logger.debug { "No memory found for session $sessionId" }
             return emptyList()
@@ -341,9 +344,11 @@ class DefaultConversationManager(
         val mutex = sessionSaveLocks.get(sessionId) { Mutex() }
         mutex.withLock {
             try {
-                store.addMessage(sessionId, "user", userPrompt, resolvedUserId)
-                if (assistantContent != null) {
-                    store.addMessage(sessionId, "assistant", assistantContent, resolvedUserId)
+                withContext(Dispatchers.IO) {
+                    store.addMessage(sessionId, "user", userPrompt, resolvedUserId)
+                    if (assistantContent != null) {
+                        store.addMessage(sessionId, "assistant", assistantContent, resolvedUserId)
+                    }
                 }
                 logger.debug { "Saved conversation for session $sessionId" }
             } catch (e: Exception) {

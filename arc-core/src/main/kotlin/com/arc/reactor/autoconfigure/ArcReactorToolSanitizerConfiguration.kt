@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConditionalOnProperty(
     prefix = "arc.reactor.guard", name = ["tool-output-sanitization-enabled"],
-    havingValue = "true", matchIfMissing = false
+    havingValue = "true", matchIfMissing = true
 )
 class ToolSanitizerConfiguration {
 

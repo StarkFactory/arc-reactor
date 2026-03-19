@@ -2,7 +2,9 @@ package com.arc.reactor.approval
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import org.springframework.jdbc.core.JdbcTemplate
 import java.sql.ResultSet
 import java.sql.Timestamp
@@ -45,34 +47,30 @@ class JdbcPendingApprovalStore(
         arguments: Map<String, Any?>,
         timeoutMs: Long
     ): ToolApprovalResponse {
-        // 오래된 해결 행 정리
-        cleanupResolvedRows()
-
-        // ── 단계 1: PENDING 행 삽입 ──
         val id = UUID.randomUUID().toString()
         val requestedAt = Instant.now()
         val effectiveTimeoutMs = if (timeoutMs > 0) timeoutMs else defaultTimeoutMs
 
-        jdbcTemplate.update(
-            """
-            INSERT INTO pending_approvals
-            (id, run_id, user_id, tool_name, arguments, timeout_ms, status, requested_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """.trimIndent(),
-            id,
-            runId,
-            userId,
-            toolName,
-            objectMapper.writeValueAsString(arguments),
-            effectiveTimeoutMs,
-            ApprovalStatus.PENDING.name,
-            Timestamp.from(requestedAt)
-        )
+        // ── 단계 1: 정리 + PENDING 행 삽입 ──
+        withContext(Dispatchers.IO) {
+            cleanupResolvedRows()
+            jdbcTemplate.update(
+                """
+                INSERT INTO pending_approvals
+                (id, run_id, user_id, tool_name, arguments, timeout_ms, status, requested_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """.trimIndent(),
+                id, runId, userId, toolName,
+                objectMapper.writeValueAsString(arguments),
+                effectiveTimeoutMs, ApprovalStatus.PENDING.name,
+                Timestamp.from(requestedAt)
+            )
+        }
 
         // ── 단계 2: 상태 변경을 폴링하며 대기 ──
         val deadline = System.currentTimeMillis() + effectiveTimeoutMs
         while (System.currentTimeMillis() < deadline) {
-            val state = findState(id)
+            val state = withContext(Dispatchers.IO) { findState(id) }
             if (state == null) {
                 return ToolApprovalResponse(
                     approved = false,
@@ -104,19 +102,20 @@ class JdbcPendingApprovalStore(
         }
 
         // ── 단계 3: 타임아웃 처리 ──
-        val now = Instant.now()
-        jdbcTemplate.update(
-            """
-            UPDATE pending_approvals
-               SET status = ?, reason = ?, resolved_at = ?
-             WHERE id = ? AND status = ?
-            """.trimIndent(),
-            ApprovalStatus.TIMED_OUT.name,
-            "Approval timed out after ${effectiveTimeoutMs}ms",
-            Timestamp.from(now),
-            id,
-            ApprovalStatus.PENDING.name
-        )
+        withContext(Dispatchers.IO) {
+            val now = Instant.now()
+            jdbcTemplate.update(
+                """
+                UPDATE pending_approvals
+                   SET status = ?, reason = ?, resolved_at = ?
+                 WHERE id = ? AND status = ?
+                """.trimIndent(),
+                ApprovalStatus.TIMED_OUT.name,
+                "Approval timed out after ${effectiveTimeoutMs}ms",
+                Timestamp.from(now),
+                id, ApprovalStatus.PENDING.name
+            )
+        }
 
         return ToolApprovalResponse(
             approved = false,

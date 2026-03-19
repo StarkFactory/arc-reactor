@@ -5,6 +5,8 @@ import com.arc.reactor.memory.model.UserMemory
 import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.jdbc.core.JdbcTemplate
 import java.sql.ResultSet
@@ -51,12 +53,14 @@ class JdbcUserMemoryStore(
 
     override suspend fun get(userId: String): UserMemory? {
         return try {
-            val results = jdbcTemplate.query(
-                "SELECT user_id, facts, preferences, recent_topics, updated_at FROM $tableName WHERE user_id = ?",
-                { rs: ResultSet, _: Int -> rs.toUserMemory() },
-                userId
-            )
-            results.firstOrNull()
+            withContext(Dispatchers.IO) {
+                val results = jdbcTemplate.query(
+                    "SELECT user_id, facts, preferences, recent_topics, updated_at FROM $tableName WHERE user_id = ?",
+                    { rs: ResultSet, _: Int -> rs.toUserMemory() },
+                    userId
+                )
+                results.firstOrNull()
+            }
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) { "Failed to load user memory for $userId" }
@@ -74,22 +78,26 @@ class JdbcUserMemoryStore(
         val topicsText = memory.recentTopics.joinToString("\n")
         val now = Timestamp.from(Instant.now())
 
-        jdbcTemplate.update(
-            """
-            INSERT INTO $tableName (user_id, facts, preferences, recent_topics, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT (user_id) DO UPDATE
-            SET facts = EXCLUDED.facts,
-                preferences = EXCLUDED.preferences,
-                recent_topics = EXCLUDED.recent_topics,
-                updated_at = EXCLUDED.updated_at
-            """.trimIndent(),
-            userId, factsJson, prefsJson, topicsText, now
-        )
+        withContext(Dispatchers.IO) {
+            jdbcTemplate.update(
+                """
+                INSERT INTO $tableName (user_id, facts, preferences, recent_topics, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (user_id) DO UPDATE
+                SET facts = EXCLUDED.facts,
+                    preferences = EXCLUDED.preferences,
+                    recent_topics = EXCLUDED.recent_topics,
+                    updated_at = EXCLUDED.updated_at
+                """.trimIndent(),
+                userId, factsJson, prefsJson, topicsText, now
+            )
+        }
     }
 
     override suspend fun delete(userId: String) {
-        jdbcTemplate.update("DELETE FROM $tableName WHERE user_id = ?", userId)
+        withContext(Dispatchers.IO) {
+            jdbcTemplate.update("DELETE FROM $tableName WHERE user_id = ?", userId)
+        }
     }
 
     /** 팩트를 읽기-수정-쓰기로 업데이트한다. 기존 기억이 없으면 새로 생성. */
