@@ -32,6 +32,7 @@ import org.springframework.context.annotation.Import
 @Import(
     TracingConfiguration::class,
     ArcReactorCoreBeansConfiguration::class,
+    ArcReactorPreflightConfiguration::class,
     ArcReactorHookAndMcpConfiguration::class,
     ArcReactorSemanticCacheConfiguration::class,
     ArcReactorRuntimeConfiguration::class,

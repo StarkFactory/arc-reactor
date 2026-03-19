@@ -20,6 +20,11 @@ Core architecture docs for Arc Reactor internals.
 - [Intent Classification](intent-classification.md)
 - [Prompt Lab](prompt-lab.md)
 - [Implementation Guide](implementation-guide.md)
+- [Feedback and Eval](feedback-and-eval.md)
+- [Personas](personas.md)
+- [Scheduler](scheduler.md)
+- [Tracing](tracing.md)
+- [Webhooks](webhooks.md)
 
 ## Sub-Packages
 

@@ -41,11 +41,11 @@ Claude Code 사용자는 동일 내용이 CLAUDE.md에 통합되어 있으므로
 1. **CancellationException**: `suspend fun`에서 generic `Exception` 전에 먼저 catch & rethrow
 2. **ReAct 무한 루프**: `maxToolCalls` 도달 시 `activeTools = emptyList()` 필수
 3. **코루틴 .forEach 금지**: `for (item in list)` 사용
-4. **메시지 쌍 무결성**: AssistantMessage + ToolResponseMessage 항상 쌍
+4. **메시지 쌍 무결성 (Message pair integrity)**: AssistantMessage + ToolResponseMessage 항상 쌍
 5. **Context trimming**: Phase 2 조건 `>` (not `>=`)
 6. **AssistantMessage 생성자**: protected → builder 사용
 7. **API key**: `application.yml` 빈 기본값 금지
-8. **MCP**: REST API 등록만
+8. **MCP**: REST API(`POST /api/mcp/servers`) 등록만 — `application.yml` 하드코딩 금지
 9. **Guard null userId**: `"anonymous"` 폴백 필수
 10. **Spring AI mock**: `.options(any<ChatOptions>())` 명시적 mock
 11. **toolsUsed**: 어댑터 확인 후 추가
@@ -106,6 +106,7 @@ Claude Code 사용자는 동일 내용이 CLAUDE.md에 통합되어 있으므로
 | `max-tools-per-request` | 30 | `concurrency.tool-call-timeout-ms` | 15000 |
 | `llm.temperature` | 0.1 | `guard.rate-limit-per-minute` | 20 |
 | `llm.max-context-window-tokens` | 128000 | `guard.rate-limit-per-hour` | 200 |
+| `boundaries.input-max-chars` | 10000 | `llm.max-output-tokens` | 4096 |
 
 | `model-routing.enabled` | false | `tool-idempotency.enabled` | false |
 | `checkpoint.enabled` | false | `tool-filter.enabled` | false |

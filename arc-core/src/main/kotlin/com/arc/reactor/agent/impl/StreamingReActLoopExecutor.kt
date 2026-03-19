@@ -84,6 +84,8 @@ internal class StreamingReActLoopExecutor(
         val collectedContent = StringBuilder()
         var totalLlmDurationMs = 0L
         var totalToolDurationMs = 0L
+        var hadToolError = false
+        var textRetryCount = 0
 
         val messages = mutableListOf<Message>()
         if (conversationHistory.isNotEmpty()) {
@@ -142,6 +144,14 @@ internal class StreamingReActLoopExecutor(
 
             lastIterationContent = currentIterationContent.toString()
             if (pendingToolCalls.isEmpty() || activeTools.isEmpty()) {
+                // 도구 에러 직후 텍스트 응답이면 강화 힌트 주입 후 루프 계속
+                if (hadToolError && pendingToolCalls.isEmpty() && activeTools.isNotEmpty()) {
+                    if (ReActLoopUtils.injectForceRetryHintIfNeeded(messages, textRetryCount)) {
+                        textRetryCount++
+                        hadToolError = false
+                        continue
+                    }
+                }
                 hookContext.metadata["llmDurationMs"] = totalLlmDurationMs
                 hookContext.metadata["toolDurationMs"] = totalToolDurationMs
                 recordStageTiming(hookContext, "llm_calls", totalLlmDurationMs)
@@ -154,6 +164,8 @@ internal class StreamingReActLoopExecutor(
                     lastIterationContent = lastIterationContent
                 )
             }
+            // tool_call 성공 시 재시도 카운터 리셋
+            textRetryCount = 0
 
             val assistantMsg = AssistantMessage.builder()
                 .content(currentChunkText.toString())
@@ -191,6 +203,7 @@ internal class StreamingReActLoopExecutor(
             )
 
             // 도구 에러 시 재시도 힌트 주입 — LLM이 텍스트 대신 tool_call을 생성하도록 유도
+            hadToolError = ReActLoopUtils.hasToolError(toolResponses)
             if (totalToolCalls < maxToolCalls) {
                 ReActLoopUtils.injectToolErrorRetryHint(toolResponses, messages)
             }

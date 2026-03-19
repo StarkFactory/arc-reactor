@@ -10,3 +10,4 @@ API and feature-level technical references.
 - [Multimodal](multimodal.md)
 - [Semantic Tool Discovery](semantic-tool-discovery.md)
 - [AI Agent Papers](agent-papers.md)
+- [RAG Papers](rag-papers.md)

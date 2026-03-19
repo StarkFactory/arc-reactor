@@ -98,6 +98,8 @@ internal class ManualReActLoopExecutor(
         var totalTokenUsage: TokenUsage? = null
         var totalLlmDurationMs = 0L
         var totalToolDurationMs = 0L
+        var hadToolError = false
+        var textRetryCount = 0
 
         // ── 대화 히스토리 + 현재 사용자 메시지 조합 ──
         val messages = mutableListOf<Message>()
@@ -146,10 +148,18 @@ internal class ManualReActLoopExecutor(
                 )
             }
 
-            // 단계 C: Tool Call 존재 여부 확인 — 없으면 루프 종료
+            // 단계 C: Tool Call 존재 여부 확인 — 없으면 루프 종료 (단, 도구 에러 후 텍스트 재시도 가능)
             val assistantOutput = chatResponse?.results?.firstOrNull()?.output
             val pendingToolCalls = assistantOutput?.toolCalls.orEmpty()
             if (pendingToolCalls.isEmpty() || activeTools.isEmpty()) {
+                // 도구 에러 직후 텍스트 응답이면 강화 힌트 주입 후 루프 계속
+                if (hadToolError && pendingToolCalls.isEmpty() && activeTools.isNotEmpty()) {
+                    if (ReActLoopUtils.injectForceRetryHintIfNeeded(messages, textRetryCount)) {
+                        textRetryCount++
+                        hadToolError = false
+                        continue
+                    }
+                }
                 hookContext.metadata["llmDurationMs"] = totalLlmDurationMs
                 hookContext.metadata["toolDurationMs"] = totalToolDurationMs
                 recordStageTiming(hookContext, "llm_calls", totalLlmDurationMs)
@@ -162,6 +172,8 @@ internal class ManualReActLoopExecutor(
                     ArrayList(toolsUsed)
                 )
             }
+            // tool_call 성공 시 재시도 카운터 리셋
+            textRetryCount = 0
 
             if (assistantOutput == null) {
                 logger.error { "Assistant output is null despite pending tool calls" }
@@ -214,6 +226,7 @@ internal class ManualReActLoopExecutor(
             )
 
             // 단계 E-2: 도구 에러 시 재시도 힌트 주입 — LLM이 텍스트 대신 tool_call을 생성하도록 유도
+            hadToolError = ReActLoopUtils.hasToolError(toolResponses)
             if (totalToolCalls < maxToolCalls) {
                 ReActLoopUtils.injectToolErrorRetryHint(toolResponses, messages)
             }

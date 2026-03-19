@@ -58,20 +58,29 @@ class RagRelevanceClassifierTest {
     }
 
     @Test
-    fun `confluence 키워드가 포함되면 RAG를 실행해야 한다`() {
+    fun `confluence 키워드만 있으면 RAG를 생략해야 한다 — 도구 라우팅 우선`() {
         val command = command("confluence에서 환불 정책 찾아줘")
-        assertTrue(
+        assertFalse(
             RagRelevanceClassifier.isRagRequired(command),
-            "Confluence query should trigger RAG retrieval"
+            "Confluence query should skip RAG — tool routing handles it"
         )
     }
 
     @Test
-    fun `wiki 키워드가 포함되면 RAG를 실행해야 한다`() {
-        val command = command("위키에 있는 온보딩 가이드 보여줘")
+    fun `wiki 키워드만 있으면 RAG를 생략해야 한다 — 도구 라우팅 우선`() {
+        val command = command("위키에서 최근 변경된 페이지 보여줘")
+        assertFalse(
+            RagRelevanceClassifier.isRagRequired(command),
+            "Wiki query should skip RAG — tool routing handles it"
+        )
+    }
+
+    @Test
+    fun `confluence와 다른 지식 키워드가 함께 있으면 RAG를 실행해야 한다`() {
+        val command = command("confluence 아키텍처 문서 찾아줘")
         assertTrue(
             RagRelevanceClassifier.isRagRequired(command),
-            "Wiki query should trigger RAG retrieval"
+            "Confluence + '아키텍처' + '문서' should trigger RAG via knowledge keywords"
         )
     }
 
