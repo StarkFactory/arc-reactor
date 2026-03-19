@@ -4,8 +4,8 @@ import com.arc.reactor.admin.AdminClassifiers
 import com.arc.reactor.admin.model.GuardEvent
 import com.arc.reactor.guard.audit.GuardAuditPublisher
 import com.arc.reactor.guard.model.GuardCommand
+import com.arc.reactor.util.HashUtils
 import mu.KotlinLogging
-import java.security.MessageDigest
 
 private val logger = KotlinLogging.logger {}
 
@@ -55,9 +55,6 @@ class MetricGuardAuditPublisher(
     }
 
     companion object {
-        private fun sha256(text: String): String {
-            val digest = MessageDigest.getInstance("SHA-256")
-            return digest.digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
-        }
+        private fun sha256(text: String): String = HashUtils.sha256Hex(text)
     }
 }

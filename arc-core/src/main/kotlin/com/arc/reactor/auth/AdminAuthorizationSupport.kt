@@ -1,6 +1,6 @@
 package com.arc.reactor.auth
 
-import java.security.MessageDigest
+import com.arc.reactor.util.HashUtils
 import org.springframework.web.server.ServerWebExchange
 
 /**
@@ -66,8 +66,5 @@ object AdminAuthorizationSupport {
     }
 
     /** SHA-256 해시를 16진수 문자열로 반환한다 */
-    private fun sha256Hex(value: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
-        return digest.joinToString(separator = "") { byte -> "%02x".format(byte) }
-    }
+    private fun sha256Hex(value: String): String = HashUtils.sha256Hex(value)
 }

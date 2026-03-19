@@ -1,9 +1,8 @@
 package com.arc.reactor.slack.security
 
+import com.arc.reactor.util.HashUtils
 import mu.KotlinLogging
 import java.security.MessageDigest
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 
 private val logger = KotlinLogging.logger {}
 
@@ -67,10 +66,7 @@ class SlackSignatureVerifier(
     }
 
     private fun hmacSha256(secret: String, data: String): String {
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
-        val hash = mac.doFinal(data.toByteArray(Charsets.UTF_8))
-        return hash.joinToString("") { "%02x".format(it) }
+        return HashUtils.hmacSha256Hex(secret.toByteArray(Charsets.UTF_8), data)
     }
 
     private fun timingSafeEquals(a: String, b: String): Boolean {

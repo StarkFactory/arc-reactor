@@ -2,6 +2,7 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.config.ToolResultCacheProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.util.HashUtils
 import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
@@ -924,11 +925,9 @@ internal class ToolCallOrchestrator(
             .build()
     }
 
-    /** SHA-256 기반 캐시 키 — 32비트 hashCode() 충돌 방지. 코루틴 안전을 위해 호출마다 새 인스턴스 생성. */
+    /** SHA-256 기반 캐시 키 — 32비트 hashCode() 충돌 방지. */
     private fun buildToolResultCacheKey(toolName: String, toolInput: String): String {
-        val digest = java.security.MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest("$toolName:$toolInput".toByteArray(Charsets.UTF_8))
-        return hash.joinToString("") { "%02x".format(it) }
+        return HashUtils.sha256Hex("$toolName:$toolInput")
     }
 
     private fun checkToolResultCache(toolName: String, toolInput: String): ToolInvocationOutcome? {

@@ -1,7 +1,7 @@
 package com.arc.reactor.cache
 
 import com.arc.reactor.agent.model.AgentCommand
-import java.security.MessageDigest
+import com.arc.reactor.util.HashUtils
 
 /**
  * 에이전트 커맨드와 도구 이름으로부터 결정적(deterministic) 캐시 키를 빌드한다.
@@ -71,17 +71,6 @@ object CacheKeyBuilder {
             .orEmpty()
     }
 
-    /** SHA-256 해시를 계산하여 16진수 문자열로 반환한다. 룩업 테이블로 String.format 오버헤드 제거. */
-    private fun sha256(input: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest(input.toByteArray(Charsets.UTF_8))
-        return buildString(hash.size * 2) {
-            for (b in hash) {
-                append(HEX_CHARS[(b.toInt() shr 4) and 0x0F])
-                append(HEX_CHARS[b.toInt() and 0x0F])
-            }
-        }
-    }
-
-    private val HEX_CHARS = "0123456789abcdef".toCharArray()
+    /** SHA-256 해시를 계산하여 16진수 문자열로 반환한다. */
+    private fun sha256(input: String): String = HashUtils.sha256Hex(input)
 }

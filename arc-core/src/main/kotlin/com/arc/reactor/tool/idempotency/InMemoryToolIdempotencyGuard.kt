@@ -1,9 +1,9 @@
 package com.arc.reactor.tool.idempotency
 
+import com.arc.reactor.util.HashUtils
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
-import java.security.MessageDigest
 import java.time.Duration
 import java.time.Instant
 
@@ -53,21 +53,11 @@ class InMemoryToolIdempotencyGuard(
          * 인수를 정렬된 키 순서로 직렬화한 뒤 SHA-256 해시를 생성하여
          * 일관된 키를 보장한다.
          */
-        /** ThreadLocal로 MessageDigest 재사용 — JCA 프로바이더 조회 비용 제거. */
-        private val digestThreadLocal = ThreadLocal.withInitial {
-            MessageDigest.getInstance(HASH_ALGORITHM)
-        }
-
         internal fun buildIdempotencyKey(toolName: String, arguments: Map<String, Any?>): String {
             val sortedArgs = arguments.entries
                 .sortedBy { it.key }
                 .joinToString(",") { "${it.key}=${it.value}" }
-            val raw = "$toolName:$sortedArgs"
-            val digest = digestThreadLocal.get().apply { reset() }
-            val hash = digest.digest(raw.toByteArray(Charsets.UTF_8))
-            return hash.joinToString("") { "%02x".format(it) }
+            return HashUtils.sha256Hex("$toolName:$sortedArgs")
         }
-
-        private const val HASH_ALGORITHM = "SHA-256"
     }
 }
