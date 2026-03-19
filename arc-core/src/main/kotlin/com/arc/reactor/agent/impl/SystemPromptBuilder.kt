@@ -530,6 +530,8 @@ class SystemPromptBuilder(
     private fun looksLikeWorkBriefingPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
         val normalized = prompt.lowercase()
+        // "회의 준비", "회의 브리핑" 등은 meeting prep 라우트로 처리
+        if (MEETING_PREP_EXCLUDE_HINTS.any { normalized.contains(it) }) return false
         return WORK_BRIEFING_HINTS.any { normalized.contains(it) }
     }
 
@@ -856,6 +858,11 @@ class SystemPromptBuilder(
         private val WORK_BRIEFING_HINTS = setOf(
             "morning briefing", "daily briefing", "briefing", "work summary", "daily digest",
             "브리핑", "요약 브리핑", "아침 브리핑", "데일리 브리핑"
+        )
+        /** 회의 준비 라우트와 충돌 방지 — 이 키워드가 포함되면 briefing 대신 meeting prep으로 라우팅 */
+        private val MEETING_PREP_EXCLUDE_HINTS = setOf(
+            "회의 준비", "회의 브리핑", "미팅 준비", "미팅 브리핑",
+            "meeting prep", "meeting preparation", "회의 전", "회의 들어가기 전"
         )
         private val WORK_STANDUP_HINTS = setOf(
             "standup", "스탠드업", "daily update", "업데이트 초안", "standup update"
