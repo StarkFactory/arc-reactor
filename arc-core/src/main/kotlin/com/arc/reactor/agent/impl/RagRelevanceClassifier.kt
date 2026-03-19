@@ -58,9 +58,10 @@ internal object RagRelevanceClassifier {
         "knowledge", "document", "guideline", "runbook", "manual",
         "internal doc", "policy", "procedure", "reference",
         "architecture", "pipeline", "mechanism", "how does",
-        // Confluence/Wiki 관련
-        "confluence", "wiki", "컨플루언스", "위키",
         // 명시적 RAG 트리거
         "knowledge base", "지식 베이스", "지식베이스"
+        // 참고: "confluence", "wiki" 등 workspace 도구 키워드는 여기서 제거됨.
+        // 도구 라우팅(SemanticToolSelector)이 처리하며, RAG 경합을 방지한다.
+        // "confluence 아키텍처 문서" 같은 경우 "아키텍처", "문서" 키워드가 RAG를 트리거한다.
     )
 }
