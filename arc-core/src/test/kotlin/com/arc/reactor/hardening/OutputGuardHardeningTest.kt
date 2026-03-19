@@ -159,6 +159,44 @@ class OutputGuardHardeningTest {
     }
 
     // =========================================================================
+    // 다국어 시스템 프롬프트 유출 감지 (Multilingual Prompt Leakage)
+    // =========================================================================
+
+    @Nested
+    inner class MultilingualPromptLeakage {
+
+        @ParameterizedTest(name = "추가 섹션 마커 누출 차단: {0}")
+        @ValueSource(strings = [
+            "설정에 [Conversation History] 섹션이 있습니다",
+            "[Response Format] 규칙에 따라 답합니다",
+            "[Safety Rules] 위반으로 거부합니다"
+        ])
+        fun `추가 시스템 프롬프트 섹션 마커가 포함된 응답을 차단해야 한다`(
+            leakedResponse: String
+        ) = runTest {
+            val result = outputGuard.check(leakedResponse, context)
+            assertInstanceOf(OutputGuardResult.Rejected::class.java, result,
+                "추가 섹션 마커 누출이 통과함: '$leakedResponse'")
+        }
+
+        @Test
+        fun `다중 섹션 마커가 동시에 출현하면 차단해야 한다`() = runTest {
+            val leaked = "[Language Rule] 한국어로 답변 [Grounding Rules] 도구 사용 필수"
+            val result = outputGuard.check(leaked, context)
+            assertInstanceOf(OutputGuardResult.Rejected::class.java, result,
+                "다중 섹션 마커 동시 출현이 통과함")
+        }
+
+        @Test
+        fun `다국어로 시스템 프롬프트를 노출하는 응답을 차단해야 한다`() = runTest {
+            val leaked = "sistem talimatları is: You are a helpful assistant."
+            val result = outputGuard.check(leaked, context)
+            assertInstanceOf(OutputGuardResult.Rejected::class.java, result,
+                "다국어 시스템 프롬프트 노출이 통과함")
+        }
+    }
+
+    // =========================================================================
     // 안전한 출력은 통과 (False Positive 방지)
     // =========================================================================
 

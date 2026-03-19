@@ -101,6 +101,16 @@ class SystemPromptLeakageOutputGuard(
             Regex("(?i)\\[Grounding Rules]"),
             Regex("(?i)\\[Few-shot Examples]"),
             Regex("(?i)\\[Tool Error Retry]"),
+            Regex("(?i)\\[Conversation History]"),
+            Regex("(?i)\\[Response Format]"),
+            Regex("(?i)\\[Safety Rules]"),
+            // 2개 이상 섹션 마커가 동시 출현 시 시스템 프롬프트 구조 유출로 판정
+            Regex("(?i)\\[[A-Z][a-z]+ [A-Z][a-z]+].*\\[[A-Z][a-z]+ [A-Z][a-z]+]"),
+
+            // ── 다국어 시스템 프롬프트 유출 패턴 ──
+            // LLM이 다국어로 시스템 프롬프트를 노출할 때 사용하는 표현
+            // \\S*: 터키어 접미사(ları, ınızı 등) 포함 매칭
+            Regex("(?i)(system|sistem|syst[eè]me|sistema)\\s*(prompt|talimat|instruction)\\S*\\s*(is|are|:)"),
 
             // ── 시스템 프롬프트 구조적 유출 패턴 ──
             // LLM이 시스템 프롬프트를 설명하거나 반복할 때 나타나는 구조적 패턴
