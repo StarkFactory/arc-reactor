@@ -30,19 +30,17 @@ class SystemPromptBuilder(
     /**
      * 프롬프트 분류 시 반복되는 lowercase() 호출을 캐싱한다.
      * 동일 입력에 대해 45회 이상 호출되는 것을 1회로 줄인다.
-     * 스레드 안전: 각 요청은 독립 스레드에서 실행되며, 동시 접근 시에도
-     * 같은 입력이면 같은 결과를 반환하므로 race condition 무해.
+     * 스레드 안전: 단일 불변 Pair 참조로 원자적 읽기/쓰기를 보장한다.
      */
-    @Volatile private var cachedPrompt: String? = null
-    @Volatile private var cachedNormalized: String? = null
+    @Volatile
+    private var promptCache: Pair<String, String>? = null  // (original, normalized)
 
     private fun normalizePrompt(prompt: String?): String {
         if (prompt.isNullOrBlank()) return ""
-        val cached = cachedPrompt
-        if (cached != null && cached === prompt) return cachedNormalized!!
+        val cached = promptCache
+        if (cached != null && cached.first === prompt) return cached.second
         val normalized = prompt.lowercase()
-        cachedPrompt = prompt
-        cachedNormalized = normalized
+        promptCache = prompt to normalized
         return normalized
     }
 

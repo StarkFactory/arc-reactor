@@ -26,7 +26,8 @@ import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.beans.factory.DisposableBean
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.locks.ReentrantLock
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private val logger = KotlinLogging.logger {}
 
@@ -110,12 +111,13 @@ class DefaultConversationManager(
         .build()
 
     /**
-     * 세션별 저장 락. user+assistant 메시지 쌍이 원자적으로 기록되도록 보장한다.
-     * 이 락이 없으면 같은 세션에 대한 두 동시 요청이 다음과 같이 인터리빙될 수 있다:
+     * 세션별 저장 뮤텍스. user+assistant 메시지 쌍이 원자적으로 기록되도록 보장한다.
+     * 이 뮤텍스가 없으면 같은 세션에 대한 두 동시 요청이 다음과 같이 인터리빙될 수 있다:
      * user1, user2, assistant2, assistant1 — 대화 순서가 깨진다.
+     * 코루틴 Mutex를 사용하여 suspend 컨텍스트에서 스레드를 차단하지 않는다.
      * 30분 미접근 시 자동 만료되어 메모리 누수를 방지한다.
      */
-    private val sessionSaveLocks: Cache<String, ReentrantLock> = Caffeine.newBuilder()
+    private val sessionSaveLocks: Cache<String, Mutex> = Caffeine.newBuilder()
         .maximumSize(10_000)
         .expireAfterAccess(30, TimeUnit.MINUTES)
         .build()
@@ -317,10 +319,10 @@ class DefaultConversationManager(
     /**
      * user + assistant 메시지 쌍을 MemoryStore에 원자적으로 저장한다.
      *
-     * 세션별 ReentrantLock으로 동시 요청 간 메시지 인터리빙을 방지한다.
-     * computeIfAbsent로 세션별 락을 지연 생성한다.
+     * 세션별 코루틴 Mutex로 동시 요청 간 메시지 인터리빙을 방지한다.
+     * suspend 컨텍스트에서 스레드를 차단하지 않는다.
      */
-    private fun saveMessages(
+    private suspend fun saveMessages(
         metadata: Map<String, Any>,
         userId: String?,
         userPrompt: String,
@@ -336,18 +338,17 @@ class DefaultConversationManager(
         }
         val resolvedUserId = userId ?: "anonymous"
 
-        val lock = sessionSaveLocks.get(sessionId) { ReentrantLock() }
-        lock.lock()
-        try {
-            store.addMessage(sessionId, "user", userPrompt, resolvedUserId)
-            if (assistantContent != null) {
-                store.addMessage(sessionId, "assistant", assistantContent, resolvedUserId)
+        val mutex = sessionSaveLocks.get(sessionId) { Mutex() }
+        mutex.withLock {
+            try {
+                store.addMessage(sessionId, "user", userPrompt, resolvedUserId)
+                if (assistantContent != null) {
+                    store.addMessage(sessionId, "assistant", assistantContent, resolvedUserId)
+                }
+                logger.debug { "Saved conversation for session $sessionId" }
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to save conversation history for session $sessionId" }
             }
-            logger.debug { "Saved conversation for session $sessionId" }
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to save conversation history for session $sessionId" }
-        } finally {
-            lock.unlock()
         }
     }
 

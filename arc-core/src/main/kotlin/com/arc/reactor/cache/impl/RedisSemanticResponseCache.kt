@@ -6,8 +6,11 @@ import com.arc.reactor.cache.CachedResponse
 import com.arc.reactor.cache.SemanticResponseCache
 import com.arc.reactor.tool.SemanticToolSelector
 import com.fasterxml.jackson.databind.ObjectMapper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
+import org.springframework.data.redis.core.ScanOptions
 import org.springframework.data.redis.core.StringRedisTemplate
 import java.util.concurrent.CancellationException
 import java.time.Duration
@@ -42,14 +45,14 @@ class RedisSemanticResponseCache(
         require(keyPrefix.isNotBlank()) { "keyPrefix must not be blank" }
     }
 
-    override suspend fun get(key: String): CachedResponse? {
-        return readEntry(key)?.toCachedResponse()
+    override suspend fun get(key: String): CachedResponse? = withContext(Dispatchers.IO) {
+        readEntry(key)?.toCachedResponse()
     }
 
-    override suspend fun put(key: String, response: CachedResponse) {
+    override suspend fun put(key: String, response: CachedResponse) = withContext(Dispatchers.IO) {
         if (response.content.isBlank()) {
             logger.debug { "Skipping cache for blank response: ${key.take(16)}..." }
-            return
+            return@withContext
         }
         val record = StoredEntry(
             key = key,
@@ -71,35 +74,40 @@ class RedisSemanticResponseCache(
         get(exactKey)?.let { return it }
         val scope = CacheKeyBuilder.buildScopeFingerprint(command, toolNames)
         val promptEmbedding = safeEmbed(command.userPrompt) ?: return null
-        val indexKey = scopeIndexKey(scope)
-        val candidates = redisTemplate.opsForZSet().reverseRange(indexKey, 0, (maxCandidates - 1).toLong())
-            ?: emptySet()
-        var best: Pair<StoredEntry, Double>? = null
-        for (candidateKey in candidates) {
-            if (candidateKey == exactKey) continue
-            val entry = readEntry(candidateKey)
-            if (entry == null) {
-                redisTemplate.opsForZSet().remove(indexKey, candidateKey)
-                continue
+        return withContext(Dispatchers.IO) {
+            val indexKey = scopeIndexKey(scope)
+            val candidates = redisTemplate.opsForZSet()
+                .reverseRange(indexKey, 0, (maxCandidates - 1).toLong())
+                ?: emptySet()
+            var best: Pair<StoredEntry, Double>? = null
+            for (candidateKey in candidates) {
+                if (candidateKey == exactKey) continue
+                val entry = readEntry(candidateKey)
+                if (entry == null) {
+                    redisTemplate.opsForZSet().remove(indexKey, candidateKey)
+                    continue
+                }
+                if (entry.scopeFingerprint != scope || entry.embedding.isEmpty()) {
+                    continue
+                }
+                val candidateEmbedding = entry.embedding.toFloatArray()
+                if (candidateEmbedding.size != promptEmbedding.size) continue
+                val similarity = SemanticToolSelector.cosineSimilarity(
+                    promptEmbedding, candidateEmbedding
+                )
+                if (similarity < similarityThreshold) continue
+                if (best == null || similarity > best.second) {
+                    best = entry to similarity
+                }
             }
-            if (entry.scopeFingerprint != scope || entry.embedding.isEmpty()) {
-                continue
-            }
-            val candidateEmbedding = entry.embedding.toFloatArray()
-            if (candidateEmbedding.size != promptEmbedding.size) continue
-            val similarity = SemanticToolSelector.cosineSimilarity(promptEmbedding, candidateEmbedding)
-            if (similarity < similarityThreshold) continue
-            if (best == null || similarity > best.second) {
-                best = entry to similarity
-            }
-        }
 
-        val bestEntry = best?.first ?: return null
-        logger.debug {
-            "Semantic cache hit scope=${scope.take(12)} key=${bestEntry.key.take(12)} " +
-                "threshold=$similarityThreshold"
+            val bestEntry = best?.first ?: return@withContext null
+            logger.debug {
+                "Semantic cache hit scope=${scope.take(12)} key=${bestEntry.key.take(12)} " +
+                    "threshold=$similarityThreshold"
+            }
+            bestEntry.toCachedResponse()
         }
-        return bestEntry.toCachedResponse()
     }
 
     override suspend fun putSemantic(
@@ -119,28 +127,34 @@ class RedisSemanticResponseCache(
             return
         }
 
-        val record = StoredEntry(
-            key = exactKey,
-            scopeFingerprint = scope,
-            embedding = promptEmbedding.toList(),
-            content = response.content,
-            toolsUsed = response.toolsUsed,
-            metadata = response.metadata,
-            cachedAt = response.cachedAt
-        )
-        writeEntry(exactKey, record)
+        withContext(Dispatchers.IO) {
+            val record = StoredEntry(
+                key = exactKey,
+                scopeFingerprint = scope,
+                embedding = promptEmbedding.toList(),
+                content = response.content,
+                toolsUsed = response.toolsUsed,
+                metadata = response.metadata,
+                cachedAt = response.cachedAt
+            )
+            writeEntry(exactKey, record)
 
-        val indexKey = scopeIndexKey(scope)
-        val zsetOps = redisTemplate.opsForZSet()
-        zsetOps.add(indexKey, exactKey, response.cachedAt.toDouble())
-        redisTemplate.expire(indexKey, ttl())
-        trimIndex(indexKey, zsetOps)
+            val indexKey = scopeIndexKey(scope)
+            val zsetOps = redisTemplate.opsForZSet()
+            zsetOps.add(indexKey, exactKey, response.cachedAt.toDouble())
+            redisTemplate.expire(indexKey, ttl())
+            trimIndex(indexKey, zsetOps)
+        }
     }
 
     override fun invalidateAll() {
         try {
             val pattern = "$keyPrefix:*"
-            val keys = redisTemplate.keys(pattern)
+            val scanOptions = ScanOptions.scanOptions().match(pattern).count(100).build()
+            val keys = mutableSetOf<String>()
+            redisTemplate.scan(scanOptions).use { cursor ->
+                cursor.forEach { keys.add(it) }
+            }
             val deleted = if (keys.isEmpty()) 0L else redisTemplate.delete(keys)
             logger.info { "Invalidated $deleted Redis semantic cache keys for prefix=$keyPrefix" }
         } catch (e: Exception) {
@@ -193,7 +207,9 @@ class RedisSemanticResponseCache(
         val staleKeys = zsetOps.range(indexKey, 0, overflow - 1) ?: emptySet()
         if (staleKeys.isEmpty()) return
         zsetOps.remove(indexKey, *staleKeys.toTypedArray())
-        staleKeys.forEach { redisTemplate.delete(entryKey(it)) }
+        // 일괄 삭제로 Redis 라운드트립 최소화
+        val entryKeys = staleKeys.map { entryKey(it) }
+        redisTemplate.delete(entryKeys)
     }
 
     private fun ttl(): Duration = Duration.ofMinutes(ttlMinutes)
