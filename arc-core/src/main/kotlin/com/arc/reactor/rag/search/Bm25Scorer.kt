@@ -110,12 +110,20 @@ class Bm25Scorer(
     @Synchronized
     fun search(query: String, topK: Int): List<Pair<String, Double>> {
         if (termFrequencies.isEmpty()) return emptyList()
+        val queryTokens = tokenize(query).toSet()
+        val idf = getIdf()
+        val avgLen = averageLength
 
-        return termFrequencies.keys
-            .map { docId -> docId to scoreInternal(query, docId) }
-            .filter { (_, s) -> s > 0.0 }
-            .sortedByDescending { (_, s) -> s }
-            .take(topK)
+        // min-heap으로 O(N log K) — 전체 정렬 O(N log N) 대비 개선
+        val heap = java.util.PriorityQueue<Pair<String, Double>>(topK + 1, compareBy { it.second })
+        for ((docId, tf) in termFrequencies) {
+            val s = scoreWithTokens(queryTokens, tf, idf, avgLen)
+            if (s > 0.0) {
+                heap.add(docId to s)
+                if (heap.size > topK) heap.poll()
+            }
+        }
+        return heap.sortedByDescending { it.second }
     }
 
     /**
@@ -159,20 +167,24 @@ class Bm25Scorer(
      */
     private fun scoreInternal(query: String, docId: String): Double {
         val tf = termFrequencies[docId] ?: return 0.0
-        val docLength = tf.values.sum().toDouble()
-        val avgLen = averageLength
-        val idf = getIdf()
+        return scoreWithTokens(tokenize(query).toSet(), tf, getIdf(), averageLength)
+    }
 
-        return tokenize(query)
-            .toSet()  // 쿼리 내 중복 토큰 제거 — 같은 토큰이 여러 번 나와도 1회만 계산
-            .sumOf { token ->
-                val termFreq = tf[token]?.toDouble() ?: 0.0
-                val idfScore = idf[token] ?: 0.0
-                // BM25 핵심 공식: TF 포화 + 문서 길이 정규화
-                val numerator = termFreq * (k1 + 1)
-                val denominator = termFreq + k1 * (1 - b + b * docLength / avgLen)
-                idfScore * (numerator / denominator)
-            }
+    /** 사전 토큰화된 쿼리 토큰으로 BM25 스코어를 계산한다. search()에서 반복 호출 최적화용. */
+    private fun scoreWithTokens(
+        queryTokens: Set<String>,
+        tf: Map<String, Int>,
+        idf: Map<String, Double>,
+        avgLen: Double
+    ): Double {
+        val docLength = tf.values.sum().toDouble()
+        return queryTokens.sumOf { token ->
+            val termFreq = tf[token]?.toDouble() ?: 0.0
+            val idfScore = idf[token] ?: 0.0
+            val numerator = termFreq * (k1 + 1)
+            val denominator = termFreq + k1 * (1 - b + b * docLength / avgLen)
+            idfScore * (numerator / denominator)
+        }
     }
 
     /**

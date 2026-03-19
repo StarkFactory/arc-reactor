@@ -53,15 +53,14 @@ class UnicodeNormalizationStage(
         val text = command.text
         if (text.isEmpty()) return GuardResult.Allowed.DEFAULT
 
-        // ── 단계 1: 제로 너비 문자 비율 검사 ──
-        // 공격자가 제로 너비 문자를 대량 삽입하여 텍스트를 숨기는 공격을 방어한다
-        val zeroWidthCount = text.count { it.code in InjectionPatterns.ZERO_WIDTH_CODEPOINTS }
-        // Unicode Tag Block (U+E0000~U+E007F)은 보조 평면에 있어 별도로 카운트
-        var tagBlockCount = 0
+        // ── 단계 1: 제로 너비 문자 비율 검사 (단일 패스) ──
+        // BMP 제로 너비 문자 + 보조 평면 Tag Block (U+E0000~U+E007F)을 한 번에 카운트
+        var totalZeroWidth = 0
         text.codePoints().forEach { cp ->
-            if (cp in 0xE0000..0xE007F) tagBlockCount++
+            if (cp in InjectionPatterns.ZERO_WIDTH_CODEPOINTS || cp in 0xE0000..0xE007F) {
+                totalZeroWidth++
+            }
         }
-        val totalZeroWidth = zeroWidthCount + tagBlockCount
 
         if (totalZeroWidth > 0 && text.isNotEmpty()) {
             val codepointCount = text.codePointCount(0, text.length)
