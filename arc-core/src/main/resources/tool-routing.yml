@@ -634,6 +634,7 @@ routes:
     category: jira
     keywords:
       - jira
+      - 지라
       - 이슈
       - issues
       - 프로젝트

@@ -908,7 +908,7 @@ class SystemPromptBuilder(
             "스프린트 회고", "sprint retro"
         )
         private val JIRA_HINTS = setOf(
-            "jira", "이슈", "issues", "프로젝트", "project", "jql", "ticket", "티켓",
+            "jira", "지라", "이슈", "issues", "프로젝트", "project", "jql", "ticket", "티켓",
             "blocker", "마감", "due", "transition", "전이",
             "백로그", "backlog", "스프린트", "sprint", "회고", "retrospective", "retro",
             "칸반", "kanban", "할 일", "todo", "업무", "작업"
