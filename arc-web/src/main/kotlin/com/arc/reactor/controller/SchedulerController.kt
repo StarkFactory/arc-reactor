@@ -314,17 +314,8 @@ data class CreateScheduledJobRequest(
         )
     }
 
-    private fun validate(type: ScheduledJobType) {
-        when (type) {
-            ScheduledJobType.MCP_TOOL -> {
-                require(!mcpServerName.isNullOrBlank()) { "mcpServerName is required for MCP_TOOL jobs" }
-                require(!toolName.isNullOrBlank()) { "toolName is required for MCP_TOOL jobs" }
-            }
-            ScheduledJobType.AGENT -> {
-                require(!agentPrompt.isNullOrBlank()) { "agentPrompt is required for AGENT jobs" }
-            }
-        }
-    }
+    private fun validate(type: ScheduledJobType) =
+        validateJobFields(type, mcpServerName, toolName, agentPrompt)
 }
 
 data class UpdateScheduledJobRequest(
@@ -359,15 +350,7 @@ data class UpdateScheduledJobRequest(
 ) {
     fun toScheduledJob(): ScheduledJob {
         val type = parseJobType(jobType)
-        when (type) {
-            ScheduledJobType.MCP_TOOL -> {
-                require(!mcpServerName.isNullOrBlank()) { "mcpServerName is required for MCP_TOOL jobs" }
-                require(!toolName.isNullOrBlank()) { "toolName is required for MCP_TOOL jobs" }
-            }
-            ScheduledJobType.AGENT -> {
-                require(!agentPrompt.isNullOrBlank()) { "agentPrompt is required for AGENT jobs" }
-            }
-        }
+        validateJobFields(type, mcpServerName, toolName, agentPrompt)
         return ScheduledJob(
             name = name,
             description = description,
@@ -437,6 +420,24 @@ data class ScheduledJobExecutionResponse(
     val startedAt: Long,
     val completedAt: Long?
 )
+
+/** 작업 유형별 필수 필드를 검증한다. Create/Update DTO에서 공통으로 사용. */
+private fun validateJobFields(
+    type: ScheduledJobType,
+    mcpServerName: String?,
+    toolName: String?,
+    agentPrompt: String?
+) {
+    when (type) {
+        ScheduledJobType.MCP_TOOL -> {
+            require(!mcpServerName.isNullOrBlank()) { "mcpServerName is required for MCP_TOOL jobs" }
+            require(!toolName.isNullOrBlank()) { "toolName is required for MCP_TOOL jobs" }
+        }
+        ScheduledJobType.AGENT -> {
+            require(!agentPrompt.isNullOrBlank()) { "agentPrompt is required for AGENT jobs" }
+        }
+    }
+}
 
 private fun parseJobType(value: String): ScheduledJobType =
     try {

@@ -8,7 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import mu.KotlinLogging
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -33,12 +33,8 @@ private val logger = KotlinLogging.logger {}
  */
 @RestController
 @RequestMapping("/api/slack")
-@ConditionalOnProperty(prefix = "arc.reactor.slack", name = ["enabled"], havingValue = "true")
-@ConditionalOnProperty(
-    prefix = "arc.reactor.slack",
-    name = ["transport-mode"],
-    havingValue = "events_api",
-    matchIfMissing = true
+@ConditionalOnExpression(
+    "\${arc.reactor.slack.enabled:false} and '\${arc.reactor.slack.transport-mode:events_api}' == 'events_api'"
 )
 @Tag(name = "Slack", description = "Slack event handling endpoints")
 class SlackEventController(

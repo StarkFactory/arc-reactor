@@ -140,8 +140,8 @@ class GlobalExceptionHandlerTest {
             val response = handler.handleIllegalArgument(ex)
 
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) { "Should return 400" }
-            assertTrue(response.body!!.error.contains("Invalid jobType")) {
-                "Should include the exception message"
+            assertEquals("Bad request", response.body!!.error) {
+                "내부 예외 메시지를 클라이언트에 노출하지 않아야 한다"
             }
             assertNotNull(response.body!!.timestamp) { "Should include timestamp" }
         }
@@ -153,8 +153,8 @@ class GlobalExceptionHandlerTest {
             val response = handler.handleIllegalArgument(ex)
 
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) { "Should return 400" }
-            assertTrue(response.body!!.error.contains("Invalid argument")) {
-                "Should use fallback message when exception message is null"
+            assertEquals("Bad request", response.body!!.error) {
+                "메시지가 null이어도 마스킹된 응답을 반환해야 한다"
             }
         }
     }

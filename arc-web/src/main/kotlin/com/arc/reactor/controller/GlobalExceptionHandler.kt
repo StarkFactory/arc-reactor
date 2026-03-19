@@ -84,9 +84,10 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException::class)
     fun handleIllegalArgument(ex: IllegalArgumentException): ResponseEntity<ErrorResponse> {
+        logger.warn(ex) { "Bad request: ${ex.message}" }
         return ResponseEntity.badRequest().body(
             ErrorResponse(
-                error = "Bad request: ${ex.message ?: "Invalid argument"}",
+                error = "Bad request",
                 timestamp = Instant.now().toString()
             )
         )
