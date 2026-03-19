@@ -8,3 +8,7 @@
 - [토큰 발급](slack/token-issuance.md)
 - [하드닝 체크 (2026-02)](slack/hardening-2026.md)
 - [운영 런북](slack/ops-runbook.md)
+
+## 기타
+
+- [회의실 코파일럿 PRD](meeting-room-copilot-prd.md)
