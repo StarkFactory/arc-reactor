@@ -69,7 +69,7 @@ internal class ToolCallOrchestrator(
     /** Spring AI ToolCallback 해석 결과 캐시 — MethodToolCallbackProvider 호출 비용 절감. 크기 제한으로 메모리 누수 방지. */
     private val springToolCallbackCache: Cache<Long, Map<String, org.springframework.ai.tool.ToolCallback>> =
         Caffeine.newBuilder()
-            .maximumSize(100)
+            .maximumSize(500)
             .expireAfterWrite(java.time.Duration.ofMinutes(10))
             .build()
 

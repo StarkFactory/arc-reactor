@@ -1,5 +1,6 @@
 package com.arc.reactor.memory
 
+import com.arc.reactor.util.HashUtils
 import com.github.benmanes.caffeine.cache.Caffeine
 import java.util.concurrent.TimeUnit
 
@@ -30,11 +31,12 @@ fun interface TokenEstimator {
 /**
  * 문자 유형별 휴리스틱을 사용하는 기본 토큰 추정기.
  *
- * Caffeine 캐시(최대 10,000 항목, 5분 TTL)를 적용하여 동일 콘텐츠에 대한
+ * Caffeine 캐시(최대 50,000 항목, 5분 TTL)를 적용하여 동일 콘텐츠에 대한
  * 반복적인 codePoints() 순회를 피한다.
  *
- * [CACHE_KEY_MAX_LENGTH]보다 긴 문자열은 캐시 없이 직접 계산한다.
- * 이는 큰 문자열이 캐시 키로 유지되어 힙 메모리를 팽창시키는 것을 방지하기 위함이다.
+ * [CACHE_KEY_MAX_LENGTH]보다 긴 문자열은 SHA-256 해시를 캐시 키로 사용한다.
+ * 이는 큰 문자열이 캐시 키로 유지되어 힙 메모리를 팽창시키는 것을 방지하면서도
+ * 대용량 대화 히스토리의 캐시 히트율을 보장한다.
  *
  * ## 문자 유형별 토큰 비율
  * - 라틴/ASCII: 약 4자 = 1토큰 (영어 텍스트 기준)
@@ -48,24 +50,24 @@ class DefaultTokenEstimator : TokenEstimator {
 
     companion object {
         /**
-         * 이 길이 이상의 문자열은 캐시 없이 직접 계산한다.
-         * 큰 도구 출력이나 문서 청크가 캐시 키로 유지되는 것을 방지한다.
-         * 10,000개 항목 캐시에 10KB 문자열이 들어가면 약 100MB의 힙을 차지하게 된다.
+         * 이 길이 이상의 문자열은 SHA-256 해시를 캐시 키로 사용한다.
+         * 큰 도구 출력이나 문서 청크가 캐시 키로 유지되는 것을 방지하면서도
+         * 대용량 대화 히스토리의 캐시 히트율을 보장한다.
          */
         const val CACHE_KEY_MAX_LENGTH = 2_000
     }
 
     /** 토큰 추정 결과 캐시. 동일 텍스트의 반복 계산을 피한다. */
     private val cache = Caffeine.newBuilder()
-        .maximumSize(10_000)
+        .maximumSize(50_000)
         .expireAfterAccess(5, TimeUnit.MINUTES)
         .build<String, Int>()
 
     override fun estimate(text: String): Int {
         if (text.isEmpty()) return 0
-        // 긴 문자열은 힙 부담을 줄이기 위해 캐시를 건너뛴다
-        if (text.length > CACHE_KEY_MAX_LENGTH) return computeTokens(text)
-        return cache.get(text) { computeTokens(it) }
+        val cacheKey = if (text.length <= CACHE_KEY_MAX_LENGTH) text
+            else HashUtils.sha256Hex(text)
+        return cache.get(cacheKey) { computeTokens(text) }
     }
 
     /**
