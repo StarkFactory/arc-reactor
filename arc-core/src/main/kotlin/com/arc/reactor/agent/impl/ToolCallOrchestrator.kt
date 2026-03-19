@@ -465,10 +465,18 @@ internal class ToolCallOrchestrator(
     /** 중복 URL을 제거하며 VerifiedSource를 HookContext에 추가합니다. HashSet으로 O(N) 탐색. */
     private fun mergeVerifiedSources(hookContext: HookContext, sources: List<VerifiedSource>) {
         val existingUrls = hookContext.verifiedSources.mapTo(HashSet()) { it.url }
+        mergeVerifiedSources(hookContext, sources, existingUrls)
+    }
+
+    /** 사전 구축된 URL 집합을 사용하여 VerifiedSource를 병합합니다. 반복 호출 시 HashSet 재생성을 방지합니다. */
+    private fun mergeVerifiedSources(
+        hookContext: HookContext,
+        sources: List<VerifiedSource>,
+        existingUrls: MutableSet<String>
+    ) {
         for (source in sources) {
-            if (source.url !in existingUrls) {
+            if (existingUrls.add(source.url)) {
                 hookContext.verifiedSources.add(source)
-                existingUrls.add(source.url)
             }
         }
     }
@@ -906,15 +914,17 @@ internal class ToolCallOrchestrator(
             .getOrElse { output }
     }
 
-    /** 병렬 실행 결과를 수집하여 toolsUsed 누적과 ToolCapture 병합을 수행합니다. */
+    /** 병렬 실행 결과를 수집하여 toolsUsed 누적과 ToolCapture 병합을 수행합니다. HashSet을 1회만 생성하여 재사용합니다. */
     private fun collectParallelResults(
         executions: List<ParallelToolExecution>,
         hookContext: HookContext,
         toolsUsed: MutableList<String>
     ): List<ToolResponseMessage.ToolResponse> {
+        val existingUrls = hookContext.verifiedSources.mapTo(HashSet()) { it.url }
         for (execution in executions) {
             execution.usedToolName?.let(toolsUsed::add)
-            mergeToolCapture(hookContext, execution.capture)
+            mergeVerifiedSources(hookContext, execution.capture.verifiedSources, existingUrls)
+            execution.capture.signal?.let { mergeSignalMetadata(hookContext, it) }
         }
         return executions.map(ParallelToolExecution::response)
     }

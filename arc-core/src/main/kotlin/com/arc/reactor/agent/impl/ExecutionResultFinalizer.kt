@@ -82,36 +82,42 @@ internal class ExecutionResultFinalizer(
         startTime: Long,
         attemptLongerResponse: suspend (String, Int, AgentCommand) -> String?
     ): AgentResult {
+        // ── 사전 계산: 메트릭/관측용 신뢰 이벤트 메타데이터 (요청당 1회) ──
+        val eventMetadata = trustEventMetadata(command, hookContext)
+
         // ── 단계 1: Output Guard 파이프라인 실행 (fail-close) ──
         val guarded = enrichResponseMetadata(
-            applyOutputGuardPipeline(result, command, hookContext, toolsUsed, startTime), hookContext
+            applyOutputGuardPipeline(result, command, hookContext, toolsUsed, startTime, eventMetadata),
+            hookContext
         )
         if (isGuardRejected(guarded)) {
-            return finalizeEarlyReturn(guarded, command, hookContext, toolsUsed, startTime)
+            return finalizeEarlyReturn(guarded, command, hookContext, toolsUsed, startTime, eventMetadata)
         }
 
         // ── 단계 2: 출력 길이 경계 검사 (너무 짧으면 더 긴 응답 재시도) ──
         val bounded = enrichResponseMetadata(
-            applyOutputBoundaryRule(guarded, command, hookContext, toolsUsed, startTime, attemptLongerResponse),
+            applyOutputBoundaryRule(guarded, command, hookContext, toolsUsed, startTime, attemptLongerResponse, eventMetadata),
             hookContext
         )
         if (isBoundaryRejected(bounded)) {
-            return finalizeEarlyReturn(bounded, command, hookContext, toolsUsed, startTime)
+            return finalizeEarlyReturn(bounded, command, hookContext, toolsUsed, startTime, eventMetadata)
         }
 
         // ── 단계 3: 내용 변경 시 Output Guard 재실행 ──
         val reguarded = reapplyOutputGuardIfContentChanged(
-            bounded, guarded, command, hookContext, toolsUsed, startTime
+            bounded, guarded, command, hookContext, toolsUsed, startTime, eventMetadata
         )
         if (isGuardRejected(reguarded)) {
-            return finalizeEarlyReturn(reguarded, command, hookContext, toolsUsed, startTime)
+            return finalizeEarlyReturn(reguarded, command, hookContext, toolsUsed, startTime, eventMetadata)
         }
 
         // ── 단계 4~6: 응답 필터 -> Citation 부착 -> 차단 응답 가시화 ──
-        val completed = enrichAndFinalizeContent(reguarded, command, hookContext, toolsUsed, startTime)
+        val completed = enrichAndFinalizeContent(
+            reguarded, command, hookContext, toolsUsed, startTime, eventMetadata
+        )
 
         // ── 단계 7~10: 관측 -> 대화 저장 -> AfterComplete Hook -> 메트릭 기록 ──
-        observeResponse(completed, command, hookContext, toolsUsed)
+        observeResponse(completed, command, hookContext, toolsUsed, eventMetadata)
         conversationManager.saveHistory(command, completed)
         runAfterCompletionHook(hookContext, completed, toolsUsed, startTime)
         return recordFinalExecution(completed, startTime)
@@ -136,11 +142,13 @@ internal class ExecutionResultFinalizer(
         command: AgentCommand,
         hookContext: HookContext,
         toolsUsed: List<String>,
-        startTime: Long
+        startTime: Long,
+        eventMetadata: Map<String, Any>
     ): AgentResult {
         if (bounded.content == guarded.content) return bounded
         return enrichResponseMetadata(
-            applyOutputGuardPipeline(bounded, command, hookContext, toolsUsed, startTime), hookContext
+            applyOutputGuardPipeline(bounded, command, hookContext, toolsUsed, startTime, eventMetadata),
+            hookContext
         )
     }
 
@@ -150,9 +158,10 @@ internal class ExecutionResultFinalizer(
         command: AgentCommand,
         hookContext: HookContext,
         toolsUsed: List<String>,
-        startTime: Long
+        startTime: Long,
+        eventMetadata: Map<String, Any>
     ): AgentResult {
-        val filtered = applyResponseFilters(result, command, hookContext, toolsUsed, startTime)
+        val filtered = applyResponseFilters(result, command, hookContext, toolsUsed, startTime, eventMetadata)
         val cited = appendCitations(filtered, hookContext)
         return enrichResponseMetadata(
             ensureVisibleBlockedResponse(cited, command, hookContext), hookContext
@@ -168,9 +177,10 @@ internal class ExecutionResultFinalizer(
         command: AgentCommand,
         hookContext: HookContext,
         toolsUsed: List<String>,
-        startTime: Long
+        startTime: Long,
+        eventMetadata: Map<String, Any>
     ): AgentResult {
-        observeResponse(result, command, hookContext, toolsUsed)
+        observeResponse(result, command, hookContext, toolsUsed, eventMetadata)
         conversationManager.saveHistory(command, result)
         runAfterCompletionHook(hookContext, result, toolsUsed, startTime)
         return result
@@ -187,12 +197,12 @@ internal class ExecutionResultFinalizer(
         command: AgentCommand,
         hookContext: HookContext,
         toolsUsed: List<String>,
-        startTime: Long
+        startTime: Long,
+        eventMetadata: Map<String, Any>
     ): AgentResult {
         if (!result.success || result.content == null || outputGuardPipeline == null) return result
 
         return try {
-            val trustMetadata = trustEventMetadata(command, hookContext)
             val guardContext = OutputGuardContext(
                 command = command,
                 toolsUsed = toolsUsed,
@@ -200,14 +210,14 @@ internal class ExecutionResultFinalizer(
             )
             when (val guardResult = outputGuardPipeline.check(result.content, guardContext)) {
                 is OutputGuardResult.Allowed -> {
-                    recordGuardOutcome(hookContext, GUARD_ACTION_ALLOWED, null, "", trustMetadata)
+                    recordGuardOutcome(hookContext, GUARD_ACTION_ALLOWED, null, "", eventMetadata)
                     result
                 }
 
                 is OutputGuardResult.Modified -> {
                     recordGuardOutcome(
                         hookContext, GUARD_ACTION_MODIFIED,
-                        guardResult.stage, guardResult.reason, trustMetadata
+                        guardResult.stage, guardResult.reason, eventMetadata
                     )
                     result.copy(content = guardResult.content)
                 }
@@ -215,7 +225,7 @@ internal class ExecutionResultFinalizer(
                 is OutputGuardResult.Rejected -> {
                     recordGuardOutcome(
                         hookContext, GUARD_ACTION_REJECTED,
-                        guardResult.stage, guardResult.reason, trustMetadata
+                        guardResult.stage, guardResult.reason, eventMetadata
                     )
                     outputGuardFailure(reason = guardResult.reason, startTime = startTime)
                 }
@@ -240,7 +250,8 @@ internal class ExecutionResultFinalizer(
         hookContext: HookContext,
         toolsUsed: List<String>,
         startTime: Long,
-        attemptLongerResponse: suspend (String, Int, AgentCommand) -> String?
+        attemptLongerResponse: suspend (String, Int, AgentCommand) -> String?,
+        eventMetadata: Map<String, Any>
     ): AgentResult {
         if (!result.success || result.content == null) return result
 
@@ -249,7 +260,7 @@ internal class ExecutionResultFinalizer(
         } else {
             { _: String, _: Int, _: AgentCommand -> null }
         }
-        return outputBoundaryEnforcer.enforceOutputBoundaries(result, command, trustEventMetadata(command, hookContext), effectiveRetry)
+        return outputBoundaryEnforcer.enforceOutputBoundaries(result, command, eventMetadata, effectiveRetry)
             ?: outputTooShortFailure(hookContext, startTime)
     }
 
@@ -277,7 +288,8 @@ internal class ExecutionResultFinalizer(
         command: AgentCommand,
         hookContext: HookContext,
         toolsUsed: List<String>,
-        startTime: Long
+        startTime: Long,
+        eventMetadata: Map<String, Any>
     ): AgentResult {
         if (!result.success || result.content == null || responseFilterChain == null) return result
 
@@ -296,7 +308,7 @@ internal class ExecutionResultFinalizer(
             )
             if (blockedUnverified) {
                 agentMetrics.recordUnverifiedResponse(
-                    trustEventMetadata(command, hookContext) +
+                    eventMetadata +
                         mapOf(META_BLOCK_REASON to BlockReasonConstants.UNVERIFIED_SOURCES)
                 )
             }
@@ -346,20 +358,21 @@ internal class ExecutionResultFinalizer(
         result: AgentResult,
         command: AgentCommand,
         hookContext: HookContext,
-        toolsUsed: List<String>
+        toolsUsed: List<String>,
+        eventMetadata: Map<String, Any>
     ) {
         agentMetrics.recordResponseObservation(
-            responseObservationMetadata(result, command, hookContext, toolsUsed)
+            responseObservationMetadata(result, hookContext, toolsUsed, eventMetadata)
         )
     }
 
     private fun responseObservationMetadata(
         result: AgentResult,
-        command: AgentCommand,
         hookContext: HookContext,
-        toolsUsed: List<String>
+        toolsUsed: List<String>,
+        eventMetadata: Map<String, Any>
     ): Map<String, Any> {
-        val metadata = trustEventMetadata(command, hookContext).toMutableMap()
+        val metadata = LinkedHashMap(eventMetadata)
         metadata["grounded"] = resolveGrounded(result, hookContext)
         metadata["answerMode"] = resolveAnswerMode(result, hookContext)
         metadata["deliveryMode"] = if (hookContext.metadata["schedulerJobId"] != null) "scheduled" else "interactive"
@@ -441,7 +454,7 @@ internal class ExecutionResultFinalizer(
         action: String,
         stage: String?,
         reason: String,
-        trustMetadata: Map<String, Any>
+        eventMetadata: Map<String, Any>
     ) {
         hookContext.metadata[META_GUARD_ACTION] = action
         hookContext.metadata[META_GUARD_STAGE] = stage ?: "pipeline"
@@ -450,7 +463,7 @@ internal class ExecutionResultFinalizer(
             hookContext.metadata[META_BLOCK_REASON] = reason
         }
         agentMetrics.recordOutputGuardAction(
-            stage ?: "unknown", action, reason, trustMetadata
+            stage ?: "unknown", action, reason, eventMetadata
         )
     }
 

@@ -216,17 +216,17 @@ internal class ManualReActLoopExecutor(
 
     // ── private 메서드: 토큰 사용량 기록 ──
 
-    /** LLM 응답의 토큰 사용량을 메트릭 콜백으로 전달한다. */
+    /** LLM 응답의 토큰 사용량을 메트릭 콜백으로 전달한다. 식별자만 포함하는 최소 메타데이터를 사용한다. */
     private fun emitTokenUsageMetric(
         chatResponse: ChatResponse?,
         hookContext: HookContext
     ) {
         val meta = chatResponse?.metadata ?: return
         val usage = meta.usage ?: return
-        val enrichedMetadata = buildMap<String, Any> {
-            putAll(hookContext.metadata)
+        val tokenMetadata = buildMap<String, Any>(3) {
             put("runId", hookContext.runId)
             meta.model?.let { put("model", it) }
+            hookContext.metadata["tenantId"]?.let { put("tenantId", it) }
         }
         recordTokenUsage(
             TokenUsage(
@@ -234,7 +234,7 @@ internal class ManualReActLoopExecutor(
                 completionTokens = usage.completionTokens.toInt(),
                 totalTokens = usage.totalTokens.toInt()
             ),
-            enrichedMetadata
+            tokenMetadata
         )
     }
 
