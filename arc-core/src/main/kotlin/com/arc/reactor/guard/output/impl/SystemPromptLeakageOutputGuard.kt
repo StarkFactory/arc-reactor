@@ -99,7 +99,19 @@ class SystemPromptLeakageOutputGuard(
             // 시스템 프롬프트에 포함된 섹션 마커가 출력에 나타나면 유출 판정
             Regex("(?i)\\[Language Rule]"),
             Regex("(?i)\\[Grounding Rules]"),
-            Regex("(?i)\\[Few-shot Examples]")
+            Regex("(?i)\\[Few-shot Examples]"),
+            Regex("(?i)\\[Tool Error Retry]"),
+
+            // ── 시스템 프롬프트 구조적 유출 패턴 ──
+            // LLM이 시스템 프롬프트를 설명하거나 반복할 때 나타나는 구조적 패턴
+            Regex("(?i)WORKSPACE questions.*MUST call tools"),
+            Regex("(?i)GENERAL KNOWLEDGE.*answer directly"),
+            Regex("(?i)you MUST call `[a-z_]+` before answering"),
+
+            // ── 한국어 구조적 유출 패턴 ──
+            Regex("당신의 역할은.*에이전트"),
+            Regex("다음 규칙.*따라야"),
+            Regex("도구를 반드시.*호출")
         )
     }
 }
