@@ -99,130 +99,177 @@ internal class AgentExecutionCoordinator(
         toolsUsed: MutableList<String>,
         startTime: Long
     ): AgentResult {
-        // ── 단계 1: Guard + Hook 사전 검증 (실패 시 즉시 반환) ──
         checkGuardAndHooks(command, hookContext, startTime)?.let { return it }
-        // ── 단계 2: Intent 해석 ──
-        val effectiveCommand = resolveIntent(command, hookContext)
-        effectiveCommand.metadata[HookMetadataKeys.INTENT_CATEGORY]?.let {
+        val cmd = resolveIntentStage(command, hookContext)
+
+        val cacheLookup = measureStage("cache_lookup", hookContext, cmd) {
+            resolveCache(cmd, startTime)
+        }
+        cacheLookup.cachedResult?.let { return it }
+
+        val history = measureStage("history_load", hookContext, cmd) {
+            loadConversationHistory(cmd, hookContext)
+        }
+        val ragCtx = measureStage("rag_retrieval", hookContext, cmd) {
+            retrieveRag(cmd, hookContext)
+        }
+        val tools = measureStage("tool_selection", hookContext, cmd) {
+            selectActiveTools(cmd)
+        }
+        var result = measureStage("agent_loop", hookContext, cmd) {
+            executeAgentLoop(cmd, tools, history, hookContext, toolsUsed, ragCtx)
+        }
+        result = applyFallbackIfNeeded(cmd, result, hookContext)
+
+        val finalResult = measureStage("finalizer", hookContext, cmd) {
+            finalizeExecution(result, cmd, hookContext, toolsUsed.toList(), startTime)
+        }
+        val enriched = withStageTimingsMetadata(finalResult, hookContext)
+        recordCostIfAvailable(enriched, hookContext)
+        storeCacheIfEligible(cacheLookup, cmd, enriched)
+        return enriched
+    }
+
+    // ── 파이프라인 단계 메서드 ─────────────────────────────
+
+    /** 단계별 소요 시간을 측정하여 HookContext와 메트릭에 기록한다. */
+    private suspend inline fun <T> measureStage(
+        stage: String,
+        hookContext: HookContext,
+        command: AgentCommand,
+        block: () -> T
+    ): T {
+        val start = nowMs()
+        return block().also {
+            val duration = nowMs() - start
+            recordStageTiming(hookContext, stage, duration)
+            agentMetrics.recordStageLatency(stage, duration, command.metadata)
+        }
+    }
+
+    /** Intent를 해석하고 카테고리 메타데이터를 HookContext에 전파한다. */
+    private suspend fun resolveIntentStage(
+        command: AgentCommand,
+        hookContext: HookContext
+    ): AgentCommand {
+        val effective = resolveIntent(command, hookContext)
+        effective.metadata[HookMetadataKeys.INTENT_CATEGORY]?.let {
             hookContext.metadata[HookMetadataKeys.INTENT_CATEGORY] = it
         }
+        return effective
+    }
 
-        // ── 단계 3: 응답 캐시 조회 (정확 매칭 / 시맨틱 매칭) ──
-        val cacheLookupStart = nowMs()
-        val cacheLookup = resolveCache(effectiveCommand, startTime)
-        recordStageTiming(hookContext, "cache_lookup", nowMs() - cacheLookupStart)
-        agentMetrics.recordStageLatency("cache_lookup", nowMs() - cacheLookupStart, effectiveCommand.metadata)
-        cacheLookup.cachedResult?.let { return it }
-        val resolvedCacheKey = cacheLookup.cacheKey
-        val cacheToolNames = cacheLookup.toolNames
-
-        // ── 단계 4: 대화 히스토리 로드 ──
-        val historyLoadStart = nowMs()
-        val conversationHistory = conversationManager.loadHistory(effectiveCommand)
-        val historyLoadDurationMs = nowMs() - historyLoadStart
-        recordStageTiming(hookContext, "history_load", historyLoadDurationMs)
-        agentMetrics.recordStageLatency("history_load", historyLoadDurationMs, effectiveCommand.metadata)
-        hookContext.metadata[HookMetadataKeys.HISTORY_MESSAGE_COUNT] = conversationHistory.size
-        logger.debug { "Loaded ${conversationHistory.size} history messages for session=${effectiveCommand.metadata["sessionId"]}" }
-
-        // ── 단계 5: RAG 컨텍스트 검색 (키워드 사전 필터링으로 불필요한 검색 생략) ──
-        val ragStart = nowMs()
-        val shouldRetrieveRag = RagRelevanceClassifier.isRagRequired(effectiveCommand)
-        val ragResult = if (shouldRetrieveRag) {
-            retrieveRagContext(effectiveCommand)
-        } else {
-            logger.debug { "RAG retrieval skipped: prompt not classified as knowledge query" }
-            null
+    /** 대화 히스토리를 로드하고 메시지 수를 HookContext에 기록한다. */
+    private suspend fun loadConversationHistory(
+        command: AgentCommand,
+        hookContext: HookContext
+    ): List<Message> {
+        val history = conversationManager.loadHistory(command)
+        hookContext.metadata[HookMetadataKeys.HISTORY_MESSAGE_COUNT] = history.size
+        logger.debug {
+            "Loaded ${history.size} history messages " +
+                "for session=${command.metadata["sessionId"]}"
         }
-        recordStageTiming(hookContext, "rag_retrieval", nowMs() - ragStart)
-        agentMetrics.recordStageLatency("rag_retrieval", nowMs() - ragStart, effectiveCommand.metadata)
-        registerRagVerifiedSources(ragResult, hookContext)
-        val ragContext = ragResult?.context
+        return history
+    }
 
-        // ── 단계 6: Tool 선택 및 준비 ──
-        val toolSelectionStart = nowMs()
-        val selectedTools = if (shouldSkipToolSelection(effectiveCommand)) {
+    /** RAG 컨텍스트를 검색한다. 키워드 사전 필터링으로 불필요한 검색을 생략한다. */
+    private suspend fun retrieveRag(
+        command: AgentCommand,
+        hookContext: HookContext
+    ): String? {
+        if (!RagRelevanceClassifier.isRagRequired(command)) {
+            logger.debug { "RAG retrieval skipped: not a knowledge query" }
+            return null
+        }
+        val ragResult = retrieveRagContext(command)
+        registerRagVerifiedSources(ragResult, hookContext)
+        return ragResult?.context
+    }
+
+    /** 실행 모드와 도구 예산에 따라 활성 도구를 선택한다. */
+    private fun selectActiveTools(command: AgentCommand): List<Any> {
+        val tools = if (shouldSkipToolSelection(command)) {
             emptyList()
         } else {
-            selectAndPrepareTools(effectiveCommand.userPrompt)
+            selectAndPrepareTools(command.userPrompt)
         }
-        recordStageTiming(hookContext, "tool_selection", nowMs() - toolSelectionStart)
-        agentMetrics.recordStageLatency("tool_selection", nowMs() - toolSelectionStart, effectiveCommand.metadata)
-        logger.debug { "Selected ${selectedTools.size} tools for execution (mode=${effectiveCommand.mode})" }
-
-        // ── 단계 7: ReAct 루프 실행 ──
-        val agentLoopStart = nowMs()
-        var result = executeWithTools(
-            effectiveCommand,
-            selectedTools,
-            conversationHistory,
-            hookContext,
-            toolsUsed,
-            ragContext
-        )
-        recordStageTiming(hookContext, "agent_loop", nowMs() - agentLoopStart)
-        agentMetrics.recordStageLatency("agent_loop", nowMs() - agentLoopStart, effectiveCommand.metadata)
-        recordLoopStageLatency(hookContext, effectiveCommand.metadata, "llm_calls", agentMetrics)
-        recordLoopStageLatency(hookContext, effectiveCommand.metadata, "tool_execution", agentMetrics)
-
-        // ── 단계 8: 실패 시 폴백 전략 적용 ──
-        if (!result.success && fallbackStrategy != null) {
-            val fallbackStart = nowMs()
-            val fallbackResult = attemptFallback(effectiveCommand, result)
-            recordStageTiming(hookContext, "fallback", nowMs() - fallbackStart)
-            agentMetrics.recordStageLatency("fallback", nowMs() - fallbackStart, effectiveCommand.metadata)
-            if (fallbackResult !== result) {
-                hookContext.metadata[HookMetadataKeys.FALLBACK_USED] = true
-            }
-            result = fallbackResult
+        logger.debug {
+            "Selected ${tools.size} tools for execution " +
+                "(mode=${command.mode})"
         }
+        return tools
+    }
 
-        // ── 단계 9: 실행 결과 최종화 (Output Guard, 응답 필터, Citation) ──
-        val finalizerStart = nowMs()
-        val finalResult = finalizeExecution(
-            result,
-            effectiveCommand,
-            hookContext,
-            toolsUsed.toList(),
-            startTime
+    /** ReAct 루프를 실행하고 내부 단계(LLM 호출, 도구 실행) 레이턴시를 기록한다. */
+    private suspend fun executeAgentLoop(
+        command: AgentCommand,
+        tools: List<Any>,
+        history: List<Message>,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        ragContext: String?
+    ): AgentResult {
+        val result = executeWithTools(
+            command, tools, history, hookContext, toolsUsed, ragContext
         )
-        val finalizerDurationMs = nowMs() - finalizerStart
-        recordStageTiming(hookContext, "finalizer", finalizerDurationMs)
-        agentMetrics.recordStageLatency("finalizer", finalizerDurationMs, effectiveCommand.metadata)
-        val enrichedFinalResult = withStageTimingsMetadata(finalResult, hookContext)
+        recordLoopStageLatency(hookContext, command.metadata, "llm_calls", agentMetrics)
+        recordLoopStageLatency(
+            hookContext, command.metadata, "tool_execution", agentMetrics
+        )
+        return result
+    }
 
-        // ── 비용 기록: 토큰 사용량이 있으면 CostCalculator로 USD 비용 산출 후 메트릭에 기록 ──
-        recordCostIfAvailable(enrichedFinalResult, hookContext)
+    /** 실패 시 폴백 전략을 적용한다. 성공이거나 폴백 미설정이면 원본을 반환한다. */
+    private suspend fun applyFallbackIfNeeded(
+        command: AgentCommand,
+        result: AgentResult,
+        hookContext: HookContext
+    ): AgentResult {
+        if (result.success || fallbackStrategy == null) return result
+        val fallbackStart = nowMs()
+        val fallbackResult = attemptFallback(command, result)
+        val duration = nowMs() - fallbackStart
+        recordStageTiming(hookContext, "fallback", duration)
+        agentMetrics.recordStageLatency("fallback", duration, command.metadata)
+        if (fallbackResult !== result) {
+            hookContext.metadata[HookMetadataKeys.FALLBACK_USED] = true
+        }
+        return fallbackResult
+    }
 
-        // ── 단계 10: 성공 시 응답 캐시 저장 (빈/차단/저품질 응답은 캐시 오염 방지를 위해 제외) ──
-        if (resolvedCacheKey != null && enrichedFinalResult.success
-            && !enrichedFinalResult.content.isNullOrBlank()
-            && enrichedFinalResult.metadata["blockReason"] == null
-            && !isLowQualityResponse(enrichedFinalResult)
-        ) {
-            try {
-                val cacheEntry = CachedResponse(
-                    content = enrichedFinalResult.content,
-                    toolsUsed = enrichedFinalResult.toolsUsed,
-                    metadata = filterCacheableMetadata(enrichedFinalResult.metadata)
+    /** 성공·비차단·고품질 응답만 캐시에 저장한다. 캐시 오염 방지. */
+    private suspend fun storeCacheIfEligible(
+        cacheLookup: CacheLookupResult,
+        command: AgentCommand,
+        result: AgentResult
+    ) {
+        val cacheKey = cacheLookup.cacheKey ?: return
+        if (!result.success) return
+        if (result.content.isNullOrBlank()) return
+        if (result.metadata["blockReason"] != null) return
+        if (isLowQualityResponse(result)) return
+
+        try {
+            val entry = CachedResponse(
+                content = result.content,
+                toolsUsed = result.toolsUsed,
+                metadata = filterCacheableMetadata(result.metadata)
+            )
+            when (val cache = responseCache) {
+                is SemanticResponseCache -> cache.putSemantic(
+                    command = command,
+                    toolNames = cacheLookup.toolNames,
+                    exactKey = cacheKey,
+                    response = entry
                 )
-                when (val cache = responseCache) {
-                    is SemanticResponseCache -> cache.putSemantic(
-                        command = effectiveCommand,
-                        toolNames = cacheToolNames,
-                        exactKey = resolvedCacheKey,
-                        response = cacheEntry
-                    )
-                    null -> {}
-                    else -> cache.put(resolvedCacheKey, cacheEntry)
-                }
-            } catch (e: Exception) {
-                e.throwIfCancellation()
-                logger.warn(e) { "Failed to cache response" }
+                null -> {}
+                else -> cache.put(cacheKey, entry)
             }
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "Failed to cache response" }
         }
-
-        return enrichedFinalResult
     }
 
     /**
