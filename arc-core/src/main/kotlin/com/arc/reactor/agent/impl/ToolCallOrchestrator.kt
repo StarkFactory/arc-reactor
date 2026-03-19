@@ -73,6 +73,11 @@ internal class ToolCallOrchestrator(
     /** Tool 결과 캐시 (Caffeine) — 동일 입력에 대한 중복 Tool 호출 방지 */
     private val toolResultCache: Cache<String, String>? = buildToolResultCacheIfEnabled()
 
+    /** Tool 결과 캐시 키 생성용 ThreadLocal SHA-256 — JCA 프로바이더 조회 비용 제거 */
+    private val toolResultCacheDigest = ThreadLocal.withInitial {
+        java.security.MessageDigest.getInstance("SHA-256")
+    }
+
     // ──────────────────────────────────────────────
     // 공개 API: 단건 직접 실행 / 병렬 실행
     // ──────────────────────────────────────────────
@@ -916,8 +921,11 @@ internal class ToolCallOrchestrator(
             .build()
     }
 
+    /** SHA-256 기반 캐시 키 — 32비트 hashCode() 충돌 방지. */
     private fun buildToolResultCacheKey(toolName: String, toolInput: String): String {
-        return "$toolName:${toolInput.hashCode()}"
+        val digest = toolResultCacheDigest.get().apply { reset() }
+        val hash = digest.digest("$toolName:$toolInput".toByteArray(Charsets.UTF_8))
+        return hash.joinToString("") { "%02x".format(it) }
     }
 
     private fun checkToolResultCache(toolName: String, toolInput: String): ToolInvocationOutcome? {

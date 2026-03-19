@@ -62,7 +62,9 @@ routes:
       - 보여줘
       - 조회
     promptInstruction: >-
-      For this request, you MUST call `confluence_search_by_text` or `confluence_search` before answering.
+      For this request, you MUST call `confluence_search_by_text` before answering.
+      Do NOT respond with text without calling a tool first.
+      Extract the search query from the user message (e.g., "최근 페이지" → search for recent pages, "온보딩 가이드" → search for onboarding guide).
       If the user asks for a list of matching pages, respond from search results and include the returned links.
       If the user mentions a specific space (e.g. MFS), use it as the space parameter.
     preferredTools:

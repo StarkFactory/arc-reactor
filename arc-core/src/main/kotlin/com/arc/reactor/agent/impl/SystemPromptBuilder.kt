@@ -847,7 +847,8 @@ class SystemPromptBuilder(
             "알려", "설명", "요약", "정리", "무엇", "왜", "어떻게", "누구", "본문", "body", "read", "읽"
         )
         private val CONFLUENCE_DISCOVERY_HINTS = setOf(
-            "search", "find", "look up", "keyword", "list", "찾아", "검색", "키워드", "목록", "어떤 문서"
+            "search", "find", "look up", "keyword", "list", "recent", "latest",
+            "찾아", "검색", "키워드", "목록", "어떤 문서", "최근", "보여줘", "조회"
         )
         private val CONFLUENCE_PAGE_BODY_HINTS = setOf(
             "본문", "body", "content", "read", "읽고", "읽어", "내용", "핵심만"
