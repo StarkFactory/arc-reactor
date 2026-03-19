@@ -5,9 +5,9 @@ import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.LocalToolFilter
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
-import java.util.Collections
-import java.util.WeakHashMap
 
 private val logger = KotlinLogging.logger {}
 
@@ -36,9 +36,12 @@ internal class ToolPreparationPlanner(
     private val localToolFilters: List<LocalToolFilter> = emptyList(),
     private val mcpToolAvailabilityChecker: McpToolAvailabilityChecker? = null
 ) {
-    /** ToolCallback → ArcToolCallbackAdapter 캐시 (WeakHashMap으로 메모리 누수 방지) */
-    private val callbackAdapterCache =
-        Collections.synchronizedMap(WeakHashMap<ToolCallback, ArcToolCallbackAdapter>())
+    /** ToolCallback → ArcToolCallbackAdapter 캐시 (weakKeys로 GC 시 자동 제거, lock-free) */
+    private val callbackAdapterCache: Cache<ToolCallback, ArcToolCallbackAdapter> =
+        Caffeine.newBuilder()
+            .weakKeys()
+            .maximumSize(500)
+            .build()
 
     /**
      * 사용자 프롬프트에 맞는 도구 목록을 준비한다.
@@ -107,9 +110,11 @@ internal class ToolPreparationPlanner(
 
     /** ToolCallback을 ArcToolCallbackAdapter로 래핑한다. 캐시에서 먼저 조회한다. */
     private fun resolveAdapter(callback: ToolCallback): ArcToolCallbackAdapter {
-        return callbackAdapterCache[callback] ?: ArcToolCallbackAdapter(
-            arcCallback = callback,
-            fallbackToolTimeoutMs = fallbackToolTimeoutMs
-        ).also { callbackAdapterCache[callback] = it }
+        return callbackAdapterCache.get(callback) {
+            ArcToolCallbackAdapter(
+                arcCallback = callback,
+                fallbackToolTimeoutMs = fallbackToolTimeoutMs
+            )
+        }
     }
 }

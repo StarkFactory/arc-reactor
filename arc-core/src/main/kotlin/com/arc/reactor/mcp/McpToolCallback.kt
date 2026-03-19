@@ -5,6 +5,8 @@ import com.arc.reactor.tool.ToolCallback
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.modelcontextprotocol.client.McpSyncClient
 import io.modelcontextprotocol.spec.McpSchema
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -69,14 +71,18 @@ class McpToolCallback(
     override suspend fun call(arguments: Map<String, Any?>): Any? {
         return try {
             val request = McpSchema.CallToolRequest(name, arguments)
-            val result = client.callTool(request)
+            // McpSyncClient.callTool은 블로킹 호출이므로 IO 디스패처로 전환한다
+            val result = withContext(Dispatchers.IO) {
+                client.callTool(request)
+            }
 
             val output = extractOutput(result)
 
             // 출력이 최대 길이를 초과하면 잘라낸다
             if (output.length > maxOutputLength) {
                 logger.warn { "MCP 도구 '$name' 출력 잘림: ${output.length} -> $maxOutputLength 문자" }
-                output.take(maxOutputLength) + "\n[TRUNCATED: output exceeded $maxOutputLength characters]"
+                output.take(maxOutputLength) +
+                    "\n[TRUNCATED: output exceeded $maxOutputLength characters]"
             } else {
                 output
             }

@@ -4,10 +4,13 @@ import com.arc.reactor.agent.config.ToolRouteMatchEngine
 import com.arc.reactor.agent.config.ToolRoutingConfig
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
 
 private val logger = KotlinLogging.logger {}
 
@@ -56,7 +59,8 @@ class SemanticToolSelector(
 
     /** Cache: tool name -> embedding vector. Invalidated when tool list changes. */
     private val embeddingCache = ConcurrentHashMap<String, FloatArray>()
-    private val refreshLock = Any()
+    /** synchronized 대신 ReentrantLock 사용 — 코루틴 carrier 스레드 차단 방지 (IO 전환 후 lock) */
+    private val refreshLock = ReentrantLock()
     private val semanticSelectionCache: Cache<SemanticSelectionCacheKey, List<String>> =
         Caffeine.newBuilder()
             .maximumSize(selectionCacheMaxSize)
@@ -302,23 +306,35 @@ class SemanticToolSelector(
 
     // ── Embedding utilities ──
 
+    /**
+     * 도구 목록 변경 시 임베딩을 갱신한다.
+     *
+     * [ToolSelector.select]가 non-suspend이므로 코루틴 Mutex를 쓸 수 없다.
+     * ReentrantLock + [runBlocking](Dispatchers.IO)로 블로킹 HTTP 호출을
+     * IO 스레드 풀에서 실행하여 코루틴 carrier 스레드 차단을 방지한다.
+     */
     private fun refreshEmbeddingsIfNeeded(
         tools: List<ToolCallback>,
         fingerprint: Int = toolFingerprint(tools)
     ) {
         if (fingerprint == lastToolFingerprint) return
-        synchronized(refreshLock) {
+        refreshLock.lock()
+        try {
             if (fingerprint == lastToolFingerprint) return
-            val refreshed = embedBatch(tools.map(::buildToolText))
-                .mapIndexed { index, embedding ->
-                    tools[index].name to embedding
-                }
-                .toMap(LinkedHashMap())
+            val refreshed = runBlocking(Dispatchers.IO) {
+                embedBatch(tools.map(::buildToolText))
+            }.mapIndexed { index, embedding ->
+                tools[index].name to embedding
+            }.toMap(LinkedHashMap())
             embeddingCache.clear()
             embeddingCache.putAll(refreshed)
             semanticSelectionCache.invalidateAll()
             lastToolFingerprint = fingerprint
-            logger.info { "Refreshed semantic embeddings for ${tools.size} tools" }
+            logger.info {
+                "Refreshed semantic embeddings for ${tools.size} tools"
+            }
+        } finally {
+            refreshLock.unlock()
         }
     }
 
@@ -331,7 +347,10 @@ class SemanticToolSelector(
         return tools.sumOf { System.identityHashCode(it) }
     }
 
-    private fun embed(text: String): FloatArray = embeddingModel.embed(text)
+    /** 단일 텍스트 임베딩 — 블로킹 HTTP 호출이므로 IO 디스패처에서 실행한다. */
+    private fun embed(text: String): FloatArray = runBlocking(Dispatchers.IO) {
+        embeddingModel.embed(text)
+    }
 
     private fun embedBatch(texts: List<String>): List<FloatArray> =
         embeddingModel.embed(texts)
