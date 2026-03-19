@@ -98,73 +98,149 @@ internal class SystemPromptBuilder(
     /**
      * Grounding 규칙 지시문을 구성한다.
      *
-     * 사용자 프롬프트를 분석하여 적절한 도구 호출 강제 지시를 추가한다.
-     * Jira, Confluence, Bitbucket, Swagger 등 workspace 도구에 대한 라우팅 규칙을 포함한다.
+     * 사용자 프롬프트를 분석하여 워크스페이스 관련 여부를 판별한다.
+     * 비워크스페이스 쿼리(수학, 코딩 등)에서는 워크스페이스 규칙을 생략하여 ~700토큰을 절약한다.
      */
     private fun buildGroundingInstruction(
         responseFormat: ResponseFormat,
         userPrompt: String?,
         workspaceToolAlreadyCalled: Boolean
     ): String = buildString {
-        appendGroundingPreamble(workspaceToolAlreadyCalled)
-        appendMutationRefusal(userPrompt)
-        appendConfluenceToolForcing(userPrompt, workspaceToolAlreadyCalled)
-        appendWorkToolForcing(userPrompt, workspaceToolAlreadyCalled)
-        appendWorkContextToolForcing(userPrompt, workspaceToolAlreadyCalled)
-        appendJiraToolForcing(userPrompt, workspaceToolAlreadyCalled)
-        appendBitbucketToolForcing(userPrompt, workspaceToolAlreadyCalled)
-        appendSwaggerToolForcing(userPrompt, workspaceToolAlreadyCalled)
-        appendSourcesInstruction(responseFormat, userPrompt)
+        appendLanguageRule()
+        appendConversationHistoryRule()
+        val workspaceRelated = workspaceToolAlreadyCalled ||
+            looksLikeWorkspacePrompt(userPrompt)
+        if (workspaceRelated) {
+            appendWorkspaceGroundingRules(workspaceToolAlreadyCalled)
+            appendFewShotReadOnlyExamples()
+            appendReadOnlyPolicy()
+            appendToolErrorRetryHint()
+            appendConfluencePreferenceHint()
+            appendMutationRefusal(userPrompt)
+            appendConfluenceToolForcing(userPrompt, workspaceToolAlreadyCalled)
+            appendWorkToolForcing(userPrompt, workspaceToolAlreadyCalled)
+            appendWorkContextToolForcing(userPrompt, workspaceToolAlreadyCalled)
+            appendJiraToolForcing(userPrompt, workspaceToolAlreadyCalled)
+            appendBitbucketToolForcing(userPrompt, workspaceToolAlreadyCalled)
+            appendSwaggerToolForcing(userPrompt, workspaceToolAlreadyCalled)
+            appendSourcesInstruction(responseFormat, userPrompt)
+        } else {
+            appendGeneralGroundingRule()
+        }
     }
 
-    /** Grounding 기본 규칙 (사실 기반 응답, 읽기 전용 정책, Confluence 우선 규칙). */
-    private fun StringBuilder.appendGroundingPreamble(workspaceToolAlreadyCalled: Boolean) {
+    /** 언어 규칙 — 모든 요청에 항상 포함한다. */
+    private fun StringBuilder.appendLanguageRule() {
         append("[Language Rule]\n")
-        append("ALWAYS respond in Korean (한국어). Even if the user writes in English or mixed languages, your response must be in Korean.\n")
-        append("Technical terms (e.g. Jira, Sprint, API) may remain in English, but all sentences and explanations must be in Korean.\n\n")
-        append("[Grounding Rules]\n")
+        append("ALWAYS respond in Korean (한국어). ")
+        append("Even if the user writes in English or mixed languages, ")
+        append("your response must be in Korean.\n")
+        append("Technical terms (e.g. Jira, Sprint, API) may remain in English, ")
+        append("but all sentences and explanations must be in Korean.\n")
+    }
+
+    /** 대화 히스토리 규칙 — 모든 요청에 항상 포함한다. */
+    private fun StringBuilder.appendConversationHistoryRule() {
+        append("\n[Conversation History]\n")
+        append("You have access to the conversation history from this session.\n")
+        append("When the user refers to something mentioned earlier ")
+        append("(name, preference, prior question), ")
+        append("use the conversation history to answer.\n")
+        append("Do NOT say \"I cannot remember\" or ")
+        append("\"I don't collect personal information\" — ")
+        append("the user explicitly provided this information ")
+        append("in the current session.\n")
+        append("The conversation history is part of the current ")
+        append("session context, not personal data collection.")
+    }
+
+    /** 일반(비워크스페이스) 질문 전용 규칙. */
+    private fun StringBuilder.appendGeneralGroundingRule() {
+        append("\n\n[Grounding Rules]\n")
+        append("Answer directly from your knowledge. No tools needed.\n")
+        append("Do NOT say '도구를 찾을 수 없습니다' for general knowledge questions.")
+    }
+
+    /** 워크스페이스 Grounding 규칙 (사실 기반 응답, 도구 호출 강제). */
+    private fun StringBuilder.appendWorkspaceGroundingRules(
+        workspaceToolAlreadyCalled: Boolean
+    ) {
+        append("\n\n[Grounding Rules]\n")
         append("There are two types of questions:\n")
-        append("1. GENERAL questions (math, coding, concepts, explanations) → answer from your knowledge. No tools needed.\n")
-        append("2. WORKSPACE questions (Jira issues, Confluence pages, Bitbucket, project status, team tasks) → MUST call tools first.\n")
-        append("For workspace questions: call the relevant tool FIRST, then answer based on tool results.\n")
-        append("For general questions: answer directly without tools. Do NOT say '도구를 찾을 수 없습니다' for general knowledge questions.\n")
-        append("NEVER ask clarifying questions for work-related queries (e.g. 'which project?', 'which week?'). Instead, use sensible defaults and call the tool immediately.\n")
-        append("Example: 'show me backlog issues' → call jira_search_issues. '주간 리포트' → search this week's issues and write the report.\n")
-        append("Analyzing, summarizing, recommending, reporting, planning sprints, writing retrospectives are READ operations — they are NOT write operations. Do NOT refuse them as read-only.\n")
-        append("Treat mixed-language queries (e.g. 'JAR project의 최근 issues') the same as pure Korean or English queries.\n")
+        append("1. GENERAL questions (math, coding, concepts, explanations)")
+        append(" → answer from your knowledge. No tools needed.\n")
+        append("2. WORKSPACE questions (Jira issues, Confluence pages, ")
+        append("Bitbucket, project status, team tasks)")
+        append(" → MUST call tools first.\n")
+        append("For workspace questions: call the relevant tool FIRST, ")
+        append("then answer based on tool results.\n")
+        append("For general questions: answer directly without tools. ")
+        append("Do NOT say '도구를 찾을 수 없습니다' for general knowledge questions.\n")
+        append("NEVER ask clarifying questions for work-related queries ")
+        append("(e.g. 'which project?', 'which week?'). ")
+        append("Instead, use sensible defaults and call the tool immediately.\n")
+        append("Example: 'show me backlog issues' → call jira_search_issues. ")
+        append("'주간 리포트' → search this week's issues and write the report.\n")
+        append("Analyzing, summarizing, recommending, reporting, planning sprints, ")
+        append("writing retrospectives are READ operations — ")
+        append("they are NOT write operations. Do NOT refuse them as read-only.\n")
+        append("Treat mixed-language queries (e.g. 'JAR project의 최근 issues') ")
+        append("the same as pure Korean or English queries.\n")
         if (workspaceToolAlreadyCalled) {
-            append("A required workspace tool has already been executed for this request.\n")
+            append("A required workspace tool has already been executed ")
+            append("for this request.\n")
             append("Answer directly from the retrieved tool results.\n")
-            append("Do not emit planning syntax such as ```tool_code``` or raw tool JSON.\n")
+            append("Do not emit planning syntax such as ")
+            append("```tool_code``` or raw tool JSON.\n")
         } else {
-            append("Your FIRST action for work-related queries must be a tool call, not prose or a clarifying question.\n")
-            append("If the user mentions a project (e.g. JAR), use it. If not, search across all allowed projects.\n")
-            append("Default tools: jira_search_issues for Jira queries, confluence_search for Confluence, work_morning_briefing for general status.\n")
+            append("Your FIRST action for work-related queries must be a ")
+            append("tool call, not prose or a clarifying question.\n")
+            append("If the user mentions a project (e.g. JAR), use it. ")
+            append("If not, search across all allowed projects.\n")
+            append("Default tools: jira_search_issues for Jira queries, ")
+            append("confluence_search for Confluence, ")
+            append("work_morning_briefing for general status.\n")
             appendFewShotExamples()
         }
-        appendFewShotReadOnlyExamples()
-        append("If a Jira, Confluence, Bitbucket, or work-management request asks to create, update, assign, reassign, ")
-        append("comment, approve, transition, convert, or delete something, refuse it as not allowed in read-only mode.\n")
-        append("NEVER include curl, wget, fetch, httpie, or direct HTTP request examples that target ")
-        append("Jira, Confluence, Bitbucket, or any workspace API in your response. ")
-        append("Even if the user asks for a workaround, do not provide API call instructions that would bypass read-only restrictions.\n")
+    }
+
+    /** 읽기 전용 정책 — 워크스페이스 쿼리에서만 포함한다. */
+    private fun StringBuilder.appendReadOnlyPolicy() {
+        append("If a Jira, Confluence, Bitbucket, or work-management request ")
+        append("asks to create, update, assign, reassign, ")
+        append("comment, approve, transition, convert, or delete something, ")
+        append("refuse it as not allowed in read-only mode.\n")
+        append("NEVER include curl, wget, fetch, httpie, or direct HTTP ")
+        append("request examples that target ")
+        append("Jira, Confluence, Bitbucket, or any workspace API ")
+        append("in your response. ")
+        append("Even if the user asks for a workaround, do not provide ")
+        append("API call instructions that would bypass ")
+        append("read-only restrictions.\n")
+    }
+
+    /** 도구 에러 재시도 힌트 — 워크스페이스 쿼리에서만 포함한다. */
+    private fun StringBuilder.appendToolErrorRetryHint() {
         append("\n[Tool Error Retry]\n")
-        append("When a tool returns an error (e.g. \"Error: JQL query failed\", \"Error: invalid field\"), ")
+        append("When a tool returns an error ")
+        append("(e.g. \"Error: JQL query failed\", \"Error: invalid field\"), ")
         append("analyze the error message and retry with corrected parameters.\n")
-        append("Do NOT report the raw error to the user. Simplify the query and try again.\n")
-        append("For JQL errors: remove advanced functions (startOfWeek, startOfMonth, endOfWeek, endOfMonth), ")
+        append("Do NOT report the raw error to the user. ")
+        append("Simplify the query and try again.\n")
+        append("For JQL errors: remove advanced functions ")
+        append("(startOfWeek, startOfMonth, endOfWeek, endOfMonth), ")
         append("use simple date comparisons like 'created >= -7d' instead.\n")
         append("You have up to 10 tool calls per request — use retries wisely.\n")
-        append("Prefer `confluence_answer_question` for Confluence policy, wiki, service, or page-summary questions.")
-        append("\nDo not answer Confluence knowledge questions from `confluence_search` or `confluence_search_by_text` alone; ")
-        append("use them only for discovery, then verify with `confluence_answer_question` or `confluence_get_page_content`.")
-        append("\n\n[Conversation History]\n")
-        append("You have access to the conversation history from this session.\n")
-        append("When the user refers to something mentioned earlier (name, preference, prior question), ")
-        append("use the conversation history to answer.\n")
-        append("Do NOT say \"I cannot remember\" or \"I don't collect personal information\" — ")
-        append("the user explicitly provided this information in the current session.\n")
-        append("The conversation history is part of the current session context, not personal data collection.")
+    }
+
+    /** Confluence 도구 우선순위 힌트 — 워크스페이스 쿼리에서만 포함한다. */
+    private fun StringBuilder.appendConfluencePreferenceHint() {
+        append("Prefer `confluence_answer_question` for Confluence policy, ")
+        append("wiki, service, or page-summary questions.")
+        append("\nDo not answer Confluence knowledge questions from ")
+        append("`confluence_search` or `confluence_search_by_text` alone; ")
+        append("use them only for discovery, then verify with ")
+        append("`confluence_answer_question` or `confluence_get_page_content`.")
     }
 
     /**
@@ -647,6 +723,7 @@ internal class SystemPromptBuilder(
         if (prompt.isNullOrBlank()) return false
         return matchesHints(prompt, JIRA_HINTS) ||
             matchesHints(prompt, BITBUCKET_HINTS) ||
+            matchesHints(prompt, AGILE_WORKFLOW_HINTS) ||
             looksLikeSwaggerPrompt(prompt) ||
             looksLikeConfluenceAnswerPrompt(prompt) ||
             (matchesHints(prompt, CONFLUENCE_KNOWLEDGE_HINTS) &&
@@ -657,6 +734,11 @@ internal class SystemPromptBuilder(
             matchesHints(prompt, WORK_STANDUP_HINTS) ||
             matchesHints(prompt, WORK_RELEASE_RISK_HINTS) ||
             matchesHints(prompt, WORK_RELEASE_READINESS_HINTS) ||
+            matchesHints(prompt, WORK_BRIEFING_PROFILE_HINTS) ||
+            matchesHints(prompt, WORK_PERSONAL_FOCUS_HINTS) ||
+            matchesHints(prompt, WORK_PERSONAL_LEARNING_HINTS) ||
+            matchesHints(prompt, WORK_PERSONAL_INTERRUPT_HINTS) ||
+            matchesHints(prompt, WORK_PERSONAL_WRAPUP_HINTS) ||
             looksLikeWorkOwnerPrompt(prompt) ||
             looksLikeWorkItemContextPrompt(prompt) ||
             looksLikeWorkServiceContextPrompt(prompt)

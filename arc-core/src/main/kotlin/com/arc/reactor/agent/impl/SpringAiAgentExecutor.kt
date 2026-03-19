@@ -191,6 +191,7 @@ class SpringAiAgentExecutor(
         pendingApprovalStore = pendingApprovalStore,
         agentMetrics = agentMetrics,
         toolOutputSanitizer = toolOutputSanitizer,
+        maxToolOutputLength = properties.mcp.security.maxToolOutputLength,
         requesterAwareToolNames = properties.toolEnrichment.requesterAwareToolNames,
         toolResultCacheProperties = properties.toolResultCache,
         tokenEstimator = tokenEstimator,

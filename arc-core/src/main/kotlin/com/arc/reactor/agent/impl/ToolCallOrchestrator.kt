@@ -218,10 +218,16 @@ internal class ToolCallOrchestrator(
             totalToolCallsCounter, maxToolCalls, normalizeToolResponseToJson
         )?.let { return it }
 
+        // 보강(enrichment)이 없으면 원본 JSON을 그대로 사용하여 직렬화→파싱 왕복을 제거한다
+        val toolInput = if (effectiveToolParams === parsedToolParams) {
+            toolCall.arguments().orEmpty().ifBlank { "{}" }
+        } else {
+            serializeToolInput(effectiveToolParams, toolCall.arguments())
+        }
         return invokeAndFinalizeParallel(
             toolCall = toolCall,
             toolName = toolName,
-            toolInput = serializeToolInput(effectiveToolParams, toolCall.arguments()),
+            toolInput = toolInput,
             toolCallContext = toolCallContext,
             tools = tools,
             springCallbacksByName = springCallbacksByName,

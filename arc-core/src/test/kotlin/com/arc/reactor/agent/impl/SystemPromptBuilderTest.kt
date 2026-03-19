@@ -33,26 +33,57 @@ class SystemPromptBuilderTest {
         assertTrue(prompt.contains("[Grounding Rules]")) {
             "Prompt should contain Grounding Rules section"
         }
-        assertTrue(prompt.contains("GENERAL questions")) {
-            "Prompt should distinguish GENERAL questions"
+        assertTrue(prompt.contains("[Conversation History]")) {
+            "Prompt should contain Conversation History section"
         }
-        assertTrue(prompt.contains("WORKSPACE questions")) {
-            "Prompt should distinguish WORKSPACE questions"
+        // 비워크스페이스 쿼리(userPrompt=null)에서는 워크스페이스 규칙 생략
+        assertFalse(prompt.contains("[Few-shot Examples")) {
+            "Non-workspace prompts should not contain Few-shot Examples"
         }
-        assertTrue(prompt.contains("[Few-shot Examples")) {
-            "Prompt should contain Few-shot Examples section"
+        assertFalse(prompt.contains("[Read vs Write")) {
+            "Non-workspace prompts should not contain Read vs Write section"
         }
-        assertTrue(prompt.contains("[Read vs Write")) {
-            "Prompt should contain Read vs Write section"
-        }
-        assertTrue(prompt.contains("confluence_answer_question")) {
-            "Prompt should contain Confluence routing instruction"
+        assertFalse(prompt.contains("confluence_answer_question")) {
+            "Non-workspace prompts should not contain Confluence routing instruction"
         }
         assertFalse(prompt.contains("[Retrieved Context]")) {
             "Non-RAG prompts should not include Retrieved Context section"
         }
         assertFalse(prompt.contains("[Response Format]")) {
             "TEXT format should not include Response Format section"
+        }
+    }
+
+    @Test
+    fun `workspace prompt에 대해 include full workspace grounding rules해야 한다`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            responseSchema = null,
+            userPrompt = "Jira 이슈 목록을 보여줘."
+        )
+
+        assertTrue(prompt.contains("[Language Rule]")) {
+            "Workspace prompts should contain Language Rule section"
+        }
+        assertTrue(prompt.contains("[Grounding Rules]")) {
+            "Workspace prompts should contain Grounding Rules section"
+        }
+        assertTrue(prompt.contains("GENERAL questions")) {
+            "Workspace prompts should distinguish GENERAL questions"
+        }
+        assertTrue(prompt.contains("WORKSPACE questions")) {
+            "Workspace prompts should distinguish WORKSPACE questions"
+        }
+        assertTrue(prompt.contains("[Few-shot Examples")) {
+            "Workspace prompts should contain Few-shot Examples section"
+        }
+        assertTrue(prompt.contains("[Read vs Write")) {
+            "Workspace prompts should contain Read vs Write section"
+        }
+        assertTrue(prompt.contains("confluence_answer_question")) {
+            "Workspace prompts should contain Confluence routing instruction"
         }
     }
 
