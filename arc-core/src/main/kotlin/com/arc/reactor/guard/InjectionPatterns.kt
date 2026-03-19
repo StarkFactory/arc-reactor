@@ -60,7 +60,11 @@ object InjectionPatterns {
         '\u03A5' to 'Y', '\u03A7' to 'X',
         '\u03B1' to 'a', '\u03B5' to 'e', '\u03B9' to 'i',
         '\u03BF' to 'o', '\u03C1' to 'p', '\u03C5' to 'u',
-        '\u03BA' to 'k', '\u03BD' to 'v', '\u03C7' to 'x'
+        '\u03BA' to 'k', '\u03BD' to 'v', '\u03C7' to 'x',
+        // 우크라이나어 → 라틴 (і/І는 Latin i와 시각적으로 동일)
+        '\u0456' to 'i', '\u0406' to 'I',
+        '\u0454' to 'e', '\u0404' to 'E',
+        '\u0491' to 'g', '\u0490' to 'G'
     )
 
     /**
@@ -80,7 +84,36 @@ object InjectionPatterns {
         val stripped = stripZeroWidthChars(text)
         val nfkc = Normalizer.normalize(stripped, Normalizer.Form.NFKC)
         val decoded = decodeHtmlEntities(nfkc)
-        return replaceHomoglyphs(decoded)
+        val homoglyphReplaced = replaceHomoglyphs(decoded)
+        return stripDiacriticalMarks(homoglyphReplaced)
+    }
+
+    /**
+     * NFD 분해 후 결합 발음 구별 부호(combining diacritical marks)를 제거한다.
+     *
+     * NFKC만으로는 ï(U+00EF), ö(U+00F6) 등 사전합성(precomposed) 문자의
+     * 발음 구별 부호를 제거할 수 없다. NFD로 분해하면 기저 문자 + 결합 부호로
+     * 분리되므로, 결합 부호(Unicode 카테고리 Mn)를 제거하여 기저 문자만 남긴다.
+     *
+     * 예: ïgnörê → ignore, prëvïöüs → previous
+     *
+     * 주의: 한국어 자모 분리를 방지하기 위해 한글 범위(AC00~D7AF)는 건드리지 않는다.
+     */
+    private fun stripDiacriticalMarks(text: String): String {
+        // 라틴 문자에 발음 구별 부호가 없으면 빠른 경로로 반환
+        if (text.all { it.code < 0x00C0 || it.code in 0xAC00..0xD7AF }) return text
+        val nfd = Normalizer.normalize(text, Normalizer.Form.NFD)
+        val sb = StringBuilder(nfd.length)
+        for (char in nfd) {
+            val type = Character.getType(char)
+            if (type != Character.NON_SPACING_MARK.toInt()) {
+                sb.append(char)
+            } else if (char.code in 0x3099..0x309C) {
+                // 일본어 탁점(゙ U+3099)·반탁점(゚ U+309A) 등은 보존 — 제거 시 カナ 의미 변경
+                sb.append(char)
+            }
+        }
+        return Normalizer.normalize(sb.toString(), Normalizer.Form.NFC)
     }
 
     private fun stripZeroWidthChars(text: String): String {
