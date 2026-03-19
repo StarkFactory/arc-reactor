@@ -21,8 +21,10 @@ import com.arc.reactor.slack.tools.config.SlackToolsProperties
 import mu.KotlinLogging
 import io.micrometer.core.instrument.MeterRegistry
 import java.io.IOException
+import org.springframework.beans.factory.DisposableBean
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.ThreadFactory
@@ -56,9 +58,20 @@ class SlackApiClient(
     private val client: MethodsClient,
     private val properties: SlackToolsProperties,
     private val meterRegistry: MeterRegistry? = null
-) {
+) : DisposableBean {
 
     private val circuitStates = ConcurrentHashMap<String, CircuitBreakerState>()
+
+    /** 타임아웃 실행용 스레드 풀. 빈 소멸 시 [destroy]에서 종료된다. */
+    private val timeoutExecutor: ExecutorService = Executors.newCachedThreadPool(
+        TimeoutWorkerThreadFactory()
+    )
+
+    /** 스레드 풀을 정리하여 리소스 누수를 방지한다. */
+    override fun destroy() {
+        timeoutExecutor.shutdownNow()
+        logger.info { "SlackApiClient timeoutExecutor shut down" }
+    }
 
     /**
      * 채널에 메시지를 전송한다. [threadTs]를 지정하면 스레드 답장으로 전송된다.
@@ -907,10 +920,6 @@ class SlackApiClient(
             "internal_error",
             "request_timeout",
             "service_unavailable"
-        )
-
-        private val timeoutExecutor = Executors.newCachedThreadPool(
-            TimeoutWorkerThreadFactory()
         )
     }
 }

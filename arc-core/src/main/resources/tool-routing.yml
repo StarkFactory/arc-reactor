@@ -284,6 +284,8 @@ routes:
       For this request, you MUST call `work_personal_focus_plan` before answering.
       Use the default profile and defaults when optional parameters are omitted.
       Do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - work_personal_focus_plan
     priority: 50
 
   - id: work_personal_learning
@@ -297,6 +299,8 @@ routes:
       For this request, you MUST call `work_personal_learning_digest` before answering.
       Use the default profile and defaults when optional parameters are omitted.
       Do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - work_personal_learning_digest
     priority: 60
 
   - id: work_personal_interrupt
@@ -311,6 +315,8 @@ routes:
       For this request, you MUST call `work_personal_interrupt_guard` before answering.
       Use the default profile and defaults when optional parameters are omitted.
       Do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - work_personal_interrupt_guard
     priority: 70
 
   - id: work_meeting_prep
@@ -365,6 +371,8 @@ routes:
       For this request, you MUST call `work_personal_end_of_day_wrapup` before answering.
       Use the default profile and defaults when optional parameters are omitted.
       Do not ask follow-up questions before the first tool call.
+    preferredTools:
+      - work_personal_end_of_day_wrapup
     priority: 80
 
   - id: work_briefing_profile

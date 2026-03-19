@@ -226,14 +226,14 @@ class Bm25Scorer(
         val words = normalized.split(TOKEN_SPLIT_REGEX).filter { it.length >= MIN_TOKEN_LENGTH }
         val extra = mutableListOf<String>()
         for (word in words) {
-            // 한국어 문자가 포함된 단어에 대해 모든 연속 한글 부분 문자열을 생성하여
-            // 부분 접두사 쿼리도 매칭되도록 한다
+            // 한국어 문자가 포함된 단어에 대해 2~MAX_NGRAM_LENGTH 길이의 n-gram을 생성하여
+            // 부분 접두사 쿼리도 매칭되도록 한다 (O(n²) → O(n) 제한)
             val koreanRuns = KOREAN_RUN_REGEX.findAll(word)
             for (run in koreanRuns) {
                 val s = run.value
                 for (start in s.indices) {
-                    for (end in (start + MIN_TOKEN_LENGTH)..s.length) {
-                        val sub = s.substring(start, end)
+                    for (len in MIN_TOKEN_LENGTH..minOf(MAX_NGRAM_LENGTH, s.length - start)) {
+                        val sub = s.substring(start, start + len)
                         if (sub != word) extra.add(sub)
                     }
                 }
@@ -245,6 +245,8 @@ class Bm25Scorer(
     companion object {
         /** 최소 토큰 길이. 1글자 토큰은 노이즈가 많으므로 2 이상으로 설정한다. */
         private const val MIN_TOKEN_LENGTH = 2
+        /** 한국어 n-gram 최대 길이. O(n²) 부분 문자열 생성을 제한한다. */
+        private const val MAX_NGRAM_LENGTH = 4
         /** 비영숫자/비한글 문자를 기준으로 토큰을 분리하는 정규식 */
         private val TOKEN_SPLIT_REGEX = Regex("[^a-z0-9가-힣]+")
         /** 연속 한글 문자열을 찾는 정규식 (최소 MIN_TOKEN_LENGTH 글자) */
