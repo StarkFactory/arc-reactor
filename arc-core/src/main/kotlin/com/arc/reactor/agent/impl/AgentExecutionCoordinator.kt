@@ -14,7 +14,6 @@ import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.rag.model.RagContext
 import com.arc.reactor.resilience.FallbackStrategy
-import com.arc.reactor.response.VerifiedSource
 import com.arc.reactor.support.runSuspendCatchingNonCancellation
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
@@ -163,8 +162,8 @@ internal class AgentExecutionCoordinator(
         )
         recordStageTiming(hookContext, "agent_loop", nowMs() - agentLoopStart)
         agentMetrics.recordStageLatency("agent_loop", nowMs() - agentLoopStart, effectiveCommand.metadata)
-        recordLoopStageLatency(hookContext, effectiveCommand.metadata, "llm_calls")
-        recordLoopStageLatency(hookContext, effectiveCommand.metadata, "tool_execution")
+        recordLoopStageLatency(hookContext, effectiveCommand.metadata, "llm_calls", agentMetrics)
+        recordLoopStageLatency(hookContext, effectiveCommand.metadata, "tool_execution", agentMetrics)
 
         // ── 단계 8: 실패 시 폴백 전략 적용 ──
         if (!result.success && fallbackStrategy != null) {
@@ -326,10 +325,6 @@ internal class AgentExecutionCoordinator(
         }
     }
 
-    private fun recordLoopStageLatency(hookContext: HookContext, metadata: Map<String, Any>, stage: String) {
-        val durationMs = readStageTimings(hookContext)[stage] ?: return
-        agentMetrics.recordStageLatency(stage, durationMs, metadata)
-    }
 
     /** 토큰 사용량과 모델 정보가 있으면 비용을 계산하여 메트릭에 기록한다. */
     private fun recordCostIfAvailable(result: AgentResult, hookContext: HookContext) {
@@ -367,21 +362,6 @@ internal class AgentExecutionCoordinator(
         return minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(0)
     }
 
-    /** RAG 검색 결과의 문서 출처를 HookContext의 verifiedSources에 등록합니다. */
-    private fun registerRagVerifiedSources(ragResult: RagContext?, hookContext: HookContext) {
-        if (ragResult == null || !ragResult.hasDocuments) return
-        for (doc in ragResult.documents) {
-            val source = doc.source?.takeIf { it.isNotBlank() } ?: continue
-            hookContext.verifiedSources.add(
-                VerifiedSource(
-                    title = doc.metadata["title"]?.toString()
-                        ?: doc.id,
-                    url = source,
-                    toolName = "rag"
-                )
-            )
-        }
-    }
 
     /** 캐시 저장 전 응답 품질 검증. 저품질 응답은 캐시하지 않는다. */
     private fun isLowQualityResponse(result: AgentResult): Boolean {

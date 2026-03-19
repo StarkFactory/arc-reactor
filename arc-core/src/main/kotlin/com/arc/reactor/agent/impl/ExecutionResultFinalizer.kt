@@ -516,60 +516,13 @@ internal class ExecutionResultFinalizer(
 
     /** blockReason별 차단 응답 메시지를 생성합니다. 프롬프트 언어에 따라 한글/영어 선택 */
     private fun buildBlockedResponse(userPrompt: String, blockReason: String): String {
-        val hangul = userPrompt.any { ch -> ch in '\uAC00'..'\uD7A3' }
-        return when (blockReason) {
-            BlockReasonConstants.POLICY_DENIED -> if (hangul) {
-                "현재 접근 정책에 포함되지 않은 Jira, Confluence, Bitbucket, Swagger 범위라 조회할 수 없습니다."
-            } else {
-                "This request targets Jira, Confluence, Bitbucket, or Swagger data outside the current access policy."
-            }
-
-            BlockReasonConstants.READ_ONLY_MUTATION -> if (hangul) {
-                "현재 workspace는 읽기 전용이라 변경 작업을 수행할 수 없습니다."
-            } else {
-                "The current workspace is read-only, so I can't perform this mutation."
-            }
-
-            BlockReasonConstants.IDENTITY_UNRESOLVED -> if (hangul) {
-                "요청자 계정을 Jira 사용자로 확인할 수 없어 개인화 조회를 확정할 수 없습니다. requesterEmail과 Atlassian 사용자 매핑을 확인해 주세요."
-            } else {
-                "I couldn't resolve the requesting user to a Jira identity, so I can't confirm this personalized result. Check the requesterEmail to Atlassian user mapping."
-            }
-
-            BlockReasonConstants.UPSTREAM_AUTH_FAILED -> if (hangul) {
-                "연결된 업무 도구 인증이 실패해 이 조회를 확정할 수 없습니다. 시스템 계정 토큰 설정을 확인해 주세요."
-            } else {
-                "I couldn't confirm this result because the connected workspace tool authentication failed. Check the system account token."
-            }
-
-            BlockReasonConstants.UPSTREAM_PERMISSION_DENIED -> if (hangul) {
-                "연결된 업무 도구 계정에 필요한 권한이 없어 이 조회를 수행할 수 없습니다. 시스템 계정 권한을 확인해 주세요."
-            } else {
-                "I couldn't complete this lookup because the connected workspace account is missing the required permission."
-            }
-
-            BlockReasonConstants.UPSTREAM_RATE_LIMITED -> if (hangul) {
-                "업무 도구 API rate limit에 걸려 지금은 이 조회를 확정할 수 없습니다. 잠시 후 다시 시도해 주세요."
-            } else {
-                "I couldn't complete this lookup because the workspace API is currently rate limited. Please try again later."
-            }
-
-            BlockReasonConstants.UNVERIFIED_SOURCES -> if (hangul) {
-                "검증 가능한 출처를 찾지 못해 답변을 확정할 수 없습니다. 승인된 Jira, Confluence, Bitbucket, Swagger/OpenAPI 자료를 다시 조회해 주세요."
-            } else {
-                "I couldn't verify this answer from approved sources. Please re-run the query against approved Jira, Confluence, Bitbucket, or Swagger/OpenAPI data."
-            }
-
-            else -> if (hangul) {
-                "안전한 검증 경로를 확인하지 못해 이 요청을 완료할 수 없습니다."
-            } else {
-                "I couldn't complete this request through a verified safe path."
-            }
-        }
+        val hangul = containsHangul(userPrompt)
+        val msg = BLOCKED_MESSAGES[blockReason] ?: DEFAULT_BLOCKED_MESSAGE
+        return if (hangul) msg.ko else msg.en
     }
 
     private fun buildDeliveryAcknowledgement(userPrompt: String, deliveryMode: String): String {
-        val hangul = userPrompt.any { ch -> ch in '\uAC00'..'\uD7A3' }
+        val hangul = containsHangul(userPrompt)
         return when {
             hangul && deliveryMode == "thread_reply" ->
                 "Slack 스레드 답글은 전송했습니다. 다만 이 응답 자체는 승인된 출처로 검증된 답변이 아니라 전달 결과만 안내드립니다."
@@ -757,6 +710,11 @@ internal class ExecutionResultFinalizer(
         return result
     }
 
+    /** 텍스트에 한글이 포함되어 있는지 확인한다. */
+    private fun containsHangul(text: String): Boolean {
+        return text.any { it in '\uAC00'..'\uD7A3' }
+    }
+
     companion object {
         // Output Guard 메타데이터 키
         private const val META_GUARD_ACTION = "outputGuardAction"
@@ -775,6 +733,59 @@ internal class ExecutionResultFinalizer(
             "cannot verify",
             "검증 가능한 출처를 찾지 못",
             "확인 가능한 출처를 찾지 못"
+        )
+
+        /** 차단 메시지 한글/영어 쌍 */
+        private data class BlockedMessage(val ko: String, val en: String)
+
+        /** blockReason별 차단 메시지 맵 */
+        private val BLOCKED_MESSAGES = mapOf(
+            BlockReasonConstants.POLICY_DENIED to BlockedMessage(
+                ko = "현재 접근 정책에 포함되지 않은 Jira, Confluence, Bitbucket, Swagger 범위라 조회할 수 없습니다.",
+                en = "This request targets Jira, Confluence, Bitbucket, or Swagger data outside the current access policy."
+            ),
+            BlockReasonConstants.READ_ONLY_MUTATION to BlockedMessage(
+                ko = "현재 workspace는 읽기 전용이라 변경 작업을 수행할 수 없습니다.",
+                en = "The current workspace is read-only, so I can't perform this mutation."
+            ),
+            BlockReasonConstants.IDENTITY_UNRESOLVED to BlockedMessage(
+                ko = "요청자 계정을 Jira 사용자로 확인할 수 없어 개인화 조회를 확정할 수 없습니다. " +
+                    "requesterEmail과 Atlassian 사용자 매핑을 확인해 주세요.",
+                en = "I couldn't resolve the requesting user to a Jira identity, " +
+                    "so I can't confirm this personalized result. " +
+                    "Check the requesterEmail to Atlassian user mapping."
+            ),
+            BlockReasonConstants.UPSTREAM_AUTH_FAILED to BlockedMessage(
+                ko = "연결된 업무 도구 인증이 실패해 이 조회를 확정할 수 없습니다. " +
+                    "시스템 계정 토큰 설정을 확인해 주세요.",
+                en = "I couldn't confirm this result because the connected workspace tool " +
+                    "authentication failed. Check the system account token."
+            ),
+            BlockReasonConstants.UPSTREAM_PERMISSION_DENIED to BlockedMessage(
+                ko = "연결된 업무 도구 계정에 필요한 권한이 없어 이 조회를 수행할 수 없습니다. " +
+                    "시스템 계정 권한을 확인해 주세요.",
+                en = "I couldn't complete this lookup because the connected workspace account " +
+                    "is missing the required permission."
+            ),
+            BlockReasonConstants.UPSTREAM_RATE_LIMITED to BlockedMessage(
+                ko = "업무 도구 API rate limit에 걸려 지금은 이 조회를 확정할 수 없습니다. " +
+                    "잠시 후 다시 시도해 주세요.",
+                en = "I couldn't complete this lookup because the workspace API is currently " +
+                    "rate limited. Please try again later."
+            ),
+            BlockReasonConstants.UNVERIFIED_SOURCES to BlockedMessage(
+                ko = "검증 가능한 출처를 찾지 못해 답변을 확정할 수 없습니다. " +
+                    "승인된 Jira, Confluence, Bitbucket, Swagger/OpenAPI 자료를 다시 조회해 주세요.",
+                en = "I couldn't verify this answer from approved sources. " +
+                    "Please re-run the query against approved Jira, Confluence, Bitbucket, " +
+                    "or Swagger/OpenAPI data."
+            )
+        )
+
+        /** blockReason이 맵에 없을 때 사용하는 기본 차단 메시지 */
+        private val DEFAULT_BLOCKED_MESSAGE = BlockedMessage(
+            ko = "안전한 검증 경로를 확인하지 못해 이 요청을 완료할 수 없습니다.",
+            en = "I couldn't complete this request through a verified safe path."
         )
     }
 }

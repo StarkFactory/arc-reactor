@@ -53,6 +53,7 @@ class SystemPromptBuilder(
      * @param responseSchema JSON/YAML 스키마 (있는 경우)
      * @param userPrompt 사용자 프롬프트 (도구 호출 강제 판단용)
      * @param workspaceToolAlreadyCalled workspace 도구가 이미 호출되었는지 여부
+     * @param userMemoryContext 사용자 메모리 컨텍스트 (UserMemoryInjectionHook에서 주입, 없으면 null)
      * @return 조합된 최종 시스템 프롬프트
      */
     fun build(
@@ -61,9 +62,15 @@ class SystemPromptBuilder(
         responseFormat: ResponseFormat = ResponseFormat.TEXT,
         responseSchema: String? = null,
         userPrompt: String? = null,
-        workspaceToolAlreadyCalled: Boolean = false
+        workspaceToolAlreadyCalled: Boolean = false,
+        userMemoryContext: String? = null
     ): String {
-        val parts = mutableListOf(basePrompt)
+        val effectiveBase = if (userMemoryContext != null) {
+            "$basePrompt\n\n[User Context]\n$userMemoryContext"
+        } else {
+            basePrompt
+        }
+        val parts = mutableListOf(effectiveBase)
         parts.add(buildGroundingInstruction(responseFormat, userPrompt, workspaceToolAlreadyCalled))
 
         if (ragContext != null) {

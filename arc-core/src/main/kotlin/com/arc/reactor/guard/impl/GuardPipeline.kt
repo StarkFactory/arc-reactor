@@ -100,63 +100,34 @@ class GuardPipeline(
 
                 when (result) {
                     is GuardResult.Allowed -> {
-                        val stageLatencyMs = (System.nanoTime() - stageStartNanos) / 1_000_000
                         logger.debug { "Stage ${stage.stageName} passed" }
-
-                        // ── 정규화된 텍스트 적용 ──
-                        // UnicodeNormalizationStage 등이 "normalized:" 접두사 힌트로
-                        // 정규화된 텍스트를 전달하면 후속 단계에서 사용하도록 커맨드를 교체한다.
-                        // 왜 힌트로 전달하는가: GuardResult.Allowed에 새 필드를 추가하지 않고
-                        // 기존 hints 메커니즘을 활용하여 하위 호환성을 유지하기 위함이다.
-                        val normalizedText = result.hints.firstOrNull {
-                            it.startsWith("normalized:")
-                        }?.removePrefix("normalized:")
-                        if (normalizedText != null) {
-                            currentCommand = currentCommand.copy(text = normalizedText)
-                        }
-
-                        auditPublisher?.publish(
-                            command = currentCommand,
-                            stage = stage.stageName,
-                            result = "allowed",
-                            reason = null,
-                            stageLatencyMs = stageLatencyMs,
-                            pipelineLatencyMs = (System.nanoTime() - pipelineStartNanos) / 1_000_000
+                        currentCommand = applyNormalizedText(result, currentCommand)
+                        publishAudit(
+                            currentCommand, stage.stageName, "allowed", null, null,
+                            stageStartNanos, pipelineStartNanos
                         )
                         continue
                     }
                     is GuardResult.Rejected -> {
                         // ── 거부: 파이프라인 즉시 중단 ──
-                        val stageLatencyMs = (System.nanoTime() - stageStartNanos) / 1_000_000
                         logger.warn { "Stage ${stage.stageName} rejected: ${result.reason}" }
-                        auditPublisher?.publish(
-                            command = currentCommand,
-                            stage = stage.stageName,
-                            result = "rejected",
-                            reason = result.reason,
-                            category = result.category.name,
-                            stageLatencyMs = stageLatencyMs,
-                            pipelineLatencyMs = (System.nanoTime() - pipelineStartNanos) / 1_000_000
+                        publishAudit(
+                            currentCommand, stage.stageName, "rejected",
+                            result.reason, result.category.name,
+                            stageStartNanos, pipelineStartNanos
                         )
                         return result.copy(stage = stage.stageName)
                     }
                 }
             } catch (e: Exception) {
                 // ── CancellationException은 반드시 먼저 처리하여 재던진다 ──
-                // 구조적 동시성(Structured Concurrency)을 훼손하지 않기 위함
                 e.throwIfCancellation()
 
                 // ── Fail-Close: 예외 발생 시 요청 거부 ──
-                // Guard는 보안 컴포넌트이므로 오류 시 안전한 쪽(거부)으로 처리한다
-                val stageLatencyMs = (System.nanoTime() - stageStartNanos) / 1_000_000
                 logger.error(e) { "Guard stage ${stage.stageName} failed" }
-                auditPublisher?.publish(
-                    command = currentCommand,
-                    stage = stage.stageName,
-                    result = "error",
-                    reason = e.message,
-                    stageLatencyMs = stageLatencyMs,
-                    pipelineLatencyMs = (System.nanoTime() - pipelineStartNanos) / 1_000_000
+                publishAudit(
+                    currentCommand, stage.stageName, "error", e.message, null,
+                    stageStartNanos, pipelineStartNanos
                 )
                 return GuardResult.Rejected(
                     reason = "Security check failed",
@@ -167,15 +138,44 @@ class GuardPipeline(
         }
 
         // ── 단계 3: 모든 단계 통과 — 요청 허용 ──
-        val pipelineLatencyMs = (System.nanoTime() - pipelineStartNanos) / 1_000_000
-        auditPublisher?.publish(
-            command = currentCommand,
-            stage = "pipeline",
-            result = "allowed",
-            reason = null,
-            stageLatencyMs = 0,
-            pipelineLatencyMs = pipelineLatencyMs
+        publishAudit(
+            currentCommand, "pipeline", "allowed", null, null,
+            pipelineStartNanos, pipelineStartNanos
         )
         return GuardResult.Allowed.DEFAULT
+    }
+
+    /**
+     * 정규화된 텍스트 힌트가 있으면 커맨드의 텍스트를 교체한다.
+     *
+     * UnicodeNormalizationStage 등이 "normalized:" 접두사 힌트로
+     * 정규화된 텍스트를 전달하면 후속 단계에서 사용하도록 커맨드를 교체한다.
+     */
+    private fun applyNormalizedText(result: GuardResult.Allowed, command: GuardCommand): GuardCommand {
+        val normalizedText = result.hints.firstOrNull {
+            it.startsWith("normalized:")
+        }?.removePrefix("normalized:") ?: return command
+        return command.copy(text = normalizedText)
+    }
+
+    /** 감사 이벤트 발행 헬퍼 — auditPublisher가 null이면 아무것도 하지 않는다. */
+    private fun publishAudit(
+        command: GuardCommand,
+        stageName: String,
+        result: String,
+        reason: String?,
+        category: String?,
+        stageStartNanos: Long,
+        pipelineStartNanos: Long
+    ) {
+        auditPublisher?.publish(
+            command = command,
+            stage = stageName,
+            result = result,
+            reason = reason,
+            category = category,
+            stageLatencyMs = (System.nanoTime() - stageStartNanos) / 1_000_000,
+            pipelineLatencyMs = (System.nanoTime() - pipelineStartNanos) / 1_000_000
+        )
     }
 }

@@ -572,18 +572,14 @@ class SpringAiAgentExecutor(
             }
             val userMemoryContext =
                 hookContext.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
-            val baseSystemPrompt = if (userMemoryContext != null) {
-                "${command.systemPrompt}\n\n[User Context]\n$userMemoryContext"
-            } else {
-                command.systemPrompt
-            }
             val effectiveRagContext = mergeRagContext(ragContext, forcedToolContext?.output)
             val systemPrompt = systemPromptBuilder.build(
-                baseSystemPrompt, effectiveRagContext,
+                command.systemPrompt, effectiveRagContext,
                 command.responseFormat,
                 command.responseSchema,
                 command.userPrompt,
-                workspaceToolAlreadyCalled = forcedToolContext != null
+                workspaceToolAlreadyCalled = forcedToolContext != null,
+                userMemoryContext = userMemoryContext
             )
             val activeChatClient = resolveChatClient(command)
             return manualReActLoopExecutor.execute(

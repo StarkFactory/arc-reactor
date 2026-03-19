@@ -11,7 +11,6 @@ import com.arc.reactor.hook.impl.UserMemoryInjectionHook
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.rag.model.RagContext
-import com.arc.reactor.response.VerifiedSource
 import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Semaphore
@@ -170,17 +169,13 @@ internal class StreamingExecutionCoordinator(
 
         val userMemoryContext =
             hookContext.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
-        val baseSystemPrompt = if (userMemoryContext != null) {
-            "${command.systemPrompt}\n\n[User Context]\n$userMemoryContext"
-        } else {
-            command.systemPrompt
-        }
         val systemPrompt = systemPromptBuilder.build(
-            baseSystemPrompt,
+            command.systemPrompt,
             ragContext,
             command.responseFormat,
             command.responseSchema,
-            command.userPrompt
+            command.userPrompt,
+            userMemoryContext = userMemoryContext
         )
         val effectiveMaxToolCalls = minOf(command.maxToolCalls, maxToolCallsLimit).coerceAtLeast(0)
         val selectedTools = measureStage("tool_selection", hookContext, command.metadata) {
@@ -222,8 +217,8 @@ internal class StreamingExecutionCoordinator(
                 emit = emit
             )
         }.also {
-            recordLoopStageLatency(hookContext, command.metadata, "llm_calls")
-            recordLoopStageLatency(hookContext, command.metadata, "tool_execution")
+            recordLoopStageLatency(hookContext, command.metadata, "llm_calls", agentMetrics)
+            recordLoopStageLatency(hookContext, command.metadata, "tool_execution", agentMetrics)
         }
     }
 
@@ -266,25 +261,6 @@ internal class StreamingExecutionCoordinator(
         emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
     }
 
-    private fun registerRagVerifiedSources(ragResult: RagContext?, hookContext: HookContext) {
-        if (ragResult == null || !ragResult.hasDocuments) return
-        for (doc in ragResult.documents) {
-            val source = doc.source?.takeIf { it.isNotBlank() } ?: continue
-            hookContext.verifiedSources.add(
-                VerifiedSource(
-                    title = doc.metadata["title"]?.toString()
-                        ?: doc.id,
-                    url = source,
-                    toolName = "rag"
-                )
-            )
-        }
-    }
-
-    private fun recordLoopStageLatency(hookContext: HookContext, metadata: Map<String, Any>, stage: String) {
-        val durationMs = readStageTimings(hookContext)[stage] ?: return
-        agentMetrics.recordStageLatency(stage, durationMs, metadata)
-    }
 
     /** nanoTime 측정 + recordStageTiming + recordStageLatency 반복 패턴을 통합하는 래퍼 */
     private suspend inline fun <T> measureStage(
