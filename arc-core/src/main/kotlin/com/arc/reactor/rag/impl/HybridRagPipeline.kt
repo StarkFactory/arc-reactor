@@ -62,35 +62,62 @@ class HybridRagPipeline(
     override suspend fun retrieve(query: RagQuery): RagContext {
         logger.debug { "Hybrid RAG pipeline started: ${query.query}" }
 
-        // 1단계: 쿼리 변환
-        val transformedQueries = if (queryTransformer != null) {
-            queryTransformer.transform(query.query)
-        } else {
-            listOf(query.query)
-        }
+        val transformedQueries = transformQuery(query.query)
+        val vectorDocs = retrieveFromVectorStore(transformedQueries, query)
+        if (vectorDocs.isEmpty() && bm25Scorer.size == 0) return RagContext.EMPTY
 
-        // 2단계: Vector 검색 — topK * 2로 넉넉하게 가져와서 RRF 후 필터링 여유를 둔다
-        val vectorDocs = retriever.retrieve(transformedQueries, query.topK * 2, query.filters)
-        logger.debug { "Vector search returned ${vectorDocs.size} documents" }
+        val bm25Results = retrieveFromBm25(transformedQueries.first(), query.topK)
+        val fusedRanked = fuseWithRrf(vectorDocs, bm25Results)
+        if (fusedRanked.isEmpty()) return RagContext.EMPTY
 
-        if (vectorDocs.isEmpty() && bm25Scorer.size == 0) {
-            return RagContext.EMPTY
-        }
+        val fusedDocs = restoreDocuments(fusedRanked, vectorDocs, bm25Results, query.topK)
+        if (fusedDocs.isEmpty()) return RagContext.EMPTY
 
-        // 3단계: BM25 검색 — 인메모리 인덱스에서 키워드 기반 검색
-        val primaryQuery = transformedQueries.first()
-        val bm25Results = bm25Scorer.search(primaryQuery, query.topK * 2)
-        logger.debug { "BM25 search returned ${bm25Results.size} documents" }
+        val finalDocs = rerankIfEnabled(fusedDocs, query)
+        return buildRagContext(finalDocs, vectorDocs.size, bm25Results.size, fusedDocs.size)
+    }
 
-        // 4단계: RRF 융합 — 두 검색 결과의 순위를 역순위 점수로 합산
+    /** 1단계: 쿼리 변환 — QueryTransformer가 없으면 원본 쿼리를 그대로 반환 */
+    private suspend fun transformQuery(query: String): List<String> {
+        return queryTransformer?.transform(query) ?: listOf(query)
+    }
+
+    /** 2단계: Vector 검색 — topK * 2로 넉넉하게 가져와서 RRF 후 필터링 여유를 둔다 */
+    private suspend fun retrieveFromVectorStore(
+        queries: List<String>,
+        ragQuery: RagQuery
+    ): List<RetrievedDocument> {
+        val docs = retriever.retrieve(queries, ragQuery.topK * 2, ragQuery.filters)
+        logger.debug { "Vector search returned ${docs.size} documents" }
+        return docs
+    }
+
+    /** 3단계: BM25 검색 — 인메모리 인덱스에서 키워드 기반 검색 */
+    private fun retrieveFromBm25(
+        query: String,
+        topK: Int
+    ): List<Pair<String, Double>> {
+        val results = bm25Scorer.search(query, topK * 2)
+        logger.debug { "BM25 search returned ${results.size} documents" }
+        return results
+    }
+
+    /** 4단계: RRF 융합 — 두 검색 결과의 순위를 역순위 점수로 합산 */
+    private fun fuseWithRrf(
+        vectorDocs: List<RetrievedDocument>,
+        bm25Results: List<Pair<String, Double>>
+    ): List<Pair<String, Double>> {
         val vectorRanked = vectorDocs.map { it.id to it.score }
-        val fusedRanked = RrfFusion.fuse(vectorRanked, bm25Results, vectorWeight, bm25Weight, rrfK)
+        return RrfFusion.fuse(vectorRanked, bm25Results, vectorWeight, bm25Weight, rrfK)
+    }
 
-        if (fusedRanked.isEmpty()) {
-            return RagContext.EMPTY
-        }
-
-        // 5단계: 융합된 ID를 실제 문서로 복원 — BM25에서만 검색된 문서도 포함
+    /** 5단계: 융합된 ID를 실제 문서로 복원 — BM25에서만 검색된 문서도 포함 */
+    private fun restoreDocuments(
+        fusedRanked: List<Pair<String, Double>>,
+        vectorDocs: List<RetrievedDocument>,
+        bm25Results: List<Pair<String, Double>>,
+        topK: Int
+    ): List<RetrievedDocument> {
         val vectorDocsById = vectorDocs.associateBy { it.id }
         val bm25OnlyDocs = bm25Results
             .map { (docId, _) -> docId }
@@ -102,32 +129,38 @@ class HybridRagPipeline(
             }
             .associateBy { it.id }
         val allDocsById = vectorDocsById + bm25OnlyDocs
-        val fusedDocuments = fusedRanked.take(query.topK).mapNotNull { (docId, rrfScore) ->
+        return fusedRanked.take(topK).mapNotNull { (docId, rrfScore) ->
             allDocsById[docId]?.copy(score = rrfScore)
         }
+    }
 
-        if (fusedDocuments.isEmpty()) {
-            return RagContext.EMPTY
-        }
-
-        // 6단계: 선택적 리랭킹
-        val finalDocs = if (query.rerank && reranker != null) {
-            reranker.rerank(query.query, fusedDocuments, query.topK)
+    /** 6단계: 선택적 리랭킹 */
+    private suspend fun rerankIfEnabled(
+        docs: List<RetrievedDocument>,
+        query: RagQuery
+    ): List<RetrievedDocument> {
+        return if (query.rerank && reranker != null) {
+            reranker.rerank(query.query, docs, query.topK)
         } else {
-            fusedDocuments.take(query.topK)
+            docs.take(query.topK)
         }
+    }
 
-        // 7단계: 컨텍스트 빌드
-        val context = contextBuilder.build(finalDocs, maxContextTokens)
-
+    /** 7단계: 컨텍스트 빌드 */
+    private fun buildRagContext(
+        docs: List<RetrievedDocument>,
+        vectorCount: Int,
+        bm25Count: Int,
+        fusedCount: Int
+    ): RagContext {
+        val context = contextBuilder.build(docs, maxContextTokens)
         logger.debug {
-            "Hybrid RAG complete: vectorDocs=${vectorDocs.size}, " +
-                "bm25Docs=${bm25Results.size}, fused=${fusedDocuments.size}"
+            "Hybrid RAG complete: vectorDocs=$vectorCount, " +
+                "bm25Docs=$bm25Count, fused=$fusedCount"
         }
-
         return RagContext(
             context = context,
-            documents = finalDocs,
+            documents = docs,
             totalTokens = tokenEstimator.estimate(context)
         )
     }
