@@ -112,6 +112,7 @@ Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete)
 9. **Guard null userId**: 항상 `"anonymous"` 폴백 → Guard 건너뛰기 = 보안 취약점
 10. **Spring AI mock**: 스트리밍 테스트에서 `.options(any<ChatOptions>())` 명시적 mock 필수
 11. **toolsUsed**: 어댑터 존재 확인 후에만 도구명 추가 → LLM 환각 도구명 방지
+12. **에러 코드 사용**: 실패 시 적절한 `AgentErrorCode` 사용 — `OUTPUT_GUARD_REJECTED`(Output Guard 차단), `OUTPUT_TOO_SHORT`(품질 미달) 등. `ErrorResponse` DTO에 포함
 
 ---
 
