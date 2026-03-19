@@ -9,6 +9,7 @@ import org.springframework.web.bind.support.WebExchangeBindException
 import org.springframework.web.reactive.resource.NoResourceFoundException
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.server.ServerWebInputException
+import kotlinx.coroutines.CancellationException
 import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
@@ -104,8 +105,16 @@ class GlobalExceptionHandler {
         )
     }
 
+    /** 코루틴 취소를 500이 아닌 503으로 처리하고 재전파한다. */
+    @ExceptionHandler(CancellationException::class)
+    fun handleCancellation(ex: CancellationException): ResponseEntity<Void> {
+        logger.debug { "Request cancelled: ${ex.message}" }
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build()
+    }
+
     @ExceptionHandler(Exception::class)
     fun handleGenericException(ex: Exception): ResponseEntity<ErrorResponse> {
+        if (ex is CancellationException) throw ex
         logger.error(ex) { "Unhandled exception" }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
             ErrorResponse(

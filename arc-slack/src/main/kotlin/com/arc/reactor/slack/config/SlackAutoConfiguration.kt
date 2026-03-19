@@ -74,7 +74,7 @@ class SlackAutoConfiguration {
         MicrometerSlackMetricsRecorder(registry)
 
     @Bean
-    @ConditionalOnMissingBean(value = [SlackMetricsRecorder::class, MeterRegistry::class])
+    @ConditionalOnMissingBean(SlackMetricsRecorder::class)
     fun slackMetricsRecorder(): SlackMetricsRecorder = NoOpSlackMetricsRecorder()
 
     @Bean

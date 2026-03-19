@@ -347,6 +347,7 @@ class DefaultConversationManager(
                 }
                 logger.debug { "Saved conversation for session $sessionId" }
             } catch (e: Exception) {
+                e.throwIfCancellation()
                 logger.error(e) { "Failed to save conversation history for session $sessionId" }
             }
         }

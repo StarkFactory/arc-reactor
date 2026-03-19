@@ -31,7 +31,6 @@ import org.springframework.aop.framework.Advised
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.tool.method.MethodToolCallbackProvider
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 private val logger = KotlinLogging.logger {}
@@ -66,17 +65,16 @@ internal class ToolCallOrchestrator(
     private val tokenEstimator: TokenEstimator? = null,
     private val maxContextWindowTokens: Int = DEFAULT_MAX_CONTEXT_WINDOW_TOKENS
 ) {
-    /** Spring AI ToolCallback 해석 결과 캐시 — MethodToolCallbackProvider 호출 비용 절감 */
-    private val springToolCallbackCache =
-        ConcurrentHashMap<ToolCallbackCacheKey, Map<String, org.springframework.ai.tool.ToolCallback>>()
+    /** Spring AI ToolCallback 해석 결과 캐시 — MethodToolCallbackProvider 호출 비용 절감. 크기 제한으로 메모리 누수 방지. */
+    private val springToolCallbackCache: Cache<ToolCallbackCacheKey, Map<String, org.springframework.ai.tool.ToolCallback>> =
+        Caffeine.newBuilder()
+            .maximumSize(100)
+            .expireAfterWrite(java.time.Duration.ofMinutes(10))
+            .build()
 
     /** Tool 결과 캐시 (Caffeine) — 동일 입력에 대한 중복 Tool 호출 방지 */
     private val toolResultCache: Cache<String, String>? = buildToolResultCacheIfEnabled()
 
-    /** Tool 결과 캐시 키 생성용 ThreadLocal SHA-256 — JCA 프로바이더 조회 비용 제거 */
-    private val toolResultCacheDigest = ThreadLocal.withInitial {
-        java.security.MessageDigest.getInstance("SHA-256")
-    }
 
     // ──────────────────────────────────────────────
     // 공개 API: 단건 직접 실행 / 병렬 실행
@@ -457,11 +455,15 @@ internal class ToolCallOrchestrator(
         capture.signal?.let { mergeSignalMetadata(hookContext, it) }
     }
 
-    /** 중복 URL을 제거하며 VerifiedSource를 HookContext에 추가합니다. */
+    /** 중복 URL을 제거하며 VerifiedSource를 HookContext에 추가합니다. HashSet으로 O(N) 탐색. */
     private fun mergeVerifiedSources(hookContext: HookContext, sources: List<VerifiedSource>) {
-        sources
-            .filterNot { source -> hookContext.verifiedSources.any { it.url == source.url } }
-            .forEach(hookContext.verifiedSources::add)
+        val existingUrls = hookContext.verifiedSources.mapTo(HashSet()) { it.url }
+        for (source in sources) {
+            if (source.url !in existingUrls) {
+                hookContext.verifiedSources.add(source)
+                existingUrls.add(source.url)
+            }
+        }
     }
 
     /** ToolResponseSignal 메타데이터를 HookContext에 병합합니다. */
@@ -770,12 +772,15 @@ internal class ToolCallOrchestrator(
             localToolIds = localTools.map(System::identityHashCode),
             explicitCallbackIds = explicitCallbacks.map(System::identityHashCode)
         )
-        return springToolCallbackCache.computeIfAbsent(cacheKey) {
+        return springToolCallbackCache.get(cacheKey) {
             buildSpringToolCallbacksByName(localTools, explicitCallbacks)
         }
     }
 
-    internal fun springToolCallbackCacheEntryCount(): Int = springToolCallbackCache.size
+    internal fun springToolCallbackCacheEntryCount(): Int {
+        springToolCallbackCache.cleanUp()
+        return springToolCallbackCache.estimatedSize().toInt()
+    }
 
     private fun buildSpringToolCallbacksByName(
         localTools: List<Any>,
@@ -921,9 +926,9 @@ internal class ToolCallOrchestrator(
             .build()
     }
 
-    /** SHA-256 기반 캐시 키 — 32비트 hashCode() 충돌 방지. */
+    /** SHA-256 기반 캐시 키 — 32비트 hashCode() 충돌 방지. 코루틴 안전을 위해 호출마다 새 인스턴스 생성. */
     private fun buildToolResultCacheKey(toolName: String, toolInput: String): String {
-        val digest = toolResultCacheDigest.get().apply { reset() }
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
         val hash = digest.digest("$toolName:$toolInput".toByteArray(Charsets.UTF_8))
         return hash.joinToString("") { "%02x".format(it) }
     }
