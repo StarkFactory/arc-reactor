@@ -2,12 +2,15 @@ package com.arc.reactor.auth
 
 import mu.KotlinLogging
 import org.springframework.core.Ordered
+import org.springframework.core.io.buffer.DefaultDataBufferFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.WebFilter
 import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
+import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
 
@@ -174,11 +177,15 @@ class JwtAuthWebFilter(
         return authProperties.publicPaths.any { path.startsWith(it) }
     }
 
-    /** 401 Unauthorized 응답을 반환한다 */
+    /** 401 Unauthorized 응답을 JSON 본문과 함께 반환한다. */
     private fun unauthorized(exchange: ServerWebExchange): Mono<Void> {
         logger.debug { "Unauthorized request: ${exchange.request.method} ${exchange.request.uri.path}" }
-        exchange.response.statusCode = HttpStatus.UNAUTHORIZED
-        return exchange.response.setComplete()
+        val response = exchange.response
+        response.statusCode = HttpStatus.UNAUTHORIZED
+        response.headers.contentType = MediaType.APPLICATION_JSON
+        val body = """{"error":"Unauthorized","details":null,"timestamp":"${Instant.now()}"}"""
+        val buffer = DefaultDataBufferFactory.sharedInstance.wrap(body.toByteArray(Charsets.UTF_8))
+        return response.writeWith(Mono.just(buffer))
     }
 
     companion object {
