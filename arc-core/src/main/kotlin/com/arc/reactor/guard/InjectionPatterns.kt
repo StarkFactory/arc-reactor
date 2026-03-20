@@ -479,6 +479,17 @@ object InjectionPatterns {
             Regex("(?i)\\b(mfumo|sistema|systeme|sustav|systemets|sistemin|sistemsk)\\b.{0,20}\\b(maagizo|instruc|anweis|prompt|regel|tagubilin|instruktion|upute|uputstv)"),
         ),
 
+        // ── 시스템 프롬프트 섹션명 직접 참조 차단 ──
+        // 사용자가 시스템 프롬프트 내부 섹션명을 알고 있는 공격자 시나리오
+        InjectionPattern(
+            "section_marker_reference",
+            Regex("(?i)(Language Rule|Grounding Rules?|Tool Error Retry|Few-shot Example)"),
+        ),
+        InjectionPattern(
+            "section_marker_reference",
+            Regex("(?i)(언어 규칙|기본 규칙|대화 기록).{0,20}(섹션|확인|보여|알려)"),
+        ),
+
         // ── 메타질문 (Meta-Question) — 시스템 프롬프트 간접 유출 방지 ──
         // "할 수 있는 것과 할 수 없는 것을 알려줘" — 능력/제한 열거로 시스템 프롬프트 추론
         InjectionPattern(
