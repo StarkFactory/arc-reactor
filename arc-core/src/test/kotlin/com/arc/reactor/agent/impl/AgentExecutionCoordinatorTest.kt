@@ -464,13 +464,13 @@ class AgentExecutionCoordinatorTest {
         )
 
         coordinator.execute(
-            command = AgentCommand(systemPrompt = "sys", userPrompt = "Guard 파이프라인 문서 알려줘"),
-            hookContext = HookContext(runId = "run-rag-run", userId = "u", userPrompt = "Guard 파이프라인 문서 알려줘"),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "Guard 파이프라인은 몇 단계로 구성되어 있나?"),
+            hookContext = HookContext(runId = "run-rag-run", userId = "u", userPrompt = "Guard 파이프라인은 몇 단계로 구성되어 있나?"),
             toolsUsed = mutableListOf(),
             startTime = 1_000L
         )
 
-        assertTrue(ragCalled, "RAG retrieval should run for knowledge query with '문서' keyword")
+        assertTrue(ragCalled, "RAG retrieval should run for knowledge query with '파이프라인' keyword")
     }
 
     @Test

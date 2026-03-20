@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test
  * RagRelevanceClassifier에 대한 테스트.
  *
  * RAG 검색 필요 여부를 키워드 기반으로 빠르게 판단하는 분류기를 검증한다.
+ * 워크스페이스 도구 라우트가 매칭되면 RAG보다 도구 라우팅이 우선한다.
  */
 class RagRelevanceClassifierTest {
 
@@ -49,11 +50,20 @@ class RagRelevanceClassifierTest {
     }
 
     @Test
-    fun `지식 쿼리 키워드가 포함되면 RAG를 실행해야 한다`() {
+    fun `지식 쿼리 키워드가 도구 라우트에 매칭되면 RAG를 생략해야 한다`() {
         val command = command("Guard 파이프라인 문서 알려줘")
+        assertFalse(
+            RagRelevanceClassifier.isRagRequired(command),
+            "Knowledge query matching confluence_answer route should skip RAG"
+        )
+    }
+
+    @Test
+    fun `지식 쿼리 키워드만 포함되고 도구 라우트에 미매칭이면 RAG를 실행해야 한다`() {
+        val command = command("Guard 파이프라인은 몇 단계로 구성되어 있나?")
         assertTrue(
             RagRelevanceClassifier.isRagRequired(command),
-            "Knowledge query with '문서' keyword should trigger RAG retrieval"
+            "Knowledge query without tool route match should trigger RAG"
         )
     }
 
@@ -76,29 +86,56 @@ class RagRelevanceClassifierTest {
     }
 
     @Test
-    fun `confluence와 다른 지식 키워드가 함께 있으면 RAG를 실행해야 한다`() {
+    fun `confluence 도구 라우트 매칭 시 지식 키워드가 있어도 RAG를 생략해야 한다`() {
         val command = command("confluence 아키텍처 문서 찾아줘")
-        assertTrue(
+        assertFalse(
             RagRelevanceClassifier.isRagRequired(command),
-            "Confluence + '아키텍처' + '문서' should trigger RAG via knowledge keywords"
+            "Confluence tool route match should skip RAG even with knowledge keywords"
         )
     }
 
     @Test
-    fun `knowledge 키워드가 포함되면 RAG를 실행해야 한다`() {
+    fun `Confluence 집계 쿼리에서 도구 라우팅이 RAG보다 우선해야 한다`() {
+        val command = command("Confluence에서 최근 수정된 문서 top 5")
+        assertFalse(
+            RagRelevanceClassifier.isRagRequired(command),
+            "Confluence aggregation query should skip RAG — tool routing handles it"
+        )
+    }
+
+    @Test
+    fun `knowledge 키워드가 도구 라우트에 매칭되면 RAG를 생략해야 한다`() {
         val command = command("knowledge base에서 API 인증 방법 검색해줘")
-        assertTrue(
+        assertFalse(
             RagRelevanceClassifier.isRagRequired(command),
-            "Knowledge base query should trigger RAG retrieval"
+            "Knowledge base query matching confluence route should skip RAG"
         )
     }
 
     @Test
-    fun `가이드 키워드가 포함되면 RAG를 실행해야 한다`() {
-        val command = command("배포 가이드 알려줘")
+    fun `knowledge 키워드만 포함되고 도구 라우트에 미매칭이면 RAG를 실행해야 한다`() {
+        val command = command("knowledge base 구조 변경 이력")
         assertTrue(
             RagRelevanceClassifier.isRagRequired(command),
-            "Guide keyword should trigger RAG retrieval"
+            "Knowledge query without tool route match should trigger RAG"
+        )
+    }
+
+    @Test
+    fun `가이드 키워드가 도구 라우트에 매칭되면 RAG를 생략해야 한다`() {
+        val command = command("배포 가이드 알려줘")
+        assertFalse(
+            RagRelevanceClassifier.isRagRequired(command),
+            "Guide query matching confluence_answer route should skip RAG"
+        )
+    }
+
+    @Test
+    fun `가이드 키워드만 포함되고 도구 라우트에 미매칭이면 RAG를 실행해야 한다`() {
+        val command = command("장애 대응 가이드 제5장 참조")
+        assertTrue(
+            RagRelevanceClassifier.isRagRequired(command),
+            "Guide query without tool route match should trigger RAG"
         )
     }
 
@@ -178,11 +215,20 @@ class RagRelevanceClassifierTest {
     }
 
     @Test
-    fun `사내 키워드가 포함되면 RAG를 실행해야 한다`() {
+    fun `사내 키워드가 도구 라우트와 매칭되면 RAG를 생략해야 한다`() {
         val command = command("사내 보안 규정이 어떻게 되나요?")
+        assertFalse(
+            RagRelevanceClassifier.isRagRequired(command),
+            "Internal query matching confluence_answer route should skip RAG"
+        )
+    }
+
+    @Test
+    fun `도구 라우트에 매칭되지 않는 지식 쿼리는 RAG를 실행해야 한다`() {
+        val command = command("Guard 파이프라인 동작 원리가 뭐야?")
         assertTrue(
             RagRelevanceClassifier.isRagRequired(command),
-            "Internal policy query with '사내' should trigger RAG retrieval"
+            "Knowledge query without workspace tool route match should trigger RAG"
         )
     }
 
@@ -196,20 +242,29 @@ class RagRelevanceClassifierTest {
     }
 
     @Test
-    fun `policy 키워드가 포함되면 RAG를 실행해야 한다`() {
+    fun `policy 키워드가 도구 라우트에 매칭되면 RAG를 생략해야 한다`() {
         val command = command("refund policy에 대해 알려줘")
+        assertFalse(
+            RagRelevanceClassifier.isRagRequired(command),
+            "Policy query matching confluence_answer route should skip RAG"
+        )
+    }
+
+    @Test
+    fun `policy 키워드만 포함되고 도구 라우트에 미매칭이면 RAG를 실행해야 한다`() {
+        val command = command("access control policy 개정 내역")
         assertTrue(
             RagRelevanceClassifier.isRagRequired(command),
-            "Policy keyword should trigger RAG retrieval"
+            "Policy query without tool route match should trigger RAG"
         )
     }
 
     @Test
     fun `procedure 키워드가 포함되면 RAG를 실행해야 한다`() {
-        val command = command("deployment procedure를 알려줘")
+        val command = command("deployment 절차 확인")
         assertTrue(
             RagRelevanceClassifier.isRagRequired(command),
-            "Procedure keyword should trigger RAG retrieval"
+            "Procedure keyword ('절차') should trigger RAG retrieval"
         )
     }
 

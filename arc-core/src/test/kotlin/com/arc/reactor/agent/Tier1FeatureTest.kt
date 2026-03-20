@@ -244,10 +244,10 @@ class Tier1FeatureTest {
                 ragPipeline = ragPipeline
             )
 
-            executor.execute(AgentCommand(systemPrompt = "You are helpful.", userPrompt = "What is the return policy?"))
+            executor.execute(AgentCommand(systemPrompt = "You are helpful.", userPrompt = "What is the pipeline architecture?"))
 
             // RAG pipeline은(는) be called해야 합니다
-            coVerify { ragPipeline.retrieve(match { it.query == "What is the return policy?" }) }
+            coVerify { ragPipeline.retrieve(match { it.query == "What is the pipeline architecture?" }) }
 
             // System prompt은(는) include RAG context해야 합니다
             verify {

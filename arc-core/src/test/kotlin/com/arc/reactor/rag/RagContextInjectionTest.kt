@@ -70,7 +70,7 @@ class RagContextInjectionTest {
             val result = executor.execute(
                 AgentCommand(
                     systemPrompt = "You are a helpful assistant.",
-                    userPrompt = "What is the return policy?"
+                    userPrompt = "What is the pipeline architecture?"
                 )
             )
 
@@ -179,7 +179,7 @@ class RagContextInjectionTest {
                 ragPipeline = ragPipeline
             )
 
-            val searchPrompt = "Search knowledge base document"
+            val searchPrompt = "ReAct 루프 동작 원리가 뭐야?"
             executor.execute(
                 AgentCommand(
                     systemPrompt = "You are helpful.",
