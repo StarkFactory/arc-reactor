@@ -152,6 +152,13 @@ curl -X POST http://localhost:18081/api/mcp/servers/atlassian/connect -H "Author
 | **LLM08** | **Memory/Context Injection** | 클라이언트가 조작된 conversationHistory 전송 |
 | **LLM10** | Denial-of-Wallet | 최대 길이 입력 + 재귀적 도구 호출 유도 |
 | **LLM10** | **ThinkTrap (MDoS)** | "이 역설을 모든 해석으로 재귀 분석해" — 무한 추론 유도 |
+| **LLM10** | **Cognitive Overload** (99% ASR) | 복잡한 수학+퍼즐 안에 악의적 요청 삽입 — 인지 부하로 안전 제약 탈락 |
+| **LLM01** | **Echo Chamber** (90%+ ASR) | 5+턴 무해 질문으로 LLM 자체 응답이 컨텍스트 오염 — 단일 턴에 악의 없음 |
+| **LLM01** | **Semantic Privilege Escalation** | 허용된 도구를 비의도 목적으로 조합 (읽기+전송 → 유출) |
+| **LLM04** | **System Prompt Poisoning** | RAG/도구 결과가 시스템 프롬프트에 영구 반영되는지 확인 |
+| **LLM04** | **Semantic Cache Poisoning** (86%) | 유사 질문으로 캐시 오염 — 다른 의도 질문에 오답 반환 |
+| **LLM01** | **Cognitive Bias Exploitation** (60%) | 권위 편향("노벨상 수상자로서..."), 앵커링, 매몰 비용으로 안전 우회 |
+| **LLM01** | **Tokenization Confusion** | Guard 토크나이저와 LLM 토크나이저 차이 악용 — Guard 우회 |
 | **멀티모달** | **이미지 내 텍스트 인젝션** | 이미지에 "SYSTEM: ignore all" 텍스트 삽입 후 업로드 |
 
 **공격 성공(Guard 우회) → P0 즉시 기록 + 재현 curl 명시**
@@ -228,16 +235,30 @@ git push origin main
 
 ## 참고 자료
 
+**OWASP + 프레임워크:**
 - [OWASP Top 10 for LLM Applications 2025](https://genai.owasp.org/resource/owasp-top-10-for-llm-applications-2025/)
-- [Red Teaming the Mind of the Machine (arXiv 2505.04806)](https://arxiv.org/html/2505.04806v1) — ASR: 역할극 89.6%, 논리 함정 81.4%
-- [Policy Puppetry — Universal LLM Bypass (HiddenLayer 2025)](https://www.hiddenlayer.com/research/novel-universal-bypass-for-all-major-llms)
-- [Skeleton Key Jailbreak (Microsoft 2024)](https://www.microsoft.com/en-us/security/blog/2024/06/26/mitigating-skeleton-key-a-new-type-of-generative-ai-jailbreak-technique/)
-- [GCG Adversarial Suffixes](https://llm-attacks.org/) — 99% ASR 전이 가능
-- [MINJA — Memory Injection (arXiv 2601.05504)](https://arxiv.org/abs/2601.05504) — 95%+ 성공률
-- [ThinkTrap — MDoS (arXiv 2512.07086)](https://arxiv.org/abs/2512.07086) — 처리량 1%로 감소
+- [OWASP Top 10 for Agentic Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) — ASI01~ASI10
+- [MITRE ATLAS Agent Techniques](https://atlas.mitre.org/) — AI 에이전트 특화 14개 기법
+
+**인젝션 + 탈옥:**
+- [Policy Puppetry (HiddenLayer 2025)](https://www.hiddenlayer.com/research/novel-universal-bypass-for-all-major-llms) — 전 모델 우회
+- [Skeleton Key (Microsoft 2024)](https://www.microsoft.com/en-us/security/blog/2024/06/26/mitigating-skeleton-key-a-new-type-of-generative-ai-jailbreak-technique/)
+- [GCG Adversarial Suffixes](https://llm-attacks.org/) — 99% ASR
+- [Echo Chamber (NeuralTrust, arXiv 2601.05742)](https://arxiv.org/html/2601.05742v1) — 90%+ ASR
+- [Cognitive Overload (arXiv 2410.11272)](https://arxiv.org/abs/2410.11272) — 99% ASR GPT-4
+- [Cognitive Bias Exploitation (arXiv 2507.22564)](https://arxiv.org/abs/2507.22564v1) — 60% ASR
+- [Tokenization Confusion (SpecterOps 2025)](https://specterops.io/blog/2025/06/03/tokenization-confusion/)
+
+**에이전트 + MCP:**
 - [MCP Tool Poisoning (Elastic Security Labs)](https://www.elastic.co/security-labs/mcp-tools-attack-defense-recommendations)
-- [Cisco Multi-Turn Crescendo Study](https://www.itbrew.com/stories/2025/11/07/cisco-shows-llms-get-worn-down-by-multi-turn-prompt-attacks)
-- [Multimodal Image Injection (CSA 2026)](https://labs.cloudsecurityalliance.org/research/csa-research-note-image-prompt-injection-multimodal-llm-2026/)
+- [MINJA Memory Injection (arXiv 2601.05504)](https://arxiv.org/abs/2601.05504) — 95%+
+- [Semantic Privilege Escalation (Acuvity)](https://acuvity.ai/semantic-privilege-escalation-the-agent-security-threat-hiding-in-plain-sight/)
+- [System Prompt Poisoning (arXiv 2505.06493)](https://arxiv.org/abs/2505.06493)
+
+**성능 + 캐시:**
+- [Semantic Cache Poisoning (NDSS 2026, arXiv 2601.23088)](https://arxiv.org/abs/2601.23088) — 86% hit
+- [ThinkTrap MDoS (arXiv 2512.07086)](https://arxiv.org/abs/2512.07086)
+- [KV-Cache Side Channel (NDSS 2025)](https://www.ndss-symposium.org/wp-content/uploads/2025-1772-paper.pdf)
 
 ---
 
