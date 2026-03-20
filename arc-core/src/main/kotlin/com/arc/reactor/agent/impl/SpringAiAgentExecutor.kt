@@ -18,6 +18,7 @@ import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.agent.budget.CostCalculator
+import com.arc.reactor.agent.budget.StepBudgetTracker
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.metrics.SlaMetrics
@@ -281,7 +282,8 @@ class SpringAiAgentExecutor(
         streamingReActLoopExecutor = streamingReActLoopExecutor,
         errorMessageResolver = errorMessageResolver,
         agentErrorPolicy = agentErrorPolicy,
-        agentMetrics = agentMetrics
+        agentMetrics = agentMetrics,
+        createBudgetTracker = ::createBudgetTracker
     )
     // 실행 실패 핸들러 — 에러 코드 매핑, Hook 실행, 메트릭 기록
     private val executionFailureHandler = AgentExecutionFailureHandler(
@@ -595,7 +597,8 @@ class SpringAiAgentExecutor(
                 hookContext = hookContext,
                 toolsUsed = toolsUsed,
                 allowedTools = allowedTools,
-                maxToolCalls = maxToolCalls
+                maxToolCalls = maxToolCalls,
+                budgetTracker = createBudgetTracker()
             )
         } catch (e: Exception) {
             e.throwIfCancellation()
@@ -639,5 +642,18 @@ class SpringAiAgentExecutor(
         )
         if (parts.isEmpty()) return null
         return parts.joinToString("\n\n")
+    }
+
+    /**
+     * 예산 추적이 활성화되어 있으면 요청 스코프 [StepBudgetTracker]를 생성한다.
+     * `budget.enabled=false`(기본)이면 null을 반환하여 기존 동작을 유지한다.
+     */
+    private fun createBudgetTracker(): StepBudgetTracker? {
+        val budget = properties.budget
+        if (!budget.enabled) return null
+        return StepBudgetTracker(
+            maxTokens = budget.maxTokensPerRequest,
+            softLimitPercent = budget.softLimitPercent
+        )
     }
 }

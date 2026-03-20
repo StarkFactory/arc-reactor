@@ -1,5 +1,7 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.budget.BudgetStatus
+import com.arc.reactor.agent.budget.StepBudgetTracker
 import com.arc.reactor.agent.config.RetryProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
@@ -76,7 +78,8 @@ internal class StreamingReActLoopExecutor(
         toolsUsed: MutableList<String>,
         allowedTools: Set<String>?,
         maxToolCalls: Int,
-        emit: suspend (String) -> Unit
+        emit: suspend (String) -> Unit,
+        budgetTracker: StepBudgetTracker? = null
     ): StreamingLoopResult {
         var activeTools = if (maxToolCalls > 0) initialTools else emptyList()
         var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
@@ -102,6 +105,22 @@ internal class StreamingReActLoopExecutor(
             )
             totalLlmDurationMs += processResult.llmDurationMs
             lastIterationContent = processResult.iterationContent
+
+            // 단계 A-2: 토큰 예산 추적 — EXHAUSTED 시 루프 종료
+            if (trackBudgetAndCheckExhausted(
+                    processResult.streamResult.lastChunkMeta,
+                    budgetTracker, hookContext, emit
+                )
+            ) {
+                recordLoopDurations(
+                    hookContext, totalLlmDurationMs, totalToolDurationMs, command
+                )
+                return StreamingLoopResult(
+                    success = false,
+                    collectedContent = collectedContent.toString(),
+                    lastIterationContent = lastIterationContent
+                )
+            }
 
             // 단계 B: 도구 호출 없으면 루프 종료 판단
             if (processResult.streamResult.pendingToolCalls.isEmpty() ||
@@ -216,6 +235,34 @@ internal class StreamingReActLoopExecutor(
             iterationContent = currentIterationContent.toString(),
             llmDurationMs = llmDurationMs
         )
+    }
+
+    // ── private 메서드: 토큰 예산 추적 ──
+
+    /**
+     * 스트리밍 LLM 호출 후 토큰 예산을 추적한다.
+     * EXHAUSTED이면 에러 이벤트를 emit하고 true를 반환한다.
+     */
+    private suspend fun trackBudgetAndCheckExhausted(
+        meta: ChatResponseMetadata?,
+        tracker: StepBudgetTracker?,
+        hookContext: HookContext,
+        emit: suspend (String) -> Unit
+    ): Boolean {
+        tracker ?: return false
+        val usage = meta?.usage ?: return false
+        val status = tracker.trackStep(
+            step = "streaming-llm",
+            inputTokens = usage.promptTokens.toInt(),
+            outputTokens = usage.completionTokens.toInt()
+        )
+        hookContext.metadata["tokensUsed"] = tracker.totalConsumed()
+        hookContext.metadata["budgetStatus"] = status.name
+        if (status == BudgetStatus.EXHAUSTED) {
+            emit(StreamEventMarker.error(BUDGET_EXHAUSTED_MESSAGE))
+            return true
+        }
+        return false
     }
 
     // ── private 메서드: 도구 이벤트 SSE 전송 ──
@@ -401,5 +448,10 @@ internal class StreamingReActLoopExecutor(
                         "retrying: ${signal.failure().message}"
                 }
             }
+    }
+
+    companion object {
+        internal const val BUDGET_EXHAUSTED_MESSAGE =
+            "토큰 예산이 초과되었습니다. 응답이 불완전할 수 있습니다."
     }
 }

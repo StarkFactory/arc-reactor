@@ -43,6 +43,8 @@ enum class AgentErrorCode(val defaultMessage: String) {
     OUTPUT_TOO_SHORT("Response is too short to meet quality requirements."),
     /** 서킷 브레이커 개방으로 인한 일시적 서비스 불가 */
     CIRCUIT_BREAKER_OPEN("Service temporarily unavailable due to repeated failures. Please try again later."),
+    /** 토큰 예산 소진으로 인한 루프 조기 종료 */
+    BUDGET_EXHAUSTED("Token budget exhausted. Response may be incomplete."),
     /** 알 수 없는 에러 */
     UNKNOWN("An unknown error occurred.")
 }

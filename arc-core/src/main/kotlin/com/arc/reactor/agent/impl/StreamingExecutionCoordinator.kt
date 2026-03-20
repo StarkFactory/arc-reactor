@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.budget.StepBudgetTracker
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
@@ -48,7 +49,8 @@ internal class StreamingExecutionCoordinator(
     private val streamingReActLoopExecutor: StreamingReActLoopExecutor,
     private val errorMessageResolver: ErrorMessageResolver,
     private val agentErrorPolicy: AgentErrorPolicy,
-    private val agentMetrics: AgentMetrics
+    private val agentMetrics: AgentMetrics,
+    private val createBudgetTracker: () -> StepBudgetTracker? = { null }
 ) {
 
     suspend fun execute(
@@ -224,7 +226,8 @@ internal class StreamingExecutionCoordinator(
                 toolsUsed = toolsUsed,
                 allowedTools = setup.allowedTools,
                 maxToolCalls = setup.maxToolCallLimit,
-                emit = emit
+                emit = emit,
+                budgetTracker = createBudgetTracker()
             )
         }.also {
             recordLoopStageLatency(hookContext, command.metadata, "llm_calls", agentMetrics)

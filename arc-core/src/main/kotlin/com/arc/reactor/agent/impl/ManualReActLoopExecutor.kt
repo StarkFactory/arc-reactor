@@ -1,5 +1,7 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.budget.BudgetStatus
+import com.arc.reactor.agent.budget.StepBudgetTracker
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
@@ -78,6 +80,7 @@ internal class ManualReActLoopExecutor(
      * @param toolsUsed 실행된 도구 이름을 누적하는 리스트
      * @param allowedTools Intent 기반 Tool 허용 목록 (null이면 전체 허용)
      * @param maxToolCalls 최대 Tool 호출 횟수
+     * @param budgetTracker 토큰 예산 추적기 (null이면 예산 추적 비활성)
      * @return 에이전트 실행 결과
      * @see ToolCallOrchestrator.executeInParallel
      */
@@ -90,7 +93,8 @@ internal class ManualReActLoopExecutor(
         hookContext: HookContext,
         toolsUsed: MutableList<String>,
         allowedTools: Set<String>?,
-        maxToolCalls: Int
+        maxToolCalls: Int,
+        budgetTracker: StepBudgetTracker? = null
     ): AgentResult {
         // ── 루프 상태 초기화 ──
         var totalToolCalls = 0
@@ -129,6 +133,19 @@ internal class ManualReActLoopExecutor(
 
             totalTokenUsage = accumulateTokenUsage(chatResponse, totalTokenUsage)
             emitTokenUsageMetric(chatResponse, hookContext)
+
+            // 단계 B-2: 토큰 예산 추적 — EXHAUSTED 시 루프 종료
+            if (trackBudgetAndCheckExhausted(
+                    chatResponse, budgetTracker, llmCallIndex, hookContext
+                )
+            ) {
+                recordLoopDurations(
+                    hookContext, totalLlmDurationMs, totalToolDurationMs
+                )
+                return buildBudgetExhaustedResult(
+                    budgetTracker!!, totalTokenUsage, toolsUsed
+                )
+            }
 
             // 단계 C: Tool Call 존재 여부 확인
             val assistantOutput = chatResponse?.results?.firstOrNull()?.output
@@ -192,6 +209,59 @@ internal class ManualReActLoopExecutor(
                 )
             }
         }
+    }
+
+    // ── private 메서드: 토큰 예산 추적 ──
+
+    /**
+     * LLM 호출 후 토큰 예산을 추적하고 EXHAUSTED 여부를 반환한다.
+     * tracker가 null이면 항상 false를 반환한다.
+     */
+    private fun trackBudgetAndCheckExhausted(
+        chatResponse: ChatResponse?,
+        tracker: StepBudgetTracker?,
+        llmCallIndex: Int,
+        hookContext: HookContext
+    ): Boolean {
+        tracker ?: return false
+        val usage = chatResponse?.metadata?.usage ?: return false
+        val status = tracker.trackStep(
+            step = "llm-call-$llmCallIndex",
+            inputTokens = usage.promptTokens.toInt(),
+            outputTokens = usage.completionTokens.toInt()
+        )
+        writeBudgetMetadata(hookContext, tracker, status)
+        return status == BudgetStatus.EXHAUSTED
+    }
+
+    /** 예산 소진 시 반환할 AgentResult를 생성한다. */
+    private fun buildBudgetExhaustedResult(
+        tracker: StepBudgetTracker,
+        totalTokenUsage: TokenUsage?,
+        toolsUsed: List<String>
+    ): AgentResult {
+        return AgentResult(
+            success = false,
+            content = BUDGET_EXHAUSTED_MESSAGE,
+            errorCode = AgentErrorCode.BUDGET_EXHAUSTED,
+            errorMessage = BUDGET_EXHAUSTED_MESSAGE,
+            toolsUsed = toolsUsed.toList(),
+            tokenUsage = totalTokenUsage,
+            metadata = mapOf(
+                "tokensUsed" to tracker.totalConsumed(),
+                "budgetStatus" to BudgetStatus.EXHAUSTED.name
+            )
+        )
+    }
+
+    /** 예산 상태를 HookContext 메타데이터에 기록한다. */
+    private fun writeBudgetMetadata(
+        hookContext: HookContext,
+        tracker: StepBudgetTracker,
+        status: BudgetStatus
+    ) {
+        hookContext.metadata["tokensUsed"] = tracker.totalConsumed()
+        hookContext.metadata["budgetStatus"] = status.name
     }
 
     // ── private 메서드: LLM 호출 ──
@@ -345,5 +415,10 @@ internal class ManualReActLoopExecutor(
                 totalTokens = it.totalTokens + current.totalTokens
             )
         } ?: current
+    }
+
+    companion object {
+        internal const val BUDGET_EXHAUSTED_MESSAGE =
+            "토큰 예산이 초과되었습니다. 응답이 불완전할 수 있습니다."
     }
 }
