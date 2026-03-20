@@ -26,9 +26,11 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.metadata.ChatResponseMetadata
 import org.springframework.ai.chat.metadata.Usage
 import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 
 /**
  * SpringAiAgentExecutor의 핵심 기능에 대한 테스트.
@@ -85,9 +87,13 @@ class SpringAiAgentExecutorTest {
             every { metadata.usage } returns usage
             every { metadata.model } returns "test-model"
 
+            val assistantMsg = AssistantMessage("Response")
+            val generation = mockk<Generation>()
+            every { generation.output } returns assistantMsg
+
             val chatResponse = mockk<ChatResponse>()
             every { chatResponse.metadata } returns metadata
-            every { chatResponse.results } returns emptyList()
+            every { chatResponse.results } returns listOf(generation)
 
             every { fixture.callResponseSpec.content() } returns "Response"
             every { fixture.callResponseSpec.chatResponse() } returns chatResponse

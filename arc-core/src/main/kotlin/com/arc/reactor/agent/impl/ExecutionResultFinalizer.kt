@@ -116,6 +116,13 @@ internal class ExecutionResultFinalizer(
             reguarded, command, hookContext, toolsUsed, startTime, eventMetadata
         )
 
+        // ── 단계 6.5: 빈 응답 안전망 — LLM이 빈 content를 반환한 경우 에러 처리 ──
+        if (isEmptySuccessResponse(completed)) {
+            logger.warn { "LLM returned empty content, converting to error (runId=${hookContext.runId})" }
+            val emptyFailure = emptyContentFailure(hookContext, startTime)
+            return finalizeEarlyReturn(emptyFailure, command, hookContext, toolsUsed, startTime, eventMetadata)
+        }
+
         // ── 단계 7~10: 관측 -> 대화 저장 -> AfterComplete Hook -> 메트릭 기록 ──
         observeResponse(completed, command, hookContext, toolsUsed, eventMetadata)
         conversationManager.saveHistory(command, completed)
@@ -128,6 +135,13 @@ internal class ExecutionResultFinalizer(
 
     private fun isBoundaryRejected(result: AgentResult): Boolean =
         !result.success && result.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT
+
+    /**
+     * LLM이 성공으로 처리했으나 실제 content가 비어있는지 판별한다.
+     * Guard 거부(success=false)나 blockReason이 이미 설정된 경우는 제외한다.
+     */
+    private fun isEmptySuccessResponse(result: AgentResult): Boolean =
+        result.success && result.content.isNullOrBlank() && result.errorCode == null
 
     /**
      * 경계 검사로 내용이 변경되었으면 Output Guard를 재실행합니다.
@@ -426,6 +440,18 @@ internal class ExecutionResultFinalizer(
         return AgentResult.failure(
             errorMessage = errorMessageResolver.resolve(AgentErrorCode.OUTPUT_TOO_SHORT, null),
             errorCode = AgentErrorCode.OUTPUT_TOO_SHORT,
+            durationMs = nowMs() - startTime
+        ).also { agentMetrics.recordExecution(it) }
+    }
+
+    /** LLM이 빈 content를 반환한 경우 사용자에게 재시도를 안내하는 실패 결과를 생성한다. */
+    private fun emptyContentFailure(hookContext: HookContext, startTime: Long): AgentResult {
+        hookContext.metadata[META_BLOCK_REASON] = BlockReasonConstants.OUTPUT_TOO_SHORT
+        return AgentResult(
+            success = false,
+            content = EMPTY_CONTENT_FALLBACK_MESSAGE,
+            errorCode = AgentErrorCode.OUTPUT_TOO_SHORT,
+            errorMessage = "LLM returned empty content",
             durationMs = nowMs() - startTime
         ).also { agentMetrics.recordExecution(it) }
     }
@@ -740,6 +766,10 @@ internal class ExecutionResultFinalizer(
         private const val GUARD_ACTION_REJECTED = "rejected"
 
         private const val CITATION_HEADER = "\n\n---\nSources:"
+
+        /** LLM이 빈 응답을 반환했을 때 사용자에게 보여줄 대체 메시지 */
+        private const val EMPTY_CONTENT_FALLBACK_MESSAGE =
+            "죄송합니다. 응답을 생성하지 못했습니다. 다시 시도해 주세요."
 
         private val UNVERIFIED_PATTERNS = listOf(
             "couldn't verify",

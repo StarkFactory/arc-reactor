@@ -814,4 +814,96 @@ class ExecutionResultFinalizerTest {
             "Citation section should not be appended when no verified sources exist"
         )
     }
+
+    @Test
+    fun `빈 content 성공 응답은 OUTPUT_TOO_SHORT 에러로 변환해야 한다`() = runBlocking {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val hookExecutor = mockk<HookExecutor>(relaxed = true)
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = conversationManager,
+            hookExecutor = hookExecutor,
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = ""),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "1+1은?"),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "1+1은?"),
+            toolsUsed = emptyList(),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertFalse(result.success, "빈 content 성공 응답은 실패로 전환되어야 한다")
+        assertEquals(
+            AgentErrorCode.OUTPUT_TOO_SHORT, result.errorCode,
+            "빈 content 에러 코드는 OUTPUT_TOO_SHORT이어야 한다"
+        )
+        assertTrue(
+            result.content?.isNotBlank() == true,
+            "빈 content 실패 결과에는 사용자 안내 메시지가 포함되어야 한다"
+        )
+        verify(exactly = 1) {
+            metrics.recordExecution(match { !it.success && it.errorCode == AgentErrorCode.OUTPUT_TOO_SHORT })
+        }
+    }
+
+    @Test
+    fun `공백만 있는 content 성공 응답도 OUTPUT_TOO_SHORT 에러로 변환해야 한다`() = runBlocking {
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "   \n\t  "),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "test"),
+            hookContext = HookContext(runId = "run-2", userId = "u", userPrompt = "test"),
+            toolsUsed = emptyList(),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertFalse(result.success, "공백만 있는 content도 빈 응답으로 처리되어야 한다")
+        assertEquals(AgentErrorCode.OUTPUT_TOO_SHORT, result.errorCode, "에러 코드 확인")
+    }
+
+    @Test
+    fun `정상 content가 있는 성공 응답은 빈 응답 안전망에 걸리지 않아야 한다`() = runBlocking {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            nowMs = { 1_000L }
+        )
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "2"),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "1+1은?"),
+            hookContext = HookContext(runId = "run-3", userId = "u", userPrompt = "1+1은?"),
+            toolsUsed = emptyList(),
+            startTime = 500L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertTrue(result.success, "정상 content가 있으면 성공 상태를 유지해야 한다")
+        assertEquals("2", result.content, "원본 content가 유지되어야 한다")
+    }
 }

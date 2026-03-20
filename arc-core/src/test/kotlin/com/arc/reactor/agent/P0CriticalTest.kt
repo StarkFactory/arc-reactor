@@ -180,7 +180,6 @@ class P0CriticalTest {
             every { fixture.requestSpec.call() } returnsMany listOf(
                 fixture.mockToolCallResponse(listOf(toolCall)),
                 fixture.mockToolCallResponse(listOf(toolCall)),
-                fixture.mockToolCallResponse(listOf(toolCall)),
                 fixture.mockFinalResponse("Done")
             )
 

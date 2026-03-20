@@ -149,9 +149,9 @@ class ResponseCacheIntegrationTest {
                 temperature = 0.0
             )
 
-            // First call — empty response, should NOT be cached
+            // First call — empty response → OUTPUT_TOO_SHORT 에러, 캐시 미저장
             val result1 = executor.execute(command)
-            assertTrue(result1.content.isNullOrBlank()) { "First call should return empty content" }
+            assertFalse(result1.success) { "빈 응답은 실패로 처리되어야 한다" }
 
             // Second call — should hit LLM again (not cached empty)
             val result2 = executor.execute(command)

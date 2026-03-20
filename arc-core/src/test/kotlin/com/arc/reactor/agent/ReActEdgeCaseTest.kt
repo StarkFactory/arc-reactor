@@ -2,6 +2,7 @@ package com.arc.reactor.agent
 
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.tool.ToolCallback
@@ -236,7 +237,7 @@ class ReActEdgeCaseTest {
     inner class EmptyLlmResponse {
 
         @Test
-        fun `LLM이 빈 결과를 반환할 때 빈 콘텐츠로 성공을 반환해야 한다`() = runBlocking {
+        fun `LLM이 빈 결과를 반환할 때 OUTPUT_TOO_SHORT 에러를 반환해야 한다`() = runBlocking {
             val emptyChatResponse = mockk<ChatResponse>()
             every { emptyChatResponse.results } returns emptyList()
             every { emptyChatResponse.metadata } returns mockk(relaxed = true)
@@ -251,13 +252,15 @@ class ReActEdgeCaseTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             )
 
-            result.assertSuccess()
-            assertEquals("", result.content,
-                "Empty LLM response should return empty string content, not null")
+            result.assertErrorCode(AgentErrorCode.OUTPUT_TOO_SHORT)
+            assertTrue(
+                result.content?.isNotBlank() == true,
+                "빈 응답 에러에는 사용자 안내 메시지가 포함되어야 한다"
+            )
         }
 
         @Test
-        fun `생성 출력 텍스트가 비어있을 때 빈 콘텐츠로 성공을 반환해야 한다`() = runBlocking {
+        fun `생성 출력 텍스트가 비어있을 때 OUTPUT_TOO_SHORT 에러를 반환해야 한다`() = runBlocking {
             val assistantMsg = AssistantMessage("")
             val generation = Generation(assistantMsg)
 
@@ -273,9 +276,11 @@ class ReActEdgeCaseTest {
                 AgentCommand(systemPrompt = "Test", userPrompt = "Hello")
             )
 
-            result.assertSuccess()
-            assertEquals("", result.content,
-                "Empty assistant text should yield empty content string")
+            result.assertErrorCode(AgentErrorCode.OUTPUT_TOO_SHORT)
+            assertTrue(
+                result.content?.isNotBlank() == true,
+                "빈 응답 에러에는 사용자 안내 메시지가 포함되어야 한다"
+            )
         }
     }
 
