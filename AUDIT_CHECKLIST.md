@@ -56,6 +56,122 @@
 - [ ] **모호한 질문에 대한 능동적 명확화** (발견: 2026-03-18)
   - 컨텍스트 기반 추천 질문 제시가 UX 개선에 도움.
 
+---
+
+## 개발 로드맵 (평가 점수: 7.5/10 → 목표 9/10)
+
+### Phase 1: 비용 관리 실제 연결 (1-2주) — 7→9점
+
+현재 `CostAwareModelRouter`와 `StepBudgetTracker`가 코드에 존재하지만 ReAct 루프에서 **호출되지 않음**.
+
+- [ ] **StepBudgetTracker를 ReAct 루프에 연결**
+  - `ManualReActLoopExecutor`/`StreamingReActLoopExecutor`에서 매 iteration마다 `trackStep()` 호출
+  - `EXHAUSTED` 반환 시 루프 즉시 종료 + 사용자에게 "토큰 예산 초과" 안내
+  - 파일: `ManualReActLoopExecutor.kt`, `StreamingReActLoopExecutor.kt`, `BudgetConfiguration.kt`
+
+- [ ] **CostAwareModelRouter를 요청 경로에 연결**
+  - `SpringAiAgentExecutor`에서 요청마다 `router.route(command)` 호출
+  - 단순 질문 → flash 모델, 복잡 질문 → pro 모델 자동 선택
+  - 파일: `SpringAiAgentExecutor.kt`, `ModelRoutingConfiguration.kt`
+
+- [ ] **응답 메타데이터에 비용 추정 포함**
+  - `AgentResult.metadata`에 `costEstimate`, `tokensUsed`, `modelUsed` 추가
+  - 파일: `ExecutionResultFinalizer.kt`
+
+- [ ] **테넌트별 월간 예산 + 알림**
+  - `AgentProperties`에 `budget.monthly-limit-per-tenant` 추가
+  - 초과 시 경고 로그 + 메트릭
+  - 파일: `AgentProperties.kt`, `CostCalculator.kt`
+
+### Phase 2: Plan-then-Execute 모드 (2-4주) — 추론 품질 대폭 향상
+
+현재 순수 ReAct(도구 호출 반복)만 지원. "먼저 계획 → 실행" 불가.
+
+- [ ] **AgentMode.PLAN_EXECUTE 추가**
+  - 1단계: LLM에 "계획만 세워줘" 프롬프트 → JSON 계획 반환
+  - 2단계: 계획의 각 스텝을 순차 실행 (기존 ReAct 루프 재사용)
+  - 파일: `AgentMode.kt`, `PlanExecuteLoopExecutor.kt` (신규)
+
+- [ ] **계획 단계 시스템 프롬프트**
+  - "사용자 질문을 분석하고, 필요한 도구 호출 순서를 JSON으로 출력해라"
+  - 계획 스키마: `[{tool: "jira_get_issue", args: {key: "JAR-36"}}, {tool: "confluence_search", args: {query: "..."}}]`
+  - 파일: `SystemPromptBuilder.kt`
+
+- [ ] **계획 검증 + 실행**
+  - 계획 JSON 파싱 → 유효성 검증 (존재하는 도구인지, 권한 있는지)
+  - 각 스텝 순차 실행 → 결과 누적 → 최종 합성 응답
+  - 파일: `PlanValidator.kt` (신규), `PlanExecuteLoopExecutor.kt`
+
+- [ ] **자동 모드 선택**
+  - 단순 질문 → STANDARD (직접 응답)
+  - 단일 도구 → REACT (기존)
+  - 복합/멀티스텝 → PLAN_EXECUTE (신규)
+  - 파일: `AgentModeResolver.kt` (신규)
+
+### Phase 3: 평가 프레임워크 (4-8주) — 모델 교체 시 회귀 방지
+
+- [ ] **골든 데이터셋 구축**
+  - 50+ 테스트 케이스: 질문 → 기대 도구 선택 → 기대 응답 패턴
+  - 카테고리: Jira 단건, Confluence 검색, 복합 질문, 보안 차단, 엣지케이스
+  - 파일: `src/test/resources/golden-dataset.json`
+
+- [ ] **도구 선택 정확도 벤치마크**
+  - 골든 데이터셋 기반 자동 실행 → 정확도 리포트
+  - 메트릭: correct_tool_rate, wrong_tool_rate, hallucinated_tool_rate
+  - 파일: `ToolSelectionBenchmark.kt`
+
+- [ ] **ReAct 수렴 품질 메트릭**
+  - 단순 질문 ≤3단계, 복합 ≤7단계 수렴 검증
+  - `SlaMetrics.recordReActConvergence()` 활용
+  - 파일: `ReActConvergenceBenchmark.kt`
+
+- [ ] **프롬프트 A/B 테스트 프레임워크**
+  - N% 트래픽을 새 프롬프트로 라우팅 → 성공률 비교
+  - 파일: `PromptExperiment.kt`, `ExperimentStore.kt` 확장
+
+### Phase 4: 멀티 에이전트 (2-3개월) — 복잡한 업무 자동화
+
+- [ ] **Supervisor 에이전트 패턴**
+  - Supervisor가 질문 분석 → 전문 에이전트에 위임
+  - 전문 에이전트: JiraAgent, ConfluenceAgent, BitbucketAgent, AnalysisAgent
+  - 파일: `SupervisorAgent.kt`, `AgentRegistry.kt`
+
+- [ ] **에이전트 간 메시지 전달**
+  - Agent A 결과를 Agent B 입력으로 전달
+  - 공유 컨텍스트 (HookContext 확장)
+  - 파일: `AgentMessageBus.kt`
+
+- [ ] **도구 조합 DAG**
+  - 도구 의존성 선언: "Tool B는 Tool A 출력 필요"
+  - DAG 기반 병렬/순차 실행 자동 결정
+  - 파일: `ToolDependencyGraph.kt`
+
+### Phase 5: 관측성 + 운영 강화 (지속)
+
+- [ ] **분산 추적 완성** — W3C Trace Context, Guard/Hook/Memory 스팬 추가
+- [ ] **SLO 알림** — 지연 >2초, 에러율 >5% 시 자동 알림
+- [ ] **비용 이상 탐지** — 요청당 비용 3배 초과 시 경고
+- [ ] **프롬프트 드리프트 감지** — 입력/응답 길이 분포 변화 모니터링
+- [ ] **Guard 차단률 베이스라인** — 급증(공격) 또는 급감(Guard 고장) 알림
+
+### 현재 점수 → 목표 점수
+
+| 영역 | 현재 | Phase 1 후 | Phase 2 후 | Phase 3 후 | Phase 4 후 |
+|------|------|-----------|-----------|-----------|-----------|
+| 코어 루프 | 8 | 8 | **9.5** | 9.5 | 9.5 |
+| 도구 생태계 | 7.5 | 7.5 | 8 | 8 | **9** |
+| 보안 | 9 | 9 | 9 | 9 | 9 |
+| 메모리 | 8 | 8 | 8 | 8 | **9** |
+| 관측성 | 7 | 7 | 7 | 8 | **8.5** |
+| **비용 관리** | **7** | **9** | 9 | 9 | 9 |
+| 운영 | 8 | 8 | 8 | 8.5 | **9** |
+| DX | 8 | 8 | 8 | **9** | 9 |
+| 성능 | 7.5 | 7.5 | 8 | 8 | 8 |
+| 누락 기능 | 5 | 6 | **7.5** | **8** | **9** |
+| **총점** | **7.5** | **7.8** | **8.2** | **8.5** | **9.0** |
+
+---
+
 ## 해결 완료
 
 - [x] **Confluence 검색 실패 -- 도구 미호출** (발견: 2026-03-18, 해결: 감사#2 확인)
