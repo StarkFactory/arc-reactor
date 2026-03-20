@@ -64,12 +64,12 @@
 
 현재 `CostAwareModelRouter`와 `StepBudgetTracker`가 코드에 존재하지만 ReAct 루프에서 **호출되지 않음**.
 
-- [ ] **StepBudgetTracker를 ReAct 루프에 연결**
+- [x] **StepBudgetTracker를 ReAct 루프에 연결** (8a78305d)
   - `ManualReActLoopExecutor`/`StreamingReActLoopExecutor`에서 매 iteration마다 `trackStep()` 호출
   - `EXHAUSTED` 반환 시 루프 즉시 종료 + 사용자에게 "토큰 예산 초과" 안내
   - 파일: `ManualReActLoopExecutor.kt`, `StreamingReActLoopExecutor.kt`, `BudgetConfiguration.kt`
 
-- [ ] **CostAwareModelRouter를 요청 경로에 연결**
+- [x] **CostAwareModelRouter를 요청 경로에 연결** (5181e4b8)
   - `SpringAiAgentExecutor`에서 요청마다 `router.route(command)` 호출
   - 단순 질문 → flash 모델, 복잡 질문 → pro 모델 자동 선택
   - 파일: `SpringAiAgentExecutor.kt`, `ModelRoutingConfiguration.kt`
