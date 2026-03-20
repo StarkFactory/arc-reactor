@@ -113,6 +113,7 @@ internal class SystemPromptBuilder(
         if (workspaceRelated) {
             appendWorkspaceGroundingRules(workspaceToolAlreadyCalled)
             appendFewShotReadOnlyExamples()
+            appendCompoundQuestionHint(workspaceToolAlreadyCalled)
             appendReadOnlyPolicy()
             appendToolErrorRetryHint()
             appendConfluencePreferenceHint()
@@ -274,6 +275,27 @@ internal class SystemPromptBuilder(
         append("WRITE (refused): create JIRA issue, update status, assign, delete, transition, comment, approve\n")
         append("'회고 자료 만들어줘' = READ (search issues → write summary). '이슈 생성해줘' = WRITE.\n")
         append("'칸반 카드로 보여줘' = READ (get issue → format as card). '이슈 상태 변경해줘' = WRITE.\n")
+    }
+
+    /**
+     * 복합 질문 처리 힌트 — 하나의 메시지에 여러 주제가 포함된 경우
+     * 각 하위 질문에 대해 별도 도구를 호출하도록 안내한다.
+     */
+    private fun StringBuilder.appendCompoundQuestionHint(
+        workspaceToolAlreadyCalled: Boolean
+    ) {
+        if (workspaceToolAlreadyCalled) return
+        append("\n[Compound Questions]\n")
+        append("When the user asks about MULTIPLE topics in one message ")
+        append("(indicators: 와/과, 그리고, 동시에, 함께, 또한, ")
+        append("multiple question marks, comma-separated requests):\n")
+        append("1. Identify each sub-question separately\n")
+        append("2. Call the appropriate tool for EACH sub-question\n")
+        append("3. Combine all results into one comprehensive response\n")
+        append("4. Do NOT stop after answering only the first part\n")
+        append("Example: 'JAR-36 이슈 상태와 온보딩 가이드 문서를 찾아줘'\n")
+        append("→ call jira_get_issue(JAR-36) AND ")
+        append("confluence_search_by_text(온보딩 가이드)\n")
     }
 
     /** 변경(mutation) 요청 감지 시 거부 지시를 추가한다. */

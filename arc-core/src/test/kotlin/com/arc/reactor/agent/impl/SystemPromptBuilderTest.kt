@@ -538,6 +538,58 @@ class SystemPromptBuilderTest {
     }
 
     @Test
+    fun `workspace prompts에 대해 include compound question hint해야 한다`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            responseSchema = null,
+            userPrompt = "JAR-36 이슈 상태와 온보딩 가이드 문서를 찾아줘"
+        )
+
+        assertTrue(prompt.contains("[Compound Questions]")) {
+            "Workspace prompts should contain Compound Questions section"
+        }
+        assertTrue(prompt.contains("MULTIPLE topics")) {
+            "Compound question hint should mention multiple topics"
+        }
+        assertTrue(prompt.contains("EACH sub-question")) {
+            "Compound question hint should instruct calling tool for each sub-question"
+        }
+    }
+
+    @Test
+    fun `non-workspace prompts에 대해 exclude compound question hint해야 한다`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            responseSchema = null,
+            userPrompt = "Kotlin data class 예시를 보여줘"
+        )
+
+        assertFalse(prompt.contains("[Compound Questions]")) {
+            "Non-workspace prompts should not contain Compound Questions section"
+        }
+    }
+
+    @Test
+    fun `workspaceToolAlreadyCalled 시 suppress compound question hint해야 한다`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            responseSchema = null,
+            userPrompt = "JAR-36 이슈 상태와 온보딩 가이드 문서를 찾아줘",
+            workspaceToolAlreadyCalled = true
+        )
+
+        assertFalse(prompt.contains("[Compound Questions]")) {
+            "Compound question hint should be suppressed when workspace tool already called"
+        }
+    }
+
+    @Test
     fun `not treat release readiness pack prompt as mutation refusal해야 한다`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
