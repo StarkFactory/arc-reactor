@@ -485,9 +485,10 @@ object InjectionPatterns {
             "section_marker_reference",
             Regex("(?i)(Language Rule|Grounding Rules?|Tool Error Retry|Few-shot Example)"),
         ),
+        // 한국어: "시스템 프롬프트의 언어 규칙 섹션" — "프로그래밍 언어 규칙"은 미차단
         InjectionPattern(
             "section_marker_reference",
-            Regex("(?i)(언어 규칙|기본 규칙|대화 기록).{0,20}(섹션|확인|보여|알려)"),
+            Regex("(?i)(시스템|프롬프트).{0,15}(언어 규칙|기본 규칙|대화 기록)"),
         ),
 
         // ── 메타질문 (Meta-Question) — 시스템 프롬프트 간접 유출 방지 ──
