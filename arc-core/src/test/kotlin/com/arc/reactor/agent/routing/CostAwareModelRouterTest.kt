@@ -318,6 +318,45 @@ class CostAwareModelRouterTest {
     }
 
     @Test
+    fun `라우팅 결과에 complexityScore가 포함되어야 한다`() {
+        val command = AgentCommand(
+            systemPrompt = "Help",
+            userPrompt = "x".repeat(600),
+            mode = AgentMode.REACT,
+            maxToolCalls = 5
+        )
+
+        val selection = router().route(command)
+
+        assertTrue(
+            selection.complexityScore != null,
+            "complexityScore가 null이 아니어야 한다"
+        )
+        assertTrue(
+            selection.complexityScore!! in 0.0..1.0,
+            "complexityScore는 0.0~1.0 범위여야 한다: " +
+                "${selection.complexityScore}"
+        )
+    }
+
+    @Test
+    fun `사용자 지정 모델일 때 complexityScore는 null이어야 한다`() {
+        val command = AgentCommand(
+            systemPrompt = "Help",
+            userPrompt = "Hello",
+            model = "custom-v1"
+        )
+
+        val selection = router().route(command)
+
+        assertEquals("custom-v1", selection.modelId)
+        assertEquals(
+            null, selection.complexityScore,
+            "사용자 지정 모델은 복잡도 분석을 건너뛰므로 null이어야 한다"
+        )
+    }
+
+    @Test
     fun `라우팅 전략 이름은 대소문자 구분 없이 동작해야 한다`() {
         val propsCostUpper = defaultProps.copy(routingStrategy = "COST-OPTIMIZED")
         val command = AgentCommand(

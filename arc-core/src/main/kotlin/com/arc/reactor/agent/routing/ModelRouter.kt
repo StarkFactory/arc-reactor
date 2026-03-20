@@ -33,8 +33,10 @@ interface ModelRouter {
  *
  * @param modelId 선택된 LLM 모델 식별자 (예: "gemini-2.0-flash", "claude-sonnet-4-20250514")
  * @param reason 모델 선택 사유 (로깅/디버깅용)
+ * @param complexityScore 요청 복잡도 점수 (0.0 ~ 1.0). 라우터가 제공하지 않으면 null
  */
 data class ModelSelection(
     val modelId: String,
-    val reason: String
+    val reason: String,
+    val complexityScore: Double? = null
 )

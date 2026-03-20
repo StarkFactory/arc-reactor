@@ -55,15 +55,17 @@ class CostAwareModelRouter(
             logger.warn { "알 수 없는 라우팅 전략: '$strategy' — balanced 전략으로 폴백" }
         }
 
-        return when (strategy) {
+        val selection = when (strategy) {
             "cost-optimized" -> routeCostOptimized(complexity)
             "quality-first" -> routeQualityFirst(complexity)
             else -> routeBalanced(complexity)
-        }.also { selection ->
-            logger.debug {
-                "모델 라우팅: complexity=$complexity, model=${selection.modelId}, reason=${selection.reason}"
-            }
+        }.copy(complexityScore = complexity)
+
+        logger.debug {
+            "모델 라우팅: complexity=$complexity, " +
+                "model=${selection.modelId}, reason=${selection.reason}"
         }
+        return selection
     }
 
     /**

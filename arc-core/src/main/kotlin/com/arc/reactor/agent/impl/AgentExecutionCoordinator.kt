@@ -5,6 +5,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.routing.ModelRouter
 import com.arc.reactor.cache.CacheKeyBuilder
 import com.arc.reactor.cache.CachedResponse
 import com.arc.reactor.cache.CacheMetricsRecorder
@@ -58,6 +59,7 @@ internal class AgentExecutionCoordinator(
     private val costCalculator: CostCalculator? = null,
     private val cacheMetricsRecorder: CacheMetricsRecorder? = null,
     private val semanticSimilarityThreshold: Double = 0.92,
+    private val modelRouter: ModelRouter? = null,
     private val toolCallbacks: List<ToolCallback>,
     private val mcpToolCallbacks: () -> List<ToolCallback>,
     private val conversationManager: ConversationManager,
@@ -102,7 +104,8 @@ internal class AgentExecutionCoordinator(
         startTime: Long
     ): AgentResult {
         checkGuardAndHooks(command, hookContext, startTime)?.let { return it }
-        val cmd = resolveIntentStage(command, hookContext)
+        val afterIntent = resolveIntentStage(command, hookContext)
+        val cmd = applyModelRouting(afterIntent, hookContext)
 
         val cacheLookup = measureStage("cache_lookup", hookContext, cmd) {
             resolveCache(cmd, startTime)
@@ -166,6 +169,30 @@ internal class AgentExecutionCoordinator(
             hookContext.metadata[HookMetadataKeys.INTENT_CATEGORY] = it
         }
         return effective
+    }
+
+    /**
+     * 모델 라우팅을 적용하여 요청 복잡도에 따라 최적 모델을 선택한다.
+     *
+     * 라우터가 없으면 원본 command를 반환한다.
+     * 라우팅 결과(모델, 사유, 복잡도)를 HookContext 메타데이터에 기록한다.
+     */
+    private fun applyModelRouting(
+        command: AgentCommand,
+        hookContext: HookContext
+    ): AgentCommand {
+        val router = modelRouter ?: return command
+        val selection = router.route(command)
+        hookContext.metadata["modelUsed"] = selection.modelId
+        hookContext.metadata["routingReason"] = selection.reason
+        selection.complexityScore?.let {
+            hookContext.metadata["complexityScore"] = it
+        }
+        logger.debug {
+            "모델 라우팅 적용: model=${selection.modelId}, " +
+                "reason=${selection.reason}"
+        }
+        return command.copy(model = selection.modelId)
     }
 
     /** 대화 히스토리를 로드하고 메시지 수를 HookContext에 기록한다. */
@@ -395,12 +422,31 @@ internal class AgentExecutionCoordinator(
 
     private fun withStageTimingsMetadata(result: AgentResult, hookContext: HookContext): AgentResult {
         val stageTimings = readStageTimings(hookContext)
-        if (stageTimings.isEmpty()) {
+        val routingMeta = collectRoutingMetadata(hookContext)
+        if (stageTimings.isEmpty() && routingMeta.isEmpty()) {
             return result
         }
         val metadata = LinkedHashMap(result.metadata)
-        metadata["stageTimings"] = LinkedHashMap(stageTimings)
+        if (stageTimings.isNotEmpty()) {
+            metadata["stageTimings"] = LinkedHashMap(stageTimings)
+        }
+        metadata.putAll(routingMeta)
         return result.copy(metadata = metadata)
+    }
+
+    /** HookContext에서 모델 라우팅 메타데이터를 수집한다. */
+    private fun collectRoutingMetadata(
+        hookContext: HookContext
+    ): Map<String, Any> {
+        val meta = LinkedHashMap<String, Any>()
+        hookContext.metadata["modelUsed"]?.let { meta["modelUsed"] = it }
+        hookContext.metadata["routingReason"]?.let {
+            meta["routingReason"] = it
+        }
+        hookContext.metadata["complexityScore"]?.let {
+            meta["complexityScore"] = it
+        }
+        return meta
     }
 
     /** temperature가 캐시 임계값 이하인 경우에만 캐시 가능으로 판단합니다. */

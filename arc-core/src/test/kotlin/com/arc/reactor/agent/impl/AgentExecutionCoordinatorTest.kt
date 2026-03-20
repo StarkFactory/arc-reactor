@@ -2,8 +2,11 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
+import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.routing.ModelRouter
+import com.arc.reactor.agent.routing.ModelSelection
 import com.arc.reactor.cache.CacheKeyBuilder
 import com.arc.reactor.cache.CachedResponse
 import com.arc.reactor.cache.ResponseCache
@@ -20,6 +23,7 @@ import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -690,6 +694,118 @@ class AgentExecutionCoordinatorTest {
                 }
             )
         }
+    }
+
+    @Test
+    fun `modelRouter 설정 시 route 결과로 command model을 교체해야 한다`() = runBlocking {
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val router = object : ModelRouter {
+            override fun route(command: AgentCommand): ModelSelection {
+                return ModelSelection(
+                    modelId = "gemini-2.5-pro",
+                    reason = "균형: 높은 복잡도(0.60) → 고급 모델",
+                    complexityScore = 0.6
+                )
+            }
+        }
+        var capturedModel: String? = null
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = null,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = metrics,
+            modelRouter = router,
+            toolCallbacks = emptyList(),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { cmd, _, _, _, _, _ ->
+                capturedModel = cmd.model
+                AgentResult.success(content = "ok")
+            },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command }
+        )
+
+        val hookContext = HookContext(
+            runId = "run-route", userId = "u", userPrompt = "hi"
+        )
+        val result = coordinator.execute(
+            command = AgentCommand(
+                systemPrompt = "sys", userPrompt = "hi"
+            ),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        assertTrue(result.success, "라우팅 후 실행이 성공해야 한다")
+        assertEquals(
+            "gemini-2.5-pro", capturedModel,
+            "라우팅된 모델이 executeWithTools에 전달되어야 한다"
+        )
+        assertEquals(
+            "gemini-2.5-pro", result.metadata["modelUsed"],
+            "응답 메타에 modelUsed가 포함되어야 한다"
+        )
+        assertEquals(
+            "균형: 높은 복잡도(0.60) → 고급 모델",
+            result.metadata["routingReason"],
+            "응답 메타에 routingReason이 포함되어야 한다"
+        )
+        assertEquals(
+            0.6, result.metadata["complexityScore"],
+            "응답 메타에 complexityScore가 포함되어야 한다"
+        )
+    }
+
+    @Test
+    fun `modelRouter 미설정 시 원본 command model을 유지해야 한다`() = runBlocking {
+        var capturedModel: String? = "SENTINEL"
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = null,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = mockk(relaxed = true),
+            modelRouter = null,
+            toolCallbacks = emptyList(),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { cmd, _, _, _, _, _ ->
+                capturedModel = cmd.model
+                AgentResult.success(content = "ok")
+            },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command }
+        )
+
+        val result = coordinator.execute(
+            command = AgentCommand(
+                systemPrompt = "sys", userPrompt = "hi"
+            ),
+            hookContext = HookContext(
+                runId = "run-noroute", userId = "u", userPrompt = "hi"
+            ),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        assertTrue(result.success, "라우터 없이도 실행이 성공해야 한다")
+        assertNull(
+            capturedModel,
+            "라우터 미설정 시 command.model은 원본(null)이어야 한다"
+        )
+        assertNull(
+            result.metadata["modelUsed"],
+            "라우터 미설정 시 modelUsed 메타가 없어야 한다"
+        )
     }
 
     private fun testTool(name: String): ToolCallback = object : ToolCallback {
