@@ -78,6 +78,7 @@ private val logger = KotlinLogging.logger {}
  * - [AgentMode.STANDARD]: Tool 없이 단일 LLM 호출
  * - [AgentMode.REACT]: Tool Calling을 포함하는 ReAct 루프 실행
  * - [AgentMode.STREAMING]: 실시간 스트리밍 응답 (executeStream)
+ * - [AgentMode.PLAN_EXECUTE]: 2단계 계획-실행 (계획 JSON → 순차 도구 실행)
  *
  * @see AgentExecutor 이 클래스가 구현하는 인터페이스
  * @see AgentExecutionCoordinator 캐시/폴백/단계별 실행 조율
@@ -216,6 +217,13 @@ class SpringAiAgentExecutor(
         validateAndRepairResponse = structuredResponseRepairer::validateAndRepair,
         recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) },
         tracer = tracer
+    )
+    // 계획-실행 전략 — 2단계 (계획 JSON 생성 → 순차 도구 실행)
+    private val planExecuteStrategy = PlanExecuteStrategy(
+        toolCallOrchestrator = toolCallOrchestrator,
+        buildRequestSpec = promptRequestSpecBuilder::create,
+        callWithRetry = { block -> retryExecutor.execute(block) },
+        buildChatOptions = ::createChatOptions
     )
     // 스트리밍 ReAct 루프 실행기 — 실시간 청크 전송 버전
     private val streamingReActLoopExecutor = StreamingReActLoopExecutor(
@@ -588,18 +596,32 @@ class SpringAiAgentExecutor(
                 userMemoryContext = userMemoryContext
             )
             val activeChatClient = resolveChatClient(command)
-            return manualReActLoopExecutor.execute(
-                command = command,
-                activeChatClient = activeChatClient,
-                systemPrompt = systemPrompt,
-                initialTools = if (forcedToolContext != null) emptyList() else tools,
-                conversationHistory = conversationHistory,
-                hookContext = hookContext,
-                toolsUsed = toolsUsed,
-                allowedTools = allowedTools,
-                maxToolCalls = maxToolCalls,
-                budgetTracker = createBudgetTracker()
-            )
+            val effectiveTools = if (forcedToolContext != null) emptyList() else tools
+            return if (command.mode == AgentMode.PLAN_EXECUTE && effectiveTools.isNotEmpty()) {
+                planExecuteStrategy.execute(
+                    command = command,
+                    activeChatClient = activeChatClient,
+                    systemPrompt = systemPrompt,
+                    tools = effectiveTools,
+                    conversationHistory = conversationHistory,
+                    hookContext = hookContext,
+                    toolsUsed = toolsUsed,
+                    maxToolCalls = maxToolCalls
+                )
+            } else {
+                manualReActLoopExecutor.execute(
+                    command = command,
+                    activeChatClient = activeChatClient,
+                    systemPrompt = systemPrompt,
+                    initialTools = effectiveTools,
+                    conversationHistory = conversationHistory,
+                    hookContext = hookContext,
+                    toolsUsed = toolsUsed,
+                    allowedTools = allowedTools,
+                    maxToolCalls = maxToolCalls,
+                    budgetTracker = createBudgetTracker()
+                )
+            }
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "LLM call with tools failed" }

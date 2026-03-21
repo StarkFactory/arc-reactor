@@ -85,8 +85,10 @@ class CostAwareModelRouter(
             score += 0.2
         }
 
-        // 도구 사용 여부 (ReAct 모드 + 도구 호출 허용 = 복잡한 작업)
-        if (command.mode == AgentMode.REACT && command.maxToolCalls > 1) {
+        // 도구 사용 여부 (ReAct/PLAN_EXECUTE 모드 + 도구 호출 허용 = 복잡한 작업)
+        val usesTools = command.mode == AgentMode.REACT ||
+            command.mode == AgentMode.PLAN_EXECUTE
+        if (usesTools && command.maxToolCalls > 1) {
             score += 0.3
         }
 

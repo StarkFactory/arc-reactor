@@ -33,7 +33,10 @@ enum class AgentMode {
     REACT,
 
     /** 스트리밍 모드 — executeStream()은 AgentMode에 관계없이 동작. 향후 모드 분기를 위해 예약 */
-    STREAMING
+    STREAMING,
+
+    /** 계획-실행 모드: 먼저 도구 호출 계획을 세운 후, 계획대로 순차 실행한다. */
+    PLAN_EXECUTE
 }
 
 /**
