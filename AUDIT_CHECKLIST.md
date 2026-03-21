@@ -89,7 +89,7 @@
 
 현재 순수 ReAct(도구 호출 반복)만 지원. "먼저 계획 → 실행" 불가.
 
-- [ ] **AgentMode.PLAN_EXECUTE 추가**
+- [x] **AgentMode.PLAN_EXECUTE 추가** (269dcdce)
   - 1단계: LLM에 "계획만 세워줘" 프롬프트 → JSON 계획 반환
   - 2단계: 계획의 각 스텝을 순차 실행 (기존 ReAct 루프 재사용)
   - 파일: `AgentMode.kt`, `PlanExecuteLoopExecutor.kt` (신규)
