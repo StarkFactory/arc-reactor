@@ -80,7 +80,7 @@
   - `AgentResult.metadata`에 `costEstimate`, `tokensUsed`, `modelUsed` 추가
   - 파일: `ExecutionResultFinalizer.kt`
 
-- [ ] **테넌트별 월간 예산 + 알림**
+- [x] **테넌트별 월간 예산 + 알림**
   - `AgentProperties`에 `budget.monthly-limit-per-tenant` 추가
   - 초과 시 경고 로그 + 메트릭
   - 파일: `AgentProperties.kt`, `CostCalculator.kt`

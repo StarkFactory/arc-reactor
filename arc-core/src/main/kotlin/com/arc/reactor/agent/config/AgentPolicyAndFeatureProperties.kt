@@ -412,7 +412,13 @@ data class BudgetProperties(
     val maxTokensPerRequest: Int = 50000,
 
     /** 소프트 리밋 비율 (1-99). 이 비율 도달 시 경고 로그를 기록한다. */
-    val softLimitPercent: Int = 80
+    val softLimitPercent: Int = 80,
+
+    /** 테넌트별 월간 비용 한도 (USD). 0이면 무제한. */
+    val monthlyLimitUsd: Double = 0.0,
+
+    /** 월간 한도의 경고 임계치 비율 (1-99). 이 비율 도달 시 경고 로그를 기록한다. */
+    val monthlyWarningPercent: Int = 80
 )
 
 /**
