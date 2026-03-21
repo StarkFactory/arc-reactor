@@ -94,10 +94,10 @@
   - 2단계: 계획의 각 스텝을 순차 실행 (기존 ReAct 루프 재사용)
   - 파일: `AgentMode.kt`, `PlanExecuteLoopExecutor.kt` (신규)
 
-- [ ] **계획 단계 시스템 프롬프트**
+- [x] **계획 단계 시스템 프롬프트** (02a844e7)
   - "사용자 질문을 분석하고, 필요한 도구 호출 순서를 JSON으로 출력해라"
   - 계획 스키마: `[{tool: "jira_get_issue", args: {key: "JAR-36"}}, {tool: "confluence_search", args: {query: "..."}}]`
-  - 파일: `SystemPromptBuilder.kt`
+  - 파일: `SystemPromptBuilder.kt`, `PlanExecuteStrategy.kt`
 
 - [ ] **계획 검증 + 실행**
   - 계획 JSON 파싱 → 유효성 검증 (존재하는 도구인지, 권한 있는지)
