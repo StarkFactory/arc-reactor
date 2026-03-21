@@ -13,13 +13,37 @@ echo "HEAD=$CURRENT LAST=$LAST OPEN=$OPEN CLEAN=$CLEAN"
 
 ## Phase 0: 깊이 결정
 
-| 조건 | 모드 | 행동 |
-|------|------|------|
-| CURRENT != LAST | **DEEP** | 기준선 9건 + 탐색 5~8건 + 강화 2건 |
-| CURRENT == LAST + OPEN > 0 + CLEAN < 5 | **SHALLOW** | 기준선 9건만 |
-| CURRENT == LAST + OPEN > 0 + CLEAN ≥ 5 | **HEARTBEAT** | 컴파일 + Guard + MCP (3건) |
-| CURRENT == LAST + OPEN == 0 + CLEAN < 10 | **HEARTBEAT** | 컴파일 + Guard + MCP (3건) |
-| CURRENT == LAST + OPEN == 0 + CLEAN ≥ 10 | **SKIP** | "Stable" 출력 후 종료. LLM 0토큰 |
+**아래 bash를 실행하여 모드를 결정한다. 테이블만 보고 판단하지 말 것.**
+
+```bash
+if [ "$CURRENT" != "$LAST" ]; then
+  MODE="DEEP"
+elif [ "$OPEN" -gt 0 ] && [ "$CLEAN" -lt 5 ]; then
+  MODE="SHALLOW"
+elif [ "$OPEN" -gt 0 ] && [ "$CLEAN" -ge 5 ]; then
+  MODE="HEARTBEAT"
+elif [ "$OPEN" -eq 0 ] && [ "$CLEAN" -lt 10 ]; then
+  MODE="HEARTBEAT"
+elif [ "$OPEN" -eq 0 ] && [ "$CLEAN" -ge 10 ]; then
+  MODE="SKIP"
+  echo "Stable for $CLEAN runs (OPEN=0). SKIP."
+  echo $((CLEAN + 1)) > /tmp/arc-audit-clean-count
+  # 여기서 종료. 아래 Phase 실행하지 않음.
+else
+  MODE="HEARTBEAT"
+fi
+echo "MODE=$MODE OPEN=$OPEN CLEAN=$CLEAN"
+```
+
+**!!! SKIP은 OPEN=0일 때만 가능. OPEN>0이면 절대 SKIP 불가. !!!**
+
+| 모드 | 조건 | 테스트 |
+|------|------|--------|
+| **DEEP** | 코드 변경 있음 | 기준선 9건 + 탐색 5~8건 + 강화 2건 |
+| **SHALLOW** | 변경 없음 + OPEN>0 + CLEAN<5 | 기준선 9건만 |
+| **HEARTBEAT** | 변경 없음 + OPEN>0 + CLEAN≥5 | 컴파일 + Guard + MCP (3건) |
+| **HEARTBEAT** | 변경 없음 + OPEN=0 + CLEAN<10 | 컴파일 + Guard + MCP (3건) |
+| **SKIP** | 변경 없음 + **OPEN=0** + CLEAN≥10 | 즉시 종료. LLM 0토큰 |
 
 **종료 시:**
 - 클린 완료: `echo $((CLEAN + 1)) > /tmp/arc-audit-clean-count`
