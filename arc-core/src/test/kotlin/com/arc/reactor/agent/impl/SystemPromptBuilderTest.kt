@@ -605,4 +605,125 @@ class SystemPromptBuilderTest {
             "Release readiness prompts should not be misclassified as write mutations"
         }
     }
+
+    // ── 계획 단계 시스템 프롬프트 테스트 ──
+
+    @Test
+    fun `buildPlanningPrompt에 역할 지시 섹션이 포함되어야 한다`() {
+        val prompt = builder.buildPlanningPrompt(
+            userPrompt = "JAR-36 이슈 상태를 알려줘",
+            toolDescriptions = "- jira_get_issue: 이슈 조회"
+        )
+
+        assertTrue(prompt.contains("[Role]")) {
+            "Planning prompt should contain Role section"
+        }
+        assertTrue(prompt.contains("플래너")) {
+            "Planning prompt should identify LLM as a planner"
+        }
+        assertTrue(prompt.contains("계획만 출력")) {
+            "Planning prompt should instruct plan-only output"
+        }
+    }
+
+    @Test
+    fun `buildPlanningPrompt에 사용 가능한 도구 목록이 포함되어야 한다`() {
+        val tools = "- jira_get_issue: 이슈 조회\n- confluence_search: 문서 검색"
+        val prompt = builder.buildPlanningPrompt(
+            userPrompt = "JAR-36 이슈와 관련 문서를 찾아줘",
+            toolDescriptions = tools
+        )
+
+        assertTrue(prompt.contains("[Available Tools]")) {
+            "Planning prompt should contain Available Tools section"
+        }
+        assertTrue(prompt.contains("jira_get_issue")) {
+            "Planning prompt should include tool names"
+        }
+        assertTrue(prompt.contains("confluence_search")) {
+            "Planning prompt should include all tool names"
+        }
+        assertTrue(prompt.contains("목록에 없는 도구는 사용할 수 없습니다")) {
+            "Planning prompt should restrict to listed tools only"
+        }
+    }
+
+    @Test
+    fun `buildPlanningPrompt에 출력 스키마가 포함되어야 한다`() {
+        val prompt = builder.buildPlanningPrompt(
+            userPrompt = "테스트",
+            toolDescriptions = "- tool_a: 도구 A"
+        )
+
+        assertTrue(prompt.contains("[Output Format]")) {
+            "Planning prompt should contain Output Format section"
+        }
+        assertTrue(prompt.contains("JSON 배열만 출력")) {
+            "Planning prompt should require JSON array output"
+        }
+        assertTrue(prompt.contains("\"tool\"")) {
+            "Planning prompt should show tool field in example"
+        }
+        assertTrue(prompt.contains("\"args\"")) {
+            "Planning prompt should show args field in example"
+        }
+        assertTrue(prompt.contains("\"description\"")) {
+            "Planning prompt should show description field in example"
+        }
+    }
+
+    @Test
+    fun `buildPlanningPrompt에 제약 조건이 포함되어야 한다`() {
+        val prompt = builder.buildPlanningPrompt(
+            userPrompt = "테스트",
+            toolDescriptions = "- tool_a: 도구 A"
+        )
+
+        assertTrue(prompt.contains("[Constraints]")) {
+            "Planning prompt should contain Constraints section"
+        }
+        assertTrue(prompt.contains("빈 배열 []")) {
+            "Planning prompt should mention empty array for no-tool case"
+        }
+        assertTrue(prompt.contains("의존 관계")) {
+            "Planning prompt should mention dependency ordering"
+        }
+    }
+
+    @Test
+    fun `buildPlanningPrompt에 사용자 요청이 포함되어야 한다`() {
+        val userPrompt = "JAR-36 이슈 상태와 온보딩 가이드를 찾아줘"
+        val prompt = builder.buildPlanningPrompt(
+            userPrompt = userPrompt,
+            toolDescriptions = "- jira_get_issue: 이슈 조회"
+        )
+
+        assertTrue(prompt.contains("[User Request]")) {
+            "Planning prompt should contain User Request section"
+        }
+        assertTrue(prompt.contains(userPrompt)) {
+            "Planning prompt should include the user prompt verbatim"
+        }
+    }
+
+    @Test
+    fun `buildPlanningPrompt에 일반 build 전용 섹션이 포함되지 않아야 한다`() {
+        val prompt = builder.buildPlanningPrompt(
+            userPrompt = "Jira 이슈 목록을 보여줘",
+            toolDescriptions = "- jira_search_issues: 이슈 검색"
+        )
+
+        assertFalse(prompt.contains("[Language Rule]")) {
+            "Planning prompt should not contain Language Rule (standard build section)"
+        }
+        assertFalse(prompt.contains("[Grounding Rules]")) {
+            "Planning prompt should not contain Grounding Rules (standard build section)"
+        }
+        assertFalse(prompt.contains("[Conversation History]")) {
+            "Planning prompt should not contain Conversation History (standard build section)"
+        }
+        assertFalse(prompt.contains("[Few-shot Examples")) {
+            "Planning prompt should not contain Few-shot Examples (standard build section)"
+        }
+    }
 }

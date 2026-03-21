@@ -40,7 +40,8 @@ internal class PlanExecuteStrategy(
     ) -> ChatClient.ChatClientRequestSpec,
     private val callWithRetry: suspend (suspend () -> org.springframework.ai.chat.model.ChatResponse?) ->
         org.springframework.ai.chat.model.ChatResponse?,
-    private val buildChatOptions: (AgentCommand, Boolean) -> ChatOptions
+    private val buildChatOptions: (AgentCommand, Boolean) -> ChatOptions,
+    private val systemPromptBuilder: SystemPromptBuilder = SystemPromptBuilder()
 ) {
 
     /**
@@ -97,48 +98,34 @@ internal class PlanExecuteStrategy(
         }.joinToString("\n")
     }
 
-    /** LLM에 계획 생성을 요청하고 JSON 배열을 파싱한다. */
+    /**
+     * LLM에 계획 생성을 요청하고 JSON 배열을 파싱한다.
+     *
+     * 계획 단계 전용 시스템 프롬프트를 [SystemPromptBuilder.buildPlanningPrompt]로 생성하여
+     * LLM이 도구 호출 계획만 JSON으로 출력하도록 지시한다.
+     */
     private suspend fun generatePlan(
         command: AgentCommand,
         chatClient: ChatClient,
         systemPrompt: String,
         toolDescriptions: String
     ): List<PlanStep> {
-        val planPrompt = buildPlanPrompt(
+        val planningSystemPrompt = systemPromptBuilder.buildPlanningPrompt(
             command.userPrompt, toolDescriptions
         )
         val messages = listOf(
-            org.springframework.ai.chat.messages.UserMessage(planPrompt)
+            org.springframework.ai.chat.messages.UserMessage(command.userPrompt)
         )
         val chatOptions = buildChatOptions(command, false)
         val spec = buildRequestSpec(
-            chatClient, systemPrompt, messages, chatOptions, emptyList()
+            chatClient, planningSystemPrompt, messages,
+            chatOptions, emptyList()
         )
         val response = callWithRetry {
             runInterruptible(Dispatchers.IO) { spec.call().chatResponse() }
         }
         val text = response?.results?.firstOrNull()?.output?.text.orEmpty()
         return parsePlan(text)
-    }
-
-    /** 계획 생성 프롬프트를 조립한다. */
-    private fun buildPlanPrompt(
-        userPrompt: String,
-        toolDescriptions: String
-    ): String {
-        return """
-            |사용자 요청을 수행하기 위한 도구 호출 계획을 JSON 배열로 작성하세요.
-            |도구가 필요 없으면 빈 배열 []을 반환하세요.
-            |
-            |사용 가능한 도구:
-            |$toolDescriptions
-            |
-            |사용자 요청:
-            |$userPrompt
-            |
-            |응답 형식 (JSON 배열만 출력, 다른 텍스트 금지):
-            |[{"tool":"도구이름","args":{...},"description":"단계 설명"}]
-        """.trimMargin()
     }
 
     /** LLM 응답에서 JSON 계획 배열을 파싱한다. 실패 시 빈 리스트를 반환한다. */

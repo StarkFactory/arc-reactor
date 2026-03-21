@@ -93,6 +93,84 @@ internal class SystemPromptBuilder(
         return postProcessor?.process(result) ?: result
     }
 
+    /**
+     * 계획 단계 전용 시스템 프롬프트를 조합한다.
+     *
+     * PLAN_EXECUTE 모드의 1단계(계획 생성)에서 LLM에게 도구 호출 순서를
+     * JSON 배열로만 출력하도록 지시한다. 실행은 하지 않는다.
+     *
+     * @param userPrompt 사용자 프롬프트
+     * @param toolDescriptions 사용 가능한 도구 이름과 설명 목록
+     * @return 계획 단계 전용 시스템 프롬프트
+     */
+    fun buildPlanningPrompt(
+        userPrompt: String,
+        toolDescriptions: String
+    ): String = buildString {
+        appendPlanningRole()
+        appendPlanningToolContext(toolDescriptions)
+        appendPlanningOutputSchema()
+        appendPlanningConstraints()
+        appendPlanningUserRequest(userPrompt)
+    }
+
+    /** 계획 단계 역할 지시 — 계획만 세우고 실행하지 않음을 명시한다. */
+    private fun StringBuilder.appendPlanningRole() {
+        append("[Role]\n")
+        append("당신은 도구 호출 계획을 세우는 플래너입니다.\n")
+        append("사용자의 요청을 분석하고, ")
+        append("필요한 도구 호출 순서를 JSON으로 출력하세요.\n")
+        append("절대 도구를 직접 실행하지 마세요. ")
+        append("계획만 출력합니다.\n")
+    }
+
+    /** 계획 단계 도구 컨텍스트 — 사용 가능한 도구 목록을 포함한다. */
+    private fun StringBuilder.appendPlanningToolContext(
+        toolDescriptions: String
+    ) {
+        append("\n[Available Tools]\n")
+        append("아래 도구만 계획에 포함할 수 있습니다.\n")
+        append("목록에 없는 도구는 사용할 수 없습니다.\n\n")
+        append(toolDescriptions)
+        append("\n")
+    }
+
+    /** 계획 출력 스키마 — JSON 배열 형식을 지정한다. */
+    private fun StringBuilder.appendPlanningOutputSchema() {
+        append("\n[Output Format]\n")
+        append("반드시 JSON 배열만 출력하세요. ")
+        append("다른 텍스트, 설명, 마크다운은 금지합니다.\n")
+        append("각 단계는 다음 필드를 포함합니다:\n")
+        append("- tool: 도구 이름 (Available Tools에 있는 것만)\n")
+        append("- args: 도구에 전달할 인자 (객체)\n")
+        append("- description: 이 단계의 목적 (간단한 한국어 설명)\n\n")
+        append("예시:\n")
+        append("[{\"tool\":\"jira_get_issue\",")
+        append("\"args\":{\"issueKey\":\"JAR-36\"},")
+        append("\"description\":\"이슈 상세 조회\"},\n")
+        append(" {\"tool\":\"confluence_search\",")
+        append("\"args\":{\"query\":\"온보딩 가이드\"},")
+        append("\"description\":\"관련 문서 검색\"}]\n")
+    }
+
+    /** 계획 제약 조건 — 실행 금지, 빈 배열 허용 등. */
+    private fun StringBuilder.appendPlanningConstraints() {
+        append("\n[Constraints]\n")
+        append("1. 도구가 필요 없으면 빈 배열 []을 반환하세요.\n")
+        append("2. 단계 순서는 실행 순서입니다. ")
+        append("의존 관계를 고려하세요.\n")
+        append("3. 동일 도구를 다른 인자로 여러 번 호출할 수 있습니다.\n")
+        append("4. 각 단계의 args는 해당 도구의 입력 스키마에 맞춰야 합니다.\n")
+        append("5. 응답은 [ 로 시작하고 ] 로 끝나야 합니다.\n")
+    }
+
+    /** 계획 단계 사용자 요청 — 분석 대상 프롬프트를 포함한다. */
+    private fun StringBuilder.appendPlanningUserRequest(userPrompt: String) {
+        append("\n[User Request]\n")
+        append(userPrompt)
+        append("\n")
+    }
+
     // ── Grounding 규칙 조합 ──
 
     /**

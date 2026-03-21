@@ -223,7 +223,8 @@ class SpringAiAgentExecutor(
         toolCallOrchestrator = toolCallOrchestrator,
         buildRequestSpec = promptRequestSpecBuilder::create,
         callWithRetry = { block -> retryExecutor.execute(block) },
-        buildChatOptions = ::createChatOptions
+        buildChatOptions = ::createChatOptions,
+        systemPromptBuilder = systemPromptBuilder
     )
     // 스트리밍 ReAct 루프 실행기 — 실시간 청크 전송 버전
     private val streamingReActLoopExecutor = StreamingReActLoopExecutor(
