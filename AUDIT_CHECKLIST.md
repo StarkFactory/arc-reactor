@@ -76,7 +76,7 @@
   - 단순 질문 → flash 모델, 복잡 질문 → pro 모델 자동 선택
   - 파일: `SpringAiAgentExecutor.kt`, `ModelRoutingConfiguration.kt`
 
-- [ ] **응답 메타데이터에 비용 추정 포함**
+- [x] **응답 메타데이터에 비용 추정 포함**
   - `AgentResult.metadata`에 `costEstimate`, `tokensUsed`, `modelUsed` 추가
   - 파일: `ExecutionResultFinalizer.kt`
 

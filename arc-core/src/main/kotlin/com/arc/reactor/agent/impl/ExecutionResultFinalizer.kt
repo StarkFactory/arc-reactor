@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.budget.CostCalculator
 import com.arc.reactor.agent.config.BoundaryProperties
 import com.arc.reactor.agent.config.CitationProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
@@ -58,6 +59,7 @@ internal class ExecutionResultFinalizer(
     private val citationProperties: CitationProperties = CitationProperties(),
     private val outputBoundaryEnforcer: OutputBoundaryEnforcer =
         OutputBoundaryEnforcer(boundaries = boundaries, agentMetrics = agentMetrics),
+    private val costCalculator: CostCalculator = CostCalculator(),
     private val nowMs: () -> Long = System::currentTimeMillis
 ) {
 
@@ -588,6 +590,7 @@ internal class ExecutionResultFinalizer(
         mergeToolSignalsMetadata(metadata, toolSignals, hookContext)
         buildOutputGuardMetadata(hookContext)?.let { metadata["outputGuard"] = it }
         resolveBlockReason(result, hookContext)?.let { metadata[META_BLOCK_REASON] = it }
+        appendCostEstimate(metadata, hookContext)
         return result.copy(metadata = result.metadata + stripEmptyValues(metadata))
     }
 
@@ -607,6 +610,17 @@ internal class ExecutionResultFinalizer(
         val freshness = latestSignal?.freshness ?: hookContext.metadata["freshness"] as? Map<*, *>
         freshness?.let { metadata["freshness"] = sanitizeMap(it) }
         latestSignal?.retrievedAt?.let { metadata["retrievedAt"] = it }
+    }
+
+    /** 토큰 사용량 기반 비용 추정을 메타데이터에 추가한다. */
+    private fun appendCostEstimate(metadata: LinkedHashMap<String, Any?>, hookContext: HookContext) {
+        val tokens = hookContext.metadata["tokensUsed"] as? Int ?: return
+        val model = hookContext.metadata["modelUsed"]?.toString()
+            ?: hookContext.metadata["model"]?.toString() ?: return
+        val cost = costCalculator.calculateCost(model, tokens, tokens / 3)
+        metadata["costEstimateUsd"] = "%.6f".format(cost.estimatedCostUsd)
+        metadata["tokensUsed"] = tokens
+        metadata["modelUsed"] = model
     }
 
     /** Tool 신호(ToolResponseSignal), 전달 확인, 단계별 소요 시간 메타데이터를 병합합니다. */
