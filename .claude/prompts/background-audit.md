@@ -39,7 +39,7 @@
 
 작업 선택 시 이 목록에서 아직 `[ ]`인 항목을 2순위로 처리한다.
 
-- [ ] **AgentModeResolver 정확도 개선** — 벤치마크 58.9% → 80%+ 목표. 도메인 키워드 ("이슈", "PR", "검색", "페이지" 등) 보강
+- [x] **AgentModeResolver 정확도 개선** — 58.9% → 82.1% (7d7588e8). 도메인 키워드 + 지식 질문 감지 추가
 - [ ] **PlanExecuteStrategy 통합 테스트** — 실제 LLM 없이 mock으로 plan→validate→execute 전체 흐름 검증
 - [ ] **SLO 알림 활성화 검증** — `enabled=true`로 설정하고 실제 요청 보내서 알림 동작 확인
 - [ ] **atlassian-mcp P2 보안** — 에러 로그 URL 마스킹, 에러 메시지 정제, 캐시 키 PII 제거 (3건)
