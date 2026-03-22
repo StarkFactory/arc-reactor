@@ -122,7 +122,7 @@
   - 메트릭: correct_tool_rate, wrong_tool_rate, hallucinated_tool_rate
   - 파일: `ToolSelectionBenchmark.kt`
 
-- [ ] **ReAct 수렴 품질 메트릭**
+- [x] **ReAct 수렴 품질 메트릭** (a4d89c67)
   - 단순 질문 ≤3단계, 복합 ≤7단계 수렴 검증
   - `SlaMetrics.recordReActConvergence()` 활용
   - 파일: `ReActConvergenceBenchmark.kt`
