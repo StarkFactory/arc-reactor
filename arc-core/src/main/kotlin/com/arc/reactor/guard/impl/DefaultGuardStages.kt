@@ -11,6 +11,7 @@ import com.arc.reactor.guard.model.RejectionCategory
 import com.arc.reactor.support.formatBoundaryRuleViolation
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
+import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
 import java.time.Duration
 
@@ -44,19 +45,14 @@ class DefaultRateLimitStage(
 ) : RateLimitStage {
 
     /**
-     * 사용자별 분당/시간당 카운터를 단일 AtomicLong에 패킹.
-     * 상위 32비트 = 시간당 카운터, 하위 32비트 = 분당 카운터.
-     * CAS 루프로 두 카운터의 원자적 조작을 보장하며 코루틴 캐리어 스레드를 블로킹하지 않는다.
+     * 사용자별 분당/시간당 카운터.
+     * Mutex로 두 카운터의 원자적 조작을 보장하며 코루틴 캐리어 스레드를 블로킹하지 않는다.
      */
-    private class RateCounters {
-        val packed = java.util.concurrent.atomic.AtomicLong(0L)
-
-        /** 분당 카운터 값 (하위 32비트) */
-        fun minuteCount(): Int = (packed.get() and 0xFFFFFFFFL).toInt()
-
-        /** 시간당 카운터 값 (상위 32비트) */
-        fun hourCount(): Int = (packed.get() ushr 32).toInt()
-    }
+    private data class RateCounters(
+        val minute: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger(0),
+        val hour: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger(0),
+        val mutex: kotlinx.coroutines.sync.Mutex = kotlinx.coroutines.sync.Mutex()
+    )
 
     // 분당 윈도우: 1분 후 엔트리 만료 (카운터 자동 초기화)
     private val minuteCache: Cache<String, RateCounters> = Caffeine.newBuilder()
@@ -80,45 +76,33 @@ class DefaultRateLimitStage(
         val perMinute = tenantLimit?.perMinute ?: requestsPerMinute
         val perHour = tenantLimit?.perHour ?: requestsPerHour
 
-        // ── 단계 2: 각 윈도우의 카운터 객체 조회 (없으면 생성) ──
-        val minuteCounters = minuteCache.get(cacheKey) { RateCounters() }
+        // ── 단계 2: 카운터 조회 (분당/시간당 동일 키, 같은 RateCounters 공유) ──
+        val counters = minuteCache.get(cacheKey) { RateCounters() }
         val hourCounters = hourCache.get(cacheKey) { RateCounters() }
 
-        // ── 단계 3: CAS 루프로 두 카운터를 원자적으로 증가 + 제한 확인 ──
-        // synchronized 대신 AtomicLong CAS를 사용하여 코루틴 캐리어 스레드 블로킹을 방지한다.
-        while (true) {
-            val current = minuteCounters.packed.get()
-            val m = (current and 0xFFFFFFFFL).toInt() + 1
-            val currentHour = hourCounters.packed.get()
-            val h = (currentHour and 0xFFFFFFFFL).toInt() + 1
+        // ── 단계 3: Mutex로 두 카운터를 원자적으로 증가 + 제한 확인 ──
+        // 코루틴 Mutex로 캐리어 스레드 블로킹 없이 원자성을 보장한다.
+        counters.mutex.withLock {
+            val m = counters.minute.incrementAndGet()
+            val h = hourCounters.hour.incrementAndGet()
 
             if (m > perMinute) {
+                counters.minute.decrementAndGet()
+                hourCounters.hour.decrementAndGet()
                 return buildRejection(
                     "Rate limit exceeded: $perMinute requests per minute",
                     RejectionCategory.RATE_LIMITED
                 )
             }
+
             if (h > perHour) {
+                counters.minute.decrementAndGet()
+                hourCounters.hour.decrementAndGet()
                 return buildRejection(
                     "Rate limit exceeded: $perHour requests per hour",
                     RejectionCategory.RATE_LIMITED
                 )
             }
-
-            // 분당 카운터 CAS (하위 32비트만 +1)
-            val newMinute = (current and (0xFFFFFFFFL shl 32)) or m.toLong()
-            if (!minuteCounters.packed.compareAndSet(current, newMinute)) continue
-
-            // 시간당 카운터 CAS (하위 32비트만 +1)
-            val newHour = (currentHour and (0xFFFFFFFFL shl 32)) or h.toLong()
-            if (!hourCounters.packed.compareAndSet(currentHour, newHour)) {
-                // 시간당 CAS 실패 시 분당 롤백 후 재시도
-                minuteCounters.packed.getAndUpdate { v ->
-                    (v and (0xFFFFFFFFL shl 32)) or ((v and 0xFFFFFFFFL) - 1)
-                }
-                continue
-            }
-            break
         }
 
         return GuardResult.Allowed.DEFAULT
