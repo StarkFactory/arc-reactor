@@ -28,8 +28,8 @@ internal class SystemPromptBuilder(
 
     /**
      * 프롬프트 분류 시 반복되는 lowercase() 호출을 캐싱한다.
-     * 동일 입력에 대해 45회 이상 호출되는 것을 1회로 줄인다.
-     * 스레드 안전: 단일 불변 Pair 참조로 원자적 읽기/쓰기를 보장한다.
+     * 동일 입력에 대해 30회+ 호출되는 것을 1회로 줄인다.
+     * == (동등성) 비교로 JSON 역직렬화 등 다른 인스턴스도 캐시 히트한다.
      */
     @Volatile
     private var promptCache: Pair<String, String>? = null  // (original, normalized)
@@ -37,7 +37,7 @@ internal class SystemPromptBuilder(
     private fun normalizePrompt(prompt: String?): String {
         if (prompt.isNullOrBlank()) return ""
         val cached = promptCache
-        if (cached != null && cached.first === prompt) return cached.second
+        if (cached != null && cached.first == prompt) return cached.second
         val normalized = prompt.lowercase()
         promptCache = prompt to normalized
         return normalized
