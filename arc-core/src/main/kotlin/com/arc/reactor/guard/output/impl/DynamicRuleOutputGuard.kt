@@ -9,6 +9,8 @@ import com.arc.reactor.guard.output.policy.OutputGuardRuleAction
 import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
 import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
 import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -62,20 +64,19 @@ class DynamicRuleOutputGuard(
     @Volatile
     private var cachedRules: List<OutputGuardRule> = emptyList()
 
+    /** 코루틴 안전한 캐시 갱신 락 (synchronized 대체) */
+    private val cacheMutex = Mutex()
+
     override suspend fun check(content: String, context: OutputGuardContext): OutputGuardResult {
-        // ── 단계 1: 규칙 로드 (캐시 또는 저장소) ──
         val rules = getRules()
         if (rules.isEmpty()) return OutputGuardResult.Allowed.DEFAULT
 
-        // ── 단계 2: 규칙 평가 ──
         val evaluation = evaluator.evaluate(content = content, rules = rules)
 
-        // 잘못된 정규식을 가진 규칙 경고
         for (invalid in evaluation.invalidRules) {
             logger.warn { "Skipping invalid dynamic output rule id=${invalid.ruleId}, name=${invalid.ruleName}" }
         }
 
-        // ── 단계 3: REJECT 규칙 매칭 시 응답 차단 ──
         if (evaluation.blocked) {
             val blockedBy = evaluation.blockedBy?.ruleName ?: "unknown"
             logger.warn { "Dynamic output rule '$blockedBy' matched, rejecting response" }
@@ -86,7 +87,6 @@ class DynamicRuleOutputGuard(
             )
         }
 
-        // ── 단계 4: MASK 규칙 매칭 시 수정된 콘텐츠 반환 ──
         if (!evaluation.modified) return OutputGuardResult.Allowed.DEFAULT
 
         return OutputGuardResult.Modified(
@@ -104,14 +104,14 @@ class DynamicRuleOutputGuard(
      * 규칙을 가져온다. 캐시 유효 기간 내이고 revision이 변경되지 않았으면 캐시 반환.
      * 그렇지 않으면 저장소에서 새로 로드한다.
      *
-     * Double-checked locking 패턴으로 동시 접근 시 중복 로드를 방지한다.
+     * Mutex 기반 double-checked locking으로 코루틴 캐리어 스레드 블로킹을 방지한다.
      */
-    private fun getRules(nowMs: Long = System.currentTimeMillis()): List<OutputGuardRule> {
+    private suspend fun getRules(nowMs: Long = System.currentTimeMillis()): List<OutputGuardRule> {
         val interval = refreshIntervalMs.coerceAtLeast(200)
         val revision = invalidationBus.currentRevision()
         if (nowMs - cachedAtMs <= interval && revision == cachedRevision) return cachedRules
 
-        synchronized(this) {
+        cacheMutex.withLock {
             val latestRevision = invalidationBus.currentRevision()
             if (nowMs - cachedAtMs <= interval && latestRevision == cachedRevision) return cachedRules
 
