@@ -40,7 +40,7 @@
 작업 선택 시 이 목록에서 아직 `[ ]`인 항목을 2순위로 처리한다.
 
 - [x] **AgentModeResolver 정확도 개선** — 58.9% → 82.1% (7d7588e8). 도메인 키워드 + 지식 질문 감지 추가
-- [ ] **PlanExecuteStrategy 통합 테스트** — 실제 LLM 없이 mock으로 plan→validate→execute 전체 흐름 검증
+- [x] **PlanExecuteStrategy 통합 테스트** — plan→validate→execute E2E 검증 12개 (fceb3eda)
 - [ ] **SLO 알림 활성화 검증** — `enabled=true`로 설정하고 실제 요청 보내서 알림 동작 확인
 - [x] **atlassian-mcp P2 보안** — URL PII 마스킹 + 에러 정제 + 캐시 해싱 (aa93f15)
 - [ ] **atlassian-mcp P3 보안** — JQL/CQL 구조 검증 강화, sanitizeError 내부 호스트명 제거
