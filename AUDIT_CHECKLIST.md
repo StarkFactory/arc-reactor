@@ -133,7 +133,7 @@
 
 ### Phase 4: 멀티 에이전트 (2-3개월) — 복잡한 업무 자동화
 
-- [ ] **Supervisor 에이전트 패턴**
+- [x] **Supervisor 에이전트 패턴** (9c7b9182)
   - Supervisor가 질문 분석 → 전문 에이전트에 위임
   - 전문 에이전트: JiraAgent, ConfluenceAgent, BitbucketAgent, AnalysisAgent
   - 파일: `SupervisorAgent.kt`, `AgentRegistry.kt`
