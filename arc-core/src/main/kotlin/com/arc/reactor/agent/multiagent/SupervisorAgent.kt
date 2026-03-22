@@ -45,6 +45,10 @@ interface SupervisorAgent {
  * 매칭 에이전트가 없으면 전체 도구를 사용하는 기본 실행으로 폴백한다.
  * 복수 에이전트 매칭 시 순차 실행하여 결과를 병합한다.
  *
+ * ## 메시지 전달
+ * [AgentMessageBus]가 주입되면 각 에이전트 실행 후 결과를 메시지로 발행한다.
+ * 다음 에이전트 실행 시 이전 에이전트의 결과를 메타데이터에 포함하여 전달한다.
+ *
  * ## 라우팅 전략
  * 1. [AgentRegistry.findByCapability]로 쿼리와 매칭되는 에이전트 검색
  * 2. 단일 매칭 → 해당 에이전트에 위임
@@ -54,14 +58,17 @@ interface SupervisorAgent {
  * @param agentExecutor 기본/폴백 에이전트 실행기
  * @param agentRegistry 전문 에이전트 레지스트리
  * @param maxDelegations 단일 요청에서 최대 위임 에이전트 수
+ * @param messageBus 에이전트 간 메시지 버스 (선택)
  *
  * @see SupervisorAgent 인터페이스 정의
  * @see AgentRegistry 에이전트 검색
+ * @see AgentMessageBus 에이전트 간 메시지 전달
  */
 class DefaultSupervisorAgent(
     private val agentExecutor: AgentExecutor,
     private val agentRegistry: AgentRegistry,
-    private val maxDelegations: Int = DEFAULT_MAX_DELEGATIONS
+    private val maxDelegations: Int = DEFAULT_MAX_DELEGATIONS,
+    private val messageBus: AgentMessageBus? = null
 ) : SupervisorAgent {
 
     override suspend fun delegate(command: AgentCommand): AgentResult {
@@ -97,21 +104,27 @@ class DefaultSupervisorAgent(
     ): AgentResult {
         val delegated = buildDelegatedCommand(command, spec)
         logger.debug { "단일 위임 실행: agent=${spec.id}" }
-        return agentExecutor.execute(delegated)
+        val result = agentExecutor.execute(delegated)
+        publishResult(spec, result)
+        return result
     }
 
     /**
      * 복수 전문 에이전트에 순차 위임하여 결과를 병합한다.
+     * 각 에이전트 실행 후 결과를 메시지 버스에 발행하고,
+     * 다음 에이전트에게 이전 결과를 컨텍스트로 전달한다.
      */
     private suspend fun executeMultiple(
         command: AgentCommand,
         specs: List<AgentSpec>
     ): AgentResult {
         val results = mutableListOf<Pair<AgentSpec, AgentResult>>()
-        var allToolsUsed = mutableListOf<String>()
+        val allToolsUsed = mutableListOf<String>()
 
         for (spec in specs) {
-            val delegated = buildDelegatedCommand(command, spec)
+            val delegated = buildDelegatedCommand(
+                command, spec, results
+            )
             logger.debug {
                 "멀티 위임 실행: agent=${spec.id} " +
                     "(${results.size + 1}/${specs.size})"
@@ -119,9 +132,32 @@ class DefaultSupervisorAgent(
             val result = agentExecutor.execute(delegated)
             results.add(spec to result)
             allToolsUsed.addAll(result.toolsUsed)
+            publishResult(spec, result)
         }
 
         return mergeResults(results, allToolsUsed)
+    }
+
+    /**
+     * 에이전트 실행 결과를 메시지 버스에 발행한다.
+     * 메시지 버스가 없으면 무시한다.
+     */
+    private suspend fun publishResult(
+        spec: AgentSpec,
+        result: AgentResult
+    ) {
+        if (messageBus == null) return
+        val message = AgentMessage(
+            sourceAgentId = spec.id,
+            targetAgentId = null,
+            content = result.content.orEmpty(),
+            metadata = mapOf(
+                "success" to result.success,
+                "toolsUsed" to result.toolsUsed,
+                "durationMs" to result.durationMs
+            )
+        )
+        messageBus.publish(message)
     }
 
     /**
@@ -132,12 +168,14 @@ class DefaultSupervisorAgent(
      */
     private fun buildDelegatedCommand(
         command: AgentCommand,
-        spec: AgentSpec
+        spec: AgentSpec,
+        previousResults: List<Pair<AgentSpec, AgentResult>> = emptyList()
     ): AgentCommand {
         val metadata = LinkedHashMap(command.metadata)
         metadata["delegatedAgentId"] = spec.id
         metadata["delegatedAgentName"] = spec.name
         metadata["allowedToolNames"] = spec.toolNames
+        injectPreviousResults(metadata, previousResults)
 
         return command.copy(
             systemPrompt = spec.systemPromptOverride
@@ -145,6 +183,26 @@ class DefaultSupervisorAgent(
             mode = spec.mode,
             metadata = metadata
         )
+    }
+
+    /**
+     * 이전 에이전트들의 실행 결과를 메타데이터에 주입한다.
+     * 다음 에이전트가 이전 에이전트의 결과를 컨텍스트로 참조할 수 있다.
+     */
+    private fun injectPreviousResults(
+        metadata: MutableMap<String, Any>,
+        previousResults: List<Pair<AgentSpec, AgentResult>>
+    ) {
+        if (previousResults.isEmpty()) return
+        val summaries = previousResults.map { (prevSpec, prevResult) ->
+            mapOf(
+                "agentId" to prevSpec.id,
+                "agentName" to prevSpec.name,
+                "success" to prevResult.success,
+                "content" to prevResult.content.orEmpty()
+            )
+        }
+        metadata["previousAgentResults"] = summaries
     }
 
     /**

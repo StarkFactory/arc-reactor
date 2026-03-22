@@ -20,13 +20,14 @@ import org.junit.jupiter.api.Test
 /**
  * DefaultSupervisorAgent 단위 테스트.
  *
- * 단일 위임, 폴백, 복수 위임, 메타데이터 전파를 검증한다.
+ * 단일 위임, 폴백, 복수 위임, 메타데이터 전파, 메시지 버스 연동을 검증한다.
  */
 class SupervisorAgentTest {
 
     private lateinit var agentExecutor: AgentExecutor
     private lateinit var registry: DefaultAgentRegistry
     private lateinit var supervisor: DefaultSupervisorAgent
+    private lateinit var messageBus: InMemoryAgentMessageBus
 
     private val jiraSpec = AgentSpec(
         id = "jira-agent",
@@ -58,9 +59,11 @@ class SupervisorAgentTest {
     fun setUp() {
         agentExecutor = mockk()
         registry = DefaultAgentRegistry()
+        messageBus = InMemoryAgentMessageBus()
         supervisor = DefaultSupervisorAgent(
             agentExecutor = agentExecutor,
-            agentRegistry = registry
+            agentRegistry = registry,
+            messageBus = messageBus
         )
     }
 
@@ -383,6 +386,141 @@ class SupervisorAgentTest {
                 "slack", captured.metadata["channel"],
                 "channel이 보존되어야 한다"
             )
+        }
+    }
+
+    @Nested
+    inner class MessageBusIntegration {
+
+        @Test
+        fun `단일 위임 후 결과가 메시지 버스에 발행되어야 한다`() = runTest {
+            registry.register(jiraSpec)
+            coEvery { agentExecutor.execute(any()) } returns
+                AgentResult.success("JAR-36 조회 완료", toolsUsed = listOf("jira_search"))
+
+            val command = AgentCommand(
+                systemPrompt = "prompt",
+                userPrompt = "jira 이슈 보여줘"
+            )
+            supervisor.delegate(command)
+
+            val conversation = messageBus.getConversation()
+            assertEquals(1, conversation.size, "메시지가 1개 발행되어야 한다")
+            assertEquals(
+                "jira-agent", conversation.first().sourceAgentId,
+                "발신 에이전트 ID가 올바라야 한다"
+            )
+            assertEquals(
+                "JAR-36 조회 완료", conversation.first().content,
+                "메시지 내용이 에이전트 결과여야 한다"
+            )
+        }
+
+        @Test
+        fun `복수 위임 시 각 결과가 메시지 버스에 발행되어야 한다`() = runTest {
+            registry.register(jiraSpec)
+            registry.register(confluenceSpec)
+
+            coEvery { agentExecutor.execute(any()) } answers {
+                val agentId = firstArg<AgentCommand>()
+                    .metadata["delegatedAgentId"]
+                if (agentId == "jira-agent") {
+                    AgentResult.success("Jira 결과")
+                } else {
+                    AgentResult.success("Confluence 결과")
+                }
+            }
+
+            val command = AgentCommand(
+                systemPrompt = "prompt",
+                userPrompt = "jira 이슈를 confluence 문서로 정리해줘"
+            )
+            supervisor.delegate(command)
+
+            val conversation = messageBus.getConversation()
+            assertEquals(2, conversation.size, "메시지가 2개 발행되어야 한다")
+            val sourceIds = conversation.map { it.sourceAgentId }
+            assertTrue(
+                sourceIds.contains("jira-agent"),
+                "jira-agent 메시지가 발행되어야 한다"
+            )
+            assertTrue(
+                sourceIds.contains("confluence-agent"),
+                "confluence-agent 메시지가 발행되어야 한다"
+            )
+        }
+
+        @Test
+        fun `복수 위임 시 두번째 에이전트에 이전 결과가 전달되어야 한다`() = runTest {
+            registry.register(jiraSpec)
+            registry.register(confluenceSpec)
+
+            val capturedCommands = mutableListOf<AgentCommand>()
+            coEvery { agentExecutor.execute(any()) } answers {
+                val cmd = firstArg<AgentCommand>()
+                capturedCommands.add(cmd)
+                AgentResult.success(
+                    "결과: ${cmd.metadata["delegatedAgentId"]}"
+                )
+            }
+
+            val command = AgentCommand(
+                systemPrompt = "prompt",
+                userPrompt = "jira 이슈를 confluence 문서로 정리해줘"
+            )
+            supervisor.delegate(command)
+
+            assertTrue(
+                capturedCommands.size >= 2,
+                "최소 2개 명령이 실행되어야 한다"
+            )
+            // 첫번째 명령에는 previousAgentResults가 없어야 한다
+            assertFalse(
+                capturedCommands[0].metadata
+                    .containsKey("previousAgentResults"),
+                "첫번째 명령에는 이전 결과가 없어야 한다"
+            )
+            // 두번째 명령에는 첫번째 에이전트의 결과가 전달되어야 한다
+            val secondCommand = capturedCommands[1]
+            @Suppress("UNCHECKED_CAST")
+            val previous = secondCommand.metadata["previousAgentResults"]
+                as? List<Map<String, Any>>
+            assertNotNull(
+                previous,
+                "두번째 명령에 previousAgentResults가 있어야 한다"
+            )
+            assertEquals(
+                1, previous!!.size,
+                "이전 에이전트 결과가 1개여야 한다"
+            )
+            // 첫번째 에이전트의 ID가 이전 결과에 포함되어야 한다
+            val firstAgentId = capturedCommands[0]
+                .metadata["delegatedAgentId"]
+            assertEquals(
+                firstAgentId,
+                previous.first()["agentId"],
+                "이전 에이전트 ID가 첫번째 에이전트여야 한다"
+            )
+        }
+
+        @Test
+        fun `메시지 버스가 없어도 정상 동작해야 한다`() = runTest {
+            val noBusSupervisor = DefaultSupervisorAgent(
+                agentExecutor = agentExecutor,
+                agentRegistry = registry,
+                messageBus = null
+            )
+            registry.register(jiraSpec)
+            coEvery { agentExecutor.execute(any()) } returns
+                AgentResult.success("결과")
+
+            val command = AgentCommand(
+                systemPrompt = "prompt",
+                userPrompt = "jira 이슈 보여줘"
+            )
+            val result = noBusSupervisor.delegate(command)
+
+            assertTrue(result.success, "메시지 버스 없이도 성공해야 한다")
         }
     }
 }
