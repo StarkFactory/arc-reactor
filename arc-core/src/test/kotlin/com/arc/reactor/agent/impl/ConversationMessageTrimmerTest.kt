@@ -259,11 +259,11 @@ class ConversationMessageTrimmerTest {
         trimmer.trim(messages, systemPrompt = "sys")
         trimmer.trim(messages, systemPrompt = "sys")
 
-        // Caching is now the TokenEstimator's responsibility (e.g. DefaultTokenEstimator uses Caffeine).
-        // 트리머는 매 호출을 위임하므로 일반 람다 추정기가 매번 호출됩니다.
-        assertEquals(2, estimatorCalls["user-1"], "User message should be estimated once per trim call")
-        assertEquals(2, estimatorCalls["assistant-1"], "Assistant message should be estimated once per trim call")
-        assertEquals(2, estimatorCalls["user-2"], "Most recent user message should be estimated once per trim call")
-        assertEquals(2, estimatorCalls["sys"], "System prompt should be estimated once per trim call")
+        // 트리머는 IdentityHashMap 캐시로 동일 메시지 인스턴스의 토큰 수를 재사용한다.
+        // 메시지 토큰은 1회만 추정, 시스템 프롬프트는 캐시 대상이 아니므로 매번 호출.
+        assertEquals(1, estimatorCalls["user-1"], "Cached: user message estimated once across trim calls")
+        assertEquals(1, estimatorCalls["assistant-1"], "Cached: assistant message estimated once across trim calls")
+        assertEquals(1, estimatorCalls["user-2"], "Cached: most recent user message estimated once")
+        assertEquals(2, estimatorCalls["sys"], "System prompt should be estimated on each trim call")
     }
 }

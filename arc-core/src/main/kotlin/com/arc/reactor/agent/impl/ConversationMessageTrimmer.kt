@@ -33,6 +33,13 @@ internal class ConversationMessageTrimmer(
     private val outputReserveTokens: Int,
     private val tokenEstimator: TokenEstimator
 ) {
+    /**
+     * 이전 trim() 호출에서 계산한 메시지별 토큰 수 캐시.
+     * 메시지 identity(===)로 캐시 히트 판단하여 증분 계산만 수행한다.
+     * ReAct 루프에서 매 반복 호출 시 기존 메시지 재계산을 방지한다.
+     */
+    private val tokenCache = java.util.IdentityHashMap<Message, Int>()
+
     companion object {
         /** 메시지당 구조적 오버헤드 (역할 태그, 구분자, 메타데이터) — 추정 토큰 수. */
         const val MESSAGE_STRUCTURE_OVERHEAD = 20
@@ -64,7 +71,9 @@ internal class ConversationMessageTrimmer(
             return
         }
 
-        val messageTokens = messages.mapTo(ArrayList(messages.size)) { estimateMessageTokens(it) }
+        val messageTokens = messages.mapTo(ArrayList(messages.size)) { msg ->
+            tokenCache.getOrPut(msg) { estimateMessageTokens(msg) }
+        }
         var totalTokens = messageTokens.sum()
         // Phase 1: 오래된 히스토리 제거 (선행 SystemMessage와 마지막 UserMessage 보호)
         totalTokens = trimOldHistory(messages, messageTokens, totalTokens, budget)
@@ -72,6 +81,8 @@ internal class ConversationMessageTrimmer(
         totalTokens = trimLeadingMemoryMessages(messages, messageTokens, totalTokens, budget)
         // Phase 2: 마지막 UserMessage 이후의 도구 히스토리 쌍 제거
         trimToolHistory(messages, messageTokens, totalTokens, budget)
+        // 제거된 메시지의 캐시 엔트리 정리
+        tokenCache.keys.retainAll(messages.toSet())
     }
 
     /**
