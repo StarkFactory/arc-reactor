@@ -1,8 +1,11 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.AgentTestFixture
+import com.arc.reactor.agent.assertErrorCode
+import com.arc.reactor.agent.assertFailure
 import com.arc.reactor.agent.assertSuccess
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.ToolCallResult
@@ -11,6 +14,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
@@ -20,7 +24,7 @@ import org.springframework.ai.chat.model.Generation
 /**
  * PlanExecuteStrategy의 단위 테스트.
  *
- * 계획 생성, 순차 도구 실행, 최종 합성의 2단계 파이프라인을 검증한다.
+ * 계획 생성, 검증, 순차 도구 실행, 최종 합성의 3단계 파이프라인을 검증한다.
  */
 class PlanExecuteStrategyTest {
 
@@ -35,7 +39,7 @@ class PlanExecuteStrategyTest {
 
         strategy = PlanExecuteStrategy(
             toolCallOrchestrator = toolCallOrchestrator,
-            buildRequestSpec = { client, sys, msgs, opts, tools ->
+            buildRequestSpec = { _, _, _, _, _ ->
                 fixture.requestSpec
             },
             callWithRetry = { block -> block() },
@@ -45,7 +49,6 @@ class PlanExecuteStrategyTest {
 
     @Test
     fun `유효한 JSON 계획으로 도구를 순차 실행하고 합성 응답을 반환해야 한다`() = runTest {
-        // 계획 생성 응답 → 도구 실행 → 합성 응답 순서로 모킹
         val planJson = """[{"tool":"jira_get_issue","args":{"issueKey":"JAR-36"},"description":"이슈 조회"}]"""
         val planResponse = simpleChatResponse(planJson)
         val synthesisResponse = simpleChatResponse("JAR-36 이슈는 진행 중입니다.")
@@ -232,6 +235,139 @@ class PlanExecuteStrategyTest {
     fun `PLAN_EXECUTE 모드가 AgentMode에 존재해야 한다`() {
         val mode = AgentMode.PLAN_EXECUTE
         assertEquals("PLAN_EXECUTE", mode.name, "PLAN_EXECUTE 열거형이 존재해야 한다")
+    }
+
+    @Test
+    fun `존재하지 않는 도구가 계획에 포함되면 검증 실패를 반환해야 한다`() = runTest {
+        val planJson = """[{"tool":"nonexistent_tool","args":{},"description":"없는 도구"}]"""
+        val planResponse = simpleChatResponse(planJson)
+
+        every { fixture.callResponseSpec.chatResponse() } returns planResponse
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "없는 도구 사용",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "test-run",
+            userId = "test-user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf()
+        )
+        val tools = listOf(createMockSpringTool("existing_tool"))
+
+        val result = strategy.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = tools,
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10
+        )
+
+        result.assertErrorCode(AgentErrorCode.PLAN_VALIDATION_FAILED)
+        assertTrue(
+            result.errorMessage?.contains("nonexistent_tool") == true,
+            "에러 메시지에 잘못된 도구 이름이 포함되어야 한다: ${result.errorMessage}"
+        )
+    }
+
+    @Test
+    fun `빈 도구 이름이 계획에 포함되면 검증 실패를 반환해야 한다`() = runTest {
+        val planJson = """[{"tool":"","args":{},"description":"빈 도구명"}]"""
+        val planResponse = simpleChatResponse(planJson)
+
+        every { fixture.callResponseSpec.chatResponse() } returns planResponse
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "빈 도구 테스트",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "test-run",
+            userId = "test-user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf()
+        )
+
+        val result = strategy.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = listOf(createMockSpringTool("tool1")),
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10
+        )
+
+        result.assertErrorCode(AgentErrorCode.PLAN_VALIDATION_FAILED)
+        assertTrue(
+            result.errorMessage?.contains("비어 있습니다") == true,
+            "에러 메시지에 빈 도구명 관련 사유가 포함되어야 한다: ${result.errorMessage}"
+        )
+    }
+
+    @Test
+    fun `모든 도구가 유효하면 검증을 통과하고 정상 실행해야 한다`() = runTest {
+        val planJson = """
+            [
+              {"tool":"tool_x","args":{"key":"val"},"description":"X 실행"},
+              {"tool":"tool_y","args":{},"description":"Y 실행"}
+            ]
+        """.trimIndent()
+        val planResponse = simpleChatResponse(planJson)
+        val synthesisResponse = simpleChatResponse("두 도구 모두 성공")
+
+        every { fixture.callResponseSpec.chatResponse() } returnsMany
+            listOf(planResponse, synthesisResponse)
+
+        coEvery {
+            toolCallOrchestrator.executeDirectToolCall(
+                toolName = any(),
+                toolParams = any(),
+                tools = any(),
+                hookContext = any(),
+                toolsUsed = any()
+            )
+        } returns ToolCallResult(output = "ok", success = true)
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "두 도구 사용",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "test-run",
+            userId = "test-user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf()
+        )
+        val tools = listOf(
+            createMockSpringTool("tool_x"),
+            createMockSpringTool("tool_y")
+        )
+
+        val result = strategy.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = tools,
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10
+        )
+
+        result.assertSuccess("유효한 계획은 검증 통과 후 정상 실행되어야 한다")
+        assertEquals(
+            "두 도구 모두 성공", result.content,
+            "모든 도구가 유효하면 합성 응답이 반환되어야 한다"
+        )
     }
 
     private fun simpleChatResponse(content: String): ChatResponse {

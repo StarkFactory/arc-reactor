@@ -1,10 +1,13 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
-import com.arc.reactor.agent.model.TokenUsage
+import com.arc.reactor.agent.plan.DefaultPlanValidator
+import com.arc.reactor.agent.plan.PlanStep
+import com.arc.reactor.agent.plan.PlanValidator
+import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.hook.model.HookContext
-import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -17,15 +20,16 @@ import org.springframework.ai.chat.prompt.ChatOptions
 private val logger = KotlinLogging.logger {}
 
 /**
- * 계획-실행(Plan-Execute) 전략 — 2단계 에이전트 실행.
+ * 계획-실행(Plan-Execute) 전략 — 3단계 에이전트 실행.
  *
  * 복잡한 멀티스텝 질문에 대해 ReAct 루프가 maxToolCalls를 소진하는 문제를 해결한다.
- * LLM에게 먼저 실행 계획을 세우게 한 후, 계획대로 순차 실행하여 도구 호출 효율을 극대화한다.
+ * LLM에게 먼저 실행 계획을 세우게 한 후, 검증을 거쳐 순차 실행하여 도구 호출 효율을 극대화한다.
  *
  * ## 실행 흐름
  * 1. **계획 단계**: 사용자 프롬프트 + 도구 목록을 LLM에 전달하여 JSON 계획 생성
- * 2. **실행 단계**: 계획의 각 단계를 [ToolCallOrchestrator]로 순차 실행
- * 3. **합성 단계**: 도구 실행 결과를 LLM에 전달하여 최종 응답 합성
+ * 2. **검증 단계**: [PlanValidator]로 계획의 도구 존재 여부 및 권한을 사전 검증
+ * 3. **실행 단계**: 계획의 각 단계를 [ToolCallOrchestrator]로 순차 실행
+ * 4. **합성 단계**: 도구 실행 결과를 LLM에 전달하여 최종 응답 합성
  *
  * JSON 파싱 실패 시 REACT 모드로 폴백하지 않고 에러를 반환한다.
  *
@@ -41,7 +45,9 @@ internal class PlanExecuteStrategy(
     private val callWithRetry: suspend (suspend () -> org.springframework.ai.chat.model.ChatResponse?) ->
         org.springframework.ai.chat.model.ChatResponse?,
     private val buildChatOptions: (AgentCommand, Boolean) -> ChatOptions,
-    private val systemPromptBuilder: SystemPromptBuilder = SystemPromptBuilder()
+    private val systemPromptBuilder: SystemPromptBuilder = SystemPromptBuilder(),
+    private val planValidator: PlanValidator = DefaultPlanValidator(),
+    private val toolApprovalPolicy: ToolApprovalPolicy? = null
 ) {
 
     /**
@@ -67,7 +73,6 @@ internal class PlanExecuteStrategy(
         toolsUsed: MutableList<String>,
         maxToolCalls: Int
     ): AgentResult {
-        // 단계 1: 계획 생성
         val toolDescriptions = describeTools(tools)
         val plan = generatePlan(
             command, activeChatClient, systemPrompt, toolDescriptions
@@ -78,13 +83,29 @@ internal class PlanExecuteStrategy(
         }
         logger.info { "PLAN_EXECUTE: ${plan.size}개 단계 계획 생성" }
 
-        // 단계 2: 계획 순차 실행
+        val validationResult = planValidator.validate(
+            steps = plan,
+            availableToolNames = extractToolNames(tools),
+            toolApprovalPolicy = toolApprovalPolicy
+        )
+        if (!validationResult.valid) {
+            return buildValidationFailure(validationResult.errors)
+        }
+
         val results = executeSteps(
             plan, tools, hookContext, toolsUsed, maxToolCalls
         )
-
-        // 단계 3: 최종 응답 합성
         return synthesize(command, activeChatClient, systemPrompt, results)
+    }
+
+    /** 검증 실패 시 오류 목록을 포함한 실패 결과를 생성한다. */
+    private fun buildValidationFailure(errors: List<String>): AgentResult {
+        val errorDetail = errors.joinToString("; ")
+        logger.warn { "PLAN_EXECUTE: 계획 검증 실패 — $errorDetail" }
+        return AgentResult.failure(
+            errorMessage = "계획 검증 실패: $errorDetail",
+            errorCode = AgentErrorCode.PLAN_VALIDATION_FAILED
+        )
     }
 
     /** 도구 목록에서 이름과 설명을 추출하여 계획 프롬프트에 포함할 문자열을 생성한다. */
@@ -92,10 +113,22 @@ internal class PlanExecuteStrategy(
         return tools.mapNotNull { tool ->
             when (tool) {
                 is org.springframework.ai.tool.ToolCallback ->
-                    "- ${tool.toolDefinition.name()}: ${tool.toolDefinition.description()}"
+                    "- ${tool.toolDefinition.name()}: " +
+                        tool.toolDefinition.description()
                 else -> null
             }
         }.joinToString("\n")
+    }
+
+    /** 도구 목록에서 이름 집합을 추출한다. */
+    private fun extractToolNames(tools: List<Any>): Set<String> {
+        return tools.mapNotNull { tool ->
+            when (tool) {
+                is org.springframework.ai.tool.ToolCallback ->
+                    tool.toolDefinition.name()
+                else -> null
+            }
+        }.toSet()
     }
 
     /**
@@ -124,12 +157,13 @@ internal class PlanExecuteStrategy(
         val response = callWithRetry {
             runInterruptible(Dispatchers.IO) { spec.call().chatResponse() }
         }
-        val text = response?.results?.firstOrNull()?.output?.text.orEmpty()
+        val text = response?.results?.firstOrNull()
+            ?.output?.text.orEmpty()
         return parsePlan(text)
     }
 
     /** LLM 응답에서 JSON 계획 배열을 파싱한다. 실패 시 빈 리스트를 반환한다. */
-    private fun parsePlan(text: String): List<PlanStep> {
+    internal fun parsePlan(text: String): List<PlanStep> {
         val jsonText = extractJsonArray(text)
         if (jsonText.isNullOrBlank()) {
             logger.warn { "PLAN_EXECUTE: JSON 배열 추출 실패" }
@@ -236,7 +270,8 @@ internal class PlanExecuteStrategy(
         val response = callWithRetry {
             runInterruptible(Dispatchers.IO) { spec.call().chatResponse() }
         }
-        val content = response?.results?.firstOrNull()?.output?.text.orEmpty()
+        val content = response?.results?.firstOrNull()
+            ?.output?.text.orEmpty()
         return AgentResult.success(content = content)
     }
 
@@ -256,16 +291,10 @@ internal class PlanExecuteStrategy(
         val response = callWithRetry {
             runInterruptible(Dispatchers.IO) { spec.call().chatResponse() }
         }
-        val content = response?.results?.firstOrNull()?.output?.text.orEmpty()
+        val content = response?.results?.firstOrNull()
+            ?.output?.text.orEmpty()
         return AgentResult.success(content = content)
     }
-
-    /** LLM이 생성하는 계획의 단일 단계. */
-    internal data class PlanStep(
-        val tool: String = "",
-        val args: Map<String, Any?> = emptyMap(),
-        val description: String = ""
-    )
 
     /** 실행된 단계의 결과. */
     private data class StepResult(

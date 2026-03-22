@@ -218,13 +218,14 @@ class SpringAiAgentExecutor(
         recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) },
         tracer = tracer
     )
-    // 계획-실행 전략 — 2단계 (계획 JSON 생성 → 순차 도구 실행)
+    // 계획-실행 전략 — 3단계 (계획 JSON 생성 → 검증 → 순차 도구 실행)
     private val planExecuteStrategy = PlanExecuteStrategy(
         toolCallOrchestrator = toolCallOrchestrator,
         buildRequestSpec = promptRequestSpecBuilder::create,
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::createChatOptions,
-        systemPromptBuilder = systemPromptBuilder
+        systemPromptBuilder = systemPromptBuilder,
+        toolApprovalPolicy = toolApprovalPolicy
     )
     // 스트리밍 ReAct 루프 실행기 — 실시간 청크 전송 버전
     private val streamingReActLoopExecutor = StreamingReActLoopExecutor(

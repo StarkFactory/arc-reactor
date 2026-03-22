@@ -45,6 +45,8 @@ enum class AgentErrorCode(val defaultMessage: String) {
     CIRCUIT_BREAKER_OPEN("Service temporarily unavailable due to repeated failures. Please try again later."),
     /** 토큰 예산 소진으로 인한 루프 조기 종료 */
     BUDGET_EXHAUSTED("Token budget exhausted. Response may be incomplete."),
+    /** 계획-실행 모드에서 계획 검증 실패 (존재하지 않는 도구, 권한 없음 등) */
+    PLAN_VALIDATION_FAILED("Plan validation failed. The plan contains invalid or unauthorized tools."),
     /** 알 수 없는 에러 */
     UNKNOWN("An unknown error occurred.")
 }
