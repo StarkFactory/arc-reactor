@@ -99,7 +99,7 @@
   - 계획 스키마: `[{tool: "jira_get_issue", args: {key: "JAR-36"}}, {tool: "confluence_search", args: {query: "..."}}]`
   - 파일: `SystemPromptBuilder.kt`, `PlanExecuteStrategy.kt`
 
-- [ ] **계획 검증 + 실행**
+- [x] **계획 검증 + 실행** (f51a6c64)
   - 계획 JSON 파싱 → 유효성 검증 (존재하는 도구인지, 권한 있는지)
   - 각 스텝 순차 실행 → 결과 누적 → 최종 합성 응답
   - 파일: `PlanValidator.kt` (신규), `PlanExecuteLoopExecutor.kt`
