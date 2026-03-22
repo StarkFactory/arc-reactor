@@ -138,7 +138,7 @@
   - 전문 에이전트: JiraAgent, ConfluenceAgent, BitbucketAgent, AnalysisAgent
   - 파일: `SupervisorAgent.kt`, `AgentRegistry.kt`
 
-- [ ] **에이전트 간 메시지 전달**
+- [x] **에이전트 간 메시지 전달** (4f9cfe1c)
   - Agent A 결과를 Agent B 입력으로 전달
   - 공유 컨텍스트 (HookContext 확장)
   - 파일: `AgentMessageBus.kt`
