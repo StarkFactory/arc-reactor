@@ -140,6 +140,14 @@ class DefaultConversationManager(
             mapOf("session.id" to sessionId)
         )
         return try {
+            // 세션 소유권 검증: 다른 사용자의 대화 이력 접근 차단
+            try {
+                verifySessionOwnership(sessionId, command.userId)
+            } catch (e: SessionOwnershipException) {
+                span.setAttribute("memory.ownership.denied", "true")
+                span.close()
+                return emptyList()
+            }
             val allMessages = withContext(Dispatchers.IO) {
                 memoryStore?.get(sessionId)?.getHistory()
             }
@@ -342,6 +350,29 @@ class DefaultConversationManager(
      * 세션별 코루틴 Mutex로 동시 요청 간 메시지 인터리빙을 방지한다.
      * suspend 컨텍스트에서 스레드를 차단하지 않는다.
      */
+    /**
+     * 세션 소유권을 검증한다.
+     *
+     * 세션에 이미 소유자가 있고, 요청자의 userId와 다르면 로그 경고 후 빈 이력을 반환하도록
+     * 빈 리스트를 반환한다. 소유자가 없거나 일치하면 통과.
+     * memoryStore가 없으면 검증 불가이므로 통과.
+     */
+    private fun verifySessionOwnership(sessionId: String, userId: String?) {
+        if (userId == null) return
+        val store = memoryStore ?: return
+        val owner = try {
+            store.getSessionOwner(sessionId)
+        } catch (_: Exception) {
+            null  // 소유권 조회 실패 시 검증 건너뛰기 (fail-open for availability)
+        } ?: return
+        if (owner != userId) {
+            logger.warn {
+                "세션 소유권 불일치: session=$sessionId, owner=$owner, requester=$userId"
+            }
+            throw SessionOwnershipException(sessionId, userId)
+        }
+    }
+
     private suspend fun saveMessages(
         metadata: Map<String, Any>,
         userId: String?,
@@ -411,3 +442,14 @@ class DefaultConversationManager(
         }
     }
 }
+
+/**
+ * 세션 소유권 불일치 시 발생하는 예외.
+ *
+ * 요청자의 userId가 세션의 소유자와 다를 때 발생한다.
+ * Guard 파이프라인에서 적절히 처리되어야 한다.
+ */
+class SessionOwnershipException(
+    sessionId: String,
+    requesterId: String
+) : SecurityException("세션 접근 거부: session=$sessionId, requester=$requesterId")
