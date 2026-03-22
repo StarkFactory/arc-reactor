@@ -5,6 +5,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.routing.AgentModeResolver
 import com.arc.reactor.agent.routing.ModelRouter
 import com.arc.reactor.cache.CacheKeyBuilder
 import com.arc.reactor.cache.CachedResponse
@@ -60,6 +61,7 @@ internal class AgentExecutionCoordinator(
     private val cacheMetricsRecorder: CacheMetricsRecorder? = null,
     private val semanticSimilarityThreshold: Double = 0.92,
     private val modelRouter: ModelRouter? = null,
+    private val agentModeResolver: AgentModeResolver? = null,
     private val toolCallbacks: List<ToolCallback>,
     private val mcpToolCallbacks: () -> List<ToolCallback>,
     private val conversationManager: ConversationManager,
@@ -128,17 +130,18 @@ internal class AgentExecutionCoordinator(
         val tools = measureStage("tool_selection", hookContext, cmd) {
             selectActiveTools(cmd)
         }
-        var result = measureStage("agent_loop", hookContext, cmd) {
-            executeAgentLoop(cmd, tools, history, hookContext, toolsUsed, ragCtx)
+        val modeResolved = applyModeResolution(cmd, tools, hookContext)
+        var result = measureStage("agent_loop", hookContext, modeResolved) {
+            executeAgentLoop(modeResolved, tools, history, hookContext, toolsUsed, ragCtx)
         }
-        result = applyFallbackIfNeeded(cmd, result, hookContext)
+        result = applyFallbackIfNeeded(modeResolved, result, hookContext)
 
-        val finalResult = measureStage("finalizer", hookContext, cmd) {
-            finalizeExecution(result, cmd, hookContext, toolsUsed.toList(), startTime)
+        val finalResult = measureStage("finalizer", hookContext, modeResolved) {
+            finalizeExecution(result, modeResolved, hookContext, toolsUsed.toList(), startTime)
         }
         val enriched = withStageTimingsMetadata(finalResult, hookContext)
         recordCostIfAvailable(enriched, hookContext)
-        storeCacheIfEligible(cacheLookup, cmd, enriched)
+        storeCacheIfEligible(cacheLookup, modeResolved, enriched)
         return enriched
     }
 
@@ -193,6 +196,41 @@ internal class AgentExecutionCoordinator(
                 "reason=${selection.reason}"
         }
         return command.copy(model = selection.modelId)
+    }
+
+    /**
+     * 자동 모드 선택을 적용하여 쿼리 복잡도에 맞는 실행 모드를 결정한다.
+     *
+     * 리졸버가 없으면 원본 command를 반환한다.
+     * 결정된 모드를 HookContext 메타데이터에 기록한다.
+     */
+    private suspend fun applyModeResolution(
+        command: AgentCommand,
+        tools: List<Any>,
+        hookContext: HookContext
+    ): AgentCommand {
+        val resolver = agentModeResolver ?: return command
+        val toolNames = extractToolNames(tools)
+        val resolved = resolver.resolve(command, toolNames)
+        if (resolved != command.mode) {
+            hookContext.metadata["modeResolved"] = resolved.name
+            logger.debug {
+                "모드 자동 선택 적용: ${command.mode} → $resolved"
+            }
+            return command.copy(mode = resolved)
+        }
+        return command
+    }
+
+    /** 도구 목록에서 도구 이름을 추출한다. */
+    private fun extractToolNames(tools: List<Any>): List<String> {
+        return tools.mapNotNull { tool ->
+            when (tool) {
+                is org.springframework.ai.tool.ToolCallback ->
+                    tool.toolDefinition.name()
+                else -> null
+            }
+        }
     }
 
     /** 대화 히스토리를 로드하고 메시지 수를 HookContext에 기록한다. */

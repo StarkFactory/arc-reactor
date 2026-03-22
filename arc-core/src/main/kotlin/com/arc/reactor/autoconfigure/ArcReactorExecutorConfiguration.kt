@@ -8,6 +8,7 @@ import com.arc.reactor.agent.impl.defaultTransientErrorClassifier
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.SlaMetrics
 import com.arc.reactor.agent.model.ErrorMessageResolver
+import com.arc.reactor.agent.routing.AgentModeResolver
 import com.arc.reactor.agent.routing.ModelRouter
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
@@ -88,6 +89,7 @@ class ArcReactorExecutorConfiguration {
         queryRouterProvider: ObjectProvider<QueryRouter>,
         mcpToolAvailabilityCheckerProvider: ObjectProvider<McpToolAvailabilityChecker>,
         modelRouterProvider: ObjectProvider<ModelRouter>,
+        agentModeResolverProvider: ObjectProvider<AgentModeResolver>,
         slaMetricsProvider: ObjectProvider<SlaMetrics>,
         costCalculatorProvider: ObjectProvider<CostCalculator>,
         cacheMetricsRecorderProvider: ObjectProvider<CacheMetricsRecorder>
@@ -125,6 +127,7 @@ class ArcReactorExecutorConfiguration {
         queryRouter = queryRouterProvider.ifAvailable,
         mcpToolAvailabilityChecker = mcpToolAvailabilityCheckerProvider.ifAvailable,
         modelRouter = modelRouterProvider.ifAvailable,
+        agentModeResolver = agentModeResolverProvider.ifAvailable,
         slaMetrics = slaMetricsProvider.ifAvailable,
         costCalculator = costCalculatorProvider.ifAvailable,
         cacheMetricsRecorder = cacheMetricsRecorderProvider.ifAvailable

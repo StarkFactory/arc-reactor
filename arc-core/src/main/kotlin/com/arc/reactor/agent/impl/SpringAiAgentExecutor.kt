@@ -7,6 +7,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
+import com.arc.reactor.agent.routing.AgentModeResolver
 import com.arc.reactor.agent.routing.ModelRouter
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
@@ -120,6 +121,7 @@ class SpringAiAgentExecutor(
     private val queryRouter: QueryRouter? = null,
     private val mcpToolAvailabilityChecker: McpToolAvailabilityChecker? = null,
     private val modelRouter: ModelRouter? = null,
+    private val agentModeResolver: AgentModeResolver? = null,
     private val slaMetrics: SlaMetrics? = null,
     private val costCalculator: CostCalculator? = null,
     private val cacheMetricsRecorder: CacheMetricsRecorder? = null
@@ -313,6 +315,7 @@ class SpringAiAgentExecutor(
         cacheMetricsRecorder = cacheMetricsRecorder,
         semanticSimilarityThreshold = properties.cache.semantic.similarityThreshold,
         modelRouter = modelRouter,
+        agentModeResolver = agentModeResolver,
         toolCallbacks = toolCallbacks,
         mcpToolCallbacks = mcpToolCallbacks,
         conversationManager = conversationManager,

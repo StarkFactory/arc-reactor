@@ -119,7 +119,10 @@ data class AgentProperties(
     val toolFilter: ToolFilterProperties = ToolFilterProperties(),
 
     /** A2A 에이전트 카드 설정 */
-    val a2a: A2aProperties = A2aProperties()
+    val a2a: A2aProperties = A2aProperties(),
+
+    /** 자동 모드 선택(Mode Resolver) 설정 */
+    val modeResolver: ModeResolverProperties = ModeResolverProperties()
 )
 
 /**

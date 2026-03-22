@@ -436,3 +436,28 @@ enum class OutputMinViolationMode {
     /** OUTPUT_TOO_SHORT 에러 코드로 실패한다. */
     FAIL
 }
+
+/**
+ * 자동 모드 선택(Mode Resolver) 설정.
+ *
+ * 활성화하면 사용자 쿼리와 사용 가능한 도구를 분석하여
+ * 최적의 [com.arc.reactor.agent.model.AgentMode]를 자동으로 결정한다.
+ * LLM 호출 없이 순수 휴리스틱으로 빠르게 판단한다.
+ *
+ * 비활성화(기본)면 [com.arc.reactor.agent.model.AgentCommand.mode]에 설정된 모드를 그대로 사용한다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     mode-resolver:
+ *       enabled: true
+ * ```
+ *
+ * @see com.arc.reactor.agent.routing.AgentModeResolver 인터페이스
+ * @see com.arc.reactor.agent.routing.DefaultAgentModeResolver 기본 구현
+ */
+data class ModeResolverProperties(
+    /** 자동 모드 선택 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false
+)

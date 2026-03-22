@@ -62,6 +62,7 @@ import org.springframework.context.annotation.Import
     ToolIdempotencyConfiguration::class,
     CheckpointConfiguration::class,
     ModelRoutingConfiguration::class,
+    ModeResolverConfiguration::class,
     BudgetConfiguration::class,
     ToolDescriptionEnrichmentConfiguration::class,
     SlaMetricsConfiguration::class
