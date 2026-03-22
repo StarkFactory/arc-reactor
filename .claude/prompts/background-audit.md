@@ -42,7 +42,7 @@
 - [x] **AgentModeResolver 정확도 개선** — 58.9% → 82.1% (7d7588e8). 도메인 키워드 + 지식 질문 감지 추가
 - [ ] **PlanExecuteStrategy 통합 테스트** — 실제 LLM 없이 mock으로 plan→validate→execute 전체 흐름 검증
 - [ ] **SLO 알림 활성화 검증** — `enabled=true`로 설정하고 실제 요청 보내서 알림 동작 확인
-- [ ] **atlassian-mcp P2 보안** — 에러 로그 URL 마스킹, 에러 메시지 정제, 캐시 키 PII 제거 (3건)
+- [x] **atlassian-mcp P2 보안** — URL PII 마스킹 + 에러 정제 + 캐시 해싱 (aa93f15)
 - [ ] **atlassian-mcp P3 보안** — JQL/CQL 구조 검증 강화, sanitizeError 내부 호스트명 제거
 - [ ] **swagger-mcp summarizeSchema** — 4000자 초과 스키마 unchecked cast 수정 + 테스트
 - [ ] **swagger-mcp AdminTokenWebFilter** — HMAC 분기 6개 중 4개 미테스트 → 테스트 추가
