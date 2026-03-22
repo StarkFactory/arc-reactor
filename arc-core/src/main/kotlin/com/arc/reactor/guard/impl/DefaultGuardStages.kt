@@ -13,7 +13,6 @@ import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
 import java.time.Duration
-import java.util.concurrent.atomic.AtomicInteger
 
 private val logger = KotlinLogging.logger {}
 
@@ -45,13 +44,19 @@ class DefaultRateLimitStage(
 ) : RateLimitStage {
 
     /**
-     * 사용자별 분당/시간당 카운터를 보유하는 데이터 클래스.
-     * synchronized 블록으로 두 카운터의 원자적 조작을 보장한다.
+     * 사용자별 분당/시간당 카운터를 단일 AtomicLong에 패킹.
+     * 상위 32비트 = 시간당 카운터, 하위 32비트 = 분당 카운터.
+     * CAS 루프로 두 카운터의 원자적 조작을 보장하며 코루틴 캐리어 스레드를 블로킹하지 않는다.
      */
-    private data class RateCounters(
-        val minute: AtomicInteger = AtomicInteger(0),
-        val hour: AtomicInteger = AtomicInteger(0)
-    )
+    private class RateCounters {
+        val packed = java.util.concurrent.atomic.AtomicLong(0L)
+
+        /** 분당 카운터 값 (하위 32비트) */
+        fun minuteCount(): Int = (packed.get() and 0xFFFFFFFFL).toInt()
+
+        /** 시간당 카운터 값 (상위 32비트) */
+        fun hourCount(): Int = (packed.get() ushr 32).toInt()
+    }
 
     // 분당 윈도우: 1분 후 엔트리 만료 (카운터 자동 초기화)
     private val minuteCache: Cache<String, RateCounters> = Caffeine.newBuilder()
@@ -79,32 +84,41 @@ class DefaultRateLimitStage(
         val minuteCounters = minuteCache.get(cacheKey) { RateCounters() }
         val hourCounters = hourCache.get(cacheKey) { RateCounters() }
 
-        // ── 단계 3: 원자적으로 카운터 증가 및 제한 확인 ──
-        // 두 카운터를 synchronized로 묶어 TOCTOU 경쟁 조건을 방지한다.
-        // 제한 초과 시 롤백(decrement)하여 카운터 정합성을 유지한다.
-        synchronized(minuteCounters) {
-            synchronized(hourCounters) {
-                val m = minuteCounters.minute.incrementAndGet()
-                val h = hourCounters.hour.incrementAndGet()
+        // ── 단계 3: CAS 루프로 두 카운터를 원자적으로 증가 + 제한 확인 ──
+        // synchronized 대신 AtomicLong CAS를 사용하여 코루틴 캐리어 스레드 블로킹을 방지한다.
+        while (true) {
+            val current = minuteCounters.packed.get()
+            val m = (current and 0xFFFFFFFFL).toInt() + 1
+            val currentHour = hourCounters.packed.get()
+            val h = (currentHour and 0xFFFFFFFFL).toInt() + 1
 
-                if (m > perMinute) {
-                    minuteCounters.minute.decrementAndGet()
-                    hourCounters.hour.decrementAndGet()
-                    return buildRejection(
-                        "Rate limit exceeded: $perMinute requests per minute",
-                        RejectionCategory.RATE_LIMITED
-                    )
-                }
-
-                if (h > perHour) {
-                    minuteCounters.minute.decrementAndGet()
-                    hourCounters.hour.decrementAndGet()
-                    return buildRejection(
-                        "Rate limit exceeded: $perHour requests per hour",
-                        RejectionCategory.RATE_LIMITED
-                    )
-                }
+            if (m > perMinute) {
+                return buildRejection(
+                    "Rate limit exceeded: $perMinute requests per minute",
+                    RejectionCategory.RATE_LIMITED
+                )
             }
+            if (h > perHour) {
+                return buildRejection(
+                    "Rate limit exceeded: $perHour requests per hour",
+                    RejectionCategory.RATE_LIMITED
+                )
+            }
+
+            // 분당 카운터 CAS (하위 32비트만 +1)
+            val newMinute = (current and (0xFFFFFFFFL shl 32)) or m.toLong()
+            if (!minuteCounters.packed.compareAndSet(current, newMinute)) continue
+
+            // 시간당 카운터 CAS (하위 32비트만 +1)
+            val newHour = (currentHour and (0xFFFFFFFFL shl 32)) or h.toLong()
+            if (!hourCounters.packed.compareAndSet(currentHour, newHour)) {
+                // 시간당 CAS 실패 시 분당 롤백 후 재시도
+                minuteCounters.packed.getAndUpdate { v ->
+                    (v and (0xFFFFFFFFL shl 32)) or ((v and 0xFFFFFFFFL) - 1)
+                }
+                continue
+            }
+            break
         }
 
         return GuardResult.Allowed.DEFAULT
