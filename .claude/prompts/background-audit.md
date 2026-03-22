@@ -48,7 +48,7 @@
 - [x] **swagger-mcp AdminTokenWebFilter** — HMAC 전체 분기 14개 테스트 추가 (cf09447)
 - [x] **arc-reactor CheckpointStore** — synchronized → Mutex 변환, runId별 분리 (415fb46a)
 - [x] **arc-reactor DynamicRuleOutputGuard** — synchronized(this) → cacheMutex.withLock (cff13ef5)
-- [ ] **arc-reactor SystemPromptBuilder** — normalizePrompt === 비교 → == 변환, 캐시 개선
+- [x] **arc-reactor SystemPromptBuilder** — normalizePrompt === → == (캐시 히트율 개선) (de626ec1)
 - [ ] **arc-reactor ConversationMessageTrimmer** — 매 루프 전체 토큰 재계산 → 증분 업데이트
 
 이 목록의 항목을 완료하면 `[x]`로 갱신한다 (이 파일 직접 수정, 커밋 포함).
