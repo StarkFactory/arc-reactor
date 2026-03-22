@@ -70,6 +70,7 @@ import org.springframework.context.annotation.Import
     ToolDependencyConfiguration::class,
     SloAlertConfiguration::class,
     CostAnomalyConfiguration::class,
-    PromptDriftConfiguration::class
+    PromptDriftConfiguration::class,
+    GuardBlockRateConfiguration::class
 )
 class ArcReactorAutoConfiguration

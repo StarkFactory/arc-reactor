@@ -137,7 +137,10 @@ data class AgentProperties(
     val costAnomaly: CostAnomalyProperties = CostAnomalyProperties(),
 
     /** 프롬프트 드리프트 감지 설정 */
-    val promptDrift: PromptDriftProperties = PromptDriftProperties()
+    val promptDrift: PromptDriftProperties = PromptDriftProperties(),
+
+    /** Guard 차단률 베이스라인 모니터링 설정 */
+    val guardBlockRate: GuardBlockRateProperties = GuardBlockRateProperties()
 )
 
 /**

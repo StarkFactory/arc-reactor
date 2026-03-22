@@ -600,3 +600,45 @@ data class PromptDriftProperties(
     /** 드리프트 평가 주기 (요청 N회마다 평가). */
     val evaluationInterval: Int = 10
 )
+
+/**
+ * Guard 차단률 베이스라인 모니터링 설정.
+ *
+ * 슬라이딩 윈도우 기반으로 Guard 차단률의 기준선을 유지하고,
+ * 차단률이 급증(공격 가능성)하거나 급감(Guard 고장 가능성)하면 WARN 로깅한다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     guard-block-rate:
+ *       enabled: true
+ *       spike-multiplier: 3.0
+ *       drop-divisor: 3.0
+ *       window-size: 200
+ *       min-samples: 50
+ *       evaluation-interval: 20
+ * ```
+ *
+ * @see com.arc.reactor.guard.blockrate.GuardBlockRateMonitor 모니터 인터페이스
+ * @see com.arc.reactor.guard.blockrate.GuardBlockRateHook AfterAgentComplete Hook
+ */
+data class GuardBlockRateProperties(
+    /** Guard 차단률 모니터링 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false,
+
+    /** 급증 판단 배수. 현재 차단률 > 기준선 × 이 값이면 SPIKE 알림. */
+    val spikeMultiplier: Double = 3.0,
+
+    /** 급감 판단 제수. 현재 차단률 < 기준선 / 이 값이면 DROP 알림. */
+    val dropDivisor: Double = 3.0,
+
+    /** 슬라이딩 윈도우 크기 (샘플 수). */
+    val windowSize: Int = 200,
+
+    /** 평가에 필요한 최소 샘플 수. */
+    val minSamples: Int = 50,
+
+    /** 차단률 평가 주기 (요청 N회마다 평가). */
+    val evaluationInterval: Int = 20
+)
