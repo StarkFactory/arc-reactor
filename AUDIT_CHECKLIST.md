@@ -143,7 +143,7 @@
   - 공유 컨텍스트 (HookContext 확장)
   - 파일: `AgentMessageBus.kt`
 
-- [ ] **도구 조합 DAG**
+- [x] **도구 조합 DAG** (260b6b99)
   - 도구 의존성 선언: "Tool B는 Tool A 출력 필요"
   - DAG 기반 병렬/순차 실행 자동 결정
   - 파일: `ToolDependencyGraph.kt`
