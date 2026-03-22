@@ -127,7 +127,7 @@
   - `SlaMetrics.recordReActConvergence()` 활용
   - 파일: `ReActConvergenceBenchmark.kt`
 
-- [ ] **프롬프트 A/B 테스트 프레임워크**
+- [x] **프롬프트 A/B 테스트 프레임워크** (2bf6d1cb)
   - N% 트래픽을 새 프롬프트로 라우팅 → 성공률 비교
   - 파일: `PromptExperiment.kt`, `ExperimentStore.kt` 확장
 
