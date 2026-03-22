@@ -18,6 +18,10 @@ import com.arc.reactor.promptlab.eval.LlmJudgeEvaluator
 import com.arc.reactor.promptlab.eval.RuleBasedEvaluator
 import com.arc.reactor.promptlab.eval.StructuralEvaluator
 import com.arc.reactor.promptlab.hook.ExperimentCaptureHook
+import com.arc.reactor.promptlab.hook.LiveExperimentResultRecorder
+import com.arc.reactor.promptlab.InMemoryLiveExperimentStore
+import com.arc.reactor.promptlab.LiveExperimentStore
+import com.arc.reactor.promptlab.PromptExperimentRouter
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -132,6 +136,43 @@ class PromptLabConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun experimentCaptureHook(): ExperimentCaptureHook = ExperimentCaptureHook()
+
+    // ── 라이브 A/B 테스트 ──
+
+    @Configuration
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.prompt-lab.live-experiment",
+        name = ["enabled"],
+        havingValue = "true",
+        matchIfMissing = false
+    )
+    class LiveExperimentConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun liveExperimentStore(
+            properties: AgentProperties
+        ): LiveExperimentStore {
+            val liveProps = properties.promptLab.liveExperiment
+            return InMemoryLiveExperimentStore(
+                maxResultsPerExperiment = liveProps.maxResultsPerExperiment
+            )
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun promptExperimentRouter(
+            liveExperimentStore: LiveExperimentStore
+        ): PromptExperimentRouter = PromptExperimentRouter(liveExperimentStore)
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun liveExperimentResultRecorder(
+            liveExperimentStore: LiveExperimentStore
+        ): LiveExperimentResultRecorder {
+            return LiveExperimentResultRecorder(liveExperimentStore)
+        }
+    }
 
     @Configuration
     @ConditionalOnProperty(
