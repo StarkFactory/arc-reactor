@@ -461,3 +461,29 @@ data class ModeResolverProperties(
     /** 자동 모드 선택 활성화. 기본 비활성 (opt-in). */
     val enabled: Boolean = false
 )
+
+/**
+ * 멀티 에이전트(Supervisor 패턴) 설정.
+ *
+ * 활성화하면 Supervisor 에이전트가 사용자 쿼리를 분석하여
+ * 등록된 전문 에이전트에 자동 위임한다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     multi-agent:
+ *       enabled: true
+ *       max-delegations: 3
+ * ```
+ *
+ * @see com.arc.reactor.agent.multiagent.SupervisorAgent 인터페이스
+ * @see com.arc.reactor.agent.multiagent.AgentRegistry 에이전트 레지스트리
+ */
+data class MultiAgentProperties(
+    /** 멀티 에이전트(Supervisor) 기능 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false,
+
+    /** 단일 요청에서 최대 위임 에이전트 수. */
+    val maxDelegations: Int = 3
+)

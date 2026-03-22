@@ -122,7 +122,10 @@ data class AgentProperties(
     val a2a: A2aProperties = A2aProperties(),
 
     /** 자동 모드 선택(Mode Resolver) 설정 */
-    val modeResolver: ModeResolverProperties = ModeResolverProperties()
+    val modeResolver: ModeResolverProperties = ModeResolverProperties(),
+
+    /** 멀티 에이전트(Supervisor 패턴) 설정 */
+    val multiAgent: MultiAgentProperties = MultiAgentProperties()
 )
 
 /**

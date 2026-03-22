@@ -63,6 +63,7 @@ import org.springframework.context.annotation.Import
     CheckpointConfiguration::class,
     ModelRoutingConfiguration::class,
     ModeResolverConfiguration::class,
+    MultiAgentConfiguration::class,
     BudgetConfiguration::class,
     ToolDescriptionEnrichmentConfiguration::class,
     SlaMetricsConfiguration::class
