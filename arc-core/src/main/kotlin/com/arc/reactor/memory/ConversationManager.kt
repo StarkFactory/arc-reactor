@@ -10,6 +10,8 @@ import com.arc.reactor.memory.summary.ConversationSummary
 import com.arc.reactor.memory.summary.ConversationSummaryService
 import com.arc.reactor.memory.summary.ConversationSummaryStore
 import com.arc.reactor.support.throwIfCancellation
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import kotlinx.coroutines.CoroutineScope
@@ -93,7 +95,8 @@ class DefaultConversationManager(
     private val memoryStore: MemoryStore?,
     private val properties: AgentProperties,
     private val summaryStore: ConversationSummaryStore? = null,
-    private val summaryService: ConversationSummaryService? = null
+    private val summaryService: ConversationSummaryService? = null,
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
 ) : ConversationManager, DisposableBean {
 
     /** 요약 관련 설정 프로퍼티 바로가기 */
@@ -132,15 +135,29 @@ class DefaultConversationManager(
             logger.debug { "No sessionId in metadata" }
             return emptyList()
         }
-        val allMessages = withContext(Dispatchers.IO) {
-            memoryStore?.get(sessionId)?.getHistory()
+        val span = tracer.startSpan(
+            "arc.memory.load",
+            mapOf("session.id" to sessionId)
+        )
+        return try {
+            val allMessages = withContext(Dispatchers.IO) {
+                memoryStore?.get(sessionId)?.getHistory()
+            }
+            if (allMessages == null) {
+                logger.debug { "No memory found for session $sessionId" }
+                span.setAttribute("memory.message.count", "0")
+                return emptyList()
+            }
+            logger.debug { "Loaded ${allMessages.size} messages for session $sessionId" }
+            span.setAttribute("memory.message.count", allMessages.size.toString())
+            loadFromHistory(sessionId, allMessages)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            span.setError(e)
+            throw e
+        } finally {
+            span.close()
         }
-        if (allMessages == null) {
-            logger.debug { "No memory found for session $sessionId" }
-            return emptyList()
-        }
-        logger.debug { "Loaded ${allMessages.size} messages for session $sessionId" }
-        return loadFromHistory(sessionId, allMessages)
     }
 
     /** 로드된 메시지에 요약 또는 takeLast를 적용하여 반환한다. */
@@ -340,7 +357,15 @@ class DefaultConversationManager(
             return
         }
         val resolvedUserId = userId ?: "anonymous"
+        val messageCount = if (assistantContent != null) 2 else 1
 
+        val span = tracer.startSpan(
+            "arc.memory.save",
+            mapOf(
+                "session.id" to sessionId,
+                "memory.message.count" to messageCount.toString()
+            )
+        )
         val mutex = sessionSaveLocks.get(sessionId) { Mutex() }
         mutex.withLock {
             try {
@@ -353,7 +378,10 @@ class DefaultConversationManager(
                 logger.debug { "Saved conversation for session $sessionId" }
             } catch (e: Exception) {
                 e.throwIfCancellation()
+                span.setError(e)
                 logger.error(e) { "Failed to save conversation history for session $sessionId" }
+            } finally {
+                span.close()
             }
         }
     }

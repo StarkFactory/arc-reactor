@@ -1,6 +1,8 @@
 package com.arc.reactor.guard.output
 
 import com.arc.reactor.support.throwIfCancellation
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -31,7 +33,8 @@ private val logger = KotlinLogging.logger {}
  */
 class OutputGuardPipeline(
     stages: List<OutputGuardStage>,
-    private val onStageComplete: ((stage: String, action: String, reason: String) -> Unit)? = null
+    private val onStageComplete: ((stage: String, action: String, reason: String) -> Unit)? = null,
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
 ) {
 
     /** 활성화된 단계만 order 기준 정렬하여 보관 */
@@ -49,48 +52,64 @@ class OutputGuardPipeline(
     suspend fun check(content: String, context: OutputGuardContext): OutputGuardResult {
         if (sorted.isEmpty()) return OutputGuardResult.Allowed.DEFAULT
 
+        val span = tracer.startSpan(
+            "arc.guard.output",
+            mapOf("guard.stage.count" to sorted.size.toString())
+        )
         var currentContent = content
         var lastModified: OutputGuardResult.Modified? = null
 
-        for (stage in sorted) {
-            val result = try {
-                stage.check(currentContent, context)
-            } catch (e: Exception) {
-                // CancellationException은 반드시 먼저 처리하여 재던진다
-                e.throwIfCancellation()
-                // Fail-Close: 예외 발생 시 응답 차단
-                logger.error(e) { "OutputGuardStage '${stage.stageName}' failed, rejecting (fail-close)" }
-                return OutputGuardResult.Rejected(
-                    reason = "Output guard check failed: ${stage.stageName}",
-                    category = OutputRejectionCategory.SYSTEM_ERROR,
-                    stage = stage.stageName
-                )
+        try {
+            for (stage in sorted) {
+                val result = try {
+                    stage.check(currentContent, context)
+                } catch (e: Exception) {
+                    e.throwIfCancellation()
+                    logger.error(e) {
+                        "OutputGuardStage '${stage.stageName}' failed, rejecting (fail-close)"
+                    }
+                    span.setAttribute("guard.result", "error")
+                    span.setAttribute("guard.stage", stage.stageName)
+                    span.setError(e)
+                    return OutputGuardResult.Rejected(
+                        reason = "Output guard check failed: ${stage.stageName}",
+                        category = OutputRejectionCategory.SYSTEM_ERROR,
+                        stage = stage.stageName
+                    )
+                }
+
+                when (result) {
+                    is OutputGuardResult.Allowed -> {
+                        onStageComplete?.invoke(stage.stageName, "allowed", "")
+                        continue
+                    }
+                    is OutputGuardResult.Modified -> {
+                        logger.info {
+                            "OutputGuardStage '${stage.stageName}' modified content: ${result.reason}"
+                        }
+                        onStageComplete?.invoke(stage.stageName, "modified", result.reason)
+                        currentContent = result.content
+                        lastModified = result.copy(stage = stage.stageName)
+                    }
+                    is OutputGuardResult.Rejected -> {
+                        logger.warn {
+                            "OutputGuardStage '${stage.stageName}' rejected: ${result.reason}"
+                        }
+                        onStageComplete?.invoke(stage.stageName, "rejected", result.reason)
+                        span.setAttribute("guard.result", "rejected")
+                        span.setAttribute("guard.stage", stage.stageName)
+                        span.setAttribute("guard.reason", result.reason)
+                        return result.copy(stage = stage.stageName)
+                    }
+                }
             }
 
-            when (result) {
-                is OutputGuardResult.Allowed -> {
-                    // 통과 — 다음 단계로 계속
-                    onStageComplete?.invoke(stage.stageName, "allowed", "")
-                    continue
-                }
-                is OutputGuardResult.Modified -> {
-                    // 수정됨 — 후속 단계에서 수정된 콘텐츠를 사용
-                    logger.info { "OutputGuardStage '${stage.stageName}' modified content: ${result.reason}" }
-                    onStageComplete?.invoke(stage.stageName, "modified", result.reason)
-                    currentContent = result.content
-                    lastModified = result.copy(stage = stage.stageName)
-                }
-                is OutputGuardResult.Rejected -> {
-                    // 거부 — 파이프라인 즉시 중단
-                    logger.warn { "OutputGuardStage '${stage.stageName}' rejected: ${result.reason}" }
-                    onStageComplete?.invoke(stage.stageName, "rejected", result.reason)
-                    return result.copy(stage = stage.stageName)
-                }
-            }
+            val finalResult = if (lastModified != null) "modified" else "allowed"
+            span.setAttribute("guard.result", finalResult)
+            return lastModified ?: OutputGuardResult.Allowed.DEFAULT
+        } finally {
+            span.close()
         }
-
-        // 모든 단계 통과: 마지막 Modified가 있으면 반환, 아니면 Allowed
-        return lastModified ?: OutputGuardResult.Allowed.DEFAULT
     }
 
     /** 파이프라인의 활성 단계 수 */

@@ -7,6 +7,8 @@ import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
 import com.arc.reactor.support.throwIfCancellation
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -46,7 +48,8 @@ private val logger = KotlinLogging.logger {}
  */
 class GuardPipeline(
     stages: List<GuardStage> = emptyList(),
-    private val auditPublisher: GuardAuditPublisher? = null
+    private val auditPublisher: GuardAuditPublisher? = null,
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
 ) : RequestGuard {
 
     // ── 초기화: 활성화된 단계만 order 기준 정렬하여 보관 ──
@@ -88,61 +91,76 @@ class GuardPipeline(
             return GuardResult.Allowed.DEFAULT
         }
 
+        val span = tracer.startSpan(
+            "arc.guard.input",
+            mapOf("guard.stage.count" to sortedStages.size.toString())
+        )
         val pipelineStartNanos = System.nanoTime()
         var currentCommand = command
 
-        // ── 단계 2: 각 Guard 단계를 순서대로 실행 ──
-        for (stage in sortedStages) {
-            val stageStartNanos = System.nanoTime()
-            try {
-                logger.debug { "Executing guard stage: ${stage.stageName}" }
-                val result = stage.enforce(currentCommand)
+        try {
+            // ── 단계 2: 각 Guard 단계를 순서대로 실행 ──
+            for (stage in sortedStages) {
+                val stageStartNanos = System.nanoTime()
+                try {
+                    logger.debug { "Executing guard stage: ${stage.stageName}" }
+                    val result = stage.enforce(currentCommand)
 
-                when (result) {
-                    is GuardResult.Allowed -> {
-                        logger.debug { "Stage ${stage.stageName} passed" }
-                        currentCommand = applyNormalizedText(result, currentCommand)
-                        publishAudit(
-                            currentCommand, stage.stageName, "allowed", null, null,
-                            stageStartNanos, pipelineStartNanos
-                        )
-                        continue
+                    when (result) {
+                        is GuardResult.Allowed -> {
+                            logger.debug { "Stage ${stage.stageName} passed" }
+                            currentCommand = applyNormalizedText(result, currentCommand)
+                            publishAudit(
+                                currentCommand, stage.stageName, "allowed", null, null,
+                                stageStartNanos, pipelineStartNanos
+                            )
+                            continue
+                        }
+                        is GuardResult.Rejected -> {
+                            // ── 거부: 파이프라인 즉시 중단 ──
+                            logger.warn { "Stage ${stage.stageName} rejected: ${result.reason}" }
+                            publishAudit(
+                                currentCommand, stage.stageName, "rejected",
+                                result.reason, result.category.name,
+                                stageStartNanos, pipelineStartNanos
+                            )
+                            span.setAttribute("guard.result", "rejected")
+                            span.setAttribute("guard.stage", stage.stageName)
+                            span.setAttribute("guard.reason", result.reason)
+                            return result.copy(stage = stage.stageName)
+                        }
                     }
-                    is GuardResult.Rejected -> {
-                        // ── 거부: 파이프라인 즉시 중단 ──
-                        logger.warn { "Stage ${stage.stageName} rejected: ${result.reason}" }
-                        publishAudit(
-                            currentCommand, stage.stageName, "rejected",
-                            result.reason, result.category.name,
-                            stageStartNanos, pipelineStartNanos
-                        )
-                        return result.copy(stage = stage.stageName)
-                    }
+                } catch (e: Exception) {
+                    // ── CancellationException은 반드시 먼저 처리하여 재던진다 ──
+                    e.throwIfCancellation()
+
+                    // ── Fail-Close: 예외 발생 시 요청 거부 ──
+                    logger.error(e) { "Guard stage ${stage.stageName} failed" }
+                    publishAudit(
+                        currentCommand, stage.stageName, "error", e.message, null,
+                        stageStartNanos, pipelineStartNanos
+                    )
+                    span.setAttribute("guard.result", "error")
+                    span.setAttribute("guard.stage", stage.stageName)
+                    span.setError(e)
+                    return GuardResult.Rejected(
+                        reason = "Security check failed",
+                        category = RejectionCategory.SYSTEM_ERROR,
+                        stage = stage.stageName
+                    )
                 }
-            } catch (e: Exception) {
-                // ── CancellationException은 반드시 먼저 처리하여 재던진다 ──
-                e.throwIfCancellation()
-
-                // ── Fail-Close: 예외 발생 시 요청 거부 ──
-                logger.error(e) { "Guard stage ${stage.stageName} failed" }
-                publishAudit(
-                    currentCommand, stage.stageName, "error", e.message, null,
-                    stageStartNanos, pipelineStartNanos
-                )
-                return GuardResult.Rejected(
-                    reason = "Security check failed",
-                    category = RejectionCategory.SYSTEM_ERROR,
-                    stage = stage.stageName
-                )
             }
-        }
 
-        // ── 단계 3: 모든 단계 통과 — 요청 허용 ──
-        publishAudit(
-            currentCommand, "pipeline", "allowed", null, null,
-            pipelineStartNanos, pipelineStartNanos
-        )
-        return GuardResult.Allowed.DEFAULT
+            // ── 단계 3: 모든 단계 통과 — 요청 허용 ──
+            publishAudit(
+                currentCommand, "pipeline", "allowed", null, null,
+                pipelineStartNanos, pipelineStartNanos
+            )
+            span.setAttribute("guard.result", "allowed")
+            return GuardResult.Allowed.DEFAULT
+        } finally {
+            span.close()
+        }
     }
 
     /**

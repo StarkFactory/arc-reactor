@@ -10,6 +10,9 @@ import com.arc.reactor.guard.output.impl.RegexPatternOutputGuard
 import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
 import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
 import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
@@ -66,12 +69,14 @@ class OutputGuardConfiguration {
     @ConditionalOnMissingBean
     fun outputGuardPipeline(
         stages: List<OutputGuardStage>,
-        agentMetrics: AgentMetrics
+        agentMetrics: AgentMetrics,
+        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>
     ): OutputGuardPipeline =
         OutputGuardPipeline(
             stages = stages,
             onStageComplete = { stage, action, reason ->
                 agentMetrics.recordOutputGuardAction(stage, action, reason)
-            }
+            },
+            tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() }
         )
 }

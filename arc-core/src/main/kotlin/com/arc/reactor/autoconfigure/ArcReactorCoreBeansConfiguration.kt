@@ -40,6 +40,8 @@ import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.tool.AllToolSelector
 import com.arc.reactor.tool.SemanticToolSelector
 import com.arc.reactor.tool.ToolSelector
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
 import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.beans.factory.ObjectProvider
@@ -212,12 +214,14 @@ class ArcReactorCoreBeansConfiguration {
         memoryStore: MemoryStore,
         properties: AgentProperties,
         summaryStore: ObjectProvider<com.arc.reactor.memory.summary.ConversationSummaryStore>,
-        summaryService: ObjectProvider<com.arc.reactor.memory.summary.ConversationSummaryService>
+        summaryService: ObjectProvider<com.arc.reactor.memory.summary.ConversationSummaryService>,
+        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>
     ): ConversationManager = DefaultConversationManager(
         memoryStore = memoryStore,
         properties = properties,
         summaryStore = summaryStore.ifAvailable,
-        summaryService = summaryService.ifAvailable
+        summaryService = summaryService.ifAvailable,
+        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() }
     )
 
     @Bean

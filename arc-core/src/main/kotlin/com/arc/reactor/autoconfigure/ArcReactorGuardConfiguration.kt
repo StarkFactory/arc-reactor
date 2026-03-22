@@ -14,6 +14,8 @@ import com.arc.reactor.guard.impl.RuleBasedClassificationStage
 import com.arc.reactor.guard.impl.TopicDriftDetectionStage
 import com.arc.reactor.guard.impl.UnicodeNormalizationStage
 import com.arc.reactor.memory.MemoryStore
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -100,6 +102,11 @@ class GuardConfiguration {
     @ConditionalOnMissingBean
     fun requestGuard(
         stages: List<GuardStage>,
-        auditPublisher: ObjectProvider<GuardAuditPublisher>
-    ): RequestGuard = GuardPipeline(stages, auditPublisher.ifAvailable)
+        auditPublisher: ObjectProvider<GuardAuditPublisher>,
+        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>
+    ): RequestGuard = GuardPipeline(
+        stages = stages,
+        auditPublisher = auditPublisher.ifAvailable,
+        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() }
+    )
 }

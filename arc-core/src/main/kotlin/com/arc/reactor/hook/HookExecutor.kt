@@ -6,6 +6,8 @@ import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
 import com.arc.reactor.support.throwIfCancellation
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -43,7 +45,8 @@ class HookExecutor(
     beforeStartHooks: List<BeforeAgentStartHook> = emptyList(),
     beforeToolCallHooks: List<BeforeToolCallHook> = emptyList(),
     afterToolCallHooks: List<AfterToolCallHook> = emptyList(),
-    afterCompleteHooks: List<AfterAgentCompleteHook> = emptyList()
+    afterCompleteHooks: List<AfterAgentCompleteHook> = emptyList(),
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
 ) {
 
     // 활성화된 Hook만 order 기준 정렬하여 보관
@@ -59,7 +62,8 @@ class HookExecutor(
      * @return 진행(Continue) 또는 중단(Reject)
      */
     suspend fun executeBeforeAgentStart(context: HookContext): HookResult {
-        return executeHooks(
+        return executeTracedHooks(
+            spanName = "arc.hook.before_start",
             hooks = sortedBeforeStartHooks,
             context = context
         ) { hook, ctx ->
@@ -74,7 +78,8 @@ class HookExecutor(
      * @return 진행(Continue) 또는 중단(Reject)
      */
     suspend fun executeBeforeToolCall(context: ToolCallContext): HookResult {
-        return executeHooks(
+        return executeTracedHooks(
+            spanName = "arc.hook.before_tool_call",
             hooks = sortedBeforeToolCallHooks,
             context = context
         ) { hook, ctx ->
@@ -88,16 +93,29 @@ class HookExecutor(
      * `failOnError=true`인 경우에만 예외를 재던진다.
      */
     suspend fun executeAfterToolCall(context: ToolCallContext, result: ToolCallResult) {
-        for (hook in sortedAfterToolCallHooks) {
-            try {
-                hook.afterToolCall(context, result)
-            } catch (e: Exception) {
-                // CancellationException은 반드시 먼저 처리하여 재던진다
-                e.throwIfCancellation()
-                logger.error(e) { "AfterToolCallHook failed: ${hook::class.simpleName}" }
-                // failOnError=true인 경우에만 예외 전파
-                if (hook.failOnError) throw e
+        if (sortedAfterToolCallHooks.isEmpty()) return
+        val span = tracer.startSpan(
+            "arc.hook.after_tool_call",
+            mapOf("hook.count" to sortedAfterToolCallHooks.size.toString())
+        )
+        try {
+            for (hook in sortedAfterToolCallHooks) {
+                try {
+                    hook.afterToolCall(context, result)
+                } catch (e: Exception) {
+                    e.throwIfCancellation()
+                    logger.error(e) { "AfterToolCallHook failed: ${hook::class.simpleName}" }
+                    span.setAttribute("hook.failed", hook::class.simpleName.orEmpty())
+                    if (hook.failOnError) throw e
+                }
             }
+            span.setAttribute("hook.result", "success")
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            span.setError(e)
+            throw e
+        } finally {
+            span.close()
         }
     }
 
@@ -107,16 +125,29 @@ class HookExecutor(
      * `failOnError=true`인 경우에만 예외를 재던진다.
      */
     suspend fun executeAfterAgentComplete(context: HookContext, response: AgentResponse) {
-        for (hook in sortedAfterCompleteHooks) {
-            try {
-                hook.afterAgentComplete(context, response)
-            } catch (e: Exception) {
-                // CancellationException은 반드시 먼저 처리하여 재던진다
-                e.throwIfCancellation()
-                logger.error(e) { "AfterAgentCompleteHook failed: ${hook::class.simpleName}" }
-                // failOnError=true인 경우에만 예외 전파
-                if (hook.failOnError) throw e
+        if (sortedAfterCompleteHooks.isEmpty()) return
+        val span = tracer.startSpan(
+            "arc.hook.after_complete",
+            mapOf("hook.count" to sortedAfterCompleteHooks.size.toString())
+        )
+        try {
+            for (hook in sortedAfterCompleteHooks) {
+                try {
+                    hook.afterAgentComplete(context, response)
+                } catch (e: Exception) {
+                    e.throwIfCancellation()
+                    logger.error(e) { "AfterAgentCompleteHook failed: ${hook::class.simpleName}" }
+                    span.setAttribute("hook.failed", hook::class.simpleName.orEmpty())
+                    if (hook.failOnError) throw e
+                }
             }
+            span.setAttribute("hook.result", "success")
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            span.setError(e)
+            throw e
+        } finally {
+            span.close()
         }
     }
 
@@ -131,6 +162,34 @@ class HookExecutor(
      * @param execute Hook 실행 함수
      * @return 모든 Hook 통과 시 Continue, 중단 시 Reject
      */
+    /**
+     * Before Hook을 tracer span으로 감싸서 실행한다.
+     * Hook이 없으면 span을 생성하지 않는다.
+     */
+    private suspend fun <T : AgentHook, C> executeTracedHooks(
+        spanName: String,
+        hooks: List<T>,
+        context: C,
+        execute: suspend (T, C) -> HookResult
+    ): HookResult {
+        if (hooks.isEmpty()) return HookResult.Continue
+        val span = tracer.startSpan(
+            spanName,
+            mapOf("hook.count" to hooks.size.toString())
+        )
+        return try {
+            val result = executeHooks(hooks, context, execute)
+            span.setAttribute("hook.result", if (result is HookResult.Reject) "rejected" else "continue")
+            result
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            span.setError(e)
+            throw e
+        } finally {
+            span.close()
+        }
+    }
+
     private suspend fun <T : AgentHook, C> executeHooks(
         hooks: List<T>,
         context: C,

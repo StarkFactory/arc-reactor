@@ -22,6 +22,8 @@ import com.arc.reactor.rag.chunking.DocumentChunker
 import com.arc.reactor.rag.ingestion.RagIngestionCandidateStore
 import com.arc.reactor.rag.ingestion.RagIngestionPolicyProvider
 import com.arc.reactor.tool.ToolSelector
+import com.arc.reactor.tracing.ArcReactorTracer
+import com.arc.reactor.tracing.NoOpArcReactorTracer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -80,12 +82,14 @@ class ArcReactorHookAndMcpConfiguration {
         beforeStartHooks: List<BeforeAgentStartHook>,
         beforeToolCallHooks: List<BeforeToolCallHook>,
         afterToolCallHooks: List<AfterToolCallHook>,
-        afterCompleteHooks: List<AfterAgentCompleteHook>
+        afterCompleteHooks: List<AfterAgentCompleteHook>,
+        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>
     ): HookExecutor = HookExecutor(
         beforeStartHooks = beforeStartHooks,
         beforeToolCallHooks = beforeToolCallHooks,
         afterToolCallHooks = afterToolCallHooks,
-        afterCompleteHooks = afterCompleteHooks
+        afterCompleteHooks = afterCompleteHooks,
+        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() }
     )
 
     /**
