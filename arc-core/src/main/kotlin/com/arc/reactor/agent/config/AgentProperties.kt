@@ -134,7 +134,10 @@ data class AgentProperties(
     val slo: SloAlertProperties = SloAlertProperties(),
 
     /** 비용 이상 탐지 설정 */
-    val costAnomaly: CostAnomalyProperties = CostAnomalyProperties()
+    val costAnomaly: CostAnomalyProperties = CostAnomalyProperties(),
+
+    /** 프롬프트 드리프트 감지 설정 */
+    val promptDrift: PromptDriftProperties = PromptDriftProperties()
 )
 
 /**

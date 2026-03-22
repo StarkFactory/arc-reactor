@@ -559,3 +559,44 @@ data class CostAnomalyProperties(
     /** 평가에 필요한 최소 샘플 수. */
     val minSamples: Int = 10
 )
+
+/**
+ * 프롬프트 드리프트 감지 설정.
+ *
+ * 입력/출력 길이 분포의 변화를 슬라이딩 윈도우 기반으로 모니터링하고,
+ * 분포가 기준선에서 [deviationThreshold] 표준편차 이상 벗어나면 WARN 로깅한다.
+ *
+ * 드리프트는 프롬프트 인젝션 시도(비정상적으로 긴 입력),
+ * 모델 성능 저하(짧은 응답), 시스템 프롬프트 변경(응답 패턴 변화) 등을 나타낼 수 있다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     prompt-drift:
+ *       enabled: true
+ *       deviation-threshold: 2.0
+ *       window-size: 200
+ *       min-samples: 20
+ *       evaluation-interval: 10
+ * ```
+ *
+ * @see com.arc.reactor.agent.drift.PromptDriftDetector 감지기 인터페이스
+ * @see com.arc.reactor.agent.drift.PromptDriftHook AfterAgentComplete Hook
+ */
+data class PromptDriftProperties(
+    /** 프롬프트 드리프트 감지 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false,
+
+    /** 이상 판단 표준편차 배수 임계값. */
+    val deviationThreshold: Double = 2.0,
+
+    /** 슬라이딩 윈도우 크기 (샘플 수). */
+    val windowSize: Int = 200,
+
+    /** 평가에 필요한 최소 샘플 수. */
+    val minSamples: Int = 20,
+
+    /** 드리프트 평가 주기 (요청 N회마다 평가). */
+    val evaluationInterval: Int = 10
+)
