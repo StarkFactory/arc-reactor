@@ -68,6 +68,7 @@ import org.springframework.context.annotation.Import
     ToolDescriptionEnrichmentConfiguration::class,
     SlaMetricsConfiguration::class,
     ToolDependencyConfiguration::class,
-    SloAlertConfiguration::class
+    SloAlertConfiguration::class,
+    CostAnomalyConfiguration::class
 )
 class ArcReactorAutoConfiguration

@@ -525,3 +525,37 @@ data class SloAlertProperties(
     /** 동일 유형 알림 재발송 방지 쿨다운 (초). */
     val alertCooldownSeconds: Long = 600
 )
+
+/**
+ * 비용 이상 탐지 설정.
+ *
+ * 슬라이딩 윈도우 기반 이동 평균으로 요청당 비용 기준선을 유지하고,
+ * 최신 비용이 기준선의 [thresholdMultiplier]배를 초과하면 WARN 로깅한다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     cost-anomaly:
+ *       enabled: true
+ *       threshold-multiplier: 3.0
+ *       window-size: 100
+ *       min-samples: 10
+ * ```
+ *
+ * @see com.arc.reactor.agent.budget.CostAnomalyDetector 탐지기 인터페이스
+ * @see com.arc.reactor.agent.budget.CostAnomalyHook AfterAgentComplete Hook
+ */
+data class CostAnomalyProperties(
+    /** 비용 이상 탐지 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false,
+
+    /** 이상 판단 배수 임계값. 기준선 × 이 값 초과 시 이상으로 판단. */
+    val thresholdMultiplier: Double = 3.0,
+
+    /** 이동 평균 슬라이딩 윈도우 크기 (샘플 수). */
+    val windowSize: Int = 100,
+
+    /** 평가에 필요한 최소 샘플 수. */
+    val minSamples: Int = 10
+)

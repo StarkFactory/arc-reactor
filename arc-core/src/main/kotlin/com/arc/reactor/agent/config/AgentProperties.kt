@@ -131,7 +131,10 @@ data class AgentProperties(
     val toolDependency: ToolDependencyProperties = ToolDependencyProperties(),
 
     /** SLO 알림 설정 */
-    val slo: SloAlertProperties = SloAlertProperties()
+    val slo: SloAlertProperties = SloAlertProperties(),
+
+    /** 비용 이상 탐지 설정 */
+    val costAnomaly: CostAnomalyProperties = CostAnomalyProperties()
 )
 
 /**
