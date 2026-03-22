@@ -128,7 +128,10 @@ data class AgentProperties(
     val multiAgent: MultiAgentProperties = MultiAgentProperties(),
 
     /** 도구 의존성 DAG 설정 */
-    val toolDependency: ToolDependencyProperties = ToolDependencyProperties()
+    val toolDependency: ToolDependencyProperties = ToolDependencyProperties(),
+
+    /** SLO 알림 설정 */
+    val slo: SloAlertProperties = SloAlertProperties()
 )
 
 /**

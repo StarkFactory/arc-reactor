@@ -487,3 +487,41 @@ data class MultiAgentProperties(
     /** 단일 요청에서 최대 위임 에이전트 수. */
     val maxDelegations: Int = 3
 )
+
+/**
+ * SLO 알림 설정.
+ *
+ * 레이턴시(P95)와 에러율을 슬라이딩 윈도우로 추적하고,
+ * 임계값 초과 시 자동 알림을 발송한다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     slo:
+ *       enabled: true
+ *       latency-threshold-ms: 2000
+ *       error-rate-threshold: 0.05
+ *       evaluation-window-seconds: 300
+ *       alert-cooldown-seconds: 600
+ * ```
+ *
+ * @see com.arc.reactor.agent.slo.SloAlertEvaluator 평가기 인터페이스
+ * @see com.arc.reactor.agent.slo.SloAlertNotifier 알림 발송 인터페이스
+ */
+data class SloAlertProperties(
+    /** SLO 알림 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false,
+
+    /** P95 레이턴시 알림 임계값 (밀리초). */
+    val latencyThresholdMs: Long = 2000,
+
+    /** 에러율 알림 임계값 (0.0~1.0). 0.05 = 5%. */
+    val errorRateThreshold: Double = 0.05,
+
+    /** 평가 슬라이딩 윈도우 크기 (초). */
+    val evaluationWindowSeconds: Long = 300,
+
+    /** 동일 유형 알림 재발송 방지 쿨다운 (초). */
+    val alertCooldownSeconds: Long = 600
+)
