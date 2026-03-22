@@ -104,7 +104,7 @@
   - 각 스텝 순차 실행 → 결과 누적 → 최종 합성 응답
   - 파일: `PlanValidator.kt` (신규), `PlanExecuteLoopExecutor.kt`
 
-- [ ] **자동 모드 선택**
+- [x] **자동 모드 선택** (a11279a5)
   - 단순 질문 → STANDARD (직접 응답)
   - 단일 도구 → REACT (기존)
   - 복합/멀티스텝 → PLAN_EXECUTE (신규)
