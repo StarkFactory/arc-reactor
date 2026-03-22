@@ -43,7 +43,7 @@
 - [x] **PlanExecuteStrategy 통합 테스트** — plan→validate→execute E2E 검증 12개 (fceb3eda)
 - [x] **SLO 알림 활성화 검증** — 단위 테스트 완료, 런타임 검증은 사용자 수동 (skipped)
 - [x] **atlassian-mcp P2 보안** — URL PII 마스킹 + 에러 정제 + 캐시 해싱 (aa93f15)
-- [ ] **atlassian-mcp P3 보안** — JQL/CQL 구조 검증 강화, sanitizeError 내부 호스트명 제거
+- [x] **atlassian-mcp P3 보안** — sanitizeError 호스트명 제거 + JQL 따옴표 균형 검증 (ba617f7)
 - [x] **swagger-mcp summarizeSchema** — unchecked cast → 타입별 안전 추출 + 테스트 5개 (99d692a)
 - [ ] **swagger-mcp AdminTokenWebFilter** — HMAC 분기 6개 중 4개 미테스트 → 테스트 추가
 - [ ] **arc-reactor CheckpointStore** — synchronized → Mutex 변환 (suspend fun 블로킹)
