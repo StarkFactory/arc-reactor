@@ -59,6 +59,11 @@ subprojects {
             if (!project.hasProperty("includeExternalIntegration")) {
                 excludeTags("external")
             }
+            // Benchmark tests are opt-in to keep normal test runs fast.
+            // Run with: ./gradlew test -PincludeBenchmark
+            if (!project.hasProperty("includeBenchmark")) {
+                excludeTags("benchmark")
+            }
             // Run ONLY safety-tagged tests (used by CI safety gate).
             // Run with: ./gradlew test -PincludeSafety
             if (project.hasProperty("includeSafety")) {

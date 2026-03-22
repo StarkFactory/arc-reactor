@@ -129,6 +129,11 @@ tasks.withType<Test> {
         if (!project.hasProperty("includeMatrix")) {
             excludeTags("matrix")
         }
+        // Benchmark tests are opt-in to keep normal test runs fast.
+        // Run with: ./gradlew test -PincludeBenchmark
+        if (!project.hasProperty("includeBenchmark")) {
+            excludeTags("benchmark")
+        }
     }
 }
 
