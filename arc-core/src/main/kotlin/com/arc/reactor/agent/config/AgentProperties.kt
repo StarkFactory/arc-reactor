@@ -125,7 +125,10 @@ data class AgentProperties(
     val modeResolver: ModeResolverProperties = ModeResolverProperties(),
 
     /** 멀티 에이전트(Supervisor 패턴) 설정 */
-    val multiAgent: MultiAgentProperties = MultiAgentProperties()
+    val multiAgent: MultiAgentProperties = MultiAgentProperties(),
+
+    /** 도구 의존성 DAG 설정 */
+    val toolDependency: ToolDependencyProperties = ToolDependencyProperties()
 )
 
 /**
@@ -593,4 +596,26 @@ data class CheckpointProperties(
 
     /** 실행당 최대 체크포인트 수. */
     val maxCheckpointsPerRun: Int = 50
+)
+
+/**
+ * 도구 의존성 DAG 설정.
+ *
+ * 도구 간 의존 관계를 선언하고 DAG 기반 위상 정렬로
+ * 병렬/순차 실행 순서를 자동 결정한다.
+ *
+ * ## 설정 예시
+ * ```yaml
+ * arc:
+ *   reactor:
+ *     tool-dependency:
+ *       enabled: true
+ * ```
+ *
+ * @see com.arc.reactor.tool.dependency.ToolDependencyGraph 의존성 그래프 인터페이스
+ * @see com.arc.reactor.tool.dependency.ToolExecutionPlan 실행 계획
+ */
+data class ToolDependencyProperties(
+    /** 도구 의존성 DAG 활성화. 기본 비활성 (opt-in). */
+    val enabled: Boolean = false
 )

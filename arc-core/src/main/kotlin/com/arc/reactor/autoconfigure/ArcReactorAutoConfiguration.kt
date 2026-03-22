@@ -66,6 +66,7 @@ import org.springframework.context.annotation.Import
     MultiAgentConfiguration::class,
     BudgetConfiguration::class,
     ToolDescriptionEnrichmentConfiguration::class,
-    SlaMetricsConfiguration::class
+    SlaMetricsConfiguration::class,
+    ToolDependencyConfiguration::class
 )
 class ArcReactorAutoConfiguration
