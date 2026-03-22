@@ -117,7 +117,7 @@
   - 카테고리: Jira 단건, Confluence 검색, 복합 질문, 보안 차단, 엣지케이스
   - 파일: `src/test/resources/golden-dataset.json`
 
-- [ ] **도구 선택 정확도 벤치마크**
+- [x] **도구 선택 정확도 벤치마크** (87257288)
   - 골든 데이터셋 기반 자동 실행 → 정확도 리포트
   - 메트릭: correct_tool_rate, wrong_tool_rate, hallucinated_tool_rate
   - 파일: `ToolSelectionBenchmark.kt`
