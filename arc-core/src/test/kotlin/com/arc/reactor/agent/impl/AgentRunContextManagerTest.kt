@@ -47,10 +47,9 @@ class AgentRunContextManagerTest {
         assertEquals("slack", context.hookContext.channel, "channel should be set from metadata")
         assertEquals("alice@example.com", context.hookContext.userEmail, "userEmail should be resolved from requesterEmail")
         assertEquals("abc", context.hookContext.metadata["trace"], "metadata trace key should be copied")
-        assertEquals("12345", MDC.get("sessionId"), "MDC sessionId should be set")
-        assertEquals("alice@example.com", MDC.get("userEmail"), "MDC userEmail should be set")
-        assertEquals("run-1", MDC.get("runId"), "MDC runId should be set")
-        assertEquals("anonymous", MDC.get("userId"), "MDC userId should be set")
+        // MDC는 MDCContext를 통해 코루틴 내에서만 전파됨 (thread-local MDC.put 제거됨)
+        // HookContext 내 메타데이터가 올바르게 설정되었는지로 검증
+        assertEquals("run-1", context.hookContext.metadata["runId"], "hookContext metadata should include runId")
     }
 
     @Test
@@ -74,7 +73,7 @@ class AgentRunContextManagerTest {
     }
 
     @Test
-    fun `clear mdc keys on close해야 한다`() = runTest {
+    fun `close should complete without error`() = runTest {
         val manager = AgentRunContextManager(runIdSupplier = { "run-1" })
         val toolsUsed = CopyOnWriteArrayList<String>()
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hello", userId = "u")
@@ -82,9 +81,8 @@ class AgentRunContextManagerTest {
         manager.open(command, toolsUsed)
         manager.close()
 
+        // close()가 예외 없이 완료되는지 검증
+        // MDC는 MDCContext 기반이므로 thread-local 검증 대신 close 정상 완료로 확인
         assertNull(MDC.get("runId"), "MDC runId should be cleared after close()")
-        assertNull(MDC.get("userId"), "MDC userId should be cleared after close()")
-        assertNull(MDC.get("userEmail"), "MDC userEmail should be cleared after close()")
-        assertNull(MDC.get("sessionId"), "MDC sessionId should be cleared after close()")
     }
 }

@@ -16,6 +16,7 @@ import com.arc.reactor.persona.resolveEffectivePrompt
 import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -291,13 +292,16 @@ class DynamicSchedulerService(
         }
     }
 
-    private fun runJobWithRetryAndTimeout(job: ScheduledJob): String = runBlocking {
+    private fun runJobWithRetryAndTimeout(job: ScheduledJob): String = runBlocking(Dispatchers.IO) {
         val timeoutMs = job.executionTimeoutMs
             ?: schedulerProperties.defaultExecutionTimeoutMs
         try {
             withTimeout(timeoutMs) { runWithRetry(job) }
-        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            throw IllegalStateException("Job '${job.name}' timed out after ${timeoutMs}ms")
+        } catch (@Suppress("SwallowedException") e: kotlinx.coroutines.TimeoutCancellationException) {
+            // TimeoutCancellationException은 withTimeout 내부의 CancellationException이며
+            // runBlocking 경계 바깥으로 전파하면 코루틴 취소 시맨틱이 파괴된다.
+            // RuntimeException으로 래핑하여 상위 catch 블록이 FAILED 상태로 기록하도록 한다.
+            throw RuntimeException("Job '${job.name}' timed out after ${timeoutMs}ms")
         }
     }
 

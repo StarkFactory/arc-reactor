@@ -19,7 +19,7 @@ class SlackEventDeduplicator(
     private val maxEntries: Int = 10_000
 ) {
     private val ttlMillis = ttlSeconds.coerceAtLeast(1) * 1000
-    private val seenEventIds = LinkedHashMap<String, Long>(128, 0.75f, true)
+    private val seenEventIds = LinkedHashMap<String, Long>(128, 0.75f, false)
 
     @Synchronized
     fun isDuplicateAndMark(eventId: String, nowMillis: Long = System.currentTimeMillis()): Boolean {

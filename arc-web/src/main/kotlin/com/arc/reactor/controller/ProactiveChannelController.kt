@@ -184,7 +184,13 @@ private object ProactiveChannelStoreBridge {
                 else -> arg.javaClass
             }
         }.toTypedArray()
-        val method = store.javaClass.getMethod(methodName, *parameterTypes)
+        val method = try {
+            store.javaClass.getMethod(methodName, *parameterTypes)
+        } catch (e: NoSuchMethodException) {
+            throw IllegalStateException(
+                "ProactiveChannelStore does not support method: $methodName(${parameterTypes.joinToString { it.simpleName }})", e
+            )
+        }
         return requireNotNull(method.invoke(store, *args)) {
             "Proactive channel store method returned null: $methodName"
         }

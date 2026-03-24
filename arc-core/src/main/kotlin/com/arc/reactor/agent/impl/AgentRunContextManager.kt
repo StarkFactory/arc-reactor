@@ -56,8 +56,8 @@ internal class AgentRunContextManager(
             userEmail?.let { put("userEmail", it) }
             command.metadata["sessionId"]?.toString()?.let { put("sessionId", it) }
         }
-        // 다음 suspend 지점 이전에 로깅을 위해 thread-local MDC도 설정
-        mdcMap.forEach { (k, v) -> MDC.put(k, v) }
+        // MDCContext(mdcMap)가 코루틴 전환 시 자동으로 MDC를 복원하므로
+        // thread-local MDC.put은 불필요하며, 동일 스레드의 다른 코루틴을 오염시킬 수 있다.
 
         // ── 단계 2: HookContext 구성 ──
         val hookContext = HookContext(

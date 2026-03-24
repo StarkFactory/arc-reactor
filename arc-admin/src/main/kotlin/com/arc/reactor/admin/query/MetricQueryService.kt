@@ -239,6 +239,7 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
         return when {
             granularity == "hourly" -> HOURLY_SOURCE
             granularity == "daily" -> DAILY_SOURCE
+            hours < 24 -> RAW_SOURCE
             hours <= 720 -> HOURLY_SOURCE
             else -> DAILY_SOURCE
         }
@@ -246,6 +247,7 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
 
     companion object {
         // 문자열 보간을 통한 SQL injection 방지를 위한 화이트리스트 테이블명
+        private val RAW_SOURCE = "metric_agent_executions" to "1 minute"
         private val HOURLY_SOURCE = "metric_executions_hourly" to "1 hour"
         private val DAILY_SOURCE = "metric_executions_daily" to "1 day"
     }

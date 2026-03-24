@@ -77,8 +77,23 @@ class MetricWriter(
             Thread.currentThread().interrupt()
         }
 
-        // 잔여 버퍼 이벤트를 최종 flush
-        flush()
+        // 잔여 버퍼 이벤트를 최종 flush — executor 스레드가 lock을 쥐고 있을 수 있으므로 blocking lock 사용
+        flushLock.lock()
+        try {
+            val events = ringBuffer.drain(batchSize)
+            if (events.isNotEmpty()) {
+                try {
+                    val enriched = enrichCosts(events)
+                    store.batchInsert(enriched)
+                    healthMonitor.recordWrite(events.size, 0)
+                } catch (e: Exception) {
+                    healthMonitor.recordWriteError()
+                    logger.error(e) { "Final flush failed: ${events.size} events lost" }
+                }
+            }
+        } finally {
+            flushLock.unlock()
+        }
         logger.info { "MetricWriter stopped" }
     }
 

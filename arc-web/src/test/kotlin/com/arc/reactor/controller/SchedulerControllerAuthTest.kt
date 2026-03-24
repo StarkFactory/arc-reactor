@@ -133,6 +133,7 @@ class SchedulerControllerAuthTest {
 
     @Test
     fun `triggerJob은(는) allows admin and returns result`() {
+        every { schedulerService.findById("job-1") } returns ScheduledJob(id = "job-1", name = "test", cronExpression = "0 0 * * *", jobType = ScheduledJobType.MCP_TOOL)
         every { schedulerService.trigger("job-1") } returns "triggered"
 
         val response = controller.triggerJob("job-1", exchange(userId = "admin-1", role = UserRole.ADMIN)).block()
@@ -145,6 +146,7 @@ class SchedulerControllerAuthTest {
 
     @Test
     fun `dryRunJob은(는) allows admin and returns dry run marker`() {
+        every { schedulerService.findById("job-1") } returns ScheduledJob(id = "job-1", name = "test", cronExpression = "0 0 * * *", jobType = ScheduledJobType.MCP_TOOL)
         every { schedulerService.dryRun("job-1") } returns "preview"
 
         val response = controller.dryRunJob("job-1", exchange(userId = "admin-1", role = UserRole.ADMIN)).block()

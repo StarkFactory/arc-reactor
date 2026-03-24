@@ -206,7 +206,7 @@ class TenantAdminController(
     @Operation(summary = "Export executions as CSV")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "CSV file of executions"),
-        ApiResponse(responseCode = "403", description = "Admin access required")
+        ApiResponse(responseCode = "403", description = "ADMIN role required (ADMIN_DEVELOPER insufficient)")
     ])
     @GetMapping("/export/executions")
     fun exportExecutions(
@@ -229,7 +229,7 @@ class TenantAdminController(
     @Operation(summary = "Export tool calls as CSV")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "CSV file of tool calls"),
-        ApiResponse(responseCode = "403", description = "Admin access required")
+        ApiResponse(responseCode = "403", description = "ADMIN role required (ADMIN_DEVELOPER insufficient)")
     ])
     @GetMapping("/export/tools")
     fun exportTools(

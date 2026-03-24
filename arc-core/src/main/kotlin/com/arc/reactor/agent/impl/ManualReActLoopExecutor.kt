@@ -171,13 +171,9 @@ internal class ManualReActLoopExecutor(
             }
             textRetryCount = 0
 
-            if (assistantOutput == null) {
-                logger.error { "Assistant output is null despite pending tool calls" }
-                return AgentResult.failure(
-                    errorMessage = "Assistant output is null when tool calls are present",
-                    errorCode = AgentErrorCode.UNKNOWN
-                )
-            }
+            // assistantOutput은 pendingToolCalls가 비어있지 않으면 항상 non-null
+            // (null이면 toolCalls도 null → orEmpty() → isEmpty → 위에서 이미 반환됨)
+            val safeAssistantOutput = assistantOutput!!
 
             // 단계 D: Tool 병렬 실행 — ToolCallOrchestrator에 위임
             val totalToolCallsCounter = AtomicInteger(totalToolCalls)
@@ -191,7 +187,7 @@ internal class ManualReActLoopExecutor(
             totalToolCalls = totalToolCallsCounter.get()
 
             // 단계 E: AssistantMessage + ToolResponseMessage 쌍으로 추가
-            appendToolMessagePair(messages, assistantOutput, toolResponses)
+            appendToolMessagePair(messages, safeAssistantOutput, toolResponses)
 
             // 단계 E-2: 도구 에러 시 재시도 힌트 주입
             hadToolError = ReActLoopUtils.hasToolError(toolResponses)
