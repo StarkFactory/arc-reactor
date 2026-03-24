@@ -79,6 +79,10 @@ object SsrfUrlValidator {
                 b0 == 192 && b1 == 168 -> true
                 // 169.254.0.0/16 (link-local / cloud metadata)
                 b0 == 169 && b1 == 254 -> true
+                // 100.64.0.0/10 (CGNAT — RFC 6598)
+                b0 == 100 && b1 in 64..127 -> true
+                // 240.0.0.0/4 (reserved) + 255.255.255.255 (broadcast)
+                b0 >= 240 -> true
                 // 0.0.0.0/8
                 b0 == 0 -> true
                 else -> false
