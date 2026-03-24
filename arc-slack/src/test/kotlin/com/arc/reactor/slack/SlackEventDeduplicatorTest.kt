@@ -14,7 +14,7 @@ class SlackEventDeduplicatorTest {
 
     @Test
     fun `marks은(는) first event as new and second as duplicate`() {
-        val deduplicator = SlackEventDeduplicator(enabled = true, ttlSeconds = 60, maxEntries = 100)
+        val deduplicator = SlackEventDeduplicator(enabled = true, ttlSeconds = 60, maxEntries = 100, cleanupIntervalSeconds = 0)
 
         deduplicator.isDuplicateAndMark("Ev123") shouldBe false
         deduplicator.isDuplicateAndMark("Ev123") shouldBe true
@@ -22,7 +22,7 @@ class SlackEventDeduplicatorTest {
 
     @Test
     fun `ttl후 expires old entries`() {
-        val deduplicator = SlackEventDeduplicator(enabled = true, ttlSeconds = 1, maxEntries = 100)
+        val deduplicator = SlackEventDeduplicator(enabled = true, ttlSeconds = 1, maxEntries = 100, cleanupIntervalSeconds = 0)
 
         deduplicator.isDuplicateAndMark("Ev123", nowMillis = 1_000) shouldBe false
         deduplicator.isDuplicateAndMark("Ev123", nowMillis = 1_500) shouldBe true
