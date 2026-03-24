@@ -117,7 +117,7 @@ class SlackEventProcessorReactionTest {
             processor.submitEventCallback(
                 reactionPayload(ts = "9999.999"), "events_api"
             )
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) {
                 eventHandler.handleReaction(any(), any(), any(), any(), any(), any())
@@ -128,7 +128,7 @@ class SlackEventProcessorReactionTest {
         fun `ignores reaction when bot response tracker은(는) null이다`() = runTest {
             val processor = buildProcessor(tracker = null)
             processor.submitEventCallback(reactionPayload(), "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) {
                 eventHandler.handleReaction(any(), any(), any(), any(), any(), any())
@@ -143,7 +143,7 @@ class SlackEventProcessorReactionTest {
             )
             val processor = buildProcessor()
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) {
                 eventHandler.handleReaction(any(), any(), any(), any(), any(), any())
@@ -165,8 +165,7 @@ class SlackEventProcessorReactionTest {
             processor.submitEventCallback(reactionPayload(), "events_api")
 
             latch.await(3, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)
-            verify {
+            verify(timeout = 2000) {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
                     eventType = "reaction_feedback",

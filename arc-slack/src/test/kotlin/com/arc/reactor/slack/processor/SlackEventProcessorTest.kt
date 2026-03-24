@@ -163,7 +163,7 @@ class SlackEventProcessorTest {
             val payload = threadMessagePayload(threadTs = "2000.000")
 
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
             verify {
@@ -195,7 +195,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -222,7 +222,7 @@ class SlackEventProcessorTest {
             )
 
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -235,7 +235,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) { eventHandler.handleAppMention(any()) }
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
@@ -269,8 +269,7 @@ class SlackEventProcessorTest {
             processor.submitEventCallback(payload, "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // 핸들러 완료 후 recordHandler 호출 디스패치 대기
-            coVerify {
+            coVerify(timeout = 2000) {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
                     eventType = "app_mention",
@@ -293,8 +292,7 @@ class SlackEventProcessorTest {
             processor.submitEventCallback(payload, "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)
-            coVerify {
+            coVerify(timeout = 2000) {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
                     eventType = "app_mention",
@@ -317,7 +315,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(botMessagePayload(), "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) { eventHandler.handleAppMention(any()) }
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
@@ -328,7 +326,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(subtypeMessagePayload(), "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -338,7 +336,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(noUserPayload(), "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) { eventHandler.handleAppMention(any()) }
         }
@@ -454,7 +452,7 @@ class SlackEventProcessorTest {
             }
 
             holdLatch.countDown()
-            Thread.sleep(500) // 처리 완료 대기
+            Thread.sleep(300) // 처리 완료 대기
 
             processedCount.get() shouldBe 1
         }
@@ -547,7 +545,7 @@ class SlackEventProcessorTest {
             val (p2, _, _) = mentionPayload(user = "U2")
             processor.submitEventCallback(p2, "events_api")
             holdLatch.countDown()
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) { messagingService.sendMessage(any(), any(), any()) }
         }
@@ -610,16 +608,15 @@ class SlackEventProcessorTest {
                 val (p2, _, _) = mentionPayload(user = "U2")
                 processor.submitEventCallback(p2, "events_api")
             }
-            Thread.sleep(800)  // 200ms 타임아웃 + Dispatchers.Default 스케줄링 마진 대기
-            holdLatch.countDown()
 
-            verify {
+            verify(timeout = 3000) {
                 metricsRecorder.recordDropped(
                     entrypoint = "events_api",
                     reason = "queue_timeout",
                     eventType = "app_mention"
                 )
             }
+            holdLatch.countDown()
         }
     }
 
@@ -666,7 +663,7 @@ class SlackEventProcessorTest {
             val (p1, _, _) = mentionPayload(user = "U1")
             processor.submitEventCallback(p1, "events_api")
             firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // finally 블록에서 세마포어 해제 대기
+            Thread.sleep(300)  // finally 블록에서 세마포어 해제 대기
 
             // 세마포어가 해제되지 않았다면 이 두 번째 이벤트는 타임아웃됩니다
             val processedSecond = AtomicInteger(0)

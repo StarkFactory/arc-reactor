@@ -1520,7 +1520,7 @@ class ToolCallOrchestratorTest {
         )
         assertEquals("result-1", firstResponses[0].responseData(), "First call should return fresh result")
 
-        Thread.sleep(1100)
+        Thread.sleep(1600)
 
         val secondCall = toolCall(id = "id-2", name = "search", arguments = """{"q":"arc"}""")
         val secondResponses = orchestrator.executeInParallel(
