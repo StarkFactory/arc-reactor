@@ -9,8 +9,10 @@ import com.arc.reactor.guard.output.policy.OutputGuardRuleAction
 import com.arc.reactor.guard.output.policy.OutputGuardRuleEvaluator
 import com.arc.reactor.guard.output.policy.OutputGuardRuleInvalidationBus
 import com.arc.reactor.guard.output.policy.OutputGuardRuleStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -115,7 +117,7 @@ class DynamicRuleOutputGuard(
             val latestRevision = invalidationBus.currentRevision()
             if (nowMs - cachedAtMs <= interval && latestRevision == cachedRevision) return cachedRules
 
-            cachedRules = store.list()
+            cachedRules = withContext(Dispatchers.IO) { store.list() }
                 .asSequence()
                 .filter { it.enabled }
                 .sortedWith(compareBy<OutputGuardRule> { it.priority }.thenBy { it.createdAt })
