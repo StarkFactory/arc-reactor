@@ -149,6 +149,11 @@ jobs:
           DURATION_LABEL="safety gate suite" bash scripts/ci/run-with-duration-guard.sh "$SAFETY_TEST_MAX_SECONDS" \
             ./gradlew :arc-core:test :arc-web:test -PincludeSafety
 
+      - name: Run Hardening Tests (Static, No LLM)
+        run: |
+          DURATION_LABEL="hardening test suite" bash scripts/ci/run-with-duration-guard.sh "$SAFETY_TEST_MAX_SECONDS" \
+            ./gradlew :arc-core:test -PincludeHardening
+
       - name: Upload Test Results
         uses: actions/upload-artifact@v7
         if: always()

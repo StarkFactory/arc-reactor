@@ -69,6 +69,11 @@ subprojects {
             if (project.hasProperty("includeSafety")) {
                 includeTags("safety")
             }
+            // Run ONLY hardening-tagged tests (used by CI hardening gate).
+            // Run with: ./gradlew test -PincludeHardening
+            if (project.hasProperty("includeHardening")) {
+                includeTags("hardening")
+            }
         }
         testLogging {
             events("failed")
