@@ -60,7 +60,12 @@ class McpHealthPinger(
                     e.throwIfCancellation()
                     break
                 }
-                pingAllConnectedServers()
+                try {
+                    pingAllConnectedServers()
+                } catch (e: Exception) {
+                    e.throwIfCancellation()
+                    logger.warn(e) { "헬스체크 실패, 다음 주기에 재시도" }
+                }
             }
         }
     }
