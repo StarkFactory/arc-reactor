@@ -7,6 +7,7 @@ import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackEventCommand
 import com.arc.reactor.slack.proactive.ProactiveChannelStore
+import com.arc.reactor.slack.resilience.SlackUserRateLimiter
 import com.arc.reactor.slack.session.SlackBotResponseTracker
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
@@ -52,6 +53,7 @@ class SlackEventProcessor(
     private val threadTracker: SlackThreadTracker? = null,
     private val proactiveChannelStore: ProactiveChannelStore? = null,
     private val botResponseTracker: SlackBotResponseTracker? = null,
+    private val userRateLimiter: SlackUserRateLimiter? = null,
     scope: CoroutineScope? = null
 ) : DisposableBean {
     private val scope = scope ?: CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -114,6 +116,18 @@ class SlackEventProcessor(
 
         if (command.userId.isBlank() || command.channelId.isBlank()) {
             logger.debug { "Skipping event with missing user or channel" }
+            return
+        }
+
+        if (userRateLimiter != null && !userRateLimiter.tryAcquire(command.userId)) {
+            metricsRecorder.recordDropped(
+                entrypoint = entrypoint,
+                reason = "user_rate_limited",
+                eventType = eventType
+            )
+            scope.launch {
+                notifyRateLimited(command)
+            }
             return
         }
 
@@ -203,6 +217,22 @@ class SlackEventProcessor(
             } finally {
                 backpressureLimiter.release()
             }
+        }
+    }
+
+    private suspend fun notifyRateLimited(command: SlackEventCommand) {
+        val threadTs = command.threadTs ?: command.ts
+        if (threadTs.isBlank()) return
+
+        try {
+            messagingService.sendMessage(
+                channelId = command.channelId,
+                text = RATE_LIMITED_RESPONSE_TEXT,
+                threadTs = threadTs
+            )
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "Failed to send rate-limit message for channel=${command.channelId}" }
         }
     }
 
@@ -301,5 +331,6 @@ class SlackEventProcessor(
 
     companion object {
         const val BUSY_RESPONSE_TEXT = ":hourglass: The system is busy right now. Please try again in a moment."
+        const val RATE_LIMITED_RESPONSE_TEXT = ":no_entry: Too many requests. Please wait a moment before trying again."
     }
 }
