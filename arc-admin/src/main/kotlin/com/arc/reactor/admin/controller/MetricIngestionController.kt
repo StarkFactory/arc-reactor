@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
+import jakarta.validation.Valid
+import jakarta.validation.constraints.Size
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -51,7 +53,7 @@ class MetricIngestionController(
         ApiResponse(responseCode = "503", description = "Metric buffer full")
     ])
     @PostMapping("/mcp-health")
-    fun ingestMcpHealth(@RequestBody request: McpHealthRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun ingestMcpHealth(@Valid @RequestBody request: McpHealthRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val event = McpHealthEvent(
             time = Instant.now(),
@@ -81,7 +83,7 @@ class MetricIngestionController(
         ApiResponse(responseCode = "503", description = "Metric buffer full")
     ])
     @PostMapping("/tool-call")
-    fun ingestToolCall(@RequestBody request: ToolCallRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun ingestToolCall(@Valid @RequestBody request: ToolCallRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val event = ToolCallEvent(
             time = Instant.now(),
@@ -227,6 +229,7 @@ data class McpHealthRequest(
     val status: String = "CONNECTED",
     val responseTimeMs: Long = 0,
     val errorClass: String? = null,
+    @field:Size(max = 2000, message = "errorMessage must not exceed 2000 characters")
     val errorMessage: String? = null,
     val toolCount: Int = 0
 )
@@ -242,6 +245,7 @@ data class ToolCallRequest(
     val success: Boolean = true,
     val durationMs: Long = 0,
     val errorClass: String? = null,
+    @field:Size(max = 2000, message = "errorMessage must not exceed 2000 characters")
     val errorMessage: String? = null
 )
 

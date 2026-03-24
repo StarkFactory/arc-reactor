@@ -178,6 +178,29 @@ interface MemoryStore {
     fun listSessionsByUserId(userId: String): List<SessionSummary> = listSessions()
 
     /**
+     * 특정 사용자가 소유한 세션 요약을 페이지네이션하여 조회한다.
+     *
+     * DB 수준에서 LIMIT/OFFSET을 적용하여 대량 세션 시 불필요한 메모리 할당을 방지한다.
+     * 하위 호환성을 위해 기본 구현은 [listSessionsByUserId]로 폴백하여 인메모리 슬라이싱한다.
+     *
+     * @param userId 소유자 사용자 ID
+     * @param limit 반환할 최대 항목 수
+     * @param offset 0 기반 시작 인덱스
+     * @return 페이지네이션된 세션 요약 목록과 전체 개수
+     */
+    fun listSessionsByUserIdPaginated(
+        userId: String,
+        limit: Int,
+        offset: Int
+    ): PaginatedSessionResult {
+        val all = listSessionsByUserId(userId)
+        val safeOffset = offset.coerceAtLeast(0)
+        val end = (safeOffset + limit).coerceAtMost(all.size)
+        val items = if (safeOffset >= all.size) emptyList() else all.subList(safeOffset, end)
+        return PaginatedSessionResult(items = items, total = all.size)
+    }
+
+    /**
      * 세션의 소유자 userId를 조회한다.
      *
      * 삭제/조회 작업에서 소유권 검증에 사용된다.
@@ -204,6 +227,17 @@ data class SessionSummary(
     val messageCount: Int,
     val lastActivity: Instant,
     val preview: String
+)
+
+/**
+ * 페이지네이션된 세션 조회 결과.
+ *
+ * @param items 현재 페이지의 세션 요약 목록
+ * @param total 페이지네이션 전 전체 세션 수
+ */
+data class PaginatedSessionResult(
+    val items: List<SessionSummary>,
+    val total: Int
 )
 
 /**

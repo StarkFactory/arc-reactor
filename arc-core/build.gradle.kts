@@ -2,7 +2,7 @@ plugins {
     id("org.springframework.boot")
 }
 
-// Spring AI 1.1.2
+// Spring AI 1.1.3
 val springAiVersion = "1.1.3"
 
 dependencies {

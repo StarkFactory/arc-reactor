@@ -34,14 +34,16 @@ class SlackUserRateLimiter(
         val now = System.currentTimeMillis()
         val window = userWindows.computeIfAbsent(userId) { ConcurrentLinkedDeque() }
 
-        purgeExpired(window, now)
+        synchronized(window) {
+            purgeExpired(window, now)
 
-        if (window.size >= maxRequestsPerMinute) {
-            logger.warn { "사용자 레이트 리밋 초과: userId=$userId, limit=$maxRequestsPerMinute/min" }
-            return false
+            if (window.size >= maxRequestsPerMinute) {
+                logger.warn { "사용자 레이트 리밋 초과: userId=$userId, limit=$maxRequestsPerMinute/min" }
+                return false
+            }
+
+            window.addLast(now)
         }
-
-        window.addLast(now)
         return true
     }
 

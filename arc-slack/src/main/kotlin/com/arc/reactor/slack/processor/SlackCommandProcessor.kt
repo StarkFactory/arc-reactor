@@ -5,6 +5,7 @@ import com.arc.reactor.slack.config.SlackProperties
 import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackSlashCommand
+import com.arc.reactor.slack.resilience.SlackUserRateLimiter
 import com.arc.reactor.slack.service.SlackMessagingService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +39,8 @@ class SlackCommandProcessor(
     private val commandHandler: SlackCommandHandler,
     private val messagingService: SlackMessagingService,
     private val metricsRecorder: SlackMetricsRecorder,
-    properties: SlackProperties
+    properties: SlackProperties,
+    private val userRateLimiter: SlackUserRateLimiter? = null
 ) : DisposableBean {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val backpressureLimiter = SlackBackpressureLimiter(
@@ -54,6 +56,21 @@ class SlackCommandProcessor(
     }
 
     private fun processAsync(command: SlackSlashCommand, entrypoint: String): Boolean {
+        if (userRateLimiter != null && !userRateLimiter.tryAcquire(command.userId)) {
+            metricsRecorder.recordDropped(
+                entrypoint = entrypoint,
+                reason = "user_rate_limited",
+                eventType = command.command
+            )
+            scope.launch {
+                messagingService.sendResponseUrl(
+                    responseUrl = command.responseUrl,
+                    text = RATE_LIMITED_RESPONSE_TEXT
+                )
+            }
+            return false
+        }
+
         if (backpressureLimiter.rejectImmediatelyIfConfigured()) {
             logger.warn {
                 "Slack slash command rejected due to saturation: " +
@@ -121,5 +138,6 @@ class SlackCommandProcessor(
         const val PROCESSING_RESPONSE_TEXT = ":hourglass_flowing_sand: Processing..."
         const val BUSY_RESPONSE_TEXT = ":hourglass: The system is busy. Please try again shortly."
         const val INVALID_PAYLOAD_RESPONSE_TEXT = ":warning: Invalid slash command payload."
+        const val RATE_LIMITED_RESPONSE_TEXT = ":no_entry: Too many requests. Please wait a moment before trying again."
     }
 }

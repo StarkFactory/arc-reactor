@@ -239,7 +239,8 @@ class SlackAutoConfiguration {
         properties: SlackProperties,
         threadTracker: ObjectProvider<SlackThreadTracker>,
         proactiveChannelStore: ObjectProvider<ProactiveChannelStore>,
-        botResponseTracker: ObjectProvider<SlackBotResponseTracker>
+        botResponseTracker: ObjectProvider<SlackBotResponseTracker>,
+        userRateLimiter: ObjectProvider<SlackUserRateLimiter>
     ): SlackEventProcessor = SlackEventProcessor(
         eventHandler = eventHandler,
         messagingService = messagingService,
@@ -247,7 +248,8 @@ class SlackAutoConfiguration {
         properties = properties,
         threadTracker = threadTracker.ifAvailable,
         proactiveChannelStore = proactiveChannelStore.ifAvailable,
-        botResponseTracker = botResponseTracker.ifAvailable
+        botResponseTracker = botResponseTracker.ifAvailable,
+        userRateLimiter = userRateLimiter.ifAvailable
     )
 
     @Bean
@@ -257,12 +259,14 @@ class SlackAutoConfiguration {
         commandHandler: SlackCommandHandler,
         messagingService: SlackMessagingService,
         metricsRecorder: SlackMetricsRecorder,
-        properties: SlackProperties
+        properties: SlackProperties,
+        userRateLimiter: ObjectProvider<SlackUserRateLimiter>
     ): SlackCommandProcessor = SlackCommandProcessor(
         commandHandler = commandHandler,
         messagingService = messagingService,
         metricsRecorder = metricsRecorder,
-        properties = properties
+        properties = properties,
+        userRateLimiter = userRateLimiter.ifAvailable
     )
 
     @Bean
