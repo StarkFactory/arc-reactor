@@ -182,6 +182,7 @@ class ArcReactorCoreBeansConfiguration {
     @Bean
     @Primary
     @ConditionalOnBean(MeterRegistry::class)
+    @ConditionalOnMissingBean(AgentMetrics::class)
     fun micrometerAgentMetrics(registry: MeterRegistry): AgentMetrics = MicrometerAgentMetrics(registry)
 
     /**
