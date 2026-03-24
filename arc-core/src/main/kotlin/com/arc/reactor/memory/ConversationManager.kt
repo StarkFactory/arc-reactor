@@ -362,8 +362,10 @@ class DefaultConversationManager(
         val store = memoryStore ?: return
         val owner = try {
             store.getSessionOwner(sessionId)
-        } catch (_: Exception) {
-            null  // 소유권 조회 실패 시 검증 건너뛰기 (fail-open for availability)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.error(e) { "세션 소유권 조회 실패 — fail-close로 접근 차단: sessionId=$sessionId" }
+            throw IllegalStateException("세션 소유권 검증 실패", e)
         } ?: return
         if (owner != userId) {
             logger.warn {
@@ -397,9 +399,9 @@ class DefaultConversationManager(
                 "memory.message.count" to messageCount.toString()
             )
         )
-        val mutex = sessionSaveLocks.get(sessionId) { Mutex() }
-        mutex.withLock {
-            try {
+        try {
+            val mutex = sessionSaveLocks.get(sessionId) { Mutex() }
+            mutex.withLock {
                 withContext(Dispatchers.IO) {
                     store.addMessage(sessionId, "user", userPrompt, resolvedUserId)
                     if (assistantContent != null) {
@@ -407,13 +409,13 @@ class DefaultConversationManager(
                     }
                 }
                 logger.debug { "Saved conversation for session $sessionId" }
-            } catch (e: Exception) {
-                e.throwIfCancellation()
-                span.setError(e)
-                logger.error(e) { "Failed to save conversation history for session $sessionId" }
-            } finally {
-                span.close()
             }
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            span.setError(e)
+            logger.error(e) { "Failed to save conversation history for session $sessionId" }
+        } finally {
+            span.close()
         }
     }
 

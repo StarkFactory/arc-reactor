@@ -37,6 +37,9 @@ class Bm25Scorer(
     /** 문서 ID → (토큰 → 빈도) 맵. 각 문서의 단어 빈도(term frequency)를 저장한다. */
     private val termFrequencies: MutableMap<String, Map<String, Int>> = LinkedHashMap()
 
+    /** 문서 ID → 문서 길이(토큰 수). 인덱싱 시 미리 계산하여 쿼리 시 재계산을 방지한다. */
+    private val documentLengths: MutableMap<String, Int> = LinkedHashMap()
+
     /** 토큰 → 해당 토큰을 포함하는 문서 수. IDF 계산에 사용된다. */
     private val documentFrequency: MutableMap<String, Int> = HashMap()
 
@@ -82,6 +85,7 @@ class Bm25Scorer(
         // 새 문서 통계를 인덱스에 반영한다
         docContents[docId] = content
         termFrequencies[docId] = tf
+        documentLengths[docId] = tokens.size
         totalLength += tokens.size
         for (token in tf.keys) {
             documentFrequency[token] = (documentFrequency[token] ?: 0) + 1
@@ -117,7 +121,8 @@ class Bm25Scorer(
         // min-heap으로 O(N log K) — 전체 정렬 O(N log N) 대비 개선
         val heap = java.util.PriorityQueue<Pair<String, Double>>(topK + 1, compareBy { it.second })
         for ((docId, tf) in termFrequencies) {
-            val s = scoreWithTokens(queryTokens, tf, idf, avgLen)
+            val docLen = (documentLengths[docId] ?: tf.values.sum()).toDouble()
+            val s = scoreWithTokens(queryTokens, tf, docLen, idf, avgLen)
             if (s > 0.0) {
                 heap.add(docId to s)
                 if (heap.size > topK) heap.poll()
@@ -140,6 +145,7 @@ class Bm25Scorer(
     fun clear() {
         docContents.clear()
         termFrequencies.clear()
+        documentLengths.clear()
         documentFrequency.clear()
         idfCache = emptyMap()
         totalLength = 0L
@@ -167,17 +173,18 @@ class Bm25Scorer(
      */
     private fun scoreInternal(query: String, docId: String): Double {
         val tf = termFrequencies[docId] ?: return 0.0
-        return scoreWithTokens(tokenize(query).toSet(), tf, getIdf(), averageLength)
+        val docLen = (documentLengths[docId] ?: tf.values.sum()).toDouble()
+        return scoreWithTokens(tokenize(query).toSet(), tf, docLen, getIdf(), averageLength)
     }
 
     /** 사전 토큰화된 쿼리 토큰으로 BM25 스코어를 계산한다. search()에서 반복 호출 최적화용. */
     private fun scoreWithTokens(
         queryTokens: Set<String>,
         tf: Map<String, Int>,
+        docLength: Double,
         idf: Map<String, Double>,
         avgLen: Double
     ): Double {
-        val docLength = tf.values.sum().toDouble()
         return queryTokens.sumOf { token ->
             val termFreq = tf[token]?.toDouble() ?: 0.0
             val idfScore = idf[token] ?: 0.0

@@ -96,13 +96,13 @@ class DefaultPromptDriftDetector(
     }
 
     override fun evaluate(): List<DriftAnomaly> {
+        val inputSnapshot = inputLengths.toList()
+        val outputSnapshot = outputLengths.toList()
         val anomalies = mutableListOf<DriftAnomaly>()
-        evaluateDistribution(
-            inputLengths.toList(), DriftType.INPUT_LENGTH
-        )?.let { anomalies.add(it) }
-        evaluateDistribution(
-            outputLengths.toList(), DriftType.OUTPUT_LENGTH
-        )?.let { anomalies.add(it) }
+        evaluateDistribution(inputSnapshot, DriftType.INPUT_LENGTH)
+            ?.let { anomalies.add(it) }
+        evaluateDistribution(outputSnapshot, DriftType.OUTPUT_LENGTH)
+            ?.let { anomalies.add(it) }
         return anomalies
     }
 
