@@ -262,6 +262,7 @@ class DynamicSchedulerService(
             logger.info { "Scheduled job completed: ${job.name}" }
             result
         } catch (e: Exception) {
+            e.throwIfCancellation()
             val errorMsg = "Job '${job.name}' failed: ${e.message}"
             logger.error(e) { errorMsg }
             store.updateExecutionResult(job.id, JobExecutionStatus.FAILED, errorMsg)
@@ -281,6 +282,7 @@ class DynamicSchedulerService(
             logger.info { "Dry-run completed: ${job.name}" }
             result
         } catch (e: Exception) {
+            e.throwIfCancellation()
             val errorMsg = "Job '${job.name}' failed: ${e.message}"
             logger.error(e) { errorMsg }
             val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()

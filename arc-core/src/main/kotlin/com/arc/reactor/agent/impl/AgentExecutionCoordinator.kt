@@ -84,7 +84,8 @@ internal class AgentExecutionCoordinator(
     ) -> AgentResult,
     private val checkGuardAndHooks: suspend (AgentCommand, HookContext, Long) -> AgentResult?,
     private val resolveIntent: suspend (AgentCommand, HookContext) -> AgentCommand,
-    private val nowMs: () -> Long = System::currentTimeMillis
+    private val nowMs: () -> Long = System::currentTimeMillis,
+    private val nowNanos: () -> Long = System::nanoTime
 ) {
 
     /**
@@ -154,11 +155,11 @@ internal class AgentExecutionCoordinator(
         command: AgentCommand,
         block: () -> T
     ): T {
-        val start = nowMs()
+        val startNanos = nowNanos()
         return block().also {
-            val duration = nowMs() - start
-            recordStageTiming(hookContext, stage, duration)
-            agentMetrics.recordStageLatency(stage, duration, command.metadata)
+            val durationMs = (nowNanos() - startNanos) / 1_000_000
+            recordStageTiming(hookContext, stage, durationMs)
+            agentMetrics.recordStageLatency(stage, durationMs, command.metadata)
         }
     }
 
@@ -301,9 +302,9 @@ internal class AgentExecutionCoordinator(
         hookContext: HookContext
     ): AgentResult {
         if (result.success || fallbackStrategy == null) return result
-        val fallbackStart = nowMs()
+        val fallbackStartNanos = nowNanos()
         val fallbackResult = attemptFallback(command, result)
-        val duration = nowMs() - fallbackStart
+        val duration = (nowNanos() - fallbackStartNanos) / 1_000_000
         recordStageTiming(hookContext, "fallback", duration)
         agentMetrics.recordStageLatency("fallback", duration, command.metadata)
         if (fallbackResult !== result) {

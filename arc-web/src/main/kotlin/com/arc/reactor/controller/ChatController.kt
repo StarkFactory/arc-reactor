@@ -381,7 +381,8 @@ class ChatController(
 
     /**
      * 미디어 URL 문자열을 URI로 파싱하고 안전성을 검증한다.
-     * WHY: SSRF 방지를 위해 절대 URL, http/https 스킴, 유효한 호스트만 허용한다.
+     * WHY: SSRF 방지를 위해 절대 URL, http/https 스킴, 유효한 호스트만 허용하고,
+     * [SsrfUrlValidator]로 사설/예약 IP 접근을 차단한다.
      */
     private fun parseMediaUri(raw: String): URI {
         val normalized = raw.trim()
@@ -399,6 +400,13 @@ class ChatController(
         }
         if (uri.host.isNullOrBlank()) {
             throw ServerWebInputException("Invalid media URL: $raw")
+        }
+        // SSRF 검증: 사설/예약 IP로의 요청을 차단한다
+        val ssrfError = SsrfUrlValidator.validate(
+            uri.toString(), properties.mcp.allowPrivateAddresses
+        )
+        if (ssrfError != null) {
+            throw ServerWebInputException("Blocked media URL (SSRF): $ssrfError")
         }
         return uri
     }

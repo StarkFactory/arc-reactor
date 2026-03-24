@@ -2,6 +2,7 @@ package com.arc.reactor.mcp
 
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpServerStatus
+import com.arc.reactor.support.throwIfCancellation
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -117,13 +118,21 @@ class McpToolAvailabilityChecker(
         }.toMap()
     }
 
-    /** 도구 이름 → 소속 서버 이름 매핑을 구축한다 */
+    /** 도구 이름 → 소속 서버 이름 매핑을 구축한다. 개별 서버 실패 시 건너뛴다. */
     private fun buildToolToServerMap(
         servers: List<McpServer>
     ): Map<String, String> {
         val map = mutableMapOf<String, String>()
         for (server in servers) {
-            val callbacks = mcpManager.getToolCallbacks(server.name)
+            val callbacks = try {
+                mcpManager.getToolCallbacks(server.name)
+            } catch (e: Exception) {
+                e.throwIfCancellation()
+                logger.warn(e) {
+                    "MCP 서버 '${server.name}' 도구 콜백 조회 실패 — 건너뜀"
+                }
+                continue
+            }
             for (callback in callbacks) {
                 map.putIfAbsent(callback.name, server.name)
             }

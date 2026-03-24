@@ -56,7 +56,7 @@ class InMemoryToolIdempotencyGuard(
         internal fun buildIdempotencyKey(toolName: String, arguments: Map<String, Any?>): String {
             val sortedArgs = arguments.entries
                 .sortedBy { it.key }
-                .joinToString(",") { "${it.key}=${it.value}" }
+                .joinToString("\u0000") { "${it.key}\u0001${it.value}" }
             return HashUtils.sha256Hex("$toolName:$sortedArgs")
         }
     }

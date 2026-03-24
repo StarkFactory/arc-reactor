@@ -268,7 +268,8 @@ class SpringAiAgentExecutor(
         hookExecutor = hookExecutor,
         errorMessageResolver = errorMessageResolver,
         agentMetrics = agentMetrics,
-        citationProperties = properties.citation
+        citationProperties = properties.citation,
+        costCalculator = costCalculator ?: CostCalculator()
     )
     // 사전 실행 검증 — Guard 파이프라인, Hook, Intent 해석
     private val preExecutionResolver = PreExecutionResolver(

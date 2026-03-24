@@ -113,7 +113,7 @@ class ChatControllerTest {
             assertEquals("test message", captured.userPrompt) { "userPrompt should match request message" }
             assertEquals("gpt-4o", captured.model) { "model should be forwarded" }
             assertEquals("custom prompt", captured.systemPrompt) { "custom systemPrompt should be used" }
-            assertEquals("user-123", captured.userId) { "userId should be forwarded" }
+            assertEquals("anonymous", captured.userId) { "userId should be 'anonymous' without JWT auth" }
             assertEquals(
                 mapOf("key" to "value", "channel" to "web", "tenantId" to "default"),
                 captured.metadata
@@ -402,14 +402,14 @@ class ChatControllerTest {
         }
 
         @Test
-        fun `exchange has no auth일 때 fallback to request userId해야 한다`() = runTest {
+        fun `exchange has no auth일 때 ignore request userId and use anonymous해야 한다`() = runTest {
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
             controller.chat(ChatRequest(message = "hello", userId = "request-user"), exchange)
 
-            assertEquals("request-user", commandSlot.captured.userId) {
-                "Should use request userId when no JWT present"
+            assertEquals("anonymous", commandSlot.captured.userId) {
+                "Should use 'anonymous' when no JWT present to prevent userId spoofing"
             }
         }
 
@@ -522,7 +522,7 @@ class ChatControllerTest {
             val captured = commandSlot.captured
             assertEquals("stream test", captured.userPrompt) { "userPrompt should match" }
             assertEquals("gpt-4o", captured.model) { "model should be forwarded" }
-            assertEquals("user-456", captured.userId) { "userId should be forwarded" }
+            assertEquals("anonymous", captured.userId) { "userId should be 'anonymous' without JWT auth" }
         }
 
         @Test

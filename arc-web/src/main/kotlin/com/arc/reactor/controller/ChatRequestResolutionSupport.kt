@@ -75,11 +75,25 @@ internal class SystemPromptResolver(
 }
 
 /**
- * 사용자 ID를 해석한다. JWT 인증 필터의 속성 > 요청에 직접 지정 > "anonymous" 폴백 순서.
- * WHY: Guard에서 userId null 체크를 건너뛰면 보안 취약점이 되므로 항상 "anonymous" 폴백을 사용한다.
+ * 사용자 ID를 해석한다.
+ *
+ * JWT 인증 필터가 설정한 userId를 최우선으로 사용한다.
+ * JWT 인증이 활성화되지 않은 경우(USER_ID_ATTRIBUTE가 없으면) 요청에 지정된
+ * requestUserId를 신뢰할 수 없으므로 "anonymous"로 폴백한다.
+ * WHY: JWT 검증 없이 클라이언트가 제공한 userId를 그대로 사용하면
+ * userId 스푸핑으로 타 사용자 Rate Limit 소진, 세션 탈취 등이 가능하다.
  */
 internal fun resolveUserId(exchange: ServerWebExchange, requestUserId: String?): String {
-    return exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
-        ?: requestUserId
-        ?: "anonymous"
+    // JWT 인증 필터가 설정한 userId가 있으면 최우선 사용
+    val jwtUserId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
+    if (jwtUserId != null) return jwtUserId
+
+    // JWT 인증이 비활성화된 환경에서 requestUserId 사용 시 스푸핑 경고
+    if (!requestUserId.isNullOrBlank()) {
+        logger.warn {
+            "userId '$requestUserId' provided without JWT verification; " +
+                "ignoring to prevent spoofing. Enable JWT auth for user identification."
+        }
+    }
+    return "anonymous"
 }

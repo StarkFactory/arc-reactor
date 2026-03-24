@@ -29,18 +29,21 @@ internal class SystemPromptBuilder(
     /**
      * 프롬프트 분류 시 반복되는 lowercase() 호출을 캐싱한다.
      * 동일 입력에 대해 30회+ 호출되는 것을 1회로 줄인다.
-     * == (동등성) 비교로 JSON 역직렬화 등 다른 인스턴스도 캐시 히트한다.
+     * 스레드 안전한 ConcurrentHashMap으로 TOCTOU 경합을 방지한다.
      */
-    @Volatile
-    private var promptCache: Pair<String, String>? = null  // (original, normalized)
+    private val normalizeCache =
+        java.util.concurrent.ConcurrentHashMap<String, String>(4)
 
     private fun normalizePrompt(prompt: String?): String {
         if (prompt.isNullOrBlank()) return ""
-        val cached = promptCache
-        if (cached != null && cached.first == prompt) return cached.second
-        val normalized = prompt.lowercase()
-        promptCache = prompt to normalized
-        return normalized
+        return normalizeCache.computeIfAbsent(prompt) { it.lowercase() }
+    }
+
+    /** 캐시 크기를 제한하여 메모리 누수를 방지한다. build() 시작 시 호출. */
+    private fun resetNormalizeCacheIfNeeded() {
+        if (normalizeCache.size > MAX_NORMALIZE_CACHE_SIZE) {
+            normalizeCache.clear()
+        }
     }
 
     /** 프롬프트가 주어진 키워드 집합 중 하나라도 포함하는지 검사한다. */
@@ -71,6 +74,7 @@ internal class SystemPromptBuilder(
         workspaceToolAlreadyCalled: Boolean = false,
         userMemoryContext: String? = null
     ): String {
+        resetNormalizeCacheIfNeeded()
         val effectiveBase = if (userMemoryContext != null) {
             "$basePrompt\n\n[User Context]\n$userMemoryContext"
         } else {
@@ -847,6 +851,9 @@ internal class SystemPromptBuilder(
     // ── 프롬프트 분류를 위한 힌트 키워드 집합 (한국어/영어) ──
     // 공유 힌트 셋은 WorkContextPatterns에서 참조, 이 클래스 전용 힌트만 companion에 정의
     companion object {
+        /** normalizeCache 최대 크기 — 초과 시 전체 초기화 */
+        private const val MAX_NORMALIZE_CACHE_SIZE = 8
+
         private val CONFLUENCE_KNOWLEDGE_HINTS = setOf(
             "confluence", "wiki", "page", "document", "policy", "policies", "guideline", "guidelines",
             "runbook", "knowledge", "internal", "service", "space", "컨플루언스", "위키", "페이지",
