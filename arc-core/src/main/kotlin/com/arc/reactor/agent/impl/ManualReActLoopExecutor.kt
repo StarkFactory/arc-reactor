@@ -142,8 +142,10 @@ internal class ManualReActLoopExecutor(
                 recordLoopDurations(
                     hookContext, totalLlmDurationMs, totalToolDurationMs
                 )
+                val tracker = budgetTracker
+                    ?: error("budgetTracker는 null일 수 없음: 예산 소진 판정 후")
                 return buildBudgetExhaustedResult(
-                    budgetTracker!!, totalTokenUsage, toolsUsed
+                    tracker, totalTokenUsage, toolsUsed
                 )
             }
 
