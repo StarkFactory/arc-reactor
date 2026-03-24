@@ -2,7 +2,7 @@ plugins {
     id("org.springframework.boot")
 }
 
-val springAiVersion = "1.1.2"
+val springAiVersion = "1.1.3"
 
 dependencyManagement {
     imports {
