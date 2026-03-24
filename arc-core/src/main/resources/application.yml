@@ -61,7 +61,7 @@ arc:
       max-results: ${ARC_REACTOR_TOOL_SELECTION_MAX_RESULTS:10}
 
     approval:
-      enabled: ${ARC_REACTOR_APPROVAL_ENABLED:true}
+      enabled: ${ARC_REACTOR_APPROVAL_ENABLED:false}
 
     tool-policy:
       enabled: ${ARC_REACTOR_TOOL_POLICY_ENABLED:true}

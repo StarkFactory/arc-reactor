@@ -20,6 +20,7 @@ import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import mu.KotlinLogging
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -57,18 +58,28 @@ private val logger = KotlinLogging.logger {}
     havingValue = "true",
     matchIfMissing = false
 )
-@ConditionalOnProperty(
-    prefix = "arc.reactor.output-guard",
-    name = ["dynamic-rules-enabled"],
-    havingValue = "true",
-    matchIfMissing = true
-)
 class OutputGuardRuleController(
     private val store: OutputGuardRuleStore,
     private val auditStore: OutputGuardRuleAuditStore,
     private val invalidationBus: OutputGuardRuleInvalidationBus,
-    private val evaluator: OutputGuardRuleEvaluator
+    private val evaluator: OutputGuardRuleEvaluator,
+    @param:Value("\${arc.reactor.output-guard.dynamic-rules-enabled:true}")
+    private val dynamicRulesEnabled: Boolean = true
 ) {
+
+    /**
+     * 동적 규칙 기능이 비활성화된 경우 503 응답을 반환한다.
+     * `@ConditionalOnProperty` 중복 사용 시 OR 시맨틱으로 동작하므로,
+     * `dynamic-rules-enabled`는 런타임에 검증한다.
+     */
+    private fun dynamicRulesDisabledResponse(): ResponseEntity<Any>? {
+        if (!dynamicRulesEnabled) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                mapOf("error" to "Dynamic output guard rules are disabled")
+            )
+        }
+        return null
+    }
 
     /** 등록된 출력 가드 규칙 전체 목록을 조회한다. */
     @Operation(summary = "출력 가드 규칙 목록 조회")
@@ -78,6 +89,7 @@ class OutputGuardRuleController(
     ])
     @GetMapping
     fun listRules(exchange: ServerWebExchange): ResponseEntity<Any> {
+        dynamicRulesDisabledResponse()?.let { return it }
         if (!isAdmin(exchange)) return forbiddenResponse()
         return ResponseEntity.ok(store.list().map { it.toResponse() })
     }
@@ -93,6 +105,7 @@ class OutputGuardRuleController(
         @RequestParam(required = false) @Min(1) @Max(1000) limit: Int?,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
+        dynamicRulesDisabledResponse()?.let { return it }
         if (!isAdmin(exchange)) return forbiddenResponse()
         val size = (limit ?: 100).coerceIn(1, 1000)
         val logs = auditStore.list(size).map { it.toResponse() }
@@ -111,6 +124,7 @@ class OutputGuardRuleController(
         @Valid @RequestBody request: CreateOutputGuardRuleRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
+        dynamicRulesDisabledResponse()?.let { return it }
         if (!isAdmin(exchange)) return forbiddenResponse()
         val action = parseAction(request.action) ?: return badRequestResponse("Invalid action: ${request.action}")
         val patternError = validatePattern(request.pattern)
@@ -154,6 +168,7 @@ class OutputGuardRuleController(
         @Valid @RequestBody request: UpdateOutputGuardRuleRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
+        dynamicRulesDisabledResponse()?.let { return it }
         if (!isAdmin(exchange)) return forbiddenResponse()
         val action = request.action?.let { parseAction(it) }
         if (request.action != null && action == null) return badRequestResponse("Invalid action: ${request.action}")
@@ -197,6 +212,7 @@ class OutputGuardRuleController(
         @PathVariable id: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
+        dynamicRulesDisabledResponse()?.let { return it }
         if (!isAdmin(exchange)) return forbiddenResponse()
         val existing = store.findById(id) ?: return ruleNotFound(id)
         store.delete(id)
@@ -222,6 +238,7 @@ class OutputGuardRuleController(
         @Valid @RequestBody request: OutputGuardSimulationRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
+        dynamicRulesDisabledResponse()?.let { return it }
         if (!isAdmin(exchange)) return forbiddenResponse()
         val rules = store.list().filter { request.includeDisabled || it.enabled }
         val evaluation = evaluator.evaluate(content = request.content, rules = rules)
