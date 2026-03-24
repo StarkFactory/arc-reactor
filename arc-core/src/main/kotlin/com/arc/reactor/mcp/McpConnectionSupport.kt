@@ -197,21 +197,22 @@ internal class McpConnectionSupport(
             return false
         }
 
-        // 명령어의 기본 이름(base name)이 허용 목록에 있는지 확인한다
-        val baseName = command.substringAfterLast("/")
-        val allowed = allowedStdioCommandsProvider()
-        if (baseName !in allowed) {
+        // 절대/상대 경로가 포함된 명령어를 거부한다 — PATH 기반 명령어만 허용
+        // WHY: basename만 검증하면 /tmp/evil/npx 같은 절대 경로로 우회 가능
+        if (command.contains("/") || command.contains("\\")) {
             logger.warn {
-                "서버 '$serverName'의 STDIO 명령어 '$baseName'가 " +
-                    "허용 목록에 없음. 허용: $allowed"
+                "서버 '$serverName'의 STDIO 명령어에 경로 포함: $command — " +
+                    "PATH 기반 명령어만 허용됩니다 (예: npx, node)"
             }
             return false
         }
 
-        // 전체 경로가 지정된 경우 파일 존재 여부를 확인한다
-        if (command.contains("/") && !Files.exists(Paths.get(command))) {
+        // 명령어가 허용 목록에 있는지 확인한다
+        val allowed = allowedStdioCommandsProvider()
+        if (command !in allowed) {
             logger.warn {
-                "서버 '$serverName'의 STDIO 명령어가 존재하지 않음: $command"
+                "서버 '$serverName'의 STDIO 명령어 '$command'가 " +
+                    "허용 목록에 없음. 허용: $allowed"
             }
             return false
         }
