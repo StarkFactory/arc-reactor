@@ -21,10 +21,13 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
+import mu.KotlinLogging
 import java.io.StringWriter
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import javax.sql.DataSource
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * 테넌트 범위 메트릭 대시보드 및 관리 REST API 컨트롤러.
@@ -218,7 +221,13 @@ class TenantAdminController(
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val (from, to) = resolveTimeRange(fromMs, toMs)
         val writer = StringWriter()
-        exportService.exportExecutionsCsv(tenantId, from, to, writer)
+        try {
+            exportService.exportExecutionsCsv(tenantId, from, to, writer)
+        } catch (e: Exception) {
+            logger.error(e) { "CSV export failed for executions: tenant=$tenantId" }
+            return ResponseEntity.internalServerError()
+                .body(AdminErrorResponse(error = "CSV export failed: ${e.message.orEmpty().take(100)}"))
+        }
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=executions.csv")
             .contentType(MediaType.parseMediaType("text/csv"))
@@ -241,7 +250,13 @@ class TenantAdminController(
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val (from, to) = resolveTimeRange(fromMs, toMs)
         val writer = StringWriter()
-        exportService.exportToolCallsCsv(tenantId, from, to, writer)
+        try {
+            exportService.exportToolCallsCsv(tenantId, from, to, writer)
+        } catch (e: Exception) {
+            logger.error(e) { "CSV export failed for tool calls: tenant=$tenantId" }
+            return ResponseEntity.internalServerError()
+                .body(AdminErrorResponse(error = "CSV export failed: ${e.message.orEmpty().take(100)}"))
+        }
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=tool_calls.csv")
             .contentType(MediaType.parseMediaType("text/csv"))
