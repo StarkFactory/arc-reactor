@@ -109,6 +109,40 @@ class JdbcMemoryStore(
         )
     }
 
+    override fun listSessionsByUserIdPaginated(
+        userId: String,
+        limit: Int,
+        offset: Int
+    ): PaginatedSessionResult {
+        val total = jdbcTemplate.queryForObject(
+            """
+            SELECT COUNT(DISTINCT session_id) FROM conversation_messages WHERE user_id = ?
+            """.trimIndent(),
+            Int::class.java,
+            userId
+        ) ?: 0
+
+        val items = jdbcTemplate.query(
+            """
+            SELECT s.session_id, s.message_count, s.last_activity,
+                   (SELECT m.content FROM conversation_messages m
+                    WHERE m.session_id = s.session_id AND m.role = 'user'
+                    ORDER BY m.id ASC LIMIT 1) AS preview
+            FROM (SELECT session_id, COUNT(*) AS message_count,
+                         MAX(timestamp) AS last_activity
+                  FROM conversation_messages
+                  WHERE user_id = ?
+                  GROUP BY session_id) s
+            ORDER BY s.last_activity DESC
+            LIMIT ? OFFSET ?
+            """.trimIndent(),
+            { rs: ResultSet, _: Int -> mapSessionSummary(rs) },
+            userId, limit, offset
+        )
+
+        return PaginatedSessionResult(items = items, total = total)
+    }
+
     override fun getSessionOwner(sessionId: String): String? {
         return jdbcTemplate.query(
             "SELECT DISTINCT user_id FROM conversation_messages WHERE session_id = ? LIMIT 1",

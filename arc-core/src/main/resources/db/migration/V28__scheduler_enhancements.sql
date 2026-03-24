@@ -1,5 +1,5 @@
 -- Execution history table
-CREATE TABLE scheduled_job_executions (
+CREATE TABLE IF NOT EXISTS scheduled_job_executions (
     id VARCHAR(100) PRIMARY KEY,
     job_id VARCHAR(100) NOT NULL,
     job_name VARCHAR(200) NOT NULL,

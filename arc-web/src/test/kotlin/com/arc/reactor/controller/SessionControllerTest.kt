@@ -7,6 +7,7 @@ import com.arc.reactor.config.ChatModelProvider
 import com.arc.reactor.memory.ConversationManager
 import com.arc.reactor.memory.ConversationMemory
 import com.arc.reactor.memory.MemoryStore
+import com.arc.reactor.memory.PaginatedSessionResult
 import com.arc.reactor.memory.SessionSummary
 import com.arc.reactor.memory.summary.ConversationSummaryStore
 import io.mockk.every
@@ -65,7 +66,9 @@ class SessionControllerTest {
 
         @Test
         fun `no sessions exist일 때 return empty list해야 한다`() = runTest {
-            every { memoryStore.listSessionsByUserId("user-1") } returns emptyList()
+            every {
+                memoryStore.listSessionsByUserIdPaginated("user-1", 50, 0)
+            } returns PaginatedSessionResult(emptyList(), 0)
 
             val result = controller.listSessions(offset = 0, limit = 50, exchange = exchange)
 
@@ -76,8 +79,11 @@ class SessionControllerTest {
         @Test
         fun `correct fields로 return session summaries해야 한다`() = runTest {
             val now = Instant.parse("2026-02-08T12:00:00Z")
-            every { memoryStore.listSessionsByUserId("user-1") } returns listOf(
-                SessionSummary("session-1", 5, now, "Hello, how are you?")
+            every {
+                memoryStore.listSessionsByUserIdPaginated("user-1", 50, 0)
+            } returns PaginatedSessionResult(
+                listOf(SessionSummary("session-1", 5, now, "Hello, how are you?")),
+                1
             )
 
             val result = controller.listSessions(offset = 0, limit = 50, exchange = exchange)
@@ -93,9 +99,14 @@ class SessionControllerTest {
         @Test
         fun `return multiple sessions해야 한다`() = runTest {
             val now = Instant.now()
-            every { memoryStore.listSessionsByUserId("user-1") } returns listOf(
-                SessionSummary("s-1", 3, now, "First"),
-                SessionSummary("s-2", 1, now.minusSeconds(60), "Second")
+            every {
+                memoryStore.listSessionsByUserIdPaginated("user-1", 50, 0)
+            } returns PaginatedSessionResult(
+                listOf(
+                    SessionSummary("s-1", 3, now, "First"),
+                    SessionSummary("s-2", 1, now.minusSeconds(60), "Second")
+                ),
+                2
             )
 
             val result = controller.listSessions(offset = 0, limit = 50, exchange = exchange)
@@ -121,9 +132,15 @@ class SessionControllerTest {
         @Test
         fun `paginate sessions correctly해야 한다`() = runTest {
             val now = Instant.now()
-            every { memoryStore.listSessionsByUserId("user-1") } returns (1..5).map {
-                SessionSummary("s-$it", it, now.minusSeconds(it.toLong()), "Session $it")
-            }
+            every {
+                memoryStore.listSessionsByUserIdPaginated("user-1", 2, 1)
+            } returns PaginatedSessionResult(
+                listOf(
+                    SessionSummary("s-2", 2, now.minusSeconds(2), "Session 2"),
+                    SessionSummary("s-3", 3, now.minusSeconds(3), "Session 3")
+                ),
+                5
+            )
 
             val result = controller.listSessions(offset = 1, limit = 2, exchange = exchange)
 

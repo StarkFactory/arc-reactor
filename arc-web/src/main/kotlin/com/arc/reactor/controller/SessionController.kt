@@ -79,9 +79,15 @@ class SessionController(
     ): PaginatedResponse<SessionResponse> {
         val userId = authenticatedUserId(exchange)
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing authenticated user context")
-        val sessions = memoryStore.listSessionsByUserId(userId)
         val clamped = clampLimit(limit)
-        return sessions.map { it.toResponse() }.paginate(offset, clamped)
+        val safeOffset = offset.coerceAtLeast(0)
+        val result = memoryStore.listSessionsByUserIdPaginated(userId, clamped, safeOffset)
+        return PaginatedResponse(
+            items = result.items.map { it.toResponse() },
+            total = result.total,
+            offset = safeOffset,
+            limit = clamped
+        )
     }
 
     /**
