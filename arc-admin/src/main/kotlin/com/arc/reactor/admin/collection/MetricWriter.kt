@@ -41,6 +41,10 @@ class MetricWriter(
     // drain() 접근을 직렬화 — 링 버퍼는 단일 Consumer 전용
     private val flushLock = ReentrantLock()
 
+    /** DB 실패 시 1회 재시도를 위한 임시 보관 버퍼 */
+    @Volatile
+    private var retryBuffer: List<MetricEvent>? = null
+
     fun start() {
         if (!running.compareAndSet(false, true)) return
 
@@ -129,16 +133,37 @@ class MetricWriter(
     private fun flush() {
         if (!flushLock.tryLock()) return // Another thread is already flushing
         try {
+            // ── 이전 실패 배치 재시도 (1회) ──
+            val pending = retryBuffer
+            if (pending != null) {
+                retryBuffer = null
+                try {
+                    store.batchInsert(pending)
+                    healthMonitor.recordWrite(pending.size, 0)
+                    logger.info { "Retry succeeded: ${pending.size} events recovered" }
+                } catch (e: Exception) {
+                    healthMonitor.recordWriteError()
+                    logger.error(e) { "Retry failed: ${pending.size} events permanently lost" }
+                }
+            }
+
             val events = ringBuffer.drain(batchSize)
             if (events.isEmpty()) return
 
             healthMonitor.updateBufferUsage(ringBuffer.usagePercent())
 
-            // ── 단계: 토큰 사용량 이벤트에 추정 비용 보강 (hot path 밖) ──
             val enriched = enrichCosts(events)
 
             val startMs = System.currentTimeMillis()
-            store.batchInsert(enriched)
+            try {
+                store.batchInsert(enriched)
+            } catch (e: Exception) {
+                healthMonitor.recordWriteError()
+                // DB 실패 시 enriched 이벤트를 retryBuffer에 보관 — 다음 flush에서 1회 재시도
+                retryBuffer = enriched
+                logger.error(e) { "Failed to write ${enriched.size} events — buffering for retry" }
+                return
+            }
             val elapsed = System.currentTimeMillis() - startMs
 
             healthMonitor.recordWrite(events.size, elapsed)
@@ -148,7 +173,7 @@ class MetricWriter(
             }
         } catch (e: Exception) {
             healthMonitor.recordWriteError()
-            logger.error(e) { "Failed to write metric batch" }
+            logger.error(e) { "Unexpected error in metric flush" }
         } finally {
             flushLock.unlock()
         }
