@@ -147,7 +147,7 @@ jobs:
       - name: Run Safety Gate Tests (Fail-Close)
         run: |
           DURATION_LABEL="safety gate suite" bash scripts/ci/run-with-duration-guard.sh "$SAFETY_TEST_MAX_SECONDS" \
-            ./gradlew :arc-core:test :arc-web:test -PincludeSafety
+            ./gradlew :arc-core:test :arc-web:test :arc-admin:test :arc-slack:test -PincludeSafety
 
       - name: Run Hardening Tests (Static, No LLM)
         run: |
@@ -163,6 +163,7 @@ jobs:
             arc-core/build/reports/tests/
             arc-web/build/reports/tests/
             arc-slack/build/reports/tests/
+            arc-admin/build/reports/tests/
 
   integration:
     runs-on: ubuntu-latest

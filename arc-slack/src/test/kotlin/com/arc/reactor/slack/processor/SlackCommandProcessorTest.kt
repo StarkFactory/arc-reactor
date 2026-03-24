@@ -128,7 +128,7 @@ class SlackCommandProcessorTest {
 
             holdLatch.countDown() // release
             releasedLatch.await(5, TimeUnit.SECONDS)
-            Thread.sleep(200) // Dispatchers.Default에서 세마포어 해제 전파 대기
+            Thread.sleep(300) // Dispatchers.Default에서 세마포어 해제 전파 대기
 
             val result = processor.submit(buildCommand(userId = "U2"), "events_api")
             result shouldBe true
@@ -167,8 +167,7 @@ class SlackCommandProcessorTest {
             processor.submit(buildCommand(), "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // Dispatchers.Default에서 recordHandler 디스패치 대기
-            coVerify {
+            coVerify(timeout = 2000) {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
                     eventType = "/ask",
@@ -190,8 +189,7 @@ class SlackCommandProcessorTest {
             processor.submit(buildCommand(), "events_api")
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // Dispatchers.Default에서 recordHandler 디스패치 대기
-            coVerify {
+            coVerify(timeout = 2000) {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
                     eventType = "/ask",
@@ -300,7 +298,7 @@ class SlackCommandProcessorTest {
             processor.submit(buildCommand(userId = "U2"), "events_api")
 
             holdLatch.countDown()
-            Thread.sleep(500) // let processing settle on Dispatchers.Default
+            Thread.sleep(300) // let processing settle on Dispatchers.Default
 
             coVerify(exactly = 0) { messagingService.sendResponseUrl(any(), any(), any()) }
         }
@@ -358,16 +356,15 @@ class SlackCommandProcessorTest {
 
                 processor.submit(buildCommand(userId = "U2"), "events_api")
             }
-            Thread.sleep(800)  // 200ms 타임아웃 + 처리 마진 대기
-            holdLatch.countDown()
 
-            verify {
+            verify(timeout = 3000) {
                 metricsRecorder.recordDropped(
                     entrypoint = "events_api",
                     reason = "queue_timeout",
                     eventType = "/ask"
                 )
             }
+            holdLatch.countDown()
         }
     }
 
@@ -412,7 +409,7 @@ class SlackCommandProcessorTest {
 
             processor.submit(buildCommand(userId = "U1"), "events_api")
             firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // Dispatchers.Default의 finally 블록에서 세마포어 해제 대기
+            Thread.sleep(300)  // Dispatchers.Default의 finally 블록에서 세마포어 해제 대기
 
             // 다음 커맨드 성공을 위해 모킹 리셋
             val secondLatch = CountDownLatch(1)
@@ -439,8 +436,7 @@ class SlackCommandProcessorTest {
             repeat(totalCommands) { i -> processor.submit(buildCommand(userId = "U$i"), "events_api") }
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)  // Dispatchers.Default에서 recordHandler 디스패치 대기
-            coVerify(exactly = totalCommands) {
+            coVerify(timeout = 2000, exactly = totalCommands) {
                 metricsRecorder.recordHandler(any(), any(), success = true, durationMs = any())
             }
         }

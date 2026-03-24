@@ -68,7 +68,7 @@ class InMemoryWriteOperationIdempotencyServiceTest {
             keyParts = listOf("C123", "1234.5678", "thumbsup")
         ) { "result-${counter.incrementAndGet()}" }
 
-        Thread.sleep(1_100)
+        Thread.sleep(1600)
 
         val second = service.execute(
             toolName = "add_reaction",

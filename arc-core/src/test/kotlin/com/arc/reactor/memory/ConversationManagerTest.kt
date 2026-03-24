@@ -685,7 +685,7 @@ class ConversationManagerTest {
             )
 
             manager.saveHistory(command, AgentResult.success("response"))
-            Thread.sleep(200) // Give async a chance to fire (it shouldn't)
+            Thread.sleep(300) // Give async a chance to fire (it shouldn't)
 
             coVerify(exactly = 0) { summaryService.summarize(any(), any()) }
             manager.destroy()
@@ -722,7 +722,7 @@ class ConversationManagerTest {
 
             // destroy은(는) cancel all pending jobs해야 합니다
             manager.destroy()
-            Thread.sleep(200) // Let cancellation propagate
+            Thread.sleep(300) // Let cancellation propagate
 
             // the summary was NOT saved (job was cancelled before completion) 확인
             coVerify(exactly = 0) { summaryStore.save(any()) }

@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
+import java.util.concurrent.CountDownLatch
 
 /**
  * PromptLabController에 대한 테스트.
@@ -261,31 +262,51 @@ class PromptLabControllerTest {
 
         @Test
         fun `POST auto-optimize은(는) return 429 when max concurrent experiments reached해야 한다`() {
+            val latch = CountDownLatch(1)
+            val blockingOrchestrator: ExperimentOrchestrator = mockk(relaxed = true)
+            coEvery { blockingOrchestrator.runAutoPipeline(any(), any(), any(), any()) } coAnswers {
+                latch.await()
+                null
+            }
             val limitedController = PromptLabController(
-                experimentStore, orchestrator, feedbackAnalyzer, promptTemplateStore,
+                experimentStore, blockingOrchestrator, feedbackAnalyzer, promptTemplateStore,
                 PromptLabProperties(maxConcurrentExperiments = 1)
             )
-            // the single slot를 채웁니다
+            // the single slot를 채웁니다 — orchestrator가 latch에서 블로킹되므로 job이 유지됩니다
             limitedController.autoOptimize(AutoOptimizeRequest(templateId = "tmpl-1"), adminExchange())
 
-            val response = limitedController.autoOptimize(
-                AutoOptimizeRequest(templateId = "tmpl-2"), adminExchange()
-            )
+            val response = try {
+                limitedController.autoOptimize(
+                    AutoOptimizeRequest(templateId = "tmpl-2"), adminExchange()
+                )
+            } finally {
+                latch.countDown()
+            }
 
             assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.statusCode) { "Should return 429" }
         }
 
         @Test
         fun `POST run은(는) return 429 when max concurrent experiments reached해야 한다`() {
+            val latch = CountDownLatch(1)
+            val blockingOrchestrator: ExperimentOrchestrator = mockk(relaxed = true)
+            coEvery { blockingOrchestrator.execute(any()) } coAnswers {
+                latch.await()
+                buildExperiment()
+            }
             val limitedController = PromptLabController(
-                experimentStore, orchestrator, feedbackAnalyzer, promptTemplateStore,
+                experimentStore, blockingOrchestrator, feedbackAnalyzer, promptTemplateStore,
                 PromptLabProperties(maxConcurrentExperiments = 1)
             )
             every { experimentStore.get(any()) } returns buildExperiment(status = ExperimentStatus.PENDING)
-            // the single slot를 채웁니다
+            // the single slot를 채웁니다 — orchestrator가 latch에서 블로킹되므로 job이 유지됩니다
             limitedController.runExperiment("exp-1", adminExchange())
 
-            val response = limitedController.runExperiment("exp-2", adminExchange())
+            val response = try {
+                limitedController.runExperiment("exp-2", adminExchange())
+            } finally {
+                latch.countDown()
+            }
 
             assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.statusCode) { "Should return 429" }
         }

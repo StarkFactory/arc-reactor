@@ -34,7 +34,7 @@ class SlackBotResponseTrackerTest {
     fun `expired entry에 대해 null를 반환한다`() {
         val tracker = SlackBotResponseTracker(ttlSeconds = 1)
         tracker.track("C1", "1.001", "session-1", "hello")
-        Thread.sleep(1100)
+        Thread.sleep(1600)
         tracker.lookup("C1", "1.001").shouldBeNull()
     }
 

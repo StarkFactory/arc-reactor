@@ -96,7 +96,7 @@ class SlackEventProcessorProactiveTest {
             processor.submitEventCallback(
                 channelMessagePayload(channel = "C_NOT_LISTED"), "events_api"
             )
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) { eventHandler.handleChannelMessage(any()) }
         }
@@ -106,7 +106,7 @@ class SlackEventProcessorProactiveTest {
             val processor = buildProcessor(disabledProperties())
 
             processor.submitEventCallback(channelMessagePayload(), "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) { eventHandler.handleChannelMessage(any()) }
         }
@@ -120,7 +120,7 @@ class SlackEventProcessorProactiveTest {
             val processor = buildProcessor(proactiveProperties())
 
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
             coVerify(exactly = 0) { eventHandler.handleChannelMessage(any()) }
         }
@@ -147,9 +147,9 @@ class SlackEventProcessorProactiveTest {
 
             // 두 번째 메시지는 삭제되어야 합니다
             processor.submitEventCallback(channelMessagePayload(user = "U2"), "events_api")
-            Thread.sleep(500)
+            Thread.sleep(300)
 
-            verify {
+            verify(timeout = 2000) {
                 metricsRecorder.recordDropped(
                     entrypoint = "events_api",
                     reason = "proactive_concurrency",
@@ -176,8 +176,7 @@ class SlackEventProcessorProactiveTest {
             processor.submitEventCallback(channelMessagePayload(), "events_api")
 
             latch.await(3, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)
-            verify {
+            verify(timeout = 2000) {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
                     eventType = "proactive",
@@ -199,8 +198,7 @@ class SlackEventProcessorProactiveTest {
             processor.submitEventCallback(channelMessagePayload(), "events_api")
 
             latch.await(3, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(200)
-            verify {
+            verify(timeout = 2000) {
                 metricsRecorder.recordHandler(
                     entrypoint = "events_api",
                     eventType = "proactive",
