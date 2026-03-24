@@ -64,7 +64,7 @@ class JwtAuthWebFilterTest {
         every { jwtTokenProvider.extractTenantId(any()) } returns null
         every { jwtTokenProvider.extractEmail(any()) } returns null
         every { jwtTokenProvider.extractAccountId(any()) } returns null
-        every { jwtTokenProvider.extractTokenId(any()) } returns null
+        every { jwtTokenProvider.extractTokenId(any()) } returns "default-jti"
         every { authProvider.getUserById(any()) } returns null
         every { tokenRevocationStore.isRevoked(any()) } returns false
     }
@@ -305,6 +305,33 @@ class JwtAuthWebFilterTest {
             every { jwtTokenProvider.validateToken("revoked-token") } returns "user-42"
             every { jwtTokenProvider.extractTokenId("revoked-token") } returns "jti-42"
             every { tokenRevocationStore.isRevoked("jti-42") } returns true
+
+            val result = filter.filter(exchange, chain)
+            result.block()
+
+            verify(exactly = 1) { response.statusCode = HttpStatus.UNAUTHORIZED }
+            verify(exactly = 0) { chain.filter(exchange) }
+        }
+
+        @Test
+        fun `blank userId(sub claim)일 때 return 401해야 한다`() {
+            every { request.uri } returns URI.create("http://localhost/api/chat")
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer blank-sub-token")
+            every { jwtTokenProvider.validateToken("blank-sub-token") } returns ""
+
+            val result = filter.filter(exchange, chain)
+            result.block()
+
+            verify(exactly = 1) { response.statusCode = HttpStatus.UNAUTHORIZED }
+            verify(exactly = 0) { chain.filter(exchange) }
+        }
+
+        @Test
+        fun `jti 없는 토큰은 revocation store 활성 시 return 401해야 한다`() {
+            every { request.uri } returns URI.create("http://localhost/api/chat")
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer no-jti-token")
+            every { jwtTokenProvider.validateToken("no-jti-token") } returns "user-42"
+            every { jwtTokenProvider.extractTokenId("no-jti-token") } returns null
 
             val result = filter.filter(exchange, chain)
             result.block()

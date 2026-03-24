@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray
  *
  * @see MetricWriter 이 버퍼에서 drain하여 DB에 기록하는 writer
  */
-class MetricRingBuffer(size: Int = 8192) {
+class MetricRingBuffer(size: Int = 32768) {
 
     private val capacity: Int = Integer.highestOneBit(size.coerceAtLeast(64))
     private val mask: Int = capacity - 1

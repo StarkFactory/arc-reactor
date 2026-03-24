@@ -7,6 +7,7 @@ import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
+import java.util.concurrent.ConcurrentHashMap
 
 private val logger = KotlinLogging.logger {}
 
@@ -22,6 +23,9 @@ private val logger = KotlinLogging.logger {}
  * 2. **Phase 1.5**: 최신 도구 관측값이 트리밍되지 않도록 선행 메모리 SystemMessage를 먼저 제거
  * 3. **Phase 2**: 마지막 UserMessage 이후의 도구 상호작용 쌍 제거 (예산 초과 시)
  *
+ * 스레드 안전: 이 인스턴스는 여러 요청에서 공유될 수 있으므로
+ * [ConcurrentHashMap]과 identity 기반 키 래퍼를 사용하여 동시 접근을 보호한다.
+ *
  * @param maxContextWindowTokens 최대 컨텍스트 윈도우 토큰 수
  * @param outputReserveTokens 출력 응답을 위해 예약할 토큰 수
  * @param tokenEstimator 텍스트의 토큰 수를 추정하는 estimator
@@ -33,12 +37,18 @@ internal class ConversationMessageTrimmer(
     private val outputReserveTokens: Int,
     private val tokenEstimator: TokenEstimator
 ) {
+    /** identity(===) 기반 해시/동등 비교를 수행하는 ConcurrentHashMap 키 래퍼. */
+    private class IdentityKey(val message: Message) {
+        override fun hashCode(): Int = System.identityHashCode(message)
+        override fun equals(other: Any?): Boolean = other is IdentityKey && message === other.message
+    }
+
     /**
      * 이전 trim() 호출에서 계산한 메시지별 토큰 수 캐시.
      * 메시지 identity(===)로 캐시 히트 판단하여 증분 계산만 수행한다.
-     * ReAct 루프에서 매 반복 호출 시 기존 메시지 재계산을 방지한다.
+     * [ConcurrentHashMap]으로 다수 요청의 동시 접근을 안전하게 처리한다.
      */
-    private val tokenCache = java.util.IdentityHashMap<Message, Int>()
+    private val tokenCache = ConcurrentHashMap<IdentityKey, Int>()
 
     companion object {
         /** 메시지당 구조적 오버헤드 (역할 태그, 구분자, 메타데이터) — 추정 토큰 수. */
@@ -72,7 +82,7 @@ internal class ConversationMessageTrimmer(
         }
 
         val messageTokens = messages.mapTo(ArrayList(messages.size)) { msg ->
-            tokenCache.getOrPut(msg) { estimateMessageTokens(msg) }
+            tokenCache.getOrPut(IdentityKey(msg)) { estimateMessageTokens(msg) }
         }
         var totalTokens = messageTokens.sum()
         // Phase 1: 오래된 히스토리 제거 (선행 SystemMessage와 마지막 UserMessage 보호)
@@ -81,8 +91,9 @@ internal class ConversationMessageTrimmer(
         totalTokens = trimLeadingMemoryMessages(messages, messageTokens, totalTokens, budget)
         // Phase 2: 마지막 UserMessage 이후의 도구 히스토리 쌍 제거
         trimToolHistory(messages, messageTokens, totalTokens, budget)
-        // 제거된 메시지의 캐시 엔트리 정리
-        tokenCache.keys.retainAll(messages.toSet())
+        // 제거된 메시지의 캐시 엔트리 정리 (identity 기반)
+        val retained = messages.mapTo(HashSet(messages.size)) { IdentityKey(it) }
+        tokenCache.keys.retainAll(retained)
     }
 
     /**

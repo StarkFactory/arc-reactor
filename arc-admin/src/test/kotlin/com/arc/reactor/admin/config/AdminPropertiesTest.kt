@@ -15,7 +15,7 @@ class AdminPropertiesTest {
         props.tracing.enabled shouldBe true
         props.tracing.samplingRate shouldBe 1.0
         props.tracing.otlp.enabled shouldBe false
-        props.collection.ringBufferSize shouldBe 8192
+        props.collection.ringBufferSize shouldBe 32768
         props.collection.flushIntervalMs shouldBe 1000
         props.collection.batchSize shouldBe 1000
         props.collection.writerThreads shouldBe 1

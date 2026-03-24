@@ -73,7 +73,8 @@ class RedisSemanticResponseCache(
     ): CachedResponse? {
         get(exactKey)?.let { return it }
         val scope = CacheKeyBuilder.buildScopeFingerprint(command, toolNames)
-        val promptEmbedding = safeEmbed(command.userPrompt) ?: return null
+        // 블로킹 EmbeddingModel.embed()를 IO 디스패처에서 실행하여 코루틴 스레드 고갈 방지
+        val promptEmbedding = withContext(Dispatchers.IO) { safeEmbed(command.userPrompt) } ?: return null
         return withContext(Dispatchers.IO) {
             val indexKey = scopeIndexKey(scope)
             val candidates = redisTemplate.opsForZSet()
@@ -121,7 +122,8 @@ class RedisSemanticResponseCache(
             return
         }
         val scope = CacheKeyBuilder.buildScopeFingerprint(command, toolNames)
-        val promptEmbedding = safeEmbed(command.userPrompt)
+        // 블로킹 EmbeddingModel.embed()를 IO 디스패처에서 실행
+        val promptEmbedding = withContext(Dispatchers.IO) { safeEmbed(command.userPrompt) }
         if (promptEmbedding == null) {
             put(exactKey, response)
             return

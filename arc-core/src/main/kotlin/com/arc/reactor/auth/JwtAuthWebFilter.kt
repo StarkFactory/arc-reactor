@@ -97,11 +97,15 @@ class JwtAuthWebFilter(
         }
 
         // ── [5] userId를 exchange attribute에 저장 ──
-        val resolvedUserId = userId.takeIf { it.isNotBlank() } ?: "anonymous"
-        exchange.attributes[USER_ID_ATTRIBUTE] = resolvedUserId
+        // 빈 userId(sub claim)는 변조된 토큰 — anonymous 폴백 대신 거부
+        if (userId.isBlank()) {
+            logger.warn { "Rejecting token with blank sub claim" }
+            return unauthorized(exchange)
+        }
+        exchange.attributes[USER_ID_ATTRIBUTE] = userId
 
         // ── [6] 사용자 역할 해석 (DB 우선, JWT 폴백) ──
-        val role = resolveUserRole(resolvedUserId, token) ?: return unauthorized(exchange)
+        val role = resolveUserRole(userId, token) ?: return unauthorized(exchange)
         exchange.attributes[USER_ROLE_ATTRIBUTE] = role
 
         // ── [7] tenantId 해석 ──
@@ -109,8 +113,8 @@ class JwtAuthWebFilter(
         exchange.attributes[RESOLVED_TENANT_ID_ATTRIBUTE] = tenantId
 
         // ── [8] email, accountId 해석 ──
-        exchange.attributes[USER_EMAIL_ATTRIBUTE] = resolveUserEmail(resolvedUserId, token) ?: "anonymous"
-        exchange.attributes[USER_ACCOUNT_ID_ATTRIBUTE] = resolveUserAccountId(token, resolvedUserId)
+        exchange.attributes[USER_EMAIL_ATTRIBUTE] = resolveUserEmail(userId, token) ?: "anonymous"
+        exchange.attributes[USER_ACCOUNT_ID_ATTRIBUTE] = resolveUserAccountId(token, userId)
 
         // ── [9] 다운스트림으로 체인 진행 ──
         return chain.filter(exchange)
@@ -152,9 +156,20 @@ class JwtAuthWebFilter(
         return resolvedUser?.role ?: tokenRole
     }
 
-    /** 토큰의 jti(토큰 ID)가 폐기되었는지 확인한다 */
+    /**
+     * 토큰의 jti(토큰 ID)가 폐기되었는지 확인한다.
+     * 폐기 저장소가 구성된 상태에서 jti가 없는 토큰은 폐기 불가능하므로 거부한다.
+     */
     private fun isRevoked(token: String): Boolean {
-        val tokenId = jwtTokenProvider.extractTokenId(token) ?: return false
+        val tokenId = jwtTokenProvider.extractTokenId(token)
+        if (tokenId == null) {
+            // 폐기 저장소가 있는데 jti가 없으면 → 폐기 불가능한 토큰 → 거부
+            if (tokenRevocationStore != null) {
+                logger.warn { "Rejecting token without jti — revocation store is active" }
+                return true
+            }
+            return false
+        }
         val revoked = tokenRevocationStore?.isRevoked(tokenId) == true
         if (revoked) {
             logger.warn { "Rejected revoked token jti=$tokenId" }

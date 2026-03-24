@@ -39,7 +39,7 @@ data class OtlpProperties(
 
 /** 메트릭 수집 파이프라인 설정. */
 data class CollectionProperties(
-    val ringBufferSize: Int = 8192,
+    val ringBufferSize: Int = 32768,
     val flushIntervalMs: Long = 1000,
     val batchSize: Int = 1000,
     val writerThreads: Int = 1
