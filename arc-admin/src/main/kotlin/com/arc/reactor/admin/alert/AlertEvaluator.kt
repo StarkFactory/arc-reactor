@@ -51,7 +51,10 @@ class AlertEvaluator(
         }
     }
 
-    /** 단일 규칙을 평가하여 조건 충족 시 알림을 저장하고 로깅한다. */
+    /**
+     * 단일 규칙을 평가하여 조건 충족 시 알림을 저장하고 로깅한다.
+     * 동일 ruleId에 대해 ACTIVE 알림이 이미 존재하면 중복 생성하지 않는다.
+     */
     fun evaluate(rule: AlertRule) {
         val result = when (rule.type) {
             AlertType.STATIC_THRESHOLD -> evaluateStatic(rule)
@@ -60,6 +63,12 @@ class AlertEvaluator(
         }
 
         if (result != null) {
+            val activeAlerts = alertStore.findActiveAlerts(rule.tenantId)
+            val alreadyFiring = activeAlerts.any { it.ruleId == rule.id }
+            if (alreadyFiring) {
+                logger.debug { "Alert already active for ruleId=${rule.id}, skipping duplicate" }
+                return
+            }
             alertStore.saveAlert(result)
             logger.info { "Alert fired: ${rule.name} for tenant=${rule.tenantId ?: "platform"}" }
         }
