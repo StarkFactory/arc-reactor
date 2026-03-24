@@ -165,6 +165,7 @@ class SchedulerController(
     @PostMapping("/{id}/trigger")
     fun triggerJob(@PathVariable id: String, exchange: ServerWebExchange): Mono<ResponseEntity<Any>> {
         if (!isAdmin(exchange)) return Mono.just(forbiddenResponse())
+        schedulerService.findById(id) ?: return Mono.just(notFoundResponse("Scheduled job not found: $id"))
         return Mono.fromCallable {
             val result = schedulerService.trigger(id)
             ResponseEntity.ok<Any>(mapOf("result" to result))
@@ -181,6 +182,7 @@ class SchedulerController(
     @PostMapping("/{id}/dry-run")
     fun dryRunJob(@PathVariable id: String, exchange: ServerWebExchange): Mono<ResponseEntity<Any>> {
         if (!isAdmin(exchange)) return Mono.just(forbiddenResponse())
+        schedulerService.findById(id) ?: return Mono.just(notFoundResponse("Scheduled job not found: $id"))
         return Mono.fromCallable {
             val result = schedulerService.dryRun(id)
             ResponseEntity.ok<Any>(mapOf("result" to result, "dryRun" to true))

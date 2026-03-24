@@ -41,7 +41,8 @@ class SlackMessagingServiceTest {
             maxApiRetries = 2,
             retryDefaultDelayMs = 10,
             webClient = webClient,
-            responseWebClient = responseWebClient
+            responseWebClient = responseWebClient,
+            allowedResponseHosts = setOf("hooks.slack.com", "slack.com", "localhost", "127.0.0.1")
         )
     }
 

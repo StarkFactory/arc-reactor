@@ -382,11 +382,6 @@ class Tier1FeatureTest {
     inner class ReActControls {
 
         @Test
-        @Disabled("Verified via integration test")
-        fun `apply maxToolCalls from AgentCommand해야 한다`() = runBlocking {
-        }
-
-        @Test
         fun `run in STANDARD mode without tools해야 한다`() = runBlocking {
             val callback = AgentTestFixture.toolCallback("tool1", "Tool 1")
 

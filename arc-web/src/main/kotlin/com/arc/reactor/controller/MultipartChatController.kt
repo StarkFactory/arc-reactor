@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
-import kotlinx.coroutines.reactive.awaitSingle
+import kotlinx.coroutines.reactive.asFlow
 import org.springframework.core.io.buffer.DataBuffer
 import org.springframework.core.io.buffer.DataBufferUtils
 import org.springframework.http.HttpStatus
@@ -139,21 +139,26 @@ class MultipartChatController(
         maxBytes: Long,
         filename: String
     ): ByteArray {
+        val chunks = mutableListOf<ByteArray>()
         var accumulated = 0L
-        val checkedContent = content.doOnNext { buffer ->
+        content.asFlow().collect { buffer ->
             accumulated += buffer.readableByteCount()
             if (accumulated > maxBytes) {
+                DataBufferUtils.release(buffer)
                 throw FileSizeLimitException("File '$filename' exceeds size limit of ${maxBytes}B")
             }
+            val bytes = ByteArray(buffer.readableByteCount())
+            buffer.read(bytes)
+            DataBufferUtils.release(buffer)
+            chunks.add(bytes)
         }
-        return DataBufferUtils.join(checkedContent)
-            .map { buffer ->
-                val bytes = ByteArray(buffer.readableByteCount())
-                buffer.read(bytes)
-                DataBufferUtils.release(buffer)
-                bytes
-            }
-            .awaitSingle()
+        val result = ByteArray(accumulated.toInt())
+        var offset = 0
+        for (chunk in chunks) {
+            chunk.copyInto(result, offset)
+            offset += chunk.size
+        }
+        return result
     }
 }
 

@@ -105,10 +105,10 @@ class SloService(
         return (result["total"] as Number).toLong() to (result["failed"] as Number).toLong()
     }
 
-    /** burn rate을 계산한다. budgetTotal 또는 windowDays가 0이면 0을 반환한다. */
-    private fun computeBurnRate(consumed: Long, budgetTotal: Long, windowDays: Int): Double {
-        if (budgetTotal <= 0 || windowDays <= 0) return 0.0
-        return (consumed.toDouble() / budgetTotal) / (windowDays.toDouble() / windowDays)
+    /** burn rate을 계산한다. budgetTotal이 0이면 0을 반환한다. 1.0 = 예산 100% 소비, >1.0 = 초과. */
+    private fun computeBurnRate(consumed: Long, budgetTotal: Long, @Suppress("UNUSED_PARAMETER") windowDays: Int): Double {
+        if (budgetTotal <= 0) return 0.0
+        return consumed.toDouble() / budgetTotal
     }
 
     /** burn rate > 1 이고 잔여 budget이 있으면 예상 고갈일을 계산한다. */

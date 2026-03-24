@@ -41,7 +41,8 @@ class SlackMessagingService(
         .defaultHeader("Authorization", "Bearer $botToken")
         .defaultHeader("Content-Type", "application/json; charset=utf-8")
         .build(),
-    private val responseWebClient: WebClient = WebClient.builder().build()
+    private val responseWebClient: WebClient = WebClient.builder().build(),
+    private val allowedResponseHosts: Set<String> = DEFAULT_ALLOWED_RESPONSE_HOSTS
 ) {
     private val lastRequestTimeByChannel = ConcurrentHashMap<String, AtomicLong>()
 
@@ -100,6 +101,10 @@ class SlackMessagingService(
         responseType: String = "ephemeral"
     ): Boolean {
         if (responseUrl.isBlank()) return false
+        if (!isAllowedResponseUrl(responseUrl)) {
+            logger.warn { "Blocked response_url with untrusted host: $responseUrl" }
+            return false
+        }
 
         val body = mapOf(
             "response_type" to responseType,
@@ -187,7 +192,21 @@ class SlackMessagingService(
         lastTime.set(System.currentTimeMillis())
     }
 
+    /** response_url이 허용된 호스트인지 확인한다 (SSRF 방지). */
+    private fun isAllowedResponseUrl(url: String): Boolean {
+        val uri = try {
+            java.net.URI(url)
+        } catch (_: Exception) {
+            return false
+        }
+        val host = uri.host?.lowercase() ?: return false
+        return allowedResponseHosts.any { allowed ->
+            host == allowed || host.endsWith(".$allowed")
+        }
+    }
+
     companion object {
         private const val RATE_LIMIT_DELAY_MS = 1000L
+        private val DEFAULT_ALLOWED_RESPONSE_HOSTS = setOf("hooks.slack.com", "slack.com")
     }
 }

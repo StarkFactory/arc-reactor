@@ -18,8 +18,6 @@ import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.metadata.ChatResponseMetadata
 import org.springframework.ai.chat.prompt.ChatOptions
 import reactor.core.publisher.Flux
-import reactor.util.retry.Retry
-import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.reactive.asFlow
 
@@ -65,8 +63,6 @@ internal class StreamingReActLoopExecutor(
     private val retryProperties: RetryProperties = RetryProperties(),
     private val isTransientError: (Throwable) -> Boolean = { false }
 ) {
-
-    private val streamingRetry: Retry by lazy { buildStreamingRetry() }
 
     suspend fun execute(
         command: AgentCommand,
@@ -337,7 +333,7 @@ internal class StreamingReActLoopExecutor(
         val currentChunkText = StringBuilder()
         var lastChunkMeta: ChatResponseMetadata? = null
 
-        flux.retryWhen(streamingRetry).asFlow().collect { chunk ->
+        flux.asFlow().collect { chunk ->
             val generation = chunk.result
             val text = generation.output.text
             if (!text.isNullOrEmpty()) {
@@ -425,29 +421,6 @@ internal class StreamingReActLoopExecutor(
         agentMetrics.recordStageLatency(
             "tool_execution", totalToolDurationMs, command.metadata
         )
-    }
-
-    private fun buildStreamingRetry(): Retry {
-        val maxAttempts =
-            retryProperties.maxAttempts.coerceAtLeast(1).toLong() - 1
-        if (maxAttempts <= 0) return Retry.max(0)
-        return Retry
-            .backoff(
-                maxAttempts,
-                Duration.ofMillis(retryProperties.initialDelayMs)
-            )
-            .maxBackoff(Duration.ofMillis(retryProperties.maxDelayMs))
-            .jitter(0.25)
-            .filter { throwable ->
-                isTransientError(unwrapReactorException(throwable))
-            }
-            .doBeforeRetry { signal ->
-                logger.warn {
-                    "Transient streaming error " +
-                        "(attempt ${signal.totalRetries() + 1}), " +
-                        "retrying: ${signal.failure().message}"
-                }
-            }
     }
 
     companion object {

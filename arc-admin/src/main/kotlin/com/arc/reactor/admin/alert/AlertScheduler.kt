@@ -59,20 +59,18 @@ class AlertScheduler(
 
     private fun runEvaluation() {
         try {
-            val beforeCount = alertStore.findActiveAlerts().size
+            val beforeIds = alertStore.findActiveAlerts().map { it.id }.toSet()
             evaluator.evaluateAll()
-            val afterCount = alertStore.findActiveAlerts().size
-            val newAlerts = afterCount - beforeCount
+            val afterAlerts = alertStore.findActiveAlerts()
+            val newAlerts = afterAlerts.filter { it.id !in beforeIds }
 
             consecutiveFailures.set(0)
 
-            if (newAlerts > 0) {
-                val active = alertStore.findActiveAlerts()
-                val newest = active.sortedByDescending { it.firedAt }.take(newAlerts)
-                for (alert in newest) {
+            if (newAlerts.isNotEmpty()) {
+                for (alert in newAlerts) {
                     notificationService.dispatch(alert)
                 }
-                logger.info { "Alert evaluation: $newAlerts new alerts fired (total active: $afterCount)" }
+                logger.info { "Alert evaluation: ${newAlerts.size} new alerts fired (total active: ${afterAlerts.size})" }
             }
         } catch (e: Exception) {
             val failures = consecutiveFailures.incrementAndGet()

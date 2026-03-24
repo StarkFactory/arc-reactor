@@ -64,13 +64,23 @@ internal object McpAdminProxySupport {
 
     /** 요청 헤더에서 요청 ID를 추출하거나 새로 생성한다. */
     fun resolveRequestId(exchange: ServerWebExchange): String {
-        val requestId = exchange.request.headers
-            .getFirst("X-Request-Id")?.trim().orEmpty()
+        val requestId = sanitizeHeaderValue(
+            exchange.request.headers.getFirst("X-Request-Id")
+        )
         if (requestId.isNotBlank()) return requestId
-        val correlationId = exchange.request.headers
-            .getFirst("X-Correlation-Id")?.trim().orEmpty()
+        val correlationId = sanitizeHeaderValue(
+            exchange.request.headers.getFirst("X-Correlation-Id")
+        )
         if (correlationId.isNotBlank()) return correlationId
         return "arc-${UUID.randomUUID()}"
+    }
+
+    /** CRLF 인젝션 방지 및 길이 제한 (로그·헤더 안전성). */
+    private fun sanitizeHeaderValue(value: String?): String {
+        if (value.isNullOrBlank()) return ""
+        return value.trim()
+            .replace(Regex("[\\r\\n]"), "")
+            .take(128)
     }
 
     /** JSON 파싱을 시도하고, 실패하면 원시 문자열을 감싸서 반환한다. */

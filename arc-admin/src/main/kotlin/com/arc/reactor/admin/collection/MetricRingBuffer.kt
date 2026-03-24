@@ -62,9 +62,20 @@ class MetricRingBuffer(size: Int = 8192) {
         val events = ArrayList<MetricEvent>(available)
         for (i in 0 until available) {
             val index = ((currentRead + i) and mask.toLong()).toInt()
-            val event = buffer.getAndSet(index, null)
+            // publish()의 CAS와 buffer.set() 사이 race 대응: null이면 spin-wait
+            var event: MetricEvent? = null
+            var spins = 0
+            while (event == null && spins < 1000) {
+                event = buffer.getAndSet(index, null)
+                if (event == null) {
+                    Thread.onSpinWait()
+                    spins++
+                }
+            }
             if (event != null) {
                 events.add(event)
+            } else {
+                droppedCount.incrementAndGet()
             }
         }
         readSequence.addAndGet(available.toLong())
