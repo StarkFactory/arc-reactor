@@ -249,18 +249,18 @@ class JwtTokenProviderTest {
 
         @Test
         fun `expired token에 대해 return null해야 한다`() {
-            // a provider with 1ms expiration 생성
+            // 짧은 TTL provider 생성 (100ms로 설정하여 GC/CI 지연에도 안정적)
             val shortLivedProvider = JwtTokenProvider(
                 AuthProperties(
                     jwtSecret = testSecret,
-                    jwtExpirationMs = 1
+                    jwtExpirationMs = 100
                 )
             )
 
             val token = shortLivedProvider.createToken(testUser)
 
-            // for expiration를 기다립니다
-            Thread.sleep(50)
+            // TTL 만료 대기 (100ms TTL + 100ms 마진)
+            Thread.sleep(200)
 
             val result = shortLivedProvider.validateToken(token)
 

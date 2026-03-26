@@ -9,7 +9,7 @@ import com.arc.reactor.memory.ConversationManager
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.verify
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.sync.Semaphore
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -24,7 +24,7 @@ import org.springframework.ai.chat.messages.Message
 class StreamingExecutionCoordinatorTest {
 
     @Test
-    fun `capture streaming stage timings and preserve channel tags해야 한다`() = runBlocking {
+    fun `capture streaming stage timings and preserve channel tags해야 한다`() = runTest {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val conversationManager = mockk<ConversationManager>()
         coEvery { conversationManager.loadHistory(any()) } returns emptyList<Message>()
