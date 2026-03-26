@@ -1,6 +1,7 @@
 package com.arc.reactor.slack.gateway
 
 import com.arc.reactor.slack.config.SlackProperties
+import com.arc.reactor.support.AsyncTestSupport
 import com.arc.reactor.slack.config.SlackSocketBackend
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackSlashCommand
@@ -729,9 +730,9 @@ class SlackSocketModeGatewayTest {
             )
 
             gateway.start() // launches retry coroutine
-            Thread.sleep(200) // let it run for a bit
+            AsyncTestSupport.settleBackground(ms = 200) // let it run for a bit
             gateway.stop()
-            Thread.sleep(200) // confirm no further retries after stop
+            AsyncTestSupport.settleBackground(ms = 200) // confirm no further retries after stop
 
             assertTrue(!gateway.isRunning) {
                 "Gateway must not be running after stop()"
@@ -759,7 +760,7 @@ class SlackSocketModeGatewayTest {
             val gateway = buildGateway(properties)
 
             gateway.start()  // 지연 시간이 0이어도 중단되거나 예외를 던지지 않아야 한다
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground(ms = 300)
             gateway.stop()
 
             assertTrue(!gateway.isRunning) {
@@ -775,7 +776,7 @@ class SlackSocketModeGatewayTest {
 
             gateway.start()
             gateway.start() // 두 번째 호출: startRequested=true 가드가 재진입을 방지
-            Thread.sleep(200)
+            AsyncTestSupport.settleBackground(ms = 200)
 
             // 예외 없이 게이트웨이가 재시도 루프에서 안정화됨
             gateway.stop()

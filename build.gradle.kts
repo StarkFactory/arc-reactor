@@ -43,6 +43,9 @@ subprojects {
             "-XX:+TieredCompilation",
             "-XX:TieredStopAtLevel=1"
         )
+        // JUnit 5 글로벌 타임아웃: 개별 테스트 30초, 디버그 시 비활성화
+        systemProperty("junit.jupiter.execution.timeout.default", "30s")
+        systemProperty("junit.jupiter.execution.timeout.mode", "disabled_on_debug")
         useJUnitPlatform {
             // Keep integration tests opt-in across all modules.
             // Run with: ./gradlew test -PincludeIntegration

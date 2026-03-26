@@ -20,7 +20,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.verify
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test
 class AgentExecutionCoordinatorTest {
 
     @Test
-    fun `cache hit일 때 return cached response and skip tool execution해야 한다`() = runBlocking {
+    fun `cache hit일 때 return cached response and skip tool execution해야 한다`() = runTest {
         val responseCache = mockk<ResponseCache>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
@@ -83,7 +83,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `tool execution fails일 때 apply fallback result해야 한다`() = runBlocking {
+    fun `tool execution fails일 때 apply fallback result해야 한다`() = runTest {
         val fallback = mockk<FallbackStrategy>()
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi")
         coEvery {
@@ -127,7 +127,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `finalization 후 cache final successful response해야 한다`() = runBlocking {
+    fun `finalization 후 cache final successful response해야 한다`() = runTest {
         val responseCache = mockk<ResponseCache>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
@@ -179,7 +179,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `available일 때 prefer semantic cache interface해야 한다`() = runBlocking {
+    fun `available일 때 prefer semantic cache interface해야 한다`() = runTest {
         val responseCache = mockk<SemanticResponseCache>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
@@ -223,7 +223,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `capture stage timings in hook context metadata해야 한다`() = runBlocking {
+    fun `capture stage timings in hook context metadata해야 한다`() = runTest {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi")
         val coordinator = AgentExecutionCoordinator(
@@ -273,7 +273,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `effective maxToolCalls is zero일 때 skip tool selection해야 한다`() = runBlocking {
+    fun `effective maxToolCalls is zero일 때 skip tool selection해야 한다`() = runTest {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         var selectCalled = false
         var capturedTools: List<Any>? = null
@@ -318,7 +318,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `include finalizer stage timing in result metadata해야 한다`() = runBlocking {
+    fun `include finalizer stage timing in result metadata해야 한다`() = runTest {
         val coordinator = AgentExecutionCoordinator(
             responseCache = null,
             cacheableTemperature = 0.0,
@@ -351,7 +351,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `register RAG documents as verified sources in hookContext해야 한다`() = runBlocking {
+    fun `register RAG documents as verified sources in hookContext해야 한다`() = runTest {
         val hookContext = HookContext(runId = "run-rag", userId = "u", userPrompt = "refund policy")
         val ragContext = RagContext(
             context = "Refund policy context",
@@ -412,7 +412,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `simple math prompt일 때 skip RAG retrieval해야 한다`() = runBlocking {
+    fun `simple math prompt일 때 skip RAG retrieval해야 한다`() = runTest {
         var ragCalled = false
         val coordinator = AgentExecutionCoordinator(
             responseCache = null,
@@ -445,7 +445,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `knowledge query prompt일 때 execute RAG retrieval해야 한다`() = runBlocking {
+    fun `knowledge query prompt일 때 execute RAG retrieval해야 한다`() = runTest {
         var ragCalled = false
         val coordinator = AgentExecutionCoordinator(
             responseCache = null,
@@ -478,7 +478,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `low quality response일 때 skip cache storage해야 한다`() = runBlocking {
+    fun `low quality response일 때 skip cache storage해야 한다`() = runTest {
         val responseCache = mockk<ResponseCache>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
@@ -515,7 +515,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `too short response일 때 skip cache storage해야 한다`() = runBlocking {
+    fun `too short response일 때 skip cache storage해야 한다`() = runTest {
         val responseCache = mockk<ResponseCache>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
@@ -552,7 +552,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `history message count is recorded in hookContext metadata`() = runBlocking {
+    fun `history message count is recorded in hookContext metadata`() = runTest {
         val conversationManager = mockk<com.arc.reactor.memory.ConversationManager>(relaxed = true)
         coEvery { conversationManager.loadHistory(any()) } returns listOf(
             mockk(), mockk(), mockk()
@@ -588,7 +588,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `cache hit일 때 restore metadata with cacheHit flag해야 한다`() = runBlocking {
+    fun `cache hit일 때 restore metadata with cacheHit flag해야 한다`() = runTest {
         val responseCache = mockk<ResponseCache>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
@@ -638,7 +638,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `cache store일 때 include result metadata in CachedResponse해야 한다`() = runBlocking {
+    fun `cache store일 때 include result metadata in CachedResponse해야 한다`() = runTest {
         val responseCache = mockk<ResponseCache>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
@@ -697,7 +697,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `modelRouter 설정 시 route 결과로 command model을 교체해야 한다`() = runBlocking {
+    fun `modelRouter 설정 시 route 결과로 command model을 교체해야 한다`() = runTest {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val router = object : ModelRouter {
             override fun route(command: AgentCommand): ModelSelection {
@@ -763,7 +763,7 @@ class AgentExecutionCoordinatorTest {
     }
 
     @Test
-    fun `modelRouter 미설정 시 원본 command model을 유지해야 한다`() = runBlocking {
+    fun `modelRouter 미설정 시 원본 command model을 유지해야 한다`() = runTest {
         var capturedModel: String? = "SENTINEL"
         val coordinator = AgentExecutionCoordinator(
             responseCache = null,

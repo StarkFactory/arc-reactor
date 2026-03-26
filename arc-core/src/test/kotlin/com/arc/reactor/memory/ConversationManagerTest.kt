@@ -2,6 +2,7 @@ package com.arc.reactor.memory
 
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.config.ConcurrencyProperties
+import com.arc.reactor.support.AsyncTestSupport
 import com.arc.reactor.agent.config.GuardProperties
 import com.arc.reactor.agent.config.LlmProperties
 import com.arc.reactor.agent.config.MemoryProperties
@@ -685,7 +686,7 @@ class ConversationManagerTest {
             )
 
             manager.saveHistory(command, AgentResult.success("response"))
-            Thread.sleep(300) // Give async a chance to fire (it shouldn't)
+            AsyncTestSupport.settleBackground(300) // Give async a chance to fire (it shouldn't)
 
             coVerify(exactly = 0) { summaryService.summarize(any(), any()) }
             manager.destroy()
@@ -718,11 +719,11 @@ class ConversationManagerTest {
             )
 
             manager.saveHistory(command, AgentResult.success("r1"))
-            Thread.sleep(100) // Let async job start
+            AsyncTestSupport.settleBackground(100) // Let async job start
 
             // destroy은(는) cancel all pending jobs해야 합니다
             manager.destroy()
-            Thread.sleep(300) // Let cancellation propagate
+            AsyncTestSupport.settleBackground(300) // Let cancellation propagate
 
             // the summary was NOT saved (job was cancelled before completion) 확인
             coVerify(exactly = 0) { summaryStore.save(any()) }

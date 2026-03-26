@@ -1,6 +1,7 @@
 package com.arc.reactor.slack.processor
 
 import com.arc.reactor.slack.config.SlackProperties
+import com.arc.reactor.support.AsyncTestSupport
 import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.service.SlackMessagingService
@@ -117,7 +118,7 @@ class SlackEventProcessorReactionTest {
             processor.submitEventCallback(
                 reactionPayload(ts = "9999.999"), "events_api"
             )
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) {
                 eventHandler.handleReaction(any(), any(), any(), any(), any(), any())
@@ -128,7 +129,7 @@ class SlackEventProcessorReactionTest {
         fun `ignores reaction when bot response tracker은(는) null이다`() = runTest {
             val processor = buildProcessor(tracker = null)
             processor.submitEventCallback(reactionPayload(), "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) {
                 eventHandler.handleReaction(any(), any(), any(), any(), any(), any())
@@ -143,7 +144,7 @@ class SlackEventProcessorReactionTest {
             )
             val processor = buildProcessor()
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) {
                 eventHandler.handleReaction(any(), any(), any(), any(), any(), any())

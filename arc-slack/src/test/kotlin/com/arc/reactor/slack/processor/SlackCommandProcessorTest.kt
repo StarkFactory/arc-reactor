@@ -5,6 +5,7 @@ import com.arc.reactor.slack.handler.SlackCommandHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackSlashCommand
 import com.arc.reactor.slack.service.SlackMessagingService
+import com.arc.reactor.support.AsyncTestSupport
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -128,7 +129,7 @@ class SlackCommandProcessorTest {
 
             holdLatch.countDown() // release
             releasedLatch.await(5, TimeUnit.SECONDS)
-            Thread.sleep(300) // Dispatchers.Default에서 세마포어 해제 전파 대기
+            AsyncTestSupport.settleBackground() // Dispatchers.Default에서 세마포어 해제 전파 대기
 
             val result = processor.submit(buildCommand(userId = "U2"), "events_api")
             result shouldBe true
@@ -265,7 +266,7 @@ class SlackCommandProcessorTest {
                 )
             }
             // 타임아웃 + 알림 시간이 Dispatchers.Default에서 실행될 수 있도록 대기
-            Thread.sleep(1000)
+            AsyncTestSupport.settleBackground(ms = 1000)
             holdLatch.countDown()
 
             coVerify(timeout = 3000) {
@@ -298,7 +299,7 @@ class SlackCommandProcessorTest {
             processor.submit(buildCommand(userId = "U2"), "events_api")
 
             holdLatch.countDown()
-            Thread.sleep(300) // let processing settle on Dispatchers.Default
+            AsyncTestSupport.settleBackground() // let processing settle on Dispatchers.Default
 
             coVerify(exactly = 0) { messagingService.sendResponseUrl(any(), any(), any()) }
         }
@@ -409,7 +410,7 @@ class SlackCommandProcessorTest {
 
             processor.submit(buildCommand(userId = "U1"), "events_api")
             firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(300)  // Dispatchers.Default의 finally 블록에서 세마포어 해제 대기
+            AsyncTestSupport.settleBackground()  // Dispatchers.Default의 finally 블록에서 세마포어 해제 대기
 
             // 다음 커맨드 성공을 위해 모킹 리셋
             val secondLatch = CountDownLatch(1)
