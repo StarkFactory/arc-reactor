@@ -17,7 +17,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -44,7 +44,7 @@ class StreamingTest {
     inner class BasicStreaming {
 
         @Test
-        fun `return flow of string chunks해야 한다`() = runBlocking {
+        fun `return flow of string chunks해야 한다`() = runTest {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
                 AgentTestFixture.textChunk("Hello"),
                 AgentTestFixture.textChunk(" "),
@@ -64,7 +64,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `apply system prompt in streaming mode해야 한다`() = runBlocking {
+        fun `apply system prompt in streaming mode해야 한다`() = runTest {
             val systemPromptSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemPromptSlot)) } returns fixture.requestSpec
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
@@ -90,7 +90,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `executeStream에 대해 use STREAMING mode by default해야 한다`() = runBlocking {
+        fun `executeStream에 대해 use STREAMING mode by default해야 한다`() = runTest {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.just(
                 AgentTestFixture.textChunk("chunk")
             )
@@ -113,7 +113,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `handle empty stream해야 한다`() = runBlocking {
+        fun `handle empty stream해야 한다`() = runTest {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.empty()
 
             val executor = SpringAiAgentExecutor(
@@ -133,7 +133,7 @@ class StreamingTest {
     inner class StreamingWithGuard {
 
         @Test
-        fun `streaming 전에 run guard해야 한다`() = runBlocking {
+        fun `streaming 전에 run guard해야 한다`() = runTest {
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Allowed.DEFAULT
 
@@ -156,7 +156,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `guard rejects일 때 emit error해야 한다`() = runBlocking {
+        fun `guard rejects일 때 emit error해야 한다`() = runTest {
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Rejected(
                 reason = "Blocked",
@@ -180,7 +180,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `guard rejects일 때 record GUARD_REJECTED in streaming metrics해야 한다`() = runBlocking {
+        fun `guard rejects일 때 record GUARD_REJECTED in streaming metrics해야 한다`() = runTest {
             val guard = mockk<RequestGuard>()
             val metrics = mockk<AgentMetrics>(relaxed = true)
             coEvery { guard.guard(any()) } returns GuardResult.Rejected(
@@ -214,7 +214,7 @@ class StreamingTest {
     inner class StreamingWithHooks {
 
         @Test
-        fun `hook in streaming mode 전에 run해야 한다`() = runBlocking {
+        fun `hook in streaming mode 전에 run해야 한다`() = runTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
 
@@ -236,7 +236,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `before hook rejects in streaming일 때 reject해야 한다`() = runBlocking {
+        fun `before hook rejects in streaming일 때 reject해야 한다`() = runTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("Not allowed")
 
@@ -255,7 +255,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `before hook rejects일 때 record HOOK_REJECTED in streaming metrics해야 한다`() = runBlocking {
+        fun `before hook rejects일 때 record HOOK_REJECTED in streaming metrics해야 한다`() = runTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             val metrics = mockk<AgentMetrics>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("Not allowed")
@@ -285,7 +285,7 @@ class StreamingTest {
     inner class StreamingErrorHandling {
 
         @Test
-        fun `handle stream error gracefully해야 한다`() = runBlocking {
+        fun `handle stream error gracefully해야 한다`() = runTest {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.error(RuntimeException("Stream failed"))
 
             val executor = SpringAiAgentExecutor(
@@ -306,7 +306,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `emit typed error marker on stream failure해야 한다`() = runBlocking {
+        fun `emit typed error marker on stream failure해야 한다`() = runTest {
             every { fixture.streamResponseSpec.chatResponse() } returns Flux.error(RuntimeException("LLM unavailable"))
 
             val executor = SpringAiAgentExecutor(
@@ -326,7 +326,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `guard rejection은(는) emit typed error marker해야 한다`() = runBlocking {
+        fun `guard rejection은(는) emit typed error marker해야 한다`() = runTest {
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Rejected(
                 reason = "Rate limited",
@@ -352,7 +352,7 @@ class StreamingTest {
         }
 
         @Test
-        fun `hook rejection은(는) emit typed error marker해야 한다`() = runBlocking {
+        fun `hook rejection은(는) emit typed error marker해야 한다`() = runTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("Budget exceeded")
 

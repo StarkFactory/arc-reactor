@@ -16,6 +16,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import com.arc.reactor.support.AsyncTestSupport
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -163,7 +164,7 @@ class SlackEventProcessorTest {
             val payload = threadMessagePayload(threadTs = "2000.000")
 
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
             verify {
@@ -195,7 +196,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -222,7 +223,7 @@ class SlackEventProcessorTest {
             )
 
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -235,7 +236,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) { eventHandler.handleAppMention(any()) }
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
@@ -315,7 +316,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(botMessagePayload(), "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) { eventHandler.handleAppMention(any()) }
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
@@ -326,7 +327,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(subtypeMessagePayload(), "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) { eventHandler.handleMessage(any()) }
         }
@@ -336,7 +337,7 @@ class SlackEventProcessorTest {
             val processor = buildProcessor(defaultProperties())
 
             processor.submitEventCallback(noUserPayload(), "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) { eventHandler.handleAppMention(any()) }
         }
@@ -452,7 +453,7 @@ class SlackEventProcessorTest {
             }
 
             holdLatch.countDown()
-            Thread.sleep(300) // 처리 완료 대기
+            AsyncTestSupport.pollCount(processedCount, 1)
 
             processedCount.get() shouldBe 1
         }
@@ -545,7 +546,7 @@ class SlackEventProcessorTest {
             val (p2, _, _) = mentionPayload(user = "U2")
             processor.submitEventCallback(p2, "events_api")
             holdLatch.countDown()
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) { messagingService.sendMessage(any(), any(), any()) }
         }
@@ -663,7 +664,7 @@ class SlackEventProcessorTest {
             val (p1, _, _) = mentionPayload(user = "U1")
             processor.submitEventCallback(p1, "events_api")
             firstHandled.await(5, TimeUnit.SECONDS) shouldBe true
-            Thread.sleep(300)  // finally 블록에서 세마포어 해제 대기
+            AsyncTestSupport.settleBackground()  // finally 블록에서 세마포어 해제 대기
 
             // 세마포어가 해제되지 않았다면 이 두 번째 이벤트는 타임아웃됩니다
             val processedSecond = AtomicInteger(0)

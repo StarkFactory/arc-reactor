@@ -22,6 +22,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -47,7 +48,7 @@ class ToolCallOrchestratorTest {
     )
 
     @Test
-    fun `not in allowlist일 때 block tool call해야 한다`() = runBlocking {
+    fun `not in allowlist일 때 block tool call해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -75,7 +76,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `approval required but store is missing일 때 fail closed해야 한다`() = runBlocking {
+    fun `approval required but store is missing일 때 fail closed해야 한다`() = runTest {
         val approvalPolicy = mockk<ToolApprovalPolicy>()
         val tool = mockk<ToolCallback>()
         val toolCall = toolCall(id = "id-1", name = "danger_tool")
@@ -113,7 +114,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `approval check throws일 때 fail closed해야 한다`() = runBlocking {
+    fun `approval check throws일 때 fail closed해야 한다`() = runTest {
         val approvalPolicy = mockk<ToolApprovalPolicy>()
         val pendingApprovalStore = mockk<PendingApprovalStore>()
         val tool = mockk<ToolCallback>()
@@ -164,7 +165,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `approval rejected by human일 때 execute after hook해야 한다`() = runBlocking {
+    fun `approval rejected by human일 때 execute after hook해야 한다`() = runTest {
         val approvalPolicy = mockk<ToolApprovalPolicy>()
         val pendingApprovalStore = mockk<PendingApprovalStore>()
         val hookExecutor = mockk<HookExecutor>()
@@ -239,7 +240,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `execute adapter and append toolsUsed해야 한다`() = runBlocking {
+    fun `execute adapter and append toolsUsed해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -272,7 +273,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `execute direct tool call and append toolsUsed해야 한다`() = runBlocking {
+    fun `execute direct tool call and append toolsUsed해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -302,7 +303,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `direct requester-aware work tool에 대해 inject requesterEmail해야 한다`() = runBlocking {
+    fun `direct requester-aware work tool에 대해 inject requesterEmail해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -341,7 +342,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `capture verified sources from tool output해야 한다`() = runBlocking {
+    fun `capture verified sources from tool output해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -386,7 +387,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `sanitizing tool output 전에 capture verified sources해야 한다`() = runBlocking {
+    fun `sanitizing tool output 전에 capture verified sources해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -441,7 +442,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `merge parallel tool captures once in tool call order해야 한다`() = runBlocking {
+    fun `merge parallel tool captures once in tool call order해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -518,7 +519,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `assignee is missing일 때 inject requesterEmail for personal jira tool해야 한다`() = runBlocking {
+    fun `assignee is missing일 때 inject requesterEmail for personal jira tool해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -556,7 +557,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `assigneeAccountId is already provided일 때 not inject requesterEmail해야 한다`() = runBlocking {
+    fun `assigneeAccountId is already provided일 때 not inject requesterEmail해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -602,7 +603,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `assignee is missing일 때 inject requesterEmail for requester-aware work tool해야 한다`() = runBlocking {
+    fun `assignee is missing일 때 inject requesterEmail for requester-aware work tool해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -640,7 +641,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `assignee is missing일 때 inject assigneeAccountId for requester-aware work tool해야 한다`() = runBlocking {
+    fun `assignee is missing일 때 inject assigneeAccountId for requester-aware work tool해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -682,7 +683,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `assignee injection에 대해 prefer requesterAccountId over requesterEmail해야 한다`() = runBlocking {
+    fun `assignee injection에 대해 prefer requesterAccountId over requesterEmail해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -725,7 +726,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `reviewer is missing일 때 inject requesterEmail for requester-aware bitbucket tool해야 한다`() = runBlocking {
+    fun `reviewer is missing일 때 inject requesterEmail for requester-aware bitbucket tool해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -763,7 +764,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `requester-aware authored bitbucket tool에 대해 inject requesterEmail해야 한다`() = runBlocking {
+    fun `requester-aware authored bitbucket tool에 대해 inject requesterEmail해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -830,7 +831,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `identical local tool set에 대해 reuse cached spring callback resolution해야 한다`() = runBlocking {
+    fun `identical local tool set에 대해 reuse cached spring callback resolution해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -965,7 +966,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `max tool calls reached일 때 stop해야 한다`() = runBlocking {
+    fun `max tool calls reached일 때 stop해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -998,7 +999,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `allowlist-blocked tool calls에 대해 not consume budget해야 한다`() = runBlocking {
+    fun `allowlist-blocked tool calls에 대해 not consume budget해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -1036,7 +1037,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `hallucinated missing tools에 대해 not consume budget해야 한다`() = runBlocking {
+    fun `hallucinated missing tools에 대해 not consume budget해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -1074,7 +1075,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `strict json normalization is enabled일 때 wrap plain text output해야 한다`() = runBlocking {
+    fun `strict json normalization is enabled일 때 wrap plain text output해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -1107,7 +1108,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `strict json normalization is enabled일 때 preserve valid json output해야 한다`() = runBlocking {
+    fun `strict json normalization is enabled일 때 preserve valid json output해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -1140,7 +1141,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `sanitizer is enabled일 때 sanitize failed tool error output해야 한다`() = runBlocking {
+    fun `sanitizer is enabled일 때 sanitize failed tool error output해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(
             toolCallTimeoutMs = 1000,
             hookExecutor = null,
@@ -1177,7 +1178,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `same tool and args are called twice with cache enabled일 때 return cached result해야 한다`() = runBlocking {
+    fun `same tool and args are called twice with cache enabled일 때 return cached result해야 한다`() = runTest {
         var callCount = 0
         val callback = object : ToolCallback {
             override val name: String = "search"
@@ -1229,7 +1230,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `cache is disabled일 때 not cache해야 한다`() = runBlocking {
+    fun `cache is disabled일 때 not cache해야 한다`() = runTest {
         var callCount = 0
         val callback = object : ToolCallback {
             override val name: String = "search"
@@ -1275,7 +1276,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `not cache failed tool results해야 한다`() = runBlocking {
+    fun `not cache failed tool results해야 한다`() = runTest {
         var callCount = 0
         val callback = object : ToolCallback {
             override val name: String = "search"
@@ -1330,7 +1331,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `different arguments에 대해 cache separately해야 한다`() = runBlocking {
+    fun `different arguments에 대해 cache separately해야 한다`() = runTest {
         var callCount = 0
         val callback = object : ToolCallback {
             override val name: String = "search"
@@ -1386,7 +1387,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `record cache hit and miss metrics해야 한다`() = runBlocking {
+    fun `record cache hit and miss metrics해야 한다`() = runTest {
         val metrics = mockk<com.arc.reactor.agent.metrics.AgentMetrics>(relaxed = true)
         val callback = object : ToolCallback {
             override val name: String = "search"
@@ -1438,7 +1439,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `cache enabled로 return cached result for direct tool call해야 한다`() = runBlocking {
+    fun `cache enabled로 return cached result for direct tool call해야 한다`() = runTest {
         var callCount = 0
         val callback = object : ToolCallback {
             override val name: String = "search"
@@ -1542,7 +1543,7 @@ class ToolCallOrchestratorTest {
     // ──────────────────────────────────────────────
 
     @Test
-    fun `도구 출력 토큰이 임계값 미만이면 메타데이터에 추정값만 기록해야 한다`() = runBlocking {
+    fun `도구 출력 토큰이 임계값 미만이면 메타데이터에 추정값만 기록해야 한다`() = runTest {
         val tool = mockk<ToolCallback>()
         every { tool.name } returns "search"
         every { tool.description } returns "search tool"
@@ -1580,7 +1581,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `TokenEstimator가 null이면 메타데이터에 추정값을 기록하지 않아야 한다`() = runBlocking {
+    fun `TokenEstimator가 null이면 메타데이터에 추정값을 기록하지 않아야 한다`() = runTest {
         val tool = mockk<ToolCallback>()
         every { tool.name } returns "search"
         every { tool.description } returns "search tool"
@@ -1614,7 +1615,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `대규모 도구 출력은 토큰 추정값이 메타데이터에 기록되어야 한다`() = runBlocking {
+    fun `대규모 도구 출력은 토큰 추정값이 메타데이터에 기록되어야 한다`() = runTest {
         val largeOutput = "a".repeat(200_000)
         val tool = mockk<ToolCallback>()
         every { tool.name } returns "large_tool"
@@ -1652,7 +1653,7 @@ class ToolCallOrchestratorTest {
     }
 
     @Test
-    fun `직접 실행 경로에서도 토큰 추정값이 메타데이터에 기록되어야 한다`() = runBlocking {
+    fun `직접 실행 경로에서도 토큰 추정값이 메타데이터에 기록되어야 한다`() = runTest {
         val tool = mockk<ToolCallback>()
         every { tool.name } returns "direct_tool"
         every { tool.description } returns "direct tool"

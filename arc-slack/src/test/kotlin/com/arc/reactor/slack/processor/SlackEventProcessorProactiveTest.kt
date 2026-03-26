@@ -1,6 +1,7 @@
 package com.arc.reactor.slack.processor
 
 import com.arc.reactor.slack.config.SlackProperties
+import com.arc.reactor.support.AsyncTestSupport
 import com.arc.reactor.slack.handler.SlackEventHandler
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import com.arc.reactor.slack.model.SlackEventCommand
@@ -96,7 +97,7 @@ class SlackEventProcessorProactiveTest {
             processor.submitEventCallback(
                 channelMessagePayload(channel = "C_NOT_LISTED"), "events_api"
             )
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) { eventHandler.handleChannelMessage(any()) }
         }
@@ -106,7 +107,7 @@ class SlackEventProcessorProactiveTest {
             val processor = buildProcessor(disabledProperties())
 
             processor.submitEventCallback(channelMessagePayload(), "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) { eventHandler.handleChannelMessage(any()) }
         }
@@ -120,7 +121,7 @@ class SlackEventProcessorProactiveTest {
             val processor = buildProcessor(proactiveProperties())
 
             processor.submitEventCallback(payload, "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             coVerify(exactly = 0) { eventHandler.handleChannelMessage(any()) }
         }
@@ -147,7 +148,7 @@ class SlackEventProcessorProactiveTest {
 
             // 두 번째 메시지는 삭제되어야 합니다
             processor.submitEventCallback(channelMessagePayload(user = "U2"), "events_api")
-            Thread.sleep(300)
+            AsyncTestSupport.settleBackground()
 
             verify(timeout = 2000) {
                 metricsRecorder.recordDropped(

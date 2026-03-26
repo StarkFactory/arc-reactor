@@ -1,6 +1,7 @@
 package com.arc.reactor.memory.summary
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.support.AsyncTestSupport
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.agent.config.LlmProperties
 import com.arc.reactor.agent.config.MemoryProperties
@@ -515,7 +516,7 @@ class ConversationMemoryStressTest {
 
             // Step 4: Let summarization complete — it will try to save to a deleted session
             proceedWithSummarize.countDown()
-            Thread.sleep(500) // Let async job finish
+            AsyncTestSupport.settleBackground(500) // Let async job finish
 
             // Step 5: Verify no crash — the orphan summary may exist, which is acceptable
             val orphanSummary = summaryStore.get(sessionId)

@@ -18,7 +18,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -57,7 +57,7 @@ class StreamingReActTest {
     inner class ReActLoopBasic {
 
         @Test
-        fun `도구 호출 감지 후 실행하고 다시 스트리밍해야 한다`() = runBlocking {
+        fun `도구 호출 감지 후 실행하고 다시 스트리밍해야 한다`() = runTest {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "weather", """{"city":"Seoul"}""")
 
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
@@ -90,7 +90,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `도구에 올바른 인자가 전달되어야 한다`() = runBlocking {
+        fun `도구에 올바른 인자가 전달되어야 한다`() = runTest {
             val toolCall = AssistantMessage.ToolCall(
                 "call-1", "function", "weather",
                 """{"city":"Seoul","unit":"celsius"}"""
@@ -120,7 +120,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `텍스트 청크가 올바른 순서로 전달되어야 한다`() = runBlocking {
+        fun `텍스트 청크가 올바른 순서로 전달되어야 한다`() = runTest {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "calc", """{}""")
 
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
@@ -160,7 +160,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `동시에 여러 도구가 호출되면 모두 실행되어야 한다`() = runBlocking {
+        fun `동시에 여러 도구가 호출되면 모두 실행되어야 한다`() = runTest {
             val toolCall1 = AssistantMessage.ToolCall("call-1", "function", "weather", """{"city":"Seoul"}""")
             val toolCall2 = AssistantMessage.ToolCall("call-2", "function", "time", """{"tz":"KST"}""")
 
@@ -188,7 +188,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `도구가 없으면 ReAct 루프 없이 바로 스트리밍해야 한다`() = runBlocking {
+        fun `도구가 없으면 ReAct 루프 없이 바로 스트리밍해야 한다`() = runTest {
             every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("Hello"), textChunk(" World"))
 
@@ -209,7 +209,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `STANDARD 모드에서는 도구 호출 안 해야 한다`() = runBlocking {
+        fun `STANDARD 모드에서는 도구 호출 안 해야 한다`() = runTest {
             every { fixture.streamResponseSpec.chatResponse() } returns
                 Flux.just(textChunk("직접 응답"))
 
@@ -244,7 +244,7 @@ class StreamingReActTest {
     inner class MultiRoundReAct {
 
         @Test
-        fun `도구 호출이 2라운드 연속 발생해도 정상 처리해야 한다`() = runBlocking {
+        fun `도구 호출이 2라운드 연속 발생해도 정상 처리해야 한다`() = runTest {
             val toolCall1 = AssistantMessage.ToolCall("call-1", "function", "search", """{"q":"서울 날씨"}""")
             val toolCall2 = AssistantMessage.ToolCall("call-2", "function", "search", """{"q":"서울 맛집"}""")
 
@@ -294,7 +294,7 @@ class StreamingReActTest {
     inner class StreamingToolHooks {
 
         @Test
-        fun `BeforeToolCallHook이 도구 이름과 함께 호출되어야 한다`() = runBlocking {
+        fun `BeforeToolCallHook이 도구 이름과 함께 호출되어야 한다`() = runTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
             coEvery { hookExecutor.executeBeforeToolCall(any()) } returns HookResult.Continue
@@ -331,7 +331,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `AfterToolCallHook이 도구 결과와 함께 호출되어야 한다`() = runBlocking {
+        fun `AfterToolCallHook이 도구 결과와 함께 호출되어야 한다`() = runTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
             coEvery { hookExecutor.executeBeforeToolCall(any()) } returns HookResult.Continue
@@ -370,7 +370,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `BeforeToolCallHook이 거부하면 도구가 호출되지 않아야 한다`() = runBlocking {
+        fun `BeforeToolCallHook이 거부하면 도구가 호출되지 않아야 한다`() = runTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
             coEvery { hookExecutor.executeBeforeToolCall(any()) } returns HookResult.Reject("위험한 도구")
@@ -410,7 +410,7 @@ class StreamingReActTest {
     inner class StreamingMaxToolCalls {
 
         @Test
-        fun `maxToolCalls=2일 때 도구가 정확히 2번만 호출되어야 한다`() = runBlocking {
+        fun `maxToolCalls=2일 때 도구가 정확히 2번만 호출되어야 한다`() = runTest {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
@@ -437,7 +437,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `maxToolCalls=1일 때 도구가 정확히 1번만 호출되어야 한다`() = runBlocking {
+        fun `maxToolCalls=1일 때 도구가 정확히 1번만 호출되어야 한다`() = runTest {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
@@ -469,7 +469,7 @@ class StreamingReActTest {
     inner class StreamingTimeout {
 
         @Test
-        fun `타임아웃 초과 시 에러 메시지가 포함되어야 한다`() = runBlocking {
+        fun `타임아웃 초과 시 에러 메시지가 포함되어야 한다`() = runTest {
             val props = properties.copy(
                 concurrency = ConcurrencyProperties(requestTimeoutMs = 100)
             )
@@ -502,7 +502,7 @@ class StreamingReActTest {
     inner class StreamingAfterComplete {
 
         @Test
-        fun `스트리밍 종료 후 AfterAgentComplete이 전체 텍스트와 함께 호출되어야 한다`() = runBlocking {
+        fun `스트리밍 종료 후 AfterAgentComplete이 전체 텍스트와 함께 호출되어야 한다`() = runTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
 
@@ -532,7 +532,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `도구 사용 후 AfterAgentComplete에 도구 목록이 포함되어야 한다`() = runBlocking {
+        fun `도구 사용 후 AfterAgentComplete에 도구 목록이 포함되어야 한다`() = runTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
             coEvery { hookExecutor.executeBeforeToolCall(any()) } returns HookResult.Continue
@@ -570,7 +570,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `스트리밍 후 실행 Metrics가 기록되어야 한다`() = runBlocking {
+        fun `스트리밍 후 실행 Metrics가 기록되어야 한다`() = runTest {
             val metrics = mockk<AgentMetrics>(relaxed = true)
 
             every { fixture.streamResponseSpec.chatResponse() } returns
@@ -597,7 +597,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `도구 호출 시 Metrics에 도구 이름과 성공 여부가 기록되어야 한다`() = runBlocking {
+        fun `도구 호출 시 Metrics에 도구 이름과 성공 여부가 기록되어야 한다`() = runTest {
             val metrics = mockk<AgentMetrics>(relaxed = true)
 
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
@@ -638,7 +638,7 @@ class StreamingReActTest {
     inner class StreamingMemory {
 
         @Test
-        fun `스트리밍 완료 후 user와 assistant 메시지가 정확히 저장되어야 한다`() = runBlocking {
+        fun `스트리밍 완료 후 user와 assistant 메시지가 정확히 저장되어야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
 
             every { fixture.streamResponseSpec.chatResponse() } returns
@@ -664,7 +664,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `도구 사용 후 전체 수집된 텍스트가 저장되어야 한다`() = runBlocking {
+        fun `도구 사용 후 전체 수집된 텍스트가 저장되어야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
 
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
@@ -697,7 +697,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `sessionId가 없으면 히스토리 저장하지 않아야 한다`() = runBlocking {
+        fun `sessionId가 없으면 히스토리 저장하지 않아야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>(relaxed = true)
 
             every { fixture.streamResponseSpec.chatResponse() } returns
@@ -726,7 +726,7 @@ class StreamingReActTest {
     inner class StreamingToolErrors {
 
         @Test
-        fun `도구 실행 실패 시 에러 메시지를 LLM에 전달하고 계속 스트리밍해야 한다`() = runBlocking {
+        fun `도구 실행 실패 시 에러 메시지를 LLM에 전달하고 계속 스트리밍해야 한다`() = runTest {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "failing_tool", "{}")
             val metrics = mockk<AgentMetrics>(relaxed = true)
 
@@ -765,7 +765,7 @@ class StreamingReActTest {
         }
 
         @Test
-        fun `존재하지 않는 도구 호출 시에도 정상 스트리밍해야 한다`() = runBlocking {
+        fun `존재하지 않는 도구 호출 시에도 정상 스트리밍해야 한다`() = runTest {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "nonexistent", "{}")
 
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
