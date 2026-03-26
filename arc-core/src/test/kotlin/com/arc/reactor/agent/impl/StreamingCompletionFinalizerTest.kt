@@ -14,7 +14,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test
 class StreamingCompletionFinalizerTest {
 
     @Test
-    fun `hook on streaming success 후 save history and call해야 한다`() = runBlocking {
+    fun `hook on streaming success 후 save history and call해야 한다`() = runTest {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -71,7 +71,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `output exceeds max일 때 emit max boundary marker and record violation해야 한다`() = runBlocking {
+    fun `output exceeds max일 때 emit max boundary marker and record violation해야 한다`() = runTest {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -105,7 +105,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `treat RETRY_ONCE min boundary policy as warn in streaming해야 한다`() = runBlocking {
+    fun `treat RETRY_ONCE min boundary policy as warn in streaming해야 한다`() = runTest {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val finalizer = StreamingCompletionFinalizer(
             boundaries = BoundaryProperties(outputMinChars = 5, outputMinViolationMode = OutputMinViolationMode.RETRY_ONCE),
@@ -137,7 +137,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `output guard pipeline throws (fail-close)일 때 save user message only해야 한다`() = runBlocking {
+    fun `output guard pipeline throws (fail-close)일 때 save user message only해야 한다`() = runTest {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val outputGuardPipeline = mockk<OutputGuardPipeline>()
         coEvery { outputGuardPipeline.check(any(), any()) } throws RuntimeException("moderation API down")
@@ -171,7 +171,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `streaming LLM returns empty content일 때 save user message only해야 한다`() = runBlocking {
+    fun `streaming LLM returns empty content일 때 save user message only해야 한다`() = runTest {
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val finalizer = StreamingCompletionFinalizer(
@@ -200,7 +200,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `hook 후 rethrow cancellation from streaming해야 한다`() = runBlocking {
+    fun `hook 후 rethrow cancellation from streaming해야 한다`() = runTest {
         val hookExecutor = mockk<HookExecutor>()
         coEvery { hookExecutor.executeAfterAgentComplete(any(), any()) } throws CancellationException("cancelled")
         val finalizer = StreamingCompletionFinalizer(
@@ -231,7 +231,7 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `emitting boundary marker fails일 때 rethrow cancellation해야 한다`() = runBlocking {
+    fun `emitting boundary marker fails일 때 rethrow cancellation해야 한다`() = runTest {
         val finalizer = StreamingCompletionFinalizer(
             boundaries = BoundaryProperties(outputMaxChars = 1),
             conversationManager = mockk(relaxed = true),

@@ -11,6 +11,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -30,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class ManualReActLoopExecutorTest {
 
     @Test
-    fun `llm returns final text without tool calls일 때 return validated result해야 한다`() = runBlocking {
+    fun `llm returns final text without tool calls일 때 return validated result해야 한다`() = runTest {
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
         io.mockk.every { requestSpec.call() } returns callResponseSpec
@@ -76,7 +77,7 @@ class ManualReActLoopExecutorTest {
     }
 
     @Test
-    fun `maxToolCalls reached일 때 disable tools해야 한다`() = runBlocking {
+    fun `maxToolCalls reached일 때 disable tools해야 한다`() = runTest {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
         val firstResponse = AgentTestFixture.simpleChatResponse("").mutateWithToolCalls(listOf(toolCall))
         val secondResponse = AgentTestFixture.simpleChatResponse("done")
@@ -133,7 +134,7 @@ class ManualReActLoopExecutorTest {
     }
 
     @Test
-    fun `maxToolCalls is zero일 때 start with tools disabled해야 한다`() = runBlocking {
+    fun `maxToolCalls is zero일 때 start with tools disabled해야 한다`() = runTest {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
@@ -182,7 +183,7 @@ class ManualReActLoopExecutorTest {
     }
 
     @Test
-    fun `tool execution fails일 때 not leave orphan AssistantMessage해야 한다`() = runBlocking {
+    fun `tool execution fails일 때 not leave orphan AssistantMessage해야 한다`() = runTest {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
         val responseWithTools = AgentTestFixture.simpleChatResponse("")
             .mutateWithToolCalls(listOf(toolCall))
@@ -318,7 +319,7 @@ class ManualReActLoopExecutorTest {
         }
 
     @Test
-    fun `tool error시 retry hint UserMessage가 주입되어야 한다`() = runBlocking {
+    fun `tool error시 retry hint UserMessage가 주입되어야 한다`() = runTest {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "jql_search", "{}")
         // 첫 번째 응답: tool call 포함 -> 도구 에러 반환
         val firstResponse = AgentTestFixture.simpleChatResponse("").mutateWithToolCalls(listOf(toolCall))
@@ -410,7 +411,7 @@ class ManualReActLoopExecutorTest {
     }
 
     @Test
-    fun `tool success시 retry hint가 주입되지 않아야 한다`() = runBlocking {
+    fun `tool success시 retry hint가 주입되지 않아야 한다`() = runTest {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
         val firstResponse = AgentTestFixture.simpleChatResponse("").mutateWithToolCalls(listOf(toolCall))
         val secondResponse = AgentTestFixture.simpleChatResponse("done")
@@ -601,7 +602,7 @@ class ManualReActLoopExecutorTest {
     }
 
     @Test
-    fun `tool error 후 text 응답 시 force retry로 루프가 계속되어야 한다`() = runBlocking {
+    fun `tool error 후 text 응답 시 force retry로 루프가 계속되어야 한다`() = runTest {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "jql_search", "{}")
         // 1차: tool call → 에러
         val firstResponse = AgentTestFixture.simpleChatResponse("").mutateWithToolCalls(listOf(toolCall))
@@ -680,7 +681,7 @@ class ManualReActLoopExecutorTest {
     }
 
     @Test
-    fun `text retry 한도 도달 시 텍스트 응답으로 종료해야 한다`() = runBlocking {
+    fun `text retry 한도 도달 시 텍스트 응답으로 종료해야 한다`() = runTest {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "jql_search", "{}")
         // 1차: tool call → 에러
         val firstResponse = AgentTestFixture.simpleChatResponse("").mutateWithToolCalls(listOf(toolCall))
