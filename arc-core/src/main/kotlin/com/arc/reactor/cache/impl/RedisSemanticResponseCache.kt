@@ -49,6 +49,13 @@ class RedisSemanticResponseCache(
         readEntry(key)?.toCachedResponse()
     }
 
+    /**
+     * 정확 키 기반 캐시 저장.
+     *
+     * scopeFingerprint와 embedding이 비어있으므로 getSemantic()의
+     * 유사도 검색에서는 발견되지 않고, 정확 키 매칭에서만 히트한다.
+     * 이는 의도된 동작이다: put()은 단순 캐시, putSemantic()은 의미 캐시.
+     */
     override suspend fun put(key: String, response: CachedResponse) = withContext(Dispatchers.IO) {
         if (response.content.isBlank()) {
             logger.debug { "Skipping cache for blank response: ${key.take(16)}..." }

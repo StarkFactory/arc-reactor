@@ -174,7 +174,9 @@ internal class ManualReActLoopExecutor(
 
             // assistantOutput은 pendingToolCalls가 비어있지 않으면 항상 non-null
             // (null이면 toolCalls도 null → orEmpty() → isEmpty → 위에서 이미 반환됨)
-            val safeAssistantOutput = assistantOutput!!
+            val safeAssistantOutput = requireNotNull(assistantOutput) {
+                "assistantOutput must be non-null when pendingToolCalls is non-empty"
+            }
 
             // 단계 D: Tool 병렬 실행 — ToolCallOrchestrator에 위임
             totalToolCallsCounter.set(totalToolCalls)

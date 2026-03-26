@@ -830,10 +830,18 @@ internal class ToolCallOrchestrator(
         }
     }
 
-    /** Spring AOP 프록시를 언래핑하여 원본 객체를 반환합니다. */
+    /**
+     * Spring AOP 프록시를 언래핑하여 원본 객체를 반환합니다.
+     * 타겟이 null이면(destroyed bean 등) 프록시를 반환하되 경고 로그를 남긴다.
+     * 프록시 반환 시 @Tool 어노테이션이 프록시 인터페이스에 없으면 도구 발견이 실패할 수 있다.
+     */
     private fun unwrapAopProxy(bean: Any): Any {
         if (bean !is Advised) return bean
-        return runCatching { bean.targetSource.target }.getOrNull() ?: bean
+        val target = runCatching { bean.targetSource.target }.getOrNull()
+        if (target == null) {
+            logger.warn { "AOP proxy target is null for ${bean.javaClass.name}; @Tool annotations may not be discovered" }
+        }
+        return target ?: bean
     }
 
     // ──────────────────────────────────────────────
