@@ -41,10 +41,14 @@ class AlertEvaluator(
     fun evaluateAll() {
         // 단일 쿼리로 전체 규칙 로드 (N+1 방지)
         val allRules = alertStore.findAllRules().filter { it.enabled }
+        // 전체 active alerts를 한 번에 로드하여 evaluate() 내부 N+1 쿼리 방지
+        val activeAlertRuleIds = alertStore.findActiveAlerts()
+            .map { it.ruleId }
+            .toSet()
 
         for (rule in allRules) {
             try {
-                evaluate(rule)
+                evaluate(rule, activeAlertRuleIds)
             } catch (e: Exception) {
                 logger.warn(e) { "알림 규칙 평가 실패: ruleId=${rule.id}, tenant=${rule.tenantId ?: "platform"}" }
             }
@@ -54,8 +58,10 @@ class AlertEvaluator(
     /**
      * 단일 규칙을 평가하여 조건 충족 시 알림을 저장하고 로깅한다.
      * 동일 ruleId에 대해 ACTIVE 알림이 이미 존재하면 중복 생성하지 않는다.
+     *
+     * @param activeAlertRuleIds 이미 활성 상태인 알림의 ruleId 집합 (N+1 방지용)
      */
-    fun evaluate(rule: AlertRule) {
+    fun evaluate(rule: AlertRule, activeAlertRuleIds: Set<String> = emptySet()) {
         val result = when (rule.type) {
             AlertType.STATIC_THRESHOLD -> evaluateStatic(rule)
             AlertType.BASELINE_ANOMALY -> evaluateAnomaly(rule)
@@ -63,9 +69,7 @@ class AlertEvaluator(
         }
 
         if (result != null) {
-            val activeAlerts = alertStore.findActiveAlerts(rule.tenantId)
-            val alreadyFiring = activeAlerts.any { it.ruleId == rule.id }
-            if (alreadyFiring) {
+            if (rule.id in activeAlertRuleIds) {
                 logger.debug { "Alert already active for ruleId=${rule.id}, skipping duplicate" }
                 return
             }
