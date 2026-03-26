@@ -1,0 +1,37 @@
+# Arc Reactor Slack Module Default Configuration
+# 이 설정은 arc-slack 모듈이 클래스패스에 있을 때만 활성화된다.
+# 환경 변수로 오버라이드 가능.
+arc:
+  reactor:
+    slack:
+      enabled: ${ARC_REACTOR_SLACK_ENABLED:false}
+      transport-mode: ${ARC_REACTOR_SLACK_TRANSPORT_MODE:socket_mode}
+      bot-token: ${SLACK_BOT_TOKEN:}
+      app-token: ${SLACK_APP_TOKEN:}
+      signing-secret: ${SLACK_SIGNING_SECRET:}
+      socket-backend: ${ARC_REACTOR_SLACK_SOCKET_BACKEND:java_websocket}
+      socket-connect-retry-initial-delay-ms: ${ARC_REACTOR_SLACK_SOCKET_CONNECT_RETRY_INITIAL_DELAY_MS:1000}
+      socket-connect-retry-max-delay-ms: ${ARC_REACTOR_SLACK_SOCKET_CONNECT_RETRY_MAX_DELAY_MS:30000}
+      signature-verification-enabled: ${ARC_REACTOR_SLACK_SIGNATURE_VERIFICATION:true}
+      fail-fast-on-saturation: ${ARC_REACTOR_SLACK_FAIL_FAST_ON_SATURATION:true}
+      notify-on-drop: ${ARC_REACTOR_SLACK_NOTIFY_ON_DROP:false}
+      api-max-retries: ${ARC_REACTOR_SLACK_API_MAX_RETRIES:2}
+      api-retry-default-delay-ms: ${ARC_REACTOR_SLACK_API_RETRY_DEFAULT_DELAY_MS:1000}
+      user-email-resolution-enabled: ${ARC_REACTOR_SLACK_USER_EMAIL_RESOLUTION_ENABLED:true}
+      user-email-cache-ttl-seconds: ${ARC_REACTOR_SLACK_USER_EMAIL_CACHE_TTL_SECONDS:3600}
+      user-email-cache-max-entries: ${ARC_REACTOR_SLACK_USER_EMAIL_CACHE_MAX_ENTRIES:20000}
+      event-dedup-enabled: ${ARC_REACTOR_SLACK_EVENT_DEDUP_ENABLED:true}
+      event-dedup-ttl-seconds: ${ARC_REACTOR_SLACK_EVENT_DEDUP_TTL_SECONDS:600}
+      event-dedup-max-entries: ${ARC_REACTOR_SLACK_EVENT_DEDUP_MAX_ENTRIES:10000}
+      process-direct-messages-without-thread: ${ARC_REACTOR_SLACK_PROCESS_DM_WITHOUT_THREAD:false}
+      tools:
+        enabled: ${ARC_REACTOR_SLACK_TOOLS_ENABLED:false}
+        bot-token: ${SLACK_BOT_TOKEN:}
+        tool-exposure:
+          scope-aware-enabled: ${ARC_REACTOR_SLACK_TOOLS_SCOPE_AWARE_ENABLED:false}
+          fail-open-on-scope-resolution-error: ${ARC_REACTOR_SLACK_TOOLS_FAIL_OPEN:true}
+          conversation-scope-mode: ${ARC_REACTOR_SLACK_TOOLS_CONVERSATION_SCOPE_MODE:public_only}
+        canvas:
+          enabled: ${ARC_REACTOR_SLACK_TOOLS_CANVAS_ENABLED:false}
+          allowlist-enforced: ${ARC_REACTOR_SLACK_TOOLS_CANVAS_ALLOWLIST_ENFORCED:true}
+          max-owned-canvas-ids: ${ARC_REACTOR_SLACK_TOOLS_CANVAS_MAX_OWNED_IDS:5000}
