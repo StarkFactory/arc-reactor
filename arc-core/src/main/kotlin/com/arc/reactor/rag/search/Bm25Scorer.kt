@@ -1,6 +1,9 @@
 package com.arc.reactor.rag.search
 
 import mu.KotlinLogging
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 import kotlin.math.ln
 
 private val logger = KotlinLogging.logger {}
@@ -30,6 +33,14 @@ class Bm25Scorer(
     private val k1: Double = 1.5,
     private val b: Double = 0.75
 ) {
+
+    /**
+     * ReadWriteLock으로 읽기/쓰기 동시성을 분리한다.
+     * - index/clear: write lock (배타적)
+     * - search/score/getContent/size: read lock (동시 허용)
+     * - tokenize(): 순수 함수이므로 락 밖에서 실행 (CPU-bound 작업이 검색을 블로킹하지 않음)
+     */
+    private val rwLock = ReentrantReadWriteLock()
 
     /** 문서 ID → 원본 텍스트 내용. LinkedHashMap으로 삽입 순서를 유지한다. */
     private val docContents: MutableMap<String, String> = LinkedHashMap()
@@ -66,31 +77,32 @@ class Bm25Scorer(
      * @param docId   고유 문서 식별자
      * @param content 원본 문서 텍스트
      */
-    @Synchronized
     fun index(docId: String, content: String) {
+        // tokenize는 순수 함수 — 락 밖에서 실행하여 검색을 블로킹하지 않는다
         val tokens = tokenize(content)
-        // groupingBy + eachCount로 각 토큰의 출현 빈도를 한 번에 집계한다
         val tf = tokens.groupingBy { it }.eachCount()
 
-        // 재인덱싱 시: 기존 문서의 통계를 역산하여 제거한다
-        val existing = termFrequencies[docId]
-        if (existing != null) {
-            totalLength -= existing.values.sum()
-            for (token in existing.keys) {
-                val df = documentFrequency[token] ?: 1
-                if (df <= 1) documentFrequency.remove(token) else documentFrequency[token] = df - 1
+        rwLock.write {
+            // 재인덱싱 시: 기존 문서의 통계를 역산하여 제거한다
+            val existing = termFrequencies[docId]
+            if (existing != null) {
+                totalLength -= existing.values.sum()
+                for (token in existing.keys) {
+                    val df = documentFrequency[token] ?: 1
+                    if (df <= 1) documentFrequency.remove(token) else documentFrequency[token] = df - 1
+                }
             }
-        }
 
-        // 새 문서 통계를 인덱스에 반영한다
-        docContents[docId] = content
-        termFrequencies[docId] = tf
-        documentLengths[docId] = tokens.size
-        totalLength += tokens.size
-        for (token in tf.keys) {
-            documentFrequency[token] = (documentFrequency[token] ?: 0) + 1
+            // 새 문서 통계를 인덱스에 반영한다
+            docContents[docId] = content
+            termFrequencies[docId] = tf
+            documentLengths[docId] = tokens.size
+            totalLength += tokens.size
+            for (token in tf.keys) {
+                documentFrequency[token] = (documentFrequency[token] ?: 0) + 1
+            }
+            idfCache = emptyMap()
         }
-        idfCache = emptyMap()  // IDF 캐시를 무효화하여 다음 검색 시 재계산하도록 한다
         logger.debug { "BM25: indexed doc=$docId tokens=${tokens.size}" }
     }
 
@@ -101,8 +113,7 @@ class Bm25Scorer(
      * @param docId 스코어를 계산할 문서 ID
      * @return BM25 관련도 점수 (문서가 없으면 0.0)
      */
-    @Synchronized
-    fun score(query: String, docId: String): Double = scoreInternal(query, docId)
+    fun score(query: String, docId: String): Double = rwLock.read { scoreInternal(query, docId) }
 
     /**
      * 인덱스를 검색하여 BM25 스코어 내림차순으로 상위 K개 문서를 반환한다.
@@ -111,24 +122,26 @@ class Bm25Scorer(
      * @param topK  최대 결과 수
      * @return (문서ID, 스코어) 쌍 목록. 최고 스코어 순서
      */
-    @Synchronized
     fun search(query: String, topK: Int): List<Pair<String, Double>> {
-        if (termFrequencies.isEmpty()) return emptyList()
-        val queryTokens = tokenize(query).toSet()
-        val idf = getIdf()
-        val avgLen = averageLength
+        val queryTokens = tokenize(query).toSet() // 순수 함수, 락 불필요
 
-        // min-heap으로 O(N log K) — 전체 정렬 O(N log N) 대비 개선
-        val heap = java.util.PriorityQueue<Pair<String, Double>>(topK + 1, compareBy { it.second })
-        for ((docId, tf) in termFrequencies) {
-            val docLen = (documentLengths[docId] ?: tf.values.sum()).toDouble()
-            val s = scoreWithTokens(queryTokens, tf, docLen, idf, avgLen)
-            if (s > 0.0) {
-                heap.add(docId to s)
-                if (heap.size > topK) heap.poll()
+        return rwLock.read {
+            if (termFrequencies.isEmpty()) return@read emptyList()
+            val idf = getIdf()
+            val avgLen = averageLength
+
+            // min-heap으로 O(N log K) — 전체 정렬 O(N log N) 대비 개선
+            val heap = java.util.PriorityQueue<Pair<String, Double>>(topK + 1, compareBy { it.second })
+            for ((docId, tf) in termFrequencies) {
+                val docLen = (documentLengths[docId] ?: tf.values.sum()).toDouble()
+                val s = scoreWithTokens(queryTokens, tf, docLen, idf, avgLen)
+                if (s > 0.0) {
+                    heap.add(docId to s)
+                    if (heap.size > topK) heap.poll()
+                }
             }
+            heap.sortedByDescending { it.second }
         }
-        return heap.sortedByDescending { it.second }
     }
 
     /**
@@ -137,12 +150,10 @@ class Bm25Scorer(
      * @param docId 문서 식별자
      * @return 원본 텍스트. 인덱싱되지 않은 문서이면 null
      */
-    @Synchronized
-    fun getContent(docId: String): String? = docContents[docId]
+    fun getContent(docId: String): String? = rwLock.read { docContents[docId] }
 
     /** 인덱싱된 모든 문서를 제거한다. */
-    @Synchronized
-    fun clear() {
+    fun clear() = rwLock.write {
         docContents.clear()
         termFrequencies.clear()
         documentLengths.clear()
@@ -152,7 +163,7 @@ class Bm25Scorer(
     }
 
     /** 인덱싱된 문서 수. */
-    val size: Int @Synchronized get() = termFrequencies.size
+    val size: Int get() = rwLock.read { termFrequencies.size }
 
     // -------------------------------------------------------------------------
     // 내부 헬퍼 메서드
