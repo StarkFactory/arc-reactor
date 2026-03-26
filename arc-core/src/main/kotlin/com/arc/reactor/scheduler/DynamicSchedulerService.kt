@@ -16,8 +16,12 @@ import com.arc.reactor.persona.resolveEffectivePrompt
 import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
@@ -100,6 +104,13 @@ class DynamicSchedulerService(
 
     private val scheduledFutures = ConcurrentHashMap<String, ScheduledFuture<*>>()
 
+    /**
+     * 스케줄 작업 실행용 코루틴 스코프.
+     * TaskScheduler 콜백에서 launch로 작업을 위임하여 스케줄러 스레드를 즉시 반환한다.
+     * 기존: runBlocking으로 스케줄러 스레드를 최대 1시간 블로킹 → 다른 크론 작업 굶김.
+     */
+    private val jobScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
     @EventListener(ApplicationReadyEvent::class)
     fun onApplicationReady() {
         val jobs = store.list().filter { it.enabled }
@@ -114,6 +125,7 @@ class DynamicSchedulerService(
         logger.info { "Dynamic Scheduler: cancelling $count scheduled jobs" }
         scheduledFutures.values.forEach { it.cancel(false) }
         scheduledFutures.clear()
+        jobScope.cancel()
     }
 
     fun create(job: ScheduledJob): ScheduledJob {
@@ -141,12 +153,13 @@ class DynamicSchedulerService(
 
     fun trigger(id: String): String {
         val job = store.findById(id) ?: return "Job not found: $id"
-        return executeJob(job)
+        // 수동 트리거는 API 호출이므로 runBlocking 허용 (크론 스레드가 아님)
+        return runBlocking(Dispatchers.IO) { executeJob(job) }
     }
 
     fun dryRun(id: String): String {
         val job = store.findById(id) ?: return "Job not found: $id"
-        return executeDryRun(job)
+        return runBlocking(Dispatchers.IO) { executeDryRun(job) }
     }
 
     fun getExecutions(jobId: String, limit: Int): List<ScheduledJobExecution> =
@@ -162,7 +175,8 @@ class DynamicSchedulerService(
         try {
             val zone = ZoneId.of(job.timezone)
             val trigger = CronTrigger(job.cronExpression, zone)
-            val future = taskScheduler.schedule({ executeJob(job) }, trigger)
+            // TaskScheduler 스레드를 즉시 반환하고 IO 디스패처에서 비동기 실행
+            val future = taskScheduler.schedule({ jobScope.launch { executeJob(job) } }, trigger)
             if (future != null) {
                 scheduledFutures[job.id] = future
                 val target = when (job.jobType) {
@@ -247,7 +261,7 @@ class DynamicSchedulerService(
         scheduledFutures.remove(id)?.cancel(false)
     }
 
-    private fun executeJob(job: ScheduledJob): String {
+    private suspend fun executeJob(job: ScheduledJob): String {
         logger.info { "Executing scheduled job: ${job.name} [${job.jobType}]" }
         store.updateExecutionResult(job.id, JobExecutionStatus.RUNNING, null)
 
@@ -273,7 +287,7 @@ class DynamicSchedulerService(
         }
     }
 
-    private fun executeDryRun(job: ScheduledJob): String {
+    private suspend fun executeDryRun(job: ScheduledJob): String {
         logger.info { "Dry-run scheduled job: ${job.name} [${job.jobType}]" }
         val startedAt = Instant.now()
         return try {
@@ -292,15 +306,12 @@ class DynamicSchedulerService(
         }
     }
 
-    private fun runJobWithRetryAndTimeout(job: ScheduledJob): String = runBlocking(Dispatchers.IO) {
+    private suspend fun runJobWithRetryAndTimeout(job: ScheduledJob): String {
         val timeoutMs = job.executionTimeoutMs
             ?: schedulerProperties.defaultExecutionTimeoutMs
-        try {
+        return try {
             withTimeout(timeoutMs) { runWithRetry(job) }
         } catch (@Suppress("SwallowedException") e: kotlinx.coroutines.TimeoutCancellationException) {
-            // TimeoutCancellationException은 withTimeout 내부의 CancellationException이며
-            // runBlocking 경계 바깥으로 전파하면 코루틴 취소 시맨틱이 파괴된다.
-            // RuntimeException으로 래핑하여 상위 catch 블록이 FAILED 상태로 기록하도록 한다.
             throw RuntimeException("Job '${job.name}' timed out after ${timeoutMs}ms")
         }
     }
