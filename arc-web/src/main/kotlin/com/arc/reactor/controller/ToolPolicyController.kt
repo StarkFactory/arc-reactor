@@ -1,5 +1,6 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.audit.recordAdminAudit
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.policy.tool.ToolPolicy

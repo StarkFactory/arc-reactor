@@ -1,6 +1,7 @@
 package com.arc.reactor.admin.controller
 
 import com.arc.reactor.admin.alert.AlertEvaluator
+import com.arc.reactor.audit.recordAdminAudit
 import com.arc.reactor.admin.alert.AlertRuleStore
 import com.arc.reactor.admin.collection.PipelineHealthMonitor
 import com.arc.reactor.admin.model.AlertRule
