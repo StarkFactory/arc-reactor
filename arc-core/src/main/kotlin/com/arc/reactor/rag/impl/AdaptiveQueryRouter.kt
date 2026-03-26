@@ -69,24 +69,36 @@ class AdaptiveQueryRouter(
     companion object {
         internal const val DEFAULT_TIMEOUT_MS = 3000L
 
-        /** LLM에 전달하는 분류 시스템 프롬프트 */
+        /**
+         * LLM에 전달하는 분류 시스템 프롬프트.
+         *
+         * NO_RETRIEVAL의 범위를 명시적으로 제한하고, 도메인 질문은
+         * 반드시 SIMPLE 이상으로 분류하도록 안전측 편향을 적용한다.
+         * 검색 skip(false negative)이 불필요한 검색(false positive)보다 위험하기 때문.
+         */
         internal const val CLASSIFICATION_PROMPT =
-            "Classify this query's complexity for retrieval: " +
-                "NO_RETRIEVAL (greetings, chitchat), " +
-                "SIMPLE (single fact lookup), " +
-                "COMPLEX (multi-hop, comparison, analysis). " +
-                "Query: {query}. " +
-                "Respond with only the classification."
+            "You classify user queries to decide whether document retrieval is needed.\n\n" +
+                "Categories:\n" +
+                "- NO_RETRIEVAL: Only for greetings (hello, hi), chitchat (how are you), " +
+                "or simple arithmetic. Never for questions about products, features, " +
+                "how-to, configuration, registration, setup, troubleshooting, or any domain topic.\n" +
+                "- SIMPLE: Single fact lookup, how-to questions, feature questions, " +
+                "configuration or setup questions.\n" +
+                "- COMPLEX: Multi-hop reasoning, comparison across entities, " +
+                "trend analysis, or questions requiring multiple documents.\n\n" +
+                "When in doubt, choose SIMPLE over NO_RETRIEVAL.\n" +
+                "Respond with exactly one word: NO_RETRIEVAL, SIMPLE, or COMPLEX."
 
         /**
          * LLM 응답을 파싱하여 QueryComplexity로 변환한다.
          * 인식할 수 없는 응답이면 SIMPLE로 안전하게 폴백한다.
+         * COMPLEX를 NO_RETRIEVAL보다 먼저 체크하여 안전측 편향 유지.
          */
         internal fun parseComplexity(response: String): QueryComplexity {
             val cleaned = response.trim().uppercase()
             return when {
-                cleaned.contains("NO_RETRIEVAL") -> QueryComplexity.NO_RETRIEVAL
                 cleaned.contains("COMPLEX") -> QueryComplexity.COMPLEX
+                cleaned.contains("NO_RETRIEVAL") -> QueryComplexity.NO_RETRIEVAL
                 cleaned.contains("SIMPLE") -> QueryComplexity.SIMPLE
                 else -> {
                     logger.warn {
