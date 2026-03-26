@@ -80,6 +80,7 @@ internal class StreamingReActLoopExecutor(
         var activeTools = if (maxToolCalls > 0) initialTools else emptyList()
         var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
         var totalToolCalls = 0
+        val totalToolCallsCounter = AtomicInteger(0) // 루프 밖 1회 할당 (매 반복 재생성 방지)
         var lastIterationContent = ""
         val collectedContent = StringBuilder()
         var totalLlmDurationMs = 0L
@@ -153,7 +154,7 @@ internal class StreamingReActLoopExecutor(
 
             // 단계 D: 도구 이벤트 전송 + 병렬 실행
             emitToolEvents(pendingToolCalls, emit, isStart = true)
-            val totalToolCallsCounter = AtomicInteger(totalToolCalls)
+            totalToolCallsCounter.set(totalToolCalls)
             val toolStart = System.nanoTime()
             val toolResponses = toolCallOrchestrator.executeInParallel(
                 pendingToolCalls, activeTools, hookContext,

@@ -98,6 +98,7 @@ internal class ManualReActLoopExecutor(
     ): AgentResult {
         // ── 루프 상태 초기화 ──
         var totalToolCalls = 0
+        val totalToolCallsCounter = AtomicInteger(0) // 루프 밖 1회 할당 (매 반복 재생성 방지)
         var llmCallIndex = 0
         var activeTools = if (maxToolCalls > 0) initialTools else emptyList()
         var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
@@ -176,7 +177,7 @@ internal class ManualReActLoopExecutor(
             val safeAssistantOutput = assistantOutput!!
 
             // 단계 D: Tool 병렬 실행 — ToolCallOrchestrator에 위임
-            val totalToolCallsCounter = AtomicInteger(totalToolCalls)
+            totalToolCallsCounter.set(totalToolCalls)
             val toolStart = System.nanoTime()
             val toolResponses = executeToolsWithTracing(
                 pendingToolCalls, activeTools, hookContext, toolsUsed,

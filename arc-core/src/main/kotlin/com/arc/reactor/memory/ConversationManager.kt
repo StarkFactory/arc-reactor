@@ -189,13 +189,13 @@ class DefaultConversationManager(
 
     override suspend fun saveHistory(command: AgentCommand, result: AgentResult) {
         val assistantContent = if (result.success) result.content else null
-        saveMessages(command.metadata, command.userId, command.userPrompt, assistantContent)
-        triggerAsyncSummarization(command.metadata)
+        val savedCount = saveMessages(command.metadata, command.userId, command.userPrompt, assistantContent)
+        triggerAsyncSummarization(command.metadata, savedCount)
     }
 
     override suspend fun saveStreamingHistory(command: AgentCommand, content: String) {
-        saveMessages(command.metadata, command.userId, command.userPrompt, content.ifEmpty { null })
-        triggerAsyncSummarization(command.metadata)
+        val savedCount = saveMessages(command.metadata, command.userId, command.userPrompt, content.ifEmpty { null })
+        triggerAsyncSummarization(command.metadata, savedCount)
     }
 
     /**
@@ -303,15 +303,20 @@ class DefaultConversationManager(
      * 같은 세션에 대한 이전 요약 작업이 있으면 취소하고 새로 시작한다.
      * 실패해도 다음 loadHistory 호출 시 재시도되므로 로깅만 한다.
      */
-    private suspend fun triggerAsyncSummarization(metadata: Map<String, Any>) {
+    /**
+     * 비동기로 요약을 트리거한다.
+     *
+     * [postSaveMessageCount]로 임계값을 사전 판단하여
+     * 불필요한 store 재로드(DB 왕복)를 방지한다.
+     * 실제 요약에 필요한 전체 히스토리는 백그라운드 코루틴 내부에서 로드한다.
+     */
+    private suspend fun triggerAsyncSummarization(metadata: Map<String, Any>, postSaveMessageCount: Int) {
         if (!isSummaryEnabled()) return
+        if (postSaveMessageCount <= summaryProps.triggerMessageCount) return
+
         val sessionId = metadata["sessionId"]?.toString() ?: return
-        val memory = memoryStore?.get(sessionId) ?: return
-        val allMessages = memory.getHistory()
 
-        if (allMessages.size <= summaryProps.triggerMessageCount) return
-
-        val splitIndex = calculateSplitIndex(allMessages.size)
+        val splitIndex = calculateSplitIndex(postSaveMessageCount)
         if (splitIndex == 0) return
 
         // 이전 요약 작업이 있으면 취소한다
@@ -319,7 +324,13 @@ class DefaultConversationManager(
 
         val job = asyncScope.launch {
             try {
-                val messagesToSummarize = allMessages.subList(0, splitIndex)
+                // 전체 히스토리는 백그라운드에서 로드 (호출 경로의 DB 왕복 제거)
+                val memory = memoryStore?.get(sessionId) ?: return@launch
+                val allMessages = memory.getHistory()
+                val actualSplitIndex = calculateSplitIndex(allMessages.size)
+                if (actualSplitIndex == 0) return@launch
+
+                val messagesToSummarize = allMessages.subList(0, actualSplitIndex)
                 val existingSummary = summaryStore?.get(sessionId)
                 summarizeAndStore(sessionId, messagesToSummarize, existingSummary)
                 logger.debug { "Async summarization completed for session $sessionId" }
@@ -329,7 +340,6 @@ class DefaultConversationManager(
             }
         }
         activeSummarizations.put(sessionId, job)
-        // 작업 완료 시 추적 캐시에서 자동 제거
         job.invokeOnCompletion { activeSummarizations.invalidate(sessionId) }
     }
 
@@ -375,19 +385,24 @@ class DefaultConversationManager(
         }
     }
 
+    /**
+     * 메시지를 저장하고, 저장 후 세션의 총 메시지 수를 반환한다.
+     * 반환값은 [triggerAsyncSummarization]의 사전 임계값 판단에 사용되어
+     * 불필요한 store 재로드를 방지한다.
+     */
     private suspend fun saveMessages(
         metadata: Map<String, Any>,
         userId: String?,
         userPrompt: String,
         assistantContent: String?
-    ) {
+    ): Int {
         val sessionId = metadata["sessionId"]?.toString() ?: run {
             logger.debug { "Skipping save: no sessionId in metadata" }
-            return
+            return 0
         }
         val store = memoryStore ?: run {
             logger.debug { "Skipping save: memoryStore is null" }
-            return
+            return 0
         }
         val resolvedUserId = userId ?: "anonymous"
         val messageCount = if (assistantContent != null) 2 else 1
@@ -410,10 +425,13 @@ class DefaultConversationManager(
                 }
                 logger.debug { "Saved conversation for session $sessionId" }
             }
+            // 저장 후 메시지 수 반환 (요약 임계값 사전 판단용)
+            return store.get(sessionId)?.getHistory()?.size ?: messageCount
         } catch (e: Exception) {
             e.throwIfCancellation()
             span.setError(e)
             logger.error(e) { "Failed to save conversation history for session $sessionId" }
+            return 0
         } finally {
             span.close()
         }
