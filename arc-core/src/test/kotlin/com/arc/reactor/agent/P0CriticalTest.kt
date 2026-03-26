@@ -10,7 +10,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -44,7 +44,7 @@ class P0CriticalTest {
     inner class ToolInputSchema {
 
         @Test
-        fun `커스텀 inputSchema를 가진 ToolCallback이 ChatClient에 스키마를 등록해야 한다`() = runBlocking {
+        fun `커스텀 inputSchema를 가진 ToolCallback이 ChatClient에 스키마를 등록해야 한다`() = runTest {
             val customSchema = """{"type":"object","properties":{"location":{"type":"string"}},"required":["location"]}"""
             val callback = object : ToolCallback {
                 override val name = "get_weather"
@@ -81,7 +81,7 @@ class P0CriticalTest {
     inner class LlmPropertiesWiring {
 
         @Test
-        fun `properties의 temperature를 ChatOptions에 전달해야 한다`() = runBlocking {
+        fun `properties의 temperature를 ChatOptions에 전달해야 한다`() = runTest {
             val optionsSlot = slot<ChatOptions>()
             every { fixture.requestSpec.options(capture(optionsSlot)) } returns fixture.requestSpec
 
@@ -95,7 +95,7 @@ class P0CriticalTest {
         }
 
         @Test
-        fun `properties의 maxOutputTokens를 ChatOptions에 전달해야 한다`() = runBlocking {
+        fun `properties의 maxOutputTokens를 ChatOptions에 전달해야 한다`() = runTest {
             val optionsSlot = slot<ChatOptions>()
             every { fixture.requestSpec.options(capture(optionsSlot)) } returns fixture.requestSpec
 
@@ -109,7 +109,7 @@ class P0CriticalTest {
         }
 
         @Test
-        fun `커맨드 temperature로 properties temperature를 오버라이드해야 한다`() = runBlocking {
+        fun `커맨드 temperature로 properties temperature를 오버라이드해야 한다`() = runTest {
             val optionsSlot = slot<ChatOptions>()
             every { fixture.requestSpec.options(capture(optionsSlot)) } returns fixture.requestSpec
 
@@ -125,7 +125,7 @@ class P0CriticalTest {
         }
 
         @Test
-        fun `도구가 있을 때 ToolCallingChatOptions를 사용해야 한다`() = runBlocking {
+        fun `도구가 있을 때 ToolCallingChatOptions를 사용해야 한다`() = runTest {
             val optionsSlot = slot<ChatOptions>()
             every { fixture.requestSpec.options(capture(optionsSlot)) } returns fixture.requestSpec
 
@@ -150,7 +150,7 @@ class P0CriticalTest {
     inner class ManualToolCallingLoop {
 
         @Test
-        fun `도구를 실행하고 최종 응답을 반환해야 한다`() = runBlocking {
+        fun `도구를 실행하고 최종 응답을 반환해야 한다`() = runTest {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", """{"q":"test"}""")
 
             every { fixture.requestSpec.call() } returnsMany listOf(
@@ -174,7 +174,7 @@ class P0CriticalTest {
         }
 
         @Test
-        fun `maxToolCalls 제한을 적용해야 한다`() = runBlocking {
+        fun `maxToolCalls 제한을 적용해야 한다`() = runTest {
             val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
 
             every { fixture.requestSpec.call() } returnsMany listOf(
@@ -206,7 +206,7 @@ class P0CriticalTest {
     inner class BeforeToolCallHookInvocation {
 
         @Test
-        fun `각 도구 실행 전에 BeforeToolCallHook을 호출해야 한다`() = runBlocking {
+        fun `각 도구 실행 전에 BeforeToolCallHook을 호출해야 한다`() = runTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
             coEvery { hookExecutor.executeBeforeToolCall(any()) } returns HookResult.Continue
@@ -231,7 +231,7 @@ class P0CriticalTest {
         }
 
         @Test
-        fun `BeforeToolCallHook이 거부하면 도구 호출을 거부해야 한다`() = runBlocking {
+        fun `BeforeToolCallHook이 거부하면 도구 호출을 거부해야 한다`() = runTest {
             val hookExecutor = mockk<HookExecutor>(relaxed = true)
             coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Continue
             coEvery { hookExecutor.executeBeforeToolCall(any()) } returns HookResult.Reject("Dangerous tool")
