@@ -20,6 +20,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
@@ -35,7 +36,7 @@ import org.junit.jupiter.api.Test
 class PreExecutionResolverMatrixTest {
 
     @Test
-    fun `guard rejection은(는) short-circuit hook across 100 cases해야 한다`() = runBlocking {
+    fun `guard rejection은(는) short-circuit hook across 100 cases해야 한다`() = runTest {
         val guard = mockk<RequestGuard>()
         val hookExecutor = mockk<HookExecutor>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -77,7 +78,7 @@ class PreExecutionResolverMatrixTest {
     }
 
     @Test
-    fun `hook rejection은(는) apply when guard allows across 120 cases해야 한다`() = runBlocking {
+    fun `hook rejection은(는) apply when guard allows across 120 cases해야 한다`() = runTest {
         val guard = mockk<RequestGuard>()
         val hookExecutor = mockk<HookExecutor>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
@@ -114,7 +115,7 @@ class PreExecutionResolverMatrixTest {
     }
 
     @Test
-    fun `resolveIntent은(는) fail-open to original command across 150 resolver errors해야 한다`() = runBlocking {
+    fun `resolveIntent은(는) fail-open to original command across 150 resolver errors해야 한다`() = runTest {
         val resolverMock = mockk<IntentResolver>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         var index = 0
@@ -147,7 +148,7 @@ class PreExecutionResolverMatrixTest {
     }
 
     @Test
-    fun `resolveIntent은(는) throw blocked exception across blocked intent matrix해야 한다`() = runBlocking {
+    fun `resolveIntent은(는) throw blocked exception across blocked intent matrix해야 한다`() = runTest {
         val resolverMock = mockk<IntentResolver>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val blockedNames = (0 until 40).map { "blocked-$it" }.toSet()

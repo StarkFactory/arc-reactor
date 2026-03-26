@@ -17,7 +17,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -72,7 +72,7 @@ class AgentRagIntegrationTest {
     inner class NonStreamingWithRag {
 
         @Test
-        fun `agent은(는) include RAG context in system prompt해야 한다`() = runBlocking {
+        fun `agent은(는) include RAG context in system prompt해야 한다`() = runTest {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("Based on the policy, returns are accepted within 30 days.")
@@ -99,7 +99,7 @@ class AgentRagIntegrationTest {
         }
 
         @Test
-        fun `agent은(는) work normally when RAG returns empty context해야 한다`() = runBlocking {
+        fun `agent은(는) work normally when RAG returns empty context해야 한다`() = runTest {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("I don't have specific policy info.")
@@ -123,7 +123,7 @@ class AgentRagIntegrationTest {
         }
 
         @Test
-        fun `agent은(는) continue without RAG when pipeline throws해야 한다`() = runBlocking {
+        fun `agent은(는) continue without RAG when pipeline throws해야 한다`() = runTest {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("I'll help without context.")
@@ -147,7 +147,7 @@ class AgentRagIntegrationTest {
         }
 
         @Test
-        fun `agent은(는) use RAG context AND tool calls together해야 한다`() = runBlocking {
+        fun `agent은(는) use RAG context AND tool calls together해야 한다`() = runTest {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
 
@@ -187,7 +187,7 @@ class AgentRagIntegrationTest {
         }
 
         @Test
-        fun `RAG query은(는) use topK from properties해야 한다`() = runBlocking {
+        fun `RAG query은(는) use topK from properties해야 한다`() = runTest {
             val ragQuerySlot = slot<RagQuery>()
             coEvery { ragPipeline.retrieve(capture(ragQuerySlot)) } returns RagContext.EMPTY
             fixture.mockCallResponse("Response")
@@ -215,7 +215,7 @@ class AgentRagIntegrationTest {
     inner class StreamingWithRag {
 
         @Test
-        fun `streaming agent은(는) include RAG context in system prompt해야 한다`() = runBlocking {
+        fun `streaming agent은(는) include RAG context in system prompt해야 한다`() = runTest {
             val systemSlot = slot<String>()
             every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
 

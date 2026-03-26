@@ -13,7 +13,7 @@ import com.arc.reactor.rag.model.RetrievedDocument
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.slot
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -39,7 +39,7 @@ class RagContextInjectionTest {
         }
 
         @Test
-        fun `context is available일 때 include RAG instructions해야 한다`() = runBlocking {
+        fun `context is available일 때 include RAG instructions해야 한다`() = runTest {
             val systemSlot = slot<String>()
             io.mockk.every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("Answer based on context")
@@ -96,7 +96,7 @@ class RagContextInjectionTest {
         }
 
         @Test
-        fun `pipeline returns empty context일 때 not include RAG section해야 한다`() = runBlocking {
+        fun `pipeline returns empty context일 때 not include RAG section해야 한다`() = runTest {
             val systemSlot = slot<String>()
             io.mockk.every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("No context available")
@@ -132,7 +132,7 @@ class RagContextInjectionTest {
         }
 
         @Test
-        fun `RAG is disabled일 때 not include RAG section해야 한다`() = runBlocking {
+        fun `RAG is disabled일 때 not include RAG section해야 한다`() = runTest {
             val systemSlot = slot<String>()
             io.mockk.every { fixture.requestSpec.system(capture(systemSlot)) } returns fixture.requestSpec
             fixture.mockCallResponse("Response")
@@ -159,7 +159,7 @@ class RagContextInjectionTest {
         }
 
         @Test
-        fun `pass correct topK from properties to RAG pipeline해야 한다`() = runBlocking {
+        fun `pass correct topK from properties to RAG pipeline해야 한다`() = runTest {
             val ragQuerySlot = slot<RagQuery>()
             coEvery { ragPipeline.retrieve(capture(ragQuerySlot)) } returns RagContext.EMPTY
             fixture.mockCallResponse("Response")

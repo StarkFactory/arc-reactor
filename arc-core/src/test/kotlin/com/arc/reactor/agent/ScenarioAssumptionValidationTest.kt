@@ -22,7 +22,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -64,7 +64,7 @@ class ScenarioAssumptionValidationTest {
     }
 
     @Test
-    fun `시나리오 01 한 줄 인사가 성공해야 한다`() = runBlocking {
+    fun `시나리오 01 한 줄 인사가 성공해야 한다`() = runTest {
         fixture.mockCallResponse("안녕하세요. 무엇을 도와드릴까요?")
         val executor = SpringAiAgentExecutor(
             chatClient = fixture.chatClient,
@@ -78,7 +78,7 @@ class ScenarioAssumptionValidationTest {
     }
 
     @Test
-    fun `시나리오 02 정책 위반 라인이 가드에 의해 거부되어야 한다`() = runBlocking {
+    fun `시나리오 02 정책 위반 라인이 가드에 의해 거부되어야 한다`() = runTest {
         val guard = mockk<RequestGuard>()
         coEvery { guard.guard(any()) } returns GuardResult.Rejected(
             reason = "policy blocked",
@@ -99,7 +99,7 @@ class ScenarioAssumptionValidationTest {
     }
 
     @Test
-    fun `시나리오 03 before 훅 거부가 HOOK_REJECTED를 반환해야 한다`() = runBlocking {
+    fun `시나리오 03 before 훅 거부가 HOOK_REJECTED를 반환해야 한다`() = runTest {
         val hookExecutor = mockk<HookExecutor>()
         coEvery { hookExecutor.executeBeforeAgentStart(any()) } returns HookResult.Reject("maintenance window")
         val executor = SpringAiAgentExecutor(
@@ -116,7 +116,7 @@ class ScenarioAssumptionValidationTest {
     }
 
     @Test
-    fun `시나리오 04 타임아웃류 프로바이더 오류가 TIMEOUT으로 매핑되어야 한다`() = runBlocking {
+    fun `시나리오 04 타임아웃류 프로바이더 오류가 TIMEOUT으로 매핑되어야 한다`() = runTest {
         every { fixture.requestSpec.call() } throws RuntimeException("provider connection timeout")
         val executor = SpringAiAgentExecutor(
             chatClient = fixture.chatClient,
@@ -130,7 +130,7 @@ class ScenarioAssumptionValidationTest {
     }
 
     @Test
-    fun `시나리오 05 출력 가드 민감 콘텐츠 거부가 OUTPUT_GUARD_REJECTED를 반환해야 한다`() = runBlocking {
+    fun `시나리오 05 출력 가드 민감 콘텐츠 거부가 OUTPUT_GUARD_REJECTED를 반환해야 한다`() = runTest {
         val rejectingStage = object : OutputGuardStage {
             override val stageName = "PiiRejector"
             override val order = 1
@@ -157,7 +157,7 @@ class ScenarioAssumptionValidationTest {
     }
 
     @Test
-    fun `시나리오 06 출력 최소 미달이 OUTPUT_TOO_SHORT를 반환해야 한다`() = runBlocking {
+    fun `시나리오 06 출력 최소 미달이 OUTPUT_TOO_SHORT를 반환해야 한다`() = runTest {
         fixture.mockCallResponse("짧음")
         val executor = SpringAiAgentExecutor(
             chatClient = fixture.chatClient,
@@ -176,7 +176,7 @@ class ScenarioAssumptionValidationTest {
     }
 
     @Test
-    fun `시나리오 07 스트리밍에서 구조화 형식이 INVALID_RESPONSE 오류를 방출해야 한다`() = runBlocking {
+    fun `시나리오 07 스트리밍에서 구조화 형식이 INVALID_RESPONSE 오류를 방출해야 한다`() = runTest {
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val executor = SpringAiAgentExecutor(
             chatClient = fixture.chatClient,
@@ -203,7 +203,7 @@ class ScenarioAssumptionValidationTest {
     }
 
     @Test
-    fun `시나리오 08 스트리밍 가드 거부가 GUARD_REJECTED 메트릭을 방출해야 한다`() = runBlocking {
+    fun `시나리오 08 스트리밍 가드 거부가 GUARD_REJECTED 메트릭을 방출해야 한다`() = runTest {
         val guard = mockk<RequestGuard>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery { guard.guard(any()) } returns GuardResult.Rejected(
