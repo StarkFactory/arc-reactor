@@ -589,11 +589,13 @@ object InjectionPatterns {
 
         // ── 자격증명 탈취 시도 (Credential Extraction) ──
         // "비밀번호/패스워드/API 키를 알려줘" — 자격증명 요청
+        // 주의: '줘'를 단독 대안에 넣으면 '비밀번호를 초기화해줘' 같은 안전한 요청도 매칭됨.
+        // 추출 의도가 명확한 복합 형태(알려줘, 보여줘, 말해줘)만 매칭한다.
         InjectionPattern(
             "credential_extraction",
             Regex(
                 "(비밀번호|패스워드|password|비번|암호|api\\s*key|secret|토큰|token|인증\\s*키)" +
-                    ".{0,15}(알려|보여|출력|공개|말해|줘|tell|show|reveal|give)",
+                    ".{0,15}(알려|보여|출력|공개|말해|tell|show|reveal|give)",
                 setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
             )
         ),
