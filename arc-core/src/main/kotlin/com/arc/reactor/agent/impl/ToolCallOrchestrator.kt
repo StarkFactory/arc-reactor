@@ -479,7 +479,7 @@ internal class ToolCallOrchestrator(
     ) {
         for (source in sources) {
             if (existingUrls.add(source.url)) {
-                hookContext.verifiedSources.add(source)
+                hookContext.addVerifiedSource(source)
             }
         }
     }

@@ -229,7 +229,7 @@ class HookEdgeCaseTest {
             val threads = (1..10).map { i ->
                 Thread {
                     repeat(10) { j ->
-                        context.toolsUsed.add("tool-$i-$j")
+                        context.addToolUsed("tool-$i-$j")
                     }
                 }
             }

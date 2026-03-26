@@ -16,7 +16,7 @@ internal fun registerRagVerifiedSources(ragResult: RagContext?, hookContext: Hoo
     if (ragResult == null || !ragResult.hasDocuments) return
     for (doc in ragResult.documents) {
         val source = doc.source?.takeIf { it.isNotBlank() } ?: continue
-        hookContext.verifiedSources.add(
+        hookContext.addVerifiedSource(
             VerifiedSource(
                 title = doc.metadata["title"]?.toString() ?: doc.id,
                 url = source,
