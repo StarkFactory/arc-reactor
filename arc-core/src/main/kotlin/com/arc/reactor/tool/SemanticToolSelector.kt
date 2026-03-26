@@ -342,9 +342,20 @@ class SemanticToolSelector(
         return "${tool.name}: ${tool.description}"
     }
 
-    /** 도구 목록 변경 감지용 fingerprint — 순서 무관, O(N) 합산으로 할당 없음. */
+    /**
+     * 도구 목록 변경 감지용 fingerprint — 논리적 동등성 기반.
+     *
+     * 기존 identityHashCode 방식의 문제:
+     * - GC 후 다른 객체가 같은 해시 → 충돌로 stale 캐시
+     * - MCP 재연결 시 같은 도구가 다른 인스턴스 → 불필요한 재임베딩
+     *
+     * 도구 이름으로 정렬 후 name+description 해시로 논리적 변경만 감지.
+     */
     private fun toolFingerprint(tools: List<ToolCallback>): Int {
-        return tools.sumOf { System.identityHashCode(it) }
+        return tools.sortedBy { it.name }
+            .fold(17) { hash, tool ->
+                31 * hash + tool.name.hashCode() + 37 * tool.description.hashCode()
+            }
     }
 
     /** 단일 텍스트 임베딩 — 블로킹 HTTP 호출이므로 IO 디스패처에서 실행한다. */
