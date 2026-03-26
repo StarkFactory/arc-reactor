@@ -107,10 +107,13 @@ internal class ConversationMessageTrimmer(
         budget: Int
     ): Int {
         var totalTokens = currentTokens
+        // skipCount: 선행 SystemMessage 수. 이 루프에서 SystemMessage는 제거하지 않으므로 불변.
+        val skipCount = messages.indexOfFirst { it !is SystemMessage }
+            .let { if (it < 0) messages.size else it }
+        // protectedIdx: 마지막 UserMessage 위치. 앞에서 제거할 때마다 감소.
+        var protectedIdx = messages.indexOfLast { it is UserMessage }.coerceAtLeast(0)
+
         while (totalTokens > budget && messages.size > 1) {
-            val skipCount = messages.indexOfFirst { it !is SystemMessage }
-                .let { if (it < 0) messages.size else it }
-            val protectedIdx = messages.indexOfLast { it is UserMessage }.coerceAtLeast(0)
             if (protectedIdx <= skipCount) break
 
             val removable = messages.subList(skipCount, messages.size)
@@ -125,6 +128,7 @@ internal class ConversationMessageTrimmer(
                 }
             }
             totalTokens -= removedTokens
+            protectedIdx -= removeCount
             logger.debug { "Trimmed $removeCount messages (old history). Remaining tokens: $totalTokens/$budget" }
         }
         return totalTokens
@@ -138,9 +142,11 @@ internal class ConversationMessageTrimmer(
         budget: Int
     ) {
         var totalTokens = currentTokens
+        // protectedIdx: 마지막 UserMessage 위치. 이후의 도구 메시지만 제거하므로 불변.
+        val protectedIdx = messages.indexOfLast { it is UserMessage }.coerceAtLeast(0)
+        val removeStartIdx = protectedIdx + 1
+
         while (totalTokens > budget && messages.size > 1) {
-            val protectedIdx = messages.indexOfLast { it is UserMessage }.coerceAtLeast(0)
-            val removeStartIdx = protectedIdx + 1
             if (removeStartIdx > messages.size - 1) break
 
             val subList = messages.subList(removeStartIdx, messages.size)
@@ -172,13 +178,16 @@ internal class ConversationMessageTrimmer(
         budget: Int
     ): Int {
         var totalTokens = currentTokens
+        // lastUserIdx: 앞에서 제거할 때마다 1씩 감소 (루프 밖에서 초기화)
+        var lastUserIdx = messages.indexOfLast { it is UserMessage }
+
         while (totalTokens > budget && messages.size > 1) {
-            val lastUserIdx = messages.indexOfLast { it is UserMessage }
             if (lastUserIdx < 0 || lastUserIdx >= messages.lastIndex) break
             if (messages.firstOrNull() !is SystemMessage) break
 
             totalTokens -= messageTokens.removeAt(0)
             messages.removeAt(0)
+            lastUserIdx--
             logger.debug {
                 "Trimmed 1 message (leading system for fresh tool history). Remaining tokens: $totalTokens/$budget"
             }
