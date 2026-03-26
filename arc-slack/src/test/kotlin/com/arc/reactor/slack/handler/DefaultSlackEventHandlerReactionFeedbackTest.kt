@@ -112,6 +112,39 @@ class DefaultSlackEventHandlerReactionFeedbackTest {
             )
             // feedbackStore가 null이면 예외 없이 무시되어야 한다
         }
+
+        @Test
+        fun `feedbackStore save 예외는 전파되지 않고 억제된다`() = runTest {
+            val failingStore = mockk<FeedbackStore>()
+            coEvery { failingStore.save(any()) } throws RuntimeException("DB connection refused")
+
+            val handler = buildHandler(feedbackStore = failingStore)
+
+            // 예외가 전파되지 않아야 한다 (warn 로그만 남기고 계속)
+            handler.handleReaction(
+                userId = "U1", channelId = "C1", messageTs = "1.0",
+                reaction = "thumbsup", sessionId = "s1", userPrompt = "test"
+            )
+
+            // save가 호출되었는지만 확인 (예외는 삼켜짐)
+            coVerify(exactly = 1) { failingStore.save(any()) }
+        }
+
+        @Test
+        fun `CancellationException은(는) 억제하지 않고 rethrow한다`() = runTest {
+            val cancellingStore = mockk<FeedbackStore>()
+            coEvery { cancellingStore.save(any()) } throws kotlinx.coroutines.CancellationException("cancelled")
+
+            val handler = buildHandler(feedbackStore = cancellingStore)
+
+            // CancellationException은 반드시 전파되어야 한다 (구조적 동시성 보장)
+            org.junit.jupiter.api.assertThrows<kotlinx.coroutines.CancellationException> {
+                handler.handleReaction(
+                    userId = "U1", channelId = "C1", messageTs = "1.0",
+                    reaction = "thumbsup", sessionId = "s1", userPrompt = "test"
+                )
+            }
+        }
     }
 
     @Nested
