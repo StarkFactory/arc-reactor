@@ -83,7 +83,18 @@ object InjectionPatterns {
     fun normalize(text: String): String {
         if (text.isEmpty()) return text
         val stripped = stripZeroWidthChars(text)
-        val nfkc = Normalizer.normalize(stripped, Normalizer.Form.NFKC)
+        return normalizePreStripped(stripped)
+    }
+
+    /**
+     * 제로 너비 문자가 이미 제거된 텍스트에 NFKC + 호모글리프 + 엔티티 정규화를 적용한다.
+     *
+     * [UnicodeNormalizationStage]가 카운트와 스트립을 단일 패스로 수행한 뒤
+     * 스트립 결과를 직접 전달할 때 사용한다 (중복 순회 방지).
+     */
+    fun normalizePreStripped(text: String): String {
+        if (text.isEmpty()) return text
+        val nfkc = Normalizer.normalize(text, Normalizer.Form.NFKC)
         val decoded = decodeHtmlEntities(nfkc)
         val homoglyphReplaced = replaceHomoglyphs(decoded)
         return stripDiacriticalMarks(homoglyphReplaced)
