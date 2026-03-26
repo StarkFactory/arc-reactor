@@ -141,8 +141,15 @@ internal class McpConnectionSupport(
             logger.warn { "STDIO 전송에는 config에 'command'가 필요: ${server.name}" }
             return null
         }
-        val args = (server.config["args"] as? List<*>)
-            ?.filterIsInstance<String>() ?: emptyList()
+        val rawArgs = server.config["args"] as? List<*> ?: emptyList<Any>()
+        val nonStringArgs = rawArgs.filterNot { it is String || it == null }
+        if (nonStringArgs.isNotEmpty()) {
+            logger.warn {
+                "STDIO args에 비-String 요소 ${nonStringArgs.size}개 감지 (서버: ${server.name}). " +
+                    "타입: ${nonStringArgs.map { it?.javaClass?.simpleName }}. 해당 요소는 무시됨."
+            }
+        }
+        val args = rawArgs.filterIsInstance<String>()
 
         // 보안 검증: 명령어 화이트리스트 및 경로 순회 검증
         if (!validateStdioCommand(command, server.name)) return null
