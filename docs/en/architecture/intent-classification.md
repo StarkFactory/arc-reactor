@@ -249,6 +249,6 @@ If `profile.allowedTools` is set, tool calls not included in the list are blocke
 | `intent/impl/LlmIntentClassifier.kt` | LLM-based classification |
 | `intent/impl/CompositeIntentClassifier.kt` | Rule → LLM cascading |
 | `intent/impl/JdbcIntentRegistry.kt` | Persistent registry (JDBC) |
-| `intent/example/CustomerServiceIntents.kt` | Example intent definitions with all features |
+| `CustomerServiceIntents.kt` (삭제됨) | Example intent definitions with all features |
 | `controller/IntentController.kt` | REST API for intent CRUD |
 | `agent/impl/SpringAiAgentExecutor.kt` | IntentResolver integration + blocked intent handling |

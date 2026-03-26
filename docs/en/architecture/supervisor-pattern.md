@@ -12,10 +12,10 @@ Giving a single agent all the tools causes problems:
 
 ```
 Single agent's tool list (20+):
-  checkOrder, cancelOrder, modifyOrder,
-  processRefund, refundStatus, refundPolicy,
-  trackShipping, changeAddress, deliverySchedule,
-  getBalance, chargeCard, issueCredit,
+  checkOrder, cancelOrder, modifyOrder
+  processRefund, refundStatus, refundPolicy
+  trackShipping, changeAddress, deliverySchedule
+  getBalance, chargeCard, issueCredit
   ...
 ```
 
@@ -90,17 +90,17 @@ v
 |     |
 |     v
 |     [Refund Worker Agent] --- SpringAiAgentExecutor (separate instance)
-|     |  System prompt: "Process according to refund policy"
-|     |  Tools: checkOrder, processRefund
+| (삭제됨) |  System prompt: "Process according to refund policy"
+| (삭제됨) |  Tools: checkOrder, processRefund
 |     |
-|     |  [LLM Call #2] "First, let me check the order"
-|     |  -> checkOrder({orderId: "1234"}) -> "Order exists, payment 50,000 KRW"
+| (삭제됨) |  [LLM Call #2] "First, let me check the order"
+| (삭제됨) |  -> checkOrder({orderId: "1234"}) -> "Order exists, payment 50,000 KRW"
 |     |
-|     |  [LLM Call #3] "Now process the refund"
-|     |  -> processRefund({orderId: "1234"}) -> "Refund completed"
+| (삭제됨) |  [LLM Call #3] "Now process the refund"
+| (삭제됨) |  -> processRefund({orderId: "1234"}) -> "Refund completed"
 |     |
-|     |  [LLM Call #4] Summarize results
-|     |  -> "Order #1234, 50,000 KRW refund processed"
+| (삭제됨) |  [LLM Call #4] Summarize results
+| (삭제됨) |  -> "Order #1234, 50,000 KRW refund processed"
 |     |
 |     v
 |  (This string comes back as the tool result)
@@ -122,7 +122,7 @@ Total of 5 LLM calls: Supervisor 2 + Refund Worker 3.
 
 ```kotlin
 class CustomerService(
-    private val chatClient: ChatClient,
+    private val chatClient: ChatClient
     private val properties: AgentProperties
 ) {
     // Actual tools (implemented by the developer)
@@ -149,13 +149,13 @@ class CustomerService(
             }
             .execute(
                 command = AgentCommand(
-                    systemPrompt = "Analyze the customer request and delegate to the appropriate team",
+                    systemPrompt = "Analyze the customer request and delegate to the appropriate team"
                     userPrompt = message
-                ),
+                )
                 agentFactory = { node ->
                     SpringAiAgentExecutor(
-                        chatClient = chatClient,
-                        properties = properties,
+                        chatClient = chatClient
+                        properties = properties
                         toolCallbacks = node.tools
                     )
                 }
@@ -174,7 +174,7 @@ class SupportController(private val customerService: CustomerService) {
     suspend fun support(@RequestBody request: ChatRequest): ChatResponse {
         val result = customerService.handle(request.message)
         return ChatResponse(
-            content = result.finalResult.content,
+            content = result.finalResult.content
             success = result.success
         )
     }
@@ -217,7 +217,7 @@ Developers never need to interact with `WorkerAgentTool` directly.
 
 There are 3 types of tools an agent can use:
 
-| | Local Tool | MCP Tool | WorkerAgentTool |
+| (삭제됨) | Local Tool | MCP Tool | WorkerAgentTool |
 |---|---|---|---|
 | **What it does internally** | Executes a single function | Sends a request to an external server | Runs an entire agent |
 | **LLM calls** | None | None | Yes (its own ReAct loop) |
@@ -254,7 +254,7 @@ The reasons:
 - **Permission boundaries** -- which agents can access which tools must be controlled by humans
 - **Cost control** -- if agents could create agents infinitely, LLM call costs would explode
 
-Humans define **"what capabilities this system has"**,
+Humans define **"what capabilities this system has"**
 and the LLM decides **"when and how to use those capabilities"**.
 
 ---
@@ -264,4 +264,4 @@ and the LLM decides **"when and how to use those capabilities"**.
 - [`WorkerAgentTool.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/WorkerAgentTool.kt) -- Adapter that wraps an agent as a tool
 - [`SupervisorOrchestrator.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/SupervisorOrchestrator.kt) -- Supervisor orchestrator
 - [`MultiAgentBuilder.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/MultiAgentBuilder.kt) -- DSL builder
-- [`CustomerServiceExample.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/CustomerServiceExample.kt) -- Practical usage example
+- `CustomerServiceExample.kt` (삭제됨) -- Practical usage example

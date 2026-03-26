@@ -20,7 +20,7 @@ private val logger = KotlinLogging.logger {}
  * - 이메일 주소 → "***@***.***"
  *
  * ## 입력 Guard와의 차이
- * - [com.arc.reactor.guard.example.PiiDetectionGuard]는 입력에 PII가 있으면 **차단**
+ * - 입력 PII Guard는 PII가 있으면 **차단**
  * - 이 Guard는 출력에 PII가 있으면 **마스킹하여 전달** ([OutputGuardResult.Modified])
  * - 왜 출력은 마스킹인가: LLM이 학습 데이터나 컨텍스트에서 PII를 생성할 수 있으며,
  *   이 경우 요청 자체를 차단하면 사용자 경험이 나빠지므로 마스킹이 더 적절하다
@@ -35,7 +35,7 @@ private val logger = KotlinLogging.logger {}
  * ```
  *
  * @see com.arc.reactor.guard.PiiPatterns 공유 PII 패턴 목록
- * @see com.arc.reactor.guard.example.PiiDetectionGuard 입력에서의 PII 차단
+ * @see com.arc.reactor.guard.PiiPatterns PII 패턴을 공유하여 입력 Guard 구현 가능
  * @see com.arc.reactor.guard.output.OutputGuardStage 출력 Guard 단계 인터페이스
  */
 class PiiMaskingOutputGuard : OutputGuardStage {
