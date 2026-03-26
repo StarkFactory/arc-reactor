@@ -147,6 +147,11 @@ class DefaultConversationManager(
                 span.setAttribute("memory.ownership.denied", "true")
                 span.close()
                 return emptyList()
+            } catch (e: SessionOwnershipVerificationException) {
+                span.setAttribute("memory.ownership.verification_failed", "true")
+                span.close()
+                logger.warn { "세션 소유권 DB 조회 실패 — fail-close로 빈 이력 반환: sessionId=$sessionId" }
+                return emptyList()
             }
             val allMessages = withContext(Dispatchers.IO) {
                 memoryStore?.get(sessionId)?.getHistory()
@@ -367,15 +372,17 @@ class DefaultConversationManager(
      * 빈 리스트를 반환한다. 소유자가 없거나 일치하면 통과.
      * memoryStore가 없으면 검증 불가이므로 통과.
      */
-    private fun verifySessionOwnership(sessionId: String, userId: String?) {
+    private suspend fun verifySessionOwnership(sessionId: String, userId: String?) {
         if (userId == null) return
         val store = memoryStore ?: return
         val owner = try {
-            store.getSessionOwner(sessionId)
+            withContext(Dispatchers.IO) {
+                store.getSessionOwner(sessionId)
+            }
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "세션 소유권 조회 실패 — fail-close로 접근 차단: sessionId=$sessionId" }
-            throw IllegalStateException("세션 소유권 검증 실패", e)
+            throw SessionOwnershipVerificationException(sessionId, e)
         } ?: return
         if (owner != userId) {
             logger.warn {
@@ -473,3 +480,12 @@ class SessionOwnershipException(
     sessionId: String,
     requesterId: String
 ) : SecurityException("세션 접근 거부: session=$sessionId, requester=$requesterId")
+
+/**
+ * 세션 소유권 DB 조회 실패 시 발생하는 예외.
+ * fail-close로 빈 이력을 반환하되, 500 대신 안전하게 처리한다.
+ */
+class SessionOwnershipVerificationException(
+    sessionId: String,
+    cause: Throwable
+) : RuntimeException("세션 소유권 검증 DB 조회 실패: sessionId=$sessionId", cause)
