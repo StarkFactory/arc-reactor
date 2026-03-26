@@ -38,9 +38,9 @@ sealed class HookResult {
  * @property userPrompt 사용자 입력 프롬프트
  * @property channel 요청 채널 (예: "slack", "web")
  * @property startedAt 실행 시작 시각
- * @property toolsUsed 사용된 도구 이름 목록 (실행 중 추가됨)
- * @property verifiedSources 검증된 출처 목록 (RAG 인용용)
- * @property metadata 확장 메타데이터 (sessionId, userMemoryContext 등)
+ * @property toolsUsed 사용된 도구 이름 목록 (읽기 전용 뷰 — 내부에서만 추가 가능)
+ * @property verifiedSources 검증된 출처 목록 (읽기 전용 뷰 — 내부에서만 추가 가능)
+ * @property metadata 확장 메타데이터 (ConcurrentHashMap — 내부에서 직접 수정)
  */
 data class HookContext(
     val runId: String,
@@ -49,12 +49,26 @@ data class HookContext(
     val userPrompt: String,
     val channel: String? = null,
     val startedAt: Instant = Instant.now(),
-    val toolsUsed: MutableList<String> = CopyOnWriteArrayList(),
-    val verifiedSources: MutableList<VerifiedSource> = CopyOnWriteArrayList(),
+    val toolsUsed: List<String> = CopyOnWriteArrayList(),
+    val verifiedSources: List<VerifiedSource> = CopyOnWriteArrayList(),
     val metadata: MutableMap<String, Any> = ConcurrentHashMap()
 ) {
     /** 실행 시작 이후 경과 시간 (밀리초) */
     fun durationMs(): Long = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
+
+    // ── 내부 전용 mutation 메서드 (external Hook 작성자에게 노출되지 않음) ──
+
+    /** 사용된 도구 이름을 추가한다. CopyOnWriteArrayList 백킹이므로 스레드 안전. */
+    @Suppress("UNCHECKED_CAST")
+    internal fun addToolUsed(name: String) {
+        (toolsUsed as MutableList<String>).add(name)
+    }
+
+    /** 검증된 출처를 추가한다. CopyOnWriteArrayList 백킹이므로 스레드 안전. */
+    @Suppress("UNCHECKED_CAST")
+    internal fun addVerifiedSource(source: VerifiedSource) {
+        (verifiedSources as MutableList<VerifiedSource>).add(source)
+    }
 }
 
 /**

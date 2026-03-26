@@ -245,7 +245,7 @@ class MemoryStoreConcurrencyTest {
         val toolCount = 100
         val deferred = (1..toolCount).map { i ->
             async(Dispatchers.Default) {
-                context.toolsUsed.add("tool-$i")
+                context.addToolUsed("tool-$i")
             }
         }
 
@@ -280,7 +280,7 @@ class MemoryStoreConcurrencyTest {
 
         // with some tools를 미리 채웁니다
         for (i in 1..10) {
-            context.toolsUsed.add("initial-tool-$i")
+            context.addToolUsed("initial-tool-$i")
         }
 
         val writerCount = 50
@@ -288,7 +288,7 @@ class MemoryStoreConcurrencyTest {
 
         val writers = (1..writerCount).map { i ->
             async(Dispatchers.Default) {
-                context.toolsUsed.add("new-tool-$i")
+                context.addToolUsed("new-tool-$i")
             }
         }
 

@@ -62,11 +62,11 @@ class ExecutionResultFinalizerTest {
 
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi")
         val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
-            verifiedSources += VerifiedSource(
+            addVerifiedSource(VerifiedSource(
                 title = "Policy",
                 url = "https://example.com/policy",
                 toolName = "confluence_answer_question"
-            )
+            ))
             metadata["answerMode"] = "knowledge"
             metadata["freshness"] = mapOf("mode" to "live_confluence", "sourceType" to "confluence")
         }
@@ -262,7 +262,7 @@ class ExecutionResultFinalizerTest {
         )
         var retryInvoked = false
         val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
-            verifiedSources += VerifiedSource(title = "Doc", url = "https://example.com/doc")
+            addVerifiedSource(VerifiedSource(title = "Doc", url = "https://example.com/doc"))
         }
 
         val result = finalizer.finalize(
@@ -632,8 +632,8 @@ class ExecutionResultFinalizerTest {
             nowMs = { 1_000L }
         )
         val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
-            verifiedSources += VerifiedSource(title = "Policy Doc", url = "https://example.com/policy", toolName = "confluence")
-            verifiedSources += VerifiedSource(title = "Guide", url = "https://example.com/guide", toolName = "confluence")
+            addVerifiedSource(VerifiedSource(title = "Policy Doc", url = "https://example.com/policy", toolName = "confluence"))
+            addVerifiedSource(VerifiedSource(title = "Guide", url = "https://example.com/guide", toolName = "confluence"))
         }
 
         val result = finalizer.finalize(
@@ -675,7 +675,7 @@ class ExecutionResultFinalizerTest {
             nowMs = { 1_000L }
         )
         val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
-            verifiedSources += VerifiedSource(title = "Doc", url = "https://example.com/doc")
+            addVerifiedSource(VerifiedSource(title = "Doc", url = "https://example.com/doc"))
         }
 
         val result = finalizer.finalize(
@@ -708,9 +708,9 @@ class ExecutionResultFinalizerTest {
             nowMs = { 1_000L }
         )
         val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
-            verifiedSources += VerifiedSource(title = "Doc A", url = "https://example.com/same")
-            verifiedSources += VerifiedSource(title = "Doc B", url = "https://example.com/same")
-            verifiedSources += VerifiedSource(title = "Doc C", url = "https://example.com/other")
+            addVerifiedSource(VerifiedSource(title = "Doc A", url = "https://example.com/same"))
+            addVerifiedSource(VerifiedSource(title = "Doc B", url = "https://example.com/same"))
+            addVerifiedSource(VerifiedSource(title = "Doc C", url = "https://example.com/other"))
         }
 
         val result = finalizer.finalize(
@@ -752,16 +752,16 @@ class ExecutionResultFinalizerTest {
             nowMs = { 1_000L }
         )
         val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
-            verifiedSources += VerifiedSource(
+            addVerifiedSource(VerifiedSource(
                 title = "Policy (v2)",
                 url = "https://example.com?q=test&page=1",
                 toolName = "confluence"
-            )
-            verifiedSources += VerifiedSource(
+            ))
+            addVerifiedSource(VerifiedSource(
                 title = "Guide [Draft] & Notes",
                 url = "https://example.com/path#section",
                 toolName = "confluence"
-            )
+            ))
         }
 
         val result = finalizer.finalize(
