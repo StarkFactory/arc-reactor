@@ -42,8 +42,8 @@ dependencies {
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
     implementation("io.micrometer:micrometer-core")
 
-    // Swagger (for @Tag, @Operation)
-    implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.6")
+    // Swagger (for @Tag, @Operation — 어노테이션만 사용, 런타임 UI는 arc-web이 제공)
+    compileOnly("org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.6")
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
