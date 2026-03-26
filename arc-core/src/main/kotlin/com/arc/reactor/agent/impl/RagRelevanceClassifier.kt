@@ -82,10 +82,15 @@ internal object RagRelevanceClassifier {
         "참고", "매뉴얼", "절차", "프로세스",
         // 기술 아키텍처 관련 (한국어) — 인제스트한 기술 문서 검색용
         "파이프라인", "아키텍처", "메커니즘", "동작 원리", "작동 방식",
+        // 도메인 개념 (한국어) — 벡터 스토어에 인제스트된 기술 주제
+        "등록 방법", "설정 방법", "구성", "설명해",
+        "react", "mcp", "guard", "hook",
+        "루프", "라우팅", "캐시", "메모리",
         // 문서/지식 관련 (영어)
         "knowledge", "document", "guideline", "runbook", "manual",
         "internal doc", "policy", "procedure", "reference",
         "architecture", "pipeline", "mechanism", "how does",
+        "how to", "what is", "explain", "setup", "configure",
         // 명시적 RAG 트리거
         "knowledge base", "지식 베이스", "지식베이스"
         // 참고: "confluence", "wiki" 등 workspace 도구 키워드는 여기서 제거됨.
