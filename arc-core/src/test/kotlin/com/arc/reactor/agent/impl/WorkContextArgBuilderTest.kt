@@ -126,10 +126,10 @@ class WorkContextArgBuilderTest {
                 repository = "team" to "repo"
             )
 
-assertTrue(            args.containsKey("releaseName"))
-assertTrue(            args.containsKey("stalePrDays"))
-assertTrue(            args.containsKey("reviewSlaHours"))
-assertTrue(            args.containsKey("jiraMaxResults"))
+            assertTrue(args.containsKey("releaseName")) { "인자 맵에 releaseName 키가 포함되어야 한다" }
+            assertTrue(args.containsKey("stalePrDays")) { "인자 맵에 stalePrDays 키가 포함되어야 한다" }
+            assertTrue(args.containsKey("reviewSlaHours")) { "인자 맵에 reviewSlaHours 키가 포함되어야 한다" }
+            assertTrue(args.containsKey("jiraMaxResults")) { "인자 맵에 jiraMaxResults 키가 포함되어야 한다" }
             args["stalePrDays"] shouldBe 3
             args["reviewSlaHours"] shouldBe 24
             args["jiraMaxResults"] shouldBe 20
@@ -163,9 +163,9 @@ assertTrue(            args.containsKey("jiraMaxResults"))
                 projectKey = null,
                 repository = null
             )
-assertFalse(            args.containsKey("jiraProject"))
-assertFalse(            args.containsKey("bitbucketWorkspace"))
-assertFalse(            args.containsKey("bitbucketRepo"))
+            assertFalse(args.containsKey("jiraProject")) { "인자 맵에 jiraProject 키가 포함되면 안 된다" }
+            assertFalse(args.containsKey("bitbucketWorkspace")) { "인자 맵에 bitbucketWorkspace 키가 포함되면 안 된다" }
+            assertFalse(args.containsKey("bitbucketRepo")) { "인자 맵에 bitbucketRepo 키가 포함되면 안 된다" }
         }
     }
 
@@ -180,13 +180,13 @@ assertFalse(            args.containsKey("bitbucketRepo"))
                 repository = "team" to "repo"
             )
 
-assertTrue(            args.containsKey("releaseName"))
-assertTrue(            args.containsKey("stalePrDays"))
-assertTrue(            args.containsKey("reviewSlaHours"))
-assertTrue(            args.containsKey("daysLookback"))
-assertTrue(            args.containsKey("dryRunActionItems"))
-assertTrue(            args.containsKey("blockerWeight"))
-assertTrue(            args.containsKey("highRiskThreshold"))
+            assertTrue(args.containsKey("releaseName")) { "인자 맵에 releaseName 키가 포함되어야 한다" }
+            assertTrue(args.containsKey("stalePrDays")) { "인자 맵에 stalePrDays 키가 포함되어야 한다" }
+            assertTrue(args.containsKey("reviewSlaHours")) { "인자 맵에 reviewSlaHours 키가 포함되어야 한다" }
+            assertTrue(args.containsKey("daysLookback")) { "인자 맵에 daysLookback 키가 포함되어야 한다" }
+            assertTrue(args.containsKey("dryRunActionItems")) { "인자 맵에 dryRunActionItems 키가 포함되어야 한다" }
+            assertTrue(args.containsKey("blockerWeight")) { "인자 맵에 blockerWeight 키가 포함되어야 한다" }
+            assertTrue(args.containsKey("highRiskThreshold")) { "인자 맵에 highRiskThreshold 키가 포함되어야 한다" }
             args["dryRunActionItems"] shouldBe true
             args["autoExecuteActionItems"] shouldBe false
             args["highRiskThreshold"] shouldBe 18
@@ -200,7 +200,7 @@ assertTrue(            args.containsKey("highRiskThreshold"))
                 projectKey = null,
                 repository = null
             )
-assertFalse(            args.containsKey("jiraProject"))
+            assertFalse(args.containsKey("jiraProject")) { "인자 맵에 jiraProject 키가 포함되면 안 된다" }
         }
     }
 
@@ -242,8 +242,8 @@ assertFalse(            args.containsKey("jiraProject"))
         fun `projectKey가 null이면 jiraProject를 제외해야 한다`() {
             val args = WorkContextArgBuilder.buildStandupArgs(null)
 
-assertFalse(            args.containsKey("jiraProject"))
-assertTrue(            args.containsKey("daysLookback"))
+            assertFalse(args.containsKey("jiraProject")) { "인자 맵에 jiraProject 키가 포함되면 안 된다" }
+            assertTrue(args.containsKey("daysLookback")) { "인자 맵에 daysLookback 키가 포함되어야 한다" }
         }
     }
 
