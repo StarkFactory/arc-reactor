@@ -585,6 +585,61 @@ object InjectionPatterns {
         InjectionPattern(
             "meta_question",
             Regex("(수행|처리|실행).{0,5}(할 수 없|못하|불가).{0,15}(알려|설명|나열|보여)")
+        ),
+
+        // ── 자격증명 탈취 시도 (Credential Extraction) ──
+        // "비밀번호/패스워드/API 키를 알려줘" — 자격증명 요청
+        InjectionPattern(
+            "credential_extraction",
+            Regex(
+                "(비밀번호|패스워드|password|비번|암호|api\\s*key|secret|토큰|token|인증\\s*키)" +
+                    ".{0,15}(알려|보여|출력|공개|말해|줘|tell|show|reveal|give)",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+            )
+        ),
+        // 역순: "알려줘 비밀번호를"
+        InjectionPattern(
+            "credential_extraction",
+            Regex(
+                "(알려|보여|출력|공개|말해|tell|show|reveal).{0,15}" +
+                    "(비밀번호|패스워드|password|비번|암호|api\\s*key|secret|토큰|token)",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+            )
+        ),
+        // "admin/root 계정 정보" — 관리자 계정 접근 시도
+        InjectionPattern(
+            "credential_extraction",
+            Regex(
+                "(?i)(admin|root|관리자|어드민).{0,15}(계정|account|비밀번호|password|비번|암호|인증|credential)"
+            )
+        ),
+
+        // ── 교차 사용자 데이터 접근 시도 (Cross-User Access) ──
+        // "다른 사용자/사람의 대화/데이터를 보여줘"
+        InjectionPattern(
+            "cross_user_access",
+            Regex(
+                "(다른|타|other).{0,10}(사용자|유저|사람|user|계정|account).{0,15}" +
+                    "(대화|채팅|메시지|이력|기록|데이터|정보|내역|chat|message|history|data)",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+            )
+        ),
+        // "다른 사람의 세션/대화 내역을 보여줘"
+        InjectionPattern(
+            "cross_user_access",
+            Regex(
+                "(다른|타).{0,10}(세션|session).{0,10}(보여|접근|조회|열어|확인)",
+                RegexOption.DOT_MATCHES_ALL
+            )
+        ),
+        // 영문: "show me other user's conversations/data"
+        InjectionPattern(
+            "cross_user_access",
+            Regex(
+                "(?i)(show|give|access|view|read).{0,15}(other|another|different).{0,10}" +
+                    "(user|person|account).{0,10}(conversation|chat|message|data|history|session)",
+                RegexOption.DOT_MATCHES_ALL
+            )
         )
     )
 }
