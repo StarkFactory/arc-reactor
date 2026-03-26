@@ -11,6 +11,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -25,7 +26,7 @@ import org.junit.jupiter.api.Test
 class StreamingFlowLifecycleCoordinatorTest {
 
     @Test
-    fun `finalize streaming and record success metrics해야 한다`() = runBlocking {
+    fun `finalize streaming and record success metrics해야 한다`() = runTest {
         val completionFinalizer = mockk<StreamingCompletionFinalizer>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery {
@@ -79,7 +80,7 @@ class StreamingFlowLifecycleCoordinatorTest {
     }
 
     @Test
-    fun `fallback UNKNOWN code로 record failure metrics해야 한다`() = runBlocking {
+    fun `fallback UNKNOWN code로 record failure metrics해야 한다`() = runTest {
         val completionFinalizer = mockk<StreamingCompletionFinalizer>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery {
@@ -119,7 +120,7 @@ class StreamingFlowLifecycleCoordinatorTest {
     }
 
     @Test
-    fun `completion finalizer throws일 때 close run context even해야 한다`() = runBlocking {
+    fun `completion finalizer throws일 때 close run context even해야 한다`() = runTest {
         val completionFinalizer = mockk<StreamingCompletionFinalizer>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery {

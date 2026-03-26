@@ -13,6 +13,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -31,7 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class StreamingReActLoopExecutorTest {
 
     @Test
-    fun `llm returns no tool calls일 때 stream final text해야 한다`() = runBlocking {
+    fun `llm returns no tool calls일 때 stream final text해야 한다`() = runTest {
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
         every { requestSpec.stream() } returns streamResponseSpec
@@ -83,7 +84,7 @@ class StreamingReActLoopExecutorTest {
     }
 
     @Test
-    fun `maxToolCalls reached일 때 disable tools해야 한다`() = runBlocking {
+    fun `maxToolCalls reached일 때 disable tools해야 한다`() = runTest {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
@@ -144,7 +145,7 @@ class StreamingReActLoopExecutorTest {
     }
 
     @Test
-    fun `maxToolCalls is zero일 때 start with tools disabled해야 한다`() = runBlocking {
+    fun `maxToolCalls is zero일 때 start with tools disabled해야 한다`() = runTest {
         val toolCall = AssistantMessage.ToolCall("tc-1", "call", "search", "{}")
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
