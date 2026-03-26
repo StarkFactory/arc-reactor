@@ -127,12 +127,17 @@ class JwtAuthWebFilter(
             ?.takeIf { it.isNotBlank() } ?: userId
     }
 
-    /** JWT claim 또는 DB에서 이메일을 해석한다 */
+    /**
+     * JWT claim 또는 DB에서 이메일을 해석한다.
+     *
+     * JWT email claim은 외부 입력이므로 형식 검증 + 길이 제한을 적용한다.
+     * 미검증 시 SQL 인젝션, 로그 인젝션, 감사 로그 오염 경로가 열린다.
+     */
     private fun resolveUserEmail(userId: String, token: String): String? {
         // JWT claim 우선
         val tokenEmail = jwtTokenProvider.extractEmail(token)
             ?.trim()
-            ?.takeIf { it.isNotBlank() }
+            ?.takeIf { it.isNotBlank() && isValidEmailFormat(it) }
         if (!tokenEmail.isNullOrBlank()) return tokenEmail
 
         // DB 폴백
@@ -204,6 +209,19 @@ class JwtAuthWebFilter(
     }
 
     companion object {
+        /** 최대 이메일 길이. RFC 5321 최대 254자이나 실용적으로 128자로 제한. */
+        private const val MAX_EMAIL_LENGTH = 128
+
+        /** 기본적인 이메일 형식 검증 (local@domain). RFC 5321 완전 준수는 아님. */
+        private val EMAIL_PATTERN = Regex("^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$")
+
+        /** JWT email claim의 형식과 길이를 검증한다. 제어 문자, 극단적 길이를 차단. */
+        private fun isValidEmailFormat(email: String): Boolean {
+            if (email.length > MAX_EMAIL_LENGTH) return false
+            if (email.any { it.isISOControl() }) return false
+            return EMAIL_PATTERN.matches(email)
+        }
+
         /** 인증된 userId를 ServerWebExchange attribute에 저장하는 키 */
         const val USER_ID_ATTRIBUTE = "userId"
 
