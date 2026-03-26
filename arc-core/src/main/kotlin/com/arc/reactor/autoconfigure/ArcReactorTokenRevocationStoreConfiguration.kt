@@ -105,7 +105,11 @@ class ArcReactorTokenRevocationStoreConfiguration {
             val hasKeyMethod = redisTemplate.javaClass.methods.firstOrNull { method ->
                 method.name == "hasKey" && method.parameterCount == 1
             } ?: return false
-            hasKeyMethod.invoke(redisTemplate, "__arc:redis:probe__")
+            // 타임아웃으로 감싸서 Redis 미응답 시 앱 시작 60초 멈춤 방지
+            val future = java.util.concurrent.ForkJoinPool.commonPool().submit<Any?> {
+                hasKeyMethod.invoke(redisTemplate, "__arc:redis:probe__")
+            }
+            future.get(5, java.util.concurrent.TimeUnit.SECONDS)
             true
         } catch (e: Exception) {
             logger.warn(e) { "Redis connectivity probe failed during token revocation store selection" }
