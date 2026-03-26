@@ -293,13 +293,15 @@ class PlatformAdminController(
     fun tenantAnalytics(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenants = tenantStore.findAll()
+        // 전체 테넌트 사용량을 한 번에 조회 (N+1 → 배치 2쿼리)
+        val usageByTenant = try {
+            queryService.getAllTenantsCurrentMonthUsage()
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to fetch batch tenant usage" }
+            emptyMap()
+        }
         val summaries = tenants.map { tenant ->
-            val usage = try {
-                queryService.getCurrentMonthUsage(tenant.id)
-            } catch (e: Exception) {
-                logger.warn(e) { "Failed to fetch usage for tenant=${tenant.id}" }
-                null
-            }
+            val usage = usageByTenant[tenant.id]
             TenantAnalyticsSummary(
                 tenantId = tenant.id,
                 tenantName = tenant.name,

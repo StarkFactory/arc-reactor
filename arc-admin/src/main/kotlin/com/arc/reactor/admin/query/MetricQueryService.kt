@@ -56,6 +56,49 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
         )
     }
 
+    /**
+     * 전체 테넌트의 현재 월 사용량을 한 번의 쿼리로 조회한다.
+     *
+     * tenantAnalytics 엔드포인트에서 N+1 쿼리 대신 사용하여
+     * 테넌트 수에 관계없이 DB 왕복을 3회로 고정한다.
+     */
+    fun getAllTenantsCurrentMonthUsage(): Map<String, TenantUsage> {
+        val monthStart = Instant.now().truncatedTo(ChronoUnit.DAYS)
+            .atZone(java.time.ZoneOffset.UTC)
+            .withDayOfMonth(1)
+            .toInstant()
+        val ts = Timestamp.from(monthStart)
+
+        val requestsByTenant = mutableMapOf<String, Long>()
+        jdbcTemplate.query(
+            "SELECT tenant_id, COUNT(*) AS cnt FROM metric_agent_executions WHERE time >= ? GROUP BY tenant_id",
+            arrayOf<Any>(ts)
+        ) { rs, _ -> requestsByTenant[rs.getString("tenant_id")] = rs.getLong("cnt") }
+
+        val tokensByTenant = mutableMapOf<String, Long>()
+        val costByTenant = mutableMapOf<String, BigDecimal>()
+        jdbcTemplate.query(
+            """SELECT tenant_id, COALESCE(SUM(total_tokens), 0) AS tokens,
+                      COALESCE(SUM(estimated_cost_usd), 0) AS cost
+               FROM metric_token_usage WHERE time >= ? GROUP BY tenant_id""",
+            arrayOf<Any>(ts)
+        ) { rs, _ ->
+            val tid = rs.getString("tenant_id")
+            tokensByTenant[tid] = rs.getLong("tokens")
+            costByTenant[tid] = rs.getBigDecimal("cost") ?: BigDecimal.ZERO
+        }
+
+        val allTenantIds = requestsByTenant.keys + tokensByTenant.keys
+        return allTenantIds.associateWith { tid ->
+            TenantUsage(
+                tenantId = tid,
+                requests = requestsByTenant[tid] ?: 0L,
+                tokens = tokensByTenant[tid] ?: 0L,
+                costUsd = costByTenant[tid] ?: BigDecimal.ZERO
+            )
+        }
+    }
+
     fun getRequestTimeSeries(
         tenantId: String,
         from: Instant,
