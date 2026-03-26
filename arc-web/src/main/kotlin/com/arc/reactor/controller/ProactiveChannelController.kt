@@ -1,5 +1,6 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.audit.recordAdminAudit
 import com.arc.reactor.audit.AdminAuditStore
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse

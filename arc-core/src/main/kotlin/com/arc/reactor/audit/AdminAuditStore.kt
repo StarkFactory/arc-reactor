@@ -52,6 +52,39 @@ interface AdminAuditStore {
 }
 
 /**
+ * 관리자 감사 로그를 안전하게 저장한다.
+ *
+ * 감사 로그 저장 실패가 주 요청을 중단시키지 않도록 runCatching으로 감싼다.
+ * fail-open: 저장 실패 시 경고 로그만 남기고 계속 진행.
+ */
+fun recordAdminAudit(
+    store: AdminAuditStore,
+    category: String,
+    action: String,
+    actor: String,
+    resourceType: String? = null,
+    resourceId: String? = null,
+    detail: String? = null
+) {
+    runCatching {
+        store.save(
+            AdminAuditLog(
+                category = category,
+                action = action,
+                actor = actor,
+                resourceType = resourceType,
+                resourceId = resourceId,
+                detail = detail
+            )
+        )
+    }.onFailure { e ->
+        auditLogger.warn(e) { "Failed to persist admin audit log: category=$category action=$action resourceId=$resourceId" }
+    }
+}
+
+private val auditLogger = mu.KotlinLogging.logger("com.arc.reactor.audit.AdminAuditSupport")
+
+/**
  * 메모리 기반 관리자 감사 로그 저장소
  *
  * [ConcurrentLinkedDeque]를 사용하여 스레드 안전하게 로그를 관리한다.
