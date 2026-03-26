@@ -201,18 +201,18 @@ class AdaptiveQueryRouterTest {
         }
 
         @Test
-        fun `SIMPLE on timeout를 기본값으로 한다`() = runTest {
+        fun `SIMPLE on timeout를 기본값으로 한다`() = runBlocking {
             val chatClient = mockk<ChatClient>()
             val requestSpec = mockk<ChatClientRequestSpec>()
             every { chatClient.prompt() } returns requestSpec
             every { requestSpec.system(any<String>()) } returns requestSpec
             every { requestSpec.user(any<String>()) } returns requestSpec
             every { requestSpec.call() } answers {
-                Thread.sleep(5000)
+                Thread.sleep(500) // 타임아웃(200ms)보다 충분히 긴 블로킹
                 throw RuntimeException("should not reach")
             }
 
-            val router = AdaptiveQueryRouter(chatClient, timeoutMs = 100)
+            val router = AdaptiveQueryRouter(chatClient, timeoutMs = 200)
             val result = router.route("test query")
 
             assertEquals(
