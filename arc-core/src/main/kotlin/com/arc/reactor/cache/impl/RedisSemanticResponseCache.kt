@@ -17,6 +17,9 @@ import java.time.Duration
 
 private val logger = KotlinLogging.logger {}
 
+/** invalidateAll() 청크 삭제 크기. 메모리 수집량을 제한하여 GC 압력을 줄인다. */
+private const val INVALIDATE_CHUNK_SIZE = 500
+
 /**
  * Redis-backed semantic response cache.
  *
@@ -156,16 +159,33 @@ class RedisSemanticResponseCache(
         }
     }
 
+    /**
+     * 모든 캐시 엔트리를 삭제한다.
+     *
+     * 청크 방식으로 삭제하여 대량 키 수집 시 OOM을 방지한다.
+     * 기존: 전체 키를 Set에 수집 후 한 번에 삭제 → 수만 키 시 GC 압력 + OOM 위험
+     * 변경: SCAN 커서에서 CHUNK_SIZE(500)씩 모아서 즉시 삭제
+     */
     override fun invalidateAll() {
         try {
             val pattern = "$keyPrefix:*"
             val scanOptions = ScanOptions.scanOptions().match(pattern).count(100).build()
-            val keys = mutableSetOf<String>()
+            var totalDeleted = 0L
+            val chunk = mutableSetOf<String>()
+
             redisTemplate.scan(scanOptions).use { cursor ->
-                cursor.forEach { keys.add(it) }
+                for (key in cursor) {
+                    chunk.add(key)
+                    if (chunk.size >= INVALIDATE_CHUNK_SIZE) {
+                        totalDeleted += redisTemplate.delete(chunk)
+                        chunk.clear()
+                    }
+                }
             }
-            val deleted = if (keys.isEmpty()) 0L else redisTemplate.delete(keys)
-            logger.info { "Invalidated $deleted Redis semantic cache keys for prefix=$keyPrefix" }
+            if (chunk.isNotEmpty()) {
+                totalDeleted += redisTemplate.delete(chunk)
+            }
+            logger.info { "Invalidated $totalDeleted Redis semantic cache keys for prefix=$keyPrefix" }
         } catch (e: Exception) {
             logger.warn(e) { "Failed to invalidate Redis semantic cache for prefix=$keyPrefix" }
         }
