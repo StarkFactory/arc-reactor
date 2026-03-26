@@ -10,10 +10,20 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * 모델 가격 테이블 기반 토큰 비용 계산기.
+ * 모델 가격 테이블 기반 토큰 비용 계산기 (청구/분석용).
  *
  * Caffeine 캐시(5분 TTL)로 가격 조회를 최적화한다.
  * uncached prompt, cached input, completion, reasoning 토큰을 구분하여 비용을 산출한다.
+ *
+ * ## arc-core CostCalculator와의 관계
+ * arc-core 모듈에도 동명의 CostCalculator가 존재하지만 설계 목적이 다르다:
+ * - **이 클래스 (arc-admin)**: DB 기반 가격표, BigDecimal 정밀도,
+ *   토큰 티어 구분 (cached/reasoning). 메트릭 기록 및 청구에 사용. 정밀도 우선.
+ * - **arc-core CostCalculator**: 하드코딩 가격표, Double 정밀도, I/O 없음.
+ *   ReAct 루프 내 실시간 예산 판단에 사용. 속도 우선.
+ *
+ * 이 분리는 의도적이다 — 에이전트 실행 핫 패스에서 DB 호출을 피하면서도
+ * 청구 정확도를 보장하기 위함.
  *
  * @see ModelPricingStore 가격 정보 저장소
  * @see MetricWriter writer 스레드에서 TokenUsageEvent 비용 보강 시 사용

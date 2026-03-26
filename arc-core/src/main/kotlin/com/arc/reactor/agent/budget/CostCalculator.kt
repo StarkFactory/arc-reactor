@@ -16,19 +16,24 @@ data class ModelPricing(
 )
 
 /**
- * LLM 요청 비용 계산기.
+ * LLM 요청 비용 계산기 (실시간 예산 판단용).
  *
  * 모델별 가격표를 기반으로 입력/출력 토큰 수에 따른 USD 비용을 산출한다.
  * 가격표에 없는 모델은 경고 로그와 함께 0.0 USD를 반환한다.
  *
- * ## 사용 예시
- * ```kotlin
- * val calculator = CostCalculator()
- * val cost = calculator.calculateCost("gpt-4o", inputTokens = 1000, outputTokens = 500)
- * println(cost.estimatedCostUsd) // 0.0075
- * ```
+ * ## arc-admin CostCalculator와의 관계
+ * arc-admin 모듈에도 동명의 CostCalculator가 존재하지만 설계 목적이 다르다:
+ * - **이 클래스 (arc-core)**: 하드코딩 가격표, Double 정밀도, DB 호출 없음.
+ *   ReAct 루프 내 [StepBudgetTracker]와 CostAwareModelRouter에서 사용.
+ *   속도 우선 — 매 LLM 호출마다 실행되므로 I/O 없이 즉시 반환해야 한다.
+ * - **arc-admin CostCalculator**: DB 기반 가격표, BigDecimal 정밀도,
+ *   cached/reasoning 토큰 구분. 메트릭 기록 및 청구에 사용. 정밀도 우선.
+ *
+ * [DEFAULT_PRICING] 가격을 갱신할 때 arc-admin의 초기 seed 가격과도
+ * 동기화하여 실시간 예산과 청구 간 편차를 최소화할 것.
  *
  * @param pricingTable 모델별 가격표. 기본값은 [DEFAULT_PRICING].
+ * @see StepBudgetTracker 실시간 토큰 예산 추적
  */
 class CostCalculator(
     private val pricingTable: Map<String, ModelPricing> = DEFAULT_PRICING
