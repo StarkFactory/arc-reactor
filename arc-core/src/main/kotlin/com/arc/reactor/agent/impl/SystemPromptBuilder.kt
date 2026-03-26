@@ -29,21 +29,17 @@ internal class SystemPromptBuilder(
     /**
      * 프롬프트 분류 시 반복되는 lowercase() 호출을 캐싱한다.
      * 동일 입력에 대해 30회+ 호출되는 것을 1회로 줄인다.
-     * 스레드 안전한 ConcurrentHashMap으로 TOCTOU 경합을 방지한다.
+     *
+     * Caffeine W-TinyLFU로 LRU 퇴거를 적용하여 bulk clear() 시
+     * 발생하는 thundering-herd(동시 재계산 폭풍)를 방지한다.
      */
-    private val normalizeCache =
-        java.util.concurrent.ConcurrentHashMap<String, String>(4)
+    private val normalizeCache = com.github.benmanes.caffeine.cache.Caffeine.newBuilder()
+        .maximumSize(MAX_NORMALIZE_CACHE_SIZE.toLong())
+        .build<String, String>()
 
     private fun normalizePrompt(prompt: String?): String {
         if (prompt.isNullOrBlank()) return ""
-        return normalizeCache.computeIfAbsent(prompt) { it.lowercase() }
-    }
-
-    /** 캐시 크기를 제한하여 메모리 누수를 방지한다. build() 시작 시 호출. */
-    private fun resetNormalizeCacheIfNeeded() {
-        if (normalizeCache.size > MAX_NORMALIZE_CACHE_SIZE) {
-            normalizeCache.clear()
-        }
+        return normalizeCache.get(prompt) { it.lowercase() }
     }
 
     /** 프롬프트가 주어진 키워드 집합 중 하나라도 포함하는지 검사한다. */
@@ -74,7 +70,6 @@ internal class SystemPromptBuilder(
         workspaceToolAlreadyCalled: Boolean = false,
         userMemoryContext: String? = null
     ): String {
-        resetNormalizeCacheIfNeeded()
         val effectiveBase = if (userMemoryContext != null) {
             "$basePrompt\n\n[User Context]\n$userMemoryContext"
         } else {
