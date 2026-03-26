@@ -229,7 +229,7 @@ arc:
         enabled: false            # opt-in
         trigger-message-count: 20
         recent-message-count: 10
-        llm-model: gemini-2.0-flash   # null = use default provider
+        llm-model: gemini-2.5-flash   # null = use default provider
         max-narrative-tokens: 500
 ```
 
@@ -470,7 +470,7 @@ arc:
         enabled: true
         trigger-message-count: 20   # summarize after 20 messages
         recent-message-count: 10    # keep last 10 verbatim
-        llm-model: gemini-2.0-flash # model for summarization
+        llm-model: gemini-2.5-flash # model for summarization
         max-narrative-tokens: 500
 ```
 

@@ -128,7 +128,7 @@ class MetricCollectorAgentMetricsTest {
             val metadata = mapOf<String, Any>(
                 "tenantId" to "tenant-1",
                 "runId" to "run-42",
-                "model" to "gemini-2.0-flash",
+                "model" to "gemini-2.5-flash",
                 "provider" to "google"
             )
             metrics.recordTokenUsage(
@@ -141,7 +141,7 @@ class MetricCollectorAgentMetricsTest {
             val event = events[0].shouldBeInstanceOf<TokenUsageEvent>()
             event.tenantId shouldBe "tenant-1"
             event.runId shouldBe "run-42"
-            event.model shouldBe "gemini-2.0-flash"
+            event.model shouldBe "gemini-2.5-flash"
             event.provider shouldBe "google"
             event.promptTokens shouldBe 100
             event.completionTokens shouldBe 50

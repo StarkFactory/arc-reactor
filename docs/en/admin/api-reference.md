@@ -2312,7 +2312,7 @@ Submit feedback on an agent response. If `runId` is provided, the system automat
   "userId": "user123",
   "intent": "policy_inquiry",
   "domain": "support",
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "promptVersion": 3,
   "toolsUsed": ["search_docs"],
   "durationMs": 1234,

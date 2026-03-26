@@ -34,11 +34,11 @@ class CostCalculatorTest {
     }
 
     @Test
-    fun `gemini-2_0-flash 모델의 저렴한 비용을 계산해야 한다`() {
-        val cost = calculator.calculateCost("gemini-2.0-flash", inputTokens = 1000, outputTokens = 500)
+    fun `gemini-2_5-flash 모델의 비용을 계산해야 한다`() {
+        val cost = calculator.calculateCost("gemini-2.5-flash", inputTokens = 1000, outputTokens = 500)
 
-        val expected = 1000.0 / 1_000_000 * 0.10 + 500.0 / 1_000_000 * 0.40
-        assertEquals(expected, cost.estimatedCostUsd, 0.0001, "gemini-2.0-flash 비용이 정확해야 한다")
+        val expected = 1000.0 / 1_000_000 * 0.15 + 500.0 / 1_000_000 * 0.60
+        assertEquals(expected, cost.estimatedCostUsd, 0.0001, "gemini-2.5-flash 비용이 정확해야 한다")
     }
 
     @Test
@@ -109,7 +109,7 @@ class CostCalculatorTest {
     @Test
     fun `기본 가격표에 모든 주요 모델이 포함되어야 한다`() {
         val expectedModels = listOf(
-            "gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro",
+            "gemini-2.5-flash", "gemini-2.5-pro",
             "gpt-4o", "gpt-4o-mini",
             "claude-sonnet-4-20250514", "claude-opus-4-20250514"
         )

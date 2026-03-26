@@ -21,7 +21,7 @@ appropriate HTTP status code (e.g., `429` for rate limiting, `403` for guard rej
 {
   "content": null,
   "success": false,
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "toolsUsed": [],
   "errorMessage": "<human-readable message>"
 }
@@ -59,7 +59,7 @@ jitter. Do not retry immediately; a burst of retries will extend the window.
 {
   "content": null,
   "success": false,
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "toolsUsed": [],
   "errorMessage": "Rate limit exceeded. Please try again later."
 }
@@ -90,7 +90,7 @@ reduce message complexity or increase timeout budgets.
 {
   "content": null,
   "success": false,
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "toolsUsed": [],
   "errorMessage": "Request timed out."
 }
@@ -120,7 +120,7 @@ history. Consider increasing `max-context-window-tokens` if the model supports a
 {
   "content": null,
   "success": false,
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "toolsUsed": [],
   "errorMessage": "Input is too long. Please reduce the content."
 }
@@ -151,7 +151,7 @@ if the tool exception message matches patterns like `"connection refused"`, `"ti
 {
   "content": null,
   "success": false,
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "toolsUsed": ["search_web"],
   "errorMessage": "An error occurred during tool execution.: connection refused to http://tool-server:8081"
 }
@@ -246,7 +246,7 @@ client-side is a fallback option.
 {
   "content": null,
   "success": false,
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "toolsUsed": [],
   "errorMessage": "LLM returned an invalid structured response."
 }
@@ -277,7 +277,7 @@ to review the Output Guard configuration.
 {
   "content": null,
   "success": false,
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "toolsUsed": [],
   "errorMessage": "Response blocked by output guard."
 }
@@ -308,7 +308,7 @@ detailed output, or reduce the `output-min-chars` threshold.
 {
   "content": null,
   "success": false,
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "toolsUsed": [],
   "errorMessage": "Response is too short to meet quality requirements."
 }
@@ -339,7 +339,7 @@ request(s). If the trial succeeds, the circuit closes; if it fails, the circuit 
 {
   "content": null,
   "success": false,
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "toolsUsed": [],
   "errorMessage": "Service temporarily unavailable due to repeated failures. Please try again later."
 }
@@ -367,7 +367,7 @@ timestamp and contact the operator; the full stack trace is available in the ser
 {
   "content": null,
   "success": false,
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "toolsUsed": [],
   "errorMessage": "An unknown error occurred."
 }

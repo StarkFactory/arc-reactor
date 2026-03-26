@@ -11,7 +11,7 @@ import com.arc.reactor.agent.model.AgentCommand
  * ## 사용 예시
  * ```kotlin
  * val selection = modelRouter.route(command)
- * // selection.modelId → "gemini-2.0-flash" 또는 "gemini-2.5-pro" 등
+ * // selection.modelId → "gemini-2.5-flash" 또는 "gemini-2.5-pro" 등
  * ```
  *
  * @see CostAwareModelRouter 비용/품질 기반 기본 구현
@@ -31,7 +31,7 @@ interface ModelRouter {
 /**
  * 모델 라우팅 결과.
  *
- * @param modelId 선택된 LLM 모델 식별자 (예: "gemini-2.0-flash", "claude-sonnet-4-20250514")
+ * @param modelId 선택된 LLM 모델 식별자 (예: "gemini-2.5-flash", "claude-sonnet-4-20250514")
  * @param reason 모델 선택 사유 (로깅/디버깅용)
  * @param complexityScore 요청 복잡도 점수 (0.0 ~ 1.0). 라우터가 제공하지 않으면 null
  */

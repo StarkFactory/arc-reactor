@@ -26,7 +26,7 @@ private val logger = KotlinLogging.logger {}
  *   reactor:
  *     model-routing:
  *       enabled: true
- *       default-model: gemini-2.0-flash
+ *       default-model: gemini-2.5-flash
  *       high-complexity-model: gemini-2.5-pro
  *       routing-strategy: balanced
  *       complexity-threshold-chars: 500

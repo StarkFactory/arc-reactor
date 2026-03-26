@@ -90,7 +90,7 @@ class MultipartChatControllerTest {
             val response = controller.chatMultipart(
                 message = "describe image",
                 files = listOf(mockFilePart()),
-                model = "gemini-2.0-flash",
+                model = "gemini-2.5-flash",
                 systemPrompt = null,
                 personaId = null,
                 userId = null,

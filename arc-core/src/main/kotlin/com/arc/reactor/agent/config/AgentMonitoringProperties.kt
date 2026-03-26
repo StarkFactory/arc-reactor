@@ -42,7 +42,7 @@ data class SchedulerProperties(
  *   reactor:
  *     model-routing:
  *       enabled: true
- *       default-model: gemini-2.0-flash
+ *       default-model: gemini-2.5-flash
  *       high-complexity-model: gemini-2.5-pro
  *       routing-strategy: balanced
  *       complexity-threshold-chars: 500
@@ -56,7 +56,7 @@ data class ModelRoutingProperties(
     val enabled: Boolean = false,
 
     /** 단순 요청에 사용할 기본(저비용) 모델 ID. */
-    val defaultModel: String = "gemini-2.0-flash",
+    val defaultModel: String = "gemini-2.5-flash",
 
     /** 복잡한 요청에 사용할 고급(고비용) 모델 ID. */
     val highComplexityModel: String = "gemini-2.5-pro",

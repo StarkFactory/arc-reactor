@@ -134,7 +134,7 @@ block while preserving recent turns verbatim.
 | `arc.reactor.memory.summary.max-narrative-tokens` | `500` | Token budget for the narrative summary block |
 
 **Note.** Summarization adds one LLM call per trigger. Use a cheaper model for summarization
-(e.g. `gemini-2.0-flash`) to keep summary cost low.
+(e.g. `gemini-2.5-flash`) to keep summary cost low.
 
 **Example — long-session configuration:**
 ```yaml
@@ -149,7 +149,7 @@ arc:
         enabled: true
         trigger-message-count: 20
         recent-message-count: 8
-        llm-model: gemini-2.0-flash
+        llm-model: gemini-2.5-flash
         max-narrative-tokens: 500
 ```
 

@@ -33,7 +33,7 @@ class MetricWriterTest {
     }
 
     private fun tokenEvent(
-        model: String = "gemini-2.0-flash",
+        model: String = "gemini-2.5-flash",
         provider: String = "google",
         promptTokens: Int = 100,
         completionTokens: Int = 50,
@@ -63,7 +63,7 @@ class MetricWriterTest {
             every {
                 costCalculator.calculate(
                     provider = "google",
-                    model = "gemini-2.0-flash",
+                    model = "gemini-2.5-flash",
                     time = any(),
                     promptTokens = 100,
                     cachedTokens = 0,

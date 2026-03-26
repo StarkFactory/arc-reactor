@@ -12,7 +12,7 @@ Arc Reactor는 Spring AI 기반의 AI Agent 프레임워크다. v2.0에서 **Sem
 - Spring AI 1.1.2
 - Spring Boot 3.5.9
 - Kotlin 2.3.10, JDK 21
-- LLM: Google Gemini 2.0 Flash (`gemini-2.0-flash`)
+- LLM: Google Gemini 2.0 Flash (`gemini-2.5-flash`)
 
 ## 2. 버그 발견 과정
 

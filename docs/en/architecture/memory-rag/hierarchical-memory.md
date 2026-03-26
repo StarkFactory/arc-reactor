@@ -53,7 +53,7 @@ arc:
         enabled: true
         trigger-message-count: 20   # switch to hierarchical above this
         recent-message-count: 10    # keep this many messages verbatim
-        llm-model: gemini-2.0-flash # lightweight model for summarization
+        llm-model: gemini-2.5-flash # lightweight model for summarization
         max-narrative-tokens: 500   # narrative length limit
 ```
 
@@ -217,7 +217,7 @@ Follows the same pattern as other optional features (Intent Classification, RAG,
 | `arc.reactor.memory.summary.enabled` | `false` | Enable hierarchical memory |
 | `arc.reactor.memory.summary.trigger-message-count` | `20` | Switch from takeLast to hierarchical above this count |
 | `arc.reactor.memory.summary.recent-message-count` | `10` | Number of recent messages to keep verbatim |
-| `arc.reactor.memory.summary.llm-model` | `gemini-2.0-flash` | Model used for summarization |
+| `arc.reactor.memory.summary.llm-model` | `gemini-2.5-flash` | Model used for summarization |
 | `arc.reactor.memory.summary.max-narrative-tokens` | `500` | Maximum narrative length |
 
 ---
@@ -269,7 +269,7 @@ arc:
   reactor:
     memory:
       summary:
-        llm-model: gemini-2.0-flash   # Fast and cheap — recommended
+        llm-model: gemini-2.5-flash   # Fast and cheap — recommended
         # llm-model: gpt-4o-mini      # Alternative lightweight option
 ```
 

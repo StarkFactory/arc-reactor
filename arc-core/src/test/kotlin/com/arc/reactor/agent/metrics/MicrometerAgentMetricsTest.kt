@@ -173,11 +173,11 @@ class MicrometerAgentMetricsTest {
         val registry = SimpleMeterRegistry()
         val metrics = MicrometerAgentMetrics(registry)
 
-        metrics.recordLlmLatency("gemini-2.0-flash", 150)
-        metrics.recordLlmLatency("gemini-2.0-flash", 250)
+        metrics.recordLlmLatency("gemini-2.5-flash", 150)
+        metrics.recordLlmLatency("gemini-2.5-flash", 250)
 
         val timer = registry.get("arc.agent.llm.latency")
-            .tag("model", "gemini-2.0-flash")
+            .tag("model", "gemini-2.5-flash")
             .timer()
         assertEquals(2L, timer.count(), "LLM latency timer should record two samples")
         assertTrue(timer.totalTime(java.util.concurrent.TimeUnit.MILLISECONDS) >= 400.0) {
@@ -232,7 +232,7 @@ class MicrometerAgentMetricsTest {
 
         metrics.recordRequestCost(0.025, "gpt-4o", mapOf("tenantId" to "tenant-a"))
         metrics.recordRequestCost(0.010, "gpt-4o", mapOf("tenantId" to "tenant-a"))
-        metrics.recordRequestCost(0.005, "gemini-2.0-flash", mapOf("tenantId" to "tenant-b"))
+        metrics.recordRequestCost(0.005, "gemini-2.5-flash", mapOf("tenantId" to "tenant-b"))
 
         val costSummary = registry.get("arc.agent.request.cost")
             .tag("model", "gpt-4o")
@@ -248,7 +248,7 @@ class MicrometerAgentMetricsTest {
         assertEquals(0.035, totalCounter.count(), 0.001, "누적 비용 카운터가 정확해야 한다")
 
         val flashTotal = registry.get("arc.agent.cost.total.usd")
-            .tag("model", "gemini-2.0-flash")
+            .tag("model", "gemini-2.5-flash")
             .tag("tenantId", "tenant-b")
             .counter()
         assertEquals(0.005, flashTotal.count(), 0.001, "다른 테넌트의 비용이 분리되어야 한다")

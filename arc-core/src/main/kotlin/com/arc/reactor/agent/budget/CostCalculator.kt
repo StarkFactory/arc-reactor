@@ -79,7 +79,6 @@ class CostCalculator(
 
         /** 주요 LLM 모델 기본 가격표 (USD / 백만 토큰). */
         val DEFAULT_PRICING: Map<String, ModelPricing> = mapOf(
-            "gemini-2.0-flash" to ModelPricing(0.10, 0.40),
             "gemini-2.5-flash" to ModelPricing(0.15, 0.60),
             "gemini-2.5-pro" to ModelPricing(1.25, 10.00),
             "gpt-4o" to ModelPricing(2.50, 10.00),

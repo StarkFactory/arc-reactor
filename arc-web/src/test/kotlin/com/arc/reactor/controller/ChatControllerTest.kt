@@ -382,9 +382,9 @@ class ChatControllerTest {
         fun `forward model in response해야 한다`() = runTest {
             coEvery { agentExecutor.execute(any()) } returns AgentResult.success("ok")
 
-            val entity = controller.chat(ChatRequest(message = "hi", model = "gemini-2.0-flash"), exchange)
+            val entity = controller.chat(ChatRequest(message = "hi", model = "gemini-2.5-flash"), exchange)
 
-            assertEquals("gemini-2.0-flash", entity.body!!.model) { "Model should be forwarded in response" }
+            assertEquals("gemini-2.5-flash", entity.body!!.model) { "Model should be forwarded in response" }
         }
 
         @Test

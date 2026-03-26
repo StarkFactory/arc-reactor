@@ -17,7 +17,7 @@
 기본값:
 
 - Base URL: `http://localhost:18081`
-- 모델: `gemini-2.0-flash`
+- 모델: `gemini-2.5-flash`
 - 기본 시나리오: `core-runtime,employee-value`
 - 기본 케이스: `320`
 - 요청 간 지연: `1800ms`
@@ -30,7 +30,7 @@ BASE_URL=http://localhost:18081 \
 VALIDATION_CASE_LIMIT=80 \
 VALIDATION_CASE_DELAY_MS=600 \
 VALIDATION_SUITES=core-runtime,employee-value \
-AR_REACTOR_VALIDATION_MODEL=gemini-2.0-flash \
+AR_REACTOR_VALIDATION_MODEL=gemini-2.5-flash \
 ./scripts/dev/run-real-user-traffic-validation.sh
 ```
 
@@ -61,7 +61,7 @@ VALIDATION_SUITES=core-runtime,employee-value \
 VALIDATION_CASE_DELAY_MS=1200 \
 VALIDATION_SHUFFLE=true \
 VALIDATION_SHUFFLE_SEED=19 \
-AR_REACTOR_VALIDATION_MODEL=gemini-2.0-flash \
+AR_REACTOR_VALIDATION_MODEL=gemini-2.5-flash \
 ./scripts/dev/run-real-user-traffic-validation.sh
 ```
 

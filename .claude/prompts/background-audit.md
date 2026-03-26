@@ -189,6 +189,35 @@ git add -A && git commit -m "{변경 요약}" && git push origin main
 | 5 | **검증 게이트 통과 후에만 커밋** | main 깨짐 |
 | 6 | **push = 완료** | 미푸시 유실 |
 | 7 | **서킷 브레이커 (3회 무진전)** | 무한 루프 |
+| 8 | **병렬 에이전트 활용** | 순차 실행으로 시간 낭비 |
+
+---
+
+## 병렬 실행 전략
+
+독립적인 작업은 **하나의 메시지에 여러 Agent 호출**을 포함하여 동시 실행한다.
+
+### Phase 1 건강체크 병렬화
+
+4개 프로젝트의 빌드/테스트 상태를 **4개 Agent 병렬 디스패치**로 확인:
+
+```
+Agent(prompt: "cd /Users/jinan/ai/arc-reactor && git pull --rebase && ./gradlew compileKotlin compileTestKotlin 2>&1 | tail -5")
+Agent(prompt: "cd /Users/jinan/ai/atlassian-mcp-server && git pull --rebase && ./gradlew compileKotlin compileTestKotlin 2>&1 | tail -5")
+Agent(prompt: "cd /Users/jinan/ai/swagger-mcp-server && git pull --rebase && ./gradlew compileKotlin compileTestKotlin 2>&1 | tail -5")
+Agent(prompt: "cd /Users/jinan/ai/arc-reactor-admin && git pull --rebase && npm run build 2>&1 | tail -10")
+```
+
+### Phase 3 작업 선택 병렬화
+
+codebase-scanner와 코드 직접 검증을 병렬 수행:
+
+```
+Agent(subagent_type: "codebase-scanner", prompt: "{선택된 렌즈}로 arc-reactor 스캔")
+Agent(subagent_type: "general-purpose", prompt: "arc-reactor에서 {작업 우선순위}에 해당하는 문제 탐색")
+```
+
+**금지**: Agent 결과를 기다린 후 다음 Agent를 보내는 순차 실행. 독립 작업은 반드시 동시 호출.
 
 ---
 

@@ -112,8 +112,8 @@ class JdbcExperimentStoreTest {
             rulesEnabled = true,
             llmJudgeEnabled = false
         ),
-        model = "gemini-2.0-flash",
-        judgeModel = "gemini-2.0-flash",
+        model = "gemini-2.5-flash",
+        judgeModel = "gemini-2.5-flash",
         temperature = 0.5,
         repetitions = 2,
         status = status,
@@ -227,7 +227,7 @@ class JdbcExperimentStoreTest {
             retrieved.status shouldBe ExperimentStatus.PENDING
             retrieved.baselineVersionId shouldBe "v1"
             retrieved.candidateVersionIds shouldBe listOf("v2", "v3")
-            retrieved.model shouldBe "gemini-2.0-flash"
+            retrieved.model shouldBe "gemini-2.5-flash"
             retrieved.temperature shouldBe 0.5
             retrieved.repetitions shouldBe 2
             retrieved.createdBy shouldBe "tester"

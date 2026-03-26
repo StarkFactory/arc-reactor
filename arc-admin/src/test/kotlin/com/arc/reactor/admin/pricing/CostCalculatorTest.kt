@@ -35,7 +35,7 @@ class CostCalculatorTest {
         store.save(
             ModelPricing(
                 provider = "google",
-                model = "gemini-2.0-flash",
+                model = "gemini-2.5-flash",
                 promptPricePer1k = BigDecimal("0.000075"),
                 completionPricePer1k = BigDecimal("0.0003"),
                 cachedInputPricePer1k = BigDecimal("0.00001875"),

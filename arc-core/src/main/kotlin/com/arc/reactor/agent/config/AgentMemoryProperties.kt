@@ -12,7 +12,7 @@ package com.arc.reactor.agent.config
  *         enabled: true
  *         trigger-message-count: 20
  *         recent-message-count: 10
- *         llm-model: gemini-2.0-flash
+ *         llm-model: gemini-2.5-flash
  *         max-narrative-tokens: 500
  * ```
  *

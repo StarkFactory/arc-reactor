@@ -17,7 +17,7 @@ class CostAwareModelRouterTest {
 
     private val defaultProps = ModelRoutingProperties(
         enabled = true,
-        defaultModel = "gemini-2.0-flash",
+        defaultModel = "gemini-2.5-flash",
         highComplexityModel = "gemini-2.5-pro",
         routingStrategy = "balanced",
         complexityThresholdChars = 500
@@ -92,7 +92,7 @@ class CostAwareModelRouterTest {
 
         val selection = router().route(command)
 
-        assertEquals("gemini-2.0-flash", selection.modelId, "단순 요청은 기본 모델이어야 한다")
+        assertEquals("gemini-2.5-flash", selection.modelId, "단순 요청은 기본 모델이어야 한다")
     }
 
     @Test
@@ -131,7 +131,7 @@ class CostAwareModelRouterTest {
 
         val selection = router(props).route(command)
 
-        assertEquals("gemini-2.0-flash", selection.modelId, "cost-optimized에서 중간 복잡도는 기본 모델이어야 한다")
+        assertEquals("gemini-2.5-flash", selection.modelId, "cost-optimized에서 중간 복잡도는 기본 모델이어야 한다")
     }
 
     // --- quality-first 전략 ---
@@ -201,7 +201,7 @@ class CostAwareModelRouterTest {
 
         val selection = router().route(command)
 
-        assertEquals("gemini-2.0-flash", selection.modelId, "빈 model은 무시되고 기본 모델이어야 한다")
+        assertEquals("gemini-2.5-flash", selection.modelId, "빈 model은 무시되고 기본 모델이어야 한다")
     }
 
     @Test
@@ -214,7 +214,7 @@ class CostAwareModelRouterTest {
 
         val selection = router().route(command)
 
-        assertEquals("gemini-2.0-flash", selection.modelId, "공백 model은 무시되고 기본 모델이어야 한다")
+        assertEquals("gemini-2.5-flash", selection.modelId, "공백 model은 무시되고 기본 모델이어야 한다")
     }
 
     // --- 엣지 케이스: 극단적인 토큰 수 ---
@@ -295,7 +295,7 @@ class CostAwareModelRouterTest {
         val selection = router(props).route(command)
 
         assertEquals(
-            "gemini-2.0-flash",
+            "gemini-2.5-flash",
             selection.modelId,
             "quality-first에서 복잡도 0.2 이하(빈 입력)는 기본 모델이어야 한다"
         )
@@ -314,7 +314,7 @@ class CostAwareModelRouterTest {
         val selection = router(props).route(command)
 
         // balanced 전략과 동일하게 단순 요청 → 기본 모델
-        assertEquals("gemini-2.0-flash", selection.modelId, "알 수 없는 전략은 balanced로 폴백해야 한다")
+        assertEquals("gemini-2.5-flash", selection.modelId, "알 수 없는 전략은 balanced로 폴백해야 한다")
     }
 
     @Test
@@ -369,7 +369,7 @@ class CostAwareModelRouterTest {
         val selection = router(propsCostUpper).route(command)
 
         assertEquals(
-            "gemini-2.0-flash",
+            "gemini-2.5-flash",
             selection.modelId,
             "대문자 전략 이름도 동일하게 처리되어야 한다"
         )
