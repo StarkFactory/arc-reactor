@@ -13,6 +13,7 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.fail
@@ -26,7 +27,7 @@ import org.junit.jupiter.api.Test
 class AgentExecutionFailureHandlerTest {
 
     @Test
-    fun `resolve failure call hook and record metrics해야 한다`() = runBlocking {
+    fun `resolve failure call hook and record metrics해야 한다`() = runTest {
         val hookExecutor = mockk<HookExecutor>(relaxed = true)
         val metrics = mockk<AgentMetrics>(relaxed = true)
         val errorResolver = ErrorMessageResolver { code, original ->
@@ -65,7 +66,7 @@ class AgentExecutionFailureHandlerTest {
     }
 
     @Test
-    fun `after hook fails일 때 continue and record metrics해야 한다`() = runBlocking {
+    fun `after hook fails일 때 continue and record metrics해야 한다`() = runTest {
         val hookExecutor = mockk<HookExecutor>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery { hookExecutor.executeAfterAgentComplete(any(), any()) } throws IllegalArgumentException("hook failed")
@@ -90,7 +91,7 @@ class AgentExecutionFailureHandlerTest {
     }
 
     @Test
-    fun `hook 후 rethrow cancellation from해야 한다`() = runBlocking {
+    fun `hook 후 rethrow cancellation from해야 한다`() = runTest {
         val hookExecutor = mockk<HookExecutor>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
         coEvery { hookExecutor.executeAfterAgentComplete(any(), any()) } throws CancellationException("cancelled")

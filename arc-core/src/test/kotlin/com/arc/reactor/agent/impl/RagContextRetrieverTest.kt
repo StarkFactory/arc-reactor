@@ -13,6 +13,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -26,7 +27,7 @@ import org.junit.jupiter.api.Test
 class RagContextRetrieverTest {
 
     @Test
-    fun `rag is disabled일 때 null and does not call pipeline를 반환한다`() = runBlocking {
+    fun `rag is disabled일 때 null and does not call pipeline를 반환한다`() = runTest {
         val pipeline = mockk<RagPipeline>()
         val retriever = RagContextRetriever(
             enabled = false,
@@ -43,7 +44,7 @@ class RagContextRetrieverTest {
     }
 
     @Test
-    fun `context and merges explicit filters with prefixed filters를 반환한다`() = runBlocking {
+    fun `context and merges explicit filters with prefixed filters를 반환한다`() = runTest {
         val pipeline = mockk<RagPipeline>()
         val querySlot = slot<RagQuery>()
         coEvery { pipeline.retrieve(capture(querySlot)) } returns RagContext(
@@ -80,7 +81,7 @@ class RagContextRetrieverTest {
     }
 
     @Test
-    fun `pipeline fails with non-cancellation exception일 때 null를 반환한다`() = runBlocking {
+    fun `pipeline fails with non-cancellation exception일 때 null를 반환한다`() = runTest {
         val pipeline = mockk<RagPipeline>()
         coEvery { pipeline.retrieve(any()) } throws IllegalStateException("rag failed")
         val retriever = RagContextRetriever(
