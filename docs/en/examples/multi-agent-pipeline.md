@@ -43,18 +43,18 @@ class WebSearchTool(
     override val inputSchema: String
         get() = """
             {
-              "type": "object",
+              "type": "object"
               "properties": {
                 "query": {
-                  "type": "string",
+                  "type": "string"
                   "description": "The search query"
-                },
+                }
                 "maxResults": {
-                  "type": "integer",
-                  "description": "Maximum number of results to return (1-10)",
+                  "type": "integer"
+                  "description": "Maximum number of results to return (1-10)"
                   "default": 5
                 }
-              },
+              }
               "required": ["query"]
             }
         """.trimIndent()
@@ -96,13 +96,13 @@ class FetchPageTool(
     override val inputSchema: String
         get() = """
             {
-              "type": "object",
+              "type": "object"
               "properties": {
                 "url": {
-                  "type": "string",
+                  "type": "string"
                   "description": "URL of the page to fetch"
                 }
-              },
+              }
               "required": ["url"]
             }
         """.trimIndent()
@@ -142,9 +142,9 @@ import org.springframework.stereotype.Service
 
 @Service
 class ResearchPipelineService(
-    private val chatClient: ChatClient,
-    private val properties: AgentProperties,
-    private val webSearchTool: WebSearchTool,
+    private val chatClient: ChatClient
+    private val properties: AgentProperties
+    private val webSearchTool: WebSearchTool
     private val fetchPageTool: FetchPageTool
 ) {
 
@@ -152,7 +152,7 @@ class ResearchPipelineService(
         return MultiAgent.sequential()
             .node("researcher") {
                 systemPrompt = """
-                    You are a research specialist. Your job is to gather comprehensive,
+                    You are a research specialist. Your job is to gather comprehensive
                     accurate information on the given topic.
 
                     Steps:
@@ -205,19 +205,19 @@ class ResearchPipelineService(
             }
             .execute(
                 command = AgentCommand(
-                    systemPrompt = "",
-                    userPrompt = topic,
+                    systemPrompt = ""
+                    userPrompt = topic
                     userId = userId
-                ),
+                )
                 agentFactory = { node -> createAgent(node) }
             )
     }
 
     private fun createAgent(node: AgentNode): AgentExecutor {
         return SpringAiAgentExecutor(
-            chatClient = chatClient,
-            properties = properties,
-            toolCallbacks = node.tools,
+            chatClient = chatClient
+            properties = properties
+            toolCallbacks = node.tools
             localTools = node.localTools
         )
     }
@@ -247,9 +247,9 @@ import org.springframework.stereotype.Service
 
 @Service
 class ResearchCenterService(
-    private val chatClient: ChatClient,
-    private val properties: AgentProperties,
-    private val webSearchTool: WebSearchTool,
+    private val chatClient: ChatClient
+    private val properties: AgentProperties
+    private val webSearchTool: WebSearchTool
     private val fetchPageTool: FetchPageTool
 ) {
 
@@ -279,19 +279,19 @@ class ResearchCenterService(
                         1. Ask the researcher to gather information
                         2. Ask the analyst to evaluate the findings
                         3. Ask the writer to produce the final output
-                    """.trimIndent(),
-                    userPrompt = request,
+                    """.trimIndent()
+                    userPrompt = request
                     userId = userId
-                ),
+                )
                 agentFactory = { node -> createAgent(node) }
             )
     }
 
     private fun createAgent(node: AgentNode): AgentExecutor {
         return SpringAiAgentExecutor(
-            chatClient = chatClient,
-            properties = properties,
-            toolCallbacks = node.tools,
+            chatClient = chatClient
+            properties = properties
+            toolCallbacks = node.tools
             localTools = node.localTools
         )
     }
@@ -330,12 +330,12 @@ Each worker agent can use a different LLM model. This is useful when you want a 
 
 ```kotlin
 private fun createAgent(node: AgentNode): AgentExecutor {
-    // Override the model per node using AgentCommand.model at execution time,
+    // Override the model per node using AgentCommand.model at execution time
     // or configure different ChatClient instances per node name.
     return SpringAiAgentExecutor(
-        chatClient = chatClient,
-        properties = properties,
-        toolCallbacks = node.tools,
+        chatClient = chatClient
+        properties = properties
+        toolCallbacks = node.tools
         localTools = node.localTools
     )
 }
@@ -357,14 +357,14 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 data class ResearchRequest(
-    val topic: String,
+    val topic: String
     val userId: String? = null
 )
 
 data class ResearchResponse(
-    val report: String?,
-    val success: Boolean,
-    val durationMs: Long,
+    val report: String?
+    val success: Boolean
+    val durationMs: Long
     val errorMessage: String?
 )
 
@@ -380,9 +380,9 @@ class ResearchPipelineController(
     suspend fun research(@RequestBody request: ResearchRequest): ResearchResponse {
         val result = pipeline.run(request.topic, request.userId)
         return ResearchResponse(
-            report = result.finalResult.content,
-            success = result.success,
-            durationMs = result.totalDurationMs,
+            report = result.finalResult.content
+            success = result.success
+            durationMs = result.totalDurationMs
             errorMessage = if (!result.success) result.finalResult.errorMessage else null
         )
     }
@@ -395,7 +395,7 @@ class ResearchPipelineController(
 curl -X POST http://localhost:8080/api/research \
   -H "Content-Type: application/json" \
   -d '{
-    "topic": "Impact of large language models on software development productivity in 2025-2026",
+    "topic": "Impact of large language models on software development productivity in 2025-2026"
     "userId": "analyst-01"
   }'
 ```
@@ -417,5 +417,5 @@ The pipeline runs three sequential LLM-agent executions. The total duration repo
 
 - [Multi-Agent Guide](../architecture/multi-agent.md) — Full pattern documentation
 - [Supervisor Pattern Deep Dive](../architecture/supervisor-pattern.md)
-- [ReportPipelineExample.kt](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/ReportPipelineExample.kt) — Built-in sequential example
-- [CustomerServiceExample.kt](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/CustomerServiceExample.kt) — Built-in supervisor example
+- `ReportPipelineExample.kt` (삭제됨) — Built-in sequential example
+- `CustomerServiceExample.kt` (삭제됨) — Built-in supervisor example

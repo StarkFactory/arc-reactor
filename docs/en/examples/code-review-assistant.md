@@ -29,13 +29,13 @@ class GetFileDiffTool(
     override val inputSchema: String
         get() = """
             {
-              "type": "object",
+              "type": "object"
               "properties": {
-                "owner": { "type": "string", "description": "Repository owner" },
-                "repo":  { "type": "string", "description": "Repository name" },
-                "prNumber": { "type": "integer", "description": "Pull request number" },
+                "owner": { "type": "string", "description": "Repository owner" }
+                "repo":  { "type": "string", "description": "Repository name" }
+                "prNumber": { "type": "integer", "description": "Pull request number" }
                 "filePath": { "type": "string", "description": "Path to the file in the repo" }
-              },
+              }
               "required": ["owner", "repo", "prNumber", "filePath"]
             }
         """.trimIndent()
@@ -76,12 +76,12 @@ class ListFilesTool(
     override val inputSchema: String
         get() = """
             {
-              "type": "object",
+              "type": "object"
               "properties": {
-                "owner":    { "type": "string",  "description": "Repository owner" },
-                "repo":     { "type": "string",  "description": "Repository name" },
+                "owner":    { "type": "string",  "description": "Repository owner" }
+                "repo":     { "type": "string",  "description": "Repository name" }
                 "prNumber": { "type": "integer", "description": "Pull request number" }
-              },
+              }
               "required": ["owner", "repo", "prNumber"]
             }
         """.trimIndent()
@@ -122,13 +122,13 @@ class PostCommentTool(
     override val inputSchema: String
         get() = """
             {
-              "type": "object",
+              "type": "object"
               "properties": {
-                "owner":    { "type": "string", "description": "Repository owner" },
-                "repo":     { "type": "string", "description": "Repository name" },
-                "prNumber": { "type": "integer", "description": "Pull request number" },
+                "owner":    { "type": "string", "description": "Repository owner" }
+                "repo":     { "type": "string", "description": "Repository name" }
+                "prNumber": { "type": "integer", "description": "Pull request number" }
                 "body":     { "type": "string", "description": "Comment body (Markdown supported)" }
-              },
+              }
               "required": ["owner", "repo", "prNumber", "body"]
             }
         """.trimIndent()
@@ -172,28 +172,28 @@ import org.springframework.stereotype.Service
 
 @Service
 class CodeReviewService(
-    private val chatClient: ChatClient,
-    private val properties: AgentProperties,
-    private val getFileDiffTool: GetFileDiffTool,
+    private val chatClient: ChatClient
+    private val properties: AgentProperties
+    private val getFileDiffTool: GetFileDiffTool
     private val listFilesTool: ListFilesTool
 ) {
 
     suspend fun review(
-        owner: String,
-        repo: String,
-        prNumber: Int,
+        owner: String
+        repo: String
+        prNumber: Int
         userId: String? = null
     ): MultiAgentResult {
         val prContext = "PR: $owner/$repo#$prNumber"
 
         return MultiAgent.parallel(
-            merger = ResultMerger.JOIN_WITH_NEWLINE,
+            merger = ResultMerger.JOIN_WITH_NEWLINE
             failFast = false   // collect all results even if one reviewer fails
         )
             .node("security") {
                 systemPrompt = """
                     You are a security code reviewer. Analyze ONLY security issues.
-                    Look for: SQL injection, XSS, hardcoded credentials, insecure deserialization,
+                    Look for: SQL injection, XSS, hardcoded credentials, insecure deserialization
                     path traversal, improper input validation, and authentication bypasses.
                     Use list_files then get_file_diff to examine the code.
                     Report findings as JSON: {"issues": [{"severity": "HIGH|MEDIUM|LOW", "file": "...", "line": "...", "description": "..."}]}
@@ -204,7 +204,7 @@ class CodeReviewService(
             .node("style") {
                 systemPrompt = """
                     You are a code style reviewer. Analyze ONLY style and readability issues.
-                    Look for: naming conventions, function length (>20 lines), method complexity,
+                    Look for: naming conventions, function length (>20 lines), method complexity
                     missing documentation, inconsistent formatting, and dead code.
                     Use list_files then get_file_diff to examine the code.
                     Report findings as JSON: {"issues": [{"severity": "HIGH|MEDIUM|LOW", "file": "...", "line": "...", "description": "..."}]}
@@ -215,7 +215,7 @@ class CodeReviewService(
             .node("logic") {
                 systemPrompt = """
                     You are a logic and correctness reviewer. Analyze ONLY logic errors and edge cases.
-                    Look for: null pointer risks, off-by-one errors, race conditions, missing error handling,
+                    Look for: null pointer risks, off-by-one errors, race conditions, missing error handling
                     incorrect boolean logic, and unhandled edge cases.
                     Use list_files then get_file_diff to examine the code.
                     Report findings as JSON: {"issues": [{"severity": "HIGH|MEDIUM|LOW", "file": "...", "line": "...", "description": "..."}]}
@@ -225,20 +225,20 @@ class CodeReviewService(
             }
             .execute(
                 command = AgentCommand(
-                    systemPrompt = "",
-                    userPrompt = "Review the changes in $prContext",
-                    userId = userId,
+                    systemPrompt = ""
+                    userPrompt = "Review the changes in $prContext"
+                    userId = userId
                     maxToolCalls = 15
-                ),
+                )
                 agentFactory = { node -> createReviewAgent(node) }
             )
     }
 
     private fun createReviewAgent(node: AgentNode): AgentExecutor {
         return SpringAiAgentExecutor(
-            chatClient = chatClient,
-            properties = properties,
-            toolCallbacks = node.tools,
+            chatClient = chatClient
+            properties = properties
+            toolCallbacks = node.tools
             localTools = node.localTools
         )
     }
@@ -254,33 +254,33 @@ To get a machine-readable review instead of free text, use `ResponseFormat.JSON`
 ```kotlin
 val REVIEW_SCHEMA = """
 {
-  "type": "object",
+  "type": "object"
   "properties": {
-    "summary": { "type": "string" },
-    "recommendation": { "type": "string", "enum": ["APPROVE", "REQUEST_CHANGES", "COMMENT"] },
+    "summary": { "type": "string" }
+    "recommendation": { "type": "string", "enum": ["APPROVE", "REQUEST_CHANGES", "COMMENT"] }
     "issues": {
-      "type": "array",
+      "type": "array"
       "items": {
-        "type": "object",
+        "type": "object"
         "properties": {
-          "severity":    { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
-          "category":    { "type": "string", "enum": ["security", "style", "logic"] },
-          "file":        { "type": "string" },
+          "severity":    { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] }
+          "category":    { "type": "string", "enum": ["security", "style", "logic"] }
+          "file":        { "type": "string" }
           "description": { "type": "string" }
-        },
+        }
         "required": ["severity", "category", "description"]
       }
     }
-  },
+  }
   "required": ["summary", "recommendation", "issues"]
 }
 """.trimIndent()
 
 // Use in AgentCommand for structured output from a single agent:
 AgentCommand(
-    systemPrompt = "...",
-    userPrompt = "...",
-    responseFormat = ResponseFormat.JSON,
+    systemPrompt = "..."
+    userPrompt = "..."
+    responseFormat = ResponseFormat.JSON
     responseSchema = REVIEW_SCHEMA
 )
 ```
@@ -323,11 +323,11 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 data class ReviewResponse(
-    val success: Boolean,
-    val securityReview: String?,
-    val styleReview: String?,
-    val logicReview: String?,
-    val combined: String?,
+    val success: Boolean
+    val securityReview: String?
+    val styleReview: String?
+    val logicReview: String?
+    val combined: String?
     val errorMessage: String?
 )
 
@@ -341,9 +341,9 @@ class CodeReviewController(
     @PostMapping("/{owner}/{repo}/pulls/{prNumber}")
     @Operation(summary = "Run parallel AI code review on a pull request")
     suspend fun review(
-        @PathVariable owner: String,
-        @PathVariable repo: String,
-        @PathVariable prNumber: Int,
+        @PathVariable owner: String
+        @PathVariable repo: String
+        @PathVariable prNumber: Int
         @RequestParam(required = false) userId: String?
     ): ReviewResponse {
         val result = reviewService.review(owner, repo, prNumber, userId)
@@ -352,11 +352,11 @@ class CodeReviewController(
         val byNode = result.nodeResults.associate { it.nodeName to it.result.content }
 
         return ReviewResponse(
-            success = result.success,
-            securityReview = byNode["security"],
-            styleReview = byNode["style"],
-            logicReview = byNode["logic"],
-            combined = result.finalResult.content,
+            success = result.success
+            securityReview = byNode["security"]
+            styleReview = byNode["style"]
+            logicReview = byNode["logic"]
+            combined = result.finalResult.content
             errorMessage = if (!result.success) result.finalResult.errorMessage else null
         )
     }
@@ -373,11 +373,11 @@ Sample response:
 
 ```json
 {
-  "success": true,
-  "securityReview": "{\"issues\": [{\"severity\": \"HIGH\", \"category\": \"security\", \"file\": \"AuthService.kt\", \"description\": \"Hardcoded JWT secret detected\"}]}",
-  "styleReview": "{\"issues\": []}",
-  "logicReview": "{\"issues\": [{\"severity\": \"MEDIUM\", \"category\": \"logic\", \"file\": \"OrderService.kt\", \"description\": \"Missing null check on order.userId\"}]}",
-  "combined": "...",
+  "success": true
+  "securityReview": "{\"issues\": [{\"severity\": \"HIGH\", \"category\": \"security\", \"file\": \"AuthService.kt\", \"description\": \"Hardcoded JWT secret detected\"}]}"
+  "styleReview": "{\"issues\": []}"
+  "logicReview": "{\"issues\": [{\"severity\": \"MEDIUM\", \"category\": \"logic\", \"file\": \"OrderService.kt\", \"description\": \"Missing null check on order.userId\"}]}"
+  "combined": "..."
   "errorMessage": null
 }
 ```
@@ -385,5 +385,5 @@ Sample response:
 ## Related
 
 - [Multi-Agent Guide](../architecture/multi-agent.md) — Parallel pattern details
-- [CodeReviewExample.kt](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/CodeReviewExample.kt) — Framework built-in parallel example
+- `CodeReviewExample.kt` (삭제됨) — Framework built-in parallel example
 - [Structured Output](../architecture/response-processing.md)

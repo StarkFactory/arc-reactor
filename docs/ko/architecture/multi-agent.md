@@ -174,7 +174,7 @@ class WorkerAgentTool(node, agentExecutor) : ToolCallback {
     fun call(arguments) {
         val instruction = arguments["instruction"]  // Supervisor가 전달한 지시
         val result = agentExecutor.execute(          // 워커 에이전트 실행
-            systemPrompt = node.systemPrompt,
+            systemPrompt = node.systemPrompt
             userPrompt = instruction
         )
         return result.content  // 워커의 응답을 Supervisor에게 반환
@@ -229,14 +229,14 @@ class WorkerAgentTool(node, agentExecutor) : ToolCallback {
   - delegate_to_refund    ← WorkerAgentTool (에이전트가 통째로 실행)
 ```
 
-| | 로컬 도구 | MCP 도구 | WorkerAgentTool |
+| (삭제됨) | 로컬 도구 | MCP 도구 | WorkerAgentTool |
 |---|---|---|---|
 | **내부 동작** | 함수 1개 실행 | 외부 서버에 네트워크 요청 | 에이전트 통째로 실행 (자체 LLM + 도구) |
 | **LLM 호출** | 없음 | 없음 | **있음** (자체 ReAct 루프) |
 | **실행 위치** | 같은 프로세스 | 외부 MCP 서버 | 같은 프로세스 |
 | **예시** | `3+5` 계산 → `"8"` | MCP서버에 파일 읽기 요청 → 파일 내용 | 환불 에이전트가 알아서 처리 → `"환불 완료"` |
 
-**MCP는 "도구를 어디서 가져오느냐"** (로컬 vs 외부 서버)이고,
+**MCP는 "도구를 어디서 가져오느냐"** (로컬 vs 외부 서버)이고
 **WorkerAgentTool은 "도구 안에서 뭐가 돌아가느냐"** (단순 로직 vs LLM 에이전트)입니다.
 서로 다른 축의 개념이며, 함께 조합할 수도 있습니다:
 
@@ -315,13 +315,13 @@ MultiAgent.supervisor()
 
 ## 실제 사용법: 어디서 node를 정의하고 어떻게 연결하나?
 
-> 전체 예시 코드: [`CustomerServiceExample.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/CustomerServiceExample.kt)
+> 전체 예시 코드: `CustomerServiceExample.kt` (삭제됨)
 
 ### 1단계: 서비스 클래스에서 node 정의 + 실행
 
 ```kotlin
 class CustomerService(
-    private val chatClient: ChatClient,
+    private val chatClient: ChatClient
     private val properties: AgentProperties
 ) {
     suspend fun handle(message: String): MultiAgentResult {
@@ -339,11 +339,11 @@ class CustomerService(
             }
             // agentFactory: node → 실제 AgentExecutor 생성
             .execute(
-                command = AgentCommand(userPrompt = message),
+                command = AgentCommand(userPrompt = message)
                 agentFactory = { node ->
                     SpringAiAgentExecutor(
-                        chatClient = chatClient,
-                        properties = properties,
+                        chatClient = chatClient
+                        properties = properties
                         toolCallbacks = node.tools,    // 노드별 도구가 여기로 전달됨
                         localTools = node.localTools
                     )
@@ -363,7 +363,7 @@ class SupportController(private val customerService: CustomerService) {
     suspend fun support(@RequestBody request: ChatRequest): ChatResponse {
         val result = customerService.handle(request.message)
         return ChatResponse(
-            content = result.finalResult.content,
+            content = result.finalResult.content
             success = result.success
         )
     }
@@ -415,8 +415,8 @@ val result = MultiAgent.sequential()
     .node("A") { systemPrompt = "..." }
     .execute(command) { node ->
         SpringAiAgentExecutor(
-            chatModel = chatModel,
-            tools = node.tools,
+            chatModel = chatModel
+            tools = node.tools
             // ... 기타 설정
         )
     }

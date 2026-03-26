@@ -174,7 +174,7 @@ class WorkerAgentTool(node, agentExecutor) : ToolCallback {
     fun call(arguments) {
         val instruction = arguments["instruction"]  // Instruction passed by the Supervisor
         val result = agentExecutor.execute(          // Execute the worker agent
-            systemPrompt = node.systemPrompt,
+            systemPrompt = node.systemPrompt
             userPrompt = instruction
         )
         return result.content  // Return the worker's response to the Supervisor
@@ -229,14 +229,14 @@ Agent's tool list:
   - delegate_to_refund    <- WorkerAgentTool (runs an entire agent)
 ```
 
-| | Local Tool | MCP Tool | WorkerAgentTool |
+| (삭제됨) | Local Tool | MCP Tool | WorkerAgentTool |
 |---|---|---|---|
 | **Internal behavior** | Executes a single function | Network request to external server | Runs an entire agent (its own LLM + tools) |
 | **LLM calls** | None | None | **Yes** (its own ReAct loop) |
 | **Execution location** | Same process | External MCP server | Same process |
 | **Example** | Calculate `3+5` -> `"8"` | File read request to MCP server -> file contents | Refund agent handles it autonomously -> `"Refund completed"` |
 
-**MCP is about "where the tool comes from"** (local vs. external server),
+**MCP is about "where the tool comes from"** (local vs. external server)
 **WorkerAgentTool is about "what runs inside the tool"** (simple logic vs. LLM agent).
 These are concepts on different axes and can be combined together:
 
@@ -315,13 +315,13 @@ Switching from single agent to multi-agent is purely an internal server implemen
 
 ## Practical Usage: Where to Define Nodes and How to Connect Them
 
-> Full example code: [`CustomerServiceExample.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/example/CustomerServiceExample.kt)
+> Full example code: `CustomerServiceExample.kt` (삭제됨)
 
 ### Step 1: Define Nodes and Execute in a Service Class
 
 ```kotlin
 class CustomerService(
-    private val chatClient: ChatClient,
+    private val chatClient: ChatClient
     private val properties: AgentProperties
 ) {
     suspend fun handle(message: String): MultiAgentResult {
@@ -339,11 +339,11 @@ class CustomerService(
             }
             // agentFactory: node -> creates an actual AgentExecutor
             .execute(
-                command = AgentCommand(userPrompt = message),
+                command = AgentCommand(userPrompt = message)
                 agentFactory = { node ->
                     SpringAiAgentExecutor(
-                        chatClient = chatClient,
-                        properties = properties,
+                        chatClient = chatClient
+                        properties = properties
                         toolCallbacks = node.tools,    // Node-specific tools are passed here
                         localTools = node.localTools
                     )
@@ -363,7 +363,7 @@ class SupportController(private val customerService: CustomerService) {
     suspend fun support(@RequestBody request: ChatRequest): ChatResponse {
         val result = customerService.handle(request.message)
         return ChatResponse(
-            content = result.finalResult.content,
+            content = result.finalResult.content
             success = result.success
         )
     }
@@ -415,8 +415,8 @@ val result = MultiAgent.sequential()
     .node("A") { systemPrompt = "..." }
     .execute(command) { node ->
         SpringAiAgentExecutor(
-            chatModel = chatModel,
-            tools = node.tools,
+            chatModel = chatModel
+            tools = node.tools
             // ... other configuration
         )
     }

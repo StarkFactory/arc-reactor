@@ -3,7 +3,7 @@ package com.arc.reactor.guard
 /**
  * 개인식별정보(PII) 정규식 패턴 공유 객체
  *
- * 입력 Guard([com.arc.reactor.guard.example.PiiDetectionGuard])와
+ * 입력 Guard(커스텀 GuardStage 구현)와
  * 출력 마스킹([com.arc.reactor.guard.output.impl.PiiMaskingOutputGuard]) 양쪽에서
  * 공통으로 사용하는 PII 패턴을 정의한다.
  *
@@ -15,7 +15,7 @@ package com.arc.reactor.guard
  * 주의: 프로덕션에서는 Presidio 같은 전문 라이브러리와 통합하거나
  * 국가별 PII 패턴을 추가하는 것을 권장한다.
  *
- * @see com.arc.reactor.guard.example.PiiDetectionGuard 입력 Guard에서의 PII 차단
+ * @see com.arc.reactor.guard.GuardStage 커스텀 입력 Guard 구현을 위한 인터페이스
  * @see com.arc.reactor.guard.output.impl.PiiMaskingOutputGuard 출력에서의 PII 마스킹
  */
 object PiiPatterns {

@@ -47,7 +47,7 @@ class WeatherTool(
 
     @Tool(description = "일기예보를 조회합니다")
     fun getForecast(
-        @ToolParam(description = "도시 이름") city: String,
+        @ToolParam(description = "도시 이름") city: String
         @ToolParam(description = "일수 (1~7)") days: Int
     ): String {
         return weatherApi.getForecast(city, days)
@@ -62,7 +62,7 @@ class WeatherTool(
 - Multiple `@Tool` methods can be defined in a single class
 - `category` enables tool classification (used by ToolSelector)
 
-> Example code: [`WeatherTool.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/example/WeatherTool.kt)
+> Example code: `WeatherTool.kt` (삭제됨)
 
 ---
 
@@ -79,13 +79,13 @@ class CalculatorTool : ToolCallback {
 
     override val inputSchema = """
         {
-          "type": "object",
+          "type": "object"
           "properties": {
             "expression": {
-              "type": "string",
+              "type": "string"
               "description": "계산식 (예: 3 + 5)"
             }
-          },
+          }
           "required": ["expression"]
         }
     """.trimIndent()
@@ -117,7 +117,7 @@ class CalculatorTool : ToolCallback {
 - When building framework-independent tools
 - When a specific tool needs a different timeout than the global default
 
-> Example code: [`CalculatorTool.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/example/CalculatorTool.kt), [`DateTimeTool.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/example/DateTimeTool.kt)
+> Example code: `CalculatorTool.kt` (삭제됨), `DateTimeTool.kt` (삭제됨)
 
 ---
 
@@ -130,12 +130,12 @@ class CalculatorTool : ToolCallback {
 curl -X POST http://localhost:8080/api/mcp/servers \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "filesystem",
-    "transportType": "STDIO",
+    "name": "filesystem"
+    "transportType": "STDIO"
     "config": {
-      "command": "npx",
+      "command": "npx"
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-    },
+    }
     "autoConnect": true
   }'
 ```
@@ -152,14 +152,14 @@ curl -X POST http://localhost:8080/api/mcp/servers \
 Agent -> McpToolCallback.call() -> MCP Protocol -> External Server -> Result
 ```
 
-Internally, `McpToolCallback` wraps MCP tools with the `ToolCallback` interface,
+Internally, `McpToolCallback` wraps MCP tools with the `ToolCallback` interface
 so from the agent's perspective, they are used identically to local tools.
 
 ---
 
 ## Comparison of All Three
 
-| | LocalTool | ToolCallback | MCP Tool |
+| (삭제됨) | LocalTool | ToolCallback | MCP Tool |
 |---|---|---|---|
 | **Implementation location** | Same project | Same project | External server |
 | **Schema generation** | Automatic (`@Tool` annotation) | Manual (write JSON) | Automatic (provided by server) |
@@ -287,12 +287,12 @@ Register MCP servers via the admin REST API:
 curl -X POST http://localhost:8080/api/mcp/servers \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "github",
-    "transportType": "STDIO",
+    "name": "github"
+    "transportType": "STDIO"
     "config": {
-      "command": "npx",
+      "command": "npx"
       "args": ["-y", "@modelcontextprotocol/server-github"]
-    },
+    }
     "autoConnect": true
   }'
 ```
@@ -312,7 +312,7 @@ override suspend fun call(arguments: Map<String, Any?>): Any {
         ?: return SimpleToolResult.failure("Order not found: $orderId")
 
     return SimpleToolResult.success(
-        message = "주문 조회 성공",
+        message = "주문 조회 성공"
         data = mapOf("orderId" to order.id, "status" to order.status)
     )
 }
@@ -353,6 +353,6 @@ From the agent's perspective, all four are identical tools. For details, see the
 | [`ToolCategory.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/ToolCategory.kt) | Tool classification system |
 | [`ToolSelector.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/ToolSelector.kt) | Tool filtering |
 | [`McpManager.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/mcp/McpManager.kt) | MCP server management |
-| [`CalculatorTool.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/example/CalculatorTool.kt) | ToolCallback implementation example |
-| [`WeatherTool.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/tool/example/WeatherTool.kt) | LocalTool implementation example |
+| `CalculatorTool.kt` (삭제됨) | ToolCallback implementation example |
+| `WeatherTool.kt` (삭제됨) | LocalTool implementation example |
 | [`WorkerAgentTool.kt`](../../../arc-core/src/main/kotlin/com/arc/reactor/agent/multi/WorkerAgentTool.kt) | Adapter that wraps an agent as a tool |
