@@ -29,8 +29,8 @@ dependencies {
     implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))
     compileOnly("org.springframework.ai:spring-ai-vector-store")
 
-    // Optional: Slack module (compileOnly — only active when arc-slack is on classpath)
-    compileOnly(project(":arc-slack"))
+    // arc-slack 의존성 불필요: ProactiveChannelController가 ClassUtils.resolveClassName() +
+    // 리플렉션 브릿지로 동작하므로 컴파일 타임 참조 없음. 모듈 경계 준수.
 
     // Optional: JWT Auth (compileOnly since auth may not be enabled)
     compileOnly("io.jsonwebtoken:jjwt-api:0.13.0")
