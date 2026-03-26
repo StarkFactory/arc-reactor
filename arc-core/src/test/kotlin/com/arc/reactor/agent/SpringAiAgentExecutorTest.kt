@@ -22,6 +22,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -52,7 +53,7 @@ class SpringAiAgentExecutorTest {
     inner class BasicExecution {
 
         @Test
-        fun `간단한 명령을 성공적으로 실행해야 한다`() = runBlocking {
+        fun `간단한 명령을 성공적으로 실행해야 한다`() = runTest {
             // 준비
             every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Hello! How can I help you?")
 
@@ -76,7 +77,7 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `응답에서 토큰 사용량을 추출해야 한다`() = runBlocking {
+        fun `응답에서 토큰 사용량을 추출해야 한다`() = runTest {
             // 준비
             val usage = mockk<Usage>()
             every { usage.promptTokens } returns 100
@@ -124,7 +125,7 @@ class SpringAiAgentExecutorTest {
     inner class GuardIntegration {
 
         @Test
-        fun `가드가 실패하면 거부해야 한다`() = runBlocking {
+        fun `가드가 실패하면 거부해야 한다`() = runTest {
             // 준비
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Rejected(
@@ -155,7 +156,7 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `userId가 null이면 anonymous userId로 가드를 실행해야 한다`() = runBlocking {
+        fun `userId가 null이면 anonymous userId로 가드를 실행해야 한다`() = runTest {
             // 준비
             val guard = mockk<RequestGuard>()
             coEvery { guard.guard(any()) } returns GuardResult.Allowed.DEFAULT
@@ -186,7 +187,7 @@ class SpringAiAgentExecutorTest {
     inner class HookIntegration {
 
         @Test
-        fun `훅을 올바른 순서로 실행해야 한다`() = runBlocking {
+        fun `훅을 올바른 순서로 실행해야 한다`() = runTest {
             // 준비
             val executionOrder = mutableListOf<String>()
 
@@ -231,7 +232,7 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `beforeAgentStart 훅이 거부하면 거부해야 한다`() = runBlocking {
+        fun `beforeAgentStart 훅이 거부하면 거부해야 한다`() = runTest {
             // 준비
             val rejectHook = object : BeforeAgentStartHook {
                 override val order = 1
@@ -263,7 +264,7 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `afterAgentComplete 훅이 예외를 던져도 성공 결과를 보존해야 한다`() = runBlocking {
+        fun `afterAgentComplete 훅이 예외를 던져도 성공 결과를 보존해야 한다`() = runTest {
             // 준비
             val throwingAfterHook = object : AfterAgentCompleteHook {
                 override val order = 1
@@ -300,7 +301,7 @@ class SpringAiAgentExecutorTest {
     inner class MemoryIntegration {
 
         @Test
-        fun `대화를 메모리에 저장해야 한다`() = runBlocking {
+        fun `대화를 메모리에 저장해야 한다`() = runTest {
             // 준비
             val memoryStore = InMemoryMemoryStore()
             every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Hello there!")
@@ -329,7 +330,7 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `메모리에서 대화 기록을 로드해야 한다`() = runBlocking {
+        fun `메모리에서 대화 기록을 로드해야 한다`() = runTest {
             // 준비
             val memoryStore = InMemoryMemoryStore()
             memoryStore.addMessage("session-123", "user", "Previous question")
@@ -357,7 +358,7 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `String이 아닌 sessionId 타입으로도 메모리를 저장해야 한다`() = runBlocking {
+        fun `String이 아닌 sessionId 타입으로도 메모리를 저장해야 한다`() = runTest {
             // 준비
             val memoryStore = InMemoryMemoryStore()
             every { fixture.callResponseSpec.chatResponse() } returns AgentTestFixture.simpleChatResponse("Response")
@@ -396,7 +397,7 @@ class SpringAiAgentExecutorTest {
         )
 
         @Test
-        fun `LLM 예외를 우아하게 처리해야 한다`() = runBlocking {
+        fun `LLM 예외를 우아하게 처리해야 한다`() = runTest {
             // 준비
             every { fixture.requestSpec.call() } throws RuntimeException("LLM service unavailable")
 
@@ -419,7 +420,7 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `속도 제한 오류를 변환해야 한다`() = runBlocking {
+        fun `속도 제한 오류를 변환해야 한다`() = runTest {
             // 준비
             every { fixture.requestSpec.call() } throws RuntimeException("Rate limit exceeded")
 
@@ -445,7 +446,7 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `타임아웃 오류를 변환해야 한다`() = runBlocking {
+        fun `타임아웃 오류를 변환해야 한다`() = runTest {
             // 준비
             every { fixture.requestSpec.call() } throws RuntimeException("Connection timeout")
 
@@ -471,7 +472,7 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `커스텀 오류 메시지 리졸버를 사용해야 한다`() = runBlocking {
+        fun `커스텀 오류 메시지 리졸버를 사용해야 한다`() = runTest {
             // 준비
             every { fixture.requestSpec.call() } throws RuntimeException("Rate limit exceeded")
 
@@ -541,7 +542,7 @@ class SpringAiAgentExecutorTest {
     inner class ToolConfiguration {
 
         @Test
-        fun `가용 시 MCP 도구를 포함해야 한다`() = runBlocking {
+        fun `가용 시 MCP 도구를 포함해야 한다`() = runTest {
             // 준비
             val mcpTool = object : com.arc.reactor.tool.ToolCallback {
                 override val name = "mcp-tool"
@@ -570,7 +571,7 @@ class SpringAiAgentExecutorTest {
         }
 
         @Test
-        fun `maxToolsPerRequest 제한을 준수해야 한다`() = runBlocking {
+        fun `maxToolsPerRequest 제한을 준수해야 한다`() = runTest {
             // 준비
             val manyTools = (1..30).map { i ->
                 object : com.arc.reactor.tool.ToolCallback {
