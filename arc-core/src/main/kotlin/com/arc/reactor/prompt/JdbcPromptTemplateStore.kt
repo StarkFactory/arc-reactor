@@ -128,35 +128,22 @@ class JdbcPromptTemplateStore(
     override fun createVersion(templateId: String, content: String, changeLog: String): PromptVersion? {
         if (getTemplate(templateId) == null) return null
 
-        // 다음 버전 번호를 SQL로 계산한다 (동시성 안전)
-        val nextVersion = jdbcTemplate.queryForObject(
-            "SELECT COALESCE(MAX(version), 0) + 1 FROM prompt_versions WHERE template_id = ?",
-            Int::class.java,
-            templateId
-        ) ?: 1
+        val id = UUID.randomUUID().toString()
+        val now = java.time.Instant.now()
 
-        val version = PromptVersion(
-            id = UUID.randomUUID().toString(),
-            templateId = templateId,
-            version = nextVersion,
-            content = content,
-            status = VersionStatus.DRAFT,
-            changeLog = changeLog
+        // INSERT ... SELECT로 버전 번호 계산과 삽입을 원자적으로 수행.
+        // 기존 SELECT → INSERT 분리는 TOCTOU 레이스로 DuplicateKeyException 발생 가능.
+        val rows = jdbcTemplate.update(
+            """INSERT INTO prompt_versions (id, template_id, version, content, status, change_log, created_at)
+               SELECT ?, ?, COALESCE(MAX(version), 0) + 1, ?, ?, ?, ?
+               FROM prompt_versions WHERE template_id = ?""",
+            id, templateId, content, VersionStatus.DRAFT.name, changeLog,
+            java.sql.Timestamp.from(now), templateId
         )
+        if (rows == 0) return null
 
-        jdbcTemplate.update(
-            "INSERT INTO prompt_versions (id, template_id, version, content, status, change_log, created_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            version.id,
-            version.templateId,
-            version.version,
-            version.content,
-            version.status.name,
-            version.changeLog,
-            java.sql.Timestamp.from(version.createdAt)
-        )
-
-        return version
+        // 삽입된 버전 번호를 조회하여 반환
+        return getVersion(id)
     }
 
     override fun activateVersion(templateId: String, versionId: String): PromptVersion? {
