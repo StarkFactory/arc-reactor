@@ -130,7 +130,7 @@ class GuardAuditPublisherTest {
                 override val stageName = "SlowStage"
                 override val order = 1
                 override suspend fun enforce(command: GuardCommand): GuardResult {
-                    Thread.sleep(10)  // some work를 시뮬레이션합니다
+                    Thread.sleep(15)  // some work를 시뮬레이션합니다
                     return GuardResult.Allowed.DEFAULT
                 }
             }
@@ -140,7 +140,7 @@ class GuardAuditPublisherTest {
 
             val stageEvent = publisher.events.find { it.stage == "SlowStage" }
             assertNotNull(stageEvent, "Should have stage event")
-            assertTrue(stageEvent!!.stageLatencyMs >= 5,
+            assertTrue(stageEvent!!.stageLatencyMs >= 10,
                 "Stage latency should reflect actual execution time, got: ${stageEvent.stageLatencyMs}ms")
         }
 
@@ -151,7 +151,7 @@ class GuardAuditPublisherTest {
                 override val stageName = "Stage1"
                 override val order = 1
                 override suspend fun enforce(command: GuardCommand): GuardResult {
-                    Thread.sleep(5)
+                    Thread.sleep(10)
                     return GuardResult.Allowed.DEFAULT
                 }
             }
@@ -159,7 +159,7 @@ class GuardAuditPublisherTest {
                 override val stageName = "Stage2"
                 override val order = 2
                 override suspend fun enforce(command: GuardCommand): GuardResult {
-                    Thread.sleep(5)
+                    Thread.sleep(10)
                     return GuardResult.Allowed.DEFAULT
                 }
             }
@@ -169,7 +169,7 @@ class GuardAuditPublisherTest {
 
             val pipelineEvent = publisher.events.find { it.stage == "pipeline" }
             assertNotNull(pipelineEvent, "Should have pipeline-complete event")
-            assertTrue(pipelineEvent!!.pipelineLatencyMs >= 5,
+            assertTrue(pipelineEvent!!.pipelineLatencyMs >= 15,
                 "Pipeline latency should accumulate, got: ${pipelineEvent.pipelineLatencyMs}ms")
         }
     }

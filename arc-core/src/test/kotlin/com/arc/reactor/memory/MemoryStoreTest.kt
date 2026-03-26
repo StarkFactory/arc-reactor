@@ -2,6 +2,7 @@ package com.arc.reactor.memory
 
 import com.arc.reactor.agent.model.Message
 import com.arc.reactor.agent.model.MessageRole
+import com.arc.reactor.support.AsyncTestSupport
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
@@ -92,8 +93,10 @@ class MemoryStoreTest {
         store.addMessage("session-3", "user", "Hello", "owner-3")
 
         // Caffeine 정리를 강제하여 RemovalListener가 실행되도록 합니다
-        Thread.sleep(50)
         store.getOrCreate("session-3") // triggers cleanUp()
+        AsyncTestSupport.pollUntil(description = "Caffeine eviction listener") {
+            listOf("session-1", "session-2").any { store.get(it) == null }
+        }
 
         // session-3은(는) survive; evicted session owner should be cleaned up해야 합니다
         assertNotNull(store.get("session-3"), "Most recently added session should survive")
