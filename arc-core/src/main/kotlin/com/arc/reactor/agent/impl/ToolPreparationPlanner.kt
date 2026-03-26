@@ -50,12 +50,17 @@ internal class ToolPreparationPlanner(
      * @return LLM에 제공할 도구 목록 (최대 maxToolsPerRequest개)
      */
     fun prepareForPrompt(userPrompt: String): List<Any> {
-        val localToolInstances = localToolFilters.fold(localTools.toList()) { acc, filter ->
-            runCatching { filter.filter(acc) }
-                .getOrElse { ex ->
-                    logger.warn(ex) { "LocalToolFilter failed; keeping previously resolved tool list" }
-                    acc
-                }
+        // 필터가 없으면 방어적 복사 없이 원본 리스트를 직접 사용 (매 요청 할당 방지)
+        val localToolInstances = if (localToolFilters.isEmpty()) {
+            localTools
+        } else {
+            localToolFilters.fold(localTools.toList()) { acc, filter ->
+                runCatching { filter.filter(acc) }
+                    .getOrElse { ex ->
+                        logger.warn(ex) { "LocalToolFilter failed; keeping previously resolved tool list" }
+                        acc
+                    }
+            }
         }
         val allCallbacks = deduplicateCallbacks(toolCallbacks + mcpToolCallbacks())
         val selectedCallbacks = if (toolSelector != null && allCallbacks.isNotEmpty()) {
