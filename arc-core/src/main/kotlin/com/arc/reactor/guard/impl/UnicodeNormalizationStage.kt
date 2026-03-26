@@ -53,18 +53,26 @@ class UnicodeNormalizationStage(
         val text = command.text
         if (text.isEmpty()) return GuardResult.Allowed.DEFAULT
 
-        // ── 단계 1: 제로 너비 문자 비율 검사 (단일 패스) ──
-        // BMP 제로 너비 문자 + 보조 평면 Tag Block (U+E0000~U+E007F)을 한 번에 카운트
+        // ── 단계 1+2 통합: 제로 너비 카운트 + 스트립을 단일 패스로 수행 ──
+        // 기존: codePoints() 순회(카운트) + normalize() 내부 stripZeroWidthChars()(스트립) = 2회 순회
+        // 최적화: 1회 순회로 카운트와 스트립을 동시 수행하여 핫 패스 부하 감소
         var totalZeroWidth = 0
-        text.codePoints().forEach { cp ->
+        var totalCodepoints = 0
+        val stripped = StringBuilder(text.length)
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
+            totalCodepoints++
             if (cp in InjectionPatterns.ZERO_WIDTH_CODEPOINTS || cp in 0xE0000..0xE007F) {
                 totalZeroWidth++
+            } else {
+                stripped.appendCodePoint(cp)
             }
+            i += Character.charCount(cp)
         }
 
-        if (totalZeroWidth > 0 && text.isNotEmpty()) {
-            val codepointCount = text.codePointCount(0, text.length)
-            val ratio = totalZeroWidth.toDouble() / codepointCount
+        if (totalZeroWidth > 0) {
+            val ratio = totalZeroWidth.toDouble() / totalCodepoints
             if (ratio > maxZeroWidthRatio) {
                 logger.warn {
                     "Zero-width character ratio ${String.format("%.2f", ratio)} " +
@@ -77,8 +85,9 @@ class UnicodeNormalizationStage(
             }
         }
 
-        // ── 단계 2: 정규화 (제로 너비 제거 + NFKC + 호모글리프 치환) ──
-        val normalized = InjectionPatterns.normalize(text)
+        // 제로 너비 문자가 있었으면 이미 스트립된 결과 사용, 없으면 원본 그대로
+        val preStripped = if (totalZeroWidth > 0) stripped.toString() else text
+        val normalized = InjectionPatterns.normalizePreStripped(preStripped)
 
         // 텍스트가 변경된 경우에만 힌트로 전달 (불필요한 복사 방지)
         return if (normalized != text) {

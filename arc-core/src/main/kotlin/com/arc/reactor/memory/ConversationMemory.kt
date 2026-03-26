@@ -341,7 +341,11 @@ class InMemoryMemoryStore(
 
     override fun getOrCreate(sessionId: String): ConversationMemory {
         val memory = sessions.get(sessionId) { InMemoryConversationMemory() }
-        sessions.cleanUp() // maximumSize 퇴거가 즉시 적용되도록 한다
+        // Caffeine maximumSize 퇴거를 확정하기 위해 cleanUp() 호출.
+        // estimatedSize()로 용량 초과 시에만 호출하여 불필요한 락 경합을 줄인다.
+        if (sessions.estimatedSize() > maxSessions) {
+            sessions.cleanUp()
+        }
         return memory
     }
 

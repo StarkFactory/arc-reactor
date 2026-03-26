@@ -50,10 +50,12 @@ class KeywordWeightedReranker(
 
         val queryTerms = query.lowercase().split(" ").filter { it.isNotBlank() }
 
-        return documents.map { doc ->
-            // 키워드 매칭 점수: 쿼리 단어 중 문서에 포함된 비율 (0.0~1.0)
-            val keywordScore = calculateKeywordScore(doc.content, queryTerms)
-            // 원본 점수와 키워드 점수를 가중 혼합
+        // content.lowercase()를 루프 밖에서 한 번만 수행하여 중복 할당 방지
+        // (문서당 수 KB 문자열 복사를 제거)
+        val lowerContents = documents.map { it.content.lowercase() }
+
+        return documents.mapIndexed { idx, doc ->
+            val keywordScore = calculateKeywordScore(lowerContents[idx], queryTerms)
             val combinedScore = doc.score * (1 - keywordWeight) + keywordScore * keywordWeight
             doc.copy(score = combinedScore)
         }
@@ -62,10 +64,8 @@ class KeywordWeightedReranker(
     }
 
     /** 쿼리 단어 중 문서 내용에 포함된 비율을 계산한다. */
-    private fun calculateKeywordScore(content: String, queryTerms: List<String>): Double {
+    private fun calculateKeywordScore(lowerContent: String, queryTerms: List<String>): Double {
         if (queryTerms.isEmpty()) return 0.0
-
-        val lowerContent = content.lowercase()
         val matchCount = queryTerms.count { term -> lowerContent.contains(term) }
         return matchCount.toDouble() / queryTerms.size
     }
