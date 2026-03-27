@@ -226,7 +226,7 @@ class TenantAdminController(
         } catch (e: Exception) {
             logger.error(e) { "CSV export failed for executions: tenant=$tenantId" }
             return ResponseEntity.internalServerError()
-                .body(AdminErrorResponse(error = "CSV export failed: ${e.message.orEmpty().take(100)}"))
+                .body(AdminErrorResponse(error = "CSV export failed"))
         }
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=executions.csv")
@@ -255,7 +255,7 @@ class TenantAdminController(
         } catch (e: Exception) {
             logger.error(e) { "CSV export failed for tool calls: tenant=$tenantId" }
             return ResponseEntity.internalServerError()
-                .body(AdminErrorResponse(error = "CSV export failed: ${e.message.orEmpty().take(100)}"))
+                .body(AdminErrorResponse(error = "CSV export failed"))
         }
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=tool_calls.csv")
