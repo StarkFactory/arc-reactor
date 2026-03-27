@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T05:05:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T05:25:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -703,6 +703,34 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 2. **RAG-CHAT-01 FAIL 원인 확인** — 채팅 에이전트가 "Guard 파이프라인" 질문을 Confluence로 라우팅 (RAG 벡터 스토어 대신). upstream auth 실패가 원인, RAG 검색 자체는 정확 (score=0.274)
 3. **RAG-CHAT-02 PASS** — ReAct 질문은 벡터 스토어에서 정확히 grounding됨. 출처(qa-round4) 포함
 4. **라이프사이클 무결성** — 삽입/검색/삭제/재검색/문서 수 복원 전 과정 정상
+
+**수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 17 — 2026-03-28T05:25+09:00
+
+**렌즈**: Admin 3순환 (감사 로그 추이 + Output Guard/Scheduler/Approval/ToolPolicy/UserMemory API)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| Dashboard | PASS | 365 응답(+42), 114 차단(+8), 501 실행, 136 Guard 차단 |
+| 감사 로그 | PASS | 172건 (+7), MCP 라이프사이클 이벤트 위주 |
+| 페르소나 | PASS | 2개 (변화 없음) |
+| Capabilities | PASS | 39개 엔드포인트 (변화 없음) |
+| Output Guard Rules | 404 | 기능 미활성화 — 인증 401 정상 |
+| Scheduler Jobs | 404 | 기능 미활성화 — 인증 401 정상 |
+| User Memory | 404 | 기능 미활성화 |
+| Approvals | 404 | 기능 미활성화 |
+| Tool Policy | 404 | 기능 미활성화 — 인증 401 정상 |
+
+**발견**:
+1. **인증이 라우팅보다 선행** — 미활성화 엔드포인트도 미인증 시 401 반환 (404 아님). 보안 설계 정상
+2. **Dashboard 추이**: 17 Round 동안 응답 365건, 차단 114건 (차단율 31.2%), Guard 136건 차단
+3. **감사 로그 172건** — Round 5(50) → Round 11(165) → Round 17(172). 안정적 증가
+4. **5개 선택 기능 전부 미활성화**: output-guard rules, scheduler, user-memory, approvals, tool-policy — 배포 시 필요에 따라 활성화
 
 **수정**: 없음
 **커밋**: 보고서 업데이트
