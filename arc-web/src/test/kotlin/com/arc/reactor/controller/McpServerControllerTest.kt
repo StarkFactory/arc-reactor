@@ -300,6 +300,24 @@ class McpServerControllerTest {
         }
 
         @Test
+        fun `private IP adminUrl로 reject SSE server해야 한다`() = runTest {
+            val request = RegisterMcpServerRequest(
+                name = "ssrf-admin-url",
+                transportType = "SSE",
+                config = mapOf(
+                    "url" to "http://example.com:8081/sse",
+                    "adminUrl" to "http://169.254.169.254/admin"
+                ),
+                autoConnect = false
+            )
+
+            val response = controller.registerServer(request, adminExchange())
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
+                "SSE adminUrl pointing to link-local private IP should be rejected with 400"
+            }
+        }
+
+        @Test
         fun `STDIO transport에 대해 skip SSRF validation해야 한다`() = runTest {
             val request = RegisterMcpServerRequest(
                 name = "stdio-no-ssrf",

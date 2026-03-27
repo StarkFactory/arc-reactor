@@ -19,7 +19,6 @@ import mu.KotlinLogging
 import java.time.Duration
 import java.time.YearMonth
 import java.time.ZoneOffset
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -51,8 +50,11 @@ class QuotaEnforcerHook(
 
     private val circuitBreaker = circuitBreakerRegistry.get("quota-enforcer")
 
-    // ── 1계층: 인스턴스 로컬 카운터 ──
-    private val localCounters = ConcurrentHashMap<String, AtomicLong>()
+    // ── 1계층: 인스턴스 로컬 카운터 (최대 10000 테넌트, 1시간 미접근 시 만료) ──
+    private val localCounters = Caffeine.newBuilder()
+        .maximumSize(10000)
+        .expireAfterAccess(Duration.ofHours(1))
+        .build<String, AtomicLong>()
     private val localCounterResetMonth = AtomicLong(currentMonth())
 
     // ── 2계층: Caffeine 캐시 ──
@@ -61,8 +63,11 @@ class QuotaEnforcerHook(
         .expireAfterWrite(Duration.ofSeconds(60))
         .build<String, TenantUsage>()
 
-    // 중복 방지: 테넌트당 월 1회만 90% 경고 발행
-    private val warnedTenants = ConcurrentHashMap.newKeySet<String>()
+    // 중복 방지: 테넌트당 월 1회만 90% 경고 발행 (최대 10000 테넌트, 1시간 만료)
+    private val warnedTenants = Caffeine.newBuilder()
+        .maximumSize(10000)
+        .expireAfterAccess(Duration.ofHours(1))
+        .build<String, Boolean>()
 
     override suspend fun beforeAgentStart(context: HookContext): HookResult {
         val tenantId = context.metadata["tenantId"]?.toString() ?: "default"
@@ -71,7 +76,7 @@ class QuotaEnforcerHook(
         resetLocalCountersIfNewMonth()
 
         val localCount = localCounters
-            .computeIfAbsent(tenantId) { AtomicLong(0) }
+            .get(tenantId) { AtomicLong(0) }
             .incrementAndGet()
 
         val tenant = tenantStore.findById(tenantId) ?: return HookResult.Continue
@@ -84,7 +89,7 @@ class QuotaEnforcerHook(
         }
 
         val usage = fetchUsageFailOpen(tenantId) ?: return HookResult.Continue
-        localCounters[tenantId]?.set(usage.requests)
+        localCounters.getIfPresent(tenantId)?.set(usage.requests)
         return enforceQuotaLimits(tenantId, tenant.quota, usage)
     }
 
@@ -128,7 +133,7 @@ class QuotaEnforcerHook(
             publishQuotaEvent(tenantId, "rejected_tokens", usage.tokens, quota.maxTokensPerMonth, "Monthly token quota exceeded")
             return HookResult.Reject("Monthly token quota exceeded")
         }
-        if (usage.requests >= quota.maxRequestsPerMonth * 0.9 && warnedTenants.add(tenantId)) {
+        if (usage.requests >= quota.maxRequestsPerMonth * 0.9 && warnedTenants.asMap().putIfAbsent(tenantId, true) == null) {
             publishQuotaEvent(tenantId, "warning", usage.requests, quota.maxRequestsPerMonth, "90% quota used")
         }
         return HookResult.Continue
@@ -159,8 +164,8 @@ class QuotaEnforcerHook(
         val current = currentMonth()
         val stored = localCounterResetMonth.get()
         if (current != stored && localCounterResetMonth.compareAndSet(stored, current)) {
-            localCounters.clear()
-            warnedTenants.clear()
+            localCounters.invalidateAll()
+            warnedTenants.invalidateAll()
         }
     }
 

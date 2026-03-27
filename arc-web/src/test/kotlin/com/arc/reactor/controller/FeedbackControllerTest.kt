@@ -8,6 +8,7 @@ import com.arc.reactor.feedback.FeedbackStore
 import com.arc.reactor.hook.impl.CapturedExecutionMetadata
 import com.arc.reactor.hook.impl.FeedbackMetadataCaptureHook
 import io.mockk.*
+import jakarta.validation.Validation
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -494,6 +495,53 @@ class FeedbackControllerTest {
             }
             assertTrue(exception.reason?.contains("Invalid rating") == true) {
                 "Invalid rating filter should raise clear input exception"
+            }
+        }
+    }
+
+    @Nested
+    inner class InputValidation {
+
+        private val validator = Validation.buildDefaultValidatorFactory().validator
+
+        @Test
+        fun `oversized comment field에 대해 reject해야 한다`() {
+            val request = SubmitFeedbackRequest(
+                rating = "thumbs_up",
+                comment = "x".repeat(5001)
+            )
+
+            val violations = validator.validate(request)
+
+            assertTrue(violations.any { it.propertyPath.toString() == "comment" }) {
+                "comment exceeding 5000 chars must fail bean validation"
+            }
+        }
+
+        @Test
+        fun `oversized query field에 대해 reject해야 한다`() {
+            val request = SubmitFeedbackRequest(
+                rating = "thumbs_up",
+                query = "x".repeat(10001)
+            )
+
+            val violations = validator.validate(request)
+
+            assertTrue(violations.any { it.propertyPath.toString() == "query" }) {
+                "query exceeding 10000 chars must fail bean validation"
+            }
+        }
+
+        @Test
+        fun `blank rating field에 대해 reject해야 한다`() {
+            val request = SubmitFeedbackRequest(
+                rating = "   "
+            )
+
+            val violations = validator.validate(request)
+
+            assertTrue(violations.any { it.propertyPath.toString() == "rating" }) {
+                "blank rating must fail @NotBlank bean validation"
             }
         }
     }

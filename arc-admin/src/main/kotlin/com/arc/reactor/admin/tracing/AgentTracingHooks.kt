@@ -10,9 +10,10 @@ import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
 import com.arc.reactor.hook.model.ToolCallContext
 import com.arc.reactor.hook.model.ToolCallResult
+import com.github.benmanes.caffeine.cache.Caffeine
 import io.micrometer.tracing.Tracer
 import mu.KotlinLogging
-import java.util.concurrent.ConcurrentHashMap
+import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = KotlinLogging.logger {}
@@ -42,13 +43,22 @@ class AgentTracingHooks(
     override val failOnError: Boolean = false
     override val enabled: Boolean = true
 
-    private val agentSpans = ConcurrentHashMap<String, io.micrometer.tracing.Span>()
-    private val toolSpanEntries = ConcurrentHashMap<String, ToolSpanEntry>()
+    /** 에이전트 span 캐시 — 예외로 인한 leak 방지 (최대 5000, 10분 만료). */
+    private val agentSpans = Caffeine.newBuilder()
+        .maximumSize(5000)
+        .expireAfterWrite(Duration.ofMinutes(10))
+        .build<String, io.micrometer.tracing.Span>()
+
+    /** 도구 span 캐시 — 예외로 인한 leak 방지 (최대 5000, 10분 만료). */
+    private val toolSpanEntries = Caffeine.newBuilder()
+        .maximumSize(5000)
+        .expireAfterWrite(Duration.ofMinutes(10))
+        .build<String, ToolSpanEntry>()
 
     override suspend fun beforeAgentStart(context: HookContext): HookResult {
         try {
             val span = startAgentSpan(context)
-            agentSpans[context.runId] = span
+            agentSpans.put(context.runId, span)
             context.metadata["traceId"] = span.context().traceId()
             context.metadata["spanId"] = span.context().spanId()
         } catch (e: CancellationException) {
@@ -61,7 +71,7 @@ class AgentTracingHooks(
 
     override suspend fun afterAgentComplete(context: HookContext, response: AgentResponse) {
         try {
-            val span = agentSpans.remove(context.runId) ?: return
+            val span = agentSpans.asMap().remove(context.runId) ?: return
             finalizeAgentSpan(span, context, response)
         } catch (e: CancellationException) {
             throw e
@@ -78,7 +88,7 @@ class AgentTracingHooks(
                 .tag("gen_ai.tool.call_index", context.callIndex.toString())
                 .start()
             val key = toolSpanKey(context)
-            toolSpanEntries[key] = ToolSpanEntry(toolSpan, System.currentTimeMillis())
+            toolSpanEntries.put(key, ToolSpanEntry(toolSpan, System.currentTimeMillis()))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -90,7 +100,7 @@ class AgentTracingHooks(
     override suspend fun afterToolCall(context: ToolCallContext, result: ToolCallResult) {
         try {
             val key = toolSpanKey(context)
-            val entry = toolSpanEntries.remove(key) ?: return
+            val entry = toolSpanEntries.asMap().remove(key) ?: return
             finalizeToolSpan(entry, result)
         } catch (e: CancellationException) {
             throw e
@@ -100,14 +110,14 @@ class AgentTracingHooks(
     }
 
     override fun destroy() {
-        agentSpans.values.forEach { span ->
+        agentSpans.asMap().values.forEach { span ->
             runCatching { span.tag("cancelled", "true"); span.end() }
         }
-        agentSpans.clear()
-        toolSpanEntries.values.forEach { entry ->
+        agentSpans.invalidateAll()
+        toolSpanEntries.asMap().values.forEach { entry ->
             runCatching { entry.span.tag("cancelled", "true"); entry.span.end() }
         }
-        toolSpanEntries.clear()
+        toolSpanEntries.invalidateAll()
     }
 
     /** 에이전트 span을 생성하고 시작한다. */
