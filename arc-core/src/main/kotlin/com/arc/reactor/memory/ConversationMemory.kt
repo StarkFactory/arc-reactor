@@ -3,6 +3,7 @@ package com.arc.reactor.memory
 import com.arc.reactor.agent.model.Message
 import com.arc.reactor.agent.model.MessageRole
 import com.github.benmanes.caffeine.cache.Caffeine
+import io.micrometer.core.instrument.MeterRegistry
 import java.time.Instant
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
@@ -318,9 +319,11 @@ class InMemoryConversationMemory(
  * - 커스텀 TTL: 자동 정리
  *
  * @param maxSessions 최대 동시 세션 수 (기본값: 1000)
+ * @param meterRegistry Micrometer 메트릭 레지스트리 (선택 — null이면 게이지 미등록)
  */
 class InMemoryMemoryStore(
-    private val maxSessions: Int = 1000
+    private val maxSessions: Int = 1000,
+    meterRegistry: MeterRegistry? = null
 ) : MemoryStore {
 
     /** 세션 ID → 소유자 userId 매핑 */
@@ -336,6 +339,11 @@ class InMemoryMemoryStore(
             if (key != null) sessionOwners.remove(key)
         }
         .build<String, ConversationMemory>()
+
+    init {
+        meterRegistry?.gauge("arc.memory.sessions.size", sessions) { it.estimatedSize().toDouble() }
+        meterRegistry?.gauge("arc.memory.session_owners.size", sessionOwners) { it.size.toDouble() }
+    }
 
     override fun get(sessionId: String): ConversationMemory? = sessions.getIfPresent(sessionId)
 
