@@ -10,6 +10,7 @@ import java.sql.ResultSet
 import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * JDBC 기반 대기 승인 저장소
@@ -40,6 +41,9 @@ class JdbcPendingApprovalStore(
     private val resolvedRetentionMs: Long = 7 * 24 * 60 * 60 * 1000L
 ) : PendingApprovalStore {
 
+    /** 마지막 cleanup 실행 시각 (epoch millis) */
+    private val lastCleanupMs = AtomicLong(0L)
+
     override suspend fun requestApproval(
         runId: String,
         userId: String,
@@ -53,7 +57,7 @@ class JdbcPendingApprovalStore(
 
         // ── 단계 1: 정리 + PENDING 행 삽입 ──
         withContext(Dispatchers.IO) {
-            cleanupResolvedRows()
+            cleanupIfNeeded()
             jdbcTemplate.update(
                 """
                 INSERT INTO pending_approvals
@@ -124,7 +128,7 @@ class JdbcPendingApprovalStore(
     }
 
     override fun listPending(): List<ApprovalSummary> {
-        cleanupResolvedRows()
+        cleanupIfNeeded()
 
         return jdbcTemplate.query(
             """
@@ -149,7 +153,7 @@ class JdbcPendingApprovalStore(
     }
 
     override fun listPendingByUser(userId: String): List<ApprovalSummary> {
-        cleanupResolvedRows()
+        cleanupIfNeeded()
 
         return jdbcTemplate.query(
             """
@@ -175,7 +179,7 @@ class JdbcPendingApprovalStore(
     }
 
     override fun approve(approvalId: String, modifiedArguments: Map<String, Any?>?): Boolean {
-        cleanupResolvedRows()
+        cleanupIfNeeded()
 
         val now = Instant.now()
         val updated = jdbcTemplate.update(
@@ -194,7 +198,7 @@ class JdbcPendingApprovalStore(
     }
 
     override fun reject(approvalId: String, reason: String?): Boolean {
-        cleanupResolvedRows()
+        cleanupIfNeeded()
 
         val now = Instant.now()
         val updated = jdbcTemplate.update(
@@ -210,6 +214,15 @@ class JdbcPendingApprovalStore(
             ApprovalStatus.PENDING.name
         )
         return updated > 0
+    }
+
+    /** 마지막 cleanup 후 [CLEANUP_INTERVAL_MS] 경과 시에만 정리를 실행한다 */
+    private fun cleanupIfNeeded() {
+        val now = System.currentTimeMillis()
+        val last = lastCleanupMs.get()
+        if (now - last < CLEANUP_INTERVAL_MS) return
+        if (!lastCleanupMs.compareAndSet(last, now)) return
+        cleanupResolvedRows()
     }
 
     /** 보관 기간이 지난 해결된 행을 삭제한다 */
@@ -272,6 +285,8 @@ class JdbcPendingApprovalStore(
     )
 
     companion object {
+        /** cleanup 실행 최소 간격 (5분) */
+        private const val CLEANUP_INTERVAL_MS = 300_000L
         private val objectMapper = jacksonObjectMapper()
     }
 }
