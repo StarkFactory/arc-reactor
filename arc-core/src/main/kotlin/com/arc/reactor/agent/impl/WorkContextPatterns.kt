@@ -1,5 +1,12 @@
 package com.arc.reactor.agent.impl
 
+/** [WorkContextEntityExtractor.ParsedPrompt]의 타입 별칭. 플래너 전체에서 공유한다. */
+internal typealias PlannerCtx = WorkContextEntityExtractor.ParsedPrompt
+
+/** 정규화된 문자열이 힌트 셋 중 하나라도 포함하면 true를 반환한다. 플래너 전체에서 공유한다. */
+internal fun String.matchesAnyHint(hints: Set<String>): Boolean =
+    hints.any { this.contains(it) }
+
 /**
  * SystemPromptBuilder와 WorkContextForcedToolPlanner가 공유하는 키워드 힌트 집합.
  *
@@ -99,4 +106,24 @@ internal object WorkContextPatterns {
     val VALIDATE_HINTS = setOf("validate", "검증", "유효성")
 
     val SUMMARY_HINTS = setOf("summary", "summarize", "요약", "정리")
+
+    val JIRA_BRIEFING_HINTS = setOf(
+        "daily briefing", "아침 브리핑", "업무 브리핑", "데일리 브리핑",
+        "daily digest", "오늘의 jira 브리핑", "오늘 jira 브리핑",
+        "jira 브리핑", "jira briefing", "오늘의 jira briefing"
+    )
+
+    val EXPLICIT_BRIEFING_FALLBACK_HINTS = setOf(
+        "브리핑", "briefing", "아침 요약", "오늘 현황",
+        "현황 요약", "현황 정리", "상황 정리", "상황 요약"
+    )
+
+    val HYBRID_RELEASE_RISK_HINTS = setOf(
+        "위험 신호", "risk signal", "release risk", "릴리즈 리스크",
+        "risk digest"
+    )
+
+    val PRE_DEPLOY_READINESS_HINTS = setOf(
+        "배포 전에", "출시 전에", "release 전에", "pre-release"
+    )
 }
