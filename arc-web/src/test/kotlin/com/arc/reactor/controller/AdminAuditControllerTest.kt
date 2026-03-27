@@ -44,7 +44,9 @@ class AdminAuditControllerTest {
             limit = 100, category = null, action = null,
             offset = 0, pageLimit = 50, exchange = userExchange()
         )
-        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 감사 로그 요청은 403이어야 한다" }
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+            "비관리자 감사 로그 요청은 403이어야 한다"
+        }
     }
 
     @Test
@@ -85,7 +87,9 @@ class AdminAuditControllerTest {
             offset = 0, pageLimit = 50, exchange = adminExchange()
         )
 
-        assertEquals(HttpStatus.OK, response.statusCode) { "관리자는 감사 로그 목록에 접근할 수 있어야 한다" }
+        assertEquals(HttpStatus.OK, response.statusCode) {
+            "관리자는 감사 로그 목록에 접근할 수 있어야 한다"
+        }
         @Suppress("UNCHECKED_CAST")
         val paginated = response.body as PaginatedResponse<AdminAuditResponse>
         val rows = paginated.items
@@ -94,7 +98,9 @@ class AdminAuditControllerTest {
             maskedAdminAccountRef(rawActor),
             rows.first().actor
         ) { "actor는 마스킹된 관리자 계정 식별자만 노출해야 한다" }
-        assertTrue(!rows.first().actor.contains(rawActor)) { "actor에 원시 관리자 계정 식별자가 포함되지 않아야 한다" }
+        assertTrue(!rows.first().actor.contains(rawActor)) {
+            "actor에 원시 관리자 계정 식별자가 포함되지 않아야 한다"
+        }
     }
 
     @Test

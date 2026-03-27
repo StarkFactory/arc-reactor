@@ -35,7 +35,7 @@ class SchedulerControllerAuthTest {
             exchange = exchange(userId = "user-1", role = UserRole.USER)
         )
 
-        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Non-admin list should be forbidden" }
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 목록 조회는 403이어야 한다" }
         verify(exactly = 0) { schedulerService.list() }
     }
 
@@ -43,7 +43,7 @@ class SchedulerControllerAuthTest {
     fun `getJob은(는) rejects non-admin`() {
         val response = controller.getJob("job-1", exchange(userId = "user-1", role = UserRole.USER))
 
-        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Non-admin get should be forbidden" }
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 단건 조회는 403이어야 한다" }
         verify(exactly = 0) { schedulerService.findById(any()) }
     }
 
@@ -55,7 +55,7 @@ class SchedulerControllerAuthTest {
         )
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
-            "Manager-scope admin should be forbidden from developer scheduler controls"
+            "ADMIN_MANAGER 역할은 개발자용 스케줄러 제어에 접근할 수 없어야 한다"
         }
         verify(exactly = 0) { schedulerService.list() }
     }
@@ -71,8 +71,8 @@ class SchedulerControllerAuthTest {
         @Suppress("UNCHECKED_CAST")
         val result = response.body as PaginatedResponse<ScheduledJobResponse>
 
-        assertEquals(HttpStatus.OK, response.statusCode) { "Admin list should succeed" }
-        assertEquals(0, result.items.size) { "Empty scheduler list should be returned as empty items" }
+        assertEquals(HttpStatus.OK, response.statusCode) { "관리자 목록 조회는 200이어야 한다" }
+        assertEquals(0, result.items.size) { "빈 스케줄러 목록은 빈 items로 반환되어야 한다" }
         verify(exactly = 1) { schedulerService.list() }
     }
 
@@ -87,8 +87,10 @@ class SchedulerControllerAuthTest {
         @Suppress("UNCHECKED_CAST")
         val result = response.body as PaginatedResponse<ScheduledJobResponse>
 
-        assertEquals(HttpStatus.OK, response.statusCode) { "Developer-scope admin list should succeed" }
-        assertEquals(0, result.items.size) { "Scheduler list should be empty when service returns empty list" }
+        assertEquals(HttpStatus.OK, response.statusCode) {
+            "ADMIN_DEVELOPER 역할의 목록 조회는 200이어야 한다"
+        }
+        assertEquals(0, result.items.size) { "서비스가 빈 목록을 반환하면 items도 비어있어야 한다" }
         verify(exactly = 1) { schedulerService.list() }
     }
 
@@ -130,7 +132,9 @@ class SchedulerControllerAuthTest {
     fun `triggerJob은(는) rejects non-admin`() {
         val response = controller.triggerJob("job-1", exchange(userId = "user-1", role = UserRole.USER)).block()
 
-        assertEquals(HttpStatus.FORBIDDEN, response?.statusCode) { "Non-admin trigger should be forbidden" }
+        assertEquals(HttpStatus.FORBIDDEN, response?.statusCode) {
+            "비관리자 트리거 요청은 403이어야 한다"
+        }
         verify(exactly = 0) { schedulerService.trigger(any()) }
     }
 
@@ -145,8 +149,8 @@ class SchedulerControllerAuthTest {
         @Suppress("UNCHECKED_CAST")
         val result = response?.body as Map<String, Any>
 
-        assertEquals(HttpStatus.OK, response.statusCode) { "Admin trigger should succeed" }
-        assertEquals("triggered", result["result"]) { "Trigger response should include execution result" }
+        assertEquals(HttpStatus.OK, response.statusCode) { "관리자 트리거 요청은 200이어야 한다" }
+        assertEquals("triggered", result["result"]) { "트리거 응답에 실행 결과가 포함되어야 한다" }
     }
 
     @Test
@@ -160,9 +164,9 @@ class SchedulerControllerAuthTest {
         @Suppress("UNCHECKED_CAST")
         val result = response?.body as Map<String, Any>
 
-        assertEquals(HttpStatus.OK, response.statusCode) { "Admin dry-run should succeed" }
-        assertEquals("preview", result["result"]) { "Dry-run response should include execution result" }
-        assertTrue(result["dryRun"] as Boolean) { "Dry-run response should expose dryRun=true" }
+        assertEquals(HttpStatus.OK, response.statusCode) { "관리자 드라이런 요청은 200이어야 한다" }
+        assertEquals("preview", result["result"]) { "드라이런 응답에 실행 결과가 포함되어야 한다" }
+        assertTrue(result["dryRun"] as Boolean) { "드라이런 응답에 dryRun=true가 포함되어야 한다" }
     }
 
     private fun exchange(userId: String? = null, role: UserRole? = null): ServerWebExchange {

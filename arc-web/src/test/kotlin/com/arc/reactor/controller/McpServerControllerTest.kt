@@ -273,7 +273,8 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "클라우드 메타데이터 링크로컬 IP를 가리키는 SSE URL은 400으로 거부되어야 한다"
+                "클라우드 메타데이터 링크로컬 IP를 가리키는 SSE URL은" +
+                    " 400으로 거부되어야 한다"
             }
         }
 
@@ -422,7 +423,9 @@ class McpServerControllerTest {
             assertEquals(HttpStatus.OK, response.statusCode) { "마스킹 검증 조회는 200이어야 한다" }
 
             val body = response.body as McpServerDetailResponse
-            assertEquals("http://localhost:8081/sse", body.config["url"]) { "url 설정값이 마스킹되지 않아야 한다" }
+            assertEquals("http://localhost:8081/sse", body.config["url"]) {
+                "url 설정값이 마스킹되지 않아야 한다"
+            }
             assertEquals("********", body.config["apiKey"]) { "apiKey는 마스킹되어야 한다" }
             assertEquals("********", body.config["adminToken"]) { "adminToken은 마스킹되어야 한다" }
             val headers = body.config["headers"] as Map<*, *>
@@ -431,8 +434,12 @@ class McpServerControllerTest {
             val targets = body.config["targets"] as List<*>
             val firstTarget = targets[0] as Map<*, *>
             val secondTarget = targets[1] as Map<*, *>
-            assertEquals("********", firstTarget["accessToken"]) { "리스트 내 accessToken은 마스킹되어야 한다" }
-            assertEquals("safe-target", secondTarget["name"]) { "리스트 내 안전한 값은 마스킹되지 않아야 한다" }
+            assertEquals("********", firstTarget["accessToken"]) {
+                "리스트 내 accessToken은 마스킹되어야 한다"
+            }
+            assertEquals("safe-target", secondTarget["name"]) {
+                "리스트 내 안전한 값은 마스킹되지 않아야 한다"
+            }
         }
 
         @Test
@@ -475,8 +482,12 @@ class McpServerControllerTest {
             }
 
             val updated = store.findByName("update-me")!!
-            assertEquals("Updated description", updated.description) { "업데이트된 서버 설명이 일치해야 한다" }
-            assertEquals("http://example.org:9090/sse", updated.config["url"]) { "업데이트된 서버 url이 일치해야 한다" }
+            assertEquals("Updated description", updated.description) {
+                "업데이트된 서버 설명이 일치해야 한다"
+            }
+            assertEquals("http://example.org:9090/sse", updated.config["url"]) {
+                "업데이트된 서버 url이 일치해야 한다"
+            }
         }
 
         @Test
@@ -646,7 +657,8 @@ class McpServerControllerTest {
             }
             val runtimeServer = runtimeManager.listServers().first { it.name == "sync-runtime" }
             assertEquals("new-description", runtimeServer.description) {
-                "업데이트 후 런타임 매니저의 서버 상태가 최신 스토어 설정으로 동기화되어야 한다"
+                "업데이트 후 런타임 매니저의 서버 상태가" +
+                    " 최신 스토어 설정으로 동기화되어야 한다"
             }
         }
 
@@ -678,7 +690,9 @@ class McpServerControllerTest {
                 adminExchange()
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode) { "설정 변경 업데이트 응답이 200이어야 한다" }
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "설정 변경 업데이트 응답이 200이어야 한다"
+            }
             verify(exactly = 1) { runtimeManager.syncRuntimeServer(any()) }
             coVerify(exactly = 1) { runtimeManager.disconnect("reconnect-me") }
             coVerify(exactly = 1) { runtimeManager.connect("reconnect-me") }
@@ -711,7 +725,9 @@ class McpServerControllerTest {
                 adminExchange()
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode) { "설명만 변경한 업데이트 응답이 200이어야 한다" }
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "설명만 변경한 업데이트 응답이 200이어야 한다"
+            }
             verify(exactly = 1) { runtimeManager.syncRuntimeServer(any()) }
             coVerify(exactly = 0) { runtimeManager.disconnect(any()) }
             coVerify(exactly = 0) { runtimeManager.connect(any()) }
@@ -745,7 +761,9 @@ class McpServerControllerTest {
                 adminExchange()
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode) { "autoConnect 활성화 업데이트 응답이 200이어야 한다" }
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "autoConnect 활성화 업데이트 응답이 200이어야 한다"
+            }
             coVerify(exactly = 1) { runtimeManager.connect("auto-connect-me") }
             coVerify(exactly = 0) { runtimeManager.disconnect(any()) }
         }
@@ -769,7 +787,9 @@ class McpServerControllerTest {
             }
 
             assertNull(store.findByName("delete-me")) { "삭제된 서버가 스토어에서 제거되어야 한다" }
-            assertTrue(manager.listServers().isEmpty()) { "삭제된 서버가 매니저에서도 제거되어야 한다" }
+            assertTrue(manager.listServers().isEmpty()) {
+                "삭제된 서버가 매니저에서도 제거되어야 한다"
+            }
         }
 
         @Test
@@ -861,15 +881,21 @@ class McpServerControllerTest {
                 autoConnect = false
             )
             val created = controller.registerServer(registerReq, exchange)
-            assertEquals(HttpStatus.CREATED, created.statusCode) { "Step 1: 서버 등록이 201로 성공해야 한다" }
+            assertEquals(HttpStatus.CREATED, created.statusCode) {
+                "Step 1: 서버 등록이 201로 성공해야 한다"
+            }
 
             // 2. 목록에서 확인
             val listResponse = controller.listServers(exchange)
-            assertEquals(HttpStatus.OK, listResponse.statusCode) { "Step 2: 서버 목록 조회는 200이어야 한다" }
+            assertEquals(HttpStatus.OK, listResponse.statusCode) {
+                "Step 2: 서버 목록 조회는 200이어야 한다"
+            }
             @Suppress("UNCHECKED_CAST")
             val list = listResponse.body as List<McpServerResponse>
             assertEquals(1, list.size) { "Step 2: 서버가 1개 조회되어야 한다" }
-            assertEquals("lifecycle-server", list[0].name) { "Step 2: 등록된 서버 이름이 lifecycle-server여야 한다" }
+            assertEquals("lifecycle-server", list[0].name) {
+                "Step 2: 등록된 서버 이름이 lifecycle-server여야 한다"
+            }
 
             // 3. 상세 조회
             val detail = controller.getServer("lifecycle-server", exchange)

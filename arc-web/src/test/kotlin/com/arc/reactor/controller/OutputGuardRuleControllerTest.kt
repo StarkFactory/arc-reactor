@@ -86,9 +86,13 @@ class OutputGuardRuleControllerTest {
             )
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "규칙 생성 응답이 201이어야 한다" }
-            assertEquals(OutputGuardRuleAction.REJECT, captured.captured.action) { "저장된 규칙의 액션이 REJECT여야 한다" }
+            assertEquals(OutputGuardRuleAction.REJECT, captured.captured.action) {
+                "저장된 규칙의 액션이 REJECT여야 한다"
+            }
             assertEquals(10, captured.captured.priority) { "저장된 규칙의 우선순위가 10이어야 한다" }
-            assertTrue(captured.captured.id.isNotBlank()) { "생성된 규칙은 빈 값이 아닌 ID를 가져야 한다" }
+            assertTrue(captured.captured.id.isNotBlank()) {
+                "생성된 규칙은 빈 값이 아닌 ID를 가져야 한다"
+            }
             verifyOrder {
                 store.save(any())
                 invalidationBus.touch()
@@ -107,7 +111,9 @@ class OutputGuardRuleControllerTest {
                 userExchange()
             )
 
-            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 규칙 생성 요청은 403이어야 한다" }
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "비관리자 규칙 생성 요청은 403이어야 한다"
+            }
         }
     }
 
@@ -144,7 +150,9 @@ class OutputGuardRuleControllerTest {
         @Test
         fun `non-admin에 대해 403를 반환한다`() {
             val response = controller.listRules(userExchange())
-            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 규칙 목록 요청은 403이어야 한다" }
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "비관리자 규칙 목록 요청은 403이어야 한다"
+            }
         }
 
         @Test
@@ -161,7 +169,9 @@ class OutputGuardRuleControllerTest {
 
             val response = controller.listAudits(limit = 10, exchange = adminExchange())
 
-            assertEquals(HttpStatus.OK, response.statusCode) { "관리자는 출력 가드 감사 로그를 조회할 수 있어야 한다" }
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "관리자는 출력 가드 감사 로그를 조회할 수 있어야 한다"
+            }
             @Suppress("UNCHECKED_CAST")
             val body = response.body as List<OutputGuardRuleAuditResponse>
             assertEquals(1, body.size) { "출력 가드 감사 로그가 1개여야 한다" }
@@ -169,7 +179,10 @@ class OutputGuardRuleControllerTest {
                 maskedAdminAccountRef(rawActor),
                 body.first().actor
             ) { "출력 가드 감사 로그의 actor는 마스킹된 계정 식별자만 노출해야 한다" }
-            assertTrue(!body.first().actor.contains(rawActor)) { "출력 가드 감사 로그의 actor에 원시 관리자 계정 식별자가 포함되지 않아야 한다" }
+            assertTrue(!body.first().actor.contains(rawActor)) {
+                "출력 가드 감사 로그의 actor에 원시 관리자 계정" +
+                    " 식별자가 포함되지 않아야 한다"
+            }
         }
     }
 
@@ -191,7 +204,9 @@ class OutputGuardRuleControllerTest {
             verify {
                 auditStore.save(
                     withArg<OutputGuardRuleAuditLog> {
-                        assertEquals(OutputGuardRuleAuditAction.DELETE, it.action) { "감사 로그 액션이 DELETE여야 한다" }
+                        assertEquals(OutputGuardRuleAuditAction.DELETE, it.action) {
+                            "감사 로그 액션이 DELETE여야 한다"
+                        }
                         assertEquals("r1", it.ruleId) { "감사 로그의 규칙 ID가 r1이어야 한다" }
                     }
                 )
@@ -227,7 +242,9 @@ class OutputGuardRuleControllerTest {
             verify {
                 auditStore.save(
                     withArg<OutputGuardRuleAuditLog> {
-                        assertEquals(OutputGuardRuleAuditAction.SIMULATE, it.action) { "감사 로그 액션이 SIMULATE여야 한다" }
+                        assertEquals(OutputGuardRuleAuditAction.SIMULATE, it.action) {
+                            "감사 로그 액션이 SIMULATE여야 한다"
+                        }
                     }
                 )
             }

@@ -94,7 +94,9 @@ class McpSwaggerCatalogControllerTest {
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 요청은 403이어야 한다" }
         val body = response.body as ErrorResponse
         assertEquals("Admin access required", body.error) { "에러 메시지가 일치해야 한다" }
-        assertTrue(auditStore.list().isEmpty()) { "비관리자 요청 거부 시 감사 항목이 기록되지 않아야 한다" }
+        assertTrue(auditStore.list().isEmpty()) {
+            "비관리자 요청 거부 시 감사 항목이 기록되지 않아야 한다"
+        }
     }
 
     @Test
@@ -140,7 +142,9 @@ class McpSwaggerCatalogControllerTest {
             assertNotNull(capturedRequestId) { "프록시 요청에 X-Request-Id 헤더가 포함되어야 한다" }
             val audits = auditStore.list()
             assertEquals(1, audits.size) { "감사 로그가 1건 기록되어야 한다" }
-            assertEquals("mcp_swagger_catalog", audits.first().category) { "감사 카테고리가 mcp_swagger_catalog여야 한다" }
+            assertEquals("mcp_swagger_catalog", audits.first().category) {
+                "감사 카테고리가 mcp_swagger_catalog여야 한다"
+            }
             assertEquals("LIST_SOURCES", audits.first().action) { "감사 액션이 LIST_SOURCES여야 한다" }
         } finally {
             server.stop(0)
@@ -372,7 +376,9 @@ class McpSwaggerCatalogControllerTest {
             )
 
             assertEquals(HttpStatus.OK, response.statusCode) { "diff 조회 응답이 200이어야 한다" }
-            assertEquals("from=rev%201&to=rev/2", capturedQuery) { "쿼리 파라미터가 올바르게 인코딩되어야 한다" }
+            assertEquals("from=rev%201&to=rev/2", capturedQuery) {
+                "쿼리 파라미터가 올바르게 인코딩되어야 한다"
+            }
             assertTrue(
                 capturedQuery.orEmpty().contains("%2520").not()
             ) { "쿼리 파라미터가 이중 인코딩되지 않아야 한다" }
@@ -450,7 +456,9 @@ class McpSwaggerCatalogControllerTest {
             ) { "게시 요청 바디에 revisionId가 포함되어야 한다" }
             val audits = auditStore.list()
             assertEquals(1, audits.size) { "감사 로그가 1건 기록되어야 한다" }
-            assertEquals("PUBLISH_REVISION", audits.first().action) { "감사 액션이 PUBLISH_REVISION이어야 한다" }
+            assertEquals("PUBLISH_REVISION", audits.first().action) {
+                "감사 액션이 PUBLISH_REVISION이어야 한다"
+            }
         } finally {
             server.stop(0)
         }
