@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T01:05:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T01:25:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -356,5 +356,38 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 3. Semantic cache가 `/api/chat` 경로에서 동작하지 않음 — 동일 질문 반복 시 LLM 재호출 확인
 
 **수정**: 없음 (캐시 이슈는 설정 검토 필요 — 코드 수정 범위 확인 후 다음 Round에서 대응)
+**커밋**: 보고서 업데이트
+
+### Round 5 — 2026-03-28T01:25+09:00
+
+**렌즈**: Admin (Dashboard + 감사 로그 + 페르소나 + Tenant + 비인증 차단)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| ADMIN-01 Ops Dashboard | PASS | 12 메트릭, MCP 2/2, scheduler 0 jobs |
+| ADMIN-02 Dashboard 미인증 | PASS | 401 |
+| ADMIN-03 메트릭 이름 목록 | PASS | 55개 메트릭, arc.* 포함 |
+| ADMIN-04 Platform Health | **FAIL** | 404 — arc-admin 모듈 미활성화 |
+| AUDIT-01 감사 로그 | PASS | 50건, 최근: MCP 서버 UPDATE |
+| AUDIT-02 카테고리 필터 | PASS | category=AUTH → 0건 (정상 필터링) |
+| AUDIT-03 감사 로그 미인증 | PASS | 401 |
+| PERSONA-01 페르소나 목록 | PASS | 2개 (모두 active) |
+| PERSONA-02 프롬프트 템플릿 | PASS | 1개 |
+| TEMPLATE-01 모델 목록 | PASS | 1개 (gemini) |
+| TENANT-01 테넌트 개요 | **FAIL** | 404 — arc-admin 모듈 미활성화 |
+| TENANT-02 비용 현황 | **FAIL** | 404 — arc-admin 모듈 미활성화 |
+| TENANT-03 SLO 상태 | **FAIL** | 404 — arc-admin 모듈 미활성화 |
+| UNAUTH-01~03 미인증 차단 | 3/3 PASS | 401 정상 반환 |
+
+**발견**:
+1. `/api/admin/platform/health`, `/api/admin/tenant/*` 4개 엔드포인트 404 — `arc.reactor.admin.enabled=true` 설정 필요 (현재 비활성화 또는 DataSource 미연결)
+2. Ops Dashboard(`/api/ops/dashboard`)는 정상 동작 — 12개 메트릭, MCP 2개 서버 상태 확인
+3. 감사 로그 50건 누적 — 최근 활동: MCP 서버 설정 변경 기록
+4. 비인증 접근 차단 3/3 정상
+
+**수정**: 없음 (admin 모듈 활성화는 배포 환경설정에서 처리)
 **커밋**: 보고서 업데이트
 
