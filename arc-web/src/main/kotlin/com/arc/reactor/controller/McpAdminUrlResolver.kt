@@ -10,6 +10,7 @@ import java.net.URI
  * 2. config.url에서 /sse 접미사를 제거하여 유도
  *
  * WHY: MCP 서버마다 admin URL 지정 방식이 다르므로 여러 소스에서 안전하게 해석해야 한다.
+ * 해석된 URL은 [SsrfUrlValidator]로 사설/예약 IP 접근을 차단한다.
  */
 internal object McpAdminUrlResolver {
 

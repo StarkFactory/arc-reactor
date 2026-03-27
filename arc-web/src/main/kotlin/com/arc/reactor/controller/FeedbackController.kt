@@ -5,6 +5,9 @@ import com.arc.reactor.feedback.Feedback
 import com.arc.reactor.feedback.FeedbackRating
 import com.arc.reactor.feedback.FeedbackStore
 import com.arc.reactor.hook.impl.FeedbackMetadataCaptureHook
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import io.swagger.v3.oas.annotations.Operation
 import mu.KotlinLogging
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -65,7 +68,7 @@ class FeedbackController(
     ])
     @PostMapping
     fun submitFeedback(
-        @RequestBody request: SubmitFeedbackRequest,
+        @Valid @RequestBody request: SubmitFeedbackRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<FeedbackResponse> {
         val rating = parseRating(request.rating)
@@ -208,20 +211,20 @@ private fun enrichString(explicit: String?, fallback: String?): String {
 // --- 요청 DTO ---
 
 data class SubmitFeedbackRequest(
-    val rating: String,
-    val query: String? = null,
-    val response: String? = null,
-    val comment: String? = null,
-    val sessionId: String? = null,
-    val runId: String? = null,
-    val intent: String? = null,
-    val domain: String? = null,
-    val model: String? = null,
+    @field:NotBlank val rating: String,
+    @field:Size(max = 10000) val query: String? = null,
+    @field:Size(max = 50000) val response: String? = null,
+    @field:Size(max = 5000) val comment: String? = null,
+    @field:Size(max = 120) val sessionId: String? = null,
+    @field:Size(max = 120) val runId: String? = null,
+    @field:Size(max = 120) val intent: String? = null,
+    @field:Size(max = 120) val domain: String? = null,
+    @field:Size(max = 120) val model: String? = null,
     val promptVersion: Int? = null,
-    val toolsUsed: List<String>? = null,
+    @field:Size(max = 50) val toolsUsed: List<String>? = null,
     val durationMs: Long? = null,
-    val tags: List<String>? = null,
-    val templateId: String? = null
+    @field:Size(max = 20) val tags: List<String>? = null,
+    @field:Size(max = 120) val templateId: String? = null
 )
 
 // --- 응답 DTO ---

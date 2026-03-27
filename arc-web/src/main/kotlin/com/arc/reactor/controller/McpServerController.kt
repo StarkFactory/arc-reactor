@@ -108,6 +108,8 @@ class McpServerController(
         if (transportType == McpTransportType.SSE) {
             val urlError = validateSseUrl(request.config)
             if (urlError != null) return badRequestResponse(urlError)
+            val adminUrlError = validateAdminUrl(request.config)
+            if (adminUrlError != null) return badRequestResponse(adminUrlError)
         }
 
         val server = request.toMcpServer(transportType)
@@ -397,6 +399,13 @@ class McpServerController(
         val url = config["url"]?.toString()
             ?: return "SSE transport requires a 'url' in config"
         return SsrfUrlValidator.validate(url, agentProperties.mcp.allowPrivateAddresses)
+    }
+
+    /** admin URL이 제공된 경우 SSRF 검증을 수행한다. */
+    private fun validateAdminUrl(config: Map<String, Any>): String? {
+        val adminUrl = config["adminUrl"]?.toString() ?: return null
+        if (adminUrl.isBlank()) return null
+        return SsrfUrlValidator.validate(adminUrl, agentProperties.mcp.allowPrivateAddresses)
     }
 
     /** 저장소에 서버 정보가 없으면 영속화한다. 동시 저장 충돌은 무시한다. */
