@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T03:05:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T03:25:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -533,4 +533,36 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 
 **수정**: 없음
 **커밋**: 보고서 업데이트 (캐시 판정 정정 포함)
+
+### Round 11 — 2026-03-28T03:25+09:00
+
+**렌즈**: Admin 2순환 + Hardening + Swagger Catalog + Feedback API
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| ADMIN-OPS Dashboard | PASS | MCP 2/2, 323 응답 관측, 106 차단 |
+| ADMIN-METRICS | PASS | 55개 메트릭, arc.* 23개 |
+| ADMIN-NO-AUTH | PASS | 401 |
+| AUDIT-LIST | PASS | **165건** (Round 5: 50건 → +115) |
+| AUDIT-LATEST 3건 | PASS | MCP connect/read 활동 기록 |
+| PERSONA/TEMPLATE/MODEL | 3/3 PASS | 2/1/1 |
+| CAPS-01 (엔드포인트 발견) | PASS | **39개 등록된 API 엔드포인트** |
+| FEEDBACK-01 POST | **FAIL** | 404 — /api/feedback 미배포 |
+| FEEDBACK-02 GET | **FAIL** | 404 — FeedbackStore 빈 미등록 |
+| SESSION-TREND | PASS | 159 (안정, Round 8과 동일) |
+| **Hardening 150 tests** | **PASS** | 235 total (hardening 포함), 0 failures |
+| Swagger Catalog | 서버 UP, spec 0건 | catalog에 등록된 API spec 없음 |
+
+**발견**:
+1. **Hardening 전량 통과** — PromptInjection(66), OutputGuard(23), AdversarialRedTeam(16), MessagePairIntegrity(18), ReActLoop(9), ToolOutputSanitization(11)
+2. **Feedback 엔드포인트 미배포** — `/api/feedback`가 capabilities 39개 경로에 미포함. FeedbackStore 빈이 주입되지 않아 컨트롤러 미활성화
+3. **감사 로그 165건** — 테스트 자동화로 인한 정상 증가. MCP connect/read 활동 위주
+4. **Swagger catalog 빈 상태** — spec이 0건이라 에이전트가 swagger 도구를 호출해도 반환할 데이터 없음
+5. **Dashboard 지표**: 323 응답 중 106 차단 (차단율 32.8%) — Guard가 활발히 동작 중
+
+**수정**: 없음
+**커밋**: 보고서 업데이트
 
