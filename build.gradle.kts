@@ -13,7 +13,7 @@ plugins {
 
 allprojects {
     group = "com.arc"
-    version = "5.12.0"
+    version = "6.0.0"
 }
 
 subprojects {
