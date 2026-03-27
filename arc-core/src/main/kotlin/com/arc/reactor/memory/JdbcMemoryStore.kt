@@ -171,14 +171,15 @@ class JdbcMemoryStore(
     }
 
     /**
-     * Delete sessions that have been inactive for longer than the specified TTL.
+     * 지정된 TTL보다 오래 비활성 상태인 세션을 일괄 삭제한다.
      *
-     * @param ttlMs Time-to-live in milliseconds
-     * @return Number of sessions cleaned up
+     * N+1 쿼리 방지: 만료 세션 조회 1회 + 일괄 DELETE 1회 = 총 2 쿼리.
+     *
+     * @param ttlMs 밀리초 단위 TTL
+     * @return 삭제된 세션 수
      */
     fun cleanupExpiredSessions(ttlMs: Long): Int {
         val cutoff = Instant.now().toEpochMilli() - ttlMs
-        // Find sessions whose latest message is older than the cutoff
         val expiredSessions = jdbcTemplate.queryForList(
             """
             SELECT session_id FROM conversation_messages
@@ -190,10 +191,12 @@ class JdbcMemoryStore(
         )
 
         if (expiredSessions.isNotEmpty()) {
-            for (sessionId in expiredSessions) {
-                remove(sessionId)
-            }
-            logger.info { "Cleaned up ${expiredSessions.size} expired sessions" }
+            val placeholders = expiredSessions.joinToString(",") { "?" }
+            jdbcTemplate.update(
+                "DELETE FROM conversation_messages WHERE session_id IN ($placeholders)",
+                *expiredSessions.toTypedArray()
+            )
+            logger.info { "만료 세션 ${expiredSessions.size}개 일괄 삭제 완료" }
         }
 
         return expiredSessions.size
