@@ -151,8 +151,8 @@ class DefaultMcpManager(
     /** 스냅샷 동기화를 위한 락 */
     private val toolCallbacksSnapshotLock = Any()
 
-    /** 재연결 코루틴 스코프 — SupervisorJob으로 개별 실패가 전체에 전파되지 않음 */
-    private val reconnectScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    /** 재연결 코루틴 스코프 — SupervisorJob으로 개별 실패가 전체에 전파되지 않음, 동시 재연결 16개 제한 */
+    private val reconnectScope = CoroutineScope(Dispatchers.IO.limitedParallelism(16) + SupervisorJob())
     /** 스토어 동기화 헬퍼 */
     private val storeSync = McpStoreSync(store)
     /** 전송 연결 및 도구 탐색 지원 */

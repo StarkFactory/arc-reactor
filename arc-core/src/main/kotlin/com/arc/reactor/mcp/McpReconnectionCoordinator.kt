@@ -23,7 +23,7 @@ private val logger = KotlinLogging.logger {}
  * 1. 초기 지연: [McpReconnectionProperties.initialDelayMs]
  * 2. 지연 증가: 지연 * [McpReconnectionProperties.multiplier]^(시도-1)
  * 3. 최대 지연: [McpReconnectionProperties.maxDelayMs]
- * 4. 지터: 기본 지연의 +/-25% 랜덤 오프셋 (동시 재연결 시 부하 분산)
+ * 4. 지터: 기본 지연의 75%-125% 대칭 랜덤 오프셋 (동시 재연결 시 부하 분산)
  * 5. 최대 시도: [McpReconnectionProperties.maxAttempts]회
  *
  * WHY: 고정 간격 재시도는 여러 서버가 동시에 실패할 때 일제히 재연결하여
@@ -83,9 +83,8 @@ internal class McpReconnectionCoordinator(
                         (properties.initialDelayMs * properties.multiplier.pow((attempt - 1).toDouble())).toLong(),
                         properties.maxDelayMs
                     )
-                    // +/-25% 랜덤 지터를 적용한다
-                    val jitter = (baseDelay * 0.25 * (Math.random() * 2 - 1)).toLong()
-                    val delayMs = (baseDelay + jitter).coerceAtLeast(0)
+                    // 75%-125% 대칭 지터를 적용한다 (항상 양수, 항상 랜덤)
+                    val delayMs = (baseDelay * (0.75 + Math.random() * 0.5)).toLong()
 
                     logger.info {
                         "MCP 재연결 예약: '$serverName' " +
