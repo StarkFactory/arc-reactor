@@ -5,7 +5,9 @@ import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
 
@@ -26,7 +28,8 @@ private val logger = KotlinLogging.logger {}
  */
 class LlmConversationSummaryService(
     private val chatClient: ChatClient,
-    private val maxNarrativeTokens: Int = 500
+    private val maxNarrativeTokens: Int = 500,
+    private val llmCallTimeoutMs: Long = DEFAULT_LLM_CALL_TIMEOUT_MS
 ) : ConversationSummaryService {
 
     private val objectMapper = jacksonObjectMapper()
@@ -71,14 +74,21 @@ class LlmConversationSummaryService(
 
     /** LLM을 호출하여 요약 텍스트를 가져온다. Dispatchers.IO로 블로킹 호출을 오프로드. */
     private suspend fun callLlm(userPrompt: String): String {
-        val response = runInterruptible(Dispatchers.IO) {
-            chatClient.prompt()
-                .system(SYSTEM_PROMPT.format(maxNarrativeTokens))
-                .user(userPrompt)
-                .call()
-                .chatResponse()
+        return try {
+            withTimeout(llmCallTimeoutMs) {
+                val response = runInterruptible(Dispatchers.IO) {
+                    chatClient.prompt()
+                        .system(SYSTEM_PROMPT.format(maxNarrativeTokens))
+                        .user(userPrompt)
+                        .call()
+                        .chatResponse()
+                }
+                response?.result?.output?.text.orEmpty()
+            }
+        } catch (e: TimeoutCancellationException) {
+            logger.warn { "LLM summarization call timed out after ${llmCallTimeoutMs}ms" }
+            ""
         }
-        return response?.result?.output?.text.orEmpty()
     }
 
     /**
@@ -101,6 +111,9 @@ class LlmConversationSummaryService(
     }
 
     companion object {
+        /** LLM 요약 호출 기본 타임아웃 (밀리초) */
+        private const val DEFAULT_LLM_CALL_TIMEOUT_MS = 60_000L
+
         /** LLM에 전달하는 요약 시스템 프롬프트 */
         internal val SYSTEM_PROMPT = """
             You are a conversation summarizer. Analyze the conversation and produce a JSON response with two fields:
