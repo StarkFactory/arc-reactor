@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T02:45:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T03:05:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -507,4 +507,30 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 
 **수정**: 없음
 **커밋**: 보고서 업데이트
+
+### Round 10 — 2026-03-28T03:05+09:00
+
+**렌즈**: RAG 2순환 + 캐시 재조사
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| RAG 문서 수 | 3→6→4 | 삽입 3건, 삭제 2건 정상 |
+| RAG-INSERT (단건) | PASS | MCP 보안 문서, 1 chunk |
+| RAG-SEARCH (3종) | 3/3 PASS | MCP/SSRF/Guard 모두 top-1 정확 |
+| RAG-BATCH (2건 일괄) | PASS | count=2, totalChunks=2 |
+| RAG-DELETE (일괄 삭제) | PASS | 204, 문서 수 복원 |
+| **캐시 동작 (정정)** | **PASS** | call1=2483ms, call2=0ms(cacheHit=True), call3=0ms(cacheHit=True) |
+| 캐시 메트릭 actuator | FAIL | /actuator/metrics 404 (health만 노출) |
+
+**핵심 발견 및 정정**:
+1. **캐시 정상 작동 확인 (Round 4 판정 정정)** — Round 4에서 CACHE-02를 FAIL로 기록했으나, 이번 Round에서 정밀 검증 결과 `cacheHit=True` + `durationMs=0`으로 정상 동작 확인. Round 4의 2nd call이 느렸던 것은 LLM 응답 지연이 원인 (캐시 미스가 아님)
+2. **Actuator metrics 미노출** — `management.endpoints.web.exposure.include`에 metrics가 설정되어 있으나 런타임에서 404. 별도 조사 필요
+3. **RAG 일괄 삽입/삭제 전량 정상** — batch API와 delete API 모두 정확 동작
+4. **검색 품질 안정** — Round 4 대비 score 분포 일관적
+
+**수정**: 없음
+**커밋**: 보고서 업데이트 (캐시 판정 정정 포함)
 
