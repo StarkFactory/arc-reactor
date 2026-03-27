@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference
  */
 data class McpSecurityPolicy(
     val allowedServerNames: Set<String> = emptySet(),
-    val maxToolOutputLength: Int = 50_000,
+    val maxToolOutputLength: Int = McpSecurityConfig.DEFAULT_MAX_TOOL_OUTPUT_LENGTH,
     val allowedStdioCommands: Set<String> = McpSecurityConfig.DEFAULT_ALLOWED_STDIO_COMMANDS,
     val createdAt: Instant = Instant.EPOCH,
     val updatedAt: Instant = Instant.EPOCH

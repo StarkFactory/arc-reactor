@@ -106,8 +106,8 @@ class DefaultConversationManager(
     private val asyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     /** 세션별 활성 요약 작업을 추적하여 중복 실행을 방지한다. 완료/만료 시 자동 정리. */
     private val activeSummarizations: Cache<String, Job> = Caffeine.newBuilder()
-        .maximumSize(5_000)
-        .expireAfterWrite(10, TimeUnit.MINUTES)
+        .maximumSize(SUMMARIZATION_CACHE_MAX_SIZE)
+        .expireAfterWrite(SUMMARIZATION_CACHE_EXPIRE_MINUTES, TimeUnit.MINUTES)
         .removalListener<String, Job> { key, job, cause ->
             job?.cancel()
             logger.debug { "요약 작업 제거: session=$key, cause=$cause" }
@@ -122,8 +122,8 @@ class DefaultConversationManager(
      * 30분 미접근 시 자동 만료되어 메모리 누수를 방지한다.
      */
     private val sessionSaveLocks: Cache<String, Mutex> = Caffeine.newBuilder()
-        .maximumSize(10_000)
-        .expireAfterAccess(30, TimeUnit.MINUTES)
+        .maximumSize(SESSION_LOCK_CACHE_MAX_SIZE)
+        .expireAfterAccess(SESSION_LOCK_CACHE_EXPIRE_MINUTES, TimeUnit.MINUTES)
         .build()
 
     override suspend fun loadHistory(command: AgentCommand): List<Message> {
@@ -439,6 +439,18 @@ class DefaultConversationManager(
     }
 
     companion object {
+        /** 활성 요약 작업 캐시의 최대 항목 수 */
+        private const val SUMMARIZATION_CACHE_MAX_SIZE = 5_000L
+
+        /** 활성 요약 작업 캐시의 쓰기 기반 만료 시간 (분) */
+        private const val SUMMARIZATION_CACHE_EXPIRE_MINUTES = 10L
+
+        /** 세션별 저장 뮤텍스 캐시의 최대 항목 수 */
+        private const val SESSION_LOCK_CACHE_MAX_SIZE = 10_000L
+
+        /** 세션별 저장 뮤텍스 캐시의 접근 기반 만료 시간 (분) */
+        private const val SESSION_LOCK_CACHE_EXPIRE_MINUTES = 30L
+
         /**
          * Arc Reactor 메시지를 Spring AI 메시지로 변환한다.
          * MessageRole에 따라 적절한 Spring AI 메시지 타입으로 매핑한다.

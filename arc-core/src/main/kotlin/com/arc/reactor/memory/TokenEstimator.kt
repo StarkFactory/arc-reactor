@@ -55,12 +55,18 @@ class DefaultTokenEstimator : TokenEstimator {
          * 대용량 대화 히스토리의 캐시 히트율을 보장한다.
          */
         const val CACHE_KEY_MAX_LENGTH = 2_000
+
+        /** 토큰 추정 결과 캐시의 최대 항목 수 */
+        private const val TOKEN_CACHE_MAX_SIZE = 50_000L
+
+        /** 토큰 추정 결과 캐시의 접근 기반 만료 시간 (분) */
+        private const val TOKEN_CACHE_EXPIRE_MINUTES = 5L
     }
 
     /** 토큰 추정 결과 캐시. 동일 텍스트의 반복 계산을 피한다. */
     private val cache = Caffeine.newBuilder()
-        .maximumSize(50_000)
-        .expireAfterAccess(5, TimeUnit.MINUTES)
+        .maximumSize(TOKEN_CACHE_MAX_SIZE)
+        .expireAfterAccess(TOKEN_CACHE_EXPIRE_MINUTES, TimeUnit.MINUTES)
         .build<String, Int>()
 
     override fun estimate(text: String): Int {

@@ -40,7 +40,7 @@ internal class ToolPreparationPlanner(
     private val callbackAdapterCache: Cache<ToolCallback, ArcToolCallbackAdapter> =
         Caffeine.newBuilder()
             .weakKeys()
-            .maximumSize(500)
+            .maximumSize(ADAPTER_CACHE_MAX_SIZE)
             .build()
 
     /**
@@ -121,5 +121,10 @@ internal class ToolPreparationPlanner(
                 fallbackToolTimeoutMs = fallbackToolTimeoutMs
             )
         }
+    }
+
+    companion object {
+        /** ToolCallback → ArcToolCallbackAdapter 캐시의 최대 항목 수 */
+        private const val ADAPTER_CACHE_MAX_SIZE = 500L
     }
 }

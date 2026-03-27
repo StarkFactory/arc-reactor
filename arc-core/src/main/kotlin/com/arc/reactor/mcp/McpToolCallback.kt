@@ -46,7 +46,7 @@ class McpToolCallback(
     override val name: String,
     override val description: String,
     private val mcpInputSchema: McpSchema.JsonSchema?,
-    private val maxOutputLength: Int = 50_000,
+    private val maxOutputLength: Int = DEFAULT_MAX_OUTPUT_LENGTH,
     private val onConnectionError: (() -> Unit)? = null
 ) : ToolCallback {
 
@@ -145,5 +145,10 @@ class McpToolCallback(
         if (trimmed.isBlank()) return false
         return (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
             (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    }
+
+    companion object {
+        /** MCP 도구 출력의 기본 최대 문자 수 */
+        const val DEFAULT_MAX_OUTPUT_LENGTH = 50_000
     }
 }
