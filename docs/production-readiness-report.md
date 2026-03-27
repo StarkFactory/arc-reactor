@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T00:25:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T00:45:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -300,5 +300,34 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 
 **발견**: 이상 없음 — 기능 전량 정상
 **수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 3 — 2026-03-28T00:45+09:00
+
+**렌즈**: MCP (서버 상태 + 도구 호출 + Access Policy)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| MCP-01 서버 목록 | PASS | 2개 (swagger, atlassian) |
+| MCP-02 Swagger 상태 | PASS | CONNECTED, 11 tools |
+| MCP-03 Atlassian 상태 | PASS | CONNECTED, 37 tools |
+| MCP-04 Swagger 재연결 | PASS | 재연결 후 CONNECTED |
+| MCP-05 Atlassian 재연결 | PASS | 재연결 후 CONNECTED |
+| MCP-TOOL-01 Swagger 도구 호출 | **FAIL** | toolsUsed=[], blockReason=unverified_sources |
+| MCP-TOOL-02 Jira 도구 호출 | PASS | toolsUsed=[jira_search_issues] |
+| MCP-TOOL-03 Confluence 도구 호출 | PASS | toolsUsed=[confluence_search_by_text] |
+| MCP-TOOL-04 spec_list 명시 호출 | **FAIL** | LLM이 도구를 인식하지 못함 |
+| MCP-ACCESS-01 Swagger 정책 | PASS | policySource=environment |
+| MCP-ACCESS-02 Atlassian 정책 | **FAIL→수정** | adminToken 미설정 → 설정 완료 |
+
+**발견**:
+1. Swagger 도구가 에이전트에 의해 선택/호출되지 않음 — swagger catalog에 published spec 0건이 원인. 도구는 등록되어 있으나 조회할 데이터 없음
+2. Atlassian adminToken 미설정으로 access-policy 엔드포인트 접근 불가
+3. Jira/Confluence 도구는 정상 선택됨 (upstream auth 이슈는 별도)
+
+**수정**: Atlassian MCP adminToken 런타임 설정 완료
 **커밋**: 보고서 업데이트
 
