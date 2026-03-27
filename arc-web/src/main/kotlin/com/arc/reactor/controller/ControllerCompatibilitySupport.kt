@@ -4,18 +4,11 @@ import com.arc.reactor.persona.Persona
 import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.rag.chunking.DocumentChunker
 import com.arc.reactor.rag.ingestion.RagIngestionCandidate
-import kotlinx.coroutines.CancellationException
 import mu.KotlinLogging
 import org.springframework.ai.document.Document
 import java.util.UUID
 
 private val compatibilityLogger = KotlinLogging.logger {}
-
-internal fun Throwable.throwIfCancellation() {
-    if (this is CancellationException) {
-        throw this
-    }
-}
 
 internal fun Persona.resolveEffectivePrompt(promptTemplateStore: PromptTemplateStore?): String {
     val base = resolveBasePrompt(promptTemplateStore)
