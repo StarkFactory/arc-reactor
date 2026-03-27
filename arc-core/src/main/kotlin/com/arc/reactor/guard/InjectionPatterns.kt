@@ -608,11 +608,19 @@ object InjectionPatterns {
                 setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
             )
         ),
-        // "admin/root 계정 정보" — 관리자 계정 접근 시도
+        // "admin/root 비밀번호/인증 정보" — 관리자 자격증명 접근 시도
         InjectionPattern(
             "credential_extraction",
             Regex(
-                "(?i)(admin|root|관리자|어드민).{0,15}(계정|account|비밀번호|password|비번|암호|인증|credential)"
+                "(?i)(admin|root|관리자|어드민).{0,15}(비밀번호|password|비번|암호|인증|credential)"
+            )
+        ),
+        // "admin/root 계정 정보를 알려줘" — 관리자 계정 정보 추출 시도
+        // "관리자 계정 생성 절차" 같은 정당한 요청은 통과시키기 위해 추출 의도 동사 필수
+        InjectionPattern(
+            "credential_extraction",
+            Regex(
+                "(?i)(admin|root|관리자|어드민).{0,15}(계정|account).{0,15}(정보|알려|보여|출력|공개|말해|tell|show|reveal|give|접속|로그인)"
             )
         ),
 
