@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
+import jakarta.validation.Valid
 import javax.sql.DataSource
 import mu.KotlinLogging
 
@@ -132,7 +133,7 @@ class PlatformAdminController(
     @PostMapping("/users/{id}/role")
     fun updateUserRole(
         @PathVariable id: String,
-        @jakarta.validation.Valid @RequestBody request: UpdateUserRoleRequest,
+        @Valid @RequestBody request: UpdateUserRoleRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -198,7 +199,7 @@ class PlatformAdminController(
     ])
     @PostMapping("/tenants")
     fun createTenant(
-        @jakarta.validation.Valid @RequestBody request: CreateTenantRequest,
+        @Valid @RequestBody request: CreateTenantRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -337,7 +338,7 @@ class PlatformAdminController(
     ])
     @PostMapping("/pricing")
     fun upsertPricing(
-        @RequestBody pricing: ModelPricing,
+        @Valid @RequestBody pricing: ModelPricing,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -418,7 +419,7 @@ class PlatformAdminController(
     ])
     @PostMapping("/alerts/rules")
     fun saveAlertRule(
-        @RequestBody rule: AlertRule,
+        @Valid @RequestBody rule: AlertRule,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
