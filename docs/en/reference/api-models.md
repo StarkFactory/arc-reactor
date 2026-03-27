@@ -32,7 +32,7 @@ data class AgentCommand(
 |-------|---------|-------|
 | `systemPrompt` | LLM system message | RAG/JSON/YAML directives are appended automatically |
 | `userPrompt` | LLM user message + RAG query | Subject to Guard input validation |
-| `mode` | Only `REACT` is currently implemented | `STANDARD`, `STREAMING` are reserved |
+| `mode` | `REACT` and `PLAN_EXECUTE` are implemented | `STANDARD`, `STREAMING` are reserved |
 | `model` | LLM model selection | Overrides `AgentProperties.llm.model` for this request. `null` = use configured default |
 | `temperature` | Uses `AgentProperties.llm.temperature` if `null` | Per-request override |
 | `userId` | Guard (Rate Limit), Memory (session), Hook (context) | Falls back to "anonymous" if `null` |
@@ -107,13 +107,14 @@ enum class ResponseFormat {
 
 ```kotlin
 enum class AgentMode {
-    STANDARD,   // Single response (no tool calls) — not implemented
-    REACT,      // ReAct loop (default)
-    STREAMING   // Streaming — reserved
+    STANDARD,      // Single response (no tool calls) — not implemented
+    REACT,         // ReAct loop (default)
+    STREAMING,     // Streaming — reserved
+    PLAN_EXECUTE   // Plan-then-execute mode
 }
 ```
 
-Currently only `REACT` is implemented. `executeStream()` operates in streaming mode regardless of `AgentMode`.
+`REACT` and `PLAN_EXECUTE` are implemented. `PLAN_EXECUTE` first generates a tool call plan, then executes it sequentially. `executeStream()` operates in streaming mode regardless of `AgentMode`.
 
 ### Message — Conversation Message
 
@@ -150,6 +151,8 @@ enum class AgentErrorCode(val defaultMessage: String) {
     OUTPUT_GUARD_REJECTED("Response blocked by output guard."),
     OUTPUT_TOO_SHORT("Response is too short to meet quality requirements."),
     CIRCUIT_BREAKER_OPEN("Service temporarily unavailable due to repeated failures. Please try again later."),
+    BUDGET_EXHAUSTED("Token budget exhausted. Response may be incomplete."),
+    PLAN_VALIDATION_FAILED("Plan validation failed. The plan contains invalid or unauthorized tools."),
     UNKNOWN("An unknown error occurred.")
 }
 ```
@@ -168,6 +171,8 @@ enum class AgentErrorCode(val defaultMessage: String) {
 | `OUTPUT_GUARD_REJECTED` | Output guard pipeline blocks the response | Not retried |
 | `OUTPUT_TOO_SHORT` | Response fails minimum length boundary policy | Not retried |
 | `CIRCUIT_BREAKER_OPEN` | Circuit breaker is open due to repeated LLM failures | Not retried |
+| `BUDGET_EXHAUSTED` | StepBudgetTracker determined token budget is spent | Not retried |
+| `PLAN_VALIDATION_FAILED` | PLAN_EXECUTE mode plan contains invalid or unauthorized tools | Not retried |
 | `UNKNOWN` | Unclassifiable exception | Not retried |
 
 ### classifyError — Keyword-Based Error Classification
@@ -300,7 +305,10 @@ curl -X POST http://localhost:8080/api/chat \
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `message` | String | **Required** | User message (`@NotBlank`) |
+| `model` | String? | Optional | LLM provider override (uses configured default if omitted) |
 | `systemPrompt` | String? | Optional | System prompt (uses default if omitted) |
+| `personaId` | String? | Optional | Persona ID for system prompt resolution |
+| `promptTemplateId` | String? | Optional | Prompt template ID for system prompt resolution |
 | `userId` | String? | Optional | User ID |
 | `metadata` | Map<String, Any>? | Optional | Additional metadata |
 | `responseFormat` | ResponseFormat? | Optional | `TEXT` or `JSON` |
@@ -312,8 +320,15 @@ curl -X POST http://localhost:8080/api/chat \
 |-------|------|-------------|
 | `content` | String? | AI response text (null on failure) |
 | `success` | Boolean | Whether execution succeeded |
-| `toolsUsed` | List<String> | List of tools used |
-| `errorMessage` | String? | Error message (on failure) |
+| `model` | String? | Model used for generation |
+| `toolsUsed` | List<String> | Tools invoked during execution |
+| `durationMs` | Long? | Total execution time in milliseconds |
+| `errorMessage` | String? | Error message if failed |
+| `errorCode` | String? | Structured error code (e.g. `TIMEOUT`, `GUARD_REJECTED`) |
+| `grounded` | Boolean? | Whether response is grounded in retrieved sources |
+| `verifiedSourceCount` | Int? | Number of verified sources used |
+| `blockReason` | String? | Guard block reason if blocked |
+| `metadata` | Map<String, Any>? | Additional metadata |
 
 **Response example (success):**
 
@@ -321,8 +336,15 @@ curl -X POST http://localhost:8080/api/chat \
 {
   "content": "3 + 5 = 8.",
   "success": true,
+  "model": "gemini-2.5-flash",
   "toolsUsed": ["calculator"],
-  "errorMessage": null
+  "durationMs": 1500,
+  "errorMessage": null,
+  "errorCode": null,
+  "grounded": null,
+  "verifiedSourceCount": null,
+  "blockReason": null,
+  "metadata": {}
 }
 ```
 
@@ -332,8 +354,15 @@ curl -X POST http://localhost:8080/api/chat \
 {
   "content": null,
   "success": false,
+  "model": "gemini-2.5-flash",
   "toolsUsed": [],
-  "errorMessage": "Rate limit exceeded. Please try again later."
+  "durationMs": 120,
+  "errorMessage": "Rate limit exceeded. Please try again later.",
+  "errorCode": "RATE_LIMITED",
+  "grounded": null,
+  "verifiedSourceCount": null,
+  "blockReason": null,
+  "metadata": {}
 }
 ```
 
@@ -380,13 +409,15 @@ Answer in the same language as the user's message.
 
 ```kotlin
 AgentCommand(
-    systemPrompt = request.systemPrompt ?: DEFAULT_SYSTEM_PROMPT,
+    systemPrompt = resolveSystemPrompt(request),  // personaId > promptTemplateId > systemPrompt > default
     userPrompt = request.message,
-    userId = request.userId,
-    metadata = request.metadata ?: emptyMap(),
+    model = request.model,
+    userId = resolveUserId(exchange, request.userId),
+    metadata = resolveMetadata(request, exchange),
     responseFormat = request.responseFormat ?: ResponseFormat.TEXT,
-    responseSchema = request.responseSchema
+    responseSchema = request.responseSchema,
+    media = resolveMediaUrls(request.mediaUrls)
 )
 ```
 
-`ChatRequest` is a subset of `AgentCommand`. Fields such as `mode`, `temperature`, `maxToolCalls`, and `conversationHistory` cannot be set via the REST API and use their default values. All options are available when calling `AgentExecutor` programmatically.
+`ChatRequest` is a subset of `AgentCommand`. The system prompt is resolved with priority: `personaId` > `promptTemplateId` > `systemPrompt` > default persona > fallback. Fields such as `mode`, `temperature`, `maxToolCalls`, and `conversationHistory` cannot be set via the REST API and use their default values. All options are available when calling `AgentExecutor` programmatically.

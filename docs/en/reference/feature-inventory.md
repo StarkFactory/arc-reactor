@@ -16,7 +16,7 @@
 | **System Prompt** | `ChatRequest.systemPrompt` | Active | Per-request custom system prompt |
 | **Response Format** | `ChatRequest.responseFormat` | Active | TEXT/JSON mode |
 | **Conversation Memory** | `metadata.sessionId` → MemoryStore | Active | Automatic per-session conversation history save/load |
-| **Guard Pipeline** | Internal (no API) | Active | Rate Limit → Input Validation → Injection Detection → Classification → Permission |
+| **Guard Pipeline** | Internal (no API) | Active | 7-stage: UnicodeNormalization → Rate Limit → Input Validation → Injection Detection → Classification → Permission → TopicDriftDetection |
 | **Hook System** | Internal (no API) | Active | BeforeAgentStart → BeforeToolCall → AfterToolCall → AfterAgentComplete |
 | **Tool Execution** | Internal (no API) | Active | Local tools + MCP tool auto-discovery |
 | **RAG Pipeline** | Internal (no API) | Inactive (configurable) | Auto-activates when VectorStore is connected. Supports HyDE, conversation-aware query rewriting, metadata filtering |
@@ -41,11 +41,20 @@
 | **MCP Preflight Validation** | `GET /api/mcp/servers/{name}/preflight` | Active | Proxy MCP server admin readiness checks (admin) |
 | **MCP Access Policy** | `GET/PUT/DELETE /api/mcp/servers/{name}/access-policy` | Active | Proxy access-policy management for MCP servers (admin) |
 | **Admin Capabilities** | `GET /api/admin/capabilities` | Active | Returns registered API path manifest for admin consoles |
-| **Tool Result Caching** | Internal (no API) | Opt-in (disabled by default) | Per-ReAct-loop Caffeine cache for identical tool name + args; prevents redundant tool calls |
+| **Tool Result Caching** | Internal (no API) | Active (enabled by default) | Per-ReAct-loop Caffeine cache for identical tool name + args; prevents redundant tool calls |
 | **Citation Auto-Formatting** | Internal (no API) | Opt-in (disabled by default) | Appends deduplicated source citations to responses when verified sources exist |
 | **Prompt Caching (Anthropic)** | Internal (no API) | Opt-in (disabled by default) | Marks system prompt and tool definitions with `cache_control` for Anthropic prompt caching |
 | **Tool Enrichment** | Internal (no API) | Active (config-driven) | Auto-injects requester identity into tool parameters for listed tools |
 | **Webhook Notifications** | Internal (no API) | Opt-in (disabled by default) | POST agent execution results to a configured webhook URL |
+| **Tool Selection Strategy** | Internal (no API) | Active (config-driven) | Semantic/keyword/all tool selection — `arc.reactor.tool-selection.strategy` |
+| **Mode Resolver** | Internal (no API) | Opt-in (disabled by default) | Auto mode selection (STANDARD/REACT/PLAN_EXECUTE) based on query heuristics — `arc.reactor.mode-resolver` |
+| **Error Report** | Internal (no API) | Opt-in (disabled by default) | Autonomous error analysis agent with dedicated LLM budget — `arc.reactor.error-report` |
+| **Guard Block Rate Monitor** | Internal (no API) | Opt-in (disabled by default) | Sliding-window baseline monitoring for guard block rate spikes/drops — `arc.reactor.guard-block-rate` |
+| **Security Headers** | Internal (no API) | Active (enabled by default) | Injects standard security response headers — `arc.reactor.security-headers` |
+| **MCP Security** | Internal (no API) | Active (config-driven) | Allowed server name allowlist and private address blocking — `arc.reactor.mcp.security` |
+| **Tool Routing Config** | Internal (no API) | Active (config-driven) | Keyword/regex-based tool routing rules loaded from `tool-routing.yml` — `arc.reactor.tool-routing` |
+| **Plan-Execute Strategy** | Internal (no API) | Active | `AgentMode.PLAN_EXECUTE` — plan-then-execute strategy for multi-step tasks |
+| **Token Revocation Store** | Internal (no API) | Active (config-driven) | JWT token revocation backend (memory/jdbc/redis) — `arc.reactor.auth.token-revocation-store` |
 
 ### 1.2 Frontend (arc-reactor-web)
 
@@ -380,20 +389,23 @@ Request sent from the frontend to the backend:
 
 ## 7. Guard Pipeline Details
 
-Requests go through 5-stage validation before reaching the LLM:
+Requests go through 7-stage validation before reaching the LLM:
 
 ```
-Request → [1. Rate Limit] → [2. Input Validation] → [3. Injection Detection]
-                           → [4. Classification] → [5. Permission] → Allow/Deny
+Request → [0. Unicode Normalization] → [1. Rate Limit] → [2. Input Validation]
+        → [3. Injection Detection] → [4. Classification] → [5. Permission]
+        → [10. Topic Drift Detection] → Allow/Deny
 ```
 
-| Stage | Default Implementation | Default Settings | Customizable |
-|-------|----------------------|-----------------|-------------|
-| Rate Limit | `DefaultRateLimitStage` | 20/min, 200/hour | application.yml |
-| Input Validation | `DefaultInputValidationStage` | Max 10,000 characters | application.yml |
-| Injection Detection | `DefaultInjectionDetectionStage` | Enabled (regex-based) | application.yml |
-| Classification | Not implemented (interface only) | — | Add via `@Component` |
-| Permission | Not implemented (interface only) | — | Add via `@Component` |
+| Order | Stage | Default Implementation | Default Settings | Customizable |
+|-------|-------|----------------------|-----------------|-------------|
+| 0 | Unicode Normalization | `UnicodeNormalizationStage` | NFKC + zero-width strip + homoglyph normalization | application.yml (`guard.unicode-normalization-enabled`) |
+| 1 | Rate Limit | `DefaultRateLimitStage` | 20/min, 200/hour | application.yml |
+| 2 | Input Validation | `DefaultInputValidationStage` | Max 10,000 characters | application.yml |
+| 3 | Injection Detection | `DefaultInjectionDetectionStage` | Enabled (regex-based) | application.yml |
+| 4 | Classification | Not implemented (interface only) | — | Add via `@Component` |
+| 5 | Permission | Not implemented (interface only) | — | Add via `@Component` |
+| 10 | Topic Drift Detection | `TopicDriftDetectionStage` | Disabled by default (Crescendo attack defense) | application.yml (`guard.topic-drift-enabled`) |
 
 ---
 
@@ -479,7 +491,7 @@ arc:
         key-prefix: arc:cache
 
     tool-result-cache:
-      enabled: false                # Enable tool result caching (opt-in)
+      enabled: true                 # Enable tool result caching (enabled by default)
       ttl-seconds: 60               # Cache TTL (seconds)
       max-size: 200                 # Max cached entries
 

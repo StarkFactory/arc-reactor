@@ -107,7 +107,7 @@ arc:
       models: []
 
     tool-selection:              # Tool selection strategy
-      strategy: all
+      strategy: semantic
       similarity-threshold: 0.3
       max-results: 10
 
@@ -121,8 +121,21 @@ arc:
       write-tool-names: []
       deny-write-channels: [slack]
 
-    output-guard:                # Output guard (opt-in)
+    auth:                        # Authentication settings
+      jwt-secret: ""
+      default-tenant-id: default
+      token-revocation-store: memory  # memory | jdbc | redis
+      token-revocation-redis-key-prefix: "arc:auth:revoked"
+      public-actuator-health: true    # prod profile overrides to false
+
+    error-report:                # Error report agent (opt-in)
       enabled: false
+      max-concurrent-requests: 5
+      request-timeout-ms: 10000
+      max-tool-calls: 3
+
+    output-guard:                # Output guard (enabled by default)
+      enabled: true
       pii-masking-enabled: true
       dynamic-rules-enabled: true
       dynamic-rules-refresh-ms: 3000
@@ -158,8 +171,8 @@ arc:
       enabled: false
       format: markdown
 
-    tool-result-cache:           # Tool result caching (opt-in)
-      enabled: false
+    tool-result-cache:           # Tool result caching (enabled by default)
+      enabled: true
       ttl-seconds: 60
       max-size: 200
 
@@ -197,7 +210,7 @@ arc:
       connection-timeout-ms: 30000
       allow-private-addresses: false
       security:
-        allowed-server-names: []
+        allowed-server-names: []   # env: ARC_REACTOR_MCP_ALLOWED_SERVER_NAMES
         max-tool-output-length: 50000
       reconnection:
         enabled: true
@@ -412,7 +425,7 @@ Nested under `arc.reactor.rag.ingestion`.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `strategy` | String | `all` | Selection strategy: `all`, `keyword`, or `semantic` |
+| `strategy` | String | `semantic` | Selection strategy: `all`, `keyword`, or `semantic` |
 | `similarity-threshold` | Double | 0.3 | Minimum cosine similarity threshold for semantic selection |
 | `max-results` | Int | 10 | Maximum number of tools to return from semantic selection |
 
@@ -442,13 +455,36 @@ Enforces write/read tool access by channel.
 | `dynamic.enabled` | Boolean | false | Enable DB-backed dynamic tool policy (admin API updates + periodic refresh) |
 | `dynamic.refresh-ms` | Long | 10000 | Cache refresh interval for dynamic policy (ms) |
 
+### AuthProperties
+
+Nested under `arc.reactor.auth`.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `jwt-secret` | String | `""` | JWT signing secret. Must be set via `ARC_REACTOR_AUTH_JWT_SECRET` env var |
+| `default-tenant-id` | String | `default` | Default tenant ID when not specified in the request |
+| `token-revocation-store` | String | `memory` | Token revocation store backend: `memory`, `jdbc`, or `redis` |
+| `token-revocation-redis-key-prefix` | String | `arc:auth:revoked` | Redis key prefix for revoked tokens (only when `token-revocation-store=redis`) |
+| `public-actuator-health` | Boolean | true | Allow unauthenticated access to `/actuator/health`. The `prod` profile overrides this to `false` |
+
+### ErrorReportProperties
+
+Nested under `arc.reactor.error-report`. Runs a dedicated lightweight agent to analyze errors.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | Boolean | false | Enable error report agent (opt-in) |
+| `max-concurrent-requests` | Int | 5 | Maximum concurrent error report requests |
+| `request-timeout-ms` | Long | 10000 | Timeout for the error report agent (ms) |
+| `max-tool-calls` | Int | 3 | Maximum tool calls per error report execution |
+
 ### OutputGuardProperties
 
 Post-execution response validation for PII, policy violations, and custom regex patterns.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `enabled` | Boolean | false | Enable output guard (opt-in) |
+| `enabled` | Boolean | true | Enable output guard |
 | `pii-masking-enabled` | Boolean | true | Enable built-in PII masking stage |
 | `dynamic-rules-enabled` | Boolean | true | Enable dynamic runtime-managed regex rules (admin-managed) |
 | `dynamic-rules-refresh-ms` | Long | 3000 | Refresh interval for dynamic rules cache (ms) |
@@ -520,7 +556,7 @@ Caches identical tool invocations (same tool name + same arguments) within the s
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `enabled` | Boolean | false | Enable tool result caching (opt-in) |
+| `enabled` | Boolean | true | Enable tool result caching |
 | `ttl-seconds` | Long | 60 | Time-to-live for cached entries (seconds) |
 | `max-size` | Long | 200 | Maximum number of cached entries |
 
@@ -786,6 +822,27 @@ class MyConfig {
         categories = listOf(ToolCategory.SEARCH, ToolCategory.CALCULATION)
     )
 }
+```
+
+---
+
+## Production Profile Overrides (`application-prod.yml`)
+
+When `SPRING_PROFILES_ACTIVE=prod` is set, the following overrides are applied:
+
+```yaml
+spring:
+  codec:
+    max-in-memory-size: 1MB                        # Restrict in-memory buffer size
+
+arc:
+  reactor:
+    concurrency:
+      max-concurrent-requests: 50                  # Increased from default 20
+    security-headers:
+      enabled: true
+    auth:
+      public-actuator-health: false                # Disable public health endpoint access
 ```
 
 ---

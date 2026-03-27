@@ -45,7 +45,7 @@ All controllers are registered as Spring beans and can be replaced with your own
 | `SystemPromptResolver` | System prompt resolution (persona, template, default) and user ID extraction | `controller` |
 | `PaginatedResponse` | Generic paginated response wrapper for list endpoints | `controller` |
 | `SsrfUrlValidator` | SSRF-safe URL validation (blocks private/reserved IPs) | `controller` |
-| `McpAdminRequestSigner` | HMAC-SHA256 request signing for MCP admin proxy calls | `controller` |
+| `McpAdminHmacSupport` | HMAC-SHA256 request signing for MCP admin proxy calls | `controller` |
 | `McpAdminUrlResolver` | Resolves and normalizes MCP admin API base URLs from config | `controller` |
 | `McpAdminWebClientFactory` | Cached WebClient instances for MCP admin proxy calls | `controller` |
 | `SecurityHeadersWebFilter` | Adds security headers to every HTTP response | `autoconfigure` |
@@ -55,6 +55,8 @@ All controllers are registered as Spring beans and can be replaced with your own
 | `OpenApiConfiguration` | Auto-configures OpenAPI/Swagger UI when SpringDoc is present | `autoconfigure` |
 | `TenantContextResolver` | Resolves tenant ID from JWT attributes or `X-Tenant-Id` header | `controller` |
 | `AdminAuthSupport` | Shared `isAdmin()` and `forbiddenResponse()` helpers | `controller` |
+| `AgentCardController` | A2A agent card endpoint (`/.well-known/agent-card.json`) | `controller` |
+| `McpAdminProxySupport` | MCP admin proxy support (shared utilities for MCP admin controllers) | `controller` |
 | `ArcReactorWebAutoConfiguration` | Web-layer auto-configuration entrypoint | `autoconfigure` |
 
 ---
@@ -180,14 +182,14 @@ When no tenant context is present, the request is rejected with HTTP 400.
 Controllers that perform write operations call `isAdmin(exchange)` from `AdminAuthSupport.kt`:
 
 ```kotlin
-// AdminAuthSupport.kt
+// AdminAuthSupport.kt — delegates to AdminAuthorizationSupport
 fun isAdmin(exchange: ServerWebExchange): Boolean {
     val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-    return role == UserRole.ADMIN
+    return role?.isDeveloperAdmin() == true  // ADMIN or ADMIN_DEVELOPER
 }
 ```
 
-Missing role fails closed as non-admin.
+`isDeveloperAdmin()` returns `true` for both `UserRole.ADMIN` and `UserRole.ADMIN_DEVELOPER`. Missing role fails closed as non-admin (null-safe `== true`).
 
 Always use the shared `isAdmin()` function. Do not duplicate this logic in custom controllers.
 
@@ -228,9 +230,9 @@ interface AuthProvider {
 
 | Method | Path | Description | Auth Required |
 |---|---|---|---|
-| `POST` | `/api/chat` | Standard chat (full response) | No |
-| `POST` | `/api/chat/stream` | Streaming chat (SSE) | No |
-| `POST` | `/api/chat/multipart` | Multipart chat with file attachments | No |
+| `POST` | `/api/chat` | Standard chat (full response) | JWT |
+| `POST` | `/api/chat/stream` | Streaming chat (SSE) | JWT |
+| `POST` | `/api/chat/multipart` | Multipart chat with file attachments | JWT |
 
 **ChatRequest fields:**
 
@@ -261,19 +263,19 @@ interface AuthProvider {
 
 | Method | Path | Description | Auth Required |
 |---|---|---|---|
-| `GET` | `/api/sessions` | List all sessions | No (filtered by user when auth enabled) |
-| `GET` | `/api/sessions/{sessionId}` | Get session messages | No (owner check when auth enabled) |
-| `GET` | `/api/sessions/{sessionId}/export?format=json` | Export as JSON | No |
-| `GET` | `/api/sessions/{sessionId}/export?format=markdown` | Export as Markdown | No |
-| `DELETE` | `/api/sessions/{sessionId}` | Delete session | No (owner check when auth enabled) |
-| `GET` | `/api/models` | List available LLM providers | No |
+| `GET` | `/api/sessions` | List all sessions | JWT (filtered by user) |
+| `GET` | `/api/sessions/{sessionId}` | Get session messages | JWT (owner check) |
+| `GET` | `/api/sessions/{sessionId}/export?format=json` | Export as JSON | JWT |
+| `GET` | `/api/sessions/{sessionId}/export?format=markdown` | Export as Markdown | JWT |
+| `DELETE` | `/api/sessions/{sessionId}` | Delete session | JWT (owner check) |
+| `GET` | `/api/models` | List available LLM providers | JWT |
 
 ### Personas
 
 | Method | Path | Description | Auth Required |
 |---|---|---|---|
-| `GET` | `/api/personas` | List all personas | No |
-| `GET` | `/api/personas/{personaId}` | Get persona by ID | No |
+| `GET` | `/api/personas` | List all personas | JWT |
+| `GET` | `/api/personas/{personaId}` | Get persona by ID | JWT |
 | `POST` | `/api/personas` | Create persona | Admin |
 | `PUT` | `/api/personas/{personaId}` | Update persona | Admin |
 | `DELETE` | `/api/personas/{personaId}` | Delete persona | Admin |
@@ -282,8 +284,8 @@ interface AuthProvider {
 
 | Method | Path | Description | Auth Required |
 |---|---|---|---|
-| `GET` | `/api/prompt-templates` | List templates | No |
-| `GET` | `/api/prompt-templates/{id}` | Get template with versions | No |
+| `GET` | `/api/prompt-templates` | List templates | JWT |
+| `GET` | `/api/prompt-templates/{id}` | Get template with versions | JWT |
 | `POST` | `/api/prompt-templates` | Create template | Admin |
 | `PUT` | `/api/prompt-templates/{id}` | Update template metadata | Admin |
 | `DELETE` | `/api/prompt-templates/{id}` | Delete template | Admin |
@@ -295,9 +297,9 @@ interface AuthProvider {
 
 | Method | Path | Description | Auth Required |
 |---|---|---|---|
-| `GET` | `/api/mcp/servers` | List all servers with status | No |
+| `GET` | `/api/mcp/servers` | List all servers with status | JWT |
 | `POST` | `/api/mcp/servers` | Register server | Admin |
-| `GET` | `/api/mcp/servers/{name}` | Server details with tools | No |
+| `GET` | `/api/mcp/servers/{name}` | Server details with tools | JWT |
 | `PUT` | `/api/mcp/servers/{name}` | Update server config | Admin |
 | `DELETE` | `/api/mcp/servers/{name}` | Disconnect and remove | Admin |
 | `POST` | `/api/mcp/servers/{name}/connect` | Connect to server | Admin |
@@ -319,7 +321,7 @@ interface AuthProvider {
 |---|---|---|---|
 | `POST` | `/api/documents` | Add document to vector store | Admin |
 | `POST` | `/api/documents/batch` | Batch add documents | Admin |
-| `POST` | `/api/documents/search` | Similarity search | No |
+| `POST` | `/api/documents/search` | Similarity search | JWT |
 | `DELETE` | `/api/documents` | Delete documents by IDs | Admin |
 
 ---

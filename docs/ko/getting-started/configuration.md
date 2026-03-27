@@ -107,7 +107,7 @@ arc:
       models: []
 
     tool-selection:              # Tool 선택 전략
-      strategy: all
+      strategy: semantic
       similarity-threshold: 0.3
       max-results: 10
 
@@ -121,8 +121,21 @@ arc:
       write-tool-names: []
       deny-write-channels: [slack]
 
-    output-guard:                # Output Guard (opt-in)
+    auth:                        # 인증 설정
+      jwt-secret: ""
+      default-tenant-id: default
+      token-revocation-store: memory  # memory | jdbc | redis
+      token-revocation-redis-key-prefix: "arc:auth:revoked"
+      public-actuator-health: true    # prod 프로파일에서 false로 오버라이드
+
+    error-report:                # 에러 리포트 에이전트 (opt-in)
       enabled: false
+      max-concurrent-requests: 5
+      request-timeout-ms: 10000
+      max-tool-calls: 3
+
+    output-guard:                # Output Guard (기본 활성)
+      enabled: true
       pii-masking-enabled: true
       dynamic-rules-enabled: true
       dynamic-rules-refresh-ms: 3000
@@ -158,8 +171,8 @@ arc:
       enabled: false
       format: markdown
 
-    tool-result-cache:           # Tool 결과 캐싱 (opt-in)
-      enabled: false
+    tool-result-cache:           # Tool 결과 캐싱 (기본 활성)
+      enabled: true
       ttl-seconds: 60
       max-size: 200
 
@@ -197,7 +210,7 @@ arc:
       connection-timeout-ms: 30000
       allow-private-addresses: false
       security:
-        allowed-server-names: []
+        allowed-server-names: []   # 환경변수: ARC_REACTOR_MCP_ALLOWED_SERVER_NAMES
         max-tool-output-length: 50000
       reconnection:
         enabled: true
@@ -412,7 +425,7 @@ arc:
 
 | 속성 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `strategy` | String | `all` | 선택 전략: `all`, `keyword`, 또는 `semantic` |
+| `strategy` | String | `semantic` | 선택 전략: `all`, `keyword`, 또는 `semantic` |
 | `similarity-threshold` | Double | 0.3 | 시맨틱 선택의 최소 코사인 유사도 임계값 |
 | `max-results` | Int | 10 | 시맨틱 선택이 반환하는 최대 Tool 수 |
 
@@ -442,13 +455,36 @@ arc:
 | `dynamic.enabled` | Boolean | false | DB 기반 동적 Tool 정책 활성화 (관리자 API 업데이트 + 주기적 갱신) |
 | `dynamic.refresh-ms` | Long | 10000 | 동적 정책 캐시 갱신 주기 (ms) |
 
+### AuthProperties
+
+`arc.reactor.auth` 하위에 중첩됩니다.
+
+| 속성 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `jwt-secret` | String | `""` | JWT 서명 시크릿. `ARC_REACTOR_AUTH_JWT_SECRET` 환경변수로 설정 필수 |
+| `default-tenant-id` | String | `default` | 요청에 미지정 시 기본 테넌트 ID |
+| `token-revocation-store` | String | `memory` | 토큰 폐기 저장소 백엔드: `memory`, `jdbc`, 또는 `redis` |
+| `token-revocation-redis-key-prefix` | String | `arc:auth:revoked` | 폐기된 토큰의 Redis 키 접두사 (`token-revocation-store=redis`일 때만 사용) |
+| `public-actuator-health` | Boolean | true | `/actuator/health`에 대한 비인증 접근 허용. `prod` 프로파일에서는 `false`로 오버라이드됨 |
+
+### ErrorReportProperties
+
+`arc.reactor.error-report` 하위에 중첩됩니다. 에러 분석을 위한 전용 경량 에이전트를 실행합니다.
+
+| 속성 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `enabled` | Boolean | false | 에러 리포트 에이전트 활성화 (opt-in) |
+| `max-concurrent-requests` | Int | 5 | 최대 동시 에러 리포트 요청 수 |
+| `request-timeout-ms` | Long | 10000 | 에러 리포트 에이전트 타임아웃 (ms) |
+| `max-tool-calls` | Int | 3 | 에러 리포트 실행당 최대 Tool 호출 수 |
+
 ### OutputGuardProperties
 
 실행 후 PII, 정책 위반, 커스텀 정규식 패턴에 대한 응답 검증입니다.
 
 | 속성 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `enabled` | Boolean | false | Output Guard 활성화 (opt-in) |
+| `enabled` | Boolean | true | Output Guard 활성화 |
 | `pii-masking-enabled` | Boolean | true | 내장 PII 마스킹 단계 활성화 |
 | `dynamic-rules-enabled` | Boolean | true | 동적 런타임 관리 정규식 규칙 활성화 (관리자 관리) |
 | `dynamic-rules-refresh-ms` | Long | 3000 | 동적 규칙 캐시 갱신 주기 (ms) |
@@ -520,7 +556,7 @@ REST API로 관리되는 동적 cron 스케줄 MCP Tool 실행입니다.
 
 | 속성 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `enabled` | Boolean | false | Tool 결과 캐싱 활성화 (opt-in) |
+| `enabled` | Boolean | true | Tool 결과 캐싱 활성화 |
 | `ttl-seconds` | Long | 60 | 캐시 항목 유효 시간 (초) |
 | `max-size` | Long | 200 | 최대 캐시 항목 수 |
 
@@ -786,6 +822,27 @@ class MyConfig {
         categories = listOf(ToolCategory.SEARCH, ToolCategory.CALCULATION)
     )
 }
+```
+
+---
+
+## 프로덕션 프로파일 오버라이드 (`application-prod.yml`)
+
+`SPRING_PROFILES_ACTIVE=prod`를 설정하면 다음 오버라이드가 적용됩니다:
+
+```yaml
+spring:
+  codec:
+    max-in-memory-size: 1MB                        # 인메모리 버퍼 크기 제한
+
+arc:
+  reactor:
+    concurrency:
+      max-concurrent-requests: 50                  # 기본값 20에서 증가
+    security-headers:
+      enabled: true
+    auth:
+      public-actuator-health: false                # 공개 헬스 엔드포인트 접근 비활성화
 ```
 
 ---

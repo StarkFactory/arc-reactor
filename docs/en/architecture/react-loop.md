@@ -1,6 +1,6 @@
 # ReAct Loop Internal Implementation
 
-> **Key file:** `SpringAiAgentExecutor.kt` (~555 lines, orchestrator that delegates to extracted helper classes)
+> **Key file:** `SpringAiAgentExecutor.kt` (~626 lines, orchestrator that delegates to extracted helper classes)
 > This document explains the internal workings of the ReAct loop, the core execution engine of Arc Reactor.
 
 ## Overall Execution Flow
@@ -286,7 +286,7 @@ private fun estimateMessageTokens(message: Message): Int {
 
 Each message estimate includes a fixed `MESSAGE_STRUCTURE_OVERHEAD` (20 tokens) for role tags, separators, and metadata.
 
-`TokenEstimator` is CJK-aware and uses a Caffeine cache (10,000 entries, 5-minute TTL). Strings longer than 2,000 characters bypass the cache to avoid retaining large heap objects:
+`TokenEstimator` is CJK-aware and uses a Caffeine cache (50,000 entries, 5-minute TTL). Strings longer than 2,000 characters use SHA-256 hash keys instead of the raw string, to avoid retaining large heap objects while still benefiting from caching:
 - Latin characters: ~4 chars/token
 - Korean/CJK: ~1.5 chars/token
 - Emoji: ~1 char/token

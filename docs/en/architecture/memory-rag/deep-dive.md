@@ -93,6 +93,11 @@ interface MemoryStore {
     fun remove(sessionId: String)
     fun clear()
     fun addMessage(sessionId: String, role: String, content: String)
+    fun addMessage(sessionId: String, role: String, content: String, userId: String)  // Session ownership tracking
+    fun listSessions(): List<SessionSummary>
+    fun listSessionsByUserId(userId: String): List<SessionSummary>
+    fun listSessionsByUserIdPaginated(userId: String, limit: Int, offset: Int): PaginatedSessionResult
+    fun getSessionOwner(sessionId: String): String?
 }
 ```
 
@@ -102,13 +107,20 @@ interface MemoryStore {
 class InMemoryMemoryStore(
     private val maxSessions: Int = 1000
 ) : MemoryStore {
+    private val sessionOwners = ConcurrentHashMap<String, String>()  // Session-to-user ownership tracking
+
     private val sessions = Caffeine.newBuilder()
         .maximumSize(maxSessions.toLong())
+        .evictionListener<String, ConversationMemory> { key, _, _ ->
+            if (key != null) sessionOwners.remove(key)  // Synchronous cleanup on eviction
+        }
         .build<String, ConversationMemory>()
 }
 ```
 
 - **Caffeine cache:** LRU eviction policy
+- **Session ownership:** `sessionOwners` (`ConcurrentHashMap<String, String>`) tracks which user owns each session. Ownership is recorded on the first `addMessage(sessionId, role, content, userId)` call via `putIfAbsent`
+- **Synchronous eviction cleanup:** Uses `evictionListener` (not `removalListener`) to synchronously remove the ownership entry when a session is evicted from the cache
 - When the maximum session count is reached, the least recently used session is automatically evicted
 - All data is lost on server restart
 
@@ -158,9 +170,9 @@ fun inMemoryMemoryStore(): MemoryStore = InMemoryMemoryStore()
 
 ```kotlin
 interface ConversationManager {
-    fun loadHistory(command: AgentCommand): List<Message>
-    fun saveHistory(command: AgentCommand, result: AgentResult)
-    fun saveStreamingHistory(command: AgentCommand, content: String)
+    suspend fun loadHistory(command: AgentCommand): List<Message>
+    suspend fun saveHistory(command: AgentCommand, result: AgentResult)
+    suspend fun saveStreamingHistory(command: AgentCommand, content: String)
 }
 ```
 
@@ -168,10 +180,14 @@ An intermediate layer between the Executor and MemoryStore that encapsulates the
 
 #### DefaultConversationManager
 
+**Session ownership verification:**
+
+`loadHistory` now calls `verifySessionOwnership(sessionId, command.userId)` before loading messages. If the session already has an owner and the requester's `userId` does not match, a `SessionOwnershipException` is thrown and the method returns an empty list. If the ownership DB lookup itself fails, a `SessionOwnershipVerificationException` is thrown and the method also returns an empty list (fail-close). This prevents unauthorized access to another user's conversation history.
+
 **Loading history:**
 
 ```kotlin
-override fun loadHistory(command: AgentCommand): List<Message> {
+override suspend fun loadHistory(command: AgentCommand): List<Message> {
     // 1. History passed directly via AgentCommand takes priority
     if (command.conversationHistory.isNotEmpty()) {
         return command.conversationHistory.map { toSpringAiMessage(it) }
@@ -191,7 +207,7 @@ override fun loadHistory(command: AgentCommand): List<Message> {
 **Saving history:**
 
 ```kotlin
-override fun saveHistory(command: AgentCommand, result: AgentResult) {
+override suspend fun saveHistory(command: AgentCommand, result: AgentResult) {
     if (!result.success) return  // Do not save failed executions
 
     val sessionId = command.metadata["sessionId"]?.toString() ?: return
@@ -208,7 +224,7 @@ override fun saveHistory(command: AgentCommand, result: AgentResult) {
 **Saving streaming history:**
 
 ```kotlin
-override fun saveStreamingHistory(command: AgentCommand, content: String) {
+override suspend fun saveStreamingHistory(command: AgentCommand, content: String) {
     // Only saves lastIterationContent (the last iteration, not the full accumulation)
     val sessionId = command.metadata["sessionId"]?.toString() ?: return
     memoryStore.addMessage(sessionId, "USER", command.userPrompt)

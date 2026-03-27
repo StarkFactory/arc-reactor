@@ -45,7 +45,7 @@
 | `SystemPromptResolver` | 시스템 프롬프트 해석 (Persona, 템플릿, 기본값) 및 사용자 ID 추출 | `controller` |
 | `PaginatedResponse` | 목록 엔드포인트용 범용 페이지네이션 응답 래퍼 | `controller` |
 | `SsrfUrlValidator` | SSRF 안전 URL 검증 (사설/예약 IP 차단) | `controller` |
-| `McpAdminRequestSigner` | MCP 관리자 프록시 호출용 HMAC-SHA256 요청 서명 | `controller` |
+| `McpAdminHmacSupport` | MCP 관리자 프록시 호출용 HMAC-SHA256 요청 서명 | `controller` |
 | `McpAdminUrlResolver` | 설정에서 MCP 관리자 API 기본 URL 해석 및 정규화 | `controller` |
 | `McpAdminWebClientFactory` | MCP 관리자 프록시 호출용 캐시된 WebClient 인스턴스 | `controller` |
 | `SecurityHeadersWebFilter` | 모든 HTTP 응답에 보안 헤더 추가 | `autoconfigure` |
@@ -55,6 +55,8 @@
 | `OpenApiConfiguration` | SpringDoc 존재 시 OpenAPI/Swagger UI 자동 구성 | `autoconfigure` |
 | `TenantContextResolver` | JWT 속성 또는 `X-Tenant-Id` 헤더에서 테넌트 ID 해석 | `controller` |
 | `AdminAuthSupport` | 공유 `isAdmin()`, `forbiddenResponse()` 헬퍼 | `controller` |
+| `AgentCardController` | A2A 에이전트 카드 엔드포인트 (`/.well-known/agent-card.json`) | `controller` |
+| `McpAdminProxySupport` | MCP 관리자 프록시 지원 (MCP 관리자 컨트롤러 공용 유틸리티) | `controller` |
 | `ArcReactorWebAutoConfiguration` | 웹 레이어 자동 구성 진입점 | `autoconfigure` |
 
 ---
@@ -179,14 +181,14 @@ class ApiKeyWebFilter : WebFilter {
 쓰기 작업을 수행하는 컨트롤러는 `AdminAuthSupport.kt`의 `isAdmin(exchange)`를 호출합니다.
 
 ```kotlin
-// AdminAuthSupport.kt
+// AdminAuthSupport.kt — AdminAuthorizationSupport에 위임
 fun isAdmin(exchange: ServerWebExchange): Boolean {
     val role = exchange.attributes[JwtAuthWebFilter.USER_ROLE_ATTRIBUTE] as? UserRole
-    return role == UserRole.ADMIN
+    return role?.isDeveloperAdmin() == true  // ADMIN or ADMIN_DEVELOPER
 }
 ```
 
-`role`이 없으면 fail-close로 비관리자 처리됩니다.
+`isDeveloperAdmin()`은 `UserRole.ADMIN`과 `UserRole.ADMIN_DEVELOPER` 모두에 대해 `true`를 반환합니다. `role`이 없으면 null-safe `== true`에 의해 fail-close로 비관리자 처리됩니다.
 
 항상 공유 `isAdmin()` 함수를 사용하세요. 커스텀 컨트롤러에서 이 로직을 복제하지 마세요.
 
@@ -227,9 +229,9 @@ interface AuthProvider {
 
 | 메서드 | 경로 | 설명 | 인증 필요 |
 |---|---|---|---|
-| `POST` | `/api/chat` | 표준 채팅 (전체 응답) | 아니오 |
-| `POST` | `/api/chat/stream` | 스트리밍 채팅 (SSE) | 아니오 |
-| `POST` | `/api/chat/multipart` | 파일 첨부 멀티파트 채팅 | 아니오 |
+| `POST` | `/api/chat` | 표준 채팅 (전체 응답) | JWT |
+| `POST` | `/api/chat/stream` | 스트리밍 채팅 (SSE) | JWT |
+| `POST` | `/api/chat/multipart` | 파일 첨부 멀티파트 채팅 | JWT |
 
 **ChatRequest 필드:**
 
@@ -260,19 +262,19 @@ interface AuthProvider {
 
 | 메서드 | 경로 | 설명 | 인증 필요 |
 |---|---|---|---|
-| `GET` | `/api/sessions` | 모든 세션 목록 | 아니오 (인증 시 사용자별 필터링) |
-| `GET` | `/api/sessions/{sessionId}` | 세션 메시지 조회 | 아니오 (인증 시 소유자 확인) |
-| `GET` | `/api/sessions/{sessionId}/export?format=json` | JSON으로 내보내기 | 아니오 |
-| `GET` | `/api/sessions/{sessionId}/export?format=markdown` | Markdown으로 내보내기 | 아니오 |
-| `DELETE` | `/api/sessions/{sessionId}` | 세션 삭제 | 아니오 (인증 시 소유자 확인) |
-| `GET` | `/api/models` | 사용 가능한 LLM 공급자 목록 | 아니오 |
+| `GET` | `/api/sessions` | 모든 세션 목록 | JWT (사용자별 필터링) |
+| `GET` | `/api/sessions/{sessionId}` | 세션 메시지 조회 | JWT (소유자 확인) |
+| `GET` | `/api/sessions/{sessionId}/export?format=json` | JSON으로 내보내기 | JWT |
+| `GET` | `/api/sessions/{sessionId}/export?format=markdown` | Markdown으로 내보내기 | JWT |
+| `DELETE` | `/api/sessions/{sessionId}` | 세션 삭제 | JWT (소유자 확인) |
+| `GET` | `/api/models` | 사용 가능한 LLM 공급자 목록 | JWT |
 
 ### Persona
 
 | 메서드 | 경로 | 설명 | 인증 필요 |
 |---|---|---|---|
-| `GET` | `/api/personas` | 모든 Persona 목록 | 아니오 |
-| `GET` | `/api/personas/{personaId}` | ID로 Persona 조회 | 아니오 |
+| `GET` | `/api/personas` | 모든 Persona 목록 | JWT |
+| `GET` | `/api/personas/{personaId}` | ID로 Persona 조회 | JWT |
 | `POST` | `/api/personas` | Persona 생성 | 관리자 |
 | `PUT` | `/api/personas/{personaId}` | Persona 수정 | 관리자 |
 | `DELETE` | `/api/personas/{personaId}` | Persona 삭제 | 관리자 |
@@ -281,8 +283,8 @@ interface AuthProvider {
 
 | 메서드 | 경로 | 설명 | 인증 필요 |
 |---|---|---|---|
-| `GET` | `/api/prompt-templates` | 템플릿 목록 | 아니오 |
-| `GET` | `/api/prompt-templates/{id}` | 버전 포함 템플릿 조회 | 아니오 |
+| `GET` | `/api/prompt-templates` | 템플릿 목록 | JWT |
+| `GET` | `/api/prompt-templates/{id}` | 버전 포함 템플릿 조회 | JWT |
 | `POST` | `/api/prompt-templates` | 템플릿 생성 | 관리자 |
 | `PUT` | `/api/prompt-templates/{id}` | 템플릿 메타데이터 수정 | 관리자 |
 | `DELETE` | `/api/prompt-templates/{id}` | 템플릿 삭제 | 관리자 |
@@ -294,9 +296,9 @@ interface AuthProvider {
 
 | 메서드 | 경로 | 설명 | 인증 필요 |
 |---|---|---|---|
-| `GET` | `/api/mcp/servers` | 상태 포함 모든 서버 목록 | 아니오 |
+| `GET` | `/api/mcp/servers` | 상태 포함 모든 서버 목록 | JWT |
 | `POST` | `/api/mcp/servers` | 서버 등록 | 관리자 |
-| `GET` | `/api/mcp/servers/{name}` | Tool 포함 서버 상세 | 아니오 |
+| `GET` | `/api/mcp/servers/{name}` | Tool 포함 서버 상세 | JWT |
 | `PUT` | `/api/mcp/servers/{name}` | 서버 설정 수정 | 관리자 |
 | `DELETE` | `/api/mcp/servers/{name}` | 서버 연결 해제 및 제거 | 관리자 |
 | `POST` | `/api/mcp/servers/{name}/connect` | 서버 연결 | 관리자 |
@@ -318,7 +320,7 @@ interface AuthProvider {
 |---|---|---|---|
 | `POST` | `/api/documents` | 벡터 스토어에 문서 추가 | 관리자 |
 | `POST` | `/api/documents/batch` | 문서 일괄 추가 | 관리자 |
-| `POST` | `/api/documents/search` | 유사도 검색 | 아니오 |
+| `POST` | `/api/documents/search` | 유사도 검색 | JWT |
 | `DELETE` | `/api/documents` | ID로 문서 삭제 | 관리자 |
 
 ---

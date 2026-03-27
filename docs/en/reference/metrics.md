@@ -276,6 +276,48 @@ When `MicrometerAgentMetrics` is active, the following metric names are register
 | `arc.agent.rag.retrievals` | Counter | `status` | RAG retrieval count |
 | `arc.agent.rag.retrieval.duration` | Timer | `status` | RAG retrieval duration |
 | `arc.agent.active_requests` | Gauge | -- | Current in-flight agent requests |
+| `arc.agent.request.cost` | DistributionSummary | `model`, `tenantId` | Per-request cost in USD |
+| `arc.agent.cost.total.usd` | Counter | `model`, `tenantId` | Cumulative total cost |
+
+### SLA Metrics
+
+When `MicrometerSlaMetrics` is active (requires `MeterRegistry` on classpath), the following SLA/SLO metrics are registered:
+
+| Metric Name | Type | Tags | Description |
+|-------------|------|------|-------------|
+| `arc.sla.react.convergence` | Timer | `stop_reason`, `step_bucket` | ReAct loop convergence duration (P50/P95/P99) |
+| `arc.sla.react.convergence.total` | Counter | `stop_reason`, `step_bucket` | ReAct loop convergence count by stop reason and step bucket |
+| `arc.sla.tool.failure` | Counter | `tool`, `error_type` | Tool failure count by error type (timeout, connection, validation, internal, mcp_unavailable) |
+| `arc.sla.tool.failure.duration` | Timer | `tool`, `error_type` | Failed tool call duration |
+| `arc.sla.availability` | Gauge | -- | Rolling-window system availability ratio (0.0--1.0, last 100 samples) |
+| `arc.sla.e2e.latency` | Timer | `channel` | End-to-end request latency (P50/P95/P99) per channel (rest, slack, etc.) |
+
+> **Key file:** `agent/metrics/SlaMetrics.kt` (interface), `agent/metrics/MicrometerSlaMetrics.kt` (implementation)
+
+### Cache Metrics
+
+When `MicrometerCacheMetricsRecorder` is active (requires `MeterRegistry` on classpath), the following response-cache metrics are registered:
+
+| Metric Name | Type | Tags | Description |
+|-------------|------|------|-------------|
+| `arc.cache.hits` | Counter | `type` (exact/semantic) | Response cache hits by type |
+| `arc.cache.misses` | Counter | -- | Response cache misses |
+| `arc.cache.semantic.similarity` | DistributionSummary | -- | Semantic cache hit similarity score distribution (P50/P95/P99) |
+| `arc.cache.cost.saved.estimate` | Counter | `model` | Estimated cost saved by cache hits (USD) |
+
+> **Key file:** `cache/CacheMetricsRecorder.kt` (interface + `MicrometerCacheMetricsRecorder` implementation)
+
+### RAG Chunking Metrics
+
+When `InstrumentedDocumentChunker` is active (requires `MeterRegistry` on classpath and RAG chunking enabled), the following chunking metrics are registered:
+
+| Metric Name | Type | Tags | Description |
+|-------------|------|------|-------------|
+| `arc.rag.documents.chunked` | Counter | -- | Number of documents that were actually split into chunks |
+| `arc.rag.chunks.created` | Counter | -- | Total number of chunks created |
+| `arc.rag.chunk.size.chars` | DistributionSummary | -- | Chunk size distribution in characters (P50/P95) |
+
+> **Key file:** `rag/chunking/InstrumentedDocumentChunker.kt`
 
 ## arc-admin Metric Pipeline
 

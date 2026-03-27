@@ -139,7 +139,9 @@ Defends against homoglyph and invisible-character attacks:
 
 - **NFKC normalization**: fullwidth Latin → ASCII (e.g., `ｉｇｎｏｒｅ` → `ignore`)
 - **Zero-width character stripping**: U+200B/C/D/E/F, U+FEFF, U+00AD, U+2060-2064, U+180E, Unicode Tag Block (U+E0000-E007F)
-- **Homoglyph replacement**: Cyrillic а→a, е→e, о→o, р→p, с→c, etc. (18 common mappings)
+- **Homoglyph replacement**: Cyrillic а→a, е→e, о→o, р→p, с→c, etc. (38 mappings: Cyrillic, Greek, Ukrainian)
+- **Diacritical mark stripping**: Removes combining marks after NFKC (e.g., `i̇gnore` → `ignore`)
+- **HTML numeric entity decoding**: Decodes `&#73;`, `&#x49;` etc. to prevent entity-based bypass
 - **Rejection**: If zero-width character ratio exceeds threshold (default 10%)
 - Returns normalized text via `GuardResult.Allowed(hints = ["normalized:$text"])` — downstream stages see the cleaned text
 
@@ -178,7 +180,13 @@ class DefaultInputValidationStage(
 class DefaultInjectionDetectionStage : InjectionDetectionStage
 ```
 
-Detects prompt injection attacks using 28 regex patterns:
+Detects prompt injection attacks using ~100 regex patterns (78 shared + 22 input-only):
+
+**Pattern architecture**: Patterns are split into two layers:
+- `InjectionPatterns.SHARED` — 78 patterns shared between input Guard and `ToolOutputSanitizer`
+- `DefaultInjectionDetectionStage.SUSPICIOUS_PATTERNS` — SHARED + 22 input-only patterns
+
+**Pattern categories:**
 
 - **Role change attempts**: `"ignore previous"`, `"you are now"`, `"act as"`
 - **System prompt extraction**: `"show me your prompt"`, `"repeat your instructions"`
@@ -189,6 +197,9 @@ Detects prompt injection attacks using 28 regex patterns:
 - **Authority escalation**: `"developer mode"`, `"system override"`
 - **Safety override**: `"override safety filter"`, `"override content policy"`
 - **Many-shot jailbreak**: 3+ sequential `example N` markers
+- **Credential extraction**: Korean credential/password extraction attempts (4 patterns)
+- **Data exfiltration**: Data exfiltration via HTTP (fetch/send patterns)
+- **DAN**: "Do Anything Now" jailbreak detection
 
 #### Layer 1: Classification (opt-in)
 
@@ -258,7 +269,7 @@ class ToolOutputSanitizer {
 ```
 
 - Wraps tool output with data-instruction separation markers
-- Strips injection patterns (role override, system delimiter, prompt override, data exfiltration attempts)
+- Strips injection patterns using `InjectionPatterns.SHARED` (78 patterns shared with input Guard) — role override, system delimiter, prompt override, data exfiltration attempts
 - Detected patterns → replaced with `[SANITIZED]`
 - Integrates with `ToolCallOrchestrator` as an optional parameter
 
@@ -295,9 +306,17 @@ class OutputGuardPipeline(
 | Stage | Order | Default | Description |
 |-------|-------|---------|-------------|
 | `SystemPromptLeakageOutputGuard` | 5 | opt-in | Canary token + leakage pattern detection |
-| `PiiMaskingOutputGuard` | 10 | opt-in | Masks PII (phone, email, SSN, credit card) |
+| `PiiMaskingOutputGuard` | 10 | opt-in | Masks PII (see pattern list below) |
 | `DynamicRuleOutputGuard` | 15 | opt-in | Runtime-configurable rules (REST API managed) |
 | `RegexPatternOutputGuard` | 20 | opt-in | Static regex pattern filtering |
+
+**PII masking pattern evaluation order** (KR → INTL → COMMON, specific → general):
+
+| Group | Patterns |
+|-------|----------|
+| KR | Resident registration number, phone number, driver's license number, passport number |
+| INTL | IBAN, US SSN, JP My Number |
+| COMMON | Credit card number, email, IPv4 address |
 
 **Result types:**
 - `Allowed` — response passes unchanged
@@ -435,6 +454,13 @@ class BusinessRuleGuard : GuardStage {
     }
 }
 ```
+
+### Guard Block Rate Monitor
+
+The `guard/blockrate/` package provides sliding-window anomaly detection for guard block rates:
+
+- **GuardBlockRateMonitor**: Tracks the ratio of rejected requests over a configurable sliding window. When the block rate exceeds the threshold, it triggers an alert — useful for detecting sudden spikes in malicious traffic or false-positive regressions after pattern updates.
+- **GuardBlockRateHook**: An event-driven `AfterAgentCompleteHook` that feeds guard rejection events into the monitor. Integrates with the Hook system (fail-open) so monitoring failures never block agent execution.
 
 ---
 

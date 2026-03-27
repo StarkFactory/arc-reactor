@@ -1,6 +1,6 @@
 # ReAct 루프 내부 구현
 
-> **핵심 파일:** `SpringAiAgentExecutor.kt` (~555줄, 추출된 헬퍼 클래스에 위임하는 오케스트레이터)
+> **핵심 파일:** `SpringAiAgentExecutor.kt` (~626줄, 추출된 헬퍼 클래스에 위임하는 오케스트레이터)
 > 이 문서는 Arc Reactor의 핵심 실행 엔진인 ReAct 루프의 내부 동작을 설명합니다.
 
 ## 전체 실행 흐름
@@ -286,7 +286,7 @@ private fun estimateMessageTokens(message: Message): Int {
 
 각 메시지 추정에는 역할 태그, 구분자, 메타데이터를 위한 고정 `MESSAGE_STRUCTURE_OVERHEAD` (20 토큰)가 포함됩니다.
 
-`TokenEstimator`는 CJK 문자를 인식하며 Caffeine 캐시(10,000 항목, 5분 TTL)를 사용합니다. 2,000자를 초과하는 문자열은 큰 힙 객체를 유지하지 않기 위해 캐시를 우회합니다:
+`TokenEstimator`는 CJK 문자를 인식하며 Caffeine 캐시(50,000 항목, 5분 TTL)를 사용합니다. 2,000자를 초과하는 문자열은 큰 힙 객체를 캐시 키로 유지하지 않으면서도 캐시 히트를 보장하기 위해 원본 문자열 대신 SHA-256 해시 키를 사용합니다:
 - Latin 문자: ~4자/토큰
 - 한글/CJK: ~1.5자/토큰
 - 이모지: ~1자/토큰

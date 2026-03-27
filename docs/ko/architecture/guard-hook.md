@@ -139,7 +139,9 @@ class UnicodeNormalizationStage : GuardStage
 
 - **NFKC 정규화**: 전각 라틴 → ASCII (예: `ｉｇｎｏｒｅ` → `ignore`)
 - **Zero-width 문자 제거**: U+200B/C/D/E/F, U+FEFF, U+00AD, U+2060-2064, U+180E, Unicode Tag Block (U+E0000-E007F)
-- **호모글리프 치환**: 키릴 문자 а→a, е→e, о→o, р→p, с→c 등 (18개 매핑)
+- **호모글리프 치환**: 키릴 문자 а→a, е→e, о→o, р→p, с→c 등 (38개 매핑: 키릴, 그리스, 우크라이나)
+- **분음 기호 제거**: NFKC 후 결합 기호 제거 (예: `i̇gnore` → `ignore`)
+- **HTML 숫자 엔티티 디코딩**: `&#73;`, `&#x49;` 등 디코딩하여 엔티티 기반 우회 방지
 - **거부**: Zero-width 문자 비율이 임계치(기본 10%) 초과 시
 - 정규화된 텍스트를 `GuardResult.Allowed(hints = ["normalized:$text"])`로 반환 — 이후 단계는 정리된 텍스트를 검사
 
@@ -178,7 +180,13 @@ class DefaultInputValidationStage(
 class DefaultInjectionDetectionStage : InjectionDetectionStage
 ```
 
-28개 정규식 패턴으로 프롬프트 인젝션 공격을 탐지합니다:
+~100개 정규식 패턴(78개 공유 + 22개 입력 전용)으로 프롬프트 인젝션 공격을 탐지합니다:
+
+**패턴 아키텍처**: 패턴은 두 계층으로 분리됩니다:
+- `InjectionPatterns.SHARED` — 입력 Guard와 `ToolOutputSanitizer`가 공유하는 78개 패턴
+- `DefaultInjectionDetectionStage.SUSPICIOUS_PATTERNS` — SHARED + 22개 입력 전용 패턴
+
+**패턴 카테고리:**
 
 - **역할 변경 시도**: `"ignore previous"`, `"you are now"`, `"act as"`
 - **시스템 프롬프트 추출**: `"show me your prompt"`, `"repeat your instructions"`
@@ -189,6 +197,9 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage
 - **권한 상승**: `"developer mode"`, `"system override"`
 - **안전 필터 우회**: `"override safety filter"`, `"override content policy"`
 - **Many-shot 탈옥**: 3개 이상 연속 `example N` 마커
+- **자격증명 추출**: 한국어 자격증명/비밀번호 추출 시도 (4개 패턴)
+- **데이터 유출**: HTTP를 통한 데이터 유출 (fetch/send 패턴)
+- **DAN**: "Do Anything Now" 탈옥 탐지
 
 #### Layer 1: 분류 (opt-in)
 
@@ -258,7 +269,7 @@ class ToolOutputSanitizer {
 ```
 
 - 도구 출력을 데이터-명령어 분리 마커로 래핑
-- 인젝션 패턴 제거 (역할 오버라이드, 시스템 구분자, 프롬프트 오버라이드, 데이터 유출 시도)
+- `InjectionPatterns.SHARED`(입력 Guard와 공유하는 78개 패턴)를 사용하여 인젝션 패턴 제거 — 역할 오버라이드, 시스템 구분자, 프롬프트 오버라이드, 데이터 유출 시도
 - 탐지된 패턴 → `[SANITIZED]`로 대체
 - `ToolCallOrchestrator`에 선택적 파라미터로 통합
 
@@ -295,9 +306,17 @@ class OutputGuardPipeline(
 | 단계 | Order | 기본값 | 설명 |
 |------|-------|--------|------|
 | `SystemPromptLeakageOutputGuard` | 5 | opt-in | 카나리 토큰 + 유출 패턴 탐지 |
-| `PiiMaskingOutputGuard` | 10 | opt-in | PII 마스킹 (전화번호, 이메일, 주민번호, 신용카드) |
+| `PiiMaskingOutputGuard` | 10 | opt-in | PII 마스킹 (아래 패턴 목록 참조) |
 | `DynamicRuleOutputGuard` | 15 | opt-in | 런타임 설정 가능 규칙 (REST API 관리) |
 | `RegexPatternOutputGuard` | 20 | opt-in | 정적 정규식 패턴 필터링 |
+
+**PII 마스킹 패턴 평가 순서** (KR → INTL → COMMON, 구체적 → 일반적):
+
+| 그룹 | 패턴 |
+|------|------|
+| KR | 주민등록번호, 전화번호, 운전면허번호, 여권번호 |
+| INTL | IBAN, US SSN, JP My Number |
+| COMMON | 신용카드번호, 이메일, IPv4 주소 |
 
 **결과 유형:**
 - `Allowed` — 응답 그대로 통과
@@ -435,6 +454,13 @@ class BusinessRuleGuard : GuardStage {
     }
 }
 ```
+
+### Guard 차단율 모니터
+
+`guard/blockrate/` 패키지는 Guard 차단율에 대한 슬라이딩 윈도우 이상 탐지를 제공합니다:
+
+- **GuardBlockRateMonitor**: 설정 가능한 슬라이딩 윈도우에서 거부된 요청의 비율을 추적합니다. 차단율이 임계치를 초과하면 알림을 발생시킵니다 — 악의적 트래픽의 급증이나 패턴 업데이트 후 false positive 회귀를 탐지하는 데 유용합니다.
+- **GuardBlockRateHook**: Guard 거부 이벤트를 모니터에 전달하는 이벤트 기반 `AfterAgentCompleteHook`입니다. Hook 시스템과 통합되어(fail-open) 모니터링 실패가 에이전트 실행을 차단하지 않습니다.
 
 ---
 

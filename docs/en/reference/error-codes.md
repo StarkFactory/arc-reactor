@@ -347,6 +347,73 @@ request(s). If the trial succeeds, the circuit closes; if it fails, the circuit 
 
 ---
 
+### `BUDGET_EXHAUSTED`
+
+| Field | Value |
+|---|---|
+| Default message | `Token budget exhausted. Response may be incomplete.` |
+| HTTP status (chat endpoint) | `200 OK` (partial response) or `500 Internal Server Error` via default mapping |
+| When raised | `StepBudgetTracker` determines the token budget is spent before the ReAct loop completes |
+
+**Details.** When `arc.reactor.budget.max-tokens-per-request` is set to a non-zero value,
+`StepBudgetTracker` monitors cumulative token usage across each ReAct step. Once the budget
+is exhausted, the executor terminates the loop early and returns whatever partial content has
+been generated so far. If partial content exists, the response is returned with `success: true`
+and `BUDGET_EXHAUSTED` in the metadata. If no content was generated before the budget ran out,
+the response is returned as a failure with `BUDGET_EXHAUSTED`.
+
+Default budget: 0 (unlimited, disabled). Set `arc.reactor.budget.max-tokens-per-request` to
+enable budget enforcement.
+
+**Client action.** The response may be incomplete. If the answer is insufficient, increase the
+token budget via `arc.reactor.budget.max-tokens-per-request` or simplify the request to require
+fewer ReAct steps.
+
+**Example response:**
+```json
+{
+  "content": "Based on what I found so far...",
+  "success": true,
+  "model": "gemini-2.5-flash",
+  "toolsUsed": ["search_web"],
+  "errorMessage": null,
+  "errorCode": "BUDGET_EXHAUSTED"
+}
+```
+
+---
+
+### `PLAN_VALIDATION_FAILED`
+
+| Field | Value |
+|---|---|
+| Default message | `Plan validation failed. The plan contains invalid or unauthorized tools.` |
+| HTTP status (chat endpoint) | `400 Bad Request` |
+| When raised | `PLAN_EXECUTE` mode generates a plan that references tools not present in the allowed tool set |
+
+**Details.** In `PLAN_EXECUTE` mode, the agent first asks the LLM to produce a structured plan
+of tool calls before executing them. The plan is validated against the currently registered and
+permitted tool set. If the plan contains tool names that do not exist or that the user is not
+authorized to use, the executor rejects the plan immediately without executing any steps and
+returns `PLAN_VALIDATION_FAILED`.
+
+**Client action.** Check the tool permissions and plan configuration. Ensure that the tools
+referenced in the plan are registered and that the user has the required permissions. If the
+LLM is hallucinating tool names, consider providing an explicit tool list in the system prompt.
+
+**Example response:**
+```json
+{
+  "content": null,
+  "success": false,
+  "model": "gemini-2.5-flash",
+  "toolsUsed": [],
+  "errorMessage": "Plan validation failed. The plan contains invalid or unauthorized tools."
+}
+```
+
+---
+
 ### `UNKNOWN`
 
 | Field | Value |
