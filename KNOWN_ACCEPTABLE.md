@@ -158,7 +158,7 @@
 | `TeamsWebhookClient.kt` SSRF integration test gap | P4 | 핵심 SSRF 로직은 SsrfProtectionTest에서 단위 테스트. 통합 경로만 미커버 | 2026-03-13 |
 | `StructuredOutputValidator/Repairer` YAML test gap | FP | False positive — StructuredOutputTest+ValidatorTest에서 YAML 포맷 8개 테스트 | 2026-03-13 |
 | `AuthController.kt:64` 403 uses AuthResponse not ErrorResponse | P4 | register()는 ResponseEntity<AuthResponse> 타입. 일관된 반환 타입 설계 | 2026-03-13 |
-| `ArcReactorSchedulerConfiguration.kt:57` waitForTasksToComplete 미설정 | P4 | executeJob catch(Exception)이 InterruptedException 처리 | 2026-03-13 |
+| `ArcReactorSchedulerConfiguration.kt:57` waitForTasksToComplete 미설정 | P4 | runScheduledJob catch(Exception)이 InterruptedException 처리 | 2026-03-13 |
 | `WebhookNotificationHook.kt:40` WebClient.create() 미관리 | P4 | Reactor Netty 글로벌 이벤트 루프 공유. 리소스 누수 아님 | 2026-03-13 |
 | `ErrorReportController.kt:130` blank apiKey bypass | P4 | 설계 의도 — KDoc "Blank = no auth required". 선택적 모듈, 사용자 책임 | 2026-03-13 |
 | `AgentProperties.kt:214` default canary seed | P4 | 오픈소스 프로젝트. 코드 코멘트로 변경 권고. 운영 가이드 수준 | 2026-03-13 |

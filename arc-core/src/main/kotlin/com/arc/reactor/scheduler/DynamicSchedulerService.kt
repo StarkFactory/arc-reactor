@@ -64,8 +64,8 @@ private val logger = KotlinLogging.logger {}
  * ## 크론 스케줄링 흐름
  * 1. 시작 시: 스토어에서 활성화된 모든 작업을 로딩하고 크론 트리거를 등록한다
  * 2. 작업 생성/갱신: 기존 트리거를 취소하고 새 트리거를 등록한다
- * 3. 크론 트리거 발동: executeJob() -> runJobWithRetryAndTimeout() -> executeJobContent()
- * 4. executeJobContent()에서 jobType에 따라 MCP_TOOL 또는 AGENT 모드로 분기
+ * 3. 크론 트리거 발동: runScheduledJob() -> runJobWithTimeoutAndRetry() -> dispatchJobByType()
+ * 4. dispatchJobByType()에서 jobType에 따라 MCP_TOOL 또는 AGENT 모드로 분기
  * 5. 실행 결과를 Slack/Teams로 전송하고, 실행 이력을 기록한다
  *
  * ## 시스템 프롬프트 결정 순서 (AGENT 모드)
@@ -178,12 +178,12 @@ class DynamicSchedulerService(
     fun trigger(id: String): String {
         val job = store.findById(id) ?: return "Job not found: $id"
         // 수동 트리거는 API 호출이므로 runBlocking 허용 (크론 스레드가 아님)
-        return runBlocking(Dispatchers.IO) { executeJob(job) }
+        return runBlocking(Dispatchers.IO) { runScheduledJob(job) }
     }
 
     fun dryRun(id: String): String {
         val job = store.findById(id) ?: return "Job not found: $id"
-        return runBlocking(Dispatchers.IO) { executeDryRun(job) }
+        return runBlocking(Dispatchers.IO) { dryRunScheduledJob(job) }
     }
 
     fun getExecutions(jobId: String, limit: Int): List<ScheduledJobExecution> =
@@ -200,7 +200,7 @@ class DynamicSchedulerService(
             val zone = ZoneId.of(job.timezone)
             val trigger = CronTrigger(job.cronExpression, zone)
             // TaskScheduler 스레드를 즉시 반환하고 IO 디스패처에서 비동기 실행
-            val future = taskScheduler.schedule({ jobScope.launch { executeJob(job) } }, trigger)
+            val future = taskScheduler.schedule({ jobScope.launch { runScheduledJob(job) } }, trigger)
             if (future != null) {
                 scheduledFutures[job.id] = future
                 val target = when (job.jobType) {
@@ -294,14 +294,14 @@ class DynamicSchedulerService(
         runBlocking { mutexFor(id).withLock { /* in-flight 실행 완료 대기 */ } }
     }
 
-    private suspend fun executeJob(job: ScheduledJob): String = mutexFor(job.id).withLock {
+    private suspend fun runScheduledJob(job: ScheduledJob): String = mutexFor(job.id).withLock {
         logger.info { "Executing scheduled job: ${job.name} [${job.jobType}]" }
         store.updateExecutionResult(job.id, JobExecutionStatus.RUNNING, null)
 
         val startedAt = Instant.now()
         var status = "failure"
         try {
-            val result = runJobWithRetryAndTimeout(job)
+            val result = runJobWithTimeoutAndRetry(job)
             status = "success"
             handleJobSuccess(job, result, startedAt)
         } catch (e: Exception) {
@@ -332,11 +332,11 @@ class DynamicSchedulerService(
         return errorMsg
     }
 
-    private suspend fun executeDryRun(job: ScheduledJob): String {
+    private suspend fun dryRunScheduledJob(job: ScheduledJob): String {
         logger.info { "Dry-run scheduled job: ${job.name} [${job.jobType}]" }
         val startedAt = Instant.now()
         return try {
-            val result = runJobWithRetryAndTimeout(job)
+            val result = runJobWithTimeoutAndRetry(job)
             val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
             recordExecution(job, JobExecutionStatus.SUCCESS, result, durationMs, true, startedAt)
             logger.info { "Dry-run completed: ${job.name}" }
@@ -351,7 +351,7 @@ class DynamicSchedulerService(
         }
     }
 
-    private suspend fun runJobWithRetryAndTimeout(job: ScheduledJob): String {
+    private suspend fun runJobWithTimeoutAndRetry(job: ScheduledJob): String {
         val timeoutMs = resolveJobTimeout(job)
         return try {
             withTimeout(timeoutMs) { runWithRetry(job) }
@@ -368,11 +368,11 @@ class DynamicSchedulerService(
     }
 
     private suspend fun runWithRetry(job: ScheduledJob): String {
-        if (!job.retryOnFailure) return executeJobContent(job)
+        if (!job.retryOnFailure) return dispatchJobByType(job)
         var lastException: Exception? = null
         for (attempt in 1..job.maxRetryCount.coerceAtLeast(1)) {
             try {
-                return executeJobContent(job)
+                return dispatchJobByType(job)
             } catch (e: Exception) {
                 e.throwIfCancellation()
                 lastException = e
@@ -385,14 +385,14 @@ class DynamicSchedulerService(
         throw lastException ?: IllegalStateException("All retries failed for job '${job.name}'")
     }
 
-    private suspend fun executeJobContent(job: ScheduledJob): String = when (job.jobType) {
-        ScheduledJobType.MCP_TOOL -> executeMcpToolJobSuspend(job)
-        ScheduledJobType.AGENT -> executeAgentJobSuspend(job)
+    private suspend fun dispatchJobByType(job: ScheduledJob): String = when (job.jobType) {
+        ScheduledJobType.MCP_TOOL -> runMcpToolJob(job)
+        ScheduledJobType.AGENT -> runAgentJob(job)
     }
 
     // -- MCP_TOOL mode ----------------------------------------------------------
 
-    private suspend fun executeMcpToolJobSuspend(job: ScheduledJob): String {
+    private suspend fun runMcpToolJob(job: ScheduledJob): String {
         val serverName = job.mcpServerName
             ?: throw IllegalStateException("mcpServerName is required for MCP_TOOL job: ${job.name}")
         val toolName = job.toolName
@@ -407,10 +407,10 @@ class DynamicSchedulerService(
         val tool = tools.find { it.name == toolName }
             ?: throw IllegalStateException("Tool '$toolName' not found on server '$serverName'")
 
-        return executeToolWithPolicies(job, tool)
+        return invokeToolWithPolicies(job, tool)
     }
 
-    private suspend fun executeToolWithPolicies(job: ScheduledJob, tool: ToolCallback): String {
+    private suspend fun invokeToolWithPolicies(job: ScheduledJob, tool: ToolCallback): String {
         val baseArguments: Map<String, Any?> = job.toolArguments.mapValues { (_, v) ->
             if (v is String) resolveTemplateVariables(v, job) else v
         }
@@ -506,7 +506,7 @@ class DynamicSchedulerService(
 
     // -- AGENT mode -------------------------------------------------------------
 
-    private suspend fun executeAgentJobSuspend(job: ScheduledJob): String {
+    private suspend fun runAgentJob(job: ScheduledJob): String {
         val executor = agentExecutor
             ?: agentExecutorProvider?.invoke()
             ?: throw IllegalStateException("AgentExecutor not available for AGENT job '${job.name}'. " +
