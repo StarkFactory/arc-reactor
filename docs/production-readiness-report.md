@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T06:25:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T06:45:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -822,5 +822,33 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 4. **누적 기능 테스트 63/63 PASS** (R2:15 + R8:12 + R14:16 + R20:20)
 
 **수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 21 — 2026-03-28T06:45+09:00
+
+**렌즈**: MCP 4순환 (7시간+ 안정성 + Atlassian 도구별 라우팅 정밀 검증)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| MCP 서버 상태 | PASS | 2/2 CONNECTED (7시간+ 연속) |
+| MCP 보안 정책 | PASS | allowedServerNames 정상 |
+| Jira 라우팅 | PASS | jira_search_issues 정확 선택 |
+| **Confluence 라우팅** | **FAIL** | 도구 미선택 → grounding 차단 |
+| Bitbucket 라우팅 | PASS | bitbucket_list_prs 정확 선택 |
+| Work 라우팅 | PASS | work_morning_briefing 정확 선택 |
+| **멀티도구 라우팅** | **FAIL** | jira+confluence 대신 work 도구로 폴백 |
+| 연결 사이클 | PASS | disconnect→reconnect 정상, 11 tools 복원 |
+| Dashboard | PASS | 418 응답, 121 차단, Confluence 104건 |
+
+**발견**:
+1. **7시간+ MCP 연결 안정** — 21 Round 동안 연결 끊김 0건 (atlassian updatedAt 5.5시간 전)
+2. **Confluence 라우팅 실패** — LLM이 Confluence 도구를 선택하지 않음. Jira(53건), Bitbucket(1건), Work(20건)은 정상 라우팅되지만 Confluence 직접 호출은 grounding 차단으로 실패. 과거 Confluence 104건은 다른 질문 패턴에서 성공한 것
+3. **Dashboard 추이**: R11(323응답) → R17(365응답) → R21(418응답) — 꾸준히 증가
+4. **도구 패밀리 분포**: confluence(104) > jira(53) > work(20) > bitbucket(1) — Confluence가 가장 많이 사용됨
+
+**수정**: 없음 (Confluence 라우팅은 upstream auth + semantic matching 복합 이슈)
 **커밋**: 보고서 업데이트
 
