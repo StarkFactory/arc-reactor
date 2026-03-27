@@ -103,10 +103,14 @@ class DefaultToolDependencyGraph : ToolDependencyGraph {
         if (requestedTools.isEmpty()) {
             return ToolExecutionPlan(layers = emptyList(), totalTools = 0)
         }
-        // 요청된 도구만으로 부분 그래프 구성
         val subDeps = buildSubGraph(requestedTools)
-        detectCycleOrThrow(subDeps)
-        val layers = topologicalSort(subDeps)
+        val cycle = detectCycles(subDeps)
+        if (cycle != null) {
+            throw IllegalStateException(
+                "순환 의존성: ${cycle.joinToString(" → ")}"
+            )
+        }
+        val layers = buildTopologicalOrder(subDeps)
         logger.debug {
             "실행 계획 생성: ${layers.size}개 계층, " +
                 "도구=${requestedTools}"
@@ -119,18 +123,23 @@ class DefaultToolDependencyGraph : ToolDependencyGraph {
 
     override fun validate(): List<String> {
         val errors = mutableListOf<String>()
-        // 자기 참조 검사
-        for ((tool, deps) in dependencies) {
-            if (tool in deps) {
-                errors += "자기 참조 의존성: $tool → $tool"
-            }
-        }
-        // 순환 의존성 검사
-        val cycle = detectCycle(dependencies)
+        errors += validateDependency()
+        val cycle = detectCycles(dependencies)
         if (cycle != null) {
             errors += "순환 의존성 발견: ${cycle.joinToString(" → ")}"
         }
         return errors
+    }
+
+    /**
+     * 개별 의존성의 유효성을 검증한다.
+     *
+     * 자기 참조 의존성을 검출하여 오류 메시지 목록으로 반환한다.
+     */
+    private fun validateDependency(): List<String> {
+        return dependencies
+            .filter { (tool, deps) -> tool in deps }
+            .map { (tool, _) -> "자기 참조 의존성: $tool → $tool" }
     }
 
     /**
@@ -143,28 +152,20 @@ class DefaultToolDependencyGraph : ToolDependencyGraph {
         tools: Set<String>
     ): Map<String, Set<String>> {
         return tools.associateWith { tool ->
-            (dependencies[tool] ?: emptySet()).filter { it in tools }.toSet()
+            (dependencies[tool] ?: emptySet())
+                .filter { it in tools }.toSet()
         }
     }
 
     /**
      * Kahn 알고리즘 기반 위상 정렬로 실행 계층을 생성한다.
      *
-     * 진입 차수(in-degree)가 0인 도구를 같은 계층에 배치하고,
-     * 해당 도구를 제거한 뒤 다음 계층을 반복적으로 생성한다.
+     * 선행 의존이 모두 충족된 도구를 같은 계층에 배치하고,
+     * 해당 도구를 완료 처리한 뒤 다음 계층을 반복 생성한다.
      */
-    private fun topologicalSort(
+    private fun buildTopologicalOrder(
         subDeps: Map<String, Set<String>>
     ): List<ToolExecutionLayer> {
-        val inDegree = subDeps.keys
-            .associateWith { 0 }.toMutableMap()
-        for ((_, deps) in subDeps) {
-            for (dep in deps) {
-                inDegree[dep] = (inDegree[dep] ?: 0) + 1
-            }
-        }
-        // 역방향: 진입 차수는 "이 도구에 의존하는 도구 수"
-        // 수정: 실제로는 "이 도구가 의존하는 도구 수" 기준
         val remaining = subDeps.keys.toMutableSet()
         val satisfied = mutableSetOf<String>()
         val layers = mutableListOf<ToolExecutionLayer>()
@@ -186,25 +187,11 @@ class DefaultToolDependencyGraph : ToolDependencyGraph {
     }
 
     /**
-     * 순환 의존성이 있으면 예외를 던진다.
-     */
-    private fun detectCycleOrThrow(
-        subDeps: Map<String, Set<String>>
-    ) {
-        val cycle = detectCycle(subDeps)
-        if (cycle != null) {
-            throw IllegalStateException(
-                "순환 의존성: ${cycle.joinToString(" → ")}"
-            )
-        }
-    }
-
-    /**
      * DFS 기반 순환 의존성 검출.
      *
      * @return 순환 경로 (없으면 null)
      */
-    private fun detectCycle(
+    private fun detectCycles(
         graph: Map<String, Set<String>>
     ): List<String>? {
         val visited = mutableSetOf<String>()
