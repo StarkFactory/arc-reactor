@@ -1,40 +1,37 @@
 ---
 paths:
-  - "src/test/**/*.kt"
+  - "*/src/test/**/*.kt"
 ---
 
 # Testing Rules
 
 ## Framework
 
-- JUnit 5 (`org.junit.jupiter.api.Assertions.*`) + MockK + Kotest assertions only
-- Kotest: matchers only (`shouldBe`, `shouldContain`). Do not use Kotest runner
-- `runTest { }` for coroutine tests (from `kotlinx-coroutines-test`)
+- JUnit 5 + MockK + Kotest assertions only (Kotest runner 사용 금지)
+- `runTest { }` for 코루틴 테스트 (`kotlinx-coroutines-test`)
+- suspend mock: `coEvery`/`coVerify`
 
 ## Shared Fixtures
 
-- `AgentTestFixture` — provides ChatClient, RequestSpec, CallResponseSpec, StreamResponseSpec mock setup
-  - `mockCallResponse(content)` — simple success response
-  - `mockCallWithToolCalls(toolName, args, finalContent)` — tool call → final response
-  - `mockStreamResponse(chunks)` — streaming chunk response
-  - `TrackingTool` — spy for verifying tool invocations
-- `AgentResultAssertions` — extension functions:
-  - `result.assertSuccess()` — prints errorMessage on failure
-  - `result.assertFailure()` — prints content on unexpected success
-  - `result.assertErrorContains("text")` — partial error message matching
-  - `result.assertErrorCode(AgentErrorCode.RATE_LIMITED)` — error code assertion
+- `AgentTestFixture` — ChatClient mock setup
+  - `mockCallResponse(content)` — 단순 성공
+  - `mockCallWithToolCalls(toolName, args, finalContent)` — 도구 호출 → 최종 응답
+  - `mockStreamResponse(chunks)` — 스트리밍 청크
+  - `TrackingTool` — 도구 호출 추적 spy
+- `AgentResultAssertions` — 결과 검증
+  - `assertSuccess()`, `assertFailure()`, `assertErrorContains("text")`, `assertErrorCode(code)`
 
-## Conventions
+## 규칙
 
-- All assertions must have failure messages: `assertTrue(condition) { "Expected X but got Y" }`
-- `@Nested` inner classes for test grouping (e.g., `inner class WhenGuardRejects`)
-- Use `assertInstanceOf<Type>(value)` — returns cast object for subsequent assertions
-- Streaming tests must mock `requestSpec.options(any<ChatOptions>())`
-- Use `returnsMany` for sequential ReAct loop response setup
+- **IMPORTANT: 모든 assertion에 실패 메시지 필수**: `assertTrue(x) { "Expected Y" }`
+- `@Nested` inner class로 테스트 그룹화
+- `assertInstanceOf<Type>(value)` 사용 (캐스트된 객체 반환)
+- 스트리밍 테스트: `requestSpec.options(any<ChatOptions>())` 명시적 mock
+- `returnsMany`로 ReAct 루프 순차 응답 설정
 
-## Anti-patterns
+## 금지 패턴
 
-- Do not use `assertTrue(x is Type)` → use `assertInstanceOf<Type>(x)` instead
-- Do not use `System.currentTimeMillis()` for timing tests → use `AtomicInteger` concurrency counting
-- Do not use bare assertions (`assertTrue(x)`, `assertNotNull(y)`) → always include failure message
-- Do not run multiple agents modifying the same files and testing simultaneously (causes flaky tests)
+- `assertTrue(x is Type)` → `assertInstanceOf<Type>(x)` 사용
+- `System.currentTimeMillis()` → `AtomicInteger` 동시성 카운팅
+- 메시지 없는 assertion (`assertTrue(x)`) → `assertTrue(x) { "reason" }`
+- 동일 파일을 여러 에이전트가 동시 수정+테스트 금지 (flaky 원인)
