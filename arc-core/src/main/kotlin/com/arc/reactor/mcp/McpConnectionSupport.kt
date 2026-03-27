@@ -4,6 +4,9 @@ import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpTransportType
 import com.arc.reactor.tool.ToolCallback
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Timer
 import io.modelcontextprotocol.client.McpClient
 import io.modelcontextprotocol.client.McpSyncClient
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport
@@ -17,6 +20,7 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
@@ -82,6 +86,7 @@ internal data class McpConnectionHandle(
  * @param allowPrivateAddresses 프라이빗 주소 허용 여부
  * @param allowedStdioCommandsProvider STDIO 허용 명령어 집합 제공 함수
  * @param onConnectionError 연결 오류 발생 시 호출되는 콜백 (서버 이름)
+ * @param meterRegistry Micrometer 레지스트리 (선택). null이면 연결 메트릭을 기록하지 않는다.
  */
 internal class McpConnectionSupport(
     private val connectionTimeoutMs: Long,
@@ -90,29 +95,66 @@ internal class McpConnectionSupport(
     private val allowedStdioCommandsProvider: () -> Set<String> = {
         McpSecurityConfig.DEFAULT_ALLOWED_STDIO_COMMANDS
     },
-    private val onConnectionError: (serverName: String) -> Unit = {}
+    private val onConnectionError: (serverName: String) -> Unit = {},
+    private val meterRegistry: MeterRegistry? = null
 ) {
 
     companion object {
         /** 탭(0x09)과 개행(0x0A)을 제외한 0x20 미만의 제어 문자를 매칭한다. */
         private val UNSAFE_CONTROL_CHAR_REGEX = Regex("[\\x00-\\x08\\x0B-\\x1F]")
+
+        internal const val METRIC_CONNECTION_ATTEMPTS = "arc.mcp.connection.attempts"
+        internal const val METRIC_CONNECTION_LATENCY = "arc.mcp.connection.latency"
     }
 
     /**
      * MCP 서버에 대한 전송 연결을 열고 도구를 로딩한다.
      *
+     * 연결 시도 횟수와 소요 시간을 Micrometer 메트릭으로 기록한다.
+     *
      * @param server MCP 서버 설정
      * @return 연결 핸들, 또는 연결 실패 시 null
      */
     fun open(server: McpServer): McpConnectionHandle? {
+        val startNanos = System.nanoTime()
         val client = when (server.transportType) {
             McpTransportType.STDIO -> connectStdio(server)
             McpTransportType.SSE -> connectSse(server)
             McpTransportType.HTTP -> connectHttp(server)
-        } ?: return null
+        }
+        val elapsedNanos = System.nanoTime() - startNanos
+        val success = client != null
+
+        recordConnectionAttempt(server.name, success)
+        if (success) {
+            recordConnectionLatency(server.name, elapsedNanos)
+        }
+
+        if (client == null) return null
 
         val tools = loadToolCallbacks(client, server.name)
         return McpConnectionHandle(client = client, tools = tools)
+    }
+
+    /** 연결 시도 카운터를 기록한다. */
+    private fun recordConnectionAttempt(serverName: String, success: Boolean) {
+        meterRegistry?.let { registry ->
+            Counter.builder(METRIC_CONNECTION_ATTEMPTS)
+                .tag("server", serverName)
+                .tag("success", success.toString())
+                .register(registry)
+                .increment()
+        }
+    }
+
+    /** 연결 소요 시간을 기록한다. */
+    private fun recordConnectionLatency(serverName: String, elapsedNanos: Long) {
+        meterRegistry?.let { registry ->
+            Timer.builder(METRIC_CONNECTION_LATENCY)
+                .tag("server", serverName)
+                .register(registry)
+                .record(elapsedNanos, TimeUnit.NANOSECONDS)
+        }
     }
 
     /**

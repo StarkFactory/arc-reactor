@@ -37,6 +37,7 @@ import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
 import com.arc.reactor.tracing.ArcReactorTracer
 import com.arc.reactor.tracing.NoOpArcReactorTracer
+import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
@@ -92,7 +93,8 @@ class ArcReactorExecutorConfiguration {
         agentModeResolverProvider: ObjectProvider<AgentModeResolver>,
         slaMetricsProvider: ObjectProvider<SlaMetrics>,
         costCalculatorProvider: ObjectProvider<CostCalculator>,
-        cacheMetricsRecorderProvider: ObjectProvider<CacheMetricsRecorder>
+        cacheMetricsRecorderProvider: ObjectProvider<CacheMetricsRecorder>,
+        meterRegistryProvider: ObjectProvider<MeterRegistry>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -130,6 +132,7 @@ class ArcReactorExecutorConfiguration {
         agentModeResolver = agentModeResolverProvider.ifAvailable,
         slaMetrics = slaMetricsProvider.ifAvailable,
         costCalculator = costCalculatorProvider.ifAvailable,
-        cacheMetricsRecorder = cacheMetricsRecorderProvider.ifAvailable
+        cacheMetricsRecorder = cacheMetricsRecorderProvider.ifAvailable,
+        meterRegistry = meterRegistryProvider.ifAvailable
     )
 }

@@ -24,6 +24,7 @@ import com.arc.reactor.rag.ingestion.RagIngestionPolicyProvider
 import com.arc.reactor.tool.ToolSelector
 import com.arc.reactor.tracing.ArcReactorTracer
 import com.arc.reactor.tracing.NoOpArcReactorTracer
+import io.micrometer.core.instrument.MeterRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,7 +46,8 @@ class ArcReactorHookAndMcpConfiguration {
     fun mcpManager(
         properties: AgentProperties,
         mcpServerStore: McpServerStore,
-        mcpSecurityPolicyProvider: McpSecurityPolicyProvider
+        mcpSecurityPolicyProvider: McpSecurityPolicyProvider,
+        meterRegistryProvider: ObjectProvider<MeterRegistry>
     ): McpManager {
         return DefaultMcpManager(
             connectionTimeoutMs = properties.mcp.connectionTimeoutMs,
@@ -57,7 +59,8 @@ class ArcReactorHookAndMcpConfiguration {
             securityConfigProvider = { mcpSecurityPolicyProvider.currentConfig() },
             store = mcpServerStore,
             reconnectionProperties = properties.mcp.reconnection,
-            allowPrivateAddresses = properties.mcp.allowPrivateAddresses
+            allowPrivateAddresses = properties.mcp.allowPrivateAddresses,
+            meterRegistry = meterRegistryProvider.ifAvailable
         )
     }
 

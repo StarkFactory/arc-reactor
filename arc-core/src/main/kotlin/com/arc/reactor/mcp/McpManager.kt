@@ -5,6 +5,7 @@ import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
+import io.micrometer.core.instrument.MeterRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -120,6 +121,7 @@ data class McpSecurityConfig(
  * @param store 서버 설정 영속 스토어 (선택)
  * @param reconnectionProperties 재연결 설정
  * @param allowPrivateAddresses 프라이빗 주소 허용 여부 (SSRF 방지 관련)
+ * @param meterRegistry Micrometer 레지스트리 (선택). null이면 연결 메트릭을 기록하지 않는다.
  * @see McpConnectionSupport 전송 연결 처리
  * @see McpReconnectionCoordinator 백그라운드 재연결
  * @see McpStoreSync 스토어 동기화
@@ -130,7 +132,8 @@ class DefaultMcpManager(
     private val securityConfigProvider: () -> McpSecurityConfig = { securityConfig },
     private val store: McpServerStore? = null,
     private val reconnectionProperties: McpReconnectionProperties = McpReconnectionProperties(),
-    private val allowPrivateAddresses: Boolean = false
+    private val allowPrivateAddresses: Boolean = false,
+    private val meterRegistry: MeterRegistry? = null
 ) : McpManager, AutoCloseable {
 
     /** 서버 이름 → 서버 설정 매핑 */
@@ -161,7 +164,8 @@ class DefaultMcpManager(
         maxToolOutputLengthProvider = { currentSecurityConfig().maxToolOutputLength },
         allowPrivateAddresses = allowPrivateAddresses,
         allowedStdioCommandsProvider = { currentSecurityConfig().allowedStdioCommands },
-        onConnectionError = { serverName -> handleConnectionError(serverName) }
+        onConnectionError = { serverName -> handleConnectionError(serverName) },
+        meterRegistry = meterRegistry
     )
     /** 백그라운드 재연결 코디네이터 */
     private val reconnectionCoordinator = McpReconnectionCoordinator(
