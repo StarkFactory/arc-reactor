@@ -44,14 +44,14 @@ ApplicationReadyEvent
 │                                                                     │
 │  각 cron 트리거 발동 시:                                              │
 │    ┌──────────────────────────────────────────────────────┐         │
-│    │  executeJob(job)                                     │         │
+│    │  runScheduledJob(job)                                 │         │
 │    │    1. 상태 = RUNNING으로 표시                          │         │
-│    │    2. runJobWithRetryAndTimeout(job)                 │         │
+│    │    2. runJobWithTimeoutAndRetry(job)                 │         │
 │    │       ├─ withTimeout(executionTimeoutMs)             │         │
 │    │       └─ runWithRetry(job)                           │         │
-│    │           └─ executeJobContent(job)                  │         │
-│    │               ├─ MCP_TOOL → executeMcpToolJob()      │         │
-│    │               └─ AGENT   → executeAgentJob()         │         │
+│    │           └─ dispatchJobByType(job)                  │         │
+│    │               ├─ MCP_TOOL → runMcpToolJob()          │         │
+│    │               └─ AGENT   → runAgentJob()             │         │
 │    │    3. 실행 이력 기록                                   │         │
 │    │    4. Slack / Teams 알림 전송                          │         │
 │    │    5. 상태 = SUCCESS 또는 FAILED로 표시                │         │

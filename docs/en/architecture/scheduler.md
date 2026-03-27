@@ -44,14 +44,14 @@ ApplicationReadyEvent
 │                                                                     │
 │  On each cron trigger fire:                                         │
 │    ┌──────────────────────────────────────────────────────┐         │
-│    │  executeJob(job)                                     │         │
+│    │  runScheduledJob(job)                                 │         │
 │    │    1. Mark status = RUNNING                          │         │
-│    │    2. runJobWithRetryAndTimeout(job)                 │         │
+│    │    2. runJobWithTimeoutAndRetry(job)                 │         │
 │    │       ├─ withTimeout(executionTimeoutMs)             │         │
 │    │       └─ runWithRetry(job)                           │         │
-│    │           └─ executeJobContent(job)                  │         │
-│    │               ├─ MCP_TOOL → executeMcpToolJob()      │         │
-│    │               └─ AGENT   → executeAgentJob()         │         │
+│    │           └─ dispatchJobByType(job)                  │         │
+│    │               ├─ MCP_TOOL → runMcpToolJob()          │         │
+│    │               └─ AGENT   → runAgentJob()             │         │
 │    │    3. Record execution history                       │         │
 │    │    4. Send Slack / Teams notification                │         │
 │    │    5. Mark status = SUCCESS or FAILED                │         │
