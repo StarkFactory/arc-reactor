@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T01:45:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T02:05:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -423,4 +423,27 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 
 **수정**: 없음
 **커밋**: 보고서 업데이트
+
+### Round 7 — 2026-03-28T02:05+09:00
+
+**렌즈**: 보안 2순환 (Guard 7종 + 창의적 인젝션 10종 + 보안 헤더 + Rate Limit)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| GUARD 표준 4종 차단 | 3/4 PASS | GUARD-02 여전히 미차단 |
+| GUARD false positive 3종 | 3/3 PASS | 정상 통과 |
+| 보안 헤더 | 6/6 PASS | 전부 present |
+| Rate Limit | PASS | 10회 후 429 |
+| 창의적 인젝션 10종 | 7/10 PASS | 3건 false negative 발견 → 패턴 추가 |
+
+**P0 발견 및 수정**:
+- INJECT-04 간접 instruction 추출 → `indirect_prompt_extraction` 패턴 추가
+- INJECT-07 첫 메시지 번역 위장 → `indirect_prompt_extraction` 패턴 추가
+- INJECT-08 비밀 경계 탐색 → `secrecy_probe` 패턴 추가 (영문+한국어)
+
+**수정**: `InjectionPatterns.kt`에 5개 신규 패턴 추가, 테스트 전량 PASS
+**커밋**: Guard 패턴 보강
 
