@@ -71,34 +71,55 @@ class DefaultSupervisorAgent(
     private val messageBus: AgentMessageBus? = null
 ) : SupervisorAgent {
 
+    /**
+     * 쿼리를 분석하여 라우팅 → 실행 → 결과 집계를 오케스트레이션한다.
+     */
     override suspend fun delegate(command: AgentCommand): AgentResult {
-        val matched = agentRegistry.findByCapability(command.userPrompt)
+        val targets = routeToSubAgents(command)
+            ?: return agentExecutor.execute(command)
+        return collectSubAgentResults(command, targets)
+    }
 
+    /**
+     * 쿼리 키워드 기반으로 위임 대상 에이전트를 결정한다.
+     *
+     * @return 위임 대상 목록. 매칭 없으면 null (폴백 신호)
+     */
+    private fun routeToSubAgents(command: AgentCommand): List<AgentSpec>? {
+        val matched = agentRegistry.findByCapability(command.userPrompt)
         if (matched.isEmpty()) {
             logger.debug {
                 "매칭 에이전트 없음, 기본 실행으로 폴백: " +
                     "query=${command.userPrompt.take(MAX_LOG_QUERY_LENGTH)}"
             }
-            return agentExecutor.execute(command)
+            return null
         }
-
         val targets = matched.take(maxDelegations)
         logger.info {
             "Supervisor 위임 결정: agents=${targets.map { it.id }}, " +
                 "query=${command.userPrompt.take(MAX_LOG_QUERY_LENGTH)}"
         }
+        return targets
+    }
 
-        return if (targets.size == 1) {
-            executeSingle(command, targets.first())
-        } else {
-            executeMultiple(command, targets)
+    /**
+     * 대상 에이전트에 위임 실행하여 결과를 수집한다.
+     * 단일 에이전트면 직접 반환, 복수면 순차 실행 후 집계한다.
+     */
+    private suspend fun collectSubAgentResults(
+        command: AgentCommand,
+        targets: List<AgentSpec>
+    ): AgentResult {
+        if (targets.size == 1) {
+            return executeSingleAgent(command, targets.first())
         }
+        return executeMultipleAgents(command, targets)
     }
 
     /**
      * 단일 전문 에이전트에 위임하여 실행한다.
      */
-    private suspend fun executeSingle(
+    private suspend fun executeSingleAgent(
         command: AgentCommand,
         spec: AgentSpec
     ): AgentResult {
@@ -110,11 +131,11 @@ class DefaultSupervisorAgent(
     }
 
     /**
-     * 복수 전문 에이전트에 순차 위임하여 결과를 병합한다.
+     * 복수 전문 에이전트에 순차 위임하여 결과를 수집한다.
      * 각 에이전트 실행 후 결과를 메시지 버스에 발행하고,
      * 다음 에이전트에게 이전 결과를 컨텍스트로 전달한다.
      */
-    private suspend fun executeMultiple(
+    private suspend fun executeMultipleAgents(
         command: AgentCommand,
         specs: List<AgentSpec>
     ): AgentResult {
@@ -122,9 +143,7 @@ class DefaultSupervisorAgent(
         val allToolsUsed = mutableListOf<String>()
 
         for (spec in specs) {
-            val delegated = buildDelegatedCommand(
-                command, spec, results
-            )
+            val delegated = buildDelegatedCommand(command, spec, results)
             logger.debug {
                 "멀티 위임 실행: agent=${spec.id} " +
                     "(${results.size + 1}/${specs.size})"
@@ -135,7 +154,53 @@ class DefaultSupervisorAgent(
             publishResult(spec, result)
         }
 
-        return mergeResults(results, allToolsUsed)
+        return aggregateResults(results, allToolsUsed)
+    }
+
+    /**
+     * 복수 에이전트 결과를 하나로 집계한다.
+     * 성공 결과가 없으면 실패 처리를 위임한다.
+     */
+    private fun aggregateResults(
+        results: List<Pair<AgentSpec, AgentResult>>,
+        allToolsUsed: List<String>
+    ): AgentResult {
+        val successResults = results.filter { (_, r) -> r.success }
+        if (successResults.isEmpty()) {
+            return handleDelegationFailure()
+        }
+        return buildMergedResult(results, successResults, allToolsUsed)
+    }
+
+    /**
+     * 모든 위임 에이전트가 실패했을 때 실패 결과를 생성한다.
+     */
+    private fun handleDelegationFailure(): AgentResult =
+        AgentResult.failure(errorMessage = "모든 위임 에이전트가 실패했습니다")
+
+    /**
+     * 성공한 에이전트 결과를 병합하여 최종 결과를 구성한다.
+     */
+    private fun buildMergedResult(
+        results: List<Pair<AgentSpec, AgentResult>>,
+        successResults: List<Pair<AgentSpec, AgentResult>>,
+        allToolsUsed: List<String>
+    ): AgentResult {
+        val merged = successResults.joinToString("\n\n") { (spec, result) ->
+            "[${spec.name}]\n${result.content.orEmpty()}"
+        }
+        val metadata = LinkedHashMap<String, Any>()
+        metadata["delegatedAgents"] = results.map { (spec, _) -> spec.id }
+        metadata["successCount"] = successResults.size
+        metadata["totalCount"] = results.size
+
+        return AgentResult(
+            success = true,
+            content = merged,
+            toolsUsed = allToolsUsed.distinct(),
+            durationMs = results.sumOf { (_, r) -> r.durationMs },
+            metadata = metadata
+        )
     }
 
     /**
@@ -162,7 +227,6 @@ class DefaultSupervisorAgent(
 
     /**
      * 전문 에이전트의 사양에 맞게 명령을 재구성한다.
-     *
      * 시스템 프롬프트 오버라이드, 실행 모드, 도구 필터링 힌트를
      * 메타데이터에 포함한다.
      */
@@ -203,42 +267,6 @@ class DefaultSupervisorAgent(
             )
         }
         metadata["previousAgentResults"] = summaries
-    }
-
-    /**
-     * 복수 에이전트 결과를 하나로 병합한다.
-     *
-     * 모든 결과가 성공이면 내용을 결합하여 반환한다.
-     * 일부 실패 시에도 성공 결과가 있으면 부분 성공으로 처리한다.
-     */
-    private fun mergeResults(
-        results: List<Pair<AgentSpec, AgentResult>>,
-        allToolsUsed: List<String>
-    ): AgentResult {
-        val successResults = results.filter { (_, r) -> r.success }
-        if (successResults.isEmpty()) {
-            return AgentResult.failure(
-                errorMessage = "모든 위임 에이전트가 실패했습니다"
-            )
-        }
-
-        val merged = successResults.joinToString("\n\n") { (spec, result) ->
-            "[${spec.name}]\n${result.content.orEmpty()}"
-        }
-        val totalDuration = results.sumOf { (_, r) -> r.durationMs }
-
-        val metadata = LinkedHashMap<String, Any>()
-        metadata["delegatedAgents"] = results.map { (spec, _) -> spec.id }
-        metadata["successCount"] = successResults.size
-        metadata["totalCount"] = results.size
-
-        return AgentResult(
-            success = true,
-            content = merged,
-            toolsUsed = allToolsUsed.distinct(),
-            durationMs = totalDuration,
-            metadata = metadata
-        )
     }
 
     companion object {
