@@ -195,48 +195,25 @@ class SlackApiClient(
             )
         }
 
-        val matches = mutableListOf<SlackChannel>()
-        val seenIds = mutableSetOf<String>()
-        var cursor: String? = null
-        var scannedPages = 0
-
-        while (scannedPages < MAX_SEARCH_PAGES && matches.size < limit) {
-            scannedPages += 1
-            val pageResult = conversationsList(limit = CHANNEL_PAGE_SIZE, cursor = cursor)
-            if (!pageResult.ok) {
-                return FindChannelsResult(
-                    ok = false,
-                    query = normalizedQuery,
-                    exactMatch = exactMatch,
-                    channels = matches.toList(),
-                    scannedPages = scannedPages,
-                    hasMore = !pageResult.nextCursor.isNullOrBlank(),
-                    error = pageResult.error,
-                    errorDetails = pageResult.errorDetails
-                )
-            }
-
-            // Set 기반 중복 체크로 O(1) 룩업 (기존 matches.none{} O(n) 제거)
-            for (candidate in pageResult.channels) {
-                if (matches.size >= limit) break
-                if (channelNameMatches(candidate.name, normalizedQuery, exactMatch) &&
-                    seenIds.add(candidate.id)
-                ) {
-                    matches.add(candidate)
-                }
-            }
-
-            cursor = pageResult.nextCursor
-            if (cursor.isNullOrBlank()) break
-        }
+        val result = searchWithPagination(
+            fetchPage = { cursor ->
+                val r = conversationsList(limit = CHANNEL_PAGE_SIZE, cursor = cursor)
+                PageData(r.ok, r.channels, r.nextCursor, r.error, r.errorDetails)
+            },
+            getId = { it.id },
+            matches = { channelNameMatches(it.name, normalizedQuery, exactMatch) },
+            limit = limit
+        )
 
         return FindChannelsResult(
-            ok = true,
+            ok = result.ok,
             query = normalizedQuery,
             exactMatch = exactMatch,
-            channels = matches.toList(),
-            scannedPages = scannedPages,
-            hasMore = !cursor.isNullOrBlank()
+            channels = result.items,
+            scannedPages = result.scannedPages,
+            hasMore = result.hasMore,
+            error = result.error,
+            errorDetails = result.errorDetails
         )
     }
 
@@ -368,48 +345,25 @@ class SlackApiClient(
             )
         }
 
-        val matches = mutableListOf<SlackUser>()
-        val seenIds = mutableSetOf<String>()
-        var cursor: String? = null
-        var scannedPages = 0
-
-        while (scannedPages < MAX_SEARCH_PAGES && matches.size < limit) {
-            scannedPages += 1
-            val page = usersListPage(limit = USERS_PAGE_SIZE, cursor = cursor)
-            if (!page.ok) {
-                return FindUsersResult(
-                    ok = false,
-                    query = normalizedQuery,
-                    exactMatch = exactMatch,
-                    users = matches.toList(),
-                    scannedPages = scannedPages,
-                    hasMore = !page.nextCursor.isNullOrBlank(),
-                    error = page.error,
-                    errorDetails = page.errorDetails
-                )
-            }
-
-            // Set 기반 중복 체크로 O(1) 룩업 (기존 matches.none{} O(n) 제거)
-            for (candidate in page.users) {
-                if (matches.size >= limit) break
-                if (userNameMatches(candidate, normalizedQuery, exactMatch) &&
-                    seenIds.add(candidate.id)
-                ) {
-                    matches.add(candidate)
-                }
-            }
-
-            cursor = page.nextCursor
-            if (cursor.isNullOrBlank()) break
-        }
+        val result = searchWithPagination(
+            fetchPage = { cursor ->
+                val r = usersListPage(limit = USERS_PAGE_SIZE, cursor = cursor)
+                PageData(r.ok, r.users, r.nextCursor, r.error, r.errorDetails)
+            },
+            getId = { it.id },
+            matches = { userNameMatches(it, normalizedQuery, exactMatch) },
+            limit = limit
+        )
 
         return FindUsersResult(
-            ok = true,
+            ok = result.ok,
             query = normalizedQuery,
             exactMatch = exactMatch,
-            users = matches.toList(),
-            scannedPages = scannedPages,
-            hasMore = !cursor.isNullOrBlank()
+            users = result.items,
+            scannedPages = result.scannedPages,
+            hasMore = result.hasMore,
+            error = result.error,
+            errorDetails = result.errorDetails
         )
     }
 
@@ -710,6 +664,57 @@ class SlackApiClient(
 
     private fun isRetryableCode(code: String?): Boolean =
         code?.lowercase() in RETRYABLE_ERROR_CODES
+
+    /**
+     * 커서 기반 페이지네이션으로 항목을 검색하는 제네릭 헬퍼.
+     *
+     * 채널/사용자 검색의 공통 루프(페이지 순회, 중복 ID 추적, 필터링, limit 적용)를
+     * 한 곳에서 관리한다.
+     */
+    private fun <T> searchWithPagination(
+        fetchPage: (cursor: String?) -> PageData<T>,
+        getId: (T) -> String,
+        matches: (T) -> Boolean,
+        limit: Int,
+        maxPages: Int = MAX_SEARCH_PAGES
+    ): PaginationSearchResult<T> {
+        val collected = mutableListOf<T>()
+        val seenIds = mutableSetOf<String>()
+        var cursor: String? = null
+        var scannedPages = 0
+
+        while (scannedPages < maxPages && collected.size < limit) {
+            scannedPages += 1
+            val page = fetchPage(cursor)
+            if (!page.ok) {
+                return PaginationSearchResult(
+                    ok = false,
+                    items = collected.toList(),
+                    scannedPages = scannedPages,
+                    hasMore = !page.nextCursor.isNullOrBlank(),
+                    error = page.error,
+                    errorDetails = page.errorDetails
+                )
+            }
+
+            for (candidate in page.items) {
+                if (collected.size >= limit) break
+                if (matches(candidate) && seenIds.add(getId(candidate))) {
+                    collected.add(candidate)
+                }
+            }
+
+            cursor = page.nextCursor
+            if (cursor.isNullOrBlank()) break
+        }
+
+        return PaginationSearchResult(
+            ok = true,
+            items = collected.toList(),
+            scannedPages = scannedPages,
+            hasMore = !cursor.isNullOrBlank()
+        )
+    }
 
     private fun channelNameMatches(name: String, query: String, exactMatch: Boolean): Boolean {
         return if (exactMatch) {
@@ -1138,6 +1143,25 @@ private data class UsersListPageResult(
     val ok: Boolean,
     val users: List<SlackUser> = emptyList(),
     val nextCursor: String? = null,
+    val error: String? = null,
+    val errorDetails: SlackErrorDetails? = null
+)
+
+/** 페이지네이션 API 응답을 통합하는 내부 전용 컨테이너. */
+private data class PageData<T>(
+    val ok: Boolean,
+    val items: List<T> = emptyList(),
+    val nextCursor: String? = null,
+    val error: String? = null,
+    val errorDetails: SlackErrorDetails? = null
+)
+
+/** 제네릭 페이지네이션 검색 결과. 채널/사용자 검색 헬퍼 내부 전용. */
+private data class PaginationSearchResult<T>(
+    val ok: Boolean,
+    val items: List<T> = emptyList(),
+    val scannedPages: Int = 0,
+    val hasMore: Boolean = false,
     val error: String? = null,
     val errorDetails: SlackErrorDetails? = null
 )
