@@ -27,7 +27,7 @@ private val logger = KotlinLogging.logger {}
  * @see com.arc.reactor.guard.InjectionPatterns 공유 Injection 패턴
  */
 class ToolOutputSanitizer(
-    private val maxOutputLength: Int = 50_000
+    private val maxOutputLength: Int = DEFAULT_MAX_OUTPUT_LENGTH
 ) {
 
     /**
@@ -85,6 +85,9 @@ class ToolOutputSanitizer(
     }
 
     companion object {
+        /** 도구 출력의 기본 최대 문자 수 */
+        const val DEFAULT_MAX_OUTPUT_LENGTH = 50_000
+
         /**
          * Injection 탐지 패턴 목록: 공유 패턴 + 출력 전용 패턴.
          * companion object에 정의하여 hot path에서의 재컴파일을 방지한다.

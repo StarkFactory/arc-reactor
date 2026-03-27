@@ -80,10 +80,13 @@ interface McpManager {
  */
 data class McpSecurityConfig(
     val allowedServerNames: Set<String> = emptySet(),
-    val maxToolOutputLength: Int = 50_000,
+    val maxToolOutputLength: Int = DEFAULT_MAX_TOOL_OUTPUT_LENGTH,
     val allowedStdioCommands: Set<String> = DEFAULT_ALLOWED_STDIO_COMMANDS
 ) {
     companion object {
+        /** MCP 도구 출력의 기본 최대 문자 수 */
+        const val DEFAULT_MAX_TOOL_OUTPUT_LENGTH = 50_000
+
         /**
          * MCP 서버용으로 알려진 안전한 STDIO 실행 파일의 기본 집합.
          * WHY: 임의 명령 실행을 방지하기 위해 화이트리스트 방식으로 허용 명령을 제한한다.
@@ -127,7 +130,7 @@ data class McpSecurityConfig(
  * @see McpStoreSync 스토어 동기화
  */
 class DefaultMcpManager(
-    private val connectionTimeoutMs: Long = 30_000,
+    private val connectionTimeoutMs: Long = DEFAULT_CONNECTION_TIMEOUT_MS,
     private val securityConfig: McpSecurityConfig = McpSecurityConfig(),
     private val securityConfigProvider: () -> McpSecurityConfig = { securityConfig },
     private val store: McpServerStore? = null,
@@ -468,6 +471,11 @@ class DefaultMcpManager(
     /** 전체 도구 콜백 스냅샷 캐시를 무효화한다 */
     private fun invalidateAllToolCallbacksSnapshot() {
         allToolCallbacksSnapshot = null
+    }
+
+    companion object {
+        /** MCP 서버 연결 기본 타임아웃 (밀리초) */
+        const val DEFAULT_CONNECTION_TIMEOUT_MS = 30_000L
     }
 }
 

@@ -69,8 +69,8 @@ internal class ToolCallOrchestrator(
     /** Spring AI ToolCallback 해석 결과 캐시 — MethodToolCallbackProvider 호출 비용 절감. 크기 제한으로 메모리 누수 방지. */
     private val springToolCallbackCache: Cache<Long, Map<String, org.springframework.ai.tool.ToolCallback>> =
         Caffeine.newBuilder()
-            .maximumSize(500)
-            .expireAfterWrite(java.time.Duration.ofMinutes(10))
+            .maximumSize(SPRING_CALLBACK_CACHE_MAX_SIZE)
+            .expireAfterWrite(java.time.Duration.ofMinutes(SPRING_CALLBACK_CACHE_EXPIRE_MINUTES))
             .build()
 
     /** Tool 결과 캐시 (Caffeine) — 동일 입력에 대한 중복 Tool 호출 방지 */
@@ -985,6 +985,13 @@ internal class ToolCallOrchestrator(
         const val TOOL_OUTPUT_TOKEN_WARNING_RATIO = 0.3
         private const val TOOL_OUTPUT_TOKEN_WARNING_RATIO_PERCENT =
             (TOOL_OUTPUT_TOKEN_WARNING_RATIO * 100).toInt()
+
+        /** Spring AI ToolCallback 해석 결과 캐시의 최대 항목 수 */
+        private const val SPRING_CALLBACK_CACHE_MAX_SIZE = 500L
+
+        /** Spring AI ToolCallback 해석 결과 캐시의 쓰기 기반 만료 시간 (분) */
+        private const val SPRING_CALLBACK_CACHE_EXPIRE_MINUTES = 10L
+
         private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
         private val requesterAccountIdMetadataKeys = listOf("requesterAccountId", "accountId")
         private val requesterEmailMetadataKeys = listOf("requesterEmail", "userEmail", "slackUserEmail")

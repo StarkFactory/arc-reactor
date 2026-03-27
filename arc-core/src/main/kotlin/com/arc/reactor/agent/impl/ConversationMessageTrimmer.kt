@@ -51,13 +51,19 @@ internal class ConversationMessageTrimmer(
      * Caffeine [Cache]로 최대 10,000 엔트리 + 5분 접근 만료를 적용하여 메모리 누수를 방지한다.
      */
     private val tokenCache: Cache<IdentityKey, Int> = Caffeine.newBuilder()
-        .maximumSize(10_000)
-        .expireAfterAccess(5, TimeUnit.MINUTES)
+        .maximumSize(TOKEN_CACHE_MAX_SIZE)
+        .expireAfterAccess(TOKEN_CACHE_EXPIRE_MINUTES, TimeUnit.MINUTES)
         .build()
 
     companion object {
         /** 메시지당 구조적 오버헤드 (역할 태그, 구분자, 메타데이터) — 추정 토큰 수. */
         const val MESSAGE_STRUCTURE_OVERHEAD = 20
+
+        /** 메시지별 토큰 수 캐시의 최대 항목 수 */
+        private const val TOKEN_CACHE_MAX_SIZE = 10_000L
+
+        /** 메시지별 토큰 수 캐시의 접근 기반 만료 시간 (분) */
+        private const val TOKEN_CACHE_EXPIRE_MINUTES = 5L
     }
 
     /**
