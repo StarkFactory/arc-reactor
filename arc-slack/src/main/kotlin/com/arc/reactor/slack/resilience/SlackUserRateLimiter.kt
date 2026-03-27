@@ -3,6 +3,7 @@ package com.arc.reactor.slack.resilience
 import mu.KotlinLogging
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.atomic.AtomicLong
 
 private val logger = KotlinLogging.logger {}
 
@@ -21,7 +22,9 @@ class SlackUserRateLimiter(
 ) {
 
     private val windowMs = 60_000L
+    private val cleanupIntervalMs = 5_000L
     private val userWindows = ConcurrentHashMap<String, ConcurrentLinkedDeque<Long>>()
+    private val lastCleanupMs = AtomicLong(System.currentTimeMillis())
 
     /**
      * 사용자 요청을 허용할지 판별한다.
@@ -60,11 +63,15 @@ class SlackUserRateLimiter(
         }
     }
 
-    /** maxEntries 초과 시 오래된 엔트리를 정리한다. */
+    /** maxEntries 초과 시 오래된 엔트리를 정리한다. 5초 간격으로 스로틀. */
     private fun cleanup() {
         if (userWindows.size <= maxEntries) return
 
         val now = System.currentTimeMillis()
+        val lastMs = lastCleanupMs.get()
+        if (now - lastMs < cleanupIntervalMs) return
+        if (!lastCleanupMs.compareAndSet(lastMs, now)) return
+
         val cutoff = now - windowMs
         val iterator = userWindows.entries.iterator()
         while (iterator.hasNext()) {
