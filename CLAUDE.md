@@ -77,6 +77,11 @@ Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete)
 | `agent/impl/AgentExecutionCoordinator.kt` | 실행 분기, 캐시, 폴백 조율 |
 | `agent/impl/ExecutionResultFinalizer.kt` | 최종 후처리 (OutputGuard, 경계, 필터, 히스토리) |
 | `agent/impl/ToolCallOrchestrator.kt` | 도구 병렬 실행, 타임아웃, 승인 |
+| `agent/impl/WorkContextForcedToolPlanner.kt` | 강제 도구 호출 라우팅 오케스트레이터 (~310 lines) |
+| `agent/impl/WorkContextJiraPlanner.kt` | Jira 검색/프로젝트 스코프 도구 플래너 |
+| `agent/impl/WorkContextBitbucketPlanner.kt` | Bitbucket PR/리뷰/리포지토리 도구 플래너 |
+| `agent/impl/WorkContextPersonalizationPlanner.kt` | 개인 도구 (포커스, 학습, 리뷰 등) 플래너 |
+| `agent/impl/WorkContextDiscoveryPlanner.kt` | 탐색/Swagger/하이브리드 도구 플래너 |
 | `agent/impl/ManualReActLoopExecutor.kt` | Non-streaming ReAct 루프 구현 |
 | `agent/impl/StreamingExecutionCoordinator.kt` | SSE 스트리밍 실행 |
 | `autoconfigure/ArcReactorAutoConfiguration.kt` | 빈 자동 구성 |
@@ -94,6 +99,7 @@ Guard → Hook(BeforeStart) → ReAct Loop(LLM ↔ Tool) → Hook(AfterComplete)
 | `cache/CacheMetricsRecorder.kt` | 캐시 히트율 메트릭 |
 | `mcp/McpHealthPinger.kt` | MCP 서버 헬스체크 |
 | `mcp/McpToolAvailabilityChecker.kt` | 도구 가용성 사전검사 |
+| `health/VectorStoreHealthIndicator.kt` | VectorStore 연결 상태 헬스체크 |
 
 ---
 
