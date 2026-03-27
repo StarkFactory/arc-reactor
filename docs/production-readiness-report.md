@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T04:25:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T04:45:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -647,6 +647,35 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 2. Prompt Template DETAIL에서 `activeVersion: null`, `versions: []` — 버전 관리 미초기화. 신규 생성 시 자동 버전 생성 여부 확인 필요
 3. 에러 응답 일관된 구조 `{error, details, timestamp}` — 정상
 4. **기능 테스트 누적 43/43 PASS** (Round 2: 15 + Round 8: 12 + Round 14: 16)
+
+**수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 15 — 2026-03-28T04:45+09:00
+
+**렌즈**: MCP 3순환 (보안 정책 + Swagger 스펙 로드 + CRUD 멱등성 + 연결 사이클)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| MCP 서버 2개 CONNECTED | PASS | swagger 11, atlassian 37 |
+| Jira 도구 호출 | PASS | toolsUsed=[jira_search_issues] |
+| Confluence 도구 호출 | PASS | toolsUsed=[confluence_search_by_text, confluence_search] |
+| MCP 보안 정책 | PASS | allowedServerNames=[atlassian,swagger] |
+| MCP 보안 미인증 | PASS | 401 |
+| MCP Preflight | FAIL | 404 — 엔드포인트 미구현 |
+| Swagger Sources | FAIL | 404 — REST 프록시 미노출 |
+| Swagger spec_load (SSRF) | **PASS** | localhost URL 차단 (SSRF 방지 정상) |
+| MCP PUT 멱등성 | PASS | 동일 config PUT → CONNECTED 유지 |
+| MCP Disconnect/Reconnect | PASS | 끊김 → 재연결 → 11 tools 복원 |
+
+**발견**:
+1. **spec_load SSRF 차단 정상** — `localhost:18081/v3/api-docs` URL이 사설 IP로 차단됨. 보안 동작 확인
+2. MCP preflight, swagger sources REST 프록시 미구현 (404) — 계획된 기능이나 현재 빌드에 미포함
+3. **MCP 서버 안정성**: 15 Round (~5시간) 동안 연결 끊김 0건, disconnect/reconnect 사이클 정상
+4. PUT 멱등성 확인 — 동일 설정으로 PUT 시 연결 유지, 도구 수 변화 없음
 
 **수정**: 없음
 **커밋**: 보고서 업데이트
