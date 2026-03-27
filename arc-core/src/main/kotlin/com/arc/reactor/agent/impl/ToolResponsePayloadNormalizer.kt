@@ -38,7 +38,7 @@ internal object ToolResponsePayloadNormalizer {
         return runCatching {
             objectMapper.readValue(value, Any::class.java)
             true
-        }.getOrDefault(false)
+        }.getOrElse { false }
     }
 
     /** 텍스트를 `{"result": "..."}` 형태의 JSON 객체로 래핑한다. */
