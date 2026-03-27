@@ -11,8 +11,8 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 
-/** 관리자 인증 헬퍼 함수(isAdmin, isAnyAdmin, forbiddenResponse 등)의 동작 테스트 */
-class AdminAuthHelperTest {
+/** 관리자 인증 지원 함수(isAdmin, isAnyAdmin, forbiddenResponse 등)의 동작 테스트 */
+class AdminAuthSupportTest {
 
     private fun exchangeWithRole(role: UserRole?): ServerWebExchange {
         val exchange = mockk<ServerWebExchange>()

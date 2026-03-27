@@ -54,7 +54,7 @@ A `DataSource` (PostgreSQL with TimescaleDB extension) is required for the JDBC 
 | `PlatformAdminController` | `GET/POST /api/admin/platform/*` — tenant CRUD, pricing, alerts, platform health |
 | `TenantAdminController` | `GET /api/admin/tenant/*` — tenant dashboards, SLO, quota, CSV export |
 | `MetricIngestionController` | `POST /api/admin/metrics/ingest` — metric ingestion for MCP servers and external sources |
-| `AdminAuthHelper` | Shared `isAdmin()`, `isAnyAdmin()`, `forbiddenResponse()` helpers for admin controllers |
+| `AdminAuthSupport` | Shared `isAdmin()`, `isAnyAdmin()`, `forbiddenResponse()` helpers for admin controllers |
 | `AdminAuditSupport` | Shared `recordAdminAudit()` helper for audit log persistence |
 | `MetricGuardAuditPublisher` | Publishes guard audit events to ring buffer (SHA-256 hashed input for SOC 2 compliance) |
 | `PipelineHealthMonitor` | Tracks pipeline health meta-metrics (write latency, errors, drops, cache hits) |
@@ -116,7 +116,7 @@ Incoming HTTP requests pass through `TenantWebFilter`, which calls `TenantResolv
 
 **Admin access control:**
 
-Write endpoints use `AdminAuthHelper.isAdmin(exchange)` (developer admin scope), while dashboard/read-only endpoints can use `AdminAuthHelper.isAnyAdmin(exchange)` to include manager admins. Missing role fails closed as non-admin.
+Write endpoints use `AdminAuthSupport.isAdmin(exchange)` (developer admin scope), while dashboard/read-only endpoints can use `AdminAuthSupport.isAnyAdmin(exchange)` to include manager admins. Missing role fails closed as non-admin.
 
 ## Code Examples
 

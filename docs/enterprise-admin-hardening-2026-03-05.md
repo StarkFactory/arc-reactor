@@ -35,7 +35,7 @@
 
 ### 2) 권한 분리 정렬 (읽기 대시보드 vs 쓰기 관리)
 
-- `AdminAuthHelper`에 `isAnyAdmin()` 추가
+- `AdminAuthSupport`에 `isAnyAdmin()` 추가
 - `TenantAdminController`:
   - 읽기 대시보드/조회 (`overview`, `usage`, `quality`, `tools`, `cost`, `slo`, `alerts`, `quota`)는 `ADMIN_MANAGER` 허용
   - CSV export는 기존대로 개발자 관리자 전용 유지
@@ -65,7 +65,7 @@
 - `AdminPropertiesTest`: privacy 기본값/커스텀 값 검증
 - `MetricCollectionHookTest`: 기본 비식별 동작 + opt-in 저장 동작 검증
 - `AgentTracingHooksTest`: 비식별 기본 모드에서 `user_id/session_id` 미태깅 검증
-- `AdminAuthHelperTest`: `isAnyAdmin` 검증
+- `AdminAuthSupportTest`: `isAnyAdmin` 검증
 - `TenantAdminControllerTest`: `ADMIN_MANAGER` 읽기 허용 + export 제한 검증
 - `PlatformAdminControllerTest`: `ADMIN_MANAGER` 대시보드 접근 허용 검증
 - `MetricQueryServiceTest`: top users fallback(채널 기반) 검증

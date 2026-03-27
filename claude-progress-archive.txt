@@ -105,7 +105,7 @@
 
 [Build 반복 10] 2026-03-11
 - 선택: 탐색 모드 — ReAct 루프 + 스트리밍 + 자동 설정 + 컨트롤러
-- 코드 탐색: StreamingReActLoopExecutor, ManualReActLoopExecutor, ToolCallOrchestrator(병렬), ChatController(@Size), AdminAuthHelper
+- 코드 탐색: StreamingReActLoopExecutor, ManualReActLoopExecutor, ToolCallOrchestrator(병렬), ChatController(@Size), AdminAuthSupport
 - 후보 4건 검토 → 전부 기각
   - SSE tool_start/end 불일치: executeInParallel은 예외 던지지 않음, CancellationException 시 SSE 연결 자체 종료
   - maxToolCalls 병렬 초과: getAndIncrement() 원자적, 올바르게 제한

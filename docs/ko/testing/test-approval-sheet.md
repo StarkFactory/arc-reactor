@@ -260,7 +260,7 @@ GEMINI_API_KEY=$GEMINI_API_KEY ./gradlew :arc-core:test --tests "*.AdversarialRe
 | O-13 | Platform Admin | `./gradlew :arc-admin:test --tests "*.PlatformAdminControllerTest"` | 전체 엔드포인트 정상 | |
 | O-14 | Tenant Admin | `./gradlew :arc-admin:test --tests "*.TenantAdminControllerTest"` | 대시보드 5개 정상 | |
 | O-15 | CSV Export | `./gradlew :arc-admin:test --tests "*.ExportServiceTest"` | 데이터 완전성 | |
-| O-16 | Admin Auth | `./gradlew :arc-admin:test --tests "*.AdminAuthHelperTest"` | 권한 체크 일관성 | |
+| O-16 | Admin Auth | `./gradlew :arc-admin:test --tests "*.AdminAuthSupportTest"` | 권한 체크 일관성 | |
 
 ### L5 일괄 실행
 
