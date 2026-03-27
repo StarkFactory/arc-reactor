@@ -38,6 +38,9 @@ dependencies {
     // Spring AI tool annotations (@Tool, @ToolParam)
     compileOnly("org.springframework.ai:spring-ai-model")
 
+    // Cache
+    implementation("com.github.ben-manes.caffeine:caffeine:3.2.3")
+
     // Logging
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
     implementation("io.micrometer:micrometer-core")

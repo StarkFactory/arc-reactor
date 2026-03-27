@@ -1,5 +1,6 @@
 package com.arc.reactor.slack.session
 
+import com.arc.reactor.support.AsyncTestSupport
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -107,17 +108,18 @@ class SlackThreadTrackerTest {
         fun `maxEntries 초과 시 퇴거하여 크기를 제한한다`() {
             val tracker = SlackThreadTracker(maxEntries = 3)
 
-            // 5개 추적 — cleanup은 track() 내부에서 추가 전에 실행
-            // track(C4): cleanup 시 size=3 → maxEntries 이하 → 퇴거 안 함 → C4 추가 → size=4
-            // track(C5): cleanup 시 size=4 → 1개 퇴거 → size=3 → C5 추가 → size=4
+            // 5개 추적 — Caffeine maximumSize=3이므로 비동기 퇴거 발생
             tracker.track("C1", "1.0")
             tracker.track("C2", "2.0")
             tracker.track("C3", "3.0")
             tracker.track("C4", "4.0")
-            tracker.track("C5", "5.0") // cleanup 시 overflow 1 → 가장 오래된 1개 퇴거
+            tracker.track("C5", "5.0")
 
-            // 가장 최근 항목은 반드시 살아있어야 한다
-            tracker.isTracked("C5", "5.0") shouldBe true
+            // Caffeine 퇴거는 비동기 — 퇴거 완료까지 폴링
+            AsyncTestSupport.pollUntil(description = "Caffeine eviction") {
+                val surviving = (1..5).count { i -> tracker.isTracked("C$i", "$i.0") }
+                surviving <= 4
+            }
 
             // 전체 생존 수가 maxEntries+1(=4) 이하여야 한다
             val surviving = (1..5).count { i -> tracker.isTracked("C$i", "$i.0") }

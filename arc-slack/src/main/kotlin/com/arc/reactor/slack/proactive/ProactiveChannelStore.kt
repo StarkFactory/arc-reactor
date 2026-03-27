@@ -1,6 +1,8 @@
 package com.arc.reactor.slack.proactive
 
-import java.util.concurrent.ConcurrentHashMap
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
+import java.util.concurrent.TimeUnit
 
 /**
  * 선행적(proactive) 채널 설정 저장소.
@@ -34,29 +36,37 @@ data class ProactiveChannel(
  */
 class InMemoryProactiveChannelStore : ProactiveChannelStore {
 
-    private val channels = ConcurrentHashMap<String, ProactiveChannel>()
+    private val channels: Cache<String, ProactiveChannel> = Caffeine.newBuilder()
+        .maximumSize(5_000)
+        .expireAfterAccess(1, TimeUnit.HOURS)
+        .build()
 
     override fun list(): List<ProactiveChannel> =
-        channels.values.sortedBy { it.addedAt }
+        channels.asMap().values.sortedBy { it.addedAt }
 
     override fun isEnabled(channelId: String): Boolean =
-        channels.containsKey(channelId)
+        channels.getIfPresent(channelId) != null
 
     override fun add(channelId: String, channelName: String?): ProactiveChannel {
         val channel = ProactiveChannel(
             channelId = channelId,
             channelName = channelName
         )
-        channels[channelId] = channel
+        channels.put(channelId, channel)
         return channel
     }
 
-    override fun remove(channelId: String): Boolean =
-        channels.remove(channelId) != null
+    override fun remove(channelId: String): Boolean {
+        val existed = channels.getIfPresent(channelId) != null
+        channels.invalidate(channelId)
+        return existed
+    }
 
     fun seedFromConfig(channelIds: List<String>) {
         for (id in channelIds) {
-            channels.putIfAbsent(id, ProactiveChannel(channelId = id))
+            if (channels.getIfPresent(id) == null) {
+                channels.put(id, ProactiveChannel(channelId = id))
+            }
         }
     }
 }

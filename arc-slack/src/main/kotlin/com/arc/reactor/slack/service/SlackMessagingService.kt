@@ -4,13 +4,15 @@ import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.slack.model.SlackApiResult
 import com.arc.reactor.slack.metrics.NoOpSlackMetricsRecorder
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import kotlinx.coroutines.delay
 import mu.KotlinLogging
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.reactive.function.client.awaitBody
 import org.springframework.web.reactive.function.client.awaitBodilessEntity
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 private val logger = KotlinLogging.logger {}
@@ -44,7 +46,10 @@ class SlackMessagingService(
     private val responseWebClient: WebClient = WebClient.builder().build(),
     private val allowedResponseHosts: Set<String> = DEFAULT_ALLOWED_RESPONSE_HOSTS
 ) {
-    private val lastRequestTimeByChannel = ConcurrentHashMap<String, AtomicLong>()
+    private val lastRequestTimeByChannel: Cache<String, AtomicLong> = Caffeine.newBuilder()
+        .maximumSize(5_000)
+        .expireAfterAccess(1, TimeUnit.HOURS)
+        .build()
 
     /**
      * Slack 채널에 메시지를 전송한다.
@@ -183,7 +188,7 @@ class SlackMessagingService(
     }
 
     private suspend fun enforceRateLimit(channelId: String) {
-        val lastTime = lastRequestTimeByChannel.computeIfAbsent(channelId) { AtomicLong(0L) }
+        val lastTime = lastRequestTimeByChannel.get(channelId) { AtomicLong(0L) }
         val now = System.currentTimeMillis()
         val elapsed = now - lastTime.get()
         if (elapsed < RATE_LIMIT_DELAY_MS) {
