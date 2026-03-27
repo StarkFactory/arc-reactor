@@ -23,7 +23,11 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import java.lang.reflect.InvocationTargetException
+import mu.KotlinLogging
 import org.springframework.web.server.ServerWebExchange
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * 프로액티브 채널 관리 컨트롤러.
@@ -192,17 +196,30 @@ private object ProactiveChannelStoreBridge {
                 "ProactiveChannelStore does not support method: $methodName(${parameterTypes.joinToString { it.simpleName }})", e
             )
         }
-        return requireNotNull(method.invoke(store, *args)) {
-            "Proactive channel store method returned null: $methodName"
+        return try {
+            requireNotNull(method.invoke(store, *args)) {
+                "Proactive channel store method returned null: $methodName"
+            }
+        } catch (e: InvocationTargetException) {
+            logger.error(e.targetException) { "Proactive channel store invocation failed: $methodName" }
+            throw IllegalStateException("Proactive channel operation failed")
         }
     }
 
     private fun toView(channel: Any): ProactiveChannelView {
         val type = channel.javaClass
-        val channelId = type.getMethod("getChannelId").invoke(channel) as String
-        val channelName = type.getMethod("getChannelName").invoke(channel) as String?
-        val addedAt = type.getMethod("getAddedAt").invoke(channel) as Long
-        return ProactiveChannelView(channelId = channelId, channelName = channelName, addedAt = addedAt)
+        return try {
+            val channelId = type.getMethod("getChannelId").invoke(channel) as String
+            val channelName = type.getMethod("getChannelName").invoke(channel) as String?
+            val addedAt = type.getMethod("getAddedAt").invoke(channel) as Long
+            ProactiveChannelView(channelId = channelId, channelName = channelName, addedAt = addedAt)
+        } catch (e: InvocationTargetException) {
+            logger.error(e.targetException) { "Proactive channel view conversion failed" }
+            throw IllegalStateException("Proactive channel operation failed")
+        } catch (e: ClassCastException) {
+            logger.error(e) { "Proactive channel view type mismatch" }
+            throw IllegalStateException("Proactive channel operation failed")
+        }
     }
 }
 

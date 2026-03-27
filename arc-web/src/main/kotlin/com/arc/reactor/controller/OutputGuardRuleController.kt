@@ -410,7 +410,7 @@ private fun validateRegex(pattern: String): String? {
     return runCatching {
         Regex(pattern)
         null
-    }.getOrElse { it.message ?: "invalid regex" }
+    }.getOrElse { "Invalid regex pattern" }
 }
 
 /** 평가 결과를 시뮬레이션 응답 DTO로 변환한다. */
