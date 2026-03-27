@@ -86,9 +86,9 @@ class SloService(
             tenantId, Timestamp.from(from), Timestamp.from(to)
         )
         return ApdexScore.calculate(
-            satisfied = (result["satisfied"] as Number).toLong(),
-            tolerating = (result["tolerating"] as Number).toLong(),
-            frustrated = (result["frustrated"] as Number).toLong()
+            satisfied = (result["satisfied"] as? Number)?.toLong() ?: 0L,
+            tolerating = (result["tolerating"] as? Number)?.toLong() ?: 0L,
+            frustrated = (result["frustrated"] as? Number)?.toLong() ?: 0L
         )
     }
 
@@ -102,7 +102,9 @@ class SloService(
                WHERE tenant_id = ? AND time >= ? AND time < ?""",
             tenantId, Timestamp.from(from), Timestamp.from(to)
         )
-        return (result["total"] as Number).toLong() to (result["failed"] as Number).toLong()
+        val total = (result["total"] as? Number)?.toLong() ?: 0L
+        val failed = (result["failed"] as? Number)?.toLong() ?: 0L
+        return total to failed
     }
 
     /** burn rate을 계산한다. budgetTotal이 0이면 0을 반환한다. 1.0 = 예산 100% 소비, >1.0 = 초과. */

@@ -50,8 +50,8 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
 
         return TenantUsage(
             tenantId = tenantId,
-            requests = (results["requests"] as Number).toLong(),
-            tokens = (results["tokens"] as Number).toLong(),
+            requests = (results["requests"] as? Number)?.toLong() ?: 0L,
+            tokens = (results["tokens"] as? Number)?.toLong() ?: 0L,
             costUsd = results["cost"] as? BigDecimal ?: BigDecimal.ZERO
         )
     }
@@ -132,8 +132,8 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
                WHERE tenant_id = ? AND time >= ? AND time < ?""",
             tenantId, Timestamp.from(from), Timestamp.from(to)
         )
-        val total = (result["total"] as Number).toLong()
-        val successful = (result["successful"] as Number).toLong()
+        val total = (result["total"] as? Number)?.toLong() ?: 0L
+        val successful = (result["successful"] as? Number)?.toLong() ?: 0L
         return if (total == 0L) 1.0 else successful.toDouble() / total
     }
 
