@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T04:05:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T04:25:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -624,4 +624,30 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 
 **수정**: `InjectionPatterns.kt`에 7개 신규 패턴 추가 (punctuation_obfuscation 2 + korean_role_override 3 + 제한해제 1 + 불어 gap은 다음 Round)
 **커밋**: Guard 패턴 보강 (구두점 우회 + 한국어 역할 재정의)
+
+### Round 14 — 2026-03-28T04:25+09:00
+
+**렌즈**: 기능 3순환 (Persona CRUD + Template + Export + Swagger UI + 에러 핸들링)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| CHAT 기본 2종 | 2/2 PASS | 수학 정확, 스트리밍 정상 |
+| AUTH/SESSION 2종 | 2/2 PASS | 200 |
+| Persona CRUD 4종 | 4/4 PASS | GET/DETAIL/CREATE(201)/DELETE(204) |
+| Template API 3종 | 3/3 PASS | LIST/DETAIL/CREATE(201) |
+| Session Export 2종 | 2/2 PASS | JSON + Markdown 형식 |
+| Swagger UI | PASS | 302 → /swagger-ui/index.html |
+| Error handling 2종 | 2/2 PASS | 404 + 405 구조화된 응답 |
+
+**발견**:
+1. Persona CREATE에서 `active: false` 전송 시 `isActive: true`로 저장됨 — 필드명 불일치 (`active` vs `isActive`). 기능 동작에는 영향 없으나 API 계약 점검 필요
+2. Prompt Template DETAIL에서 `activeVersion: null`, `versions: []` — 버전 관리 미초기화. 신규 생성 시 자동 버전 생성 여부 확인 필요
+3. 에러 응답 일관된 구조 `{error, details, timestamp}` — 정상
+4. **기능 테스트 누적 43/43 PASS** (Round 2: 15 + Round 8: 12 + Round 14: 16)
+
+**수정**: 없음
+**커밋**: 보고서 업데이트
 
