@@ -19,6 +19,7 @@ import com.arc.reactor.scheduler.tool.CreateScheduledJobTool
 import com.arc.reactor.scheduler.tool.DeleteScheduledJobTool
 import com.arc.reactor.scheduler.tool.ListScheduledJobsTool
 import com.arc.reactor.scheduler.tool.UpdateScheduledJobTool
+import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -76,7 +77,8 @@ class SchedulerConfiguration {
         agentExecutorProvider: ObjectProvider<AgentExecutor>,
         personaStoreProvider: ObjectProvider<PersonaStore>,
         promptTemplateStoreProvider: ObjectProvider<PromptTemplateStore>,
-        executionStoreProvider: ObjectProvider<ScheduledJobExecutionStore>
+        executionStoreProvider: ObjectProvider<ScheduledJobExecutionStore>,
+        meterRegistryProvider: ObjectProvider<MeterRegistry>
     ): DynamicSchedulerService = DynamicSchedulerService(
         store = scheduledJobStore,
         taskScheduler = schedulerTaskScheduler,
@@ -90,7 +92,8 @@ class SchedulerConfiguration {
         personaStore = personaStoreProvider.ifAvailable,
         promptTemplateStore = promptTemplateStoreProvider.ifAvailable,
         executionStore = executionStoreProvider.ifAvailable,
-        schedulerProperties = properties.scheduler
+        schedulerProperties = properties.scheduler,
+        meterRegistry = meterRegistryProvider.ifAvailable
     )
 
     @Bean

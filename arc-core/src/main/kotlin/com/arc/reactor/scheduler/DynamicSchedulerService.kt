@@ -18,6 +18,9 @@ import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Timer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,6 +46,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
@@ -89,7 +93,8 @@ class DynamicSchedulerService(
     private val personaStore: PersonaStore? = null,
     private val promptTemplateStore: PromptTemplateStore? = null,
     private val executionStore: ScheduledJobExecutionStore? = null,
-    private val schedulerProperties: SchedulerProperties = SchedulerProperties()
+    private val schedulerProperties: SchedulerProperties = SchedulerProperties(),
+    private val meterRegistry: MeterRegistry? = null
 ) : DisposableBean {
 
     companion object {
@@ -106,9 +111,18 @@ class DynamicSchedulerService(
         private const val JOB_MUTEX_CACHE_MAX_SIZE = 1000L
         private const val MESSAGE_TRUNCATION_LIMIT = 3000
         private val DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+
+        // -- Micrometer 메트릭 이름 --
+        private const val METRIC_JOB_EXECUTIONS = "arc.scheduler.job.executions"
+        private const val METRIC_JOB_DURATION = "arc.scheduler.job.duration"
+        private const val METRIC_JOBS_ACTIVE = "arc.scheduler.jobs.active"
     }
 
     private val scheduledFutures = ConcurrentHashMap<String, ScheduledFuture<*>>()
+
+    init {
+        meterRegistry?.gauge(METRIC_JOBS_ACTIVE, scheduledFutures) { it.size.toDouble() }
+    }
 
     /** 작업별 Mutex. cancel/delete와 in-flight 실행의 race condition을 방지한다. */
     private val jobMutexes: Cache<String, Mutex> =
@@ -285,12 +299,17 @@ class DynamicSchedulerService(
         store.updateExecutionResult(job.id, JobExecutionStatus.RUNNING, null)
 
         val startedAt = Instant.now()
+        var status = "failure"
         try {
             val result = runJobWithRetryAndTimeout(job)
+            status = "success"
             handleJobSuccess(job, result, startedAt)
         } catch (e: Exception) {
             e.throwIfCancellation()
+            status = if (e.message?.contains("timed out") == true) "timeout" else "failure"
             handleJobFailure(job, e, startedAt)
+        } finally {
+            recordJobMetrics(job.name, status, startedAt)
         }
     }
 
@@ -528,6 +547,23 @@ class DynamicSchedulerService(
         }
         personaStore?.getDefault()?.resolveEffectivePrompt(promptTemplateStore)?.let { return it }
         return DEFAULT_SYSTEM_PROMPT
+    }
+
+    // -- Metrics ----------------------------------------------------------------
+
+    /** 작업 실행 카운터와 소요 시간 타이머를 기록한다. */
+    private fun recordJobMetrics(jobName: String, status: String, startedAt: Instant) {
+        val registry = meterRegistry ?: return
+        Counter.builder(METRIC_JOB_EXECUTIONS)
+            .tag("job", jobName)
+            .tag("status", status)
+            .register(registry)
+            .increment()
+        val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
+        Timer.builder(METRIC_JOB_DURATION)
+            .tag("job", jobName)
+            .register(registry)
+            .record(durationMs, TimeUnit.MILLISECONDS)
     }
 
     // -- Shared helpers ---------------------------------------------------------
