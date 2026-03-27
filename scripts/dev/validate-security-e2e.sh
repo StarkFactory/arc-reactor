@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://localhost:8080}"
+BASE_URL="${BASE_URL:-http://localhost:18081}"
 TENANT_ID="${TENANT_ID:-default}"
 EMAIL="${EMAIL:-}"
 PASSWORD="${PASSWORD:-passw0rd!}"
@@ -27,7 +27,7 @@ Checks:
   - Security headers are present on responses
 
 Options:
-  --base-url <url>       Base URL (default: http://localhost:8080)
+  --base-url <url>       Base URL (default: http://localhost:18081)
   --tenant-id <value>    Tenant header for authenticated requests (default: default)
   --email <email>        Register/login test account email (default: auto-generated)
   --password <value>     Account password (default: passw0rd!)
@@ -38,7 +38,7 @@ Options:
   -h, --help             Show help
 
 Examples:
-  ./scripts/dev/validate-security-e2e.sh --base-url http://localhost:8080
+  ./scripts/dev/validate-security-e2e.sh --base-url http://localhost:18081
   ./scripts/dev/validate-security-e2e.sh --admin-token "$ADMIN_TOKEN"
 EOF
 }

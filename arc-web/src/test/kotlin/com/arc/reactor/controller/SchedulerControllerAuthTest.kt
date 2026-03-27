@@ -113,14 +113,17 @@ class SchedulerControllerAuthTest {
         @Suppress("UNCHECKED_CAST")
         val result = response.body as PaginatedResponse<ScheduledJobResponse>
 
-        assertEquals(HttpStatus.OK, response.statusCode)
-        assertEquals(1, result.items.size)
-        assertEquals("MCP server 'atlassian' is not connected", result.items[0].lastFailureReason)
+        assertEquals(HttpStatus.OK, response.statusCode) { "잡 목록 응답이 200이어야 한다" }
+        assertEquals(1, result.items.size) { "잡이 1개 반환되어야 한다" }
+        assertEquals(
+            "MCP server 'atlassian' is not connected",
+            result.items[0].lastFailureReason
+        ) { "lastFailureReason이 일치해야 한다" }
         assertEquals(
             "Job 'Release digest' failed: MCP server 'atlassian' is not connected",
             result.items[0].lastResultPreview
-        )
-        assertNull(result.items[0].lastRunAt)
+        ) { "lastResultPreview가 일치해야 한다" }
+        assertNull(result.items[0].lastRunAt) { "lastRunAt이 null이어야 한다" }
     }
 
     @Test
@@ -133,7 +136,9 @@ class SchedulerControllerAuthTest {
 
     @Test
     fun `triggerJob은(는) allows admin and returns result`() {
-        every { schedulerService.findById("job-1") } returns ScheduledJob(id = "job-1", name = "test", cronExpression = "0 0 * * *", jobType = ScheduledJobType.MCP_TOOL)
+        every { schedulerService.findById("job-1") } returns ScheduledJob(
+            id = "job-1", name = "test", cronExpression = "0 0 * * *", jobType = ScheduledJobType.MCP_TOOL
+        )
         every { schedulerService.trigger("job-1") } returns "triggered"
 
         val response = controller.triggerJob("job-1", exchange(userId = "admin-1", role = UserRole.ADMIN)).block()
@@ -146,7 +151,9 @@ class SchedulerControllerAuthTest {
 
     @Test
     fun `dryRunJob은(는) allows admin and returns dry run marker`() {
-        every { schedulerService.findById("job-1") } returns ScheduledJob(id = "job-1", name = "test", cronExpression = "0 0 * * *", jobType = ScheduledJobType.MCP_TOOL)
+        every { schedulerService.findById("job-1") } returns ScheduledJob(
+            id = "job-1", name = "test", cronExpression = "0 0 * * *", jobType = ScheduledJobType.MCP_TOOL
+        )
         every { schedulerService.dryRun("job-1") } returns "preview"
 
         val response = controller.dryRunJob("job-1", exchange(userId = "admin-1", role = UserRole.ADMIN)).block()

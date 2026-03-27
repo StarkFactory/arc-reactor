@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://localhost:8080}"
+BASE_URL="${BASE_URL:-http://localhost:18081}"
 TENANT_ID="${TENANT_ID:-default}"
 EMAIL="${EMAIL:-}"
 PASSWORD="${PASSWORD:-passw0rd!}"
@@ -31,7 +31,7 @@ Validate core agent scenarios end-to-end:
   - approval : /api/approvals auth + action semantics
 
 Options:
-  --base-url <url>          Base URL (default: http://localhost:8080)
+  --base-url <url>          Base URL (default: http://localhost:18081)
   --tenant-id <value>       Tenant ID header (default: default)
   --email <email>           Existing test user email or registration email (default: auto-generated)
   --password <value>        Existing test user password or registration password (default: passw0rd!)

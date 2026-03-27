@@ -95,7 +95,7 @@ class RagIngestionCandidateControllerTest {
             limit = 100,
             exchange = userExchange()
         )
-        assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 후보 목록 요청은 403이어야 한다" }
     }
 
     @Test
@@ -107,12 +107,12 @@ class RagIngestionCandidateControllerTest {
             exchange = adminExchange()
         )
 
-        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(HttpStatus.OK, response.statusCode) { "승인 응답이 200이어야 한다" }
         val updated = store.findById(candidate.id)
-        assertNotNull(updated, "Approved candidate should still be findable in the store")
-        assertEquals(RagIngestionCandidateStatus.INGESTED, updated!!.status)
-        assertEquals("admin-1", updated.reviewedBy)
-        assertNotNull(updated.ingestedDocumentId, "Approved candidate should have a non-null ingestedDocumentId")
+        assertNotNull(updated) { "승인된 후보가 스토어에서 조회 가능해야 한다" }
+        assertEquals(RagIngestionCandidateStatus.INGESTED, updated!!.status) { "승인된 후보 상태가 INGESTED여야 한다" }
+        assertEquals("admin-1", updated.reviewedBy) { "검토자가 admin-1이어야 한다" }
+        assertNotNull(updated.ingestedDocumentId) { "승인된 후보는 null이 아닌 ingestedDocumentId를 가져야 한다" }
         verify(exactly = 1) { vectorStore.add(any<List<org.springframework.ai.document.Document>>()) }
     }
 
@@ -125,9 +125,9 @@ class RagIngestionCandidateControllerTest {
             exchange = adminExchange()
         )
 
-        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.statusCode)
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.statusCode) { "벡터 스토어가 없으면 503이어야 한다" }
         val same = store.findById(candidate.id)
-        assertEquals(RagIngestionCandidateStatus.PENDING, same!!.status)
+        assertEquals(RagIngestionCandidateStatus.PENDING, same!!.status) { "벡터 스토어 없이 승인 실패 시 상태가 PENDING이어야 한다" }
     }
 
     @Test
@@ -139,9 +139,9 @@ class RagIngestionCandidateControllerTest {
             exchange = adminExchange()
         )
 
-        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(HttpStatus.OK, response.statusCode) { "거부 응답이 200이어야 한다" }
         val updated = store.findById(candidate.id)
-        assertEquals(RagIngestionCandidateStatus.REJECTED, updated!!.status)
-        assertEquals("admin-1", updated.reviewedBy)
+        assertEquals(RagIngestionCandidateStatus.REJECTED, updated!!.status) { "거부된 후보 상태가 REJECTED여야 한다" }
+        assertEquals("admin-1", updated.reviewedBy) { "검토자가 admin-1이어야 한다" }
     }
 }

@@ -44,7 +44,7 @@ class AdminAuditControllerTest {
             limit = 100, category = null, action = null,
             offset = 0, pageLimit = 50, exchange = userExchange()
         )
-        assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 감사 로그 요청은 403이어야 한다" }
     }
 
     @Test
@@ -60,11 +60,11 @@ class AdminAuditControllerTest {
             offset = 0, pageLimit = 50, exchange = adminExchange()
         )
 
-        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(HttpStatus.OK, response.statusCode) { "카테고리-액션 필터 요청은 200이어야 한다" }
         @Suppress("UNCHECKED_CAST")
         val body = response.body as PaginatedResponse<AdminAuditResponse>
-        assertEquals(1, body.items.size, "Should have 1 filtered audit entry")
-        assertEquals(1, body.total, "Total should match filtered count")
+        assertEquals(1, body.items.size) { "필터링된 감사 항목이 1개여야 한다" }
+        assertEquals(1, body.total) { "필터링된 전체 개수가 1이어야 한다" }
     }
 
     @Test
@@ -85,20 +85,16 @@ class AdminAuditControllerTest {
             offset = 0, pageLimit = 50, exchange = adminExchange()
         )
 
-        assertEquals(HttpStatus.OK, response.statusCode, "Admin audit list should be accessible for admins")
+        assertEquals(HttpStatus.OK, response.statusCode) { "관리자는 감사 로그 목록에 접근할 수 있어야 한다" }
         @Suppress("UNCHECKED_CAST")
         val paginated = response.body as PaginatedResponse<AdminAuditResponse>
         val rows = paginated.items
-        assertEquals(1, rows.size, "Expected exactly one audit row")
+        assertEquals(1, rows.size) { "감사 로그가 정확히 1개여야 한다" }
         assertEquals(
             maskedAdminAccountRef(rawActor),
-            rows.first().actor,
-            "Actor should expose only masked admin account identifier"
-        )
-        assertTrue(
-            !rows.first().actor.contains(rawActor),
-            "Actor should not expose raw admin account identifier"
-        )
+            rows.first().actor
+        ) { "actor는 마스킹된 관리자 계정 식별자만 노출해야 한다" }
+        assertTrue(!rows.first().actor.contains(rawActor)) { "actor에 원시 관리자 계정 식별자가 포함되지 않아야 한다" }
     }
 
     @Test
@@ -114,13 +110,13 @@ class AdminAuditControllerTest {
             offset = 1, pageLimit = 2, exchange = adminExchange()
         )
 
-        assertEquals(HttpStatus.OK, response.statusCode, "Paginated list should return 200")
+        assertEquals(HttpStatus.OK, response.statusCode) { "페이지 목록 요청은 200이어야 한다" }
         @Suppress("UNCHECKED_CAST")
         val body = response.body as PaginatedResponse<AdminAuditResponse>
-        assertEquals(5, body.total, "Total should be all matching entries")
-        assertEquals(2, body.items.size, "Should return pageLimit items")
-        assertEquals(1, body.offset, "Offset should match request")
-        assertEquals(2, body.limit, "Limit should match clamped pageLimit")
+        assertEquals(5, body.total) { "전체 항목 수가 매칭된 개수와 같아야 한다" }
+        assertEquals(2, body.items.size) { "pageLimit만큼의 항목이 반환되어야 한다" }
+        assertEquals(1, body.offset) { "오프셋이 요청값과 일치해야 한다" }
+        assertEquals(2, body.limit) { "limit이 클램핑된 pageLimit과 일치해야 한다" }
     }
 
     @Test
@@ -134,9 +130,9 @@ class AdminAuditControllerTest {
             offset = 0, pageLimit = 999, exchange = adminExchange()
         )
 
-        assertEquals(HttpStatus.OK, response.statusCode, "Should return 200")
+        assertEquals(HttpStatus.OK, response.statusCode) { "200이 반환되어야 한다" }
         @Suppress("UNCHECKED_CAST")
         val body = response.body as PaginatedResponse<AdminAuditResponse>
-        assertEquals(200, body.limit, "Limit should be clamped to 200")
+        assertEquals(200, body.limit) { "limit이 200으로 클램핑되어야 한다" }
     }
 }

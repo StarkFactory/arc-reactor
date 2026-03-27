@@ -91,10 +91,10 @@ class McpSwaggerCatalogControllerTest {
     fun `listSources은(는) reject non-admin해야 한다`() = runTest {
         val response = controller.listSources(name = "swagger", exchange = userExchange())
 
-        assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 요청은 403이어야 한다" }
         val body = response.body as ErrorResponse
-        assertEquals("Admin access required", body.error)
-        assertTrue(auditStore.list().isEmpty(), "No audit entry should be recorded for rejected non-admin request")
+        assertEquals("Admin access required", body.error) { "에러 메시지가 일치해야 한다" }
+        assertTrue(auditStore.list().isEmpty()) { "비관리자 요청 거부 시 감사 항목이 기록되지 않아야 한다" }
     }
 
     @Test
@@ -133,15 +133,15 @@ class McpSwaggerCatalogControllerTest {
 
             val response = controller.listSources(name = "swagger", exchange = adminExchange("catalog-admin"))
 
-            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals(HttpStatus.OK, response.statusCode) { "프록시 응답이 200이어야 한다" }
             val body = response.body as List<*>
-            assertEquals(1, body.size)
-            assertEquals("catalog-admin", capturedActor)
-            assertNotNull(capturedRequestId, "Proxy request should include X-Request-Id header")
+            assertEquals(1, body.size) { "소스 목록이 1개여야 한다" }
+            assertEquals("catalog-admin", capturedActor) { "X-Admin-Actor 헤더가 전달되어야 한다" }
+            assertNotNull(capturedRequestId) { "프록시 요청에 X-Request-Id 헤더가 포함되어야 한다" }
             val audits = auditStore.list()
-            assertEquals(1, audits.size)
-            assertEquals("mcp_swagger_catalog", audits.first().category)
-            assertEquals("LIST_SOURCES", audits.first().action)
+            assertEquals(1, audits.size) { "감사 로그가 1건 기록되어야 한다" }
+            assertEquals("mcp_swagger_catalog", audits.first().category) { "감사 카테고리가 mcp_swagger_catalog여야 한다" }
+            assertEquals("LIST_SOURCES", audits.first().action) { "감사 액션이 LIST_SOURCES여야 한다" }
         } finally {
             server.stop(0)
         }
@@ -195,14 +195,14 @@ class McpSwaggerCatalogControllerTest {
                 exchange = adminExchange("catalog-admin")
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals(HttpStatus.OK, response.statusCode) { "소스 조회 응답이 200이어야 한다" }
             val body = response.body as Map<*, *>
-            assertEquals("payments", body["name"])
-            assertEquals("PAY", body["jiraProjectKey"])
-            assertEquals("payments-platform", body["ownerTeam"])
+            assertEquals("payments", body["name"]) { "소스 이름이 payments여야 한다" }
+            assertEquals("PAY", body["jiraProjectKey"]) { "jiraProjectKey가 PAY여야 한다" }
+            assertEquals("payments-platform", body["ownerTeam"]) { "ownerTeam이 payments-platform이어야 한다" }
             val audits = auditStore.list()
-            assertEquals(1, audits.size)
-            assertEquals("GET_SOURCE", audits.first().action)
+            assertEquals(1, audits.size) { "감사 로그가 1건 기록되어야 한다" }
+            assertEquals("GET_SOURCE", audits.first().action) { "감사 액션이 GET_SOURCE여야 한다" }
         } finally {
             server.stop(0)
         }
@@ -257,30 +257,25 @@ class McpSwaggerCatalogControllerTest {
                 exchange = adminExchange("catalog-admin")
             )
 
-            assertEquals(HttpStatus.CREATED, response.statusCode)
+            assertEquals(HttpStatus.CREATED, response.statusCode) { "소스 생성 응답이 201이어야 한다" }
             assertTrue(
-                capturedBody.orEmpty().contains("\"jiraProjectKey\":\"PAY\""),
-                "Request body should forward jiraProjectKey"
-            )
+                capturedBody.orEmpty().contains("\"jiraProjectKey\":\"PAY\"")
+            ) { "요청 바디에 jiraProjectKey가 전달되어야 한다" }
             assertTrue(
-                capturedBody.orEmpty().contains("\"confluenceSpaceKey\":\"PAYMENTS\""),
-                "Request body should forward confluenceSpaceKey"
-            )
+                capturedBody.orEmpty().contains("\"confluenceSpaceKey\":\"PAYMENTS\"")
+            ) { "요청 바디에 confluenceSpaceKey가 전달되어야 한다" }
             assertTrue(
-                capturedBody.orEmpty().contains("\"bitbucketRepository\":\"team/payments\""),
-                "Request body should forward bitbucketRepository"
-            )
+                capturedBody.orEmpty().contains("\"bitbucketRepository\":\"team/payments\"")
+            ) { "요청 바디에 bitbucketRepository가 전달되어야 한다" }
             assertTrue(
-                capturedBody.orEmpty().contains("\"serviceSlug\":\"payments-api\""),
-                "Request body should forward serviceSlug"
-            )
+                capturedBody.orEmpty().contains("\"serviceSlug\":\"payments-api\"")
+            ) { "요청 바디에 serviceSlug가 전달되어야 한다" }
             assertTrue(
-                capturedBody.orEmpty().contains("\"ownerTeam\":\"payments-platform\""),
-                "Request body should forward ownerTeam"
-            )
+                capturedBody.orEmpty().contains("\"ownerTeam\":\"payments-platform\"")
+            ) { "요청 바디에 ownerTeam이 전달되어야 한다" }
             val audits = auditStore.list()
-            assertEquals(1, audits.size)
-            assertEquals("CREATE_SOURCE", audits.first().action)
+            assertEquals(1, audits.size) { "감사 로그가 1건 기록되어야 한다" }
+            assertEquals("CREATE_SOURCE", audits.first().action) { "감사 액션이 CREATE_SOURCE여야 한다" }
         } finally {
             server.stop(0)
         }
@@ -326,11 +321,11 @@ class McpSwaggerCatalogControllerTest {
                 exchange = adminExchange("catalog-admin")
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode)
-            assertEquals("limit=5", capturedQuery)
+            assertEquals(HttpStatus.OK, response.statusCode) { "리비전 목록 응답이 200이어야 한다" }
+            assertEquals("limit=5", capturedQuery) { "limit 쿼리 파라미터가 전달되어야 한다" }
             val audits = auditStore.list()
-            assertEquals(1, audits.size)
-            assertEquals("LIST_REVISIONS", audits.first().action)
+            assertEquals(1, audits.size) { "감사 로그가 1건 기록되어야 한다" }
+            assertEquals("LIST_REVISIONS", audits.first().action) { "감사 액션이 LIST_REVISIONS여야 한다" }
         } finally {
             server.stop(0)
         }
@@ -376,15 +371,14 @@ class McpSwaggerCatalogControllerTest {
                 exchange = adminExchange("catalog-admin")
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode)
-            assertEquals("from=rev%201&to=rev/2", capturedQuery)
+            assertEquals(HttpStatus.OK, response.statusCode) { "diff 조회 응답이 200이어야 한다" }
+            assertEquals("from=rev%201&to=rev/2", capturedQuery) { "쿼리 파라미터가 올바르게 인코딩되어야 한다" }
             assertTrue(
-                capturedQuery.orEmpty().contains("%2520").not(),
-                "Query params should not be double-encoded"
-            )
+                capturedQuery.orEmpty().contains("%2520").not()
+            ) { "쿼리 파라미터가 이중 인코딩되지 않아야 한다" }
             val audits = auditStore.list()
-            assertEquals(1, audits.size)
-            assertEquals("GET_DIFF", audits.first().action)
+            assertEquals(1, audits.size) { "감사 로그가 1건 기록되어야 한다" }
+            assertEquals("GET_DIFF", audits.first().action) { "감사 액션이 GET_DIFF여야 한다" }
         } finally {
             server.stop(0)
         }
@@ -450,14 +444,13 @@ class McpSwaggerCatalogControllerTest {
                 exchange = adminExchange("release-admin")
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals(HttpStatus.OK, response.statusCode) { "리비전 게시 응답이 200이어야 한다" }
             assertTrue(
-                capturedBody.orEmpty().contains("\"revisionId\":\"rev-2\""),
-                "Publish request body should contain the revisionId"
-            )
+                capturedBody.orEmpty().contains("\"revisionId\":\"rev-2\"")
+            ) { "게시 요청 바디에 revisionId가 포함되어야 한다" }
             val audits = auditStore.list()
-            assertEquals(1, audits.size)
-            assertEquals("PUBLISH_REVISION", audits.first().action)
+            assertEquals(1, audits.size) { "감사 로그가 1건 기록되어야 한다" }
+            assertEquals("PUBLISH_REVISION", audits.first().action) { "감사 액션이 PUBLISH_REVISION이어야 한다" }
         } finally {
             server.stop(0)
         }

@@ -102,7 +102,7 @@ class OpsDashboardControllerTest {
         )
 
         val response = controller.dashboard(names = null, exchange = exchange(UserRole.USER))
-        assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 요청은 403이어야 한다" }
     }
 
     @Test
@@ -124,18 +124,20 @@ class OpsDashboardControllerTest {
             names = listOf("arc.slack.inbound.total"),
             exchange = exchange(UserRole.ADMIN)
         )
-        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(HttpStatus.OK, response.statusCode) { "관리자 대시보드 요청은 200이어야 한다" }
 
         val body = response.body as OpsDashboardResponse
-        assertTrue(body.ragEnabled, "RAG should be reported as enabled in dashboard body")
-        assertEquals(1, body.metrics.size)
-        assertEquals("arc.slack.inbound.total", body.metrics.first().name)
-        assertEquals(3.0, body.metrics.first().measurements["count"])
-        assertEquals(0, body.scheduler.totalJobs)
-        assertEquals(0, body.recentSchedulerExecutions.size)
-        assertEquals(0, body.approvals.pendingCount)
-        assertEquals(0L, body.employeeValue.observedResponses)
-        assertEquals(0, body.recentTrustEvents.size)
+        assertTrue(body.ragEnabled) { "대시보드 응답에서 RAG가 활성화된 것으로 보고되어야 한다" }
+        assertEquals(1, body.metrics.size) { "요청한 메트릭 1개가 반환되어야 한다" }
+        assertEquals("arc.slack.inbound.total", body.metrics.first().name) { "메트릭 이름이 일치해야 한다" }
+        assertEquals(3.0, body.metrics.first().measurements["count"]) {
+            "카운터 증가값이 반영되어야 한다"
+        }
+        assertEquals(0, body.scheduler.totalJobs) { "스케줄러가 없으므로 totalJobs는 0이어야 한다" }
+        assertEquals(0, body.recentSchedulerExecutions.size) { "최근 실행 이력이 없어야 한다" }
+        assertEquals(0, body.approvals.pendingCount) { "대기 중인 승인이 없어야 한다" }
+        assertEquals(0L, body.employeeValue.observedResponses) { "관측된 응답이 없어야 한다" }
+        assertEquals(0, body.recentTrustEvents.size) { "최근 신뢰 이벤트가 없어야 한다" }
     }
 
     @Test
@@ -166,28 +168,28 @@ class OpsDashboardControllerTest {
             names = listOf("arc.agent.stage.duration"),
             exchange = exchange(UserRole.ADMIN)
         )
-        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(HttpStatus.OK, response.statusCode) { "관리자 대시보드 요청은 200이어야 한다" }
 
         val body = response.body as OpsDashboardResponse
         val metric = body.metrics.first()
-        assertEquals("arc.agent.stage.duration", metric.name)
-        assertEquals(2, metric.meterCount)
-        assertEquals(2.0, metric.measurements["count"])
-        assertEquals(2, metric.series.size)
+        assertEquals("arc.agent.stage.duration", metric.name) { "메트릭 이름이 일치해야 한다" }
+        assertEquals(2, metric.meterCount) { "2개의 타이머가 등록되어야 한다" }
+        assertEquals(2.0, metric.measurements["count"]) { "집계 카운트가 2여야 한다" }
+        assertEquals(2, metric.series.size) { "series가 태그별로 2개여야 한다" }
 
         val guardSeries = metric.series.first { it.tags["stage"] == "guard" }
-        assertEquals("web", guardSeries.tags["channel"])
-        assertEquals(1.0, guardSeries.measurements["count"])
+        assertEquals("web", guardSeries.tags["channel"]) { "guard 시리즈의 channel 태그가 web이어야 한다" }
+        assertEquals(1.0, guardSeries.measurements["count"]) { "guard 시리즈의 카운트가 1이어야 한다" }
         val guardTotalTime = guardSeries.measurements["total_time"] ?: 0.0
         assertTrue(guardTotalTime > 0.0) {
-            "guard stage series should preserve its timer duration"
+            "guard 스테이지 시리즈가 타이머 지속 시간을 보존해야 한다"
         }
 
         val loopSeries = metric.series.first { it.tags["stage"] == "agent_loop" }
-        assertEquals(1.0, loopSeries.measurements["count"])
+        assertEquals(1.0, loopSeries.measurements["count"]) { "agent_loop 시리즈의 카운트가 1이어야 한다" }
         val loopTotalTime = loopSeries.measurements["total_time"] ?: 0.0
         assertTrue(loopTotalTime > guardTotalTime) {
-            "agent_loop stage series should retain its larger timer duration"
+            "agent_loop 스테이지 시리즈의 타이머 지속 시간이 guard보다 커야 한다"
         }
     }
 
@@ -204,7 +206,9 @@ class OpsDashboardControllerTest {
         )
 
         val response = controller.dashboard(names = null, exchange = exchange(UserRole.ADMIN_MANAGER))
-        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(HttpStatus.OK, response.statusCode) {
+            "ADMIN_MANAGER는 대시보드에 접근할 수 있어야 한다"
+        }
     }
 
     @Test
@@ -220,7 +224,9 @@ class OpsDashboardControllerTest {
         )
 
         val response = controller.dashboard(names = null, exchange = exchange(UserRole.ADMIN_DEVELOPER))
-        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(HttpStatus.OK, response.statusCode) {
+            "ADMIN_DEVELOPER는 대시보드에 접근할 수 있어야 한다"
+        }
     }
 
     @Test
@@ -240,10 +246,14 @@ class OpsDashboardControllerTest {
         )
 
         val response = controller.metricNames(exchange = exchange(UserRole.ADMIN))
-        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(HttpStatus.OK, response.statusCode) { "메트릭 이름 목록 요청은 200이어야 한다" }
         val names = response.body as List<*>
-        assertTrue(names.contains("arc.slack.inbound.total"), "Metric names should include arc.slack.inbound.total")
-        assertTrue(names.contains("jvm.gc.pause"), "Metric names should include jvm.gc.pause")
+        assertTrue(names.contains("arc.slack.inbound.total")) {
+            "메트릭 이름 목록에 arc.slack.inbound.total이 포함되어야 한다"
+        }
+        assertTrue(names.contains("jvm.gc.pause")) {
+            "메트릭 이름 목록에 jvm.gc.pause가 포함되어야 한다"
+        }
     }
 
     @Test
@@ -285,7 +295,9 @@ class OpsDashboardControllerTest {
                 )
             }
 
-            override fun topMissingQueries(limit: Int): List<com.arc.reactor.agent.metrics.MissingQueryInsight> = listOf(
+            override fun topMissingQueries(
+                limit: Int
+            ): List<com.arc.reactor.agent.metrics.MissingQueryInsight> = listOf(
                 com.arc.reactor.agent.metrics.MissingQueryInsight(
                     queryCluster = "1d409f34a41c",
                     queryLabel = "Question cluster 1d409f34a41c",
@@ -393,36 +405,68 @@ class OpsDashboardControllerTest {
         )
 
         val response = controller.dashboard(names = null, exchange = exchange(UserRole.ADMIN))
-        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(HttpStatus.OK, response.statusCode) { "관리자 대시보드 요청은 200이어야 한다" }
 
         val body = response.body as OpsDashboardResponse
-        assertEquals(3, body.scheduler.totalJobs)
-        assertEquals(2, body.scheduler.attentionBacklog)
-        assertEquals(1, body.scheduler.agentJobs)
-        assertEquals(2, body.recentSchedulerExecutions.size)
-        assertEquals("Release", body.recentSchedulerExecutions[1].jobName)
-        assertEquals("AGENT", body.recentSchedulerExecutions[1].jobType)
-        assertEquals("MCP server 'atlassian' is not connected", body.recentSchedulerExecutions[0].failureReason)
-        assertEquals("Running release digest", body.recentSchedulerExecutions[1].resultPreview)
-        assertEquals(1, body.approvals.pendingCount)
-        assertEquals(2L, body.responseTrust.unverifiedResponses)
-        assertEquals(1L, body.responseTrust.outputGuardRejected)
-        assertEquals(3L, body.responseTrust.outputGuardModified)
-        assertEquals(4L, body.responseTrust.boundaryFailures)
-        assertEquals(12L, body.employeeValue.observedResponses)
-        assertEquals(10L, body.employeeValue.groundedResponses)
-        assertEquals(83, body.employeeValue.groundedRatePercent)
-        assertEquals(2L, body.employeeValue.blockedResponses)
-        assertEquals(7L, body.employeeValue.answerModes["operational"])
-        assertEquals("slack", body.employeeValue.channels.first().key)
-        assertEquals(71, body.employeeValue.lanes.first { it.answerMode == "operational" }.groundedRatePercent)
-        assertEquals(0, body.employeeValue.lanes.first { it.answerMode == "knowledge" }.blockedResponses)
-        assertEquals("1d409f34a41c", body.employeeValue.topMissingQueries[0].queryCluster)
-        assertEquals("Question cluster 1d409f34a41c", body.employeeValue.topMissingQueries[0].queryLabel)
-        assertEquals(3, body.recentTrustEvents.size)
-        assertEquals("unverified_response", body.recentTrustEvents[0].type)
-        assertEquals("9e1b4d532b8d", body.recentTrustEvents[0].queryCluster)
-        assertEquals("Question cluster 9e1b4d532b8d", body.recentTrustEvents[0].queryLabel)
+        assertEquals(3, body.scheduler.totalJobs) { "등록된 스케줄 잡이 3개여야 한다" }
+        assertEquals(2, body.scheduler.attentionBacklog) {
+            "주의 필요 잡이 RUNNING+FAILED 합쳐 2개여야 한다"
+        }
+        assertEquals(1, body.scheduler.agentJobs) { "에이전트 잡이 1개여야 한다" }
+        assertEquals(2, body.recentSchedulerExecutions.size) { "최근 실행 이력이 2개여야 한다" }
+        assertEquals("Release", body.recentSchedulerExecutions[1].jobName) {
+            "두 번째 실행 이력의 잡 이름이 Release여야 한다"
+        }
+        assertEquals("AGENT", body.recentSchedulerExecutions[1].jobType) {
+            "두 번째 실행 이력의 잡 타입이 AGENT여야 한다"
+        }
+        assertEquals(
+            "MCP server 'atlassian' is not connected",
+            body.recentSchedulerExecutions[0].failureReason
+        ) { "첫 번째 실행 이력의 실패 원인이 일치해야 한다" }
+        assertEquals(
+            "Running release digest",
+            body.recentSchedulerExecutions[1].resultPreview
+        ) { "두 번째 실행 이력의 결과 미리보기가 일치해야 한다" }
+        assertEquals(1, body.approvals.pendingCount) { "대기 중인 승인이 1개여야 한다" }
+        assertEquals(2L, body.responseTrust.unverifiedResponses) { "미검증 응답이 2개여야 한다" }
+        assertEquals(1L, body.responseTrust.outputGuardRejected) { "출력 가드 거부가 1개여야 한다" }
+        assertEquals(3L, body.responseTrust.outputGuardModified) { "출력 가드 수정이 3개여야 한다" }
+        assertEquals(4L, body.responseTrust.boundaryFailures) { "경계 위반이 4개여야 한다" }
+        assertEquals(12L, body.employeeValue.observedResponses) { "관측된 응답이 12개여야 한다" }
+        assertEquals(10L, body.employeeValue.groundedResponses) { "근거 있는 응답이 10개여야 한다" }
+        assertEquals(83, body.employeeValue.groundedRatePercent) { "근거 비율이 83%여야 한다" }
+        assertEquals(2L, body.employeeValue.blockedResponses) { "차단된 응답이 2개여야 한다" }
+        assertEquals(7L, body.employeeValue.answerModes["operational"]) {
+            "operational 답변 모드가 7개여야 한다"
+        }
+        assertEquals("slack", body.employeeValue.channels.first().key) { "첫 번째 채널이 slack이어야 한다" }
+        assertEquals(
+            71,
+            body.employeeValue.lanes.first { it.answerMode == "operational" }.groundedRatePercent
+        ) { "operational 레인의 근거 비율이 71%여야 한다" }
+        assertEquals(
+            0,
+            body.employeeValue.lanes.first { it.answerMode == "knowledge" }.blockedResponses
+        ) { "knowledge 레인의 차단 응답이 0이어야 한다" }
+        assertEquals(
+            "1d409f34a41c",
+            body.employeeValue.topMissingQueries[0].queryCluster
+        ) { "상위 누락 쿼리 클러스터가 일치해야 한다" }
+        assertEquals(
+            "Question cluster 1d409f34a41c",
+            body.employeeValue.topMissingQueries[0].queryLabel
+        ) { "상위 누락 쿼리 레이블이 일치해야 한다" }
+        assertEquals(3, body.recentTrustEvents.size) { "최근 신뢰 이벤트가 3개여야 한다" }
+        assertEquals("unverified_response", body.recentTrustEvents[0].type) {
+            "첫 번째 신뢰 이벤트 타입이 unverified_response여야 한다"
+        }
+        assertEquals("9e1b4d532b8d", body.recentTrustEvents[0].queryCluster) {
+            "첫 번째 신뢰 이벤트 쿼리 클러스터가 일치해야 한다"
+        }
+        assertEquals("Question cluster 9e1b4d532b8d", body.recentTrustEvents[0].queryLabel) {
+            "첫 번째 신뢰 이벤트 쿼리 레이블이 일치해야 한다"
+        }
     }
 
     @Test
@@ -462,17 +506,23 @@ class OpsDashboardControllerTest {
         )
 
         val response = controller.dashboard(names = null, exchange = exchange(UserRole.ADMIN))
-        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(HttpStatus.OK, response.statusCode) { "관리자 대시보드 요청은 200이어야 한다" }
 
         val body = response.body as OpsDashboardResponse
-        assertEquals(1L, body.responseTrust.unverifiedResponses)
-        assertEquals(0L, body.responseTrust.outputGuardRejected)
-        assertEquals(1L, body.responseTrust.outputGuardModified)
-        assertEquals(1L, body.responseTrust.boundaryFailures)
-        assertEquals(0L, body.employeeValue.observedResponses)
-        assertEquals(0, body.employeeValue.lanes.size)
-        assertEquals(3, body.recentTrustEvents.size)
-        assertEquals("unverified_response", body.recentTrustEvents[2].type)
-        assertEquals("a207b424cb25", body.recentTrustEvents[2].queryCluster)
+        assertEquals(1L, body.responseTrust.unverifiedResponses) {
+            "인메모리 기반 미검증 응답이 1개여야 한다"
+        }
+        assertEquals(0L, body.responseTrust.outputGuardRejected) { "출력 가드 거부가 0이어야 한다" }
+        assertEquals(1L, body.responseTrust.outputGuardModified) { "출력 가드 수정이 1개여야 한다" }
+        assertEquals(1L, body.responseTrust.boundaryFailures) { "경계 위반이 1개여야 한다" }
+        assertEquals(0L, body.employeeValue.observedResponses) { "관측된 응답이 없어야 한다" }
+        assertEquals(0, body.employeeValue.lanes.size) { "레인 정보가 없어야 한다" }
+        assertEquals(3, body.recentTrustEvents.size) { "최근 신뢰 이벤트가 3개여야 한다" }
+        assertEquals("unverified_response", body.recentTrustEvents[2].type) {
+            "세 번째 신뢰 이벤트 타입이 unverified_response여야 한다"
+        }
+        assertEquals("a207b424cb25", body.recentTrustEvents[2].queryCluster) {
+            "세 번째 신뢰 이벤트 쿼리 클러스터가 일치해야 한다"
+        }
     }
 }

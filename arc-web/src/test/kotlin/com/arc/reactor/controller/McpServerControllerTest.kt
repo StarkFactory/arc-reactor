@@ -56,7 +56,9 @@ class McpServerControllerTest {
         store = InMemoryMcpServerStore()
         manager = DefaultMcpManager(store = store)
         adminAuditStore = InMemoryAdminAuditStore()
-        controller = McpServerController(manager, store, adminAuditStore, com.arc.reactor.agent.config.AgentProperties())
+        controller = McpServerController(
+            manager, store, adminAuditStore, com.arc.reactor.agent.config.AgentProperties()
+        )
     }
 
     @Nested
@@ -65,10 +67,12 @@ class McpServerControllerTest {
         @Test
         fun `no servers registered일 때 return empty list해야 한다`() {
             val response = controller.listServers(adminExchange())
-            assertEquals(HttpStatus.OK, response.statusCode) { "Admin list should return 200" }
+            assertEquals(HttpStatus.OK, response.statusCode) { "관리자 목록 조회는 200이어야 한다" }
             @Suppress("UNCHECKED_CAST")
             val result = response.body as List<McpServerResponse>
-            assertTrue(result.isEmpty()) { "Expected empty list, got ${result.size} servers" }
+            assertTrue(result.isEmpty()) {
+                "초기 상태에서 서버 목록이 비어있어야 한다. 실제 서버 수: ${result.size}"
+            }
         }
 
         @Test
@@ -80,20 +84,20 @@ class McpServerControllerTest {
             ))
 
             val response = controller.listServers(adminExchange())
-            assertEquals(HttpStatus.OK, response.statusCode) { "Admin list should return 200" }
+            assertEquals(HttpStatus.OK, response.statusCode) { "관리자 목록 조회는 200이어야 한다" }
             @Suppress("UNCHECKED_CAST")
             val result = response.body as List<McpServerResponse>
-            assertEquals(1, result.size) { "Expected 1 server" }
-            assertEquals("test-sse", result[0].name)
-            assertEquals("SSE", result[0].transportType)
-            assertEquals("PENDING", result[0].status)
+            assertEquals(1, result.size) { "서버가 1개 조회되어야 한다" }
+            assertEquals("test-sse", result[0].name) { "등록된 서버 이름이 test-sse여야 한다" }
+            assertEquals("SSE", result[0].transportType) { "서버 전송 타입이 SSE여야 한다" }
+            assertEquals("PENDING", result[0].status) { "서버 상태가 PENDING이어야 한다" }
         }
 
         @Test
         fun `reject non-admin list해야 한다`() {
             val response = controller.listServers(userExchange())
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
-                "Non-admin should receive 403 when listing servers"
+                "비관리자의 서버 목록 조회는 403이어야 한다"
             }
         }
     }
@@ -112,17 +116,19 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.CREATED, response.statusCode) {
-                "Expected 201 CREATED, got ${response.statusCode}"
+                "서버 등록은 201이어야 한다. 실제 상태: ${response.statusCode}"
             }
 
             // persisted in store 확인
             val saved = store.findByName("my-server")
-            assertNotNull(saved) { "Server should be persisted in store" }
-            assertEquals(McpTransportType.SSE, saved!!.transportType)
+            assertNotNull(saved) { "등록된 서버가 스토어에 저장되어야 한다" }
+            assertEquals(McpTransportType.SSE, saved!!.transportType) {
+                "저장된 서버의 전송 타입이 SSE여야 한다"
+            }
             val audits = adminAuditStore.list()
-            assertEquals(1, audits.size)
-            assertEquals("mcp_server", audits.first().category)
-            assertEquals("CREATE", audits.first().action)
+            assertEquals(1, audits.size) { "감사 로그가 1건 기록되어야 한다" }
+            assertEquals("mcp_server", audits.first().category) { "감사 카테고리가 mcp_server여야 한다" }
+            assertEquals("CREATE", audits.first().action) { "감사 액션이 CREATE여야 한다" }
         }
 
         @Test
@@ -138,7 +144,7 @@ class McpServerControllerTest {
             val duplicate = controller.registerServer(request, adminExchange())
 
             assertEquals(HttpStatus.CONFLICT, duplicate.statusCode) {
-                "Expected 409 CONFLICT for duplicate name"
+                "중복 이름 등록은 409이어야 한다"
             }
         }
 
@@ -152,7 +158,7 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, userExchange())
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
-                "Non-admin should get 403 FORBIDDEN"
+                "비관리자의 서버 등록은 403이어야 한다"
             }
         }
 
@@ -166,7 +172,7 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "Invalid transport type should return 400 BAD_REQUEST"
+                "유효하지 않은 전송 타입 등록은 400이어야 한다"
             }
         }
 
@@ -180,7 +186,7 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "HTTP transport should be rejected with 400 BAD_REQUEST"
+                "HTTP 전송 타입은 지원되지 않으므로 400이어야 한다"
             }
         }
 
@@ -195,13 +201,15 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.CREATED, response.statusCode) {
-                "Trimmed transport type should be parsed successfully"
+                "앞뒤 공백이 있는 전송 타입도 정상 파싱되어 201이어야 한다"
             }
 
             val saved = store.findByName("trimmed-transport")
-            assertNotNull(saved) { "Server should be saved for valid trimmed transport type" }
+            assertNotNull(saved) {
+                "공백 포함 전송 타입으로 등록된 서버가 스토어에 저장되어야 한다"
+            }
             assertEquals(McpTransportType.SSE, saved!!.transportType) {
-                "Trimmed and case-insensitive transport type should resolve to SSE"
+                "공백 제거 및 대소문자 무시 후 전송 타입이 SSE로 해석되어야 한다"
             }
         }
 
@@ -220,22 +228,22 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.CREATED, response.statusCode) {
-                "Realistic STDIO registration payload should succeed"
+                "실제 STDIO 서버 등록 요청이 성공하여 201이어야 한다"
             }
 
             val saved = store.findByName("filesystem-prod")
-            assertNotNull(saved) { "Registered STDIO server should be persisted in store" }
+            assertNotNull(saved) { "등록된 STDIO 서버가 스토어에 저장되어야 한다" }
             assertEquals(McpTransportType.STDIO, saved!!.transportType) {
-                "STDIO transport should be persisted"
+                "저장된 서버의 전송 타입이 STDIO여야 한다"
             }
             assertEquals("npx", saved.config["command"]) {
-                "STDIO command should be preserved in persisted config"
+                "저장된 STDIO 서버의 command 설정값이 npx여야 한다"
             }
             assertEquals(
                 listOf("-y", "@modelcontextprotocol/server-filesystem", "/var/data"),
                 saved.config["args"]
             ) {
-                "STDIO args should be preserved in persisted config"
+                "저장된 STDIO 서버의 args 설정값이 원본과 동일해야 한다"
             }
         }
 
@@ -250,7 +258,7 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "SSE URL pointing to private IP should be rejected with 400"
+                "사설 IP를 가리키는 SSE URL은 400으로 거부되어야 한다"
             }
         }
 
@@ -265,7 +273,7 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "SSE URL pointing to link-local metadata should be rejected with 400"
+                "클라우드 메타데이터 링크로컬 IP를 가리키는 SSE URL은 400으로 거부되어야 한다"
             }
         }
 
@@ -280,7 +288,7 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "SSE URL pointing to localhost should be rejected with 400"
+                "localhost를 가리키는 SSE URL은 400으로 거부되어야 한다"
             }
         }
 
@@ -295,7 +303,7 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "SSE URL with file:// scheme should be rejected with 400"
+                "file:// 스킴을 사용하는 SSE URL은 400으로 거부되어야 한다"
             }
         }
 
@@ -313,7 +321,7 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "SSE adminUrl pointing to link-local private IP should be rejected with 400"
+                "링크로컬 사설 IP를 가리키는 SSE adminUrl은 400으로 거부되어야 한다"
             }
         }
 
@@ -328,7 +336,7 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.CREATED, response.statusCode) {
-                "STDIO transport should not be subject to SSRF validation"
+                "STDIO 전송 타입은 SSRF 검증 대상이 아니므로 201이어야 한다"
             }
         }
 
@@ -343,7 +351,7 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "SSE URL pointing to 192.168.x.x should be rejected with 400"
+                "192.168.x.x 사설 대역을 가리키는 SSE URL은 400으로 거부되어야 한다"
             }
         }
 
@@ -358,7 +366,7 @@ class McpServerControllerTest {
 
             val response = controller.registerServer(request, adminExchange())
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "SSE URL pointing to 172.16.x.x should be rejected with 400"
+                "172.16.x.x 사설 대역을 가리키는 SSE URL은 400으로 거부되어야 한다"
             }
         }
     }
@@ -378,15 +386,15 @@ class McpServerControllerTest {
 
             val response = controller.getServer("detail-test", adminExchange())
             assertEquals(HttpStatus.OK, response.statusCode) {
-                "Expected 200 OK"
+                "서버 상세 조회는 200이어야 한다"
             }
 
             val body = response.body as McpServerDetailResponse
-            assertEquals("detail-test", body.name)
-            assertEquals("Test server", body.description)
-            assertEquals("STDIO", body.transportType)
-            assertEquals("PENDING", body.status)
-            assertTrue(body.tools.isEmpty()) { "Unconnected server should have no tools" }
+            assertEquals("detail-test", body.name) { "서버 이름이 detail-test여야 한다" }
+            assertEquals("Test server", body.description) { "서버 설명이 일치해야 한다" }
+            assertEquals("STDIO", body.transportType) { "서버 전송 타입이 STDIO여야 한다" }
+            assertEquals("PENDING", body.status) { "서버 상태가 PENDING이어야 한다" }
+            assertTrue(body.tools.isEmpty()) { "연결되지 않은 서버는 도구 목록이 비어있어야 한다" }
         }
 
         @Test
@@ -411,27 +419,27 @@ class McpServerControllerTest {
             ))
 
             val response = controller.getServer("masked-config", adminExchange())
-            assertEquals(HttpStatus.OK, response.statusCode) { "Expected 200 OK" }
+            assertEquals(HttpStatus.OK, response.statusCode) { "마스킹 검증 조회는 200이어야 한다" }
 
             val body = response.body as McpServerDetailResponse
-            assertEquals("http://localhost:8081/sse", body.config["url"])
-            assertEquals("********", body.config["apiKey"])
-            assertEquals("********", body.config["adminToken"])
+            assertEquals("http://localhost:8081/sse", body.config["url"]) { "url 설정값이 마스킹되지 않아야 한다" }
+            assertEquals("********", body.config["apiKey"]) { "apiKey는 마스킹되어야 한다" }
+            assertEquals("********", body.config["adminToken"]) { "adminToken은 마스킹되어야 한다" }
             val headers = body.config["headers"] as Map<*, *>
-            assertEquals("********", headers["Authorization"])
-            assertEquals("trace-123", headers["X-Trace-Id"])
+            assertEquals("********", headers["Authorization"]) { "Authorization 헤더는 마스킹되어야 한다" }
+            assertEquals("trace-123", headers["X-Trace-Id"]) { "X-Trace-Id 헤더는 마스킹되지 않아야 한다" }
             val targets = body.config["targets"] as List<*>
             val firstTarget = targets[0] as Map<*, *>
             val secondTarget = targets[1] as Map<*, *>
-            assertEquals("********", firstTarget["accessToken"])
-            assertEquals("safe-target", secondTarget["name"])
+            assertEquals("********", firstTarget["accessToken"]) { "리스트 내 accessToken은 마스킹되어야 한다" }
+            assertEquals("safe-target", secondTarget["name"]) { "리스트 내 안전한 값은 마스킹되지 않아야 한다" }
         }
 
         @Test
         fun `unknown server에 대해 return 404해야 한다`() {
             val response = controller.getServer("nonexistent", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
-                "Expected 404 NOT_FOUND for unknown server"
+                "존재하지 않는 서버 조회는 404이어야 한다"
             }
         }
 
@@ -439,7 +447,7 @@ class McpServerControllerTest {
         fun `reject non-admin get detail해야 한다`() {
             val response = controller.getServer("detail-test", userExchange())
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
-                "Non-admin should receive 403 for server detail"
+                "비관리자의 서버 상세 조회는 403이어야 한다"
             }
         }
     }
@@ -463,12 +471,12 @@ class McpServerControllerTest {
 
             val response = controller.updateServer("update-me", updateReq, adminExchange())
             assertEquals(HttpStatus.OK, response.statusCode) {
-                "Expected 200 OK for update"
+                "서버 설정 업데이트는 200이어야 한다"
             }
 
             val updated = store.findByName("update-me")!!
-            assertEquals("Updated description", updated.description)
-            assertEquals("http://example.org:9090/sse", updated.config["url"])
+            assertEquals("Updated description", updated.description) { "업데이트된 서버 설명이 일치해야 한다" }
+            assertEquals("http://example.org:9090/sse", updated.config["url"]) { "업데이트된 서버 url이 일치해야 한다" }
         }
 
         @Test
@@ -479,7 +487,7 @@ class McpServerControllerTest {
                 adminExchange()
             )
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
-                "Expected 404 for nonexistent server update"
+                "존재하지 않는 서버 업데이트는 404이어야 한다"
             }
         }
 
@@ -497,7 +505,7 @@ class McpServerControllerTest {
                 userExchange()
             )
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
-                "Non-admin should get 403"
+                "비관리자의 서버 업데이트는 403이어야 한다"
             }
         }
 
@@ -516,13 +524,13 @@ class McpServerControllerTest {
                 adminExchange()
             )
             assertEquals(HttpStatus.OK, response.statusCode) {
-                "Update should succeed when transportType is omitted"
+                "전송 타입을 생략한 업데이트는 200이어야 한다"
             }
 
             val updated = store.findByName("preserve-transport")
-            assertNotNull(updated) { "Updated server should exist in store" }
+            assertNotNull(updated) { "업데이트된 서버가 스토어에 존재해야 한다" }
             assertEquals(McpTransportType.STDIO, updated!!.transportType) {
-                "Omitted transportType should preserve existing transport"
+                "전송 타입을 생략하면 기존 전송 타입이 유지되어야 한다"
             }
         }
 
@@ -541,7 +549,7 @@ class McpServerControllerTest {
                 adminExchange()
             )
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "Invalid update transport should return 400 BAD_REQUEST"
+                "유효하지 않은 전송 타입으로 업데이트하면 400이어야 한다"
             }
         }
 
@@ -560,7 +568,7 @@ class McpServerControllerTest {
                 adminExchange()
             )
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "HTTP update transport should return 400 BAD_REQUEST"
+                "HTTP 전송 타입으로 업데이트하면 400이어야 한다"
             }
         }
 
@@ -579,13 +587,13 @@ class McpServerControllerTest {
                 adminExchange()
             )
             assertEquals(HttpStatus.OK, response.statusCode) {
-                "Trimmed transport type should be parsed during update"
+                "공백이 포함된 전송 타입으로 업데이트해도 200이어야 한다"
             }
 
             val updated = store.findByName("trim-update-transport")
-            assertNotNull(updated) { "Updated server should exist after successful update" }
+            assertNotNull(updated) { "업데이트 성공 후 서버가 스토어에 존재해야 한다" }
             assertEquals(McpTransportType.STDIO, updated!!.transportType) {
-                "Trimmed transport type should update server to STDIO"
+                "공백 제거 후 전송 타입이 STDIO로 업데이트되어야 한다"
             }
         }
 
@@ -604,7 +612,7 @@ class McpServerControllerTest {
                 adminExchange()
             )
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) {
-                "Update with SSRF URL should return 400 BAD_REQUEST"
+                "SSRF URL로 업데이트하면 400이어야 한다"
             }
         }
 
@@ -612,7 +620,10 @@ class McpServerControllerTest {
         fun `store and manager are decoupled일 때 sync runtime manager state해야 한다`() = runTest {
             val runtimeManager = DefaultMcpManager()
             val persistentStore = InMemoryMcpServerStore()
-            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
+            val localController = McpServerController(
+                runtimeManager, persistentStore,
+                InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties()
+            )
 
             val original = McpServer(
                 name = "sync-runtime",
@@ -631,11 +642,11 @@ class McpServerControllerTest {
             )
 
             assertEquals(HttpStatus.OK, response.statusCode) {
-                "Update should succeed"
+                "런타임 매니저와 스토어가 분리된 환경에서도 업데이트는 200이어야 한다"
             }
             val runtimeServer = runtimeManager.listServers().first { it.name == "sync-runtime" }
             assertEquals("new-description", runtimeServer.description) {
-                "Runtime manager state should be updated with latest store config"
+                "업데이트 후 런타임 매니저의 서버 상태가 최신 스토어 설정으로 동기화되어야 한다"
             }
         }
 
@@ -643,7 +654,10 @@ class McpServerControllerTest {
         fun `connection config changes일 때 reconnect connected server해야 한다`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
-            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
+            val localController = McpServerController(
+                runtimeManager, persistentStore,
+                InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties()
+            )
 
             val original = McpServer(
                 name = "reconnect-me",
@@ -664,7 +678,7 @@ class McpServerControllerTest {
                 adminExchange()
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals(HttpStatus.OK, response.statusCode) { "설정 변경 업데이트 응답이 200이어야 한다" }
             verify(exactly = 1) { runtimeManager.syncRuntimeServer(any()) }
             coVerify(exactly = 1) { runtimeManager.disconnect("reconnect-me") }
             coVerify(exactly = 1) { runtimeManager.connect("reconnect-me") }
@@ -674,7 +688,10 @@ class McpServerControllerTest {
         fun `only description changes일 때 not reconnect connected server해야 한다`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
-            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
+            val localController = McpServerController(
+                runtimeManager, persistentStore,
+                InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties()
+            )
 
             persistentStore.save(
                 McpServer(
@@ -694,7 +711,7 @@ class McpServerControllerTest {
                 adminExchange()
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals(HttpStatus.OK, response.statusCode) { "설명만 변경한 업데이트 응답이 200이어야 한다" }
             verify(exactly = 1) { runtimeManager.syncRuntimeServer(any()) }
             coVerify(exactly = 0) { runtimeManager.disconnect(any()) }
             coVerify(exactly = 0) { runtimeManager.connect(any()) }
@@ -704,7 +721,10 @@ class McpServerControllerTest {
         fun `autoConnect is enabled from disconnected state일 때 connect server after update해야 한다`() = runTest {
             val runtimeManager = mockk<McpManager>(relaxed = true)
             val persistentStore = InMemoryMcpServerStore()
-            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
+            val localController = McpServerController(
+                runtimeManager, persistentStore,
+                InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties()
+            )
 
             persistentStore.save(
                 McpServer(
@@ -725,7 +745,7 @@ class McpServerControllerTest {
                 adminExchange()
             )
 
-            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals(HttpStatus.OK, response.statusCode) { "autoConnect 활성화 업데이트 응답이 200이어야 한다" }
             coVerify(exactly = 1) { runtimeManager.connect("auto-connect-me") }
             coVerify(exactly = 0) { runtimeManager.disconnect(any()) }
         }
@@ -745,18 +765,18 @@ class McpServerControllerTest {
 
             val response = controller.deleteServer("delete-me", adminExchange())
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) {
-                "Expected 204 NO_CONTENT"
+                "서버 삭제는 204이어야 한다"
             }
 
-            assertNull(store.findByName("delete-me")) { "Server should be removed from store" }
-            assertTrue(manager.listServers().isEmpty()) { "Server should be removed from manager" }
+            assertNull(store.findByName("delete-me")) { "삭제된 서버가 스토어에서 제거되어야 한다" }
+            assertTrue(manager.listServers().isEmpty()) { "삭제된 서버가 매니저에서도 제거되어야 한다" }
         }
 
         @Test
         fun `deleting nonexistent server일 때 return 404해야 한다`() = runTest {
             val response = controller.deleteServer("ghost", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
-                "Expected 404 for nonexistent server delete"
+                "존재하지 않는 서버 삭제는 404이어야 한다"
             }
         }
 
@@ -770,7 +790,7 @@ class McpServerControllerTest {
 
             val response = controller.deleteServer("protected", userExchange())
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
-                "Non-admin should get 403"
+                "비관리자의 서버 삭제는 403이어야 한다"
             }
         }
     }
@@ -789,7 +809,7 @@ class McpServerControllerTest {
 
             val response = controller.connectServer("bad-config", adminExchange())
             assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.statusCode) {
-                "Expected 503 for connection failure"
+                "유효하지 않은 설정으로 연결 시도하면 503이어야 한다"
             }
         }
 
@@ -797,7 +817,7 @@ class McpServerControllerTest {
         fun `connect은(는) return 404 for unknown server해야 한다`() = runTest {
             val response = controller.connectServer("nonexistent", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
-                "Expected 404 for unknown server"
+                "존재하지 않는 서버 연결 시도는 404이어야 한다"
             }
         }
 
@@ -805,7 +825,7 @@ class McpServerControllerTest {
         fun `disconnect은(는) return 404 for unknown server해야 한다`() = runTest {
             val response = controller.disconnectServer("nonexistent", adminExchange())
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) {
-                "Expected 404 for unknown server"
+                "존재하지 않는 서버 연결 해제 시도는 404이어야 한다"
             }
         }
 
@@ -820,7 +840,7 @@ class McpServerControllerTest {
 
             val response = controller.disconnectServer("disc-test", adminExchange())
             assertEquals(HttpStatus.OK, response.statusCode) {
-                "Expected 200 OK for disconnect"
+                "등록된 서버의 연결 해제는 200이어야 한다"
             }
         }
     }
@@ -841,20 +861,23 @@ class McpServerControllerTest {
                 autoConnect = false
             )
             val created = controller.registerServer(registerReq, exchange)
-            assertEquals(HttpStatus.CREATED, created.statusCode) { "Step 1: Register should succeed" }
+            assertEquals(HttpStatus.CREATED, created.statusCode) { "Step 1: 서버 등록이 201로 성공해야 한다" }
 
             // 2. 목록에서 확인
             val listResponse = controller.listServers(exchange)
-            assertEquals(HttpStatus.OK, listResponse.statusCode) { "Step 2: list should return 200" }
+            assertEquals(HttpStatus.OK, listResponse.statusCode) { "Step 2: 서버 목록 조회는 200이어야 한다" }
             @Suppress("UNCHECKED_CAST")
             val list = listResponse.body as List<McpServerResponse>
-            assertEquals(1, list.size) { "Step 2: Should have 1 server" }
-            assertEquals("lifecycle-server", list[0].name)
+            assertEquals(1, list.size) { "Step 2: 서버가 1개 조회되어야 한다" }
+            assertEquals("lifecycle-server", list[0].name) { "Step 2: 등록된 서버 이름이 lifecycle-server여야 한다" }
 
             // 3. 상세 조회
             val detail = controller.getServer("lifecycle-server", exchange)
-            assertEquals(HttpStatus.OK, detail.statusCode) { "Step 3: Get should succeed" }
-            assertEquals("Initial", (detail.body as McpServerDetailResponse).description)
+            assertEquals(HttpStatus.OK, detail.statusCode) { "Step 3: 서버 상세 조회는 200이어야 한다" }
+            assertEquals(
+                "Initial",
+                (detail.body as McpServerDetailResponse).description
+            ) { "Step 3: 서버 설명이 Initial이어야 한다" }
 
             // 4. 업데이트
             val updated = controller.updateServer(
@@ -862,23 +885,23 @@ class McpServerControllerTest {
                 UpdateMcpServerRequest(description = "Updated"),
                 exchange
             )
-            assertEquals(HttpStatus.OK, updated.statusCode) { "Step 4: Update should succeed" }
+            assertEquals(HttpStatus.OK, updated.statusCode) { "Step 4: 서버 업데이트는 200이어야 한다" }
 
             // 5. 업데이트 확인
             val afterUpdate = controller.getServer("lifecycle-server", exchange)
             assertEquals("Updated", (afterUpdate.body as McpServerDetailResponse).description) {
-                "Step 5: Description should be updated"
+                "Step 5: 업데이트 후 서버 설명이 Updated로 변경되어야 한다"
             }
 
             // 6. 삭제
             val deleted = controller.deleteServer("lifecycle-server", exchange)
-            assertEquals(HttpStatus.NO_CONTENT, deleted.statusCode) { "Step 6: Delete should succeed" }
+            assertEquals(HttpStatus.NO_CONTENT, deleted.statusCode) { "Step 6: 서버 삭제는 204이어야 한다" }
 
             // 7. 삭제 확인
             val afterDeleteListResponse = controller.listServers(exchange)
             @Suppress("UNCHECKED_CAST")
             val afterDeleteList = afterDeleteListResponse.body as List<McpServerResponse>
-            assertTrue(afterDeleteList.isEmpty()) { "Step 7: List should be empty after delete" }
+            assertTrue(afterDeleteList.isEmpty()) { "Step 7: 삭제 후 서버 목록이 비어있어야 한다" }
         }
 
         @Test
@@ -888,7 +911,9 @@ class McpServerControllerTest {
                 securityConfig = McpSecurityConfig(allowedServerNames = setOf("trusted")),
                 store = secureStore
             )
-            val secureController = McpServerController(secureManager, secureStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
+            val secureController = McpServerController(
+                secureManager, secureStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties()
+            )
 
             // allowed server 등록
             val trustedReq = RegisterMcpServerRequest(
@@ -899,15 +924,15 @@ class McpServerControllerTest {
             )
             val trustedResp = secureController.registerServer(trustedReq, adminExchange())
             assertEquals(HttpStatus.CREATED, trustedResp.statusCode) {
-                "Trusted server should register"
+                "허용된 서버 등록은 201이어야 한다"
             }
 
             // List은(는) have only trusted해야 합니다
             val listResponse = secureController.listServers(adminExchange())
             @Suppress("UNCHECKED_CAST")
             val list = listResponse.body as List<McpServerResponse>
-            assertEquals(1, list.size) { "Only trusted server should be listed" }
-            assertEquals("trusted", list[0].name)
+            assertEquals(1, list.size) { "허용 목록에 있는 서버만 조회되어야 한다" }
+            assertEquals("trusted", list[0].name) { "허용된 서버 이름이 trusted여야 한다" }
         }
 
         @Test
@@ -917,7 +942,9 @@ class McpServerControllerTest {
                 securityConfig = McpSecurityConfig(allowedServerNames = setOf("trusted")),
                 store = secureStore
             )
-            val secureController = McpServerController(secureManager, secureStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
+            val secureController = McpServerController(
+                secureManager, secureStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties()
+            )
 
             val blockedReq = RegisterMcpServerRequest(
                 name = "untrusted",
@@ -928,11 +955,11 @@ class McpServerControllerTest {
 
             val blockedResp = secureController.registerServer(blockedReq, adminExchange())
             assertEquals(HttpStatus.BAD_REQUEST, blockedResp.statusCode) {
-                "Server blocked by allowlist should return 400 BAD_REQUEST"
+                "허용 목록에 없는 서버 등록은 400이어야 한다"
             }
 
             assertNull(secureStore.findByName("untrusted")) {
-                "Blocked server should not be persisted to store"
+                "허용 목록에 의해 차단된 서버는 스토어에 저장되지 않아야 한다"
             }
         }
 
@@ -940,7 +967,10 @@ class McpServerControllerTest {
         fun `register은(는) persist when runtime manager and store are decoupled해야 한다`() = runTest {
             val runtimeManager = DefaultMcpManager()
             val persistentStore = InMemoryMcpServerStore()
-            val localController = McpServerController(runtimeManager, persistentStore, InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties())
+            val localController = McpServerController(
+                runtimeManager, persistentStore,
+                InMemoryAdminAuditStore(), com.arc.reactor.agent.config.AgentProperties()
+            )
 
             val request = RegisterMcpServerRequest(
                 name = "decoupled-register",
@@ -951,15 +981,15 @@ class McpServerControllerTest {
 
             val response = localController.registerServer(request, adminExchange())
             assertEquals(HttpStatus.CREATED, response.statusCode) {
-                "Register should succeed even when manager and store are decoupled"
+                "매니저와 스토어가 분리된 환경에서도 서버 등록은 201이어야 한다"
             }
             assertNotNull(persistentStore.findByName("decoupled-register")) {
-                "Register endpoint must persist server into controller store"
+                "등록 엔드포인트는 서버를 컨트롤러 스토어에 저장해야 한다"
             }
 
             val detailResponse = localController.getServer("decoupled-register", adminExchange())
             assertEquals(HttpStatus.OK, detailResponse.statusCode) {
-                "Get server should succeed after decoupled register persistence"
+                "분리된 환경에서 등록된 서버의 상세 조회는 200이어야 한다"
             }
         }
     }

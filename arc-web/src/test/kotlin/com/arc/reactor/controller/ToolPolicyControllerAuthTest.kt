@@ -70,19 +70,19 @@ class ToolPolicyControllerAuthTest {
     @Test
     fun `returns 403 for non-admin를 가져온다`() {
         val response = controller.get(userExchange())
-        assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 도구 정책 조회 요청은 403이어야 한다" }
     }
 
     @Test
     fun `returns 403 for non-admin를 업데이트한다`() {
         val response = controller.update(UpdateToolPolicyRequest(enabled = true), userExchange())
-        assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 도구 정책 업데이트 요청은 403이어야 한다" }
     }
 
     @Test
     fun `returns 403 for non-admin를 삭제한다`() {
         val response = controller.delete(userExchange())
-        assertEquals(HttpStatus.FORBIDDEN, response.statusCode)
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 도구 정책 삭제 요청은 403이어야 한다" }
     }
 
     @Test
@@ -96,10 +96,10 @@ class ToolPolicyControllerAuthTest {
             ),
             adminExchange()
         )
-        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals(HttpStatus.OK, response.statusCode) { "관리자 도구 정책 업데이트 요청은 200이어야 한다" }
         val audits = adminAuditStore.list()
-        assertEquals(1, audits.size)
-        assertEquals("tool_policy", audits.first().category)
-        assertEquals("UPDATE", audits.first().action)
+        assertEquals(1, audits.size) { "감사 로그가 1건 기록되어야 한다" }
+        assertEquals("tool_policy", audits.first().category) { "감사 카테고리가 tool_policy여야 한다" }
+        assertEquals("UPDATE", audits.first().action) { "감사 액션이 UPDATE여야 한다" }
     }
 }
