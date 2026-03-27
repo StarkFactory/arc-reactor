@@ -196,7 +196,8 @@ class SlackMessagingService(
     private fun isAllowedResponseUrl(url: String): Boolean {
         val uri = try {
             java.net.URI(url)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to validate response_url: ${url.take(50)}" }
             return false
         }
         val host = uri.host?.lowercase() ?: return false

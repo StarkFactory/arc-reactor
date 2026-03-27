@@ -107,7 +107,10 @@ class DefaultSlackEventHandler(
             return sendResult.ok
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Proactive handling failed for channel=${command.channelId}" }
+            logger.warn(e) {
+                "Proactive handling failed: channel=${command.channelId}, " +
+                    "user=${command.userId}, text=${command.text.take(50)}"
+            }
             return false
         }
     }
