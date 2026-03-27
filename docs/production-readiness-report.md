@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T02:25:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T02:45:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -478,5 +478,33 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 - 상용 배포 시 캐시 TTL을 Guard 변경 주기보다 짧게 설정하거나, Guard 변경 시 캐시 flush 메커니즘 구현
 
 **수정**: 없음 (서버 재시작 + 캐시 설계 이슈는 별도 작업)
+**커밋**: 보고서 업데이트
+
+### Round 9 — 2026-03-28T02:45+09:00
+
+**렌즈**: MCP 2순환 (Round 3 수정사항 재검증)
+
+| 항목 | 결과 | Round 3 대비 |
+|------|------|-------------|
+| 빌드 | PASS | 변화 없음 |
+| 테스트 | PASS | 변화 없음 |
+| Health | UP | 변화 없음 |
+| MCP 서버 2개 CONNECTED | PASS | 안정 |
+| Swagger 11 tools | PASS | 안정 |
+| Atlassian 37 tools | PASS | 안정 |
+| Swagger access-policy | PASS (200) | 안정 |
+| Atlassian access-policy | **PASS (200)** | **Round 3 FAIL→수정 확인** |
+| Jira 도구 호출 | PARTIAL (도구 선택 OK, upstream auth FAIL) | 동일 |
+| Confluence 도구 호출 | PARTIAL (도구 선택 OK, upstream auth FAIL) | 동일 |
+| Swagger 도구 호출 | FAIL (grounding guard가 미검증 응답 차단) | 동일 |
+| Ops Dashboard MCP | PASS (2 CONNECTED) | 안정 |
+
+**발견**:
+1. **Atlassian access-policy 수정 확인** — Round 3의 400 → 200 정상 반환. allowedJiraProjectKeys=[FSD,JAR], allowedConfluenceSpaceKeys=[FRONTEND,MFS]
+2. **Jira/Confluence 도구 라우팅 정상** — jira_search_issues, confluence_search 정상 선택. upstream auth 에러는 Atlassian API 토큰 문제 (운영 설정)
+3. **Swagger 미호출 원인 확정** — grounding guard가 "verified source" 없는 swagger 결과를 차단. swagger catalog에 published spec 0건이 근본 원인
+4. **MCP 인프라 안정성** — 9 Round 동안 연결 끊김 0건
+
+**수정**: 없음
 **커밋**: 보고서 업데이트
 
