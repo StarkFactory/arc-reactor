@@ -1,13 +1,15 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.memory.TokenEstimator
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
@@ -24,7 +26,7 @@ private val logger = KotlinLogging.logger {}
  * 3. **Phase 2**: 마지막 UserMessage 이후의 도구 상호작용 쌍 제거 (예산 초과 시)
  *
  * 스레드 안전: 이 인스턴스는 여러 요청에서 공유될 수 있으므로
- * [ConcurrentHashMap]과 identity 기반 키 래퍼를 사용하여 동시 접근을 보호한다.
+ * Caffeine [Cache]와 identity 기반 키 래퍼를 사용하여 동시 접근을 보호한다.
  *
  * @param maxContextWindowTokens 최대 컨텍스트 윈도우 토큰 수
  * @param outputReserveTokens 출력 응답을 위해 예약할 토큰 수
@@ -37,7 +39,7 @@ internal class ConversationMessageTrimmer(
     private val outputReserveTokens: Int,
     private val tokenEstimator: TokenEstimator
 ) {
-    /** identity(===) 기반 해시/동등 비교를 수행하는 ConcurrentHashMap 키 래퍼. */
+    /** identity(===) 기반 해시/동등 비교를 수행하는 캐시 키 래퍼. */
     private class IdentityKey(val message: Message) {
         override fun hashCode(): Int = System.identityHashCode(message)
         override fun equals(other: Any?): Boolean = other is IdentityKey && message === other.message
@@ -46,9 +48,12 @@ internal class ConversationMessageTrimmer(
     /**
      * 이전 trim() 호출에서 계산한 메시지별 토큰 수 캐시.
      * 메시지 identity(===)로 캐시 히트 판단하여 증분 계산만 수행한다.
-     * [ConcurrentHashMap]으로 다수 요청의 동시 접근을 안전하게 처리한다.
+     * Caffeine [Cache]로 최대 10,000 엔트리 + 5분 접근 만료를 적용하여 메모리 누수를 방지한다.
      */
-    private val tokenCache = ConcurrentHashMap<IdentityKey, Int>()
+    private val tokenCache: Cache<IdentityKey, Int> = Caffeine.newBuilder()
+        .maximumSize(10_000)
+        .expireAfterAccess(5, TimeUnit.MINUTES)
+        .build()
 
     companion object {
         /** 메시지당 구조적 오버헤드 (역할 태그, 구분자, 메타데이터) — 추정 토큰 수. */
@@ -82,7 +87,7 @@ internal class ConversationMessageTrimmer(
         }
 
         val messageTokens = messages.mapTo(ArrayList(messages.size)) { msg ->
-            tokenCache.getOrPut(IdentityKey(msg)) { estimateMessageTokens(msg) }
+            tokenCache.get(IdentityKey(msg)) { estimateMessageTokens(msg) }
         }
         var totalTokens = messageTokens.sum()
         // Phase 1: 오래된 히스토리 제거 (선행 SystemMessage와 마지막 UserMessage 보호)
@@ -91,9 +96,6 @@ internal class ConversationMessageTrimmer(
         totalTokens = trimLeadingMemoryMessages(messages, messageTokens, totalTokens, budget)
         // Phase 2: 마지막 UserMessage 이후의 도구 히스토리 쌍 제거
         trimToolHistory(messages, messageTokens, totalTokens, budget)
-        // 제거된 메시지의 캐시 엔트리 정리 (identity 기반)
-        val retained = messages.mapTo(HashSet(messages.size)) { IdentityKey(it) }
-        tokenCache.keys.retainAll(retained)
     }
 
     /**
