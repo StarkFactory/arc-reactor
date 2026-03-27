@@ -5,11 +5,12 @@ import com.arc.reactor.slack.model.SlackApiResult
 import com.arc.reactor.slack.metrics.NoOpSlackMetricsRecorder
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.reactor.awaitSingleOrNull
 import mu.KotlinLogging
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.reactive.function.client.awaitBody
-import org.springframework.web.reactive.function.client.awaitBodilessEntity
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -116,7 +117,9 @@ class SlackMessagingService(
                 .uri(responseUrl)
                 .bodyValue(body)
                 .retrieve()
-                .awaitBodilessEntity()
+                .toBodilessEntity()
+                .timeout(Duration.ofSeconds(RESPONSE_URL_TIMEOUT_SECONDS))
+                .awaitSingleOrNull()
             metricsRecorder.recordResponseUrl("success")
             true
         } catch (e: Exception) {
@@ -208,6 +211,7 @@ class SlackMessagingService(
 
     companion object {
         private const val RATE_LIMIT_DELAY_MS = 1000L
+        private const val RESPONSE_URL_TIMEOUT_SECONDS = 10L
         private val DEFAULT_ALLOWED_RESPONSE_HOSTS = setOf("hooks.slack.com", "slack.com")
     }
 }

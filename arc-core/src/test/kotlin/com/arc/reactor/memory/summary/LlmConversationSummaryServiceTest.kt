@@ -4,6 +4,7 @@ import com.arc.reactor.agent.model.Message
 import com.arc.reactor.agent.model.MessageRole
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -142,7 +143,7 @@ class LlmConversationSummaryServiceTest {
         }
 
         @Test
-        fun `call LLM and parse response해야 한다`() = runTest {
+        fun `call LLM and parse response해야 한다`() = runBlocking {
             val chatClient = mockk<ChatClient>()
             val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
             val callResponseSpec = mockk<ChatClient.CallResponseSpec>()

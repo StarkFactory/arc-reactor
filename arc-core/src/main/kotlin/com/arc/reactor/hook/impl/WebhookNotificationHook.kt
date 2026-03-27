@@ -4,10 +4,14 @@ import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.support.throwIfCancellation
+import io.netty.channel.ChannelOption
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import mu.KotlinLogging
+import org.springframework.http.client.reactive.ReactorClientHttpConnector
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
+import reactor.netty.http.client.HttpClient
+import reactor.netty.resources.ConnectionProvider
 import java.time.Duration
 import java.time.Instant
 
@@ -42,7 +46,7 @@ private val logger = KotlinLogging.logger {}
  */
 class WebhookNotificationHook(
     private val webhookProperties: WebhookProperties,
-    private val webClient: WebClient = WebClient.create()
+    private val webClient: WebClient = createDefaultWebClient()
 ) : AfterAgentCompleteHook {
 
     // 200+: 후기 Hook (알림, 정리)
@@ -110,6 +114,20 @@ class WebhookNotificationHook(
 
         return payload
     }
+}
+
+/** 커넥션 풀 및 타임아웃이 설정된 기본 WebClient를 생성한다. */
+private fun createDefaultWebClient(): WebClient {
+    val connectionProvider = ConnectionProvider.builder("webhook")
+        .maxConnections(50)
+        .pendingAcquireTimeout(Duration.ofSeconds(5))
+        .build()
+    val httpClient = HttpClient.create(connectionProvider)
+        .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5_000)
+        .responseTimeout(Duration.ofSeconds(10))
+    return WebClient.builder()
+        .clientConnector(ReactorClientHttpConnector(httpClient))
+        .build()
 }
 
 /**
