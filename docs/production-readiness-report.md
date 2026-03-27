@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T06:45:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T07:05:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -850,5 +850,35 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 4. **도구 패밀리 분포**: confluence(104) > jira(53) > work(20) > bitbucket(1) — Confluence가 가장 많이 사용됨
 
 **수정**: 없음 (Confluence 라우팅은 upstream auth + semantic matching 복합 이슈)
+**커밋**: 보고서 업데이트
+
+### Round 22 — 2026-03-28T07:05+09:00
+
+**렌즈**: RAG 4순환 (대량 삽입 + 정밀 검색 + 유사도 분포 + 검색 성능 + 삭제)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| 초기 문서 수 | 4개, 3072차원 | 안정 |
+| 대량 삽입 5건 | PASS | count=5, totalChunks=5 |
+| 검색 JWT | PASS | top-1 정확 (score=0.211) |
+| 검색 Caffeine | PASS | top-1 정확 (score=0.182) |
+| 검색 Slack | PASS | top-1 정확 (score=0.171) |
+| 검색 Output Guard | PASS | top-1 정확 (score=0.143) — 최고 유사도 |
+| 검색 Spring AI | PASS | top-1 정확 (score=0.179) |
+| 음성 쿼리 (양자컴퓨팅) | PASS | 전부 ≥0.45 (관련 없음 확인) |
+| 검색 성능 3회 | PASS | 410-526ms (임베딩 왕복 포함) |
+| 삭제 5건 | PASS | 204 × 5 |
+| 최종 문서 수 = 초기 | PASS | 4개 복원 |
+
+**발견**:
+1. **유사도 점수 분포**: 매칭 문서 0.14-0.21, 무관 문서 ≥0.45 — 분리 명확 (gap ≥0.24)
+2. **검색 성능 안정**: 410-526ms 범위 (Gemini 임베딩 왕복 포함). 9개 문서 수준에서 일관적
+3. **대량 삽입+삭제 라이프사이클 무결** — 5건 batch insert → 검색 확인 → 5건 개별 삭제 → 문서 수 복원
+4. **Output Guard 검색이 최고 유사도** (0.143) — PII/마스킹 키워드가 정확히 임베딩됨
+
+**수정**: 없음
 **커밋**: 보고서 업데이트
 
