@@ -16,6 +16,8 @@ import com.arc.reactor.persona.resolveEffectivePrompt
 import com.arc.reactor.prompt.PromptTemplateStore
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +25,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import org.springframework.beans.factory.DisposableBean
@@ -98,11 +102,17 @@ class DynamicSchedulerService(
         private const val RETRY_DELAY_MS = 2000L
         private const val MIN_EXECUTION_TIMEOUT_MS = 1000L
         private const val MAX_EXECUTION_TIMEOUT_MS = 3_600_000L
+        private const val DEFAULT_JOB_TIMEOUT_MS = 300_000L
+        private const val JOB_MUTEX_CACHE_MAX_SIZE = 1000L
         private const val MESSAGE_TRUNCATION_LIMIT = 3000
         private val DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
     }
 
     private val scheduledFutures = ConcurrentHashMap<String, ScheduledFuture<*>>()
+
+    /** 작업별 Mutex. cancel/delete와 in-flight 실행의 race condition을 방지한다. */
+    private val jobMutexes: Cache<String, Mutex> =
+        Caffeine.newBuilder().maximumSize(JOB_MUTEX_CACHE_MAX_SIZE).build()
 
     /**
      * 스케줄 작업 실행용 코루틴 스코프.
@@ -257,34 +267,50 @@ class DynamicSchedulerService(
         }
     }
 
+    /** 작업 ID에 대한 Mutex를 조회하거나 생성한다. */
+    private fun mutexFor(jobId: String): Mutex =
+        jobMutexes.get(jobId) { Mutex() }
+
+    /**
+     * 크론 트리거를 취소하고 in-flight 실행 완료를 대기한다.
+     * per-job Mutex로 실행 중인 작업과의 race condition을 방지한다.
+     */
     private fun cancelJob(id: String) {
         scheduledFutures.remove(id)?.cancel(false)
+        runBlocking { mutexFor(id).withLock { /* in-flight 실행 완료 대기 */ } }
     }
 
-    private suspend fun executeJob(job: ScheduledJob): String {
+    private suspend fun executeJob(job: ScheduledJob): String = mutexFor(job.id).withLock {
         logger.info { "Executing scheduled job: ${job.name} [${job.jobType}]" }
         store.updateExecutionResult(job.id, JobExecutionStatus.RUNNING, null)
 
         val startedAt = Instant.now()
-        return try {
+        try {
             val result = runJobWithRetryAndTimeout(job)
-
-            sendSlackIfConfigured(job, result)
-            sendTeamsIfConfigured(job, result)
-            store.updateExecutionResult(job.id, JobExecutionStatus.SUCCESS, result)
-            val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
-            recordExecution(job, JobExecutionStatus.SUCCESS, result, durationMs, false, startedAt)
-            logger.info { "Scheduled job completed: ${job.name}" }
-            result
+            handleJobSuccess(job, result, startedAt)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            val errorMsg = "Job '${job.name}' failed: ${e.message}"
-            logger.error(e) { errorMsg }
-            store.updateExecutionResult(job.id, JobExecutionStatus.FAILED, errorMsg)
-            val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
-            recordExecution(job, JobExecutionStatus.FAILED, errorMsg, durationMs, false, startedAt)
-            errorMsg
+            handleJobFailure(job, e, startedAt)
         }
+    }
+
+    private fun handleJobSuccess(job: ScheduledJob, result: String, startedAt: Instant): String {
+        sendSlackIfConfigured(job, result)
+        sendTeamsIfConfigured(job, result)
+        store.updateExecutionResult(job.id, JobExecutionStatus.SUCCESS, result)
+        val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
+        recordExecution(job, JobExecutionStatus.SUCCESS, result, durationMs, false, startedAt)
+        logger.info { "Scheduled job completed: ${job.name}" }
+        return result
+    }
+
+    private fun handleJobFailure(job: ScheduledJob, e: Exception, startedAt: Instant): String {
+        val errorMsg = "Job '${job.name}' failed: ${e.message}"
+        logger.error(e) { errorMsg }
+        store.updateExecutionResult(job.id, JobExecutionStatus.FAILED, errorMsg)
+        val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
+        recordExecution(job, JobExecutionStatus.FAILED, errorMsg, durationMs, false, startedAt)
+        return errorMsg
     }
 
     private suspend fun executeDryRun(job: ScheduledJob): String {
@@ -307,13 +333,19 @@ class DynamicSchedulerService(
     }
 
     private suspend fun runJobWithRetryAndTimeout(job: ScheduledJob): String {
-        val timeoutMs = job.executionTimeoutMs
-            ?: schedulerProperties.defaultExecutionTimeoutMs
+        val timeoutMs = resolveJobTimeout(job)
         return try {
             withTimeout(timeoutMs) { runWithRetry(job) }
         } catch (@Suppress("SwallowedException") e: kotlinx.coroutines.TimeoutCancellationException) {
             throw RuntimeException("Job '${job.name}' timed out after ${timeoutMs}ms")
         }
+    }
+
+    /** 작업 타임아웃을 결정한다. 미설정 시 프로퍼티 → 기본값 5분 순으로 폴백. */
+    private fun resolveJobTimeout(job: ScheduledJob): Long {
+        val raw = job.executionTimeoutMs
+            ?: schedulerProperties.defaultExecutionTimeoutMs
+        return if (raw <= 0L) DEFAULT_JOB_TIMEOUT_MS else raw
     }
 
     private suspend fun runWithRetry(job: ScheduledJob): String {
