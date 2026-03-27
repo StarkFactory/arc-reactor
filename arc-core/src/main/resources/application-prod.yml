@@ -12,9 +12,15 @@ logging:
     com.arc.reactor: INFO
     org.springframework: WARN
 
+spring:
+  codec:
+    max-in-memory-size: 1MB
+
 arc:
   reactor:
     concurrency:
       max-concurrent-requests: 50
     security-headers:
       enabled: true
+    auth:
+      public-actuator-health: ${ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH:false}

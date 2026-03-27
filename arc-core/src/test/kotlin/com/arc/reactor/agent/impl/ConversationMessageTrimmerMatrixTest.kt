@@ -65,8 +65,9 @@ class ConversationMessageTrimmerMatrixTest {
                 repeat(assistantCount) { i -> messages.add(AssistantMessage("assistant-$i")) }
                 val before = messages.map { it.javaClass.simpleName + ":" + (it.text ?: "") }
                 val total = messages.sumOf { estimator.estimate(it.text ?: "") }
+                val overhead = messages.size * ConversationMessageTrimmer.MESSAGE_STRUCTURE_OVERHEAD
                 val trimmer = ConversationMessageTrimmer(
-                    maxContextWindowTokens = total + 100,
+                    maxContextWindowTokens = total + overhead + 100,
                     outputReserveTokens = 0,
                     tokenEstimator = estimator
                 )

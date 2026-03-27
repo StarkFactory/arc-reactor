@@ -3,13 +3,11 @@ package com.arc.reactor.agent.impl
 import com.arc.reactor.agent.model.AgentCommand
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.slf4j.MDC
 
 @Tag("matrix")
 /**
@@ -18,14 +16,6 @@ import org.slf4j.MDC
  * 비정상적인 입력에 대한 컨텍스트 관리 안정성을 검증합니다.
  */
 class AgentRunContextManagerFuzzTest {
-
-    @AfterEach
-    fun cleanup() {
-        MDC.remove("runId")
-        MDC.remove("userId")
-        MDC.remove("userEmail")
-        MDC.remove("sessionId")
-    }
 
     @Test
     fun `open and close은(는) maintain MDC and metadata invariants across 300 cases해야 한다`() = runTest {
@@ -58,26 +48,29 @@ class AgentRunContextManagerFuzzTest {
 
             val context = manager.open(command, toolsUsed)
 
+            // open()은 withContext(MDCContext)를 사용하므로 thread-local MDC가 아닌
+            // hookContext를 통해 메타데이터를 검증한다.
             assertEquals("run-$i", context.runId, "runId should match supplier at index $i")
-            assertEquals("run-$i", MDC.get("runId"), "MDC runId should match at index $i")
+            assertEquals("run-$i", context.hookContext.metadata["runId"], "hookContext metadata runId at index $i")
             assertEquals(command.userId ?: "anonymous", context.hookContext.userId, "userId should resolve correctly at index $i")
-            assertEquals(command.userId ?: "anonymous", MDC.get("userId"), "MDC userId should match at index $i")
             assertEquals(metadata["channel"]?.toString(), context.hookContext.channel, "channel should match at index $i")
             assertEquals("trace-$i", context.hookContext.metadata["traceId"], "traceId should be copied at index $i")
             assertEquals(metadata["requesterEmail"]?.toString(), context.hookContext.userEmail, "userEmail should resolve at index $i")
-            assertEquals(metadata["requesterEmail"]?.toString(), MDC.get("userEmail"), "MDC userEmail should match at index $i")
 
             if (includeSession) {
-                assertEquals(metadata["sessionId"].toString(), MDC.get("sessionId"), "MDC sessionId should be set at index $i")
+                assertEquals(
+                    metadata["sessionId"].toString(),
+                    context.hookContext.metadata["sessionId"]?.toString(),
+                    "hookContext sessionId should be set at index $i"
+                )
             } else {
-                assertNull(MDC.get("sessionId"), "MDC sessionId should be null when no sessionId provided at index $i")
+                assertNull(
+                    context.hookContext.metadata["sessionId"],
+                    "hookContext sessionId should be null when no sessionId provided at index $i"
+                )
             }
 
             manager.close()
-            assertNull(MDC.get("runId"), "MDC runId should be cleared after close() at index $i")
-            assertNull(MDC.get("userId"), "MDC userId should be cleared after close() at index $i")
-            assertNull(MDC.get("userEmail"), "MDC userEmail should be cleared after close() at index $i")
-            assertNull(MDC.get("sessionId"), "MDC sessionId should be cleared after close() at index $i")
         }
     }
 

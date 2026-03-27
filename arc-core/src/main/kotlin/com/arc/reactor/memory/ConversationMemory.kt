@@ -332,7 +332,7 @@ class InMemoryMemoryStore(
      */
     private val sessions = Caffeine.newBuilder()
         .maximumSize(maxSessions.toLong())
-        .removalListener<String, ConversationMemory> { key, _, _ ->
+        .evictionListener<String, ConversationMemory> { key, _, _ ->
             if (key != null) sessionOwners.remove(key)
         }
         .build<String, ConversationMemory>()

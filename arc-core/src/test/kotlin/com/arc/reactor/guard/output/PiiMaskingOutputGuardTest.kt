@@ -190,6 +190,129 @@ class PiiMaskingOutputGuardTest {
     }
 
     @Nested
+    inner class KoreanDriverLicense {
+
+        @Test
+        fun `운전면허번호를 마스킹한다`() = runTest {
+            val content = "면허번호: 11-23-123456-78"
+            val result = guard.check(content, defaultContext)
+            val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
+                "Should mask driver license"
+            }
+            assertFalse(modified.content.contains("11-23-123456-78")) {
+                "Driver license should be masked"
+            }
+            assertTrue(modified.reason.contains("운전면허번호")) {
+                "Reason should mention driver license type"
+            }
+        }
+    }
+
+    @Nested
+    inner class KoreanPassport {
+
+        @Test
+        fun `여권번호를 마스킹한다`() = runTest {
+            val content = "여권번호는 M12345678 입니다."
+            val result = guard.check(content, defaultContext)
+            val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
+                "Should mask passport number"
+            }
+            assertFalse(modified.content.contains("M12345678")) {
+                "Passport number should be masked"
+            }
+        }
+    }
+
+    @Nested
+    inner class UsSsn {
+
+        @Test
+        fun `US SSN을 마스킹한다`() = runTest {
+            val content = "SSN is 123-45-6789."
+            val result = guard.check(content, defaultContext)
+            val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
+                "Should mask US SSN"
+            }
+            assertFalse(modified.content.contains("123-45-6789")) {
+                "US SSN should be masked"
+            }
+            assertTrue(modified.content.contains("***-**-****")) {
+                "Should contain masked SSN format"
+            }
+        }
+    }
+
+    @Nested
+    inner class JpMyNumber {
+
+        @Test
+        fun `일본 마이넘버를 마스킹한다`() = runTest {
+            val content = "マイナンバー: 1234 5678 9012"
+            val result = guard.check(content, defaultContext)
+            val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
+                "Should mask JP My Number"
+            }
+            assertFalse(modified.content.contains("1234 5678 9012")) {
+                "JP My Number should be masked"
+            }
+        }
+    }
+
+    @Nested
+    inner class Iban {
+
+        @Test
+        fun `IBAN을 마스킹한다`() = runTest {
+            val content = "IBAN: DE89370400440532013000"
+            val result = guard.check(content, defaultContext)
+            val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
+                "Should mask IBAN"
+            }
+            assertFalse(modified.content.contains("DE89370400440532013000")) {
+                "IBAN should be masked"
+            }
+        }
+
+        @Test
+        fun `공백 포함 IBAN을 마스킹한다`() = runTest {
+            val content = "IBAN: GB29 NWBK 6016 1331 9268 19"
+            val result = guard.check(content, defaultContext)
+            val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
+                "Should mask IBAN with spaces"
+            }
+            assertFalse(modified.content.contains("GB29")) {
+                "IBAN with spaces should be masked"
+            }
+        }
+    }
+
+    @Nested
+    inner class IpAddress {
+
+        @Test
+        fun `IPv4 주소를 마스킹한다`() = runTest {
+            val content = "서버 IP: 192.168.1.100"
+            val result = guard.check(content, defaultContext)
+            val modified = assertInstanceOf(OutputGuardResult.Modified::class.java, result) {
+                "Should mask IPv4 address"
+            }
+            assertFalse(modified.content.contains("192.168.1.100")) {
+                "IPv4 address should be masked"
+            }
+        }
+
+        @Test
+        fun `유효하지 않은 IP는 마스킹하지 않는다`() = runTest {
+            val content = "버전 256.1.2.3은 유효하지 않습니다"
+            val result = guard.check(content, defaultContext)
+            assertInstanceOf(OutputGuardResult.Allowed::class.java, result) {
+                "Invalid IP range (256) should not be masked"
+            }
+        }
+    }
+
+    @Nested
     inner class MultiplePii {
 
         @Test
