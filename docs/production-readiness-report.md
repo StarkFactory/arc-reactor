@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T04:45:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T05:05:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -676,6 +676,33 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 2. MCP preflight, swagger sources REST 프록시 미구현 (404) — 계획된 기능이나 현재 빌드에 미포함
 3. **MCP 서버 안정성**: 15 Round (~5시간) 동안 연결 끊김 0건, disconnect/reconnect 사이클 정상
 4. PUT 멱등성 확인 — 동일 설정으로 PUT 시 연결 유지, 도구 수 변화 없음
+
+**수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 16 — 2026-03-28T05:05+09:00
+
+**렌즈**: RAG 3순환 (검색 정밀도 + 채팅 grounding + 라이프사이클 + 캐시)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| RAG 문서 수 | 4개, 3072차원 | 안정 |
+| 검색 정밀도 3종 | 3/3 PASS | ReAct(0.177), Guard(0.183), MCP(0.175) — 전부 top-1 정확 |
+| RAG 기반 채팅 | 1/2 PASS | ReAct grounded OK, Guard는 Confluence 라우팅 (auth fail) |
+| 교차 문서 검색 | PASS | 4개 문서 관련도순 반환 |
+| 음성 검색 | PASS | 무관 쿼리 전부 고거리 (>0.44) |
+| 중복 차단 | PASS | 409 + existingId |
+| 캐시 동작 | PASS | 동일 쿼리 1ms (캐시 히트) |
+| 라이프사이클 | PASS | 삽입→검색→삭제→미검색→문서 수 복원 |
+
+**발견**:
+1. **검색 정밀도 우수** — 3개 쿼리 모두 정확한 top-1, 유사도 점수 0.17-0.18 범위
+2. **RAG-CHAT-01 FAIL 원인 확인** — 채팅 에이전트가 "Guard 파이프라인" 질문을 Confluence로 라우팅 (RAG 벡터 스토어 대신). upstream auth 실패가 원인, RAG 검색 자체는 정확 (score=0.274)
+3. **RAG-CHAT-02 PASS** — ReAct 질문은 벡터 스토어에서 정확히 grounding됨. 출처(qa-round4) 포함
+4. **라이프사이클 무결성** — 삽입/검색/삭제/재검색/문서 수 복원 전 과정 정상
 
 **수정**: 없음
 **커밋**: 보고서 업데이트
