@@ -595,7 +595,7 @@ object InjectionPatterns {
             "credential_extraction",
             Regex(
                 "(비밀번호|패스워드|password|비번|암호|api\\s*key|secret|토큰|token|인증\\s*키)" +
-                    ".{0,15}(알려|보여|출력|공개|말해|tell|show|reveal|give)",
+                    ".{0,15}(알려|보여|출력|공개|말해|뭐야|뭐지|뭡니까|뭐에요|tell|show|reveal|give)",
                 setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
             )
         ),
@@ -612,7 +612,7 @@ object InjectionPatterns {
         InjectionPattern(
             "credential_extraction",
             Regex(
-                "(?i)(admin|root|관리자|어드민).{0,15}(비밀번호|password|비번|암호|인증|credential)"
+                "(?i)(admin|root|관리자|어드민).{0,15}(비밀번호|패스워드|password|비번|암호|인증|credential)"
             )
         ),
         // "admin/root 계정 정보를 알려줘" — 관리자 계정 정보 추출 시도
@@ -620,7 +620,7 @@ object InjectionPatterns {
         InjectionPattern(
             "credential_extraction",
             Regex(
-                "(?i)(admin|root|관리자|어드민).{0,15}(계정|account).{0,15}(정보|알려|보여|출력|공개|말해|tell|show|reveal|give|접속|로그인)"
+                "(?i)(admin|root|관리자|어드민).{0,15}(계정|account).{0,15}(정보|알려|보여|출력|공개|말해|뭐야|뭐지|뭡니까|뭐에요|tell|show|reveal|give|접속|로그인)"
             )
         ),
 
