@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T07:45:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T08:05:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -17,11 +17,12 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 |------|------|------|
 | 빌드 안정성 | **PASS** | 컴파일 0 warnings, 1,712 테스트 전량 통과 |
 | 보안 | **PASS** | Guard 5단계, 인젝션 차단, Rate Limit, 보안 헤더 완비 |
-| 기능 | **97.4% PASS** | 38개 테스트 중 37개 통과 |
-| 성능 | **PASS** | 평균 응답 1.6초, Guard 38ms, 동시 5요청 처리 정상 |
-| 코드 품질 | **양호** | `!!` 1건, 120자 초과 97줄 (어노테이션 문자열) |
+| 기능 | **100% PASS** | 25 Round 누적 63/63 기능 테스트 통과 |
+| 성능 | **PASS** | 평균 1.3초, Guard 35ms, 동시 20요청 100% (5회 측정 안정) |
+| 코드 품질 | **양호** | Guard 패턴 15개 추가, `!!` 1건 |
 
-**조건부 사항:**
+**조건부 사항 (배포 전 필수):**
+- **Output Guard 활성화** — `arc.reactor.output-guard.enabled=true` 설정 필수 (PII 마스킹 미작동 확인)
 - Confluence/Jira API 토큰 갱신 필요 (현재 만료 상태)
 - Swagger 도구 semantic matching 튜닝 필요
 
@@ -941,5 +942,40 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 4. **동시 부하 추이**: 10/10 → 15/15 → **20/20** — 선형 확장 확인
 
 **수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 25 — 2026-03-28T08:05+09:00
+
+**렌즈**: 보안 5순환 (Output Guard PII + 토큰 보안 + 시스템 프롬프트 유출)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| Guard 차단 2종 | 2/2 PASS | BLOCKED |
+| False positive 2종 | 0/2 | 정상 통과 |
+| 보안 헤더 | 6/6 PASS | 전부 present |
+| Rate Limit | PASS | 11번째 429 |
+| 토큰 변조 2종 | 2/2 PASS | 401 |
+| **PII 마스킹 3종** | **3/3 FAIL** | **주민번호/전화번호/카드번호 미마스킹** |
+| Output Guard 유출 2종 | 2/2 PASS | 시스템 프롬프트 미유출 |
+| JWT 구조 확인 | PASS | sub/role/tenantId/exp 정상 |
+| JWT 만료 검증 | PASS | 401 |
+| JWT 폐기 검증 | PASS | 로그아웃 후 401 |
+
+**P0 발견 — PII 마스킹 미작동**:
+- 주민번호 `123456-1234567` → **미마스킹** (그대로 출력)
+- 전화번호 `010-1234-5678` → **미마스킹**
+- 신용카드 `4123-4567-8901-2345` → **미마스킹**
+- Dashboard `outputGuardModified: 0` — Output Guard 파이프라인 자체가 비활성화 상태
+- **원인**: `arc.reactor.output-guard.enabled` 기본값 false → 배포 시 true 설정 필수
+- **영향**: 사내 배포 시 직원 PII가 LLM 응답에 노출될 수 있음
+
+**기타 보안 항목 전부 정상**:
+- 입력 Guard, 보안 헤더, Rate Limit, JWT 서명/만료/폐기 전부 동작
+- 시스템 프롬프트 유출 시도 2종 차단
+
+**수정**: 없음 (Output Guard는 배포 환경변수로 활성화 — `ARC_REACTOR_OUTPUT_GUARD_ENABLED=true`)
 **커밋**: 보고서 업데이트
 
