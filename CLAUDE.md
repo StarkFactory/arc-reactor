@@ -1,6 +1,6 @@
 # Arc Reactor
 
-Spring AI 기반 AI Agent 프레임워크 (Kotlin/Spring Boot 3.5.12 / JDK 21).
+Spring AI 기반 AI Agent 프레임워크 (Kotlin 2.3.20 / Spring Boot 3.5.12 / JDK 21).
 
 ## Build & Test
 
@@ -9,114 +9,135 @@ Spring AI 기반 AI Agent 프레임워크 (Kotlin/Spring Boot 3.5.12 / JDK 21).
 ./gradlew test                                             # 전체 테스트
 ./gradlew :arc-core:test --tests "*.ClassName"             # 모듈별 단일 파일
 ./gradlew test -Pdb=true                                   # PostgreSQL 프로파일
-./gradlew test -PincludeHardening -PincludeSafety          # 보안 강화 테스트
-./gradlew test -PincludeMatrix                             # Matrix/Fuzz 테스트
 ./gradlew bootRun                                          # 실행 (GEMINI_API_KEY 필수)
 ```
 
+| JUnit Tag | Gradle Flag | 용도 |
+|-----------|-------------|------|
+| `hardening` | `-PincludeHardening` | Guard/보안 강화 |
+| `safety` | `-PincludeSafety` | CI safety gate |
+| `matrix` | `-PincludeMatrix` | Fuzz/조합 테스트 |
+| `integration` | `-PincludeIntegration` | LLM API 필요 |
+| `external` | `-PincludeExternalIntegration` | Docker/외부 네트워크 |
+| `benchmark` | `-PincludeBenchmark` | 성능 벤치마크 |
+
 ## Modules
 
-| Module | 역할 |
-|--------|------|
-| `arc-core` | 에이전트 엔진, Guard/Hook, Tool, RAG, Memory, MCP, Scheduler |
-| `arc-web` | REST/SSE, JWT 인증, 멀티모달, OpenAPI |
-| `arc-slack` | Slack Events API + Socket Mode + Slash Command |
-| `arc-admin` | 메트릭, 테넌트, 알림, 비용/SLO |
-| `arc-app` | bootRun/bootJar 진입점 |
+```
+arc-app → arc-web, arc-slack, arc-admin → arc-core  (단방향 의존)
+```
+
+**IMPORTANT: `arc-core`는 다른 모듈을 절대 import하지 않는다.**
 
 ## IMPORTANT: Critical Gotchas
 
-아래 규칙 위반은 프로덕션 장애를 유발한다. 수정 전 반드시 숙지.
+위반 시 프로덕션 장애. 수정 전 반드시 숙지.
 
-1. **CancellationException**: `catch (e: Exception)` 첫 줄에 `e.throwIfCancellation()` → 미준수 시 코루틴 취소 파괴
+1. **CancellationException**: `catch (e: Exception)` 첫 줄에 `e.throwIfCancellation()` (`import com.arc.reactor.support.throwIfCancellation`)
 2. **ReAct 무한 루프**: `maxToolCalls` 도달 → `activeTools = emptyList()` 필수
-3. **.forEach 금지**: `suspend fun` 내에서 `.forEach {}` 대신 `for (item in list)` 사용
+3. **.forEach 금지**: `suspend fun` 내 `.forEach {}` 대신 `for (item in list)`
 4. **메시지 쌍**: `AssistantMessage(toolCalls)` + `ToolResponseMessage` 항상 쌍으로 추가/제거
-5. **Context trimming**: Phase 2 가드 `>` 사용 (not `>=`) → off-by-one 시 UserMessage 손실
-6. **AssistantMessage**: 생성자 protected → `AssistantMessage.builder().content().toolCalls().build()`
-7. **API key**: `application.yml`에 빈 기본값 절대 금지. `.env`는 `.gitignore` 필수
-8. **Guard null userId**: `"anonymous"` 폴백 필수. Guard 건너뛰기 = 보안 취약점
-9. **e.message 노출 금지**: HTTP 응답에 예외 메시지 포함 금지 → 서버 로그에만 기록
+5. **Context trimming**: Phase 2 가드 `>` (not `>=`). off-by-one → UserMessage 손실
+6. **AssistantMessage**: 생성자 protected → `.builder().content().toolCalls().build()`
+7. **API key**: `application.yml`에 빈 기본값 절대 금지
+8. **Guard null userId**: `"anonymous"` 폴백. Guard skip = 보안 취약점
+9. **e.message 노출 금지**: HTTP 응답에 예외 메시지 포함 금지 → 서버 로그에만
 10. **toolsUsed**: 어댑터 존재 확인 후에만 추가 (LLM 환각 방지)
+11. **스트리밍 별도 경로**: Streaming은 별도 클래스 체인 (`StreamingExecutionCoordinator` → `StreamingReActLoopExecutor`). 비스트리밍 수정이 스트리밍에 자동 반영되지 않음 — 양쪽 모두 수정할 것
+12. **설정 프로퍼티 이름 변경 금지**: 기존 `arc.reactor.*` 프로퍼티 rename/remove 시 silent 장애. 신규 추가 후 deprecated 처리
 
 ## 코드 규칙
 
 **IMPORTANT: 파일 수정 전 반드시 Read로 먼저 읽을 것.**
 
-```
-한글 KDoc/주석 (영문 금지) | 메서드 ≤20줄 | 줄 ≤120자
-```
-
+- 한글 KDoc/주석 (영문 금지). 변수/함수/클래스명만 영문. 메서드 ≤20줄, 줄 ≤120자
 - `private val logger = KotlinLogging.logger {}` — 파일 최상단, 클래스 밖
-- `!!` 금지 → `.orEmpty()`, `?: default`, `as?` 사용
+- `!!` 금지 → `.orEmpty()`, `?: default`, `as?`
 - `Regex()` 함수 내 생성 금지 → `companion object` 또는 top-level
-- `ConcurrentHashMap` 금지 → Caffeine bounded cache (`maximumSize` + TTL)
-- `@RequestBody` → 반드시 `@Valid` 동반
-- 새 빈 → `@ConditionalOnMissingBean` 필수, 선택 의존성 → `ObjectProvider<T>`
+- `ConcurrentHashMap` 금지 → Caffeine bounded cache
+- `@RequestBody` → `@Valid` 필수. Admin 엔드포인트 → `AdminAuthSupport.isAdmin(exchange)`
+- 선택 의존성(compileOnly, VectorStore, JdbcTemplate) → `ObjectProvider<T>`. 필수 → 직접 주입
+- Flyway: `arc-core/src/main/resources/db/migration/V{순번}__{설명}.sql`. `IF NOT EXISTS` 필수
 
-## Guard / Hook / Tool 규율
+## Guard / Hook / Tool
 
 ```
-Guard = fail-close (보안). Hook = fail-open (관측). 보안 로직은 반드시 Guard에만.
+Guard = fail-close (보안)  |  Hook = fail-open (관측)  |  보안 로직은 반드시 Guard에만
 ```
 
-| 확장 포인트 | 규칙 | 실패 정책 |
-|------------|------|----------|
-| GuardStage | 내장 순서 1-5, 커스텀 10+ | 차단 (reject) |
-| Hook | try-catch + `e.throwIfCancellation()` | 계속 (로그) |
-| ToolCallback | `"Error: ..."` 문자열 반환, throw 금지 | LLM 대안 탐색 |
-| Bean | `@ConditionalOnMissingBean`, JDBC는 `@Primary` | 사용자 교체 가능 |
+- Guard: 7단계 (0.Unicode → 1.RateLimit → 2.Validation → 3.Injection → 4.Classification → 5.Permission → 10+.Custom)
+- Hook: 4개 지점 (BeforeAgentStart, BeforeToolCall, AfterToolCall, AfterAgentComplete)
+- Output Guard: 입력 Guard와 달리 `Modified` 반환 가능 (PII 마스킹 등 콘텐츠 변환)
+- **보안 설정 변경 금지**: `guard.enabled`, `injection-detection-enabled` 등을 `false`로 변경 시 PR에 보안 영향 명시
 
-## 새 기능 레시피
+## 새 기능 골든 패스
 
-| 대상 | 절차 |
-|------|------|
-| **Guard** | GuardStage 구현 → order 10+ → AutoConfig 등록 → 강화 테스트 |
-| **Hook** | Hook 구현 → try-catch 필수 → fail-open 보장 → 테스트 |
-| **Controller** | `@Tag` + `@Operation` + `@Valid` + `isAdmin()` + `ErrorResponse` |
-| **JDBC Store** | `@ConditionalOnBean(JdbcTemplate)` → Flyway (`IF NOT EXISTS`) → 테스트 |
-| **메트릭** | `MeterRegistry?` nullable 주입 → `meterRegistry?.counter(...)?.increment()` |
+```kotlin
+// 1. 인터페이스 (arc-core/.../myfeature/MyFeature.kt)
+/** 기능 설명 (한글 KDoc) */
+interface MyFeature {
+    suspend fun execute(input: String): String
+}
+
+// 2. 구현체 (arc-core/.../myfeature/DefaultMyFeature.kt)
+private val logger = KotlinLogging.logger {}
+
+class DefaultMyFeature(
+    private val required: RequiredDep,
+    private val optional: ObjectProvider<OptionalDep>  // 선택 의존성
+) : MyFeature {
+    override suspend fun execute(input: String): String {
+        return try {
+            required.process(input)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.error(e) { "처리 실패: input=$input" }
+            "Error: ${e.javaClass.simpleName}"
+        }
+    }
+}
+
+// 3. Configuration (arc-core/.../autoconfigure/MyFeatureConfiguration.kt)
+@Bean @ConditionalOnMissingBean
+fun myFeature(dep: RequiredDep, opt: ObjectProvider<OptionalDep>): MyFeature =
+    DefaultMyFeature(dep, opt)
+
+// 4. ArcReactorAutoConfiguration.kt의 @Import에 MyFeatureConfiguration::class 추가
+// 5. 테스트 작성 (runTest + coEvery + 실패 메시지 필수)
+// 6. ./gradlew compileKotlin compileTestKotlin → ./gradlew test
+```
+
+**AutoConfig 라우팅**: RAG → `RagConfiguration` | Guard → `GuardConfiguration` | JDBC → `JdbcStoreConfigurations` | Hook/MCP → `HookAndMcpConfiguration` | 신규 → 새 Configuration + @Import
 
 ## 테스트
 
-- **IMPORTANT: 모든 assertion에 실패 메시지 필수**
+- **IMPORTANT: 모든 JUnit assertion에 trailing lambda 실패 메시지 필수** (`AgentResultAssertions` 확장은 메시지 내장)
 - suspend mock: `coEvery`/`coVerify`, `runTest` > `runBlocking`
-- Guard/Output Guard/Sanitizer/ReAct 경계 수정 → 강화 테스트 동시 추가
-- 새 ToolCallback → 도구 출력 인젝션 테스트 추가
+- Guard/Sanitizer/ReAct 경계 수정 → 강화 테스트. 새 ToolCallback → 출력 인젝션 테스트
+- MCP write 도구(생성/수정/삭제) → 멱등성 보장 또는 `ToolIdempotencyGuard` 적용
 
 ## 커밋 & PR
 
-커밋 접두사: `feat:` `fix:` `refactor:` `sec:` `perf:` `docs:` `chore:` `test:` `ops:`
+접두사: `feat:` `fix:` `refactor:` `sec:` `perf:` `docs:` `chore:` `test:` `ops:`
+- CI 게이트: `build`, `integration`, `docker` 전부 통과
+- LLM 호출 추가/retry 증가 → PR에 비용 영향 메모
+- 외부 논문/기법 → `docs/en/reference/`에 출처
 
-- CI 머지 게이트: `build`, `integration`, `docker` 전부 통과
-- LLM 호출 추가 시 PR에 비용 영향 메모
-- 외부 논문/기법 → `docs/en/reference/`에 출처 문서화
+## Claude Code 팀
 
-## Claude Code 팀 운영
-
-### 검증 시퀀스 (작업 완료 후 필수)
+### 검증 시퀀스
 
 ```bash
-./gradlew compileKotlin compileTestKotlin    # 1. 0 warnings
-./gradlew test                                # 2. 전체 통과
-git push origin main                          # 3. push
-git branch -a                                 # 4. main만 확인
-gh pr list --state open                       # 5. open PR 0개
+./gradlew compileKotlin compileTestKotlin && ./gradlew test    # 1. compile + test
+git push origin main                                            # 2. push
+git branch -a && gh pr list --state open                       # 3. main만, PR 0개
 ```
 
-### 병렬 팀 (대규모 작업)
+### 병렬 팀
 
-1. **탐색**: Explore 에이전트 2-3개 → 모듈별 병렬 스캔
-2. **계획**: 독립 작업 단위 5-7개 분해 (동일 파일 2워커 배정 금지)
-3. **실행**: `isolation: "worktree"` + `run_in_background: true`
-4. **병합**: `git fetch` → `merge --no-edit` → compile + test
-5. **정리**: PR close(`--delete-branch`) → worktree 삭제 → `git worktree prune` → 브랜치 삭제 → `git fetch --prune` → push
+1. **탐색** → 2. **계획** (동일 파일 2워커 금지) → 3. **실행** (`isolation: "worktree"`) → 4. **병합** (fetch → merge → test) → 5. **정리** (PR close → worktree 삭제 → prune → push)
 
-### 릴리스
-
-`build.gradle.kts` 버전 범프 → `git tag -a vX.Y.Z` → push → `docs/en/releases/vX.Y.Z.md`
-
-## 상세 규칙 (경로별 자동 로드)
+## 상세 규칙
 
 @.claude/rules/kotlin-spring.md
 @.claude/rules/executor.md
