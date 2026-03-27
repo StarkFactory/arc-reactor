@@ -116,7 +116,7 @@ class MetricIngestionController(
         ApiResponse(responseCode = "503", description = "Metric buffer full")
     ])
     @PostMapping("/eval-result")
-    fun ingestEvalResult(@RequestBody request: EvalResultRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun ingestEvalResult(@Valid @RequestBody request: EvalResultRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val event = EvalResultEvent(
             time = Instant.now(),
@@ -151,7 +151,7 @@ class MetricIngestionController(
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @PostMapping("/eval-results")
-    fun ingestEvalResults(@RequestBody request: EvalRunResultsRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun ingestEvalResults(@Valid @RequestBody request: EvalRunResultsRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         if (request.results.size > MAX_BATCH_SIZE) {
             return ResponseEntity.badRequest().body(
@@ -196,7 +196,7 @@ class MetricIngestionController(
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @PostMapping("/batch")
-    fun ingestBatch(@RequestBody requests: List<McpHealthRequest>, exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun ingestBatch(@Valid @RequestBody requests: List<McpHealthRequest>, exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         if (requests.size > MAX_BATCH_SIZE) {
             return ResponseEntity.badRequest().body(
