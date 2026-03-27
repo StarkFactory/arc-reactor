@@ -436,7 +436,7 @@ internal class ToolCallOrchestrator(
     /** Tool 출력에 새니타이저를 적용한다. 미설정 시 경고 로그 후 원본 반환. */
     private fun sanitizeOutput(toolName: String, output: String): String {
         if (toolOutputSanitizer == null) {
-            logger.warn { "ToolOutputSanitizer 미설정: 도구 '$toolName' 출력이 비정제 상태로 LLM에 전달됨" }
+            logger.debug { "ToolOutputSanitizer 미설정: 도구 '$toolName' 출력이 비정제 상태로 LLM에 전달됨" }
             return output
         }
         return toolOutputSanitizer.sanitize(toolName, output).content

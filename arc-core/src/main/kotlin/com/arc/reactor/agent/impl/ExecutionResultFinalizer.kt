@@ -458,10 +458,6 @@ internal class ExecutionResultFinalizer(
         ).also { agentMetrics.recordExecution(it) }
     }
 
-    /**
-     * Output Guard 메타데이터 기록 + 메트릭 기록을 한 번에 수행하는 헬퍼.
-     * applyOutputGuardPipeline의 각 when 분기에서 호출.
-     */
     /** 예외 발생 시 메타데이터만 기록 (메트릭 제외). 원본 동작 보존. */
     private fun recordGuardMetadataOnly(
         hookContext: HookContext,
@@ -651,7 +647,7 @@ internal class ExecutionResultFinalizer(
     private fun stripEmptyValues(metadata: Map<String, Any?>): Map<String, Any> {
         val sanitized = linkedMapOf<String, Any>()
         for ((key, value) in metadata) {
-            if (isNonEmptyValue(value)) sanitized[key] = value!!
+            if (isNonEmptyValue(value) && value != null) sanitized[key] = value
         }
         return sanitized
     }

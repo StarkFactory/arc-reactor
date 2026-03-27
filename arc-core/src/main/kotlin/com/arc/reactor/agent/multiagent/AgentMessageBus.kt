@@ -128,7 +128,7 @@ class InMemoryAgentMessageBus : AgentMessageBus {
     private suspend fun notifySubscribers(message: AgentMessage) {
         val targetId = message.targetAgentId
         if (targetId != null) {
-            subscribers[targetId]?.forEach { handler -> handler(message) }
+            for (handler in subscribers[targetId].orEmpty()) { handler(message) }
         } else {
             for ((_, handlers) in subscribers) {
                 for (handler in handlers) {

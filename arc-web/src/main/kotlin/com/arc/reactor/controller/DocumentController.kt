@@ -94,7 +94,7 @@ class DocumentController(
             logger.error(e) { "Failed to embed document: id=$id" }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                 ErrorResponse(
-                    error = "Failed to embed document: ${e.message}",
+                    error = "Failed to embed document",
                     timestamp = Instant.now().toString()
                 )
             )
@@ -155,7 +155,7 @@ class DocumentController(
             logger.error(e) { "Failed to embed batch of ${documents.size} documents" }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                 ErrorResponse(
-                    error = "Failed to embed documents: ${e.message}",
+                    error = "Failed to embed documents",
                     timestamp = Instant.now().toString()
                 )
             )

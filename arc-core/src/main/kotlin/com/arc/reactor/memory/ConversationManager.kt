@@ -360,12 +360,6 @@ class DefaultConversationManager(
     }
 
     /**
-     * user + assistant 메시지 쌍을 MemoryStore에 원자적으로 저장한다.
-     *
-     * 세션별 코루틴 Mutex로 동시 요청 간 메시지 인터리빙을 방지한다.
-     * suspend 컨텍스트에서 스레드를 차단하지 않는다.
-     */
-    /**
      * 세션 소유권을 검증한다.
      *
      * 세션에 이미 소유자가 있고, 요청자의 userId와 다르면 로그 경고 후 빈 이력을 반환하도록

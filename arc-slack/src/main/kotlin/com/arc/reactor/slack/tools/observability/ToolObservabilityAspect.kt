@@ -118,7 +118,7 @@ class ToolObservabilityAspect(
     private fun normalizeExceptionCode(e: Exception): String {
         val name = e::class.simpleName ?: "exception"
         return name
-            .replace(Regex("([a-z])([A-Z])"), "$1_$2")
+            .replace(CAMEL_CASE_REGEX, "$1_$2")
             .lowercase(Locale.ROOT)
     }
 
@@ -131,6 +131,7 @@ class ToolObservabilityAspect(
         private val logger = KotlinLogging.logger {}
         private val objectMapper = jacksonObjectMapper()
         private val CHANNEL_ID_REGEX = Regex("^[CGD][A-Z0-9]{8,}$")
+        private val CAMEL_CASE_REGEX = Regex("([a-z])([A-Z])")
         private const val REQUEST_ID_KEY = "requestId"
     }
 }
