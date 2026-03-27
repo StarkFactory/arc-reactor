@@ -93,7 +93,8 @@ class ArcReactorCoreBeansConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    fun memoryStore(): MemoryStore = InMemoryMemoryStore()
+    fun memoryStore(meterRegistryProvider: ObjectProvider<MeterRegistry>): MemoryStore =
+        InMemoryMemoryStore(meterRegistry = meterRegistryProvider.ifAvailable)
 
     @Bean
     @ConditionalOnMissingBean
