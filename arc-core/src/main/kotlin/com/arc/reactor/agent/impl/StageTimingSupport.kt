@@ -28,7 +28,6 @@ internal const val STAGE_TIMINGS_METADATA_KEY = "stageTimings"
  * @param stage 단계 이름 (예: "guard", "before_hooks", "intent_resolution")
  * @param durationMs 소요 시간(밀리초)
  */
-@Suppress("UNCHECKED_CAST")
 internal fun recordStageTiming(
     hookContext: HookContext,
     stage: String,
@@ -37,7 +36,8 @@ internal fun recordStageTiming(
     val normalizedDuration = durationMs.coerceAtLeast(0)
     val timings = hookContext.metadata.getOrPut(STAGE_TIMINGS_METADATA_KEY) {
         ConcurrentHashMap<String, Long>()
-    } as MutableMap<String, Long>
+    } as? MutableMap<String, Long>
+        ?: mutableMapOf<String, Long>().also { hookContext.metadata[STAGE_TIMINGS_METADATA_KEY] = it }
     timings[stage] = normalizedDuration
 }
 
@@ -47,7 +47,6 @@ internal fun recordStageTiming(
  * @param hookContext 타이밍이 저장된 훅 컨텍스트
  * @return 단계 이름 → 소요 시간(밀리초) 맵. 기록이 없으면 빈 맵 반환
  */
-@Suppress("UNCHECKED_CAST")
 internal fun readStageTimings(hookContext: HookContext): Map<String, Long> {
     return hookContext.metadata[STAGE_TIMINGS_METADATA_KEY] as? Map<String, Long>
         ?: emptyMap()

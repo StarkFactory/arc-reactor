@@ -504,11 +504,11 @@ internal class ToolCallOrchestrator(
         mergeToolCapture(hookContext, extractToolCapture(toolName, toolOutput, toolSuccess))
     }
 
-    @Suppress("UNCHECKED_CAST")
     private fun getOrCreateToolSignals(hookContext: HookContext): MutableList<ToolResponseSignal> {
         return hookContext.metadata.getOrPut(TOOL_SIGNALS_METADATA_KEY) {
             mutableListOf<ToolResponseSignal>()
-        } as MutableList<ToolResponseSignal>
+        } as? MutableList<ToolResponseSignal>
+            ?: mutableListOf<ToolResponseSignal>().also { hookContext.metadata[TOOL_SIGNALS_METADATA_KEY] = it }
     }
 
     // ──────────────────────────────────────────────

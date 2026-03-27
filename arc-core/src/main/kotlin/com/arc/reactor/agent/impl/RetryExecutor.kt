@@ -77,7 +77,7 @@ internal class RetryExecutor(
 
             if (completed) {
                 @Suppress("UNCHECKED_CAST")
-                result as T
+                checkNotNull(result) { "Retry completed but result is null" } as T
             } else {
                 throw lastException ?: IllegalStateException("Retry exhausted")
             }

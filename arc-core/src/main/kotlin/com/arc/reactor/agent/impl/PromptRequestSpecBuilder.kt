@@ -50,8 +50,7 @@ internal class PromptRequestSpecBuilder {
                 spec = spec.tools(*annotatedTools.toTypedArray())
             }
             if (callbacks.isNotEmpty()) {
-                @Suppress("UNCHECKED_CAST")
-                spec = spec.toolCallbacks(callbacks as List<org.springframework.ai.tool.ToolCallback>)
+                spec = spec.toolCallbacks(callbacks.filterIsInstance<org.springframework.ai.tool.ToolCallback>())
             }
         }
         return spec
