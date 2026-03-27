@@ -7,7 +7,7 @@
 - Never compile Regex in hot paths. Extract to `companion object` or top-level `val`
 - Prefer `content.orEmpty()` over `content!!` (avoids unnecessary non-null assertion warnings)
 - Logging: `private val logger = KotlinLogging.logger {}` at file top-level (before the class declaration)
-- Method ≤20 lines, line ≤120 chars. English-only comments and KDoc
+- Method ≤20 lines, line ≤120 chars. 한글 KDoc/주석 (영문 금지)
 
 ## Spring Boot
 
