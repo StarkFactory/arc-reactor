@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T00:45:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T01:05:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -329,5 +329,32 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 3. Jira/Confluence 도구는 정상 선택됨 (upstream auth 이슈는 별도)
 
 **수정**: Atlassian MCP adminToken 런타임 설정 완료
+**커밋**: 보고서 업데이트
+
+### Round 4 — 2026-03-28T01:05+09:00
+
+**렌즈**: RAG (문서 삽입 + 검색 + 벡터 차원 + 캐시)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| RAG-01 문서 삽입 | PASS | 201, id 발급, 1315ms |
+| RAG-02 유사도 검색 | PASS | top-1 정확 매칭 (score=0.226), 478ms |
+| RAG-03 벡터 차원 | PASS | 3072, 3개 문서 |
+| RAG-04 중복 삽입 차단 | PASS | 409 Conflict + existingId 반환 |
+| RAG-QUALITY-01 Guard 검색 | PASS | "Guard 파이프라인" top-1 (score=0.239) |
+| RAG-QUALITY-02 무관 쿼리 | PASS | 3건 반환이나 모두 고거리 (0.49-0.56) |
+| RAG-QUALITY-03 부분 매칭 | PASS | "activeTools emptyList" → ReAct 문서 top-1 |
+| CACHE-01 캐시 메트릭 | **FAIL** | arc.cache.hits/misses 미등록 (Micrometer 미연동) |
+| CACHE-02 응답 캐시 동작 | **FAIL** | 동일 쿼리 2회 → 2nd가 50% 느림 (캐시 미작동) |
+
+**발견**:
+1. RAG 기능 전량 정상 — 삽입, 검색, 중복 차단, 유사도 순위 모두 정확
+2. 캐시 메트릭(`arc.cache.hits/misses`)이 Micrometer에 등록되지 않음 — actuator/metrics에서 조회 불가
+3. Semantic cache가 `/api/chat` 경로에서 동작하지 않음 — 동일 질문 반복 시 LLM 재호출 확인
+
+**수정**: 없음 (캐시 이슈는 설정 검토 필요 — 코드 수정 범위 확인 후 다음 Round에서 대응)
 **커밋**: 보고서 업데이트
 
