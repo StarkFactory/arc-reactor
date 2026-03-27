@@ -595,7 +595,18 @@ object InjectionPatterns {
             "credential_extraction",
             Regex(
                 "(비밀번호|패스워드|password|비번|암호|api\\s*key|secret|토큰|token|인증\\s*키)" +
-                    ".{0,15}(알려|보여|출력|공개|말해|뭐야|뭐지|뭡니까|뭐에요|tell|show|reveal|give)",
+                    ".{0,15}(알려|보여|출력|공개|말해|tell|show|reveal|give)",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+            )
+        ),
+        // "패스워드가 뭐야?" — 한국어 질문형 자격증명 추출
+        // .{0,4}로 간격 제한: 조사(가/이/을/는 + 공백)만 허용하여
+        // '패스워드 정책이 뭐야?' 같은 정책 문의 false positive 방지
+        InjectionPattern(
+            "credential_extraction",
+            Regex(
+                "(비밀번호|패스워드|password|비번|암호|api\\s*key|secret|토큰|token|인증\\s*키)" +
+                    ".{0,4}(뭐야|뭐지|뭡니까|뭐에요)",
                 setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
             )
         ),
