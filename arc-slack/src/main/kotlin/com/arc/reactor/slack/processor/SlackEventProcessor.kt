@@ -96,127 +96,160 @@ class SlackEventProcessor(
         processEventAsync(event, eventType, entrypoint)
     }
 
+    /**
+     * 이벤트 비동기 처리 오케스트레이터.
+     *
+     * 검증 → 백프레셔 획득 → 이벤트 디스패치 순서로 실행한다.
+     */
     private fun processEventAsync(event: JsonNode, eventType: String, entrypoint: String) {
         if (eventType == "reaction_added") {
             handleReactionEvent(event, entrypoint)
             return
         }
-        if (event.path("bot_id").asText().isNotEmpty()) return
-        if (event.path("subtype").asText().isNotEmpty()) return
+        val command = validateAndFilterEvent(event, eventType, entrypoint) ?: return
 
-        val command = SlackEventCommand(
-            eventType = eventType,
-            userId = event.path("user").asText(),
-            channelId = event.path("channel").asText(),
-            text = event.path("text").asText(),
-            ts = event.path("ts").asText(),
-            threadTs = event.path("thread_ts").asText().takeIf { it.isNotEmpty() },
-            channelType = event.path("channel_type").asText().takeIf { it.isNotBlank() }
-        )
+        if (!acquireProcessingPermitOrReject(command, eventType, entrypoint)) return
+
+        scope.launch {
+            if (!acquireQueuedPermitOrDrop(command, eventType, entrypoint)) return@launch
+            executeWithMetrics(command, eventType, entrypoint)
+        }
+    }
+
+    /**
+     * 이벤트 검증 + 중복 필터링 + 사용자 레이트 리밋.
+     *
+     * 봇 메시지, subtype, 필수 필드 누락, 레이트 리밋 초과 시 null 반환.
+     */
+    private fun validateAndFilterEvent(
+        event: JsonNode,
+        eventType: String,
+        entrypoint: String
+    ): SlackEventCommand? {
+        if (event.path("bot_id").asText().isNotEmpty()) return null
+        if (event.path("subtype").asText().isNotEmpty()) return null
+
+        val command = parseEventCommand(event, eventType)
 
         if (command.userId.isBlank() || command.channelId.isBlank()) {
             logger.debug { "Skipping event with missing user or channel" }
-            return
+            return null
         }
-
         if (userRateLimiter != null && !userRateLimiter.tryAcquire(command.userId)) {
-            metricsRecorder.recordDropped(
-                entrypoint = entrypoint,
-                reason = "user_rate_limited",
-                eventType = eventType
-            )
-            scope.launch {
-                notifyRateLimited(command)
-            }
-            return
+            metricsRecorder.recordDropped(entrypoint = entrypoint, reason = "user_rate_limited", eventType = eventType)
+            scope.launch { notifyRateLimited(command) }
+            return null
         }
+        return command
+    }
 
-        if (backpressureLimiter.rejectImmediatelyIfConfigured()) {
-            logger.warn {
-                "Slack event rejected due to saturation: " +
+    /** JSON 이벤트 노드에서 SlackEventCommand를 파싱한다. */
+    private fun parseEventCommand(event: JsonNode, eventType: String) = SlackEventCommand(
+        eventType = eventType,
+        userId = event.path("user").asText(),
+        channelId = event.path("channel").asText(),
+        text = event.path("text").asText(),
+        ts = event.path("ts").asText(),
+        threadTs = event.path("thread_ts").asText().takeIf { it.isNotEmpty() },
+        channelType = event.path("channel_type").asText().takeIf { it.isNotBlank() }
+    )
+
+    /** fail-fast 백프레셔: 세마포어 포화 시 즉시 거부. 통과 시 true. */
+    private fun acquireProcessingPermitOrReject(
+        command: SlackEventCommand,
+        eventType: String,
+        entrypoint: String
+    ): Boolean {
+        if (!backpressureLimiter.rejectImmediatelyIfConfigured()) return true
+
+        logger.warn {
+            "Slack event rejected due to saturation: " +
+                "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
+        }
+        metricsRecorder.recordDropped(entrypoint = entrypoint, reason = "queue_overflow", eventType = eventType)
+        if (notifyOnDrop) {
+            scope.launch { notifyBusyIfInteractive(command) }
+        }
+        return false
+    }
+
+    /** 큐 모드 백프레셔: 타임아웃까지 대기 후 실패 시 false. */
+    private suspend fun acquireQueuedPermitOrDrop(
+        command: SlackEventCommand,
+        eventType: String,
+        entrypoint: String
+    ): Boolean {
+        if (backpressureLimiter.acquireForQueuedMode()) return true
+
+        logger.warn {
+            "Slack event dropped due to queue timeout: " +
+                "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
+        }
+        metricsRecorder.recordDropped(entrypoint = entrypoint, reason = "queue_timeout", eventType = eventType)
+        if (notifyOnDrop) {
+            notifyBusyIfInteractive(command)
+        }
+        return false
+    }
+
+    /** 이벤트 타입별 핸들러 디스패치 + 메트릭 기록. */
+    private suspend fun executeWithMetrics(
+        command: SlackEventCommand,
+        eventType: String,
+        entrypoint: String
+    ) {
+        val started = System.currentTimeMillis()
+        try {
+            dispatchEventByType(command, eventType, entrypoint)
+            metricsRecorder.recordHandler(
+                entrypoint = entrypoint, eventType = eventType,
+                success = true, durationMs = System.currentTimeMillis() - started
+            )
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.error(e) {
+                "Failed to handle Slack event: " +
                     "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
             }
-            metricsRecorder.recordDropped(
-                entrypoint = entrypoint,
-                reason = "queue_overflow",
-                eventType = eventType
+            metricsRecorder.recordHandler(
+                entrypoint = entrypoint, eventType = eventType,
+                success = false, durationMs = System.currentTimeMillis() - started
             )
-            if (notifyOnDrop) {
-                scope.launch { notifyBusyIfInteractive(command) }
-            }
-            return
+        } finally {
+            backpressureLimiter.release()
         }
+    }
 
-        scope.launch {
-            val acquired = backpressureLimiter.acquireForQueuedMode()
-            if (!acquired) {
-                logger.warn {
-                    "Slack event dropped due to queue timeout: " +
-                        "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
+    /** 이벤트 타입별 분기: app_mention, message(스레드/DM/proactive). */
+    private suspend fun dispatchEventByType(
+        command: SlackEventCommand,
+        eventType: String,
+        entrypoint: String
+    ) {
+        when (eventType) {
+            "app_mention" -> eventHandler.handleAppMention(command)
+            "message" -> dispatchMessageEvent(command, entrypoint)
+        }
+    }
+
+    /** message 이벤트 세부 분기: 스레드 추적, DM, 선행적 모니터링. */
+    private suspend fun dispatchMessageEvent(command: SlackEventCommand, entrypoint: String) {
+        if (command.threadTs != null) {
+            if (threadTracker != null && !threadTracker.isTracked(command.channelId, command.threadTs)) {
+                logger.debug {
+                    "Ignoring untracked Slack thread message: " +
+                        "entrypoint=$entrypoint, channel=${command.channelId}, thread=${command.threadTs}"
                 }
                 metricsRecorder.recordDropped(
-                    entrypoint = entrypoint,
-                    reason = "queue_timeout",
-                    eventType = eventType
+                    entrypoint = entrypoint, reason = "untracked_thread", eventType = "message"
                 )
-                if (notifyOnDrop) {
-                    notifyBusyIfInteractive(command)
-                }
-                return@launch
+                return
             }
-
-            val started = System.currentTimeMillis()
-            try {
-                when (eventType) {
-                    "app_mention" -> eventHandler.handleAppMention(command)
-                    "message" -> {
-                        if (command.threadTs != null) {
-                            if (threadTracker != null &&
-                                !threadTracker.isTracked(command.channelId, command.threadTs)
-                            ) {
-                                logger.debug {
-                                    "Ignoring untracked Slack thread message: " +
-                                        "entrypoint=$entrypoint, channel=${command.channelId}, thread=${command.threadTs}"
-                                }
-                                metricsRecorder.recordDropped(
-                                    entrypoint = entrypoint,
-                                    reason = "untracked_thread",
-                                    eventType = eventType
-                                )
-                                return@launch
-                            }
-                            eventHandler.handleMessage(command)
-                        } else if (
-                            processDirectMessagesWithoutThread &&
-                            command.isDirectMessageChannel()
-                        ) {
-                            eventHandler.handleMessage(command)
-                        } else if (isProactiveCandidate(command)) {
-                            handleProactive(command, entrypoint)
-                        }
-                    }
-                }
-                metricsRecorder.recordHandler(
-                    entrypoint = entrypoint,
-                    eventType = eventType,
-                    success = true,
-                    durationMs = System.currentTimeMillis() - started
-                )
-            } catch (e: Exception) {
-                e.throwIfCancellation()
-                logger.error(e) {
-                    "Failed to handle Slack event: " +
-                        "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
-                }
-                metricsRecorder.recordHandler(
-                    entrypoint = entrypoint,
-                    eventType = eventType,
-                    success = false,
-                    durationMs = System.currentTimeMillis() - started
-                )
-            } finally {
-                backpressureLimiter.release()
-            }
+            eventHandler.handleMessage(command)
+        } else if (processDirectMessagesWithoutThread && command.isDirectMessageChannel()) {
+            eventHandler.handleMessage(command)
+        } else if (isProactiveCandidate(command)) {
+            handleProactive(command, entrypoint)
         }
     }
 
