@@ -21,6 +21,7 @@ import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.agent.budget.CostCalculator
 import com.arc.reactor.agent.budget.StepBudgetTracker
 import com.arc.reactor.agent.metrics.AgentMetrics
+import io.micrometer.core.instrument.MeterRegistry
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.metrics.SlaMetrics
 import com.arc.reactor.guard.RequestGuard
@@ -124,7 +125,8 @@ class SpringAiAgentExecutor(
     private val agentModeResolver: AgentModeResolver? = null,
     private val slaMetrics: SlaMetrics? = null,
     private val costCalculator: CostCalculator? = null,
-    private val cacheMetricsRecorder: CacheMetricsRecorder? = null
+    private val cacheMetricsRecorder: CacheMetricsRecorder? = null,
+    private val meterRegistry: MeterRegistry? = null
 ) : AgentExecutor {
 
     // ── 초기화: 컨텍스트 윈도우가 출력 토큰보다 커야 트리밍이 정상 동작한다 ──
@@ -681,7 +683,8 @@ class SpringAiAgentExecutor(
         if (!budget.enabled) return null
         return StepBudgetTracker(
             maxTokens = budget.maxTokensPerRequest,
-            softLimitPercent = budget.softLimitPercent
+            softLimitPercent = budget.softLimitPercent,
+            meterRegistry = meterRegistry
         )
     }
 }

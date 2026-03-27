@@ -1,5 +1,7 @@
 package com.arc.reactor.agent.budget
 
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -61,11 +63,13 @@ data class StepRecord(
  *
  * @param maxTokens 요청당 최대 토큰 예산
  * @param softLimitPercent 소프트 리밋 비율 (0-100). 기본 80%.
+ * @param meterRegistry Micrometer 레지스트리 (선택). null이면 메트릭을 기록하지 않는다.
  * @see com.arc.reactor.agent.config.BudgetProperties 설정 속성
  */
 class StepBudgetTracker(
     private val maxTokens: Int,
-    private val softLimitPercent: Int = 80
+    private val softLimitPercent: Int = 80,
+    private val meterRegistry: MeterRegistry? = null
 ) {
     init {
         require(maxTokens > 0) { "maxTokens는 양수여야 한다: $maxTokens" }
@@ -76,6 +80,21 @@ class StepBudgetTracker(
     private val steps: MutableList<StepRecord> = mutableListOf()
     private val softLimitTokens: Int = (maxTokens.toLong() * softLimitPercent / 100).toInt()
     private var softLimitWarned: Boolean = false
+    private var exhaustedRecorded: Boolean = false
+
+    /** 소프트 리밋 도달 카운터 */
+    private val softLimitCounter: Counter? = meterRegistry?.let {
+        Counter.builder(METRIC_SOFT_LIMIT)
+            .description("토큰 예산 소프트 리밋 도달 횟수")
+            .register(it)
+    }
+
+    /** 하드 리밋(예산 소진) 카운터 */
+    private val exhaustedCounter: Counter? = meterRegistry?.let {
+        Counter.builder(METRIC_EXHAUSTED)
+            .description("토큰 예산 소진(하드 리밋) 횟수")
+            .register(it)
+    }
 
     /**
      * 도구 출력 토큰을 예산에 기록하고 상태를 반환한다.
@@ -119,13 +138,18 @@ class StepBudgetTracker(
         when (status) {
             BudgetStatus.SOFT_LIMIT -> if (!softLimitWarned) {
                 softLimitWarned = true
+                softLimitCounter?.increment()
                 logger.warn {
                     "토큰 예산 소프트 리밋 도달: consumed=$consumed, " +
                         "softLimit=$softLimitTokens, maxTokens=$maxTokens, step=$step"
                 }
             }
-            BudgetStatus.EXHAUSTED -> logger.warn {
-                "토큰 예산 소진: consumed=$consumed, maxTokens=$maxTokens, step=$step"
+            BudgetStatus.EXHAUSTED -> if (!exhaustedRecorded) {
+                exhaustedRecorded = true
+                exhaustedCounter?.increment()
+                logger.warn {
+                    "토큰 예산 소진: consumed=$consumed, maxTokens=$maxTokens, step=$step"
+                }
             }
             BudgetStatus.OK -> Unit
         }
@@ -150,5 +174,10 @@ class StepBudgetTracker(
         consumed >= maxTokens -> BudgetStatus.EXHAUSTED
         consumed >= softLimitTokens -> BudgetStatus.SOFT_LIMIT
         else -> BudgetStatus.OK
+    }
+
+    companion object {
+        internal const val METRIC_SOFT_LIMIT = "arc.agent.token.budget.soft_limit"
+        internal const val METRIC_EXHAUSTED = "arc.agent.token.budget.exhausted"
     }
 }
