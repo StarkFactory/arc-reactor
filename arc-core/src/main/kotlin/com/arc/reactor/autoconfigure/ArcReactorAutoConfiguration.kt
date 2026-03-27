@@ -30,6 +30,7 @@ import org.springframework.context.annotation.Import
 )
 @EnableConfigurationProperties(AgentProperties::class)
 @Import(
+    ReactorContextPropagationConfiguration::class,
     TracingConfiguration::class,
     ArcReactorCoreBeansConfiguration::class,
     ArcReactorPreflightConfiguration::class,
