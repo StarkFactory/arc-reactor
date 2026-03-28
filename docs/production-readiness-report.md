@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T10:40:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T11:00:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -1321,4 +1321,47 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 
 **발견**: 16 PASS / 7 WARN / 0 FAIL. CVE 패치 완료, 핵심 보안 강건. WARN은 하드닝 개선
 **수정**: 없음 (WARN 항목은 배포 설정으로 대응)
+**커밋**: 보고서 업데이트
+
+### Round 33 — 2026-03-28T11:00+09:00
+
+**렌즈**: MCP 6순환 + **D-06: 의존성 CVE 스캔 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| MCP | 2/2 CONNECTED | swagger 11, atlassian 37 |
+
+#### D-06: 의존성 CVE 스캔 결과
+
+**7개 핵심 라이브러리 스캔, 미패치 CVE 2건 발견:**
+
+| 라이브러리 | 버전 | CVE | 심각도 | 패치 | 상태 |
+|-----------|------|-----|--------|------|------|
+| Spring Boot | 3.5.12 | CVE-2026-22731, 22733 | HIGH | 3.5.12 | **PATCHED** |
+| **Spring AI** | **1.1.3** | **CVE-2026-22738** | **CRITICAL (9.8)** | **1.1.4** | **미패치** |
+| **Netty** | **4.1.131** | **CVE-2026-33870** | **HIGH** | **4.1.132** | **미패치** |
+| Jackson | 2.21.1 | GHSA-72hv | MED | 2.21.1 | PATCHED |
+| JJWT | 0.13.0 | 없음 | — | — | CLEAN |
+| Caffeine | 3.2.3 | 없음 | — | — | CLEAN |
+
+**P0 — CVE-2026-22738 (Spring AI SpEL RCE, CVSS 9.8):**
+- SimpleVectorStore 필터 표현식에 SpEL 주입 가능
+- 2026-03-26 공개, 같은 날 1.1.4 패치 릴리스
+- **spring-ai-bom 1.1.3 → 1.1.4 업그레이드 필수**
+
+**P1 — CVE-2026-33870 (Netty HTTP Request Smuggling):**
+- 청크 확장 파싱 취약점
+- Netty 4.1.131 → 4.1.132 또는 4.2.10으로 업그레이드
+- resolutionStrategy로 강제 가능
+
+**레퍼런스:**
+- [CVE-2026-22738 SpEL Injection](https://spring.io/security/cve-2026-22738/)
+- [CVE-2026-33870 Netty](https://vulert.com/vuln-db/CVE-2026-33870)
+- [Spring AI 1.1.4 Release](https://spring.io/blog/2026/03/26/spring-ai-2-0-0-M4-and-1-1-4-and-1-0-5-available/)
+
+**발견**: CRITICAL CVE 1건 + HIGH CVE 1건 미패치
+**수정**: 없음 (의존성 업그레이드는 빌드 설정 변경 — 별도 작업으로 진행 권장)
 **커밋**: 보고서 업데이트
