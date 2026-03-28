@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T11:40:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T12:00:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -1453,4 +1453,42 @@ WITH (m = 16, ef_construction = 64);
 
 **발견**: 복구력 우수 — 13/13 PASS, 500 에러 0건
 **수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 36 — 2026-03-28T12:00+09:00
+
+**렌즈**: 성능 7순환 + **D-07: Kotlin 코루틴 안전성 심층 검토 (첫 실행)**
+
+| 항목 | R1 | R6 | R12 | R18 | R24 | R30 | **R36** | 추이 |
+|------|-----|-----|------|------|------|------|---------|------|
+| 채팅 avg | 1,570 | 1,230 | 1,250 | 1,327 | 1,332 | 1,280 | **1,409** | 안정 |
+| Guard avg | 38 | 32 | 32 | 34 | 35 | 31 | **31** | 안정 |
+| 동시 20 성공 | — | 10/10 | 10/10 | 15/15 | 20/20 | — | **20/20** | 안정 |
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| 채팅 3회 | avg=1,409ms | min=1,166ms, max=1,813ms |
+| Guard 3회 | avg=31ms | 일관 |
+| 동시 20 | 20/20 (100%) | max=2.23s |
+
+#### D-07: Kotlin 코루틴 안전성 — **8.5/10** (Critical 0, Medium 2, Low 4)
+
+| 검사 | 상태 | 이슈 |
+|------|------|------|
+| CancellationException 처리 | 대부분 준수 | **1건 위반**: JdbcUserMemoryStore.initTable() 예외 삼킴 |
+| runBlocking 사용 | 위반 발견 | **1건 미문서**: McpStartupInitializer (startup 스레드 블로킹) |
+| .forEach in suspend | **준수** | 0건 위반 |
+| synchronized vs Mutex | 준수 (주의) | PersonaStore에서 코루틴 내 synchronized (성능 이슈 가능) |
+| Dispatchers.IO 풀 크기 | 아키텍처 리스크 | 64 스레드에 여러 소비자 (요약/스케줄러/MCP) 공유 |
+| SupervisorJob | **완전 준수** | 모든 장기 Scope에 SupervisorJob 사용 |
+
+**수정 권장:**
+1. `JdbcUserMemoryStore.kt:154` — `e.throwIfCancellation()` 추가
+2. `McpStartupInitializer.kt:24` — `runBlocking(Dispatchers.IO)` 전환
+
+**발견**: 12시간 성능 안정 + 코루틴 안전성 8.5/10
+**수정**: 없음 (다음 Round에서 CancellationException 위반 수정 예정)
 **커밋**: 보고서 업데이트
