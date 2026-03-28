@@ -1909,7 +1909,7 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | 페르소나 | 2 | 변화 없음 |
 | 모델 | 1 (gemini) | 변화 없음 |
 
-**Executive Summary 최종 업데이트**: 2026-03-29T02:00:00+09:00
+**Executive Summary 최종 업데이트**: 2026-03-29T02:20:00+09:00
 - 47 Round 연속 PASS, OWASP 7/10, 인젝션 24종+ 유출 0건
 - 조건부 배포 사항 5건 명시 (Output Guard, Spring AI CVE, Netty CVE, API 토큰, 서버 재시작)
 
@@ -2725,3 +2725,14 @@ Regex("(몇 개|어떤).{0,10}(도구|tool|기능).{0,10}(사용할 수 있|쓸 
 |------|------|------|
 | `fix:` | 보안 | SsrfUrlValidator e.message 한글화 |
 | `test:` | 테스트 | arc-slack 26 테스트 추가 |
+
+### Round 79 — 2026-03-29T02:20+09:00 (3-에이전트 병렬)
+
+**Agent 1:** P2 unbounded ConcurrentHashMap 3건 발견 → OutputGuardRuleEvaluator **Caffeine 전환**
+**Agent 2:** ToolRouteMatchEngine **37 테스트 추가** (11 nested groups)
+**Agent 3:** BUILD PASS, 채팅 1155ms, Guard 39ms, 2052 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | 메모리 안전 | OutputGuardRuleEvaluator ConcurrentHashMap→Caffeine |
+| `test:` | 테스트 | ToolRouteMatchEngine 37 tests |
