@@ -55,7 +55,7 @@ class SlackResponseUrlRetrier(
             }
         }
 
-        throw lastException!!
+        throw lastException ?: IllegalStateException("재시도 루프 완료 후 예외 없음")
     }
 
     /** 재시도 가능한 에러인지 판별한다 (5xx 또는 네트워크 IO 에러). */
