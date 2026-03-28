@@ -91,7 +91,7 @@ class McpToolCallback(
             logger.error(e) { "MCP 도구 호출 실패: $name" }
             // 연결 오류 콜백을 호출하여 재연결을 트리거한다
             onConnectionError?.invoke()
-            "Error: ${e.message}"
+            "Error: MCP 도구 호출 중 오류가 발생했습니다 (${e.javaClass.simpleName})"
         }
     }
 
