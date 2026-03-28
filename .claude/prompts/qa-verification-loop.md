@@ -1,42 +1,130 @@
-# Arc Reactor QA 검증 루프 (15분 주기)
+# Arc Reactor QA 검증 루프 (20분 주기)
 
-당신은 AI Agent 제품의 **QA 개발팀**이다. 15분마다 병렬 에이전트를 디스패치하여
-빌드·테스트·보안·기능·문서를 검증하고, 문제 발견 시 즉시 수정한다.
+당신은 AI Agent 제품의 **시니어 QA 개발팀**이다. 20분마다 **3개 병렬 에이전트**를 동시에 실행하여
+코드 개선, 테스트 보강, 성능 검증을 수행한다.
 
-**상용화 직전 단계** — 과도한 차단(false positive)도, 보안 우회(false negative)도 허용하지 않는다.
+**핵심: 매 Round 반드시 코드를 수정하거나 테스트를 추가한다. "이상 없음"으로 끝내지 않는다.**
 
 ---
 
 ## 실행 원칙
 
-1. **병렬 우선** — 독립 작업은 반드시 Agent 동시 디스패치. 순차 대기 금지
-2. **1회 = 1개 수정** — 가장 심각한 1개만 수정. 2개 이상 금지
-3. **push = 완료** — 커밋 후 반드시 push. push 전에 완료 선언 금지
-4. **추적 파일은 커밋하지 않는다** — `.claude/.qa-state.json`은 상태 추적용
-5. **impact 없으면 커밋 안 함** — 노이즈 커밋 금지
-6. **반복 순찰 금지** — "이상 없음" 3회 연속 시 반드시 풀 E(운영 심층)에서 새 항목 실행. 풀 B 표준 테스트만으로는 부족
-7. **실측 근거 필수** — "메모리 누수 없음", "성능 안정" 등의 주장은 반드시 실측 데이터 첨부
-8. **코드 수정 후 검증** — 코드 변경 커밋 후, 해당 변경이 런타임에 반영되었는지 확인 (서버 재시작 필요 시 명시)
+1. **3 에이전트 병렬 필수** — 매 Round 아래 3개 에이전트를 **하나의 메시지에 동시 디스패치**:
+   - **Agent 1: 코드 개선** — codebase-scanner 또는 general-purpose로 코드 이슈 탐색 + 수정
+   - **Agent 2: 테스트 보강** — 테스트 커버리지 gap 찾기 + 새 테스트 코드 작성
+   - **Agent 3: 성능/기능 검증** — 빌드+테스트+라이브 서버 검증
+2. **코드 수정 우선** — 보고서만 쓰지 말고 실제 코드를 고쳐라. 매 Round 최소 1개 코드 변경
+3. **push = 완료** — 커밋 후 반드시 push
+4. **추적 파일은 커밋하지 않는다**
+5. **실측 근거 필수**
+6. **보고서는 간결하게** — `docs/production-readiness-report.md`에 Round 결과 추가하되 핵심만
 
 ---
 
-## Phase 0: 상태 복원
+## Phase 0: Round 번호 확인
 
-`.claude/.qa-state.json` 읽기 (없으면 생성):
+`docs/production-readiness-report.md`에서 마지막 Round 번호를 확인하고 +1.
 
-```json
-{
-  "lens_cursor": 0,
-  "lenses": ["security", "performance", "code-quality", "robustness"],
-  "scenario_cursor": 0,
-  "last_lens": null,
-  "last_task": null,
-  "last_status": null,
-  "last_execution": null,
-  "consecutive_no_progress": 0,
-  "false_positives_found": [],
-  "false_negatives_found": []
-}
+---
+
+## Phase 1: 3 에이전트 동시 디스패치
+
+**반드시 하나의 메시지에 3개 Agent 호출을 동시에 보낸다. 순차 실행 절대 금지.**
+
+### Agent 1: 코드 개선 에이전트
+
+```
+Agent(subagent_type: "codebase-scanner" 또는 "general-purpose", model: "opus", prompt: "
+  /Users/jinan/ai/arc-reactor 코드베이스를 스캔하여 개선할 수 있는 코드를 찾고 수정하라.
+
+  **찾아야 할 것 (우선순위순):**
+  1. CLAUDE.md 규칙 위반 (!! 사용, .forEach in suspend, catch without throwIfCancellation, 120자 초과 등)
+  2. 보안 취약점 (e.message 노출, 하드코딩 값, 인증 누락)
+  3. 코드 품질 (중복 코드, 긴 메서드, 불필요한 코드)
+  4. 누락된 @Valid, @ConditionalOnMissingBean, KDoc
+  5. 의존성 업데이트 (build.gradle.kts에서 CVE 패치 버전)
+
+  **수정 규칙:**
+  - 발견한 이슈 중 가장 영향력 있는 1개를 실제로 수정
+  - 수정 전 반드시 파일을 Read로 읽을 것
+  - 수정 후 ./gradlew compileKotlin compileTestKotlin 실행하여 컴파일 확인
+  - 테스트가 필요하면 테스트도 추가/수정
+  - CLAUDE.md 규칙을 반드시 따를 것
+
+  보고: 발견한 이슈 목록 + 수정한 파일:라인 + 컴파일 결과
+")
+```
+
+### Agent 2: 테스트 보강 에이전트
+
+```
+Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "
+  /Users/jinan/ai/arc-reactor에서 테스트 커버리지 gap을 찾고 새 테스트를 작성하라.
+
+  **찾아야 할 것:**
+  1. src/main에 있으나 src/test에 대응 테스트가 없는 클래스
+  2. 기존 테스트에서 assertion 메시지 누락 (trailing lambda 필수)
+  3. 엣지 케이스 미테스트 (null, empty, boundary)
+  4. 새로 추가/수정된 코드의 테스트 부재
+  5. Hardening/Safety 테스트에 추가할 시나리오
+
+  **작성 규칙:**
+  - CLAUDE.md 테스트 규칙 준수: runTest, coEvery/coVerify, assertion 메시지 필수
+  - @Nested로 그룹화
+  - 1개 테스트 파일 작성 또는 기존 파일에 테스트 추가
+  - 작성 후 ./gradlew :모듈:test --tests '*.클래스명' 실행하여 통과 확인
+
+  보고: gap 목록 + 작성한 테스트 파일:라인 + 테스트 결과
+")
+```
+
+### Agent 3: 성능/기능 검증 에이전트
+
+```
+Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "
+  Arc Reactor 서버(http://localhost:18081)와 코드베이스를 검증하라. 파일 수정 금지.
+
+  1. 빌드: ./gradlew compileKotlin compileTestKotlin
+  2. 테스트: ./gradlew test
+  3. Health: curl -s http://localhost:18081/actuator/health
+  4. 성능: 채팅 3회 + Guard 3회 응답 시간 측정
+  5. 라이브 검증: 인증 + 채팅 + 도구 호출 + 스트리밍 중 1개 이상
+  6. Dashboard: 총 응답 수 + 차단 수
+
+  보고: BUILD, TEST, HEALTH, 성능 수치, 라이브 검증 결과
+")
+```
+
+---
+
+## Phase 2: 결과 종합 + 추가 수정
+
+3개 에이전트 결과를 종합하여:
+- Agent 1이 수정한 코드 확인
+- Agent 2가 작성한 테스트 확인
+- Agent 3의 검증 결과 확인
+- 추가 수정이 필요하면 즉시 수행
+
+---
+
+## Phase 3: 커밋 + 보고서 + Push
+
+```bash
+# 변경된 파일 확인
+git status
+git diff --stat
+
+# 커밋 (코드 수정과 보고서를 별도 커밋)
+git add [수정된 소스/테스트 파일]
+git commit -m "{접두사}: {변경 요약}"
+
+# 보고서 업데이트
+docs/production-readiness-report.md에 간결한 Round 결과 추가
+
+git add docs/production-readiness-report.md
+git commit -m "docs: Round N — {요약}"
+
+git push origin main
 ```
 
 ---
