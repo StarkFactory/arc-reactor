@@ -242,7 +242,7 @@ internal class StreamingExecutionCoordinator(
     ) {
         logger.info { "Blocked intent in streaming: ${exception.intentName}" }
         state.streamErrorCode = AgentErrorCode.GUARD_REJECTED
-        state.streamErrorMessage = exception.message
+        state.streamErrorMessage = "요청이 보안 정책에 의해 차단되었습니다 (${exception.javaClass.simpleName})"
         emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
     }
 

@@ -257,8 +257,8 @@ class DynamicSchedulerServiceEnhancementsTest {
 
             assertEquals(JobExecutionStatus.FAILED, store.lastStatus,
                 "Job status should be FAILED on timeout")
-            assertTrue(result.contains("timed out", ignoreCase = true),
-                "Failure message should mention timeout")
+            assertTrue(result.contains("RuntimeException"),
+                "Failure message should contain exception class name")
         }
 
         @Test
@@ -273,8 +273,8 @@ class DynamicSchedulerServiceEnhancementsTest {
 
             assertEquals(JobExecutionStatus.FAILED, store.lastStatus,
                 "Job status should be FAILED when default timeout is exceeded")
-            assertTrue(result.contains("timed out", ignoreCase = true),
-                "Failure message should mention timeout from default property")
+            assertTrue(result.contains("RuntimeException"),
+                "Failure message should contain exception class name")
         }
 
         @Test
@@ -289,8 +289,8 @@ class DynamicSchedulerServiceEnhancementsTest {
 
             assertEquals(JobExecutionStatus.FAILED, store.lastStatus,
                 "Job should fail from its own 100ms timeout, not the 60s default")
-            assertTrue(result.contains("timed out after 100ms", ignoreCase = true),
-                "Timeout message should reflect the job-level 100ms timeout")
+            assertTrue(result.contains("RuntimeException"),
+                "Failure message should contain exception class name")
         }
     }
 

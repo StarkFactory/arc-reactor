@@ -109,7 +109,7 @@ class ExperimentOrchestrator(
             e.throwIfCancellation()
             val failed = running.copy(
                 status = ExperimentStatus.FAILED,
-                errorMessage = e.message,
+                errorMessage = "실험 실행 중 오류 발생 (${e.javaClass.simpleName})",
                 completedAt = Instant.now()
             )
             experimentStore.save(failed)
@@ -253,7 +253,7 @@ class ExperimentOrchestrator(
                 testQuery = query,
                 repetitionIndex = repetitionIndex,
                 success = false,
-                errorMessage = e.message,
+                errorMessage = "시도 실행 중 오류 발생 (${e.javaClass.simpleName})",
                 executedAt = Instant.now()
             )
         }

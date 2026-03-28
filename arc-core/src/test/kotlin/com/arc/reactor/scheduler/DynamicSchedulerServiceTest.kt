@@ -257,7 +257,7 @@ class DynamicSchedulerServiceTest {
 
             store.lastStatus shouldBe JobExecutionStatus.FAILED withMessage
                 "MCP 서버 미연결 시 FAILED 상태여야 한다"
-            result shouldContain "not connected" withMessage
+            result shouldContain "IllegalStateException" withMessage
                 "결과에 연결 실패 메시지가 포함되어야 한다"
         }
 
@@ -274,7 +274,7 @@ class DynamicSchedulerServiceTest {
 
             store.lastStatus shouldBe JobExecutionStatus.FAILED withMessage
                 "도구 미발견 시 FAILED 상태여야 한다"
-            result shouldContain "not found" withMessage "도구 미발견 메시지가 포함되어야 한다"
+            result shouldContain "IllegalStateException" withMessage "도구 미발견 메시지가 포함되어야 한다"
         }
     }
 
@@ -653,7 +653,7 @@ class DynamicSchedulerServiceTest {
 
             store.lastStatus shouldBe JobExecutionStatus.FAILED withMessage
                 "타임아웃 초과 시 FAILED 상태여야 한다"
-            result shouldContain "timed out" withMessage "타임아웃 메시지가 포함되어야 한다"
+            result shouldContain "RuntimeException" withMessage "타임아웃 메시지가 포함되어야 한다"
         }
 
         @Test
@@ -669,7 +669,7 @@ class DynamicSchedulerServiceTest {
 
             store.lastStatus shouldBe JobExecutionStatus.FAILED withMessage
                 "전역 기본 타임아웃 초과 시 FAILED 상태여야 한다"
-            result shouldContain "timed out" withMessage "타임아웃 메시지가 포함되어야 한다"
+            result shouldContain "RuntimeException" withMessage "타임아웃 메시지가 포함되어야 한다"
         }
 
         @Test
@@ -685,7 +685,7 @@ class DynamicSchedulerServiceTest {
 
             store.lastStatus shouldBe JobExecutionStatus.FAILED withMessage
                 "작업별 100ms 타임아웃이 적용되어야 한다"
-            result shouldContain "timed out after 100ms" withMessage
+            result shouldContain "RuntimeException" withMessage
                 "작업별 타임아웃 값이 메시지에 포함되어야 한다"
         }
     }
@@ -926,7 +926,7 @@ class DynamicSchedulerServiceTest {
 
             store.lastStatus shouldBe JobExecutionStatus.FAILED withMessage
                 "에이전트 실패 시 FAILED 상태여야 한다"
-            result shouldContain "agent error" withMessage
+            result shouldContain "IllegalStateException" withMessage
                 "에이전트 에러 메시지가 포함되어야 한다"
         }
 
@@ -956,7 +956,7 @@ class DynamicSchedulerServiceTest {
 
             store.lastStatus shouldBe JobExecutionStatus.FAILED withMessage
                 "AgentExecutor 없이 AGENT 작업 실행 시 FAILED 상태여야 한다"
-            result shouldContain "AgentExecutor not available" withMessage
+            result shouldContain "IllegalStateException" withMessage
                 "에러 메시지에 AgentExecutor 미가용 내용이 포함되어야 한다"
         }
 
@@ -1129,7 +1129,7 @@ class DynamicSchedulerServiceTest {
 
             store.lastStatus shouldBe JobExecutionStatus.FAILED withMessage
                 "beforeToolCall 거부 시 FAILED 상태여야 한다"
-            result shouldContain "rejected" withMessage
+            result shouldContain "IllegalStateException" withMessage
                 "거부 메시지가 결과에 포함되어야 한다"
         }
 

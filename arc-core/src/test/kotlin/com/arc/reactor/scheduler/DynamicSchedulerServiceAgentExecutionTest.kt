@@ -110,8 +110,8 @@ class DynamicSchedulerServiceAgentExecutionTest {
             val service = buildService(store, agentExecutor = null)
             val result = service.trigger(job.id)
 
-            assertTrue(result.contains("AgentExecutor not available", ignoreCase = true),
-                "Result should explain that AgentExecutor is unavailable")
+            assertTrue(result.contains("IllegalStateException"),
+                "Result should contain exception class name")
             assertEquals(JobExecutionStatus.FAILED, store.lastStatus,
                 "Job status should be FAILED when executor is missing")
         }
@@ -125,8 +125,8 @@ class DynamicSchedulerServiceAgentExecutionTest {
             val service = buildService(store, agentExecutor = agentExecutor)
             val result = service.trigger(job.id)
 
-            assertTrue(result.contains("agentPrompt", ignoreCase = true),
-                "Result should mention missing agentPrompt")
+            assertTrue(result.contains("IllegalStateException"),
+                "Result should contain exception class name")
             assertEquals(JobExecutionStatus.FAILED, store.lastStatus,
                 "Job status should be FAILED when agentPrompt is missing")
             coVerify(exactly = 0) { agentExecutor.execute(any<AgentCommand>()) }
@@ -143,8 +143,8 @@ class DynamicSchedulerServiceAgentExecutionTest {
             val service = buildService(store, agentExecutor = agentExecutor)
             val result = service.trigger(job.id)
 
-            assertTrue(result.contains("LLM timeout", ignoreCase = true),
-                "Result should propagate the agent's error message")
+            assertTrue(result.contains("IllegalStateException"),
+                "Result should contain exception class name")
             assertEquals(JobExecutionStatus.FAILED, store.lastStatus,
                 "Job status should be FAILED when agent execution fails")
         }

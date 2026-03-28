@@ -324,7 +324,7 @@ class DynamicSchedulerService(
     }
 
     private fun handleJobFailure(job: ScheduledJob, e: Exception, startedAt: Instant): String {
-        val errorMsg = "Job '${job.name}' failed: ${e.message}"
+        val errorMsg = "Job '${job.name}' failed: ${e.javaClass.simpleName}"
         logger.error(e) { errorMsg }
         store.updateExecutionResult(job.id, JobExecutionStatus.FAILED, errorMsg)
         val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
@@ -343,7 +343,7 @@ class DynamicSchedulerService(
             result
         } catch (e: Exception) {
             e.throwIfCancellation()
-            val errorMsg = "Job '${job.name}' failed: ${e.message}"
+            val errorMsg = "Job '${job.name}' failed: ${e.javaClass.simpleName}"
             logger.error(e) { errorMsg }
             val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
             recordExecution(job, JobExecutionStatus.FAILED, errorMsg, durationMs, true, startedAt)
