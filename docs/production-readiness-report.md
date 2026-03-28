@@ -1909,7 +1909,7 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | 페르소나 | 2 | 변화 없음 |
 | 모델 | 1 (gemini) | 변화 없음 |
 
-**Executive Summary 최종 업데이트**: 2026-03-28T22:00:00+09:00
+**Executive Summary 최종 업데이트**: 2026-03-28T22:20:00+09:00
 - 47 Round 연속 PASS, OWASP 7/10, 인젝션 24종+ 유출 0건
 - 조건부 배포 사항 5건 명시 (Output Guard, Spring AI CVE, Netty CVE, API 토큰, 서버 재시작)
 
@@ -2441,6 +2441,23 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | Dashboard | 2,028 응답 | |
 
 **성능 12회 측정 추이 (22시간): 완전 안정, 저하 없음**
+
+**발견**: 이상 없음
+**수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 67 — 2026-03-28T22:20+09:00
+
+**렌즈**: 보안 12순환
+
+| 항목 | 결과 |
+|------|------|
+| 빌드 | PASS |
+| 테스트 | PASS |
+| Health | UP |
+| Guard | BLOCKED |
+| 헤더 | 6/6 |
+| Dashboard | 2,028 응답 |
 
 **발견**: 이상 없음
 **수정**: 없음
