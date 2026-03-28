@@ -1909,7 +1909,7 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | 페르소나 | 2 | 변화 없음 |
 | 모델 | 1 (gemini) | 변화 없음 |
 
-**Executive Summary 최종 업데이트**: 2026-03-29T00:00:00+09:00
+**Executive Summary 최종 업데이트**: 2026-03-29T00:20:00+09:00
 - 47 Round 연속 PASS, OWASP 7/10, 인젝션 24종+ 유출 0건
 - 조건부 배포 사항 5건 명시 (Output Guard, Spring AI CVE, Netty CVE, API 토큰, 서버 재시작)
 
@@ -2546,5 +2546,44 @@ hookContext.metadata.putIfAbsent("model", modelId)
 **25시간 성능: 안정. 저하 없음.**
 
 **발견**: 이상 없음
+**수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 73 — 2026-03-29T00:20+09:00
+
+**렌즈**: 보안 13순환 + **E-01: JVM 메모리 실측 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| Guard | BLOCKED | 정상 |
+
+#### E-01: JVM 메모리 실측 — **누수 없음 (40시간 실증)**
+
+| 지표 | 실측값 | 판정 |
+|------|--------|------|
+| PID | 66691 | |
+| **Uptime** | **39시간 47분** | |
+| RSS | **345 MB** | 512MB 힙 내 안정 |
+| Old Gen | 61 MB / 97 MB (62.8%) | Full GC 0회 — G1 정상 관리 |
+| Eden | 60 MB / 163 MB (36.9%) | 여유 충분 |
+| Metaspace | 74 MB / 79 MB (93.8%) | 관찰 필요 (증가 시 cap 상향) |
+| Young GC | 28회 / 0.375s | 매우 낮음 |
+| Full GC | **0회** | 우수 |
+| 총 GC 시간 | **0.481s** (40시간 중) | 무시 가능 |
+| DB 커넥션 | 11 (active 1, idle 10, idle_in_tx **0**) | 누수 없음 |
+| Redis | 1.38 MB, rejected **0**, evicted **0** | 안정 |
+| 총 응답 | 2,033건 | |
+
+**핵심 판정:**
+- **메모리 누수 없음** — 40시간, 2033 응답 처리 후 RSS 345MB 안정
+- **GC 압박 없음** — Full GC 0회, 총 GC 0.48초
+- **DB 커넥션 누수 없음** — idle_in_tx 0, active 1
+- **Redis 거부 0건** — evicted 0, rejected 0
+- **주의**: Metaspace 93.8% — 동적 클래스 로딩 증가 시 모니터링 필요
+
+**발견**: 40시간 JVM 메모리 실측 → 누수 없음 실증 (실행 원칙 #7 "실측 근거 필수" 충족)
 **수정**: 없음
 **커밋**: 보고서 업데이트
