@@ -210,7 +210,7 @@ class HookExecutor(
                 logger.error(e) { "Hook execution failed: ${hook::class.simpleName}" }
                 if (hook.failOnError) {
                     // Fail-Close: 중요한 Hook 실패 시 실행 중단
-                    return HookResult.Reject("Hook execution failed: ${e.message}")
+                    return HookResult.Reject("내부 처리 중 오류가 발생했습니다")
                 }
                 // Fail-Open: 오류 로깅 후 다음 Hook 계속
             }

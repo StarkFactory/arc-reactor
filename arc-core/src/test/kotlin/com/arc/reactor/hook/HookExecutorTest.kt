@@ -106,8 +106,9 @@ class HookExecutorTest {
             )
 
             val reject = assertInstanceOf(HookResult.Reject::class.java, result)
-            assertTrue(reject.reason.contains("Critical hook failed"),
-                "Reject reason should contain original error, got: ${reject.reason}")
+            assertTrue(reject.reason.contains("내부 처리 중 오류가 발생했습니다")) {
+                "Reject reason은 한글 에러 메시지여야 한다, got: ${reject.reason}"
+            }
         }
 
         @Test
