@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T09:20:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T09:40:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -1156,4 +1156,48 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 
 **발견**: OWASP 7/10 커버. 3개 PARTIAL은 모두 LLM 자체 거부 + 기존 정책으로 보완됨
 **수정**: 없음 (다음 Round에서 호모글리프 매핑 수정 예정)
+**커밋**: 보고서 업데이트
+
+### Round 29 — 2026-03-28T09:40+09:00
+
+**렌즈**: Admin 5순환 + **D-14: AWS EC2/ECS 인프라 스펙 산정 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| Dashboard | PASS | 1,745 응답, 132 차단, MCP 2/2 |
+
+#### D-14: AWS EC2/ECS 인프라 스펙 산정
+
+**기준**: 300명 사내 사용자, 피크 동시 30명, DB/Redis 자체 운영 (RDS/ElastiCache 미사용)
+
+| Tier | 구성 | 인스턴스 | vCPU | RAM | On-Demand (월) | Savings Plan (월) |
+|------|------|---------|------|-----|-------------|-----------------|
+| **Tier 1 (최소)** | All-in-One | m7g.xlarge | 4 | 16GB | **$146** | **$85** |
+| **Tier 2 (권장)** | App + DB 분리 | m7g.large + t4g.large | 2+2 | 8+8GB | **$136** | **$79** |
+| **Tier 3 (HA)** | App×2 + DB + ALB | m7g.large×2 + m7g.large | 2×2+2 | 8×2+8GB | **$242** | **$148** |
+
+**핵심 결정 근거:**
+- **m7g (Graviton3) 선택** — I/O 바운드 워크로드라 Graviton4(m8g) 대비 10% 저렴, CPU 성능 차이 무의미
+- **t4g는 DB 전용** — 버스트 모델이 앱 서버에는 위험, DB(낮은 지속 CPU)에는 적합
+- **Fargate 대안** — Tier 3에서 EC2와 거의 동일 비용 ($155 vs $148), 운영 단순화 우선이면 Fargate 선택
+
+**Graviton 세대별 서울 가용:**
+| 세대 | 패밀리 | 서울 | vs Graviton3 |
+|------|--------|------|-------------|
+| Graviton2 | t4g | O | baseline |
+| Graviton3 | m7g, c7g | O | +25% perf/$ |
+| Graviton4 | m8g, c8g, r8g | O (2025.12~) | +30% perf |
+
+**권장: Tier 2 ($79-136/월)** — 600명 이상 또는 배포 무중단 필요 시 Tier 3 전환
+
+**레퍼런스:**
+- [AWS EC2 M7g/M8g](https://aws.amazon.com/ec2/instance-types/m8g/)
+- [AWS Fargate Pricing](https://aws.amazon.com/fargate/pricing/)
+- [Savings Plans vs RI](https://aws.amazon.com/savingsplans/compute-pricing/)
+
+**발견**: 이상 없음 — Tier 2로 월 $79-136 예상
+**수정**: 없음
 **커밋**: 보고서 업데이트
