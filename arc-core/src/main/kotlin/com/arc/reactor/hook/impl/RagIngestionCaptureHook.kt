@@ -14,7 +14,8 @@ import mu.KotlinLogging
 import org.springframework.ai.vectorstore.VectorStore
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
+import com.github.benmanes.caffeine.cache.Caffeine
+import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 import java.util.regex.PatternSyntaxException
 
@@ -56,8 +57,11 @@ class RagIngestionCaptureHook(
     private val documentChunker: DocumentChunker? = null
 ) : AfterAgentCompleteHook {
 
-    /** 정규식 컴파일 결과 캐시 (잘못된 패턴은 null로 캐시) */
-    private val regexCache = ConcurrentHashMap<String, Regex?>()
+    /** 정규식 컴파일 결과 캐시 (bounded, 1시간 TTL) */
+    private val regexCache = Caffeine.newBuilder()
+        .maximumSize(256)
+        .expireAfterAccess(1, TimeUnit.HOURS)
+        .build<String, Regex>()
 
     override val order: Int = 260
 
@@ -157,15 +161,15 @@ class RagIngestionCaptureHook(
         return false
     }
 
-    /** 정규식을 컴파일한다. 캐시를 사용하여 중복 컴파일을 방지한다. */
+    /** 정규식을 컴파일한다. Caffeine 캐시를 사용하여 중복 컴파일을 방지한다. */
     private fun compileRegex(rawPattern: String): Regex? {
-        return regexCache.getOrPut(rawPattern) {
-            try {
+        return regexCache.getIfPresent(rawPattern)
+            ?: try {
                 Pattern.compile(rawPattern, Pattern.CASE_INSENSITIVE).toRegex()
+                    .also { regexCache.put(rawPattern, it) }
             } catch (e: PatternSyntaxException) {
                 logger.warn { "Ignoring invalid blocked regex pattern: $rawPattern" }
                 null
             }
-        }
     }
 }
