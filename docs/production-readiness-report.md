@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T11:00:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T11:20:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -1364,4 +1364,62 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 
 **발견**: CRITICAL CVE 1건 + HIGH CVE 1건 미패치
 **수정**: 없음 (의존성 업그레이드는 빌드 설정 변경 — 별도 작업으로 진행 권장)
+**커밋**: 보고서 업데이트
+
+### Round 34 — 2026-03-28T11:20+09:00
+
+**렌즈**: RAG 6순환 + **D-04: PGVector 3072차원 최적화 조사 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| RAG | 4 docs, 3072차원 | 검색 785ms (임베딩 API 지배적, PG <1ms) |
+
+#### D-04: PGVector 3072차원 인덱스 최적화
+
+**현재 상태:**
+- pgvector 0.8.1, 테이블 128KB, 인덱스 없음 (PK만)
+- 4 docs seq scan: **0.685ms** (즉각)
+- 785ms 검색 지연의 대부분은 Gemini 임베딩 API 호출 (~400-480ms)
+
+**3072차원 인덱스 제한:**
+
+| 인덱스 | vector(float32) | halfvec(float16) |
+|--------|----------------|-----------------|
+| HNSW | **최대 2000차원** | **최대 4000차원** |
+| IVFFlat | 최대 2000차원 | 최대 4000차원 |
+
+→ 3072 > 2000이라 **vector 타입 직접 인덱스 불가**. `halfvec(3072)` 캐스팅으로 우회 가능.
+
+**문서 수별 예상 성능 (인덱스 없음):**
+
+| 문서 수 | seq scan 지연 | 판정 |
+|---------|-------------|------|
+| 10 | ~1ms | OK |
+| 100 | ~5ms | OK |
+| 1,000 | ~50ms | OK |
+| 5,000 | ~200ms | **인덱스 권장** |
+| 10,000 | ~500ms | 인덱스 필수 |
+
+**권장 전략:**
+1. **현재 (4 docs)**: 변경 불필요
+2. **5,000 docs 도달 전**: halfvec HNSW 인덱스 추가 (Flyway 마이그레이션)
+3. **대규모**: 1536차원 모델로 전환 고려 (native HNSW, 2x 저장 절약)
+
+```sql
+-- 5000 docs 도달 시 적용할 마이그레이션
+CREATE INDEX vector_store_embedding_hnsw_idx
+ON vector_store USING hnsw
+((embedding::halfvec(3072)) halfvec_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+```
+
+**레퍼런스:**
+- [pgvector HNSW dim limit (GitHub #461)](https://github.com/pgvector/pgvector/issues/461)
+- [pgvector 0.8.0 performance (AWS)](https://aws.amazon.com/blogs/database/supercharging-vector-search-performance-and-relevance-with-pgvector-0-8-0-on-amazon-aurora-postgresql/)
+
+**발견**: 현재 4 docs에서 인덱스 불필요. 5000 docs 전에 halfvec HNSW 추가 필요
+**수정**: 없음
 **커밋**: 보고서 업데이트
