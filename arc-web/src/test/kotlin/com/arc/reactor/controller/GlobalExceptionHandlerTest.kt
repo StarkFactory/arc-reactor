@@ -46,7 +46,7 @@ class GlobalExceptionHandlerTest {
 
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) { "Should return 400" }
             val body = response.body!!
-            assertEquals("Validation failed", body.error) { "Error message should indicate validation failure" }
+            assertEquals("요청 형식이 올바르지 않습니다", body.error) { "Error message should indicate validation failure" }
             val details = body.details!!
             assertEquals("must not be blank", details["name"]) { "Name error should match" }
             assertEquals("must be a valid email", details["email"]) { "Email error should match" }
@@ -76,7 +76,7 @@ class GlobalExceptionHandlerTest {
             val response = handler.handleInputException(ex)
 
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) { "Should return 400" }
-            assertTrue(response.body!!.error.contains("Invalid JSON body")) { "Should include reason" }
+            assertEquals("잘못된 요청입니다", response.body!!.error) { "내부 reason을 노출하지 않아야 한다" }
             assertNull(response.body!!.details) { "Should not have field details" }
         }
     }
@@ -91,7 +91,7 @@ class GlobalExceptionHandlerTest {
             val response = handler.handleNotFound(ex)
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode) { "Should return 404" }
-            assertEquals("Not found", response.body!!.error) { "Should have generic not found message" }
+            assertEquals("요청한 리소스를 찾을 수 없습니다", response.body!!.error) { "Should have generic not found message" }
             assertNotNull(response.body!!.timestamp) { "Should include timestamp" }
         }
     }
@@ -100,14 +100,14 @@ class GlobalExceptionHandlerTest {
     inner class ResponseStatusErrors {
 
         @Test
-        fun `preserve explicit response status and reason해야 한다`() {
+        fun `preserve explicit response status해야 한다`() {
             val ex = ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing authenticated user context")
 
             val response = handler.handleResponseStatusException(ex)
 
             assertEquals(HttpStatus.UNAUTHORIZED, response.statusCode) { "Should preserve 401 UNAUTHORIZED" }
-            assertEquals("Missing authenticated user context", response.body!!.error) {
-                "Should preserve the explicit ResponseStatusException reason"
+            assertEquals("인증이 필요합니다", response.body!!.error) {
+                "내부 reason 대신 한글 마스킹 메시지를 반환해야 한다"
             }
             assertNotNull(response.body!!.timestamp) { "Should include timestamp" }
         }
@@ -121,10 +121,10 @@ class GlobalExceptionHandlerTest {
             assertEquals(HttpStatus.METHOD_NOT_ALLOWED, response.statusCode) {
                 "Should preserve 405 METHOD_NOT_ALLOWED"
             }
-            assertTrue(response.body!!.error.contains("POST")) {
-                "Error should explain the unsupported method, got: ${response.body!!.error}"
+            assertEquals("요청을 처리할 수 없습니다", response.body!!.error) {
+                "405는 한글 마스킹 메시지를 반환해야 한다"
             }
-            assertFalse(response.body!!.error.contains("Internal server error")) {
+            assertFalse(response.body!!.error.contains("서버 오류가 발생했습니다")) {
                 "405 errors must not be rewritten to generic 500 responses"
             }
         }
@@ -140,7 +140,7 @@ class GlobalExceptionHandlerTest {
             val response = handler.handleIllegalArgument(ex)
 
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) { "Should return 400" }
-            assertEquals("Bad request", response.body!!.error) {
+            assertEquals("잘못된 요청입니다", response.body!!.error) {
                 "내부 예외 메시지를 클라이언트에 노출하지 않아야 한다"
             }
             assertNotNull(response.body!!.timestamp) { "Should include timestamp" }
@@ -153,7 +153,7 @@ class GlobalExceptionHandlerTest {
             val response = handler.handleIllegalArgument(ex)
 
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode) { "Should return 400" }
-            assertEquals("Bad request", response.body!!.error) {
+            assertEquals("잘못된 요청입니다", response.body!!.error) {
                 "메시지가 null이어도 마스킹된 응답을 반환해야 한다"
             }
         }
@@ -169,7 +169,7 @@ class GlobalExceptionHandlerTest {
             val response = handler.handleIllegalState(ex)
 
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode) { "Should return 500" }
-            assertEquals("Internal server error", response.body!!.error) {
+            assertEquals("서버 오류가 발생했습니다", response.body!!.error) {
                 "Should mask internal details for IllegalStateException"
             }
             assertNotNull(response.body!!.timestamp) { "Should include timestamp" }
@@ -197,7 +197,7 @@ class GlobalExceptionHandlerTest {
             val response = handler.handleGenericException(ex)
 
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode) { "Should return 500" }
-            assertEquals("Internal server error", response.body!!.error) { "Should mask internal details" }
+            assertEquals("서버 오류가 발생했습니다", response.body!!.error) { "Should mask internal details" }
             assertFalse(
                 response.body!!.error.contains("secret123"),
                 "Should NOT expose sensitive information"

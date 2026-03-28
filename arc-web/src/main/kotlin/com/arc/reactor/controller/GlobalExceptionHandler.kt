@@ -31,11 +31,11 @@ class GlobalExceptionHandler {
     @ExceptionHandler(WebExchangeBindException::class)
     fun handleValidationErrors(ex: WebExchangeBindException): ResponseEntity<ErrorResponse> {
         val fieldErrors = ex.bindingResult.fieldErrors.associate {
-            it.field to (it.defaultMessage ?: "Invalid value")
+            it.field to (it.defaultMessage ?: "유효하지 않은 값입니다")
         }
         return ResponseEntity.badRequest().body(
             ErrorResponse(
-                error = "Validation failed",
+                error = "요청 형식이 올바르지 않습니다",
                 details = fieldErrors,
                 timestamp = Instant.now().toString()
             )
@@ -46,7 +46,7 @@ class GlobalExceptionHandler {
     fun handleInputException(ex: ServerWebInputException): ResponseEntity<ErrorResponse> {
         return ResponseEntity.badRequest().body(
             ErrorResponse(
-                error = "Invalid request: ${ex.reason ?: "Bad request"}",
+                error = "잘못된 요청입니다",
                 timestamp = Instant.now().toString()
             )
         )
@@ -56,7 +56,7 @@ class GlobalExceptionHandler {
     fun handleFileSizeLimit(ex: FileSizeLimitException): ResponseEntity<ErrorResponse> {
         return ResponseEntity.badRequest().body(
             ErrorResponse(
-                error = ex.reason ?: "File upload limit exceeded",
+                error = "입력 길이가 제한을 초과했습니다",
                 timestamp = Instant.now().toString()
             )
         )
@@ -66,7 +66,7 @@ class GlobalExceptionHandler {
     fun handleNotFound(ex: NoResourceFoundException): ResponseEntity<ErrorResponse> {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
             ErrorResponse(
-                error = "Not found",
+                error = "요청한 리소스를 찾을 수 없습니다",
                 timestamp = Instant.now().toString()
             )
         )
@@ -74,7 +74,7 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException::class)
     fun handleResponseStatusException(ex: ResponseStatusException): ResponseEntity<ErrorResponse> {
-        val message = ex.reason?.takeIf { it.isNotBlank() } ?: ex.statusCode.toString()
+        val message = statusMessageFor(ex.statusCode.value())
         return ResponseEntity.status(ex.statusCode).body(
             ErrorResponse(
                 error = message,
@@ -88,7 +88,7 @@ class GlobalExceptionHandler {
         logger.warn(ex) { "Bad request: ${ex.message}" }
         return ResponseEntity.badRequest().body(
             ErrorResponse(
-                error = "Bad request",
+                error = "잘못된 요청입니다",
                 timestamp = Instant.now().toString()
             )
         )
@@ -99,7 +99,7 @@ class GlobalExceptionHandler {
         logger.error(ex) { "Illegal state" }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
             ErrorResponse(
-                error = "Internal server error",
+                error = "서버 오류가 발생했습니다",
                 timestamp = Instant.now().toString()
             )
         )
@@ -118,10 +118,22 @@ class GlobalExceptionHandler {
         logger.error(ex) { "Unhandled exception" }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
             ErrorResponse(
-                error = "Internal server error",
+                error = "서버 오류가 발생했습니다",
                 timestamp = Instant.now().toString()
             )
         )
+    }
+
+    /** HTTP 상태 코드에 대응하는 사용자 친화적 한글 메시지. */
+    private fun statusMessageFor(statusCode: Int): String = when (statusCode) {
+        400 -> "잘못된 요청입니다"
+        401 -> "인증이 필요합니다"
+        403 -> "접근이 거부되었습니다"
+        404 -> "요청한 리소스를 찾을 수 없습니다"
+        409 -> "요청이 충돌합니다"
+        429 -> "요청이 너무 많습니다"
+        in 500..599 -> "서버 오류가 발생했습니다"
+        else -> "요청을 처리할 수 없습니다"
     }
 }
 

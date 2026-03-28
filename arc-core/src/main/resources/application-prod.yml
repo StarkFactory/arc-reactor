@@ -16,6 +16,16 @@ spring:
   codec:
     max-in-memory-size: 1MB
 
+management:
+  server:
+    port: ${MANAGEMENT_PORT:18090}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+
 arc:
   reactor:
     concurrency:

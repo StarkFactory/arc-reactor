@@ -15,7 +15,9 @@ import reactor.core.publisher.Mono
  * - `Content-Security-Policy: default-src 'self'` -- 리소스 로딩 제한 (API 경로 전용)
  * - `X-XSS-Protection: 0` -- 레거시 XSS 필터 비활성화 (최신 권장 사항)
  * - `Referrer-Policy: strict-origin-when-cross-origin` -- referrer 정보 제한
- * - `Strict-Transport-Security: max-age=31536000; includeSubDomains` -- HTTPS 강제
+ * - `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` -- HTTPS 강제
+ * - `Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()` -- 브라우저 기능 제한
+ * - `Cache-Control: no-store` -- 인증/채팅 경로 캐시 방지
  *
  * Swagger UI 경로(`/swagger-ui`, `/v3/api-docs`, `/webjars`)에는 UI에 필요한
  * 인라인 스타일을 허용하는 완화된 CSP를 적용합니다.
@@ -39,10 +41,24 @@ class SecurityHeadersWebFilter : WebFilter, Ordered {
             set("Content-Security-Policy", csp)
             set("X-XSS-Protection", "0")
             set("Referrer-Policy", "strict-origin-when-cross-origin")
-            set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+            set(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains; preload"
+            )
+            set(
+                "Permissions-Policy",
+                "geolocation=(), camera=(), microphone=(), payment=()"
+            )
+            if (isSensitivePath(path)) {
+                set("Cache-Control", "no-store")
+            }
         }
         return chain.filter(exchange)
     }
+
+    /** 인증/채팅 등 민감한 API 경로 여부 판별. */
+    private fun isSensitivePath(path: String): Boolean =
+        path.startsWith("/api/auth/") || path.startsWith("/api/chat/")
 
     private fun isSwaggerPath(path: String): Boolean =
         path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs") || path.startsWith("/webjars")
