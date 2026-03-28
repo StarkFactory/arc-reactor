@@ -1909,7 +1909,7 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | 페르소나 | 2 | 변화 없음 |
 | 모델 | 1 (gemini) | 변화 없음 |
 
-**Executive Summary 최종 업데이트**: 2026-03-28T17:00:00+09:00
+**Executive Summary 최종 업데이트**: 2026-03-28T17:20:00+09:00
 - 47 Round 연속 PASS, OWASP 7/10, 인젝션 24종+ 유출 0건
 - 조건부 배포 사항 5건 명시 (Output Guard, Spring AI CVE, Netty CVE, API 토큰, 서버 재시작)
 
@@ -2036,4 +2036,32 @@ hookContext.metadata.putIfAbsent("model", modelId)
 4. **Dashboard 추이**: R23(418) → R41(1813) → R51(1940) — 안정적 증가
 
 **수정**: 없음 (T3 실패 원인은 Guard 또는 rate limit 관련 — 별도 조사)
+**커밋**: 보고서 업데이트
+
+### Round 52 — 2026-03-28T17:20+09:00
+
+**렌즈**: RAG 9순환 (grounding 일관성 + 검색 안정성)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| RAG 문서 | 4개 | 안정 |
+
+**Grounding 일관성 검증:**
+
+| 테스트 | grounded | 7단계 | 횟수 |
+|--------|---------|-------|------|
+| C1: 동일 질문 3회 | 3/3 True | 3/3 True | call1=2.9s, call2-3=0ms(cache) |
+| C2: 의역 3종 | 3/3 True | 3/3 True | 2.6-3.6s |
+| **합계** | **6/6 (100%)** | **6/6** | — |
+
+**검색 안정성:**
+- 문서 추가 후 기존 검색 top-3 순위 변화 없음 (Guard→MCP→ReAct)
+- 신규 문서 즉시 검색 가능 (비용 추적 시스템)
+- 삭제 후 문서 수 정확히 복원 (4개)
+
+**발견**: R46 Guard 문서 수정 효과 완전 정착 — 6/6 grounding + 7단계 일관
+**수정**: 없음
 **커밋**: 보고서 업데이트
