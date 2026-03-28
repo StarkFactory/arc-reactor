@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T12:40:00+09:00
+> **작성일**: 2026-03-28 | **최종 업���이트**: 2026-03-28T13:00:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -1574,5 +1574,47 @@ WITH (m = 16, ef_construction = 64);
 4. **Jira 에러 처리 미흡** (S02) — 도구 에러 시 일반적 재시도 안내만 (구체적 에러 미노출)
 
 **발견**: 도구 라우팅 100% 정확하나, Confluence auth + RAG 폴백 부재로 2/10 시나리오 실패
+**수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 39 — 2026-03-28T13:00+09:00
+
+**렌즈**: MCP 7순환 + **D-05: MCP 보안 베스트 프랙티스 조사 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| MCP | 2/2 CONNECTED | allowedServers=[atlassian,swagger] |
+
+#### D-05: MCP 보안 베스트 프랙티스 — **7.5/10**
+
+| # | 보안 항목 | 상태 | 비고 |
+|---|----------|------|------|
+| 1 | 서버 허용 목록 | **COVERED** | allowedServerNames 강제 |
+| 2 | 도구 출력 새니타이징 | **COVERED** | ToolOutputSanitizer + InjectionPatterns 공유 |
+| 3 | SSRF 방지 | **COVERED** | SsrfUrlValidator, 사설 IP 차단 |
+| 4 | Admin API 인증 | **COVERED** | JWT + adminToken + HMAC |
+| 5 | 전송 암호화 | **PARTIAL** | http:// 경고만, 차단 아님 |
+| 6 | 도구 읽기/쓰기 분리 | **PARTIAL** | 승인 워크플로우 있으나 도구 태깅 없음 |
+| 7 | 도구별 Rate Limit | **PARTIAL** | 에이전트 레벨만, 도구별 미분리 |
+| 8 | 출력 길이 제한 | **COVERED** | maxToolOutputLength=50000 |
+| 9 | 위험 작업 승인 | **COVERED** | ApprovalController HITL 워크플로우 |
+| 10 | 서버 건강 모니터링 | **COVERED** | McpHealthEvent + MetricReporter |
+
+**CVE-2025-53773 (Tool Poisoning, CVSS 7.8)**: Arc Reactor 직접 영향 없음 (VS Code 플러그인 아님). 다만 도구 설명 주입 패턴은 `ToolOutputSanitizer`로 방어 중.
+
+**PARTIAL 권장 조치:**
+1. prod 프로필에서 `enforce-https=true` 추가 (http:// MCP 연결 차단)
+2. 도구에 `read`/`write` 태그 추가하여 구조적 권한 분리
+3. 도구별 분당 호출 제한 추가 (현재는 에이전트 레벨만)
+
+**레퍼런스:**
+- [MCP Security Best Practices](https://modelcontextprotocol.io/specification/draft/basic/security_best_practices)
+- [OWASP MCP03:2025 Tool Poisoning](https://owasp.org/www-project-mcp-top-10/2025/MCP03-2025–Tool-Poisoning)
+- [CVE-2025-53773 (Wiz)](https://www.wiz.io/vulnerability-database/cve/cve-2025-53773)
+
+**발견**: MCP 보안 7.5/10, 핵심 방어 모두 구현. PARTIAL 3건은 하드닝 개선
 **수정**: 없음
 **커밋**: 보고서 업데이트
