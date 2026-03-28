@@ -3,6 +3,7 @@ package com.arc.reactor.agent.slo
 import mu.KotlinLogging
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.atomic.AtomicLong
 
 private val logger = KotlinLogging.logger {}
 
@@ -36,9 +37,9 @@ class DefaultSloAlertEvaluator(
     private val latencies = ConcurrentLinkedDeque<TimestampedLatency>()
     private val results = ConcurrentLinkedDeque<TimestampedResult>()
 
-    /** 마지막 알림 발송 시각 (유형별) */
-    @Volatile private var lastLatencyAlertMs: Long = 0L
-    @Volatile private var lastErrorRateAlertMs: Long = 0L
+    /** 마지막 알림 발송 시각 (유형별, CAS로 동시성 안전) */
+    private val lastLatencyAlertMs = AtomicLong(0L)
+    private val lastErrorRateAlertMs = AtomicLong(0L)
 
     override fun recordLatency(durationMs: Long) {
         latencies.addLast(TimestampedLatency(nowMs(), durationMs.coerceAtLeast(0)))
@@ -63,14 +64,14 @@ class DefaultSloAlertEvaluator(
 
     /** P95 레이턴시 평가. 쿨다운 내이면 null 반환. */
     private fun evaluateLatency(now: Long): SloViolation? {
-        if (isCoolingDown(lastLatencyAlertMs, now)) return null
+        if (isCoolingDown(lastLatencyAlertMs.get(), now)) return null
         val snapshot = latencies.map { it.durationMs }
         if (snapshot.size < MIN_SAMPLES) return null
 
         val p95 = percentile(snapshot, 95)
         if (p95 <= latencyThresholdMs) return null
 
-        lastLatencyAlertMs = now
+        if (!lastLatencyAlertMs.compareAndSet(lastLatencyAlertMs.get(), now)) return null
         logger.debug { "SLO 레이턴시 위반 감지: P95=${p95}ms > ${latencyThresholdMs}ms" }
         return SloViolation(
             type = SloViolationType.LATENCY,
@@ -83,7 +84,7 @@ class DefaultSloAlertEvaluator(
 
     /** 에러율 평가. 쿨다운 내이면 null 반환. */
     private fun evaluateErrorRate(now: Long): SloViolation? {
-        if (isCoolingDown(lastErrorRateAlertMs, now)) return null
+        if (isCoolingDown(lastErrorRateAlertMs.get(), now)) return null
         val snapshot = results.toList()
         if (snapshot.size < MIN_SAMPLES) return null
 
@@ -91,7 +92,7 @@ class DefaultSloAlertEvaluator(
         val errorRate = errorCount.toDouble() / snapshot.size
         if (errorRate <= errorRateThreshold) return null
 
-        lastErrorRateAlertMs = now
+        if (!lastErrorRateAlertMs.compareAndSet(lastErrorRateAlertMs.get(), now)) return null
         val pct = String.format("%.1f", errorRate * 100)
         val thresholdPct = String.format("%.1f", errorRateThreshold * 100)
         logger.debug { "SLO 에러율 위반 감지: ${pct}% > ${thresholdPct}%" }
