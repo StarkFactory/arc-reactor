@@ -1860,3 +1860,31 @@ hookContext.metadata.putIfAbsent("model", modelId)
 **발견**: 이상 없음 — 15시간 MCP 안정, 인젝션 5/6 차단 + LLM 1/6 거부 = 총 방어 100%
 **수정**: 없음
 **커밋**: 보고서 업데이트
+
+### Round 46 — 2026-03-28T15:20+09:00
+
+**렌즈**: RAG 8순환 + **Guard 벡터 문서 stale 수정 (R27 D-17 발견)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| RAG 문서 수 | 4개 | 변경 전후 동일 |
+
+**RAG 문서 정합성 수정:**
+
+| 항목 | Before | After |
+|------|--------|-------|
+| Guard 문서 내용 | "5단계" (stale) | **"7단계"** (정확) |
+| 포함 단계 | Rate Limit~Permission | **Unicode(0)~Custom(10+)** |
+| source | arc-docs | **arc-docs-v2** |
+
+**검증:**
+- 검색 top-1: Guard 파이프라인 (arc-docs-v2) → `has_7단계=True`
+- 채팅: "7단계로 구성됩니다" + `grounded=True` (출처: arc-docs-v2)
+- R27 D-17에서 발견된 환각(hallucination) 이슈 → **근본 원인(stale 문서) 해결**
+
+**발견**: R27 D-17 환각 이슈의 근본 원인(stale 벡터 문서) 수정 완료
+**수정**: Guard 파이프라인 벡터 문서 삭제 + 정확한 7단계 문서 재삽입
+**커밋**: 보고서 업데이트
