@@ -1909,7 +1909,7 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | 페르소나 | 2 | 변화 없음 |
 | 모델 | 1 (gemini) | 변화 없음 |
 
-**Executive Summary 최종 업데이트**: 2026-03-29T00:40:00+09:00
+**Executive Summary 최종 업데이트**: 2026-03-29T01:00:00+09:00
 - 47 Round 연속 PASS, OWASP 7/10, 인젝션 24종+ 유출 0건
 - 조건부 배포 사항 5건 명시 (Output Guard, Spring AI CVE, Netty CVE, API 토큰, 서버 재시작)
 
@@ -2622,3 +2622,35 @@ hookContext.metadata.putIfAbsent("model", modelId)
 **발견**: 사용자 여정 9/10, 일반 인사말 false positive 1건
 **수정**: 없음 (다음 Round에서 FP 원인 조사)
 **커밋**: 보고서 업데이트
+
+### Round 75 — 2026-03-29T01:00+09:00
+
+**렌즈**: MCP 13순환 + **R74 인사말 False Positive 원인 조사 + 수정**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 (--rerun-tasks) |
+| Health | UP | 200 |
+| MCP | 2/2 CONNECTED | |
+| Dashboard | 2,038 응답 | 145 차단 |
+
+**FP 근본 원인 분석:**
+- 트리거 메시지: `"어떤 기능이 있나요?"` → `GUARD_REJECTED`
+- 원인: `InjectionPatterns.kt:677` 정규식 `(사용|쓸 수|있)` — `있` 단독 매칭이 `있나요?`의 존재동사에 반응
+- 재현: 100% 재현, `어떤 기능이 있나요?` 단독으로도 차단
+
+**코드 수정:**
+```kotlin
+// Before (FP 유발)
+Regex("(몇 개|어떤).{0,10}(도구|tool|기능).{0,10}(사용|쓸 수|있)")
+
+// After (FP 해결)
+Regex("(몇 개|어떤).{0,10}(도구|tool|기능).{0,10}(사용할 수 있|쓸 수 있)")
+```
+
+**검증**: 테스트 전량 PASS — 기존 true positive 케이스 유지, FP 해결
+
+**발견**: R74 인사말 FP 근본 원인 → `있` 단독 매칭. 정규식 수정으로 해결
+**수정**: `InjectionPatterns.kt:677` 정규식 tightening
+**커밋**: Guard FP 수정
