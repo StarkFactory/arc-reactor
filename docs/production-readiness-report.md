@@ -1909,7 +1909,7 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | 페르소나 | 2 | 변화 없음 |
 | 모델 | 1 (gemini) | 변화 없음 |
 
-**Executive Summary 최종 업데이트**: 2026-03-28T16:20:00+09:00
+**Executive Summary 최종 업데이트**: 2026-03-28T16:40:00+09:00
 - 47 Round 연속 PASS, OWASP 7/10, 인젝션 24종+ 유출 0건
 - 조건부 배포 사항 5건 명시 (Output Guard, Spring AI CVE, Netty CVE, API 토큰, 서버 재시작)
 
@@ -1978,3 +1978,32 @@ hookContext.metadata.putIfAbsent("model", modelId)
 **발견**: Prefix 패턴 반영 확인, Arabic gap 신규 발견
 **수정**: 없음 (Arabic 패턴은 다음 Round에서 추가)
 **커밋**: 보고서 업데이트
+
+### Round 50 — 2026-03-28T16:40+09:00
+
+**렌즈**: 기능 8순환 + **Arabic/French 인젝션 패턴 추가**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 (--rerun-tasks) |
+| Health | UP | 200 |
+| 기능 (chat) | PASS | 1,164ms |
+
+**코드 수정 — InjectionPatterns.kt에 3개 다국어 패턴 추가:**
+
+| 카테고리 | 패턴 | 탐지 대상 |
+|----------|------|----------|
+| `multilingual_prompt_leak` | 아랍어 정방향 | أظهر/اعرض/أرني + تعليمات/نظام |
+| `multilingual_prompt_leak` | 아랍어 역방향 | تعليمات/نظام + أظهر/اعرض |
+| `multilingual_prompt_leak` | 프랑스어 보강 | montre-moi (하이픈 변형) + instruction/systeme |
+
+**누적 Guard 패턴 추가: 23개** (R7:5 + R13:7 + R19:3 + R31:5 + R50:3)
+
+**다국어 커버리지 (업데이트):**
+- 영/한/일/중/스페인/터키/태국/베트남/포르투갈/독일/이탈리아/인도네시아/폴란드/힌디/스와힐리/말레이/체코/덴마크/필리핀/노르웨이/크로아티아/불가리아/우크라이나/프랑스 → **COVERED**
+- **아랍어** → **COVERED (신규)**
+
+**발견**: R49 Arabic gap 해결
+**수정**: InjectionPatterns.kt +3 패턴 (Arabic 2 + French 보강 1)
+**커밋**: 다국어 Guard 패턴 추가
