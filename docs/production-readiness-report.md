@@ -1651,3 +1651,50 @@ WITH (m = 16, ef_construction = 64);
 **발견**: 로그 품질 양호, 민감 데이터 위험 낮음. 로그 폭주 방지 미구현
 **수정**: 없음
 **커밋**: 보고서 업데이트
+
+### Round 41 — 2026-03-28T13:40+09:00
+
+**렌즈**: Admin 7순환 + **D-16: 미등록 모델 비용 추적 gap 검증 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| Dashboard | 1,813 응답, 135 차단 | costSummary={} (비어있음) |
+
+#### D-16: 비용 추적 gap 분석 — **P0: 비용 추적 완전 미작동**
+
+**근본 원인 체인:**
+
+```
+1. command.model = null (클라이언트 미지정)
+2. SpringAiAgentExecutor가 metadata["model"]에 provider 별칭 "gemini" 저장
+3. CostCalculator.calculateCost("gemini", ...) → DEFAULT_PRICING에 "gemini" 없음 → 0.0 반환
+4. recordCostIfAvailable에서 cost > 0.0 조건 불충족 → 메트릭 기록 건너뜀
+5. MonthlyBudgetTracker는 0.0 비용만 봄 → 월 한도 무효화
+6. Dashboard costSummary = {} (빈 상태)
+```
+
+**DEFAULT_PRICING 등록 모델 (6개):**
+`gemini-2.5-flash`, `gemini-2.5-pro`, `gpt-4o`, `gpt-4o-mini`, `claude-sonnet-4-*`, `claude-opus-4-*`
+
+**문제: 런타임 키 `"gemini"` ≠ 등록 키 `"gemini-2.5-flash"`**
+
+**영향:**
+
+| 위험 | 심각도 |
+|------|--------|
+| 월 예산 한도 미작동 (MonthlyBudgetTracker) | **HIGH** |
+| 비용 이상 탐지 무효 (CostAnomalyDetector) | MEDIUM |
+| arc-admin 정산 $0 표시 | **HIGH** |
+| 운영자에게 보이지 않는 비용 | MEDIUM |
+
+**수정 필요 파일 (3곳):**
+1. `SpringAiAgentExecutor.kt:515` — `metadata["model"]`에 provider가 아닌 model ID 저장
+2. `AgentExecutionCoordinator.kt:455` — `"model"` → `"modelUsed"` 키 조회 우선
+3. `model_pricing` DB — `(gemini, gemini-2.5-flash)` 행 삽입
+
+**발견**: P0 — 비용 추적 전면 미작동 (provider vs modelId 키 불일치)
+**수정**: 없음 (3파일 수정 필요, 다음 Round에서 1개 수정)
+**커밋**: 보고서 업데이트
