@@ -1,6 +1,8 @@
 package com.arc.reactor.guard.output.policy
 
+import com.github.benmanes.caffeine.cache.Caffeine
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /**
  * 출력 Guard 규칙 평가 엔진
@@ -22,8 +24,11 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class OutputGuardRuleEvaluator {
 
-    /** 패턴 문자열 → 컴파일된 Regex 캐시 */
-    private val regexCache = ConcurrentHashMap<String, Regex>()
+    /** 패턴 문자열 → 컴파일된 Regex 캐시 (bounded, 1시간 TTL) */
+    private val regexCache = Caffeine.newBuilder()
+        .maximumSize(512)
+        .expireAfterAccess(1, TimeUnit.HOURS)
+        .build<String, Regex>()
 
     /** 컴파일에 실패한 잘못된 패턴 문자열 집합 */
     private val invalidPatterns: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -56,20 +61,21 @@ class OutputGuardRuleEvaluator {
                 continue
             }
 
-            // ── 정규식 컴파일 (캐시 활용) ──
-            val regex = regexCache.getOrPut(rule.pattern) {
-                runCatching { Regex(rule.pattern) }.getOrElse {
-                    invalidPatterns.add(rule.pattern)
-                    invalid.add(
-                        InvalidOutputGuardRule(
-                            ruleId = rule.id,
-                            ruleName = rule.name,
-                            reason = it.message ?: "invalid regex"
+            // ── 정규식 컴파일 (Caffeine bounded 캐시) ──
+            val regex = regexCache.getIfPresent(rule.pattern)
+                ?: runCatching { Regex(rule.pattern) }
+                    .onSuccess { regexCache.put(rule.pattern, it) }
+                    .getOrElse {
+                        invalidPatterns.add(rule.pattern)
+                        invalid.add(
+                            InvalidOutputGuardRule(
+                                ruleId = rule.id,
+                                ruleName = rule.name,
+                                reason = it.message ?: "invalid regex"
+                            )
                         )
-                    )
-                    continue
-                }
-            }
+                        continue
+                    }
 
             // ── 매칭 검사 ──
             if (!regex.containsMatchIn(maskedContent)) continue
