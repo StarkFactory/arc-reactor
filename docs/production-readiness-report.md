@@ -1909,7 +1909,7 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | 페르소나 | 2 | 변화 없음 |
 | 모델 | 1 (gemini) | 변화 없음 |
 
-**Executive Summary 최종 업데이트**: 2026-03-29T00:20:00+09:00
+**Executive Summary 최종 업데이트**: 2026-03-29T00:40:00+09:00
 - 47 Round 연속 PASS, OWASP 7/10, 인젝션 24종+ 유출 0건
 - 조건부 배포 사항 5건 명시 (Output Guard, Spring AI CVE, Netty CVE, API 토큰, 서버 재시작)
 
@@ -2586,4 +2586,39 @@ hookContext.metadata.putIfAbsent("model", modelId)
 
 **발견**: 40시간 JVM 메모리 실측 → 누수 없음 실증 (실행 원칙 #7 "실측 근거 필수" 충족)
 **수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 74 — 2026-03-29T00:40+09:00
+
+**렌즈**: 기능 11순환 + **E-04: 사용자 여정 E2E (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+
+#### E-04: 사용자 여정 E2E — **9/10 PASS**
+
+| Step | 동작 | 결과 |
+|------|------|------|
+| 1 | 로그인 | PASS |
+| 2 | /me 확인 | PASS |
+| 3 | 페르소나 조회 | PASS |
+| 4 | **일반 인사말** | **FAIL — GUARD_REJECTED** |
+| 5 | Jira 이슈 조회 | PASS (jira_search_issues 호출) |
+| 6 | 같은 세션 후속 질문 | PASS (컨텍스트 유지) |
+| 7 | 세션 목록 | PASS |
+| 8 | 세션 내보내기 | PASS (200) |
+| 9 | 모델 목록 | PASS |
+| 10 | 로그아웃 + 토큰 폐기 | PASS (401 확인) |
+
+**P1 발견 — False Positive:**
+- 메시지: "안녕하세요, 처음 사용하는데 어떤 기능이 있나요?"
+- 결과: GUARD_REJECTED, durationMs=0 (Guard 즉시 차단)
+- **원인 추정**: Rate Limit 또는 Guard 패턴 과잉 매칭
+- **영향**: 신규 사용자의 첫 메시지가 차단될 수 있음
+
+**발견**: 사용자 여정 9/10, 일반 인사말 false positive 1건
+**수정**: 없음 (다음 Round에서 FP 원인 조사)
 **커밋**: 보고서 업데이트
