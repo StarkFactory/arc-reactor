@@ -612,7 +612,7 @@ class SlackApiClient(
         if (e is SlackApiTimeoutException) {
             return SlackErrorDetails(
                 code = TIMEOUT_ERROR,
-                message = e.message?.takeIf { it.isNotBlank() },
+                message = "Slack API 응답 시간 초과",
                 retryable = true,
                 retryAfterSeconds = null
             )
@@ -628,7 +628,7 @@ class SlackApiClient(
             }
             return SlackErrorDetails(
                 code = code,
-                message = e.message?.takeIf { it.isNotBlank() },
+                message = "Slack API 요청 실패",
                 retryable = retryAfterSeconds != null || isRetryableStatus(statusCode) || isRetryableCode(code),
                 retryAfterSeconds = retryAfterSeconds
             )
@@ -636,14 +636,14 @@ class SlackApiClient(
         if (e is IOException) {
             return SlackErrorDetails(
                 code = "io_error",
-                message = e.message?.takeIf { it.isNotBlank() },
+                message = "네트워크 연결 오류",
                 retryable = true,
                 retryAfterSeconds = null
             )
         }
         return SlackErrorDetails(
             code = "client_error",
-            message = e.message?.takeIf { it.isNotBlank() } ?: "slack_api_call_failed",
+            message = "알 수 없는 오류",
             retryable = false,
             retryAfterSeconds = null
         )
