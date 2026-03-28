@@ -91,6 +91,7 @@ arc:
 
     llm:
       default-provider: gemini
+      default-model: ${ARC_REACTOR_LLM_DEFAULT_MODEL:gemini-2.5-flash}
       temperature: 0.1
       max-output-tokens: 4096
       google-search-retrieval-enabled: ${ARC_REACTOR_LLM_GOOGLE_SEARCH_RETRIEVAL_ENABLED:false}

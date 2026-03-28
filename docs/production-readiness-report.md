@@ -1698,3 +1698,36 @@ WITH (m = 16, ef_construction = 64);
 **발견**: P0 — 비용 추적 전면 미작동 (provider vs modelId 키 불일치)
 **수정**: 없음 (3파일 수정 필요, 다음 Round에서 1개 수정)
 **커밋**: 보고서 업데이트
+
+### Round 42 — 2026-03-28T14:00+09:00
+
+**렌즈**: 성능 8순환 + **비용 추적 모델 키 수정**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 (--rerun-tasks) |
+| Health | UP | 200 |
+| 채팅 avg | 1,361ms | 안정 |
+| Guard avg | 32ms | 안정 |
+
+**코드 수정 — 비용 추적 모델 키 불일치 수정:**
+
+1. `AgentProperties.kt` — `LlmProperties.defaultModel` 필드 추가
+2. `SpringAiAgentExecutor.kt:515` — `command.model ?: properties.llm.defaultModel ?: provider` 우선순위 체인
+3. `application.yml` — `default-model: gemini-2.5-flash` 기본값 설정
+
+```kotlin
+// Before (provider 별칭 "gemini" → CostCalculator에서 0.0 반환)
+hookContext.metadata.putIfAbsent("model", command.model ?: provider)
+
+// After (모델 ID "gemini-2.5-flash" → CostCalculator에서 정상 비용 반환)
+val modelId = command.model ?: properties.llm.defaultModel ?: provider
+hookContext.metadata.putIfAbsent("model", modelId)
+```
+
+**영향**: 서버 재시작 후 `calculateCost("gemini-2.5-flash", ...)` → DEFAULT_PRICING 정상 매칭 → MonthlyBudgetTracker/CostAnomalyDetector 활성화
+
+**발견**: R41에서 발견된 P0 비용 추적 미작동 — 코드 수정 완료
+**수정**: AgentProperties + SpringAiAgentExecutor + application.yml
+**커밋**: 비용 추적 모델 키 수정

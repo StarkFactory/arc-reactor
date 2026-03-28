@@ -512,7 +512,10 @@ class SpringAiAgentExecutor(
     /** HookContext 메타데이터에 모델/프로바이더 정보를 설정합니다. */
     private fun enrichMetadataWithModelInfo(hookContext: HookContext, command: AgentCommand) {
         val provider = chatModelProvider?.defaultProvider() ?: properties.llm.defaultProvider
-        hookContext.metadata.putIfAbsent("model", command.model ?: provider)
+        val modelId = command.model
+            ?: properties.llm.defaultModel
+            ?: provider
+        hookContext.metadata.putIfAbsent("model", modelId)
         hookContext.metadata.putIfAbsent("provider", provider)
     }
 

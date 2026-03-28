@@ -152,6 +152,9 @@ data class LlmProperties(
     /** 기본 LLM 프로바이더 (예: "gemini", "openai", "anthropic") */
     val defaultProvider: String = "gemini",
 
+    /** 기본 LLM 모델 ID (비용 추적에 사용). 미지정 시 defaultProvider를 폴백으로 사용. */
+    val defaultModel: String? = null,
+
     /** 기본 temperature (0에 가까울수록 결정적) */
     val temperature: Double = 0.1,
 
